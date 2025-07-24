@@ -1,0 +1,14 @@
+{
+  "nofs-dnn1": {
+    "name": "nofs-dnn1",
+    "dag": {
+      "dnn1": []
+    }
+  },
+  "nofs-dnn2": {
+    "name": "nofs-dnn2",
+    "dag": {
+      "dnn2": []
+    }
+  }
+}
