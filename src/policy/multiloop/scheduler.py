@@ -120,9 +120,26 @@ class MultiLoopScheduler(Scheduler):
             start = default_timer()
 
             # Schedule task according to policy
-            (sched_node, sched_platform) = yield self.env.process(
+            placement_result = yield self.env.process(
                 self.placement(system_state, task)
             )
+
+            # Check if placement was successful
+            if placement_result is None:
+                # No valid replicas available - postpone task and request scaling
+                task.postponed_count += 1
+                yield self.tasks.put(task)
+                
+                # Request a new replica from the Autoscaler
+                stop = yield self.env.process(
+                    self.autoscaler.create_first_replica(system_state, task.type)
+                )
+                
+                # Next event
+                self.env.step()
+                continue
+
+            sched_node, sched_platform = placement_result
 
             # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)
@@ -161,7 +178,7 @@ class MultiLoopScheduler(Scheduler):
 
 
 
-    def placement(self, system_state: SystemState, task: Task) -> Generator[Any, Any, Tuple[Node, Platform]]:
+    def placement(self, system_state: SystemState, task: Task) -> Generator[Any, Any, Optional[Tuple[Node, Platform]]]:
         # Scheduling functions called in a Simpy Process must be Generators
         # No-op as per https://stackoverflow.com/a/68628599/9568489
         if False:
@@ -169,12 +186,80 @@ class MultiLoopScheduler(Scheduler):
 
         replicas: Set[Tuple[Node, Platform]] = system_state.replicas[task.type["name"]]
 
+        # Get valid replicas: task's source node + server nodes
+        valid_replicas = self._get_valid_replicas(replicas, task)
+
+        # Check if we have any valid replicas
+        if not valid_replicas:
+            # No valid replicas available - this should trigger scaling from zero
+            # Return None to indicate no placement possible
+            print(f"[ {self.env.now} ] ERROR: No valid replicas for task {task.id} ({task.type['name']})")
+            return None
+
         # Least Connected
         bounded_concurrency = min(
-            replicas, key=lambda couple: len(couple[1].queue.items)
+            valid_replicas, key=lambda couple: len(couple[1].queue.items)
         )
 
         print(f"task: {task.id}")
         print(f"bounded_concurrency: {bounded_concurrency}")
 
         return bounded_concurrency
+
+    def _get_valid_replicas(self, replicas: Set[Tuple[Node, Platform]], task: Task) -> List[Tuple[Node, Platform]]:
+        """Get valid replicas: task's source node + server nodes with network connectivity"""
+        # Debug header
+        try:
+            task_type_name = task.type["name"]
+        except Exception:
+            task_type_name = "unknown"
+        print(
+            f"[ {self.env.now} ] DEBUG: _get_valid_replicas task={task.id} src={task.node_name} type={task_type_name} candidates={len(replicas)}"
+        )
+
+        valid_replicas = []
+        kept_local = 0
+        kept_server_connected = 0
+        skipped_client_other = 0
+        skipped_no_connectivity = 0
+
+        for node, platform in replicas:
+            # Include if it's the task's source node (local execution)
+            if node.node_name == task.node_name:
+                valid_replicas.append((node, platform))
+                kept_local += 1
+            # Include if it's a server node AND has network connectivity to task source
+            elif not node.node_name.startswith('client_node'):
+                # Check if this node has network connectivity to the task's source node
+                if hasattr(node, 'network_map') and task.node_name in node.network_map:
+                    valid_replicas.append((node, platform))
+                    kept_server_connected += 1
+                else:
+                    skipped_no_connectivity += 1
+            else:
+                skipped_client_other += 1
+        
+        # Never fall back to client nodes - only allow source node or connected server nodes
+        if not valid_replicas:
+            # If no valid replicas, only allow local execution on source node
+            source_replicas = [(node, platform) for node, platform in replicas if node.node_name == task.node_name]
+            if source_replicas:
+                print(
+                    f"[ {self.env.now} ] DEBUG: _get_valid_replicas fallback to local-only: {len(source_replicas)}"
+                )
+                return source_replicas
+            else:
+                print(
+                    f"[ {self.env.now} ] DEBUG: _get_valid_replicas no valid replicas (kept_local={kept_local}, kept_server_connected={kept_server_connected}, skipped_client_other={skipped_client_other}, skipped_no_connectivity={skipped_no_connectivity})"
+                )
+                # Last resort: return empty list (will cause scaling from zero)
+                return []
+        
+        # Debug footer with a small sample of chosen nodes
+        chosen_nodes = [n.node_name for (n, _) in valid_replicas]
+        sample = chosen_nodes[:5]
+        print(
+            f"[ {self.env.now} ] DEBUG: _get_valid_replicas selected={len(valid_replicas)} (local={kept_local}, server_connected={kept_server_connected}, skipped_client_other={skipped_client_other}, skipped_no_connectivity={skipped_no_connectivity}) sample={sample}"
+        )
+
+        return valid_replicas
