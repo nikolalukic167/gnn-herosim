@@ -13,7 +13,8 @@ import concurrent.futures
 import json
 from pathlib import Path
 
-import numpy as np
+import numpy as np  # type: ignore[import-not-found]
+from itertools import islice
 
 # Assuming increase_events is imported from your previous script
 from src.eventgenerator import increase_events_of_app
@@ -356,7 +357,8 @@ def determine_replica_placement(
         'preinit_clients': preinit_clients,
         'preinit_servers': preinit_servers,
         'preinit_task_types': preinit_task_types,
-        'replicas_config': replicas_config
+        'replicas_config': replicas_config,
+        'prewarm_config': infrastructure.get('prewarm', {})
     }
     
     print(f"Replica placement plan created")
@@ -397,8 +399,6 @@ def prepare_simulation_config(
         "preinit": original_config.get('preinit', {}),
         "replicas": original_config.get('replicas', {}),
         "scheduler": original_config.get('scheduler', {}),
-        # Propagate contention configuration
-        "startup_simulation": original_config.get('startup_simulation', {})
     }
 
     if base_nodes is not None and len(base_nodes) > 0:
@@ -446,11 +446,8 @@ def prepare_simulation_config(
     if replica_plan is not None:
         infrastructure_config['replica_plan'] = replica_plan
 
-    # --- NEW: attach contention traces for runtime slowdowns ---
-    startup_cfg = original_config.get('startup_simulation', {})
-    # length hint: workload stats if available else fallback
-    sim_duration_hint = float(startup_cfg.get('runtime', {}).get('duration_hint', 60))
-    infrastructure_config['contention_traces'] = build_contention_traces(infrastructure_config['nodes'], startup_cfg, sim_duration_hint)
+    # Add prewarm configuration
+    infrastructure_config['prewarm'] = original_config.get('prewarm', {})
 
     return infrastructure_config
 
@@ -539,155 +536,13 @@ def flatten_workloads(workloads: Dict[str, Dict]) -> Dict[str, Any]:
         "events": sorted_events
     }
 
-def calculate_resource_contention(
-        platform_info: Dict[str, Any],
-        contention_config: Dict[str, Any]
-) -> float:
-    """
-    Calculate resource contention score for a platform based on configuration.
-    
-    Args:
-        platform_info: Platform information including node and platform details
-        contention_config: Resource contention configuration from infrastructure
-    
-    Returns:
-        Contention score between 0.0 (no contention) and 1.0 (high contention)
-    """
-    if not contention_config.get('simulate_contention', False):
-        return 0.0
-    
-    # Base contention from configuration
-    memory_fragmentation = contention_config.get('memory_fragmentation', 0.0)
-    platform_utilization = contention_config.get('platform_utilization', 0.0)
-    background_tasks = contention_config.get('background_tasks', 0)
-    
-    # Calculate contention based on platform type and node characteristics
-    platform_type = platform_info.get('platform_type', 'unknown')
-    
-    # Different contention levels for different platform types
-    platform_contention_multiplier = {
-        'rpiCpu': 1.2,      # Raspberry Pi CPUs are more resource-constrained
-        'xavierCpu': 1.0,   # Xavier CPUs have moderate contention
-        'xavierGpu': 0.8,   # GPUs typically have less contention
-        'xavierDla': 0.9,   # DLA has moderate contention
-        'pynqFpga': 1.1     # FPGA has slightly higher contention
-    }
-    
-    multiplier = platform_contention_multiplier.get(platform_type, 1.0)
-    
-    # Calculate total contention score
-    contention_score = (
-        memory_fragmentation * 0.4 +  # Memory fragmentation impact
-        platform_utilization * 0.4 +  # Platform utilization impact
-        min(background_tasks * 0.05, 0.2)  # Background tasks impact (capped at 0.2)
-    ) * multiplier
-    
-    # Ensure score is between 0.0 and 1.0
-    return min(max(contention_score, 0.0), 1.0)
-
-
-def _gen_ou_trace(n_steps: int, x0: float, mu: float, theta: float, sigma: float) -> List[float]:
-    """Generate Ornstein-Uhlenbeck process trace for time-varying contention."""
-    import random
-    x = x0
-    out = []
-    for _ in range(n_steps):
-        # Euler-Maruyama discretization of OU: dx = theta*(mu-x)*dt + sigma*sqrt(dt)*N(0,1)
-        z = random.gauss(0, 1)
-        x = x + theta * (mu - x) + sigma * z
-        out.append(max(0.0, min(1.0, x)))
-    return out
-
-
-def build_contention_traces(nodes: List[Dict[str, Any]], startup_cfg: Dict[str, Any], sim_duration: float) -> Dict[str, Dict[int, List[float]]]:
-    """
-    Build time-varying contention traces for all platforms.
-    
-    Returns: { node_name: { platform_id: [score_t0, score_t1, ...] } }
-    score in [0..1]. tick size defined by startup_cfg['runtime']['tick'] (default 0.5s)
-    """
-    if not startup_cfg.get('simulate_contention', False):
-        return {}
-
-    rt = startup_cfg.get('runtime', {})
-    tick = float(rt.get('tick', 0.5))
-    n_steps = max(1, int(sim_duration / tick))
-    mode = rt.get('mode', 'static')
-    ou = rt.get('ou', {})
-    per_ptype = rt.get('per_platform_type', {})
-    base_mem = float(startup_cfg.get('memory_fragmentation', 0.0))
-    base_util = float(startup_cfg.get('platform_utilization', 0.0))
-    base_bg = float(startup_cfg.get('background_tasks', 0))
-
-    traces: Dict[str, Dict[int, List[float]]] = {}
-    pid = 0
-    import random
-
-    for n in nodes:
-        node_name = n['node_name']
-        traces[node_name] = {}
-        for ptype in n.get('platforms', []):
-            # baseline from static knobs (reuse existing weighting)
-            baseline = min(max(0.4*base_mem + 0.4*base_util + min(0.05*base_bg, 0.2), 0.0), 1.0)
-            if mode == 'static':
-                series = [baseline] * n_steps
-            elif mode == 'step':
-                # step up mid-sim to mimic bursts
-                series = [baseline]* (n_steps//2) + [min(1.0, baseline+0.25)]*(n_steps - n_steps//2)
-            else:
-                # 'ou' – mean-reverting noise around mu; weight baseline a bit
-                theta = float(ou.get('theta', 1.2))
-                mu = float(ou.get('mu', 0.35))
-                sigma = float(ou.get('sigma', 0.2))
-                x0 = float(ou.get('x0', 0.25))
-                series = _gen_ou_trace(n_steps, x0, mu, theta, sigma)
-                # blend with baseline mildly
-                series = [min(1.0, max(0.0, 0.7*s + 0.3*baseline)) for s in series]
-
-            traces[node_name][pid] = series
-            pid += 1
-
-    # carry through the tick & per_platform_type so runtime knows how to read/scale
-    traces['meta'] = {'tick': tick, 'per_platform_type': per_ptype, 'burst': rt.get('burst', {'q_len':3,'penalty':0.15})}
-    
-    # Debug: log trace generation
-    total_platforms = sum(len(node_traces) for node_traces in traces.values() if isinstance(node_traces, dict))
-    print(f"[CONTENTION] Generated traces for {total_platforms} platforms, mode={mode}, tick={tick}s")
-    
-    return traces
-
-
-def is_platform_feasible_with_contention(
-        platform_info: Dict[str, Any],
-        contention_config: Dict[str, Any],
-        max_contention_threshold: float = 0.8
-) -> bool:
-    """
-    Check if a platform is feasible considering resource contention.
-    
-    Args:
-        platform_info: Platform information
-        contention_config: Resource contention configuration
-        max_contention_threshold: Maximum allowed contention score (0.0-1.0)
-    
-    Returns:
-        True if platform is feasible, False otherwise
-    """
-    if not contention_config.get('simulate_contention', False):
-        return True
-    
-    contention_score = calculate_resource_contention(platform_info, contention_config)
-    return contention_score <= max_contention_threshold
-
 
 def generate_brute_force_placement_combinations(
         workload_events: List[Dict],
         infrastructure_config: Dict[str, Any],
         sim_inputs: Dict[str, Any],
         replica_plan: Dict[str, Any],
-        max_combinations: Optional[int] = 100,
-        enable_resource_contention: bool = True,
-        max_contention_threshold: float = 0.8
+        max_combinations: Optional[int] = 100
 ) -> List[Dict[int, Tuple[int, int]]]:
     """
     Generate all possible placement combinations for tasks, limited by max_combinations.
@@ -701,16 +556,11 @@ def generate_brute_force_placement_combinations(
         sim_inputs: Simulation inputs containing task_types and platform_types
         replica_plan: Replica placement plan
         max_combinations: Maximum number of placement combinations to generate
-        enable_resource_contention: Whether to consider resource contention in feasibility
-        max_contention_threshold: Maximum allowed contention score (0.0-1.0)
     
     Returns:
         List of placement plans, each mapping task_id to (node_id, platform_id) tuple
     """
     print(f"\n=== Generating Brute Force Placement Combinations (max: {max_combinations if max_combinations is not None else 'ALL'}) ===")
-    print(f"Resource contention enabled: {enable_resource_contention}")
-    if enable_resource_contention:
-        print(f"Max contention threshold: {max_contention_threshold}")
     
     # Get task types and platform types
     task_types = sim_inputs['task_types']
@@ -718,11 +568,6 @@ def generate_brute_force_placement_combinations(
     
     # Get nodes from infrastructure
     nodes = infrastructure_config['nodes']
-    
-    # Get resource contention configuration
-    contention_config = infrastructure_config.get('startup_simulation', {})
-    if enable_resource_contention and contention_config.get('simulate_contention', False):
-        print(f"Resource contention config: {contention_config}")
     
     # Create node_id mapping
     node_id_map = {node['node_name']: i for i, node in enumerate(nodes)}
@@ -844,7 +689,7 @@ def generate_brute_force_placement_combinations(
             # Get available platforms for this task type
             task_platforms = available_platforms.get(task_type_name, [])
             
-            # Filter platforms based on network connectivity and resource contention
+            # Filter platforms based on network connectivity
             feasible_platforms = []
             for platform_info in task_platforms:
                 node_name = platform_info['node_name']
@@ -860,20 +705,8 @@ def generate_brute_force_placement_combinations(
                     if node_config and source_node_name in node_config.get('network_map', {}):
                         is_network_feasible = True
                 
-                # Rule 2: Check resource contention (if enabled)
-                is_contention_feasible = True
-                if is_network_feasible and enable_resource_contention:
-                    platform_info_with_type = platform_info.copy()
-                    platform_info_with_type['platform_type'] = platform_info.get('platform_type', 'unknown')
-                    platform_info_with_type['node_name'] = node_name
-                    
-                    if not is_platform_feasible_with_contention(platform_info_with_type, contention_config, max_contention_threshold):
-                        is_contention_feasible = False
-                        contention_score = calculate_resource_contention(platform_info_with_type, contention_config)
-                        print(f"    Platform {platform_info['platform_id']} on {node_name} rejected due to high contention: {contention_score:.3f}")
-                
                 # Both rules must pass
-                if is_network_feasible and is_contention_feasible:
+                if is_network_feasible:
                     feasible_platforms.append(platform_info)
             
             if feasible_platforms:
@@ -1081,9 +914,7 @@ def execute_brute_force_placement_optimization(
         sim_input_path: Path,
         workload_base_file: str,
         max_workers: int,
-        max_combinations: Optional[int] = 100,
-        enable_resource_contention: bool = True,
-        max_contention_threshold: float = 0.8
+        max_combinations: Optional[int] = 100
 ) -> List[str]:
     """
     Execute brute force placement optimization by testing different placement combinations.
@@ -1109,6 +940,9 @@ def execute_brute_force_placement_optimization(
 
     time_started = time.time()
     result_paths = []
+    # Track all RTTs across all placement combinations for plotting at the end
+    all_rtts = []
+    per_sample_rtts = []
     
     # Process each sample with multiple placement combinations
     for sample_idx, sample in enumerate(samples):
@@ -1143,9 +977,7 @@ def execute_brute_force_placement_optimization(
                 sim_config,
                 sim_inputs,
                 replica_plan,
-                max_combinations,
-                enable_resource_contention,
-                max_contention_threshold
+                max_combinations
             )
             
             print(f"Generated {len(placement_combinations)} placement combinations for sample {sample_idx + 1}")
@@ -1155,15 +987,42 @@ def execute_brute_force_placement_optimization(
                 print(f"   This sample will be skipped")
                 continue
             
-            # Execute simulations in parallel for this sample
+            # Execute simulations in parallel for this sample with early stopping
+            # Early-stopping config from infra JSON (optional)
+            bf_cfg = infra_config.get('brute_force', {}) if isinstance(infra_config, dict) else {}
+            early_stop_patience = int(bf_cfg.get('early_stop_patience', 0))  # 0 disables
+            early_stop_min_delta = float(bf_cfg.get('early_stop_min_delta', 0.0))
+
+            base_nodes = sim_config['nodes']
+
+            def _total_rtt(path: str) -> float:
+                try:
+                    with open(path, 'r') as f:
+                        data = json.load(f)
+                    stats = data.get('stats', {})
+                    task_results = stats.get('taskResults', [])
+                    if not task_results:
+                        return float('inf')
+                    return float(sum(tr.get('elapsedTime', 0) for tr in task_results))
+                except Exception:
+                    return float('inf')
+
+            # Iterate placement combinations in batches to allow early stopping
+            placements_iter = iter(placement_combinations)
+            best_file: Optional[str] = None
+            best_rtt: float = float('inf')
+            no_improve_count = 0
+            sample_rtts = []
+
             with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-                # Create arguments for each valid placement combination
-                placement_tuples = []
-                base_nodes = sim_config['nodes']
-                for placement_plan in placement_combinations:
-                    # Reuse the same node topology and precomputed artifacts
-                    placement_tuples.append(
-                        (
+                while True:
+                    batch = list(islice(placements_iter, max_workers))
+                    if not batch:
+                        break
+
+                    futures = []
+                    for placement_plan in batch:
+                        placement_tuple = (
                             sample_idx,
                             sample,
                             placement_plan,
@@ -1176,59 +1035,51 @@ def execute_brute_force_placement_optimization(
                             replica_plan,
                             apps,
                         )
-                    )
+                        futures.append(executor.submit(process_sample_with_placement, placement_tuple))
 
-                # Submit all tasks
-                future_to_placement = {
-                    executor.submit(process_sample_with_placement, placement_tuple): placement_tuple 
-                    for placement_tuple in placement_tuples
-                }
+                    # Collect this batch
+                    batch_improved = False
+                    for future in concurrent.futures.as_completed(futures):
+                        result_file = future.result()
+                        if result_file is None:
+                            continue
+                        current_path = str(result_file)
+                        cur_rtt_value = _total_rtt(current_path)
+                        sample_rtts.append(cur_rtt_value)
 
-                # Keep only the best (by total RTT) per sample to save storage
-                last_saved_file: Optional[str] = None
+                        if cur_rtt_value + early_stop_min_delta < best_rtt:
+                            # New best: remove previous best file
+                            if best_file is not None and os.path.exists(best_file):
+                                try:
+                                    os.remove(best_file)
+                                except Exception:
+                                    pass
+                            best_file = current_path
+                            best_rtt = cur_rtt_value
+                            batch_improved = True
+                        else:
+                            # Not better => delete file to save storage
+                            try:
+                                os.remove(current_path)
+                            except Exception:
+                                pass
 
-                def _total_rtt(path: str) -> float:
-                    try:
-                        with open(path, 'r') as f:
-                            data = json.load(f)
-                        stats = data.get('stats', {})
-                        task_results = stats.get('taskResults', [])
-                        if not task_results:
-                            return float('inf')
-                        return float(sum(tr.get('elapsedTime', 0) for tr in task_results))
-                    except Exception:
-                        return float('inf')
+                    if early_stop_patience > 0:
+                        if batch_improved:
+                            no_improve_count = 0
+                        else:
+                            no_improve_count += 1
+                            if no_improve_count >= early_stop_patience:
+                                print(f"Early stopping triggered after {no_improve_count} non-improving batches. Best RTT so far: {best_rtt:.3f}s")
+                                break
 
-                # Collect results: compare with last saved and delete worse
-                for future in concurrent.futures.as_completed(future_to_placement):
-                    result_file = future.result()
-                    if result_file is None:
-                        continue
-
-                    current_path = str(result_file)
-                    if last_saved_file is None:
-                        last_saved_file = current_path
-                        continue
-
-                    cur_rtt = _total_rtt(current_path)
-                    prev_rtt = _total_rtt(last_saved_file)
-
-                    # Keep the better one; delete the worse to control storage
-                    if cur_rtt < prev_rtt:
-                        try:
-                            os.remove(last_saved_file)
-                        except Exception:
-                            pass
-                        last_saved_file = current_path
-                    else:
-                        try:
-                            os.remove(current_path)
-                        except Exception:
-                            pass
-
-                # Record the surviving best file for this sample
-                if last_saved_file is not None:
-                    result_paths.append(last_saved_file)
+            # Record the surviving best file for this sample
+            if best_file is not None:
+                result_paths.append(best_file)
+            # Persist per-sample RTTs for final plotting
+            if sample_rtts:
+                per_sample_rtts.append(sample_rtts)
+                all_rtts.extend(sample_rtts)
 
             print(f"Completed {len(placement_combinations)} simulations for sample {sample_idx + 1} (kept 1 best file)")
             
@@ -1240,6 +1091,50 @@ def execute_brute_force_placement_optimization(
 
     print(f"\n=== Brute Force Placement Optimization Complete ===")
     print(f"Total result files generated: {len(result_paths)}")
+    # Plot RTT distributions to a PDF
+    if all_rtts:
+        try:
+            import matplotlib  # type: ignore[import-not-found]
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+            from matplotlib.backends.backend_pdf import PdfPages  # type: ignore[import-not-found]
+
+            pdf_path = output_dir / "rtt_summary.pdf"
+            with PdfPages(pdf_path) as pdf:
+                # Page 1: Overall histogram
+                plt.figure(figsize=(10, 6))
+                finite_rtts = [r for r in all_rtts if math.isfinite(r)]
+                if finite_rtts:
+                    plt.hist(finite_rtts, bins=min(50, max(10, len(finite_rtts)//5)), color='#4C78A8', edgecolor='white')
+                    plt.title('RTT Histogram (All Placement Runs)')
+                    plt.xlabel('Total RTT (s)')
+                    plt.ylabel('Count')
+                    plt.grid(True, alpha=0.3)
+                else:
+                    plt.text(0.5, 0.5, 'No finite RTT values to plot', ha='center', va='center')
+                    plt.axis('off')
+                pdf.savefig(bbox_inches='tight')
+                plt.close()
+
+                # Page 2: Per-sample boxplot
+                if per_sample_rtts:
+                    plt.figure(figsize=(12, 6))
+                    data = [
+                        [r for r in sample if math.isfinite(r)] or [float('nan')]
+                        for sample in per_sample_rtts
+                    ]
+                    plt.boxplot(data, showfliers=False)
+                    plt.title('Per-Sample RTT Distribution (Boxplot)')
+                    plt.xlabel('Sample Index')
+                    plt.ylabel('Total RTT (s)')
+                    plt.grid(True, axis='y', alpha=0.3)
+                    pdf.savefig(bbox_inches='tight')
+                    plt.close()
+            print(f"Saved RTT summary PDF to {pdf_path}")
+        except Exception as e:
+            print(f"Matplotlib not available or plotting failed, skipping PDF: {str(e)}")
+    else:
+        print("No RTTs collected; skipping PDF generation")
     
     # Analyze results to find the fastest simulation
     print(f"\n=== Analyzing Results for Fastest Simulation ===")
@@ -1335,11 +1230,7 @@ def main():
         # Choose between regular execution and brute force placement optimization
         use_brute_force = len(sys.argv) > 1 and sys.argv[1] == '--brute-force'
         max_combinations: Optional[int] = 50  # Default cap; None means all
-        # Contention settings now come from JSON (infra_config['startup_simulation'])
-        startup_cfg = infra_config.get('startup_simulation', {})
-        enable_resource_contention = bool(startup_cfg.get('simulate_contention', False))
-        max_contention_threshold = float(startup_cfg.get('contention_threshold', 0.8))
-        
+
         # Parse command line arguments (only max_combinations)
         if use_brute_force:
             if len(sys.argv) == 2:
@@ -1353,11 +1244,9 @@ def main():
         
         if use_brute_force:
             logger.info(f"Using brute force placement optimization with max {max_combinations if max_combinations is not None else 'ALL'} combinations per sample")
-            logger.info(f"Resource contention (from JSON): enabled={enable_resource_contention}, threshold={max_contention_threshold}")
             reactive_results_paths = execute_brute_force_placement_optimization(
                 apps, str(config_file), str(mapping_file), output_dir, samples,
-                sim_input_path, workload_base_file, max_workers, max_combinations,
-                enable_resource_contention, max_contention_threshold
+                sim_input_path, workload_base_file, max_workers, max_combinations
             )
 
         # print(reactive_results_paths)
