@@ -146,18 +146,19 @@
     },
     "topology": {
       "type": "sparse",
-      "connection_probability": 0.05,
+      "connection_probability": 0.15,
       "edges": [],
       "seed": 42
     }
   },
   "brute_force": {
     "early_stop_patience": 100,
-    "early_stop_min_delta": 0.0
+    "early_stop_min_delta": 0.0,
+    "save_only_optimal": true
   },
   "preinit": {
-    "client_percentage": 0.5,
-    "server_percentage": 0.8,
+    "client_percentage": 0.6,
+    "server_percentage": 0.9,
     "task_types": [
       "dnn1",
       "dnn2"
@@ -165,11 +166,11 @@
   },
   "replicas": {
     "dnn1": {
-      "per_server": 2,
+      "per_server": 1,
       "per_client": 2
     },
     "dnn2": {
-      "per_server": 2,
+      "per_server": 1,
       "per_client": 2
     }
   },
@@ -177,12 +178,12 @@
     "dnn1": {
       "per_server": 2,
       "per_client": 1,
-      "initial_queue": 24
+      "initial_queue": 16
     },
     "dnn2": {
       "per_server": 1,
       "per_client": 0,
-      "initial_queue": 24
+      "initial_queue": 16
     }
   },
   "startup_simulation": {
