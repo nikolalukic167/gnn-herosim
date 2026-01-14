@@ -74,7 +74,7 @@ REGRET_LOSS_WEIGHT = 0.1  # β in Loss = α*CE + β*Regret (start small)
 CE_LOSS_WEIGHT = 1.0  # α
 
 # Negative sampling: probability of sampling from hash table vs random
-VALID_NEGATIVE_PROB = 1.0  # 70% valid negatives from hash table
+VALID_NEGATIVE_PROB = 0  # 70% valid negatives from hash table
 
 # %%
 # ============================================================================
@@ -718,6 +718,8 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
     sum_regret = 0.0
     sum_regret_pct = 0.0
     count_regret = 0
+    count_hash_hits = 0  # How often decoded placement is found in RTT hash table
+    count_hash_attempts = 0  # How often we tried to look up
 
     for batch in tqdm(loader, desc="Evaluating", leave=is_last_epoch):
         graphs_in_batch = batch.to_data_list()
@@ -779,9 +781,11 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
                     combo_tuple = decode_inference_placement(logits_per_task, data)
                     if combo_tuple is not None:
                         hash_key = (dataset_id, combo_tuple)
+                        count_hash_attempts += 1
                         pred_rtt = placement_rtt_hash_table.get(hash_key)
                         opt_rtt = optimal_rtt_map.get(dataset_id)
                         if pred_rtt is not None and opt_rtt is not None:
+                            count_hash_hits += 1
                             regret = float(pred_rtt - opt_rtt)
                             regret_pct = (regret / opt_rtt) * 100.0 if opt_rtt > 0 else 0.0
                             sum_regret += regret
@@ -792,10 +796,12 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
     acc = correct_graphs / max(1, total_graphs)
     regret = sum_regret / max(1, count_regret)
     regret_pct = sum_regret_pct / max(1, count_regret)
+    hash_hit_rate = count_hash_hits / max(1, count_hash_attempts)
     
     print(f"\n[Evaluation] Graphs: {total_graphs}, Correct: {correct_graphs} ({acc*100:.1f}%)")
     print(f"  Per-task accuracy: {total_tasks_correct}/{total_tasks} ({total_tasks_correct/max(1,total_tasks)*100:.1f}%)")
     print(f"  Regret calculations: {count_regret}, Avg regret: {regret:.4f}s ({regret_pct:.2f}%)")
+    print(f"  Hash hit rate: {count_hash_hits}/{count_hash_attempts} ({hash_hit_rate*100:.1f}%)")
     
     return {
         'ce': avg_loss_ce,
@@ -803,6 +809,7 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
         'regret': regret,
         'regret_pct': regret_pct,
         'count_regret': count_regret,
+        'hash_hit_rate': hash_hit_rate,
     }
 
 
@@ -967,6 +974,7 @@ for epoch in range(EPOCHS):
         "val/regret": val_metrics['regret'],
         "val/regret_pct": val_metrics['regret_pct'],
         "val/count_regret": val_metrics['count_regret'],
+        "val/hash_hit_rate": val_metrics['hash_hit_rate'],
         "lr": optimizer.param_groups[0]["lr"],
     }
     wandb.log(log_dict, step=epoch)
@@ -1021,14 +1029,17 @@ wandb.log({
     "final/train/acc": train_metrics['acc'],
     "final/train/regret": train_metrics['regret'],
     "final/train/regret_pct": train_metrics['regret_pct'],
+    "final/train/hash_hit_rate": train_metrics['hash_hit_rate'],
     "final/val/loss_ce": val_metrics_final['ce'],
     "final/val/acc": val_metrics_final['acc'],
     "final/val/regret": val_metrics_final['regret'],
     "final/val/regret_pct": val_metrics_final['regret_pct'],
+    "final/val/hash_hit_rate": val_metrics_final['hash_hit_rate'],
     "final/test/loss_ce": test_metrics['ce'],
     "final/test/acc": test_metrics['acc'],
     "final/test/regret": test_metrics['regret'],
     "final/test/regret_pct": test_metrics['regret_pct'],
+    "final/test/hash_hit_rate": test_metrics['hash_hit_rate'],
 })
 
 wandb.summary["train_dataset_ids"] = train_ids
