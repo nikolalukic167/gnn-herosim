@@ -83,40 +83,21 @@ if TASK_COUNT_DIST:
 # GNN MODEL (same as before)
 # ============================================================================
 
-class TaskEncoder(nn.Module):
-    """2-layer MLP encoder for task features with LayerNorm for training stability."""
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super().__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.norm1 = nn.LayerNorm(hidden_dim)
-        self.dropout = nn.Dropout(p=0.1)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
-    
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.norm1(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return x
+class MLPEncoder(nn.Module):
+    """Generic 2-layer MLP encoder with LayerNorm."""
 
-
-class PlatformEncoder(nn.Module):
-    """2-layer MLP encoder for platform features with LayerNorm for training stability."""
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout_p=0.1):
         super().__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.norm1 = nn.LayerNorm(hidden_dim)
-        self.dropout = nn.Dropout(p=0.1)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
-    
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(p=dropout_p),
+            nn.Linear(hidden_dim, output_dim),
+        )
+
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.norm1(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return x
+        return self.net(x)
 
 
 class EdgeScorer(nn.Module):
@@ -147,8 +128,8 @@ class TaskPlacementGNN(nn.Module):
         super().__init__()
         
         self.embedding_dim = embedding_dim
-        self.task_encoder = TaskEncoder(task_feature_dim, hidden_dim, embedding_dim)
-        self.platform_encoder = PlatformEncoder(platform_feature_dim, hidden_dim, embedding_dim)
+        self.task_encoder = MLPEncoder(task_feature_dim, hidden_dim, embedding_dim)
+        self.platform_encoder = MLPEncoder(platform_feature_dim, hidden_dim, embedding_dim)
         
         self.gin = GIN(
             in_channels=embedding_dim,
@@ -547,6 +528,54 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
     # Per-task-count statistics (for merged datasets)
     per_task_count_stats = {}  # {n_tasks: {correct: int, total: int, regret_sum: float, regret_count: int}}
 
+    def _ensure_task_bucket(task_count: int) -> None:
+        if task_count not in per_task_count_stats:
+            per_task_count_stats[task_count] = {
+                'correct': 0, 'total': 0, 'regret_sum': 0.0, 'regret_count': 0
+            }
+
+    def _update_accuracy_counts(data_obj, logits_per_task_obj):
+        graph_all_correct = True
+        graph_valid_tasks = 0
+        local_total_tasks = 0
+        local_tasks_correct = 0
+
+        for task_idx, task_logits in enumerate(logits_per_task_obj):
+            if task_logits.numel() == 0:
+                continue
+
+            target = data_obj.y[task_idx].long()
+            if target.ndim == 0:
+                target = target.unsqueeze(0)
+            if target.item() < 0 or target.item() >= task_logits.size(0):
+                continue
+
+            pred = task_logits.argmax().item()
+            is_correct = int(pred == target.item())
+            local_tasks_correct += is_correct
+            local_total_tasks += 1
+            graph_valid_tasks += 1
+            if not is_correct:
+                graph_all_correct = False
+
+        graph_correct = int(graph_all_correct and graph_valid_tasks == data_obj.n_tasks)
+        return local_tasks_correct, local_total_tasks, graph_correct
+
+    def _compute_regret_metrics(dataset_id_obj, n_tasks_obj, data_obj, logits_per_task_obj):
+        if not dataset_id_obj or dataset_id_obj not in optimal_rtt_map:
+            return None
+        combo_tuple = decode_inference_placement(logits_per_task_obj, data_obj)
+        if combo_tuple is None:
+            return None
+        hash_key = (dataset_id_obj, combo_tuple)
+        pred_rtt = placement_rtt_hash_table.get(hash_key)
+        opt_rtt = optimal_rtt_map.get(dataset_id_obj)
+        if pred_rtt is None or opt_rtt is None:
+            return None
+        regret_val = float(pred_rtt - opt_rtt)
+        regret_pct_val = (regret_val / opt_rtt) * 100.0 if opt_rtt > 0 else 0.0
+        return regret_val, regret_pct_val, n_tasks_obj
+
     for batch in tqdm(loader, desc="Evaluating", leave=is_last_epoch):
         graphs_in_batch = batch.to_data_list()
         graphs_in_batch = restore_custom_attrs(batch, graphs_in_batch)
@@ -572,57 +601,23 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
                 total_valid_tasks += valid_ce
                 total_graphs += 1
 
-                # Initialize per-task-count stats if needed
-                if n_tasks not in per_task_count_stats:
-                    per_task_count_stats[n_tasks] = {
-                        'correct': 0, 'total': 0, 'regret_sum': 0.0, 'regret_count': 0
-                    }
-
-                # Accuracy: per-task argmax over logits
-                graph_all_correct = True
-                graph_valid_tasks = 0
-                
-                for task_idx, task_logits in enumerate(logits_per_task):
-                    if task_logits.numel() == 0:
-                        continue
-
-                    target = data.y[task_idx].long()
-                    if target.ndim == 0:
-                        target = target.unsqueeze(0)
-                    if target.item() < 0 or target.item() >= task_logits.size(0):
-                        continue
-
-                    pred = task_logits.argmax().item()
-                    is_correct = int(pred == target.item())
-                    total_tasks_correct += is_correct
-                    total_tasks += 1
-                    graph_valid_tasks += 1
-                    
-                    if not is_correct:
-                        graph_all_correct = False
-                
-                # Count as correct if all valid tasks are correctly predicted
+                _ensure_task_bucket(n_tasks)
+                local_tasks_correct, local_total_tasks, graph_correct = _update_accuracy_counts(data, logits_per_task)
+                total_tasks_correct += local_tasks_correct
+                total_tasks += local_total_tasks
                 per_task_count_stats[n_tasks]['total'] += 1
-                if graph_all_correct and graph_valid_tasks == data.n_tasks:
+                if graph_correct:
                     correct_graphs += 1
                     per_task_count_stats[n_tasks]['correct'] += 1
 
-                # Compute regret
-                if dataset_id and dataset_id in optimal_rtt_map:
-                    combo_tuple = decode_inference_placement(logits_per_task, data)
-                    if combo_tuple is not None:
-                        hash_key = (dataset_id, combo_tuple)
-                        pred_rtt = placement_rtt_hash_table.get(hash_key)
-                        opt_rtt = optimal_rtt_map.get(dataset_id)
-                        if pred_rtt is not None and opt_rtt is not None:
-                            regret = float(pred_rtt - opt_rtt)
-                            regret_pct = (regret / opt_rtt) * 100.0 if opt_rtt > 0 else 0.0
-                            sum_regret += regret
-                            sum_regret_pct += regret_pct
-                            count_regret += 1
-                            # Per-task-count regret
-                            per_task_count_stats[n_tasks]['regret_sum'] += regret
-                            per_task_count_stats[n_tasks]['regret_count'] += 1
+                regret_metrics = _compute_regret_metrics(dataset_id, n_tasks, data, logits_per_task)
+                if regret_metrics is not None:
+                    regret, regret_pct, regret_task_count = regret_metrics
+                    sum_regret += regret
+                    sum_regret_pct += regret_pct
+                    count_regret += 1
+                    per_task_count_stats[regret_task_count]['regret_sum'] += regret
+                    per_task_count_stats[regret_task_count]['regret_count'] += 1
 
     avg_loss_ce = total_loss_ce / max(1, total_valid_tasks)
     acc = correct_graphs / max(1, total_graphs)
@@ -786,6 +781,16 @@ def safe_float(val):
     f = float(val)
     return f if np.isfinite(f) else 0.0
 
+
+def prefix_metric_dict(metrics: Dict[str, Any], prefix: str) -> Dict[str, Any]:
+    """Prefix flat scalar metrics for structured logging."""
+    out: Dict[str, Any] = {}
+    for key in ("ce", "acc", "regret", "regret_pct", "count_regret"):
+        if key in metrics:
+            value = metrics[key]
+            out[f"{prefix}/{key}"] = int(value) if key == "count_regret" else safe_float(value)
+    return out
+
 # ========================================================================
 # Training loop
 # ========================================================================
@@ -897,20 +902,10 @@ wandb.log({
     "data/num_test": int(len(test_graphs)),
 })
 
-final_metrics_log = {
-    "final/train/loss_ce": safe_float(train_metrics['ce']),
-    "final/train/acc": safe_float(train_metrics['acc']),
-    "final/train/regret": safe_float(train_metrics['regret']),
-    "final/train/regret_pct": safe_float(train_metrics['regret_pct']),
-    "final/val/loss_ce": safe_float(val_metrics_final['ce']),
-    "final/val/acc": safe_float(val_metrics_final['acc']),
-    "final/val/regret": safe_float(val_metrics_final['regret']),
-    "final/val/regret_pct": safe_float(val_metrics_final['regret_pct']),
-    "final/test/loss_ce": safe_float(test_metrics['ce']),
-    "final/test/acc": safe_float(test_metrics['acc']),
-    "final/test/regret": safe_float(test_metrics['regret']),
-    "final/test/regret_pct": safe_float(test_metrics['regret_pct']),
-}
+final_metrics_log = {}
+final_metrics_log.update(prefix_metric_dict(train_metrics, "final/train"))
+final_metrics_log.update(prefix_metric_dict(val_metrics_final, "final/val"))
+final_metrics_log.update(prefix_metric_dict(test_metrics, "final/test"))
 
 # Add per-task-count statistics if merged cache
 if IS_MERGED_CACHE:
