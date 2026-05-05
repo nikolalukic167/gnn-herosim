@@ -62,7 +62,7 @@ class StateCaptureHelper:
         for node in self.nodes.items:
             for platform in node.platforms.items:
                 key = f"{node.node_name}:{platform.id}"
-                queue_snapshot[key] = len(platform.queue.items)
+                queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
     
     def capture_queue_snapshot_for_replicas(
@@ -81,7 +81,7 @@ class StateCaptureHelper:
         queue_snapshot = {}
         for node, platform in replicas:
             key = f"{node.node_name}:{platform.id}"
-            queue_snapshot[key] = len(platform.queue.items)
+            queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
     
     def capture_temporal_state_for_replicas(
@@ -197,7 +197,7 @@ class StateCaptureHelper:
             idle_platforms = []
             for platform in node.platforms.items:
                 # Platform is available if it has no current task and empty queue
-                if platform.current_task is None and len(platform.queue.items) == 0:
+                if platform.current_task is None and platform.queue_length() == 0:
                     idle_platforms.append(platform.id)
             available[node.node_name] = idle_platforms
         return available

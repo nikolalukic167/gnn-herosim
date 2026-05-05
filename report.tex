@@ -1,0 +1,99 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\begin{document}
+
+\section*{Rough notes on the project}
+
+In the following, I will give a brief overview of the progress with the first positive results and space for improvement.
+The project is about learning a placement policy for serverless/edge workloads using a graph neural network (GNN) that is trained inside of a HeROsim simulator.
+The simulator gives me many examples of ``this batch of requests + this system state $\rightarrow$ total RTT for a given placement'' which is the input for our GNN training pipeline.
+
+\section*{Co-simulation}
+
+For each sampled situation (infrastructure + current queues + a small batch of incoming requests) I enumerate all valid task--to--replica placements, and let the simulator run them to completion.
+For every placement I record the resulting total RTT; across all placements for that situation I also keep track of the best RTT I have seen so far.
+This gives me a dataset where each example is ``graph of the state + one concrete placement $\rightarrow$ measured RTT'', and from that I extract:
+\begin{itemize}
+  \item a \emph{label} for each task (which replica was part of the best placement),
+  \item a big lookup table that maps full placements to RTT, which I later use in the regret loss.
+\end{itemize}
+Because the placements are allowed to be non-unique, multiple tasks can end up on the same replica, just like in the real system.
+
+\section*{What the GNN sees}
+
+For each small batch of requests I build a bipartite graph.
+One side contains the tasks, the other side contains all possible compute replicas.
+Edges connect a task to the replicas that are reachable over the network and can actually run that task.
+
+Each node and edge has a small feature vector:
+\begin{itemize}
+  \item tasks know their type and which client they came from,
+  \item replicas know their hardware type, whether they already host warm replicas, their queue length and some simple consolidation statistics,
+  \item edges store an estimate of execution cost, network latency and some communication cost.
+\end{itemize}
+This way, the graph encodes both ``who acan execute whom'' and ``how expensive would it roughly be''.
+The GNN processes this graph and produces a score for every (task, replica) edge; for each task I pick the replica with the highest score.
+
+\section*{GNN architecture in a bit more detail}
+
+Very roughly, the model has three parts:
+\begin{itemize}
+  \item a small MLP that turns the task features into task embeddings,
+  \item another MLP that turns the replica features into replica embeddings,
+  \item a graph neural network layer stack plus an edge MLP that use the graph structure to refine these embeddings and score each possible (task, replica) pair.
+\end{itemize}
+
+Concretely, tasks and replicas start as different feature vectors, but both are projected into the same embedding dimension.
+These embeddings are stacked into a single node matrix and passed through several message-passing layers (a GIN-style architecture).
+Message passing lets a task ``see'' not only its own features, but also information coming from nearby replicas and other tasks via the shared infrastructure.
+
+After message passing, I split the node matrix back into task nodes and replica nodes.
+For every edge in the graph I concatenate:
+\begin{itemize}
+  \item the final embedding of the task at that end of the edge,
+  \item the final embedding of the replica at the other end,
+  \item the edge feature vector (execution estimate, latency, warm/cold flag, communication cost).
+\end{itemize}
+This concatenated vector goes through another MLP (the edge scorer) which outputs a single scalar score for that edge.
+Grouping these scores per task gives me a variable-length logit vector: one logit per feasible replica.
+Because I work with non-unique placements, there is no constraint that different tasks must pick different replicas; each task just chooses the replica with the highest score among its candidates.
+
+\section*{Training idea}
+
+The training mixes two objectives:
+\begin{itemize}
+  \item a normal cross-entropy loss that says ``pick the same replica as the best placement the simulator found'',
+  \item a regret-based loss that compares a good placement with a worse one and pushes the score gap to be at least as big as the RTT difference.
+\end{itemize}
+This way the model does not just copy labels, it also learns to strongly dislike obviously bad placements.
+
+\section*{Workloads}
+
+In the plots I use two simple workload labels that come from how I configure the trace generator:
+\begin{itemize}
+  \item \textbf{100-100}: about 100 requests per second for 100 seconds.
+  \item \textbf{100-50}: about 100 requests per second for 50 seconds.
+\end{itemize}
+100-50 has 100k requests, while 100-100 has twice that many. That's because the amount of requests is calculate by multiplying rps * duration * number of clients (20).
+
+\section*{RTT comparison}
+
+In the simulator I compare several policies:
+the GNN policy greedy (named knative), random and always-offload).
+The plot shows the total request-response time (RTT) for different policies and for the two workloads (100-100 and 100-50).
+Lower bars are better - smaller RTT.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{images/policy_comparison.png}
+  \caption{Total RTT of different scheduling policies for the 100-100 and 100-50 workloads.}
+\end{figure}
+
+In both workloads the GNN policy gives the lowest total RTT.
+The knative baseline comes next, and the random and always-offload style policies are clearly worse.
+
+\end{document}

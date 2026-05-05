@@ -579,6 +579,11 @@ class Platform:
         self.run = env.process(self.platform_process())
 
         self.queue = Store(env)
+        # Virtual warmup backlog (compressed representation of warmup queue).
+        # Used to avoid creating one Python Task object per warmup item.
+        self.virtual_warmup_count: int = 0
+        self.virtual_warmup_total_time: float = 0.0
+        self.virtual_warmup_task_type: Optional[str] = None
 
         self.previous_task: Task | None = None
         self.current_task: Task | None = None
@@ -597,6 +602,41 @@ class Platform:
 
     def __repr__(self):
         return f"Platform {self.id} ({self.type['name']}) on node {self.node.node_name}"
+
+    def queue_length(self) -> int:
+        """Queue length visible to schedulers/snapshots (real queue + virtual warmup backlog)."""
+        return len(self.queue.items) + self.virtual_warmup_count
+
+    def seed_virtual_warmup(self, task_type: TaskType, task_type_name: str, count: int) -> None:
+        """
+        Seed compressed warmup backlog without creating per-item Task objects.
+        Equivalent timing model: first warmup task may cold-start; subsequent are warm.
+        """
+        if count <= 0:
+            return
+        execution = float(task_type["executionTime"].get(self.type["shortName"], 0.0))
+        cold_start = float(task_type["coldStartDuration"].get(self.type["shortName"], 0.0))
+
+        # Approximate I/O time using first available state-size profile.
+        state_size_map = task_type.get("stateSize", {})
+        app_state: Dict[str, Any] = {}
+        if isinstance(state_size_map, dict) and state_size_map:
+            first_key = next(iter(state_size_map.keys()))
+            maybe_state = state_size_map.get(first_key, {})
+            if isinstance(maybe_state, dict):
+                app_state = maybe_state
+        input_size = float(app_state.get("input", 0))
+        output_size = float(app_state.get("output", 0))
+        storage_throughput = 100.0 * 1024 * 1024  # bytes/s
+        storage_latency = 0.001  # seconds
+        read_time = (input_size / storage_throughput) + storage_latency if input_size > 0 else 0.0
+        write_time = (output_size / storage_throughput) + storage_latency if output_size > 0 else 0.0
+        comm = read_time + write_time
+
+        total_time = cold_start + (count * (execution + comm))
+        self.virtual_warmup_count += count
+        self.virtual_warmup_total_time += total_time
+        self.virtual_warmup_task_type = task_type_name
 
     def result(self) -> PlatformResult:
         idle_time = self.env.now - self.load_time
@@ -809,6 +849,17 @@ class Platform:
 
             # FIFO task selection in platform queue
             task: Task = yield self.queue.get()
+
+            # Compressed warmup backlog: apply aggregate delay once, then mark platform warm.
+            if self.virtual_warmup_count > 0 and self.virtual_warmup_total_time > 0:
+                yield self.env.timeout(self.virtual_warmup_total_time)
+                if self.virtual_warmup_task_type:
+                    self.previous_task = type(
+                        'Task', (), {'type': {'name': self.virtual_warmup_task_type}}
+                    )()
+                self.virtual_warmup_count = 0
+                self.virtual_warmup_total_time = 0.0
+                self.virtual_warmup_task_type = None
             
             # Skip warmup tasks that were fast-forwarded
             if fast_forwarded and getattr(task, 'is_internal', False) and hasattr(self, '_warmup_tasks') and task in self._warmup_tasks:

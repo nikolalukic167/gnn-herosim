@@ -407,7 +407,7 @@ class SystemState:
         # This captures the queue length at scheduling time for each platform
         queue_occupancy_dict = {
             task_type: {
-                f"{node.node_name}:{platform.id}": len(platform.queue.items)
+                f"{node.node_name}:{platform.id}": platform.queue_length()
                 for node, platform in replica_set
             }
             for task_type, replica_set in self.replicas.items()

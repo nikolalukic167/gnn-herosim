@@ -264,20 +264,28 @@ def precreate_replicas(
                         queue_length = deterministic_queues.get(task_type_name, {}).get(queue_key, 0)
                         
                         if queue_length > 0:
-                            # Platform has queued tasks - mark as WARM (has executed tasks)
-                            platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
-                            try:
-                                warmup_tasks = create_warmup_tasks(
-                                    env, platform, task_type_name, simulation_data,
-                                    simulation_policy, queue_length
+                            # Fast mode: keep warmup backlog compressed (no per-task objects).
+                            if getattr(env, "fast_forward_warmup", False):
+                                platform.seed_virtual_warmup(
+                                    simulation_data.task_types[task_type_name],
+                                    task_type_name,
+                                    queue_length,
                                 )
-                                for warmup_task in warmup_tasks:
-                                    platform.queue.put(warmup_task)
-                            except Exception as e:
-                                print(f"    ERROR enqueuing warmup tasks to {node_name}:{platform_id}: {e}")
-                                import traceback
-                                traceback.print_exc()
-                                raise
+                            else:
+                                # Debug/legacy mode: materialize warmup tasks.
+                                platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
+                                try:
+                                    warmup_tasks = create_warmup_tasks(
+                                        env, platform, task_type_name, simulation_data,
+                                        simulation_policy, queue_length
+                                    )
+                                    for warmup_task in warmup_tasks:
+                                        platform.queue.put(warmup_task)
+                                except Exception as e:
+                                    print(f"    ERROR enqueuing warmup tasks to {node_name}:{platform_id}: {e}")
+                                    import traceback
+                                    traceback.print_exc()
+                                    raise
                         else:
                             # Platform has NO queue tasks - leave COLD (previous_task = None)
                             # This enables realistic cold start simulation
@@ -363,21 +371,28 @@ def precreate_replicas(
                                 sampled_q = sample_bounded_int(q_params, rng)
                                 initial_queue = max(0, int(sampled_q))
                             if initial_queue > 0:
-                                # Platform has queued tasks - mark as WARM
-                                platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
-                                try:
-                                    warmup_tasks = create_warmup_tasks(
-                                        env, platform, task_type_name, simulation_data, 
-                                        simulation_policy, initial_queue
+                                if getattr(env, "fast_forward_warmup", False):
+                                    platform.seed_virtual_warmup(
+                                        simulation_data.task_types[task_type_name],
+                                        task_type_name,
+                                        initial_queue,
                                     )
-                                    # Enqueue warmup tasks to the platform
-                                    for warmup_task in warmup_tasks:
-                                        platform.queue.put(warmup_task)
-                                except Exception as e:
-                                    print(f"    ERROR enqueuing warmup tasks to {node.node_name}:{platform.id}: {e}")
-                                    import traceback
-                                    traceback.print_exc()
-                                    raise
+                                else:
+                                    # Platform has queued tasks - mark as WARM
+                                    platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
+                                    try:
+                                        warmup_tasks = create_warmup_tasks(
+                                            env, platform, task_type_name, simulation_data, 
+                                            simulation_policy, initial_queue
+                                        )
+                                        # Enqueue warmup tasks to the platform
+                                        for warmup_task in warmup_tasks:
+                                            platform.queue.put(warmup_task)
+                                    except Exception as e:
+                                        print(f"    ERROR enqueuing warmup tasks to {node.node_name}:{platform.id}: {e}")
+                                        import traceback
+                                        traceback.print_exc()
+                                        raise
                             # else: platform.previous_task remains None = COLD
                         
                         # print(f"    Created replica on {node.node_name} ({platform.type['shortName']}) - Platform {platform.id}")
@@ -430,21 +445,28 @@ def precreate_replicas(
                                 sampled_q = sample_bounded_int(q_params, rng)
                                 initial_queue = max(0, int(sampled_q))
                             if initial_queue > 0:
-                                # Platform has queued tasks - mark as WARM
-                                platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
-                                try:
-                                    warmup_tasks = create_warmup_tasks(
-                                        env, platform, task_type_name, simulation_data, 
-                                        simulation_policy, initial_queue
+                                if getattr(env, "fast_forward_warmup", False):
+                                    platform.seed_virtual_warmup(
+                                        simulation_data.task_types[task_type_name],
+                                        task_type_name,
+                                        initial_queue,
                                     )
-                                    # Enqueue warmup tasks to the platform
-                                    for warmup_task in warmup_tasks:
-                                        platform.queue.put(warmup_task)
-                                except Exception as e:
-                                    print(f"    ERROR enqueuing warmup tasks to {node.node_name}:{platform.id}: {e}")
-                                    import traceback
-                                    traceback.print_exc()
-                                    raise
+                                else:
+                                    # Platform has queued tasks - mark as WARM
+                                    platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
+                                    try:
+                                        warmup_tasks = create_warmup_tasks(
+                                            env, platform, task_type_name, simulation_data, 
+                                            simulation_policy, initial_queue
+                                        )
+                                        # Enqueue warmup tasks to the platform
+                                        for warmup_task in warmup_tasks:
+                                            platform.queue.put(warmup_task)
+                                    except Exception as e:
+                                        print(f"    ERROR enqueuing warmup tasks to {node.node_name}:{platform.id}: {e}")
+                                        import traceback
+                                        traceback.print_exc()
+                                        raise
                             # else: platform.previous_task remains None = COLD
                         
                         # print(f"    Created replica on {node.node_name} ({platform.type['shortName']}) - Platform {platform.id}")

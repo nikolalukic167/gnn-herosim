@@ -217,7 +217,7 @@ class DeterminedScheduler(Scheduler):
             for node, platform in replicas:
                 key = f"{node.node_name}:{platform.id}"
                 if key not in queue_snapshot:
-                    queue_snapshot[key] = len(platform.queue.items)
+                    queue_snapshot[key] = platform.queue_length()
         
         return queue_snapshot
     
@@ -227,7 +227,7 @@ class DeterminedScheduler(Scheduler):
         for node in self.nodes.items:
             for platform in node.platforms.items:
                 key = f"{node.node_name}:{platform.id}"
-                queue_snapshot[key] = len(platform.queue.items)
+                queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
 
 
@@ -266,7 +266,7 @@ class DeterminedScheduler(Scheduler):
                 
                 # Select least loaded replica
                 target_node, target_platform = min(
-                    valid_replicas, key=lambda couple: len(couple[1].queue.items)
+                    valid_replicas, key=lambda couple: couple[1].queue_length()
                 )
                 
                 print(f"[ {self.env.now} ] DEBUG: Auto-resolved to node {target_node.id}, platform {target_platform.id}")
@@ -361,7 +361,7 @@ class DeterminedScheduler(Scheduler):
 
         # Least Connected
         bounded_concurrency = min(
-            valid_replicas, key=lambda couple: len(couple[1].queue.items)
+            valid_replicas, key=lambda couple: couple[1].queue_length()
         )
 
         print(f"task: {task.id}")

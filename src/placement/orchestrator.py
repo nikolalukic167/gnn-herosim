@@ -338,6 +338,7 @@ class Orchestrator:
             if num_tasks else 0.0
         )
 
+        task_results_included = num_tasks <= 20
         result = {
             "policy": dataclasses.asdict(self.policy),
             "endTime": self.end_time,
@@ -365,11 +366,16 @@ class Orchestrator:
             "penaltyDistributionOverTime": penalty_distribution_over_time,
             "energy": energy_total,
             "reclaimableEnergy": reclaimable_energy,
-            "applicationResults": [],  # Omit full list to avoid OOM/serialization with 400k+ tasks
+            "applicationResults": application_results if task_results_included else [],
             "nodeResults": node_results,
-            "taskResults": [],  # Omit full list to avoid OOM/serialization with 400k+ tasks
+            "taskResults": task_results if task_results_included else [],
             "total_rtt": total_rtt,
             "num_tasks": num_tasks,
+            "statsSchemaVersion": "v2_task_metrics",
+            "taskResultsIncluded": task_results_included,
+            "taskResultsOmittedReason": (
+                None if task_results_included else "num_tasks_gt_20"
+            ),
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
             "averageNetworkLatency": average_network_latency,

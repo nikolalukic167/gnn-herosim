@@ -237,7 +237,7 @@ class Autoscaler:
                     "action": "up",
                     "count": len(function_replicas),
                     "average_queue_length": sum(
-                        [len(replica[1].queue.items) for replica in function_replicas]
+                        [replica[1].queue_length() for replica in function_replicas]
                     ) / len(function_replicas),
                 }
                 self.scale_events.append(event)
@@ -356,7 +356,7 @@ class Autoscaler:
                     "average_queue_length": (
                         sum(
                             [
-                                len(replica[1].queue.items)
+                                replica[1].queue_length()
                                 for replica in function_replicas
                             ]
                         )
@@ -432,7 +432,7 @@ class Autoscaler:
                 "average_queue_length": (
                     sum(
                         [
-                            len(replica[1].queue.items)
+                            replica[1].queue_length()
                             for replica in function_replicas
                         ]
                     )
