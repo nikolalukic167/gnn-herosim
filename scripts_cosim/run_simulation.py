@@ -39,7 +39,7 @@ from typing import Optional, Dict, Tuple
 # Constants
 BASE_DIR = Path("/root/projects/my-herosim")
 CONFIG_FILE = BASE_DIR / "simulation_data/space_with_network.json"
-WORKLOAD_FILE = BASE_DIR / "data/nofs-ids/traces/workload-200-200.json"
+WORKLOAD_FILE = BASE_DIR / "data/nofs-ids/traces/workload-100-100.json"
 OUTPUT_DIR = BASE_DIR / "simulation_data/results"
 DEFAULT_TIMEOUT = 3600
 

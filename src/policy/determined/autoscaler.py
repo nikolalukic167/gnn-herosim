@@ -290,7 +290,7 @@ class DeterminedAutoscaler(Autoscaler):
 
         # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
-            function_replicas, key=lambda couple: len(couple[1].queue.items)
+            function_replicas, key=lambda couple: couple[1].queue_length()
         )
 
         # Mark replica for removal if its task queue is empty
@@ -299,7 +299,7 @@ class DeterminedAutoscaler(Autoscaler):
             (
                 replica
                 for replica in sorted_replicas
-                if not replica[1].queue.items
+                if replica[1].queue_length() == 0
                 and not replica[1].current_task
                 and (self.env.now - replica[1].idle_since) > self.policy.keep_alive
             ),

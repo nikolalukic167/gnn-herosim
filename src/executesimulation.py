@@ -612,7 +612,7 @@ def main():
     """
     # Configuration
     sim_input_path = Path("data/nofs-ids")
-    gnn_model_path = Path("models/firm-feather-4.pt")
+    gnn_model_path = Path("models/zesty-pine-8.pt")
     default_output_dir = Path("simulation_data/results")
 
     # Parse arguments

@@ -75,6 +75,68 @@ from src.placement.model import SimulationData, DataclassJSONEncoder
 # Global quiet mode flag (set via --quiet command line argument)
 QUIET_MODE = False
 
+
+def rtt_from_stats(stats: Optional[Dict[str, Any]]) -> float:
+    """
+    Total RTT for scoring / brute-force comparison.
+
+    Orchestrator.stats() omits taskResults (empty list) to avoid huge JSON but still
+    sets total_rtt and num_tasks. Callers must use those when taskResults is empty.
+    """
+    if not stats:
+        return float("inf")
+    total_rtt = stats.get("total_rtt")
+    num_tasks = stats.get("num_tasks")
+    if total_rtt is not None and num_tasks is not None and num_tasks > 0:
+        return float(total_rtt)
+    task_results = stats.get("taskResults") or []
+    rtt = 0.0
+    counted = False
+    for tr in task_results:
+        task_id = tr.get("taskId")
+        if task_id is not None and task_id >= 0:
+            rtt += float(tr.get("elapsedTime", 0))
+            counted = True
+    return float(rtt) if counted else float("inf")
+
+
+def extract_task_metrics(stats: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Normalize per-task metrics into a stable schema for analysis.
+
+    This helper is intentionally tolerant: missing keys are filled with defaults so
+    both co-simulation and benchmark outputs can be compared reliably.
+    """
+    if not stats:
+        return []
+
+    task_rows: List[Dict[str, Any]] = []
+    for tr in stats.get("taskResults") or []:
+        task_id = tr.get("taskId")
+        if task_id is None or task_id < 0:
+            continue
+        task_rows.append(
+            {
+                "task_id": int(task_id),
+                "task_type": tr.get("taskType", {}).get("name", "unknown"),
+                "source_node": tr.get("sourceNode"),
+                "execution_node": tr.get("executionNode"),
+                "execution_platform": tr.get("executionPlatform"),
+                "elapsed_time": float(tr.get("elapsedTime", 0.0)),
+                "queue_time": float(tr.get("queueTime", 0.0)),
+                "wait_time": float(tr.get("waitTime", 0.0)),
+                "cold_start_time": float(tr.get("coldStartTime", 0.0)),
+                "execution_time": float(tr.get("executionTime", 0.0)),
+                "communications_time": float(tr.get("communicationsTime", 0.0)),
+                "network_latency": float(tr.get("networkLatency", 0.0)),
+                "queue_snapshot_at_scheduling": tr.get("queueSnapshotAtScheduling", {}),
+                "full_queue_snapshot": tr.get("fullQueueSnapshot", {}),
+                "temporal_state_at_scheduling": tr.get("temporalStateAtScheduling", {}),
+            }
+        )
+    return task_rows
+
+
 # Global shared data for worker processes (initialized via _init_worker)
 # This avoids pickling large immutable data for every task submission
 _worker_shared_data: Dict[str, Any] = {}
@@ -1734,17 +1796,9 @@ def process_sample_with_placement(args):
             'placement_plan': placement_plan,
         }
 
-        # Calculate RTT directly from stats (avoid file read later)
+        # Calculate RTT from stats (orchestrator omits taskResults; use total_rtt/num_tasks)
         stats = result.get('stats', {})
-        task_results = stats.get('taskResults', [])
-        rtt = 0.0
-        counted = False
-        for tr in task_results:
-            task_id = tr.get('taskId')
-            if task_id is not None and task_id >= 0:
-                rtt += float(tr.get('elapsedTime', 0))
-                counted = True
-        rtt_value = float(rtt) if counted else float('inf')
+        rtt_value = rtt_from_stats(stats)
 
         # Prepare result file path (but don't write yet - will batch write)
         import hashlib, uuid
@@ -1842,17 +1896,9 @@ def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[
             'placement_plan': placement_plan,
         }
 
-        # Calculate RTT FIRST (before file I/O)
+        # Calculate RTT FIRST (before file I/O); stats.taskResults is omitted by orchestrator
         stats = result.get('stats', {})
-        task_results = stats.get('taskResults', [])
-        rtt = 0.0
-        counted = False
-        for tr in task_results:
-            task_id = tr.get('taskId')
-            if task_id is not None and task_id >= 0:
-                rtt += float(tr.get('elapsedTime', 0))
-                counted = True
-        rtt_value = float(rtt) if counted else float('inf')
+        rtt_value = rtt_from_stats(stats)
 
         # OPTIMIZATION: Only write file if this is better than current best RTT
         # Use lock-free read first to minimize contention, then lock only if needed
@@ -2025,35 +2071,16 @@ def execute_brute_force_optimized(
                 capture_result = json.load(f)
             stats = capture_result.get('stats', {})
             system_state_results = stats.get('systemStateResults', [])
-            task_results = stats.get('taskResults', [])
+            task_metrics = extract_task_metrics(stats)
             if system_state_results:
                 final_state = system_state_results[-1]
-                task_placements = []
-                for tr in task_results:
-                    if tr.get('taskId') is not None and tr.get('taskId') >= 0:
-                        task_placements.append({
-                            "task_id": tr.get('taskId'),
-                            "task_type": tr.get('taskType', {}).get('name', 'unknown'),
-                            "source_node": tr.get('sourceNode'),
-                            "execution_node": tr.get('executionNode'),
-                            "execution_platform": tr.get('executionPlatform'),
-                            "elapsed_time": tr.get('elapsedTime'),
-                            "queue_time": tr.get('queueTime'),
-                            "queue_snapshot_at_scheduling": tr.get('queueSnapshotAtScheduling', {}),
-                            "full_queue_snapshot": tr.get('fullQueueSnapshot', {}),
-                            "temporal_state_at_scheduling": tr.get('temporalStateAtScheduling', {}),
-                        })
                 captured_state = {
                     "timestamp": final_state.get('timestamp', 0),
                     "replicas": final_state.get('replicas', {}),
                     "available_resources": final_state.get('available_resources', {}),
                     "scheduler_state": final_state.get('scheduler_state', {}),
-                    "task_placements": task_placements,
-                    "total_rtt": sum(
-                        tr.get('elapsedTime', 0)
-                        for tr in task_results
-                        if tr.get('taskId') is not None and tr.get('taskId') >= 0
-                    ),
+                    "task_placements": task_metrics,
+                    "total_rtt": rtt_from_stats(stats),
                 }
                 output_file = capture_output_dir / "system_state_captured_unique.json"
                 with open(output_file, 'w') as f:
@@ -2309,9 +2336,8 @@ def execute_brute_force_optimized(
                 with open(result_file, 'r') as f:
                     result_data = json.load(f)
                 stats = result_data.get('stats', {})
-                task_results = stats.get('taskResults', [])
-                file_rtt = sum(tr.get('elapsedTime', 0) for tr in task_results if tr.get('taskId') is not None and tr.get('taskId') >= 0)
-                if abs(file_rtt - best_rtt) < 0.001:  # Float comparison tolerance
+                file_rtt = rtt_from_stats(stats)
+                if file_rtt != float("inf") and abs(file_rtt - best_rtt) < 0.001:  # Float comparison tolerance
                     optimal_file_path = output_dir / "simulation_1_optimal.json"
                     import shutil
                     shutil.copy2(result_file, optimal_file_path)

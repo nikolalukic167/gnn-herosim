@@ -21,8 +21,6 @@ import os
 import json
 import pickle
 import random
-import sys
-import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
@@ -34,12 +32,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data import Data
-from torch_geometric.utils import to_undirected
 from torch_geometric.nn.models import GIN
 from torch_geometric.loader import DataLoader
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from joblib import Parallel, delayed
 import wandb
 
 
@@ -56,7 +52,7 @@ torch.backends.cudnn.benchmark = False
 # - USE_MERGED_CACHE=True  -> graphs_cache_merged_2_3_4_tasks (2-, 3-, and 4-task combined)
 # - USE_MERGED_CACHE=False -> graphs_cache_gnn_datasets_4tasks (4-task only; use 4tasks when not merged)
 CACHE_BASE = Path("/root/projects/my-herosim/simulation_data/artifacts/run_queue_big")
-USE_MERGED_CACHE = False  # Set False to use single 4-task cache
+USE_MERGED_CACHE = True  # Set False to use single 4-task cache
 CACHE_DIR = (
     CACHE_BASE / "graphs_cache_merged_2_3_4_tasks"
     if USE_MERGED_CACHE
@@ -85,7 +81,6 @@ else:
 GRAPHS_CACHE_PATH = CACHE_DIR / "graphs.pkl"
 DATASET_IDS_CACHE_PATH = CACHE_DIR / "dataset_ids.pkl"
 RTT_HASH_CACHE_PATH = CACHE_DIR / "placement_rtt_hash_table.pkl"
-PLAT_NODE_MAP_CACHE_PATH = CACHE_DIR / "plat_node_map.pkl"
 OPTIMAL_RTT_CACHE_PATH = CACHE_DIR / "optimal_rtt.pkl"
 
 # Hyperparameters
@@ -106,13 +101,7 @@ CE_LOSS_WEIGHT = 1.0  # α
 # Negative sampling for StructuredRegretLoss:
 # Prob of sampling a *negative* from the RTT hash (valid but suboptimal combo) vs random invalid placement.
 # > 0 gives harder, in-distribution negatives; 0 = always random. Recommended 0.5--0.7.
-VALID_NEGATIVE_PROB = 0
-
-# Collapse detection: treat as collapsed if val acc or hash hit rate fall below these
-COLLAPSE_ACC_THRESHOLD = 0.05
-COLLAPSE_HASH_HIT_THRESHOLD = 0.10
-COLLAPSE_LR_FACTOR = 0.5  # Multiply LR by this when reverting after collapse
-MIN_LR = 1e-6
+VALID_NEGATIVE_PROB = 1.0
 
 # %%
 # ============================================================================
@@ -189,23 +178,17 @@ def build_valid_combos_map(placement_rtt_hash_table: Dict[Tuple[str, Tuple[Tuple
     return valid_map
 
 
-def load_helper_maps_from_cache() -> Tuple[Dict[str, Dict[int, int]], Dict[str, float]]:
-    """Load helper maps (platform->node mapping and optimal RTT) from cache."""
-    if not PLAT_NODE_MAP_CACHE_PATH.exists():
-        raise FileNotFoundError(f"Platform->node mapping cache not found at {PLAT_NODE_MAP_CACHE_PATH}. Run prepare_graphs_cache.py first.")
+def load_optimal_rtt_from_cache() -> Dict[str, float]:
+    """Load optimal RTT mapping from cache."""
     if not OPTIMAL_RTT_CACHE_PATH.exists():
         raise FileNotFoundError(f"Optimal RTT cache not found at {OPTIMAL_RTT_CACHE_PATH}. Run prepare_graphs_cache.py first.")
-    
-    print(f"Loading platform->node mapping from cache: {PLAT_NODE_MAP_CACHE_PATH}")
-    with open(PLAT_NODE_MAP_CACHE_PATH, 'rb') as f:
-        plat_node_map = pickle.load(f)
     
     print(f"Loading optimal RTT mapping from cache: {OPTIMAL_RTT_CACHE_PATH}")
     with open(OPTIMAL_RTT_CACHE_PATH, 'rb') as f:
         optimal_rtt_map = pickle.load(f)
     
-    print(f"Loaded helper maps for {len(plat_node_map)} datasets")
-    return plat_node_map, optimal_rtt_map
+    print(f"Loaded optimal RTT for {len(optimal_rtt_map)} datasets")
+    return optimal_rtt_map
 
 
 # %%
@@ -561,8 +544,6 @@ def restore_custom_attrs(batch, graphs):
         dataset_id = getattr(graph, 'dataset_id', None)
         if dataset_id and dataset_id in GRAPH_CUSTOM_ATTRS:
             attrs = GRAPH_CUSTOM_ATTRS[dataset_id]
-            graph._plat_pos_by_id = attrs.get('_plat_pos_by_id', {})
-            graph._task_idx_to_task_id = attrs.get('_task_idx_to_task_id', {})
             graph._task_logit_to_placement = attrs.get('_task_logit_to_placement', {})
             graph.dataset_id = attrs.get('dataset_id', dataset_id)
     
@@ -731,18 +712,13 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
         graphs_in_batch = restore_custom_attrs(batch, graphs_in_batch)
         
         for data in graphs_in_batch:
-            # Preserve custom attributes
+            # Preserve custom attributes (lost on device transfer)
             task_logit_to_placement_orig = getattr(data, '_task_logit_to_placement', {})
-            plat_pos_by_id_orig = getattr(data, '_plat_pos_by_id', {})
-            task_idx_to_task_id_orig = getattr(data, '_task_idx_to_task_id', {})
             dataset_id_orig = getattr(data, 'dataset_id', None)
             
             data = data.to(device)
             
-            # Restore after device transfer
             data._task_logit_to_placement = task_logit_to_placement_orig
-            data._plat_pos_by_id = plat_pos_by_id_orig
-            data._task_idx_to_task_id = task_idx_to_task_id_orig
             data.dataset_id = dataset_id_orig
 
             dataset_id = data.dataset_id
@@ -853,12 +829,12 @@ if len(graphs) == 0:
     exit(1)
 
 # Load helper maps
-DATA_PLAT_NODE_MAP, DATA_OPTIMAL_RTT = load_helper_maps_from_cache()
+DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache()
 placement_rtt_hash_table = load_rtt_hash_table_from_cache()
 print(f"[dbg] placement_rtt combos: {len(placement_rtt_hash_table)}")
 
-# Build valid combos map (includes RTT for each combo)
-VALID_COMBOS_MAP = build_valid_combos_map(placement_rtt_hash_table)
+# Build valid combos map only when used for hard negative sampling
+VALID_COMBOS_MAP = build_valid_combos_map(placement_rtt_hash_table) if VALID_NEGATIVE_PROB > 0 else {}
 
 # Compute statistics
 ys = np.concatenate([g.y.numpy() for g in graphs])
@@ -871,14 +847,12 @@ print("Min valid tasks:", np.min([(g.y >= 0).sum().item() for g in graphs]))
 
 print(f"\nLoaded {len(graphs)} graphs from cache")
 
-# Store custom attributes globally
+# Store custom attributes globally (only those needed at train/eval time)
 GRAPH_CUSTOM_ATTRS = {}
 for graph in graphs:
     dataset_id = getattr(graph, 'dataset_id', None)
     if dataset_id:
         GRAPH_CUSTOM_ATTRS[dataset_id] = {
-            '_plat_pos_by_id': getattr(graph, '_plat_pos_by_id', {}),
-            '_task_idx_to_task_id': getattr(graph, '_task_idx_to_task_id', {}),
             '_task_logit_to_placement': getattr(graph, '_task_logit_to_placement', {}),
             'dataset_id': dataset_id
         }
@@ -928,9 +902,6 @@ wandb.init(
         "max_regret_penalty": float(MAX_REGRET_PENALTY),
         "valid_negative_prob": float(VALID_NEGATIVE_PROB),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
-        "collapse_acc_threshold": float(COLLAPSE_ACC_THRESHOLD),
-        "collapse_hash_hit_threshold": float(COLLAPSE_HASH_HIT_THRESHOLD),
-        "collapse_lr_factor": float(COLLAPSE_LR_FACTOR),
         "loss_type": "CE + StructuredRegret",
         "cache_mode": "merged" if IS_MERGED_CACHE else "single",
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
@@ -995,7 +966,6 @@ print("TRAINING (CE + Structured Regret Loss)")
 print("="*80)
 print(f"CE Weight: {CE_LOSS_WEIGHT}, Regret Weight: {REGRET_LOSS_WEIGHT}")
 print(f"Max Regret Penalty: {MAX_REGRET_PENALTY}, Valid Neg Prob: {VALID_NEGATIVE_PROB}")
-print(f"Collapse thresholds: acc>={COLLAPSE_ACC_THRESHOLD}, hash_hit>={COLLAPSE_HASH_HIT_THRESHOLD}")
 print()
 
 wandb.watch(model, log="gradients", log_freq=100)
@@ -1028,12 +998,6 @@ for epoch in range(EPOCHS):
         is_last_epoch=is_last_epoch
     )
     
-    # Collapse detection: low acc or hash hit rate → degenerate policy (e.g. constant logits, NaN)
-    is_collapsed = (
-        val_metrics['acc'] < COLLAPSE_ACC_THRESHOLD or
-        val_metrics['hash_hit_rate'] < COLLAPSE_HASH_HIT_THRESHOLD
-    )
-    
     # Wandb logging
     log_dict = {
         "train/loss_ce": safe_float(train_losses['ce']),
@@ -1047,7 +1011,6 @@ for epoch in range(EPOCHS):
         "val/regret_pct": safe_float(val_metrics['regret_pct']),
         "val/count_regret": int(val_metrics['count_regret']),
         "val/hash_hit_rate": safe_float(val_metrics['hash_hit_rate']),
-        "val/collapsed": int(is_collapsed),
         "lr": safe_float(optimizer.param_groups[0]["lr"]),
     }
     
@@ -1063,27 +1026,14 @@ for epoch in range(EPOCHS):
     
     wandb.log(log_dict, step=epoch)
     
-    # Save best model only when healthy and better regret; never overwrite with collapsed model
-    if not is_collapsed and val_metrics['regret'] < best_val_regret and val_metrics['count_regret'] > 0:
+    # Save best model only when healthy and better regret
+    if val_metrics['regret'] < best_val_regret and val_metrics['count_regret'] > 0:
         best_val_regret = val_metrics['regret']
         best_val_acc = val_metrics['acc']
         os.makedirs("models", exist_ok=True)
         torch.save(model.state_dict(), "models/" + MODEL_FILENAME)
         print(f"  *** New best model: regret={best_val_regret:.4f}s, acc={best_val_acc*100:.1f}%")
-    
-    # Revert to best checkpoint and reduce LR when collapsed
-    if is_collapsed:
-        best_path = Path("models/" + MODEL_FILENAME)
-        if best_path.exists():
-            model.load_state_dict(torch.load(best_path, map_location=DEVICE))
-            lr = optimizer.param_groups[0]['lr']
-            new_lr = max(MIN_LR, lr * COLLAPSE_LR_FACTOR)
-            for g in optimizer.param_groups:
-                g['lr'] = new_lr
-            print(f"  [Collapse detected] Reverted to best checkpoint, LR {lr:.2e} -> {new_lr:.2e}")
-        else:
-            print(f"  [Collapse detected] No best checkpoint yet; continuing (next epoch may recover)")
-    
+
     if epoch % 10 == 0 or epoch == EPOCHS - 1:
         print(f"Epoch {epoch:3d}/{EPOCHS} | "
               f"Train CE: {train_losses['ce']:.4f} | "

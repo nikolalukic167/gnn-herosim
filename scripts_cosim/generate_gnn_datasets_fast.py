@@ -25,6 +25,7 @@ import signal
 import subprocess
 import sys
 import time
+import re
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -113,26 +114,23 @@ REPLICA_CONFIGS = [
 ]
 
 # Queue distribution configurations: (name, type, param1, param2, min, max, step)
-# IMPROVED: Added more high-queue scenarios to match real simulation (mean 51.35, max 2944)
+# Calibration intent: raise snapshot queue depth to better match real-sim
+# decision-time queue/offloading regime while retaining one cold-start anchor.
 QUEUE_DISTRIBUTIONS = [
-    # Zero queues (cold start - most realistic)
+    ("pois6", "poisson", 6, 0, 0, 18, 1),
+    ("pois10", "poisson", 10, 0, 0, 28, 1),
+    ("norm14", "normal", 14, 5, 0, 36, 1),
+    ("pois16", "poisson", 16, 0, 0, 42, 1),
+    ("norm22", "normal", 22, 7, 0, 56, 1),
+    ("pois28", "poisson", 28, 0, 0, 72, 1),
+    ("norm35", "normal", 35, 11, 0, 96, 1),
+    ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
+    ("pois40", "poisson", 40, 0, 0, 120, 1),
+    ("norm55", "normal", 55, 18, 0, 160, 1),
+    ("uniform40_140", "uniform", 40, 140, 0, 200, 1),
+    ("norm75", "normal", 75, 22, 0, 240, 1),
+    ("pois90", "poisson", 90, 0, 0, 260, 1),
     ("zero", "constant", 0, 0, 0, 0, 0),
-    # Small queues (realistic initial load)
-    ("pois2", "poisson", 2, 0, 0, 8, 1),
-    ("pois4", "poisson", 4, 0, 0, 12, 1),
-    ("pois6", "poisson", 6, 0, 0, 16, 1),
-    # Moderate queues (warm start)
-    ("pois8", "poisson", 8, 0, 0, 20, 1),
-    ("norm8", "normal", 8, 3, 0, 20, 1),
-    ("norm12", "normal", 12, 4, 0, 24, 1),
-    # Larger queues (hot start - matches real sim better)
-    ("pois12", "poisson", 12, 0, 0, 24, 1),
-    ("norm16", "normal", 16, 5, 0, 32, 1),
-    # NEW: High-queue scenarios to match real simulation queue buildup
-    ("pois20", "poisson", 20, 0, 0, 50, 1),
-    ("norm25", "normal", 25, 8, 0, 60, 1),
-    ("pois30", "poisson", 30, 0, 0, 80, 1),
-    ("norm40", "normal", 40, 12, 0, 100, 1),
 ]
 
 # Seeds for deterministic generation
@@ -485,8 +483,20 @@ def main():
                         help='Threshold for fast-forward warmup (default: 1)')
     parser.add_argument('--allow-non-unique-replicas', action='store_true',
                         help='Allow multiple tasks to share the same replica')
-    parser.add_argument('--num-tasks', type=int, choices=[2, 3, 4], default=4,
-                        help='Number of tasks per workload (2, 3 or 4). Sets batch_size accordingly.')
+    parser.add_argument('--num-tasks', type=int, choices=[2, 3, 4, 5], default=4,
+                        help='Number of tasks per workload (2-5). Sets batch_size accordingly.')
+    parser.add_argument(
+        '--output-subdir',
+        type=str,
+        default=None,
+        help='Output subdirectory under simulation_data (default: gnn_datasets_{num_tasks}tasks)',
+    )
+    parser.add_argument(
+        '--progress-log-name',
+        type=str,
+        default=None,
+        help='Progress log filename under logs/ (default: progress_{num_tasks}tasks.txt or derived from --output-subdir)',
+    )
     args = parser.parse_args()
     
     quiet = args.quiet
@@ -503,13 +513,22 @@ def main():
     # Paths
     base_dir = PROJECT_ROOT / "simulation_data"
     config_path = base_dir / "space_with_network.json"
-    output_base = base_dir / f"gnn_datasets_{NUM_TASKS}tasks"
+    default_output_subdir = f"gnn_datasets_{NUM_TASKS}tasks"
+    output_subdir = args.output_subdir or default_output_subdir
+    output_base = base_dir / output_subdir
     sim_input_path = PROJECT_ROOT / "data" / "nofs-ids"
     samples_file = base_dir / "lhs_samples_simple.npy"
     mapping_file = base_dir / "lhs_samples_simple_mapping.pkl"
     workload_base_file = sim_input_path / "traces" / "workload-10.json"
     workload_templates_dir = sim_input_path / "traces" / "gnn_templates"
-    progress_log = PROJECT_ROOT / "logs" / f"progress_{NUM_TASKS}tasks.txt"
+    if args.progress_log_name:
+        progress_log_name = args.progress_log_name
+    elif args.output_subdir:
+        safe_subdir = re.sub(r'[^A-Za-z0-9_.-]+', '_', output_subdir)
+        progress_log_name = f"progress_{safe_subdir}.txt"
+    else:
+        progress_log_name = f"progress_{NUM_TASKS}tasks.txt"
+    progress_log = PROJECT_ROOT / "logs" / progress_log_name
     
     # Create directories
     output_base.mkdir(parents=True, exist_ok=True)
@@ -619,16 +638,16 @@ def main():
                     
                     total_time += duration
                     
-                    # Read placement count from metadata file if it exists
-                    placement_count_str = ""
+                    # Match logs/non_unique_progress_* line shape: existing= new= best_rtt=
+                    # (brute-force run: no prior placements file → existing=0, new=completed sims)
+                    num_existing = 0
+                    num_new = 0
                     metadata_file = output_dir / "placement_metadata.json"
                     if metadata_file.exists():
                         try:
                             with open(metadata_file, 'r') as mf:
                                 metadata = json.load(mf)
-                                num_placements = metadata.get('num_placements', 0)
-                                if num_placements > 0:
-                                    placement_count_str = f" placements: {num_placements}"
+                            num_new = int(metadata.get('completed', metadata.get('num_placements', 0)))
                         except Exception:
                             pass
                     
@@ -636,20 +655,27 @@ def main():
                         successful += 1
                         log(f"  SUCCESS: RTT={rtt:.3f}s ({duration:.1f}s)", quiet)
                         with open(progress_log, 'a') as f:
-                            f.write(f"{dataset_id} SUCCESS {datetime.now().isoformat()} "
-                                   f"{duration:.1f}s RTT={rtt:.3f}s q={qname}{placement_count_str}\n")
+                            f.write(
+                                f"{dataset_id} SUCCESS {datetime.now().isoformat()} "
+                                f"{duration:.1f}s existing={num_existing} new={num_new} "
+                                f"best_rtt={rtt:.3f}s\n"
+                            )
                     elif status == 'skipped':
                         skipped += 1
                         log(f"  SKIPPED: infeasible configuration ({duration:.1f}s)", quiet)
                         with open(progress_log, 'a') as f:
-                            f.write(f"{dataset_id} SKIPPED {datetime.now().isoformat()} "
-                                   f"{duration:.1f}s (infeasible) q={qname}{placement_count_str}\n")
+                            f.write(
+                                f"{dataset_id} SKIPPED {datetime.now().isoformat()} "
+                                f"infeasible\n"
+                            )
                     else:
                         failed += 1
                         log(f"  FAILED ({duration:.1f}s)", quiet)
                         with open(progress_log, 'a') as f:
-                            f.write(f"{dataset_id} FAILED {datetime.now().isoformat()} "
-                                   f"{duration:.1f}s{placement_count_str}\n")
+                            f.write(
+                                f"{dataset_id} FAILED {datetime.now().isoformat()} "
+                                f"{duration:.1f}s\n"
+                            )
                     
                     dataset_idx += 1
                     current_idx += 1
