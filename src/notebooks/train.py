@@ -18,27 +18,31 @@ NON-UNIQUE PLACEMENTS:
 """
 
 import os
+import pickle
 import random
+import json
+import time
+import lmdb
 import numpy as np
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.data import Data
+from torch import Tensor
+from torch_geometric.data import Batch, Data
 from torch_geometric.nn.models import GIN
 from torch_geometric.loader import DataLoader
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import wandb
 from non_unique_lib.cache_io import (
-    build_valid_combos_map,
     create_cache_context,
     load_graphs_from_cache,
     load_optimal_rtt_from_cache,
-    load_rtt_hash_table_from_cache,
 )
 from non_unique_lib.training_config import parse_training_config
 
@@ -86,7 +90,13 @@ if TASK_COUNT_DIST:
 class MLPEncoder(nn.Module):
     """Generic 2-layer MLP encoder with LayerNorm."""
 
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout_p=0.1):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        output_dim: int,
+        dropout_p: float = 0.1,
+    ) -> None:
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
@@ -96,20 +106,25 @@ class MLPEncoder(nn.Module):
             nn.Linear(hidden_dim, output_dim),
         )
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         return self.net(x)
 
 
 class EdgeScorer(nn.Module):
     """2-layer MLP to score task-platform edges with optional edge attributes."""
-    def __init__(self, embedding_dim, hidden_dim, edge_dim=0):
+    def __init__(self, embedding_dim: int, hidden_dim: int, edge_dim: int = 0) -> None:
         super().__init__()
         in_dim = 2 * embedding_dim + (edge_dim if edge_dim else 0)
         self.fc1 = nn.Linear(in_dim, hidden_dim)
         self.dropout = nn.Dropout(p=0.1)
         self.fc2 = nn.Linear(hidden_dim, 1)
     
-    def forward(self, e_task, e_platform, e_attr=None):
+    def forward(
+        self,
+        e_task: Tensor,
+        e_platform: Tensor,
+        e_attr: Optional[Tensor] = None,
+    ) -> Tensor:
         x = torch.cat([e_task, e_platform] + ([e_attr] if e_attr is not None else []), dim=-1)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
@@ -124,7 +139,14 @@ class TaskPlacementGNN(nn.Module):
     3. Edge MLP to score task-platform compatibility
     4. Masked softmax to predict placement probabilities
     """
-    def __init__(self, task_feature_dim, platform_feature_dim, embedding_dim=64, hidden_dim=128, num_layers=3):
+    def __init__(
+        self,
+        task_feature_dim: int,
+        platform_feature_dim: int,
+        embedding_dim: int = 64,
+        hidden_dim: int = 128,
+        num_layers: int = 3,
+    ) -> None:
         super().__init__()
         
         self.embedding_dim = embedding_dim
@@ -140,32 +162,18 @@ class TaskPlacementGNN(nn.Module):
         self.post_gin_dropout = nn.Dropout(p=0.2)
         self.edge_scorer = EdgeScorer(embedding_dim, hidden_dim, edge_dim=5)  # 5 edge dims (exec, latency, warm, energy, comm)
 
-    def forward(self, data):
-        n_tasks = data.n_tasks
-        n_platforms = data.n_platforms
+    def forward(self, data: Data) -> List[Tensor]:
+        n_tasks: int = int(data.n_tasks)
+        n_platforms: int = int(data.n_platforms)
 
-        # Handle NaN/Inf in input
-        if torch.isnan(data.task_features).any() or torch.isinf(data.task_features).any():
-            data.task_features = torch.nan_to_num(data.task_features, nan=0.0, posinf=1e6, neginf=-1e6)
-        if torch.isnan(data.platform_features).any() or torch.isinf(data.platform_features).any():
-            data.platform_features = torch.nan_to_num(data.platform_features, nan=0.0, posinf=1e6, neginf=-1e6)
-
-        # Encode features
+        # Encode features (inputs are finite if graphs were built with prepare_graphs_cache.py)
         task_embeddings = self.task_encoder(data.task_features)
         platform_embeddings = self.platform_encoder(data.platform_features)
-        
-        if torch.isnan(task_embeddings).any() or torch.isinf(task_embeddings).any():
-            task_embeddings = torch.nan_to_num(task_embeddings, nan=0.0, posinf=1e6, neginf=-1e6)
-        if torch.isnan(platform_embeddings).any() or torch.isinf(platform_embeddings).any():
-            platform_embeddings = torch.nan_to_num(platform_embeddings, nan=0.0, posinf=1e6, neginf=-1e6)
 
         # Message passing
         x = torch.cat([task_embeddings, platform_embeddings], dim=0)
         x = self.gin(x, data.edge_index)
         x = self.post_gin_dropout(x)
-        
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            x = torch.clamp(x, min=-50.0, max=50.0)
         
         task_emb = x[:n_tasks]
         platform_emb = x[n_tasks:]
@@ -185,16 +193,13 @@ class TaskPlacementGNN(nn.Module):
 
         e_task = task_emb[ti]
         e_platform = platform_emb[pj]
-        e_attr = None
+        e_attr: Optional[Tensor] = None
         if hasattr(data, 'edge_attr') and data.edge_attr.numel() > 0:
             try:
                 e_attr = data.edge_attr[valid]
-            except Exception:
+            except (IndexError, RuntimeError):
                 e_attr = None
         edge_scores = self.edge_scorer(e_task, e_platform, e_attr)
-        
-        if torch.isnan(edge_scores).any() or torch.isinf(edge_scores).any():
-            edge_scores = torch.clamp(edge_scores, min=-50.0, max=50.0)
 
         # Split scores per task
         logits_per_task = []
@@ -258,8 +263,6 @@ class StructuredRegretLoss(nn.Module):
         self,
         logits_per_task: List[torch.Tensor],
         data: Data,
-        valid_combos_map: Dict[str, List[Tuple[Tuple[Tuple[int, int], ...], float]]],
-        optimal_rtt_map: Dict[str, float],
         device: torch.device
     ) -> Tuple[torch.Tensor, int, Dict[str, Any]]:
         """
@@ -271,15 +274,16 @@ class StructuredRegretLoss(nn.Module):
             stats: Dictionary with debugging stats
         """
         dataset_id = getattr(data, 'dataset_id', None)
+        valid_combos = getattr(data, 'valid_combos', [])
+        opt_rtt = getattr(data, 'opt_rtt', None)
         
         # Get task_logit_to_placement mapping
         task_logit_to_placement = getattr(data, '_task_logit_to_placement', None)
         
-        if not dataset_id or dataset_id not in optimal_rtt_map or task_logit_to_placement is None:
+        if not dataset_id or task_logit_to_placement is None or opt_rtt is None or not valid_combos:
             return torch.tensor(0.0, device=device), 0, {}
         
         n_tasks = int(data.n_tasks)
-        opt_rtt = optimal_rtt_map[dataset_id]
         
         # Check all tasks have valid labels
         for t_idx in range(n_tasks):
@@ -300,7 +304,6 @@ class StructuredRegretLoss(nn.Module):
             opt_indices.append(opt_idx)
         
         # 2. Sample a Negative Path from valid combos (hash table)
-        valid_combos = valid_combos_map.get(dataset_id, [])
         opt_combo_tuple = tuple(
             task_logit_to_placement[t_idx][opt_indices[t_idx]]
             if opt_indices[t_idx] < len(task_logit_to_placement[t_idx])
@@ -360,22 +363,101 @@ class StructuredRegretLoss(nn.Module):
         return loss, 1, stats
 
 
+class GraphRttLMDBDataset(torch.utils.data.Dataset):
+    """Wrap cached graphs and fetch per-dataset RTT combos from LMDB (mmap-friendly)."""
+
+    def __init__(
+        self,
+        graphs: List[Data],
+        dataset_ids: List[str],
+        optimal_rtt_map: Dict[str, float],
+        lmdb_path: Path,
+    ) -> None:
+        self.graphs = graphs
+        self.dataset_ids = dataset_ids
+        self.optimal_rtt_map = optimal_rtt_map
+        self.lmdb_path = Path(lmdb_path)
+        self._env: Optional[lmdb.Environment] = None
+        # Debug: log first LMDB unpickles per worker (each worker is a process; max 2 lines each).
+        self._lmdb_debug_remaining = 2
+
+    def _get_env(self) -> lmdb.Environment:
+        if self._env is None:
+            self._env = lmdb.open(
+                str(self.lmdb_path),
+                readonly=True,
+                lock=False,
+                readahead=False,
+                meminit=False,
+                max_dbs=0,
+            )
+        return self._env
+
+    def __len__(self) -> int:
+        return len(self.dataset_ids)
+
+    def __getitem__(self, idx: int) -> Data:
+        graph = self.graphs[idx]
+        dataset_id = self.dataset_ids[idx]
+        graph.dataset_id = dataset_id
+        graph.opt_rtt = float(self.optimal_rtt_map.get(dataset_id, 0.0))
+
+        t0 = time.perf_counter()
+        env = self._get_env()
+        with env.begin() as txn:
+            data_bytes = txn.get(dataset_id.encode("utf-8"))
+
+        if data_bytes:
+            graph.valid_combos = pickle.loads(data_bytes)
+        else:
+            graph.valid_combos = []
+        dt = time.perf_counter() - t0
+        if self._lmdb_debug_remaining > 0:
+            self._lmdb_debug_remaining -= 1
+            print(
+                f"[GraphRttLMDBDataset] idx={idx} dataset_id={dataset_id!r} "
+                f"LMDB+unpickle={dt:.2f}s n_combos={len(graph.valid_combos)}",
+                flush=True,
+            )
+
+        return graph
+
+
 # %%
 # ============================================================================
 # CUSTOM COLLATE AND ATTRIBUTE RESTORATION
 # ============================================================================
 
+def custom_collate(data_list):
+    """Batch graphs while preserving non-tensor custom attributes."""
+    task_maps = [getattr(d, '_task_logit_to_placement', {}) for d in data_list]
+    dataset_ids = [getattr(d, 'dataset_id', None) for d in data_list]
+    valid_combos = [getattr(d, 'valid_combos', []) for d in data_list]
+    opt_rtts = [getattr(d, 'opt_rtt', None) for d in data_list]
+    batch = Batch.from_data_list(data_list)
+    batch._task_logit_to_placement_list = task_maps
+    batch.dataset_id_list = dataset_ids
+    batch.valid_combos_list = valid_combos
+    batch.opt_rtt_list = opt_rtts
+    return batch
+
+
 def restore_custom_attrs(batch, graphs):
-    """Restore custom attributes from global dictionary using dataset_id."""
-    global GRAPH_CUSTOM_ATTRS
-    
-    for graph in graphs:
-        dataset_id = getattr(graph, 'dataset_id', None)
-        if dataset_id and dataset_id in GRAPH_CUSTOM_ATTRS:
-            attrs = GRAPH_CUSTOM_ATTRS[dataset_id]
-            graph._task_logit_to_placement = attrs.get('_task_logit_to_placement', {})
-            graph.dataset_id = attrs.get('dataset_id', dataset_id)
-    
+    """Restore custom attrs from collate metadata lists."""
+    task_maps = getattr(batch, '_task_logit_to_placement_list', [])
+    dataset_ids = getattr(batch, 'dataset_id_list', [])
+    valid_combos = getattr(batch, 'valid_combos_list', [])
+    opt_rtts = getattr(batch, 'opt_rtt_list', [])
+
+    for idx, graph in enumerate(graphs):
+        if idx < len(task_maps):
+            graph._task_logit_to_placement = task_maps[idx]
+        if idx < len(dataset_ids):
+            graph.dataset_id = dataset_ids[idx]
+        if idx < len(valid_combos):
+            graph.valid_combos = valid_combos[idx]
+        if idx < len(opt_rtts):
+            graph.opt_rtt = opt_rtts[idx]
     return graphs
 
 
@@ -391,8 +473,6 @@ def train_epoch(
     device, 
     epoch_num,
     regret_criterion: StructuredRegretLoss,
-    valid_combos_map: Dict,
-    optimal_rtt_map: Dict,
     ce_weight: float,
     regret_weight: float,
     is_last_epoch: bool = False
@@ -405,7 +485,22 @@ def train_epoch(
     n_valid_regret = 0
     dataset_ids_processed = set()
 
-    for batch in tqdm(train_loader, desc=f"Epoch {epoch_num:3d} [Train]", leave=is_last_epoch):
+    print(
+        f"[train_epoch] Epoch {epoch_num}: fetching first batch from DataLoader "
+        f"(num_workers={getattr(train_loader, 'num_workers', 0)}, "
+        f"this can take a while on first batch due to LMDB unpickle)...",
+        flush=True,
+    )
+    _t_loader = time.perf_counter()
+    for step, batch in enumerate(
+        tqdm(train_loader, desc=f"Epoch {epoch_num:3d} [Train]", leave=is_last_epoch)
+    ):
+        if step == 0:
+            print(
+                f"[train_epoch] First batch received in {time.perf_counter() - _t_loader:.2f}s, "
+                f"num_graphs={batch.num_graphs}",
+                flush=True,
+            )
         optimizer.zero_grad()
         graphs_in_batch = batch.to_data_list()
         graphs_in_batch = restore_custom_attrs(batch, graphs_in_batch)
@@ -416,7 +511,17 @@ def train_epoch(
         n_graphs_regret = 0
 
         for data in graphs_in_batch:
+            dataset_id_saved = getattr(data, 'dataset_id', None)
+            valid_combos_saved = getattr(data, 'valid_combos', [])
+            opt_rtt_saved = getattr(data, 'opt_rtt', None)
+            task_map_saved = getattr(data, '_task_logit_to_placement', {})
+
             data = data.to(device)
+
+            data.dataset_id = dataset_id_saved
+            data.valid_combos = valid_combos_saved
+            data.opt_rtt = opt_rtt_saved
+            data._task_logit_to_placement = task_map_saved
 
             dataset_id = getattr(data, 'dataset_id', None)
             if dataset_id:
@@ -432,7 +537,7 @@ def train_epoch(
 
             # Structured regret loss
             loss_regret, valid_regret, stats = regret_criterion(
-                logits_per_task, data, valid_combos_map, optimal_rtt_map, device
+                logits_per_task, data, device
             )
             if valid_regret > 0 and not (torch.isnan(loss_regret) or torch.isinf(loss_regret)):
                 loss_regret_total = loss_regret_total + loss_regret
@@ -512,7 +617,7 @@ def decode_inference_placement(logits_per_task, data):
 
 
 @torch.no_grad()
-def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, is_last_epoch=False):
+def evaluate(model, loader, device, is_last_epoch=False):
     model.eval()
     total_loss_ce = 0.0
     total_valid_tasks = 0
@@ -562,14 +667,17 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
         return local_tasks_correct, local_total_tasks, graph_correct
 
     def _compute_regret_metrics(dataset_id_obj, n_tasks_obj, data_obj, logits_per_task_obj):
-        if not dataset_id_obj or dataset_id_obj not in optimal_rtt_map:
+        if not dataset_id_obj:
             return None
         combo_tuple = decode_inference_placement(logits_per_task_obj, data_obj)
         if combo_tuple is None:
             return None
-        hash_key = (dataset_id_obj, combo_tuple)
-        pred_rtt = placement_rtt_hash_table.get(hash_key)
-        opt_rtt = optimal_rtt_map.get(dataset_id_obj)
+        valid_combos = getattr(data_obj, "valid_combos", [])
+        opt_rtt = getattr(data_obj, "opt_rtt", None)
+        if opt_rtt is None or not valid_combos:
+            return None
+        combo_to_rtt = {combo: rtt for combo, rtt in valid_combos}
+        pred_rtt = combo_to_rtt.get(combo_tuple)
         if pred_rtt is None or opt_rtt is None:
             return None
         regret_val = float(pred_rtt - opt_rtt)
@@ -584,11 +692,15 @@ def evaluate(model, loader, device, placement_rtt_hash_table, optimal_rtt_map, i
             # Preserve custom attributes (lost on device transfer)
             task_logit_to_placement_orig = getattr(data, '_task_logit_to_placement', {})
             dataset_id_orig = getattr(data, 'dataset_id', None)
-            
+            valid_combos_orig = getattr(data, 'valid_combos', [])
+            opt_rtt_orig = getattr(data, 'opt_rtt', None)
+
             data = data.to(device)
-            
+
             data._task_logit_to_placement = task_logit_to_placement_orig
             data.dataset_id = dataset_id_orig
+            data.valid_combos = valid_combos_orig
+            data.opt_rtt = opt_rtt_orig
 
             dataset_id = data.dataset_id
             n_tasks = int(data.n_tasks)
@@ -658,12 +770,15 @@ if len(graphs) == 0:
     print("ERROR: No graphs loaded from cache!")
     exit(1)
 
-# Load helper maps
-DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
-placement_rtt_hash_table = load_rtt_hash_table_from_cache(CACHE_CTX)
-print(f"[dbg] placement_rtt combos: {len(placement_rtt_hash_table)}")
+LMDB_RTT_PATH = CACHE_CTX.rtt_combos_lmdb_path
+if not LMDB_RTT_PATH.exists():
+    raise FileNotFoundError(
+        f"RTT LMDB not found at {LMDB_RTT_PATH}. Run prepare_graphs_cache.py "
+        "(it writes rtt_combos.lmdb in the cache directory)."
+    )
+print(f"Using RTT combos LMDB: {LMDB_RTT_PATH}")
 
-VALID_COMBOS_MAP = build_valid_combos_map(placement_rtt_hash_table)
+DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
 
 # Compute statistics
 ys = np.concatenate([g.y.numpy() for g in graphs])
@@ -675,16 +790,6 @@ print("Max valid tasks:", np.max([(g.y >= 0).sum().item() for g in graphs]))
 print("Min valid tasks:", np.min([(g.y >= 0).sum().item() for g in graphs]))
 
 print(f"\nLoaded {len(graphs)} graphs from cache")
-
-# Store custom attributes globally (only those needed at train/eval time)
-GRAPH_CUSTOM_ATTRS = {}
-for graph in graphs:
-    dataset_id = getattr(graph, 'dataset_id', None)
-    if dataset_id:
-        GRAPH_CUSTOM_ATTRS[dataset_id] = {
-            '_task_logit_to_placement': getattr(graph, '_task_logit_to_placement', {}),
-            'dataset_id': dataset_id
-        }
 
 # ========================================================================
 # Train/Val/Test Split (80/10/10)
@@ -710,6 +815,25 @@ if IS_MERGED_CACHE:
             task_dist[n] = task_dist.get(n, 0) + 1
         print(f"  {split_name} task distribution: " + ", ".join([f"{n}t: {c}" for n, c in sorted(task_dist.items())]))
 print()
+
+train_dataset = GraphRttLMDBDataset(
+    graphs=train_graphs,
+    dataset_ids=train_ids,
+    optimal_rtt_map=DATA_OPTIMAL_RTT,
+    lmdb_path=LMDB_RTT_PATH,
+)
+val_dataset = GraphRttLMDBDataset(
+    graphs=val_graphs,
+    dataset_ids=val_ids,
+    optimal_rtt_map=DATA_OPTIMAL_RTT,
+    lmdb_path=LMDB_RTT_PATH,
+)
+test_dataset = GraphRttLMDBDataset(
+    graphs=test_graphs,
+    dataset_ids=test_ids,
+    optimal_rtt_map=DATA_OPTIMAL_RTT,
+    lmdb_path=LMDB_RTT_PATH,
+)
 
 # %%
 if RUNTIME_CONFIG.wandb_api_key:
@@ -805,9 +929,15 @@ wandb.watch(model, log="gradients", log_freq=100)
 best_val_regret = float('inf')  # Minimize regret
 best_val_acc = 0
 
-train_loader = DataLoader(train_graphs, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=False)
-val_loader = DataLoader(val_graphs, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False)
-test_loader = DataLoader(test_graphs, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False)
+train_loader = DataLoader(
+    train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, collate_fn=custom_collate
+)
+val_loader = DataLoader(
+    val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True, collate_fn=custom_collate
+)
+test_loader = DataLoader(
+    test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True, collate_fn=custom_collate
+)
 
 for epoch in range(EPOCHS):
     is_last_epoch = (epoch == EPOCHS - 1)
@@ -816,8 +946,6 @@ for epoch in range(EPOCHS):
     train_losses = train_epoch(
         model, train_loader, optimizer, DEVICE, epoch,
         regret_criterion=regret_criterion,
-        valid_combos_map=VALID_COMBOS_MAP,
-        optimal_rtt_map=DATA_OPTIMAL_RTT,
         ce_weight=CE_LOSS_WEIGHT,
         regret_weight=REGRET_LOSS_WEIGHT,
         is_last_epoch=is_last_epoch
@@ -825,8 +953,7 @@ for epoch in range(EPOCHS):
     
     # Evaluate
     val_metrics = evaluate(
-        model, val_loader, DEVICE, 
-        placement_rtt_hash_table, DATA_OPTIMAL_RTT,
+        model, val_loader, DEVICE,
         is_last_epoch=is_last_epoch
     )
     
@@ -884,13 +1011,19 @@ print("="*80)
 
 model.load_state_dict(torch.load("models/" + MODEL_FILENAME))
 
-train_loader_eval = DataLoader(train_graphs, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False)
-val_loader_eval = DataLoader(val_graphs, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False)
-test_loader_eval = DataLoader(test_graphs, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False)
+train_loader_eval = DataLoader(
+    train_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=False, collate_fn=custom_collate
+)
+val_loader_eval = DataLoader(
+    val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=False, collate_fn=custom_collate
+)
+test_loader_eval = DataLoader(
+    test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=False, collate_fn=custom_collate
+)
 
-train_metrics = evaluate(model, train_loader_eval, DEVICE, placement_rtt_hash_table, DATA_OPTIMAL_RTT, is_last_epoch=True)
-val_metrics_final = evaluate(model, val_loader_eval, DEVICE, placement_rtt_hash_table, DATA_OPTIMAL_RTT, is_last_epoch=True)
-test_metrics = evaluate(model, test_loader_eval, DEVICE, placement_rtt_hash_table, DATA_OPTIMAL_RTT, is_last_epoch=True)
+train_metrics = evaluate(model, train_loader_eval, DEVICE, is_last_epoch=True)
+val_metrics_final = evaluate(model, val_loader_eval, DEVICE, is_last_epoch=True)
+test_metrics = evaluate(model, test_loader_eval, DEVICE, is_last_epoch=True)
 
 # ========================================================================
 # WANDB
