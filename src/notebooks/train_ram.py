@@ -86,6 +86,18 @@ RTT_SCALE_FACTOR = RUNTIME_CONFIG.rtt_scale_factor
 REGRET_LOSS_WEIGHT = RUNTIME_CONFIG.regret_loss_weight
 CE_LOSS_WEIGHT = RUNTIME_CONFIG.ce_loss_weight
 NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
+DATALOADER_PREFETCH_FACTOR = RUNTIME_CONFIG.dataloader_prefetch_factor
+PERSISTENT_DATALOADER_WORKERS = RUNTIME_CONFIG.persistent_dataloader_workers
+PRECOMPUTE_RTT_LOOKUPS = RUNTIME_CONFIG.precompute_rtt_lookups
+HARD_NEGATIVE_FRACTION = RUNTIME_CONFIG.hard_negative_fraction
+
+if RUNTIME_CONFIG.torch_threads > 0:
+    torch.set_num_threads(RUNTIME_CONFIG.torch_threads)
+elif os.environ.get("SLURM_CPUS_PER_TASK"):
+    torch.set_num_threads(max(1, int(os.environ["SLURM_CPUS_PER_TASK"])))
+if DEVICE.type == "cuda":
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
 print(f"Cache directory: {CACHE_CTX.cache_dir}")
 print(f"Cache mode: {'MERGED' if IS_MERGED_CACHE else 'SINGLE'}")
@@ -96,6 +108,11 @@ if TASK_COUNT_DIST:
 
 _dl_help = "embedded RTT on graphs (single pickle load; no LMDB)"
 print(f"DataLoader num_workers={NUM_DATALOADER_WORKERS} ({_dl_help})")
+print(f"torch num_threads={torch.get_num_threads()}")
+print(
+    f"RAM lookup precompute={PRECOMPUTE_RTT_LOOKUPS}, "
+    f"hard_negative_fraction={HARD_NEGATIVE_FRACTION}"
+)
 
 
 # %%
@@ -319,34 +336,42 @@ class StructuredRegretLoss(nn.Module):
             score_opt = score_opt + logits_per_task[t_idx][opt_idx]
             opt_indices.append(opt_idx)
         
-        # 2. Sample a Negative Path from valid combos (hash table)
+        # 2. Sample a Negative Path from valid combos (RAM-precomputed when available)
         opt_combo_tuple = tuple(
             task_logit_to_placement[t_idx][opt_indices[t_idx]]
             if opt_indices[t_idx] < len(task_logit_to_placement[t_idx])
             else (-1, -1)
             for t_idx in range(n_tasks)
         )
-        non_optimal_combos = [
-            (combo, rtt) for combo, rtt in valid_combos
-            if combo != opt_combo_tuple
-        ]
-        if not non_optimal_combos:
-            return torch.tensor(0.0, device=device), 0, {}
+        hard_negative_combos = getattr(data, '_hard_negative_combos', None)
+        if hard_negative_combos:
+            neg_combo, neg_rtt = random.choice(hard_negative_combos)
+        else:
+            non_optimal_combos = [
+                (combo, rtt) for combo, rtt in valid_combos
+                if combo != opt_combo_tuple
+            ]
+            if not non_optimal_combos:
+                return torch.tensor(0.0, device=device), 0, {}
 
-        # Sample one, preferring high-regret ones (harder negatives)
-        non_optimal_combos.sort(key=lambda x: x[1], reverse=True)
-        top_half = non_optimal_combos[:max(1, len(non_optimal_combos) // 2)]
-        neg_combo, neg_rtt = random.choice(top_half)
+            # Sample one, preferring high-regret ones (harder negatives)
+            non_optimal_combos.sort(key=lambda x: x[1], reverse=True)
+            top_half = non_optimal_combos[:max(1, len(non_optimal_combos) // 2)]
+            neg_combo, neg_rtt = random.choice(top_half)
 
         # Map combo back to logit indices
         neg_indices = []
+        placement_to_logit_by_task = getattr(data, '_placement_to_logit_by_task', None)
         for t_idx in range(n_tasks):
             target_node_id, target_plat_id = neg_combo[t_idx]
-            found_idx = None
-            for logit_idx, (node_id, plat_id) in enumerate(task_logit_to_placement[t_idx]):
-                if node_id == target_node_id and plat_id == target_plat_id:
-                    found_idx = logit_idx
-                    break
+            if placement_to_logit_by_task and t_idx < len(placement_to_logit_by_task):
+                found_idx = placement_to_logit_by_task[t_idx].get((target_node_id, target_plat_id))
+            else:
+                found_idx = None
+                for logit_idx, (node_id, plat_id) in enumerate(task_logit_to_placement[t_idx]):
+                    if node_id == target_node_id and plat_id == target_plat_id:
+                        found_idx = logit_idx
+                        break
             if found_idx is None:
                 return torch.tensor(0.0, device=device), 0, {}
             neg_indices.append(found_idx)
@@ -406,6 +431,80 @@ class GraphRttEmbeddedDataset(torch.utils.data.Dataset):
         return graph
 
 
+def _optimal_combo_from_graph(graph: Data) -> Optional[Tuple[Tuple[int, int], ...]]:
+    task_map = getattr(graph, '_task_logit_to_placement', None)
+    if task_map is None:
+        return None
+    n_tasks = int(graph.n_tasks)
+    combo: List[Tuple[int, int]] = []
+    for t_idx in range(n_tasks):
+        if t_idx not in task_map:
+            return None
+        opt_idx = int(graph.y[t_idx].item())
+        placements = task_map[t_idx]
+        if opt_idx < 0 or opt_idx >= len(placements):
+            return None
+        combo.append(placements[opt_idx])
+    return tuple(combo)
+
+
+def prepare_graphs_for_ram_training(
+    graphs: List[Data],
+    *,
+    precompute_rtt_lookups: bool,
+    hard_negative_fraction: float,
+) -> None:
+    """
+    Spend RAM once so every epoch avoids sorting/scanning huge embedded RTT lists.
+    This is intended for high-memory SLURM nodes and keeps training semantics unchanged.
+    """
+    if not precompute_rtt_lookups:
+        return
+
+    start = time.perf_counter()
+    total_combo_rows = 0
+    total_hard_negatives = 0
+    combo_maps_built = 0
+    hard_negative_fraction = min(1.0, max(0.0, hard_negative_fraction))
+
+    for graph in tqdm(graphs, desc="Precomputing RAM training lookups", unit="graph"):
+        task_map = getattr(graph, '_task_logit_to_placement', None)
+        if task_map is not None:
+            graph._placement_to_logit_by_task = [
+                {placement: idx for idx, placement in enumerate(task_map.get(t_idx, []))}
+                for t_idx in range(int(graph.n_tasks))
+            ]
+
+        valid_combos = getattr(graph, "valid_combos", None) or []
+        total_combo_rows += len(valid_combos)
+        if not valid_combos:
+            continue
+
+        graph._combo_to_rtt = dict(valid_combos)
+        combo_maps_built += 1
+
+        opt_combo = _optimal_combo_from_graph(graph)
+        hard_candidates = [
+            (combo, rtt) for combo, rtt in valid_combos
+            if opt_combo is None or combo != opt_combo
+        ]
+        if not hard_candidates:
+            graph._hard_negative_combos = []
+            continue
+
+        hard_candidates.sort(key=lambda x: x[1], reverse=True)
+        keep_n = max(1, int(len(hard_candidates) * hard_negative_fraction))
+        graph._hard_negative_combos = hard_candidates[:keep_n]
+        total_hard_negatives += keep_n
+
+    print(
+        "Precomputed RAM training lookups: "
+        f"{combo_maps_built} combo maps, {total_combo_rows:,} RTT rows, "
+        f"{total_hard_negatives:,} hard negatives in {time.perf_counter() - start:.2f}s",
+        flush=True,
+    )
+
+
 # %%
 # ============================================================================
 # CUSTOM COLLATE AND ATTRIBUTE RESTORATION
@@ -413,15 +512,45 @@ class GraphRttEmbeddedDataset(torch.utils.data.Dataset):
 
 def custom_collate(data_list):
     """Batch graphs while preserving non-tensor custom attributes."""
-    task_maps = [getattr(d, '_task_logit_to_placement', {}) for d in data_list]
-    dataset_ids = [getattr(d, 'dataset_id', None) for d in data_list]
-    valid_combos = [getattr(d, 'valid_combos', []) for d in data_list]
-    opt_rtts = [getattr(d, 'opt_rtt', None) for d in data_list]
-    batch = Batch.from_data_list(data_list)
+    preserved_names = (
+        '_task_logit_to_placement',
+        'dataset_id',
+        'valid_combos',
+        'opt_rtt',
+        '_placement_to_logit_by_task',
+        '_hard_negative_combos',
+        '_combo_to_rtt',
+    )
+    preserved: List[Dict[str, Any]] = []
+    for data in data_list:
+        attrs: Dict[str, Any] = {}
+        for name in preserved_names:
+            if hasattr(data, name):
+                attrs[name] = getattr(data, name)
+                delattr(data, name)
+        preserved.append(attrs)
+
+    try:
+        batch = Batch.from_data_list(data_list)
+    finally:
+        for data, attrs in zip(data_list, preserved):
+            for name, value in attrs.items():
+                setattr(data, name, value)
+
+    task_maps = [attrs.get('_task_logit_to_placement', {}) for attrs in preserved]
+    dataset_ids = [attrs.get('dataset_id') for attrs in preserved]
+    valid_combos = [attrs.get('valid_combos', []) for attrs in preserved]
+    opt_rtts = [attrs.get('opt_rtt') for attrs in preserved]
+    placement_to_logit = [attrs.get('_placement_to_logit_by_task') for attrs in preserved]
+    hard_negatives = [attrs.get('_hard_negative_combos') for attrs in preserved]
+    combo_to_rtt = [attrs.get('_combo_to_rtt') for attrs in preserved]
     batch._task_logit_to_placement_list = task_maps
     batch.dataset_id_list = dataset_ids
     batch.valid_combos_list = valid_combos
     batch.opt_rtt_list = opt_rtts
+    batch._placement_to_logit_by_task_list = placement_to_logit
+    batch._hard_negative_combos_list = hard_negatives
+    batch._combo_to_rtt_list = combo_to_rtt
     return batch
 
 
@@ -431,6 +560,9 @@ def restore_custom_attrs(batch, graphs):
     dataset_ids = getattr(batch, 'dataset_id_list', [])
     valid_combos = getattr(batch, 'valid_combos_list', [])
     opt_rtts = getattr(batch, 'opt_rtt_list', [])
+    placement_to_logit = getattr(batch, '_placement_to_logit_by_task_list', [])
+    hard_negatives = getattr(batch, '_hard_negative_combos_list', [])
+    combo_to_rtt = getattr(batch, '_combo_to_rtt_list', [])
 
     for idx, graph in enumerate(graphs):
         if idx < len(task_maps):
@@ -441,6 +573,12 @@ def restore_custom_attrs(batch, graphs):
             graph.valid_combos = valid_combos[idx]
         if idx < len(opt_rtts):
             graph.opt_rtt = opt_rtts[idx]
+        if idx < len(placement_to_logit):
+            graph._placement_to_logit_by_task = placement_to_logit[idx]
+        if idx < len(hard_negatives):
+            graph._hard_negative_combos = hard_negatives[idx]
+        if idx < len(combo_to_rtt):
+            graph._combo_to_rtt = combo_to_rtt[idx]
     return graphs
 
 
@@ -455,7 +593,8 @@ def create_dataloader(dataset, *, shuffle: bool, pin_memory: bool) -> DataLoader
         collate_fn=custom_collate,
     )
     if NUM_DATALOADER_WORKERS > 0:
-        kw["prefetch_factor"] = 1
+        kw["prefetch_factor"] = DATALOADER_PREFETCH_FACTOR
+        kw["persistent_workers"] = PERSISTENT_DATALOADER_WORKERS
     return DataLoader(**kw)
 
 
@@ -531,6 +670,8 @@ def train_epoch(
                 valid_combos_saved = getattr(data, 'valid_combos', [])
                 opt_rtt_saved = getattr(data, 'opt_rtt', None)
                 task_map_saved = getattr(data, '_task_logit_to_placement', {})
+                placement_to_logit_saved = getattr(data, '_placement_to_logit_by_task', None)
+                hard_negative_combos_saved = getattr(data, '_hard_negative_combos', None)
 
                 data = data.to(device)
 
@@ -538,6 +679,8 @@ def train_epoch(
                 data.valid_combos = valid_combos_saved
                 data.opt_rtt = opt_rtt_saved
                 data._task_logit_to_placement = task_map_saved
+                data._placement_to_logit_by_task = placement_to_logit_saved
+                data._hard_negative_combos = hard_negative_combos_saved
 
                 dataset_id = getattr(data, 'dataset_id', None)
                 if dataset_id:
@@ -712,7 +855,9 @@ def evaluate(model, loader, device, is_last_epoch=False):
         opt_rtt = getattr(data_obj, "opt_rtt", None)
         if opt_rtt is None or not valid_combos:
             return None
-        combo_to_rtt = {combo: rtt for combo, rtt in valid_combos}
+        combo_to_rtt = getattr(data_obj, "_combo_to_rtt", None)
+        if combo_to_rtt is None:
+            combo_to_rtt = {combo: rtt for combo, rtt in valid_combos}
         pred_rtt = combo_to_rtt.get(combo_tuple)
         if pred_rtt is None or opt_rtt is None:
             return None
@@ -730,6 +875,7 @@ def evaluate(model, loader, device, is_last_epoch=False):
             dataset_id_orig = getattr(data, 'dataset_id', None)
             valid_combos_orig = getattr(data, 'valid_combos', [])
             opt_rtt_orig = getattr(data, 'opt_rtt', None)
+            combo_to_rtt_orig = getattr(data, '_combo_to_rtt', None)
 
             data = data.to(device)
 
@@ -737,6 +883,7 @@ def evaluate(model, loader, device, is_last_epoch=False):
             data.dataset_id = dataset_id_orig
             data.valid_combos = valid_combos_orig
             data.opt_rtt = opt_rtt_orig
+            data._combo_to_rtt = combo_to_rtt_orig
 
             dataset_id = data.dataset_id
             n_tasks = int(data.n_tasks)
@@ -815,6 +962,11 @@ if not CACHE_CTX.rtt_combos_embedded:
 print("Using RTT combos: embedded in graphs.pkl (prepare_graphs_ram.py); no LMDB.")
 
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
+prepare_graphs_for_ram_training(
+    graphs,
+    precompute_rtt_lookups=PRECOMPUTE_RTT_LOOKUPS,
+    hard_negative_fraction=HARD_NEGATIVE_FRACTION,
+)
 
 # Compute statistics
 ys = np.concatenate([g.y.numpy() for g in graphs])
@@ -880,6 +1032,12 @@ wandb.init(
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
         "non_unique_placements": True,  # Flag to indicate non-unique support
         "rtt_backend": "embedded_in_graphs",
+        "precompute_rtt_lookups": bool(PRECOMPUTE_RTT_LOOKUPS),
+        "hard_negative_fraction": float(HARD_NEGATIVE_FRACTION),
+        "num_dataloader_workers": int(NUM_DATALOADER_WORKERS),
+        "dataloader_prefetch_factor": int(DATALOADER_PREFETCH_FACTOR),
+        "persistent_dataloader_workers": bool(PERSISTENT_DATALOADER_WORKERS),
+        "torch_threads": int(torch.get_num_threads()),
         "num_datasets": int(len(graphs)),
         "num_train": int(len(train_graphs)),
         "num_val": int(len(val_graphs)),
