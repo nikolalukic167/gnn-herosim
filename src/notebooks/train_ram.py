@@ -3,6 +3,14 @@
 """
 GNN for Task-to-Platform Placement Prediction - REGRET-FOCUSED TRAINING (NON-UNIQUE VERSION)
 
+**RAM cache path:** uses ``prepare_graphs_ram.py`` output: RTT combos are **embedded** in each graph
+inside ``graphs.pkl``. Training loads them with ``pickle.load`` once; ``__getitem__`` does not read
+LMDB or extra per-sample files (only sets ``dataset_id`` / ``opt_rtt`` on the shared graph objects).
+
+This script **requires** ``metadata.json`` with ``rtt_combos_backend: embedded_in_graphs``.
+Copy the prepared cache to the cluster under ``/share/...`` and optionally point ``--cache-dir`` at
+node-local scratch for a single fast read at process start.
+
 This version uses a combined loss:
   Loss = alpha * CrossEntropy + beta * StructuredRegretLoss
 
@@ -22,10 +30,8 @@ import pickle
 import random
 import json
 import time
-import lmdb
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
-from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -41,8 +47,6 @@ from tqdm import tqdm
 import wandb
 
 # Temporary timing logs — delete this block when no longer needed.
-_LMDB_LOG_SLOW_SEC = 1.0
-_LMDB_LOG_MIN_COMBOS = 50_000
 _TRAIN_LOG_BATCH_EVERY = 25
 _TRAIN_LOG_SLOW_STEP_SEC = 20.0
 _TRAIN_LOG_HUGE_COMBOS = 200_000
@@ -90,10 +94,8 @@ if TASK_COUNT_DIST:
     for n_tasks, count in sorted(TASK_COUNT_DIST.items(), key=lambda x: int(x[0])):
         print(f"  {n_tasks} tasks: {count} graphs")
 
-print(
-    f"DataLoader num_workers={NUM_DATALOADER_WORKERS} "
-    "(0=main process; >0 uses more RAM per LMDB unpickle)"
-)
+_dl_help = "embedded RTT on graphs (single pickle load; no LMDB)"
+print(f"DataLoader num_workers={NUM_DATALOADER_WORKERS} ({_dl_help})")
 
 
 # %%
@@ -377,33 +379,18 @@ class StructuredRegretLoss(nn.Module):
         return loss, 1, stats
 
 
-class GraphRttLMDBDataset(torch.utils.data.Dataset):
-    """Wrap cached graphs and fetch per-dataset RTT combos from LMDB (mmap-friendly)."""
+class GraphRttEmbeddedDataset(torch.utils.data.Dataset):
+    """Graphs already carry ``valid_combos`` from ``prepare_graphs_ram.py`` (no LMDB I/O)."""
 
     def __init__(
         self,
         graphs: List[Data],
         dataset_ids: List[str],
         optimal_rtt_map: Dict[str, float],
-        lmdb_path: Path,
     ) -> None:
         self.graphs = graphs
         self.dataset_ids = dataset_ids
         self.optimal_rtt_map = optimal_rtt_map
-        self.lmdb_path = Path(lmdb_path)
-        self._env: Optional[lmdb.Environment] = None
-
-    def _get_env(self) -> lmdb.Environment:
-        if self._env is None:
-            self._env = lmdb.open(
-                str(self.lmdb_path),
-                readonly=True,
-                lock=False,
-                readahead=False,
-                meminit=False,
-                max_dbs=0,
-            )
-        return self._env
 
     def __len__(self) -> int:
         return len(self.dataset_ids)
@@ -413,25 +400,9 @@ class GraphRttLMDBDataset(torch.utils.data.Dataset):
         dataset_id = self.dataset_ids[idx]
         graph.dataset_id = dataset_id
         graph.opt_rtt = float(self.optimal_rtt_map.get(dataset_id, 0.0))
-
-        t0 = time.perf_counter()
-        env = self._get_env()
-        with env.begin() as txn:
-            data_bytes = txn.get(dataset_id.encode("utf-8"))
-
-        if data_bytes:
-            graph.valid_combos = pickle.loads(data_bytes)
-        else:
+        vc = getattr(graph, "valid_combos", None)
+        if vc is None:
             graph.valid_combos = []
-        dt = time.perf_counter() - t0
-        n_c = len(graph.valid_combos)
-        if dt >= _LMDB_LOG_SLOW_SEC or n_c >= _LMDB_LOG_MIN_COMBOS:
-            print(
-                f"[GraphRttLMDBDataset] idx={idx} dataset_id={dataset_id!r} "
-                f"LMDB+unpickle={dt:.2f}s n_combos={n_c}",
-                flush=True,
-            )
-
         return graph
 
 
@@ -474,7 +445,7 @@ def restore_custom_attrs(batch, graphs):
 
 
 def create_dataloader(dataset, *, shuffle: bool, pin_memory: bool) -> DataLoader:
-    """Fewer workers + prefetch avoid OOM when each sample holds huge unpickled valid_combos."""
+    """``prefetch_factor=1`` when using workers limits RAM from huge embedded ``valid_combos``."""
     kw: Dict[str, Any] = dict(
         dataset=dataset,
         batch_size=BATCH_SIZE,
@@ -512,10 +483,11 @@ def train_epoch(
     n_valid_regret = 0
     dataset_ids_processed = set()
 
+    _first_batch_help = "embedded RTT (already in memory after load_graphs_from_cache)"
     print(
         f"[train_epoch] Epoch {epoch_num}: fetching first batch from DataLoader "
         f"(num_workers={getattr(train_loader, 'num_workers', 0)}, "
-        f"this can take a while on first batch due to LMDB unpickle)...",
+        f"this can take a while on first batch due to {_first_batch_help})...",
         flush=True,
     )
     _t_loader = time.perf_counter()
@@ -834,13 +806,13 @@ if len(graphs) == 0:
     print("ERROR: No graphs loaded from cache!")
     exit(1)
 
-LMDB_RTT_PATH = CACHE_CTX.rtt_combos_lmdb_path
-if not LMDB_RTT_PATH.exists():
+if not CACHE_CTX.rtt_combos_embedded:
     raise FileNotFoundError(
-        f"RTT LMDB not found at {LMDB_RTT_PATH}. Run prepare_graphs_cache.py "
-        "(it writes rtt_combos.lmdb in the cache directory)."
+        f"train_ram.py requires an embedded RTT cache (prepare_graphs_ram.py). "
+        f"Expected metadata.json rtt_combos_backend='embedded_in_graphs' under {CACHE_CTX.cache_dir!s}. "
+        f"For LMDB caches use train.py instead."
     )
-print(f"Using RTT combos LMDB: {LMDB_RTT_PATH}")
+print("Using RTT combos: embedded in graphs.pkl (prepare_graphs_ram.py); no LMDB.")
 
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
 
@@ -880,24 +852,9 @@ if IS_MERGED_CACHE:
         print(f"  {split_name} task distribution: " + ", ".join([f"{n}t: {c}" for n, c in sorted(task_dist.items())]))
 print()
 
-train_dataset = GraphRttLMDBDataset(
-    graphs=train_graphs,
-    dataset_ids=train_ids,
-    optimal_rtt_map=DATA_OPTIMAL_RTT,
-    lmdb_path=LMDB_RTT_PATH,
-)
-val_dataset = GraphRttLMDBDataset(
-    graphs=val_graphs,
-    dataset_ids=val_ids,
-    optimal_rtt_map=DATA_OPTIMAL_RTT,
-    lmdb_path=LMDB_RTT_PATH,
-)
-test_dataset = GraphRttLMDBDataset(
-    graphs=test_graphs,
-    dataset_ids=test_ids,
-    optimal_rtt_map=DATA_OPTIMAL_RTT,
-    lmdb_path=LMDB_RTT_PATH,
-)
+train_dataset = GraphRttEmbeddedDataset(train_graphs, train_ids, DATA_OPTIMAL_RTT)
+val_dataset = GraphRttEmbeddedDataset(val_graphs, val_ids, DATA_OPTIMAL_RTT)
+test_dataset = GraphRttEmbeddedDataset(test_graphs, test_ids, DATA_OPTIMAL_RTT)
 
 # %%
 if RUNTIME_CONFIG.wandb_api_key:
@@ -922,6 +879,7 @@ wandb.init(
         "cache_mode": "merged" if IS_MERGED_CACHE else "single",
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
         "non_unique_placements": True,  # Flag to indicate non-unique support
+        "rtt_backend": "embedded_in_graphs",
         "num_datasets": int(len(graphs)),
         "num_train": int(len(train_graphs)),
         "num_val": int(len(val_graphs)),

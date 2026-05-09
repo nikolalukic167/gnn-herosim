@@ -23,6 +23,7 @@ class CacheContext:
     dataset_ids_cache_path: Path
     optimal_rtt_cache_path: Path
     rtt_combos_lmdb_path: Path
+    rtt_combos_embedded: bool
 
 
 def create_cache_context(cache_dir: Path) -> CacheContext:
@@ -40,6 +41,9 @@ def create_cache_context(cache_dir: Path) -> CacheContext:
         task_count_dist = {}
         base_dirs = []
 
+    backend = str(metadata.get("rtt_combos_backend", "lmdb"))
+    rtt_combos_embedded = backend == "embedded_in_graphs"
+
     return CacheContext(
         cache_dir=cache_dir,
         metadata=metadata,
@@ -50,6 +54,7 @@ def create_cache_context(cache_dir: Path) -> CacheContext:
         dataset_ids_cache_path=cache_dir / "dataset_ids.pkl",
         optimal_rtt_cache_path=cache_dir / "optimal_rtt.pkl",
         rtt_combos_lmdb_path=cache_dir / "rtt_combos.lmdb",
+        rtt_combos_embedded=rtt_combos_embedded,
     )
 
 
