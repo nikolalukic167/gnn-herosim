@@ -7,6 +7,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class TrainingConfig:
+    project_root: Path
     cache_dir: Path
     use_merged_cache: bool
     embedding_dim: int
@@ -25,11 +26,26 @@ class TrainingConfig:
 
 
 def parse_training_config() -> TrainingConfig:
+    default_project_root = Path(__file__).resolve().parents[3]
+    default_cache_dir = (
+        default_project_root
+        / "simulation_data"
+        / "artifacts"
+        / "run_queue_big"
+        / "graphs_cache_gnn_datasets_4tasks_overnight_260422"
+    )
+
     parser = argparse.ArgumentParser(description="Train non-unique task placement GNN.")
+    parser.add_argument(
+        "--project-root",
+        type=Path,
+        default=default_project_root,
+        help="Repository root path.",
+    )
     parser.add_argument(
         "--cache-dir",
         type=Path,
-        default=Path("/root/projects/my-herosim/simulation_data/artifacts/run_queue_big/graphs_cache_gnn_datasets_4tasks_overnight_260422"),
+        default=default_cache_dir,
         help="Path to prepared cache directory.",
     )
     parser.add_argument("--use-merged-cache", action="store_true", help="Flag metadata only (for logging).")
@@ -54,6 +70,7 @@ def parse_training_config() -> TrainingConfig:
     args = parser.parse_args()
 
     return TrainingConfig(
+        project_root=args.project_root,
         cache_dir=args.cache_dir,
         use_merged_cache=args.use_merged_cache,
         embedding_dim=args.embedding_dim,

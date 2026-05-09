@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 Pre-generate and cache graphs for GNN training (NON-UNIQUE VERSION).
 
@@ -12,9 +14,10 @@ NON-UNIQUE PLACEMENTS:
 """
 
 import argparse
-import concurrent.futures
+import shutil
 import json
 import logging
+import math
 import os
 import pickle
 import random
@@ -23,10 +26,11 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Mapping, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
+import lmdb
 import pandas as pd
 import numpy as np
 import torch
@@ -36,6 +40,64 @@ from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+# Strictly positive scale for divisions in feature construction (avoid Inf/NaN tensors).
+FEATURE_DIV_EPS = 1e-12
+
+TaskPriors = Dict[str, Any]
+PlacementCombo = Tuple[Tuple[int, int], ...]
+
+# LMDB virtual address space ceiling (not preallocated disk usage).
+LMDB_MAP_SIZE_BYTES = 50 * 1024 * 1024 * 1024
+
+
+def _require_finite_feature_array(name: str, arr: np.ndarray) -> None:
+    """Fail fast at cache build time if features are still non-finite."""
+    if np.isfinite(arr).all():
+        return
+    bad = int(np.size(arr) - np.sum(np.isfinite(arr)))
+    raise ValueError(f"{name} has {bad} non-finite value(s); fix normalization or input sanitization")
+
+
+def _safe_float(v: Any, default: float = 0.0) -> float:
+    """Finite float for JSON/simulator values; never returns NaN or Inf."""
+    if v is None:
+        return default
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(x):
+        return default
+    return x
+
+
+def _safe_positive(d: float, eps: float = FEATURE_DIV_EPS) -> float:
+    """Lower-bound a divisor so normalization cannot divide by zero."""
+    if not math.isfinite(d):
+        return eps
+    return float(d) if d > eps else eps
+
+
+def _queue_length_int(v: Any) -> int:
+    """Non-negative queue length from snapshot JSON (handles null / non-finite floats)."""
+    if isinstance(v, bool):
+        return int(v)
+    if isinstance(v, int):
+        return max(0, v)
+    fv = _safe_float(v, 0.0)
+    return max(0, int(fv))
+
+
+def _finite_positive_exec_values(exec_map: Mapping[str, Any]) -> List[float]:
+    """Execution times from priors suitable for min/mean (exclude NaN, Inf, <= 0)."""
+    out: List[float] = []
+    for v in exec_map.values():
+        x = _safe_float(v, 0.0)
+        if x > 0.0:
+            out.append(x)
+    return out
+
 
 # Set seeds for reproducibility
 random.seed(42)
@@ -51,9 +113,6 @@ class Config:
     cache_dir: Path
     priors_path: Path
     merge_datasets: bool = False
-    n_jobs: int = 12
-    parse_batch_size: int = 200
-    chunk_size: int = 200_000
     queue_norm_factor: float = 50.0
     require_queue_data: bool = True
 
@@ -76,12 +135,12 @@ def parse_args() -> Config:
     parser.add_argument("--base-dirs", nargs="+", type=Path)
     parser.add_argument("--cache-dir", type=Path)
     parser.add_argument("--priors-path", type=Path)
-    parser.add_argument("--n-jobs", type=int, default=12)
-    parser.add_argument("--parse-batch-size", type=int, default=200)
-    parser.add_argument("--chunk-size", type=int, default=200_000)
     parser.add_argument("--queue-norm-factor", type=float, default=50.0)
     parser.add_argument("--allow-missing-queue-data", action="store_true")
     args = parser.parse_args()
+
+    if args.queue_norm_factor <= 0:
+        parser.error("--queue-norm-factor must be positive (division by zero in queue length normalization).")
 
     base_dirs = args.base_dirs or _default_base_dirs(args.project_root, args.merge_datasets)
     if args.cache_dir:
@@ -99,9 +158,6 @@ def parse_args() -> Config:
         cache_dir=cache_dir,
         priors_path=priors_path,
         merge_datasets=args.merge_datasets,
-        n_jobs=args.n_jobs,
-        parse_batch_size=args.parse_batch_size,
-        chunk_size=args.chunk_size,
         queue_norm_factor=args.queue_norm_factor,
         require_queue_data=not args.allow_missing_queue_data,
     )
@@ -114,7 +170,9 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "4.1"  # Non-unique placements: multiple tasks can be placed on same replica
+CACHE_VERSION = "5.0"  # Non-unique placements: multiple tasks can be placed on same replica
+# - RTT valid combos stored per-dataset in LMDB (rtt_combos.lmdb); removed SQLite/chunked hash table build
+# - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
 STRICT_TASK_RESULTS = True
@@ -313,7 +371,7 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
             if task_placements:
                 # Use first task's full_queue_snapshot (same for all tasks in batch)
                 full_queue_snapshot = task_placements[0].get('full_queue_snapshot', {})
-                result['queue_snapshot'] = {k: int(v) for k, v in full_queue_snapshot.items()}
+                result['queue_snapshot'] = {k: _queue_length_int(v) for k, v in full_queue_snapshot.items()}
                 
                 # Extract temporal state from task placements
                 # Each task has temporal_state_at_scheduling for its valid replica platforms
@@ -328,9 +386,15 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
                             if isinstance(state_dict, dict):
                                 # Convert values to float (they should already be floats in JSON)
                                 merged_temporal_state[platform_key] = {
-                                    'current_task_remaining': float(state_dict.get('current_task_remaining', 0.0)),
-                                    'cold_start_remaining': float(state_dict.get('cold_start_remaining', 0.0)),
-                                    'comm_remaining': float(state_dict.get('comm_remaining', 0.0))
+                                    'current_task_remaining': _safe_float(
+                                        state_dict.get('current_task_remaining', 0.0), 0.0
+                                    ),
+                                    'cold_start_remaining': _safe_float(
+                                        state_dict.get('cold_start_remaining', 0.0), 0.0
+                                    ),
+                                    'comm_remaining': _safe_float(
+                                        state_dict.get('comm_remaining', 0.0), 0.0
+                                    ),
                                 }
                 
                 if merged_temporal_state:
@@ -355,11 +419,11 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
                 for task_type, queues in queue_distributions.items():
                     for key, queue_length in queues.items():
                         # key is "node_name:platform_id"
+                        q = _queue_length_int(queue_length)
                         if key not in merged_queues:
-                            merged_queues[key] = int(queue_length)
+                            merged_queues[key] = q
                         else:
-                            # Take maximum if platform appears for multiple task types
-                            merged_queues[key] = max(merged_queues[key], int(queue_length))
+                            merged_queues[key] = max(merged_queues[key], q)
                 
                 result['queue_snapshot'] = merged_queues
             except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
@@ -370,7 +434,9 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
     return result
 
 
-def load_all_datasets(base_dirs: List[Path], require_queue_data: bool = True) -> Dict[str, Dict[str, pd.DataFrame]]:
+def load_all_datasets(
+    base_dirs: List[Path], require_queue_data: bool = True
+) -> Dict[str, Dict[str, Any]]:
     """
     Load all datasets from multiple gnn_datasets directories (supports merging).
     
@@ -443,7 +509,7 @@ def load_all_datasets(base_dirs: List[Path], require_queue_data: bool = True) ->
 
 
 def export_task_metrics_for_analysis(
-    all_datasets: Dict[str, Dict[str, pd.DataFrame]],
+    all_datasets: Dict[str, Dict[str, Any]],
     output_csv: Path,
 ) -> None:
     """Export normalized per-task rows used by graph generation for gap analysis."""
@@ -469,152 +535,126 @@ def export_task_metrics_for_analysis(
 
 
 # ============================================================================
-# RTT HASH TABLE BUILDING (Parallel + Chunked Saving)
+# RTT COMBOS LMDB (one key per dataset_id -> pickled list[(combo, rtt), ...])
 # ============================================================================
 
-def _parse_jsonl_file_to_dict(jsonl_path: Path) -> Dict[Tuple[str, Tuple[Tuple[int, int], ...]], float]:
-    """Parse a single JSONL file and return dict of (dataset_id, combo) -> rtt."""
-    results = {}
+
+def _remove_legacy_rtt_artifacts(cache_dir: Path) -> None:
+    """Drop SQLite / chunked pickle RTT stores and any prior LMDB env directory."""
+    for stale_chunk in cache_dir.glob("rtt_chunk_*.pkl"):
+        stale_chunk.unlink(missing_ok=True)
+    (cache_dir / "rtt_chunks_meta.json").unlink(missing_ok=True)
+    (cache_dir / "placement_rtt_hash_table.sqlite3").unlink(missing_ok=True)
+    (cache_dir / "placement_rtt_hash_table.pkl").unlink(missing_ok=True)
+    lmdb_dir = cache_dir / "rtt_combos.lmdb"
+    if lmdb_dir.exists():
+        shutil.rmtree(lmdb_dir, ignore_errors=True)
+
+
+def _placement_combos_from_jsonl(jsonl_path: Path) -> Tuple[str, List[Tuple[PlacementCombo, float]]]:
+    """Parse one placements.jsonl; return (dataset_id, list of (placement combo, rtt))."""
+    combos: List[Tuple[PlacementCombo, float]] = []
+    ds_name = jsonl_path.parent.parent.name
+    source_dir = jsonl_path.parent.parent.parent.name
+    dataset_id = f"{source_dir}/{ds_name}"
     try:
-        # Use unique dataset_id: source_dir/ds_name to avoid collisions
-        ds_name = jsonl_path.parent.parent.name
-        source_dir = jsonl_path.parent.parent.parent.name
-        dataset_id = f"{source_dir}/{ds_name}"
-        with open(jsonl_path, 'r') as f:
+        with open(jsonl_path, "r") as f:
             for line in f:
                 line = line.strip()
                 if not line:
                     continue
-                
                 try:
                     data = json.loads(line)
                     placement_plan = data.get("placement_plan", {})
                     rtt_val = data.get("rtt")
-                    
                     if not placement_plan or rtt_val is None:
                         continue
-                    
                     sorted_tasks = sorted(placement_plan.keys(), key=lambda x: int(x))
-                    combo: Tuple[Tuple[int, int], ...] = tuple(
+                    combo: PlacementCombo = tuple(
                         (int(placement_plan[task][0]), int(placement_plan[task][1]))
                         for task in sorted_tasks
                         if isinstance(placement_plan[task], list) and len(placement_plan[task]) >= 2
                     )
-                    
                     if len(combo) == 0:
                         continue
-                    
-                    key = (dataset_id, combo)
-                    if key not in results:
-                        results[key] = float(rtt_val)
-                        
+                    combos.append((combo, float(rtt_val)))
                 except (json.JSONDecodeError, ValueError, KeyError, IndexError):
                     continue
     except OSError as e:
         logger.warning("Failed to read JSONL file %s: %s", jsonl_path, e)
-    
-    return results
-    
+    return dataset_id, combos
 
-def build_and_save_rtt_hash_table_chunked(
-    base_dirs: List[Path], 
-    cache_dir: Path,
-    n_jobs: int = 12,
-    chunk_size: int = 200_000,
-    parse_batch_size: int = 200
-) -> int:
+
+def _lmdb_directory_size_mb(env_path: Path) -> float:
+    if not env_path.exists():
+        return 0.0
+    total = 0
+    if env_path.is_dir():
+        for p in env_path.rglob("*"):
+            if p.is_file():
+                total += p.stat().st_size
+    else:
+        total = env_path.stat().st_size
+    return total / (1024 * 1024)
+
+
+def build_lmdb_rtt_cache(base_dirs: List[Path], cache_dir: Path) -> Tuple[int, int]:
     """
-    Build RTT hash table in parallel from multiple directories and save in chunks to avoid OOM.
-    
-    Args:
-        base_dirs: List of paths to gnn_datasets directories
-        cache_dir: Path to save cache files
-        n_jobs: Number of parallel jobs
-        chunk_size: Number of entries per chunk file
-        parse_batch_size: Number of JSONL files to parse per parallel batch
-    
-    Returns the total number of entries saved.
+    Parse all placements.jsonl under base_dirs and store per-dataset combo lists in LMDB.
+
+    Returns:
+        (num_datasets_written, total_combo_rows_written)
     """
-    # Collect all JSONL files from all base directories
-    all_jsonl_files = []
+    _remove_legacy_rtt_artifacts(cache_dir)
+
+    jsonl_files: List[Path] = []
     for base_dir in base_dirs:
-        if base_dir.exists():
-            files = sorted(base_dir.glob("ds_*/placements/placements.jsonl"))
-            all_jsonl_files.extend(files)
-            logger.info("Found %s JSONL files in %s", len(files), base_dir.name)
+        if not base_dir.exists():
+            logger.warning("Base directory does not exist, skipping: %s", base_dir)
+            continue
+        files = sorted(base_dir.glob("ds_*/placements/placements.jsonl"))
+        jsonl_files.extend(files)
+        logger.info("Found %s JSONL files in %s", len(files), base_dir.name)
 
-    # Remove stale chunk files from previous failed/partial runs.
-    for stale_chunk in cache_dir.glob("rtt_chunk_*.pkl"):
-        stale_chunk.unlink(missing_ok=True)
-    
-    n_jobs = max(1, min(n_jobs, os.cpu_count() or 1))
-    parse_batch_size = max(1, parse_batch_size)
-    logger.info(
-        "Building placement RTT hash table from %s JSONL files using n_jobs=%s, parse_batch_size=%s...",
-        len(all_jsonl_files),
-        n_jobs,
-        parse_batch_size,
+    env_path = cache_dir / "rtt_combos.lmdb"
+    env_path.mkdir(parents=True, exist_ok=True)
+    env = lmdb.open(
+        str(env_path),
+        map_size=LMDB_MAP_SIZE_BYTES,
+        max_dbs=0,
+        subdir=True,
+        lock=True,
+        sync=True,
+        metasync=True,
     )
-    start_time = time.perf_counter()
 
-    # Parse and merge in batches to avoid keeping all worker outputs in memory.
-    logger.info("Parsing + merging results in batches and saving in chunks...")
-    parse_merge_start = time.perf_counter()
+    total_datasets = 0
+    total_combos = 0
+    try:
+        for jsonl_path in tqdm(jsonl_files, desc="Writing RTT combos LMDB"):
+            dataset_id, cleaned = _placement_combos_from_jsonl(jsonl_path)
+            if not cleaned:
+                continue
+            binary_data = pickle.dumps(cleaned, protocol=pickle.HIGHEST_PROTOCOL)
+            with env.begin(write=True) as txn:
+                txn.put(dataset_id.encode("utf-8"), binary_data)
+            total_datasets += 1
+            total_combos += len(cleaned)
+    finally:
+        env.close()
 
-    chunk_idx = 0
-    current_chunk: Dict[Tuple[str, Tuple[Tuple[int, int], ...]], float] = {}
-    total_entries = 0
-    num_duplicates = 0
-
-    batch_ranges = range(0, len(all_jsonl_files), parse_batch_size)
-    for batch_start in tqdm(batch_ranges, desc="Parsing JSONL batches", unit="batch"):
-        batch_files = all_jsonl_files[batch_start:batch_start + parse_batch_size]
-        with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as executor:
-            for parsed_dict in executor.map(_parse_jsonl_file_to_dict, batch_files):
-                for key, rtt in parsed_dict.items():
-                    if key not in current_chunk:
-                        current_chunk[key] = rtt
-                        total_entries += 1
-                    else:
-                        num_duplicates += 1
-
-                    # Save chunk when it reaches chunk_size
-                    if len(current_chunk) >= chunk_size:
-                        chunk_path = cache_dir / f"rtt_chunk_{chunk_idx}.pkl"
-                        with open(chunk_path, 'wb') as f:
-                            pickle.dump(current_chunk, f, protocol=pickle.HIGHEST_PROTOCOL)
-                        logger.info("  Saved chunk %s (%s entries) to %s", chunk_idx, f"{len(current_chunk):,}", chunk_path)
-                        chunk_idx += 1
-                        current_chunk = {}
-                parsed_dict.clear()
-    
-    # Save remaining entries
-    if current_chunk:
-        chunk_path = cache_dir / f"rtt_chunk_{chunk_idx}.pkl"
-        with open(chunk_path, 'wb') as f:
-            pickle.dump(current_chunk, f, protocol=pickle.HIGHEST_PROTOCOL)
-        logger.info("  Saved chunk %s (%s entries) to %s", chunk_idx, f"{len(current_chunk):,}", chunk_path)
-        chunk_idx += 1
-    
-    # Save metadata about chunks
-    chunk_meta = {
-        'num_chunks': chunk_idx,
-        'total_entries': total_entries,
-        'chunk_size': chunk_size,
-    }
-    meta_path = cache_dir / "rtt_chunks_meta.json"
-    with open(meta_path, 'w') as f:
-        json.dump(chunk_meta, f)
-    
-    parse_merge_time = time.perf_counter() - parse_merge_start
-    total_time = time.perf_counter() - start_time
-    
-    logger.info("\nSaved %s entries in %s chunks", f"{total_entries:,}", chunk_idx)
-    logger.info("Timing: parse+merge+save=%.2fs, total=%.2fs", parse_merge_time, total_time)
-    if num_duplicates > 0:
-        logger.info("Note: Found %s duplicate keys (kept first occurrence)", f"{num_duplicates:,}")
-    
-    return total_entries
+    logger.info(
+        "Wrote %s datasets (%s total (combo, rtt) rows) to LMDB at %s",
+        total_datasets,
+        f"{total_combos:,}",
+        env_path,
+    )
+    if total_datasets == 0:
+        logger.warning(
+            "LMDB RTT store is empty (no placements.jsonl rows parsed). "
+            "Regret negatives will have no combos until JSONL paths are fixed."
+        )
+    return total_datasets, total_combos
 
 
 # ============================================================================
@@ -627,13 +667,13 @@ TASK_PLATFORM_COMPATIBILITY = {
 }
 
 def build_graph(
-    df_nodes, 
-    df_tasks, 
-    df_platforms, 
-    task_priors: Dict[str, Any],
+    df_nodes: pd.DataFrame,
+    df_tasks: pd.DataFrame,
+    df_platforms: pd.DataFrame,
+    task_priors: TaskPriors,
     queue_norm_factor: float,
-    queue_snapshot: Optional[Dict[str, int]] = None,
-    temporal_state: Optional[Dict[str, Dict[str, float]]] = None
+    queue_snapshot: Optional[Mapping[str, int]] = None,
+    temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -685,6 +725,7 @@ def build_graph(
     src_norm = (src_idx / max(len(df_nodes), 1)).reshape(-1, 1)
     
     task_features = np.concatenate([task_onehot, src_norm], axis=1)
+    _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
     # PLATFORM FEATURES (13 dims: 5 type + 2 replica + 1 queue + 3 temporal + 2 consolidation)
@@ -705,10 +746,10 @@ def build_graph(
             node_name = str(plat_node_by_pos[pos])
             plat_id = int(plat_ids_arr[pos])
             key = f"{node_name}:{plat_id}"
-            queue_lengths[pos] = queue_snapshot.get(key, 0)
+            queue_lengths[pos] = float(_queue_length_int(queue_snapshot.get(key, 0)))
     
-    # Normalize queue lengths
-    queue_lengths_norm = (queue_lengths / queue_norm_factor).reshape(-1, 1)
+    # Normalize queue lengths (queue_norm_factor validated > 0 in CLI; still guard here)
+    queue_lengths_norm = (queue_lengths / _safe_positive(float(queue_norm_factor))).reshape(-1, 1)
     
     # TEMPORAL STATE FEATURES (current task remaining times)
     # Since we don't have exact temporal state, we approximate:
@@ -724,9 +765,9 @@ def build_graph(
             plat_id = int(plat_ids_arr[pos])
             key = f"{node_name}:{plat_id}"
             temp_state = temporal_state.get(key, {})
-            current_task_remaining[pos] = temp_state.get('current_task_remaining', 0.0)
-            cold_start_remaining[pos] = temp_state.get('cold_start_remaining', 0.0)
-            comm_remaining[pos] = temp_state.get('comm_remaining', 0.0)
+            current_task_remaining[pos] = _safe_float(temp_state.get('current_task_remaining', 0.0), 0.0)
+            cold_start_remaining[pos] = _safe_float(temp_state.get('cold_start_remaining', 0.0), 0.0)
+            comm_remaining[pos] = _safe_float(temp_state.get('comm_remaining', 0.0), 0.0)
     else:
         # Approximate: if queue > 0, estimate some remaining time
         for pos in range(n_platforms):
@@ -740,7 +781,7 @@ def build_graph(
                     task_type_priors = task_priors.get(str(task_type), {})
                     exec_map = task_type_priors.get("executionTime", {})
                     if isinstance(exec_map, dict):
-                        exec_time = exec_map.get(plat_type, 0.0)
+                        exec_time = _safe_float(exec_map.get(plat_type, 0.0), 0.0)
                         if exec_time > 0:
                             avg_exec += exec_time
                             count += 1
@@ -782,14 +823,21 @@ def build_graph(
                 task_type_priors = task_priors.get(task_type, {})
                 exec_map = task_type_priors.get("executionTime", {})
                 if isinstance(exec_map, dict) and exec_map:
-                    min_exec = min(exec_map.values())
-                    min_exec_times.append(min_exec)
+                    pos_exec = _finite_positive_exec_values(exec_map)
+                    if pos_exec:
+                        min_exec_times.append(min(pos_exec))
             
             if min_exec_times:
                 # Target concurrency inversely related to execution time
-                avg_min_exec = np.mean(min_exec_times)
+                avg_min_exec = float(np.mean(min_exec_times))
+                if not math.isfinite(avg_min_exec) or avg_min_exec <= 0:
+                    avg_min_exec = 1.0
                 exec_map_this = task_priors.get(supported_task_types[0], {}).get("executionTime", {})
-                this_exec = exec_map_this.get(plat_type, avg_min_exec) if isinstance(exec_map_this, dict) else avg_min_exec
+                this_exec = (
+                    _safe_float(exec_map_this.get(plat_type, avg_min_exec), avg_min_exec)
+                    if isinstance(exec_map_this, dict)
+                    else avg_min_exec
+                )
                 if this_exec > 0:
                     target_concurrencies[pos] = baseline_concurrency * (avg_min_exec / this_exec)
                 else:
@@ -800,14 +848,15 @@ def build_graph(
             target_concurrencies[pos] = baseline_concurrency
         
         # Usage ratio: queue_length / target_concurrency
-        if target_concurrencies[pos] > 0:
-            usage_ratios[pos] = queue_lengths[pos] / target_concurrencies[pos]
+        tc = float(target_concurrencies[pos])
+        if math.isfinite(tc) and tc > 0:
+            usage_ratios[pos] = queue_lengths[pos] / tc
         else:
             usage_ratios[pos] = 0.0
     
     # Normalize consolidation metrics
-    target_concurrency_norm = (target_concurrencies / 20.0).reshape(-1, 1)  # Assume max ~20
-    usage_ratio_norm = (usage_ratios / 5.0).reshape(-1, 1)  # Assume max usage ratio ~5
+    target_concurrency_norm = (target_concurrencies / _safe_positive(20.0)).reshape(-1, 1)
+    usage_ratio_norm = (usage_ratios / _safe_positive(5.0)).reshape(-1, 1)
     
     # Concatenate all platform features
     platform_features = np.concatenate([
@@ -817,6 +866,7 @@ def build_graph(
         current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm,  # 3 dims
         target_concurrency_norm, usage_ratio_norm  # 2 dims
     ], axis=1)
+    _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
     
     # Cache feasible platforms per source node
@@ -915,17 +965,16 @@ def build_graph(
                 # Store mapping: logit_idx -> (node_id, platform_id)
                 task_logit_to_placement[t_pos].append((node_id, plat_id))
                 
-                exec_time = float(exec_map.get(plat_type, 0.0)) if isinstance(exec_map, dict) else 0.0
+                exec_time = (
+                    _safe_float(exec_map.get(plat_type, 0.0), 0.0) if isinstance(exec_map, dict) else 0.0
+                )
                 
                 # Network latency
                 lat_entry = src_nm.get(plat_node_name, {}) if isinstance(src_nm, dict) else {}
                 if isinstance(lat_entry, dict):
-                    latency = float(lat_entry.get('latency', 0.0))
+                    latency = _safe_float(lat_entry.get('latency', 0.0), 0.0)
                 else:
-                    try:
-                        latency = float(lat_entry)
-                    except Exception:
-                        latency = 0.0
+                    latency = _safe_float(lat_entry, 0.0)
                 
                 # Warm replica flag
                 if task_type == 'dnn1':
@@ -939,7 +988,7 @@ def build_graph(
                 energy = 0.0
                 energy_map = task_type_priors.get("energy", {})
                 if isinstance(energy_map, dict):
-                    energy = float(energy_map.get(plat_type, 0.0))
+                    energy = _safe_float(energy_map.get(plat_type, 0.0), 0.0)
                 
                 # Communication time (storage read + write)
                 # Estimate from state sizes and typical storage throughput
@@ -954,9 +1003,9 @@ def build_graph(
                         # Typical storage: 100 MB/s throughput, 1ms latency
                         storage_throughput = 100.0 * 1024 * 1024  # bytes/s
                         storage_latency = 0.001  # seconds
-                        read_time = (input_size / storage_throughput) + storage_latency
-                        write_time = (output_size / storage_throughput) + storage_latency
-                        comm_time = read_time + write_time
+                        read_time = (float(input_size) / _safe_positive(storage_throughput)) + storage_latency
+                        write_time = (float(output_size) / _safe_positive(storage_throughput)) + storage_latency
+                        comm_time = _safe_float(read_time + write_time, 0.0)
                 
                 # Edge attributes: [exec_time, latency, is_warm, energy, comm_time] (5 dims)
                 # Note: penalty_score removed since co-simulation doesn't capture QoS violations as ground truth
@@ -978,6 +1027,8 @@ def build_graph(
     if edge_src:
         edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long)
         edge_attr_tensor = torch.tensor(edge_attrs, dtype=torch.float32) if edge_attrs else torch.empty((0, 5), dtype=torch.float32)
+        if edge_attr_tensor.numel() > 0 and not torch.isfinite(edge_attr_tensor).all():
+            raise ValueError("edge_attr contains non-finite values; check priors / latency JSON")
         num_nodes = n_tasks + n_platforms
         if edge_attr_tensor.numel() > 0:
             # Use PyG to duplicate and align edge attributes with undirected edges
@@ -1033,15 +1084,11 @@ def main():
         task_priors = json.load(f)
     logger.info("Loaded task priors from %s", config.priors_path)
 
-    # Build RTT hash table first, before loading all datasets in memory.
     step1_start = time.perf_counter()
-    with time_block("Step 1: Building RTT hash table"):
-        num_rtt_entries = build_and_save_rtt_hash_table_chunked(
+    with time_block("Step 1: Building RTT combos LMDB"):
+        num_lmdb_datasets, num_rtt_combos_written = build_lmdb_rtt_cache(
             config.base_dirs,
             config.cache_dir,
-            n_jobs=config.n_jobs,
-            chunk_size=config.chunk_size,
-            parse_batch_size=config.parse_batch_size,
         )
     step1_time = time.perf_counter() - step1_start
 
@@ -1125,7 +1172,11 @@ def main():
         pickle.dump(dataset_ids, f, protocol=pickle.HIGHEST_PROTOCOL)
     logger.info("  Saved dataset IDs to %s (%.2fs)", dataset_ids_cache_path, time.perf_counter() - save_start)
 
-    logger.info("  RTT hash table already saved in chunks (%s entries)", f"{num_rtt_entries:,}")
+    logger.info(
+        "  LMDB RTT combos: %s datasets, %s rows",
+        num_lmdb_datasets,
+        f"{num_rtt_combos_written:,}",
+    )
 
     save_start = time.perf_counter()
     with open(optimal_rtt_cache_path, 'wb') as f:
@@ -1142,8 +1193,11 @@ def main():
         'merged_datasets': config.merge_datasets,
         'base_dirs': [str(bd) for bd in config.base_dirs],
         'num_graphs': len(graphs),
+        'rtt_combos_backend': 'lmdb',
+        'rtt_combos_lmdb_rel_path': 'rtt_combos.lmdb',
+        'num_lmdb_rtt_datasets': num_lmdb_datasets,
+        'num_rtt_combo_rows': num_rtt_combos_written,
         'num_datasets': len(all_datasets),
-        'num_rtt_entries': num_rtt_entries,
         'dataset_ids': dataset_ids,
         'statistics': {
             'valid_labels': int(np.sum(ys >= 0)),
@@ -1154,7 +1208,7 @@ def main():
             'task_count_distribution': {str(k): v for k, v in task_count_dist.items()},
         },
         'timing': {
-            'step1_build_rtt_hash': step1_time,
+            'step1_build_rtt_lmdb': step1_time,
             'step2_load_datasets': step2_time,
             'step3_build_optimal_rtt_map': step3_time,
             'step4_build_graphs': step4_time,
@@ -1170,7 +1224,7 @@ def main():
     total_time = time.perf_counter() - script_start_time
 
     graphs_size = graphs_cache_path.stat().st_size / (1024 * 1024)
-    rtt_size = sum(chunk_file.stat().st_size / (1024 * 1024) for chunk_file in config.cache_dir.glob("rtt_chunk_*.pkl"))
+    lmdb_mb = _lmdb_directory_size_mb(config.cache_dir / "rtt_combos.lmdb")
     optimal_rtt_size = optimal_rtt_cache_path.stat().st_size / (1024 * 1024)
 
     logger.info("\n" + "=" * 80)
@@ -1178,16 +1232,12 @@ def main():
     logger.info("=" * 80)
     logger.info("Cache directory: %s", config.cache_dir)
     logger.info("Graphs cache: %s (%.2f MB)", graphs_cache_path, graphs_size)
-    logger.info(
-        "RTT hash cache: %s chunks (%.2f MB total)",
-        len(list(config.cache_dir.glob('rtt_chunk_*.pkl'))),
-        rtt_size,
-    )
+    logger.info("RTT combos LMDB: %s (%.2f MB)", config.cache_dir / "rtt_combos.lmdb", lmdb_mb)
     logger.info("Optimal RTT cache: %s (%.2f MB)", optimal_rtt_cache_path, optimal_rtt_size)
-    logger.info("Total cache size: %.2f MB", graphs_size + rtt_size + optimal_rtt_size)
+    logger.info("Total cache size: %.2f MB", graphs_size + lmdb_mb + optimal_rtt_size)
     logger.info("Cache version: %s", CACHE_VERSION)
     logger.info("Timing Summary:")
-    logger.info("  Step 1 - Build RTT hash:       %7.2fs", step1_time)
+    logger.info("  Step 1 - Build RTT LMDB:        %7.2fs", step1_time)
     logger.info("  Step 2 - Load datasets:        %7.2fs", step2_time)
     logger.info("  Step 3 - Build helper maps:    %7.2fs", step3_time)
     logger.info("  Step 4 - Build graphs:         %7.2fs", step4_time)
@@ -1197,4 +1247,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
