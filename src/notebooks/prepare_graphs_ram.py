@@ -24,6 +24,7 @@ NON-UNIQUE PLACEMENTS:
 """
 
 import argparse
+import concurrent.futures
 import shutil
 import json
 import logging
@@ -122,6 +123,8 @@ class Config:
     merge_datasets: bool = False
     queue_norm_factor: float = 50.0
     require_queue_data: bool = True
+    rtt_workers: int = 1
+    rtt_batch_size: int = 0
 
 
 def _default_base_dirs(project_root: Path, merge_datasets: bool) -> List[Path]:
@@ -184,10 +187,32 @@ def parse_args() -> Config:
     parser.add_argument("--priors-path", type=Path)
     parser.add_argument("--queue-norm-factor", type=float, default=50.0)
     parser.add_argument("--allow-missing-queue-data", action="store_true")
+    parser.add_argument(
+        "--rtt-workers",
+        type=int,
+        default=int(os.environ.get("HEROSIM_RTT_WORKERS", os.environ.get("SLURM_CPUS_PER_TASK", "1"))),
+        help=(
+            "Worker processes for parsing placements JSONL into the in-RAM RTT map. "
+            "Defaults to HEROSIM_RTT_WORKERS, then SLURM_CPUS_PER_TASK, then 1."
+        ),
+    )
+    parser.add_argument(
+        "--rtt-batch-size",
+        type=int,
+        default=int(os.environ.get("HEROSIM_RTT_BATCH_SIZE", "0")),
+        help=(
+            "Number of JSONL files submitted to RTT workers at once. "
+            "0 means auto: max(2 * --rtt-workers, 1). Higher values can use more RAM."
+        ),
+    )
     args = parser.parse_args()
 
     if args.queue_norm_factor <= 0:
         parser.error("--queue-norm-factor must be positive (division by zero in queue length normalization).")
+    if args.rtt_workers <= 0:
+        parser.error("--rtt-workers must be positive")
+    if args.rtt_batch_size < 0:
+        parser.error("--rtt-batch-size must be >= 0")
 
     base_dirs = args.base_dirs or _default_base_dirs(args.project_root, args.merge_datasets)
     if args.cache_dir:
@@ -223,6 +248,8 @@ def parse_args() -> Config:
         merge_datasets=args.merge_datasets,
         queue_norm_factor=args.queue_norm_factor,
         require_queue_data=not args.allow_missing_queue_data,
+        rtt_workers=args.rtt_workers,
+        rtt_batch_size=args.rtt_batch_size,
     )
 
 
@@ -648,8 +675,29 @@ def _placement_combos_from_jsonl(jsonl_path: Path) -> Tuple[str, List[Tuple[Plac
     return dataset_id, combos
 
 
+def _add_rtt_result(
+    rtt_map: Dict[str, List[Tuple[PlacementCombo, float]]],
+    dataset_id: str,
+    cleaned: List[Tuple[PlacementCombo, float]],
+) -> Tuple[int, int]:
+    """Attach one parsed dataset to the RTT map; return dataset/row increments."""
+    if not cleaned:
+        return 0, 0
+    rtt_map[dataset_id] = cleaned
+    return 1, len(cleaned)
+
+
+def _auto_rtt_batch_size(num_files: int, workers: int, requested: int) -> int:
+    """Bound worker result buffering while still giving each worker enough files."""
+    if num_files <= 0:
+        return 1
+    if requested > 0:
+        return min(requested, num_files)
+    return min(max(workers * 2, 1), num_files)
+
+
 def build_rtt_combos_map(
-    base_dirs: List[Path], work_dir: Path
+    base_dirs: List[Path], work_dir: Path, workers: int = 1, batch_size: int = 0
 ) -> Tuple[Dict[str, List[Tuple[PlacementCombo, float]]], int, int]:
     """
     Parse all placements.jsonl under base_dirs; return a map dataset_id -> [(combo, rtt), ...].
@@ -671,13 +719,33 @@ def build_rtt_combos_map(
     rtt_map: Dict[str, List[Tuple[PlacementCombo, float]]] = {}
     total_datasets = 0
     total_combos = 0
-    for jsonl_path in tqdm(jsonl_files, desc="Loading RTT combos (RAM)"):
-        dataset_id, cleaned = _placement_combos_from_jsonl(jsonl_path)
-        if not cleaned:
-            continue
-        rtt_map[dataset_id] = cleaned
-        total_datasets += 1
-        total_combos += len(cleaned)
+    if not jsonl_files:
+        logger.warning("No placements.jsonl files found under configured base directories")
+    elif workers <= 1:
+        logger.info("Parsing RTT combos sequentially")
+        for jsonl_path in tqdm(jsonl_files, desc="Loading RTT combos (RAM)"):
+            dataset_id, cleaned = _placement_combos_from_jsonl(jsonl_path)
+            ds_inc, combo_inc = _add_rtt_result(rtt_map, dataset_id, cleaned)
+            total_datasets += ds_inc
+            total_combos += combo_inc
+    else:
+        workers = min(workers, len(jsonl_files))
+        effective_batch_size = _auto_rtt_batch_size(len(jsonl_files), workers, batch_size)
+        logger.info(
+            "Parsing RTT combos with %s worker processes (batch size %s)",
+            workers,
+            effective_batch_size,
+        )
+        batches = range(0, len(jsonl_files), effective_batch_size)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+            for start in tqdm(batches, desc="Loading RTT combos (RAM batches)", unit="batch"):
+                batch = jsonl_files[start:start + effective_batch_size]
+                futures = [executor.submit(_placement_combos_from_jsonl, p) for p in batch]
+                for future in concurrent.futures.as_completed(futures):
+                    dataset_id, cleaned = future.result()
+                    ds_inc, combo_inc = _add_rtt_result(rtt_map, dataset_id, cleaned)
+                    total_datasets += ds_inc
+                    total_combos += combo_inc
 
     logger.info(
         "Loaded %s datasets (%s total (combo, rtt) rows) into RAM for graph attachment",
@@ -692,6 +760,97 @@ def build_rtt_combos_map(
     return rtt_map, total_datasets, total_combos
 
 
+def _format_bytes(n_bytes: int) -> str:
+    value = float(n_bytes)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024.0 or unit == "TiB":
+            return f"{value:.2f} {unit}"
+        value /= 1024.0
+    return f"{value:.2f} TiB"
+
+
+class _ProgressWriter:
+    """File-like wrapper that logs pickle write progress without changing pickle format."""
+
+    def __init__(self, f: Any, label: str, path: Path, log_seconds: float = 15.0, log_bytes: int = 1 << 30) -> None:
+        self._f = f
+        self._label = label
+        self._path = path
+        self._log_seconds = log_seconds
+        self._log_bytes = log_bytes
+        self._written = 0
+        self._last_log_time = time.perf_counter()
+        self._last_log_bytes = 0
+        logger.info("  Writing %s to %s ...", label, path)
+
+    def write(self, data: bytes) -> int:
+        n = self._f.write(data)
+        self._written += n
+        now = time.perf_counter()
+        if (
+            now - self._last_log_time >= self._log_seconds
+            or self._written - self._last_log_bytes >= self._log_bytes
+        ):
+            logger.info("  Writing %s: %s written", self._label, _format_bytes(self._written))
+            self._last_log_time = now
+            self._last_log_bytes = self._written
+        return n
+
+    def flush(self) -> None:
+        self._f.flush()
+
+
+def _pickle_dump_with_progress(obj: Any, path: Path, label: str) -> None:
+    start = time.perf_counter()
+    with open(path, "wb") as f:
+        writer = _ProgressWriter(f, label, path)
+        pickle.dump(obj, writer, protocol=pickle.HIGHEST_PROTOCOL)
+        writer.flush()
+    size = path.stat().st_size if path.exists() else 0
+    logger.info(
+        "  Finished %s: %s written to %s (%.2fs)",
+        label,
+        _format_bytes(size),
+        path,
+        time.perf_counter() - start,
+    )
+
+
+def _copy_file_with_progress(src: Path, dst: Path, label: str, chunk_size: int = 64 * 1024 * 1024) -> None:
+    total = src.stat().st_size
+    copied = 0
+    start = time.perf_counter()
+    last_log_time = start
+    last_log_bytes = 0
+    logger.info("  Publishing %s: %s -> %s (%s)", label, src, dst, _format_bytes(total))
+    with open(src, "rb") as rf, open(dst, "wb") as wf:
+        while True:
+            chunk = rf.read(chunk_size)
+            if not chunk:
+                break
+            wf.write(chunk)
+            copied += len(chunk)
+            now = time.perf_counter()
+            if now - last_log_time >= 15.0 or copied - last_log_bytes >= (1 << 30):
+                pct = (copied / total * 100.0) if total else 100.0
+                logger.info(
+                    "  Publishing %s: %s / %s (%.1f%%)",
+                    label,
+                    _format_bytes(copied),
+                    _format_bytes(total),
+                    pct,
+                )
+                last_log_time = now
+                last_log_bytes = copied
+    shutil.copystat(src, dst)
+    logger.info(
+        "  Finished publishing %s: %s copied (%.2fs)",
+        label,
+        _format_bytes(copied),
+        time.perf_counter() - start,
+    )
+
+
 def _publish_cache_to_final(work_dir: Path, final_dir: Path) -> None:
     """Copy prepared artifacts to the persistent cache directory; drop stale LMDB if any."""
     final_dir.mkdir(parents=True, exist_ok=True)
@@ -704,7 +863,7 @@ def _publish_cache_to_final(work_dir: Path, final_dir: Path) -> None:
     ):
         src = work_dir / name
         if src.exists():
-            shutil.copy2(src, final_dir / name)
+            _copy_file_with_progress(src, final_dir / name, name)
     stale_lmdb = final_dir / "rtt_combos.lmdb"
     if stale_lmdb.exists():
         shutil.rmtree(stale_lmdb, ignore_errors=True)
@@ -1151,6 +1310,8 @@ def main():
         rtt_map, num_rtt_datasets, num_rtt_combos_rows = build_rtt_combos_map(
             config.base_dirs,
             config.work_dir,
+            workers=config.rtt_workers,
+            batch_size=config.rtt_batch_size,
         )
     step1_time = time.perf_counter() - step1_start
 
@@ -1225,15 +1386,9 @@ def main():
     logger.info("\nStep 5: Saving to cache...")
     step5_start = time.perf_counter()
 
-    save_start = time.perf_counter()
-    with open(graphs_cache_path, 'wb') as f:
-        pickle.dump(graphs, f, protocol=pickle.HIGHEST_PROTOCOL)
-    logger.info("  Saved %s graphs to %s (%.2fs)", len(graphs), graphs_cache_path, time.perf_counter() - save_start)
+    _pickle_dump_with_progress(graphs, graphs_cache_path, f"graphs.pkl ({len(graphs)} graphs)")
 
-    save_start = time.perf_counter()
-    with open(dataset_ids_cache_path, 'wb') as f:
-        pickle.dump(dataset_ids, f, protocol=pickle.HIGHEST_PROTOCOL)
-    logger.info("  Saved dataset IDs to %s (%.2fs)", dataset_ids_cache_path, time.perf_counter() - save_start)
+    _pickle_dump_with_progress(dataset_ids, dataset_ids_cache_path, "dataset_ids.pkl")
 
     logger.info(
         "  Embedded RTT combos on graphs: %s datasets, %s rows",
@@ -1241,14 +1396,10 @@ def main():
         f"{num_rtt_combos_rows:,}",
     )
 
-    save_start = time.perf_counter()
-    with open(optimal_rtt_cache_path, 'wb') as f:
-        pickle.dump(optimal_rtt_map, f, protocol=pickle.HIGHEST_PROTOCOL)
-    logger.info(
-        "  Saved optimal RTT mapping (%s datasets) to %s (%.2fs)",
-        len(optimal_rtt_map),
+    _pickle_dump_with_progress(
+        optimal_rtt_map,
         optimal_rtt_cache_path,
-        time.perf_counter() - save_start,
+        f"optimal_rtt.pkl ({len(optimal_rtt_map)} datasets)",
     )
 
     metadata = {

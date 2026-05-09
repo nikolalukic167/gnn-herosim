@@ -24,6 +24,11 @@ class TrainingConfig:
     wandb_entity: str
     wandb_api_key: str | None
     num_dataloader_workers: int
+    dataloader_prefetch_factor: int
+    persistent_dataloader_workers: bool
+    torch_threads: int
+    precompute_rtt_lookups: bool
+    hard_negative_fraction: float
 
 
 def parse_training_config() -> TrainingConfig:
@@ -78,7 +83,36 @@ def parse_training_config() -> TrainingConfig:
             "Try 2–4 only on high-memory hosts."
         ),
     )
+    parser.add_argument(
+        "--dataloader-prefetch-factor",
+        type=int,
+        default=1,
+        help="Prefetch factor when DataLoader workers are enabled.",
+    )
+    parser.add_argument(
+        "--persistent-dataloader-workers",
+        action="store_true",
+        help="Keep DataLoader workers alive across epochs when --num-dataloader-workers > 0.",
+    )
+    parser.add_argument(
+        "--torch-threads",
+        type=int,
+        default=0,
+        help="torch.set_num_threads value. 0 means use SLURM_CPUS_PER_TASK when present.",
+    )
+    parser.add_argument(
+        "--no-precompute-rtt-lookups",
+        action="store_true",
+        help="Disable extra RAM-heavy lookup caches for faster regret training/evaluation.",
+    )
+    parser.add_argument(
+        "--hard-negative-fraction",
+        type=float,
+        default=0.5,
+        help="Fraction of highest-RTT non-optimal combos kept for random hard-negative sampling.",
+    )
     args = parser.parse_args()
+    hard_negative_fraction = min(1.0, max(0.0, args.hard_negative_fraction))
 
     return TrainingConfig(
         project_root=args.project_root,
@@ -98,4 +132,9 @@ def parse_training_config() -> TrainingConfig:
         wandb_entity=args.wandb_entity,
         wandb_api_key=args.wandb_api_key,
         num_dataloader_workers=max(0, args.num_dataloader_workers),
+        dataloader_prefetch_factor=max(1, args.dataloader_prefetch_factor),
+        persistent_dataloader_workers=bool(args.persistent_dataloader_workers),
+        torch_threads=max(0, args.torch_threads),
+        precompute_rtt_lookups=not args.no_precompute_rtt_lookups,
+        hard_negative_fraction=hard_negative_fraction,
     )
