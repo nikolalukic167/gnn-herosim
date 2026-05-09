@@ -39,6 +39,14 @@ from torch_geometric.loader import DataLoader
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import wandb
+
+# Temporary timing logs — delete this block when no longer needed.
+_LMDB_LOG_SLOW_SEC = 1.0
+_LMDB_LOG_MIN_COMBOS = 50_000
+_TRAIN_LOG_BATCH_EVERY = 25
+_TRAIN_LOG_SLOW_STEP_SEC = 20.0
+_TRAIN_LOG_HUGE_COMBOS = 200_000
+
 from non_unique_lib.cache_io import (
     create_cache_context,
     load_graphs_from_cache,
@@ -73,6 +81,7 @@ EPOCHS = RUNTIME_CONFIG.epochs
 RTT_SCALE_FACTOR = RUNTIME_CONFIG.rtt_scale_factor
 REGRET_LOSS_WEIGHT = RUNTIME_CONFIG.regret_loss_weight
 CE_LOSS_WEIGHT = RUNTIME_CONFIG.ce_loss_weight
+NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
 
 print(f"Cache directory: {CACHE_CTX.cache_dir}")
 print(f"Cache mode: {'MERGED' if IS_MERGED_CACHE else 'SINGLE'}")
@@ -80,6 +89,11 @@ if TASK_COUNT_DIST:
     print("Task count distribution in cache:")
     for n_tasks, count in sorted(TASK_COUNT_DIST.items(), key=lambda x: int(x[0])):
         print(f"  {n_tasks} tasks: {count} graphs")
+
+print(
+    f"DataLoader num_workers={NUM_DATALOADER_WORKERS} "
+    "(0=main process; >0 uses more RAM per LMDB unpickle)"
+)
 
 
 # %%
@@ -378,8 +392,6 @@ class GraphRttLMDBDataset(torch.utils.data.Dataset):
         self.optimal_rtt_map = optimal_rtt_map
         self.lmdb_path = Path(lmdb_path)
         self._env: Optional[lmdb.Environment] = None
-        # Debug: log first LMDB unpickles per worker (each worker is a process; max 2 lines each).
-        self._lmdb_debug_remaining = 2
 
     def _get_env(self) -> lmdb.Environment:
         if self._env is None:
@@ -412,11 +424,11 @@ class GraphRttLMDBDataset(torch.utils.data.Dataset):
         else:
             graph.valid_combos = []
         dt = time.perf_counter() - t0
-        if self._lmdb_debug_remaining > 0:
-            self._lmdb_debug_remaining -= 1
+        n_c = len(graph.valid_combos)
+        if dt >= _LMDB_LOG_SLOW_SEC or n_c >= _LMDB_LOG_MIN_COMBOS:
             print(
                 f"[GraphRttLMDBDataset] idx={idx} dataset_id={dataset_id!r} "
-                f"LMDB+unpickle={dt:.2f}s n_combos={len(graph.valid_combos)}",
+                f"LMDB+unpickle={dt:.2f}s n_combos={n_c}",
                 flush=True,
             )
 
@@ -461,6 +473,21 @@ def restore_custom_attrs(batch, graphs):
     return graphs
 
 
+def create_dataloader(dataset, *, shuffle: bool, pin_memory: bool) -> DataLoader:
+    """Fewer workers + prefetch avoid OOM when each sample holds huge unpickled valid_combos."""
+    kw: Dict[str, Any] = dict(
+        dataset=dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=shuffle,
+        num_workers=NUM_DATALOADER_WORKERS,
+        pin_memory=pin_memory,
+        collate_fn=custom_collate,
+    )
+    if NUM_DATALOADER_WORKERS > 0:
+        kw["prefetch_factor"] = 1
+    return DataLoader(**kw)
+
+
 # %%
 # ============================================================================
 # TRAINING LOOP
@@ -492,79 +519,116 @@ def train_epoch(
         flush=True,
     )
     _t_loader = time.perf_counter()
+    try:
+        _n_batches = len(train_loader)
+    except TypeError:
+        _n_batches = -1
+
     for step, batch in enumerate(
         tqdm(train_loader, desc=f"Epoch {epoch_num:3d} [Train]", leave=is_last_epoch)
     ):
+        t_step = time.perf_counter()
         if step == 0:
             print(
-                f"[train_epoch] First batch received in {time.perf_counter() - _t_loader:.2f}s, "
+                f"[train_epoch] First batch received in {t_step - _t_loader:.2f}s, "
                 f"num_graphs={batch.num_graphs}",
                 flush=True,
             )
-        optimizer.zero_grad()
-        graphs_in_batch = batch.to_data_list()
-        graphs_in_batch = restore_custom_attrs(batch, graphs_in_batch)
 
-        loss_ce_total = torch.zeros(1, device=device)
-        loss_regret_total = torch.zeros(1, device=device)
-        n_graphs_ce = 0
-        n_graphs_regret = 0
+        stepped = False
+        max_n = 0
+        slowest_id = None
+        try:
+            optimizer.zero_grad()
+            graphs_in_batch = batch.to_data_list()
+            graphs_in_batch = restore_custom_attrs(batch, graphs_in_batch)
 
-        for data in graphs_in_batch:
-            dataset_id_saved = getattr(data, 'dataset_id', None)
-            valid_combos_saved = getattr(data, 'valid_combos', [])
-            opt_rtt_saved = getattr(data, 'opt_rtt', None)
-            task_map_saved = getattr(data, '_task_logit_to_placement', {})
+            combo_sizes = [len(getattr(g, "valid_combos", None) or []) for g in graphs_in_batch]
+            if combo_sizes:
+                max_n = max(combo_sizes)
+                i_mx = combo_sizes.index(max_n)
+                slowest_id = getattr(graphs_in_batch[i_mx], "dataset_id", None)
 
-            data = data.to(device)
+            loss_ce_total = torch.zeros(1, device=device)
+            loss_regret_total = torch.zeros(1, device=device)
+            n_graphs_ce = 0
+            n_graphs_regret = 0
 
-            data.dataset_id = dataset_id_saved
-            data.valid_combos = valid_combos_saved
-            data.opt_rtt = opt_rtt_saved
-            data._task_logit_to_placement = task_map_saved
+            for data in graphs_in_batch:
+                dataset_id_saved = getattr(data, 'dataset_id', None)
+                valid_combos_saved = getattr(data, 'valid_combos', [])
+                opt_rtt_saved = getattr(data, 'opt_rtt', None)
+                task_map_saved = getattr(data, '_task_logit_to_placement', {})
 
-            dataset_id = getattr(data, 'dataset_id', None)
-            if dataset_id:
-                dataset_ids_processed.add(dataset_id)
-                        
-            logits_per_task = model(data)
+                data = data.to(device)
 
-            # Cross-entropy loss
-            loss_ce, valid_ce = loss_original_ce(logits_per_task, data, device)
-            if valid_ce > 0 and not (torch.isnan(loss_ce) or torch.isinf(loss_ce)):
-                loss_ce_total = loss_ce_total + loss_ce
-                n_graphs_ce += 1
+                data.dataset_id = dataset_id_saved
+                data.valid_combos = valid_combos_saved
+                data.opt_rtt = opt_rtt_saved
+                data._task_logit_to_placement = task_map_saved
 
-            # Structured regret loss
-            loss_regret, valid_regret, stats = regret_criterion(
-                logits_per_task, data, device
+                dataset_id = getattr(data, 'dataset_id', None)
+                if dataset_id:
+                    dataset_ids_processed.add(dataset_id)
+                            
+                logits_per_task = model(data)
+
+                # Cross-entropy loss
+                loss_ce, valid_ce = loss_original_ce(logits_per_task, data, device)
+                if valid_ce > 0 and not (torch.isnan(loss_ce) or torch.isinf(loss_ce)):
+                    loss_ce_total = loss_ce_total + loss_ce
+                    n_graphs_ce += 1
+
+                # Structured regret loss
+                loss_regret, valid_regret, stats = regret_criterion(
+                    logits_per_task, data, device
+                )
+                if valid_regret > 0 and not (torch.isnan(loss_regret) or torch.isinf(loss_regret)):
+                    loss_regret_total = loss_regret_total + loss_regret
+                    n_graphs_regret += 1
+
+            if n_graphs_ce == 0:
+                continue
+
+            # Average losses
+            loss_ce_avg = loss_ce_total / n_graphs_ce
+            loss_regret_avg = loss_regret_total / max(1, n_graphs_regret)
+            
+            # Combined loss
+            loss = ce_weight * loss_ce_avg + regret_weight * loss_regret_avg
+
+            if torch.isnan(loss) or torch.isinf(loss):
+                continue
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            stepped = True
+
+            running_ce += loss_ce_avg.item()
+            running_regret += loss_regret_avg.item()
+            running_total += loss.item()
+            n_steps += 1
+            n_valid_regret += n_graphs_regret
+
+        finally:
+            step_dt = time.perf_counter() - t_step
+            is_last = _n_batches >= 0 and step + 1 == _n_batches
+            periodic = (
+                _TRAIN_LOG_BATCH_EVERY > 0
+                and (step % _TRAIN_LOG_BATCH_EVERY == 0 or is_last)
             )
-            if valid_regret > 0 and not (torch.isnan(loss_regret) or torch.isinf(loss_regret)):
-                loss_regret_total = loss_regret_total + loss_regret
-                n_graphs_regret += 1
-
-        if n_graphs_ce == 0:
-            continue
-
-        # Average losses
-        loss_ce_avg = loss_ce_total / n_graphs_ce
-        loss_regret_avg = loss_regret_total / max(1, n_graphs_regret)
-        
-        # Combined loss
-        loss = ce_weight * loss_ce_avg + regret_weight * loss_regret_avg
-
-        if torch.isnan(loss) or torch.isinf(loss):
-            continue
-
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
-
-        running_ce += loss_ce_avg.item()
-        running_regret += loss_regret_avg.item()
-        running_total += loss.item()
-        n_steps += 1
-        n_valid_regret += n_graphs_regret
+            unusual = step_dt >= _TRAIN_LOG_SLOW_STEP_SEC or max_n >= _TRAIN_LOG_HUGE_COMBOS
+            if periodic or unusual:
+                tag = ""
+                if unusual and not periodic:
+                    tag = " SLOW_OR_HUGE"
+                print(
+                    f"[train_epoch] epoch={epoch_num} step={step}{tag} "
+                    f"batch_secs={step_dt:.2f} max_n_combos={max_n} "
+                    f"largest={slowest_id!r} stepped={stepped}",
+                    flush=True,
+                )
     
     print(f"\n[Epoch {epoch_num}] Processed {len(dataset_ids_processed)} datasets, valid regret samples: {n_valid_regret}")
 
@@ -929,15 +993,9 @@ wandb.watch(model, log="gradients", log_freq=100)
 best_val_regret = float('inf')  # Minimize regret
 best_val_acc = 0
 
-train_loader = DataLoader(
-    train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, collate_fn=custom_collate
-)
-val_loader = DataLoader(
-    val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True, collate_fn=custom_collate
-)
-test_loader = DataLoader(
-    test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True, collate_fn=custom_collate
-)
+train_loader = create_dataloader(train_dataset, shuffle=True, pin_memory=(DEVICE.type == "cuda"))
+val_loader = create_dataloader(val_dataset, shuffle=False, pin_memory=(DEVICE.type == "cuda"))
+test_loader = create_dataloader(test_dataset, shuffle=False, pin_memory=(DEVICE.type == "cuda"))
 
 for epoch in range(EPOCHS):
     is_last_epoch = (epoch == EPOCHS - 1)
@@ -1011,15 +1069,9 @@ print("="*80)
 
 model.load_state_dict(torch.load("models/" + MODEL_FILENAME))
 
-train_loader_eval = DataLoader(
-    train_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=False, collate_fn=custom_collate
-)
-val_loader_eval = DataLoader(
-    val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=False, collate_fn=custom_collate
-)
-test_loader_eval = DataLoader(
-    test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=False, collate_fn=custom_collate
-)
+train_loader_eval = create_dataloader(train_dataset, shuffle=False, pin_memory=False)
+val_loader_eval = create_dataloader(val_dataset, shuffle=False, pin_memory=False)
+test_loader_eval = create_dataloader(test_dataset, shuffle=False, pin_memory=False)
 
 train_metrics = evaluate(model, train_loader_eval, DEVICE, is_last_epoch=True)
 val_metrics_final = evaluate(model, val_loader_eval, DEVICE, is_last_epoch=True)

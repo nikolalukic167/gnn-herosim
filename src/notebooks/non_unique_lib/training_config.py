@@ -23,6 +23,7 @@ class TrainingConfig:
     wandb_project: str
     wandb_entity: str
     wandb_api_key: str | None
+    num_dataloader_workers: int
 
 
 def parse_training_config() -> TrainingConfig:
@@ -67,6 +68,16 @@ def parse_training_config() -> TrainingConfig:
         default=None,
         help="Optional WandB API key; if omitted, existing environment auth is used.",
     )
+    parser.add_argument(
+        "--num-dataloader-workers",
+        type=int,
+        default=0,
+        help=(
+            "DataLoader worker processes. Default 0 (load in main process): each worker "
+            "holds full LMDB-unpickled valid_combos in RAM — many workers OOMs on large RTT lists. "
+            "Try 2–4 only on high-memory hosts."
+        ),
+    )
     args = parser.parse_args()
 
     return TrainingConfig(
@@ -86,4 +97,5 @@ def parse_training_config() -> TrainingConfig:
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_api_key=args.wandb_api_key,
+        num_dataloader_workers=max(0, args.num_dataloader_workers),
     )
