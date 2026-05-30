@@ -17,27 +17,40 @@ from torch_geometric.data import Data
 from torch_geometric.nn.models import GIN
 
 
-class MLPEncoder(nn.Module):
-    """Generic 2-layer MLP encoder with LayerNorm (matches train.py / desert-galaxy-26)."""
-
-    def __init__(
-        self,
-        input_dim: int,
-        hidden_dim: int,
-        output_dim: int,
-        dropout_p: float = 0.1,
-    ) -> None:
+class TaskEncoder(nn.Module):
+    """2-layer MLP encoder for task features with LayerNorm for training stability."""
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int) -> None:
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(p=dropout_p),
-            nn.Linear(hidden_dim, output_dim),
-        )
-
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.dropout = nn.Dropout(p=0.1)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+    
     def forward(self, x: Tensor) -> Tensor:
-        return self.net(x)
+        x = self.fc1(x)
+        x = self.norm1(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+
+
+class PlatformEncoder(nn.Module):
+    """2-layer MLP encoder for platform features with LayerNorm for training stability."""
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int) -> None:
+        super().__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.dropout = nn.Dropout(p=0.1)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.fc1(x)
+        x = self.norm1(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
 
 
 class EdgeScorer(nn.Module):
@@ -80,8 +93,8 @@ class TaskPlacementGNN(nn.Module):
         super().__init__()
         
         self.embedding_dim = embedding_dim
-        self.task_encoder = MLPEncoder(task_feature_dim, hidden_dim, embedding_dim)
-        self.platform_encoder = MLPEncoder(platform_feature_dim, hidden_dim, embedding_dim)
+        self.task_encoder = TaskEncoder(task_feature_dim, hidden_dim, embedding_dim)
+        self.platform_encoder = PlatformEncoder(platform_feature_dim, hidden_dim, embedding_dim)
         
         self.gin = GIN(
             in_channels=embedding_dim,

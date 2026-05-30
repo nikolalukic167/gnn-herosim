@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
 import statistics
 from abc import abstractmethod
 from collections import defaultdict
@@ -109,15 +110,209 @@ class Orchestrator:
         self.application_archive: List[Application] = []
         self.task_archive: List[Task] = []
         self.trace_file = trace_file
+        self.initial_event_count = len(time_series.events)
         self.system_state_results: List[SystemStateResult] = []  # Store system state snapshots
         
         # Set orchestrator reference on all nodes for system state capture
         for node in self.nodes.items:
             node.orchestrator_ref = self
 
+    def _use_low_memory_stats(self) -> bool:
+        if os.getenv("SIM_FORCE_FULL_STATS", "0") == "1":
+            return False
+        if os.getenv("SIM_SUMMARY_ONLY", "0") == "1":
+            return True
+        threshold = int(os.getenv("SIM_LARGE_WORKLOAD_MIN_EVENTS", "10000"))
+        return self.initial_event_count >= threshold
+
+    def _stats_low_memory(self) -> SimulationStats:
+        """Single-pass aggregates without materializing full TaskResult dicts."""
+        logger = logging.getLogger('simulation')
+        logger.info(
+            "[STATS] Streaming low-memory stats for %s initial events",
+            self.initial_event_count,
+        )
+
+        n_tasks = 0
+        total_rtt = 0.0
+        sum_pull = sum_cold = sum_exec = sum_wait = sum_queue = 0.0
+        sum_init = sum_compute = sum_comm = 0.0
+        sum_network = 0.0
+        sum_local_deps = sum_local_comms = 0.0
+        sum_cold_started = sum_cache_hit = 0.0
+        sum_task_energy = 0.0
+        elapsed_times: List[float] = []
+        offloaded = 0
+        node_pair_latencies: Dict[Tuple[str, str], List[float]] = defaultdict(list)
+
+        for task in self.task_archive:
+            if getattr(task, "is_internal", False):
+                continue
+            if task.done_time is None or task.dispatched_time is None:
+                continue
+            if task.elapsed_time is None:
+                task.elapsed_time = task.done_time - task.dispatched_time
+
+            n_tasks += 1
+            elapsed = float(task.elapsed_time)
+            total_rtt += elapsed
+            elapsed_times.append(elapsed)
+
+            sum_pull += float(getattr(task, "pull_time", 0.0) or 0.0)
+            sum_cold += float(getattr(task, "cold_start_time", 0.0) or 0.0)
+            sum_exec += float(getattr(task, "execution_time", 0.0) or 0.0)
+            sum_wait += float(getattr(task, "wait_time", 0.0) or 0.0)
+            sum_queue += float(getattr(task, "queue_time", 0.0) or 0.0)
+            sum_init += float(getattr(task, "initialization_time", 0.0) or 0.0)
+            sum_compute += float(getattr(task, "compute_time", 0.0) or 0.0)
+            sum_comm += float(getattr(task, "communications_time", 0.0) or 0.0)
+            sum_network += float(getattr(task, "network_latency", 0.0) or 0.0)
+            sum_local_deps += float(getattr(task, "local_dependencies", 0.0) or 0.0)
+            sum_local_comms += float(getattr(task, "local_communications", 0.0) or 0.0)
+            sum_cold_started += float(getattr(task, "cold_started", False) or False)
+            sum_cache_hit += float(getattr(task, "cache_hit", False) or False)
+            sum_task_energy += float(getattr(task, "energy", 0.0) or 0.0)
+
+            source_node = getattr(task, "node_name", None)
+            execution_node = getattr(task, "execution_node", None)
+            if source_node and execution_node and source_node != execution_node:
+                offloaded += 1
+                node_pair_latencies[(source_node, execution_node)].append(
+                    float(getattr(task, "network_latency", 0.0) or 0.0)
+                )
+
+        if n_tasks == 0:
+            raise ValueError("No completed tasks available for low-memory stats")
+
+        node_results: List[NodeResult] = [node.result() for node in self.nodes.items]
+        platform_results: List[PlatformResult] = [
+            platform.result()
+            for node in self.nodes.items
+            for platform in node.platforms.items
+        ]
+
+        unused_platforms = len(
+            [p for p in platform_results if p["idleProportion"] == 100]
+        ) / len(platform_results)
+        unused_nodes = len([n for n in node_results if n["unused"]]) / len(node_results)
+
+        resources_occupation: Dict[int, float] = {
+            platform_result["platformId"]: 100 - platform_result["idleProportion"]
+            for platform_result in sorted(
+                platform_results, key=lambda result: result["platformId"]
+            )
+        }
+        average_occupation = sum(resources_occupation.values()) / len(resources_occupation)
+
+        if len(elapsed_times) < 2:
+            task_response_time_quantiles = (
+                [elapsed_times[0]] * 100 if len(elapsed_times) == 1 else [0.0] * 100
+            )
+        else:
+            task_response_time_quantiles = statistics.quantiles(elapsed_times, n=100)
+
+        application_response_time_quantiles = task_response_time_quantiles
+        penalty_distribution_over_time: List[Tuple[MomentSecond, float]] = []
+        penalty_count = 0
+        apps_seen = 0
+        for application in self.application_archive:
+            if all(getattr(task, "is_internal", False) for task in application.tasks):
+                continue
+            apps_seen += 1
+            app_elapsed = sum(
+                float(task.elapsed_time or 0.0)
+                for task in application.tasks
+                if task.elapsed_time is not None
+            )
+            if isinstance(application.qos, dict):
+                tasks_wcet = sum(
+                    max(task.type["executionTime"].values()) * application.qos["maxDurationDeviation"]
+                    for task in application.tasks
+                )
+                if app_elapsed > tasks_wcet:
+                    penalty_count += 1
+                    penalty_distribution_over_time.append(
+                        (application.dispatched_time, penalty_count / apps_seen)
+                    )
+
+        energy_total = sum_task_energy + sum(
+            platform_result["energyIdle"] for platform_result in platform_results
+        )
+        unused_nodes_idle_energy = [
+            node_result["energyIdle"]
+            for node_result in node_results
+            if node_result["unused"]
+        ]
+        reclaimable_energy = sum(sum(unused.values()) for unused in unused_nodes_idle_energy)
+
+        average_node_pair_latencies = {
+            f"{pair[0]}->{pair[1]}": sum(latencies) / len(latencies)
+            for pair, latencies in node_pair_latencies.items()
+        }
+        network_topology = {
+            node.node_name: node.network_map for node in self.nodes.items
+        }
+
+        reason = (
+            "summary_only_mode"
+            if os.getenv("SIM_SUMMARY_ONLY", "0") == "1"
+            else "large_workload_streaming"
+        )
+
+        result = {
+            "policy": dataclasses.asdict(self.policy),
+            "endTime": self.end_time,
+            "traceFile": self.trace_file,
+            "unusedPlatforms": unused_platforms * 100,
+            "unusedNodes": unused_nodes * 100,
+            "averageOccupation": average_occupation,
+            "averageElapsedTime": total_rtt / n_tasks,
+            "averagePullTime": sum_pull / n_tasks,
+            "averageColdStartTime": sum_cold / n_tasks,
+            "averageExecutionTime": sum_exec / n_tasks,
+            "averageWaitTime": sum_wait / n_tasks,
+            "averageQueueTime": sum_queue / n_tasks,
+            "averageInitializationTime": sum_init / n_tasks,
+            "averageComputeTime": sum_compute / n_tasks,
+            "averageCommunicationsTime": sum_comm / n_tasks,
+            "penaltyProportion": (penalty_count / apps_seen * 100) if apps_seen else 0.0,
+            "localDependenciesProportion": sum_local_deps / n_tasks * 100,
+            "localCommunicationsProportion": sum_local_comms / n_tasks * 100,
+            "nodeCacheHitsProportion": sum(
+                node_result["cacheHits"] for node_result in node_results
+            ) / n_tasks * 100,
+            "taskCacheHitsProportion": sum_cache_hit / n_tasks * 100,
+            "coldStartProportion": sum_cold_started / n_tasks * 100,
+            "taskResponseTimeDistribution": task_response_time_quantiles,
+            "applicationResponseTimeDistribution": application_response_time_quantiles,
+            "penaltyDistributionOverTime": penalty_distribution_over_time,
+            "energy": energy_total,
+            "reclaimableEnergy": reclaimable_energy,
+            "applicationResults": [],
+            "nodeResults": node_results,
+            "taskResults": [],
+            "total_rtt": total_rtt,
+            "num_tasks": n_tasks,
+            "statsSchemaVersion": "v2_streaming",
+            "taskResultsIncluded": False,
+            "taskResultsOmittedReason": reason,
+            "scaleEvents": self.autoscaler.scale_events,
+            "systemEvents": self.autoscaler.system_status_events,
+            "averageNetworkLatency": sum_network / n_tasks,
+            "nodePairLatencies": average_node_pair_latencies,
+            "networkTopology": network_topology,
+            "offloadingRate": offloaded / n_tasks * 100,
+            "systemStateResults": self.system_state_results,
+        }
+        check_serializable(result, "stats")
+        return result
+
     def stats(self) -> SimulationStats:
         logger = logging.getLogger('simulation')
-        
+
+        if self._use_low_memory_stats():
+            return self._stats_low_memory()
+
         try:
             application_results: List[ApplicationResult] = [
                 application.result() for application in self.application_archive
@@ -527,6 +722,13 @@ class Orchestrator:
 
     def gateway_process(self) -> Generator:
         print(f"[ {self.env.now} ] API Gateway started with {len(self.time_series.events)} events")
+        if self._use_low_memory_stats():
+            print(
+                f"[ {self.env.now} ] Low-memory mode enabled "
+                f"(initial_events={self.initial_event_count}, "
+                f"GNN_CAPTURE_DATASET_STATE={os.getenv('GNN_CAPTURE_DATASET_STATE', '0')})",
+                flush=True,
+            )
 
         app_id = 0
         task_id = 0

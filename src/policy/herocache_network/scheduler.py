@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 
 from typing import Any, Dict, Generator, List, Optional, Set, Tuple, TYPE_CHECKING
 
@@ -90,10 +91,11 @@ class HRCScheduler(Scheduler):
                 # Next step
                 continue
 
-            # Capture state BEFORE placement decision (for analysis)
-            task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
-            task.full_queue_snapshot = self._capture_full_queue_snapshot()
-            task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
+            # Capture state only when generating GNN training datasets (avoids OOM on large sims)
+            if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
+                task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
+                task.full_queue_snapshot = self._capture_full_queue_snapshot()
+                task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
             # Measure wall-clock time for the scheduling decision
             from timeit import default_timer

@@ -17,6 +17,7 @@ limitations under the License.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Generator, Set, Tuple, List, Dict, Any, Optional, TYPE_CHECKING
 
 
@@ -81,10 +82,11 @@ class KnativeScheduler(Scheduler):
                 # Next step
                 continue
 
-            # Capture state BEFORE placement decision (for analysis)
-            task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
-            task.full_queue_snapshot = self._capture_full_queue_snapshot()
-            task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
+            # Capture state only when generating GNN training datasets (avoids OOM on large sims)
+            if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
+                task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
+                task.full_queue_snapshot = self._capture_full_queue_snapshot()
+                task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
             # Use parent's placement method which will call our placement() method
             from timeit import default_timer

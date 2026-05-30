@@ -38,7 +38,7 @@ def parse_training_config() -> TrainingConfig:
         / "simulation_data"
         / "artifacts"
         / "run_queue_big"
-        / "graphs_cache_gnn_datasets_4tasks_overnight_260422"
+        / "graphs_cache_gnn_datasets_4tasks_scheduler_adaptive"
     )
 
     parser = argparse.ArgumentParser(description="Train non-unique task placement GNN.")
@@ -76,11 +76,10 @@ def parse_training_config() -> TrainingConfig:
     parser.add_argument(
         "--num-dataloader-workers",
         type=int,
-        default=0,
+        default=4,
         help=(
-            "DataLoader worker processes. Default 0 (load in main process): each worker "
-            "holds full LMDB-unpickled valid_combos in RAM — many workers OOMs on large RTT lists. "
-            "Try 2–4 only on high-memory hosts."
+            "DataLoader worker processes. Default 4; safe with preloaded hash-table "
+            "lookups because __getitem__ only attaches lightweight metadata."
         ),
     )
     parser.add_argument(

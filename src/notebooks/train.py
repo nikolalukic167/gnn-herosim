@@ -17,12 +17,10 @@ NON-UNIQUE PLACEMENTS:
 - Supports datasets: gnn_datasets_2tasks, gnn_datasets_3tasks, and gnn_datasets_4tasks
 """
 
+import gc
 import os
-import pickle
 import random
-import json
 import time
-import lmdb
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
@@ -41,16 +39,18 @@ from tqdm import tqdm
 import wandb
 
 # Temporary timing logs — delete this block when no longer needed.
-_LMDB_LOG_SLOW_SEC = 1.0
-_LMDB_LOG_MIN_COMBOS = 50_000
 _TRAIN_LOG_BATCH_EVERY = 25
 _TRAIN_LOG_SLOW_STEP_SEC = 20.0
-_TRAIN_LOG_HUGE_COMBOS = 200_000
 
 from non_unique_lib.cache_io import (
+    HardNegativeMap,
+    PlacementToLogitMap,
+    build_regret_training_lookups_from_hash_table,
     create_cache_context,
+    enrich_graphs_with_decode_metadata,
     load_graphs_from_cache,
     load_optimal_rtt_from_cache,
+    load_rtt_hash_table_from_cache,
 )
 from non_unique_lib.training_config import parse_training_config
 
@@ -82,6 +82,8 @@ RTT_SCALE_FACTOR = RUNTIME_CONFIG.rtt_scale_factor
 REGRET_LOSS_WEIGHT = RUNTIME_CONFIG.regret_loss_weight
 CE_LOSS_WEIGHT = RUNTIME_CONFIG.ce_loss_weight
 NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
+PRECOMPUTE_RTT_LOOKUPS = RUNTIME_CONFIG.precompute_rtt_lookups
+HARD_NEGATIVE_FRACTION = RUNTIME_CONFIG.hard_negative_fraction
 
 print(f"Cache directory: {CACHE_CTX.cache_dir}")
 print(f"Cache mode: {'MERGED' if IS_MERGED_CACHE else 'SINGLE'}")
@@ -91,8 +93,9 @@ if TASK_COUNT_DIST:
         print(f"  {n_tasks} tasks: {count} graphs")
 
 print(
-    f"DataLoader num_workers={NUM_DATALOADER_WORKERS} "
-    "(0=main process; >0 uses more RAM per LMDB unpickle)"
+    f"DataLoader num_workers={NUM_DATALOADER_WORKERS}, "
+    f"precompute_rtt_lookups={PRECOMPUTE_RTT_LOOKUPS}, "
+    f"hard_negative_fraction={HARD_NEGATIVE_FRACTION}"
 )
 
 
@@ -261,149 +264,135 @@ def loss_original_ce(logits_per_task, data, device):
 class StructuredRegretLoss(nn.Module):
     """
     Margin-based loss that directly optimizes for regret.
-    
-    Loss = max(0, Regret(Negative) - (Score(Optimal) - Score(Negative)))
-    
-    This encourages the model to:
-    1. Score the optimal placement higher than negative placements
-    2. Make the score gap proportional to the regret (RTT difference)
+
+    Hard-negative pools and placement->logit maps are precomputed once at startup
+    so each forward pass only does O(1) hash-map lookups.
     """
-    
-    def __init__(self, rtt_scale: float):
+
+    def __init__(
+        self,
+        rtt_scale: float,
+        hard_negative_map: HardNegativeMap,
+        placement_to_logit_map: PlacementToLogitMap,
+    ) -> None:
         super().__init__()
         self.rtt_scale = rtt_scale
-    
+        self.hard_negative_map = hard_negative_map
+        self.placement_to_logit_map = placement_to_logit_map
+
     def forward(
         self,
         logits_per_task: List[torch.Tensor],
         data: Data,
-        device: torch.device
+        device: torch.device,
     ) -> Tuple[torch.Tensor, int, Dict[str, Any]]:
-        """
-        Compute structured regret loss.
-        
-        Returns:
-            loss: The margin loss tensor
-            valid: 1 if loss was computed, 0 otherwise
-            stats: Dictionary with debugging stats
-        """
         dataset_id = getattr(data, 'dataset_id', None)
-        valid_combos = getattr(data, 'valid_combos', [])
         opt_rtt = getattr(data, 'opt_rtt', None)
-        
-        # Get task_logit_to_placement mapping
-        task_logit_to_placement = getattr(data, '_task_logit_to_placement', None)
-        
-        if not dataset_id or task_logit_to_placement is None or opt_rtt is None or not valid_combos:
+        task_logit_to_placement = getattr(
+            data,
+            'task_logit_to_placement',
+            getattr(data, '_task_logit_to_placement', None),
+        )
+        hard_negative_combos = self.hard_negative_map.get(dataset_id or "", [])
+
+        if (
+            not dataset_id
+            or task_logit_to_placement is None
+            or opt_rtt is None
+            or not hard_negative_combos
+        ):
             return torch.tensor(0.0, device=device), 0, {}
-        
+
         n_tasks = int(data.n_tasks)
-        
-        # Check all tasks have valid labels
+
         for t_idx in range(n_tasks):
             if data.y[t_idx].item() == -1:
                 return torch.tensor(0.0, device=device), 0, {}
             if t_idx not in task_logit_to_placement:
                 return torch.tensor(0.0, device=device), 0, {}
-        
-        # 1. Calculate Score of Optimal Path (sum of logits for optimal indices)
+
         score_opt = torch.tensor(0.0, device=device)
         opt_indices = []
-        
+
         for t_idx in range(n_tasks):
             opt_idx = data.y[t_idx].item()
             if opt_idx >= logits_per_task[t_idx].numel():
                 return torch.tensor(0.0, device=device), 0, {}
             score_opt = score_opt + logits_per_task[t_idx][opt_idx]
             opt_indices.append(opt_idx)
-        
-        # 2. Sample a Negative Path from valid combos (hash table)
-        opt_combo_tuple = tuple(
-            task_logit_to_placement[t_idx][opt_indices[t_idx]]
-            if opt_indices[t_idx] < len(task_logit_to_placement[t_idx])
-            else (-1, -1)
-            for t_idx in range(n_tasks)
-        )
-        non_optimal_combos = [
-            (combo, rtt) for combo, rtt in valid_combos
-            if combo != opt_combo_tuple
-        ]
-        if not non_optimal_combos:
-            return torch.tensor(0.0, device=device), 0, {}
 
-        # Sample one, preferring high-regret ones (harder negatives)
-        non_optimal_combos.sort(key=lambda x: x[1], reverse=True)
-        top_half = non_optimal_combos[:max(1, len(non_optimal_combos) // 2)]
-        neg_combo, neg_rtt = random.choice(top_half)
+        neg_combo, neg_rtt = random.choice(hard_negative_combos)
 
-        # Map combo back to logit indices
+        placement_to_logit_by_task = self.placement_to_logit_map.get(dataset_id)
         neg_indices = []
         for t_idx in range(n_tasks):
             target_node_id, target_plat_id = neg_combo[t_idx]
             found_idx = None
-            for logit_idx, (node_id, plat_id) in enumerate(task_logit_to_placement[t_idx]):
-                if node_id == target_node_id and plat_id == target_plat_id:
-                    found_idx = logit_idx
-                    break
+            if placement_to_logit_by_task and t_idx < len(placement_to_logit_by_task):
+                found_idx = placement_to_logit_by_task[t_idx].get((target_node_id, target_plat_id))
+            if found_idx is None:
+                for logit_idx, (node_id, plat_id) in enumerate(task_logit_to_placement[t_idx]):
+                    if node_id == target_node_id and plat_id == target_plat_id:
+                        found_idx = logit_idx
+                        break
             if found_idx is None:
                 return torch.tensor(0.0, device=device), 0, {}
             neg_indices.append(found_idx)
-        
-        # 3. Calculate Score of Negative Path
+
         score_neg = torch.tensor(0.0, device=device)
         for t_idx in range(n_tasks):
             neg_idx = neg_indices[t_idx]
             if neg_idx >= logits_per_task[t_idx].numel():
                 return torch.tensor(0.0, device=device), 0, {}
             score_neg = score_neg + logits_per_task[t_idx][neg_idx]
-        
-        # 4. Calculate Regret (normalized)
-        regret = (neg_rtt - opt_rtt) / self.rtt_scale
+
+        try:
+            opt_rtt_val = float(opt_rtt)
+        except (TypeError, ValueError):
+            return torch.tensor(0.0, device=device), 0, {}
+        regret = (float(neg_rtt) - opt_rtt_val) / self.rtt_scale
         regret = max(0.0, regret)
-        
-        # 5. Compute Margin Loss
-        # We want: Score_Opt > Score_Neg + Regret
-        # Loss = max(0, Regret - (Score_Opt - Score_Neg))
+
         margin = score_opt - score_neg
         loss = F.relu(torch.tensor(regret, device=device) - margin)
-        
+
         stats = {
             'regret': regret,
             'margin': margin.item(),
             'score_opt': score_opt.item(),
             'score_neg': score_neg.item(),
         }
-        
+
         return loss, 1, stats
 
 
-class GraphRttLMDBDataset(torch.utils.data.Dataset):
-    """Wrap cached graphs and fetch per-dataset RTT combos from LMDB (mmap-friendly)."""
+class GraphRttDataset(torch.utils.data.Dataset):
+    """Lightweight dataset: only attaches dataset_id, opt_rtt, and task placement map."""
 
     def __init__(
         self,
         graphs: List[Data],
         dataset_ids: List[str],
         optimal_rtt_map: Dict[str, float],
-        lmdb_path: Path,
     ) -> None:
         self.graphs = graphs
         self.dataset_ids = dataset_ids
         self.optimal_rtt_map = optimal_rtt_map
-        self.lmdb_path = Path(lmdb_path)
-        self._env: Optional[lmdb.Environment] = None
-
-    def _get_env(self) -> lmdb.Environment:
-        if self._env is None:
-            self._env = lmdb.open(
-                str(self.lmdb_path),
-                readonly=True,
-                lock=False,
-                readahead=False,
-                meminit=False,
-                max_dbs=0,
-            )
-        return self._env
+        self._task_map_by_dataset: Dict[str, Dict[int, List[Tuple[int, int]]]] = {}
+        self._queue_snapshot_by_dataset: Dict[str, Dict[str, int]] = {}
+        self._queue_keys_by_dataset: Dict[str, Dict[int, List[str]]] = {}
+        for graph, dataset_id in zip(self.graphs, self.dataset_ids):
+            task_map = getattr(graph, "task_logit_to_placement", None)
+            if task_map is None:
+                task_map = getattr(graph, "_task_logit_to_placement", None)
+            if task_map is not None:
+                self._task_map_by_dataset[dataset_id] = task_map
+            queue_snapshot = getattr(graph, "queue_snapshot", None)
+            if queue_snapshot:
+                self._queue_snapshot_by_dataset[dataset_id] = queue_snapshot
+            queue_keys = getattr(graph, "task_logit_to_queue_key", None)
+            if queue_keys:
+                self._queue_keys_by_dataset[dataset_id] = queue_keys
 
     def __len__(self) -> int:
         return len(self.dataset_ids)
@@ -413,25 +402,9 @@ class GraphRttLMDBDataset(torch.utils.data.Dataset):
         dataset_id = self.dataset_ids[idx]
         graph.dataset_id = dataset_id
         graph.opt_rtt = float(self.optimal_rtt_map.get(dataset_id, 0.0))
-
-        t0 = time.perf_counter()
-        env = self._get_env()
-        with env.begin() as txn:
-            data_bytes = txn.get(dataset_id.encode("utf-8"))
-
-        if data_bytes:
-            graph.valid_combos = pickle.loads(data_bytes)
-        else:
-            graph.valid_combos = []
-        dt = time.perf_counter() - t0
-        n_c = len(graph.valid_combos)
-        if dt >= _LMDB_LOG_SLOW_SEC or n_c >= _LMDB_LOG_MIN_COMBOS:
-            print(
-                f"[GraphRttLMDBDataset] idx={idx} dataset_id={dataset_id!r} "
-                f"LMDB+unpickle={dt:.2f}s n_combos={n_c}",
-                flush=True,
-            )
-
+        graph.task_logit_to_placement = self._task_map_by_dataset.get(dataset_id, {})
+        graph.queue_snapshot = self._queue_snapshot_by_dataset.get(dataset_id, {})
+        graph.task_logit_to_queue_key = self._queue_keys_by_dataset.get(dataset_id, {})
         return graph
 
 
@@ -442,39 +415,46 @@ class GraphRttLMDBDataset(torch.utils.data.Dataset):
 
 def custom_collate(data_list):
     """Batch graphs while preserving non-tensor custom attributes."""
-    task_maps = [getattr(d, '_task_logit_to_placement', {}) for d in data_list]
+    task_maps = [
+        getattr(d, 'task_logit_to_placement', getattr(d, '_task_logit_to_placement', {}))
+        for d in data_list
+    ]
     dataset_ids = [getattr(d, 'dataset_id', None) for d in data_list]
-    valid_combos = [getattr(d, 'valid_combos', []) for d in data_list]
     opt_rtts = [getattr(d, 'opt_rtt', None) for d in data_list]
+    queue_snapshots = [getattr(d, 'queue_snapshot', {}) for d in data_list]
+    queue_key_maps = [getattr(d, 'task_logit_to_queue_key', {}) for d in data_list]
     batch = Batch.from_data_list(data_list)
-    batch._task_logit_to_placement_list = task_maps
+    batch.task_logit_to_placement_list = task_maps
     batch.dataset_id_list = dataset_ids
-    batch.valid_combos_list = valid_combos
     batch.opt_rtt_list = opt_rtts
+    batch.queue_snapshot_list = queue_snapshots
+    batch.task_logit_to_queue_key_list = queue_key_maps
     return batch
 
 
 def restore_custom_attrs(batch, graphs):
     """Restore custom attrs from collate metadata lists."""
-    task_maps = getattr(batch, '_task_logit_to_placement_list', [])
+    task_maps = getattr(batch, 'task_logit_to_placement_list', [])
     dataset_ids = getattr(batch, 'dataset_id_list', [])
-    valid_combos = getattr(batch, 'valid_combos_list', [])
     opt_rtts = getattr(batch, 'opt_rtt_list', [])
+    queue_snapshots = getattr(batch, 'queue_snapshot_list', [])
+    queue_key_maps = getattr(batch, 'task_logit_to_queue_key_list', [])
 
     for idx, graph in enumerate(graphs):
         if idx < len(task_maps):
-            graph._task_logit_to_placement = task_maps[idx]
+            graph.task_logit_to_placement = task_maps[idx]
         if idx < len(dataset_ids):
             graph.dataset_id = dataset_ids[idx]
-        if idx < len(valid_combos):
-            graph.valid_combos = valid_combos[idx]
         if idx < len(opt_rtts):
             graph.opt_rtt = opt_rtts[idx]
+        if idx < len(queue_snapshots):
+            graph.queue_snapshot = queue_snapshots[idx]
+        if idx < len(queue_key_maps):
+            graph.task_logit_to_queue_key = queue_key_maps[idx]
     return graphs
 
 
 def create_dataloader(dataset, *, shuffle: bool, pin_memory: bool) -> DataLoader:
-    """Fewer workers + prefetch avoid OOM when each sample holds huge unpickled valid_combos."""
     kw: Dict[str, Any] = dict(
         dataset=dataset,
         batch_size=BATCH_SIZE,
@@ -484,8 +464,28 @@ def create_dataloader(dataset, *, shuffle: bool, pin_memory: bool) -> DataLoader
         collate_fn=custom_collate,
     )
     if NUM_DATALOADER_WORKERS > 0:
-        kw["prefetch_factor"] = 1
+        kw["prefetch_factor"] = RUNTIME_CONFIG.dataloader_prefetch_factor
+        kw["persistent_workers"] = RUNTIME_CONFIG.persistent_dataloader_workers
     return DataLoader(**kw)
+
+
+def release_eval_memory() -> None:
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def run_final_split_eval(model, dataset, split_name: str) -> Dict[str, Any]:
+    """Evaluate one split and free loader/CUDA cache before the next split."""
+    print(f"[final eval] starting {split_name}...", flush=True)
+    loader = create_dataloader(dataset, shuffle=False, pin_memory=False)
+    metrics = evaluate(
+        model, loader, DEVICE, PLACEMENT_RTT_HASH_TABLE, is_last_epoch=True
+    )
+    del loader
+    release_eval_memory()
+    print(f"[final eval] completed {split_name}", flush=True)
+    return metrics
 
 
 # %%
@@ -515,7 +515,7 @@ def train_epoch(
     print(
         f"[train_epoch] Epoch {epoch_num}: fetching first batch from DataLoader "
         f"(num_workers={getattr(train_loader, 'num_workers', 0)}, "
-        f"this can take a while on first batch due to LMDB unpickle)...",
+        f"this can take a while on first batch)...",
         flush=True,
     )
     _t_loader = time.perf_counter()
@@ -536,18 +536,10 @@ def train_epoch(
             )
 
         stepped = False
-        max_n = 0
-        slowest_id = None
         try:
             optimizer.zero_grad()
             graphs_in_batch = batch.to_data_list()
             graphs_in_batch = restore_custom_attrs(batch, graphs_in_batch)
-
-            combo_sizes = [len(getattr(g, "valid_combos", None) or []) for g in graphs_in_batch]
-            if combo_sizes:
-                max_n = max(combo_sizes)
-                i_mx = combo_sizes.index(max_n)
-                slowest_id = getattr(graphs_in_batch[i_mx], "dataset_id", None)
 
             loss_ce_total = torch.zeros(1, device=device)
             loss_regret_total = torch.zeros(1, device=device)
@@ -556,16 +548,18 @@ def train_epoch(
 
             for data in graphs_in_batch:
                 dataset_id_saved = getattr(data, 'dataset_id', None)
-                valid_combos_saved = getattr(data, 'valid_combos', [])
                 opt_rtt_saved = getattr(data, 'opt_rtt', None)
-                task_map_saved = getattr(data, '_task_logit_to_placement', {})
+                task_map_saved = getattr(
+                    data,
+                    'task_logit_to_placement',
+                    getattr(data, '_task_logit_to_placement', {}),
+                )
 
                 data = data.to(device)
 
                 data.dataset_id = dataset_id_saved
-                data.valid_combos = valid_combos_saved
                 data.opt_rtt = opt_rtt_saved
-                data._task_logit_to_placement = task_map_saved
+                data.task_logit_to_placement = task_map_saved
 
                 dataset_id = getattr(data, 'dataset_id', None)
                 if dataset_id:
@@ -618,15 +612,12 @@ def train_epoch(
                 _TRAIN_LOG_BATCH_EVERY > 0
                 and (step % _TRAIN_LOG_BATCH_EVERY == 0 or is_last)
             )
-            unusual = step_dt >= _TRAIN_LOG_SLOW_STEP_SEC or max_n >= _TRAIN_LOG_HUGE_COMBOS
+            unusual = step_dt >= _TRAIN_LOG_SLOW_STEP_SEC
             if periodic or unusual:
-                tag = ""
-                if unusual and not periodic:
-                    tag = " SLOW_OR_HUGE"
+                tag = " SLOW" if unusual and not periodic else ""
                 print(
                     f"[train_epoch] epoch={epoch_num} step={step}{tag} "
-                    f"batch_secs={step_dt:.2f} max_n_combos={max_n} "
-                    f"largest={slowest_id!r} stepped={stepped}",
+                    f"batch_secs={step_dt:.2f} stepped={stepped}",
                     flush=True,
                 )
     
@@ -641,47 +632,107 @@ def train_epoch(
 
 
 @torch.no_grad()
-def decode_inference_placement(logits_per_task, data):
+def decode_frozen_placement(logits_per_task, data):
     """
-    Greedy decoder: for each task, select the highest scoring platform.
-    Non-unique version: multiple tasks can be placed on the same replica.
+    Independent per-task argmax on a frozen queue snapshot (legacy eval decode).
     """
-    dataset_id = getattr(data, 'dataset_id', None)
-    if not dataset_id:
-        return None
-
     n_tasks = int(data.n_tasks)
     if len(logits_per_task) != n_tasks:
         return None
 
-    task_logit_to_placement = getattr(data, '_task_logit_to_placement', None)
+    task_logit_to_placement = getattr(
+        data,
+        'task_logit_to_placement',
+        getattr(data, '_task_logit_to_placement', None),
+    )
     if task_logit_to_placement is None:
         return None
 
-    # For each task, select the highest scoring platform (greedy per-task)
     combo_list = []
     for t_idx in range(n_tasks):
         if t_idx not in task_logit_to_placement:
             return None
-        
-        logits_t = logits_per_task[t_idx].float().clone()
+
+        logits_t = logits_per_task[t_idx].float()
         if logits_t.numel() == 0:
             return None
-        
-        # Pick highest scoring platform for this task
+
         best_logit_idx = logits_t.argmax().item()
-        
         if best_logit_idx >= len(task_logit_to_placement[t_idx]):
             return None
-        
-        node_id, plat_id = task_logit_to_placement[t_idx][best_logit_idx]
-        combo_list.append((node_id, plat_id))
+
+        combo_list.append(tuple(task_logit_to_placement[t_idx][best_logit_idx]))
 
     return tuple(combo_list)
 
 
 @torch.no_grad()
-def evaluate(model, loader, device, is_last_epoch=False):
+def decode_sequential_placement(logits_per_task, data, *, use_seqblend: bool = False):
+    """
+    Sequential decode with live queue updates (matches GNN scheduler inference).
+
+    use_seqblend=False: sequential argmax only (tests if seqblend is still needed).
+    use_seqblend=True: argmax with min-queue blend when GNN would hot-spot.
+    """
+    n_tasks = int(data.n_tasks)
+    if len(logits_per_task) != n_tasks:
+        return None
+
+    task_logit_to_placement = getattr(
+        data,
+        'task_logit_to_placement',
+        getattr(data, '_task_logit_to_placement', None),
+    )
+    task_logit_to_queue_key = getattr(data, 'task_logit_to_queue_key', None)
+    queue_snapshot = getattr(data, 'queue_snapshot', None)
+    if task_logit_to_placement is None or not task_logit_to_queue_key or not queue_snapshot:
+        return None
+
+    live_queues = dict(queue_snapshot)
+    combo_list = []
+
+    for t_idx in range(n_tasks):
+        if t_idx not in task_logit_to_placement:
+            return None
+
+        logits_t = logits_per_task[t_idx].float()
+        if logits_t.numel() == 0:
+            return None
+
+        candidates = task_logit_to_placement[t_idx]
+        keys = task_logit_to_queue_key.get(t_idx)
+        if not keys or len(keys) != len(candidates):
+            return None
+
+        gnn_idx = int(logits_t.argmax().item())
+        if gnn_idx >= len(candidates):
+            return None
+
+        if use_seqblend:
+            min_idx = min(
+                range(len(candidates)),
+                key=lambda i: live_queues.get(keys[i], 0),
+            )
+            gnn_queue = live_queues.get(keys[gnn_idx], 0)
+            min_queue = live_queues.get(keys[min_idx], 0)
+            chosen_idx = min_idx if gnn_queue > min_queue else gnn_idx
+        else:
+            chosen_idx = gnn_idx
+
+        combo_list.append(tuple(candidates[chosen_idx]))
+        chosen_key = keys[chosen_idx]
+        live_queues[chosen_key] = live_queues.get(chosen_key, 0) + 1
+
+    return tuple(combo_list)
+
+
+def decode_inference_placement(logits_per_task, data):
+    """Backward-compatible alias for frozen independent argmax decode."""
+    return decode_frozen_placement(logits_per_task, data)
+
+
+@torch.no_grad()
+def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=False):
     model.eval()
     total_loss_ce = 0.0
     total_valid_tasks = 0
@@ -693,14 +744,23 @@ def evaluate(model, loader, device, is_last_epoch=False):
     sum_regret = 0.0
     sum_regret_pct = 0.0
     count_regret = 0
+    sum_regret_seq = 0.0
+    sum_regret_seq_pct = 0.0
+    count_regret_seq = 0
+    sum_regret_seqblend = 0.0
+    sum_regret_seqblend_pct = 0.0
+    count_regret_seqblend = 0
 
     # Per-task-count statistics (for merged datasets)
-    per_task_count_stats = {}  # {n_tasks: {correct: int, total: int, regret_sum: float, regret_count: int}}
+    per_task_count_stats = {}  # {n_tasks: {...}}
 
     def _ensure_task_bucket(task_count: int) -> None:
         if task_count not in per_task_count_stats:
             per_task_count_stats[task_count] = {
-                'correct': 0, 'total': 0, 'regret_sum': 0.0, 'regret_count': 0
+                'correct': 0, 'total': 0,
+                'regret_sum': 0.0, 'regret_count': 0,
+                'regret_seq_sum': 0.0, 'regret_seq_count': 0,
+                'regret_seqblend_sum': 0.0, 'regret_seqblend_count': 0,
             }
 
     def _update_accuracy_counts(data_obj, logits_per_task_obj):
@@ -730,41 +790,68 @@ def evaluate(model, loader, device, is_last_epoch=False):
         graph_correct = int(graph_all_correct and graph_valid_tasks == data_obj.n_tasks)
         return local_tasks_correct, local_total_tasks, graph_correct
 
-    def _compute_regret_metrics(dataset_id_obj, n_tasks_obj, data_obj, logits_per_task_obj):
-        if not dataset_id_obj:
+    def _compute_regret_metrics(dataset_id_obj, n_tasks_obj, data_obj, logits_per_task_obj, combo_tuple):
+        if not dataset_id_obj or combo_tuple is None:
             return None
-        combo_tuple = decode_inference_placement(logits_per_task_obj, data_obj)
-        if combo_tuple is None:
-            return None
-        valid_combos = getattr(data_obj, "valid_combos", [])
         opt_rtt = getattr(data_obj, "opt_rtt", None)
-        if opt_rtt is None or not valid_combos:
+        if opt_rtt is None:
             return None
-        combo_to_rtt = {combo: rtt for combo, rtt in valid_combos}
-        pred_rtt = combo_to_rtt.get(combo_tuple)
-        if pred_rtt is None or opt_rtt is None:
+        try:
+            opt_rtt_val = float(opt_rtt)
+        except (TypeError, ValueError):
             return None
-        regret_val = float(pred_rtt - opt_rtt)
-        regret_pct_val = (regret_val / opt_rtt) * 100.0 if opt_rtt > 0 else 0.0
+        pred_rtt = placement_rtt_hash_table.get((dataset_id_obj, combo_tuple))
+        if pred_rtt is None:
+            return None
+        pred_rtt_val = float(pred_rtt)
+        regret_val = pred_rtt_val - opt_rtt_val
+        regret_pct_val = (regret_val / opt_rtt_val) * 100.0 if opt_rtt_val > 0 else 0.0
         return regret_val, regret_pct_val, n_tasks_obj
+
+    def _accumulate_regret(metrics, bucket_key_sum, bucket_key_count):
+        nonlocal sum_regret, sum_regret_pct, count_regret
+        nonlocal sum_regret_seq, sum_regret_seq_pct, count_regret_seq
+        nonlocal sum_regret_seqblend, sum_regret_seqblend_pct, count_regret_seqblend
+        if metrics is None:
+            return
+        regret, regret_pct, regret_task_count = metrics
+        if bucket_key_sum == 'regret_sum':
+            sum_regret += regret
+            sum_regret_pct += regret_pct
+            count_regret += 1
+        elif bucket_key_sum == 'regret_seq_sum':
+            sum_regret_seq += regret
+            sum_regret_seq_pct += regret_pct
+            count_regret_seq += 1
+        elif bucket_key_sum == 'regret_seqblend_sum':
+            sum_regret_seqblend += regret
+            sum_regret_seqblend_pct += regret_pct
+            count_regret_seqblend += 1
+        per_task_count_stats[regret_task_count][bucket_key_sum] += regret
+        per_task_count_stats[regret_task_count][bucket_key_count] += 1
 
     for batch in tqdm(loader, desc="Evaluating", leave=is_last_epoch):
         graphs_in_batch = batch.to_data_list()
         graphs_in_batch = restore_custom_attrs(batch, graphs_in_batch)
         
         for data in graphs_in_batch:
-            # Preserve custom attributes (lost on device transfer)
-            task_logit_to_placement_orig = getattr(data, '_task_logit_to_placement', {})
+            task_logit_to_placement_orig = getattr(
+                data,
+                'task_logit_to_placement',
+                getattr(data, '_task_logit_to_placement', {}),
+            )
             dataset_id_orig = getattr(data, 'dataset_id', None)
-            valid_combos_orig = getattr(data, 'valid_combos', [])
             opt_rtt_orig = getattr(data, 'opt_rtt', None)
+            queue_snapshot_orig = getattr(data, 'queue_snapshot', {})
+            queue_keys_orig = getattr(data, 'task_logit_to_queue_key', {})
 
             data = data.to(device)
 
-            data._task_logit_to_placement = task_logit_to_placement_orig
+            data.task_logit_to_placement = task_logit_to_placement_orig
             data.dataset_id = dataset_id_orig
-            data.valid_combos = valid_combos_orig
             data.opt_rtt = opt_rtt_orig
+            data.queue_snapshot = queue_snapshot_orig
+            data.task_logit_to_queue_key = queue_keys_orig
 
             dataset_id = data.dataset_id
             n_tasks = int(data.n_tasks)
@@ -786,23 +873,38 @@ def evaluate(model, loader, device, is_last_epoch=False):
                     correct_graphs += 1
                     per_task_count_stats[n_tasks]['correct'] += 1
 
-                regret_metrics = _compute_regret_metrics(dataset_id, n_tasks, data, logits_per_task)
-                if regret_metrics is not None:
-                    regret, regret_pct, regret_task_count = regret_metrics
-                    sum_regret += regret
-                    sum_regret_pct += regret_pct
-                    count_regret += 1
-                    per_task_count_stats[regret_task_count]['regret_sum'] += regret
-                    per_task_count_stats[regret_task_count]['regret_count'] += 1
+                frozen_combo = decode_frozen_placement(logits_per_task, data)
+                _accumulate_regret(
+                    _compute_regret_metrics(dataset_id, n_tasks, data, logits_per_task, frozen_combo),
+                    'regret_sum', 'regret_count',
+                )
+
+                seq_combo = decode_sequential_placement(logits_per_task, data, use_seqblend=False)
+                _accumulate_regret(
+                    _compute_regret_metrics(dataset_id, n_tasks, data, logits_per_task, seq_combo),
+                    'regret_seq_sum', 'regret_seq_count',
+                )
+
+                seqblend_combo = decode_sequential_placement(logits_per_task, data, use_seqblend=True)
+                _accumulate_regret(
+                    _compute_regret_metrics(dataset_id, n_tasks, data, logits_per_task, seqblend_combo),
+                    'regret_seqblend_sum', 'regret_seqblend_count',
+                )
 
     avg_loss_ce = total_loss_ce / max(1, total_valid_tasks)
     acc = correct_graphs / max(1, total_graphs)
     regret = sum_regret / max(1, count_regret)
     regret_pct = sum_regret_pct / max(1, count_regret)
+    regret_seq = sum_regret_seq / max(1, count_regret_seq)
+    regret_seq_pct = sum_regret_seq_pct / max(1, count_regret_seq)
+    regret_seqblend = sum_regret_seqblend / max(1, count_regret_seqblend)
+    regret_seqblend_pct = sum_regret_seqblend_pct / max(1, count_regret_seqblend)
 
     print(f"\n[Evaluation] Graphs: {total_graphs}, Correct: {correct_graphs} ({acc*100:.1f}%)")
     print(f"  Per-task accuracy: {total_tasks_correct}/{total_tasks} ({total_tasks_correct/max(1,total_tasks)*100:.1f}%)")
-    print(f"  Regret: {count_regret} samples, Avg: {regret:.4f}s ({regret_pct:.2f}%)")
+    print(f"  Regret (frozen):     {count_regret} samples, Avg: {regret:.4f}s ({regret_pct:.2f}%)")
+    print(f"  Regret (seq argmax): {count_regret_seq} samples, Avg: {regret_seq:.4f}s ({regret_seq_pct:.2f}%)")
+    print(f"  Regret (seqblend):   {count_regret_seqblend} samples, Avg: {regret_seqblend:.4f}s ({regret_seqblend_pct:.2f}%)")
     
     # Print per-task-count statistics if merged cache
     if IS_MERGED_CACHE and len(per_task_count_stats) > 1:
@@ -811,8 +913,12 @@ def evaluate(model, loader, device, is_last_epoch=False):
             stats = per_task_count_stats[n_tasks]
             acc_n = stats['correct'] / max(1, stats['total'])
             regret_n = stats['regret_sum'] / max(1, stats['regret_count']) if stats['regret_count'] > 0 else 0.0
-            print(f"    {n_tasks} tasks: {stats['correct']}/{stats['total']} ({acc_n*100:.1f}%), "
-                  f"regret: {regret_n:.4f}s ({stats['regret_count']} samples)")
+            regret_seq_n = stats['regret_seq_sum'] / max(1, stats['regret_seq_count']) if stats['regret_seq_count'] > 0 else 0.0
+            regret_seqblend_n = stats['regret_seqblend_sum'] / max(1, stats['regret_seqblend_count']) if stats['regret_seqblend_count'] > 0 else 0.0
+            print(
+                f"    {n_tasks} tasks: {stats['correct']}/{stats['total']} ({acc_n*100:.1f}%), "
+                f"frozen: {regret_n:.4f}s, seq: {regret_seq_n:.4f}s, seqblend: {regret_seqblend_n:.4f}s"
+            )
     
     return {
         'ce': avg_loss_ce,
@@ -820,6 +926,12 @@ def evaluate(model, loader, device, is_last_epoch=False):
         'regret': regret,
         'regret_pct': regret_pct,
         'count_regret': count_regret,
+        'regret_seq': regret_seq,
+        'regret_seq_pct': regret_seq_pct,
+        'count_regret_seq': count_regret_seq,
+        'regret_seqblend': regret_seqblend,
+        'regret_seqblend_pct': regret_seqblend_pct,
+        'count_regret_seqblend': count_regret_seqblend,
         'per_task_count_stats': per_task_count_stats if IS_MERGED_CACHE else {},
     }
 
@@ -834,15 +946,34 @@ if len(graphs) == 0:
     print("ERROR: No graphs loaded from cache!")
     exit(1)
 
-LMDB_RTT_PATH = CACHE_CTX.rtt_combos_lmdb_path
-if not LMDB_RTT_PATH.exists():
-    raise FileNotFoundError(
-        f"RTT LMDB not found at {LMDB_RTT_PATH}. Run prepare_graphs_cache.py "
-        "(it writes rtt_combos.lmdb in the cache directory)."
-    )
-print(f"Using RTT combos LMDB: {LMDB_RTT_PATH}")
+enrich_graphs_with_decode_metadata(
+    graphs,
+    dataset_ids,
+    RUNTIME_CONFIG.project_root,
+    CACHE_CTX,
+)
 
+print(
+    "[INFO] Running preloaded RTT hash-table backend "
+    f"('{CACHE_CTX.rtt_combos_backend}')"
+)
+
+PLACEMENT_RTT_HASH_TABLE = load_rtt_hash_table_from_cache(CACHE_CTX.cache_dir)
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
+print(f"[dbg] placement_rtt combos: {len(PLACEMENT_RTT_HASH_TABLE):,}")
+
+if PRECOMPUTE_RTT_LOOKUPS:
+    PLACEMENT_TO_LOGIT_MAP, HARD_NEGATIVE_MAP = build_regret_training_lookups_from_hash_table(
+        graphs,
+        dataset_ids,
+        PLACEMENT_RTT_HASH_TABLE,
+        hard_negative_fraction=HARD_NEGATIVE_FRACTION,
+    )
+    gc.collect()
+else:
+    print("[WARN] precompute_rtt_lookups disabled; regret training will produce zero valid samples")
+    PLACEMENT_TO_LOGIT_MAP = {}
+    HARD_NEGATIVE_MAP = {}
 
 # Compute statistics
 ys = np.concatenate([g.y.numpy() for g in graphs])
@@ -880,23 +1011,20 @@ if IS_MERGED_CACHE:
         print(f"  {split_name} task distribution: " + ", ".join([f"{n}t: {c}" for n, c in sorted(task_dist.items())]))
 print()
 
-train_dataset = GraphRttLMDBDataset(
+train_dataset = GraphRttDataset(
     graphs=train_graphs,
     dataset_ids=train_ids,
     optimal_rtt_map=DATA_OPTIMAL_RTT,
-    lmdb_path=LMDB_RTT_PATH,
 )
-val_dataset = GraphRttLMDBDataset(
+val_dataset = GraphRttDataset(
     graphs=val_graphs,
     dataset_ids=val_ids,
     optimal_rtt_map=DATA_OPTIMAL_RTT,
-    lmdb_path=LMDB_RTT_PATH,
 )
-test_dataset = GraphRttLMDBDataset(
+test_dataset = GraphRttDataset(
     graphs=test_graphs,
     dataset_ids=test_ids,
     optimal_rtt_map=DATA_OPTIMAL_RTT,
-    lmdb_path=LMDB_RTT_PATH,
 )
 
 # %%
@@ -922,6 +1050,10 @@ wandb.init(
         "cache_mode": "merged" if IS_MERGED_CACHE else "single",
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
         "non_unique_placements": True,  # Flag to indicate non-unique support
+        "sequential_eval_decode": True,
+        "precompute_rtt_lookups": bool(PRECOMPUTE_RTT_LOOKUPS),
+        "hard_negative_fraction": float(HARD_NEGATIVE_FRACTION),
+        "rtt_combos_backend": CACHE_CTX.rtt_combos_backend,
         "num_datasets": int(len(graphs)),
         "num_train": int(len(train_graphs)),
         "num_val": int(len(val_graphs)),
@@ -956,7 +1088,11 @@ model.apply(init_weights)
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
-regret_criterion = StructuredRegretLoss(rtt_scale=RTT_SCALE_FACTOR)
+regret_criterion = StructuredRegretLoss(
+    rtt_scale=RTT_SCALE_FACTOR,
+    hard_negative_map=HARD_NEGATIVE_MAP,
+    placement_to_logit_map=PLACEMENT_TO_LOGIT_MAP,
+)
 
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 print()
@@ -973,10 +1109,17 @@ def safe_float(val):
 def prefix_metric_dict(metrics: Dict[str, Any], prefix: str) -> Dict[str, Any]:
     """Prefix flat scalar metrics for structured logging."""
     out: Dict[str, Any] = {}
-    for key in ("ce", "acc", "regret", "regret_pct", "count_regret"):
+    scalar_keys = (
+        "ce", "acc",
+        "regret", "regret_pct", "count_regret",
+        "regret_seq", "regret_seq_pct", "count_regret_seq",
+        "regret_seqblend", "regret_seqblend_pct", "count_regret_seqblend",
+    )
+    count_keys = {"count_regret", "count_regret_seq", "count_regret_seqblend"}
+    for key in scalar_keys:
         if key in metrics:
             value = metrics[key]
-            out[f"{prefix}/{key}"] = int(value) if key == "count_regret" else safe_float(value)
+            out[f"{prefix}/{key}"] = int(value) if key in count_keys else safe_float(value)
     return out
 
 # ========================================================================
@@ -992,6 +1135,8 @@ wandb.watch(model, log="gradients", log_freq=100)
 
 best_val_regret = float('inf')  # Minimize regret
 best_val_acc = 0
+checkpoint_saved = False
+model_path = Path("models") / MODEL_FILENAME
 
 train_loader = create_dataloader(train_dataset, shuffle=True, pin_memory=(DEVICE.type == "cuda"))
 val_loader = create_dataloader(val_dataset, shuffle=False, pin_memory=(DEVICE.type == "cuda"))
@@ -1011,7 +1156,7 @@ for epoch in range(EPOCHS):
     
     # Evaluate
     val_metrics = evaluate(
-        model, val_loader, DEVICE,
+        model, val_loader, DEVICE, PLACEMENT_RTT_HASH_TABLE,
         is_last_epoch=is_last_epoch
     )
     
@@ -1026,6 +1171,12 @@ for epoch in range(EPOCHS):
         "val/regret": safe_float(val_metrics['regret']),
         "val/regret_pct": safe_float(val_metrics['regret_pct']),
         "val/count_regret": int(val_metrics['count_regret']),
+        "val/regret_seq": safe_float(val_metrics['regret_seq']),
+        "val/regret_seq_pct": safe_float(val_metrics['regret_seq_pct']),
+        "val/count_regret_seq": int(val_metrics['count_regret_seq']),
+        "val/regret_seqblend": safe_float(val_metrics['regret_seqblend']),
+        "val/regret_seqblend_pct": safe_float(val_metrics['regret_seqblend_pct']),
+        "val/count_regret_seqblend": int(val_metrics['count_regret_seqblend']),
         "lr": safe_float(optimizer.param_groups[0]["lr"]),
     }
     
@@ -1035,29 +1186,42 @@ for epoch in range(EPOCHS):
         for n_tasks, stats in per_task_stats.items():
             acc_n = stats['correct'] / max(1, stats['total'])
             regret_n = stats['regret_sum'] / max(1, stats['regret_count']) if stats['regret_count'] > 0 else 0.0
+            regret_seq_n = stats['regret_seq_sum'] / max(1, stats['regret_seq_count']) if stats['regret_seq_count'] > 0 else 0.0
+            regret_seqblend_n = stats['regret_seqblend_sum'] / max(1, stats['regret_seqblend_count']) if stats['regret_seqblend_count'] > 0 else 0.0
             log_dict[f"val/{n_tasks}tasks_acc"] = safe_float(acc_n)
             log_dict[f"val/{n_tasks}tasks_regret"] = safe_float(regret_n)
+            log_dict[f"val/{n_tasks}tasks_regret_seq"] = safe_float(regret_seq_n)
+            log_dict[f"val/{n_tasks}tasks_regret_seqblend"] = safe_float(regret_seqblend_n)
             log_dict[f"val/{n_tasks}tasks_count"] = int(stats['total'])
     
     wandb.log(log_dict, step=epoch)
     
-    # Save best model only when healthy and better regret
-    if val_metrics['regret'] < best_val_regret and val_metrics['count_regret'] > 0:
+    # Save best model only on valid regret improvement.
+    if val_metrics['count_regret'] > 0 and val_metrics['regret'] < best_val_regret:
         best_val_regret = val_metrics['regret']
         best_val_acc = val_metrics['acc']
         os.makedirs("models", exist_ok=True)
-        torch.save(model.state_dict(), "models/" + MODEL_FILENAME)
-        print(f"  *** New best model: regret={best_val_regret:.4f}s, acc={best_val_acc*100:.1f}%")
+        torch.save(model.state_dict(), str(model_path))
+        checkpoint_saved = True
+        print(
+            f"  *** New best model (regret): regret={best_val_regret:.4f}s, "
+            f"acc={best_val_acc*100:.1f}%"
+        )
 
     if epoch % 10 == 0 or epoch == EPOCHS - 1:
         print(f"Epoch {epoch:3d}/{EPOCHS} | "
               f"Train CE: {train_losses['ce']:.4f} | "
               f"Train Regret: {train_losses['regret_loss']:.4f} | "
               f"Val Acc: {val_metrics['acc']*100:.2f}% | "
-              f"Val Regret: {val_metrics['regret']:.4f}s")
+              f"Val Regret: {val_metrics['regret']:.4f}s | "
+              f"Val Seq: {val_metrics['regret_seq']:.4f}s | "
+              f"Val Seqblend: {val_metrics['regret_seqblend']:.4f}s")
 
 print()
-print(f"Best validation regret: {best_val_regret:.4f}s (acc: {best_val_acc*100:.2f}%)")
+if checkpoint_saved:
+    print(f"Best validation regret: {best_val_regret:.4f}s (acc: {best_val_acc*100:.2f}%)")
+else:
+    print("Best validation regret: no valid regret checkpoint saved")
 
 # ========================================================================
 # Final Evaluation
@@ -1067,15 +1231,17 @@ print("="*80)
 print("FINAL EVALUATION")
 print("="*80)
 
-model.load_state_dict(torch.load("models/" + MODEL_FILENAME))
+if not checkpoint_saved or not model_path.exists():
+    raise RuntimeError(
+        "No regret-valid checkpoint was saved. "
+        "Training produced zero valid regret samples; fix regret data path before evaluating."
+    )
+model.load_state_dict(torch.load(str(model_path), map_location=DEVICE))
+release_eval_memory()
 
-train_loader_eval = create_dataloader(train_dataset, shuffle=False, pin_memory=False)
-val_loader_eval = create_dataloader(val_dataset, shuffle=False, pin_memory=False)
-test_loader_eval = create_dataloader(test_dataset, shuffle=False, pin_memory=False)
-
-train_metrics = evaluate(model, train_loader_eval, DEVICE, is_last_epoch=True)
-val_metrics_final = evaluate(model, val_loader_eval, DEVICE, is_last_epoch=True)
-test_metrics = evaluate(model, test_loader_eval, DEVICE, is_last_epoch=True)
+train_metrics = run_final_split_eval(model, train_dataset, "train")
+val_metrics_final = run_final_split_eval(model, val_dataset, "val")
+test_metrics = run_final_split_eval(model, test_dataset, "test")
 
 # ========================================================================
 # WANDB
@@ -1099,8 +1265,12 @@ if IS_MERGED_CACHE:
         for n_tasks, stats in per_task_stats.items():
             acc_n = stats['correct'] / max(1, stats['total'])
             regret_n = stats['regret_sum'] / max(1, stats['regret_count']) if stats['regret_count'] > 0 else 0.0
+            regret_seq_n = stats['regret_seq_sum'] / max(1, stats['regret_seq_count']) if stats['regret_seq_count'] > 0 else 0.0
+            regret_seqblend_n = stats['regret_seqblend_sum'] / max(1, stats['regret_seqblend_count']) if stats['regret_seqblend_count'] > 0 else 0.0
             final_metrics_log[f"final/{split_name}/{n_tasks}tasks_acc"] = safe_float(acc_n)
             final_metrics_log[f"final/{split_name}/{n_tasks}tasks_regret"] = safe_float(regret_n)
+            final_metrics_log[f"final/{split_name}/{n_tasks}tasks_regret_seq"] = safe_float(regret_seq_n)
+            final_metrics_log[f"final/{split_name}/{n_tasks}tasks_regret_seqblend"] = safe_float(regret_seqblend_n)
             final_metrics_log[f"final/{split_name}/{n_tasks}tasks_count"] = int(stats['total'])
 
 wandb.log(final_metrics_log)
@@ -1113,6 +1283,8 @@ wandb.summary["best_val_acc"] = float(best_val_acc)
 wandb.summary["final_test_acc"] = float(test_metrics['acc'])
 wandb.summary["final_test_regret"] = float(test_metrics['regret'])
 wandb.summary["final_test_regret_pct"] = float(test_metrics['regret_pct'])
+wandb.summary["final_test_regret_seq"] = float(test_metrics['regret_seq'])
+wandb.summary["final_test_regret_seqblend"] = float(test_metrics['regret_seqblend'])
 
 # Add per-task-count summary if merged cache
 if IS_MERGED_CACHE:
@@ -1120,11 +1292,15 @@ if IS_MERGED_CACHE:
     for n_tasks, stats in per_task_stats.items():
         acc_n = stats['correct'] / max(1, stats['total'])
         regret_n = stats['regret_sum'] / max(1, stats['regret_count']) if stats['regret_count'] > 0 else 0.0
+        regret_seq_n = stats['regret_seq_sum'] / max(1, stats['regret_seq_count']) if stats['regret_seq_count'] > 0 else 0.0
+        regret_seqblend_n = stats['regret_seqblend_sum'] / max(1, stats['regret_seqblend_count']) if stats['regret_seqblend_count'] > 0 else 0.0
         wandb.summary[f"test_{n_tasks}tasks_acc"] = float(acc_n)
         wandb.summary[f"test_{n_tasks}tasks_regret"] = float(regret_n)
+        wandb.summary[f"test_{n_tasks}tasks_regret_seq"] = float(regret_seq_n)
+        wandb.summary[f"test_{n_tasks}tasks_regret_seqblend"] = float(regret_seqblend_n)
 
 artifact = wandb.Artifact("placement-gnn-regret", type="model")
-artifact.add_file("models/" + MODEL_FILENAME)
+artifact.add_file(str(model_path))
 wandb.log_artifact(artifact)
 
 wandb.finish()
@@ -1132,13 +1308,19 @@ wandb.finish()
 # ========================================================================
 # Local logging
 # ========================================================================
-print(f"\nTrain: CE={train_metrics['ce']:.4f}, Acc={train_metrics['acc']*100:.2f}%, Regret={train_metrics['regret']:.4f}s ({train_metrics['regret_pct']:.2f}%)")
-print(f"Val:   CE={val_metrics_final['ce']:.4f}, Acc={val_metrics_final['acc']*100:.2f}%, Regret={val_metrics_final['regret']:.4f}s ({val_metrics_final['regret_pct']:.2f}%)")
-print(f"Test:  CE={test_metrics['ce']:.4f}, Acc={test_metrics['acc']*100:.2f}%, Regret={test_metrics['regret']:.4f}s ({test_metrics['regret_pct']:.2f}%)")
+print(f"\nTrain: CE={train_metrics['ce']:.4f}, Acc={train_metrics['acc']*100:.2f}%, "
+      f"Frozen={train_metrics['regret']:.4f}s, Seq={train_metrics['regret_seq']:.4f}s, "
+      f"Seqblend={train_metrics['regret_seqblend']:.4f}s")
+print(f"Val:   CE={val_metrics_final['ce']:.4f}, Acc={val_metrics_final['acc']*100:.2f}%, "
+      f"Frozen={val_metrics_final['regret']:.4f}s, Seq={val_metrics_final['regret_seq']:.4f}s, "
+      f"Seqblend={val_metrics_final['regret_seqblend']:.4f}s")
+print(f"Test:  CE={test_metrics['ce']:.4f}, Acc={test_metrics['acc']*100:.2f}%, "
+      f"Frozen={test_metrics['regret']:.4f}s, Seq={test_metrics['regret_seq']:.4f}s, "
+      f"Seqblend={test_metrics['regret_seqblend']:.4f}s")
 
 print("\n" + "="*80)
 print("TRAINING COMPLETE!")
 print("="*80)
-print(f"Model saved to: models/{MODEL_FILENAME}")
+print(f"Model saved to: {model_path}")
 print(f"Best validation regret: {best_val_regret:.4f}s")
 print(f"Best validation accuracy: {best_val_acc*100:.2f}%")

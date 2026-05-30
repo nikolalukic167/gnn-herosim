@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import json
-import os
 from timeit import default_timer
 from typing import Generator, List, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
 
@@ -266,11 +265,10 @@ class GNNScheduler(Scheduler):
                 yield self.mutex.put(current_system_state)
                 continue
 
-            # Capture scheduling snapshots only when generating GNN training datasets.
-            if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
-                task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
-                task.full_queue_snapshot = self._capture_full_queue_snapshot()
-                task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
+            # Capture state BEFORE placement decision (for analysis)
+            task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
+            task.full_queue_snapshot = self._capture_full_queue_snapshot()
+            task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
             # Select placement using GNN with fallback to shortest queue
             target_node, target_platform = self._select_placement_pure_gnn(
@@ -335,8 +333,6 @@ class GNNScheduler(Scheduler):
             if graph is None:
                 return None
             
-            task_logit_to_queue_key = getattr(graph, "_task_logit_to_queue_key", None)
-            
             # Move to device
             graph = graph.to(self.device)
             
@@ -344,13 +340,9 @@ class GNNScheduler(Scheduler):
             with torch.no_grad():
                 logits_per_task = self.gnn_model(graph)
             
-            # Decode placements sequentially with live queue state (matches online scheduling)
+            # Decode placements using greedy decoder
             placements = self._decode_placements(
-                logits_per_task,
-                task_logit_to_placement,
-                len(batch_tasks),
-                queue_snapshot,
-                task_logit_to_queue_key,
+                logits_per_task, task_logit_to_placement, len(batch_tasks)
             )
             
             return placements
@@ -407,8 +399,11 @@ class GNNScheduler(Scheduler):
         
         Returns: (graph, task_logit_to_placement mapping)
         """
-        # Match prepare_graphs_cache scheduler_adaptive queue normalization
-        adaptive_queue_norm = self._calculate_adaptive_queue_norm(queue_snapshot)
+        # Calculate adaptive queue normalization factor for this batch
+        # adaptive_queue_norm = self._calculate_adaptive_queue_norm(queue_snapshot)
+        adaptive_queue_norm = QUEUE_NORM_FACTOR
+        # if adaptive_queue_norm != QUEUE_NORM_FACTOR:
+        #     print(f"[GNN] Using adaptive queue norm factor: {adaptive_queue_norm:.2f} (90th percentile), fixed factor: {QUEUE_NORM_FACTOR}")
         
         n_tasks = len(batch_tasks)
         
@@ -540,7 +535,6 @@ class GNNScheduler(Scheduler):
         edge_src, edge_dst = [], []
         edge_attrs = []
         task_logit_to_placement: Dict[int, List[Tuple[int, int]]] = {}
-        task_logit_to_queue_key: Dict[int, List[str]] = {}
         
         # Build network map lookup
         network_maps = {}
@@ -554,7 +548,6 @@ class GNNScheduler(Scheduler):
             compatible_types = TASK_PLATFORM_COMPATIBILITY.get(task_type, [])
             
             task_logit_to_placement[t_idx] = []
-            task_logit_to_queue_key[t_idx] = []
             
             for pos, (node, plat, node_id, plat_id, plat_type, node_name) in enumerate(platforms_info):
                 # Check compatibility
@@ -632,7 +625,6 @@ class GNNScheduler(Scheduler):
                 
                 # Store mapping for decoding
                 task_logit_to_placement[t_idx].append((node_id, plat_id))
-                task_logit_to_queue_key[t_idx].append(f"{node_name}:{plat_id}")
         
         if not edge_src:
             return None, None
@@ -657,61 +649,42 @@ class GNNScheduler(Scheduler):
         )
         data.edge_attr = edge_attr
         
-        data._task_logit_to_queue_key = task_logit_to_queue_key
         return data, task_logit_to_placement
 
     def _decode_placements(
         self,
         logits_per_task: List[torch.Tensor],
         task_logit_to_placement: Dict[int, List[Tuple[int, int]]],
-        n_tasks: int,
-        queue_snapshot: Optional[Dict[str, int]] = None,
-        task_logit_to_queue_key: Optional[Dict[int, List[str]]] = None,
+        n_tasks: int
     ) -> Dict[int, Tuple[int, int]]:
         """
-        Sequential decoder with live queue state.
-
-        Training uses independent argmax on a frozen snapshot, but full simulation
-        is online: each placement changes queues before the next task is scheduled.
-        After GNN argmax, prefer shortest-queue among candidates when the GNN choice
-        would overload a replica relative to the current min queue.
+        Per-task greedy decoder (NON-UNIQUE version):
+        For each task, independently select the highest-scoring platform.
+        
+        Multiple tasks CAN be placed on the same replica (non-unique placements).
+        This matches the training decoder in 24-01-15-16_non_unique.py.
+        
+        Returns: Dict mapping task_idx -> (node_id, platform_id)
         """
-        placements: Dict[int, Tuple[int, int]] = {}
-        live_queues = dict(queue_snapshot or {})
-        queue_keys = task_logit_to_queue_key or {}
-
+        placements = {}
+        
         for t_idx in range(n_tasks):
             if t_idx not in task_logit_to_placement:
                 continue
-
+            
             logits_t = logits_per_task[t_idx]
             if logits_t.numel() == 0:
                 continue
-
-            candidates = task_logit_to_placement[t_idx]
-            keys = queue_keys.get(t_idx)
-            if not keys or len(keys) != len(candidates):
-                keys = [f"unknown:{plat_id}" for _, plat_id in candidates]
-
-            gnn_idx = int(logits_t.argmax().item())
-            if gnn_idx >= len(candidates):
+            
+            # Pick highest scoring platform for this task (greedy per-task)
+            best_logit_idx = logits_t.argmax().item()
+            
+            if best_logit_idx >= len(task_logit_to_placement[t_idx]):
                 continue
-
-            min_idx = min(
-                range(len(candidates)),
-                key=lambda i: live_queues.get(keys[i], 0),
-            )
-            gnn_queue = live_queues.get(keys[gnn_idx], 0)
-            min_queue = live_queues.get(keys[min_idx], 0)
-
-            # Blend toward shortest-queue when GNN would hot-spot a busy replica
-            chosen_idx = min_idx if gnn_queue > min_queue else gnn_idx
-
-            node_id, plat_id = candidates[chosen_idx]
+            
+            node_id, plat_id = task_logit_to_placement[t_idx][best_logit_idx]
             placements[t_idx] = (node_id, plat_id)
-            chosen_key = keys[chosen_idx]
-            live_queues[chosen_key] = live_queues.get(chosen_key, 0) + 1
-
+        
         return placements
 
     def _capture_batch_queue_snapshot(self, system_state: SystemState, batch_tasks: List[Task]) -> Dict[str, int]:
@@ -861,12 +834,8 @@ class GNNScheduler(Scheduler):
         # Fallback to shortest queue if GNN placement is invalid
         if target_node is None or target_platform is None:
             print(f"[ {self.env.now} ] GNN: Fallback to shortest queue for task {task.id}")
-            initialized_replicas = [
-                replica for replica in available_replicas if replica[1].initialized.triggered
-            ]
-            candidates = initialized_replicas if initialized_replicas else available_replicas
             target_node, target_platform = min(
-                candidates, key=lambda couple: len(couple[1].queue.items)
+                available_replicas, key=lambda couple: len(couple[1].queue.items)
             )
             self.fallback_decisions += 1
         

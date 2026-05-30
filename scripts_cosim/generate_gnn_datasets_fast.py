@@ -31,8 +31,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 
-import numpy as np
-
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -65,6 +63,7 @@ except ImportError:
 
 from src.generate_infrastructure import generate_deterministic_infrastructure
 from src.executecosimulation import execute_brute_force_optimized, load_simulation_inputs
+from src.sample_loader import load_primary_sample_and_mapping
 
 # Timeout for brute-force simulation (1 hour per dataset)
 SIMULATION_TIMEOUT = 900  # seconds
@@ -296,6 +295,7 @@ def generate_single_dataset(
     config: Dict[str, Any],
     workload_template: Path,
     sim_input_path: Path,
+    sample_json_file: Path,
     samples_file: Path,
     mapping_file: Path,
     seed: int,
@@ -344,9 +344,13 @@ def generate_single_dataset(
             seed
         )
         
-        # Load sample
-        samples = np.load(samples_file)
-        sample = samples[0]
+        # Load one scenario sample (JSON preferred, .npy/.pkl fallback)
+        sample, mapping, sample_source = load_primary_sample_and_mapping(
+            sample_json_path=sample_json_file,
+            samples_npy_path=samples_file,
+            mapping_pkl_path=mapping_file,
+        )
+        log(f"  Sample source: {sample_source}", quiet)
         
         # Load apps from config
         apps = list(config['wsc'].keys())
@@ -376,7 +380,8 @@ def generate_single_dataset(
             final_dataset_dir=output_dir,  # Write progress files to final dataset directory
             fast_forward_warmup=fast_forward_warmup,
             fast_forward_threshold=fast_forward_threshold,
-            allow_non_unique_replicas=allow_non_unique_replicas
+            allow_non_unique_replicas=allow_non_unique_replicas,
+            mapping_override=mapping,
         )
         sim_duration = time.time() - sim_start
         
@@ -513,6 +518,7 @@ def main():
     # Paths
     base_dir = PROJECT_ROOT / "simulation_data"
     config_path = base_dir / "space_with_network.json"
+    sample_json_file = base_dir / "sample_simple.json"
     default_output_subdir = f"gnn_datasets_{NUM_TASKS}tasks"
     output_subdir = args.output_subdir or default_output_subdir
     output_base = base_dir / output_subdir
@@ -626,6 +632,7 @@ def main():
                         config=config,
                         workload_template=template,
                         sim_input_path=sim_input_path,
+                        sample_json_file=sample_json_file,
                         samples_file=samples_file,
                         mapping_file=mapping_file,
                         seed=seed,

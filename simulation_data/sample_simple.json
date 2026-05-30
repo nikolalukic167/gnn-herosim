@@ -1,0 +1,9 @@
+{
+  "network_bandwidth": 100.0,
+  "cluster_size": 50.0,
+  "device_prop_pyngFpga": 0.2,
+  "device_prop_rpi": 0.3,
+  "device_prop_xavier": 0.5,
+  "workload_nofs-dnn1": 0.3,
+  "workload_nofs-dnn2": 0.9
+}
