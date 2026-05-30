@@ -27,7 +27,6 @@ import json
 import logging
 import multiprocessing
 import os
-import pickle
 import shutil
 import sys
 import time
@@ -79,6 +78,7 @@ from src.executecosimulation import (
     process_placement_fast,
     DataclassJSONEncoder,
 )
+from src.sample_loader import load_primary_sample_and_mapping
 
 # Global quiet mode flag
 QUIET_MODE = False
@@ -357,6 +357,7 @@ def merge_placements(
 def process_existing_dataset(
     dataset_dir: Path,
     sim_input_path: Path,
+    sample_json_file: Path,
     samples_file: Path,
     mapping_file: Path,
     max_workers: int,
@@ -404,13 +405,13 @@ def process_existing_dataset(
         # Load simulation inputs
         sim_inputs = load_simulation_inputs(sim_input_path)
         
-        # Load mapping
-        with open(mapping_file, 'rb') as f:
-            mapping = pickle.load(f)
-        
-        # Load sample
-        samples = np.load(samples_file)
-        sample = samples[0]
+        # Load one scenario sample (JSON preferred, .npy/.pkl fallback)
+        sample, mapping, sample_source = load_primary_sample_and_mapping(
+            sample_json_path=sample_json_file,
+            samples_npy_path=samples_file,
+            mapping_pkl_path=mapping_file,
+        )
+        log(f"  Sample source: {sample_source}", quiet)
         
         # Get apps from config
         apps = list(infra_config.get('wsc', {}).keys())
@@ -535,6 +536,7 @@ def main():
     base_dir = PROJECT_ROOT / "simulation_data"
     datasets_dir = base_dir / f"gnn_datasets_{args.num_tasks}tasks"
     sim_input_path = PROJECT_ROOT / "data" / "nofs-ids"
+    sample_json_file = base_dir / "sample_simple.json"
     samples_file = base_dir / "lhs_samples_simple.npy"
     mapping_file = base_dir / "lhs_samples_simple_mapping.pkl"
     progress_log = PROJECT_ROOT / "logs" / f"non_unique_progress_{args.num_tasks}tasks.txt"
@@ -596,6 +598,7 @@ def main():
         status, num_existing, num_new, best_rtt, duration = process_existing_dataset(
             dataset_dir,
             sim_input_path,
+            sample_json_file,
             samples_file,
             mapping_file,
             max_workers,

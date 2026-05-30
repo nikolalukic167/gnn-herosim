@@ -169,6 +169,8 @@ src/notebooks/new/models/
 
 # Large files
 simulation_data/network_topology.pdf
+models/
+latex/
 
 # Markdown files (except README)
 *.md

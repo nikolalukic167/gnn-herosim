@@ -18,8 +18,24 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 
 from typing import Callable, Dict, List, Tuple, Optional, TypedDict, Any
+
+# Set GNN_CAPTURE_DATASET_STATE=1 when generating GNN training datasets (co-sim).
+DATASET_STATE_CAPTURE = os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1"
+
+
+def slim_completed_task(task: "Task") -> None:
+    """Drop bulky per-task snapshots once timing metrics are on the task object."""
+    for attr in (
+        "queue_snapshot_at_scheduling",
+        "full_queue_snapshot",
+        "temporal_state_at_scheduling",
+        "system_state_snapshot",
+    ):
+        if hasattr(task, attr):
+            setattr(task, attr, None)
 
 from simpy.core import Environment, SimTime
 from simpy.resources.store import FilterStore, Store
@@ -1087,14 +1103,17 @@ class Platform:
 
             # Notify scheduler of task completion
             yield task.done.succeed()
-            
-            # Capture system state snapshot for real tasks
-            if (hasattr(self.node, 'orchestrator_ref') and 
-                self.node.orchestrator_ref and 
-                not getattr(task, 'is_internal', False)):
+
+            if DATASET_STATE_CAPTURE and (
+                hasattr(self.node, 'orchestrator_ref')
+                and self.node.orchestrator_ref
+                and not getattr(task, 'is_internal', False)
+            ):
                 system_state = yield self.node.orchestrator_ref.mutex.get()
                 task.system_state_snapshot = system_state.result(self.env.now)
                 yield self.node.orchestrator_ref.mutex.put(system_state)
+            elif not getattr(task, 'is_internal', False):
+                slim_completed_task(task)
 
 
 class Node:

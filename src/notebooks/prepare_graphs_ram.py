@@ -122,6 +122,7 @@ class Config:
     priors_path: Path
     merge_datasets: bool = False
     queue_norm_factor: float = 50.0
+    queue_norm_mode: str = "scheduler_adaptive"
     require_queue_data: bool = True
     rtt_workers: int = 1
     rtt_batch_size: int = 0
@@ -186,6 +187,16 @@ def parse_args() -> Config:
     )
     parser.add_argument("--priors-path", type=Path)
     parser.add_argument("--queue-norm-factor", type=float, default=50.0)
+    parser.add_argument(
+        "--queue-norm-mode",
+        choices=["scheduler_adaptive", "fixed"],
+        default="scheduler_adaptive",
+        help=(
+            "Queue normalization mode: "
+            "'scheduler_adaptive' matches GNNScheduler p90/cap logic, "
+            "'fixed' uses --queue-norm-factor."
+        ),
+    )
     parser.add_argument("--allow-missing-queue-data", action="store_true")
     parser.add_argument(
         "--rtt-workers",
@@ -207,7 +218,7 @@ def parse_args() -> Config:
     )
     args = parser.parse_args()
 
-    if args.queue_norm_factor <= 0:
+    if args.queue_norm_mode == "fixed" and args.queue_norm_factor <= 0:
         parser.error("--queue-norm-factor must be positive (division by zero in queue length normalization).")
     if args.rtt_workers <= 0:
         parser.error("--rtt-workers must be positive")
@@ -247,6 +258,7 @@ def parse_args() -> Config:
         priors_path=priors_path,
         merge_datasets=args.merge_datasets,
         queue_norm_factor=args.queue_norm_factor,
+        queue_norm_mode=args.queue_norm_mode,
         require_queue_data=not args.allow_missing_queue_data,
         rtt_workers=args.rtt_workers,
         rtt_batch_size=args.rtt_batch_size,
@@ -879,12 +891,28 @@ TASK_PLATFORM_COMPATIBILITY = {
     'dnn2': ['rpiCpu', 'xavierGpu', 'xavierCpu']
 }
 
+
+def _scheduler_adaptive_queue_norm(queue_values: np.ndarray) -> float:
+    """
+    Match GNNScheduler adaptive queue normalization:
+    - 90th percentile
+    - min 1.0
+    - cap 100.0
+    """
+    if queue_values.size == 0:
+        return 50.0
+    q = np.sort(queue_values.astype(np.float64))
+    idx = int(len(q) * 0.9)
+    percentile_90 = q[idx] if idx < len(q) else q[-1]
+    return float(min(max(1.0, percentile_90), 100.0))
+
 def build_graph(
     df_nodes: pd.DataFrame,
     df_tasks: pd.DataFrame,
     df_platforms: pd.DataFrame,
     task_priors: TaskPriors,
     queue_norm_factor: float,
+    queue_norm_mode: str,
     queue_snapshot: Optional[Mapping[str, int]] = None,
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
 ) -> Data:
@@ -961,8 +989,12 @@ def build_graph(
             key = f"{node_name}:{plat_id}"
             queue_lengths[pos] = float(_queue_length_int(queue_snapshot.get(key, 0)))
     
-    # Normalize queue lengths (queue_norm_factor validated > 0 in CLI; still guard here)
-    queue_lengths_norm = (queue_lengths / _safe_positive(float(queue_norm_factor))).reshape(-1, 1)
+    # Normalize queue lengths with scheduler-aligned adaptive mode or fixed mode.
+    if queue_norm_mode == "scheduler_adaptive":
+        active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths)
+    else:
+        active_queue_norm = _safe_positive(float(queue_norm_factor))
+    queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)
     
     # TEMPORAL STATE FEATURES (current task remaining times)
     # Since we don't have exact temporal state, we approximate:
@@ -1348,6 +1380,7 @@ def main():
                     dataset_dict['platforms'],
                     task_priors=task_priors,
                     queue_norm_factor=config.queue_norm_factor,
+                    queue_norm_mode=config.queue_norm_mode,
                     queue_snapshot=dataset_dict.get('queue_snapshot', {}),
                     temporal_state=dataset_dict.get('temporal_state', {})
                 )

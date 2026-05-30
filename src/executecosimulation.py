@@ -67,6 +67,7 @@ from src.eventgenerator import increase_events_of_app
 from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
+from src.sample_loader import load_primary_sample_and_mapping
 
 # =============================================================================
 # GLOBAL CONFIGURATION
@@ -1961,7 +1962,8 @@ def execute_brute_force_optimized(
         early_termination_pct: Optional[float] = None,
         fast_forward_warmup: bool = False,
         fast_forward_threshold: int = 100,
-        allow_non_unique_replicas: bool = False
+        allow_non_unique_replicas: bool = False,
+        mapping_override: Optional[Dict[int, str]] = None,
 ) -> List[str]:
     """
     Optimized brute force placement optimization.
@@ -2008,9 +2010,13 @@ def execute_brute_force_optimized(
     _log("Loading simulation inputs...")
     sim_inputs = load_simulation_inputs(sim_input_path)
     
-    _log("Loading mapping file...")
-    with open(mapping_file, 'rb') as f:
-        mapping = pickle.load(f)
+    if mapping_override is not None:
+        _log("Using in-memory mapping override")
+        mapping = mapping_override
+    else:
+        _log("Loading mapping file...")
+        with open(mapping_file, 'rb') as f:
+            mapping = pickle.load(f)
     
     _log("Loading infrastructure config...")
     with open(config_file, 'r') as f:
@@ -2427,7 +2433,8 @@ def execute_brute_force_placement_optimization(
         sim_input_path: Path,
         workload_base_file: str,
         max_workers: int,
-        infrastructure_file: Optional[Path] = None
+        infrastructure_file: Optional[Path] = None,
+        mapping_override: Optional[Dict[int, str]] = None,
 ) -> List[str]:
     """
     Legacy brute force placement optimization.
@@ -2471,9 +2478,13 @@ def execute_brute_force_placement_optimization(
         logger.info("Loading simulation inputs...")
         sim_inputs = load_simulation_inputs(sim_input_path)
         
-        logger.info("Loading mapping file...")
-        with open(mapping_file, 'rb') as f:
-            mapping = pickle.load(f)
+        if mapping_override is not None:
+            logger.info("Using in-memory mapping override")
+            mapping = mapping_override
+        else:
+            logger.info("Loading mapping file...")
+            with open(mapping_file, 'rb') as f:
+                mapping = pickle.load(f)
         
         logger.info("Loading infrastructure config...")
         with open(config_file, 'r') as f:
@@ -2673,6 +2684,7 @@ def main():
     # Configuration paths
     base_dir = Path("simulation_data")
     sim_input_path = Path("data/nofs-ids")
+    sample_json_file = base_dir / "sample_simple.json"
     samples_file = base_dir / "lhs_samples_simple.npy"
     mapping_file = base_dir / "lhs_samples_simple_mapping.pkl"
     config_file = base_dir / "space_with_network.json"
@@ -2720,9 +2732,14 @@ def main():
                     "--infrastructure JSON file. No usable file was provided."
                 )
             
-            # Load samples (use first sample only - no sample loop)
-            samples = np.load(samples_file)
-            sample = samples[0]  # Single sample - no loop needed
+            # Load a single scenario sample (JSON preferred, .npy/.pkl fallback)
+            sample, mapping, sample_source = load_primary_sample_and_mapping(
+                sample_json_path=sample_json_file,
+                samples_npy_path=samples_file,
+                mapping_pkl_path=mapping_file,
+            )
+            if not quiet_mode:
+                print(f"[executecosim] Sample source: {sample_source}")
             
             # Load config to get app names
             with open(config_file, 'r') as f:
@@ -2735,9 +2752,10 @@ def main():
                     print("[executecosim] Using LEGACY brute-force implementation")
                 logger.info("Using legacy brute force placement optimization")
                 reactive_results_paths = execute_brute_force_placement_optimization(
-                    apps, str(config_file), str(mapping_file), output_dir, samples,
+                    apps, str(config_file), str(mapping_file), output_dir, np.array([sample]),
                     sim_input_path, workload_base_file, max_workers,
-                    infrastructure_file=infrastructure_file
+                    infrastructure_file=infrastructure_file,
+                    mapping_override=mapping,
                 )
             else:
                 # Use optimized implementation (default)
@@ -2748,7 +2766,8 @@ def main():
                     apps, str(config_file), str(mapping_file), output_dir, sample,
                     sim_input_path, workload_base_file, max_workers,
                     infrastructure_file=infrastructure_file,
-                    quiet=quiet_mode
+                    quiet=quiet_mode,
+                    mapping_override=mapping,
                 )
             
             logger.info("Completed all simulations")

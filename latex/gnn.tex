@@ -1,0 +1,72 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+\title{Mathematical Formulation of the GNN Architecture and Regret-Based Loss}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Graph Representation and Initial Embedding}
+The system state is modeled as an attributed bipartite graph $\mathcal{G} = (\mathcal{U}, \mathcal{V}, \mathcal{E})$. To enable operations across disjoint sets, the raw feature vectors of the tasks ($x_u$) and replicas ($x_v$) are projected into a shared, uniform embedding space via distinct Multi-Layer Perceptrons (MLPs).
+
+Let $h_u^{(0)}$ and $h_v^{(0)}$ denote the initial node embeddings:
+\begin{equation}
+h_u^{(0)} = \text{MLP}_{\mathcal{U}}(x_u) \quad \forall u \in \mathcal{U}
+\end{equation}
+\begin{equation}
+h_v^{(0)} = \text{MLP}_{\mathcal{V}}(x_v) \quad \forall v \in \mathcal{V}
+\end{equation}
+
+\section{GIN-Style Message Passing}
+To capture multi-tenant contention, cluster density, and spatial consolidation, the architecture employs Graph Isomorphism Network (GIN) message-passing layers. Crucially, the GIN utilizes a sum-aggregation function to guarantee 1-WL injectivity, ensuring the network is sensitive to the absolute count of neighbors rather than merely their average properties.
+
+For a node $i$ (which can be either a task $u$ or a replica $v$) at layer $l$, the embedding update rule is defined as:
+\begin{equation}
+h_i^{(l)} = \text{MLP}^{(l)} \left( (1 + \epsilon^{(l)}) \cdot h_i^{(l-1)} + \sum_{j \in \mathcal{N}(i)} h_j^{(l-1)} \right)
+\end{equation}
+where $\mathcal{N}(i)$ represents the topological neighborhood of node $i$, and $\epsilon$ is a learnable parameter or fixed scalar. Let $L$ denote the final message-passing layer, yielding context-aware embeddings $h_u^{(L)}$ and $h_v^{(L)}$.
+
+\section{Edge Scoring and Inference Policy}
+To formulate a distinct placement policy while preserving $\mathcal{O}(|\mathcal{E}|)$ inference complexity, the system iterates over valid edges $e_{uv} \in \mathcal{E}$. An edge scoring MLP concatenates the final source embedding, target embedding, and raw edge features to output a scalar suitability logit $s_{uv}$:
+
+\begin{equation}
+s_{uv} = \text{MLP}_{score} \left( h_u^{(L)} \parallel h_v^{(L)} \parallel e_{uv} \right)
+\end{equation}
+
+The final routing policy is executed via an independent argmax selection over the valid edges for each task, effectively bypassing complex bipartite matching solvers at inference time:
+\begin{equation}
+\hat{v}_u = \underset{v \in \mathcal{V}}{\mathrm{argmax}} \ s_{uv} \quad \forall u \in \mathcal{U}
+\end{equation}
+
+\section{Hybrid Regret-Based Optimization Objective}
+The network is trained using a hybrid loss function that corrects the physical cost-blindness of standard imitation learning. It combines a Cross-Entropy loss ($\mathcal{L}_{CE}$) targeting the ground-truth optimal placement with a Pairwise Margin Ranking loss ($\mathcal{L}_{regret}$).
+
+Given a placement matrix $Y \in \{0, 1\}^{n \times m}$, the total GNN compatibility score $s(Y)$ of the placement is defined as the sum of the suitability logits $s_{uv}$ for the active edges:
+\begin{equation}
+s(Y) = \sum_{u \in \mathcal{U}} \sum_{v \in \mathcal{V}} y_{uv} s_{uv}
+\end{equation}
+
+Let $Y_{best}$ represent the absolute optimal placement found by HeROsim, and $Y_{alt}$ represent any valid alternative placement. The normalized empirical physical regret $\Delta RTT$ is defined as:
+\begin{equation}
+\Delta RTT = \frac{RTT_{total}(Y_{alt}) - RTT_{total}(Y_{best})}{\sigma_{RTT}}
+\end{equation}
+where $\sigma_{RTT} > 0$ is a physical-to-embedding scaling factor (e.g., matching the \texttt{rtt\_scale\_factor} in training).
+
+Let $s_{best} = s(Y_{best})$ and $s_{alt} = s(Y_{alt})$ denote the GNN-predicted placement scores for these respective placements. The regret-based margin loss enforces a score gap strictly proportional to the normalized empirical consequence of the routing error:
+\begin{equation}
+\mathcal{L}_{regret} = \max\Big(0, \Delta RTT - (s_{best} - s_{alt})\Big)
+\end{equation}
+
+The total optimization objective minimized via stochastic gradient descent is a weighted combination:
+\begin{equation}
+\mathcal{L}_{total} = \mathcal{L}_{CE} + \lambda \mathcal{L}_{regret}
+\end{equation}
+where $\lambda$ is a hyperparameter balancing the exact structural mapping and the continuous physical consequence.
+
+\end{document}

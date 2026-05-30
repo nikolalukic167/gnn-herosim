@@ -14,7 +14,6 @@ NON-UNIQUE PLACEMENTS:
 """
 
 import argparse
-import shutil
 import json
 import logging
 import math
@@ -23,6 +22,7 @@ import pickle
 import random
 import sys
 import time
+import concurrent.futures
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,7 +30,6 @@ from typing import Any, Dict, List, Mapping, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
-import lmdb
 import pandas as pd
 import numpy as np
 import torch
@@ -46,10 +45,6 @@ FEATURE_DIV_EPS = 1e-12
 
 TaskPriors = Dict[str, Any]
 PlacementCombo = Tuple[Tuple[int, int], ...]
-
-# LMDB virtual address space ceiling (not preallocated disk usage).
-LMDB_MAP_SIZE_BYTES = 50 * 1024 * 1024 * 1024
-
 
 def _require_finite_feature_array(name: str, arr: np.ndarray) -> None:
     """Fail fast at cache build time if features are still non-finite."""
@@ -114,6 +109,7 @@ class Config:
     priors_path: Path
     merge_datasets: bool = False
     queue_norm_factor: float = 50.0
+    queue_norm_mode: str = "scheduler_adaptive"
     require_queue_data: bool = True
 
 
@@ -136,10 +132,20 @@ def parse_args() -> Config:
     parser.add_argument("--cache-dir", type=Path)
     parser.add_argument("--priors-path", type=Path)
     parser.add_argument("--queue-norm-factor", type=float, default=50.0)
+    parser.add_argument(
+        "--queue-norm-mode",
+        choices=["scheduler_adaptive", "fixed"],
+        default="scheduler_adaptive",
+        help=(
+            "Queue normalization mode: "
+            "'scheduler_adaptive' matches GNNScheduler p90/cap logic, "
+            "'fixed' uses --queue-norm-factor."
+        ),
+    )
     parser.add_argument("--allow-missing-queue-data", action="store_true")
     args = parser.parse_args()
 
-    if args.queue_norm_factor <= 0:
+    if args.queue_norm_mode == "fixed" and args.queue_norm_factor <= 0:
         parser.error("--queue-norm-factor must be positive (division by zero in queue length normalization).")
 
     base_dirs = args.base_dirs or _default_base_dirs(args.project_root, args.merge_datasets)
@@ -159,6 +165,7 @@ def parse_args() -> Config:
         priors_path=priors_path,
         merge_datasets=args.merge_datasets,
         queue_norm_factor=args.queue_norm_factor,
+        queue_norm_mode=args.queue_norm_mode,
         require_queue_data=not args.allow_missing_queue_data,
     )
 
@@ -170,8 +177,8 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "5.0"  # Non-unique placements: multiple tasks can be placed on same replica
-# - RTT valid combos stored per-dataset in LMDB (rtt_combos.lmdb); removed SQLite/chunked hash table build
+CACHE_VERSION = "5.2"  # hash_table_chunked RTT backend (preload at train time)
+# - RTT combos consumed lazily from placements/placements.jsonl during training (no LMDB build)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
@@ -535,22 +542,8 @@ def export_task_metrics_for_analysis(
 
 
 # ============================================================================
-# RTT COMBOS LMDB (one key per dataset_id -> pickled list[(combo, rtt), ...])
+# RTT HASH TABLE BUILD (chunked pickle backend)
 # ============================================================================
-
-
-def _remove_legacy_rtt_artifacts(cache_dir: Path) -> None:
-    """Drop SQLite / chunked pickle RTT stores and any prior LMDB env directory."""
-    for stale_chunk in cache_dir.glob("rtt_chunk_*.pkl"):
-        stale_chunk.unlink(missing_ok=True)
-    (cache_dir / "rtt_chunks_meta.json").unlink(missing_ok=True)
-    (cache_dir / "placement_rtt_hash_table.sqlite3").unlink(missing_ok=True)
-    (cache_dir / "placement_rtt_hash_table.pkl").unlink(missing_ok=True)
-    lmdb_dir = cache_dir / "rtt_combos.lmdb"
-    if lmdb_dir.exists():
-        shutil.rmtree(lmdb_dir, ignore_errors=True)
-
-
 def _placement_combos_from_jsonl(jsonl_path: Path) -> Tuple[str, List[Tuple[PlacementCombo, float]]]:
     """Parse one placements.jsonl; return (dataset_id, list of (placement combo, rtt))."""
     combos: List[Tuple[PlacementCombo, float]] = []
@@ -585,76 +578,119 @@ def _placement_combos_from_jsonl(jsonl_path: Path) -> Tuple[str, List[Tuple[Plac
     return dataset_id, combos
 
 
-def _lmdb_directory_size_mb(env_path: Path) -> float:
-    if not env_path.exists():
-        return 0.0
-    total = 0
-    if env_path.is_dir():
-        for p in env_path.rglob("*"):
-            if p.is_file():
-                total += p.stat().st_size
-    else:
-        total = env_path.stat().st_size
-    return total / (1024 * 1024)
-
-
-def build_lmdb_rtt_cache(base_dirs: List[Path], cache_dir: Path) -> Tuple[int, int]:
+def _parse_jsonl_file_to_dict(
+    jsonl_path: Path,
+) -> Dict[Tuple[str, PlacementCombo], float]:
     """
-    Parse all placements.jsonl under base_dirs and store per-dataset combo lists in LMDB.
+    Parse one placements.jsonl into {(dataset_id, combo): rtt}.
+    """
+    results: Dict[Tuple[str, PlacementCombo], float] = {}
+    dataset_id, combos = _placement_combos_from_jsonl(jsonl_path)
+    for combo, rtt in combos:
+        key = (dataset_id, combo)
+        if key not in results:
+            results[key] = float(rtt)
+    return results
+
+
+def _remove_legacy_rtt_artifacts(cache_dir: Path) -> None:
+    for stale_chunk in cache_dir.glob("rtt_chunk_*.pkl"):
+        stale_chunk.unlink(missing_ok=True)
+    (cache_dir / "rtt_chunks_meta.json").unlink(missing_ok=True)
+    (cache_dir / "placement_rtt_hash_table.pkl").unlink(missing_ok=True)
+    (cache_dir / "rtt_combos.lmdb").unlink(missing_ok=True)
+
+
+def build_and_save_rtt_hash_table_chunked(
+    base_dirs: List[Path],
+    cache_dir: Path,
+    n_jobs: int = 12,
+    chunk_size: int = 200_000,
+    parse_batch_size: int = 200,
+) -> Tuple[int, int]:
+    """
+    Build (dataset_id, combo)->rtt hash table in chunks for O(1) lookup at train time.
 
     Returns:
-        (num_datasets_written, total_combo_rows_written)
+        (num_datasets_with_combos, total_entries)
     """
     _remove_legacy_rtt_artifacts(cache_dir)
 
-    jsonl_files: List[Path] = []
+    all_jsonl_files: List[Path] = []
     for base_dir in base_dirs:
         if not base_dir.exists():
             logger.warning("Base directory does not exist, skipping: %s", base_dir)
             continue
         files = sorted(base_dir.glob("ds_*/placements/placements.jsonl"))
-        jsonl_files.extend(files)
+        all_jsonl_files.extend(files)
         logger.info("Found %s JSONL files in %s", len(files), base_dir.name)
 
-    env_path = cache_dir / "rtt_combos.lmdb"
-    env_path.mkdir(parents=True, exist_ok=True)
-    env = lmdb.open(
-        str(env_path),
-        map_size=LMDB_MAP_SIZE_BYTES,
-        max_dbs=0,
-        subdir=True,
-        lock=True,
-        sync=True,
-        metasync=True,
-    )
+    n_jobs = max(1, min(n_jobs, os.cpu_count() or 1))
+    parse_batch_size = max(1, parse_batch_size)
 
-    total_datasets = 0
-    total_combos = 0
-    try:
-        for jsonl_path in tqdm(jsonl_files, desc="Writing RTT combos LMDB"):
-            dataset_id, cleaned = _placement_combos_from_jsonl(jsonl_path)
-            if not cleaned:
-                continue
-            binary_data = pickle.dumps(cleaned, protocol=pickle.HIGHEST_PROTOCOL)
-            with env.begin(write=True) as txn:
-                txn.put(dataset_id.encode("utf-8"), binary_data)
-            total_datasets += 1
-            total_combos += len(cleaned)
-    finally:
-        env.close()
+    chunk_idx = 0
+    current_chunk: Dict[Tuple[str, PlacementCombo], float] = {}
+    total_entries = 0
+    num_duplicates = 0
+    datasets_with_combos: set[str] = set()
+
+    batch_ranges = range(0, len(all_jsonl_files), parse_batch_size)
+    for batch_start in tqdm(batch_ranges, desc="Parsing JSONL batches", unit="batch"):
+        batch_files = all_jsonl_files[batch_start:batch_start + parse_batch_size]
+        with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            for parsed_dict in executor.map(_parse_jsonl_file_to_dict, batch_files):
+                for key, rtt in parsed_dict.items():
+                    ds_id = key[0]
+                    datasets_with_combos.add(ds_id)
+                    if key not in current_chunk:
+                        current_chunk[key] = rtt
+                        total_entries += 1
+                    else:
+                        num_duplicates += 1
+                    if len(current_chunk) >= chunk_size:
+                        chunk_path = cache_dir / f"rtt_chunk_{chunk_idx}.pkl"
+                        with open(chunk_path, "wb") as f:
+                            pickle.dump(current_chunk, f, protocol=pickle.HIGHEST_PROTOCOL)
+                        logger.info(
+                            "  Saved chunk %s (%s entries) to %s",
+                            chunk_idx,
+                            f"{len(current_chunk):,}",
+                            chunk_path,
+                        )
+                        chunk_idx += 1
+                        current_chunk = {}
+                parsed_dict.clear()
+
+    if current_chunk:
+        chunk_path = cache_dir / f"rtt_chunk_{chunk_idx}.pkl"
+        with open(chunk_path, "wb") as f:
+            pickle.dump(current_chunk, f, protocol=pickle.HIGHEST_PROTOCOL)
+        logger.info(
+            "  Saved chunk %s (%s entries) to %s",
+            chunk_idx,
+            f"{len(current_chunk):,}",
+            chunk_path,
+        )
+        chunk_idx += 1
+
+    chunk_meta = {
+        "num_chunks": chunk_idx,
+        "total_entries": total_entries,
+        "chunk_size": chunk_size,
+    }
+    with open(cache_dir / "rtt_chunks_meta.json", "w") as f:
+        json.dump(chunk_meta, f)
+
+    if num_duplicates > 0:
+        logger.info("Found %s duplicate hash keys (kept first occurrence)", f"{num_duplicates:,}")
 
     logger.info(
-        "Wrote %s datasets (%s total (combo, rtt) rows) to LMDB at %s",
-        total_datasets,
-        f"{total_combos:,}",
-        env_path,
+        "Built RTT hash table: %s datasets, %s entries, %s chunks",
+        len(datasets_with_combos),
+        f"{total_entries:,}",
+        chunk_idx,
     )
-    if total_datasets == 0:
-        logger.warning(
-            "LMDB RTT store is empty (no placements.jsonl rows parsed). "
-            "Regret negatives will have no combos until JSONL paths are fixed."
-        )
-    return total_datasets, total_combos
+    return len(datasets_with_combos), total_entries
 
 
 # ============================================================================
@@ -666,12 +702,28 @@ TASK_PLATFORM_COMPATIBILITY = {
     'dnn2': ['rpiCpu', 'xavierGpu', 'xavierCpu']
 }
 
+
+def _scheduler_adaptive_queue_norm(queue_values: np.ndarray) -> float:
+    """
+    Match GNNScheduler adaptive queue normalization:
+    - 90th percentile
+    - min 1.0
+    - cap 100.0
+    """
+    if queue_values.size == 0:
+        return 50.0
+    q = np.sort(queue_values.astype(np.float64))
+    idx = int(len(q) * 0.9)
+    percentile_90 = q[idx] if idx < len(q) else q[-1]
+    return float(min(max(1.0, percentile_90), 100.0))
+
 def build_graph(
     df_nodes: pd.DataFrame,
     df_tasks: pd.DataFrame,
     df_platforms: pd.DataFrame,
     task_priors: TaskPriors,
     queue_norm_factor: float,
+    queue_norm_mode: str,
     queue_snapshot: Optional[Mapping[str, int]] = None,
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
 ) -> Data:
@@ -748,8 +800,12 @@ def build_graph(
             key = f"{node_name}:{plat_id}"
             queue_lengths[pos] = float(_queue_length_int(queue_snapshot.get(key, 0)))
     
-    # Normalize queue lengths (queue_norm_factor validated > 0 in CLI; still guard here)
-    queue_lengths_norm = (queue_lengths / _safe_positive(float(queue_norm_factor))).reshape(-1, 1)
+    # Normalize queue lengths with scheduler-aligned adaptive mode or fixed mode.
+    if queue_norm_mode == "scheduler_adaptive":
+        active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths)
+    else:
+        active_queue_norm = _safe_positive(float(queue_norm_factor))
+    queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)
     
     # TEMPORAL STATE FEATURES (current task remaining times)
     # Since we don't have exact temporal state, we approximate:
@@ -919,6 +975,7 @@ def build_graph(
     # This is needed for StructuredRegretLoss to look up RTT in hash table
     # task_logit_to_placement[task_idx][logit_idx] = (node_id, platform_id)
     task_logit_to_placement: Dict[int, List[Tuple[int, int]]] = {}
+    task_logit_to_queue_key: Dict[int, List[str]] = {}
     
     # Build node_name -> node_id mapping
     node_name_to_id = {row.node_name: row.node_id for row in df_nodes.itertuples(index=False)}
@@ -951,6 +1008,7 @@ def build_graph(
             
             # Build logit_idx -> (node_id, platform_id) mapping for this task
             task_logit_to_placement[t_pos] = []
+            task_logit_to_queue_key[t_pos] = []
             
             task_type = str(task_type)
             task_type_priors = task_priors.get(task_type, {})
@@ -964,6 +1022,7 @@ def build_graph(
                 
                 # Store mapping: logit_idx -> (node_id, platform_id)
                 task_logit_to_placement[t_pos].append((node_id, plat_id))
+                task_logit_to_queue_key[t_pos].append(f"{plat_node_name}:{plat_id}")
                 
                 exec_time = (
                     _safe_float(exec_map.get(plat_type, 0.0), 0.0) if isinstance(exec_map, dict) else 0.0
@@ -1051,8 +1110,13 @@ def build_graph(
         platform_features=platform_features_tensor,
     )
     data.edge_attr = edge_attr_tensor
-    # Per-task mapping from logit index -> (node_id, platform_id) for regret loss and decoding
+    # Per-task mapping from logit index -> (node_id, platform_id) for regret loss and decoding.
+    # Use non-underscore attr so DataLoader worker IPC preserves it.
+    data.task_logit_to_placement = task_logit_to_placement
+    # Backward compatibility for older training scripts.
     data._task_logit_to_placement = task_logit_to_placement
+    data.queue_snapshot = dict(queue_snapshot) if queue_snapshot else {}
+    data.task_logit_to_queue_key = task_logit_to_queue_key
     
     return data
 
@@ -1085,8 +1149,8 @@ def main():
     logger.info("Loaded task priors from %s", config.priors_path)
 
     step1_start = time.perf_counter()
-    with time_block("Step 1: Building RTT combos LMDB"):
-        num_lmdb_datasets, num_rtt_combos_written = build_lmdb_rtt_cache(
+    with time_block("Step 1: Building RTT hash table chunks"):
+        num_combo_datasets, num_rtt_combos_written = build_and_save_rtt_hash_table_chunked(
             config.base_dirs,
             config.cache_dir,
         )
@@ -1125,6 +1189,7 @@ def main():
                     dataset_dict['platforms'],
                     task_priors=task_priors,
                     queue_norm_factor=config.queue_norm_factor,
+                    queue_norm_mode=config.queue_norm_mode,
                     queue_snapshot=dataset_dict.get('queue_snapshot', {}),
                     temporal_state=dataset_dict.get('temporal_state', {})
                 )
@@ -1173,8 +1238,8 @@ def main():
     logger.info("  Saved dataset IDs to %s (%.2fs)", dataset_ids_cache_path, time.perf_counter() - save_start)
 
     logger.info(
-        "  LMDB RTT combos: %s datasets, %s rows",
-        num_lmdb_datasets,
+        "  RTT hash table: %s datasets, %s entries",
+        num_combo_datasets,
         f"{num_rtt_combos_written:,}",
     )
 
@@ -1193,9 +1258,9 @@ def main():
         'merged_datasets': config.merge_datasets,
         'base_dirs': [str(bd) for bd in config.base_dirs],
         'num_graphs': len(graphs),
-        'rtt_combos_backend': 'lmdb',
-        'rtt_combos_lmdb_rel_path': 'rtt_combos.lmdb',
-        'num_lmdb_rtt_datasets': num_lmdb_datasets,
+        'rtt_combos_backend': 'hash_table_chunked',
+        'rtt_hash_chunks_meta_rel_path': 'rtt_chunks_meta.json',
+        'num_combo_datasets': num_combo_datasets,
         'num_rtt_combo_rows': num_rtt_combos_written,
         'num_datasets': len(all_datasets),
         'dataset_ids': dataset_ids,
@@ -1208,7 +1273,7 @@ def main():
             'task_count_distribution': {str(k): v for k, v in task_count_dist.items()},
         },
         'timing': {
-            'step1_build_rtt_lmdb': step1_time,
+            'step1_build_rtt_hash_chunks': step1_time,
             'step2_load_datasets': step2_time,
             'step3_build_optimal_rtt_map': step3_time,
             'step4_build_graphs': step4_time,
@@ -1224,7 +1289,6 @@ def main():
     total_time = time.perf_counter() - script_start_time
 
     graphs_size = graphs_cache_path.stat().st_size / (1024 * 1024)
-    lmdb_mb = _lmdb_directory_size_mb(config.cache_dir / "rtt_combos.lmdb")
     optimal_rtt_size = optimal_rtt_cache_path.stat().st_size / (1024 * 1024)
 
     logger.info("\n" + "=" * 80)
@@ -1232,12 +1296,12 @@ def main():
     logger.info("=" * 80)
     logger.info("Cache directory: %s", config.cache_dir)
     logger.info("Graphs cache: %s (%.2f MB)", graphs_cache_path, graphs_size)
-    logger.info("RTT combos LMDB: %s (%.2f MB)", config.cache_dir / "rtt_combos.lmdb", lmdb_mb)
+    logger.info("RTT combos backend: preloaded hash table chunks")
     logger.info("Optimal RTT cache: %s (%.2f MB)", optimal_rtt_cache_path, optimal_rtt_size)
-    logger.info("Total cache size: %.2f MB", graphs_size + lmdb_mb + optimal_rtt_size)
+    logger.info("Total cache size: %.2f MB", graphs_size + optimal_rtt_size)
     logger.info("Cache version: %s", CACHE_VERSION)
     logger.info("Timing Summary:")
-    logger.info("  Step 1 - Build RTT LMDB:        %7.2fs", step1_time)
+    logger.info("  Step 1 - Build RTT hash chunks: %7.2fs", step1_time)
     logger.info("  Step 2 - Load datasets:        %7.2fs", step2_time)
     logger.info("  Step 3 - Build helper maps:    %7.2fs", step3_time)
     logger.info("  Step 4 - Build graphs:         %7.2fs", step4_time)
