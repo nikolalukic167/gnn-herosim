@@ -612,7 +612,8 @@ def main():
     """
     # Configuration
     sim_input_path = Path("data/nofs-ids")
-    gnn_model_path = Path("models/desert-galaxy-26.pt")
+    _gnn_model_env = os.environ.get("GNN_MODEL_PATH")
+    gnn_model_path = Path(_gnn_model_env) if _gnn_model_env else Path("models/desert-galaxy-26.pt")
     default_output_dir = Path("simulation_data/results")
 
     # Parse arguments

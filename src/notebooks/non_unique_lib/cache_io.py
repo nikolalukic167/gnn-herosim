@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import pickle
+import random
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -130,11 +131,23 @@ def load_rtt_hash_table_from_cache(cache_dir: Path) -> RttHashTable:
     )
 
 
-def build_valid_combos_map(placement_rtt_hash_table: RttHashTable) -> ValidCombosMap:
+def build_valid_combos_map(
+    placement_rtt_hash_table: RttHashTable,
+    dataset_ids_filter: Optional[set] = None,
+) -> ValidCombosMap:
+    """Group RTT entries by dataset_id.
+
+    dataset_ids_filter: if provided, only include entries whose dataset_id is in
+    this set.  Use this when the graph cache was built from a filtered subset so
+    the full 36M-entry RTT table can be pruned before the second-level grouping.
+    """
     valid_map: ValidCombosMap = defaultdict(list)
     for (ds_id, combo), rtt in placement_rtt_hash_table.items():
+        if dataset_ids_filter is not None and ds_id not in dataset_ids_filter:
+            continue
         valid_map[ds_id].append((combo, float(rtt)))
-    print(f"[valid_combos] Built valid placement combos for {len(valid_map)} datasets")
+    n = len(dataset_ids_filter) if dataset_ids_filter is not None else "all"
+    print(f"[valid_combos] Built valid placement combos for {len(valid_map)} datasets (filter={n})")
     return dict(valid_map)
 
 
@@ -167,14 +180,24 @@ def build_regret_training_lookups(
     dataset_ids: List[str],
     valid_combos_map: ValidCombosMap,
     hard_negative_fraction: float = 0.5,
+    stratified: bool = False,
 ) -> Tuple[PlacementToLogitMap, HardNegativeMap]:
     """
     Precompute regret sampling pools once so epochs only do O(1) lookups.
+
+    stratified=True: pool is built with stratified bucket sampling so each
+    training draw sees near-optimal (40%), moderate (40%), and catastrophic (20%)
+    negatives rather than almost exclusively catastrophic ones.
+      near-optimal : ΔRTT ≤ 0.05s  (Knative-like mistakes, small RTT gap)
+      moderate     : 0.05s < ΔRTT ≤ 1.0s
+      catastrophic : ΔRTT > 1.0s   (obviously bad combos, easy to rank)
+    When a bucket is empty the remaining fraction is redistributed to the others.
     """
     hard_negative_fraction = min(1.0, max(0.0, hard_negative_fraction))
     placement_to_logit: PlacementToLogitMap = {}
     hard_negative_map: HardNegativeMap = {}
     total_hard_negatives = 0
+    strat_bucket_counts: Dict[str, int] = {"near": 0, "mod": 0, "cat": 0}
 
     for graph, dataset_id in zip(graphs, dataset_ids):
         task_map = _task_logit_map_from_graph(graph)
@@ -201,15 +224,55 @@ def build_regret_training_lookups(
             hard_negative_map[dataset_id] = []
             continue
 
-        hard_candidates.sort(key=lambda x: x[1], reverse=True)
-        keep_n = max(1, int(len(hard_candidates) * hard_negative_fraction))
-        hard_negative_map[dataset_id] = hard_candidates[:keep_n]
-        total_hard_negatives += keep_n
+        if stratified:
+            opt_rtt = min(r for _, r in valid_combos)
+            near = [(c, r) for c, r in hard_candidates if r - opt_rtt <= 0.05]
+            mod  = [(c, r) for c, r in hard_candidates if 0.05 < r - opt_rtt <= 1.0]
+            cat  = [(c, r) for c, r in hard_candidates if r - opt_rtt > 1.0]
+            total_pool = max(1, int(len(hard_candidates) * hard_negative_fraction))
+            # Target counts per stratum; redistribute from empty buckets
+            targets = {"near": 0.40, "mod": 0.40, "cat": 0.20}
+            buckets = {"near": near, "mod": mod, "cat": cat}
+            # Redistribute fractions from empty buckets proportionally
+            avail = {k: len(v) > 0 for k, v in buckets.items()}
+            if not any(avail.values()):
+                pool = hard_candidates[:total_pool]
+            else:
+                empty_frac = sum(targets[k] for k, ok in avail.items() if not ok)
+                avail_keys = [k for k, ok in avail.items() if ok]
+                adj = {k: targets[k] + empty_frac / len(avail_keys) for k in avail_keys}
+                pool: List[Tuple] = []
+                for k in avail_keys:
+                    n = max(1, round(total_pool * adj[k]))
+                    bucket = buckets[k]
+                    before = len(pool)
+                    if len(bucket) >= n:
+                        pool.extend(random.sample(bucket, n))
+                    else:
+                        pool.extend(bucket)
+                    strat_bucket_counts[k] += len(pool) - before
+                if not pool:
+                    pool = hard_candidates[:1]
+            hard_negative_map[dataset_id] = pool
+            total_hard_negatives += len(pool)
+        else:
+            hard_candidates.sort(key=lambda x: x[1], reverse=True)
+            keep_n = max(1, int(len(hard_candidates) * hard_negative_fraction))
+            hard_negative_map[dataset_id] = hard_candidates[:keep_n]
+            total_hard_negatives += keep_n
 
-    print(
-        f"[regret lookups] Precomputed hard-negative pools for {len(hard_negative_map)} datasets "
-        f"({total_hard_negatives:,} total samples)"
-    )
+    if stratified:
+        print(
+            f"[regret lookups] Stratified pools for {len(hard_negative_map)} datasets "
+            f"({total_hard_negatives:,} total) — "
+            f"near={strat_bucket_counts['near']:,} mod={strat_bucket_counts['mod']:,} "
+            f"cat={strat_bucket_counts['cat']:,}"
+        )
+    else:
+        print(
+            f"[regret lookups] Precomputed hard-negative pools for {len(hard_negative_map)} datasets "
+            f"({total_hard_negatives:,} total samples)"
+        )
     return placement_to_logit, hard_negative_map
 
 
@@ -397,14 +460,22 @@ def build_regret_training_lookups_from_hash_table(
     dataset_ids: List[str],
     placement_rtt_hash_table: RttHashTable,
     hard_negative_fraction: float = 0.5,
+    stratified: bool = False,
 ) -> Tuple[PlacementToLogitMap, HardNegativeMap]:
-    """Build regret lookups from the hash table and drop the intermediate valid-combos map."""
-    valid_combos_map = build_valid_combos_map(placement_rtt_hash_table)
+    """Build regret lookups from the hash table and drop the intermediate valid-combos map.
+
+    Automatically limits the valid_combos_map to only the dataset IDs present in
+    dataset_ids (the graph cache) so filtered caches don't wastefully iterate over
+    the full RTT table for excluded datasets.
+    """
+    ids_in_graphs = {ds_id.split("@seq")[0] for ds_id in dataset_ids}
+    valid_combos_map = build_valid_combos_map(placement_rtt_hash_table, dataset_ids_filter=ids_in_graphs)
     placement_to_logit, hard_negative_map = build_regret_training_lookups(
         graphs,
         dataset_ids,
         valid_combos_map,
         hard_negative_fraction=hard_negative_fraction,
+        stratified=stratified,
     )
     del valid_combos_map
     return placement_to_logit, hard_negative_map

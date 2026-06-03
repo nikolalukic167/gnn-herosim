@@ -2,13 +2,12 @@
 GNN-based Scheduler for Task-to-Platform Placement (NON-UNIQUE VERSION)
 
 This scheduler uses a trained GNN model to make placement decisions.
-It processes batches of 2-3 tasks together (model training range) and
-uses a per-task greedy decoder that allows non-unique placements
-(multiple tasks can be placed on the same replica).
+It processes batches of 2-4 tasks together and decodes placements via
+sequential GNN argmax with live queue roll-forward between tasks.
 
 Fallback to shortest-queue for:
 - Single task batches (model not trained on 1 task)
-- Large batches > 3 tasks (model not trained on 4+ tasks)
+- Large batches > 4 tasks (model not trained on 5+ tasks)
 """
 
 from __future__ import annotations
@@ -669,12 +668,11 @@ class GNNScheduler(Scheduler):
         task_logit_to_queue_key: Optional[Dict[int, List[str]]] = None,
     ) -> Dict[int, Tuple[int, int]]:
         """
-        Sequential decoder with live queue state.
+        Sequential GNN argmax decode with live queue roll-forward.
 
-        Training uses independent argmax on a frozen snapshot, but full simulation
-        is online: each placement changes queues before the next task is scheduled.
-        After GNN argmax, prefer shortest-queue among candidates when the GNN choice
-        would overload a replica relative to the current min queue.
+        Each task is placed via argmax on GNN logits; the chosen replica's queue
+        count is incremented before the next task is decoded (matches training
+        eval decode_sequential_argmax_placement). No post-hoc shortest-queue override.
         """
         placements: Dict[int, Tuple[int, int]] = {}
         live_queues = dict(queue_snapshot or {})
@@ -693,19 +691,9 @@ class GNNScheduler(Scheduler):
             if not keys or len(keys) != len(candidates):
                 keys = [f"unknown:{plat_id}" for _, plat_id in candidates]
 
-            gnn_idx = int(logits_t.argmax().item())
-            if gnn_idx >= len(candidates):
+            chosen_idx = int(logits_t.argmax().item())
+            if chosen_idx >= len(candidates):
                 continue
-
-            min_idx = min(
-                range(len(candidates)),
-                key=lambda i: live_queues.get(keys[i], 0),
-            )
-            gnn_queue = live_queues.get(keys[gnn_idx], 0)
-            min_queue = live_queues.get(keys[min_idx], 0)
-
-            # Blend toward shortest-queue when GNN would hot-spot a busy replica
-            chosen_idx = min_idx if gnn_queue > min_queue else gnn_idx
 
             node_id, plat_id = candidates[chosen_idx]
             placements[t_idx] = (node_id, plat_id)
