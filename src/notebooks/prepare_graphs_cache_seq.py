@@ -40,6 +40,12 @@ from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
 from tqdm import tqdm
 
+from non_unique_lib.seq_training_utils import (
+    apply_prefix_optimal_labels,
+    logit_index_for_placement,
+    optimal_combo_from_tasks,
+)
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,7 @@ FEATURE_DIV_EPS = 1e-12
 
 TaskPriors = Dict[str, Any]
 PlacementCombo = Tuple[Tuple[int, int], ...]
+ComboRTT = Tuple[PlacementCombo, float]
 
 def _require_finite_feature_array(name: str, arr: np.ndarray) -> None:
     """Fail fast at cache build time if features are still non-finite."""
@@ -114,6 +121,7 @@ class Config:
     queue_norm_factor: float = 50.0
     queue_norm_mode: str = "scheduler_adaptive"
     require_queue_data: bool = True
+    filter_ids: Optional[set] = None  # if set, only build graphs for these dataset IDs
 
 
 def _default_base_dirs(project_root: Path, merge_datasets: bool) -> List[Path]:
@@ -146,6 +154,16 @@ def parse_args() -> Config:
         ),
     )
     parser.add_argument("--allow-missing-queue-data", action="store_true")
+    parser.add_argument(
+        "--filter-ids-file",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a text file with one dataset ID per line (e.g. ds_00003). "
+            "Only datasets whose directory name appears in the file are included. "
+            "Used to oversample high-queue-load subsets."
+        ),
+    )
     args = parser.parse_args()
 
     if args.queue_norm_mode == "fixed" and args.queue_norm_factor <= 0:
@@ -162,6 +180,16 @@ def parse_args() -> Config:
     priors_path = args.priors_path or (args.project_root / "data" / "nofs-ids" / "task-types.json")
     cache_dir.mkdir(parents=True, exist_ok=True)
 
+    filter_ids: Optional[set] = None
+    if args.filter_ids_file:
+        filter_ids = set()
+        with open(args.filter_ids_file) as fh:
+            for line in fh:
+                ds_id = line.strip()
+                if ds_id:
+                    filter_ids.add(ds_id)
+        logger.info("Filter file loaded: %d allowed dataset IDs", len(filter_ids))
+
     return Config(
         base_dirs=base_dirs,
         cache_dir=cache_dir,
@@ -170,6 +198,7 @@ def parse_args() -> Config:
         queue_norm_factor=args.queue_norm_factor,
         queue_norm_mode=args.queue_norm_mode,
         require_queue_data=not args.allow_missing_queue_data,
+        filter_ids=filter_ids,
     )
 
 
@@ -180,7 +209,7 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "6.1-seq"  # sequential graphs; ce_label_mask instead of y=-1 masking
+CACHE_VERSION = "6.3-seq-model"  # model-centric training: co-sim per-task queues, prefix labels, no seqblend teacher
 # - RTT combos consumed lazily from placements/placements.jsonl during training (no LMDB build)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
@@ -484,8 +513,66 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
     return result
 
 
+def extract_per_task_scheduling_snapshots(
+    optimal_result_path: Path,
+) -> Tuple[List[Dict[str, int]], List[Dict[str, Dict[str, float]]]]:
+    """
+    Per-task queue/temporal at scheduling from optimal_result taskResults (B.6).
+    Returns lists ordered by task_id ascending.
+    """
+    per_task_queues: List[Dict[str, int]] = []
+    per_task_temporal: List[Dict[str, Dict[str, float]]] = []
+    try:
+        with open(optimal_result_path, "r") as f:
+            result = json.load(f)
+        task_results = result.get("stats", {}).get("taskResults", [])
+        ordered = sorted(
+            (tr for tr in task_results if tr.get("taskId") is not None),
+            key=lambda tr: int(tr["taskId"]),
+        )
+        for tr in ordered:
+            qsnap = tr.get("queueSnapshotAtScheduling") or tr.get(
+                "queue_snapshot_at_scheduling", {}
+            )
+            if isinstance(qsnap, dict) and qsnap:
+                per_task_queues.append(
+                    {str(k): _queue_length_int(v) for k, v in qsnap.items()}
+                )
+            else:
+                per_task_queues.append({})
+
+            temp = tr.get("temporalStateAtScheduling") or tr.get(
+                "temporal_state_at_scheduling", {}
+            )
+            if isinstance(temp, dict) and temp:
+                per_task_temporal.append(
+                    {
+                        str(pk): {
+                            "current_task_remaining": _safe_float(
+                                sd.get("current_task_remaining", 0.0), 0.0
+                            ),
+                            "cold_start_remaining": _safe_float(
+                                sd.get("cold_start_remaining", 0.0), 0.0
+                            ),
+                            "comm_remaining": _safe_float(
+                                sd.get("comm_remaining", 0.0), 0.0
+                            ),
+                        }
+                        for pk, sd in temp.items()
+                        if isinstance(sd, dict)
+                    }
+                )
+            else:
+                per_task_temporal.append({})
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+        logger.warning("Per-task scheduling snapshots unavailable for %s: %s", optimal_result_path, e)
+    return per_task_queues, per_task_temporal
+
+
 def load_all_datasets(
-    base_dirs: List[Path], require_queue_data: bool = True
+    base_dirs: List[Path],
+    require_queue_data: bool = True,
+    filter_ids: Optional[set] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Load all datasets from multiple gnn_datasets directories (supports merging).
@@ -507,6 +594,8 @@ def load_all_datasets(
         start_time = time.perf_counter()
         
         for dataset_dir in tqdm(dataset_dirs, desc=f"Loading {base_dir.name}", unit="dataset"):
+            if filter_ids is not None and dataset_dir.name not in filter_ids:
+                continue
             optimal_result_path = dataset_dir / "optimal_result.json"
             if not optimal_result_path.exists():
                 continue
@@ -521,6 +610,9 @@ def load_all_datasets(
             
             try:
                 dataframes = extract_dataset_to_dataframes(optimal_result_path)
+                per_task_queues, per_task_temporal = extract_per_task_scheduling_snapshots(
+                    optimal_result_path
+                )
                 # Use unique key: base_dir_name/dataset_name to avoid collisions
                 unique_key = f"{base_dir.name}/{dataset_dir.name}"
                 all_datasets[unique_key] = {
@@ -529,7 +621,9 @@ def load_all_datasets(
                     'source_dir': base_dir.name,  # Track which directory this came from
                     'num_tasks': len(dataframes['tasks']),  # Track task count
                     'queue_snapshot': extended_state.get('queue_snapshot', {}),
-                    'temporal_state': extended_state.get('temporal_state', {})
+                    'temporal_state': extended_state.get('temporal_state', {}),
+                    'per_task_queue_snapshots': per_task_queues,
+                    'per_task_temporal_snapshots': per_task_temporal,
                 }
             except Exception as e:
                 tqdm.write(f"  Error loading {dataset_dir.name}: {e}")
@@ -1200,6 +1294,32 @@ def _attach_ce_label_mask(graph: Data, step: int, n_tasks: int) -> None:
     graph.ce_label_mask = _ce_label_mask_for_seq_step(n_tasks, step)
 
 
+def _sequential_label_statistics_dict(
+    graphs: List[Data],
+    task_count_dist: Dict[int, int],
+) -> Dict[str, Any]:
+    ys = np.concatenate([g.y.numpy() for g in graphs])
+    placement_valid = int(np.sum(ys >= 0))
+    ce_active = int(sum(int(g.ce_label_mask.sum()) for g in graphs))
+    ce_missing = 0
+    for g in graphs:
+        mask = g.ce_label_mask.numpy()
+        y_np = g.y.numpy()
+        for t_idx in range(len(y_np)):
+            if mask[t_idx] and y_np[t_idx] < 0:
+                ce_missing += 1
+    return {
+        'placement_labels_valid': placement_valid,
+        'total_label_slots': len(ys),
+        'ce_training_targets': ce_active,
+        'ce_targets_missing_placement': ce_missing,
+        'graphs_with_no_edges': int(sum(g.edge_index.numel() == 0 for g in graphs)),
+        'avg_edges': float(np.mean([g.edge_index.size(1) for g in graphs])),
+        'avg_ce_targets_per_graph': float(np.mean([g.ce_label_mask.sum().item() for g in graphs])),
+        'task_count_distribution': {str(k): v for k, v in task_count_dist.items()},
+    }
+
+
 def _log_sequential_label_statistics(graphs: List[Data]) -> None:
     ys = np.concatenate([g.y.numpy() for g in graphs])
     placement_valid = int(np.sum(ys >= 0))
@@ -1244,33 +1364,74 @@ def build_sequential_graphs_for_dataset(
     task_priors: TaskPriors,
     queue_norm_factor: float,
     queue_norm_mode: str,
-) -> Tuple[List[Data], List[str]]:
+) -> Tuple[List[Data], List[str], Dict[str, int]]:
     """
     Build N counterfactual graphs for one dataset (N = number of tasks).
 
     Queue state at step s reflects optimal placements for tasks 0..s-1.
+
+    Returns queue_snapshot_source counts: from_cosim vs roll_forward.
     """
     df_nodes = dataset_dict["nodes"]
     df_tasks = dataset_dict["tasks"].sort_values("task_id").reset_index(drop=True)
     df_platforms = dataset_dict["platforms"]
     n_tasks = len(df_tasks)
     if n_tasks == 0:
-        return [], []
+        return [], [], {"from_cosim": 0, "roll_forward": 0}
 
     node_id_to_name = {
         int(row.node_id): str(row.node_name)
         for row in df_nodes.itertuples(index=False)
     }
     base_queue = dataset_dict.get("queue_snapshot") or {}
-    live_queue: Dict[str, int] = {
+    initial_queue: Dict[str, int] = {
         str(k): _queue_length_int(v) for k, v in base_queue.items()
     }
+    live_queue = dict(initial_queue)
     temporal_state = dataset_dict.get("temporal_state") or {}
+    per_task_queues: List[Dict[str, int]] = dataset_dict.get("per_task_queue_snapshots") or []
+    per_task_temporal: List[Dict[str, Dict[str, float]]] = (
+        dataset_dict.get("per_task_temporal_snapshots") or []
+    )
+
+    optimal_combo = optimal_combo_from_tasks(
+        [
+            (
+                int(row.task_id),
+                row.optimal_node_id,
+                row.optimal_platform_id,
+            )
+            for row in df_tasks.itertuples(index=False)
+        ]
+    )
+
+    placement_combos: List[ComboRTT] = []
+    dataset_dir = dataset_dict.get("dataset_dir")
+    if dataset_dir is not None:
+        jsonl_path = Path(dataset_dir) / "placements" / "placements.jsonl"
+        if jsonl_path.exists():
+            _, placement_combos = _placement_combos_from_jsonl(jsonl_path)
 
     graphs: List[Data] = []
     seq_dataset_ids: List[str] = []
+    queue_source_counts = {"from_cosim": 0, "roll_forward": 0}
 
     for step in range(n_tasks):
+        if (
+            per_task_queues
+            and step < len(per_task_queues)
+            and per_task_queues[step]
+        ):
+            graph_queue = dict(per_task_queues[step])
+            queue_source_counts["from_cosim"] += 1
+        else:
+            graph_queue = dict(live_queue)
+            queue_source_counts["roll_forward"] += 1
+
+        step_temporal = temporal_state
+        if per_task_temporal and step < len(per_task_temporal) and per_task_temporal[step]:
+            step_temporal = per_task_temporal[step]
+
         graph = build_graph(
             df_nodes,
             df_tasks,
@@ -1278,16 +1439,30 @@ def build_sequential_graphs_for_dataset(
             task_priors=task_priors,
             queue_norm_factor=queue_norm_factor,
             queue_norm_mode=queue_norm_mode,
-            queue_snapshot=live_queue,
-            temporal_state=temporal_state,
+            queue_snapshot=graph_queue,
+            temporal_state=step_temporal,
         )
         _attach_ce_label_mask(graph, step, n_tasks)
+
+        if placement_combos and optimal_combo:
+            task_map = getattr(graph, "task_logit_to_placement", None) or getattr(
+                graph, "_task_logit_to_placement", {}
+            )
+            apply_prefix_optimal_labels(
+                graph.y,
+                graph.ce_label_mask,
+                task_map,
+                optimal_combo,
+                placement_combos,
+            )
 
         seq_id = f"{dataset_id}{SEQ_DATASET_ID_SEP}{step}"
         graph.dataset_id = seq_id
         graph.parent_dataset_id = dataset_id
         graph.seq_step = int(step)
         graph.seq_n_tasks = int(n_tasks)
+        graph.initial_queue_snapshot = dict(initial_queue)
+        graph.prefix_augment = False
 
         graphs.append(graph)
         seq_dataset_ids.append(seq_id)
@@ -1304,7 +1479,42 @@ def build_sequential_graphs_for_dataset(
             node_id_to_name,
         )
 
-    return graphs, seq_dataset_ids
+    if placement_combos and optimal_combo and len(placement_combos) >= 2:
+        sorted_combos = sorted(placement_combos, key=lambda x: x[1])
+        second_combo = sorted_combos[1][0]
+        if second_combo != optimal_combo:
+            aug_queue = dict(initial_queue)
+            graph = build_graph(
+                df_nodes,
+                df_tasks,
+                df_platforms,
+                task_priors=task_priors,
+                queue_norm_factor=queue_norm_factor,
+                queue_norm_mode=queue_norm_mode,
+                queue_snapshot=aug_queue,
+                temporal_state=temporal_state,
+            )
+            _attach_ce_label_mask(graph, 0, n_tasks)
+            task_map = getattr(graph, "task_logit_to_placement", None) or getattr(
+                graph, "_task_logit_to_placement", {}
+            )
+            if len(second_combo) > 0:
+                neg_idx = logit_index_for_placement(
+                    task_map, 0, second_combo[0][0], second_combo[0][1]
+                )
+                if neg_idx is not None:
+                    graph.y[0] = int(neg_idx)
+            aug_id = f"{dataset_id}{SEQ_DATASET_ID_SEP}neg1"
+            graph.dataset_id = aug_id
+            graph.parent_dataset_id = dataset_id
+            graph.seq_step = 0
+            graph.seq_n_tasks = int(n_tasks)
+            graph.initial_queue_snapshot = dict(initial_queue)
+            graph.prefix_augment = True
+            graphs.append(graph)
+            seq_dataset_ids.append(aug_id)
+
+    return graphs, seq_dataset_ids, queue_source_counts
 
 
 # ============================================================================
@@ -1344,7 +1554,11 @@ def main():
 
     step2_start = time.perf_counter()
     with time_block("Step 2: Loading datasets"):
-        all_datasets = load_all_datasets(config.base_dirs, require_queue_data=config.require_queue_data)
+        all_datasets = load_all_datasets(
+            config.base_dirs,
+            require_queue_data=config.require_queue_data,
+            filter_ids=config.filter_ids,
+        )
     step2_time = time.perf_counter() - step2_start
 
     if len(all_datasets) == 0:
@@ -1367,6 +1581,7 @@ def main():
     graphs = []
     dataset_ids = []
     parent_dataset_ids: List[str] = []
+    queue_source_totals = {"from_cosim": 0, "roll_forward": 0}
     with time_block("Step 4: Building sequential counterfactual graphs"):
         for dataset_id, dataset_dict in tqdm(
             all_datasets.items(),
@@ -1374,7 +1589,7 @@ def main():
             unit="dataset",
         ):
             try:
-                seq_graphs, seq_ids = build_sequential_graphs_for_dataset(
+                seq_graphs, seq_ids, qsrc = build_sequential_graphs_for_dataset(
                     dataset_id,
                     dataset_dict,
                     task_priors=task_priors,
@@ -1384,6 +1599,8 @@ def main():
                 graphs.extend(seq_graphs)
                 dataset_ids.extend(seq_ids)
                 parent_dataset_ids.extend([dataset_id] * len(seq_ids))
+                for k in queue_source_totals:
+                    queue_source_totals[k] += int(qsrc.get(k, 0))
             except Exception as e:
                 tqdm.write(f"  Error building seq graphs for {dataset_id}: {e}")
     step4_time = time.perf_counter() - step4_start
@@ -1410,6 +1627,15 @@ def main():
             task_count_dist[n_tasks] / len(graphs) * 100,
         )
     _log_sequential_label_statistics(graphs)
+    q_total = queue_source_totals["from_cosim"] + queue_source_totals["roll_forward"]
+    if q_total:
+        logger.info(
+            "  Queue snapshot source: co-sim per-task %s (%.1f%%), roll-forward %s (%.1f%%)",
+            queue_source_totals["from_cosim"],
+            100.0 * queue_source_totals["from_cosim"] / q_total,
+            queue_source_totals["roll_forward"],
+            100.0 * queue_source_totals["roll_forward"] / q_total,
+        )
     logger.info("  Graphs with no edges: %s / %s", sum([g.edge_index.numel() == 0 for g in graphs]), len(graphs))
     logger.info("  Avg edges per graph: %.1f", np.mean([g.edge_index.size(1) for g in graphs]))
     logger.info("  Avg valid tasks per graph: %.2f", np.mean([(g.y >= 0).sum().item() for g in graphs]))
@@ -1463,14 +1689,8 @@ def main():
         'num_rtt_combo_rows': num_rtt_combos_written,
         'num_datasets': len(all_datasets),
         'dataset_ids': dataset_ids,
-        'statistics': {
-            'valid_labels': int(np.sum(ys >= 0)),
-            'total_labels': len(ys),
-            'graphs_with_no_edges': int(sum([g.edge_index.numel() == 0 for g in graphs])),
-            'avg_edges': float(np.mean([g.edge_index.size(1) for g in graphs])),
-            'avg_valid_tasks': float(np.mean([(g.y >= 0).sum().item() for g in graphs])),
-            'task_count_distribution': {str(k): v for k, v in task_count_dist.items()},
-        },
+        'statistics': _sequential_label_statistics_dict(graphs, task_count_dist),
+        'queue_snapshot_sources': queue_source_totals,
         'timing': {
             'step1_build_rtt_hash_chunks': step1_time,
             'step2_load_datasets': step2_time,
