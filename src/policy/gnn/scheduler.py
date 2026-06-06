@@ -26,6 +26,11 @@ from torch_geometric.utils import to_undirected
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.policy.gnn.seq_decode import (
+    decode_sequential_placement,
+    get_run_decode_stats,
+    reset_run_decode_stats,
+)
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -73,6 +78,11 @@ class GNNScheduler(Scheduler):
         # Stats tracking for debugging
         self.gnn_pure_decisions = 0
         self.fallback_decisions = 0
+        self.decode_stats = reset_run_decode_stats()
+        self._decode_seqblend = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower() in (
+            "seqblend", "seqblend_p1", "1",
+        )
+        self._decode_queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
         
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
@@ -668,39 +678,31 @@ class GNNScheduler(Scheduler):
         task_logit_to_queue_key: Optional[Dict[int, List[str]]] = None,
     ) -> Dict[int, Tuple[int, int]]:
         """
-        Sequential GNN argmax decode with live queue roll-forward.
+        Sequential GNN decode with live queue roll-forward.
 
-        Each task is placed via argmax on GNN logits; the chosen replica's queue
-        count is incremented before the next task is decoded (matches training
-        eval decode_sequential_argmax_placement). No post-hoc shortest-queue override.
+        GNN_DECODE_MODE=argmax (default): pure argmax, matches train eval.
+        GNN_DECODE_MODE=seqblend: override to min-queue among candidates only when
+            live_queue(chosen) > min_queue + GNN_SEQBLEND_QUEUE_MARGIN (default margin=1
+            → seqblend+1, not classic override on any queue strictly above min).
         """
-        placements: Dict[int, Tuple[int, int]] = {}
-        live_queues = dict(queue_snapshot or {})
-        queue_keys = task_logit_to_queue_key or {}
+        decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+        seqblend = decode_mode in ("seqblend", "seqblend_p1", "1")
+        queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
+        track_stats = seqblend or os.environ.get("GNN_DECODE_STATS", "0") == "1"
 
-        for t_idx in range(n_tasks):
-            if t_idx not in task_logit_to_placement:
-                continue
-
-            logits_t = logits_per_task[t_idx]
-            if logits_t.numel() == 0:
-                continue
-
-            candidates = task_logit_to_placement[t_idx]
-            keys = queue_keys.get(t_idx)
-            if not keys or len(keys) != len(candidates):
-                keys = [f"unknown:{plat_id}" for _, plat_id in candidates]
-
-            chosen_idx = int(logits_t.argmax().item())
-            if chosen_idx >= len(candidates):
-                continue
-
-            node_id, plat_id = candidates[chosen_idx]
-            placements[t_idx] = (node_id, plat_id)
-            chosen_key = keys[chosen_idx]
-            live_queues[chosen_key] = live_queues.get(chosen_key, 0) + 1
-
-        return placements
+        combo = decode_sequential_placement(
+            logits_per_task,
+            task_logit_to_placement,
+            n_tasks,
+            queue_snapshot,
+            task_logit_to_queue_key,
+            seqblend=seqblend,
+            queue_margin=queue_margin,
+            stats=self.decode_stats if track_stats else None,
+        )
+        if combo is None:
+            return {}
+        return {t_idx: combo[t_idx] for t_idx in range(len(combo))}
 
     def _capture_batch_queue_snapshot(self, system_state: SystemState, batch_tasks: List[Task]) -> Dict[str, int]:
         queue_snapshot = {}

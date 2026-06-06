@@ -452,6 +452,8 @@ def run_simulation(
         'gnn',
         'roundrobin',
         'knative_network',
+        'knative_network_ect',
+        'knative_network_batch',
         'herocache_network',
         'herocache_network_batch',
         'random_network',
@@ -520,6 +522,12 @@ def run_simulation(
         elif policy == 'knative_network':
             scheduling_strategy = 'kn_network_kn_network'
             models = None
+        elif policy == 'knative_network_ect':
+            scheduling_strategy = 'kn_network_ect_kn_network_ect'
+            models = None
+        elif policy == 'knative_network_batch':
+            scheduling_strategy = 'kn_network_batch_kn_network_batch'
+            models = None
         elif policy == 'herocache_network':
             scheduling_strategy = 'hrc_network_hrc_network'
             models = None
@@ -580,6 +588,38 @@ def run_simulation(
             "num_tasks": num_tasks,
             "stats": stats,
         }
+
+        if policy == "gnn":
+            try:
+                from src.policy.gnn.seq_decode import get_run_decode_stats, write_run_decode_stats
+
+                decode_stats = get_run_decode_stats()
+                if decode_stats is not None and decode_stats.total_tasks > 0:
+                    margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
+                    summary = decode_stats.summary(p1_margin=margin)
+                    result_summary["decode_stats"] = summary
+                    stats_path = output_file.with_suffix(".decode_stats.json")
+                    write_run_decode_stats(stats_path, p1_margin=margin)
+                    print("\n=== GNN decode stats (seqblend analysis) ===", flush=True)
+                    print(
+                        f"  tasks={summary['total_decode_tasks']:,} | "
+                        f"p1 overrides={summary['p1_override_count']:,} ({summary['p1_override_rate']*100:.2f}%) | "
+                        f"classic would override={summary['classic_would_override_count']:,} "
+                        f"({summary['classic_would_override_rate']*100:.2f}%) | "
+                        f"classic-only (p1 kept GNN)={summary['classic_only_count']:,} "
+                        f"({summary['classic_only_rate']*100:.2f}%)",
+                        flush=True,
+                    )
+                    q = summary.get("queue_on_p1_override", {})
+                    if q:
+                        print(
+                            f"  on p1 override: gnn_q mean={q.get('gnn_mean')} → final_q mean={q.get('final_mean')} "
+                            f"(saved mean={q.get('saved_mean')})",
+                            flush=True,
+                        )
+                    print(f"  wrote {stats_path.name}", flush=True)
+            except Exception as exc:
+                logger.warning(f"Could not attach decode stats: {exc}")
 
         # Save result
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -663,7 +703,7 @@ def main():
         print(
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
-            "--policy <knative|gnn|roundrobin|knative_network|herocache_network|"
+            "--policy <knative|gnn|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
             "herocache_network_batch|random_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
@@ -674,7 +714,7 @@ def main():
         print(
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
-            "--policy <knative|gnn|roundrobin|knative_network|herocache_network|"
+            "--policy <knative|gnn|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
             "herocache_network_batch|random_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
@@ -685,6 +725,8 @@ def main():
         'gnn',
         'roundrobin',
         'knative_network',
+        'knative_network_ect',
+        'knative_network_batch',
         'herocache_network',
         'herocache_network_batch',
         'random_network',

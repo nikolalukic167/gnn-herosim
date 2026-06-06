@@ -6,6 +6,8 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 import torch
 from torch import Tensor
 
+from src.policy.gnn.seq_decode import decode_sequential_placement as _decode_sequential_placement
+
 PlacementCombo = Tuple[Tuple[int, int], ...]
 ComboRTT = Tuple[PlacementCombo, float]
 
@@ -86,6 +88,28 @@ def apply_prefix_optimal_labels(
     return updated
 
 
+def decode_sequential_placement(
+    logits_per_task: Sequence[Tensor],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    n_tasks: int,
+    queue_snapshot: Optional[Mapping[str, int]] = None,
+    task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]] = None,
+    *,
+    seqblend: bool = False,
+    queue_margin: int = 1,
+) -> Optional[PlacementCombo]:
+    """Sequential decode with live queue roll-forward; optional seqblend min-queue override."""
+    return _decode_sequential_placement(
+        logits_per_task,
+        task_logit_to_placement,
+        n_tasks,
+        queue_snapshot,
+        task_logit_to_queue_key,
+        seqblend=seqblend,
+        queue_margin=queue_margin,
+    )
+
+
 def decode_sequential_argmax_placement(
     logits_per_task: Sequence[Tensor],
     task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
@@ -94,38 +118,34 @@ def decode_sequential_argmax_placement(
     task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]] = None,
 ) -> Optional[PlacementCombo]:
     """Sequential argmax with live queue updates (no shortest-queue override)."""
-    if len(logits_per_task) != n_tasks:
-        return None
+    return decode_sequential_placement(
+        logits_per_task,
+        task_logit_to_placement,
+        n_tasks,
+        queue_snapshot,
+        task_logit_to_queue_key,
+        seqblend=False,
+    )
 
-    live_queues: Dict[str, int] = {
-        str(k): int(v) for k, v in (queue_snapshot or {}).items()
-    }
-    keys_map = task_logit_to_queue_key or {}
-    combo_list: List[Tuple[int, int]] = []
 
-    for t_idx in range(n_tasks):
-        if t_idx not in task_logit_to_placement:
-            return None
-        logits_t = logits_per_task[t_idx]
-        if logits_t.numel() == 0:
-            return None
-
-        candidates = task_logit_to_placement[t_idx]
-        chosen_idx = int(logits_t.argmax().item())
-        if chosen_idx >= len(candidates):
-            return None
-
-        keys = keys_map.get(t_idx)
-        if keys and len(keys) == len(candidates):
-            chosen_key = keys[chosen_idx]
-        else:
-            chosen_key = f"unknown:{candidates[chosen_idx][1]}"
-
-        node_id, plat_id = candidates[chosen_idx]
-        combo_list.append((int(node_id), int(plat_id)))
-        live_queues[chosen_key] = live_queues.get(chosen_key, 0) + 1
-
-    return tuple(combo_list)
+def decode_sequential_seqblend_placement(
+    logits_per_task: Sequence[Tensor],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    n_tasks: int,
+    queue_snapshot: Optional[Mapping[str, int]] = None,
+    task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]] = None,
+    queue_margin: int = 1,
+) -> Optional[PlacementCombo]:
+    """Seqblend decode: min-queue override only when GNN queue > min_queue + queue_margin."""
+    return decode_sequential_placement(
+        logits_per_task,
+        task_logit_to_placement,
+        n_tasks,
+        queue_snapshot,
+        task_logit_to_queue_key,
+        seqblend=True,
+        queue_margin=queue_margin,
+    )
 
 
 def is_final_sequential_graph(data) -> bool:

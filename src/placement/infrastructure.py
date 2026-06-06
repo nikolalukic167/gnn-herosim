@@ -634,6 +634,10 @@ class Platform:
         cold_start = float(task_type["coldStartDuration"].get(self.type["shortName"], 0.0))
 
         # Approximate I/O time using first available state-size profile.
+        # Keep the same storage/network assumptions as platform_process warmup execution:
+        # - input is fetched from remote storage (no dependencies)
+        # - output is written to local storage
+        # - output speed is network bounded because input storage is remote
         state_size_map = task_type.get("stateSize", {})
         app_state: Dict[str, Any] = {}
         if isinstance(state_size_map, dict) and state_size_map:
@@ -643,10 +647,40 @@ class Platform:
                 app_state = maybe_state
         input_size = float(app_state.get("input", 0))
         output_size = float(app_state.get("output", 0))
-        storage_throughput = 100.0 * 1024 * 1024  # bytes/s
-        storage_latency = 0.001  # seconds
-        read_time = (input_size / storage_throughput) + storage_latency if input_size > 0 else 0.0
-        write_time = (output_size / storage_throughput) + storage_latency if output_size > 0 else 0.0
+
+        remote_storage = next(
+            (s for s in self.node.storage.items if s.type.get("remote")),
+            None,
+        )
+        local_storage = next(
+            (s for s in self.node.storage.items if not s.type.get("remote")),
+            None,
+        )
+
+        network_bw = float(self.node.network.get("bandwidth", 1000.0))
+
+        if remote_storage is not None:
+            input_speed = min(
+                float(remote_storage.type["throughput"]["read"]),
+                network_bw,
+            )
+            read_latency = float(remote_storage.type["latency"]["read"])
+        else:
+            input_speed = 100.0
+            read_latency = 0.001
+
+        if local_storage is not None:
+            output_speed = min(
+                float(local_storage.type["throughput"]["write"]),
+                network_bw,
+            )
+            write_latency = float(local_storage.type["latency"]["write"])
+        else:
+            output_speed = 100.0
+            write_latency = 0.001
+
+        read_time = (input_size / (input_speed * 1024 * 1024)) + read_latency if input_size > 0 else 0.0
+        write_time = (output_size / (output_speed * 1024 * 1024)) + write_latency if output_size > 0 else 0.0
         comm = read_time + write_time
 
         total_time = cold_start + (count * (execution + comm))
@@ -702,17 +736,45 @@ class Platform:
             if task.node_name in self.node.network_map:
                 network = self.node.network_map[task.node_name]
         
-        # Communication time (I/O) - approximate using state size
-        # Use average I/O time based on task type
+        # Communication time (I/O) - mirror platform_process assumptions:
+        # input from remote storage, output to local storage, and output path
+        # is network-bounded when input storage is remote.
         app_name = task.application.type["name"]
         input_size = task.type["stateSize"].get(app_name, {}).get("input", 0)
         output_size = task.type["stateSize"].get(app_name, {}).get("output", 0)
-        
-        # Get storage throughput (assume local storage for warmup)
-        storage_throughput = 100.0 * 1024 * 1024  # bytes/s
-        storage_latency = 0.001  # seconds
-        read_time = (input_size / storage_throughput) + storage_latency if input_size > 0 else 0.0
-        write_time = (output_size / storage_throughput) + storage_latency if output_size > 0 else 0.0
+
+        remote_storage = next(
+            (s for s in self.node.storage.items if s.type.get("remote")),
+            None,
+        )
+        local_storage = next(
+            (s for s in self.node.storage.items if not s.type.get("remote")),
+            None,
+        )
+        network_bw = float(self.node.network.get("bandwidth", 1000.0))
+
+        if remote_storage is not None:
+            input_speed = min(
+                float(remote_storage.type["throughput"]["read"]),
+                network_bw,
+            )
+            read_latency = float(remote_storage.type["latency"]["read"])
+        else:
+            input_speed = 100.0
+            read_latency = 0.001
+
+        if local_storage is not None:
+            output_speed = min(
+                float(local_storage.type["throughput"]["write"]),
+                network_bw,
+            )
+            write_latency = float(local_storage.type["latency"]["write"])
+        else:
+            output_speed = 100.0
+            write_latency = 0.001
+
+        read_time = (input_size / (input_speed * 1024 * 1024)) + read_latency if input_size > 0 else 0.0
+        write_time = (output_size / (output_speed * 1024 * 1024)) + write_latency if output_size > 0 else 0.0
         comm = read_time + write_time
         
         return {
@@ -733,7 +795,11 @@ class Platform:
             return 0.0
         
         total_time = 0.0
-        previous_task_type = None
+        previous_task_type = (
+            self.previous_task.type["name"]
+            if self.previous_task is not None
+            else None
+        )
         
         for task in warmup_tasks:
             # Check if warm (same type as previous task)
@@ -758,15 +824,43 @@ class Platform:
                 if task.node_name in self.node.network_map:
                     network = self.node.network_map[task.node_name]
             
-            # Communication time (I/O)
+            # Communication time (I/O) with the same assumptions as platform_process.
             app_name = task.application.type["name"]
             input_size = task.type["stateSize"].get(app_name, {}).get("input", 0)
             output_size = task.type["stateSize"].get(app_name, {}).get("output", 0)
-            
-            storage_throughput = 100.0 * 1024 * 1024  # bytes/s
-            storage_latency = 0.001  # seconds
-            read_time = (input_size / storage_throughput) + storage_latency if input_size > 0 else 0.0
-            write_time = (output_size / storage_throughput) + storage_latency if output_size > 0 else 0.0
+
+            remote_storage = next(
+                (s for s in self.node.storage.items if s.type.get("remote")),
+                None,
+            )
+            local_storage = next(
+                (s for s in self.node.storage.items if not s.type.get("remote")),
+                None,
+            )
+            network_bw = float(self.node.network.get("bandwidth", 1000.0))
+
+            if remote_storage is not None:
+                input_speed = min(
+                    float(remote_storage.type["throughput"]["read"]),
+                    network_bw,
+                )
+                read_latency = float(remote_storage.type["latency"]["read"])
+            else:
+                input_speed = 100.0
+                read_latency = 0.001
+
+            if local_storage is not None:
+                output_speed = min(
+                    float(local_storage.type["throughput"]["write"]),
+                    network_bw,
+                )
+                write_latency = float(local_storage.type["latency"]["write"])
+            else:
+                output_speed = 100.0
+                write_latency = 0.001
+
+            read_time = (input_size / (input_speed * 1024 * 1024)) + read_latency if input_size > 0 else 0.0
+            write_time = (output_size / (output_speed * 1024 * 1024)) + write_latency if output_size > 0 else 0.0
             comm = read_time + write_time
             
             # Total time for this task
@@ -812,7 +906,11 @@ class Platform:
                     # Use the time before fast-forward as the base
                     fast_forward_start_time = self.env.now - total_time
                     cumulative_time = 0.0
-                    previous_task_type = None
+                    previous_task_type = (
+                        self.previous_task.type["name"]
+                        if self.previous_task is not None
+                        else None
+                    )
                     for warmup_task in self._warmup_tasks:
                         # Check if warm (same type as previous)
                         warm_function = (
@@ -822,9 +920,6 @@ class Platform:
                         
                         # Calculate time for this task
                         task_time = self._calculate_single_warmup_time(warmup_task)
-                        if not warm_function and previous_task_type is None:
-                            # First task may have cold start
-                            task_time['cold_start'] = warmup_task.type["coldStartDuration"][self.type["shortName"]]
                         
                         task_duration = (task_time['network'] + task_time['cold_start'] + 
                                         task_time['execution'] + task_time['comm'])
@@ -853,6 +948,19 @@ class Platform:
                     fast_forwarded = True
                     logging.info(f"[ {self.env.now} ] Fast-forward complete for {self}")
         
+        # Compressed warmup backlog: consume aggregate busy period once at startup.
+        # Doing this on first real queue pop shifts warmup delay to request time and
+        # does not match the non-fast-forward timeline.
+        if self.virtual_warmup_count > 0 and self.virtual_warmup_total_time > 0:
+            yield self.env.timeout(self.virtual_warmup_total_time)
+            if self.virtual_warmup_task_type:
+                self.previous_task = type(
+                    'Task', (), {'type': {'name': self.virtual_warmup_task_type}}
+                )()
+            self.virtual_warmup_count = 0
+            self.virtual_warmup_total_time = 0.0
+            self.virtual_warmup_task_type = None
+
         while True:
             # Wait for replica initialization (if not already done)
             if not fast_forwarded:
@@ -865,17 +973,6 @@ class Platform:
 
             # FIFO task selection in platform queue
             task: Task = yield self.queue.get()
-
-            # Compressed warmup backlog: apply aggregate delay once, then mark platform warm.
-            if self.virtual_warmup_count > 0 and self.virtual_warmup_total_time > 0:
-                yield self.env.timeout(self.virtual_warmup_total_time)
-                if self.virtual_warmup_task_type:
-                    self.previous_task = type(
-                        'Task', (), {'type': {'name': self.virtual_warmup_task_type}}
-                    )()
-                self.virtual_warmup_count = 0
-                self.virtual_warmup_total_time = 0.0
-                self.virtual_warmup_task_type = None
             
             # Skip warmup tasks that were fast-forwarded
             if fast_forwarded and getattr(task, 'is_internal', False) and hasattr(self, '_warmup_tasks') and task in self._warmup_tasks:

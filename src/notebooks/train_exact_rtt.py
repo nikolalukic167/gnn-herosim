@@ -2,27 +2,24 @@
 # %%
 #!/usr/bin/env python3
 """
-GNN for Task-to-Platform Placement Prediction - SEQUENTIAL COUNTERFACTUAL TRAINING.
+GNN for Task-to-Platform Placement Prediction - EXACT RTT RANKING TRAINING.
 
-Trains on graphs built by prepare_graphs_cache_seq.py (one graph per batch decision step).
+Trains on sequential counterfactual graphs (prepare_graphs_cache_exact_rtt.py).
 Uses a combined loss:
-  Loss = alpha * CrossEntropy + beta * StructuredRegretLoss
+  Loss = alpha * CrossEntropy + beta * ExactRttRankingLoss
 
-The StructuredRegretLoss:
-1. Samples negative placements from the RTT hash table (valid but suboptimal combos)
-2. Computes margin loss: max(0, Regret - (Score_Opt - Score_Neg))
-3. Directly optimizes for lower regret, not just classification accuracy
+ExactRttRankingLoss (no random sampling):
+1. Loads every co-sim (combo, exact RTT) for the parent dataset
+2. Sorts combos by RTT ascending
+3. Pairwise margin loss on adjacent pairs: lower RTT must score higher by exact ΔRTT
 
 NON-UNIQUE PLACEMENTS:
 - Multiple tasks can be placed on the same replica (node_id, platform_id)
 - Decoder uses greedy per-task selection (no uniqueness constraint)
-- Supports datasets: gnn_datasets_2tasks, gnn_datasets_3tasks, and gnn_datasets_4tasks
 """
 
 import gc
-import json
 import os
-import random
 import sys
 import time
 import numpy as np
@@ -48,16 +45,14 @@ _TRAIN_LOG_BATCH_EVERY = 25
 _TRAIN_LOG_SLOW_STEP_SEC = 20.0
 
 from non_unique_lib.cache_io import (
-    HardNegativeMap,
+    ExactRttLookupMap,
     PlacementToLogitMap,
-    CombinedRttLookup,
-    LazyChunkedRttLookup,
-    build_regret_training_lookups_from_hash_table,
-    build_regret_training_lookups_from_chunked_cache,
+    build_exact_rtt_index_lookups,
+    build_valid_combos_map_from_chunked_cache,
     create_cache_context,
     load_graphs_from_cache,
     load_optimal_rtt_from_cache,
-    load_rtt_hash_table_from_cache,
+    load_valid_combos_map,
 )
 from non_unique_lib.training_config import parse_training_config
 from non_unique_lib.seq_training_utils import (
@@ -67,7 +62,6 @@ from non_unique_lib.seq_training_utils import (
 )
 
 
-random.seed(42)
 np.random.seed(42)
 torch.manual_seed(42)
 torch.cuda.manual_seed_all(42)
@@ -75,18 +69,18 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 # %%
-# Configuration (default cache: sequential counterfactual graphs from prepare_graphs_cache_seq.py)
-_DEFAULT_SEQ_CACHE_DIR = (
+# Configuration (default: filtered high-queue sequential cache with exact RTT sidecar)
+_DEFAULT_EXACT_CACHE_DIR = (
     Path(__file__).resolve().parents[2]
     / "simulation_data"
     / "artifacts"
     / "run_queue_big"
-    / "graphs_cache_gnn_datasets_4tasks_seq"
+    / "graphs_cache_gnn_datasets_4tasks_seq_filtered"
 )
 
 RUNTIME_CONFIG = parse_training_config()
 if "--cache-dir" not in sys.argv:
-    RUNTIME_CONFIG = replace(RUNTIME_CONFIG, cache_dir=_DEFAULT_SEQ_CACHE_DIR)
+    RUNTIME_CONFIG = replace(RUNTIME_CONFIG, cache_dir=_DEFAULT_EXACT_CACHE_DIR)
 
 CACHE_CTX = create_cache_context(RUNTIME_CONFIG.cache_dir)
 SEQUENTIAL_CACHE = bool(CACHE_CTX.metadata.get("sequential_counterfactual", False))
@@ -108,12 +102,10 @@ REGRET_LOSS_WEIGHT = RUNTIME_CONFIG.regret_loss_weight
 CE_LOSS_WEIGHT = RUNTIME_CONFIG.ce_loss_weight
 NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
 PRECOMPUTE_RTT_LOOKUPS = RUNTIME_CONFIG.precompute_rtt_lookups
-STRATIFIED_NEGATIVES = os.environ.get("TRAIN_STRATIFIED_NEGATIVES", "0") == "1"
 print(
     f"[INFO] Cache version={_CACHE_VERSION} sequential={SEQUENTIAL_CACHE} "
-    f"stratified_negatives={STRATIFIED_NEGATIVES}"
+    f"exact_rtt_training={CACHE_CTX.metadata.get('exact_rtt_training', False)}"
 )
-HARD_NEGATIVE_FRACTION = RUNTIME_CONFIG.hard_negative_fraction
 
 print(f"Cache directory: {CACHE_CTX.cache_dir}")
 print(f"Cache mode: {'MERGED' if IS_MERGED_CACHE else 'SINGLE'}")
@@ -121,7 +113,7 @@ print(f"Sequential counterfactual cache: {SEQUENTIAL_CACHE}")
 if not SEQUENTIAL_CACHE:
     print(
         "WARNING: metadata.sequential_counterfactual is false; "
-        "run prepare_graphs_cache_seq.py and pass --cache-dir to match."
+        "run prepare_graphs_cache_exact_rtt.py and pass --cache-dir to match."
     )
 if TASK_COUNT_DIST:
     print("Task count distribution in cache:")
@@ -130,8 +122,7 @@ if TASK_COUNT_DIST:
 
 print(
     f"DataLoader num_workers={NUM_DATALOADER_WORKERS}, "
-    f"precompute_rtt_lookups={PRECOMPUTE_RTT_LOOKUPS}, "
-    f"hard_negative_fraction={HARD_NEGATIVE_FRACTION}"
+    f"precompute_rtt_lookups={PRECOMPUTE_RTT_LOOKUPS}"
 )
 
 
@@ -367,24 +358,36 @@ def loss_original_ce(logits_per_task, data, device):
     return loss_total / valid_tasks, valid_tasks
 
 
-class StructuredRegretLoss(nn.Module):
+class ExactRttRankingLoss(nn.Module):
     """
-    Margin-based loss that directly optimizes for regret.
+    Exact RTT ranking via pairwise margins on the full co-sim combo list.
 
-    Hard-negative pools and placement->logit maps are precomputed once at startup
-    so each forward pass only does O(1) hash-map lookups.
+    For parent dataset combos sorted by ascending RTT (a, b, c, ...):
+      loss += max(0, (RTT_b - RTT_a)/scale - (score_a - score_b))
+
+    Every combo uses its exact co-sim RTT; no random negatives or subsampling.
     """
 
     def __init__(
         self,
         rtt_scale: float,
-        hard_negative_map: HardNegativeMap,
-        placement_to_logit_map: PlacementToLogitMap,
+        exact_rtt_map: ExactRttLookupMap,
     ) -> None:
         super().__init__()
         self.rtt_scale = rtt_scale
-        self.hard_negative_map = hard_negative_map
-        self.placement_to_logit_map = placement_to_logit_map
+        self.exact_rtt_map = exact_rtt_map
+
+    def _combo_score(
+        self,
+        logits_per_task: List[torch.Tensor],
+        indices: List[int],
+    ) -> torch.Tensor:
+        score = torch.tensor(0.0, device=logits_per_task[0].device)
+        for t_idx, logit_idx in enumerate(indices):
+            if logit_idx >= logits_per_task[t_idx].numel():
+                return score.new_tensor(float("nan"))
+            score = score + logits_per_task[t_idx][logit_idx]
+        return score
 
     def forward(
         self,
@@ -392,23 +395,8 @@ class StructuredRegretLoss(nn.Module):
         data: Data,
         device: torch.device,
     ) -> Tuple[torch.Tensor, int, Dict[str, Any]]:
-        dataset_id = getattr(data, 'dataset_id', None)
-        opt_rtt = getattr(data, 'opt_rtt', None)
-        task_logit_to_placement = getattr(
-            data,
-            'task_logit_to_placement',
-            getattr(data, '_task_logit_to_placement', None),
-        )
         parent_dataset_id = getattr(data, "parent_dataset_id", None)
-        regret_lookup_id = parent_dataset_id or dataset_id
-        hard_negative_combos = self.hard_negative_map.get(regret_lookup_id or "", [])
-
-        if (
-            not dataset_id
-            or task_logit_to_placement is None
-            or opt_rtt is None
-            or not hard_negative_combos
-        ):
+        if not parent_dataset_id:
             return torch.tensor(0.0, device=device), 0, {}
 
         n_tasks = int(data.n_tasks)
@@ -417,66 +405,46 @@ class StructuredRegretLoss(nn.Module):
         if seq_step is not None and seq_n_tasks is not None and int(seq_step) != int(seq_n_tasks) - 1:
             return torch.tensor(0.0, device=device), 0, {}
 
-        for t_idx in range(n_tasks):
-            if data.y[t_idx].item() == -1:
-                return torch.tensor(0.0, device=device), 0, {}
-            if t_idx not in task_logit_to_placement:
-                return torch.tensor(0.0, device=device), 0, {}
-
-        score_opt = torch.tensor(0.0, device=device)
-        opt_indices = []
-
-        for t_idx in range(n_tasks):
-            opt_idx = data.y[t_idx].item()
-            if opt_idx >= logits_per_task[t_idx].numel():
-                return torch.tensor(0.0, device=device), 0, {}
-            score_opt = score_opt + logits_per_task[t_idx][opt_idx]
-            opt_indices.append(opt_idx)
-
-        neg_combo, neg_rtt = random.choice(hard_negative_combos)
-
-        placement_to_logit_by_task = self.placement_to_logit_map.get(
-            regret_lookup_id or dataset_id
-        )
-        neg_indices = []
-        for t_idx in range(n_tasks):
-            target_node_id, target_plat_id = neg_combo[t_idx]
-            found_idx = None
-            if placement_to_logit_by_task and t_idx < len(placement_to_logit_by_task):
-                found_idx = placement_to_logit_by_task[t_idx].get((target_node_id, target_plat_id))
-            if found_idx is None:
-                for logit_idx, (node_id, plat_id) in enumerate(task_logit_to_placement[t_idx]):
-                    if node_id == target_node_id and plat_id == target_plat_id:
-                        found_idx = logit_idx
-                        break
-            if found_idx is None:
-                return torch.tensor(0.0, device=device), 0, {}
-            neg_indices.append(found_idx)
-
-        score_neg = torch.tensor(0.0, device=device)
-        for t_idx in range(n_tasks):
-            neg_idx = neg_indices[t_idx]
-            if neg_idx >= logits_per_task[t_idx].numel():
-                return torch.tensor(0.0, device=device), 0, {}
-            score_neg = score_neg + logits_per_task[t_idx][neg_idx]
-
-        try:
-            opt_rtt_val = float(opt_rtt)
-        except (TypeError, ValueError):
+        entries = self.exact_rtt_map.get(parent_dataset_id, [])
+        if len(entries) < 2:
             return torch.tensor(0.0, device=device), 0, {}
-        regret = (float(neg_rtt) - opt_rtt_val) / self.rtt_scale
-        regret = max(0.0, regret)
 
-        margin = score_opt - score_neg
-        loss = F.relu(torch.tensor(regret, device=device) - margin)
+        scores: List[torch.Tensor] = []
+        rtts: List[float] = []
+        for indices, rtt in entries:
+            if len(indices) != n_tasks:
+                continue
+            score = self._combo_score(logits_per_task, indices)
+            if torch.isnan(score):
+                continue
+            scores.append(score)
+            rtts.append(float(rtt))
+
+        if len(scores) < 2:
+            return torch.tensor(0.0, device=device), 0, {}
+
+        loss = torch.tensor(0.0, device=device)
+        n_active = 0
+        for k in range(len(scores) - 1):
+            rtt_gap = (rtts[k + 1] - rtts[k]) / self.rtt_scale
+            if rtt_gap <= 0.0:
+                continue
+            margin = scores[k] - scores[k + 1]
+            pair_loss = F.relu(torch.tensor(rtt_gap, device=device) - margin)
+            if pair_loss.item() > 1e-12:
+                n_active += 1
+            loss = loss + pair_loss
+
+        n_pairs = len(scores) - 1
+        loss = loss / max(1, n_pairs)
 
         stats = {
-            'regret': regret,
-            'margin': margin.item(),
-            'score_opt': score_opt.item(),
-            'score_neg': score_neg.item(),
+            "n_combos": len(scores),
+            "n_pairs": n_pairs,
+            "n_active_pairs": n_active,
+            "opt_rtt": rtts[0],
+            "worst_rtt": rtts[-1],
         }
-
         return loss, 1, stats
 
 
@@ -616,28 +584,16 @@ def _regret_lookup_graphs(
     return rep_graphs, rep_ids
 
 
-def _alias_seq_regret_lookups(
+def _alias_seq_exact_lookups(
     graphs: List[Data],
     dataset_ids: List[str],
-    placement_to_logit: PlacementToLogitMap,
-    hard_negative_map: HardNegativeMap,
+    exact_rtt_map: ExactRttLookupMap,
 ) -> None:
-    """Copy parent regret lookup tables onto each sequential graph id."""
+    """Copy parent exact RTT lookup tables onto each sequential graph id."""
     for graph, graph_id in zip(graphs, dataset_ids):
         parent_id = getattr(graph, "parent_dataset_id", None)
-        if not parent_id:
-            continue
-        if parent_id in hard_negative_map:
-            hard_negative_map[graph_id] = hard_negative_map[parent_id]
-        if parent_id in placement_to_logit:
-            placement_to_logit[graph_id] = placement_to_logit[parent_id]
-        elif graph_id not in placement_to_logit:
-            task_map = getattr(graph, "task_logit_to_placement", None)
-            if task_map:
-                placement_to_logit[graph_id] = [
-                    {placement: idx for idx, placement in enumerate(task_map.get(t_idx, []))}
-                    for t_idx in range(int(graph.n_tasks))
-                ]
+        if parent_id and parent_id in exact_rtt_map:
+            exact_rtt_map[graph_id] = exact_rtt_map[parent_id]
 
 
 def create_dataloader(dataset, *, shuffle: bool, pin_memory: bool) -> DataLoader:
@@ -685,7 +641,7 @@ def train_epoch(
     optimizer, 
     device, 
     epoch_num,
-    regret_criterion: StructuredRegretLoss,
+    exact_rtt_criterion: ExactRttRankingLoss,
     ce_weight: float,
     regret_weight: float,
     is_last_epoch: bool = False
@@ -696,8 +652,9 @@ def train_epoch(
     running_total = 0.0
     n_steps = 0
     n_regret_steps = 0
-    n_valid_regret = 0
-    n_regret_active = 0
+    n_valid_exact = 0
+    n_exact_active = 0
+    n_exact_pairs = 0
     running_ce_final = 0.0
     n_final_ce = 0
     final_tasks_correct = 0
@@ -733,9 +690,9 @@ def train_epoch(
             graphs_in_batch = graphs_from_batch(batch)
 
             loss_ce_total = torch.zeros(1, device=device)
-            loss_regret_total = torch.zeros(1, device=device)
+            loss_exact_total = torch.zeros(1, device=device)
             n_graphs_ce = 0
-            n_graphs_regret = 0
+            n_graphs_exact = 0
 
             for data in graphs_in_batch:
                 dataset_id_saved = getattr(data, 'dataset_id', None)
@@ -787,28 +744,29 @@ def train_epoch(
                             if int(task_logits.argmax().item()) == int(target.item()):
                                 final_tasks_correct += 1
 
-                # Structured regret loss
-                loss_regret, valid_regret, stats = regret_criterion(
+                # Exact RTT pairwise ranking loss (final step only)
+                loss_exact, valid_exact, stats = exact_rtt_criterion(
                     logits_per_task, data, device
                 )
-                if valid_regret > 0 and not (torch.isnan(loss_regret) or torch.isinf(loss_regret)):
-                    loss_regret_total = loss_regret_total + loss_regret
-                    n_graphs_regret += 1
-                    if loss_regret.item() > 1e-8:
-                        n_regret_active += 1
+                if valid_exact > 0 and not (torch.isnan(loss_exact) or torch.isinf(loss_exact)):
+                    loss_exact_total = loss_exact_total + loss_exact
+                    n_graphs_exact += 1
+                    n_exact_pairs += int(stats.get("n_pairs", 0))
+                    if int(stats.get("n_active_pairs", 0)) > 0:
+                        n_exact_active += 1
 
             if n_graphs_ce == 0:
                 continue
 
             # Average losses
             loss_ce_avg = loss_ce_total / n_graphs_ce
-            if n_graphs_regret > 0:
-                loss_regret_avg = loss_regret_total / n_graphs_regret
+            if n_graphs_exact > 0:
+                loss_exact_avg = loss_exact_total / n_graphs_exact
             else:
-                loss_regret_avg = torch.zeros(1, device=device)
+                loss_exact_avg = torch.zeros(1, device=device)
             
             # Combined loss
-            loss = ce_weight * loss_ce_avg + regret_weight * loss_regret_avg
+            loss = ce_weight * loss_ce_avg + regret_weight * loss_exact_avg
 
             if torch.isnan(loss) or torch.isinf(loss):
                 continue
@@ -819,12 +777,12 @@ def train_epoch(
             stepped = True
 
             running_ce += loss_ce_avg.item()
-            if n_graphs_regret > 0:
-                running_regret += loss_regret_avg.item()
+            if n_graphs_exact > 0:
+                running_regret += loss_exact_avg.item()
                 n_regret_steps += 1
             running_total += loss.item()
             n_steps += 1
-            n_valid_regret += n_graphs_regret
+            n_valid_exact += n_graphs_exact
 
         finally:
             step_dt = time.perf_counter() - t_step
@@ -842,16 +800,17 @@ def train_epoch(
                     flush=True,
                 )
     
-    print(f"\n[Epoch {epoch_num}] Processed {len(dataset_ids_processed)} datasets, valid regret samples: {n_valid_regret}")
+    print(f"\n[Epoch {epoch_num}] Processed {len(dataset_ids_processed)} datasets, exact RTT graphs: {n_valid_exact}")
 
     return {
         'ce': running_ce / max(1, n_steps),
         'regret_loss': running_regret / max(1, n_regret_steps),
         'total': running_total / max(1, n_steps),
-        'n_valid_regret': n_valid_regret,
-        'n_regret_active': n_regret_active,
+        'n_valid_exact': n_valid_exact,
+        'n_exact_active': n_exact_active,
+        'n_exact_pairs': n_exact_pairs,
         'n_regret_steps': n_regret_steps,
-        'regret_active_fraction': n_regret_active / max(1, n_valid_regret),
+        'regret_active_fraction': n_exact_active / max(1, n_valid_exact),
         'ce_final': running_ce_final / max(1, n_final_ce),
         'acc_final': final_tasks_correct / max(1, final_tasks_total),
         'n_final_ce_graphs': n_final_ce,
@@ -1147,7 +1106,7 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
 
 # %%
 # ========================================================================
-# Load graphs from cache (supports EXTRA_CACHE_DIR for combining two caches)
+# Load graphs from cache (filtered high-queue sequential; no overnight merge)
 # ========================================================================
 graphs, dataset_ids = load_graphs_from_cache(CACHE_CTX)
 
@@ -1156,108 +1115,54 @@ if len(graphs) == 0:
     exit(1)
 
 print(
-    "[INFO] Running preloaded RTT hash-table backend "
+    "[INFO] Running exact RTT training backend "
     f"('{CACHE_CTX.rtt_combos_backend}')"
 )
 
-PLACEMENT_RTT_HASH_TABLE = load_rtt_hash_table_from_cache(CACHE_CTX.cache_dir)
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
-print(f"[dbg] placement_rtt combos: {len(PLACEMENT_RTT_HASH_TABLE):,}")
 
-# Optional: merge a second cache (e.g. high-queue overnight seq cache) at training time.
-# Set EXTRA_CACHE_DIR to the path of the additional cache directory.
-_extra_cache_dir_env = os.environ.get("EXTRA_CACHE_DIR", "").strip()
-_EXTRA_RTT_CHUNKED_LOOKUP: Optional[LazyChunkedRttLookup] = None
-_EXTRA_PARENT_IDS: set = set()
-if _extra_cache_dir_env:
-    _extra_cache_dir = Path(_extra_cache_dir_env)
-    if _extra_cache_dir.exists():
-        print(f"[INFO] Loading extra cache from {_extra_cache_dir}")
-        _extra_ctx = create_cache_context(_extra_cache_dir)
-        _extra_graphs, _extra_ids = load_graphs_from_cache(_extra_ctx)
-        _extra_opt_rtt = load_optimal_rtt_from_cache(_extra_ctx)
-        _extra_load_rtt_env = os.environ.get("EXTRA_CACHE_LOAD_RTT", "auto").strip().lower()
-        _extra_meta_path = _extra_cache_dir / "metadata.json"
-        _extra_rtt_filtered = False
-        if _extra_meta_path.exists():
-            with open(_extra_meta_path, "r") as _mf:
-                _extra_meta = json.load(_mf)
-            _extra_rtt_filtered = bool(_extra_meta.get("rtt_built_from_filter_ids"))
-        if _extra_load_rtt_env == "auto":
-            _load_extra_rtt = _extra_rtt_filtered
-        else:
-            _load_extra_rtt = _extra_load_rtt_env in ("1", "true", "yes")
-        _EXTRA_PARENT_IDS = {ds_id.split("@seq")[0] for ds_id in _extra_ids}
-        if _load_extra_rtt:
-            _EXTRA_RTT_CHUNKED_LOOKUP = LazyChunkedRttLookup(_extra_cache_dir, _EXTRA_PARENT_IDS)
-            print(
-                "[INFO] Extra cache RTT: streaming regret lookups + lazy chunked eval "
-                f"({len(_EXTRA_PARENT_IDS)} parent datasets, not loaded into RAM)"
-            )
-        else:
-            print(
-                "[INFO] Extra cache RTT skipped (CE-only for extra graphs). "
-                "Set EXTRA_CACHE_LOAD_RTT=1 to force, or rebuild with --rtt-only --filter-ids-file for auto."
-            )
-        _extra_graph_count = len(_extra_ids)
-        graphs = graphs + _extra_graphs
-        dataset_ids = dataset_ids + _extra_ids
-        DATA_OPTIMAL_RTT.update(_extra_opt_rtt)
-        del _extra_graphs, _extra_ids, _extra_opt_rtt
-        print(
-            f"[INFO] After merge: {len(graphs)} total graphs, "
-            f"{len(PLACEMENT_RTT_HASH_TABLE):,} primary RTT combos"
-        )
-        _EXTRA_CACHE_GRAPH_COUNT = _extra_graph_count
-        _EXTRA_CACHE_CE_ONLY = not _load_extra_rtt
-    else:
-        print(f"[WARN] EXTRA_CACHE_DIR={_extra_cache_dir_env} does not exist, skipping")
-        _EXTRA_CACHE_GRAPH_COUNT = 0
-        _EXTRA_CACHE_CE_ONLY = False
-else:
-    _EXTRA_CACHE_GRAPH_COUNT = 0
-    _EXTRA_CACHE_CE_ONLY = False
+parent_ids_in_graphs = {
+    ds_id.split("@seq")[0] for ds_id in dataset_ids
+}
 
-RTT_LOOKUP_FOR_EVAL = CombinedRttLookup(PLACEMENT_RTT_HASH_TABLE, _EXTRA_RTT_CHUNKED_LOOKUP)
+EXACT_RTT_MAP: ExactRttLookupMap = {}
+PLACEMENT_TO_LOGIT_MAP: PlacementToLogitMap = {}
+PLACEMENT_RTT_HASH_TABLE: Dict[Tuple[str, Tuple], float] = {}
 
 if PRECOMPUTE_RTT_LOOKUPS:
+    valid_combos_map = load_valid_combos_map(CACHE_CTX.cache_dir)
+    if valid_combos_map is None:
+        print("[INFO] valid_combos_map.pkl missing; streaming RTT chunks to build exact combos...")
+        valid_combos_map = build_valid_combos_map_from_chunked_cache(
+            CACHE_CTX.cache_dir,
+            parent_ids_in_graphs,
+        )
+    else:
+        valid_combos_map = {
+            k: v for k, v in valid_combos_map.items() if k in parent_ids_in_graphs
+        }
+
+    for ds_id, combos in valid_combos_map.items():
+        for combo, rtt in combos:
+            PLACEMENT_RTT_HASH_TABLE[(ds_id, combo)] = float(rtt)
+    print(
+        f"[INFO] Built in-memory exact RTT hash for {len(parent_ids_in_graphs)} parent datasets "
+        f"({len(PLACEMENT_RTT_HASH_TABLE):,} combos in RAM)"
+    )
+
     regret_graphs, regret_ids = _regret_lookup_graphs(graphs, dataset_ids)
-    primary_regret = [
-        (g, rid) for g, rid in zip(regret_graphs, regret_ids) if rid not in _EXTRA_PARENT_IDS
-    ]
-    extra_regret = [
-        (g, rid) for g, rid in zip(regret_graphs, regret_ids) if rid in _EXTRA_PARENT_IDS
-    ]
-    PLACEMENT_TO_LOGIT_MAP: PlacementToLogitMap = {}
-    HARD_NEGATIVE_MAP: HardNegativeMap = {}
-    if primary_regret:
-        ptl, hn = build_regret_training_lookups_from_hash_table(
-            [p[0] for p in primary_regret],
-            [p[1] for p in primary_regret],
-            PLACEMENT_RTT_HASH_TABLE,
-            hard_negative_fraction=HARD_NEGATIVE_FRACTION,
-            stratified=STRATIFIED_NEGATIVES,
-        )
-        PLACEMENT_TO_LOGIT_MAP.update(ptl)
-        HARD_NEGATIVE_MAP.update(hn)
-    if extra_regret and _EXTRA_RTT_CHUNKED_LOOKUP is not None:
-        for g, rid in extra_regret:
-            g.opt_rtt = float(DATA_OPTIMAL_RTT.get(rid, 0.0))
-        ptl, hn = build_regret_training_lookups_from_chunked_cache(
-            Path(_extra_cache_dir_env),
-            [p[0] for p in extra_regret],
-            [p[1] for p in extra_regret],
-            hard_negative_fraction=HARD_NEGATIVE_FRACTION,
-            stratified=STRATIFIED_NEGATIVES,
-        )
-        PLACEMENT_TO_LOGIT_MAP.update(ptl)
-        HARD_NEGATIVE_MAP.update(hn)
-    _alias_seq_regret_lookups(graphs, dataset_ids, PLACEMENT_TO_LOGIT_MAP, HARD_NEGATIVE_MAP)
+    PLACEMENT_TO_LOGIT_MAP, EXACT_RTT_MAP = build_exact_rtt_index_lookups(
+        regret_graphs,
+        regret_ids,
+        valid_combos_map,
+    )
+    _alias_seq_exact_lookups(graphs, dataset_ids, EXACT_RTT_MAP)
+    del valid_combos_map
     gc.collect()
 else:
-    print("[WARN] precompute_rtt_lookups disabled; regret training will produce zero valid samples")
-    PLACEMENT_TO_LOGIT_MAP = {}
-    HARD_NEGATIVE_MAP = {}
+    print("[WARN] precompute_rtt_lookups disabled; exact RTT training will produce zero valid samples")
+
+RTT_LOOKUP_FOR_EVAL = PLACEMENT_RTT_HASH_TABLE
 
 for g in graphs:
     ensure_graph_ce_label_mask(g)
@@ -1358,23 +1263,23 @@ wandb.init(
         "ce_weight": float(CE_LOSS_WEIGHT),
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
-        "loss_type": "CE + StructuredRegret",
+        "loss_type": "CE + ExactRttRanking",
+        "exact_rtt_training": True,
         "sequential_counterfactual": bool(SEQUENTIAL_CACHE),
         "cache_mode": "merged" if IS_MERGED_CACHE else "single",
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
         "non_unique_placements": True,  # Flag to indicate non-unique support
         "precompute_rtt_lookups": bool(PRECOMPUTE_RTT_LOOKUPS),
-        "hard_negative_fraction": float(HARD_NEGATIVE_FRACTION),
-        "stratified_negatives": bool(STRATIFIED_NEGATIVES),
+        "num_exact_rtt_parent_datasets": len(EXACT_RTT_MAP),
+        "num_exact_rtt_combo_rows": sum(len(v) for v in EXACT_RTT_MAP.values()),
         "rtt_combos_backend": CACHE_CTX.rtt_combos_backend,
         "num_datasets": int(len(graphs)),
         "num_train": int(len(train_graphs)),
         "num_val": int(len(val_graphs)),
         "num_test": int(len(test_graphs)),
-        "extra_cache_graph_count": int(_EXTRA_CACHE_GRAPH_COUNT),
-        "extra_cache_ce_only": bool(_EXTRA_CACHE_CE_ONLY),
         "init_checkpoint": os.environ.get("TRAIN_INIT_CHECKPOINT", ""),
-    }
+    },
+    tags=[t for t in os.environ.get("WANDB_TAGS", "exact-rtt,filtered-883").split(",") if t],
 )
 
 MODEL_FILENAME = f"{wandb.run.name}.pt"
@@ -1413,10 +1318,9 @@ if _init_ckpt:
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
-regret_criterion = StructuredRegretLoss(
+exact_rtt_criterion = ExactRttRankingLoss(
     rtt_scale=RTT_SCALE_FACTOR,
-    hard_negative_map=HARD_NEGATIVE_MAP,
-    placement_to_logit_map=PLACEMENT_TO_LOGIT_MAP,
+    exact_rtt_map=EXACT_RTT_MAP,
 )
 
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
@@ -1450,9 +1354,9 @@ def prefix_metric_dict(metrics: Dict[str, Any], prefix: str) -> Dict[str, Any]:
 # Training loop
 # ========================================================================
 print("="*80)
-print("TRAINING (CE + Structured Regret Loss)")
+print("TRAINING (CE + Exact RTT Pairwise Ranking)")
 print("="*80)
-print(f"CE Weight: {CE_LOSS_WEIGHT}, Regret Weight: {REGRET_LOSS_WEIGHT}")
+print(f"CE Weight: {CE_LOSS_WEIGHT}, Exact RTT Weight: {REGRET_LOSS_WEIGHT}")
 print()
 
 if os.environ.get("WANDB_WATCH", "0") == "1":
@@ -1475,7 +1379,7 @@ for epoch in range(EPOCHS):
     # Train
     train_losses = train_epoch(
         model, train_loader, optimizer, DEVICE, epoch,
-        regret_criterion=regret_criterion,
+        exact_rtt_criterion=exact_rtt_criterion,
         ce_weight=CE_LOSS_WEIGHT,
         regret_weight=REGRET_LOSS_WEIGHT,
         is_last_epoch=is_last_epoch
@@ -1504,8 +1408,9 @@ for epoch in range(EPOCHS):
         "train/weighted_regret": safe_float(weighted_regret),
         "train/regret_loss_fraction": safe_float(regret_fraction),
         "train/regret_active_fraction": safe_float(train_losses['regret_active_fraction']),
-        "train/n_valid_regret": int(train_losses['n_valid_regret']),
-        "train/n_regret_active": int(train_losses['n_regret_active']),
+        "train/n_valid_exact": int(train_losses.get('n_valid_exact', 0)),
+        "train/n_exact_active": int(train_losses.get('n_exact_active', 0)),
+        "train/n_exact_pairs": int(train_losses.get('n_exact_pairs', 0)),
         "train/n_regret_steps": int(train_losses.get('n_regret_steps', 0)),
         "config/ce_loss_weight": float(CE_LOSS_WEIGHT),
         "config/regret_loss_weight": float(REGRET_LOSS_WEIGHT),
@@ -1555,8 +1460,8 @@ for epoch in range(EPOCHS):
               f"Train CE: {train_losses['ce']:.4f} | "
               f"Train CE final: {train_losses.get('ce_final', 0):.4f} | "
               f"Train acc final: {train_losses.get('acc_final', 0)*100:.1f}% | "
-              f"Train Regret: {train_losses['regret_loss']:.4f} ({train_losses.get('n_regret_steps', 0)} steps) | "
-              f"Regret active: {train_losses['regret_active_fraction']*100:.1f}% | "
+              f"Train Exact RTT: {train_losses['regret_loss']:.4f} ({train_losses.get('n_valid_exact', 0)} graphs) | "
+              f"Exact active: {train_losses['regret_active_fraction']*100:.1f}% | "
               f"Val acc final: {val_metrics.get('acc_final', 0)*100:.2f}% | "
               f"Val Regret: {val_metrics['regret']:.4f}s (coverage {val_metrics.get('regret_coverage', 0)*100:.0f}%) | "
               f"Val Regret seq: {val_metrics.get('regret_seq', val_metrics.get('regret_decode', 0)):.4f}s")

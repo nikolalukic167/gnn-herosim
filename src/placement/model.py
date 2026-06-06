@@ -546,6 +546,8 @@ scheduling_strategies: Dict[str, str] = {
     "determined_determined": "DETERMINED-DETERMINED",
     "evaluator_evaluator": "EVALUATOR-EVALUATOR",
     "kn_network_kn_network": "KN-NETWORK-KN-NETWORK",
+    "kn_network_ect_kn_network_ect": "KN-NETWORK-ECT-KN-NETWORK-ECT",
+    "kn_network_batch_kn_network_batch": "KN-NETWORK-BATCH-KN-NETWORK-BATCH",
     "rr_network_rr_network": "RR-NETWORK-RR-NETWORK",
     "hrc_network_hrc_network": "HRC-NETWORK-HRC-NETWORK",
     "hrc_network_batch_hrc_network_batch": "HRC-NETWORK-BATCH-HRC-NETWORK-BATCH",

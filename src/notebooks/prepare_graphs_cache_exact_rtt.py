@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 """
-Pre-generate and cache SEQUENTIAL counterfactual graphs for GNN training (NON-UNIQUE VERSION).
+Pre-generate and cache SEQUENTIAL counterfactual graphs for EXACT RTT training.
+
+Builds the same sequential graphs as prepare_graphs_cache_seq.py, plus
+valid_combos_map.pkl: every co-sim (placement combo, exact RTT) sorted by RTT.
+Used by train_exact_rtt.py for pairwise ranking loss (no random negatives).
 
 For each co-sim dataset with N tasks, emits N graphs:
   - Step s uses queue snapshot after placing optimal replicas for tasks 0..s-1
@@ -40,6 +44,10 @@ from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
 from tqdm import tqdm
 
+from non_unique_lib.cache_io import (
+    build_valid_combos_map_from_chunked_cache,
+    save_valid_combos_map,
+)
 from non_unique_lib.seq_training_utils import (
     apply_prefix_optimal_labels,
     logit_index_for_placement,
@@ -124,6 +132,7 @@ class Config:
     filter_ids: Optional[set] = None  # if set, only build graphs for these dataset IDs
     rtt_only: bool = False  # rebuild RTT chunks only (skip graph generation)
     prune_graphs_no_rtt: bool = False  # drop graphs whose parent dataset has no RTT combos
+    enrich_only: bool = False  # write valid_combos_map.pkl from existing RTT chunks
 
 
 def _default_base_dirs(project_root: Path, merge_datasets: bool) -> List[Path]:
@@ -179,6 +188,14 @@ def parse_args() -> Config:
             "Use with --rtt-only to refresh an existing cache."
         ),
     )
+    parser.add_argument(
+        "--enrich-only",
+        action="store_true",
+        help=(
+            "Skip graph/RTT rebuild; stream existing RTT chunks and write valid_combos_map.pkl "
+            "for parent datasets already in the cache."
+        ),
+    )
     args = parser.parse_args()
 
     if args.queue_norm_mode == "fixed" and args.queue_norm_factor <= 0:
@@ -188,9 +205,9 @@ def parse_args() -> Config:
     if args.cache_dir:
         cache_dir = args.cache_dir
     elif args.merge_datasets:
-        cache_dir = base_dirs[0].parent / "graphs_cache_merged_2_3_4_tasks"
+        cache_dir = base_dirs[0].parent / "graphs_cache_merged_2_3_4_tasks_exact_rtt"
     else:
-        cache_dir = base_dirs[0].parent / f"graphs_cache_{base_dirs[0].name}_seq"
+        cache_dir = base_dirs[0].parent / f"graphs_cache_{base_dirs[0].name}_exact_rtt"
 
     priors_path = args.priors_path or (args.project_root / "data" / "nofs-ids" / "task-types.json")
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -216,6 +233,7 @@ def parse_args() -> Config:
         filter_ids=filter_ids,
         rtt_only=args.rtt_only,
         prune_graphs_no_rtt=args.prune_graphs_no_rtt,
+        enrich_only=args.enrich_only,
     )
 
 
@@ -226,7 +244,7 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "6.3-seq-model"  # model-centric training: co-sim per-task queues, prefix labels, no seqblend teacher
+CACHE_VERSION = "6.3-exact-rtt"  # sequential graphs + valid_combos_map.pkl for exact RTT ranking training
 # - RTT combos consumed lazily from placements/placements.jsonl during training (no LMDB build)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
@@ -1622,6 +1640,36 @@ def build_sequential_graphs_for_dataset(
 # MAIN SCRIPT
 # ============================================================================
 
+def _parent_ids_from_cache(cache_dir: Path) -> set:
+    dataset_ids_path = cache_dir / "dataset_ids.pkl"
+    if not dataset_ids_path.exists():
+        raise FileNotFoundError(f"dataset_ids.pkl not found in {cache_dir}")
+    with open(dataset_ids_path, "rb") as f:
+        dataset_ids = pickle.load(f)
+    return {ds_id.split(SEQ_DATASET_ID_SEP)[0] for ds_id in dataset_ids}
+
+
+def _enrich_exact_rtt_sidecar(cache_dir: Path) -> None:
+    parent_ids = _parent_ids_from_cache(cache_dir)
+    valid_combos_map = build_valid_combos_map_from_chunked_cache(cache_dir, parent_ids)
+    save_valid_combos_map(cache_dir, valid_combos_map)
+    metadata_path = cache_dir / "metadata.json"
+    metadata: Dict = {}
+    if metadata_path.exists():
+        with open(metadata_path, "r") as f:
+            metadata = json.load(f)
+    metadata.update(
+        {
+            "exact_rtt_training": True,
+            "valid_combos_map_rel_path": "valid_combos_map.pkl",
+            "num_exact_rtt_parent_datasets": len(valid_combos_map),
+            "num_exact_rtt_combo_rows": sum(len(v) for v in valid_combos_map.values()),
+        }
+    )
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+
 def main():
     config = parse_args()
     script_start_time = time.perf_counter()
@@ -1640,6 +1688,12 @@ def main():
     dataset_ids_cache_path = config.cache_dir / "dataset_ids.pkl"
     optimal_rtt_cache_path = config.cache_dir / "optimal_rtt.pkl"
     metadata_cache_path = config.cache_dir / "metadata.json"
+
+    if config.enrich_only:
+        logger.info("Enrich-only mode: building valid_combos_map.pkl in %s", config.cache_dir)
+        _enrich_exact_rtt_sidecar(config.cache_dir)
+        logger.info("Enrich-only complete.")
+        return
 
     if config.rtt_only:
         logger.info("RTT-only mode: rebuilding hash chunks in %s", config.cache_dir)
@@ -1844,6 +1898,8 @@ def main():
     metadata = {
         'version': CACHE_VERSION,
         'sequential_counterfactual': True,
+        'exact_rtt_training': True,
+        'valid_combos_map_rel_path': 'valid_combos_map.pkl',
         'seq_dataset_id_sep': SEQ_DATASET_ID_SEP,
         'num_parent_datasets': len(all_datasets),
         'merged_datasets': config.merge_datasets,
@@ -1869,6 +1925,14 @@ def main():
     with open(metadata_cache_path, 'w') as f:
         json.dump(metadata, f, indent=2)
     logger.info("  Saved metadata to %s", metadata_cache_path)
+
+    parent_ids = {ds_id.split(SEQ_DATASET_ID_SEP)[0] for ds_id in dataset_ids}
+    valid_combos_map = build_valid_combos_map_from_chunked_cache(config.cache_dir, parent_ids)
+    save_valid_combos_map(config.cache_dir, valid_combos_map)
+    metadata["num_exact_rtt_parent_datasets"] = len(valid_combos_map)
+    metadata["num_exact_rtt_combo_rows"] = sum(len(v) for v in valid_combos_map.values())
+    with open(metadata_cache_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
 
     step5_time = time.perf_counter() - step5_start
     total_time = time.perf_counter() - script_start_time
