@@ -114,6 +114,8 @@ def parse_arguments() -> argparse.Namespace:
                        help="Random seed for deterministic network topology")
     parser.add_argument("--workload", type=str, default=None,
                        help="Path to workload JSON (default: workload-200-200.json)")
+    parser.add_argument("--config", type=str, default=None,
+                       help="Path to simulation config JSON (default: simulation_data/space_with_network.json)")
     parser.add_argument("--output", type=str, default=None,
                        help="Path to result JSON (default: simulation_data/results/simulation_result_<policy>.json)")
     
@@ -214,11 +216,13 @@ def main():
     (BASE_DIR / "logs").mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
+    config_file = CONFIG_FILE if args.config is None else Path(args.config)
+
     # Print configuration (flush so nohup logs show header first, not after child output)
     def log(msg: str) -> None:
         print(msg, flush=True)
     log(f"=== Simulation Runner: {policy_name} ===")
-    log(f"Config file: {CONFIG_FILE}")
+    log(f"Config file: {config_file}")
     log(f"Workload file: {workload_file}")
     log(f"Output file: {output_file}")
     log(f"Scheduling strategy: {scheduling_strategy}")
@@ -227,11 +231,11 @@ def main():
         log(f"Seed: {args.seed}")
     log(f"Progress log: {progress_log}")
     log("")
-    validate_files(CONFIG_FILE, workload_file)
+    validate_files(config_file, workload_file)
     log("Starting simulation...")
     exit_code, duration = run_simulation(
         policy=args.policy,
-        config_file=CONFIG_FILE,
+        config_file=config_file,
         workload_file=workload_file,
         output_file=output_file,
         timeout=args.timeout,

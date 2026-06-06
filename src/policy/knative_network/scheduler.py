@@ -17,6 +17,7 @@ limitations under the License.
 from __future__ import annotations
 
 import logging
+import json
 import os
 from typing import Generator, Set, Tuple, List, Dict, Any, Optional, TYPE_CHECKING
 
@@ -35,6 +36,7 @@ class KnativeScheduler(Scheduler):
         super().__init__(*args, **kwargs)
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
+        self._audit_snapshots_written = 0
     
     def scheduler_process(self):
         """Override to check for valid network-connected replicas."""
@@ -95,6 +97,13 @@ class KnativeScheduler(Scheduler):
             # Schedule tasks according to policy
             (sched_node, sched_platform) = yield self.env.process(
                 self.placement(system_state, task)
+            )
+
+            self._maybe_capture_live_audit_snapshot(
+                system_state=system_state,
+                task=task,
+                chosen_node=sched_node,
+                chosen_platform=sched_platform,
             )
 
             # Store execution node/platform on task
@@ -195,6 +204,130 @@ class KnativeScheduler(Scheduler):
                 elif hasattr(node, 'network_map') and task.node_name in node.network_map:
                     valid_replicas.append((node, platform))
         return valid_replicas
+
+    # ==================== Live Oracle Audit Capture ====================
+
+    def _maybe_capture_live_audit_snapshot(
+        self,
+        system_state: SystemState,
+        task: 'Task',
+        chosen_node: 'Node',
+        chosen_platform: 'Platform',
+    ) -> None:
+        output_path = os.environ.get("LIVE_AUDIT_SNAPSHOT_PATH")
+        if not output_path:
+            return
+
+        max_snapshots = int(os.environ.get("LIVE_AUDIT_MAX_SNAPSHOTS", "500"))
+        if self._audit_snapshots_written >= max_snapshots:
+            return
+
+        stride = max(1, int(os.environ.get("LIVE_AUDIT_STRIDE", "1")))
+        if task.id % stride != 0:
+            return
+
+        horizon = max(1, int(os.environ.get("LIVE_AUDIT_HORIZON", "1")))
+        ready_tasks = [
+            queued_task
+            for queued_task in self.tasks.items
+            if all(dependency.finished for dependency in queued_task.dependencies)
+        ]
+        audit_tasks = [task] + ready_tasks[: max(0, horizon - 1)]
+
+        snapshot = {
+            "snapshot_id": self._audit_snapshots_written,
+            "time": float(self.env.now),
+            "policy": "knative_network",
+            "horizon": len(audit_tasks),
+            "trigger_task_id": int(task.id),
+            "chosen": {
+                "task_id": int(task.id),
+                "node_id": int(chosen_node.id),
+                "node_name": chosen_node.node_name,
+                "platform_id": int(chosen_platform.id),
+                "platform_type": chosen_platform.type["shortName"],
+                "queue_key": f"{chosen_node.node_name}:{chosen_platform.id}",
+            },
+            "full_queue_snapshot": self._capture_full_queue_snapshot(),
+            "tasks": [
+                self._audit_task_payload(system_state, audit_task)
+                for audit_task in audit_tasks
+            ],
+        }
+
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        with open(output_path, "a") as f:
+            f.write(json.dumps(snapshot, separators=(",", ":")) + "\n")
+        self._audit_snapshots_written += 1
+
+    def _audit_task_payload(self, system_state: SystemState, task: 'Task') -> Dict[str, Any]:
+        replicas: Set[Tuple[Node, Platform]] = system_state.replicas.get(task.type["name"], set())
+        valid_replicas = self._get_valid_replicas(replicas, task)
+        return {
+            "task_id": int(task.id),
+            "task_type": task.type["name"],
+            "source_node": task.node_name,
+            "qos": task.application.qos if task.application else {},
+            "candidate_count": len(valid_replicas),
+            "candidates": [
+                self._audit_candidate_payload(task, node, platform)
+                for node, platform in valid_replicas
+            ],
+        }
+
+    def _audit_candidate_payload(
+        self,
+        task: 'Task',
+        node: 'Node',
+        platform: 'Platform',
+    ) -> Dict[str, Any]:
+        queue_key = f"{node.node_name}:{platform.id}"
+        temporal = self._capture_temporal_state_for_replicas([(node, platform)]).get(queue_key, {})
+        task_type = task.type
+        platform_type = platform.type["shortName"]
+        state_size = task_type.get("stateSize", {})
+        app_name = task.application.type.get("name", "") if task.application else ""
+        app_state = state_size.get(app_name, {}) if isinstance(state_size, dict) else {}
+        input_size = float(app_state.get("input", 0) or 0)
+        output_size = float(app_state.get("output", 0) or 0)
+        storage_throughput = 100.0 * 1024.0 * 1024.0
+        storage_latency = 0.001
+
+        return {
+            "node_id": int(node.id),
+            "node_name": node.node_name,
+            "platform_id": int(platform.id),
+            "platform_type": platform_type,
+            "queue_key": queue_key,
+            "queue_length": int(len(platform.queue.items)),
+            "initialized": bool(platform.initialized.triggered),
+            "current_task_remaining": float(temporal.get("current_task_remaining", 0.0) or 0.0),
+            "cold_start_remaining": float(temporal.get("cold_start_remaining", 0.0) or 0.0),
+            "comm_remaining": float(temporal.get("comm_remaining", 0.0) or 0.0),
+            "execution_time": float(task_type.get("executionTime", {}).get(platform_type, 0.0) or 0.0),
+            "cold_start_time": float(task_type.get("coldStartDuration", {}).get(platform_type, 0.0) or 0.0),
+            "energy": float(task_type.get("energy", {}).get(platform_type, 0.0) or 0.0),
+            "network_latency": float(self._network_latency(task.node_name, node) or 0.0),
+            "communications_time": (input_size / storage_throughput + storage_latency)
+            + (output_size / storage_throughput + storage_latency),
+        }
+
+    def _network_latency(self, source_node_name: str, target_node: 'Node') -> float:
+        if target_node.node_name == source_node_name:
+            return 0.0
+        if hasattr(target_node, "network_map") and source_node_name in target_node.network_map:
+            entry = target_node.network_map[source_node_name]
+        else:
+            source_node = next(
+                (node for node in self.nodes.items if node.node_name == source_node_name),
+                None,
+            )
+            if source_node is None or not hasattr(source_node, "network_map"):
+                return 0.0
+            entry = source_node.network_map.get(target_node.node_name, 0.0)
+        if isinstance(entry, dict):
+            return float(entry.get("latency", 0.0) or 0.0)
+        return float(entry or 0.0)
 
     # ==================== State Capture Methods ====================
     

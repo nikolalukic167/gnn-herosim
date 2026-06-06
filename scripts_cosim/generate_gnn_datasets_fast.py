@@ -67,6 +67,8 @@ from src.sample_loader import load_primary_sample_and_mapping
 
 # Timeout for brute-force simulation (1 hour per dataset)
 SIMULATION_TIMEOUT = 900  # seconds
+# Skip datasets with excessive placement combinations (OOM guard)
+MAX_PLACEMENT_COMBINATIONS_SKIP_DEFAULT = 250000
 
 
 # =============================================================================
@@ -77,59 +79,30 @@ SIMULATION_TIMEOUT = 900  # seconds
 # NOTE: With cold start support, lower connectivity should work better now
 # since we use all infrastructure replicas instead of captured active ones
 CONNECTION_PROBABILITIES = [
-    # Standard range - balanced diversity
-    0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90,
-    # Lower connectivity (more challenging but valid scenarios)
-    0.25, 0.20
+    # Fixed connectivity to control search-space growth while preserving realism.
+    0.50,
 ]
 
 # Replica configurations: (per_client, per_server, client_preinit_pct, server_preinit_pct)
 # NOTE: Cold start (0% preinit) now supported - uses all infrastructure replicas directly
 REPLICA_CONFIGS = [
-    # Cold start scenarios (0% preinit - force autoscaling) - MOST REALISTIC
-    # Uses all replicas from infrastructure.json directly
-    (3, 3, 0.0, 0.0),
-    (2, 3, 0.0, 0.0),
-    (1, 3, 0.0, 0.0),
-    (2, 2, 0.0, 0.0),
+    # Controlled search-space presets with moderate-to-high queue pressure.
     (1, 2, 0.0, 0.0),
-    # Warm start scenarios (30-50% preinit)
-    (3, 3, 0.3, 0.5),
-    (2, 3, 0.4, 0.5),
-    (2, 1, 0.5, 0.4),
-    # Moderate preinit (50-70%)
-    (2, 2, 0.5, 0.8),
-    (3, 3, 0.5, 0.7),
-    (2, 3, 0.6, 0.8),
-    (1, 3, 0.3, 0.7),
-    # High preinit (70-100%)
-    (2, 2, 0.6, 0.8),
-    (1, 4, 0.6, 0.6),
-    (2, 4, 0.8, 0.7),
-    (3, 2, 0.7, 0.8),
-    (1, 2, 0.5, 0.9),
-    (3, 1, 0.6, 0.8),
-    (1, 1, 0.4, 0.8),
+    (2, 2, 0.0, 0.0),
+    (1, 3, 0.3, 0.5),
+    (2, 3, 0.3, 0.5),
+    (2, 2, 0.5, 0.7),
 ]
 
 # Queue distribution configurations: (name, type, param1, param2, min, max, step)
 # Calibration intent: raise snapshot queue depth to better match real-sim
 # decision-time queue/offloading regime while retaining one cold-start anchor.
 QUEUE_DISTRIBUTIONS = [
-    ("pois6", "poisson", 6, 0, 0, 18, 1),
-    ("pois10", "poisson", 10, 0, 0, 28, 1),
-    ("norm14", "normal", 14, 5, 0, 36, 1),
     ("pois16", "poisson", 16, 0, 0, 42, 1),
     ("norm22", "normal", 22, 7, 0, 56, 1),
     ("pois28", "poisson", 28, 0, 0, 72, 1),
     ("norm35", "normal", 35, 11, 0, 96, 1),
     ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
-    ("pois40", "poisson", 40, 0, 0, 120, 1),
-    ("norm55", "normal", 55, 18, 0, 160, 1),
-    ("uniform40_140", "uniform", 40, 140, 0, 200, 1),
-    ("norm75", "normal", 75, 22, 0, 240, 1),
-    ("pois90", "poisson", 90, 0, 0, 260, 1),
-    ("zero", "constant", 0, 0, 0, 0, 0),
 ]
 
 # Seeds for deterministic generation
@@ -504,6 +477,13 @@ def main():
     )
     args = parser.parse_args()
     
+    # OOM guard for brute-force placement generation.
+    # Keep user-provided value if already exported in environment.
+    os.environ.setdefault(
+        "MAX_PLACEMENT_COMBINATIONS_SKIP",
+        str(MAX_PLACEMENT_COMBINATIONS_SKIP_DEFAULT),
+    )
+    
     quiet = args.quiet
     # max_datasets is relative to start_from (e.g., --start-from xyz --max-datasets 1 means generate ds_xyz only)
     max_datasets = args.start_from + args.max_datasets
@@ -546,6 +526,10 @@ def main():
     log(f"Workers: {max_workers}", quiet)
     log(f"Using orjson: {HAS_ORJSON}", quiet)
     log(f"Quiet mode: {quiet}", quiet)
+    log(
+        f"MAX_PLACEMENT_COMBINATIONS_SKIP: {os.environ.get('MAX_PLACEMENT_COMBINATIONS_SKIP')}",
+        quiet,
+    )
     
     # Load base config
     with open(config_path, 'r') as f:

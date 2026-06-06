@@ -122,6 +122,8 @@ class Config:
     queue_norm_mode: str = "scheduler_adaptive"
     require_queue_data: bool = True
     filter_ids: Optional[set] = None  # if set, only build graphs for these dataset IDs
+    rtt_only: bool = False  # rebuild RTT chunks only (skip graph generation)
+    prune_graphs_no_rtt: bool = False  # drop graphs whose parent dataset has no RTT combos
 
 
 def _default_base_dirs(project_root: Path, merge_datasets: bool) -> List[Path]:
@@ -164,6 +166,19 @@ def parse_args() -> Config:
             "Used to oversample high-queue-load subsets."
         ),
     )
+    parser.add_argument(
+        "--rtt-only",
+        action="store_true",
+        help="Rebuild RTT hash chunks only (requires existing graph cache in --cache-dir).",
+    )
+    parser.add_argument(
+        "--prune-graphs-no-rtt",
+        action="store_true",
+        help=(
+            "After RTT build, remove graphs whose parent dataset produced zero RTT combos. "
+            "Use with --rtt-only to refresh an existing cache."
+        ),
+    )
     args = parser.parse_args()
 
     if args.queue_norm_mode == "fixed" and args.queue_norm_factor <= 0:
@@ -199,6 +214,8 @@ def parse_args() -> Config:
         queue_norm_mode=args.queue_norm_mode,
         require_queue_data=not args.allow_missing_queue_data,
         filter_ids=filter_ids,
+        rtt_only=args.rtt_only,
+        prune_graphs_no_rtt=args.prune_graphs_no_rtt,
     )
 
 
@@ -744,12 +761,13 @@ def build_and_save_rtt_hash_table_chunked(
     n_jobs: int = 12,
     chunk_size: int = 200_000,
     parse_batch_size: int = 200,
-) -> Tuple[int, int]:
+    filter_ids: Optional[set] = None,
+) -> Tuple[int, int, set]:
     """
     Build (dataset_id, combo)->rtt hash table in chunks for O(1) lookup at train time.
 
     Returns:
-        (num_datasets_with_combos, total_entries)
+        (num_datasets_with_combos, total_entries, datasets_with_combos)
     """
     _remove_legacy_rtt_artifacts(cache_dir)
 
@@ -759,6 +777,8 @@ def build_and_save_rtt_hash_table_chunked(
             logger.warning("Base directory does not exist, skipping: %s", base_dir)
             continue
         files = sorted(base_dir.glob("ds_*/placements/placements.jsonl"))
+        if filter_ids is not None:
+            files = [f for f in files if f.parent.parent.name in filter_ids]
         all_jsonl_files.extend(files)
         logger.info("Found %s JSONL files in %s", len(files), base_dir.name)
 
@@ -827,7 +847,88 @@ def build_and_save_rtt_hash_table_chunked(
         f"{total_entries:,}",
         chunk_idx,
     )
-    return len(datasets_with_combos), total_entries
+    return len(datasets_with_combos), total_entries, datasets_with_combos
+
+
+def prune_graph_cache_to_rtt_datasets(
+    cache_dir: Path,
+    datasets_with_rtt: set,
+) -> Tuple[int, int, int]:
+    """
+    Drop graphs whose parent dataset has no RTT combos.
+
+    Returns:
+        (graphs_before, graphs_after, parent_datasets_removed)
+    """
+    graphs_path = cache_dir / "graphs.pkl"
+    dataset_ids_path = cache_dir / "dataset_ids.pkl"
+    optimal_rtt_path = cache_dir / "optimal_rtt.pkl"
+    metadata_path = cache_dir / "metadata.json"
+
+    with open(graphs_path, "rb") as f:
+        graphs = pickle.load(f)
+    with open(dataset_ids_path, "rb") as f:
+        dataset_ids = pickle.load(f)
+    with open(optimal_rtt_path, "rb") as f:
+        optimal_rtt_map = pickle.load(f)
+
+    before = len(graphs)
+    parents_before = {ds_id.split(SEQ_DATASET_ID_SEP)[0] for ds_id in dataset_ids}
+
+    kept_graphs = []
+    kept_ids: List[str] = []
+    for graph, ds_id in zip(graphs, dataset_ids):
+        parent_id = ds_id.split(SEQ_DATASET_ID_SEP)[0]
+        if parent_id in datasets_with_rtt:
+            kept_graphs.append(graph)
+            kept_ids.append(ds_id)
+
+    after = len(kept_graphs)
+    parents_after = {ds_id.split(SEQ_DATASET_ID_SEP)[0] for ds_id in kept_ids}
+    removed_parents = parents_before - parents_after
+
+    kept_id_set = set(kept_ids)
+    kept_parent_set = parents_after
+    optimal_rtt_map = {
+        k: v
+        for k, v in optimal_rtt_map.items()
+        if k in kept_id_set or k.split(SEQ_DATASET_ID_SEP)[0] in kept_parent_set
+    }
+
+    with open(graphs_path, "wb") as f:
+        pickle.dump(kept_graphs, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(dataset_ids_path, "wb") as f:
+        pickle.dump(kept_ids, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(optimal_rtt_path, "wb") as f:
+        pickle.dump(optimal_rtt_map, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    if metadata_path.exists():
+        with open(metadata_path, "r") as f:
+            metadata = json.load(f)
+        metadata["num_graphs"] = after
+        metadata["num_parent_datasets"] = len(parents_after)
+        metadata["num_datasets"] = len(parents_after)
+        metadata["dataset_ids"] = kept_ids
+        metadata["pruned_no_rtt_parent_datasets"] = sorted(removed_parents)
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+    logger.info(
+        "Pruned graph cache: %s -> %s graphs (%s parent datasets removed, no RTT)",
+        before,
+        after,
+        len(removed_parents),
+    )
+    return before, after, len(removed_parents)
+
+
+def _write_rtt_parent_ids(cache_dir: Path, datasets_with_rtt: set) -> None:
+    out_path = cache_dir / "rtt_parent_dataset_ids.txt"
+    parent_names = sorted({ds_id.rsplit("/", 1)[-1] for ds_id in datasets_with_rtt})
+    with open(out_path, "w") as f:
+        for name in parent_names:
+            f.write(f"{name}\n")
+    logger.info("Wrote %s parent dataset IDs with RTT to %s", len(parent_names), out_path)
 
 
 # ============================================================================
@@ -1540,17 +1641,82 @@ def main():
     optimal_rtt_cache_path = config.cache_dir / "optimal_rtt.pkl"
     metadata_cache_path = config.cache_dir / "metadata.json"
 
+    if config.rtt_only:
+        logger.info("RTT-only mode: rebuilding hash chunks in %s", config.cache_dir)
+        if config.filter_ids is None:
+            logger.error("--rtt-only requires --filter-ids-file (or datasets with no filter)")
+            sys.exit(1)
+        step1_start = time.perf_counter()
+        with time_block("Step 1: Building RTT hash table chunks (filtered)"):
+            num_combo_datasets, num_rtt_combos_written, datasets_with_rtt = (
+                build_and_save_rtt_hash_table_chunked(
+                    config.base_dirs,
+                    config.cache_dir,
+                    filter_ids=config.filter_ids,
+                )
+            )
+        step1_time = time.perf_counter() - step1_start
+        _write_rtt_parent_ids(config.cache_dir, datasets_with_rtt)
+
+        graphs_before = graphs_after = None
+        if config.prune_graphs_no_rtt:
+            if not graphs_cache_path.exists():
+                logger.error("Cannot prune: %s not found", graphs_cache_path)
+                sys.exit(1)
+            graphs_before, graphs_after, _ = prune_graph_cache_to_rtt_datasets(
+                config.cache_dir,
+                datasets_with_rtt,
+            )
+
+        metadata: Dict = {}
+        if metadata_cache_path.exists():
+            with open(metadata_cache_path, "r") as f:
+                metadata = json.load(f)
+        metadata.update(
+            {
+                "rtt_combos_backend": "hash_table_chunked",
+                "rtt_hash_chunks_meta_rel_path": "rtt_chunks_meta.json",
+                "num_combo_datasets": num_combo_datasets,
+                "num_rtt_combo_rows": num_rtt_combos_written,
+                "rtt_built_from_filter_ids": True,
+                "rtt_filter_ids_count": len(config.filter_ids),
+                "rtt_datasets_with_combos": num_combo_datasets,
+                "timing": {
+                    **metadata.get("timing", {}),
+                    "step1_build_rtt_hash_chunks": step1_time,
+                    "total_time": time.perf_counter() - script_start_time,
+                },
+            }
+        )
+        if graphs_after is not None:
+            metadata["num_graphs"] = graphs_after
+        with open(metadata_cache_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        logger.info(
+            "RTT-only complete: %s datasets, %s entries (graphs %s -> %s)",
+            num_combo_datasets,
+            f"{num_rtt_combos_written:,}",
+            graphs_before if graphs_before is not None else "?",
+            graphs_after if graphs_after is not None else "?",
+        )
+        return
+
     with open(config.priors_path, "r") as f:
         task_priors = json.load(f)
     logger.info("Loaded task priors from %s", config.priors_path)
 
     step1_start = time.perf_counter()
     with time_block("Step 1: Building RTT hash table chunks"):
-        num_combo_datasets, num_rtt_combos_written = build_and_save_rtt_hash_table_chunked(
-            config.base_dirs,
-            config.cache_dir,
+        num_combo_datasets, num_rtt_combos_written, datasets_with_rtt = (
+            build_and_save_rtt_hash_table_chunked(
+                config.base_dirs,
+                config.cache_dir,
+                filter_ids=config.filter_ids,
+            )
         )
     step1_time = time.perf_counter() - step1_start
+    _write_rtt_parent_ids(config.cache_dir, datasets_with_rtt)
 
     step2_start = time.perf_counter()
     with time_block("Step 2: Loading datasets"):

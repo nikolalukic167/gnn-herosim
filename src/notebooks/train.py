@@ -552,7 +552,7 @@ def train_epoch(
                     loss_ce_total = loss_ce_total + loss_ce
                     n_graphs_ce += 1
 
-                # Structured regret loss
+                # Structured regret loss (logged always; weighted by regret_weight in total loss)
                 loss_regret, valid_regret, stats = regret_criterion(
                     logits_per_task, data, device
                 )
@@ -567,7 +567,6 @@ def train_epoch(
             loss_ce_avg = loss_ce_total / n_graphs_ce
             loss_regret_avg = loss_regret_total / max(1, n_graphs_regret)
             
-            # Combined loss
             loss = ce_weight * loss_ce_avg + regret_weight * loss_regret_avg
 
             if torch.isnan(loss) or torch.isinf(loss):
@@ -600,7 +599,10 @@ def train_epoch(
                     flush=True,
                 )
     
-    print(f"\n[Epoch {epoch_num}] Processed {len(dataset_ids_processed)} datasets, valid regret samples: {n_valid_regret}")
+    print(
+        f"\n[Epoch {epoch_num}] Processed {len(dataset_ids_processed)} datasets, "
+        f"valid regret samples: {n_valid_regret}"
+    )
 
     return {
         'ce': running_ce / max(1, n_steps),
@@ -896,7 +898,7 @@ wandb.init(
         "ce_weight": float(CE_LOSS_WEIGHT),
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
-        "loss_type": "CE + StructuredRegret",
+        "loss_type": "CE_only" if REGRET_LOSS_WEIGHT == 0 else "CE + StructuredRegret",
         "cache_mode": "merged" if IS_MERGED_CACHE else "single",
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
         "non_unique_placements": True,  # Flag to indicate non-unique support
@@ -980,8 +982,9 @@ print()
 
 wandb.watch(model, log="gradients", log_freq=100)
 
-best_val_regret = float('inf')  # Minimize regret
+best_val_regret = float('inf')
 best_val_acc = 0
+save_by_acc = REGRET_LOSS_WEIGHT == 0
 checkpoint_saved = False
 model_path = Path("models") / MODEL_FILENAME
 
@@ -1033,8 +1036,18 @@ for epoch in range(EPOCHS):
     
     wandb.log(log_dict, step=epoch)
     
-    # Save best model only on valid regret improvement.
-    if val_metrics['count_regret'] > 0 and val_metrics['regret'] < best_val_regret:
+    if save_by_acc:
+        if val_metrics['acc'] > best_val_acc:
+            best_val_acc = val_metrics['acc']
+            best_val_regret = val_metrics['regret']
+            os.makedirs("models", exist_ok=True)
+            torch.save(model.state_dict(), str(model_path))
+            checkpoint_saved = True
+            print(
+                f"  *** New best model (acc): acc={best_val_acc*100:.1f}%, "
+                f"regret={best_val_regret:.4f}s"
+            )
+    elif val_metrics['count_regret'] > 0 and val_metrics['regret'] < best_val_regret:
         best_val_regret = val_metrics['regret']
         best_val_acc = val_metrics['acc']
         os.makedirs("models", exist_ok=True)
@@ -1068,8 +1081,7 @@ print("="*80)
 
 if not checkpoint_saved or not model_path.exists():
     raise RuntimeError(
-        "No regret-valid checkpoint was saved. "
-        "Training produced zero valid regret samples; fix regret data path before evaluating."
+        "No valid checkpoint was saved during training."
     )
 model.load_state_dict(torch.load(str(model_path), map_location=DEVICE))
 release_eval_memory()

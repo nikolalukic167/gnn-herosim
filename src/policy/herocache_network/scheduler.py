@@ -22,7 +22,7 @@ import os
 
 from typing import Any, Dict, Generator, List, Optional, Set, Tuple, TYPE_CHECKING
 
-from src.policy.herocache.model import HRCSystemState
+from src.policy.herocache_network.model import HRCSystemState
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Storage, Task
@@ -79,7 +79,9 @@ class HRCScheduler(Scheduler):
 
                 # Request a new replica from the Autoscaler
                 stop = yield self.env.process(
-                    self.autoscaler.create_first_replica(system_state, task.type)
+                    self.autoscaler.create_first_replica(
+                        system_state, task.type, source_node_name=task.node_name
+                    )
                 )
 
                 # Next event

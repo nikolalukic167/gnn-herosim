@@ -15,14 +15,15 @@ limitations under the License.
 """
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Tuple
 
-from src.placement.model import PlatformVector, SchedulerState, SystemState
+from src.placement.model import SchedulerState, SystemState
 
 
 @dataclass
 class HRCSchedulerState(SchedulerState):
-    average_hardware_contention: Dict[str, PlatformVector]
+    average_contention: Dict[str, Dict[Tuple[int, int], float]]
+    panic_contention: Dict[str, Dict[Tuple[int, int], float]]
 
 
 @dataclass

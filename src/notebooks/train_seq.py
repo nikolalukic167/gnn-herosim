@@ -20,6 +20,7 @@ NON-UNIQUE PLACEMENTS:
 """
 
 import gc
+import json
 import os
 import random
 import sys
@@ -49,7 +50,10 @@ _TRAIN_LOG_SLOW_STEP_SEC = 20.0
 from non_unique_lib.cache_io import (
     HardNegativeMap,
     PlacementToLogitMap,
+    CombinedRttLookup,
+    LazyChunkedRttLookup,
     build_regret_training_lookups_from_hash_table,
+    build_regret_training_lookups_from_chunked_cache,
     create_cache_context,
     load_graphs_from_cache,
     load_optimal_rtt_from_cache,
@@ -662,7 +666,7 @@ def run_final_split_eval(model, dataset, split_name: str) -> Dict[str, Any]:
     print(f"[final eval] starting {split_name}...", flush=True)
     loader = create_dataloader(dataset, shuffle=False, pin_memory=False)
     metrics = evaluate(
-        model, loader, DEVICE, PLACEMENT_RTT_HASH_TABLE, is_last_epoch=True
+        model, loader, DEVICE, RTT_LOOKUP_FOR_EVAL, is_last_epoch=True
     )
     del loader
     release_eval_memory()
@@ -691,8 +695,13 @@ def train_epoch(
     running_regret = 0.0
     running_total = 0.0
     n_steps = 0
+    n_regret_steps = 0
     n_valid_regret = 0
     n_regret_active = 0
+    running_ce_final = 0.0
+    n_final_ce = 0
+    final_tasks_correct = 0
+    final_tasks_total = 0
     dataset_ids_processed = set()
 
     print(
@@ -765,6 +774,18 @@ def train_epoch(
                 if valid_ce > 0 and not (torch.isnan(loss_ce) or torch.isinf(loss_ce)):
                     loss_ce_total = loss_ce_total + loss_ce
                     n_graphs_ce += 1
+                    if is_final_sequential_graph(data):
+                        running_ce_final += loss_ce.item()
+                        n_final_ce += 1
+                        for task_idx, task_logits in enumerate(logits_per_task):
+                            if task_logits.numel() == 0 or not task_in_ce_loss(data, task_idx):
+                                continue
+                            target = data.y[task_idx].long()
+                            if target.item() < 0 or target.item() >= task_logits.size(0):
+                                continue
+                            final_tasks_total += 1
+                            if int(task_logits.argmax().item()) == int(target.item()):
+                                final_tasks_correct += 1
 
                 # Structured regret loss
                 loss_regret, valid_regret, stats = regret_criterion(
@@ -781,7 +802,10 @@ def train_epoch(
 
             # Average losses
             loss_ce_avg = loss_ce_total / n_graphs_ce
-            loss_regret_avg = loss_regret_total / max(1, n_graphs_regret)
+            if n_graphs_regret > 0:
+                loss_regret_avg = loss_regret_total / n_graphs_regret
+            else:
+                loss_regret_avg = torch.zeros(1, device=device)
             
             # Combined loss
             loss = ce_weight * loss_ce_avg + regret_weight * loss_regret_avg
@@ -795,7 +819,9 @@ def train_epoch(
             stepped = True
 
             running_ce += loss_ce_avg.item()
-            running_regret += loss_regret_avg.item()
+            if n_graphs_regret > 0:
+                running_regret += loss_regret_avg.item()
+                n_regret_steps += 1
             running_total += loss.item()
             n_steps += 1
             n_valid_regret += n_graphs_regret
@@ -820,11 +846,16 @@ def train_epoch(
 
     return {
         'ce': running_ce / max(1, n_steps),
-        'regret_loss': running_regret / max(1, n_steps),
+        'regret_loss': running_regret / max(1, n_regret_steps),
         'total': running_total / max(1, n_steps),
         'n_valid_regret': n_valid_regret,
         'n_regret_active': n_regret_active,
+        'n_regret_steps': n_regret_steps,
         'regret_active_fraction': n_regret_active / max(1, n_valid_regret),
+        'ce_final': running_ce_final / max(1, n_final_ce),
+        'acc_final': final_tasks_correct / max(1, final_tasks_total),
+        'n_final_ce_graphs': n_final_ce,
+        'n_final_tasks': final_tasks_total,
     }
 
 
@@ -882,6 +913,11 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
     count_regret_decode = 0
     correct_graphs_decode = 0
     total_graphs_decode = 0
+    correct_graphs_final = 0
+    total_graphs_final = 0
+    final_tasks_correct = 0
+    final_tasks_total = 0
+    count_final_graphs = 0
 
     per_task_count_stats = {}
 
@@ -1016,6 +1052,20 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
                     per_task_count_stats[n_tasks]['correct'] += 1
 
                 if is_final_sequential_graph(data):
+                    count_final_graphs += 1
+                    total_graphs_final += 1
+                    if graph_correct:
+                        correct_graphs_final += 1
+                    for task_idx, task_logits in enumerate(logits_per_task):
+                        if task_logits.numel() == 0 or not task_in_ce_loss(data, task_idx):
+                            continue
+                        target = data.y[task_idx].long()
+                        if target.item() < 0 or target.item() >= task_logits.size(0):
+                            continue
+                        final_tasks_total += 1
+                        if int(task_logits.argmax().item()) == int(target.item()):
+                            final_tasks_correct += 1
+
                     regret_metrics = _compute_regret_metrics(dataset_id, n_tasks, data, logits_per_task)
                     if regret_metrics is not None:
                         regret, regret_pct, regret_task_count = regret_metrics
@@ -1044,8 +1094,15 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
     regret_decode = sum_regret_decode / max(1, count_regret_decode)
     regret_pct_decode = sum_regret_pct_decode / max(1, count_regret_decode)
     acc_decode = correct_graphs_decode / max(1, total_graphs_decode)
+    acc_final = correct_graphs_final / max(1, total_graphs_final)
+    per_task_acc_final = final_tasks_correct / max(1, final_tasks_total)
+    regret_coverage = count_regret / max(1, count_final_graphs)
 
     print(f"\n[Evaluation] Graphs: {total_graphs}, Correct: {correct_graphs} ({acc*100:.1f}%)")
+    print(
+        f"  Final-step graphs: {total_graphs_final}, graph acc: {acc_final*100:.1f}%, "
+        f"per-task acc: {per_task_acc_final*100:.1f}%, regret coverage: {regret_coverage*100:.1f}%"
+    )
     print(f"  Per-task accuracy: {total_tasks_correct}/{total_tasks} ({total_tasks_correct/max(1,total_tasks)*100:.1f}%)")
     print(f"  Regret (frozen argmax, final-step): {count_regret} samples, Avg: {regret:.4f}s ({regret_pct:.2f}%)")
     print(
@@ -1068,6 +1125,10 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
     return {
         'ce': avg_loss_ce,
         'acc': acc,
+        'acc_final': acc_final,
+        'per_task_acc_final': per_task_acc_final,
+        'count_final_graphs': count_final_graphs,
+        'regret_coverage': regret_coverage,
         'regret': regret,
         'regret_pct': regret_pct,
         'count_regret': count_regret,
@@ -1086,7 +1147,7 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
 
 # %%
 # ========================================================================
-# Load graphs from cache
+# Load graphs from cache (supports EXTRA_CACHE_DIR for combining two caches)
 # ========================================================================
 graphs, dataset_ids = load_graphs_from_cache(CACHE_CTX)
 
@@ -1103,15 +1164,94 @@ PLACEMENT_RTT_HASH_TABLE = load_rtt_hash_table_from_cache(CACHE_CTX.cache_dir)
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
 print(f"[dbg] placement_rtt combos: {len(PLACEMENT_RTT_HASH_TABLE):,}")
 
+# Optional: merge a second cache (e.g. high-queue overnight seq cache) at training time.
+# Set EXTRA_CACHE_DIR to the path of the additional cache directory.
+_extra_cache_dir_env = os.environ.get("EXTRA_CACHE_DIR", "").strip()
+_EXTRA_RTT_CHUNKED_LOOKUP: Optional[LazyChunkedRttLookup] = None
+_EXTRA_PARENT_IDS: set = set()
+if _extra_cache_dir_env:
+    _extra_cache_dir = Path(_extra_cache_dir_env)
+    if _extra_cache_dir.exists():
+        print(f"[INFO] Loading extra cache from {_extra_cache_dir}")
+        _extra_ctx = create_cache_context(_extra_cache_dir)
+        _extra_graphs, _extra_ids = load_graphs_from_cache(_extra_ctx)
+        _extra_opt_rtt = load_optimal_rtt_from_cache(_extra_ctx)
+        _extra_load_rtt_env = os.environ.get("EXTRA_CACHE_LOAD_RTT", "auto").strip().lower()
+        _extra_meta_path = _extra_cache_dir / "metadata.json"
+        _extra_rtt_filtered = False
+        if _extra_meta_path.exists():
+            with open(_extra_meta_path, "r") as _mf:
+                _extra_meta = json.load(_mf)
+            _extra_rtt_filtered = bool(_extra_meta.get("rtt_built_from_filter_ids"))
+        if _extra_load_rtt_env == "auto":
+            _load_extra_rtt = _extra_rtt_filtered
+        else:
+            _load_extra_rtt = _extra_load_rtt_env in ("1", "true", "yes")
+        _EXTRA_PARENT_IDS = {ds_id.split("@seq")[0] for ds_id in _extra_ids}
+        if _load_extra_rtt:
+            _EXTRA_RTT_CHUNKED_LOOKUP = LazyChunkedRttLookup(_extra_cache_dir, _EXTRA_PARENT_IDS)
+            print(
+                "[INFO] Extra cache RTT: streaming regret lookups + lazy chunked eval "
+                f"({len(_EXTRA_PARENT_IDS)} parent datasets, not loaded into RAM)"
+            )
+        else:
+            print(
+                "[INFO] Extra cache RTT skipped (CE-only for extra graphs). "
+                "Set EXTRA_CACHE_LOAD_RTT=1 to force, or rebuild with --rtt-only --filter-ids-file for auto."
+            )
+        _extra_graph_count = len(_extra_ids)
+        graphs = graphs + _extra_graphs
+        dataset_ids = dataset_ids + _extra_ids
+        DATA_OPTIMAL_RTT.update(_extra_opt_rtt)
+        del _extra_graphs, _extra_ids, _extra_opt_rtt
+        print(
+            f"[INFO] After merge: {len(graphs)} total graphs, "
+            f"{len(PLACEMENT_RTT_HASH_TABLE):,} primary RTT combos"
+        )
+        _EXTRA_CACHE_GRAPH_COUNT = _extra_graph_count
+        _EXTRA_CACHE_CE_ONLY = not _load_extra_rtt
+    else:
+        print(f"[WARN] EXTRA_CACHE_DIR={_extra_cache_dir_env} does not exist, skipping")
+        _EXTRA_CACHE_GRAPH_COUNT = 0
+        _EXTRA_CACHE_CE_ONLY = False
+else:
+    _EXTRA_CACHE_GRAPH_COUNT = 0
+    _EXTRA_CACHE_CE_ONLY = False
+
+RTT_LOOKUP_FOR_EVAL = CombinedRttLookup(PLACEMENT_RTT_HASH_TABLE, _EXTRA_RTT_CHUNKED_LOOKUP)
+
 if PRECOMPUTE_RTT_LOOKUPS:
     regret_graphs, regret_ids = _regret_lookup_graphs(graphs, dataset_ids)
-    PLACEMENT_TO_LOGIT_MAP, HARD_NEGATIVE_MAP = build_regret_training_lookups_from_hash_table(
-        regret_graphs,
-        regret_ids,
-        PLACEMENT_RTT_HASH_TABLE,
-        hard_negative_fraction=HARD_NEGATIVE_FRACTION,
-        stratified=STRATIFIED_NEGATIVES,
-    )
+    primary_regret = [
+        (g, rid) for g, rid in zip(regret_graphs, regret_ids) if rid not in _EXTRA_PARENT_IDS
+    ]
+    extra_regret = [
+        (g, rid) for g, rid in zip(regret_graphs, regret_ids) if rid in _EXTRA_PARENT_IDS
+    ]
+    PLACEMENT_TO_LOGIT_MAP: PlacementToLogitMap = {}
+    HARD_NEGATIVE_MAP: HardNegativeMap = {}
+    if primary_regret:
+        ptl, hn = build_regret_training_lookups_from_hash_table(
+            [p[0] for p in primary_regret],
+            [p[1] for p in primary_regret],
+            PLACEMENT_RTT_HASH_TABLE,
+            hard_negative_fraction=HARD_NEGATIVE_FRACTION,
+            stratified=STRATIFIED_NEGATIVES,
+        )
+        PLACEMENT_TO_LOGIT_MAP.update(ptl)
+        HARD_NEGATIVE_MAP.update(hn)
+    if extra_regret and _EXTRA_RTT_CHUNKED_LOOKUP is not None:
+        for g, rid in extra_regret:
+            g.opt_rtt = float(DATA_OPTIMAL_RTT.get(rid, 0.0))
+        ptl, hn = build_regret_training_lookups_from_chunked_cache(
+            Path(_extra_cache_dir_env),
+            [p[0] for p in extra_regret],
+            [p[1] for p in extra_regret],
+            hard_negative_fraction=HARD_NEGATIVE_FRACTION,
+            stratified=STRATIFIED_NEGATIVES,
+        )
+        PLACEMENT_TO_LOGIT_MAP.update(ptl)
+        HARD_NEGATIVE_MAP.update(hn)
     _alias_seq_regret_lookups(graphs, dataset_ids, PLACEMENT_TO_LOGIT_MAP, HARD_NEGATIVE_MAP)
     gc.collect()
 else:
@@ -1231,6 +1371,9 @@ wandb.init(
         "num_train": int(len(train_graphs)),
         "num_val": int(len(val_graphs)),
         "num_test": int(len(test_graphs)),
+        "extra_cache_graph_count": int(_EXTRA_CACHE_GRAPH_COUNT),
+        "extra_cache_ce_only": bool(_EXTRA_CACHE_CE_ONLY),
+        "init_checkpoint": os.environ.get("TRAIN_INIT_CHECKPOINT", ""),
     }
 )
 
@@ -1259,6 +1402,15 @@ def init_weights(m):
 
 model.apply(init_weights)
 
+_init_ckpt = os.environ.get("TRAIN_INIT_CHECKPOINT")
+if _init_ckpt:
+    _init_path = Path(_init_ckpt)
+    if _init_path.exists():
+        model.load_state_dict(torch.load(str(_init_path), map_location=DEVICE))
+        print(f"[INFO] Loaded init checkpoint: {_init_path}")
+    else:
+        print(f"[WARN] TRAIN_INIT_CHECKPOINT not found: {_init_path}")
+
 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
 regret_criterion = StructuredRegretLoss(
@@ -1283,11 +1435,11 @@ def prefix_metric_dict(metrics: Dict[str, Any], prefix: str) -> Dict[str, Any]:
     """Prefix flat scalar metrics for structured logging."""
     out: Dict[str, Any] = {}
     scalar_keys = (
-        "ce", "acc",
+        "ce", "acc", "acc_final", "per_task_acc_final", "regret_coverage", "count_final_graphs",
         "regret", "regret_pct", "count_regret",
         "regret_decode", "regret_pct_decode", "count_regret_decode", "acc_decode_optimal",
     )
-    count_keys = {"count_regret", "count_regret_decode"}
+    count_keys = {"count_regret", "count_regret_decode", "count_final_graphs"}
     for key in scalar_keys:
         if key in metrics:
             value = metrics[key]
@@ -1303,7 +1455,10 @@ print("="*80)
 print(f"CE Weight: {CE_LOSS_WEIGHT}, Regret Weight: {REGRET_LOSS_WEIGHT}")
 print()
 
-wandb.watch(model, log="gradients", log_freq=100)
+if os.environ.get("WANDB_WATCH", "0") == "1":
+    wandb.watch(model, log="gradients", log_freq=100)
+else:
+    print("[INFO] wandb.watch disabled (set WANDB_WATCH=1 to log gradients)")
 
 best_val_regret = float('inf')  # Minimize regret
 best_val_acc = 0
@@ -1328,7 +1483,7 @@ for epoch in range(EPOCHS):
     
     # Evaluate
     val_metrics = evaluate(
-        model, val_loader, DEVICE, PLACEMENT_RTT_HASH_TABLE,
+        model, val_loader, DEVICE, RTT_LOOKUP_FOR_EVAL,
         is_last_epoch=is_last_epoch
     )
     
@@ -1340,6 +1495,9 @@ for epoch in range(EPOCHS):
     # Wandb logging
     log_dict = {
         "train/loss_ce": safe_float(train_losses['ce']),
+        "train/loss_ce_final": safe_float(train_losses.get('ce_final', 0.0)),
+        "train/acc_final": safe_float(train_losses.get('acc_final', 0.0)),
+        "train/n_final_ce_graphs": int(train_losses.get('n_final_ce_graphs', 0)),
         "train/loss_regret": safe_float(train_losses['regret_loss']),
         "train/loss_total": safe_float(loss_total),
         "train/weighted_ce": safe_float(weighted_ce),
@@ -1348,10 +1506,15 @@ for epoch in range(EPOCHS):
         "train/regret_active_fraction": safe_float(train_losses['regret_active_fraction']),
         "train/n_valid_regret": int(train_losses['n_valid_regret']),
         "train/n_regret_active": int(train_losses['n_regret_active']),
+        "train/n_regret_steps": int(train_losses.get('n_regret_steps', 0)),
         "config/ce_loss_weight": float(CE_LOSS_WEIGHT),
         "config/regret_loss_weight": float(REGRET_LOSS_WEIGHT),
         "val/loss_ce": safe_float(val_metrics['ce']),
         "val/acc": safe_float(val_metrics['acc']),
+        "val/acc_final": safe_float(val_metrics.get('acc_final', 0.0)),
+        "val/per_task_acc_final": safe_float(val_metrics.get('per_task_acc_final', 0.0)),
+        "val/regret_coverage": safe_float(val_metrics.get('regret_coverage', 0.0)),
+        "val/count_final_graphs": int(val_metrics.get('count_final_graphs', 0)),
         "val/regret": safe_float(val_metrics['regret']),
         "val/regret_pct": safe_float(val_metrics['regret_pct']),
         "val/count_regret": int(val_metrics['count_regret']),
@@ -1390,11 +1553,12 @@ for epoch in range(EPOCHS):
     if epoch % 10 == 0 or epoch == EPOCHS - 1:
         print(f"Epoch {epoch:3d}/{EPOCHS} | "
               f"Train CE: {train_losses['ce']:.4f} | "
-              f"Train Regret: {train_losses['regret_loss']:.4f} | "
+              f"Train CE final: {train_losses.get('ce_final', 0):.4f} | "
+              f"Train acc final: {train_losses.get('acc_final', 0)*100:.1f}% | "
+              f"Train Regret: {train_losses['regret_loss']:.4f} ({train_losses.get('n_regret_steps', 0)} steps) | "
               f"Regret active: {train_losses['regret_active_fraction']*100:.1f}% | "
-              f"Regret frac: {regret_fraction*100:.1f}% | "
-              f"Val Acc: {val_metrics['acc']*100:.2f}% | "
-              f"Val Regret: {val_metrics['regret']:.4f}s | "
+              f"Val acc final: {val_metrics.get('acc_final', 0)*100:.2f}% | "
+              f"Val Regret: {val_metrics['regret']:.4f}s (coverage {val_metrics.get('regret_coverage', 0)*100:.0f}%) | "
               f"Val Regret seq: {val_metrics.get('regret_seq', val_metrics.get('regret_decode', 0)):.4f}s")
 
 print()

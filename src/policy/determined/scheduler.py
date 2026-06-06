@@ -17,6 +17,7 @@ limitations under the License.
 from __future__ import annotations
 
 import logging
+import os
 from timeit import default_timer
 from typing import Generator, Set, Tuple, TYPE_CHECKING, List, Dict, Any, Optional, cast
 
@@ -33,10 +34,19 @@ class DeterminedScheduler(Scheduler):
         logger = logging.getLogger('simulation')
         logger.info("DeterminedScheduler: Starting initialization")
         super().__init__(*args, **kwargs)
+        self.debug_enabled = os.environ.get("SIM_DEBUG_DETERMINED", "0") == "1"
         # Default batch size (can be overridden by orchestrator via infrastructure config)
         self.batch_size = 3  # Default: process 2 tasks at once
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
+
+    def _debug(self, msg: str) -> None:
+        if self.debug_enabled:
+            print(msg)
+
+    def _debug_info(self, msg: str) -> None:
+        if self.debug_enabled:
+            logging.getLogger('simulation').info(msg)
 
     def scheduler_process(self) -> Generator:
         # keep this for the simpy generator 
@@ -52,7 +62,7 @@ class DeterminedScheduler(Scheduler):
         )
 
         while True:
-            logger.info(f"DeterminedScheduler: Starting batch collection at time {self.env.now}")
+            self._debug_info(f"DeterminedScheduler: Starting batch collection at time {self.env.now}")
             # Collect a batch of tasks
             batch_tasks = yield self.env.process(self._collect_task_batch())
             
@@ -61,23 +71,22 @@ class DeterminedScheduler(Scheduler):
                 yield self.env.timeout(0.1)
                 continue
 
-            print(f"[ {self.env.now} ] DEBUG: Processing batch of {len(batch_tasks)} tasks simultaneously")
+            self._debug(f"[ {self.env.now} ] DEBUG: Processing batch of {len(batch_tasks)} tasks simultaneously")
 
             # Process all tasks in the batch together
             yield self.env.process(self._process_task_batch(batch_tasks))
 
     def _collect_task_batch(self) -> Generator[Any, Any, List[Task]]:
         """Collect a batch of tasks that are ready for scheduling"""
-        logger = logging.getLogger('simulation')
         batch = []
         
-        logger.info(f"DeterminedScheduler: _collect_task_batch starting (batch_size={self.batch_size})")
-        print(f"[ {self.env.now} ] DEBUG: Starting batch collection (size={self.batch_size})")
+        self._debug_info(f"DeterminedScheduler: _collect_task_batch starting (batch_size={self.batch_size})")
+        self._debug(f"[ {self.env.now} ] DEBUG: Starting batch collection (size={self.batch_size})")
         
         # Try to get up to batch_size tasks
         for i in range(self.batch_size):
             try:
-                logger.info(f"DeterminedScheduler: Attempting to get task {i+1}/{self.batch_size}")
+                self._debug_info(f"DeterminedScheduler: Attempting to get task {i+1}/{self.batch_size}")
                 # Try to get a task (this will block until a task is available)
                 task: Task = yield self.tasks.get(
                     lambda queued_task: all(
@@ -85,21 +94,21 @@ class DeterminedScheduler(Scheduler):
                     )
                 )
                 batch.append(task)
-                logger.info(f"DeterminedScheduler: Added task {task.id} to batch (size={len(batch)})")
-                print(f"[ {self.env.now} ] DEBUG: Added task {task.id} to batch (size={len(batch)})")
+                self._debug_info(f"DeterminedScheduler: Added task {task.id} to batch (size={len(batch)})")
+                self._debug(f"[ {self.env.now} ] DEBUG: Added task {task.id} to batch (size={len(batch)})")
             except:
                 # No more tasks available
                 # logger.info(f"DeterminedScheduler: No more tasks available after {len(batch)} tasks")
                 # print(f"[ {self.env.now} ] DEBUG: No more tasks available after {len(batch)} tasks")
                 break
         
-        logger.info(f"DeterminedScheduler: Batch collection complete, returning {len(batch)} tasks")
+        self._debug_info(f"DeterminedScheduler: Batch collection complete, returning {len(batch)} tasks")
         # print(f"[ {self.env.now} ] DEBUG: Batch collection complete, returning {len(batch)} tasks")
         return batch
 
     def _process_task_batch(self, batch_tasks: List[Task]) -> Generator:
         """Process multiple tasks simultaneously in a single operation"""
-        print(f"[ {self.env.now} ] DEBUG: Processing {len(batch_tasks)} tasks in batch")
+        self._debug(f"[ {self.env.now} ] DEBUG: Processing {len(batch_tasks)} tasks in batch")
         
         # Get system state once for all tasks
         system_state: SystemState = yield self.mutex.get()
@@ -201,7 +210,7 @@ class DeterminedScheduler(Scheduler):
         # Release mutex after processing entire batch
         yield self.mutex.put(system_state)
         
-        print(f"[ {self.env.now} ] DEBUG: Batch processing complete for {len(batch_tasks)} tasks")
+        self._debug(f"[ {self.env.now} ] DEBUG: Batch processing complete for {len(batch_tasks)} tasks")
 
     def _capture_batch_queue_snapshot(self, system_state: SystemState, batch_tasks: List[Task]) -> Dict[str, int]:
         """Capture queue lengths for all platforms across all task types in the batch.
@@ -245,20 +254,22 @@ class DeterminedScheduler(Scheduler):
             # Special marker (-1, -1) means auto-resolve to an available replica
             if forced_node_id == -1 and forced_platform_id == -1:
                 logger = logging.getLogger('simulation')
-                logger.info(f"Auto-resolving forced placement for task {task.id} ({task.type['name']}) at time {self.env.now}")
-                print(f"[ {self.env.now} ] DEBUG: Auto-resolving forced placement for task {task.id} ({task.type['name']})")
+                self._debug_info(
+                    f"Auto-resolving forced placement for task {task.id} ({task.type['name']}) at time {self.env.now}"
+                )
+                self._debug(f"[ {self.env.now} ] DEBUG: Auto-resolving forced placement for task {task.id} ({task.type['name']})")
                 # Get available replicas and auto-select one
                 replicas_for_task = system_state.replicas.get(task.type["name"], set())
-                logger.info(f"Found {len(replicas_for_task)} total replicas for task type {task.type['name']}")
+                self._debug_info(f"Found {len(replicas_for_task)} total replicas for task type {task.type['name']}")
                 if not replicas_for_task:
                     logger.error(f"No replicas available for task {task.id} ({task.type['name']})")
                     print(f"[ {self.env.now} ] ERROR: No replicas available for task {task.id} ({task.type['name']})")
                     return None
                 
                 # Get valid replicas (respecting network connectivity)
-                logger.info(f"Getting valid replicas for task {task.id} from source node {task.node_name}")
+                self._debug_info(f"Getting valid replicas for task {task.id} from source node {task.node_name}")
                 valid_replicas = self._get_valid_replicas(replicas_for_task, task)
-                logger.info(f"Found {len(valid_replicas)} valid replicas for task {task.id}")
+                self._debug_info(f"Found {len(valid_replicas)} valid replicas for task {task.id}")
                 if not valid_replicas:
                     logger.error(f"No valid replicas for task {task.id} ({task.type['name']}) from source {task.node_name}")
                     print(f"[ {self.env.now} ] ERROR: No valid replicas for task {task.id} ({task.type['name']})")
@@ -269,13 +280,16 @@ class DeterminedScheduler(Scheduler):
                     valid_replicas, key=lambda couple: couple[1].queue_length()
                 )
                 
-                print(f"[ {self.env.now} ] DEBUG: Auto-resolved to node {target_node.id}, platform {target_platform.id}")
+                self._debug(f"[ {self.env.now} ] DEBUG: Auto-resolved to node {target_node.id}, platform {target_platform.id}")
                 task.execution_node = target_node.node_name
                 task.execution_platform = str(target_platform.id)
                 return (target_node, target_platform)
             
             # Normal forced placement
-            print(f"[ {self.env.now} ] DEBUG: Using forced placement for task {task.id}: node {forced_node_id}, platform {forced_platform_id}")
+            self._debug(
+                f"[ {self.env.now} ] DEBUG: Using forced placement for task {task.id}: "
+                f"node {forced_node_id}, platform {forced_platform_id}"
+            )
             
             # Find the node and platform by ID
             target_node = None
@@ -377,8 +391,9 @@ class DeterminedScheduler(Scheduler):
             task_type_name = task.type["name"]
         except Exception:
             task_type_name = "unknown"
-        print(
-            f"[ {self.env.now} ] DEBUG: _get_valid_replicas task={task.id} src={task.node_name} type={task_type_name} candidates={len(replicas)}"
+        self._debug(
+            f"[ {self.env.now} ] DEBUG: _get_valid_replicas task={task.id} src={task.node_name} "
+            f"type={task_type_name} candidates={len(replicas)}"
         )
 
         valid_replicas = []
@@ -408,13 +423,15 @@ class DeterminedScheduler(Scheduler):
             # If no valid replicas, only allow local execution on source node
             source_replicas = [(node, platform) for node, platform in replicas if node.node_name == task.node_name]
             if source_replicas:
-                print(
+                self._debug(
                     f"[ {self.env.now} ] DEBUG: _get_valid_replicas fallback to local-only: {len(source_replicas)}"
                 )
                 return source_replicas
             else:
-                print(
-                    f"[ {self.env.now} ] DEBUG: _get_valid_replicas no valid replicas (kept_local={kept_local}, kept_server_connected={kept_server_connected}, skipped_client_other={skipped_client_other}, skipped_no_connectivity={skipped_no_connectivity})"
+                self._debug(
+                    f"[ {self.env.now} ] DEBUG: _get_valid_replicas no valid replicas "
+                    f"(kept_local={kept_local}, kept_server_connected={kept_server_connected}, "
+                    f"skipped_client_other={skipped_client_other}, skipped_no_connectivity={skipped_no_connectivity})"
                 )
                 # Last resort: return empty list (will cause scaling from zero)
                 return []
@@ -422,8 +439,11 @@ class DeterminedScheduler(Scheduler):
         # Debug footer with a small sample of chosen nodes
         chosen_nodes = [n.node_name for (n, _) in valid_replicas]
         sample = chosen_nodes[:5]
-        print(
-            f"[ {self.env.now} ] DEBUG: _get_valid_replicas selected={len(valid_replicas)} (local={kept_local}, server_connected={kept_server_connected}, skipped_client_other={skipped_client_other}, skipped_no_connectivity={skipped_no_connectivity}) sample={sample}"
+        self._debug(
+            f"[ {self.env.now} ] DEBUG: _get_valid_replicas selected={len(valid_replicas)} "
+            f"(local={kept_local}, server_connected={kept_server_connected}, "
+            f"skipped_client_other={skipped_client_other}, skipped_no_connectivity={skipped_no_connectivity}) "
+            f"sample={sample}"
         )
 
         return valid_replicas
