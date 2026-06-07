@@ -594,27 +594,44 @@ def run_simulation(
                 from src.policy.gnn.seq_decode import get_run_decode_stats, write_run_decode_stats
 
                 decode_stats = get_run_decode_stats()
-                if decode_stats is not None and decode_stats.total_tasks > 0:
+                if decode_stats is not None and decode_stats.gnn_batches > 0:
                     margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
                     summary = decode_stats.summary(p1_margin=margin)
                     result_summary["decode_stats"] = summary
                     stats_path = output_file.with_suffix(".decode_stats.json")
                     write_run_decode_stats(stats_path, p1_margin=margin)
-                    print("\n=== GNN decode stats (seqblend analysis) ===", flush=True)
+                    print("\n=== GNN decode stats ===", flush=True)
+                    dt = summary.get("decode_time_ms", {})
+                    col = summary.get("intra_batch_platform_collisions", {})
+                    qv = summary.get("chosen_queue_vs_min", {})
                     print(
-                        f"  tasks={summary['total_decode_tasks']:,} | "
-                        f"p1 overrides={summary['p1_override_count']:,} ({summary['p1_override_rate']*100:.2f}%) | "
-                        f"classic would override={summary['classic_would_override_count']:,} "
-                        f"({summary['classic_would_override_rate']*100:.2f}%) | "
-                        f"classic-only (p1 kept GNN)={summary['classic_only_count']:,} "
-                        f"({summary['classic_only_rate']*100:.2f}%)",
+                        f"  mode={summary.get('decode_mode')} top_k={summary.get('top_k')} | "
+                        f"batches={summary['gnn_batches']:,} tasks={summary['total_decode_tasks']:,}",
                         flush=True,
                     )
-                    q = summary.get("queue_on_p1_override", {})
-                    if q:
+                    print(
+                        f"  decode_time_ms: mean={dt.get('mean')} p95={dt.get('p95')} total={dt.get('total')}",
+                        flush=True,
+                    )
+                    print(
+                        f"  combo_search_size: mean={summary.get('combo_search_size', {}).get('mean')} "
+                        f"max={summary.get('combo_search_size', {}).get('max')}",
+                        flush=True,
+                    )
+                    print(
+                        f"  intra_batch_collisions: total={col.get('total')} "
+                        f"batches={col.get('batches_with_collision')} "
+                        f"rate={float(col.get('collision_batch_rate', 0))*100:.2f}%",
+                        flush=True,
+                    )
+                    print(
+                        f"  chosen_queue vs min: mean={qv.get('mean')} median={qv.get('median')} p95={qv.get('p95')}",
+                        flush=True,
+                    )
+                    if summary.get("p1_override_count", 0) > 0:
                         print(
-                            f"  on p1 override: gnn_q mean={q.get('gnn_mean')} → final_q mean={q.get('final_mean')} "
-                            f"(saved mean={q.get('saved_mean')})",
+                            f"  seqblend p1 overrides={summary['p1_override_count']:,} "
+                            f"({summary['p1_override_rate']*100:.2f}%)",
                             flush=True,
                         )
                     print(f"  wrote {stats_path.name}", flush=True)

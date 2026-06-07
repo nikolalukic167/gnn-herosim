@@ -404,130 +404,79 @@ def extract_dataset_to_dataframes(optimal_result_path: Path) -> Dict[str, pd.Dat
 
 def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
     """
-    Load extended state data from system_state_captured_unique.json and infrastructure.json.
-    For run_non_unique datasets, also tries to load from infrastructure.json queue_distributions.
-    Returns dict with:
-    - queue_snapshot: Dict mapping "node_name:platform_id" -> queue_length
-    - temporal_state: Dict mapping "node_name:platform_id" -> {current_task_remaining, cold_start_remaining, comm_remaining}
-    Note: QoS data removed since co-simulation doesn't capture QoS violations as ground truth.
-    """
-    result = {
-        'queue_snapshot': {},
-        'temporal_state': {}
-    }
-    
-    # Load queue snapshot from system_state_captured_unique.json (if available)
-    ssc_path = dataset_dir / "system_state_captured_unique.json"
-    if ssc_path.exists():
-        try:
-            with open(ssc_path, 'r') as f:
-                data = json.load(f)
-            
-            task_placements = data.get('task_placements', [])
-            if task_placements:
-                # Use first task's full_queue_snapshot (same for all tasks in batch)
-                full_queue_snapshot = task_placements[0].get('full_queue_snapshot', {})
-                result['queue_snapshot'] = {k: _queue_length_int(v) for k, v in full_queue_snapshot.items()}
-                
-                # Extract temporal state from task placements
-                # Each task has temporal_state_at_scheduling for its valid replica platforms
-                # Merge across all tasks to get complete platform coverage
-                merged_temporal_state = {}
-                for tp in task_placements:
-                    temp_state = tp.get('temporal_state_at_scheduling', {})
-                    if isinstance(temp_state, dict):
-                        # Merge temporal state (later tasks may overwrite earlier ones for same platform)
-                        # This is fine since all tasks in batch see same snapshot, just filtered differently
-                        for platform_key, state_dict in temp_state.items():
-                            if isinstance(state_dict, dict):
-                                # Convert values to float (they should already be floats in JSON)
-                                merged_temporal_state[platform_key] = {
-                                    'current_task_remaining': _safe_float(
-                                        state_dict.get('current_task_remaining', 0.0), 0.0
-                                    ),
-                                    'cold_start_remaining': _safe_float(
-                                        state_dict.get('cold_start_remaining', 0.0), 0.0
-                                    ),
-                                    'comm_remaining': _safe_float(
-                                        state_dict.get('comm_remaining', 0.0), 0.0
-                                    ),
-                                }
-                
-                if merged_temporal_state:
-                    result['temporal_state'] = merged_temporal_state
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning("Failed to load extended state from %s: %s", ssc_path, e)
+    Load extended state data from system_state_captured_unique.json.
 
-    # Prefer batch full-queue snapshot from optimal_result (phase-1 capture often has 1 task only).
-    opt_path = dataset_dir / "optimal_result.json"
-    if opt_path.exists():
-        try:
-            with open(opt_path, "r") as f:
-                opt_data = json.load(f)
-            task_results = opt_data.get("stats", {}).get("taskResults", [])
-            if task_results:
-                first_tr = task_results[0]
-                full_queue = first_tr.get("fullQueueSnapshot") or first_tr.get("full_queue_snapshot") or {}
-                if isinstance(full_queue, dict) and full_queue:
-                    batch_queues = {k: _queue_length_int(v) for k, v in full_queue.items()}
-                    if len(batch_queues) > len(result["queue_snapshot"]):
-                        result["queue_snapshot"] = batch_queues
-                if not result["temporal_state"]:
-                    merged_temporal_state: Dict[str, Dict[str, float]] = {}
-                    for tr in task_results:
-                        temp_state = tr.get("temporalStateAtScheduling") or tr.get(
-                            "temporal_state_at_scheduling", {}
-                        )
-                        if not isinstance(temp_state, dict):
-                            continue
-                        for platform_key, state_dict in temp_state.items():
-                            if isinstance(state_dict, dict):
-                                merged_temporal_state[platform_key] = {
-                                    "current_task_remaining": _safe_float(
-                                        state_dict.get("current_task_remaining", 0.0), 0.0
-                                    ),
-                                    "cold_start_remaining": _safe_float(
-                                        state_dict.get("cold_start_remaining", 0.0), 0.0
-                                    ),
-                                    "comm_remaining": _safe_float(
-                                        state_dict.get("comm_remaining", 0.0), 0.0
-                                    ),
-                                }
-                    if merged_temporal_state:
-                        result["temporal_state"] = merged_temporal_state
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning("Failed to load extended state from %s: %s", opt_path, e)
-    
-    # Fallback: Load queue data from infrastructure.json (run_non_unique format)
-    if not result['queue_snapshot']:
-        infra_path = dataset_dir / "infrastructure.json"
-        if infra_path.exists():
-            try:
-                with open(infra_path, 'r') as f:
-                    infra_data = json.load(f)
-                
-                # Load queue_distributions: task_type -> { "node_name:platform_id": queue_length }
-                queue_distributions = infra_data.get('queue_distributions', {})
-                
-                # Merge queue distributions across all task types into single queue_snapshot
-                # If same platform appears in multiple task types, take the maximum queue length
-                merged_queues = {}
-                for task_type, queues in queue_distributions.items():
-                    for key, queue_length in queues.items():
-                        # key is "node_name:platform_id"
-                        q = _queue_length_int(queue_length)
-                        if key not in merged_queues:
-                            merged_queues[key] = q
-                        else:
-                            merged_queues[key] = max(merged_queues[key], q)
-                
-                result['queue_snapshot'] = merged_queues
-            except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
-                logger.warning("Failed to load queue data from %s: %s", infra_path, e)
-    
-    # Note: QoS data loading removed since co-simulation doesn't capture QoS violations as ground truth
-    
-    return result
+    Raises FileNotFoundError or ValueError when the SSC file is missing or incomplete.
+    No infrastructure.json or optimal_result fallbacks — repair datasets first.
+    """
+    ssc_path = dataset_dir / "system_state_captured_unique.json"
+    if not ssc_path.exists():
+        msg = (
+            f"Missing system_state_captured_unique.json for {dataset_dir.name}; "
+            "run scripts_cosim/refresh_optimal_full_stats.py --repair"
+        )
+        logger.warning(msg)
+        raise FileNotFoundError(msg)
+
+    try:
+        with open(ssc_path, 'r') as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        msg = f"Failed to read {ssc_path}: {e}"
+        logger.warning(msg)
+        raise ValueError(msg) from e
+
+    task_placements = data.get('task_placements', [])
+    if not task_placements:
+        msg = f"Empty task_placements in {ssc_path} for {dataset_dir.name}"
+        logger.warning(msg)
+        raise ValueError(msg)
+
+    full_queue_snapshot = task_placements[0].get('full_queue_snapshot') or {}
+    queue_snapshot = {k: _queue_length_int(v) for k, v in full_queue_snapshot.items()}
+    if not queue_snapshot:
+        msg = (
+            f"Empty full_queue_snapshot in {ssc_path} for {dataset_dir.name}; "
+            "run scripts_cosim/refresh_optimal_full_stats.py --repair --force"
+        )
+        logger.warning(msg)
+        raise ValueError(msg)
+
+    full_temporal = task_placements[0].get('full_temporal_state_at_scheduling') or {}
+    merged_temporal_state: Dict[str, Dict[str, float]] = {}
+    temporal_sources = [full_temporal] if full_temporal else []
+    if not temporal_sources:
+        temporal_sources = [
+            tp.get('temporal_state_at_scheduling', {})
+            for tp in task_placements
+            if isinstance(tp.get('temporal_state_at_scheduling'), dict)
+        ]
+    for temp_state in temporal_sources:
+        for platform_key, state_dict in temp_state.items():
+            if isinstance(state_dict, dict):
+                merged_temporal_state[platform_key] = {
+                    'current_task_remaining': _safe_float(
+                        state_dict.get('current_task_remaining', 0.0), 0.0
+                    ),
+                    'cold_start_remaining': _safe_float(
+                        state_dict.get('cold_start_remaining', 0.0), 0.0
+                    ),
+                    'comm_remaining': _safe_float(
+                        state_dict.get('comm_remaining', 0.0), 0.0
+                    ),
+                }
+    if not merged_temporal_state:
+        msg = (
+            f"Empty temporal_state in {ssc_path} for {dataset_dir.name}; "
+            "run scripts_cosim/refresh_optimal_full_stats.py --repair --force"
+        )
+        logger.warning(msg)
+        raise ValueError(msg)
+
+    return {
+        'queue_snapshot': queue_snapshot,
+        'temporal_state': merged_temporal_state,
+    }
 
 
 def extract_per_task_scheduling_snapshots(
@@ -596,10 +545,10 @@ def load_all_datasets(
     
     Args:
         base_dirs: List of Paths to gnn_datasets directories (can be single or multiple)
-        require_queue_data: If True, skip datasets without system_state_captured_unique.json
+        require_queue_data: If True, fail on missing/incomplete system_state_captured_unique.json
     """
     all_datasets = {}
-    skipped_no_queue = 0
+    failed_queue_data: List[str] = []
     
     for base_dir in base_dirs:
         if not base_dir.exists():
@@ -617,12 +566,12 @@ def load_all_datasets(
             if not optimal_result_path.exists():
                 continue
             
-            # Load extended state data (queue, temporal)
-            extended_state = load_extended_state_data(dataset_dir)
-            
-            # Skip if queue data is required but not available
-            if require_queue_data and not extended_state.get('queue_snapshot'):
-                skipped_no_queue += 1
+            try:
+                extended_state = load_extended_state_data(dataset_dir)
+            except (FileNotFoundError, ValueError) as e:
+                failed_queue_data.append(f"{base_dir.name}/{dataset_dir.name}: {e}")
+                if require_queue_data:
+                    raise
                 continue
             
             try:
@@ -654,8 +603,20 @@ def load_all_datasets(
         )
     
     logger.info("\nTotal datasets loaded: %s", len(all_datasets))
-    if skipped_no_queue > 0:
-        logger.info("  Skipped %s datasets without queue data", skipped_no_queue)
+    if failed_queue_data:
+        logger.warning(
+            "  %s datasets missing valid system_state_captured_unique.json",
+            len(failed_queue_data),
+        )
+        for entry in failed_queue_data[:10]:
+            logger.warning("    %s", entry)
+        if len(failed_queue_data) > 10:
+            logger.warning("    ... and %s more", len(failed_queue_data) - 10)
+        if require_queue_data:
+            raise RuntimeError(
+                f"{len(failed_queue_data)} datasets lack valid SSC; "
+                "repair with scripts_cosim/refresh_optimal_full_stats.py --repair"
+            )
     
     # Print task count distribution
     task_counts = {}

@@ -580,6 +580,10 @@ class Orchestrator:
             "systemStateResults": self.system_state_results,
         }
 
+        scheduling_capture = getattr(self.scheduler, "_scheduling_state_capture", None)
+        if scheduling_capture:
+            result["schedulingStateCapture"] = scheduling_capture
+
         # Debug: Check for non-serializable types
         logging.info("Checking for non-serializable types in stats...")
         check_serializable(result, "stats")

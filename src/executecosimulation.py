@@ -133,9 +133,43 @@ def extract_task_metrics(stats: Optional[Dict[str, Any]]) -> List[Dict[str, Any]
                 "queue_snapshot_at_scheduling": tr.get("queueSnapshotAtScheduling", {}),
                 "full_queue_snapshot": tr.get("fullQueueSnapshot", {}),
                 "temporal_state_at_scheduling": tr.get("temporalStateAtScheduling", {}),
+                "full_temporal_state_at_scheduling": tr.get("fullTemporalStateAtScheduling", {}),
             }
         )
     return task_rows
+
+
+def build_system_state_captured(stats: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Build system_state_captured_unique.json payload from simulation stats.
+
+    Prefers scheduling-time top-level state (batch start, inference-aligned) when
+    the determined scheduler exported schedulingStateCapture; otherwise falls back
+    to the last systemStateResults entry.
+    """
+    if not stats:
+        return {}
+
+    task_placements = extract_task_metrics(stats)
+    scheduling_capture = stats.get("schedulingStateCapture") or {}
+    system_state_results = stats.get("systemStateResults") or []
+    final_state = system_state_results[-1] if system_state_results else {}
+
+    top_level = scheduling_capture or final_state
+    captured_state: Dict[str, Any] = {
+        "timestamp": top_level.get("timestamp", final_state.get("timestamp", 0)),
+        "replicas": top_level.get("replicas", final_state.get("replicas", {})),
+        "available_resources": top_level.get(
+            "available_resources", final_state.get("available_resources", {})
+        ),
+        "scheduler_state": top_level.get(
+            "scheduler_state", final_state.get("scheduler_state", {})
+        ),
+        "task_placements": task_placements,
+        "total_rtt": rtt_from_stats(stats),
+        "num_tasks": len(task_placements),
+    }
+    return captured_state
 
 
 # Global shared data for worker processes (initialized via _init_worker)
@@ -2125,18 +2159,8 @@ def execute_brute_force_optimized(
                 with open(capture_sim_path, 'r') as f:
                     capture_result = json.load(f)
                 stats = capture_result.get('stats', {})
-                system_state_results = stats.get('systemStateResults', [])
-                task_metrics = extract_task_metrics(stats)
-                if system_state_results:
-                    final_state = system_state_results[-1]
-                    captured_state = {
-                        "timestamp": final_state.get('timestamp', 0),
-                        "replicas": final_state.get('replicas', {}),
-                        "available_resources": final_state.get('available_resources', {}),
-                        "scheduler_state": final_state.get('scheduler_state', {}),
-                        "task_placements": task_metrics,
-                        "total_rtt": rtt_from_stats(stats),
-                    }
+                if stats.get("taskResults") or stats.get("systemStateResults"):
+                    captured_state = build_system_state_captured(stats)
                     output_file = capture_output_dir / "system_state_captured_unique.json"
                     with open(output_file, 'w') as f:
                         json.dump(captured_state, f, indent=2, cls=DataclassJSONEncoder)

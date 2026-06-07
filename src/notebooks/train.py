@@ -33,7 +33,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.data import Batch, Data
 from torch_geometric.nn.models import GIN
-from torch_geometric.loader import DataLoader
+from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import wandb
@@ -402,6 +402,18 @@ class GraphRttDataset(torch.utils.data.Dataset):
 # CUSTOM COLLATE AND ATTRIBUTE RESTORATION
 # ============================================================================
 
+# Heterogeneous dict attrs (e.g. queue_snapshot keys vary by graph size) break PyG collate.
+_STRIP_BEFORE_BATCH_KEYS = (
+    "task_logit_to_placement",
+    "_task_logit_to_placement",
+    "task_logit_to_queue_key",
+    "queue_snapshot",
+    "initial_queue_snapshot",
+    "dataset_id",
+    "opt_rtt",
+)
+
+
 def custom_collate(data_list):
     """Batch graphs while preserving non-tensor custom attributes."""
     task_maps = [
@@ -410,7 +422,14 @@ def custom_collate(data_list):
     ]
     dataset_ids = [getattr(d, 'dataset_id', None) for d in data_list]
     opt_rtts = [getattr(d, 'opt_rtt', None) for d in data_list]
-    batch = Batch.from_data_list(data_list)
+    stripped = []
+    for d in data_list:
+        clean = d.clone()
+        for key in _STRIP_BEFORE_BATCH_KEYS:
+            if key in clean:
+                del clean[key]
+        stripped.append(clean)
+    batch = Batch.from_data_list(stripped)
     batch.task_logit_to_placement_list = task_maps
     batch.dataset_id_list = dataset_ids
     batch.opt_rtt_list = opt_rtts

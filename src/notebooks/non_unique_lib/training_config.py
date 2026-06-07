@@ -38,7 +38,7 @@ def parse_training_config() -> TrainingConfig:
         / "simulation_data"
         / "artifacts"
         / "run_queue_big"
-        / "graphs_cache_gnn_datasets_4tasks_scheduler_adaptive"
+        / "graphs_cache_gnn_datasets_4tasks_1060_scheduler_adaptive"
     )
 
     parser = argparse.ArgumentParser(description="Train non-unique task placement GNN.")

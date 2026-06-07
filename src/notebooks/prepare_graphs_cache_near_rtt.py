@@ -13,54 +13,16 @@ import argparse
 import pickle
 import sys
 from pathlib import Path
+from typing import Any, Dict
 
 from non_unique_lib.cache_io import (
+    build_capped_valid_combos_map_from_chunked_cache,
     build_valid_combos_map_from_chunked_cache,
+    save_capped_valid_combos_map,
     save_valid_combos_map,
 )
 
 import prepare_graphs_cache
-
-
-def _safe_extended_state_from_infrastructure(dataset_dir: Path) -> Dict[str, Dict[str, Any]]:
-    import json
-
-    result: Dict[str, Dict[str, Any]] = {
-        "queue_snapshot": {},
-        "temporal_state": {},
-    }
-    infra_path = dataset_dir / "infrastructure.json"
-    if not infra_path.exists():
-        return result
-
-    try:
-        with open(infra_path, "r") as fh:
-            infra_data = json.load(fh)
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        return result
-
-    merged_queues: Dict[str, int] = {}
-    for queues in infra_data.get("queue_distributions", {}).values():
-        if not isinstance(queues, dict):
-            continue
-        for key, queue_length in queues.items():
-            q = prepare_graphs_cache._queue_length_int(queue_length)
-            merged_queues[key] = max(q, merged_queues.get(key, 0))
-
-    result["queue_snapshot"] = merged_queues
-    return result
-
-
-_ORIGINAL_LOAD_EXTENDED_STATE = prepare_graphs_cache.load_extended_state_data
-
-
-def _load_extended_state_data_safe(dataset_dir: Path) -> Dict[str, Dict[str, Any]]:
-    try:
-        return _ORIGINAL_LOAD_EXTENDED_STATE(dataset_dir)
-    except AttributeError as exc:
-        if "'NoneType' object has no attribute 'items'" not in str(exc):
-            raise
-        return _safe_extended_state_from_infrastructure(dataset_dir)
 
 
 def _arg_value(args: list[str], name: str) -> str | None:
@@ -97,15 +59,15 @@ def _resolve_cache_dir(project_root: Path, args: list[str]) -> Path:
             return first_base.parent / "graphs_cache_merged_2_3_4_tasks"
         return first_base.parent / f"graphs_cache_{first_base.name}"
 
-    # Mirrors prepare_graphs_cache._default_base_dirs for the non-merge case.
+    # Default to the repaired 1060-dataset archive (post SSC warmup fix).
     base = (
         project_root
         / "simulation_data"
         / "artifacts"
         / "run_queue_big"
-        / "gnn_datasets_4tasks_overnight_260422"
+        / "gnn_datasets_4tasks_1060"
     )
-    return base.parent / f"graphs_cache_{base.name}"
+    return base.parent / f"graphs_cache_{base.name}_scheduler_adaptive"
 
 
 def _load_parent_ids(cache_dir: Path) -> set[str]:
@@ -133,38 +95,116 @@ def _write_near_rtt_metadata(cache_dir: Path) -> None:
         metadata = json.load(fh)
 
     metadata["near_rtt_training"] = True
-    metadata["exact_combo_sidecar"] = "valid_combos_map.pkl"
+    metadata["exact_combo_sidecar"] = "valid_combos_near_rtt_capped.pkl"
     metadata["near_rtt_note"] = (
-        "valid_combos_map.pkl stores exact co-sim RTT combos sorted by RTT "
-        "for near-optimal pairwise ranking."
+        "valid_combos_near_rtt_capped.pkl stores a capped near-RTT sidecar "
+        "(optimum + reservoir-sampled near/close/mid/far bands) for ranking loss."
     )
 
     with open(metadata_path, "w") as fh:
         json.dump(metadata, fh, indent=2)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[2])
-    known, _ = parser.parse_known_args()
-    project_root = known.project_root.expanduser().resolve()
+_NEAR_RTT_ONLY_FLAGS = {
+    "--full-combos",
+    "--skip-cache-build",
+    "--near-cap",
+    "--close-cap",
+    "--mid-cap",
+    "--far-cap",
+    "--near-delta",
+    "--close-delta",
+    "--mid-delta",
+}
 
-    # Reuse the standard cache builder with the original CLI. It writes graphs,
-    # dataset IDs, optimal RTTs, and chunked RTT lookup files.
-    prepare_graphs_cache.load_extended_state_data = _load_extended_state_data_safe
-    prepare_graphs_cache.main()
+
+def _argv_for_prepare_graphs_cache(argv: list[str]) -> list[str]:
+    """Strip near-RTT-only flags so prepare_graphs_cache argparse stays valid."""
+    filtered: list[str] = []
+    skip_next = False
+    for arg in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in _NEAR_RTT_ONLY_FLAGS:
+            if arg not in {"--full-combos", "--skip-cache-build"}:
+                skip_next = True
+            continue
+        filtered.append(arg)
+    return filtered
+
+
+def _parse_near_rtt_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Prepare graph cache plus capped near-RTT training sidecar.",
+        add_help=True,
+    )
+    parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument(
+        "--full-combos",
+        action="store_true",
+        help="Also materialize valid_combos_map.pkl (full RTT table; very large).",
+    )
+    parser.add_argument("--near-cap", type=int, default=256)
+    parser.add_argument("--close-cap", type=int, default=384)
+    parser.add_argument("--mid-cap", type=int, default=256, help="0.3s-1.0s band reservoir cap (raised for eval coverage).")
+    parser.add_argument("--far-cap", type=int, default=192, help=">1.0s band reservoir cap (raised for bad-layout coverage).")
+    parser.add_argument("--near-delta", type=float, default=0.05)
+    parser.add_argument("--close-delta", type=float, default=0.30)
+    parser.add_argument("--mid-delta", type=float, default=1.00)
+    parser.add_argument(
+        "--skip-cache-build",
+        action="store_true",
+        help="Only (re)build the capped sidecar; assume graphs/rtt chunks already exist.",
+    )
+    known, _ = parser.parse_known_args(argv)
+    return known
+
+
+def main() -> None:
+    near_args = _parse_near_rtt_args(sys.argv[1:])
+    project_root = near_args.project_root.expanduser().resolve()
+
+    if not near_args.skip_cache_build:
+        # Reuse the standard cache builder with the original CLI. It writes graphs,
+        # dataset IDs, optimal RTTs, and chunked RTT lookup files.
+        original_argv = sys.argv
+        try:
+            sys.argv = [original_argv[0], *_argv_for_prepare_graphs_cache(original_argv[1:])]
+            prepare_graphs_cache.main()
+        finally:
+            sys.argv = original_argv
 
     cache_dir = _resolve_cache_dir(project_root, sys.argv[1:])
     parent_ids = _load_parent_ids(cache_dir)
-    valid_combos_map = build_valid_combos_map_from_chunked_cache(cache_dir, parent_ids)
-    save_valid_combos_map(cache_dir, valid_combos_map)
+    capped_map = build_capped_valid_combos_map_from_chunked_cache(
+        cache_dir,
+        parent_ids,
+        near_cap=max(0, near_args.near_cap),
+        close_cap=max(0, near_args.close_cap),
+        mid_cap=max(0, near_args.mid_cap),
+        far_cap=max(0, near_args.far_cap),
+        near_delta=near_args.near_delta,
+        close_delta=near_args.close_delta,
+        mid_delta=near_args.mid_delta,
+    )
+    save_capped_valid_combos_map(cache_dir, capped_map)
     _write_near_rtt_metadata(cache_dir)
 
-    total_combos = sum(len(v) for v in valid_combos_map.values())
+    total_combos = sum(len(v) for v in capped_map.values())
     print(
-        f"[near-rtt cache] Wrote exact combo sidecar for "
-        f"{len(valid_combos_map)} datasets ({total_combos:,} combos)"
+        f"[near-rtt cache] Wrote capped sidecar for "
+        f"{len(capped_map)} datasets ({total_combos:,} combos)"
     )
+
+    if near_args.full_combos:
+        valid_combos_map = build_valid_combos_map_from_chunked_cache(cache_dir, parent_ids)
+        save_valid_combos_map(cache_dir, valid_combos_map)
+        full_total = sum(len(v) for v in valid_combos_map.values())
+        print(
+            f"[near-rtt cache] Wrote full valid_combos_map.pkl for "
+            f"{len(valid_combos_map)} datasets ({full_total:,} combos)"
+        )
 
 
 if __name__ == "__main__":

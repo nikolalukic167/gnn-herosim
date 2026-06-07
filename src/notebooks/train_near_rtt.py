@@ -75,6 +75,7 @@ class NearRttConfig:
     far_weight: float = float(os.environ.get("NEAR_RTT_FAR_WEIGHT", "0.25"))
     dropout: float = float(os.environ.get("NEAR_RTT_DROPOUT", "0.1"))
     train_all: bool = os.environ.get("NEAR_RTT_TRAIN_ALL", "0") == "1"
+    unmapped_penalty: float = float(os.environ.get("NEAR_RTT_UNMAPPED_PENALTY", "1.0"))
 
 
 RUNTIME_CONFIG = parse_training_config()
@@ -338,6 +339,31 @@ def decode_greedy(logits_per_task: List[Tensor], data: Data) -> Optional[Placeme
     return tuple(combo)
 
 
+def build_worst_regret_by_dataset(rtt_by_dataset: RttByCombo) -> Dict[str, float]:
+    """Per-dataset max regret in the capped sidecar; used as unmapped-combo penalty floor."""
+    worst: Dict[str, float] = {}
+    for dataset_id, combos in rtt_by_dataset.items():
+        if not combos:
+            continue
+        opt_rtt = min(rtt for rtt in combos.values())
+        worst[dataset_id] = max(float(rtt) - opt_rtt for rtt in combos.values())
+    return worst
+
+
+def regret_for_combo(
+    combo: Optional[PlacementCombo],
+    rtt_map: Dict[PlacementCombo, float],
+    opt_rtt: float,
+    worst_regret: float,
+    unmapped_penalty: float,
+) -> Optional[float]:
+    if combo is None:
+        return None
+    if combo in rtt_map:
+        return float(rtt_map[combo]) - opt_rtt
+    return max(float(worst_regret), float(unmapped_penalty))
+
+
 def decode_topk_joint(
     logits_per_task: List[Tensor],
     data: Data,
@@ -467,6 +493,7 @@ def evaluate(
     model: nn.Module,
     loader: DataLoader,
     rtt_by_dataset: RttByCombo,
+    worst_regret_by_dataset: Dict[str, float],
     split_name: str,
 ) -> Dict[str, float]:
     model.eval()
@@ -479,6 +506,10 @@ def evaluate(
     regret_greedy: List[float] = []
     regret_topk: List[float] = []
     regret_oracle_topk: List[float] = []
+    greedy_mapped = 0
+    greedy_total = 0
+    topk_mapped = 0
+    topk_total = 0
 
     for batch in tqdm(loader, desc=f"Evaluating {split_name}", leave=False):
         for graph in batch:
@@ -508,16 +539,42 @@ def evaluate(
             if all_correct and local_valid == int(data.n_tasks):
                 graph_correct += 1
 
-            dataset_id = getattr(data, "dataset_id", None)
+            dataset_id = getattr(data, "dataset_id", None) or ""
             opt_rtt = float(getattr(data, "opt_rtt", 0.0))
-            rtt_map = rtt_by_dataset.get(dataset_id or "", {})
+            rtt_map = rtt_by_dataset.get(dataset_id, {})
+            worst_regret = worst_regret_by_dataset.get(
+                dataset_id,
+                NEAR_CFG.unmapped_penalty,
+            )
             greedy_combo = decode_greedy(logits, data)
-            if greedy_combo in rtt_map:
-                regret_greedy.append(float(rtt_map[greedy_combo]) - opt_rtt)
+            if greedy_combo is not None:
+                greedy_total += 1
+                if greedy_combo in rtt_map:
+                    greedy_mapped += 1
+                greedy_regret = regret_for_combo(
+                    greedy_combo,
+                    rtt_map,
+                    opt_rtt,
+                    worst_regret,
+                    NEAR_CFG.unmapped_penalty,
+                )
+                if greedy_regret is not None:
+                    regret_greedy.append(greedy_regret)
 
             topk_combo, oracle_combo = decode_topk_joint(logits, data, rtt_map, NEAR_CFG.top_k_decode)
-            if topk_combo in rtt_map:
-                regret_topk.append(float(rtt_map[topk_combo]) - opt_rtt)
+            if topk_combo is not None:
+                topk_total += 1
+                if topk_combo in rtt_map:
+                    topk_mapped += 1
+                topk_regret = regret_for_combo(
+                    topk_combo,
+                    rtt_map,
+                    opt_rtt,
+                    worst_regret,
+                    NEAR_CFG.unmapped_penalty,
+                )
+                if topk_regret is not None:
+                    regret_topk.append(topk_regret)
             if oracle_combo in rtt_map:
                 regret_oracle_topk.append(float(rtt_map[oracle_combo]) - opt_rtt)
 
@@ -533,11 +590,16 @@ def evaluate(
         "regret_oracle_topk": avg(regret_oracle_topk),
         "count_regret_greedy": float(len(regret_greedy)),
         "count_regret_topk": float(len(regret_topk)),
+        "greedy_sidecar_coverage": greedy_mapped / max(1, greedy_total),
+        "topk_sidecar_coverage": topk_mapped / max(1, topk_total),
+        "greedy_unmapped": float(greedy_total - greedy_mapped),
     }
     print(
         f"[{split_name}] acc={metrics['acc']*100:.1f}% "
         f"task_acc={metrics['task_acc']*100:.1f}% "
         f"greedy_regret={metrics['regret_greedy']:.4f}s "
+        f"(sidecar_hit={metrics['greedy_sidecar_coverage']*100:.1f}%, "
+        f"unmapped={int(metrics['greedy_unmapped'])}) "
         f"top{NEAR_CFG.top_k_decode}_regret={metrics['regret_topk']:.4f}s "
         f"oracle_top{NEAR_CFG.top_k_decode}={metrics['regret_oracle_topk']:.4f}s"
     )
@@ -579,6 +641,7 @@ def load_or_build_valid_combos() -> Tuple[PlacementToLogitMap, ExactRttLookupMap
 graphs, dataset_ids = load_graphs_from_cache(CACHE_CTX)
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
 PLACEMENT_TO_LOGIT_MAP, EXACT_RTT_MAP, RTT_BY_DATASET = load_or_build_valid_combos()
+WORST_REGRET_BY_DATASET = build_worst_regret_by_dataset(RTT_BY_DATASET)
 
 print(f"Loaded {len(graphs)} graphs")
 print(f"Exact RTT datasets: {len(EXACT_RTT_MAP)}, combos: {sum(len(v) for v in EXACT_RTT_MAP.values()):,}")
@@ -633,6 +696,8 @@ wandb.init(
         "num_val": int(len(val_graphs)),
         "num_test": int(len(test_graphs)),
         "num_exact_rtt_combo_rows": int(sum(len(v) for v in EXACT_RTT_MAP.values())),
+        "unmapped_penalty": float(NEAR_CFG.unmapped_penalty),
+        "cache_dir": str(CACHE_CTX.cache_dir),
     },
     tags=[t for t in os.environ.get("WANDB_TAGS", "near-rtt").split(",") if t],
 )
@@ -669,7 +734,7 @@ print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 for epoch in range(EPOCHS):
     start = time.perf_counter()
     train_metrics = train_epoch(model, train_loader, optimizer, criterion, epoch)
-    val_metrics = evaluate(model, val_loader, RTT_BY_DATASET, "val")
+    val_metrics = evaluate(model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "val")
 
     log_dict: Dict[str, float] = {}
     log_dict.update(prefix(train_metrics, "train"))
@@ -704,9 +769,9 @@ if not checkpoint_saved:
     raise RuntimeError("No near-RTT checkpoint was saved.")
 
 model.load_state_dict(torch.load(model_path, map_location=DEVICE))
-train_final = evaluate(model, train_loader, RTT_BY_DATASET, "final/train")
-val_final = evaluate(model, val_loader, RTT_BY_DATASET, "final/val")
-test_final = evaluate(model, test_loader, RTT_BY_DATASET, "final/test")
+train_final = evaluate(model, train_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/train")
+val_final = evaluate(model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/val")
+test_final = evaluate(model, test_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/test")
 
 final_log: Dict[str, float] = {}
 final_log.update(prefix(train_final, "final/train"))
