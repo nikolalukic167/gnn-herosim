@@ -27,9 +27,10 @@ if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
 from src.policy.gnn.seq_decode import (
-    decode_sequential_placement,
+    PlacementCombo,
     get_run_decode_stats,
     reset_run_decode_stats,
+    run_decode_with_timing,
 )
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
@@ -79,10 +80,16 @@ class GNNScheduler(Scheduler):
         self.gnn_pure_decisions = 0
         self.fallback_decisions = 0
         self.decode_stats = reset_run_decode_stats()
-        self._decode_seqblend = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower() in (
-            "seqblend", "seqblend_p1", "1",
-        )
+        self._decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+        self._decode_seqblend = self._decode_mode in ("seqblend", "seqblend_p1", "1")
         self._decode_queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
+        if self._decode_mode in ("frozen", "frozen_argmax", "frozen_topk", "topk", "topk_joint"):
+            top_k = os.environ.get("GNN_DECODE_TOP_K", "10")
+            print(
+                f"[GNN] Decode mode: {self._decode_mode}"
+                + (f" (top_k={top_k})" if "topk" in self._decode_mode or self._decode_mode == "topk" else ""),
+                flush=True,
+            )
         
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
@@ -678,27 +685,31 @@ class GNNScheduler(Scheduler):
         task_logit_to_queue_key: Optional[Dict[int, List[str]]] = None,
     ) -> Dict[int, Tuple[int, int]]:
         """
-        Sequential GNN decode with live queue roll-forward.
+        GNN decode modes (GNN_DECODE_MODE env):
 
-        GNN_DECODE_MODE=argmax (default): pure argmax, matches train eval.
-        GNN_DECODE_MODE=seqblend: override to min-queue among candidates only when
-            live_queue(chosen) > min_queue + GNN_SEQBLEND_QUEUE_MARGIN (default margin=1
-            → seqblend+1, not classic override on any queue strictly above min).
+        argmax (default): sequential per-task argmax with live queue roll-forward.
+        seqblend: sequential argmax + min-queue override when queue > min + margin.
+        frozen: per-task argmax from one snapshot (no roll-forward; matches offline greedy).
+        frozen_topk: joint top-k by summed logits from one snapshot (matches near-RTT eval).
+
+        frozen_topk uses GNN_DECODE_TOP_K (default 10).
         """
         decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+        top_k = max(1, int(os.environ.get("GNN_DECODE_TOP_K", "10")))
         seqblend = decode_mode in ("seqblend", "seqblend_p1", "1")
         queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
-        track_stats = seqblend or os.environ.get("GNN_DECODE_STATS", "0") == "1"
 
-        combo = decode_sequential_placement(
+        combo = run_decode_with_timing(
+            decode_mode,
             logits_per_task,
             task_logit_to_placement,
             n_tasks,
-            queue_snapshot,
-            task_logit_to_queue_key,
+            queue_snapshot=queue_snapshot,
+            task_logit_to_queue_key=task_logit_to_queue_key,
             seqblend=seqblend,
             queue_margin=queue_margin,
-            stats=self.decode_stats if track_stats else None,
+            top_k=top_k,
+            stats=self.decode_stats,
         )
         if combo is None:
             return {}

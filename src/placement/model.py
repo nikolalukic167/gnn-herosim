@@ -268,6 +268,7 @@ class TaskResult(TypedDict):
     queueSnapshotAtScheduling: Dict[str, int] | None  # {node:platform -> queue_length} for valid replicas
     fullQueueSnapshot: Dict[str, int] | None  # All platforms queue lengths
     temporalStateAtScheduling: Dict[str, Dict[str, float]] | None  # {node:platform -> {current_task_remaining, cold_start_remaining, comm_remaining}}
+    fullTemporalStateAtScheduling: Dict[str, Dict[str, float]] | None
 
 
 @final

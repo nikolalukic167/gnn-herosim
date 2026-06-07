@@ -19,15 +19,15 @@ def main() -> None:
         / "simulation_data"
         / "artifacts"
         / "run_queue_big"
-        / "graphs_cache_gnn_datasets_4tasks_scheduler_adaptive"
+        / "graphs_cache_gnn_datasets_4tasks_1060_scheduler_adaptive"
     )
 
     parser = argparse.ArgumentParser(description="Build capped near-RTT sidecar from chunked RTT cache.")
     parser.add_argument("--cache-dir", type=Path, default=default_cache_dir)
     parser.add_argument("--near-cap", type=int, default=256)
     parser.add_argument("--close-cap", type=int, default=384)
-    parser.add_argument("--mid-cap", type=int, default=128)
-    parser.add_argument("--far-cap", type=int, default=64)
+    parser.add_argument("--mid-cap", type=int, default=256, help="0.3s-1.0s band reservoir cap.")
+    parser.add_argument("--far-cap", type=int, default=192, help=">1.0s band reservoir cap.")
     parser.add_argument("--near-delta", type=float, default=0.05)
     parser.add_argument("--close-delta", type=float, default=0.30)
     parser.add_argument("--mid-delta", type=float, default=1.00)

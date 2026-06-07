@@ -39,6 +39,8 @@ class DeterminedScheduler(Scheduler):
         self.batch_size = 3  # Default: process 2 tasks at once
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
+        # Scheduling-time system snapshot (batch start, before placements mutate queues)
+        self._scheduling_state_capture: Optional[Dict[str, Any]] = None
 
     def _debug(self, msg: str) -> None:
         if self.debug_enabled:
@@ -116,6 +118,12 @@ class DeterminedScheduler(Scheduler):
         
         # Capture queue snapshot ONCE for the entire batch (before any placements)
         batch_queue_snapshot = self._capture_batch_queue_snapshot(system_state, batch_tasks)
+
+        # Capture top-level system state at batch scheduling time (inference-aligned).
+        if self._scheduling_state_capture is None:
+            self._scheduling_state_capture = self.state_capture.get_captured_state(
+                system_state, total_rtt=0.0
+            )
         
         # Process all tasks in the batch
         for task in batch_tasks:
@@ -177,7 +185,12 @@ class DeterminedScheduler(Scheduler):
             # Capture full queue snapshot and temporal state for this task
             task.full_queue_snapshot = self._capture_full_queue_snapshot()
             valid_replicas_set = set(valid_replicas)
-            task.temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
+            task.temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(
+                valid_replicas_set
+            )
+            task.full_temporal_state_at_scheduling = (
+                self.state_capture.capture_full_temporal_state()
+            )
 
             # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)

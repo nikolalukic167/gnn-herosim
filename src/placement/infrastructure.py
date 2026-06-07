@@ -27,15 +27,13 @@ DATASET_STATE_CAPTURE = os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1"
 
 
 def slim_completed_task(task: "Task") -> None:
-    """Drop bulky per-task snapshots once timing metrics are on the task object."""
-    for attr in (
-        "queue_snapshot_at_scheduling",
-        "full_queue_snapshot",
-        "temporal_state_at_scheduling",
-        "system_state_snapshot",
-    ):
-        if hasattr(task, attr):
-            setattr(task, attr, None)
+    """Drop bulky per-task snapshots once timing metrics are on the task object.
+
+    Scheduling-time queue/temporal snapshots are kept until stats() exports them;
+    only the large system_state_snapshot blob is cleared here.
+    """
+    if hasattr(task, "system_state_snapshot"):
+        task.system_state_snapshot = None
 
 from simpy.core import Environment, SimTime
 from simpy.resources.store import FilterStore, Store
@@ -179,6 +177,7 @@ class Task:
         self.queue_snapshot_at_scheduling: Optional[Dict[str, int]] = None  # {node:platform -> queue_length}
         self.full_queue_snapshot: Optional[Dict[str, int]] = None  # All platforms, for verification
         self.temporal_state_at_scheduling: Optional[Dict[str, Dict[str, float]]] = None  # {node:platform -> {current_task_remaining, cold_start_remaining, comm_remaining}}
+        self.full_temporal_state_at_scheduling: Optional[Dict[str, Dict[str, float]]] = None
 
         self.run = env.process(self.task_process())
 
@@ -371,6 +370,7 @@ class Task:
             "queueSnapshotAtScheduling": self.queue_snapshot_at_scheduling,
             "fullQueueSnapshot": self.full_queue_snapshot,
             "temporalStateAtScheduling": self.temporal_state_at_scheduling,
+            "fullTemporalStateAtScheduling": self.full_temporal_state_at_scheduling,
         }
 
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Audit or repair optimal_result.json exports for per-task queueSnapshotAtScheduling.
+Audit or repair optimal_result.json exports for inference-aligned system state.
 
 Repair re-runs the stored optimal placement with SIM_FORCE_FULL_STATS=1 using
 config/sim_inputs embedded in optimal_result.json (no brute-force re-search).
+Writes system_state_captured_unique.json with scheduling-time top-level state
+(replicas, available_resources, scheduler_state) plus per-task queue/temporal
+snapshots matching live GNN inference capture.
 
-Existing run_queue_big 4-task corpora are typically already complete; use --audit-only
-to confirm before a cache rebuild.
+Use --rewrite-ssc to rebuild SSC files from already-refreshed optimal_result.json
+without re-running simulation.
 """
 from __future__ import annotations
 
@@ -23,7 +26,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.executecosimulation import KEEP_ALIVE, QUEUE_LENGTH, execute_simulation
+from src.executecosimulation import (
+    KEEP_ALIVE,
+    QUEUE_LENGTH,
+    build_system_state_captured,
+    execute_simulation,
+)
 from src.placement.model import DataclassJSONEncoder
 
 logger = logging.getLogger(__name__)
@@ -37,13 +45,64 @@ def _n_tasks_from_workload(workload: Any) -> int:
     return 0
 
 
-def per_task_snapshots_complete(data: Dict[str, Any], n_tasks: int) -> bool:
-    task_results = data.get("stats", {}).get("taskResults", [])
+def _normalize_placement_plan(
+    placement_plan: Dict[Any, Any],
+) -> Dict[int, tuple[int, int]]:
+    return {int(k): (int(v[0]), int(v[1])) for k, v in placement_plan.items()}
+
+
+def write_system_state_captured(dataset_dir: Path, stats: Dict[str, Any]) -> None:
+    captured_state = build_system_state_captured(stats)
+    out_path = dataset_dir / "system_state_captured_unique.json"
+    with open(out_path, "w") as f:
+        json.dump(captured_state, f, indent=2, cls=DataclassJSONEncoder)
+
+
+def system_state_complete(data: Dict[str, Any], n_tasks: int) -> bool:
+    stats = data.get("stats", {})
+    task_results = stats.get("taskResults", [])
     if len(task_results) < n_tasks:
         return False
+
     for tr in sorted(task_results, key=lambda t: int(t.get("taskId", -1))):
         q = tr.get("queueSnapshotAtScheduling") or tr.get("queue_snapshot_at_scheduling")
+        fqs = tr.get("fullQueueSnapshot") or tr.get("full_queue_snapshot")
+        temporal = tr.get("temporalStateAtScheduling") or tr.get(
+            "temporal_state_at_scheduling"
+        )
         if not isinstance(q, dict) or not q:
+            return False
+        if not isinstance(fqs, dict) or not fqs:
+            return False
+        if not isinstance(temporal, dict) or not temporal:
+            return False
+
+    scheduling = stats.get("schedulingStateCapture") or {}
+    system_state_results = stats.get("systemStateResults") or []
+    top = scheduling or (system_state_results[-1] if system_state_results else {})
+    if not top.get("replicas"):
+        return False
+    return True
+
+
+def ssc_file_complete(ssc_path: Path, n_tasks: int) -> bool:
+    if not ssc_path.exists():
+        return False
+    with open(ssc_path, "r") as f:
+        ssc = json.load(f)
+    if not ssc.get("replicas"):
+        return False
+    if not ssc.get("scheduler_state"):
+        return False
+    placements = ssc.get("task_placements") or []
+    if len(placements) < n_tasks:
+        return False
+    for tp in placements[:n_tasks]:
+        if not tp.get("queue_snapshot_at_scheduling"):
+            return False
+        if not tp.get("full_queue_snapshot"):
+            return False
+        if not tp.get("temporal_state_at_scheduling"):
             return False
     return True
 
@@ -56,17 +115,38 @@ def audit_dataset(optimal_path: Path) -> str:
         return "skip_no_workload"
     if not data.get("stats", {}).get("taskResults"):
         return "missing_task_results"
-    if per_task_snapshots_complete(data, n_tasks):
+    if system_state_complete(data, n_tasks) and ssc_file_complete(
+        optimal_path.parent / "system_state_captured_unique.json", n_tasks
+    ):
         return "ok"
     return "needs_refresh"
 
 
-def repair_dataset(optimal_path: Path, dry_run: bool) -> str:
-    status = audit_dataset(optimal_path)
-    if status == "ok":
-        return "skip_ok"
-    if status.startswith("skip"):
-        return status
+def rewrite_ssc_from_optimal(optimal_path: Path) -> str:
+    with open(optimal_path, "r") as f:
+        data = json.load(f)
+    stats = data.get("stats")
+    if not stats or not stats.get("taskResults"):
+        return "skip_no_stats"
+    n_tasks = _n_tasks_from_workload(data.get("config", {}).get("workload", {}))
+    write_system_state_captured(optimal_path.parent, stats)
+    if ssc_file_complete(optimal_path.parent / "system_state_captured_unique.json", n_tasks):
+        return "ssc_rewritten"
+    return "ssc_incomplete"
+
+
+def repair_dataset(
+    optimal_path: Path,
+    dry_run: bool,
+    write_ssc: bool = True,
+    force: bool = False,
+) -> str:
+    if not force:
+        audit_status = audit_dataset(optimal_path)
+        if audit_status == "ok":
+            return "skip_ok"
+        if audit_status.startswith("skip"):
+            return audit_status
 
     with open(optimal_path, "r") as f:
         old = json.load(f)
@@ -80,8 +160,10 @@ def repair_dataset(optimal_path: Path, dry_run: bool) -> str:
     if dry_run:
         return "would_refresh"
 
+    placement_plan = _normalize_placement_plan(placement_plan)
     os.environ["SIM_FORCE_FULL_STATS"] = "1"
     full_config = copy.deepcopy(config)
+    full_config.setdefault("infrastructure", {})["forced_placements"] = placement_plan
     result = execute_simulation(
         full_config,
         sim_inputs,
@@ -91,7 +173,10 @@ def repair_dataset(optimal_path: Path, dry_run: bool) -> str:
         keep_alive=KEEP_ALIVE,
         queue_length=QUEUE_LENGTH,
     )
-    result["sample"] = old.get("sample", {"placement_plan": placement_plan})
+    result["sample"] = {
+        **(old.get("sample") or {}),
+        "placement_plan": {str(k): [v[0], v[1]] for k, v in placement_plan.items()},
+    }
     result["config"] = config
     result["sim_inputs"] = sim_inputs
 
@@ -101,10 +186,13 @@ def repair_dataset(optimal_path: Path, dry_run: bool) -> str:
     with open(optimal_path, "w") as f:
         json.dump(result, f, cls=DataclassJSONEncoder, indent=2)
 
+    if write_ssc:
+        write_system_state_captured(optimal_path.parent, result["stats"])
+
     with open(optimal_path, "r") as f:
         refreshed = json.load(f)
     n_tasks = _n_tasks_from_workload(config.get("workload", {}))
-    if per_task_snapshots_complete(refreshed, n_tasks):
+    if system_state_complete(refreshed, n_tasks):
         return "refreshed"
     return "refresh_incomplete"
 
@@ -125,7 +213,17 @@ def main() -> None:
     parser.add_argument(
         "--repair",
         action="store_true",
-        help="Re-run optimal sim with SIM_FORCE_FULL_STATS=1 when snapshots missing",
+        help="Re-run optimal sim with SIM_FORCE_FULL_STATS=1 when state is incomplete",
+    )
+    parser.add_argument(
+        "--rewrite-ssc",
+        action="store_true",
+        help="Rebuild system_state_captured_unique.json from optimal_result.json only",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-repair even when queue snapshots exist but SSC/top-level/temporal is incomplete",
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -140,8 +238,14 @@ def main() -> None:
         if not optimal_path.exists():
             counts["skip_no_optimal"] = counts.get("skip_no_optimal", 0) + 1
             continue
-        if args.repair:
-            status = repair_dataset(optimal_path, args.dry_run)
+
+        if args.rewrite_ssc:
+            status = rewrite_ssc_from_optimal(optimal_path)
+        elif args.repair:
+            if args.force or audit_dataset(optimal_path) != "ok":
+                status = repair_dataset(optimal_path, args.dry_run, force=args.force)
+            else:
+                status = "skip_ok"
         else:
             status = audit_dataset(optimal_path)
         counts[status] = counts.get(status, 0) + 1
