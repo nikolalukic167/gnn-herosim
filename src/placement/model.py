@@ -543,6 +543,7 @@ scheduling_strategies: Dict[str, str] = {
     "prokn_prokn": "PROKN-PROKN",
     "prohetkn_prohetkn": "PROHETKN-PROHETKN",
     "gnn_gnn": "GNN-GNN",
+    "gnn_hetero_gnn_hetero": "GNN-HETERO-GNN-HETERO",
     "multiloop_multiloop": "MULTILOOP-MULTILOOP",
     "determined_determined": "DETERMINED-DETERMINED",
     "evaluator_evaluator": "EVALUATOR-EVALUATOR",

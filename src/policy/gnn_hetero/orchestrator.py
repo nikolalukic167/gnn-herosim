@@ -17,7 +17,7 @@ limitations under the License.
 import logging
 from typing import TYPE_CHECKING, Dict, Set, Tuple
 
-from src.policy.gnn.model import KnativeSchedulerState, KnativeSystemState
+from src.policy.gnn_hetero.model import KnativeSchedulerState, KnativeSystemState
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform

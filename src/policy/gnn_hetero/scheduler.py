@@ -2,30 +2,36 @@
 GNN-based Scheduler for Task-to-Platform Placement (NON-UNIQUE VERSION)
 
 This scheduler uses a trained GNN model to make placement decisions.
-It processes batches of 2-3 tasks together (model training range) and
-uses a per-task greedy decoder that allows non-unique placements
-(multiple tasks can be placed on the same replica).
+It processes batches of 2-4 tasks together and decodes placements via
+sequential GNN argmax with live queue roll-forward between tasks.
 
 Fallback to shortest-queue for:
 - Single task batches (model not trained on 1 task)
-- Large batches > 3 tasks (model not trained on 4+ tasks)
+- Large batches > 4 tasks (model not trained on 5+ tasks)
 """
 
 from __future__ import annotations
 
 import logging
 import json
+import os
 from timeit import default_timer
 from typing import Generator, List, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
 
 import torch
 import numpy as np
-from torch_geometric.data import Data
-from torch_geometric.utils import to_undirected
+from torch_geometric.data import HeteroData
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.policy.gnn_hetero.data import build_hetero_graph
+from src.policy.gnn_hetero.seq_decode import (
+    PlacementCombo,
+    get_run_decode_stats,
+    reset_run_decode_stats,
+    run_decode_with_timing,
+)
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -73,6 +79,17 @@ class GNNScheduler(Scheduler):
         # Stats tracking for debugging
         self.gnn_pure_decisions = 0
         self.fallback_decisions = 0
+        self.decode_stats = reset_run_decode_stats()
+        self._decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+        self._decode_seqblend = self._decode_mode in ("seqblend", "seqblend_p1", "1")
+        self._decode_queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
+        if self._decode_mode in ("frozen", "frozen_argmax", "frozen_topk", "topk", "topk_joint"):
+            top_k = os.environ.get("GNN_DECODE_TOP_K", "10")
+            print(
+                f"[GNN] Decode mode: {self._decode_mode}"
+                + (f" (top_k={top_k})" if "topk" in self._decode_mode or self._decode_mode == "topk" else ""),
+                flush=True,
+            )
         
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
@@ -265,10 +282,11 @@ class GNNScheduler(Scheduler):
                 yield self.mutex.put(current_system_state)
                 continue
 
-            # Capture state BEFORE placement decision (for analysis)
-            task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
-            task.full_queue_snapshot = self._capture_full_queue_snapshot()
-            task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
+            # Capture scheduling snapshots only when generating GNN training datasets.
+            if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
+                task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
+                task.full_queue_snapshot = self._capture_full_queue_snapshot()
+                task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
             # Select placement using GNN with fallback to shortest queue
             target_node, target_platform = self._select_placement_pure_gnn(
@@ -333,6 +351,8 @@ class GNNScheduler(Scheduler):
             if graph is None:
                 return None
             
+            task_logit_to_queue_key = getattr(graph, "_task_logit_to_queue_key", None)
+            
             # Move to device
             graph = graph.to(self.device)
             
@@ -340,9 +360,13 @@ class GNNScheduler(Scheduler):
             with torch.no_grad():
                 logits_per_task = self.gnn_model(graph)
             
-            # Decode placements using greedy decoder
+            # Decode placements sequentially with live queue state (matches online scheduling)
             placements = self._decode_placements(
-                logits_per_task, task_logit_to_placement, len(batch_tasks)
+                logits_per_task,
+                task_logit_to_placement,
+                len(batch_tasks),
+                queue_snapshot,
+                task_logit_to_queue_key,
             )
             
             return placements
@@ -393,17 +417,14 @@ class GNNScheduler(Scheduler):
         batch_tasks: List[Task],
         system_state: SystemState,
         queue_snapshot: Dict[str, int]
-    ) -> Tuple[Optional[Data], Optional[Dict[int, List[Tuple[int, int]]]]]:
+    ) -> Tuple[Optional[HeteroData], Optional[Dict[int, List[Tuple[int, int]]]]]:
         """
         Build a PyG graph from current system state for GNN inference.
         
         Returns: (graph, task_logit_to_placement mapping)
         """
-        # Calculate adaptive queue normalization factor for this batch
-        # adaptive_queue_norm = self._calculate_adaptive_queue_norm(queue_snapshot)
-        adaptive_queue_norm = QUEUE_NORM_FACTOR
-        # if adaptive_queue_norm != QUEUE_NORM_FACTOR:
-        #     print(f"[GNN] Using adaptive queue norm factor: {adaptive_queue_norm:.2f} (90th percentile), fixed factor: {QUEUE_NORM_FACTOR}")
+        # Match prepare_graphs_cache scheduler_adaptive queue normalization
+        adaptive_queue_norm = self._calculate_adaptive_queue_norm(queue_snapshot)
         
         n_tasks = len(batch_tasks)
         
@@ -529,12 +550,10 @@ class GNNScheduler(Scheduler):
         platform_features_tensor = torch.tensor(platform_features, dtype=torch.float32)
         
         # Build edges: task -> compatible platforms
-        task_offset = 0
-        platform_offset = n_tasks
-        
         edge_src, edge_dst = [], []
         edge_attrs = []
         task_logit_to_placement: Dict[int, List[Tuple[int, int]]] = {}
+        task_logit_to_queue_key: Dict[int, List[str]] = {}
         
         # Build network map lookup
         network_maps = {}
@@ -548,7 +567,9 @@ class GNNScheduler(Scheduler):
             compatible_types = TASK_PLATFORM_COMPATIBILITY.get(task_type, [])
             
             task_logit_to_placement[t_idx] = []
+            task_logit_to_queue_key[t_idx] = []
             
+            candidates = []
             for pos, (node, plat, node_id, plat_id, plat_type, node_name) in enumerate(platforms_info):
                 # Check compatibility
                 if plat_type not in compatible_types:
@@ -573,11 +594,12 @@ class GNNScheduler(Scheduler):
                 if task_type == "dnn2" and (node_id, plat_id) not in dnn2_replicas:
                     continue
 
+                candidates.append((pos, node, plat, node_id, plat_id, plat_type, node_name, is_local))
+
+            for pos, node, plat, node_id, plat_id, plat_type, node_name, is_local in sorted(candidates, key=lambda item: item[0]):
                 # Add edge
-                task_node_idx = task_offset + t_idx
-                plat_node_idx = platform_offset + pos
-                edge_src.append(task_node_idx)
-                edge_dst.append(plat_node_idx)
+                edge_src.append(t_idx)
+                edge_dst.append(pos)
                 
                 # Edge attributes: [exec_time, latency, is_warm, energy, comm_time]
                 exec_time = 0.0
@@ -625,67 +647,63 @@ class GNNScheduler(Scheduler):
                 
                 # Store mapping for decoding
                 task_logit_to_placement[t_idx].append((node_id, plat_id))
+                task_logit_to_queue_key[t_idx].append(f"{node_name}:{plat_id}")
         
         if not edge_src:
             return None, None
         
-        # Build edge tensors
+        # Build typed edge tensors
         edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long)
         edge_attr = torch.tensor(edge_attrs, dtype=torch.float32) if edge_attrs else torch.empty((0, 5), dtype=torch.float32)
-        
-        # Make undirected
-        num_nodes = n_tasks + n_platforms
-        edge_index = to_undirected(edge_index, num_nodes=num_nodes)
-        if edge_attr.numel() > 0:
-            edge_attr = torch.cat([edge_attr, edge_attr.clone()], dim=0)
-        
-        # Create PyG Data object
-        data = Data(
-            edge_index=edge_index,
-            n_tasks=n_tasks,
-            n_platforms=n_platforms,
-            task_features=task_features_tensor,
-            platform_features=platform_features_tensor,
+
+        data = build_hetero_graph(
+            task_features_tensor,
+            platform_features_tensor,
+            edge_index,
+            edge_attr,
+            task_logit_to_queue_key=task_logit_to_queue_key,
+            _task_logit_to_queue_key=task_logit_to_queue_key,
         )
-        data.edge_attr = edge_attr
-        
         return data, task_logit_to_placement
 
     def _decode_placements(
         self,
         logits_per_task: List[torch.Tensor],
         task_logit_to_placement: Dict[int, List[Tuple[int, int]]],
-        n_tasks: int
+        n_tasks: int,
+        queue_snapshot: Optional[Dict[str, int]] = None,
+        task_logit_to_queue_key: Optional[Dict[int, List[str]]] = None,
     ) -> Dict[int, Tuple[int, int]]:
         """
-        Per-task greedy decoder (NON-UNIQUE version):
-        For each task, independently select the highest-scoring platform.
-        
-        Multiple tasks CAN be placed on the same replica (non-unique placements).
-        This matches the training decoder in 24-01-15-16_non_unique.py.
-        
-        Returns: Dict mapping task_idx -> (node_id, platform_id)
+        GNN decode modes (GNN_DECODE_MODE env):
+
+        argmax (default): sequential per-task argmax with live queue roll-forward.
+        seqblend: sequential argmax + min-queue override when queue > min + margin.
+        frozen: per-task argmax from one snapshot (no roll-forward; matches offline greedy).
+        frozen_topk: joint top-k by summed logits from one snapshot (matches near-RTT eval).
+
+        frozen_topk uses GNN_DECODE_TOP_K (default 10).
         """
-        placements = {}
-        
-        for t_idx in range(n_tasks):
-            if t_idx not in task_logit_to_placement:
-                continue
-            
-            logits_t = logits_per_task[t_idx]
-            if logits_t.numel() == 0:
-                continue
-            
-            # Pick highest scoring platform for this task (greedy per-task)
-            best_logit_idx = logits_t.argmax().item()
-            
-            if best_logit_idx >= len(task_logit_to_placement[t_idx]):
-                continue
-            
-            node_id, plat_id = task_logit_to_placement[t_idx][best_logit_idx]
-            placements[t_idx] = (node_id, plat_id)
-        
-        return placements
+        decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+        top_k = max(1, int(os.environ.get("GNN_DECODE_TOP_K", "10")))
+        seqblend = decode_mode in ("seqblend", "seqblend_p1", "1")
+        queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
+
+        combo = run_decode_with_timing(
+            decode_mode,
+            logits_per_task,
+            task_logit_to_placement,
+            n_tasks,
+            queue_snapshot=queue_snapshot,
+            task_logit_to_queue_key=task_logit_to_queue_key,
+            seqblend=seqblend,
+            queue_margin=queue_margin,
+            top_k=top_k,
+            stats=self.decode_stats,
+        )
+        if combo is None:
+            return {}
+        return {t_idx: combo[t_idx] for t_idx in range(len(combo))}
 
     def _capture_batch_queue_snapshot(self, system_state: SystemState, batch_tasks: List[Task]) -> Dict[str, int]:
         queue_snapshot = {}
@@ -834,8 +852,12 @@ class GNNScheduler(Scheduler):
         # Fallback to shortest queue if GNN placement is invalid
         if target_node is None or target_platform is None:
             print(f"[ {self.env.now} ] GNN: Fallback to shortest queue for task {task.id}")
+            initialized_replicas = [
+                replica for replica in available_replicas if replica[1].initialized.triggered
+            ]
+            candidates = initialized_replicas if initialized_replicas else available_replicas
             target_node, target_platform = min(
-                available_replicas, key=lambda couple: len(couple[1].queue.items)
+                candidates, key=lambda couple: len(couple[1].queue.items)
             )
             self.fallback_decisions += 1
         

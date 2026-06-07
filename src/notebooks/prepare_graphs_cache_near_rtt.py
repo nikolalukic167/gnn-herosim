@@ -84,7 +84,7 @@ def _load_parent_ids(cache_dir: Path) -> set[str]:
     return parent_ids
 
 
-def _write_near_rtt_metadata(cache_dir: Path) -> None:
+def _write_near_rtt_metadata(cache_dir: Path, sidecar_name: str) -> None:
     metadata_path = cache_dir / "metadata.json"
     if not metadata_path.exists():
         return
@@ -95,9 +95,9 @@ def _write_near_rtt_metadata(cache_dir: Path) -> None:
         metadata = json.load(fh)
 
     metadata["near_rtt_training"] = True
-    metadata["exact_combo_sidecar"] = "valid_combos_near_rtt_capped.pkl"
+    metadata["exact_combo_sidecar"] = sidecar_name
     metadata["near_rtt_note"] = (
-        "valid_combos_near_rtt_capped.pkl stores a capped near-RTT sidecar "
+        f"{sidecar_name} stores a capped near-RTT sidecar "
         "(optimum + reservoir-sampled near/close/mid/far bands) for ranking loss."
     )
 
@@ -112,9 +112,12 @@ _NEAR_RTT_ONLY_FLAGS = {
     "--close-cap",
     "--mid-cap",
     "--far-cap",
+    "--trash-cap",
     "--near-delta",
     "--close-delta",
     "--mid-delta",
+    "--trash-delta",
+    "--sidecar-name",
 }
 
 
@@ -149,9 +152,12 @@ def _parse_near_rtt_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--close-cap", type=int, default=384)
     parser.add_argument("--mid-cap", type=int, default=256, help="0.3s-1.0s band reservoir cap (raised for eval coverage).")
     parser.add_argument("--far-cap", type=int, default=192, help=">1.0s band reservoir cap (raised for bad-layout coverage).")
+    parser.add_argument("--trash-cap", type=int, default=0, help=">trash-delta band reservoir cap.")
     parser.add_argument("--near-delta", type=float, default=0.05)
     parser.add_argument("--close-delta", type=float, default=0.30)
     parser.add_argument("--mid-delta", type=float, default=1.00)
+    parser.add_argument("--trash-delta", type=float, default=5.00)
+    parser.add_argument("--sidecar-name", type=str, default="valid_combos_near_rtt_capped.pkl")
     parser.add_argument(
         "--skip-cache-build",
         action="store_true",
@@ -184,12 +190,15 @@ def main() -> None:
         close_cap=max(0, near_args.close_cap),
         mid_cap=max(0, near_args.mid_cap),
         far_cap=max(0, near_args.far_cap),
+        trash_cap=max(0, near_args.trash_cap),
         near_delta=near_args.near_delta,
         close_delta=near_args.close_delta,
         mid_delta=near_args.mid_delta,
+        trash_delta=near_args.trash_delta,
+        sidecar_name=near_args.sidecar_name,
     )
-    save_capped_valid_combos_map(cache_dir, capped_map)
-    _write_near_rtt_metadata(cache_dir)
+    save_capped_valid_combos_map(cache_dir, capped_map, sidecar_name=near_args.sidecar_name)
+    _write_near_rtt_metadata(cache_dir, near_args.sidecar_name)
 
     total_combos = sum(len(v) for v in capped_map.values())
     print(

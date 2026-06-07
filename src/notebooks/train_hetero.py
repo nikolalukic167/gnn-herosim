@@ -12,6 +12,7 @@ after the model has learned to avoid obviously bad placements.
 
 import gc
 import itertools
+import json
 import os
 import random
 import sys
@@ -51,6 +52,13 @@ from non_unique_lib.cache_io import (
 )
 from non_unique_lib.training_config import parse_training_config
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.policy.gnn_hetero.data import FORWARD_EDGE_TYPE
+from src.policy.gnn_hetero.gnn_model import TaskPlacementGNN as HeteroTaskPlacementGNN
+
 
 PlacementCombo = Tuple[Tuple[int, int], ...]
 RttByCombo = Dict[str, Dict[PlacementCombo, float]]
@@ -86,9 +94,20 @@ class NearRttConfig:
     unmapped_penalty: float = float(os.environ.get("NEAR_RTT_UNMAPPED_PENALTY", "1.0"))
 
 
-_DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-near-rtt-jun2026"
+_DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-hetero-near-rtt-jun2026"
 
 RUNTIME_CONFIG = parse_training_config()
+if "--cache-dir" not in sys.argv:
+    RUNTIME_CONFIG = replace(
+        RUNTIME_CONFIG,
+        cache_dir=(
+            RUNTIME_CONFIG.project_root
+            / "simulation_data"
+            / "artifacts"
+            / "run_queue_big"
+            / "graphs_cache_gnn_datasets_4tasks_1060_scheduler_adaptive_hetero"
+        ),
+    )
 if "--wandb-project" not in sys.argv:
     RUNTIME_CONFIG = replace(
         RUNTIME_CONFIG, wandb_project=_DEFAULT_NEAR_RTT_WANDB_PROJECT
@@ -678,7 +697,7 @@ print(f"Exact RTT datasets: {len(EXACT_RTT_MAP)}, combos: {sum(len(v) for v in E
 
 ys = np.concatenate([g.y.numpy() for g in graphs])
 print("Valid labels:", int(np.sum(ys >= 0)), "/", len(ys))
-print("Avg edges:", float(np.mean([g.edge_index.size(1) for g in graphs])))
+print("Avg edges:", float(np.mean([g[FORWARD_EDGE_TYPE].edge_index.size(1) for g in graphs])))
 
 if NEAR_CFG.train_all or len(graphs) < 10:
     train_graphs, val_graphs, test_graphs = graphs, graphs, graphs
@@ -719,6 +738,7 @@ wandb.init(
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
         "loss_type": "CE + NearExactRttRanking",
+        "model_type": "hetero",
         "loss_variant": str(NEAR_CFG.loss_variant),
         "sidecar_name": str(NEAR_CFG.sidecar_name),
         "near_rtt_training": True,
@@ -746,7 +766,7 @@ wandb.init(
     tags=[t for t in os.environ.get("WANDB_TAGS", "near-rtt").split(",") if t],
 )
 
-model = TaskPlacementGNN(
+model = HeteroTaskPlacementGNN(
     task_feature_dim=3,
     platform_feature_dim=13,
     embedding_dim=EMBEDDING_DIM,
@@ -792,6 +812,21 @@ for epoch in range(EPOCHS):
         best_val_metrics = val_metrics
         model_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(model.state_dict(), model_path)
+        metadata_path = model_path.with_suffix(".metadata.json")
+        with open(metadata_path, "w") as fh:
+            json.dump(
+                {
+                    "model_type": "hetero",
+                    "task_feature_dim": 3,
+                    "platform_feature_dim": 13,
+                    "embedding_dim": int(EMBEDDING_DIM),
+                    "hidden_dim": int(HIDDEN_DIM),
+                    "num_layers": int(NUM_GIN_LAYERS),
+                    "cache_dir": str(CACHE_CTX.cache_dir),
+                },
+                fh,
+                indent=2,
+            )
         checkpoint_saved = True
         print(
             f"  *** New best top-k regret: {best_val_regret:.4f}s "

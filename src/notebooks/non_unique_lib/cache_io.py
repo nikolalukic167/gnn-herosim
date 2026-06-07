@@ -751,8 +751,12 @@ def build_valid_combos_map_from_chunked_cache(
     return sorted_map
 
 
-def _capped_sidecar_path(cache_dir: Path) -> Path:
-    return cache_dir / "valid_combos_near_rtt_capped.pkl"
+def _capped_sidecar_path(cache_dir: Path, sidecar_name: str = "valid_combos_near_rtt_capped.pkl") -> Path:
+    return cache_dir / sidecar_name
+
+
+def _capped_sidecar_meta_path(cache_dir: Path, sidecar_name: str = "valid_combos_near_rtt_capped.pkl") -> Path:
+    return cache_dir / f"{Path(sidecar_name).stem}_meta.json"
 
 
 def _reservoir_add(
@@ -779,9 +783,12 @@ def build_capped_valid_combos_map_from_chunked_cache(
     close_cap: int = 384,
     mid_cap: int = 256,
     far_cap: int = 192,
+    trash_cap: int = 0,
     near_delta: float = 0.05,
     close_delta: float = 0.30,
     mid_delta: float = 1.00,
+    trash_delta: float = 5.00,
+    sidecar_name: str = "valid_combos_near_rtt_capped.pkl",
 ) -> ValidCombosMap:
     """Stream RTT chunks and keep a bounded near-RTT training sidecar per dataset.
 
@@ -789,7 +796,8 @@ def build_capped_valid_combos_map_from_chunked_cache(
       near  : 0 < delta <= near_delta
       close : near_delta < delta <= close_delta
       mid   : close_delta < delta <= mid_delta
-      far   : delta > mid_delta
+      far   : mid_delta < delta <= trash_delta
+      trash : delta > trash_delta
 
     This gives the near-RTT ranking loss fine-grained post-plateau pairs without
     materializing the full 36M-row RTT table as Python objects.
@@ -819,9 +827,12 @@ def build_capped_valid_combos_map_from_chunked_cache(
     close: Dict[str, List[Tuple[PlacementCombo, float]]] = defaultdict(list)
     mid: Dict[str, List[Tuple[PlacementCombo, float]]] = defaultdict(list)
     far: Dict[str, List[Tuple[PlacementCombo, float]]] = defaultdict(list)
-    seen: Dict[str, Dict[str, int]] = defaultdict(lambda: {"near": 0, "close": 0, "mid": 0, "far": 0})
+    trash: Dict[str, List[Tuple[PlacementCombo, float]]] = defaultdict(list)
+    seen: Dict[str, Dict[str, int]] = defaultdict(
+        lambda: {"near": 0, "close": 0, "mid": 0, "far": 0, "trash": 0}
+    )
 
-    print("[near RTT capped] Second pass sampling near/close/mid/far bands...")
+    print("[near RTT capped] Second pass sampling near/close/mid/far/trash bands...")
     for i in tqdm(range(num_chunks), desc="Sampling capped near-RTT sidecar"):
         chunk_path = cache_dir / f"rtt_chunk_{i}.pkl"
         with open(chunk_path, "rb") as f:
@@ -848,17 +859,21 @@ def build_capped_valid_combos_map_from_chunked_cache(
                 key = "mid"
                 bucket = mid[ds_id]
                 cap = mid_cap
-            else:
+            elif delta <= trash_delta or trash_cap <= 0:
                 key = "far"
                 bucket = far[ds_id]
                 cap = far_cap
+            else:
+                key = "trash"
+                bucket = trash[ds_id]
+                cap = trash_cap
             seen[ds_id][key] += 1
             _reservoir_add(bucket, seen[ds_id][key], cap, combo, rtt)
         chunk.clear()
 
     capped_map: ValidCombosMap = {}
     total = 0
-    bucket_totals = {"opt": 0, "near": 0, "close": 0, "mid": 0, "far": 0}
+    bucket_totals = {"opt": 0, "near": 0, "close": 0, "mid": 0, "far": 0, "trash": 0}
     for ds_id in sorted(parent_dataset_ids):
         rows: List[Tuple[PlacementCombo, float]] = []
         opt = opt_by_dataset.get(ds_id)
@@ -869,6 +884,7 @@ def build_capped_valid_combos_map_from_chunked_cache(
         rows.extend(close.get(ds_id, []))
         rows.extend(mid.get(ds_id, []))
         rows.extend(far.get(ds_id, []))
+        rows.extend(trash.get(ds_id, []))
         rows.sort(key=lambda x: x[1])
         capped_map[ds_id] = rows
         total += len(rows)
@@ -876,9 +892,10 @@ def build_capped_valid_combos_map_from_chunked_cache(
         bucket_totals["close"] += len(close.get(ds_id, []))
         bucket_totals["mid"] += len(mid.get(ds_id, []))
         bucket_totals["far"] += len(far.get(ds_id, []))
+        bucket_totals["trash"] += len(trash.get(ds_id, []))
 
     meta = {
-        "sidecar": _capped_sidecar_path(cache_dir).name,
+        "sidecar": _capped_sidecar_path(cache_dir, sidecar_name).name,
         "num_datasets": len(capped_map),
         "total_entries": total,
         "caps": {
@@ -886,28 +903,34 @@ def build_capped_valid_combos_map_from_chunked_cache(
             "close": int(close_cap),
             "mid": int(mid_cap),
             "far": int(far_cap),
+            "trash": int(trash_cap),
         },
         "deltas": {
             "near": float(near_delta),
             "close": float(close_delta),
             "mid": float(mid_delta),
+            "trash": float(trash_delta),
         },
         "bucket_totals": bucket_totals,
     }
-    with open(cache_dir / "valid_combos_near_rtt_capped_meta.json", "w") as f:
+    with open(_capped_sidecar_meta_path(cache_dir, sidecar_name), "w") as f:
         json.dump(meta, f, indent=2)
 
     print(
         f"[near RTT capped] Built capped sidecar for {len(capped_map)} datasets "
         f"({total:,} entries; near={bucket_totals['near']:,}, "
         f"close={bucket_totals['close']:,}, mid={bucket_totals['mid']:,}, "
-        f"far={bucket_totals['far']:,})"
+        f"far={bucket_totals['far']:,}, trash={bucket_totals['trash']:,})"
     )
     return capped_map
 
 
-def save_capped_valid_combos_map(cache_dir: Path, valid_combos_map: ValidCombosMap) -> Path:
-    out_path = _capped_sidecar_path(cache_dir)
+def save_capped_valid_combos_map(
+    cache_dir: Path,
+    valid_combos_map: ValidCombosMap,
+    sidecar_name: str = "valid_combos_near_rtt_capped.pkl",
+) -> Path:
+    out_path = _capped_sidecar_path(cache_dir, sidecar_name)
     with open(out_path, "wb") as f:
         pickle.dump(valid_combos_map, f, protocol=pickle.HIGHEST_PROTOCOL)
     total = sum(len(v) for v in valid_combos_map.values())
@@ -915,8 +938,11 @@ def save_capped_valid_combos_map(cache_dir: Path, valid_combos_map: ValidCombosM
     return out_path
 
 
-def load_capped_valid_combos_map(cache_dir: Path) -> Optional[ValidCombosMap]:
-    path = _capped_sidecar_path(cache_dir)
+def load_capped_valid_combos_map(
+    cache_dir: Path,
+    sidecar_name: str = "valid_combos_near_rtt_capped.pkl",
+) -> Optional[ValidCombosMap]:
+    path = _capped_sidecar_path(cache_dir, sidecar_name)
     if not path.exists():
         return None
     with open(path, "rb") as f:

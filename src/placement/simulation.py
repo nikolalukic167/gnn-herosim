@@ -47,6 +47,9 @@ from src.placement.scheduler import Scheduler
 from src.policy.gnn.autoscaler import KnativeAutoscaler as GNNAutoscaler
 from src.policy.gnn.orchestrator import GNNOrchestrator as GNNOrchestrator
 from src.policy.gnn.scheduler import GNNScheduler
+from src.policy.gnn_hetero.autoscaler import KnativeAutoscaler as GNNHeteroAutoscaler
+from src.policy.gnn_hetero.orchestrator import GNNOrchestrator as GNNHeteroOrchestrator
+from src.policy.gnn_hetero.scheduler import GNNScheduler as GNNHeteroScheduler
 
 from src.policy.herofake.orchestrator import HROOrchestrator
 from src.policy.herofake.autoscaler import HROAutoscaler
@@ -664,6 +667,7 @@ def start_simulation(
         "prokn_prokn": (ProactiveKnativeOrchestrator, ProactiveKnativeAutoscaler, ProactiveKnativeScheduler),
         "prohetkn_prohetkn": (HeteroProactiveKnativeOrchestrator, HeteroProactiveKnativeAutoscaler, HeteroProactiveKnativeScheduler),
         "gnn_gnn": (GNNOrchestrator, GNNAutoscaler, GNNScheduler),
+        "gnn_hetero_gnn_hetero": (GNNHeteroOrchestrator, GNNHeteroAutoscaler, GNNHeteroScheduler),
         "multiloop_multiloop": (MultiLoopOrchestrator, MultiLoopAutoscaler, MultiLoopScheduler),
         "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
         "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),

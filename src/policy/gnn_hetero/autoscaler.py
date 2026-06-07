@@ -24,7 +24,7 @@ from typing import Set, Tuple, TYPE_CHECKING, List, Optional
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node
 
-from src.policy.gnn.model import KnativeSchedulerState, KnativeSystemState
+from src.policy.gnn_hetero.model import KnativeSchedulerState, KnativeSystemState
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
@@ -204,10 +204,19 @@ class KnativeAutoscaler(Autoscaler):
         ))
         """
 
-        # Knative selects a replica on the most available node (cf. ENSURE)
+        # Align with knative_network: prefer server nodes first, then clients.
+        # Server-hosted replicas can typically serve more sources.
+        server_couples = [
+            c for c in couples_suitable if not c[0].node_name.startswith("client_node")
+        ]
+        client_couples = [
+            c for c in couples_suitable if c[0].node_name.startswith("client_node")
+        ]
+        candidates = server_couples if server_couples else client_couples
+
+        # Select a replica on the most available node
         available_couple = max(
-            # filtered_couples, key=lambda couple: couple[0].available_platforms
-            couples_suitable,
+            candidates,
             key=lambda couple: couple[0].available_platforms,
         )
 
