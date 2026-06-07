@@ -14,8 +14,9 @@ import gc
 import itertools
 import os
 import random
+import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import warnings
@@ -65,20 +66,33 @@ torch.backends.cudnn.benchmark = False
 
 @dataclass(frozen=True)
 class NearRttConfig:
+    loss_variant: str = os.environ.get("NEAR_RTT_LOSS_VARIANT", "near-rtt-v1")
+    sidecar_name: str = os.environ.get("NEAR_RTT_SIDECAR_NAME", "valid_combos_near_rtt_capped.pkl")
     top_k_decode: int = int(os.environ.get("NEAR_RTT_TOP_K", "5"))
     pairs_per_graph: int = int(os.environ.get("NEAR_RTT_PAIRS_PER_GRAPH", "32"))
     near_margin_floor: float = float(os.environ.get("NEAR_RTT_MARGIN_FLOOR", "0.05"))
     margin_cap: float = float(os.environ.get("NEAR_RTT_MARGIN_CAP", "1.0"))
+    margin_mode: str = os.environ.get("NEAR_RTT_MARGIN_MODE", "linear")
+    margin_exp_scale: float = float(os.environ.get("NEAR_RTT_MARGIN_EXP_SCALE", "0.75"))
+    margin_exp_clip: float = float(os.environ.get("NEAR_RTT_MARGIN_EXP_CLIP", "4.0"))
+    trash_delta: float = float(os.environ.get("NEAR_RTT_TRASH_DELTA", "5.0"))
     near_weight: float = float(os.environ.get("NEAR_RTT_NEAR_WEIGHT", "3.0"))
     close_weight: float = float(os.environ.get("NEAR_RTT_CLOSE_WEIGHT", "2.0"))
     mid_weight: float = float(os.environ.get("NEAR_RTT_MID_WEIGHT", "1.0"))
     far_weight: float = float(os.environ.get("NEAR_RTT_FAR_WEIGHT", "0.25"))
+    trash_weight: float = float(os.environ.get("NEAR_RTT_TRASH_WEIGHT", "0.0"))
     dropout: float = float(os.environ.get("NEAR_RTT_DROPOUT", "0.1"))
     train_all: bool = os.environ.get("NEAR_RTT_TRAIN_ALL", "0") == "1"
     unmapped_penalty: float = float(os.environ.get("NEAR_RTT_UNMAPPED_PENALTY", "1.0"))
 
 
+_DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-near-rtt-jun2026"
+
 RUNTIME_CONFIG = parse_training_config()
+if "--wandb-project" not in sys.argv:
+    RUNTIME_CONFIG = replace(
+        RUNTIME_CONFIG, wandb_project=_DEFAULT_NEAR_RTT_WANDB_PROJECT
+    )
 CACHE_CTX = create_cache_context(RUNTIME_CONFIG.cache_dir)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NEAR_CFG = NearRttConfig()
@@ -230,6 +244,15 @@ class NearRttRankingLoss(nn.Module):
             return band
         return random.sample(band, count)
 
+    def _margin_for_gap(self, gap: float) -> float:
+        scaled_gap = max(0.0, float(gap) / self.rtt_scale)
+        if self.cfg.margin_mode == "exp":
+            clipped = min(scaled_gap, max(0.0, self.cfg.margin_exp_clip))
+            margin = self.cfg.near_margin_floor + self.cfg.margin_exp_scale * (np.exp(clipped) - 1.0)
+        else:
+            margin = scaled_gap
+        return min(self.cfg.margin_cap, max(self.cfg.near_margin_floor, float(margin)))
+
     def forward(
         self,
         logits_per_task: List[Tensor],
@@ -256,8 +279,11 @@ class NearRttRankingLoss(nn.Module):
             sampled.append((indices, rtt, self.cfg.close_weight))
         for indices, rtt in self._sample_band(rows, opt_rtt, 0.30, 1.00, max(1, n // 4)):
             sampled.append((indices, rtt, self.cfg.mid_weight))
-        for indices, rtt in self._sample_band(rows, opt_rtt, 1.00, float("inf"), max(1, n // 8)):
+        for indices, rtt in self._sample_band(rows, opt_rtt, 1.00, self.cfg.trash_delta, max(1, n // 8)):
             sampled.append((indices, rtt, self.cfg.far_weight))
+        if self.cfg.trash_weight > 0.0:
+            for indices, rtt in self._sample_band(rows, opt_rtt, self.cfg.trash_delta, float("inf"), max(1, n // 8)):
+                sampled.append((indices, rtt, self.cfg.trash_weight))
 
         if not sampled:
             return torch.zeros((), device=device), 0, {}
@@ -270,7 +296,7 @@ class NearRttRankingLoss(nn.Module):
             if torch.isnan(neg_score):
                 continue
             gap = max(0.0, float(neg_rtt) - float(opt_rtt))
-            margin = min(self.cfg.margin_cap, max(self.cfg.near_margin_floor, gap / self.rtt_scale))
+            margin = self._margin_for_gap(gap)
             pair_loss = F.softplus(neg_score - opt_score + margin) * float(weight)
             if pair_loss.item() > 1e-12:
                 active += 1
@@ -613,12 +639,16 @@ def prefix(metrics: Dict[str, float], name: str) -> Dict[str, float]:
 def load_or_build_valid_combos() -> Tuple[PlacementToLogitMap, ExactRttLookupMap, RttByCombo]:
     graphs_for_ids, dataset_ids_for_ids = load_graphs_from_cache(CACHE_CTX)
     parent_ids = set(dataset_ids_for_ids)
-    valid_combos_map = load_capped_valid_combos_map(CACHE_CTX.cache_dir)
+    valid_combos_map = load_capped_valid_combos_map(CACHE_CTX.cache_dir, sidecar_name=NEAR_CFG.sidecar_name)
     if valid_combos_map is None and os.environ.get("NEAR_RTT_ALLOW_FULL_COMBOS", "0") == "1":
         valid_combos_map = load_valid_combos_map(CACHE_CTX.cache_dir)
     if valid_combos_map is None:
-        valid_combos_map = build_capped_valid_combos_map_from_chunked_cache(CACHE_CTX.cache_dir, parent_ids)
-        save_capped_valid_combos_map(CACHE_CTX.cache_dir, valid_combos_map)
+        valid_combos_map = build_capped_valid_combos_map_from_chunked_cache(
+            CACHE_CTX.cache_dir,
+            parent_ids,
+            sidecar_name=NEAR_CFG.sidecar_name,
+        )
+        save_capped_valid_combos_map(CACHE_CTX.cache_dir, valid_combos_map, sidecar_name=NEAR_CFG.sidecar_name)
 
     if os.environ.get("NEAR_RTT_ALLOW_FULL_COMBOS", "0") == "1" and not valid_combos_map:
         valid_combos_map = build_valid_combos_map_from_chunked_cache(CACHE_CTX.cache_dir, parent_ids)
@@ -675,6 +705,7 @@ if RUNTIME_CONFIG.wandb_api_key:
 wandb.init(
     project=RUNTIME_CONFIG.wandb_project,
     entity=RUNTIME_CONFIG.wandb_entity,
+    name=os.environ.get("WANDB_RUN_NAME") or os.environ.get("WANDB_NAME") or None,
     config={
         "embedding_dim": int(EMBEDDING_DIM),
         "hidden_dim": int(HIDDEN_DIM),
@@ -688,9 +719,22 @@ wandb.init(
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
         "loss_type": "CE + NearExactRttRanking",
+        "loss_variant": str(NEAR_CFG.loss_variant),
+        "sidecar_name": str(NEAR_CFG.sidecar_name),
         "near_rtt_training": True,
         "top_k_decode": int(NEAR_CFG.top_k_decode),
         "pairs_per_graph": int(NEAR_CFG.pairs_per_graph),
+        "near_margin_floor": float(NEAR_CFG.near_margin_floor),
+        "margin_cap": float(NEAR_CFG.margin_cap),
+        "margin_mode": str(NEAR_CFG.margin_mode),
+        "margin_exp_scale": float(NEAR_CFG.margin_exp_scale),
+        "margin_exp_clip": float(NEAR_CFG.margin_exp_clip),
+        "near_weight": float(NEAR_CFG.near_weight),
+        "close_weight": float(NEAR_CFG.close_weight),
+        "mid_weight": float(NEAR_CFG.mid_weight),
+        "far_weight": float(NEAR_CFG.far_weight),
+        "trash_weight": float(NEAR_CFG.trash_weight),
+        "trash_delta": float(NEAR_CFG.trash_delta),
         "num_datasets": int(len(graphs)),
         "num_train": int(len(train_graphs)),
         "num_val": int(len(val_graphs)),

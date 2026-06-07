@@ -409,6 +409,44 @@ def load_gnn_model(model_path: Path):
         raise
 
 
+def load_gnn_hetero_model(model_path: Path):
+    """Load a trained HeteroData/HeteroConv GNN model."""
+    import torch
+    from src.policy.gnn_hetero.gnn_model import TaskPlacementGNN
+
+    try:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f"Loading hetero GNN model from {model_path} on {device}...", flush=True)
+
+        model = TaskPlacementGNN(
+            task_feature_dim=3,
+            platform_feature_dim=13,
+            embedding_dim=64,
+            hidden_dim=64,
+            num_layers=3,
+        )
+
+        checkpoint = torch.load(model_path, map_location='cpu')
+        state_dict = checkpoint.get("state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
+        model.load_state_dict(state_dict)
+        model = model.to(device)
+        model.eval()
+
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+
+        print(
+            f"Hetero GNN model loaded successfully ({sum(p.numel() for p in model.parameters()):,} parameters)",
+            flush=True,
+        )
+        return model, device
+    except Exception as e:
+        print(f"ERROR loading hetero GNN model: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        raise
+
+
 def load_task_types_data(sim_input_path: Path) -> Dict[str, Any]:
     """Load task-types.json for feature extraction."""
     task_types_path = sim_input_path / "task-types.json"
@@ -450,6 +488,7 @@ def run_simulation(
     valid_policies = [
         'knative',
         'gnn',
+        'gnn_hetero',
         'roundrobin',
         'knative_network',
         'knative_network_ect',
@@ -466,8 +505,8 @@ def run_simulation(
         return False
 
     # For GNN policy, check if model is provided
-    if policy == 'gnn' and (gnn_model is None or task_types_data is None):
-        logger.error(f"GNN policy requires gnn_model and task_types_data")
+    if policy in ('gnn', 'gnn_hetero') and (gnn_model is None or task_types_data is None):
+        logger.error(f"{policy} policy requires gnn_model and task_types_data")
         return False
 
     # Check required files exist
@@ -511,6 +550,13 @@ def run_simulation(
             models = None
         elif policy == 'gnn':
             scheduling_strategy = 'gnn_gnn'
+            models = {
+                'gnn_model': gnn_model,
+                'device': gnn_device,
+                'task_types_data': task_types_data,
+            }
+        elif policy == 'gnn_hetero':
+            scheduling_strategy = 'gnn_hetero_gnn_hetero'
             models = {
                 'gnn_model': gnn_model,
                 'device': gnn_device,
@@ -589,9 +635,12 @@ def run_simulation(
             "stats": stats,
         }
 
-        if policy == "gnn":
+        if policy in ("gnn", "gnn_hetero"):
             try:
-                from src.policy.gnn.seq_decode import get_run_decode_stats, write_run_decode_stats
+                if policy == "gnn_hetero":
+                    from src.policy.gnn_hetero.seq_decode import get_run_decode_stats, write_run_decode_stats
+                else:
+                    from src.policy.gnn.seq_decode import get_run_decode_stats, write_run_decode_stats
 
                 decode_stats = get_run_decode_stats()
                 if decode_stats is not None and decode_stats.gnn_batches > 0:
@@ -671,6 +720,8 @@ def main():
     sim_input_path = Path("data/nofs-ids")
     _gnn_model_env = os.environ.get("GNN_MODEL_PATH")
     gnn_model_path = Path(_gnn_model_env) if _gnn_model_env else Path("models/desert-galaxy-26.pt")
+    _gnn_hetero_model_env = os.environ.get("GNN_HETERO_MODEL_PATH")
+    gnn_hetero_model_path = Path(_gnn_hetero_model_env) if _gnn_hetero_model_env else Path("models/hetero.pt")
     default_output_dir = Path("simulation_data/results")
 
     # Parse arguments
@@ -720,7 +771,7 @@ def main():
         print(
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
-            "--policy <knative|gnn|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
+            "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
             "herocache_network_batch|random_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
@@ -731,7 +782,7 @@ def main():
         print(
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
-            "--policy <knative|gnn|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
+            "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
             "herocache_network_batch|random_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
@@ -740,6 +791,7 @@ def main():
     cli_valid_policies = [
         'knative',
         'gnn',
+        'gnn_hetero',
         'roundrobin',
         'knative_network',
         'knative_network_ect',
@@ -779,6 +831,13 @@ def main():
             sys.exit(1)
         
         gnn_model, gnn_device = load_gnn_model(gnn_model_path)
+        task_types_data = load_task_types_data(sim_input_path)
+    elif policy == 'gnn_hetero':
+        if not gnn_hetero_model_path.exists():
+            print(f"ERROR: hetero GNN model not found at {gnn_hetero_model_path}")
+            sys.exit(1)
+
+        gnn_model, gnn_device = load_gnn_hetero_model(gnn_hetero_model_path)
         task_types_data = load_task_types_data(sim_input_path)
 
     # Run simulation
