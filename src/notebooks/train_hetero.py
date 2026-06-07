@@ -31,8 +31,7 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch import Tensor
 from torch.utils.data import DataLoader
-from torch_geometric.data import Data
-from torch_geometric.nn.models import GIN
+from torch_geometric.data import HeteroData
 from tqdm import tqdm
 import wandb
 
@@ -133,86 +132,6 @@ print(f"Device: {DEVICE}")
 print(f"Near RTT config: {NEAR_CFG}")
 
 
-class MLPEncoder(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout_p: float = 0.1) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(p=dropout_p),
-            nn.Linear(hidden_dim, output_dim),
-        )
-
-    def forward(self, x: Tensor) -> Tensor:
-        return self.net(x)
-
-
-class EdgeScorer(nn.Module):
-    def __init__(self, embedding_dim: int, hidden_dim: int, edge_dim: int = 0) -> None:
-        super().__init__()
-        in_dim = 2 * embedding_dim + (edge_dim if edge_dim else 0)
-        self.fc1 = nn.Linear(in_dim, hidden_dim)
-        self.dropout = nn.Dropout(p=NEAR_CFG.dropout)
-        self.fc2 = nn.Linear(hidden_dim, 1)
-
-    def forward(self, e_task: Tensor, e_platform: Tensor, e_attr: Optional[Tensor] = None) -> Tensor:
-        x = torch.cat([e_task, e_platform] + ([e_attr] if e_attr is not None else []), dim=-1)
-        return self.fc2(self.dropout(F.relu(self.fc1(x)))).squeeze(-1)
-
-
-class TaskPlacementGNN(nn.Module):
-    def __init__(
-        self,
-        task_feature_dim: int,
-        platform_feature_dim: int,
-        embedding_dim: int = 64,
-        hidden_dim: int = 128,
-        num_layers: int = 3,
-    ) -> None:
-        super().__init__()
-        self.task_encoder = MLPEncoder(task_feature_dim, hidden_dim, embedding_dim, NEAR_CFG.dropout)
-        self.platform_encoder = MLPEncoder(platform_feature_dim, hidden_dim, embedding_dim, NEAR_CFG.dropout)
-        self.gin = GIN(
-            in_channels=embedding_dim,
-            hidden_channels=hidden_dim,
-            num_layers=num_layers,
-            out_channels=embedding_dim,
-        )
-        self.post_gin_dropout = nn.Dropout(p=NEAR_CFG.dropout)
-        self.edge_scorer = EdgeScorer(embedding_dim, hidden_dim, edge_dim=5)
-
-    def forward(self, data: Data) -> List[Tensor]:
-        n_tasks = int(data.n_tasks)
-        n_platforms = int(data.n_platforms)
-
-        task_embeddings = self.task_encoder(data.task_features)
-        platform_embeddings = self.platform_encoder(data.platform_features)
-        x = torch.cat([task_embeddings, platform_embeddings], dim=0)
-        x = self.post_gin_dropout(self.gin(x, data.edge_index))
-
-        task_emb = x[:n_tasks]
-        platform_emb = x[n_tasks:]
-        ei = data.edge_index
-        if ei.numel() == 0:
-            return [torch.empty(0, device=x.device) for _ in range(n_tasks)]
-
-        ti = ei[0]
-        pj = ei[1] - n_tasks
-        valid = (pj >= 0) & (pj < n_platforms)
-        ti = ti[valid]
-        pj = pj[valid]
-        if ti.numel() == 0:
-            return [torch.empty(0, device=x.device) for _ in range(n_tasks)]
-
-        e_attr: Optional[Tensor] = None
-        if hasattr(data, "edge_attr") and data.edge_attr.numel() > 0:
-            e_attr = data.edge_attr[valid]
-
-        scores = self.edge_scorer(task_emb[ti], platform_emb[pj], e_attr)
-        return [scores[ti == task_idx] for task_idx in range(n_tasks)]
-
-
 def combo_score(logits_per_task: List[Tensor], indices: List[int]) -> Tensor:
     score = torch.zeros((), device=logits_per_task[0].device)
     for task_idx, logit_idx in enumerate(indices):
@@ -222,7 +141,7 @@ def combo_score(logits_per_task: List[Tensor], indices: List[int]) -> Tensor:
     return score
 
 
-def loss_original_ce(logits_per_task: List[Tensor], data: Data, device: torch.device) -> Tuple[Tensor, int]:
+def loss_original_ce(logits_per_task: List[Tensor], data: HeteroData, device: torch.device) -> Tuple[Tensor, int]:
     loss_total = torch.zeros((), device=device)
     valid_tasks = 0
     for task_idx, logits_t in enumerate(logits_per_task):
@@ -275,7 +194,7 @@ class NearRttRankingLoss(nn.Module):
     def forward(
         self,
         logits_per_task: List[Tensor],
-        data: Data,
+        data: HeteroData,
         device: torch.device,
     ) -> Tuple[Tensor, int, Dict[str, Any]]:
         dataset_id = getattr(data, "dataset_id", None)
@@ -333,7 +252,7 @@ class NearRttRankingLoss(nn.Module):
 
 
 class GraphRttDataset(torch.utils.data.Dataset):
-    def __init__(self, graphs: List[Data], dataset_ids: List[str], optimal_rtt_map: Dict[str, float]) -> None:
+    def __init__(self, graphs: List[HeteroData], dataset_ids: List[str], optimal_rtt_map: Dict[str, float]) -> None:
         self.graphs = graphs
         self.dataset_ids = dataset_ids
         self.optimal_rtt_map = optimal_rtt_map
@@ -341,7 +260,7 @@ class GraphRttDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.dataset_ids)
 
-    def __getitem__(self, idx: int) -> Data:
+    def __getitem__(self, idx: int) -> HeteroData:
         graph = self.graphs[idx]
         dataset_id = self.dataset_ids[idx]
         graph.dataset_id = dataset_id
@@ -354,7 +273,7 @@ class GraphRttDataset(torch.utils.data.Dataset):
         return graph
 
 
-def collate_graphs(items: List[Data]) -> List[Data]:
+def collate_graphs(items: List[HeteroData]) -> List[HeteroData]:
     return items
 
 
@@ -369,7 +288,7 @@ def create_loader(dataset: GraphRttDataset, shuffle: bool) -> DataLoader:
     )
 
 
-def decode_greedy(logits_per_task: List[Tensor], data: Data) -> Optional[PlacementCombo]:
+def decode_greedy(logits_per_task: List[Tensor], data: HeteroData) -> Optional[PlacementCombo]:
     mapping = getattr(data, "task_logit_to_placement", getattr(data, "_task_logit_to_placement", None))
     if mapping is None:
         return None
@@ -411,7 +330,7 @@ def regret_for_combo(
 
 def decode_topk_joint(
     logits_per_task: List[Tensor],
-    data: Data,
+    data: HeteroData,
     rtt_by_combo: Dict[PlacementCombo, float],
     k: int,
 ) -> Tuple[Optional[PlacementCombo], Optional[PlacementCombo]]:
@@ -451,7 +370,7 @@ def decode_topk_joint(
     return best_model_combo, best_oracle_combo
 
 
-def move_graph_to_device(data: Data, device: torch.device) -> Data:
+def move_graph_to_device(data: HeteroData, device: torch.device) -> HeteroData:
     saved = {
         "dataset_id": getattr(data, "dataset_id", None),
         "opt_rtt": getattr(data, "opt_rtt", None),
