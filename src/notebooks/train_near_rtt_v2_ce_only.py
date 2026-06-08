@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-"""Launch near-RTT training with the loss/sidecar v2 defaults."""
+"""Launch near-RTT v2 training on the clean-1230 cache with CE loss only."""
 
 import os
+import sys
 import runpy
 from pathlib import Path
 
@@ -19,13 +20,23 @@ def main() -> None:
     os.environ.setdefault("NEAR_RTT_TRASH_WEIGHT", "1.0")
     os.environ.setdefault("NEAR_RTT_FAR_WEIGHT", "0.75")
     os.environ.setdefault("NEAR_RTT_UNMAPPED_PENALTY", "8.0")
-    os.environ.setdefault("WANDB_RUN_NAME", "near-rtt-v2-clean-1230")
+    os.environ.setdefault("WANDB_RUN_NAME", "near-rtt-v2-clean-1230-ce-only")
     os.environ.setdefault(
         "WANDB_TAGS",
-        "near-rtt,loss-v2,trash-sidecar,clean-1230,scheduler-adaptive",
+        "near-rtt,loss-v2,ce-only,clean-1230,scheduler-adaptive",
     )
 
     trainer_path = Path(__file__).with_name("train_near_rtt.py")
+    argv = [
+        str(trainer_path),
+        "--regret-loss-weight",
+        "0",
+        "--ce-loss-weight",
+        "1",
+        "--wandb-project",
+        "gnn-near-rtt-jun2026",
+    ]
+    sys.argv = argv
     runpy.run_path(str(trainer_path), run_name="__main__")
 
 
