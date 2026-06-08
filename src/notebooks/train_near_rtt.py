@@ -764,6 +764,18 @@ def init_weights(module: nn.Module) -> None:
 
 
 model.apply(init_weights)
+
+_init_ckpt = os.environ.get("TRAIN_INIT_CHECKPOINT")
+if _init_ckpt:
+    _init_path = Path(_init_ckpt)
+    if not _init_path.is_absolute():
+        _init_path = Path.cwd() / _init_path
+    if _init_path.exists():
+        model.load_state_dict(torch.load(str(_init_path), map_location=DEVICE))
+        print(f"[INFO] Loaded init checkpoint: {_init_path}")
+    else:
+        print(f"[WARN] TRAIN_INIT_CHECKPOINT not found: {_init_path}")
+
 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 criterion = NearRttRankingLoss(EXACT_RTT_MAP, RTT_SCALE_FACTOR, NEAR_CFG)
 
