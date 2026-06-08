@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -330,6 +331,25 @@ def seqblend_chosen_idx(
     return gnn_idx
 
 
+def queue_filter_chosen_idx(
+    logits_t: Tensor,
+    keys: Sequence[str],
+    live_queues: Mapping[str, int],
+    max_delta: int,
+) -> Optional[int]:
+    """Choose best-logit platform among queues within min_queue + max_delta."""
+    if max_delta < 0:
+        return None
+    queues = _candidate_queues(keys, live_queues)
+    if not queues:
+        return None
+    min_q = min(queues)
+    allowed = [i for i, q in enumerate(queues) if q <= min_q + max_delta]
+    if not allowed:
+        return None
+    return max(allowed, key=lambda i: float(logits_t[i].item()))
+
+
 def decode_sequential_placement(
     logits_per_task: Sequence[Tensor],
     task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
@@ -339,6 +359,7 @@ def decode_sequential_placement(
     *,
     seqblend: bool = False,
     queue_margin: int = 1,
+    queue_filter_max_delta: Optional[int] = None,
     stats: Optional[GnnDecodeRunStats] = None,
 ) -> Optional[PlacementCombo]:
     """Sequential decode with live queue roll-forward; optional seqblend override."""
@@ -370,6 +391,12 @@ def decode_sequential_placement(
         gnn_q = queues[gnn_idx]
 
         chosen_idx = gnn_idx
+        if queue_filter_max_delta is not None:
+            filtered_idx = queue_filter_chosen_idx(
+                logits_t, keys, live_queues, int(queue_filter_max_delta)
+            )
+            if filtered_idx is not None:
+                chosen_idx = filtered_idx
         if seqblend:
             chosen_idx = seqblend_chosen_idx(gnn_idx, keys, live_queues, queue_margin)
 
@@ -474,6 +501,7 @@ def run_decode_with_timing(
     task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]] = None,
     seqblend: bool = False,
     queue_margin: int = 1,
+    queue_filter_max_delta: Optional[int] = None,
     top_k: int = 10,
     stats: Optional[GnnDecodeRunStats] = None,
 ) -> Optional[PlacementCombo]:
@@ -494,6 +522,9 @@ def run_decode_with_timing(
             logits_per_task, task_logit_to_placement, n_tasks, top_k=top_k
         )
     else:
+        if queue_filter_max_delta is None:
+            qf_env = int(os.environ.get("GNN_QUEUE_FILTER_MAX_DELTA", "-1"))
+            queue_filter_max_delta = qf_env if qf_env >= 0 else None
         combo = decode_sequential_placement(
             logits_per_task,
             task_logit_to_placement,
@@ -502,6 +533,7 @@ def run_decode_with_timing(
             task_logit_to_queue_key,
             seqblend=seqblend,
             queue_margin=queue_margin,
+            queue_filter_max_delta=queue_filter_max_delta,
             stats=stats,
         )
 

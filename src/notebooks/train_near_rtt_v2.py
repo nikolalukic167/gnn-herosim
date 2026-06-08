@@ -19,8 +19,11 @@ def main() -> None:
     os.environ.setdefault("NEAR_RTT_TRASH_WEIGHT", "1.0")
     os.environ.setdefault("NEAR_RTT_FAR_WEIGHT", "0.75")
     os.environ.setdefault("NEAR_RTT_UNMAPPED_PENALTY", "8.0")
-    os.environ.setdefault("WANDB_RUN_NAME", "near-rtt-v2-ssc-trash-1")
-    os.environ.setdefault("WANDB_TAGS", "near-rtt,ssc-repair,loss-v2,trash-sidecar")
+    os.environ.setdefault("WANDB_RUN_NAME", "near-rtt-v2-clean-1230")
+    os.environ.setdefault(
+        "WANDB_TAGS",
+        "near-rtt,loss-v2,trash-sidecar,clean-1230,scheduler-adaptive",
+    )
 
     trainer_path = Path(__file__).with_name("train_near_rtt.py")
     runpy.run_path(str(trainer_path), run_name="__main__")

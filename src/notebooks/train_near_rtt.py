@@ -107,6 +107,7 @@ EPOCHS = RUNTIME_CONFIG.epochs
 RTT_SCALE_FACTOR = RUNTIME_CONFIG.rtt_scale_factor
 REGRET_LOSS_WEIGHT = RUNTIME_CONFIG.regret_loss_weight
 CE_LOSS_WEIGHT = RUNTIME_CONFIG.ce_loss_weight
+CE_ONLY_TRAINING = REGRET_LOSS_WEIGHT <= 0.0
 NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
 
 print(f"Cache directory: {CACHE_CTX.cache_dir}")
@@ -480,13 +481,14 @@ def train_epoch(
                 loss_ce_total = loss_ce_total + loss_ce
                 n_ce += 1
 
-            loss_rank, valid, stats = criterion(logits, data, DEVICE)
-            if valid > 0 and torch.isfinite(loss_rank):
-                loss_rank_total = loss_rank_total + loss_rank
-                n_rank += 1
-                valid_rank += 1
-                active_pairs += int(stats.get("active_pairs", 0))
-                total_pairs += int(stats.get("pairs", 0))
+            if not CE_ONLY_TRAINING:
+                loss_rank, valid, stats = criterion(logits, data, DEVICE)
+                if valid > 0 and torch.isfinite(loss_rank):
+                    loss_rank_total = loss_rank_total + loss_rank
+                    n_rank += 1
+                    valid_rank += 1
+                    active_pairs += int(stats.get("active_pairs", 0))
+                    total_pairs += int(stats.get("pairs", 0))
 
         if n_ce == 0 and n_rank == 0:
             continue
@@ -718,7 +720,7 @@ wandb.init(
         "ce_weight": float(CE_LOSS_WEIGHT),
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
-        "loss_type": "CE + NearExactRttRanking",
+        "loss_type": "CE-only" if CE_ONLY_TRAINING else "CE + NearExactRttRanking",
         "loss_variant": str(NEAR_CFG.loss_variant),
         "sidecar_name": str(NEAR_CFG.sidecar_name),
         "near_rtt_training": True,
@@ -767,11 +769,12 @@ criterion = NearRttRankingLoss(EXACT_RTT_MAP, RTT_SCALE_FACTOR, NEAR_CFG)
 
 model_path = Path("models") / f"{wandb.run.name}.pt"
 best_val_regret = float("inf")
+best_val_acc = 0.0
 best_val_metrics: Dict[str, float] = {}
 checkpoint_saved = False
 
 print("=" * 80)
-print("TRAINING (CE + Near Exact RTT Ranking)")
+print("TRAINING (CE-only)" if CE_ONLY_TRAINING else "TRAINING (CE + Near Exact RTT Ranking)")
 print("=" * 80)
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
@@ -786,17 +789,30 @@ for epoch in range(EPOCHS):
     log_dict["lr"] = float(optimizer.param_groups[0]["lr"])
     wandb.log(log_dict, step=epoch)
 
-    val_target = val_metrics["regret_topk"] if val_metrics["count_regret_topk"] > 0 else val_metrics["regret_greedy"]
-    if val_target < best_val_regret:
-        best_val_regret = val_target
-        best_val_metrics = val_metrics
-        model_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(model.state_dict(), model_path)
-        checkpoint_saved = True
-        print(
-            f"  *** New best top-k regret: {best_val_regret:.4f}s "
-            f"(greedy={val_metrics['regret_greedy']:.4f}s)"
-        )
+    if CE_ONLY_TRAINING:
+        val_target_acc = float(val_metrics["acc"])
+        if val_target_acc > best_val_acc:
+            best_val_acc = val_target_acc
+            best_val_metrics = val_metrics
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(model.state_dict(), model_path)
+            checkpoint_saved = True
+            print(
+                f"  *** New best val acc: {best_val_acc * 100:.1f}% "
+                f"(top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s)"
+            )
+    else:
+        val_target = val_metrics["regret_topk"] if val_metrics["count_regret_topk"] > 0 else val_metrics["regret_greedy"]
+        if val_target < best_val_regret:
+            best_val_regret = val_target
+            best_val_metrics = val_metrics
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(model.state_dict(), model_path)
+            checkpoint_saved = True
+            print(
+                f"  *** New best top-k regret: {best_val_regret:.4f}s "
+                f"(greedy={val_metrics['regret_greedy']:.4f}s)"
+            )
 
     if epoch % 5 == 0 or epoch == EPOCHS - 1:
         print(
@@ -823,7 +839,10 @@ final_log.update(prefix(val_final, "final/val"))
 final_log.update(prefix(test_final, "final/test"))
 wandb.log(final_log)
 
-wandb.summary["best_val_regret_topk"] = float(best_val_regret)
+if CE_ONLY_TRAINING:
+    wandb.summary["best_val_acc"] = float(best_val_acc)
+else:
+    wandb.summary["best_val_regret_topk"] = float(best_val_regret)
 wandb.summary["best_val_regret_greedy"] = float(best_val_metrics.get("regret_greedy", 0.0))
 wandb.summary["final_test_regret_topk"] = float(test_final["regret_topk"])
 wandb.summary["final_test_regret_greedy"] = float(test_final["regret_greedy"])
@@ -838,7 +857,10 @@ print("=" * 80)
 print("TRAINING COMPLETE")
 print("=" * 80)
 print(f"Model saved to: {model_path}")
-print(f"Best val top-k regret: {best_val_regret:.4f}s")
+if CE_ONLY_TRAINING:
+    print(f"Best val acc: {best_val_acc * 100:.1f}%")
+else:
+    print(f"Best val top-k regret: {best_val_regret:.4f}s")
 print(
     f"Final test: greedy={test_final['regret_greedy']:.4f}s, "
     f"top{NEAR_CFG.top_k_decode}={test_final['regret_topk']:.4f}s, "
