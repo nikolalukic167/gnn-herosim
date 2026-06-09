@@ -1,0 +1,195 @@
+"""
+Regime A (batch) MLP scheduler — mirrors XGBoostBatchScheduler control loop.
+
+Replaces XGBoost scoring with a single batched [N_edges, 22] → [N_edges] forward
+pass through PointwiseEdgeMLP.  All other logic (graph build, decode, roll-forward)
+is inherited from GNNScheduler via XGBoostBatchScheduler.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+
+import numpy as np
+import torch
+
+if TYPE_CHECKING:
+    from src.placement.infrastructure import Node, Platform, Task
+
+from src.policy.tabular.constants import FEATURE_DIM
+from src.policy.tabular.feature_builder import build_inference_feature_bundle, InferenceFeatureBundle
+from src.policy.tabular.mlp_model import PointwiseEdgeMLP
+from src.policy.tabular.scheduler import XGBoostBatchScheduler
+
+
+class MLPBatchScheduler(XGBoostBatchScheduler):
+    """Batch MLP scheduler: GNNScheduler loop with PointwiseEdgeMLP edge scoring."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mlp_model: Optional[PointwiseEdgeMLP] = None
+        self.mlp_decisions = 0
+        self.mlp_fallback_decisions = 0
+
+    def set_models(self, models: dict):
+        # Call GNNScheduler's set_models (which wires gnn_model/device/task_types_data)
+        # but skip XGB-specific loading.  We call super() which chains to GNNScheduler.
+        # Then load MLP on top.
+        super().set_models(models)
+        if models is None:
+            return
+        if "mlp_model" in models:
+            self.mlp_model = models["mlp_model"]
+            logging.info("[MLP Batch] Loaded MLP model (pre-built)")
+        elif "mlp_model_path" in models:
+            path = models["mlp_model_path"]
+            checkpoint = torch.load(str(path), map_location="cpu", weights_only=False)
+            hidden_dim = checkpoint.get("hidden_dim", 64)
+            input_dim = checkpoint.get("input_dim", FEATURE_DIM)
+            self.mlp_model = PointwiseEdgeMLP(input_dim=input_dim, hidden_dim=hidden_dim)
+            self.mlp_model.load_state_dict(checkpoint["model_state_dict"])
+            self.mlp_model.eval()
+            self.mlp_model.to(self.device)
+            logging.info("[MLP Batch] Loaded MLP model from %s", path)
+        else:
+            logging.warning("[MLP Batch] No mlp_model or mlp_model_path in models dict")
+
+    # ------------------------------------------------------------------
+    # Override _gnn_inference: build feature bundle, batched MLP forward
+    # ------------------------------------------------------------------
+
+    def _gnn_inference(
+        self,
+        batch_tasks: List["Task"],
+        system_state,
+        queue_snapshot: Dict[str, int],
+        temporal_state=None,
+    ) -> Optional[Dict[int, Tuple[int, int]]]:
+        if self.mlp_model is None:
+            logging.error("[MLP Batch] Model not loaded")
+            return None
+
+        try:
+            norm_mode = os.environ.get("GNN_QUEUE_NORM_MODE", "adaptive").strip().lower()
+            bundle = build_inference_feature_bundle(
+                batch_tasks,
+                system_state,
+                queue_snapshot,
+                nodes=list(self.nodes.items),
+                task_types_data=self.task_types_data,
+                queue_norm_mode=norm_mode,
+            )
+            if bundle is None:
+                logging.warning("[MLP Batch] Empty feature bundle (no feasible edges)")
+                return None
+
+            logits_per_task = self._mlp_logits_from_bundle(bundle)
+            task_logit_to_queue_key = bundle.task_logit_to_queue_key
+
+            placements = self._decode_placements(
+                logits_per_task,
+                bundle.task_logit_to_placement,
+                bundle.n_tasks,
+                queue_snapshot,
+                task_logit_to_queue_key,
+            )
+            return placements
+        except Exception as exc:
+            logging.exception("[MLP Batch] Inference error: %s", exc)
+            return None
+
+    def _mlp_logits_from_bundle(
+        self,
+        bundle: InferenceFeatureBundle,
+    ) -> List[torch.Tensor]:
+        """Vectorised [N_total_edges, 22] → [N_total_edges] forward pass.
+
+        Builds the full feature matrix via numpy fancy indexing (no per-row allocation),
+        then runs one torch.from_numpy + one model forward on GPU/CPU.
+        Returns a List[Tensor] of per-task score vectors.
+        """
+        n_tasks = bundle.n_tasks
+        total_edges = int(bundle.edge_attr_directed.shape[0])
+
+        if total_edges == 0:
+            raise ValueError("[MLP Batch] Zero candidate edges in bundle")
+
+        # Build index arrays: for each directed edge row, which task and plat_pos?
+        task_idx_arr = np.empty(total_edges, dtype=np.int32)
+        plat_pos_arr = np.empty(total_edges, dtype=np.int32)
+        task_boundaries: List[Tuple[int, int]] = []
+
+        edge_row = 0
+        for t_idx in range(n_tasks):
+            candidates = bundle.task_logit_to_placement.get(t_idx, [])
+            queue_keys = bundle.task_logit_to_queue_key.get(t_idx, [])
+            n_cands = len(candidates)
+            start = edge_row
+            for l_idx in range(n_cands):
+                qk = queue_keys[l_idx]
+                meta = bundle.queue_key_to_platform_meta.get(qk)
+                if meta is None or "platform_pos" not in meta:
+                    raise ValueError(
+                        f"[MLP Batch] platform_pos missing for queue_key={qk!r}"
+                    )
+                task_idx_arr[edge_row] = t_idx
+                plat_pos_arr[edge_row] = int(meta["platform_pos"])
+                edge_row += 1
+            task_boundaries.append((start, edge_row))
+
+        if edge_row != total_edges:
+            raise ValueError(
+                f"[MLP Batch] Edge count mismatch: iterated {edge_row}, expected {total_edges}"
+            )
+
+        # Vectorised feature assembly: [N, 3] | [N, 14] | [N, 5]  →  [N, 22]
+        feat_matrix = np.concatenate(
+            [
+                bundle.task_features[task_idx_arr],       # [N, 3]
+                bundle.platform_features[plat_pos_arr],   # [N, 14]
+                bundle.edge_attr_directed,                 # [N, 5]
+            ],
+            axis=1,
+        ).astype(np.float32)
+
+        if feat_matrix.shape[1] != FEATURE_DIM:
+            raise ValueError(
+                f"[MLP Batch] Feature dim mismatch: {feat_matrix.shape[1]} != {FEATURE_DIM}"
+            )
+        if not np.isfinite(feat_matrix).all():
+            raise ValueError("[MLP Batch] Non-finite values in feature matrix")
+
+        x = torch.from_numpy(feat_matrix).to(self.device)
+        with torch.no_grad():
+            scores = self.mlp_model(x)  # [N_total]
+
+        if not torch.isfinite(scores).all():
+            raise ValueError("[MLP Batch] NaN/Inf in MLP scores")
+
+        scores_cpu = scores.cpu()
+        logits_per_task: List[torch.Tensor] = []
+        for start, end in task_boundaries:
+            if end > start:
+                logits_per_task.append(scores_cpu[start:end])
+            else:
+                logits_per_task.append(torch.empty(0))
+
+        return logits_per_task
+
+    def _select_placement_pure_gnn(
+        self,
+        task: "Task",
+        task_idx: int,
+        placements,
+        available_replicas,
+    ):
+        node, plat = super()._select_placement_pure_gnn(
+            task, task_idx, placements, available_replicas
+        )
+        if node is not None and plat is not None and placements and task_idx in placements:
+            self.mlp_decisions += 1
+        elif node is not None and plat is not None:
+            self.mlp_fallback_decisions += 1
+        return node, plat

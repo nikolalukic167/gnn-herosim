@@ -507,6 +507,7 @@ def run_simulation(
         gnn_device: Any = None,
         task_types_data: Optional[Dict[str, Any]] = None,
         xgb_model_path: Optional[Path] = None,
+        mlp_model_path: Optional[Path] = None,
 ) -> bool:
     """
     Run simulation with the specified policy.
@@ -541,6 +542,7 @@ def run_simulation(
         'offload_network',
         'xgboost_batch',
         'xgboost_single',
+        'mlp_batch',
     ]
     if policy not in valid_policies:
         logger.error(
@@ -559,6 +561,13 @@ def run_simulation(
             return False
         if task_types_data is None:
             logger.error(f"{policy} policy requires task_types_data for feature extraction")
+
+    if policy == 'mlp_batch':
+        if mlp_model_path is None or not mlp_model_path.exists():
+            logger.error(f"mlp_batch policy requires a valid --mlp-model path (got {mlp_model_path})")
+            return False
+        if task_types_data is None:
+            logger.error("mlp_batch policy requires task_types_data for feature extraction")
             return False
 
     # Check required files exist
@@ -655,7 +664,13 @@ def run_simulation(
                 'xgb_model_path': str(xgb_model_path),
                 'task_types_data': task_types_data,
             }
-        
+        elif policy == 'mlp_batch':
+            scheduling_strategy = 'mlp_batch_mlp_batch'
+            models = {
+                'mlp_model_path': str(mlp_model_path),
+                'task_types_data': task_types_data,
+            }
+
         if scheduling_strategy is None:
             logger.error(f"Unknown policy: {policy}")
             return False
@@ -705,7 +720,7 @@ def run_simulation(
             "stats": stats,
         }
 
-        ml_policies = ("gnn", "gnn_hetero", "xgboost_batch", "xgboost_single")
+        ml_policies = ("gnn", "gnn_hetero", "xgboost_batch", "xgboost_single", "mlp_batch")
         if policy in ml_policies:
             try:
                 if policy == "gnn_hetero":
@@ -817,6 +832,8 @@ def main():
         if _xgb_single_model_env
         else Path("models/tabular/single_edge_ranker.json")
     )
+    _mlp_model_env = os.environ.get("MLP_MODEL_PATH")
+    default_mlp_model_path = Path(_mlp_model_env) if _mlp_model_env else Path("models/tabular/batch_edge_mlp.pt")
     default_output_dir = Path("simulation_data/results")
 
     # Parse arguments
@@ -826,11 +843,17 @@ def main():
     seed = None
     output_file = None
     xgb_model_path = None
+    mlp_model_path = None
 
     if '--xgb-model' in sys.argv:
         idx = sys.argv.index('--xgb-model')
         if idx + 1 < len(sys.argv):
             xgb_model_path = Path(sys.argv[idx + 1])
+
+    if '--mlp-model' in sys.argv:
+        idx = sys.argv.index('--mlp-model')
+        if idx + 1 < len(sys.argv):
+            mlp_model_path = Path(sys.argv[idx + 1])
 
     if '--config' in sys.argv:
         idx = sys.argv.index('--config')
@@ -903,6 +926,7 @@ def main():
         'offload_network',
         'xgboost_batch',
         'xgboost_single',
+        'mlp_batch',
     ]
     if policy not in cli_valid_policies:
         print(f"ERROR: Invalid policy '{policy}'. Must be one of: {', '.join(cli_valid_policies)}")
@@ -953,12 +977,19 @@ def main():
             print(f"ERROR: XGBoost model not found at {xgb_model_path}")
             sys.exit(1)
         task_types_data = load_task_types_data(sim_input_path)
+    elif policy == 'mlp_batch':
+        if mlp_model_path is None:
+            mlp_model_path = default_mlp_model_path
+        if not mlp_model_path.exists():
+            print(f"ERROR: MLP model not found at {mlp_model_path}")
+            sys.exit(1)
+        task_types_data = load_task_types_data(sim_input_path)
 
     # Run simulation
     success = run_simulation(
         config_file, workload_file, output_file, sim_input_path, logger, policy,
         seed=seed, gnn_model=gnn_model, gnn_device=gnn_device, task_types_data=task_types_data,
-        xgb_model_path=xgb_model_path,
+        xgb_model_path=xgb_model_path, mlp_model_path=mlp_model_path,
     )
     sys.exit(0 if success else 1)
 
