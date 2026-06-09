@@ -49,6 +49,8 @@ from src.policy.gnn.orchestrator import GNNOrchestrator as GNNOrchestrator
 from src.policy.gnn.scheduler import GNNScheduler
 from src.policy.tabular.orchestrator import XGBoostBatchOrchestrator
 from src.policy.tabular.scheduler import XGBoostBatchScheduler
+from src.policy.tabular.single_orchestrator import XGBoostSingleOrchestrator
+from src.policy.tabular.single_scheduler import XGBoostSingleScheduler
 from src.policy.gnn_hetero.autoscaler import KnativeAutoscaler as GNNHeteroAutoscaler
 from src.policy.gnn_hetero.orchestrator import GNNOrchestrator as GNNHeteroOrchestrator
 from src.policy.gnn_hetero.scheduler import GNNScheduler as GNNHeteroScheduler
@@ -100,7 +102,7 @@ from src.policy.offload_network.scheduler import OffloadNetworkScheduler
 
 from src.policy.roundrobin_network.orchestrator import RoundRobinNetworkOrchestrator
 from src.policy.roundrobin_network.autoscaler import RoundRobinNetworkAutoscaler
-from src.policy.roundrobin_network.scheduler import RoundRobinScheduler as RoundRobinNetworkScheduler
+from src.policy.roundrobin_network.scheduler import RoundRobinNetworkScheduler
 # knative_no_batch renamed to knative_network (no batching)
 # Imports are now above with knative_network
 
@@ -671,13 +673,14 @@ def start_simulation(
         "gnn_gnn": (GNNOrchestrator, GNNAutoscaler, GNNScheduler),
         "gnn_hetero_gnn_hetero": (GNNHeteroOrchestrator, GNNHeteroAutoscaler, GNNHeteroScheduler),
         "xgb_batch_xgb_batch": (XGBoostBatchOrchestrator, GNNAutoscaler, XGBoostBatchScheduler),
+        "xgb_single_xgb_single": (XGBoostSingleOrchestrator, KnativeNetworkAutoscaler, XGBoostSingleScheduler),
         "multiloop_multiloop": (MultiLoopOrchestrator, MultiLoopAutoscaler, MultiLoopScheduler),
         "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
         "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),
         "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkScheduler),
         "kn_network_ect_kn_network_ect": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkECTScheduler),
         "kn_network_batch_kn_network_batch": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkBatchScheduler),
-        "rr_network_rr_network": (RoundRobinNetworkOrchestrator, RoundRobinNetworkAutoscaler, RoundRobinNetworkScheduler),
+        "rr_network_rr_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, RoundRobinNetworkScheduler),
         "hrc_network_hrc_network": (HRCNetworkOrchestrator, HRCNetworkAutoscaler, HRCNetworkScheduler),
         "hrc_network_batch_hrc_network_batch": (HRCNetworkBatchOrchestrator, HRCNetworkBatchAutoscaler, HRCNetworkBatchScheduler),
         "rp_network_rp_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, RandomNetworkScheduler),

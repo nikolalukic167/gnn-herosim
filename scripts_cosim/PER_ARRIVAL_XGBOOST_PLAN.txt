@@ -1,7 +1,7 @@
 PER-ARRIVAL XGBOOST (REGIME B) — IMPLEMENTATION PLAN
 ====================================================
 
-Status: NOT IMPLEMENTED (requires dedicated co-sim dataset generation)
+Status: IMPLEMENTED (bootstrap trained; 1-task co-sim generator + cache builder shipped)
 Regime A (batch) files live under src/policy/tabular/ and src/notebooks/prepare_tabular_dataset.py
 
 Goal

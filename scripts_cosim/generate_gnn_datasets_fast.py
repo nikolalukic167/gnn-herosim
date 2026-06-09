@@ -105,8 +105,8 @@ QUEUE_DISTRIBUTIONS = [
     ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
 ]
 
-# Seeds for deterministic generation
-SEEDS = [101]
+# Seeds for deterministic generation (20 seeds × 5 replica × 5 queue × 1 conn = 500 combos)
+SEEDS = list(range(101, 121))
 
 # Task type ratios: (dnn1%, dnn2%)
 TASK_TYPE_RATIOS = [
@@ -383,6 +383,23 @@ def generate_single_dataset(
             if optimal_src.exists():
                 import shutil
                 shutil.copy2(optimal_src, output_dir / "optimal_result.json")
+                try:
+                    from src.executecosimulation import build_system_state_captured
+                    from src.placement.model import DataclassJSONEncoder
+
+                    with open(output_dir / "optimal_result.json", "r") as opt_f:
+                        optimal_data = json.load(opt_f)
+                    opt_stats = optimal_data.get("stats")
+                    if opt_stats and opt_stats.get("taskResults"):
+                        captured_state = build_system_state_captured(opt_stats)
+                        ssc_path = output_dir / "system_state_captured_unique.json"
+                        with open(ssc_path, "w") as ssc_f:
+                            json.dump(captured_state, ssc_f, indent=2, cls=DataclassJSONEncoder)
+                except Exception as ssc_exc:
+                    log(f"  WARNING: Failed to write system_state_captured_unique.json: {ssc_exc}", quiet, force=True)
+                    raise RuntimeError(
+                        f"SSC export failed for {output_dir.name}: {ssc_exc}"
+                    ) from ssc_exc
             
             # Copy placements
             if placements_file.exists():
@@ -461,8 +478,8 @@ def main():
                         help='Threshold for fast-forward warmup (default: 1)')
     parser.add_argument('--allow-non-unique-replicas', action='store_true',
                         help='Allow multiple tasks to share the same replica')
-    parser.add_argument('--num-tasks', type=int, choices=[2, 3, 4, 5], default=4,
-                        help='Number of tasks per workload (2-5). Sets batch_size accordingly.')
+    parser.add_argument('--num-tasks', type=int, choices=[1, 2, 3, 4, 5], default=4,
+                        help='Number of tasks per workload (1-5). Sets batch_size accordingly.')
     parser.add_argument(
         '--output-subdir',
         type=str,

@@ -731,9 +731,10 @@ TASK_PLATFORM_COMPATIBILITY = {
 def _scheduler_adaptive_queue_norm(queue_values: np.ndarray) -> float:
     """
     Match GNNScheduler adaptive queue normalization:
-    - 90th percentile
-    - min 1.0
-    - cap 100.0
+    - 90th percentile of ALL platforms (including idle zeros)
+    - min 1.0, cap 100.0
+    NOTE: collapses to 1.0 when most platforms are idle (p90 of zeros = 0).
+    Use _scheduler_adaptive_queue_norm_nonzero for sparse-heavy-tailed distributions.
     """
     if queue_values.size == 0:
         return 50.0
@@ -741,6 +742,22 @@ def _scheduler_adaptive_queue_norm(queue_values: np.ndarray) -> float:
     idx = int(len(q) * 0.9)
     percentile_90 = q[idx] if idx < len(q) else q[-1]
     return float(min(max(1.0, percentile_90), 100.0))
+
+
+def _scheduler_adaptive_queue_norm_nonzero(queue_values: np.ndarray) -> float:
+    """
+    Robust adaptive queue normalization: p90 of non-zero queues only.
+    Fixes the collapse-to-1.0 failure when most platforms are idle.
+    Training and inference must use the same mode to preserve the feature contract.
+    queue_norm_mode='adaptive_nonzero' selects this path.
+    """
+    non_zero = queue_values[queue_values > 0]
+    if non_zero.size == 0:
+        return 1.0
+    nz_sorted = np.sort(non_zero.astype(np.float64))
+    idx = int(len(nz_sorted) * 0.9)
+    p90 = nz_sorted[min(idx, len(nz_sorted) - 1)]
+    return float(min(max(1.0, p90), 100.0))
 
 def build_graph(
     df_nodes: pd.DataFrame,
@@ -829,6 +846,8 @@ def build_graph(
     # Normalize queue lengths with scheduler-aligned adaptive mode or fixed mode.
     if queue_norm_mode == "scheduler_adaptive":
         active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths)
+    elif queue_norm_mode == "adaptive_nonzero":
+        active_queue_norm = _scheduler_adaptive_queue_norm_nonzero(queue_lengths)
     else:
         active_queue_norm = _safe_positive(float(queue_norm_factor))
     queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)

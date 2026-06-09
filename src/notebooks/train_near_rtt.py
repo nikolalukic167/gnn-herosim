@@ -129,6 +129,10 @@ SOFT_COMBO_TRAINING = TRAIN_OBJECTIVE in {"soft_combo", "soft_combo_conc"}
 CONCENTRATION_TRAINING = TRAIN_OBJECTIVE == "soft_combo_conc"
 CE_ONLY_TRAINING = TRAIN_OBJECTIVE == "ce_only"
 NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
+PHASE_B_CHECKPOINT_METRIC = os.environ.get(
+    "NEAR_RTT_PHASE_B_CHECKPOINT_METRIC",
+    "seq_reforward_regret" if bool(os.environ.get("TRAIN_INIT_CHECKPOINT")) and not CE_ONLY_TRAINING else "",
+).strip().lower()
 
 if (
     SOFT_COMBO_TRAINING
@@ -399,6 +403,91 @@ def decode_greedy(logits_per_task: List[Tensor], data: Data) -> Optional[Placeme
     return tuple(combo)
 
 
+def _queue_norm_from_values(queue_values: List[int]) -> float:
+    if not queue_values:
+        return 50.0
+    mode = os.environ.get("NEAR_RTT_SEQ_VAL_QUEUE_NORM_MODE", os.environ.get("GNN_QUEUE_NORM_MODE", "scheduler_adaptive")).strip()
+    values = sorted(int(v) for v in queue_values)
+    if mode == "adaptive_nonzero":
+        values = [v for v in values if v > 0]
+        if not values:
+            return 1.0
+    elif mode == "fixed":
+        return float(os.environ.get("NEAR_RTT_SEQ_VAL_QUEUE_NORM_FACTOR", "50.0"))
+    idx = int(len(values) * 0.9)
+    p90 = values[min(idx, len(values) - 1)]
+    return float(min(max(1.0, p90), 100.0))
+
+
+def _require_seq_val_metadata(data: Data) -> Tuple[Dict[int, List[Tuple[int, int]]], Dict[int, List[str]], Dict[str, Dict[str, Any]], Dict[str, int]]:
+    mapping = getattr(data, "task_logit_to_placement", getattr(data, "_task_logit_to_placement", None))
+    keys_map = getattr(data, "task_logit_to_queue_key", None)
+    meta = getattr(data, "queue_key_to_platform_meta", None)
+    queue_snapshot = getattr(data, "queue_snapshot", None)
+    if not mapping or not keys_map or not meta or queue_snapshot is None:
+        dataset_id = getattr(data, "dataset_id", "<unknown>")
+        raise RuntimeError(
+            f"Sequential validation requires placement, queue-key, metadata, and queue snapshot fields; missing on {dataset_id}."
+        )
+    return mapping, keys_map, meta, {str(k): int(v) for k, v in dict(queue_snapshot).items()}
+
+
+def _refresh_queue_dependent_platform_features(
+    data: Data,
+    live_queues: Dict[str, int],
+    meta: Dict[str, Dict[str, Any]],
+) -> None:
+    queue_values = [int(live_queues.get(str(key), 0)) for key in meta.keys()]
+    queue_norm = _queue_norm_from_values(queue_values)
+    platform_features = data.platform_features
+    if platform_features.size(-1) < 14:
+        raise RuntimeError(
+            f"Sequential validation expects 14-dim platform features; got {platform_features.size(-1)}."
+        )
+    for queue_key, info in meta.items():
+        if "platform_pos" not in info:
+            raise RuntimeError(f"Sequential validation metadata missing platform_pos for {queue_key}.")
+        pos = int(info["platform_pos"])
+        if pos < 0 or pos >= int(data.n_platforms):
+            raise RuntimeError(f"Sequential validation platform_pos out of range for {queue_key}: {pos}.")
+        raw_q = float(live_queues.get(str(queue_key), 0))
+        target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
+        platform_features[pos, 7] = raw_q / queue_norm
+        platform_features[pos, 13] = (raw_q / target_concurrency) / 5.0
+
+
+@torch.no_grad()
+def decode_sequential_reforward(
+    model: nn.Module,
+    data: Data,
+) -> Optional[PlacementCombo]:
+    mapping, keys_map, meta, live_queues = _require_seq_val_metadata(data)
+    combo: List[Tuple[int, int]] = []
+    original_platform_features = data.platform_features
+    data.platform_features = original_platform_features.clone()
+    try:
+        _refresh_queue_dependent_platform_features(data, live_queues, meta)
+        for task_idx in range(int(data.n_tasks)):
+            if task_idx not in mapping or task_idx not in keys_map:
+                return None
+            logits_per_task = model(data)
+            if task_idx >= len(logits_per_task):
+                return None
+            logits_t = logits_per_task[task_idx]
+            if logits_t.numel() == 0:
+                return None
+            idx = int(logits_t.argmax().item())
+            if idx >= len(mapping[task_idx]) or idx >= len(keys_map[task_idx]):
+                return None
+            queue_key = str(keys_map[task_idx][idx])
+            combo.append(tuple(mapping[task_idx][idx]))
+            live_queues[queue_key] = live_queues.get(queue_key, 0) + 1
+            _refresh_queue_dependent_platform_features(data, live_queues, meta)
+    finally:
+        data.platform_features = original_platform_features
+    return tuple(combo)
+
+
 def build_worst_regret_by_dataset(rtt_by_dataset: RttByCombo) -> Dict[str, float]:
     """Per-dataset max regret in the capped sidecar; used as unmapped-combo penalty floor."""
     worst: Dict[str, float] = {}
@@ -581,7 +670,8 @@ def train_epoch(
             if CONCENTRATION_TRAINING:
                 loss = loss + NEAR_CFG.conc_gamma * conc_avg
         else:
-            loss = CE_LOSS_WEIGHT * ce_avg + REGRET_LOSS_WEIGHT * rank_avg
+            regret_w = effective_regret_weight(epoch)
+            loss = CE_LOSS_WEIGHT * ce_avg + regret_w * rank_avg
         if not torch.isfinite(loss):
             continue
         loss.backward()
@@ -629,10 +719,13 @@ def evaluate(
     tasks_correct = 0
     tasks_total = 0
     regret_greedy: List[float] = []
+    regret_seq_reforward: List[float] = []
     regret_topk: List[float] = []
     regret_oracle_topk: List[float] = []
     greedy_mapped = 0
     greedy_total = 0
+    seq_reforward_mapped = 0
+    seq_reforward_total = 0
     topk_mapped = 0
     topk_total = 0
 
@@ -686,6 +779,22 @@ def evaluate(
                 if greedy_regret is not None:
                     regret_greedy.append(greedy_regret)
 
+            if PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret":
+                seq_combo = decode_sequential_reforward(model, data)
+                if seq_combo is not None:
+                    seq_reforward_total += 1
+                    if seq_combo in rtt_map:
+                        seq_reforward_mapped += 1
+                    seq_regret = regret_for_combo(
+                        seq_combo,
+                        rtt_map,
+                        opt_rtt,
+                        worst_regret,
+                        NEAR_CFG.unmapped_penalty,
+                    )
+                    if seq_regret is not None:
+                        regret_seq_reforward.append(seq_regret)
+
             topk_combo, oracle_combo = decode_topk_joint(logits, data, rtt_map, NEAR_CFG.top_k_decode)
             if topk_combo is not None:
                 topk_total += 1
@@ -711,20 +820,32 @@ def evaluate(
         "acc": graph_correct / max(1, graphs),
         "task_acc": tasks_correct / max(1, tasks_total),
         "regret_greedy": avg(regret_greedy),
+        "regret_seq_reforward": avg(regret_seq_reforward),
         "regret_topk": avg(regret_topk),
         "regret_oracle_topk": avg(regret_oracle_topk),
         "count_regret_greedy": float(len(regret_greedy)),
+        "count_regret_seq_reforward": float(len(regret_seq_reforward)),
         "count_regret_topk": float(len(regret_topk)),
         "greedy_sidecar_coverage": greedy_mapped / max(1, greedy_total),
+        "seq_reforward_sidecar_coverage": seq_reforward_mapped / max(1, seq_reforward_total),
+        "seq_reforward_unmapped": float(seq_reforward_total - seq_reforward_mapped),
         "topk_sidecar_coverage": topk_mapped / max(1, topk_total),
         "greedy_unmapped": float(greedy_total - greedy_mapped),
     }
+    seq_msg = ""
+    if PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret":
+        seq_msg = (
+            f" seq_reforward={metrics['regret_seq_reforward']:.4f}s "
+            f"(sidecar_hit={metrics['seq_reforward_sidecar_coverage']*100:.1f}%, "
+            f"unmapped={int(metrics['seq_reforward_unmapped'])})"
+        )
     print(
         f"[{split_name}] acc={metrics['acc']*100:.1f}% "
         f"task_acc={metrics['task_acc']*100:.1f}% "
         f"greedy_regret={metrics['regret_greedy']:.4f}s "
         f"(sidecar_hit={metrics['greedy_sidecar_coverage']*100:.1f}%, "
         f"unmapped={int(metrics['greedy_unmapped'])}) "
+        f"{seq_msg} "
         f"top{NEAR_CFG.top_k_decode}_regret={metrics['regret_topk']:.4f}s "
         f"oracle_top{NEAR_CFG.top_k_decode}={metrics['regret_oracle_topk']:.4f}s"
     )
@@ -733,6 +854,72 @@ def evaluate(
 
 def prefix(metrics: Dict[str, float], name: str) -> Dict[str, float]:
     return {f"{name}/{k}": float(v) for k, v in metrics.items()}
+
+
+def effective_regret_weight(epoch: int) -> float:
+    if os.environ.get("NEAR_RTT_REGRET_RAMP", "0") != "1":
+        return REGRET_LOSS_WEIGHT
+    ramp_epoch = int(os.environ.get("NEAR_RTT_REGRET_RAMP_EPOCH", "10"))
+    start_w = float(os.environ.get("NEAR_RTT_REGRET_RAMP_START", "0.05"))
+    end_w = float(os.environ.get("NEAR_RTT_REGRET_RAMP_END", str(REGRET_LOSS_WEIGHT)))
+    if epoch < ramp_epoch:
+        return start_w
+    return end_w
+
+
+def is_phase_b_ce_init() -> bool:
+    return bool(os.environ.get("TRAIN_INIT_CHECKPOINT")) and not CE_ONLY_TRAINING
+
+
+def phase_b_acc_collapse_floor() -> Optional[float]:
+    if not is_phase_b_ce_init():
+        return None
+    baseline = float(os.environ.get("NEAR_RTT_CE_BASELINE_ACC", "0.244"))
+    rel_drop = float(os.environ.get("NEAR_RTT_ACC_COLLAPSE_REL", "0.05"))
+    return baseline * (1.0 - rel_drop)
+
+
+def ranking_checkpoint_metric(val_metrics: Dict[str, float]) -> float:
+    if is_phase_b_ce_init() and PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret":
+        if val_metrics["count_regret_seq_reforward"] <= 0:
+            raise RuntimeError("Phase B sequential validation produced no regret samples.")
+        return float(val_metrics["regret_seq_reforward"])
+    if is_phase_b_ce_init():
+        return float(val_metrics["regret_greedy"])
+    if val_metrics["count_regret_topk"] > 0:
+        return float(val_metrics["regret_topk"])
+    return float(val_metrics["regret_greedy"])
+
+
+def phase_b_collapse_reason(
+    val_metrics: Dict[str, float],
+    baseline: Optional[Dict[str, float]],
+) -> Optional[str]:
+    if baseline is None:
+        return None
+    val_acc = float(val_metrics["acc"])
+    acc_floor = phase_b_acc_collapse_floor()
+    if acc_floor is not None and val_acc < acc_floor:
+        return (
+            f"val acc {val_acc * 100:.1f}% < floor {acc_floor * 100:.1f}%"
+        )
+    baseline_greedy = float(baseline.get("regret_greedy", 0.0))
+    greedy_rel = float(os.environ.get("NEAR_RTT_GREEDY_COLLAPSE_REL", "0.10"))
+    val_greedy = float(val_metrics["regret_greedy"])
+    if baseline_greedy > 0.0 and val_greedy > baseline_greedy * (1.0 + greedy_rel):
+        return (
+            f"greedy {val_greedy:.4f}s > baseline {baseline_greedy:.4f}s "
+            f"* {1.0 + greedy_rel:.2f}"
+        )
+    if PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret":
+        baseline_seq = float(baseline.get("regret_seq_reforward", 0.0))
+        val_seq = float(val_metrics["regret_seq_reforward"])
+        if baseline_seq > 0.0 and val_seq > baseline_seq * (1.0 + greedy_rel):
+            return (
+                f"seq_reforward {val_seq:.4f}s > baseline {baseline_seq:.4f}s "
+                f"* {1.0 + greedy_rel:.2f}"
+            )
+    return None
 
 
 def load_or_build_valid_combos() -> Tuple[PlacementToLogitMap, ExactRttLookupMap, RttByCombo]:
@@ -845,6 +1032,13 @@ wandb.init(
         "num_exact_rtt_combo_rows": int(sum(len(v) for v in EXACT_RTT_MAP.values())),
         "unmapped_penalty": float(NEAR_CFG.unmapped_penalty),
         "cache_dir": str(CACHE_CTX.cache_dir),
+        "phase_b_checkpoint_metric": str(PHASE_B_CHECKPOINT_METRIC),
+        "seq_val_queue_norm_mode": str(
+            os.environ.get(
+                "NEAR_RTT_SEQ_VAL_QUEUE_NORM_MODE",
+                os.environ.get("GNN_QUEUE_NORM_MODE", "scheduler_adaptive"),
+            )
+        ),
     },
     tags=[t for t in os.environ.get("WANDB_TAGS", "near-rtt").split(",") if t],
 )
@@ -885,6 +1079,36 @@ best_val_regret = float("inf")
 best_val_acc = 0.0
 best_val_metrics: Dict[str, float] = {}
 checkpoint_saved = False
+phase_b_baseline: Optional[Dict[str, float]] = None
+checkpoint_metric_name = "regret_topk"
+
+if is_phase_b_ce_init():
+    checkpoint_metric_name = (
+        "regret_seq_reforward"
+        if PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret"
+        else "regret_greedy"
+    )
+    print(f"[Phase B] Checkpoint metric: val/{checkpoint_metric_name}")
+    phase_b_baseline = evaluate(
+        model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "phase-b/baseline"
+    )
+    best_val_regret = ranking_checkpoint_metric(phase_b_baseline)
+    best_val_metrics = phase_b_baseline
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), model_path)
+    checkpoint_saved = True
+    print(
+        f"[Phase B baseline] acc={phase_b_baseline['acc'] * 100:.1f}% "
+        f"seq_reforward={phase_b_baseline['regret_seq_reforward']:.4f}s "
+        f"greedy={phase_b_baseline['regret_greedy']:.4f}s "
+        f"top{NEAR_CFG.top_k_decode}={phase_b_baseline['regret_topk']:.4f}s "
+        f"(seed checkpoint saved)"
+    )
+    wandb.summary["phase_b_baseline_seq_reforward"] = float(
+        phase_b_baseline["regret_seq_reforward"]
+    )
+    wandb.summary["phase_b_baseline_greedy"] = float(phase_b_baseline["regret_greedy"])
+    wandb.summary["phase_b_baseline_acc"] = float(phase_b_baseline["acc"])
 
 print("=" * 80)
 print(f"TRAINING ({TRAIN_OBJECTIVE})")
@@ -900,6 +1124,8 @@ for epoch in range(EPOCHS):
     log_dict.update(prefix(train_metrics, "train"))
     log_dict.update(prefix(val_metrics, "val"))
     log_dict["lr"] = float(optimizer.param_groups[0]["lr"])
+    if not CE_ONLY_TRAINING:
+        log_dict["train/effective_regret_weight"] = float(effective_regret_weight(epoch))
     wandb.log(log_dict, step=epoch)
 
     if CE_ONLY_TRAINING:
@@ -915,17 +1141,30 @@ for epoch in range(EPOCHS):
                 f"(top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s)"
             )
     else:
-        val_target = val_metrics["regret_topk"] if val_metrics["count_regret_topk"] > 0 else val_metrics["regret_greedy"]
+        val_target = ranking_checkpoint_metric(val_metrics)
+        val_acc = float(val_metrics["acc"])
+        collapse_reason = phase_b_collapse_reason(val_metrics, phase_b_baseline)
         if val_target < best_val_regret:
-            best_val_regret = val_target
-            best_val_metrics = val_metrics
-            model_path.parent.mkdir(parents=True, exist_ok=True)
-            torch.save(model.state_dict(), model_path)
-            checkpoint_saved = True
-            print(
-                f"  *** New best top-k regret: {best_val_regret:.4f}s "
-                f"(greedy={val_metrics['regret_greedy']:.4f}s)"
-            )
+            if collapse_reason is not None:
+                print(
+                    f"  [COLLAPSE GUARD] skip save: {collapse_reason} "
+                    f"(seq_reforward={val_metrics['regret_seq_reforward']:.4f}s, "
+                    f"top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s, "
+                    f"greedy={val_metrics['regret_greedy']:.4f}s)"
+                )
+            else:
+                best_val_regret = val_target
+                best_val_metrics = val_metrics
+                model_path.parent.mkdir(parents=True, exist_ok=True)
+                torch.save(model.state_dict(), model_path)
+                checkpoint_saved = True
+                print(
+                    f"  *** New best val {checkpoint_metric_name}: {best_val_regret:.4f}s "
+                    f"(seq_reforward={val_metrics['regret_seq_reforward']:.4f}s, "
+                    f"greedy={val_metrics['regret_greedy']:.4f}s, "
+                    f"top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s, "
+                    f"acc={val_acc * 100:.1f}%)"
+                )
 
     if epoch % 5 == 0 or epoch == EPOCHS - 1:
         print(
@@ -934,6 +1173,7 @@ for epoch in range(EPOCHS):
             f"Rank={train_metrics['rank']:.4f} "
             f"SoftCombo={train_metrics['soft_combo']:.4f} "
             f"Conc={train_metrics['concentration']:.4f} "
+            f"Val seq_reforward={val_metrics['regret_seq_reforward']:.4f}s "
             f"Val greedy={val_metrics['regret_greedy']:.4f}s "
             f"Val top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s "
             f"active_pair_frac={train_metrics['active_pair_frac']:.2f} "
@@ -956,8 +1196,19 @@ wandb.log(final_log)
 
 if CE_ONLY_TRAINING:
     wandb.summary["best_val_acc"] = float(best_val_acc)
+elif is_phase_b_ce_init():
+    wandb.summary["best_val_checkpoint_target"] = float(best_val_regret)
+    wandb.summary["best_val_regret_greedy"] = float(
+        best_val_metrics.get("regret_greedy", 0.0)
+    )
+    wandb.summary["best_val_regret_seq_reforward"] = float(
+        best_val_metrics.get("regret_seq_reforward", 0.0)
+    )
+    wandb.summary["best_val_regret_topk"] = float(best_val_metrics.get("regret_topk", 0.0))
+    wandb.summary["checkpoint_metric"] = str(checkpoint_metric_name)
 else:
     wandb.summary["best_val_regret_topk"] = float(best_val_regret)
+    wandb.summary["checkpoint_metric"] = "regret_topk"
 wandb.summary["best_val_regret_greedy"] = float(best_val_metrics.get("regret_greedy", 0.0))
 wandb.summary["final_test_regret_topk"] = float(test_final["regret_topk"])
 wandb.summary["final_test_regret_greedy"] = float(test_final["regret_greedy"])
@@ -975,7 +1226,7 @@ print(f"Model saved to: {model_path}")
 if CE_ONLY_TRAINING:
     print(f"Best val acc: {best_val_acc * 100:.1f}%")
 else:
-    print(f"Best val top-k regret: {best_val_regret:.4f}s")
+    print(f"Best val {checkpoint_metric_name}: {best_val_regret:.4f}s")
 print(
     f"Final test: greedy={test_final['regret_greedy']:.4f}s, "
     f"top{NEAR_CFG.top_k_decode}={test_final['regret_topk']:.4f}s, "

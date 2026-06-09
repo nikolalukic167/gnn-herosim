@@ -11,11 +11,15 @@ Usage:
     python scripts_cosim/run_simulation.py --knative_network [--timeout N] [--seed N]
     python scripts_cosim/run_simulation.py --herocache_network [--timeout N] [--seed N]
     python scripts_cosim/run_simulation.py --random_network [--timeout N] [--seed N]
+    python scripts_cosim/run_simulation.py --knative_network_batch [--timeout N] [--seed N]
+    python scripts_cosim/run_simulation.py --xgboost_batch [--xgb-model PATH] [--timeout N] [--seed N]
 
 Options:
     --gnn             Run with vanilla gnn policy (gnn_gnn)
     --roundrobin      Run with roundrobin network policy (rr_network_rr_network)
     --knative_network Run with knative network policy (kn_network_kn_network)
+    --knative_network_batch Run with batched knative (Regime A peer)
+    --xgboost_batch   Run with batch XGBoost ranker (Regime A; needs --xgb-model or XGB_MODEL_PATH)
     --herocache_network Run with herocache network policy (hrc_network_hrc_network)
     --random_network Run with random network-aware policy (rp_network_rp_network)
     --timeout N       Timeout in seconds (default: 3600)
@@ -81,7 +85,28 @@ POLICY_CONFIG: Dict[str, Dict[str, str]] = {
         "scheduling_strategy": "offload_network_offload_network",
         "output_file": OUTPUT_DIR / "simulation_result_offload_network.json",
     },
+    "knative_network_batch": {
+        "progress_log": BASE_DIR / "logs/knative_network_batch_simulation_progress.txt",
+        "policy_name": "knative network batch",
+        "scheduling_strategy": "kn_network_batch_kn_network_batch",
+        "output_file": OUTPUT_DIR / "simulation_result_knative_network_batch.json",
+    },
+    "xgboost_batch": {
+        "progress_log": BASE_DIR / "logs/xgboost_batch_simulation_progress.txt",
+        "policy_name": "xgboost batch (Regime A)",
+        "scheduling_strategy": "xgb_batch_xgb_batch",
+        "output_file": OUTPUT_DIR / "simulation_result_xgboost_batch.json",
+    },
+    "xgboost_single": {
+        "progress_log": BASE_DIR / "logs/xgboost_single_simulation_progress.txt",
+        "policy_name": "xgboost single (Regime B)",
+        "scheduling_strategy": "xgb_single_xgb_single",
+        "output_file": OUTPUT_DIR / "simulation_result_xgboost_single.json",
+    },
 }
+
+DEFAULT_XGB_MODEL = BASE_DIR / "models/tabular/batch_edge_ranker.json"
+DEFAULT_XGB_SINGLE_MODEL = BASE_DIR / "models/tabular/single_edge_ranker.json"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -106,7 +131,28 @@ def parse_arguments() -> argparse.Namespace:
                              help="Run with random network-aware policy")
     policy_group.add_argument("--offload_network", action="store_const", const="offload_network", dest="policy",
                              help="Run with offload-to-server network-aware policy")
-    
+    policy_group.add_argument(
+        "--knative_network_batch",
+        action="store_const",
+        const="knative_network_batch",
+        dest="policy",
+        help="Run with batched knative network policy (Regime A peer)",
+    )
+    policy_group.add_argument(
+        "--xgboost_batch",
+        action="store_const",
+        const="xgboost_batch",
+        dest="policy",
+        help="Run with batch XGBoost edge ranker (Regime A)",
+    )
+    policy_group.add_argument(
+        "--xgboost_single",
+        action="store_const",
+        const="xgboost_single",
+        dest="policy",
+        help="Run with per-arrival XGBoost edge ranker (Regime B)",
+    )
+
     # Optional arguments
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
                        help=f"Timeout in seconds (default: {DEFAULT_TIMEOUT})")
@@ -118,7 +164,14 @@ def parse_arguments() -> argparse.Namespace:
                        help="Path to simulation config JSON (default: simulation_data/space_with_network.json)")
     parser.add_argument("--output", type=str, default=None,
                        help="Path to result JSON (default: simulation_data/results/simulation_result_<policy>.json)")
-    
+    parser.add_argument(
+        "--xgb-model",
+        type=str,
+        default=None,
+        help="XGBoost model path for --xgboost_batch/--xgboost_single "
+        "(default: XGB_MODEL_PATH / XGB_SINGLE_MODEL_PATH or tabular/*.json)",
+    )
+
     return parser.parse_args()
 
 
@@ -149,7 +202,8 @@ def run_simulation(
     workload_file: Path,
     output_file: Path,
     timeout: int,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    xgb_model: Optional[Path] = None,
 ) -> Tuple[int, float]:
     """
     Run the simulation and return exit code and duration.
@@ -171,7 +225,21 @@ def run_simulation(
     
     if seed is not None:
         cmd.extend(["--seed", str(seed)])
-    
+
+    if policy in ("xgboost_batch", "xgboost_single"):
+        if xgb_model is not None:
+            model_path = xgb_model
+        elif policy == "xgboost_single":
+            env_path = os.environ.get("XGB_SINGLE_MODEL_PATH")
+            model_path = Path(env_path) if env_path else DEFAULT_XGB_SINGLE_MODEL
+        else:
+            env_path = os.environ.get("XGB_MODEL_PATH")
+            model_path = Path(env_path) if env_path else DEFAULT_XGB_MODEL
+        if not model_path.exists():
+            print(f"ERROR: XGBoost model not found: {model_path}", file=sys.stderr)
+            sys.exit(1)
+        cmd.extend(["--xgb-model", str(model_path)])
+
     # Set environment
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
@@ -217,6 +285,15 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
     config_file = CONFIG_FILE if args.config is None else Path(args.config)
+    xgb_model_path = None
+    if args.xgb_model is not None:
+        xgb_model_path = Path(args.xgb_model)
+    elif args.policy == "xgboost_batch":
+        env_xgb = os.environ.get("XGB_MODEL_PATH")
+        xgb_model_path = Path(env_xgb) if env_xgb else DEFAULT_XGB_MODEL
+    elif args.policy == "xgboost_single":
+        env_xgb = os.environ.get("XGB_SINGLE_MODEL_PATH")
+        xgb_model_path = Path(env_xgb) if env_xgb else DEFAULT_XGB_SINGLE_MODEL
 
     # Print configuration (flush so nohup logs show header first, not after child output)
     def log(msg: str) -> None:
@@ -229,6 +306,8 @@ def main():
     log(f"Timeout: {args.timeout}s")
     if args.seed is not None:
         log(f"Seed: {args.seed}")
+    if args.policy in ("xgboost_batch", "xgboost_single") and xgb_model_path is not None:
+        log(f"XGB model: {xgb_model_path}")
     log(f"Progress log: {progress_log}")
     log("")
     validate_files(config_file, workload_file)
@@ -240,6 +319,7 @@ def main():
         output_file=output_file,
         timeout=args.timeout,
         seed=args.seed,
+        xgb_model=xgb_model_path,
     )
     
     # Handle results

@@ -120,6 +120,9 @@ def should_emit_graph(
         return False
     if regime == "single" and seq_step != 0:
         return False
+    if regime == "batch" and getattr(graph, "seq_n_tasks", None) == 1:
+        # 1-task marginal cache: always one decision graph
+        return True
     return True
 
 

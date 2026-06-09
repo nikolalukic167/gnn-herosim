@@ -545,6 +545,7 @@ scheduling_strategies: Dict[str, str] = {
     "gnn_gnn": "GNN-GNN",
     "gnn_hetero_gnn_hetero": "GNN-HETERO-GNN-HETERO",
     "xgb_batch_xgb_batch": "XGB-BATCH-XGB-BATCH",
+    "xgb_single_xgb_single": "XGB-SINGLE-XGB-SINGLE",
     "multiloop_multiloop": "MULTILOOP-MULTILOOP",
     "determined_determined": "DETERMINED-DETERMINED",
     "evaluator_evaluator": "EVALUATOR-EVALUATOR",

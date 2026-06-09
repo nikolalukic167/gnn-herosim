@@ -454,6 +454,47 @@ def load_task_types_data(sim_input_path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
+def build_rtt_overview(
+    stats: Dict[str, Any],
+    total_rtt: float,
+    decode_stats_summary: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Summarize simulated RTT vs wall-clock ML inference not charged to SimPy time.
+
+    Per-task inference is stored in task.gnn_decision_time (GNN and XGBoost batch).
+    """
+    total_inference = float(stats.get("total_inference_time") or 0.0)
+    combined = float(total_rtt) + total_inference
+    num_tasks = int(stats.get("num_tasks") or 0)
+    tasks_with_inference = int(stats.get("tasks_with_inference") or 0)
+    overview: Dict[str, Any] = {
+        "simulated_total_rtt_s": float(total_rtt),
+        "total_inference_time_s": total_inference,
+        "hypothetical_total_with_inference_s": combined,
+        "inference_fraction_of_combined": (
+            total_inference / combined if combined > 0 else 0.0
+        ),
+        "num_tasks": num_tasks,
+        "tasks_with_inference": tasks_with_inference,
+        "average_inference_time_s": float(stats.get("averageGNNDecisionTime") or 0.0),
+        "inference_charged_to_simpy_time": False,
+        "note": (
+            "Inference is wall-clock only (task.gnn_decision_time); "
+            "not included in elapsedTime / total_rtt."
+        ),
+    }
+    if decode_stats_summary:
+        dt = decode_stats_summary.get("decode_time_ms") or {}
+        decode_total_ms = float(dt.get("total") or 0.0)
+        overview["decode_phase_wall_time_s"] = decode_total_ms / 1000.0
+        overview["decode_phase_note"] = (
+            "decode_phase_wall_time_s covers decode step only (seq_decode); "
+            "total_inference_time_s includes graph build + forward + decode."
+        )
+    return overview
+
+
 def run_simulation(
         config_file: Path,
         workload_file: Path,
@@ -499,6 +540,7 @@ def run_simulation(
         'random_network',
         'offload_network',
         'xgboost_batch',
+        'xgboost_single',
     ]
     if policy not in valid_policies:
         logger.error(
@@ -511,12 +553,12 @@ def run_simulation(
         logger.error(f"{policy} policy requires gnn_model and task_types_data")
         return False
 
-    if policy == 'xgboost_batch':
+    if policy in ('xgboost_batch', 'xgboost_single'):
         if xgb_model_path is None or not xgb_model_path.exists():
-            logger.error(f"xgboost_batch policy requires a valid --xgb-model path (got {xgb_model_path})")
+            logger.error(f"{policy} policy requires a valid --xgb-model path (got {xgb_model_path})")
             return False
         if task_types_data is None:
-            logger.error("xgboost_batch policy requires task_types_data for feature extraction")
+            logger.error(f"{policy} policy requires task_types_data for feature extraction")
             return False
 
     # Check required files exist
@@ -535,6 +577,11 @@ def run_simulation(
         # Load space config
         with open(config_file, 'r') as f:
             space_config = json.load(f)
+
+        placement_seed = seed
+        if placement_seed is None:
+            placement_seed = space_config.get("network", {}).get("topology", {}).get("seed", 42)
+        random.seed(placement_seed)
 
         # Load workload
         with open(workload_file, 'r') as f:
@@ -602,6 +649,12 @@ def run_simulation(
                 'xgb_model_path': str(xgb_model_path),
                 'task_types_data': task_types_data,
             }
+        elif policy == 'xgboost_single':
+            scheduling_strategy = 'xgb_single_xgb_single'
+            models = {
+                'xgb_model_path': str(xgb_model_path),
+                'task_types_data': task_types_data,
+            }
         
         if scheduling_strategy is None:
             logger.error(f"Unknown policy: {policy}")
@@ -639,6 +692,7 @@ def run_simulation(
             num_tasks = len([tr for tr in task_results if tr.get('taskId') is not None and tr.get('taskId') >= 0])
 
         # Build result summary
+        decode_stats_summary = None
         result_summary = {
             "status": "success",
             "policy": policy,
@@ -651,7 +705,8 @@ def run_simulation(
             "stats": stats,
         }
 
-        if policy in ("gnn", "gnn_hetero"):
+        ml_policies = ("gnn", "gnn_hetero", "xgboost_batch", "xgboost_single")
+        if policy in ml_policies:
             try:
                 if policy == "gnn_hetero":
                     from src.policy.gnn_hetero.seq_decode import get_run_decode_stats, write_run_decode_stats
@@ -662,6 +717,7 @@ def run_simulation(
                 if decode_stats is not None and decode_stats.gnn_batches > 0:
                     margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
                     summary = decode_stats.summary(p1_margin=margin)
+                    decode_stats_summary = summary
                     result_summary["decode_stats"] = summary
                     stats_path = output_file.with_suffix(".decode_stats.json")
                     write_run_decode_stats(stats_path, p1_margin=margin)
@@ -703,13 +759,28 @@ def run_simulation(
             except Exception as exc:
                 logger.warning(f"Could not attach decode stats: {exc}")
 
+        result_summary["rtt_overview"] = build_rtt_overview(
+            stats, total_rtt, decode_stats_summary=decode_stats_summary
+        )
+
         # Save result
         output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, 'w') as f:
             json.dump(result_summary, f, indent=2, cls=DataclassJSONEncoder)
 
         logger.info(f"✓ Saved {output_file}")
-        print(f"  ✓ Saved {output_file.name} (RTT: {total_rtt:.3f}s)")
+        print(f"  ✓ Saved {output_file.name} (RTT: {total_rtt:.3f}s)", flush=True)
+        overview = result_summary.get("rtt_overview") or {}
+        inf_s = overview.get("total_inference_time_s")
+        if inf_s is not None and float(inf_s) > 0:
+            combined = overview.get("hypothetical_total_with_inference_s", total_rtt)
+            frac = float(overview.get("inference_fraction_of_combined") or 0) * 100
+            print(
+                f"  RTT overview: inference={float(inf_s):.3f}s "
+                f"(not in RTT) | with inference={float(combined):.3f}s "
+                f"| inference={frac:.2f}% of combined",
+                flush=True,
+            )
 
         return True
 
@@ -740,6 +811,12 @@ def main():
     gnn_hetero_model_path = Path(_gnn_hetero_model_env) if _gnn_hetero_model_env else Path("models/hetero.pt")
     _xgb_model_env = os.environ.get("XGB_MODEL_PATH")
     default_xgb_model_path = Path(_xgb_model_env) if _xgb_model_env else Path("models/tabular/batch_edge_ranker.json")
+    _xgb_single_model_env = os.environ.get("XGB_SINGLE_MODEL_PATH")
+    default_xgb_single_model_path = (
+        Path(_xgb_single_model_env)
+        if _xgb_single_model_env
+        else Path("models/tabular/single_edge_ranker.json")
+    )
     default_output_dir = Path("simulation_data/results")
 
     # Parse arguments
@@ -825,6 +902,7 @@ def main():
         'random_network',
         'offload_network',
         'xgboost_batch',
+        'xgboost_single',
     ]
     if policy not in cli_valid_policies:
         print(f"ERROR: Invalid policy '{policy}'. Must be one of: {', '.join(cli_valid_policies)}")
@@ -864,9 +942,13 @@ def main():
 
         gnn_model, gnn_device = load_gnn_hetero_model(gnn_hetero_model_path)
         task_types_data = load_task_types_data(sim_input_path)
-    elif policy == 'xgboost_batch':
+    elif policy in ('xgboost_batch', 'xgboost_single'):
         if xgb_model_path is None:
-            xgb_model_path = default_xgb_model_path
+            xgb_model_path = (
+                default_xgb_model_path
+                if policy == 'xgboost_batch'
+                else default_xgb_single_model_path
+            )
         if not xgb_model_path.exists():
             print(f"ERROR: XGBoost model not found at {xgb_model_path}")
             sys.exit(1)
