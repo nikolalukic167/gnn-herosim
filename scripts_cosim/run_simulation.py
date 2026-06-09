@@ -103,10 +103,17 @@ POLICY_CONFIG: Dict[str, Dict[str, str]] = {
         "scheduling_strategy": "xgb_single_xgb_single",
         "output_file": OUTPUT_DIR / "simulation_result_xgboost_single.json",
     },
+    "mlp_batch": {
+        "progress_log": BASE_DIR / "logs/mlp_batch_simulation_progress.txt",
+        "policy_name": "MLP batch (Regime A)",
+        "scheduling_strategy": "mlp_batch_mlp_batch",
+        "output_file": OUTPUT_DIR / "simulation_result_mlp_batch.json",
+    },
 }
 
 DEFAULT_XGB_MODEL = BASE_DIR / "models/tabular/batch_edge_ranker.json"
 DEFAULT_XGB_SINGLE_MODEL = BASE_DIR / "models/tabular/single_edge_ranker.json"
+DEFAULT_MLP_MODEL = BASE_DIR / "models/tabular/batch_edge_mlp.pt"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -152,6 +159,13 @@ def parse_arguments() -> argparse.Namespace:
         dest="policy",
         help="Run with per-arrival XGBoost edge ranker (Regime B)",
     )
+    policy_group.add_argument(
+        "--mlp_batch",
+        action="store_const",
+        const="mlp_batch",
+        dest="policy",
+        help="Run with batch MLP edge scorer (Regime A; needs --mlp-model or MLP_MODEL_PATH)",
+    )
 
     # Optional arguments
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
@@ -170,6 +184,13 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="XGBoost model path for --xgboost_batch/--xgboost_single "
         "(default: XGB_MODEL_PATH / XGB_SINGLE_MODEL_PATH or tabular/*.json)",
+    )
+    parser.add_argument(
+        "--mlp-model",
+        type=str,
+        default=None,
+        help="MLP model path for --mlp_batch "
+        "(default: MLP_MODEL_PATH env or models/tabular/batch_edge_mlp.pt)",
     )
 
     return parser.parse_args()
@@ -204,6 +225,7 @@ def run_simulation(
     timeout: int,
     seed: Optional[int] = None,
     xgb_model: Optional[Path] = None,
+    mlp_model: Optional[Path] = None,
 ) -> Tuple[int, float]:
     """
     Run the simulation and return exit code and duration.
@@ -239,6 +261,17 @@ def run_simulation(
             print(f"ERROR: XGBoost model not found: {model_path}", file=sys.stderr)
             sys.exit(1)
         cmd.extend(["--xgb-model", str(model_path)])
+
+    if policy == "mlp_batch":
+        if mlp_model is not None:
+            mlp_path = mlp_model
+        else:
+            env_path = os.environ.get("MLP_MODEL_PATH")
+            mlp_path = Path(env_path) if env_path else DEFAULT_MLP_MODEL
+        if not mlp_path.exists():
+            print(f"ERROR: MLP model not found: {mlp_path}", file=sys.stderr)
+            sys.exit(1)
+        cmd.extend(["--mlp-model", str(mlp_path)])
 
     # Set environment
     env = os.environ.copy()
@@ -295,6 +328,13 @@ def main():
         env_xgb = os.environ.get("XGB_SINGLE_MODEL_PATH")
         xgb_model_path = Path(env_xgb) if env_xgb else DEFAULT_XGB_SINGLE_MODEL
 
+    mlp_model_path = None
+    if args.mlp_model is not None:
+        mlp_model_path = Path(args.mlp_model)
+    elif args.policy == "mlp_batch":
+        env_mlp = os.environ.get("MLP_MODEL_PATH")
+        mlp_model_path = Path(env_mlp) if env_mlp else DEFAULT_MLP_MODEL
+
     # Print configuration (flush so nohup logs show header first, not after child output)
     def log(msg: str) -> None:
         print(msg, flush=True)
@@ -308,6 +348,8 @@ def main():
         log(f"Seed: {args.seed}")
     if args.policy in ("xgboost_batch", "xgboost_single") and xgb_model_path is not None:
         log(f"XGB model: {xgb_model_path}")
+    if args.policy == "mlp_batch" and mlp_model_path is not None:
+        log(f"MLP model: {mlp_model_path}")
     log(f"Progress log: {progress_log}")
     log("")
     validate_files(config_file, workload_file)
@@ -320,6 +362,7 @@ def main():
         timeout=args.timeout,
         seed=args.seed,
         xgb_model=xgb_model_path,
+        mlp_model=mlp_model_path,
     )
     
     # Handle results

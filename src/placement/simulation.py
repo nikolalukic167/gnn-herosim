@@ -49,6 +49,8 @@ from src.policy.gnn.orchestrator import GNNOrchestrator as GNNOrchestrator
 from src.policy.gnn.scheduler import GNNScheduler
 from src.policy.tabular.orchestrator import XGBoostBatchOrchestrator
 from src.policy.tabular.scheduler import XGBoostBatchScheduler
+from src.policy.tabular.mlp_orchestrator import MLPBatchOrchestrator
+from src.policy.tabular.mlp_scheduler import MLPBatchScheduler
 from src.policy.tabular.single_orchestrator import XGBoostSingleOrchestrator
 from src.policy.tabular.single_scheduler import XGBoostSingleScheduler
 from src.policy.gnn_hetero.autoscaler import KnativeAutoscaler as GNNHeteroAutoscaler
@@ -673,6 +675,7 @@ def start_simulation(
         "gnn_gnn": (GNNOrchestrator, GNNAutoscaler, GNNScheduler),
         "gnn_hetero_gnn_hetero": (GNNHeteroOrchestrator, GNNHeteroAutoscaler, GNNHeteroScheduler),
         "xgb_batch_xgb_batch": (XGBoostBatchOrchestrator, GNNAutoscaler, XGBoostBatchScheduler),
+        "mlp_batch_mlp_batch": (MLPBatchOrchestrator, GNNAutoscaler, MLPBatchScheduler),
         "xgb_single_xgb_single": (XGBoostSingleOrchestrator, KnativeNetworkAutoscaler, XGBoostSingleScheduler),
         "multiloop_multiloop": (MultiLoopOrchestrator, MultiLoopAutoscaler, MultiLoopScheduler),
         "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
