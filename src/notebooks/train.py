@@ -939,7 +939,7 @@ MODEL_FILENAME = f"{wandb.run.name}.pt"
 # ========================================================================
 # Updated feature dimensions for HRC-parity features
 task_feature_dim = 3  # [task_type_onehot(2), source_node(1)]
-platform_feature_dim = 13  # [type_onehot(5), has_dnn1(1), has_dnn2(1), queue(1), temporal_state(3), target_concurrency(1), usage_ratio(1)]
+platform_feature_dim = 14  # [type_onehot(5), has_dnn1(1), has_dnn2(1), queue(1), shared_fate(1), temporal_state(3), target_concurrency(1), usage_ratio(1)]
 
 model = TaskPlacementGNN(
     task_feature_dim=task_feature_dim,

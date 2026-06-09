@@ -509,7 +509,10 @@ class DeterminedScheduler(Scheduler):
         
         # Capture temporal state
         temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
-        
+
+        # Capture initialized snapshot (which platforms have completed image pull)
+        initialized_snapshot = self.state_capture.capture_initialized_snapshot()
+
         return self.state_capture.capture_task_placement(
             task=task,
             execution_node=execution_node,
@@ -519,6 +522,7 @@ class DeterminedScheduler(Scheduler):
             queue_snapshot_at_scheduling=queue_snapshot_at_scheduling,
             full_queue_snapshot=full_queue_snapshot,
             temporal_state_at_scheduling=temporal_state_at_scheduling,
+            initialized_snapshot=initialized_snapshot,
         )
     
     def save_captured_state(self, system_state: 'SystemState', total_rtt: float = 0.0, output_path: Optional[str] = None):

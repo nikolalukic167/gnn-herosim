@@ -27,6 +27,7 @@ import math
 import os
 import pickle
 import random
+import shutil
 import sys
 import time
 import concurrent.futures
@@ -245,7 +246,7 @@ def time_block(description: str):
 
 # Version for cache invalidation (increment when graph construction logic changes)
 CACHE_VERSION = "6.3-exact-rtt"  # sequential graphs + valid_combos_map.pkl for exact RTT ranking training
-# - RTT combos consumed lazily from placements/placements.jsonl during training (no LMDB build)
+# - RTT combos loaded from chunked hash table at train time (rtt_chunk_*.pkl)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
@@ -731,7 +732,11 @@ def _remove_legacy_rtt_artifacts(cache_dir: Path) -> None:
         stale_chunk.unlink(missing_ok=True)
     (cache_dir / "rtt_chunks_meta.json").unlink(missing_ok=True)
     (cache_dir / "placement_rtt_hash_table.pkl").unlink(missing_ok=True)
-    (cache_dir / "rtt_combos.lmdb").unlink(missing_ok=True)
+    legacy_rtt_store = cache_dir / "rtt_combos.lmdb"
+    if legacy_rtt_store.is_dir():
+        shutil.rmtree(legacy_rtt_store)
+    else:
+        legacy_rtt_store.unlink(missing_ok=True)
 
 
 def build_and_save_rtt_hash_table_chunked(
@@ -1141,6 +1146,18 @@ def build_graph(
     ], axis=1)
     _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
+    queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
+    for pos, row in enumerate(df_platforms.itertuples(index=False)):
+        node_name = str(row.node_name)
+        platform_id = int(plat_ids_arr[pos])
+        queue_key = f"{node_name}:{platform_id}"
+        queue_key_to_platform_meta[queue_key] = {
+            "platform_type": str(plat_type_arr[pos]),
+            "target_concurrency": float(target_concurrencies[pos]),
+            "node_name": node_name,
+            "platform_id": platform_id,
+            "node_id": int(row.node_id),
+        }
     
     # Cache feasible platforms per source node
     feasible_plats_cache = {}
@@ -1334,6 +1351,7 @@ def build_graph(
     data._task_logit_to_placement = task_logit_to_placement
     data.queue_snapshot = dict(queue_snapshot) if queue_snapshot else {}
     data.task_logit_to_queue_key = task_logit_to_queue_key
+    data.queue_key_to_platform_meta = queue_key_to_platform_meta
     
     return data
 

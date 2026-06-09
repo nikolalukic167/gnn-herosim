@@ -5,7 +5,7 @@ GNN for Task-to-Platform Placement Prediction - REGRET-FOCUSED TRAINING (NON-UNI
 
 **RAM cache path:** uses ``prepare_graphs_ram.py`` output: RTT combos are **embedded** in each graph
 inside ``graphs.pkl``. Training loads them with ``pickle.load`` once; ``__getitem__`` does not read
-LMDB or extra per-sample files (only sets ``dataset_id`` / ``opt_rtt`` on the shared graph objects).
+extra per-sample files (only sets ``dataset_id`` / ``opt_rtt`` on the shared graph objects).
 
 This script **requires** ``metadata.json`` with ``rtt_combos_backend: embedded_in_graphs``.
 Copy the prepared cache to the cluster under ``/share/...`` and optionally point ``--cache-dir`` at
@@ -106,7 +106,7 @@ if TASK_COUNT_DIST:
     for n_tasks, count in sorted(TASK_COUNT_DIST.items(), key=lambda x: int(x[0])):
         print(f"  {n_tasks} tasks: {count} graphs")
 
-_dl_help = "embedded RTT on graphs (single pickle load; no LMDB)"
+_dl_help = "embedded RTT on graphs (single pickle load)"
 print(f"DataLoader num_workers={NUM_DATALOADER_WORKERS} ({_dl_help})")
 print(f"torch num_threads={torch.get_num_threads()}")
 print(
@@ -405,7 +405,7 @@ class StructuredRegretLoss(nn.Module):
 
 
 class GraphRttEmbeddedDataset(torch.utils.data.Dataset):
-    """Graphs already carry ``valid_combos`` from ``prepare_graphs_ram.py`` (no LMDB I/O)."""
+    """Graphs already carry ``valid_combos`` from ``prepare_graphs_ram.py``."""
 
     def __init__(
         self,
@@ -957,9 +957,9 @@ if not CACHE_CTX.rtt_combos_embedded:
     raise FileNotFoundError(
         f"train_ram.py requires an embedded RTT cache (prepare_graphs_ram.py). "
         f"Expected metadata.json rtt_combos_backend='embedded_in_graphs' under {CACHE_CTX.cache_dir!s}. "
-        f"For LMDB caches use train.py instead."
+        f"For hash_table_chunked caches use train.py instead."
     )
-print("Using RTT combos: embedded in graphs.pkl (prepare_graphs_ram.py); no LMDB.")
+print("Using RTT combos: embedded in graphs.pkl (prepare_graphs_ram.py).")
 
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
 prepare_graphs_for_ram_training(
@@ -1053,7 +1053,7 @@ MODEL_FILENAME = f"{wandb.run.name}.pt"
 # ========================================================================
 # Updated feature dimensions for HRC-parity features
 task_feature_dim = 3  # [task_type_onehot(2), source_node(1)]
-platform_feature_dim = 13  # [type_onehot(5), has_dnn1(1), has_dnn2(1), queue(1), temporal_state(3), target_concurrency(1), usage_ratio(1)]
+platform_feature_dim = 14  # [type_onehot(5), has_dnn1(1), has_dnn2(1), queue(1), shared_fate(1), temporal_state(3), target_concurrency(1), usage_ratio(1)]
 
 model = TaskPlacementGNN(
     task_feature_dim=task_feature_dim,

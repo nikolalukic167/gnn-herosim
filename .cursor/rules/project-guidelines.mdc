@@ -5,6 +5,7 @@ alwaysApply: true
 
 # Project Guidelines
 
+- Make sure there are not silent fails. Fail loudly everywhere! Don't skip it for convenience, solve it so it doesn't fail!
 - When I ask for an explanation or analysis do not write md or txt documents, answer in chat directly
 - The project uses pipenv for dependency management
-- When running Python commands, use `pipenv run python3` or activate the pipenv environment first
+- When running Python commands, use `pipenv run python3` or activate the pipenv environment firsta
