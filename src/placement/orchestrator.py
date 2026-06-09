@@ -125,6 +125,21 @@ class Orchestrator:
         threshold = int(os.getenv("SIM_LARGE_WORKLOAD_MIN_EVENTS", "10000"))
         return self.initial_event_count >= threshold
 
+    @staticmethod
+    def _aggregate_inference_time(
+        decision_times: List[float],
+    ) -> Dict[str, float]:
+        """Sum per-task wall-clock ML decision times (gnn_decision_time field)."""
+        total = float(sum(decision_times))
+        n_with = sum(1 for v in decision_times if v > 0.0)
+        n = len(decision_times)
+        avg = total / n if n else 0.0
+        return {
+            "total_inference_time": total,
+            "tasks_with_inference": float(n_with),
+            "averageGNNDecisionTime": avg,
+        }
+
     def _stats_low_memory(self) -> SimulationStats:
         """Single-pass aggregates without materializing full TaskResult dicts."""
         logger = logging.getLogger('simulation')
@@ -141,6 +156,7 @@ class Orchestrator:
         sum_local_deps = sum_local_comms = 0.0
         sum_cold_started = sum_cache_hit = 0.0
         sum_task_energy = 0.0
+        inference_times: List[float] = []
         elapsed_times: List[float] = []
         offloaded = 0
         node_pair_latencies: Dict[Tuple[str, str], List[float]] = defaultdict(list)
@@ -172,6 +188,9 @@ class Orchestrator:
             sum_cold_started += float(getattr(task, "cold_started", False) or False)
             sum_cache_hit += float(getattr(task, "cache_hit", False) or False)
             sum_task_energy += float(getattr(task, "energy", 0.0) or 0.0)
+            inference_times.append(
+                float(getattr(task, "gnn_decision_time", 0.0) or 0.0)
+            )
 
             source_node = getattr(task, "node_name", None)
             execution_node = getattr(task, "execution_node", None)
@@ -259,6 +278,9 @@ class Orchestrator:
             else "large_workload_streaming"
         )
 
+        inference_agg = self._aggregate_inference_time(inference_times)
+        total_rtt_plus_inference = total_rtt + inference_agg["total_inference_time"]
+
         result = {
             "policy": dataclasses.asdict(self.policy),
             "endTime": self.end_time,
@@ -292,7 +314,9 @@ class Orchestrator:
             "nodeResults": node_results,
             "taskResults": [],
             "total_rtt": total_rtt,
+            "total_rtt_plus_inference": total_rtt_plus_inference,
             "num_tasks": n_tasks,
+            **inference_agg,
             "statsSchemaVersion": "v2_streaming",
             "taskResultsIncluded": False,
             "taskResultsOmittedReason": reason,
@@ -399,6 +423,11 @@ class Orchestrator:
         average_communications_time = sum(
             task_result["communicationsTime"] for task_result in task_results
         ) / len(task_results)
+        inference_times = [
+            float(task_result.get("gnn_decision_time") or 0.0)
+            for task_result in task_results
+        ]
+        inference_agg = self._aggregate_inference_time(inference_times)
 
         energy_total = sum(task_result["energy"] for task_result in task_results) + sum(
             platform_result["energyIdle"] for platform_result in platform_results
@@ -528,6 +557,7 @@ class Orchestrator:
 
         total_rtt = sum(t["elapsedTime"] for t in task_results)
         num_tasks = len(task_results)
+        total_rtt_plus_inference = total_rtt + inference_agg["total_inference_time"]
         offloading_rate = (
             len([t for t in task_results if t["sourceNode"] != t["executionNode"]]) / num_tasks * 100
             if num_tasks else 0.0
@@ -550,6 +580,7 @@ class Orchestrator:
             "averageInitializationTime": average_initialization_time,
             "averageComputeTime": average_compute_time,
             "averageCommunicationsTime": average_communications_time,
+            **inference_agg,
             "penaltyProportion": penalty_proportion * 100,
             "localDependenciesProportion": local_dependencies_proportion * 100,
             "localCommunicationsProportion": local_communications_proportion * 100,
@@ -565,6 +596,7 @@ class Orchestrator:
             "nodeResults": node_results,
             "taskResults": task_results if task_results_included else [],
             "total_rtt": total_rtt,
+            "total_rtt_plus_inference": total_rtt_plus_inference,
             "num_tasks": num_tasks,
             "statsSchemaVersion": "v2_task_metrics",
             "taskResultsIncluded": task_results_included,

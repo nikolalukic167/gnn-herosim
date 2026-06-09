@@ -1,13 +1,12 @@
 """
 RoundRobin Network Policy Package
 
-This package provides round-robin scheduling with network awareness,
-processing tasks in batches of 5 for compatibility with other simulations.
+Per-arrival network-aware round-robin placement on the Knative network orchestrator/autoscaler stack.
 """
 
 from src.policy.roundrobin_network.orchestrator import RoundRobinNetworkOrchestrator
 from src.policy.roundrobin_network.autoscaler import RoundRobinNetworkAutoscaler
-from src.policy.roundrobin_network.scheduler import RoundRobinScheduler as RoundRobinNetworkScheduler
+from src.policy.roundrobin_network.scheduler import RoundRobinNetworkScheduler
 
 __all__ = [
     'RoundRobinNetworkOrchestrator',

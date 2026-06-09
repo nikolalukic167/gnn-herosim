@@ -230,8 +230,9 @@ class GNNScheduler(Scheduler):
         # Get system state once for the entire batch
         system_state: SystemState = yield self.mutex.get()
         
-        # Capture queue snapshot for GNN inference
-        queue_snapshot = self._capture_batch_queue_snapshot(system_state, batch_tasks)
+        # Full-infra queue + temporal snapshot at batch start (matches SSC/cache graph build)
+        queue_snapshot = self._capture_full_queue_snapshot()
+        temporal_state = self._capture_temporal_state_snapshot()
         
         # Skip GNN for batches outside training range [2, 3]
         if batch_size < MIN_BATCH_SIZE_FOR_GNN or batch_size > MAX_BATCH_SIZE_FOR_GNN:
@@ -241,7 +242,9 @@ class GNNScheduler(Scheduler):
         else:
             # Build graph and run GNN inference
             inference_start = default_timer()
-            placements = self._gnn_inference(batch_tasks, system_state, queue_snapshot)
+            placements = self._gnn_inference(
+                batch_tasks, system_state, queue_snapshot, temporal_state
+            )
             inference_time = default_timer() - inference_start
             if placements:
                 logging.info(f"[ {self.env.now} ] GNN: Batch of {batch_size} tasks, GNN returned {len(placements)} placements in {inference_time*1000:.2f}ms")
@@ -331,7 +334,8 @@ class GNNScheduler(Scheduler):
         self,
         batch_tasks: List[Task],
         system_state: SystemState,
-        queue_snapshot: Dict[str, int]
+        queue_snapshot: Dict[str, int],
+        temporal_state: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> Optional[Dict[int, Tuple[int, int]]]:
         """
         Run GNN inference on the batch of tasks.
@@ -345,7 +349,7 @@ class GNNScheduler(Scheduler):
         try:
             # Build graph from current system state
             graph, task_logit_to_placement = self._build_inference_graph(
-                batch_tasks, system_state, queue_snapshot
+                batch_tasks, system_state, queue_snapshot, temporal_state
             )
             
             if graph is None:
@@ -416,16 +420,14 @@ class GNNScheduler(Scheduler):
         self,
         batch_tasks: List[Task],
         system_state: SystemState,
-        queue_snapshot: Dict[str, int]
+        queue_snapshot: Dict[str, int],
+        temporal_state: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> Tuple[Optional[HeteroData], Optional[Dict[int, List[Tuple[int, int]]]]]:
         """
         Build a PyG graph from current system state for GNN inference.
         
         Returns: (graph, task_logit_to_placement mapping)
         """
-        # Match prepare_graphs_cache scheduler_adaptive queue normalization
-        adaptive_queue_norm = self._calculate_adaptive_queue_norm(queue_snapshot)
-        
         n_tasks = len(batch_tasks)
         
         # Collect all platforms from nodes
@@ -442,6 +444,13 @@ class GNNScheduler(Scheduler):
         n_platforms = len(platforms_info)
         if n_platforms == 0:
             return None, None
+
+        # p90 norm over the same platform set as cache (all graph platforms, not replica subset)
+        graph_queue_snapshot = {
+            f"{node_name}:{plat_id}": queue_snapshot.get(f"{node_name}:{plat_id}", 0)
+            for _, _, _, plat_id, _, node_name in platforms_info
+        }
+        adaptive_queue_norm = self._calculate_adaptive_queue_norm(graph_queue_snapshot)
         
         # Build node_name -> node_id mapping
         node_name_to_id = {node.node_name: node.id for node in all_nodes}
@@ -489,11 +498,12 @@ class GNNScheduler(Scheduler):
             queue_len_raw = queue_snapshot.get(queue_key, 0)
             queue_len = queue_len_raw / adaptive_queue_norm
 
-            # Temporal state (approximate if not available)
-            current_task_remaining = 0.0
-            cold_start_remaining = 0.0
-            comm_remaining = 0.0
-            if queue_len_raw > 0:
+            # Temporal state from live platform capture (fallback heuristic matches cache/audit)
+            temporal = (temporal_state or {}).get(queue_key, {})
+            current_task_remaining = float(temporal.get("current_task_remaining", 0.0))
+            cold_start_remaining = float(temporal.get("cold_start_remaining", 0.0))
+            comm_remaining = float(temporal.get("comm_remaining", 0.0))
+            if queue_len_raw > 0 and current_task_remaining == 0.0:
                 avg_exec = 0.0
                 count = 0
                 if self.task_types_data:
@@ -713,7 +723,7 @@ class GNNScheduler(Scheduler):
             for node, platform in replicas:
                 key = f"{node.node_name}:{platform.id}"
                 if key not in queue_snapshot:
-                    queue_snapshot[key] = len(platform.queue.items)
+                    queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
 
     def _capture_full_queue_snapshot(self) -> Dict[str, int]:
@@ -721,7 +731,7 @@ class GNNScheduler(Scheduler):
         for node in self.nodes.items:
             for platform in node.platforms.items:
                 key = f"{node.node_name}:{platform.id}"
-                queue_snapshot[key] = len(platform.queue.items)
+                queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
 
     def placement(self, system_state: SystemState, task: Task) -> Generator:

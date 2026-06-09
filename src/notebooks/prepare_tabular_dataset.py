@@ -79,11 +79,13 @@ def load_sequential_cache(cache_dir: Path):
 
     with open(meta_path, "r", encoding="utf-8") as f:
         metadata = json.load(f)
-    if not metadata.get("sequential_counterfactual"):
+    is_seq = bool(metadata.get("sequential_counterfactual"))
+    is_single = bool(metadata.get("single_task"))
+    if not is_seq and not is_single:
         raise ValueError(
-            f"Cache at {cache_dir} is not sequential counterfactual "
-            "(metadata.sequential_counterfactual != true). "
-            "Run prepare_graphs_cache_seq.py first."
+            f"Cache at {cache_dir} is not a supported tabular source "
+            "(need sequential_counterfactual=true or single_task=true). "
+            "Run prepare_graphs_cache_seq.py or prepare_graphs_cache_single.py."
         )
 
     with open(graphs_path, "rb") as f:

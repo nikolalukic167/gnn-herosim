@@ -32,6 +32,7 @@ from src.policy.gnn.seq_decode import (
     reset_run_decode_stats,
     run_decode_with_timing,
 )
+from src.policy.tabular.feature_builder import build_pyg_inference_graph
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -230,8 +231,9 @@ class GNNScheduler(Scheduler):
         # Get system state once for the entire batch
         system_state: SystemState = yield self.mutex.get()
         
-        # Capture queue snapshot for GNN inference
-        queue_snapshot = self._capture_batch_queue_snapshot(system_state, batch_tasks)
+        # Full-infra queue + temporal snapshot at batch start (matches SSC/cache graph build)
+        queue_snapshot = self._capture_full_queue_snapshot()
+        temporal_state = self._capture_temporal_state_snapshot()
         
         # Skip GNN for batches outside training range [2, 3]
         if batch_size < MIN_BATCH_SIZE_FOR_GNN or batch_size > MAX_BATCH_SIZE_FOR_GNN:
@@ -241,7 +243,9 @@ class GNNScheduler(Scheduler):
         else:
             # Build graph and run GNN inference
             inference_start = default_timer()
-            placements = self._gnn_inference(batch_tasks, system_state, queue_snapshot)
+            placements = self._gnn_inference(
+                batch_tasks, system_state, queue_snapshot, temporal_state
+            )
             inference_time = default_timer() - inference_start
             if placements:
                 logging.info(f"[ {self.env.now} ] GNN: Batch of {batch_size} tasks, GNN returned {len(placements)} placements in {inference_time*1000:.2f}ms")
@@ -331,7 +335,8 @@ class GNNScheduler(Scheduler):
         self,
         batch_tasks: List[Task],
         system_state: SystemState,
-        queue_snapshot: Dict[str, int]
+        queue_snapshot: Dict[str, int],
+        temporal_state: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> Optional[Dict[int, Tuple[int, int]]]:
         """
         Run GNN inference on the batch of tasks.
@@ -345,7 +350,7 @@ class GNNScheduler(Scheduler):
         try:
             # Build graph from current system state
             graph, task_logit_to_placement = self._build_inference_graph(
-                batch_tasks, system_state, queue_snapshot
+                batch_tasks, system_state, queue_snapshot, temporal_state
             )
             
             if graph is None:
@@ -379,331 +384,58 @@ class GNNScheduler(Scheduler):
 
     def _calculate_adaptive_queue_norm(self, queue_snapshot: Dict[str, int]) -> float:
         """
-        Calculate adaptive queue normalization factor using 90th percentile.
-        
-        This adapts to the actual queue distribution in the system, which is critical
-        for high-load scenarios where queues can be much larger than training data.
-        
-        Args:
-            queue_snapshot: Dictionary mapping "node:platform" -> queue length
-            
-        Returns:
-            Normalization factor (defaults to QUEUE_NORM_FACTOR if no queues present)
+        Calculate adaptive queue normalization factor.
+
+        Two modes controlled by GNN_QUEUE_NORM_MODE env var:
+          'scheduler_adaptive' (default): p90 of ALL platforms, cap [1, 100].
+            Collapses to 1.0 when most platforms are idle (p90 of zeros = 0).
+          'adaptive_nonzero': p90 of NON-ZERO queue platforms only.
+            Robust against sparse-heavy-tailed distributions. Must match the
+            queue_norm_mode used when building the training cache.
         """
         if not queue_snapshot:
             return QUEUE_NORM_FACTOR
-        
-        queue_values = list(queue_snapshot.values())
+
+        queue_values = sorted(queue_snapshot.values())
         if not queue_values:
             return QUEUE_NORM_FACTOR
-        
-        # Calculate 90th percentile for robustness (less sensitive to outliers than max)
-        queue_values_sorted = sorted(queue_values)
-        percentile_idx = int(len(queue_values_sorted) * 0.9)
-        percentile_90 = queue_values_sorted[percentile_idx] if percentile_idx < len(queue_values_sorted) else queue_values_sorted[-1]
-        
-        # Use 90th percentile as normalization factor, with minimum of 1.0
-        # This ensures that even in high-load scenarios, queues are normalized appropriately
-        adaptive_factor = max(1.0, percentile_90)
-        
-        # Cap at reasonable maximum to avoid over-normalization
-        # If queues are extremely large (e.g., 1000+), we still want some signal
-        adaptive_factor = min(adaptive_factor, 100.0)
-        
-        return adaptive_factor
+
+        norm_mode = os.environ.get("GNN_QUEUE_NORM_MODE", "scheduler_adaptive").strip()
+
+        if norm_mode == "adaptive_nonzero":
+            non_zero = [v for v in queue_values if v > 0]
+            if not non_zero:
+                return 1.0
+            idx = int(len(non_zero) * 0.9)
+            p90 = non_zero[min(idx, len(non_zero) - 1)]
+        else:
+            idx = int(len(queue_values) * 0.9)
+            p90 = queue_values[min(idx, len(queue_values) - 1)]
+
+        return float(min(max(1.0, p90), 100.0))
 
     def _build_inference_graph(
         self,
         batch_tasks: List[Task],
         system_state: SystemState,
-        queue_snapshot: Dict[str, int]
+        queue_snapshot: Dict[str, int],
+        temporal_state: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> Tuple[Optional[Data], Optional[Dict[int, List[Tuple[int, int]]]]]:
         """
         Build a PyG graph from current system state for GNN inference.
         
         Returns: (graph, task_logit_to_placement mapping)
         """
-        # Match prepare_graphs_cache scheduler_adaptive queue normalization
-        adaptive_queue_norm = self._calculate_adaptive_queue_norm(queue_snapshot)
-        
-        n_tasks = len(batch_tasks)
-        
-        # Collect all platforms from nodes
-        all_nodes = list(self.nodes.items)
-        platforms_info = []  # List of (node, platform, node_id, plat_id, plat_type, node_name)
-        
-        for node in all_nodes:
-            for platform in node.platforms.items:
-                platforms_info.append((
-                    node, platform, node.id, platform.id,
-                    platform.type["shortName"], node.node_name
-                ))
-        
-        n_platforms = len(platforms_info)
-        if n_platforms == 0:
-            return None, None
-        
-        # Build node_name -> node_id mapping
-        node_name_to_id = {node.node_name: node.id for node in all_nodes}
-        
-        # Build platform position lookup
-        plat_pos_by_key = {}  # (node_id, plat_id) -> position in platforms_info
-        for pos, (node, plat, node_id, plat_id, plat_type, node_name) in enumerate(platforms_info):
-            plat_pos_by_key[(node_id, plat_id)] = pos
-        
-        # Task features: [task_type_onehot(2), source_node_normalized(1)]
-        task_types_vocab = ['dnn1', 'dnn2']
-        task_features = []
-        for task in batch_tasks:
-            task_type = task.type["name"]
-            onehot = [1.0 if task_type == t else 0.0 for t in task_types_vocab]
-            src_node_idx = node_name_to_id.get(task.node_name, 0)
-            src_norm = src_node_idx / max(len(all_nodes), 1)
-            task_features.append(onehot + [src_norm])
-        
-        task_features_tensor = torch.tensor(task_features, dtype=torch.float32)
-        
-        # Platform features:
-        # [type_onehot(5), has_dnn1(1), has_dnn2(1), queue(1),
-        #  current_task_remaining(1), cold_start_remaining(1), comm_remaining(1),
-        #  target_concurrency(1), usage_ratio(1)]
-        platform_types_vocab = ['rpiCpu', 'xavierCpu', 'xavierGpu', 'xavierDla', 'pynqFpga']
-        
-        # Build replica lookup
-        dnn1_replicas = set()
-        dnn2_replicas = set()
-        for node, plat in system_state.replicas.get('dnn1', set()):
-            dnn1_replicas.add((node.id, plat.id))
-        for node, plat in system_state.replicas.get('dnn2', set()):
-            dnn2_replicas.add((node.id, plat.id))
-        
-        # Build node -> [platform objects] map for shared-fate computation.
-        # Platforms on the same physical node share one FilterStore; concurrent
-        # cold pulls serialize through it, multiplying initialization latency by N.
-        # This is invisible to queue-depth heuristics — no public API exposes the
-        # FilterStore pending queue.  We aggregate it here as a graph feature.
-        node_to_platform_objs: Dict[str, list] = {}
-        for node, plat, node_id, plat_id, plat_type, node_name in platforms_info:
-            node_to_platform_objs.setdefault(node_name, []).append(plat)
-
-        platform_features = []
-        queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
-        for node, plat, node_id, plat_id, plat_type, node_name in platforms_info:
-            # Type one-hot
-            onehot = [1.0 if plat_type == t else 0.0 for t in platform_types_vocab]
-            # Replica flags
-            has_dnn1 = 1.0 if (node_id, plat_id) in dnn1_replicas else 0.0
-            has_dnn2 = 1.0 if (node_id, plat_id) in dnn2_replicas else 0.0
-            # Queue length (normalized using adaptive factor)
-            queue_key = f"{node_name}:{plat_id}"
-            queue_len_raw = queue_snapshot.get(queue_key, 0)
-            queue_len = queue_len_raw / adaptive_queue_norm
-
-            # Shared-fate signal: fraction of co-located platforms on this physical
-            # node that are still cold (initialized.triggered == False).
-            # Normalized by actual platform count on this node.
-            co_located = node_to_platform_objs.get(node_name, [])
-            node_cold = sum(1 for p in co_located if not p.initialized.triggered)
-            shared_fate_signal = node_cold / max(len(co_located), 1)
-
-            # Temporal state (approximate if not available)
-            current_task_remaining = 0.0
-            cold_start_remaining = 0.0
-            comm_remaining = 0.0
-            if queue_len_raw > 0:
-                avg_exec = 0.0
-                count = 0
-                if self.task_types_data:
-                    for task_type_name, task_priors in self.task_types_data.items():
-                        exec_map = task_priors.get("executionTime", {})
-                        if isinstance(exec_map, dict):
-                            exec_time = exec_map.get(plat_type, 0.0)
-                            if exec_time > 0:
-                                avg_exec += exec_time
-                                count += 1
-                if count > 0:
-                    current_task_remaining = avg_exec / count
-                    cold_start_remaining = current_task_remaining * 0.1
-                    comm_remaining = current_task_remaining * 0.05
-
-            # Normalize temporal features (assume max ~10s)
-            current_task_remaining_norm = current_task_remaining / 10.0
-            cold_start_remaining_norm = cold_start_remaining / 10.0
-            comm_remaining_norm = comm_remaining / 10.0
-
-            # Target concurrency and usage ratio (approximate, training parity)
-            baseline_concurrency = 5.0
-            target_concurrency = baseline_concurrency
-            if self.task_types_data:
-                supported_task_types = [
-                    task_type_name
-                    for task_type_name, task_priors in self.task_types_data.items()
-                    if plat_type in task_priors.get("platforms", [])
-                ]
-                min_exec_times = []
-                for task_type_name in supported_task_types:
-                    task_priors = self.task_types_data.get(task_type_name, {})
-                    exec_map = task_priors.get("executionTime", {})
-                    if isinstance(exec_map, dict) and exec_map:
-                        min_exec_times.append(min(exec_map.values()))
-                if min_exec_times:
-                    avg_min_exec = sum(min_exec_times) / len(min_exec_times)
-                    exec_map_this = self.task_types_data.get(supported_task_types[0], {}).get("executionTime", {})
-                    exec_time_this = exec_map_this.get(plat_type, avg_min_exec) if isinstance(exec_map_this, dict) else avg_min_exec
-                    if exec_time_this > 0:
-                        target_concurrency = max(1.0, avg_min_exec / exec_time_this * baseline_concurrency)
-
-            usage_ratio = (queue_len_raw / target_concurrency) if target_concurrency > 0 else 0.0
-            target_concurrency_norm = target_concurrency / 20.0
-            usage_ratio_norm = usage_ratio / 5.0
-            queue_key_to_platform_meta[queue_key] = {
-                "platform_type": str(plat_type),
-                "target_concurrency": float(target_concurrency),
-                "node_name": str(node_name),
-                "platform_id": int(plat_id),
-                "node_id": int(node_id),
-                "platform_pos": int(pos),
-            }
-
-            platform_features.append(
-                onehot                                                              # dims 0-4
-                + [has_dnn1, has_dnn2, queue_len]                                  # dims 5-7
-                + [shared_fate_signal]                                              # dim  8
-                + [current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm]  # dims 9-11
-                + [target_concurrency_norm, usage_ratio_norm]                      # dims 12-13
-            )
-        
-        platform_features_tensor = torch.tensor(platform_features, dtype=torch.float32)
-        
-        # Build edges: task -> compatible platforms
-        task_offset = 0
-        platform_offset = n_tasks
-        
-        edge_src, edge_dst = [], []
-        edge_attrs = []
-        task_logit_to_placement: Dict[int, List[Tuple[int, int]]] = {}
-        task_logit_to_queue_key: Dict[int, List[str]] = {}
-        
-        # Build network map lookup
-        network_maps = {}
-        for node in all_nodes:
-            if hasattr(node, 'network_map'):
-                network_maps[node.node_name] = node.network_map
-        
-        for t_idx, task in enumerate(batch_tasks):
-            task_type = task.type["name"]
-            source_node = task.node_name
-            compatible_types = TASK_PLATFORM_COMPATIBILITY.get(task_type, [])
-            
-            task_logit_to_placement[t_idx] = []
-            task_logit_to_queue_key[t_idx] = []
-            
-            for pos, (node, plat, node_id, plat_id, plat_type, node_name) in enumerate(platforms_info):
-                # Check compatibility
-                if plat_type not in compatible_types:
-                    continue
-                
-                # Check network feasibility
-                is_local = (source_node == node_name)
-                is_server = not node_name.startswith('client_node')
-                
-                if not is_local:
-                    if not is_server:
-                        continue  # Can't place on other client nodes
-                    # Check network connectivity
-                    if node_name not in network_maps:
-                        continue
-                    if source_node not in network_maps[node_name]:
-                        continue
-                
-                # after network feasibility, before “Add edge”
-                if task_type == "dnn1" and (node_id, plat_id) not in dnn1_replicas:
-                    continue
-                if task_type == "dnn2" and (node_id, plat_id) not in dnn2_replicas:
-                    continue
-
-                # Add edge
-                task_node_idx = task_offset + t_idx
-                plat_node_idx = platform_offset + pos
-                edge_src.append(task_node_idx)
-                edge_dst.append(plat_node_idx)
-                
-                # Edge attributes: [exec_time, latency, is_warm, energy, comm_time]
-                exec_time = 0.0
-                if self.task_types_data and task_type in self.task_types_data:
-                    exec_time = self.task_types_data[task_type].get("executionTime", {}).get(plat_type, 0.0)
-                
-                latency = 0.0
-                if not is_local and node_name in network_maps:
-                    lat_entry = network_maps[node_name].get(source_node, {})
-                    if isinstance(lat_entry, dict):
-                        latency = lat_entry.get('latency', 0.0)
-                    else:
-                        try:
-                            latency = float(lat_entry)
-                        except:
-                            latency = 0.0
-                
-                # is_warm: use the same predicate as platform_process() in the
-                # simulator — warm iff the last task on this platform had the same
-                # type name.  The autoscaler replica flag (has_dnn1/2) diverges when
-                # the platform previously served a different function.
-                prev_task = plat.previous_task if hasattr(plat, 'previous_task') else None
-                prev_type_name = prev_task.type["name"] if prev_task is not None else None
-                is_warm = 1.0 if (prev_type_name is not None and prev_type_name == task_type) else 0.0
-                
-                energy = 0.0
-                if self.task_types_data and task_type in self.task_types_data:
-                    energy_map = self.task_types_data[task_type].get("energy", {})
-                    if isinstance(energy_map, dict):
-                        energy = float(energy_map.get(plat_type, 0.0))
-
-                comm_time = 0.0
-                if self.task_types_data and task_type in self.task_types_data:
-                    state_size_map = self.task_types_data[task_type].get("stateSize", {})
-                    if isinstance(state_size_map, dict) and state_size_map:
-                        app_state = next(iter(state_size_map.values()))
-                        if isinstance(app_state, dict):
-                            input_size = app_state.get("input", 0)
-                            output_size = app_state.get("output", 0)
-                            storage_throughput = 100.0 * 1024 * 1024  # bytes/s
-                            storage_latency = 0.001  # seconds
-                            read_time = (input_size / storage_throughput) + storage_latency
-                            write_time = (output_size / storage_throughput) + storage_latency
-                            comm_time = read_time + write_time
-
-                edge_attrs.append([exec_time, latency, is_warm, energy, comm_time])
-                
-                # Store mapping for decoding
-                task_logit_to_placement[t_idx].append((node_id, plat_id))
-                task_logit_to_queue_key[t_idx].append(f"{node_name}:{plat_id}")
-        
-        if not edge_src:
-            return None, None
-        
-        # Build edge tensors
-        edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long)
-        edge_attr = torch.tensor(edge_attrs, dtype=torch.float32) if edge_attrs else torch.empty((0, 5), dtype=torch.float32)
-        
-        # Make undirected
-        num_nodes = n_tasks + n_platforms
-        edge_index = to_undirected(edge_index, num_nodes=num_nodes)
-        if edge_attr.numel() > 0:
-            edge_attr = torch.cat([edge_attr, edge_attr.clone()], dim=0)
-        
-        # Create PyG Data object
-        data = Data(
-            edge_index=edge_index,
-            n_tasks=n_tasks,
-            n_platforms=n_platforms,
-            task_features=task_features_tensor,
-            platform_features=platform_features_tensor,
+        norm_mode = os.environ.get("GNN_QUEUE_NORM_MODE", "adaptive").strip().lower()
+        return build_pyg_inference_graph(
+            batch_tasks,
+            system_state,
+            queue_snapshot,
+            nodes=list(self.nodes.items),
+            task_types_data=self.task_types_data,
+            queue_norm_mode=norm_mode,
+            temporal_state=temporal_state,
         )
-        data.edge_attr = edge_attr
-        
-        data._task_logit_to_queue_key = task_logit_to_queue_key
-        data.queue_key_to_platform_meta = queue_key_to_platform_meta
-        return data, task_logit_to_placement
 
     def _decode_placements(
         self,
@@ -727,6 +459,10 @@ class GNNScheduler(Scheduler):
         top_k = max(1, int(os.environ.get("GNN_DECODE_TOP_K", "10")))
         seqblend = decode_mode in ("seqblend", "seqblend_p1", "1")
         queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
+
+        temperature = float(os.environ.get("GNN_LOGIT_TEMPERATURE", "1.0"))
+        if temperature != 1.0:
+            logits_per_task = [lgt / temperature for lgt in logits_per_task]
 
         combo = run_decode_with_timing(
             decode_mode,
@@ -752,7 +488,7 @@ class GNNScheduler(Scheduler):
             for node, platform in replicas:
                 key = f"{node.node_name}:{platform.id}"
                 if key not in queue_snapshot:
-                    queue_snapshot[key] = len(platform.queue.items)
+                    queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
 
     def _capture_full_queue_snapshot(self) -> Dict[str, int]:
@@ -760,7 +496,7 @@ class GNNScheduler(Scheduler):
         for node in self.nodes.items:
             for platform in node.platforms.items:
                 key = f"{node.node_name}:{platform.id}"
-                queue_snapshot[key] = len(platform.queue.items)
+                queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
 
     def placement(self, system_state: SystemState, task: Task) -> Generator:

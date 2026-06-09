@@ -1,5 +1,9 @@
-"""Tabular placement policies (Regime A batch implemented; Regime B per-arrival planned)."""
+"""Tabular placement policies (Regime A batch + Regime B single).
 
-from src.policy.tabular.scheduler import XGBoostBatchScheduler
+Import schedulers from their modules directly to avoid circular imports with gnn.scheduler.
+"""
 
-__all__ = ["XGBoostBatchScheduler"]
+__all__ = [
+    "XGBoostBatchScheduler",
+    "XGBoostSingleScheduler",
+]

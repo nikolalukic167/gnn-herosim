@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import os
 import time
 from dataclasses import dataclass, field
@@ -331,6 +332,28 @@ def seqblend_chosen_idx(
     return gnn_idx
 
 
+def logit_queue_blend_idx(
+    logits_t: Tensor,
+    keys: Sequence[str],
+    live_queues: Mapping[str, int],
+    lam: float,
+) -> int:
+    """Continuous log-scale queue penalty: Score = Logit - lam * log1p(queue).
+
+    Bridges the training/live queue regime gap: at training range (queue 0–6),
+    penalty = lam * log1p(6) ≈ 1.9*lam. At live range (queue 2857), penalty =
+    lam * log1p(2857) ≈ 7.96*lam. With lam=1.5 this puts the max live penalty
+    (~11.9) in the same ballpark as the ranking margin cap (8.0), letting the
+    queue signal override sharpened logits without destroying network/type signal.
+    """
+    queues = _candidate_queues(keys, live_queues)
+    scores = [
+        float(logits_t[i].item()) - lam * math.log1p(queues[i])
+        for i in range(len(keys))
+    ]
+    return max(range(len(keys)), key=lambda i: scores[i])
+
+
 def queue_filter_chosen_idx(
     logits_t: Tensor,
     keys: Sequence[str],
@@ -360,6 +383,7 @@ def decode_sequential_placement(
     seqblend: bool = False,
     queue_margin: int = 1,
     queue_filter_max_delta: Optional[int] = None,
+    lqb_lambda: Optional[float] = None,
     stats: Optional[GnnDecodeRunStats] = None,
 ) -> Optional[PlacementCombo]:
     """Sequential decode with live queue roll-forward; optional seqblend override."""
@@ -391,13 +415,15 @@ def decode_sequential_placement(
         gnn_q = queues[gnn_idx]
 
         chosen_idx = gnn_idx
-        if queue_filter_max_delta is not None:
+        if lqb_lambda is not None:
+            chosen_idx = logit_queue_blend_idx(logits_t, keys, live_queues, lqb_lambda)
+        elif queue_filter_max_delta is not None:
             filtered_idx = queue_filter_chosen_idx(
                 logits_t, keys, live_queues, int(queue_filter_max_delta)
             )
             if filtered_idx is not None:
                 chosen_idx = filtered_idx
-        if seqblend:
+        elif seqblend:
             chosen_idx = seqblend_chosen_idx(gnn_idx, keys, live_queues, queue_margin)
 
         final_q = queues[chosen_idx]
@@ -502,6 +528,7 @@ def run_decode_with_timing(
     seqblend: bool = False,
     queue_margin: int = 1,
     queue_filter_max_delta: Optional[int] = None,
+    lqb_lambda: Optional[float] = None,
     top_k: int = 10,
     stats: Optional[GnnDecodeRunStats] = None,
 ) -> Optional[PlacementCombo]:
@@ -522,6 +549,9 @@ def run_decode_with_timing(
             logits_per_task, task_logit_to_placement, n_tasks, top_k=top_k
         )
     else:
+        if lqb_lambda is None:
+            lqb_env = os.environ.get("GNN_LQB_LAMBDA", "").strip()
+            lqb_lambda = float(lqb_env) if lqb_env else None
         if queue_filter_max_delta is None:
             qf_env = int(os.environ.get("GNN_QUEUE_FILTER_MAX_DELTA", "-1"))
             queue_filter_max_delta = qf_env if qf_env >= 0 else None
@@ -534,6 +564,7 @@ def run_decode_with_timing(
             seqblend=seqblend,
             queue_margin=queue_margin,
             queue_filter_max_delta=queue_filter_max_delta,
+            lqb_lambda=lqb_lambda,
             stats=stats,
         )
 
