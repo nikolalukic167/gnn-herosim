@@ -477,7 +477,17 @@ class GNNScheduler(Scheduler):
         for node, plat in system_state.replicas.get('dnn2', set()):
             dnn2_replicas.add((node.id, plat.id))
         
+        # Build node -> [platform objects] map for shared-fate computation.
+        # Platforms on the same physical node share one FilterStore; concurrent
+        # cold pulls serialize through it, multiplying initialization latency by N.
+        # This is invisible to queue-depth heuristics — no public API exposes the
+        # FilterStore pending queue.  We aggregate it here as a graph feature.
+        node_to_platform_objs: Dict[str, list] = {}
+        for node, plat, node_id, plat_id, plat_type, node_name in platforms_info:
+            node_to_platform_objs.setdefault(node_name, []).append(plat)
+
         platform_features = []
+        queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
         for node, plat, node_id, plat_id, plat_type, node_name in platforms_info:
             # Type one-hot
             onehot = [1.0 if plat_type == t else 0.0 for t in platform_types_vocab]
@@ -488,6 +498,13 @@ class GNNScheduler(Scheduler):
             queue_key = f"{node_name}:{plat_id}"
             queue_len_raw = queue_snapshot.get(queue_key, 0)
             queue_len = queue_len_raw / adaptive_queue_norm
+
+            # Shared-fate signal: fraction of co-located platforms on this physical
+            # node that are still cold (initialized.triggered == False).
+            # Normalized by actual platform count on this node.
+            co_located = node_to_platform_objs.get(node_name, [])
+            node_cold = sum(1 for p in co_located if not p.initialized.triggered)
+            shared_fate_signal = node_cold / max(len(co_located), 1)
 
             # Temporal state (approximate if not available)
             current_task_remaining = 0.0
@@ -539,12 +556,21 @@ class GNNScheduler(Scheduler):
             usage_ratio = (queue_len_raw / target_concurrency) if target_concurrency > 0 else 0.0
             target_concurrency_norm = target_concurrency / 20.0
             usage_ratio_norm = usage_ratio / 5.0
+            queue_key_to_platform_meta[queue_key] = {
+                "platform_type": str(plat_type),
+                "target_concurrency": float(target_concurrency),
+                "node_name": str(node_name),
+                "platform_id": int(plat_id),
+                "node_id": int(node_id),
+                "platform_pos": int(pos),
+            }
 
             platform_features.append(
-                onehot
-                + [has_dnn1, has_dnn2, queue_len]
-                + [current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm]
-                + [target_concurrency_norm, usage_ratio_norm]
+                onehot                                                              # dims 0-4
+                + [has_dnn1, has_dnn2, queue_len]                                  # dims 5-7
+                + [shared_fate_signal]                                              # dim  8
+                + [current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm]  # dims 9-11
+                + [target_concurrency_norm, usage_ratio_norm]                      # dims 12-13
             )
         
         platform_features_tensor = torch.tensor(platform_features, dtype=torch.float32)
@@ -618,11 +644,13 @@ class GNNScheduler(Scheduler):
                         except:
                             latency = 0.0
                 
-                is_warm = 0.0
-                if task_type == 'dnn1' and (node_id, plat_id) in dnn1_replicas:
-                    is_warm = 1.0
-                elif task_type == 'dnn2' and (node_id, plat_id) in dnn2_replicas:
-                    is_warm = 1.0
+                # is_warm: use the same predicate as platform_process() in the
+                # simulator — warm iff the last task on this platform had the same
+                # type name.  The autoscaler replica flag (has_dnn1/2) diverges when
+                # the platform previously served a different function.
+                prev_task = plat.previous_task if hasattr(plat, 'previous_task') else None
+                prev_type_name = prev_task.type["name"] if prev_task is not None else None
+                is_warm = 1.0 if (prev_type_name is not None and prev_type_name == task_type) else 0.0
                 
                 energy = 0.0
                 if self.task_types_data and task_type in self.task_types_data:
@@ -674,6 +702,7 @@ class GNNScheduler(Scheduler):
         data.edge_attr = edge_attr
         
         data._task_logit_to_queue_key = task_logit_to_queue_key
+        data.queue_key_to_platform_meta = queue_key_to_platform_meta
         return data, task_logit_to_placement
 
     def _decode_placements(
@@ -921,7 +950,10 @@ class GNNScheduler(Scheduler):
         
         # Capture temporal state
         temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
-        
+
+        # Capture initialized state for all platforms (hidden FilterStore pull state)
+        initialized_snapshot = self.state_capture.capture_initialized_snapshot()
+
         return self.state_capture.capture_task_placement(
             task=task,
             execution_node=execution_node,
@@ -931,6 +963,7 @@ class GNNScheduler(Scheduler):
             queue_snapshot_at_scheduling=queue_snapshot_at_scheduling,
             full_queue_snapshot=full_queue_snapshot,
             temporal_state_at_scheduling=temporal_state_at_scheduling,
+            initialized_snapshot=initialized_snapshot,
         )
     
     def save_captured_state(self, system_state: 'SystemState', total_rtt: float = 0.0, output_path: Optional[str] = None):

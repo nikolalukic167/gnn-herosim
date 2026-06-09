@@ -5,8 +5,8 @@ from __future__ import annotations
 Pre-generate and cache graphs for GNN training (NON-UNIQUE VERSION) — **RAM-oriented**.
 
 Stores every dataset's ``[(combo, rtt), ...]`` **on each graph
-object** inside ``graphs.pkl`` so ``train.py`` loads everything in one ``pickle.load`` and never
-touches LMDB (fastest for training at the cost of a larger single pickle and higher peak RAM).
+object** inside ``graphs.pkl`` so ``train_ram.py`` loads everything in one ``pickle.load`` with no
+per-sample RTT I/O (fastest for training at the cost of a larger single pickle and higher peak RAM).
 
 Optional **staging** (``--staging-dir``, ``--ram-staging``, env): write pickles to **node-local RAM
 or fast scratch** first, then copy the bundle to ``--cache-dir`` (e.g. ``/share/...``). The heavy
@@ -273,7 +273,7 @@ def time_block(description: str):
 
 # Version for cache invalidation (increment when graph construction logic changes)
 CACHE_VERSION = "5.1"  # Same graph construction as cache 5.0; RTT combos embedded in graphs.pkl (RAM train path)
-# - RTT valid combos stored on each Data object (valid_combos); no rtt_combos.lmdb in this script
+# - RTT valid combos stored on each Data object (valid_combos); embedded_in_graphs backend
 # - Optional --staging-dir / HEROSIM_PREPARE_STAGING_DIR: build on fast/local RAM, copy to --cache-dir
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
@@ -638,20 +638,20 @@ def export_task_metrics_for_analysis(
 
 
 # ============================================================================
-# RTT COMBOS (in-memory map → attached to each graph; no LMDB in this script)
+# RTT COMBOS (in-memory map → attached to each graph)
 # ============================================================================
 
 
 def _remove_legacy_rtt_artifacts(cache_dir: Path) -> None:
-    """Drop SQLite / chunked pickle RTT stores and any prior LMDB env directory."""
+    """Drop SQLite / chunked pickle RTT stores and any prior legacy RTT store directory."""
     for stale_chunk in cache_dir.glob("rtt_chunk_*.pkl"):
         stale_chunk.unlink(missing_ok=True)
     (cache_dir / "rtt_chunks_meta.json").unlink(missing_ok=True)
     (cache_dir / "placement_rtt_hash_table.sqlite3").unlink(missing_ok=True)
     (cache_dir / "placement_rtt_hash_table.pkl").unlink(missing_ok=True)
-    lmdb_dir = cache_dir / "rtt_combos.lmdb"
-    if lmdb_dir.exists():
-        shutil.rmtree(lmdb_dir, ignore_errors=True)
+    legacy_rtt_store = cache_dir / "rtt_combos.lmdb"
+    if legacy_rtt_store.exists():
+        shutil.rmtree(legacy_rtt_store, ignore_errors=True)
 
 
 def _placement_combos_from_jsonl(jsonl_path: Path) -> Tuple[str, List[Tuple[PlacementCombo, float]]]:
@@ -865,7 +865,7 @@ def _copy_file_with_progress(src: Path, dst: Path, label: str, chunk_size: int =
 
 
 def _publish_cache_to_final(work_dir: Path, final_dir: Path) -> None:
-    """Copy prepared artifacts to the persistent cache directory; drop stale LMDB if any."""
+    """Copy prepared artifacts to the persistent cache directory; drop stale legacy RTT store if any."""
     final_dir.mkdir(parents=True, exist_ok=True)
     for name in (
         "graphs.pkl",
@@ -877,10 +877,10 @@ def _publish_cache_to_final(work_dir: Path, final_dir: Path) -> None:
         src = work_dir / name
         if src.exists():
             _copy_file_with_progress(src, final_dir / name, name)
-    stale_lmdb = final_dir / "rtt_combos.lmdb"
-    if stale_lmdb.exists():
-        shutil.rmtree(stale_lmdb, ignore_errors=True)
-        logger.info("Removed stale %s (embedded RTT cache)", stale_lmdb)
+    stale_rtt_store = final_dir / "rtt_combos.lmdb"
+    if stale_rtt_store.exists():
+        shutil.rmtree(stale_rtt_store, ignore_errors=True)
+        logger.info("Removed stale %s (embedded RTT cache)", stale_rtt_store)
 
 
 # ============================================================================

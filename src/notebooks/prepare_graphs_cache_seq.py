@@ -23,6 +23,7 @@ import math
 import os
 import pickle
 import random
+import shutil
 import sys
 import time
 import concurrent.futures
@@ -226,8 +227,8 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "6.3-seq-model"  # model-centric training: co-sim per-task queues, prefix labels, no seqblend teacher
-# - RTT combos consumed lazily from placements/placements.jsonl during training (no LMDB build)
+CACHE_VERSION = "6.5-seq-tabular"  # 14-dim platform + platform_pos in queue_key_to_platform_meta
+# - RTT combos loaded from chunked hash table at train time (rtt_chunk_*.pkl)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
@@ -473,9 +474,19 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
         logger.warning(msg)
         raise ValueError(msg)
 
+    raw_initialized = (
+        data.get('initialized_snapshot')
+        or task_placements[0].get('initialized_snapshot')
+        or {}
+    )
+    initialized_snapshot: Dict[str, bool] = {
+        k: bool(v) for k, v in raw_initialized.items()
+    }
+
     return {
         'queue_snapshot': queue_snapshot,
         'temporal_state': merged_temporal_state,
+        'initialized_snapshot': initialized_snapshot,
     }
 
 
@@ -588,6 +599,7 @@ def load_all_datasets(
                     'num_tasks': len(dataframes['tasks']),  # Track task count
                     'queue_snapshot': extended_state.get('queue_snapshot', {}),
                     'temporal_state': extended_state.get('temporal_state', {}),
+                    'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
                     'per_task_queue_snapshots': per_task_queues,
                     'per_task_temporal_snapshots': per_task_temporal,
                 }
@@ -713,7 +725,11 @@ def _remove_legacy_rtt_artifacts(cache_dir: Path) -> None:
         stale_chunk.unlink(missing_ok=True)
     (cache_dir / "rtt_chunks_meta.json").unlink(missing_ok=True)
     (cache_dir / "placement_rtt_hash_table.pkl").unlink(missing_ok=True)
-    (cache_dir / "rtt_combos.lmdb").unlink(missing_ok=True)
+    legacy_rtt_store = cache_dir / "rtt_combos.lmdb"
+    if legacy_rtt_store.is_dir():
+        shutil.rmtree(legacy_rtt_store)
+    else:
+        legacy_rtt_store.unlink(missing_ok=True)
 
 
 def build_and_save_rtt_hash_table_chunked(
@@ -925,6 +941,7 @@ def build_graph(
     queue_norm_mode: str,
     queue_snapshot: Optional[Mapping[str, int]] = None,
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
+    initialized_snapshot: Optional[Mapping[str, bool]] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -979,7 +996,7 @@ def build_graph(
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
-    # PLATFORM FEATURES (13 dims: 5 type + 2 replica + 1 queue + 3 temporal + 2 consolidation)
+    # PLATFORM FEATURES (14 dims: 5 type + 2 replica + 1 queue + 1 shared-fate + 3 temporal + 2 consolidation)
     platform_types_vocab = np.array(['rpiCpu','xavierCpu','xavierGpu','xavierDla','pynqFpga'])
     plat_type_arr = df_platforms['platform_type'].to_numpy()
     plat_onehot = (plat_type_arr[:, None] == platform_types_vocab[None, :]).astype(float)
@@ -1005,6 +1022,25 @@ def build_graph(
     else:
         active_queue_norm = _safe_positive(float(queue_norm_factor))
     queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)
+
+    node_cold_replicas_arr = np.zeros(n_platforms, dtype=np.float64)
+    if initialized_snapshot:
+        node_platform_positions: Dict[str, List[int]] = {}
+        for pos in range(n_platforms):
+            name = str(plat_node_by_pos[pos])
+            node_platform_positions.setdefault(name, []).append(pos)
+
+        for pos in range(n_platforms):
+            node_name = str(plat_node_by_pos[pos])
+            co_located_positions = node_platform_positions.get(node_name, [pos])
+            cold_count = sum(
+                1 for p_pos in co_located_positions
+                if not initialized_snapshot.get(
+                    f"{node_name}:{int(plat_ids_arr[p_pos])}", True
+                )
+            )
+            node_cold_replicas_arr[pos] = cold_count / max(len(co_located_positions), 1)
+    node_cold_replicas_norm = node_cold_replicas_arr.reshape(-1, 1)
     
     # TEMPORAL STATE FEATURES (current task remaining times)
     # Since we don't have exact temporal state, we approximate:
@@ -1118,11 +1154,25 @@ def build_graph(
         plat_onehot,  # 5 dims
         has_dnn1, has_dnn2,  # 2 dims
         queue_lengths_norm,  # 1 dim
+        node_cold_replicas_norm,  # 1 dim shared-fate signal
         current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm,  # 3 dims
         target_concurrency_norm, usage_ratio_norm  # 2 dims
     ], axis=1)
     _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
+    queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
+    for pos, row in enumerate(df_platforms.itertuples(index=False)):
+        node_name = str(row.node_name)
+        platform_id = int(plat_ids_arr[pos])
+        queue_key = f"{node_name}:{platform_id}"
+        queue_key_to_platform_meta[queue_key] = {
+            "platform_type": str(plat_type_arr[pos]),
+            "target_concurrency": float(target_concurrencies[pos]),
+            "node_name": node_name,
+            "platform_id": platform_id,
+            "node_id": int(row.node_id),
+            "platform_pos": int(pos),
+        }
     
     # Cache feasible platforms per source node
     feasible_plats_cache = {}
@@ -1316,6 +1366,7 @@ def build_graph(
     data._task_logit_to_placement = task_logit_to_placement
     data.queue_snapshot = dict(queue_snapshot) if queue_snapshot else {}
     data.task_logit_to_queue_key = task_logit_to_queue_key
+    data.queue_key_to_platform_meta = queue_key_to_platform_meta
     
     return data
 
@@ -1455,6 +1506,7 @@ def build_sequential_graphs_for_dataset(
     per_task_temporal: List[Dict[str, Dict[str, float]]] = (
         dataset_dict.get("per_task_temporal_snapshots") or []
     )
+    initialized_snapshot = dataset_dict.get("initialized_snapshot") or {}
 
     optimal_combo = optimal_combo_from_tasks(
         [
@@ -1503,6 +1555,7 @@ def build_sequential_graphs_for_dataset(
             queue_norm_mode=queue_norm_mode,
             queue_snapshot=graph_queue,
             temporal_state=step_temporal,
+            initialized_snapshot=initialized_snapshot,
         )
         _attach_ce_label_mask(graph, step, n_tasks)
 
@@ -1555,6 +1608,7 @@ def build_sequential_graphs_for_dataset(
                 queue_norm_mode=queue_norm_mode,
                 queue_snapshot=aug_queue,
                 temporal_state=temporal_state,
+                initialized_snapshot=initialized_snapshot,
             )
             _attach_ce_label_mask(graph, 0, n_tasks)
             task_map = getattr(graph, "task_logit_to_placement", None) or getattr(

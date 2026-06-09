@@ -49,11 +49,23 @@ from non_unique_lib.cache_io import (
     save_capped_valid_combos_map,
     save_valid_combos_map,
 )
+from non_unique_lib.soft_combo_loss import concentration_penalty, soft_combo_ce_loss
 from non_unique_lib.training_config import parse_training_config
 
 
 PlacementCombo = Tuple[Tuple[int, int], ...]
 RttByCombo = Dict[str, Dict[PlacementCombo, float]]
+
+
+def parent_dataset_id(dataset_id: Any) -> str:
+    return str(dataset_id or "").split("@seq", 1)[0]
+
+
+def lookup_dataset_id(data: Data) -> str:
+    parent_id = getattr(data, "parent_dataset_id", None)
+    if parent_id:
+        return parent_dataset_id(parent_id)
+    return parent_dataset_id(getattr(data, "dataset_id", ""))
 
 
 random.seed(42)
@@ -84,6 +96,11 @@ class NearRttConfig:
     dropout: float = float(os.environ.get("NEAR_RTT_DROPOUT", "0.1"))
     train_all: bool = os.environ.get("NEAR_RTT_TRAIN_ALL", "0") == "1"
     unmapped_penalty: float = float(os.environ.get("NEAR_RTT_UNMAPPED_PENALTY", "1.0"))
+    train_objective: str = os.environ.get("NEAR_RTT_TRAIN_OBJECTIVE", "").strip().lower()
+    soft_combo_tau: float = float(os.environ.get("NEAR_RTT_SOFT_COMBO_TAU", "0.25"))
+    soft_combo_max_combos: int = int(os.environ.get("NEAR_RTT_SOFT_COMBO_MAX_COMBOS", "4096"))
+    conc_gamma: float = float(os.environ.get("NEAR_RTT_CONC_GAMMA", "0.02"))
+    conc_cap: float = float(os.environ.get("NEAR_RTT_CONC_CAP", "1.5"))
 
 
 _DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-near-rtt-jun2026"
@@ -107,8 +124,21 @@ EPOCHS = RUNTIME_CONFIG.epochs
 RTT_SCALE_FACTOR = RUNTIME_CONFIG.rtt_scale_factor
 REGRET_LOSS_WEIGHT = RUNTIME_CONFIG.regret_loss_weight
 CE_LOSS_WEIGHT = RUNTIME_CONFIG.ce_loss_weight
-CE_ONLY_TRAINING = REGRET_LOSS_WEIGHT <= 0.0
+TRAIN_OBJECTIVE = NEAR_CFG.train_objective or ("ce_only" if REGRET_LOSS_WEIGHT <= 0.0 else "ranking")
+SOFT_COMBO_TRAINING = TRAIN_OBJECTIVE in {"soft_combo", "soft_combo_conc"}
+CONCENTRATION_TRAINING = TRAIN_OBJECTIVE == "soft_combo_conc"
+CE_ONLY_TRAINING = TRAIN_OBJECTIVE == "ce_only"
 NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
+
+if (
+    SOFT_COMBO_TRAINING
+    and CE_LOSS_WEIGHT <= 0.0
+    and os.environ.get("NEAR_RTT_ALLOW_UNANCHORED_SOFT_COMBO", "0") != "1"
+):
+    raise ValueError(
+        "soft_combo objectives require a CE anchor (ce_loss_weight > 0). "
+        "Set NEAR_RTT_ALLOW_UNANCHORED_SOFT_COMBO=1 only for explicit ablations."
+    )
 
 print(f"Cache directory: {CACHE_CTX.cache_dir}")
 print(f"Device: {DEVICE}")
@@ -260,8 +290,7 @@ class NearRttRankingLoss(nn.Module):
         data: Data,
         device: torch.device,
     ) -> Tuple[Tensor, int, Dict[str, Any]]:
-        dataset_id = getattr(data, "dataset_id", None)
-        rows = self.exact_rtt_map.get(dataset_id or "", [])
+        rows = self.exact_rtt_map.get(lookup_dataset_id(data), [])
         if len(rows) < 2:
             return torch.zeros((), device=device), 0, {}
 
@@ -326,8 +355,12 @@ class GraphRttDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> Data:
         graph = self.graphs[idx]
         dataset_id = self.dataset_ids[idx]
+        parent_id = parent_dataset_id(getattr(graph, "parent_dataset_id", None) or dataset_id)
         graph.dataset_id = dataset_id
-        graph.opt_rtt = float(self.optimal_rtt_map.get(dataset_id, 0.0))
+        graph.parent_dataset_id = parent_id
+        graph.opt_rtt = float(
+            self.optimal_rtt_map.get(dataset_id, self.optimal_rtt_map.get(parent_id, 0.0))
+        )
         graph.task_logit_to_placement = getattr(
             graph,
             "task_logit_to_placement",
@@ -436,7 +469,11 @@ def decode_topk_joint(
 def move_graph_to_device(data: Data, device: torch.device) -> Data:
     saved = {
         "dataset_id": getattr(data, "dataset_id", None),
+        "parent_dataset_id": getattr(data, "parent_dataset_id", None),
         "opt_rtt": getattr(data, "opt_rtt", None),
+        "queue_snapshot": getattr(data, "queue_snapshot", None),
+        "task_logit_to_queue_key": getattr(data, "task_logit_to_queue_key", None),
+        "queue_key_to_platform_meta": getattr(data, "queue_key_to_platform_meta", None),
         "task_logit_to_placement": getattr(
             data,
             "task_logit_to_placement",
@@ -459,18 +496,31 @@ def train_epoch(
     model.train()
     running_ce = 0.0
     running_rank = 0.0
+    running_combo = 0.0
+    running_conc = 0.0
     running_total = 0.0
     steps = 0
     valid_rank = 0
+    valid_combo = 0
+    valid_conc = 0
     active_pairs = 0
     total_pairs = 0
+    combo_count_total = 0.0
+    combo_model_regret_total = 0.0
+    combo_model_entropy_total = 0.0
+    conc_max_load_total = 0.0
+    conc_mean_cap_total = 0.0
 
     for batch in tqdm(loader, desc=f"Epoch {epoch:3d} [Train]", leave=False):
         optimizer.zero_grad()
         loss_ce_total = torch.zeros((), device=DEVICE)
         loss_rank_total = torch.zeros((), device=DEVICE)
+        loss_combo_total = torch.zeros((), device=DEVICE)
+        loss_conc_total = torch.zeros((), device=DEVICE)
         n_ce = 0
         n_rank = 0
+        n_combo = 0
+        n_conc = 0
 
         for graph in batch:
             data = move_graph_to_device(graph, DEVICE)
@@ -481,7 +531,7 @@ def train_epoch(
                 loss_ce_total = loss_ce_total + loss_ce
                 n_ce += 1
 
-            if not CE_ONLY_TRAINING:
+            if TRAIN_OBJECTIVE == "ranking":
                 loss_rank, valid, stats = criterion(logits, data, DEVICE)
                 if valid > 0 and torch.isfinite(loss_rank):
                     loss_rank_total = loss_rank_total + loss_rank
@@ -490,12 +540,48 @@ def train_epoch(
                     active_pairs += int(stats.get("active_pairs", 0))
                     total_pairs += int(stats.get("pairs", 0))
 
-        if n_ce == 0 and n_rank == 0:
+            if SOFT_COMBO_TRAINING:
+                loss_combo, valid_combo_graph, combo_stats = soft_combo_ce_loss(
+                    logits,
+                    data,
+                    EXACT_RTT_MAP,
+                    tau=NEAR_CFG.soft_combo_tau,
+                    max_combos=NEAR_CFG.soft_combo_max_combos,
+                )
+                if valid_combo_graph > 0 and torch.isfinite(loss_combo):
+                    loss_combo_total = loss_combo_total + loss_combo
+                    n_combo += 1
+                    valid_combo += 1
+                    combo_count_total += float(combo_stats.get("combos", 0.0))
+                    combo_model_regret_total += float(combo_stats.get("model_regret", 0.0))
+                    combo_model_entropy_total += float(combo_stats.get("model_entropy", 0.0))
+
+                if CONCENTRATION_TRAINING:
+                    loss_conc, valid_conc_graph, conc_stats = concentration_penalty(
+                        logits,
+                        data,
+                        cap=NEAR_CFG.conc_cap,
+                    )
+                    if valid_conc_graph > 0 and torch.isfinite(loss_conc):
+                        loss_conc_total = loss_conc_total + loss_conc
+                        n_conc += 1
+                        valid_conc += 1
+                        conc_max_load_total += float(conc_stats.get("max_expected_load", 0.0))
+                        conc_mean_cap_total += float(conc_stats.get("mean_adaptive_cap", 0.0))
+
+        if n_ce == 0 and n_rank == 0 and n_combo == 0:
             continue
 
         ce_avg = loss_ce_total / max(1, n_ce)
         rank_avg = loss_rank_total / max(1, n_rank)
-        loss = CE_LOSS_WEIGHT * ce_avg + REGRET_LOSS_WEIGHT * rank_avg
+        combo_avg = loss_combo_total / max(1, n_combo)
+        conc_avg = loss_conc_total / max(1, n_conc)
+        if SOFT_COMBO_TRAINING:
+            loss = combo_avg + CE_LOSS_WEIGHT * ce_avg
+            if CONCENTRATION_TRAINING:
+                loss = loss + NEAR_CFG.conc_gamma * conc_avg
+        else:
+            loss = CE_LOSS_WEIGHT * ce_avg + REGRET_LOSS_WEIGHT * rank_avg
         if not torch.isfinite(loss):
             continue
         loss.backward()
@@ -504,15 +590,26 @@ def train_epoch(
 
         running_ce += float(ce_avg.item())
         running_rank += float(rank_avg.item())
+        running_combo += float(combo_avg.item())
+        running_conc += float(conc_avg.item())
         running_total += float(loss.item())
         steps += 1
 
     return {
         "ce": running_ce / max(1, steps),
         "rank": running_rank / max(1, steps),
+        "soft_combo": running_combo / max(1, steps),
+        "concentration": running_conc / max(1, steps),
         "total": running_total / max(1, steps),
         "valid_rank": float(valid_rank),
+        "valid_combo": float(valid_combo),
+        "valid_conc": float(valid_conc),
         "active_pair_frac": active_pairs / max(1, total_pairs),
+        "combo_count": combo_count_total / max(1, valid_combo),
+        "combo_model_regret": combo_model_regret_total / max(1, valid_combo),
+        "combo_model_entropy": combo_model_entropy_total / max(1, valid_combo),
+        "conc_max_load": conc_max_load_total / max(1, valid_conc),
+        "conc_mean_cap": conc_mean_cap_total / max(1, valid_conc),
     }
 
 
@@ -567,7 +664,7 @@ def evaluate(
             if all_correct and local_valid == int(data.n_tasks):
                 graph_correct += 1
 
-            dataset_id = getattr(data, "dataset_id", None) or ""
+            dataset_id = lookup_dataset_id(data)
             opt_rtt = float(getattr(data, "opt_rtt", 0.0))
             rtt_map = rtt_by_dataset.get(dataset_id, {})
             worst_regret = worst_regret_by_dataset.get(
@@ -720,10 +817,14 @@ wandb.init(
         "ce_weight": float(CE_LOSS_WEIGHT),
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
-        "loss_type": "CE-only" if CE_ONLY_TRAINING else "CE + NearExactRttRanking",
+        "loss_type": str(TRAIN_OBJECTIVE),
         "loss_variant": str(NEAR_CFG.loss_variant),
         "sidecar_name": str(NEAR_CFG.sidecar_name),
         "near_rtt_training": True,
+        "soft_combo_tau": float(NEAR_CFG.soft_combo_tau),
+        "soft_combo_max_combos": int(NEAR_CFG.soft_combo_max_combos),
+        "concentration_gamma": float(NEAR_CFG.conc_gamma),
+        "concentration_cap": float(NEAR_CFG.conc_cap),
         "top_k_decode": int(NEAR_CFG.top_k_decode),
         "pairs_per_graph": int(NEAR_CFG.pairs_per_graph),
         "near_margin_floor": float(NEAR_CFG.near_margin_floor),
@@ -750,7 +851,7 @@ wandb.init(
 
 model = TaskPlacementGNN(
     task_feature_dim=3,
-    platform_feature_dim=13,
+    platform_feature_dim=14,
     embedding_dim=EMBEDDING_DIM,
     hidden_dim=HIDDEN_DIM,
     num_layers=NUM_GIN_LAYERS,
@@ -786,7 +887,7 @@ best_val_metrics: Dict[str, float] = {}
 checkpoint_saved = False
 
 print("=" * 80)
-print("TRAINING (CE-only)" if CE_ONLY_TRAINING else "TRAINING (CE + Near Exact RTT Ranking)")
+print(f"TRAINING ({TRAIN_OBJECTIVE})")
 print("=" * 80)
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
@@ -831,6 +932,8 @@ for epoch in range(EPOCHS):
             f"Epoch {epoch:3d}/{EPOCHS} "
             f"Train CE={train_metrics['ce']:.4f} "
             f"Rank={train_metrics['rank']:.4f} "
+            f"SoftCombo={train_metrics['soft_combo']:.4f} "
+            f"Conc={train_metrics['concentration']:.4f} "
             f"Val greedy={val_metrics['regret_greedy']:.4f}s "
             f"Val top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s "
             f"active_pair_frac={train_metrics['active_pair_frac']:.2f} "

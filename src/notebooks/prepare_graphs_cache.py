@@ -20,6 +20,7 @@ import math
 import os
 import pickle
 import random
+import shutil
 import sys
 import time
 import concurrent.futures
@@ -177,8 +178,8 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "5.2"  # hash_table_chunked RTT backend (preload at train time)
-# - RTT combos consumed lazily from placements/placements.jsonl during training (no LMDB build)
+CACHE_VERSION = "5.3"  # queue_key_to_platform_meta includes platform_pos for tabular extraction
+# - RTT combos loaded from chunked hash table at train time (rtt_chunk_*.pkl)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
@@ -428,9 +429,23 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
         logger.warning(msg)
         raise ValueError(msg)
 
+    # Extract initialized_snapshot — stored at SSC top level by backfill_initialized_snapshot.py
+    # (or any run after the shared-fate feature was added).  Falls back to the first
+    # task_placement entry for SSC files written by the GNN scheduler, then to {} for
+    # legacy datasets so that build_graph() silently zeros the shared-fate dim.
+    raw_initialized = (
+        data.get('initialized_snapshot')
+        or task_placements[0].get('initialized_snapshot')
+        or {}
+    )
+    initialized_snapshot: Dict[str, bool] = {
+        k: bool(v) for k, v in raw_initialized.items()
+    }
+
     return {
         'queue_snapshot': queue_snapshot,
         'temporal_state': merged_temporal_state,
+        'initialized_snapshot': initialized_snapshot,
     }
 
 
@@ -479,7 +494,8 @@ def load_all_datasets(
                     'source_dir': base_dir.name,  # Track which directory this came from
                     'num_tasks': len(dataframes['tasks']),  # Track task count
                     'queue_snapshot': extended_state.get('queue_snapshot', {}),
-                    'temporal_state': extended_state.get('temporal_state', {})
+                    'temporal_state': extended_state.get('temporal_state', {}),
+                    'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
                 }
             except Exception as e:
                 tqdm.write(f"  Error loading {dataset_dir.name}: {e}")
@@ -603,7 +619,11 @@ def _remove_legacy_rtt_artifacts(cache_dir: Path) -> None:
         stale_chunk.unlink(missing_ok=True)
     (cache_dir / "rtt_chunks_meta.json").unlink(missing_ok=True)
     (cache_dir / "placement_rtt_hash_table.pkl").unlink(missing_ok=True)
-    (cache_dir / "rtt_combos.lmdb").unlink(missing_ok=True)
+    legacy_rtt_store = cache_dir / "rtt_combos.lmdb"
+    if legacy_rtt_store.is_dir():
+        shutil.rmtree(legacy_rtt_store)
+    else:
+        legacy_rtt_store.unlink(missing_ok=True)
 
 
 def build_and_save_rtt_hash_table_chunked(
@@ -731,6 +751,7 @@ def build_graph(
     queue_norm_mode: str,
     queue_snapshot: Optional[Mapping[str, int]] = None,
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
+    initialized_snapshot: Optional[Mapping[str, bool]] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -785,7 +806,7 @@ def build_graph(
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
-    # PLATFORM FEATURES (13 dims: 5 type + 2 replica + 1 queue + 3 temporal + 2 consolidation)
+    # PLATFORM FEATURES (14 dims: 5 type + 2 replica + 1 queue + 1 shared-fate + 3 temporal + 2 consolidation)
     platform_types_vocab = np.array(['rpiCpu','xavierCpu','xavierGpu','xavierDla','pynqFpga'])
     plat_type_arr = df_platforms['platform_type'].to_numpy()
     plat_onehot = (plat_type_arr[:, None] == platform_types_vocab[None, :]).astype(float)
@@ -811,7 +832,35 @@ def build_graph(
     else:
         active_queue_norm = _safe_positive(float(queue_norm_factor))
     queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)
-    
+
+    # SHARED-FATE SIGNAL (1 dim) — fraction of co-located platforms on the same
+    # physical node that were cold (not yet initialized) at scheduling time.
+    # Captures the hidden FilterStore serialization multiplier: when N platforms on
+    # the same node are all cold, their image pulls serialize, inflating actual pull
+    # time to N × T_pull.  No local queue-depth heuristic can observe this because
+    # node.storage exposes no pending-pull count.
+    # Falls back to 0 if initialized_snapshot is absent (old SSC files).
+    node_cold_replicas_arr = np.zeros(n_platforms, dtype=np.float64)
+    if initialized_snapshot:
+        # Group platform positions by physical node name
+        node_platform_positions: Dict[str, List[int]] = {}
+        for pos in range(n_platforms):
+            name = str(plat_node_by_pos[pos])
+            node_platform_positions.setdefault(name, []).append(pos)
+
+        for pos in range(n_platforms):
+            node_name = str(plat_node_by_pos[pos])
+            plat_id = int(plat_ids_arr[pos])
+            co_located_positions = node_platform_positions.get(node_name, [pos])
+            cold_count = sum(
+                1 for p_pos in co_located_positions
+                if not initialized_snapshot.get(
+                    f"{node_name}:{int(plat_ids_arr[p_pos])}", True
+                )
+            )
+            node_cold_replicas_arr[pos] = cold_count / max(len(co_located_positions), 1)
+    node_cold_replicas_norm = node_cold_replicas_arr.reshape(-1, 1)
+
     # TEMPORAL STATE FEATURES (current task remaining times)
     # Since we don't have exact temporal state, we approximate:
     # - If queue > 0: platform is busy, estimate remaining time
@@ -921,14 +970,28 @@ def build_graph(
     
     # Concatenate all platform features
     platform_features = np.concatenate([
-        plat_onehot,  # 5 dims
-        has_dnn1, has_dnn2,  # 2 dims
-        queue_lengths_norm,  # 1 dim
-        current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm,  # 3 dims
-        target_concurrency_norm, usage_ratio_norm  # 2 dims
+        plat_onehot,                    # dims 0-4  (5)
+        has_dnn1, has_dnn2,             # dims 5-6  (2)
+        queue_lengths_norm,             # dim  7    (1)
+        node_cold_replicas_norm,        # dim  8    (1) shared-fate signal
+        current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm,  # dims 9-11 (3)
+        target_concurrency_norm, usage_ratio_norm  # dims 12-13 (2)
     ], axis=1)
     _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
+    queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
+    for pos, row in enumerate(df_platforms.itertuples(index=False)):
+        node_name = str(row.node_name)
+        platform_id = int(plat_ids_arr[pos])
+        queue_key = f"{node_name}:{platform_id}"
+        queue_key_to_platform_meta[queue_key] = {
+            "platform_type": str(plat_type_arr[pos]),
+            "target_concurrency": float(target_concurrencies[pos]),
+            "node_name": node_name,
+            "platform_id": platform_id,
+            "node_id": int(row.node_id),
+            "platform_pos": int(pos),
+        }
     
     # Cache feasible platforms per source node
     feasible_plats_cache = {}
@@ -1040,13 +1103,18 @@ def build_graph(
                 else:
                     latency = _safe_float(lat_entry, 0.0)
                 
-                # Warm replica flag
-                if task_type == 'dnn1':
-                    is_warm = float(has_dnn1_arr[plat_pos])
-                elif task_type == 'dnn2':
-                    is_warm = float(has_dnn2_arr[plat_pos])
-                else:
-                    is_warm = 0.0
+                # is_warm: matches the simulator's actual cold-start predicate.
+                # platform_process() fires cold start when
+                #   previous_task.type["name"] != task.type["name"].
+                # Using the autoscaler's replica flag (has_dnn1/2) diverges from
+                # this when the platform last served a different task type.
+                plat_key_for_warm = f"{plat_node_name}:{plat_id}"
+                prev_type = (
+                    (temporal_state or {})
+                    .get(plat_key_for_warm, {})
+                    .get("previous_task_type_name")
+                )
+                is_warm = 1.0 if (prev_type is not None and prev_type == task_type) else 0.0
                 
                 # Energy consumption (from task-types.json)
                 energy = 0.0
@@ -1122,6 +1190,7 @@ def build_graph(
     data._task_logit_to_placement = task_logit_to_placement
     data.queue_snapshot = dict(queue_snapshot) if queue_snapshot else {}
     data.task_logit_to_queue_key = task_logit_to_queue_key
+    data.queue_key_to_platform_meta = queue_key_to_platform_meta
     
     return data
 
@@ -1196,7 +1265,8 @@ def main():
                     queue_norm_factor=config.queue_norm_factor,
                     queue_norm_mode=config.queue_norm_mode,
                     queue_snapshot=dataset_dict.get('queue_snapshot', {}),
-                    temporal_state=dataset_dict.get('temporal_state', {})
+                    temporal_state=dataset_dict.get('temporal_state', {}),
+                    initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
                 )
                 graph.dataset_id = dataset_id
                 graphs.append(graph)

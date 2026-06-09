@@ -384,7 +384,7 @@ def load_gnn_model(model_path: Path):
         # Model architecture must match training
         model = TaskPlacementGNN(
             task_feature_dim=3,
-            platform_feature_dim=13,
+            platform_feature_dim=14,
             embedding_dim=64,
             hidden_dim=64,
             num_layers=3
@@ -420,7 +420,7 @@ def load_gnn_hetero_model(model_path: Path):
 
         model = TaskPlacementGNN(
             task_feature_dim=3,
-            platform_feature_dim=13,
+            platform_feature_dim=14,
             embedding_dim=64,
             hidden_dim=64,
             num_layers=3,
@@ -465,6 +465,7 @@ def run_simulation(
         gnn_model: Any = None,
         gnn_device: Any = None,
         task_types_data: Optional[Dict[str, Any]] = None,
+        xgb_model_path: Optional[Path] = None,
 ) -> bool:
     """
     Run simulation with the specified policy.
@@ -497,6 +498,7 @@ def run_simulation(
         'herocache_network_batch',
         'random_network',
         'offload_network',
+        'xgboost_batch',
     ]
     if policy not in valid_policies:
         logger.error(
@@ -508,6 +510,14 @@ def run_simulation(
     if policy in ('gnn', 'gnn_hetero') and (gnn_model is None or task_types_data is None):
         logger.error(f"{policy} policy requires gnn_model and task_types_data")
         return False
+
+    if policy == 'xgboost_batch':
+        if xgb_model_path is None or not xgb_model_path.exists():
+            logger.error(f"xgboost_batch policy requires a valid --xgb-model path (got {xgb_model_path})")
+            return False
+        if task_types_data is None:
+            logger.error("xgboost_batch policy requires task_types_data for feature extraction")
+            return False
 
     # Check required files exist
     if not config_file.exists():
@@ -586,6 +596,12 @@ def run_simulation(
         elif policy == 'offload_network':
             scheduling_strategy = 'offload_network_offload_network'
             models = None
+        elif policy == 'xgboost_batch':
+            scheduling_strategy = 'xgb_batch_xgb_batch'
+            models = {
+                'xgb_model_path': str(xgb_model_path),
+                'task_types_data': task_types_data,
+            }
         
         if scheduling_strategy is None:
             logger.error(f"Unknown policy: {policy}")
@@ -722,6 +738,8 @@ def main():
     gnn_model_path = Path(_gnn_model_env) if _gnn_model_env else Path("models/desert-galaxy-26.pt")
     _gnn_hetero_model_env = os.environ.get("GNN_HETERO_MODEL_PATH")
     gnn_hetero_model_path = Path(_gnn_hetero_model_env) if _gnn_hetero_model_env else Path("models/hetero.pt")
+    _xgb_model_env = os.environ.get("XGB_MODEL_PATH")
+    default_xgb_model_path = Path(_xgb_model_env) if _xgb_model_env else Path("models/tabular/batch_edge_ranker.json")
     default_output_dir = Path("simulation_data/results")
 
     # Parse arguments
@@ -730,6 +748,12 @@ def main():
     policy = None
     seed = None
     output_file = None
+    xgb_model_path = None
+
+    if '--xgb-model' in sys.argv:
+        idx = sys.argv.index('--xgb-model')
+        if idx + 1 < len(sys.argv):
+            xgb_model_path = Path(sys.argv[idx + 1])
 
     if '--config' in sys.argv:
         idx = sys.argv.index('--config')
@@ -800,6 +824,7 @@ def main():
         'herocache_network_batch',
         'random_network',
         'offload_network',
+        'xgboost_batch',
     ]
     if policy not in cli_valid_policies:
         print(f"ERROR: Invalid policy '{policy}'. Must be one of: {', '.join(cli_valid_policies)}")
@@ -839,11 +864,19 @@ def main():
 
         gnn_model, gnn_device = load_gnn_hetero_model(gnn_hetero_model_path)
         task_types_data = load_task_types_data(sim_input_path)
+    elif policy == 'xgboost_batch':
+        if xgb_model_path is None:
+            xgb_model_path = default_xgb_model_path
+        if not xgb_model_path.exists():
+            print(f"ERROR: XGBoost model not found at {xgb_model_path}")
+            sys.exit(1)
+        task_types_data = load_task_types_data(sim_input_path)
 
     # Run simulation
     success = run_simulation(
         config_file, workload_file, output_file, sim_input_path, logger, policy,
-        seed=seed, gnn_model=gnn_model, gnn_device=gnn_device, task_types_data=task_types_data
+        seed=seed, gnn_model=gnn_model, gnn_device=gnn_device, task_types_data=task_types_data,
+        xgb_model_path=xgb_model_path,
     )
     sys.exit(0 if success else 1)
 

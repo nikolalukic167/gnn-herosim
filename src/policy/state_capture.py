@@ -64,6 +64,25 @@ class StateCaptureHelper:
                 key = f"{node.node_name}:{platform.id}"
                 queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
+
+    def capture_initialized_snapshot(self) -> Dict[str, bool]:
+        """
+        Capture the SimPy initialization state for ALL platforms.
+
+        platform.initialized.triggered is True when the image pull has completed
+        and the platform is ready to accept tasks without a pull wait.  False means
+        the platform is cold: any task placed on it will block inside
+        platform_process() at `yield self.initialized` until the pull finishes.
+
+        Returns:
+            Dict mapping "node_name:platform_id" -> bool
+        """
+        snapshot: Dict[str, bool] = {}
+        for node in self.nodes.items:
+            for platform in node.platforms.items:
+                key = f"{node.node_name}:{platform.id}"
+                snapshot[key] = bool(platform.initialized.triggered)
+        return snapshot
     
     def capture_queue_snapshot_for_replicas(
         self,
@@ -143,10 +162,19 @@ class StateCaptureHelper:
                                 latency = 0.001  # 1ms
                                 comm_remaining = (output_size / throughput) + latency
             
+            # The type name that left the platform warm in the simulator's cache.
+            # Matches the predicate platform_process() uses for cold-start avoidance:
+            #   warm = (previous_task.type["name"] == task.type["name"])
+            # None when the platform has never served a real task.
+            prev_task_type_name: Optional[str] = None
+            if platform.previous_task is not None:
+                prev_task_type_name = platform.previous_task.type.get("name")
+
             temporal_state[key] = {
                 "current_task_remaining": current_task_remaining,
                 "cold_start_remaining": cold_start_remaining,
                 "comm_remaining": comm_remaining,
+                "previous_task_type_name": prev_task_type_name,
             }
         
         return temporal_state
@@ -211,7 +239,8 @@ class StateCaptureHelper:
         queue_time: float,
         queue_snapshot_at_scheduling: Dict[str, int],
         full_queue_snapshot: Dict[str, int],
-        temporal_state_at_scheduling: Dict[str, Dict[str, float]]
+        temporal_state_at_scheduling: Dict[str, Dict[str, float]],
+        initialized_snapshot: Optional[Dict[str, bool]] = None,
     ) -> Dict[str, Any]:
         """
         Capture a single task placement decision.
@@ -240,6 +269,7 @@ class StateCaptureHelper:
             "queue_snapshot_at_scheduling": queue_snapshot_at_scheduling,
             "full_queue_snapshot": full_queue_snapshot,
             "temporal_state_at_scheduling": temporal_state_at_scheduling,
+            "initialized_snapshot": initialized_snapshot or {},
         }
         
         if self.capture_enabled:
@@ -270,6 +300,9 @@ class StateCaptureHelper:
             "task_placements": self.captured_placements,
             "total_rtt": total_rtt,
             "num_tasks": len(self.captured_placements),
+            # Captured once at batch-scheduling time; tells build_graph() which
+            # platforms have completed their image pull (initialized.triggered).
+            "initialized_snapshot": self.capture_initialized_snapshot(),
         }
     
     def _capture_scheduler_state(

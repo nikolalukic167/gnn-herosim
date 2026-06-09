@@ -168,6 +168,10 @@ def build_system_state_captured(stats: Optional[Dict[str, Any]]) -> Dict[str, An
         "task_placements": task_placements,
         "total_rtt": rtt_from_stats(stats),
         "num_tasks": len(task_placements),
+        # Captured once at scheduling time by the determined scheduler via
+        # StateCaptureHelper.capture_initialized_snapshot().  Present when
+        # schedulingStateCapture is available; falls back to {} for old runs.
+        "initialized_snapshot": scheduling_capture.get("initialized_snapshot", {}),
     }
     return captured_state
 

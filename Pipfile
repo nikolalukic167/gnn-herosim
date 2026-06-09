@@ -143,7 +143,6 @@ bayes-opt = "*"
 torch = "*"
 torch-geometric = "*"
 orjson = "*"
-lmdb = "*"
 
 [dev-packages]
 
