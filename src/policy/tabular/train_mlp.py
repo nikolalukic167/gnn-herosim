@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
 def build_graph_dataset(
     df: pd.DataFrame,
 ) -> List[Tuple[np.ndarray, int]]:
-    """Return list of (X:[N,22], y:int) pairs, one per graph_id, sorted by graph_id."""
+    """Return list of (X:[N,21], y:int) pairs, one per graph_id, sorted by graph_id."""
     feat_cols = FEATURE_COLUMN_NAMES
     samples = []
     for _, grp in df.groupby("graph_id", sort=True):

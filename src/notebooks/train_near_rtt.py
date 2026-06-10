@@ -12,6 +12,7 @@ after the model has learned to avoid obviously bad placements.
 
 import gc
 import itertools
+import json
 import os
 import random
 import sys
@@ -51,6 +52,11 @@ from non_unique_lib.cache_io import (
 )
 from non_unique_lib.soft_combo_loss import concentration_penalty, soft_combo_ce_loss
 from non_unique_lib.training_config import parse_training_config
+from src.policy.tabular.constants import (
+    CACHE_VERSION as ATOMIC_CACHE_VERSION,
+    PLATFORM_FEATURE_DIM,
+    TASK_FEATURE_DIM,
+)
 
 
 PlacementCombo = Tuple[Tuple[int, int], ...]
@@ -148,6 +154,27 @@ print(f"Cache directory: {CACHE_CTX.cache_dir}")
 print(f"Device: {DEVICE}")
 print(f"Near RTT config: {NEAR_CFG}")
 
+_feature_dim: Optional[int] = None
+_required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").strip()
+_metadata_path = CACHE_CTX.cache_dir / "metadata.json"
+if _metadata_path.exists():
+    with open(_metadata_path, "r", encoding="utf-8") as _mf:
+        _cache_meta = json.load(_mf)
+    _cache_version = _cache_meta.get("cache_version") or _cache_meta.get("version")
+    if _required_cache_version and _cache_version != _required_cache_version:
+        raise ValueError(
+            f"Cache version mismatch: metadata has {_cache_version!r}, "
+            f"expected {_required_cache_version!r}"
+        )
+    _feature_dim = _cache_meta.get("feature_dim")
+    if _required_cache_version == ATOMIC_CACHE_VERSION and _feature_dim not in (None, 21):
+        raise ValueError(f"Expected feature_dim=21 in cache metadata, got {_feature_dim!r}")
+    print(f"Cache metadata: version={_cache_version}, feature_dim={_feature_dim}")
+elif _required_cache_version:
+    raise FileNotFoundError(
+        f"NEAR_RTT_REQUIRE_CACHE_VERSION={_required_cache_version!r} but metadata.json missing"
+    )
+
 
 class MLPEncoder(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout_p: float = 0.1) -> None:
@@ -185,9 +212,13 @@ class TaskPlacementGNN(nn.Module):
         embedding_dim: int = 64,
         hidden_dim: int = 128,
         num_layers: int = 3,
+        normalize_platform_inputs: bool = False,
     ) -> None:
         super().__init__()
         self.task_encoder = MLPEncoder(task_feature_dim, hidden_dim, embedding_dim, NEAR_CFG.dropout)
+        self.platform_input_norm = (
+            nn.LayerNorm(platform_feature_dim) if normalize_platform_inputs else None
+        )
         self.platform_encoder = MLPEncoder(platform_feature_dim, hidden_dim, embedding_dim, NEAR_CFG.dropout)
         self.gin = GIN(
             in_channels=embedding_dim,
@@ -203,7 +234,10 @@ class TaskPlacementGNN(nn.Module):
         n_platforms = int(data.n_platforms)
 
         task_embeddings = self.task_encoder(data.task_features)
-        platform_embeddings = self.platform_encoder(data.platform_features)
+        platform_feats = data.platform_features
+        if self.platform_input_norm is not None:
+            platform_feats = self.platform_input_norm(platform_feats)
+        platform_embeddings = self.platform_encoder(platform_feats)
         x = torch.cat([task_embeddings, platform_embeddings], dim=0)
         x = self.post_gin_dropout(self.gin(x, data.edge_index))
 
@@ -437,13 +471,16 @@ def _refresh_queue_dependent_platform_features(
     live_queues: Dict[str, int],
     meta: Dict[str, Dict[str, Any]],
 ) -> None:
-    queue_values = [int(live_queues.get(str(key), 0)) for key in meta.keys()]
-    queue_norm = _queue_norm_from_values(queue_values)
     platform_features = data.platform_features
     if platform_features.size(-1) < 14:
         raise RuntimeError(
             f"Sequential validation expects 14-dim platform features; got {platform_features.size(-1)}."
         )
+    atomic21 = _feature_dim == 21
+    queue_norm: Optional[float] = None
+    if not atomic21:
+        queue_values = [int(live_queues.get(str(key), 0)) for key in meta.keys()]
+        queue_norm = _queue_norm_from_values(queue_values)
     for queue_key, info in meta.items():
         if "platform_pos" not in info:
             raise RuntimeError(f"Sequential validation metadata missing platform_pos for {queue_key}.")
@@ -451,9 +488,13 @@ def _refresh_queue_dependent_platform_features(
         if pos < 0 or pos >= int(data.n_platforms):
             raise RuntimeError(f"Sequential validation platform_pos out of range for {queue_key}: {pos}.")
         raw_q = float(live_queues.get(str(queue_key), 0))
-        target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
-        platform_features[pos, 7] = raw_q / queue_norm
-        platform_features[pos, 13] = (raw_q / target_concurrency) / 5.0
+        if atomic21:
+            platform_features[pos, 7] = raw_q
+            platform_features[pos, 13] = 0.0
+        else:
+            target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
+            platform_features[pos, 7] = raw_q / float(queue_norm)
+            platform_features[pos, 13] = (raw_q / target_concurrency) / 5.0
 
 
 @torch.no_grad()
@@ -1044,11 +1085,12 @@ wandb.init(
 )
 
 model = TaskPlacementGNN(
-    task_feature_dim=3,
-    platform_feature_dim=14,
+    task_feature_dim=TASK_FEATURE_DIM,
+    platform_feature_dim=PLATFORM_FEATURE_DIM,
     embedding_dim=EMBEDDING_DIM,
     hidden_dim=HIDDEN_DIM,
     num_layers=NUM_GIN_LAYERS,
+    normalize_platform_inputs=_feature_dim == 21,
 ).to(DEVICE)
 
 

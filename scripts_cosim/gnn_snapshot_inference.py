@@ -161,21 +161,24 @@ def build_snapshot_gnn_graph(
         str(k): int(v or 0)
         for k, v in (snapshot.get("full_queue_snapshot") or {}).items()
     }
-    adaptive_queue_norm = _calculate_adaptive_queue_norm(queue_snapshot)
     dnn1_replicas, dnn2_replicas = replicas_from_snapshot(snapshot)
     temporal_by_key = temporal_state_from_snapshot(snapshot)
 
+    initialized_by_key: Dict[str, bool] = {}
+    for task in snapshot.get("tasks", []):
+        for candidate in task.get("candidates", []):
+            queue_key = str(candidate.get("queue_key") or placement_key_from_candidate(candidate))
+            if queue_key not in initialized_by_key:
+                initialized_by_key[queue_key] = bool(candidate.get("initialized", True))
+
     n_tasks = len(tasks)
     n_platforms = len(platforms_info)
-    n_nodes = len(node_name_to_id)
 
     task_features: List[List[float]] = []
     for task in tasks:
         task_type = str(task.get("task_type", ""))
         onehot = [1.0 if task_type == name else 0.0 for name in TASK_TYPES_VOCAB]
-        source_node = str(task.get("source_node", ""))
-        src_idx = node_name_to_id.get(source_node, 0)
-        task_features.append(onehot + [src_idx / max(n_nodes, 1)])
+        task_features.append(onehot)
 
     platform_features: List[List[float]] = []
     for plat in platforms_info:
@@ -185,11 +188,12 @@ def build_snapshot_gnn_graph(
         node_name = str(plat["node_name"])
         queue_key = f"{node_name}:{plat_id}"
         queue_len_raw = int(queue_snapshot.get(queue_key, 0))
-        queue_len = queue_len_raw / adaptive_queue_norm
+        queue_len = float(queue_len_raw)
 
         onehot = [1.0 if plat_type == name else 0.0 for name in PLATFORM_TYPES_VOCAB]
         has_dnn1 = 1.0 if (node_id, plat_id) in dnn1_replicas else 0.0
         has_dnn2 = 1.0 if (node_id, plat_id) in dnn2_replicas else 0.0
+        is_cold = 0.0 if initialized_by_key.get(queue_key, True) else 1.0
 
         temporal = temporal_by_key.get(queue_key, {})
         current_task_remaining = _safe_float(temporal.get("current_task_remaining"))
@@ -229,16 +233,16 @@ def build_snapshot_gnn_graph(
             if exec_time_this > 0:
                 target_concurrency = max(1.0, avg_min_exec / exec_time_this * baseline_concurrency)
 
-        usage_ratio = (queue_len_raw / target_concurrency) if target_concurrency > 0 else 0.0
         platform_features.append(
             onehot
             + [has_dnn1, has_dnn2, queue_len]
+            + [is_cold]
             + [
                 current_task_remaining / 10.0,
                 cold_start_remaining / 10.0,
                 comm_remaining / 10.0,
-                target_concurrency / 20.0,
-                usage_ratio / 5.0,
+                float(target_concurrency),
+                0.0,
             ]
         )
 

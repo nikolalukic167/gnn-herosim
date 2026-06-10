@@ -52,7 +52,15 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             self.mlp_model.load_state_dict(checkpoint["model_state_dict"])
             self.mlp_model.eval()
             self.mlp_model.to(self.device)
-            logging.info("[MLP Batch] Loaded MLP model from %s", path)
+            if int(input_dim) == 22:
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
+            elif int(input_dim) == FEATURE_DIM:
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = "atomic21"
+            logging.info(
+                "[MLP Batch] Loaded MLP model from %s (input_dim=%s)",
+                path,
+                input_dim,
+            )
         else:
             logging.warning("[MLP Batch] No mlp_model or mlp_model_path in models dict")
 
@@ -154,9 +162,10 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             axis=1,
         ).astype(np.float32)
 
-        if feat_matrix.shape[1] != FEATURE_DIM:
+        expected_dim = int(self.mlp_model.input_dim)
+        if feat_matrix.shape[1] != expected_dim:
             raise ValueError(
-                f"[MLP Batch] Feature dim mismatch: {feat_matrix.shape[1]} != {FEATURE_DIM}"
+                f"[MLP Batch] Feature dim mismatch: {feat_matrix.shape[1]} != {expected_dim}"
             )
         if not np.isfinite(feat_matrix).all():
             raise ValueError("[MLP Batch] Non-finite values in feature matrix")

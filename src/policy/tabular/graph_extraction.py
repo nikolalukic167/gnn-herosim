@@ -1,5 +1,5 @@
 """
-Flatten sequential PyG graphs into Option B tabular rows (22-d edge features).
+Flatten sequential PyG graphs into Option B tabular rows (21-d edge features).
 
 Invariant: emit rows only when task_idx == seq_step (one decision time per graph).
 """

@@ -17,6 +17,51 @@ from datetime import datetime
 
 from src.utils.distributions import sample_bounded_int, sample_replica_count
 
+SKEW_TOPOLOGY_TYPES = frozenset({"degree_skewed_core"})
+
+
+def apply_degree_skew_core_server_device_types(nodes: List[Dict], config: Dict[str, Any]) -> None:
+    """Force first k_core server nodes to xavier for faster exec on hub platforms."""
+    topology_config = config.get("network", {}).get("topology", {})
+    if topology_config.get("type") not in SKEW_TOPOLOGY_TYPES:
+        return
+
+    k_core = int(topology_config.get("k_core", 4))
+    if "xavier" not in config.get("pci", {}):
+        raise ValueError("degree_skewed_core requires xavier in pci config")
+
+    xavier_specs = config["pci"]["xavier"]["specs"]
+    servers = [n for n in nodes if not n["node_name"].startswith("client_node")]
+    for server in servers[:k_core]:
+        node_name = server["node_name"]
+        server.clear()
+        server.update(xavier_specs.copy())
+        server["node_name"] = node_name
+        server["type"] = "xavier"
+
+
+def _minimal_skew_connectivity_repair(
+    network_maps: Dict[str, Dict[str, float]],
+    clients: List[Dict],
+    servers: List[Dict],
+    latency_s: float,
+    *,
+    k_core: int,
+) -> None:
+    """Connect isolated clients to one core server only — preserves degree skew."""
+    core_servers = {s["node_name"] for s in servers[:k_core]}
+    if not core_servers:
+        return
+
+    for client in clients:
+        client_name = client["node_name"]
+        if network_maps[client_name]:
+            continue
+        core_name = next(iter(core_servers))
+        network_maps[client_name][core_name] = latency_s
+        network_maps[core_name][client_name] = latency_s
+        print(f"[infra-gen] Skew minimal repair: {client_name} -> {core_name}")
+
 
 def generate_network_topology_deterministic(
     nodes: List[Dict],
@@ -62,7 +107,39 @@ def generate_network_topology_deterministic(
         else:
             return base_latency
     
-    if topology_type == 'custom' and custom_edges:
+    if topology_type == 'degree_skewed_core':
+        k_core = int(topology_config.get('k_core', 4))
+        hub_frac = float(topology_config.get('hub_seeker_fraction', 0.40))
+        p_core = float(topology_config.get('p_core', 0.95))
+        p_periphery = float(topology_config.get('p_periphery', 0.15))
+        lat_core = float(topology_config.get('latency_core_ms', 5.0)) / 1000.0
+        lat_periphery = float(
+            topology_config.get('latency_periphery_ms', topology_config.get('latency_core_ms', 5.0))
+        ) / 1000.0
+
+        core_servers = {s['node_name'] for s in servers[:k_core]}
+
+        for client in clients:
+            c_name = client['node_name']
+            is_hub_seeker = rng.random() < hub_frac
+            for server in servers:
+                s_name = server['node_name']
+                in_core = s_name in core_servers
+                if is_hub_seeker and in_core:
+                    p_conn, latency = p_core, lat_core
+                elif not is_hub_seeker and not in_core:
+                    p_conn, latency = p_periphery, lat_periphery
+                elif is_hub_seeker and not in_core:
+                    p_conn, latency = p_periphery * 0.5, lat_periphery
+                else:
+                    p_conn, latency = p_core * 0.3, lat_core
+                if rng.random() < p_conn:
+                    network_maps[c_name][s_name] = latency
+                    network_maps[s_name][c_name] = latency
+
+        _minimal_skew_connectivity_repair(network_maps, clients, servers, lat_core, k_core=k_core)
+
+    elif topology_type == 'custom' and custom_edges:
         # Use custom topology edges
         for edge in custom_edges:
             if len(edge) == 2:
@@ -90,33 +167,34 @@ def generate_network_topology_deterministic(
                     network_maps[client_name][server_name] = latency
                     network_maps[server_name][client_name] = latency
     
-    # Ensure minimum connectivity
-    for node_name, connections in network_maps.items():
-        if len(connections) == 0:
-            if node_name.startswith('client_node'):
-                available_servers = [s for s in servers if s['node_name'] not in connections]
-                if available_servers:
-                    server = rng.choice(available_servers)
-                    server_name = server['node_name']
-                    server_type = server['type']
-                    client_type = next(n['type'] for n in clients if n['node_name'] == node_name)
-                    latency = generate_latency(client_type, server_type)
-                    network_maps[node_name][server_name] = latency
-                    network_maps[server_name][node_name] = latency
-            else:
-                available_clients = [c for c in clients if c['node_name'] not in connections]
-                if available_clients:
-                    client = rng.choice(available_clients)
-                    client_name = client['node_name']
-                    client_type = client['type']
-                    server_type = next(n['type'] for n in servers if n['node_name'] == node_name)
-                    latency = generate_latency(client_type, server_type)
-                    network_maps[node_name][client_name] = latency
-                    network_maps[client_name][node_name] = latency
+    if topology_type not in SKEW_TOPOLOGY_TYPES:
+        # Ensure minimum connectivity
+        for node_name, connections in network_maps.items():
+            if len(connections) == 0:
+                if node_name.startswith('client_node'):
+                    available_servers = [s for s in servers if s['node_name'] not in connections]
+                    if available_servers:
+                        server = rng.choice(available_servers)
+                        server_name = server['node_name']
+                        server_type = server['type']
+                        client_type = next(n['type'] for n in clients if n['node_name'] == node_name)
+                        latency = generate_latency(client_type, server_type)
+                        network_maps[node_name][server_name] = latency
+                        network_maps[server_name][node_name] = latency
+                else:
+                    available_clients = [c for c in clients if c['node_name'] not in connections]
+                    if available_clients:
+                        client = rng.choice(available_clients)
+                        client_name = client['node_name']
+                        client_type = client['type']
+                        server_type = next(n['type'] for n in servers if n['node_name'] == node_name)
+                        latency = generate_latency(client_type, server_type)
+                        network_maps[node_name][client_name] = latency
+                        network_maps[client_name][node_name] = latency
     
     # Ensure platform-compatibility-aware connectivity for task types (dnn1 and dnn2)
     # Check each client node to ensure it can execute tasks (either locally or remotely)
-    if task_types_data:
+    if task_types_data and topology_type not in SKEW_TOPOLOGY_TYPES:
         # Check both dnn1 and dnn2
         for task_type_name in ['dnn1', 'dnn2']:
             if task_type_name not in task_types_data:
@@ -422,6 +500,8 @@ def generate_deterministic_infrastructure(
         node_config['node_name'] = f"node{i}"
         node_config['type'] = device_type
         nodes.append(node_config)
+
+    apply_degree_skew_core_server_device_types(nodes, config)
     
     # Load task-types.json for platform compatibility checks
     task_types_path = sim_input_path / "task-types.json"
@@ -440,17 +520,25 @@ def generate_deterministic_infrastructure(
         nodes, config, sim_inputs, rng
     )
     
+    topology_type = config.get('network', {}).get('topology', {}).get('type', 'sparse')
+
     # 2b. Ensure network connectivity to replica servers
     # After placing replicas, ensure every client can reach MULTIPLE servers
     # that have replicas for each task type (for uniqueness constraint)
-    print("[infra-gen] Ensuring replica reachability...")
+    if topology_type not in SKEW_TOPOLOGY_TYPES:
+        print("[infra-gen] Ensuring replica reachability...")
     clients = [n for n in nodes if n['node_name'].startswith('client_node')]
     servers = [n for n in nodes if not n['node_name'].startswith('client_node')]
     
     # Minimum number of replica servers each client should reach per task type
     MIN_REPLICA_SERVERS = 2
     
+    if topology_type in SKEW_TOPOLOGY_TYPES:
+        print("[infra-gen] Skipping replica reachability repair (degree_skewed_core)")
+    
     for task_type_name, placements in replica_placements.items():
+        if topology_type in SKEW_TOPOLOGY_TYPES:
+            continue
         # Get servers that have replicas for this task type
         replica_servers = set(p['node_name'] for p in placements if not p['node_name'].startswith('client_'))
         

@@ -34,6 +34,12 @@ from typing import Any, Dict, List, Mapping, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_NOTEBOOKS_ROOT = Path(__file__).resolve().parent
+for _p in (_PROJECT_ROOT, _NOTEBOOKS_ROOT):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
 import pandas as pd
 import numpy as np
 import torch
@@ -227,7 +233,7 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "6.5-seq-tabular"  # 14-dim platform + platform_pos in queue_key_to_platform_meta
+CACHE_VERSION = "7.1-atomic21"  # 21-d atomic Option B: 2 task + 14 platform + 5 edge
 # - RTT combos loaded from chunked hash table at train time (rtt_chunk_*.pkl)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
@@ -981,22 +987,15 @@ def build_graph(
     plat_node_by_pos = df_platforms['node_name'].to_numpy()
     plat_ids_arr = df_platforms['platform_id'].to_numpy()
     
-    # TASK FEATURES (3 dims: 2 type + 1 source)
-    # Note: QoS features removed since co-simulation doesn't capture QoS violations as ground truth
+    # TASK FEATURES (2 dims: task type onehot only — no src_norm)
     task_types_vocab = np.array(['dnn1', 'dnn2'])
     task_type_arr = df_tasks['task_type'].to_numpy()
-    task_onehot = (task_type_arr[:, None] == task_types_vocab[None, :]).astype(float)
-    
     src_names = df_tasks['source_node'].to_numpy()
-    src_idx = np.fromiter((first_idx_per_name.get(n, 0) for n in src_names),
-                          dtype=np.float64, count=n_tasks)
-    src_norm = (src_idx / max(len(df_nodes), 1)).reshape(-1, 1)
-    
-    task_features = np.concatenate([task_onehot, src_norm], axis=1)
+    task_features = (task_type_arr[:, None] == task_types_vocab[None, :]).astype(float)
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
-    # PLATFORM FEATURES (14 dims: 5 type + 2 replica + 1 queue + 1 shared-fate + 3 temporal + 2 consolidation)
+    # PLATFORM FEATURES (14 dims: 5 type + 2 replica + raw queue + is_cold + 3 temporal + raw tc + reserved)
     platform_types_vocab = np.array(['rpiCpu','xavierCpu','xavierGpu','xavierDla','pynqFpga'])
     plat_type_arr = df_platforms['platform_type'].to_numpy()
     plat_onehot = (plat_type_arr[:, None] == platform_types_vocab[None, :]).astype(float)
@@ -1007,7 +1006,7 @@ def build_graph(
     has_dnn1 = has_dnn1_arr.astype(float).reshape(-1, 1)
     has_dnn2 = has_dnn2_arr.astype(float).reshape(-1, 1)
     
-    # QUEUE LENGTH FEATURE (normalized by QUEUE_NORM_FACTOR)
+    # QUEUE LENGTH FEATURE (raw count — no normalization)
     queue_lengths = np.zeros(n_platforms, dtype=np.float64)
     if queue_snapshot:
         for pos in range(n_platforms):
@@ -1015,33 +1014,8 @@ def build_graph(
             plat_id = int(plat_ids_arr[pos])
             key = f"{node_name}:{plat_id}"
             queue_lengths[pos] = float(_queue_length_int(queue_snapshot.get(key, 0)))
-    
-    # Normalize queue lengths with scheduler-aligned adaptive mode or fixed mode.
-    if queue_norm_mode == "scheduler_adaptive":
-        active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths)
-    else:
-        active_queue_norm = _safe_positive(float(queue_norm_factor))
-    queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)
+    queue_lengths_raw = queue_lengths.reshape(-1, 1)
 
-    node_cold_replicas_arr = np.zeros(n_platforms, dtype=np.float64)
-    if initialized_snapshot:
-        node_platform_positions: Dict[str, List[int]] = {}
-        for pos in range(n_platforms):
-            name = str(plat_node_by_pos[pos])
-            node_platform_positions.setdefault(name, []).append(pos)
-
-        for pos in range(n_platforms):
-            node_name = str(plat_node_by_pos[pos])
-            co_located_positions = node_platform_positions.get(node_name, [pos])
-            cold_count = sum(
-                1 for p_pos in co_located_positions
-                if not initialized_snapshot.get(
-                    f"{node_name}:{int(plat_ids_arr[p_pos])}", True
-                )
-            )
-            node_cold_replicas_arr[pos] = cold_count / max(len(co_located_positions), 1)
-    node_cold_replicas_norm = node_cold_replicas_arr.reshape(-1, 1)
-    
     # TEMPORAL STATE FEATURES (current task remaining times)
     # Since we don't have exact temporal state, we approximate:
     # - If queue > 0: platform is busy, estimate remaining time
@@ -1086,12 +1060,21 @@ def build_graph(
     current_task_remaining_norm = (current_task_remaining / 10.0).reshape(-1, 1)
     cold_start_remaining_norm = (cold_start_remaining / 10.0).reshape(-1, 1)
     comm_remaining_norm = (comm_remaining / 10.0).reshape(-1, 1)
+
+    is_cold_arr = np.zeros(n_platforms, dtype=np.float64)
+    if initialized_snapshot:
+        for pos in range(n_platforms):
+            node_name = str(plat_node_by_pos[pos])
+            plat_id = int(plat_ids_arr[pos])
+            key = f"{node_name}:{plat_id}"
+            is_cold_arr[pos] = 0.0 if initialized_snapshot.get(key, True) else 1.0
+    else:
+        for pos in range(n_platforms):
+            is_cold_arr[pos] = 1.0 if cold_start_remaining[pos] > 0.0 else 0.0
+    is_cold_norm = is_cold_arr.reshape(-1, 1)
     
-    # CONSOLIDATION METRICS (target concurrency and usage ratio)
-    # Calculate target concurrency per platform (similar to HRC logic)
-    # Baseline: fastest platform for each task type
+    # Target concurrency (raw — dim 12); dim 13 reserved (0.0, no usage ratio)
     target_concurrencies = np.zeros(n_platforms, dtype=np.float64)
-    usage_ratios = np.zeros(n_platforms, dtype=np.float64)
     
     # For each platform, calculate target concurrency based on task types it supports
     for pos in range(n_platforms):
@@ -1138,25 +1121,17 @@ def build_graph(
         else:
             target_concurrencies[pos] = baseline_concurrency
         
-        # Usage ratio: queue_length / target_concurrency
-        tc = float(target_concurrencies[pos])
-        if math.isfinite(tc) and tc > 0:
-            usage_ratios[pos] = queue_lengths[pos] / tc
-        else:
-            usage_ratios[pos] = 0.0
-    
-    # Normalize consolidation metrics
-    target_concurrency_norm = (target_concurrencies / _safe_positive(20.0)).reshape(-1, 1)
-    usage_ratio_norm = (usage_ratios / _safe_positive(5.0)).reshape(-1, 1)
-    
+    target_concurrency_raw = target_concurrencies.reshape(-1, 1)
+    reserved_dim = np.zeros((n_platforms, 1), dtype=np.float64)
+
     # Concatenate all platform features
     platform_features = np.concatenate([
         plat_onehot,  # 5 dims
         has_dnn1, has_dnn2,  # 2 dims
-        queue_lengths_norm,  # 1 dim
-        node_cold_replicas_norm,  # 1 dim shared-fate signal
+        queue_lengths_raw,  # 1 dim raw queue
+        is_cold_norm,  # 1 dim per-platform cold flag
         current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm,  # 3 dims
-        target_concurrency_norm, usage_ratio_norm  # 2 dims
+        target_concurrency_raw, reserved_dim  # raw tc + reserved placeholder
     ], axis=1)
     _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
@@ -1858,6 +1833,11 @@ def main():
 
     metadata = {
         'version': CACHE_VERSION,
+        'cache_version': CACHE_VERSION,
+        'feature_dim': 21,
+        'task_feature_dim': 2,
+        'platform_feature_dim': 14,
+        'edge_feature_dim': 5,
         'sequential_counterfactual': True,
         'seq_dataset_id_sep': SEQ_DATASET_ID_SEP,
         'num_parent_datasets': len(all_datasets),

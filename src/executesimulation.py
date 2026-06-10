@@ -27,9 +27,14 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
+from src.generate_infrastructure import (
+    apply_degree_skew_core_server_device_types,
+    generate_network_topology_deterministic,
+)
 from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
+from src.policy.tabular.constants import PLATFORM_FEATURE_DIM, TASK_FEATURE_DIM
 
 REQUIRED_SIM_FILES = [
     'application-types.json',
@@ -76,164 +81,6 @@ def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
             sim_inputs[key] = json.load(f)
 
     return sim_inputs
-
-
-def generate_network_topology_deterministic(
-    nodes: List[Dict],
-    config: Dict[str, Any],
-    rng: random.Random,
-    task_types_data: Optional[Dict[str, Any]] = None
-) -> Dict[str, Dict[str, float]]:
-    """
-    Generate network topology deterministically using seeded RNG.
-    
-    Args:
-        nodes: List of node configurations
-        config: Configuration containing network latency and topology settings
-        rng: Seeded random number generator
-    
-    Returns:
-        Dictionary mapping node names to their network maps
-    """
-    network_config = config.get('network', {})
-    latency_config = network_config.get('latency', {})
-    topology_config = network_config.get('topology', {})
-    
-    device_latencies = latency_config.get('device_latencies', {})
-    base_latency = latency_config.get('base_latency', 0.1)
-    topology_type = topology_config.get('type', 'sparse')
-    connection_probability = topology_config.get('connection_probability', 0.85)
-    custom_edges = topology_config.get('edges', [])
-    
-    # Log network topology configuration
-    print(f"\n=== Network Topology Generation ===")
-    print(f"Topology type: {topology_type}")
-    print(f"Connection probability: {connection_probability} ({connection_probability*100:.1f}%)")
-    
-    # Separate clients and servers
-    clients = [node for node in nodes if node['node_name'].startswith('client_node')]
-    servers = [node for node in nodes if not node['node_name'].startswith('client_node')]
-    
-    print(f"Nodes: {len(clients)} clients, {len(servers)} servers")
-    print(f"Total possible client-server pairs: {len(clients) * len(servers)}")
-    
-    # Initialize network maps
-    network_maps = {node['node_name']: {} for node in nodes}
-    
-    def generate_latency(device_type1: str, device_type2: str) -> float:
-        """Generate latency between two device types."""
-        if device_type1 in device_latencies and device_type2 in device_latencies[device_type1]:
-            latency_config = device_latencies[device_type1][device_type2]
-            min_latency = latency_config.get('min', base_latency)
-            max_latency = latency_config.get('max', base_latency)
-            return rng.uniform(min_latency, max_latency)
-        else:
-            return base_latency
-    
-    if topology_type == 'custom' and custom_edges:
-        # Use custom topology edges
-        for edge in custom_edges:
-            if len(edge) == 2:
-                client_name, server_name = edge
-                
-                client_node = next((n for n in clients if n['node_name'] == client_name), None)
-                server_node = next((n for n in servers if n['node_name'] == server_name), None)
-                
-                if client_node and server_node:
-                    latency = generate_latency(client_node['type'], server_node['type'])
-                    network_maps[client_name][server_name] = latency
-                    network_maps[server_name][client_name] = latency
-    else:
-        # Generate connections based on connection probability
-        for client in clients:
-            client_name = client['node_name']
-            client_type = client['type']
-            
-            for server in servers:
-                server_name = server['node_name']
-                server_type = server['type']
-                
-                if rng.random() < connection_probability:
-                    latency = generate_latency(client_type, server_type)
-                    network_maps[client_name][server_name] = latency
-                    network_maps[server_name][client_name] = latency
-    
-    # Ensure minimum connectivity
-    for node_name, connections in network_maps.items():
-        if len(connections) == 0:
-            if node_name.startswith('client_node'):
-                available_servers = [s for s in servers if s['node_name'] not in connections]
-                if available_servers:
-                    server = rng.choice(available_servers)
-                    server_name = server['node_name']
-                    server_type = server['type']
-                    client_type = next(n['type'] for n in clients if n['node_name'] == node_name)
-                    latency = generate_latency(client_type, server_type)
-                    network_maps[node_name][server_name] = latency
-                    network_maps[server_name][node_name] = latency
-            else:
-                available_clients = [c for c in clients if c['node_name'] not in connections]
-                if available_clients:
-                    client = rng.choice(available_clients)
-                    client_name = client['node_name']
-                    client_type = client['type']
-                    server_type = next(n['type'] for n in servers if n['node_name'] == node_name)
-                    latency = generate_latency(client_type, server_type)
-                    network_maps[node_name][client_name] = latency
-                    network_maps[client_name][node_name] = latency
-    
-    # Ensure platform-compatibility-aware connectivity for task types (dnn1 and dnn2)
-    # Check each client node to ensure it can execute tasks (either locally or remotely)
-    if task_types_data:
-        # Check both dnn1 and dnn2
-        for task_type_name in ['dnn1', 'dnn2']:
-            if task_type_name not in task_types_data:
-                continue
-                
-            task_type = task_types_data[task_type_name]
-            compatible_platforms = set(task_type.get('platforms', []))
-            
-            for client in clients:
-                client_name = client['node_name']
-                client_platforms = set(client.get('platforms', []))
-                
-                # Check if client has compatible platforms locally
-                has_local_support = bool(client_platforms & compatible_platforms)
-                
-                # Check if client is already connected to a server with compatible platforms
-                has_remote_support = False
-                for server_name in network_maps[client_name].keys():
-                    server = next((s for s in servers if s['node_name'] == server_name), None)
-                    if server:
-                        server_platforms = set(server.get('platforms', []))
-                        if bool(server_platforms & compatible_platforms):
-                            has_remote_support = True
-                            break
-                
-                # If client lacks both local and remote support, add connection to a server with support
-                if not has_local_support and not has_remote_support:
-                    # Find servers with compatible platforms
-                    compatible_servers = [
-                        s for s in servers
-                        if bool(set(s.get('platforms', [])) & compatible_platforms)
-                        and s['node_name'] not in network_maps[client_name]
-                    ]
-                    
-                    if compatible_servers:
-                        # Connect to a random server with support
-                        server = rng.choice(compatible_servers)
-                        server_name = server['node_name']
-                        server_type = server['type']
-                        client_type = client['type']
-                        latency = generate_latency(client_type, server_type)
-                        network_maps[client_name][server_name] = latency
-                        network_maps[server_name][client_name] = latency
-                        logging.info(
-                            f"Added {task_type_name}-compatibility connection: {client_name} -> {server_name} "
-                            f"(client platforms: {client_platforms}, server platforms: {set(server.get('platforms', []))})"
-                        )
-    
-    return network_maps
 
 
 def prepare_infrastructure_for_real_simulation(
@@ -294,6 +141,8 @@ def prepare_infrastructure_for_real_simulation(
         node_config['type'] = device_type
         # network_map will be assigned after topology generation
         nodes.append(node_config)
+
+    apply_degree_skew_core_server_device_types(nodes, space_config)
     
     # Load task-types.json for platform compatibility checks
     task_types_data = None
@@ -303,6 +152,17 @@ def prepare_infrastructure_for_real_simulation(
             with open(task_types_path, 'r') as f:
                 task_types_data = json.load(f)
     
+    topology_config = space_config.get('network', {}).get('topology', {})
+    topology_type = topology_config.get('type', 'sparse')
+    connection_probability = topology_config.get('connection_probability', 0.85)
+    clients = [n for n in nodes if n['node_name'].startswith('client_node')]
+    servers = [n for n in nodes if not n['node_name'].startswith('client_node')]
+    print(f"\n=== Network Topology Generation ===")
+    print(f"Topology type: {topology_type}")
+    if topology_type != 'degree_skewed_core':
+        print(f"Connection probability: {connection_probability} ({connection_probability*100:.1f}%)")
+    print(f"Nodes: {len(clients)} clients, {len(servers)} servers")
+
     # Generate network topology deterministically
     network_maps = generate_network_topology_deterministic(nodes, space_config, rng, task_types_data=task_types_data)
     
@@ -380,18 +240,38 @@ def load_gnn_model(model_path: Path):
     try:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"Loading GNN model from {model_path} on {device}...", flush=True)
-        
-        # Model architecture must match training
+
+        state_dict = torch.load(model_path, map_location='cpu')
+        task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
+        platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])
+        layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21").strip().lower()
+        if layout in ("dim22", "legacy", "22") or (task_feature_dim == 3 and layout not in ("atomic21", "21")):
+            os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
+            print(
+                f"Using legacy dim22 inference layout "
+                f"(task_dim={task_feature_dim}, platform_dim={platform_feature_dim})",
+                flush=True,
+            )
+        elif task_feature_dim != TASK_FEATURE_DIM or platform_feature_dim != PLATFORM_FEATURE_DIM:
+            if not (task_feature_dim == 3 and layout in ("atomic21", "21")):
+                raise ValueError(
+                    f"Checkpoint dims task={task_feature_dim} platform={platform_feature_dim} "
+                    f"do not match current constants "
+                    f"task={TASK_FEATURE_DIM} platform={PLATFORM_FEATURE_DIM}"
+                )
+            print(
+                f"Using atomic21 inference layout with task_dim={task_feature_dim} checkpoint "
+                f"(platform_dim={platform_feature_dim})",
+                flush=True,
+            )
+
         model = TaskPlacementGNN(
-            task_feature_dim=3,
-            platform_feature_dim=14,
+            task_feature_dim=task_feature_dim,
+            platform_feature_dim=platform_feature_dim,
             embedding_dim=64,
             hidden_dim=64,
-            num_layers=3
+            num_layers=3,
         )
-        
-        # Load state dict first, then move to device to avoid CUDA context issues
-        state_dict = torch.load(model_path, map_location='cpu')
         model.load_state_dict(state_dict)
         model = model.to(device)
         model.eval()
@@ -419,8 +299,8 @@ def load_gnn_hetero_model(model_path: Path):
         print(f"Loading hetero GNN model from {model_path} on {device}...", flush=True)
 
         model = TaskPlacementGNN(
-            task_feature_dim=3,
-            platform_feature_dim=14,
+            task_feature_dim=TASK_FEATURE_DIM,
+            platform_feature_dim=PLATFORM_FEATURE_DIM,
             embedding_dim=64,
             hidden_dim=64,
             num_layers=3,

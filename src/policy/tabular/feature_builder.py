@@ -1,11 +1,12 @@
 """
-Shared 22-d edge feature construction for tabular rankers and GNN inference.
+Shared 21-d edge feature construction for tabular rankers and GNN inference.
 
 Train/serve parity: same scaling as prepare_graphs_cache_seq.py / GNNScheduler.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TYPE_CHECKING
 
@@ -19,6 +20,10 @@ if TYPE_CHECKING:
     from src.placement.model import SystemState
 
 from src.policy.tabular.constants import FEATURE_DIM
+
+LEGACY_FEATURE_DIM = 22
+LEGACY_TASK_FEATURE_DIM = 3
+LEGACY_PLATFORM_FEATURE_DIM = 14
 
 TASK_PLATFORM_COMPATIBILITY = {
     "dnn1": ["rpiCpu", "xavierGpu", "xavierCpu", "pynqFpga"],
@@ -52,32 +57,46 @@ class InferenceFeatureBundle:
     task_logit_to_placement: Dict[int, List[Tuple[int, int]]]
     task_logit_to_queue_key: Dict[int, List[str]]
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    feature_dim: int = FEATURE_DIM
 
 
-def calculate_adaptive_queue_norm(
-    queue_snapshot: Mapping[str, int],
-    *,
-    norm_mode: str = "adaptive",
-) -> float:
-    """Match GNNScheduler._calculate_adaptive_queue_norm."""
-    if not queue_snapshot:
-        return 50.0
+def _inference_feature_layout(feature_layout: Optional[str] = None) -> str:
+    return (feature_layout or os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21")).strip().lower()
 
-    queue_values = sorted(int(v) for v in queue_snapshot.values())
+
+def _scheduler_adaptive_queue_norm(queue_values: Sequence[int], queue_norm_mode: str) -> float:
     if not queue_values:
         return 50.0
-
-    if norm_mode == "adaptive_nonzero":
-        non_zero = [v for v in queue_values if v > 0]
-        if not non_zero:
+    values = sorted(int(v) for v in queue_values)
+    mode = queue_norm_mode.strip().lower()
+    if mode in ("adaptive", "scheduler_adaptive"):
+        idx = int(len(values) * 0.9)
+        p90 = values[min(idx, len(values) - 1)]
+        return float(min(max(1.0, p90), 100.0))
+    if mode == "adaptive_nonzero":
+        nonzero = [v for v in values if v > 0]
+        if not nonzero:
             return 1.0
-        idx = int(len(non_zero) * 0.9)
-        p90 = non_zero[min(idx, len(non_zero) - 1)]
-    else:
-        idx = int(len(queue_values) * 0.9)
-        p90 = queue_values[min(idx, len(queue_values) - 1)]
+        idx = int(len(nonzero) * 0.9)
+        p90 = nonzero[min(idx, len(nonzero) - 1)]
+        return float(min(max(1.0, p90), 100.0))
+    return 50.0
 
-    return float(min(max(1.0, p90), 100.0))
+
+def _shared_fate_by_position(platforms_info: Sequence[PlatformInfo]) -> List[float]:
+    node_positions: Dict[str, List[int]] = {}
+    for info in platforms_info:
+        node_positions.setdefault(str(info.node_name), []).append(int(info.position))
+    shared_fate = [0.0] * len(platforms_info)
+    for info in platforms_info:
+        co_located = node_positions.get(str(info.node_name), [info.position])
+        cold_count = sum(
+            1
+            for pos in co_located
+            if not platforms_info[pos].platform.initialized.triggered
+        )
+        shared_fate[info.position] = cold_count / max(len(co_located), 1)
+    return shared_fate
 
 
 def _collect_platforms_info(nodes: Sequence[Any]) -> List[PlatformInfo]:
@@ -118,10 +137,6 @@ def _network_maps(nodes: Sequence[Any]) -> Dict[str, Any]:
     return network_maps
 
 
-def _node_name_to_id(nodes: Sequence[Any]) -> Dict[str, int]:
-    return {str(node.node_name): int(node.id) for node in nodes}
-
-
 def build_inference_feature_bundle(
     batch_tasks: Sequence["Task"],
     system_state: "SystemState",
@@ -131,12 +146,17 @@ def build_inference_feature_bundle(
     task_types_data: Optional[Mapping[str, Any]] = None,
     queue_norm_mode: str = "adaptive",
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
+    feature_layout: Optional[str] = None,
 ) -> Optional[InferenceFeatureBundle]:
     """
     Build tabular/GNN features from live or cached system state.
 
     Returns None when no feasible edges exist.
     """
+    layout = _inference_feature_layout(feature_layout)
+    use_dim22 = layout in ("dim22", "legacy", "22")
+    expected_feature_dim = LEGACY_FEATURE_DIM if use_dim22 else FEATURE_DIM
+
     if not batch_tasks:
         return None
 
@@ -144,33 +164,33 @@ def build_inference_feature_bundle(
     if not platforms_info:
         return None
 
-    graph_queue_snapshot = {
-        f"{info.node_name}:{info.platform_id}": int(
-            queue_snapshot.get(f"{info.node_name}:{info.platform_id}", 0)
-        )
-        for info in platforms_info
-    }
-    adaptive_queue_norm = calculate_adaptive_queue_norm(
-        graph_queue_snapshot, norm_mode=queue_norm_mode
-    )
     n_tasks = len(batch_tasks)
     n_platforms = len(platforms_info)
-    node_name_to_id = _node_name_to_id(nodes)
     dnn1_replicas, dnn2_replicas = _replica_id_sets(system_state)
     network_maps = _network_maps(nodes)
 
-    node_to_platform_objs: Dict[str, list] = {}
-    for info in platforms_info:
-        node_to_platform_objs.setdefault(info.node_name, []).append(info.platform)
+    node_name_to_idx = {str(node.node_name): idx for idx, node in enumerate(nodes)}
 
     task_features = []
     for task in batch_tasks:
         task_type = str(task.type["name"])
         onehot = [1.0 if task_type == t else 0.0 for t in TASK_TYPES_VOCAB]
-        src_node_idx = node_name_to_id.get(str(task.node_name), 0)
-        src_norm = src_node_idx / max(len(nodes), 1)
-        task_features.append(onehot + [src_norm])
+        if use_dim22:
+            src_idx = node_name_to_idx.get(str(task.node_name), 0)
+            src_norm = float(src_idx) / max(len(nodes), 1)
+            task_features.append(onehot + [src_norm])
+        else:
+            task_features.append(onehot)
     task_features_arr = np.asarray(task_features, dtype=np.float32)
+
+    raw_queue_by_pos: List[int] = []
+    for info in platforms_info:
+        queue_key = f"{info.node_name}:{info.platform_id}"
+        raw_queue_by_pos.append(int(queue_snapshot.get(queue_key, 0)))
+    queue_norm = (
+        _scheduler_adaptive_queue_norm(raw_queue_by_pos, queue_norm_mode) if use_dim22 else 1.0
+    )
+    shared_fate_by_pos = _shared_fate_by_position(platforms_info) if use_dim22 else None
 
     platform_features: List[List[float]] = []
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
@@ -181,11 +201,15 @@ def build_inference_feature_bundle(
         has_dnn2 = 1.0 if (info.node_id, info.platform_id) in dnn2_replicas else 0.0
         queue_key = f"{info.node_name}:{info.platform_id}"
         queue_len_raw = int(queue_snapshot.get(queue_key, 0))
-        queue_len = queue_len_raw / adaptive_queue_norm
+        if use_dim22:
+            queue_len = float(queue_len_raw) / float(queue_norm)
+        else:
+            queue_len = float(queue_len_raw)
 
-        co_located = node_to_platform_objs.get(info.node_name, [])
-        node_cold = sum(1 for p in co_located if not p.initialized.triggered)
-        shared_fate_signal = node_cold / max(len(co_located), 1)
+        is_cold = 0.0 if info.platform.initialized.triggered else 1.0
+        shared_fate = (
+            float(shared_fate_by_pos[info.position]) if shared_fate_by_pos is not None else 0.0
+        )
 
         temporal = (temporal_state or {}).get(queue_key, {})
         current_task_remaining = float(temporal.get("current_task_remaining", 0.0))
@@ -235,9 +259,15 @@ def build_inference_feature_bundle(
                 if exec_time_this > 0:
                     target_concurrency = max(1.0, avg_min_exec / exec_time_this * baseline_concurrency)
 
-        usage_ratio = (queue_len_raw / target_concurrency) if target_concurrency > 0 else 0.0
-        target_concurrency_norm = target_concurrency / 20.0
-        usage_ratio_norm = usage_ratio / 5.0
+        target_concurrency_raw = float(target_concurrency)
+        if use_dim22:
+            target_concurrency_feat = target_concurrency_raw / 20.0
+            usage_ratio_feat = (float(queue_len_raw) / target_concurrency_raw / 5.0) if target_concurrency_raw > 0 else 0.0
+            platform_state_dim = shared_fate
+        else:
+            target_concurrency_feat = target_concurrency_raw
+            usage_ratio_feat = 0.0
+            platform_state_dim = is_cold
 
         queue_key_to_platform_meta[queue_key] = {
             "platform_type": str(info.platform_type),
@@ -251,9 +281,9 @@ def build_inference_feature_bundle(
         platform_features.append(
             onehot
             + [has_dnn1, has_dnn2, queue_len]
-            + [shared_fate_signal]
+            + [platform_state_dim]
             + [current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm]
-            + [target_concurrency_norm, usage_ratio_norm]
+            + [target_concurrency_feat, usage_ratio_feat]
         )
 
     platform_features_arr = np.asarray(platform_features, dtype=np.float32)
@@ -351,6 +381,7 @@ def build_inference_feature_bundle(
         task_logit_to_placement=task_logit_to_placement,
         task_logit_to_queue_key=task_logit_to_queue_key,
         queue_key_to_platform_meta=queue_key_to_platform_meta,
+        feature_dim=expected_feature_dim,
     )
 
 
@@ -359,7 +390,7 @@ def edge_row_features(
     task_idx: int,
     logit_idx: int,
 ) -> np.ndarray:
-    """Concatenate 22-d Option B features for one candidate edge."""
+    """Concatenate 21-d Option B features for one candidate edge."""
     candidates = bundle.task_logit_to_placement.get(task_idx, [])
     if logit_idx >= len(candidates):
         raise IndexError(f"logit_idx={logit_idx} out of range for task {task_idx}")
@@ -378,8 +409,9 @@ def edge_row_features(
     x_plat = bundle.platform_features[plat_pos]
     x_edge = bundle.edge_attr_directed[global_edge_idx]
     feat = np.concatenate([x_task, x_plat, x_edge]).astype(np.float32)
-    if feat.shape[0] != FEATURE_DIM:
-        raise ValueError(f"Feature dim mismatch: {feat.shape[0]} != {FEATURE_DIM}")
+    expected_dim = int(getattr(bundle, "feature_dim", FEATURE_DIM))
+    if feat.shape[0] != expected_dim:
+        raise ValueError(f"Feature dim mismatch: {feat.shape[0]} != {expected_dim}")
     if not np.isfinite(feat).all():
         raise ValueError("Non-finite feature vector")
     return feat
@@ -442,6 +474,10 @@ def build_pyg_inference_graph(
         task_features=torch.tensor(bundle.task_features, dtype=torch.float32),
         platform_features=torch.tensor(bundle.platform_features, dtype=torch.float32),
     )
+    layout = _inference_feature_layout()
+    if layout in ("atomic21", "21") and data.task_features.shape[1] == 2:
+        pad = torch.zeros((data.task_features.shape[0], 1), dtype=torch.float32)
+        data.task_features = torch.cat([data.task_features, pad], dim=1)
     data.edge_attr = edge_attr
     data._task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.task_logit_to_queue_key = bundle.task_logit_to_queue_key
