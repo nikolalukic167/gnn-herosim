@@ -115,7 +115,7 @@ TASK_TYPE_RATIOS = [
 
 # Workload parameters (can be overridden via --num-tasks)
 NUM_TASKS = 4
-NUM_CLIENT_NODES = 10
+NUM_CLIENT_NODES = 20  # matches space_with_network.json client_nodes.count
 NUM_WORKLOAD_TEMPLATES = 10
 
 

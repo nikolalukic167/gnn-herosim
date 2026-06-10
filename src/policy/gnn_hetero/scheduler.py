@@ -45,25 +45,44 @@ TASK_PLATFORM_COMPATIBILITY = {
 # Queue normalization constant (same as training)
 QUEUE_NORM_FACTOR = 50.0
 
-# GNN model training range: 2-3 tasks
-# Use fallback (shortest queue) for batches outside this range
-MIN_BATCH_SIZE_FOR_GNN = 2  # Model trained on 2-3 tasks
-MAX_BATCH_SIZE_FOR_GNN = 4  # Model not trained on 4+ tasks
+# GNN model training range: 2-4 tasks (co-sim cache uses up to 4-task batches)
+MIN_BATCH_SIZE_FOR_GNN = 2
+MAX_BATCH_SIZE_FOR_GNN = 4
+
+
+def _read_gnn_batch_size() -> int:
+    raw = os.environ.get("GNN_BATCH_SIZE", "4")
+    try:
+        size = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"GNN_BATCH_SIZE must be an integer, got {raw!r}") from exc
+    if size < 1:
+        raise ValueError(f"GNN_BATCH_SIZE must be >= 1, got {size}")
+    if size > MAX_BATCH_SIZE_FOR_GNN:
+        raise ValueError(
+            f"GNN_BATCH_SIZE={size} exceeds MAX_BATCH_SIZE_FOR_GNN={MAX_BATCH_SIZE_FOR_GNN}; "
+            f"batches outside [{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}] use "
+            "shortest-queue fallback and corrupt GNN/MLP comparisons"
+        )
+    return size
+
+
+def _read_gnn_batch_timeout() -> float:
+    raw = os.environ.get("GNN_BATCH_TIMEOUT", "0.002")
+    try:
+        timeout = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"GNN_BATCH_TIMEOUT must be a float, got {raw!r}") from exc
+    if timeout <= 0:
+        raise ValueError(f"GNN_BATCH_TIMEOUT must be > 0, got {timeout}")
+    return timeout
 
 
 class GNNScheduler(Scheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Batch processing: model trained on 2-3 tasks
-        # Batches of 1 or 4+ will use shortest-queue fallback
-        self.batch_size = 4  # Max batch size (model trained on 2-3 tasks)
-        
-        # Timeout analysis (in simulation seconds):
-        # - 0.01s (10ms): Very responsive, may get single tasks
-        # - 0.05s (50ms): Good balance for batching 2-3 tasks
-        # - 0.1s (100ms): Better batching but adds latency
-        # Looking at task arrival patterns (~10-50ms apart), 50ms should collect 2-3 tasks
-        self.batch_timeout = 0.002  # 2ms to collect tasks for GNN batching
+        self.batch_size = _read_gnn_batch_size()
+        self.batch_timeout = _read_gnn_batch_timeout()
         
         # GNN model will be set via models dict from orchestrator
         self.gnn_model = None
