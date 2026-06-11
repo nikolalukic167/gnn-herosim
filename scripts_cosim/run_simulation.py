@@ -40,8 +40,8 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple
 
 
-# Constants
-BASE_DIR = Path("/root/projects/my-herosim")
+# Constants — repo root (works on datalab and local dev)
+BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_FILE = BASE_DIR / "simulation_data/space_with_network.json"
 WORKLOAD_FILE = BASE_DIR / "data/nofs-ids/traces/workload-100-100.json"
 OUTPUT_DIR = BASE_DIR / "simulation_data/results"

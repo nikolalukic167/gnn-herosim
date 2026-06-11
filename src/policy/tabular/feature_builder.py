@@ -25,6 +25,14 @@ LEGACY_FEATURE_DIM = 22
 LEGACY_TASK_FEATURE_DIM = 3
 LEGACY_PLATFORM_FEATURE_DIM = 14
 
+# CE-reduced ablation (train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
+CE_REDUCED_TASK_FEATURE_DIM = 3
+CE_REDUCED_PLATFORM_FEATURE_DIM = 6
+CE_REDUCED_EDGE_FEATURE_DIM = 2
+CE_REDUCED_PLATFORM_INDICES = [0, 1, 2, 3, 4, 7]
+CE_REDUCED_EDGE_INDICES = [0, 1]
+CE_REDUCED_PLATFORM_QUEUE_DIM = 5
+
 TASK_PLATFORM_COMPATIBILITY = {
     "dnn1": ["rpiCpu", "xavierGpu", "xavierCpu", "pynqFpga"],
     "dnn2": ["rpiCpu", "xavierGpu", "xavierCpu"],
@@ -154,7 +162,7 @@ def build_inference_feature_bundle(
     Returns None when no feasible edges exist.
     """
     layout = _inference_feature_layout(feature_layout)
-    use_dim22 = layout in ("dim22", "legacy", "22")
+    use_dim22 = layout in ("dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060")
     expected_feature_dim = LEGACY_FEATURE_DIM if use_dim22 else FEATURE_DIM
 
     if not batch_tasks:
@@ -478,6 +486,12 @@ def build_pyg_inference_graph(
     if layout in ("atomic21", "21") and data.task_features.shape[1] == 2:
         pad = torch.zeros((data.task_features.shape[0], 1), dtype=torch.float32)
         data.task_features = torch.cat([data.task_features, pad], dim=1)
+    if layout in ("ce_reduced", "reduced_ce", "reduced1060"):
+        data.task_features = data.task_features[:, :CE_REDUCED_TASK_FEATURE_DIM]
+        data.platform_features = data.platform_features[:, CE_REDUCED_PLATFORM_INDICES]
+        if edge_attr.numel() > 0:
+            directed = edge_attr[: edge_attr.shape[0] // 2][:, CE_REDUCED_EDGE_INDICES]
+            edge_attr = torch.cat([directed, directed.clone()], dim=0)
     data.edge_attr = edge_attr
     data._task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.task_logit_to_queue_key = bundle.task_logit_to_queue_key

@@ -1001,6 +1001,18 @@ PLACEMENT_TO_LOGIT_MAP, EXACT_RTT_MAP, RTT_BY_DATASET = load_or_build_valid_comb
 WORST_REGRET_BY_DATASET = build_worst_regret_by_dataset(RTT_BY_DATASET)
 
 print(f"Loaded {len(graphs)} graphs")
+_task_feature_dim = int(graphs[0].task_features.size(-1))
+_platform_feature_dim = int(graphs[0].platform_features.size(-1))
+if _task_feature_dim != TASK_FEATURE_DIM:
+    print(
+        f"Using cache task_feature_dim={_task_feature_dim} "
+        f"(constants TASK_FEATURE_DIM={TASK_FEATURE_DIM})"
+    )
+if _platform_feature_dim != PLATFORM_FEATURE_DIM:
+    print(
+        f"Using cache platform_feature_dim={_platform_feature_dim} "
+        f"(constants PLATFORM_FEATURE_DIM={PLATFORM_FEATURE_DIM})"
+    )
 print(f"Exact RTT datasets: {len(EXACT_RTT_MAP)}, combos: {sum(len(v) for v in EXACT_RTT_MAP.values()):,}")
 
 ys = np.concatenate([g.y.numpy() for g in graphs])
@@ -1067,6 +1079,8 @@ wandb.init(
         "trash_weight": float(NEAR_CFG.trash_weight),
         "trash_delta": float(NEAR_CFG.trash_delta),
         "num_datasets": int(len(graphs)),
+        "task_feature_dim": int(_task_feature_dim),
+        "platform_feature_dim": int(_platform_feature_dim),
         "num_train": int(len(train_graphs)),
         "num_val": int(len(val_graphs)),
         "num_test": int(len(test_graphs)),
@@ -1085,8 +1099,8 @@ wandb.init(
 )
 
 model = TaskPlacementGNN(
-    task_feature_dim=TASK_FEATURE_DIM,
-    platform_feature_dim=PLATFORM_FEATURE_DIM,
+    task_feature_dim=_task_feature_dim,
+    platform_feature_dim=_platform_feature_dim,
     embedding_dim=EMBEDDING_DIM,
     hidden_dim=HIDDEN_DIM,
     num_layers=NUM_GIN_LAYERS,

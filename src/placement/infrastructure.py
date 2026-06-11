@@ -22,6 +22,8 @@ import os
 
 from typing import Callable, Dict, List, Tuple, Optional, TypedDict, Any
 
+from src.placement.warmth import NODE_DISK_V2, sandbox_is_warm
+
 # Set GNN_CAPTURE_DATASET_STATE=1 when generating GNN training datasets (co-sim).
 DATASET_STATE_CAPTURE = os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1"
 
@@ -714,12 +716,8 @@ class Platform:
         
         Returns dict with: execution, cold_start, comm, network
         """
-        # Check if warm (same task type as previous)
-        warm_function = (
-            self.previous_task is not None
-            and self.previous_task.type["name"] == task.type["name"]
-        )
-        
+        warm_function = sandbox_is_warm(self, task)
+
         # Cold start duration
         cold_start = (
             task.type["coldStartDuration"][self.type["shortName"]]
@@ -912,12 +910,11 @@ class Platform:
                         else None
                     )
                     for warmup_task in self._warmup_tasks:
-                        # Check if warm (same type as previous)
                         warm_function = (
                             previous_task_type is not None
                             and previous_task_type == warmup_task.type["name"]
                         )
-                        
+
                         # Calculate time for this task
                         task_time = self._calculate_single_warmup_time(warmup_task)
                         
@@ -1018,11 +1015,7 @@ class Platform:
             # Update platform cache
             self.current_task = task
 
-            # Check node RAM cache
-            warm_function: bool = (
-                self.previous_task is not None
-                and self.previous_task.type["name"] == task.type["name"]
-            )
+            warm_function = sandbox_is_warm(self, task)
 
             # Cold start penalty is not incurred if task sandbox was in cache
             initialization_duration = (

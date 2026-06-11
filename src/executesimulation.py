@@ -244,8 +244,27 @@ def load_gnn_model(model_path: Path):
         state_dict = torch.load(model_path, map_location='cpu')
         task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
         platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])
+        embedding_dim = 64
+        edge_fc1_in = int(state_dict["edge_scorer.fc1.weight"].shape[1])
+        edge_dim = edge_fc1_in - 2 * embedding_dim
+        if edge_dim < 0:
+            raise ValueError(
+                f"Cannot infer edge_dim from edge_scorer.fc1 in_dim={edge_fc1_in}"
+            )
+
         layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21").strip().lower()
-        if layout in ("dim22", "legacy", "22") or (task_feature_dim == 3 and layout not in ("atomic21", "21")):
+        if task_feature_dim == 3 and platform_feature_dim == 6:
+            os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
+            print(
+                f"Using ce_reduced inference layout "
+                f"(task_dim={task_feature_dim}, platform_dim={platform_feature_dim}, edge_dim={edge_dim})",
+                flush=True,
+            )
+        elif layout in ("dim22", "legacy", "22") or (
+            task_feature_dim == 3
+            and platform_feature_dim == 14
+            and layout not in ("atomic21", "21", "ce_reduced")
+        ):
             os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
             print(
                 f"Using legacy dim22 inference layout "
@@ -268,9 +287,10 @@ def load_gnn_model(model_path: Path):
         model = TaskPlacementGNN(
             task_feature_dim=task_feature_dim,
             platform_feature_dim=platform_feature_dim,
-            embedding_dim=64,
+            embedding_dim=embedding_dim,
             hidden_dim=64,
             num_layers=3,
+            edge_dim=edge_dim,
         )
         model.load_state_dict(state_dict)
         model = model.to(device)

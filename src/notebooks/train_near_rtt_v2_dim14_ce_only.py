@@ -24,19 +24,22 @@ def main() -> None:
     os.environ.setdefault("NEAR_RTT_TRASH_WEIGHT", "1.0")
     os.environ.setdefault("NEAR_RTT_FAR_WEIGHT", "0.75")
     os.environ.setdefault("NEAR_RTT_UNMAPPED_PENALTY", "8.0")
-    os.environ.setdefault("WANDB_RUN_NAME", "near-rtt-v2-dim14-ce-only")
+    os.environ.setdefault("WANDB_RUN_NAME", "near-rtt-v2-warmth-dim14-ce-only")
     os.environ.setdefault(
         "WANDB_TAGS",
-        "near-rtt,loss-v2,ce-only,dim14,initialized-snapshot,is-warm-fix,1060",
+        "near-rtt,loss-v2,ce-only,dim14,warmth-v2,node-disk-v2,co-sim-regen",
     )
 
     _REPO_ROOT = Path(__file__).resolve().parents[2]
-    _CACHE_DIR = (
-        _REPO_ROOT
-        / "simulation_data"
-        / "artifacts"
-        / "run_queue_big"
-        / "graphs_cache_gnn_datasets_4tasks_1060"
+    _CACHE_DIR = Path(
+        os.environ.get(
+            "NEAR_RTT_CACHE_DIR",
+            str(
+                _REPO_ROOT
+                / "simulation_data"
+                / "graphs_cache_gnn_datasets_4tasks_1060_warmth_v2"
+            ),
+        )
     )
 
     trainer_path = Path(__file__).with_name("train_near_rtt.py")
@@ -51,7 +54,7 @@ def main() -> None:
         "--epochs",
         "100",
         "--wandb-project",
-        "gnn-near-rtt-jun2026",
+        "gnn-near-rtt-warmth-v2-jun2026",
     ]
     sys.argv = argv
     runpy.run_path(str(trainer_path), run_name="__main__")

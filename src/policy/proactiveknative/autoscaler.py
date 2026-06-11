@@ -44,6 +44,12 @@ from src.placement.model import (
 )
 
 from src.placement.autoscaler import Autoscaler
+from src.placement.warmth import (
+    PLATFORM_REUSE_V1,
+    image_pull_disk_hit,
+    needs_image_pull,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -224,52 +230,40 @@ class ProactiveKnativeAutoscaler(Autoscaler):
         platform: Platform = new_replica[1]
 
         # Check node RAM cache
-        warm_function: bool = (
-                platform.previous_task is not None
-                and platform.previous_task.type["name"] == task_type["name"]
-        )
-
-        # Initialize image retrieval duration
+        physics = getattr(self.env, "warmth_physics", PLATFORM_REUSE_V1)
         retrieval_duration: DurationSecond = 0.0
 
-        # TODO: Retrieve image if function not in RAM cache nor in disk cache
-        # FIXME: Should be factored in superclass
-        if not warm_function:
-            logging.info(
-                f"[ {self.env.now} ] 💾 {node} needs to pull image for {task_type}"
-            )
-
-            # Update image retrieval duration
-            retrieval_size: SizeGigabyte = task_type["imageSize"][
-                platform.type["shortName"]
-            ]
-            # Depends on storage performance
-            # FIXME: What's the policy for storage selection?
+        # warmth: skip entire pull branch when needs_image_pull is False
+        if needs_image_pull(physics, platform, node, task_type):
             node_storage = yield node.storage.get(
                 lambda storage: not storage.type["remote"]
             )
-            # Depends on network link speed
-            retrieval_speed: SpeedMBps = min(
-                node_storage.type["throughput"]["write"], node.network["bandwidth"]
-            )
-            retrieval_duration += (
-                    retrieval_size / (retrieval_speed / 1024)
-                    + node_storage.type["latency"]["write"]
-            )
-
-            # print(f"retrieval size = {retrieval_size}")
-            # print(f"retrieval speed = {retrieval_speed}")
-
-            # TODO: Update disk usage
-            stored = node_storage.store_function(platform.type["shortName"], task_type)
-
-            if not stored:
-                logging.error(
-                    f"[ {self.env.now} ] 💾 {node_storage} has no available capacity to"
-                    f" cache image for {self}"
+            if needs_image_pull(
+                physics, platform, node, task_type, active_storage=node_storage
+            ):
+                logging.info(
+                    f"[ {self.env.now} ] 💾 {node} needs to pull image for {task_type}"
                 )
 
-            # Release storage
+                retrieval_size: SizeGigabyte = task_type["imageSize"][
+                    platform.type["shortName"]
+                ]
+                retrieval_speed: SpeedMBps = min(
+                    node_storage.type["throughput"]["write"], node.network["bandwidth"]
+                )
+                retrieval_duration += (
+                    retrieval_size / (retrieval_speed / 1024)
+                    + node_storage.type["latency"]["write"]
+                )
+
+                stored = node_storage.store_function(platform.type["shortName"], task_type)
+
+                if not stored:
+                    logging.error(
+                        f"[ {self.env.now} ] 💾 {node_storage} has no available capacity to"
+                        f" cache image for {self}"
+                    )
+
             yield node.storage.put(node_storage)
 
         # print(f"retrieval duration = {retrieval_duration}")
@@ -309,7 +303,7 @@ class ProactiveKnativeAutoscaler(Autoscaler):
             pass
 
         # Statistics (Node)
-        node.cache_hits += 0
+        node.cache_hits += int(image_pull_disk_hit(physics, platform, node, task_type))
 
     def remove_replica(
             self,

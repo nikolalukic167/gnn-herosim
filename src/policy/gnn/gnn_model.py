@@ -76,6 +76,7 @@ class TaskPlacementGNN(nn.Module):
         embedding_dim: int = 64,
         hidden_dim: int = 128,
         num_layers: int = 3,
+        edge_dim: int = 5,
     ) -> None:
         super().__init__()
         
@@ -90,7 +91,7 @@ class TaskPlacementGNN(nn.Module):
             out_channels=embedding_dim
         )
         self.post_gin_dropout = nn.Dropout(p=0.2)
-        self.edge_scorer = EdgeScorer(embedding_dim, hidden_dim, edge_dim=5)
+        self.edge_scorer = EdgeScorer(embedding_dim, hidden_dim, edge_dim=edge_dim)
 
     def forward(self, data: Data) -> List[Tensor]:
         n_tasks: int = int(data.n_tasks)
