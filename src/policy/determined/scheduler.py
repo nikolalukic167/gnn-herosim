@@ -41,6 +41,7 @@ class DeterminedScheduler(Scheduler):
         self._state_capture: Optional[StateCaptureHelper] = None
         # Scheduling-time system snapshot (batch start, before placements mutate queues)
         self._scheduling_state_capture: Optional[Dict[str, Any]] = None
+        self.defer_cold_replica_init = False
 
     def _debug(self, msg: str) -> None:
         if self.debug_enabled:
@@ -173,6 +174,20 @@ class DeterminedScheduler(Scheduler):
                 continue
 
             sched_node, sched_platform = placement_result
+
+            # Deferred cold replicas: start image pull when task is placed (concurrent across batch).
+            if (
+                self.defer_cold_replica_init
+                and not sched_platform.initialized.triggered
+            ):
+                self.env.process(
+                    self.autoscaler.initialize_replica(
+                        (sched_node, sched_platform),
+                        replicas[task.type["name"]],
+                        task.type,
+                        system_state,
+                    )
+                )
 
             # Set queue snapshot for this task (from the batch snapshot, filtered to valid replicas)
             task_replicas = replicas.get(task.type["name"], set())
@@ -345,9 +360,9 @@ class DeterminedScheduler(Scheduler):
                         f"is not in replicas for task type '{task.type['name']}'"
                     )
 
-                # Safety 2: platform must be initialized, otherwise the platform_process
-                # will block forever on `yield self.initialized`.
-                if not target_platform.initialized.triggered:
+                # Safety 2: platform must be initialized unless cold pulls are deferred
+                allow_deferred = bool(getattr(self, "defer_cold_replica_init", False))
+                if not target_platform.initialized.triggered and not allow_deferred:
                     print(
                         f"[ {self.env.now} ] ERROR: Forced placement for task {task.id} "
                         f"({task.type['name']}) targets platform {forced_platform_id} on "

@@ -334,101 +334,90 @@ class HRCAutoscaler(Autoscaler):
         node: Node = new_replica[0]
         platform: Platform = new_replica[1]
 
-        # Check node RAM cache
-        warm_function: bool = (
-            platform.previous_task is not None
-            and platform.previous_task.type["name"] == task_type["name"]
+        from src.placement.warmth import (
+            PLATFORM_REUSE_V1,
+            image_pull_disk_hit,
+            needs_image_pull,
         )
 
-        # TODO: Check if function image is cached on one of the node's storage devices
-        # cache_storage: Storage | None = None
-        cache_storage: bool = False
-        node_storage: Storage
-        for node_storage in node.storage.items:
-            if node_storage.has_function(platform.type["shortName"], task_type):
-                cache_storage = True
-                break
-
-        # Initialize image retrieval duration
+        physics = getattr(self.env, "warmth_physics", PLATFORM_REUSE_V1)
         retrieval_duration: DurationSecond = 0.0
 
-        # TODO: Retrieve image if function not in RAM cache nor in disk cache
-        # FIXME: Should be factored in superclass
-        if not warm_function and not cache_storage:
-            logging.info(
-                f"[ {self.env.now} ] 💾 {node} needs to pull image for {task_type}"
-            )
-
-            # Update image retrieval duration
-            retrieval_size: SizeGigabyte = task_type["imageSize"][
-                platform.type["shortName"]
-            ]
-            # Depends on storage performance
-            # FIXME: What's the policy for storage selection?
+        # warmth: skip entire pull branch when needs_image_pull is False
+        if needs_image_pull(physics, platform, node, task_type):
             node_storage = yield node.storage.get(
                 lambda storage: not storage.type["remote"]
             )
-            # Depends on network link speed
-            retrieval_speed: SpeedMBps = min(
-                node_storage.type["throughput"]["write"], node.network["bandwidth"]
-            )
-            retrieval_duration += (
-                retrieval_size / (retrieval_speed / 1024)
-                + node_storage.type["latency"]["write"]
-            )
-
-            # print(f"retrieval size = {retrieval_size}")
-            # print(f"retrieval speed = {retrieval_speed}")
-
-            # TODO: Update disk usage
-            stored = node_storage.store_function(platform.type["shortName"], task_type)
-
-            if not stored:
-                logging.error(
-                    f"[ {self.env.now} ] 💾 {node_storage} has no available capacity to"
-                    f" cache image for {self}"
+            if needs_image_pull(
+                physics, platform, node, task_type, active_storage=node_storage
+            ):
+                logging.info(
+                    f"[ {self.env.now} ] 💾 {node} needs to pull image for {task_type}"
                 )
 
-            # Proactively cache next functions
-            # FIXME: Compute once and keep in SystemState
-            applications_of_task: Set[str] = set()
-            for application_type_name in self.data.application_types:
-                for task_type_name in self.data.application_types[
-                    application_type_name
-                ]["dag"]:
-                    if task_type_name == task_type["name"]:
-                        applications_of_task.add(application_type_name)
+                retrieval_size: SizeGigabyte = task_type["imageSize"][
+                    platform.type["shortName"]
+                ]
+                # Depends on network link speed
+                retrieval_speed: SpeedMBps = min(
+                    node_storage.type["throughput"]["write"], node.network["bandwidth"]
+                )
+                retrieval_duration += (
+                    retrieval_size / (retrieval_speed / 1024)
+                    + node_storage.type["latency"]["write"]
+                )
 
-            # List applications that include considered task type
-            for application_name in applications_of_task:
-                application = self.data.application_types[application_name]
-                for function_name in application["dag"]:
-                    function = self.data.task_types[function_name]
+                # print(f"retrieval size = {retrieval_size}")
+                # print(f"retrieval speed = {retrieval_speed}")
 
-                    # Intersect task compatibility and node-available platforms
-                    prefetch_function_platforms = set(function["platforms"])
-                    prefetch_node_platforms = [
-                        node_platform.type["name"]
-                        for node_platform in node.platforms.items
-                    ]
-                    prefetch_platforms = prefetch_function_platforms.intersection(
-                        prefetch_node_platforms
+                # TODO: Update disk usage
+                stored = node_storage.store_function(platform.type["shortName"], task_type)
+
+                if not stored:
+                    logging.error(
+                        f"[ {self.env.now} ] 💾 {node_storage} has no available capacity to"
+                        f" cache image for {self}"
                     )
 
-                    # Prefetch images for the next functions in the application
-                    # FIXME: Retrieval time, timeout...
-                    for prefetch_platform in prefetch_platforms:
-                        stored = node_storage.store_function(
-                            prefetch_platform, function
+                # Proactively cache next functions
+                # FIXME: Compute once and keep in SystemState
+                applications_of_task: Set[str] = set()
+                for application_type_name in self.data.application_types:
+                    for task_type_name in self.data.application_types[
+                        application_type_name
+                    ]["dag"]:
+                        if task_type_name == task_type["name"]:
+                            applications_of_task.add(application_type_name)
+
+                # List applications that include considered task type
+                for application_name in applications_of_task:
+                    application = self.data.application_types[application_name]
+                    for function_name in application["dag"]:
+                        function = self.data.task_types[function_name]
+
+                        # Intersect task compatibility and node-available platforms
+                        prefetch_function_platforms = set(function["platforms"])
+                        prefetch_node_platforms = [
+                            node_platform.type["name"]
+                            for node_platform in node.platforms.items
+                        ]
+                        prefetch_platforms = prefetch_function_platforms.intersection(
+                            prefetch_node_platforms
                         )
 
-                        if not stored:
-                            logging.error(
-                                f"[ {self.env.now} ] 💾 {node_storage} has no available"
-                                f" capacity to cache image for {self}"
+                        # Prefetch images for the next functions in the application
+                        # FIXME: Retrieval time, timeout...
+                        for prefetch_platform in prefetch_platforms:
+                            stored = node_storage.store_function(
+                                prefetch_platform, function
                             )
 
-            # Release storage
+                            if not stored:
+                                logging.error(
+                                    f"[ {self.env.now} ] 💾 {node_storage} has no available"
+                                    f" capacity to cache image for {self}"
+                                )
+
             yield node.storage.put(node_storage)
 
         # print(f"retrieval duration = {retrieval_duration}")
@@ -473,7 +462,7 @@ class HRCAutoscaler(Autoscaler):
             pass
 
         # Statistics (Node)
-        node.cache_hits += cache_storage
+        node.cache_hits += int(image_pull_disk_hit(physics, platform, node, task_type))
 
     def remove_replica(
         self,

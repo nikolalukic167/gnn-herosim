@@ -214,6 +214,10 @@ def _init_worker(
     """
     global _worker_shared_data, QUIET_MODE
     QUIET_MODE = quiet
+    if os.environ.get("COSIM_SUPPRESS_SIM_PRINTS", "0") == "1":
+        sys.stdout = open(os.devnull, "w")
+        sys.stderr = open(os.devnull, "w")
+        logging.getLogger("simulation").setLevel(logging.ERROR)
     deterministic_infrastructure = load_deterministic_infrastructure_data(infra_config, infrastructure_file)
     base_sim_config = prepare_simulation_config(
         sample,
@@ -703,6 +707,8 @@ def prepare_simulation_config(
         # This is useful for testing and debugging to ensure immediate task execution.
         # TODO: Remove this for normal simulation runs where autoscaling should handle replica creation
         "preinitialize_platforms": True,
+        "defer_cold_replica_init": original_config.get("defer_cold_replica_init", True),
+        "warmth_physics": original_config.get("warmth_physics", "node_disk_v2"),
         # New configuration parameters
         "preinit": original_config.get('preinit', {}),
         "replicas": original_config.get('replicas', {}),
@@ -2048,6 +2054,7 @@ def execute_brute_force_optimized(
         fast_forward_threshold: int = 100,
         allow_non_unique_replicas: bool = False,
         mapping_override: Optional[Dict[int, str]] = None,
+        warmth_physics: Optional[str] = None,
 ) -> List[str]:
     """
     Optimized brute force placement optimization.
@@ -2118,7 +2125,9 @@ def execute_brute_force_optimized(
     # Add fast-forward warmup flag to infrastructure config (will be passed to workers)
     infra_config['fast_forward_warmup'] = fast_forward_warmup
     infra_config['fast_forward_threshold'] = fast_forward_threshold
-    
+    if warmth_physics is not None:
+        infra_config['warmth_physics'] = warmth_physics
+
     # Prepare infrastructure configuration
     sim_config = prepare_simulation_config(sample, mapping, infra_config, infrastructure_file=infrastructure_file)
     

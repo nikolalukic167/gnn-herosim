@@ -29,6 +29,7 @@ from simpy.resources.store import Store
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform
 
+from src.placement.warmth import NODE_DISK_V2
 from src.placement.model import (
     PlatformVector,
     ScaleEvent,
@@ -330,6 +331,9 @@ class Autoscaler:
 
                 # Reset platform to uninitialized state
                 removed_replica[1].initialized = removed_replica[1].env.event()
+
+                if getattr(self.env, "warmth_physics", None) == NODE_DISK_V2:
+                    removed_replica[1].previous_task = None
 
                 # Release replica into available resources
                 available_resources: Dict[Node, Set[Platform]] = (

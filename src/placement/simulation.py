@@ -180,7 +180,8 @@ def precreate_replicas(
         simulation_policy: SimulationPolicy | None = None,
         seed: int | None = None,
         deterministic_placements: Optional[Dict[str, List[Dict[str, Any]]]] = None,
-        deterministic_queues: Optional[Dict[str, Dict[str, int]]] = None
+        deterministic_queues: Optional[Dict[str, Dict[str, int]]] = None,
+        defer_cold_init: bool = False,
 ) -> Dict[str, Set[Tuple["Node", "Platform"]]]:
     """
     EXECUTE REPLICA CREATION:
@@ -264,16 +265,19 @@ def precreate_replicas(
                     replica = (node, platform)
                     initial_replicas[task_type_name].add(replica)
                     assigned_platforms.add(replica)
-                    
-                    # Mark platform as initialized (replica exists)
-                    platform.initialized.succeed()
-                    
-                    # Use deterministic queue length if provided
-                    # Only mark platform as WARM if it has queue tasks (realistic cold start)
+
+                    queue_length = 0
                     if env and simulation_policy and deterministic_queues:
                         queue_key = f"{node_name}:{platform_id}"
                         queue_length = deterministic_queues.get(task_type_name, {}).get(queue_key, 0)
-                        
+
+                    # Cold replicas may defer platform.initialized until image pull completes.
+                    if not (defer_cold_init and queue_length == 0):
+                        platform.initialized.succeed()
+
+                    # Use deterministic queue length if provided
+                    # Only mark platform as WARM if it has queue tasks (realistic cold start)
+                    if env and simulation_policy and deterministic_queues:
                         if queue_length > 0:
                             # Materialize warmup tasks so queue semantics match non-fast-forward mode.
                             # When fast_forward_warmup is enabled, Platform.platform_process() will
@@ -599,6 +603,12 @@ def start_simulation(
     env.fast_forward_warmup = infrastructure.get('fast_forward_warmup', False)
     env.fast_forward_threshold = infrastructure.get('fast_forward_threshold', 10)
 
+    from src.placement.warmth import resolve_warmth_physics
+
+    env.warmth_physics = resolve_warmth_physics(
+        infrastructure.get('warmth_physics'),
+    )
+
     # Initialize infrastructure
     nodes: FilterStore = create_nodes(
         env=env,
@@ -645,7 +655,8 @@ def start_simulation(
                 nodes, simulation_data, replica_plan, env, simulation_policy,
                 seed=seed,
                 deterministic_placements=deterministic_placements,
-                deterministic_queues=deterministic_queues
+                deterministic_queues=deterministic_queues,
+                defer_cold_init=bool(infrastructure.get("defer_cold_replica_init")),
             )
         else:
             # preinitialize_platforms=True but no replica_plan - skip replica creation

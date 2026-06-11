@@ -52,10 +52,15 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             self.mlp_model.load_state_dict(checkpoint["model_state_dict"])
             self.mlp_model.eval()
             self.mlp_model.to(self.device)
-            if int(input_dim) == 22:
+            layout = checkpoint.get("inference_feature_layout")
+            if layout:
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = str(layout)
+            elif int(input_dim) == 22:
                 os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
             elif int(input_dim) == FEATURE_DIM:
                 os.environ["INFERENCE_FEATURE_LAYOUT"] = "atomic21"
+            elif checkpoint.get("reduced_features") or int(input_dim) == 11:
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
             logging.info(
                 "[MLP Batch] Loaded MLP model from %s (input_dim=%s)",
                 path,

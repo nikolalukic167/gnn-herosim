@@ -379,7 +379,27 @@ class GNNScheduler(Scheduler):
                 return None
             
             task_logit_to_queue_key = getattr(graph, "_task_logit_to_queue_key", None)
-            
+            graph.queue_snapshot = dict(queue_snapshot)
+            if task_logit_to_placement:
+                graph.task_logit_to_placement = task_logit_to_placement
+                graph._task_logit_to_placement = task_logit_to_placement
+
+            decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+            if decode_mode in ("seq_reforward", "seq_reforward_argmax"):
+                from src.policy.gnn.seq_decode import decode_sequential_reforward_placement
+
+                graph = graph.to(self.device)
+                combo = decode_sequential_reforward_placement(
+                    self.gnn_model,
+                    graph,
+                    len(batch_tasks),
+                    queue_snapshot,
+                    stats=self.decode_stats,
+                )
+                if combo is None:
+                    return None
+                return {t_idx: combo[t_idx] for t_idx in range(len(combo))}
+
             # Move to device
             graph = graph.to(self.device)
             
@@ -471,6 +491,8 @@ class GNNScheduler(Scheduler):
         GNN decode modes (GNN_DECODE_MODE env):
 
         argmax (default): sequential per-task argmax with live queue roll-forward.
+        argmax_uniq: sequential argmax with intra-batch platform uniqueness mask.
+        seq_reforward: per-task argmax with platform queue-feature refresh + GNN re-forward each task.
         seqblend: sequential argmax + min-queue override when queue > min + margin.
         frozen: per-task argmax from one snapshot (no roll-forward; matches offline greedy).
         frozen_topk: joint top-k by summed logits from one snapshot (matches near-RTT eval).

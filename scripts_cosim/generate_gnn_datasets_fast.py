@@ -19,15 +19,19 @@ Example:
 
 import argparse
 import json
+import logging
 import os
 import random
+import shutil
 import signal
 import subprocess
 import sys
 import time
 import re
+from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 
@@ -75,38 +79,66 @@ MAX_PLACEMENT_COMBINATIONS_SKIP_DEFAULT = 250000
 # CONFIGURATION GRIDS
 # =============================================================================
 
-# Connection probabilities for network topology
-# NOTE: With cold start support, lower connectivity should work better now
-# since we use all infrastructure replicas instead of captured active ones
-CONNECTION_PROBABILITIES = [
-    # Fixed connectivity to control search-space growth while preserving realism.
-    0.50,
-]
+GridPreset = Dict[str, Any]
 
-# Replica configurations: (per_client, per_server, client_preinit_pct, server_preinit_pct)
-# NOTE: Cold start (0% preinit) now supported - uses all infrastructure replicas directly
-REPLICA_CONFIGS = [
-    # Controlled search-space presets with moderate-to-high queue pressure.
-    (1, 2, 0.0, 0.0),
-    (2, 2, 0.0, 0.0),
-    (1, 3, 0.3, 0.5),
-    (2, 3, 0.3, 0.5),
-    (2, 2, 0.5, 0.7),
-]
+# warmth_v2: fixed conn=0.50, moderate-to-heavy replicas/queues (500 ds).
+WARMTH_V2_GRID: GridPreset = {
+    "connection_probabilities": [0.50],
+    "replica_configs": [
+        (1, 2, 0.0, 0.0),
+        (2, 2, 0.0, 0.0),
+        (1, 3, 0.3, 0.5),
+        (2, 3, 0.3, 0.5),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("pois16", "poisson", 16, 0, 0, 42, 1),
+        ("norm22", "normal", 22, 7, 0, 56, 1),
+        ("pois28", "poisson", 28, 0, 0, 72, 1),
+        ("norm35", "normal", 35, 11, 0, 96, 1),
+        ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
+    ],
+    "seeds": list(range(101, 121)),
+    "default_output_subdir": "gnn_datasets_4tasks_1060_warmth_v2",
+}
 
-# Queue distribution configurations: (name, type, param1, param2, min, max, step)
-# Calibration intent: raise snapshot queue depth to better match real-sim
-# decision-time queue/offloading regime while retaining one cold-start anchor.
-QUEUE_DISTRIBUTIONS = [
-    ("pois16", "poisson", 16, 0, 0, 42, 1),
-    ("norm22", "normal", 22, 7, 0, 56, 1),
-    ("pois28", "poisson", 28, 0, 0, 72, 1),
-    ("norm35", "normal", 35, 11, 0, 96, 1),
-    ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
-]
+# sparse_warmth_v2 Option A: sparse topology + light replicas + low/mid queues (351 ds).
+SPARSE_WARMTH_V2_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.30, 0.35],
+    "replica_configs": [
+        (1, 1, 0.0, 0.0),
+        (1, 2, 0.0, 0.0),
+        (2, 2, 0.0, 0.0),
+    ],
+    "queue_distributions": [
+        ("pois12", "poisson", 12, 0, 0, 24, 1),
+        ("norm16", "normal", 16, 5, 0, 32, 1),
+        ("pois16", "poisson", 16, 0, 0, 42, 1),
+    ],
+    "seeds": list(range(121, 134)),
+    "default_output_subdir": "gnn_datasets_4tasks_sparse_warmth_v2",
+}
 
-# Seeds for deterministic generation (20 seeds × 5 replica × 5 queue × 1 conn = 500 combos)
-SEEDS = list(range(101, 121))
+GRID_PRESETS: Dict[str, GridPreset] = {
+    "warmth_v2": WARMTH_V2_GRID,
+    "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
+}
+
+
+def resolve_grid_preset(grid_name: str) -> GridPreset:
+    if grid_name not in GRID_PRESETS:
+        known = ", ".join(sorted(GRID_PRESETS))
+        raise ValueError(f"Unknown grid {grid_name!r}; expected one of: {known}")
+    return GRID_PRESETS[grid_name]
+
+
+def grid_total_datasets(preset: GridPreset) -> int:
+    return (
+        len(preset["connection_probabilities"])
+        * len(preset["replica_configs"])
+        * len(preset["seeds"])
+        * len(preset["queue_distributions"])
+    )
 
 # Task type ratios: (dnn1%, dnn2%)
 TASK_TYPE_RATIOS = [
@@ -276,7 +308,8 @@ def generate_single_dataset(
     quiet: bool = False,
     fast_forward_warmup: bool = True,
     fast_forward_threshold: int = 1,
-    allow_non_unique_replicas: bool = True
+    allow_non_unique_replicas: bool = True,
+    warmth_physics: str = "node_disk_v2",
 ) -> Tuple[bool, float, float]:
     """
     Generate a single GNN dataset.
@@ -288,6 +321,10 @@ def generate_single_dataset(
     try:
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
+        if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") != "1":
+            ssc_stale = output_dir / "system_state_captured_unique.json"
+            if ssc_stale.exists():
+                ssc_stale.unlink()
         
         # Save config for this dataset
         config_path = output_dir / "space_with_network.json"
@@ -328,8 +365,10 @@ def generate_single_dataset(
         # Load apps from config
         apps = list(config['wsc'].keys())
         
-        # Create results directory (temporary)
-        results_dir = Path("simulation_data/initial_results_simple")
+        # Per-dataset scratch dir — parallel-safe (shared initial_results_simple races across shards)
+        results_dir = output_dir / ".bf_scratch"
+        if results_dir.exists():
+            shutil.rmtree(results_dir)
         results_dir.mkdir(parents=True, exist_ok=True)
         
         # Run optimized brute-force simulation
@@ -339,7 +378,11 @@ def generate_single_dataset(
         log(f"  Running brute-force optimization (max {SIMULATION_TIMEOUT}s expected)...", quiet)
         
         sim_start = time.time()
-        result_paths = execute_brute_force_optimized(
+        suppress_sim_prints = (
+            os.environ.get("COSIM_SUPPRESS_SIM_PRINTS", "0") == "1"
+            or os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") != "1"
+        )
+        bf_kwargs = dict(
             apps=apps,
             config_file=str(config_path),
             mapping_file=str(mapping_file),
@@ -355,7 +398,13 @@ def generate_single_dataset(
             fast_forward_threshold=fast_forward_threshold,
             allow_non_unique_replicas=allow_non_unique_replicas,
             mapping_override=mapping,
+            warmth_physics=warmth_physics,
         )
+        if suppress_sim_prints:
+            with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+                result_paths = execute_brute_force_optimized(**bf_kwargs)
+        else:
+            result_paths = execute_brute_force_optimized(**bf_kwargs)
         sim_duration = time.time() - sim_start
         
         # Warn if simulation took too long (but don't fail - it might be legitimate)
@@ -381,25 +430,28 @@ def generate_single_dataset(
             # Copy optimal result (use stdlib json to handle numpy types)
             optimal_src = results_dir / optimal_file
             if optimal_src.exists():
-                import shutil
                 shutil.copy2(optimal_src, output_dir / "optimal_result.json")
-                try:
-                    from src.executecosimulation import build_system_state_captured
-                    from src.placement.model import DataclassJSONEncoder
+                capture_state = os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1"
+                ssc_path = output_dir / "system_state_captured_unique.json"
+                if capture_state:
+                    try:
+                        from src.executecosimulation import build_system_state_captured
+                        from src.placement.model import DataclassJSONEncoder
 
-                    with open(output_dir / "optimal_result.json", "r") as opt_f:
-                        optimal_data = json.load(opt_f)
-                    opt_stats = optimal_data.get("stats")
-                    if opt_stats and opt_stats.get("taskResults"):
-                        captured_state = build_system_state_captured(opt_stats)
-                        ssc_path = output_dir / "system_state_captured_unique.json"
-                        with open(ssc_path, "w") as ssc_f:
-                            json.dump(captured_state, ssc_f, indent=2, cls=DataclassJSONEncoder)
-                except Exception as ssc_exc:
-                    log(f"  WARNING: Failed to write system_state_captured_unique.json: {ssc_exc}", quiet, force=True)
-                    raise RuntimeError(
-                        f"SSC export failed for {output_dir.name}: {ssc_exc}"
-                    ) from ssc_exc
+                        with open(output_dir / "optimal_result.json", "r") as opt_f:
+                            optimal_data = json.load(opt_f)
+                        opt_stats = optimal_data.get("stats")
+                        if opt_stats and opt_stats.get("taskResults"):
+                            captured_state = build_system_state_captured(opt_stats)
+                            with open(ssc_path, "w") as ssc_f:
+                                json.dump(captured_state, ssc_f, indent=2, cls=DataclassJSONEncoder)
+                    except Exception as ssc_exc:
+                        log(f"  WARNING: Failed to write system_state_captured_unique.json: {ssc_exc}", quiet, force=True)
+                        raise RuntimeError(
+                            f"SSC export failed for {output_dir.name}: {ssc_exc}"
+                        ) from ssc_exc
+                elif ssc_path.exists():
+                    ssc_path.unlink()
             
             # Copy placements
             if placements_file.exists():
@@ -412,27 +464,15 @@ def generate_single_dataset(
             # Copy placement metadata if it exists (will be written by execute_brute_force_optimized)
             metadata_src = results_dir / "placement_metadata.json"
             if metadata_src.exists():
-                import shutil
                 shutil.copy2(metadata_src, output_dir / "placement_metadata.json")
             
             # Copy placement progress if it exists
             progress_src = results_dir / "placement_progress.txt"
             if progress_src.exists():
-                import shutil
                 shutil.copy2(progress_src, output_dir / "placement_progress.txt")
             
-            # Clean up results directory
-            for f in results_dir.glob("simulation_*.json"):
-                f.unlink()
-            if best_json.exists():
-                best_json.unlink()
-            if placements_file.exists():
-                placements_file.unlink()
-            if metadata_src.exists():
-                metadata_src.unlink()
-            if progress_src.exists():
-                progress_src.unlink()
-            
+            shutil.rmtree(results_dir, ignore_errors=True)
+
             duration = time.time() - start_time
             return 'success', optimal_rtt, duration
         else:
@@ -440,10 +480,11 @@ def generate_single_dataset(
             duration = time.time() - start_time
             if placements_file.exists() and placements_file.stat().st_size == 0:
                 # Empty placements file = infeasible scenario, skip gracefully
-                placements_file.unlink()
+                shutil.rmtree(results_dir, ignore_errors=True)
                 return 'skipped', float('inf'), duration
             else:
                 # Some other issue
+                shutil.rmtree(results_dir, ignore_errors=True)
                 return 'failed', float('inf'), duration
             
     except Exception as e:
@@ -476,15 +517,29 @@ def main():
                         help='Disable fast-forward warmup')
     parser.add_argument('--fast-forward-threshold', type=int, default=1,
                         help='Threshold for fast-forward warmup (default: 1)')
+    parser.add_argument(
+        '--warmth-physics',
+        type=str,
+        default='node_disk_v2',
+        choices=['platform_reuse_v1', 'node_disk_v2'],
+        help='Warmth model for co-sim labels (default: node_disk_v2)',
+    )
     parser.add_argument('--allow-non-unique-replicas', action='store_true',
                         help='Allow multiple tasks to share the same replica')
     parser.add_argument('--num-tasks', type=int, choices=[1, 2, 3, 4, 5], default=4,
                         help='Number of tasks per workload (1-5). Sets batch_size accordingly.')
     parser.add_argument(
+        '--grid',
+        type=str,
+        default='warmth_v2',
+        choices=sorted(GRID_PRESETS),
+        help='Dataset grid preset (default: warmth_v2)',
+    )
+    parser.add_argument(
         '--output-subdir',
         type=str,
         default=None,
-        help='Output subdirectory under simulation_data (default: gnn_datasets_{num_tasks}tasks)',
+        help='Output subdirectory under simulation_data (default from --grid preset)',
     )
     parser.add_argument(
         '--progress-log-name',
@@ -493,6 +548,10 @@ def main():
         help='Progress log filename under logs/ (default: progress_{num_tasks}tasks.txt or derived from --output-subdir)',
     )
     args = parser.parse_args()
+
+    if os.environ.get("COSIM_SUPPRESS_SIM_PRINTS", "0") == "1":
+        logging.getLogger().setLevel(logging.ERROR)
+        logging.getLogger("simulation").setLevel(logging.ERROR)
     
     # OOM guard for brute-force placement generation.
     # Keep user-provided value if already exported in environment.
@@ -502,6 +561,13 @@ def main():
     )
     
     quiet = args.quiet
+    grid_preset = resolve_grid_preset(args.grid)
+    connection_probabilities = grid_preset["connection_probabilities"]
+    replica_configs = grid_preset["replica_configs"]
+    queue_distributions = grid_preset["queue_distributions"]
+    seeds = grid_preset["seeds"]
+    grid_total = grid_total_datasets(grid_preset)
+
     # max_datasets is relative to start_from (e.g., --start-from xyz --max-datasets 1 means generate ds_xyz only)
     max_datasets = args.start_from + args.max_datasets
     cpu_count = os.cpu_count()
@@ -516,7 +582,7 @@ def main():
     base_dir = PROJECT_ROOT / "simulation_data"
     config_path = base_dir / "space_with_network.json"
     sample_json_file = base_dir / "sample_simple.json"
-    default_output_subdir = f"gnn_datasets_{NUM_TASKS}tasks"
+    default_output_subdir = grid_preset.get("default_output_subdir") or f"gnn_datasets_{NUM_TASKS}tasks"
     output_subdir = args.output_subdir or default_output_subdir
     output_base = base_dir / output_subdir
     sim_input_path = PROJECT_ROOT / "data" / "nofs-ids"
@@ -538,6 +604,7 @@ def main():
     (PROJECT_ROOT / "logs").mkdir(parents=True, exist_ok=True)
     
     log(f"=== Optimized GNN Dataset Generation ===", quiet)
+    log(f"Grid: {args.grid} ({grid_total} combos)", quiet)
     log(f"Num tasks: {NUM_TASKS} (batch_size={batch_size})", quiet)
     log(f"Max datasets: {args.max_datasets} (up to ds_{max_datasets-1:05d})", quiet)
     log(f"Workers: {max_workers}", quiet)
@@ -574,12 +641,7 @@ def main():
     skipped = 0
     failed = 0
     
-    total_combinations = (
-        len(CONNECTION_PROBABILITIES) * 
-        len(REPLICA_CONFIGS) * 
-        len(SEEDS) * 
-        len(QUEUE_DISTRIBUTIONS)
-    )
+    total_combinations = grid_total
     log(f"Total possible combinations: {total_combinations}", quiet)
     
     start_time = time.time()
@@ -588,10 +650,10 @@ def main():
     start_from = args.start_from
     current_idx = 0
     
-    for conn_prob in CONNECTION_PROBABILITIES:
-        for replica_cfg in REPLICA_CONFIGS:
-            for seed in SEEDS:
-                for queue_dist in QUEUE_DISTRIBUTIONS:
+    for conn_prob in connection_probabilities:
+        for replica_cfg in replica_configs:
+            for seed in seeds:
+                for queue_dist in queue_distributions:
                     # Skip until we reach the starting index
                     if current_idx < start_from:
                         current_idx += 1
@@ -641,7 +703,8 @@ def main():
                         quiet=quiet,
                         fast_forward_warmup=args.fast_forward_warmup,
                         fast_forward_threshold=args.fast_forward_threshold,
-                        allow_non_unique_replicas=args.allow_non_unique_replicas
+                        allow_non_unique_replicas=args.allow_non_unique_replicas,
+                        warmth_physics=args.warmth_physics,
                     )
                     
                     total_time += duration

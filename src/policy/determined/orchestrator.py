@@ -61,9 +61,12 @@ class DeterminedOrchestrator(Orchestrator):
             if 'batch_timeout' in scheduler_config:
                 self.scheduler.batch_timeout = scheduler_config['batch_timeout']
                 logger.info(f"DeterminedOrchestrator: Set scheduler batch_timeout={self.scheduler.batch_timeout}")
-        
+
+        if self.infrastructure and self.infrastructure.get("defer_cold_replica_init"):
+            self.scheduler.defer_cold_replica_init = True
+
         logger.info("DeterminedOrchestrator: Initialization completed")
-    
+
     def initialize_state(self) -> DeterminedSystemState:
         logger = logging.getLogger('simulation')
         logger.info("DeterminedOrchestrator: initialize_state called")

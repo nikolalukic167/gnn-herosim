@@ -373,6 +373,28 @@ def queue_filter_chosen_idx(
     return max(allowed, key=lambda i: float(logits_t[i].item()))
 
 
+def uniq_platform_chosen_idx(
+    logits_t: Tensor,
+    candidates: Sequence[Tuple[int, int]],
+    used_placements: set[Tuple[int, int]],
+) -> int:
+    """Per-task argmax excluding platforms already picked earlier in the batch."""
+    import torch
+
+    if logits_t.numel() == 0:
+        raise RuntimeError("uniq_platform decode: empty logits for task.")
+    masked = logits_t.clone()
+    for i, placement in enumerate(candidates):
+        if tuple(placement) in used_placements:
+            masked[i] = float("-inf")
+    if not torch.isfinite(masked).any():
+        raise RuntimeError(
+            "uniq_platform decode: no unused platform among candidates "
+            f"(candidates={len(candidates)}, used_in_batch={len(used_placements)})."
+        )
+    return int(masked.argmax().item())
+
+
 def decode_sequential_placement(
     logits_per_task: Sequence[Tensor],
     task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
@@ -384,6 +406,7 @@ def decode_sequential_placement(
     queue_margin: int = 1,
     queue_filter_max_delta: Optional[int] = None,
     lqb_lambda: Optional[float] = None,
+    uniq_platform: bool = False,
     stats: Optional[GnnDecodeRunStats] = None,
 ) -> Optional[PlacementCombo]:
     """Sequential decode with live queue roll-forward; optional seqblend override."""
@@ -396,6 +419,7 @@ def decode_sequential_placement(
     keys_map = task_logit_to_queue_key or {}
     combo_list: List[Tuple[int, int]] = []
     batch_stats = GnnDecodeRunStats() if stats is not None else None
+    used_placements: set[Tuple[int, int]] = set()
 
     for t_idx in range(n_tasks):
         if t_idx not in task_logit_to_placement:
@@ -405,34 +429,43 @@ def decode_sequential_placement(
             return None
 
         candidates = task_logit_to_placement[t_idx]
-        gnn_idx = int(logits_t.argmax().item())
-        if gnn_idx >= len(candidates):
+        if uniq_platform:
+            chosen_idx = uniq_platform_chosen_idx(logits_t, candidates, used_placements)
+        else:
+            gnn_idx = int(logits_t.argmax().item())
+            if gnn_idx >= len(candidates):
+                return None
+
+            keys = _queue_keys_for_task(t_idx, candidates, keys_map)
+            queues = _candidate_queues(keys, live_queues)
+            min_q = min(queues)
+            gnn_q = queues[gnn_idx]
+
+            chosen_idx = gnn_idx
+            if lqb_lambda is not None:
+                chosen_idx = logit_queue_blend_idx(logits_t, keys, live_queues, lqb_lambda)
+            elif queue_filter_max_delta is not None:
+                filtered_idx = queue_filter_chosen_idx(
+                    logits_t, keys, live_queues, int(queue_filter_max_delta)
+                )
+                if filtered_idx is not None:
+                    chosen_idx = filtered_idx
+            elif seqblend:
+                chosen_idx = seqblend_chosen_idx(gnn_idx, keys, live_queues, queue_margin)
+
+            final_q = queues[chosen_idx]
+            if batch_stats is not None and seqblend:
+                batch_stats.record_task(gnn_q, final_q, min_q, p1_margin=queue_margin)
+
+        if chosen_idx >= len(candidates):
             return None
 
         keys = _queue_keys_for_task(t_idx, candidates, keys_map)
-        queues = _candidate_queues(keys, live_queues)
-        min_q = min(queues)
-        gnn_q = queues[gnn_idx]
-
-        chosen_idx = gnn_idx
-        if lqb_lambda is not None:
-            chosen_idx = logit_queue_blend_idx(logits_t, keys, live_queues, lqb_lambda)
-        elif queue_filter_max_delta is not None:
-            filtered_idx = queue_filter_chosen_idx(
-                logits_t, keys, live_queues, int(queue_filter_max_delta)
-            )
-            if filtered_idx is not None:
-                chosen_idx = filtered_idx
-        elif seqblend:
-            chosen_idx = seqblend_chosen_idx(gnn_idx, keys, live_queues, queue_margin)
-
-        final_q = queues[chosen_idx]
-        if batch_stats is not None and seqblend:
-            batch_stats.record_task(gnn_q, final_q, min_q, p1_margin=queue_margin)
-
         chosen_key = keys[chosen_idx]
         node_id, plat_id = candidates[chosen_idx]
-        combo_list.append((int(node_id), int(plat_id)))
+        placement = (int(node_id), int(plat_id))
+        combo_list.append(placement)
+        used_placements.add(placement)
         live_queues[chosen_key] = live_queues.get(chosen_key, 0) + 1
 
     if stats is not None and batch_stats is not None:
@@ -482,6 +515,136 @@ def decode_frozen_argmax_placement(
     return tuple(combo_list)
 
 
+def _task_logit_mapping(graph: Any) -> Optional[Mapping[int, Sequence[Tuple[int, int]]]]:
+    mapping = getattr(graph, "task_logit_to_placement", None)
+    if mapping is None:
+        mapping = getattr(graph, "_task_logit_to_placement", None)
+    return mapping
+
+
+def _queue_norm_for_reforward(live_queues: Mapping[str, int], meta: Mapping[str, Mapping[str, Any]]) -> float:
+    from src.policy.tabular.feature_builder import _scheduler_adaptive_queue_norm
+
+    queue_values = [int(live_queues.get(str(key), 0)) for key in meta.keys()]
+    norm_mode = os.environ.get("GNN_QUEUE_NORM_MODE", "scheduler_adaptive").strip().lower()
+    if norm_mode == "adaptive":
+        norm_mode = "scheduler_adaptive"
+    return _scheduler_adaptive_queue_norm(queue_values, norm_mode)
+
+
+def _refresh_queue_dependent_platform_features(
+    graph: Any,
+    live_queues: Mapping[str, int],
+    meta: Mapping[str, Mapping[str, Any]],
+) -> None:
+    import torch
+
+    platform_features = graph.platform_features
+    feat_dim = int(platform_features.size(-1))
+    layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "dim22").strip().lower()
+    ce_reduced = layout in ("ce_reduced", "reduced_ce", "reduced1060")
+    atomic21 = layout in ("atomic21", "21")
+    if feat_dim < 6:
+        raise RuntimeError(
+            f"seq_reforward expects >=6-dim platform features; got {feat_dim}."
+        )
+    if not ce_reduced and feat_dim < 14:
+        raise RuntimeError(
+            f"seq_reforward expects >=14-dim platform features; got {feat_dim}."
+        )
+    queue_norm = 1.0 if atomic21 else _queue_norm_for_reforward(live_queues, meta)
+    n_platforms = int(getattr(graph, "n_platforms", platform_features.size(0)))
+
+    for queue_key, info in meta.items():
+        if "platform_pos" not in info:
+            raise RuntimeError(f"seq_reforward metadata missing platform_pos for {queue_key}.")
+        pos = int(info["platform_pos"])
+        if pos < 0 or pos >= n_platforms:
+            raise RuntimeError(f"seq_reforward platform_pos out of range for {queue_key}: {pos}.")
+        raw_q = float(live_queues.get(str(queue_key), 0))
+        if ce_reduced:
+            platform_features[pos, 5] = raw_q / float(queue_norm)
+        elif atomic21:
+            platform_features[pos, 7] = raw_q
+            platform_features[pos, 13] = 0.0
+        else:
+            target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
+            platform_features[pos, 7] = raw_q / float(queue_norm)
+            platform_features[pos, 13] = (raw_q / target_concurrency) / 5.0
+
+
+def decode_sequential_reforward_placement(
+    model: Any,
+    graph: Any,
+    n_tasks: int,
+    queue_snapshot: Optional[Mapping[str, int]] = None,
+    *,
+    stats: Optional[GnnDecodeRunStats] = None,
+) -> Optional[PlacementCombo]:
+    """Per-task argmax with queue-feature refresh + full GNN re-forward between tasks."""
+    import torch
+
+    mapping = _task_logit_mapping(graph)
+    keys_map = getattr(graph, "task_logit_to_queue_key", None) or getattr(
+        graph, "_task_logit_to_queue_key", None
+    )
+    meta = getattr(graph, "queue_key_to_platform_meta", None)
+    snapshot = queue_snapshot if queue_snapshot is not None else getattr(graph, "queue_snapshot", None)
+    if not mapping or not keys_map or not meta or snapshot is None:
+        raise RuntimeError(
+            "seq_reforward requires task_logit_to_placement, task_logit_to_queue_key, "
+            "queue_key_to_platform_meta, and queue_snapshot on the inference graph."
+        )
+
+    live_queues: Dict[str, int] = {str(k): int(v) for k, v in dict(snapshot).items()}
+    combo_list: List[Tuple[int, int]] = []
+    original_platform_features = graph.platform_features
+    graph.platform_features = original_platform_features.clone()
+
+    t0 = time.perf_counter()
+    try:
+        _refresh_queue_dependent_platform_features(graph, live_queues, meta)
+        with torch.no_grad():
+            for task_idx in range(n_tasks):
+                if task_idx not in mapping or task_idx not in keys_map:
+                    return None
+                logits_per_task = model(graph)
+                if task_idx >= len(logits_per_task):
+                    return None
+                logits_t = logits_per_task[task_idx]
+                if logits_t.numel() == 0:
+                    return None
+                chosen_idx = int(logits_t.argmax().item())
+                candidates = mapping[task_idx]
+                task_keys = keys_map[task_idx]
+                if chosen_idx >= len(candidates) or chosen_idx >= len(task_keys):
+                    return None
+                queue_key = str(task_keys[chosen_idx])
+                combo_list.append(tuple(candidates[chosen_idx]))
+                live_queues[queue_key] = live_queues.get(queue_key, 0) + 1
+                _refresh_queue_dependent_platform_features(graph, live_queues, meta)
+    finally:
+        graph.platform_features = original_platform_features
+
+    combo = tuple(combo_list)
+    if stats is not None:
+        decode_time_ms = (time.perf_counter() - t0) * 1000.0
+        record_decode_batch(
+            stats,
+            combo=combo,
+            decode_mode="seq_reforward",
+            decode_time_ms=decode_time_ms,
+            combo_search_size=n_tasks,
+            task_logit_to_placement=mapping,
+            queue_snapshot=snapshot,
+            task_logit_to_queue_key=keys_map,
+            roll_forward=True,
+            top_k=0,
+            count_tasks=False,
+        )
+    return combo
+
+
 def decode_frozen_topk_joint_placement(
     logits_per_task: Sequence[Tensor],
     task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
@@ -529,6 +692,7 @@ def run_decode_with_timing(
     queue_margin: int = 1,
     queue_filter_max_delta: Optional[int] = None,
     lqb_lambda: Optional[float] = None,
+    uniq_platform: bool = False,
     top_k: int = 10,
     stats: Optional[GnnDecodeRunStats] = None,
 ) -> Optional[PlacementCombo]:
@@ -536,6 +700,7 @@ def run_decode_with_timing(
     t0 = time.perf_counter()
     combo: Optional[PlacementCombo] = None
     branching: Optional[List[int]] = None
+    effective_mode = decode_mode
 
     if decode_mode in ("frozen", "frozen_argmax"):
         combo = decode_frozen_argmax_placement(
@@ -549,12 +714,19 @@ def run_decode_with_timing(
             logits_per_task, task_logit_to_placement, n_tasks, top_k=top_k
         )
     else:
+        if uniq_platform or decode_mode in ("argmax_uniq", "uniq_platform", "uniq"):
+            effective_mode = "argmax_uniq"
+            uniq_platform = True
         if lqb_lambda is None:
             lqb_env = os.environ.get("GNN_LQB_LAMBDA", "").strip()
             lqb_lambda = float(lqb_env) if lqb_env else None
         if queue_filter_max_delta is None:
             qf_env = int(os.environ.get("GNN_QUEUE_FILTER_MAX_DELTA", "-1"))
             queue_filter_max_delta = qf_env if qf_env >= 0 else None
+        if uniq_platform:
+            lqb_lambda = None
+            queue_filter_max_delta = None
+            seqblend = False
         combo = decode_sequential_placement(
             logits_per_task,
             task_logit_to_placement,
@@ -565,6 +737,7 @@ def run_decode_with_timing(
             queue_margin=queue_margin,
             queue_filter_max_delta=queue_filter_max_delta,
             lqb_lambda=lqb_lambda,
+            uniq_platform=uniq_platform,
             stats=stats,
         )
 
@@ -583,7 +756,7 @@ def run_decode_with_timing(
     record_decode_batch(
         stats,
         combo=combo,
-        decode_mode=decode_mode,
+        decode_mode=effective_mode,
         decode_time_ms=decode_time_ms,
         combo_search_size=search_size,
         task_logit_to_placement=task_logit_to_placement,
