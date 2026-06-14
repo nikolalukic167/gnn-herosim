@@ -566,7 +566,6 @@ def _refresh_queue_dependent_platform_features(
             platform_features[pos, 5] = raw_q / float(queue_norm)
         elif atomic21:
             platform_features[pos, 7] = raw_q
-            platform_features[pos, 13] = 0.0
         else:
             target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
             platform_features[pos, 7] = raw_q / float(queue_norm)

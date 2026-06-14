@@ -4,6 +4,9 @@ from __future__ import annotations
 """
 Pre-generate and cache graphs for GNN training (NON-UNIQUE VERSION).
 
+REQUIRES placements/placements.jsonl per dataset for rtt_chunk_*.pkl (placement–RTT hash).
+repair + recache does NOT replace JSONL. memory/placements_jsonl_required.md
+
 This script builds all graphs and saves them to pickle files for faster training iterations.
 
 NON-UNIQUE PLACEMENTS:

@@ -525,53 +525,70 @@ def generate_deterministic_infrastructure(
     # 2b. Ensure network connectivity to replica servers
     # After placing replicas, ensure every client can reach MULTIPLE servers
     # that have replicas for each task type (for uniqueness constraint)
-    if topology_type not in SKEW_TOPOLOGY_TYPES:
-        print("[infra-gen] Ensuring replica reachability...")
     clients = [n for n in nodes if n['node_name'].startswith('client_node')]
     servers = [n for n in nodes if not n['node_name'].startswith('client_node')]
-    
+
     # Minimum number of replica servers each client should reach per task type
     MIN_REPLICA_SERVERS = 2
-    
+
+    skew_topo = config.get('network', {}).get('topology', {})
+    skew_core_servers: set = set()
+    skew_lat_core = 0.1
+    skew_lat_periphery = 0.1
     if topology_type in SKEW_TOPOLOGY_TYPES:
-        print("[infra-gen] Skipping replica reachability repair (degree_skewed_core)")
-    
-    for task_type_name, placements in replica_placements.items():
+        k_core = int(skew_topo.get('k_core', 4))
+        skew_core_servers = {s['node_name'] for s in servers[:k_core]}
+        skew_lat_core = float(skew_topo.get('latency_core_ms', 5.0)) / 1000.0
+        skew_lat_periphery = float(
+            skew_topo.get('latency_periphery_ms', skew_topo.get('latency_core_ms', 5.0))
+        ) / 1000.0
+        print("[infra-gen] Ensuring replica reachability (degree_skewed_core)...")
+    else:
+        print("[infra-gen] Ensuring replica reachability...")
+
+    def _repair_latency(server_name: str) -> float:
         if topology_type in SKEW_TOPOLOGY_TYPES:
-            continue
+            return skew_lat_core if server_name in skew_core_servers else skew_lat_periphery
+        return config.get('network', {}).get('latency', {}).get('base_latency', 0.1)
+
+    for task_type_name, placements in replica_placements.items():
         # Get servers that have replicas for this task type
-        replica_servers = set(p['node_name'] for p in placements if not p['node_name'].startswith('client_'))
-        
+        replica_servers = set(
+            p['node_name'] for p in placements if not p['node_name'].startswith('client_')
+        )
+
         if not replica_servers:
             continue
-        
+
         for client in clients:
             client_name = client['node_name']
-            
+
             # Count how many replica servers this client can reach
             reachable_replica_servers = [
                 server_name for server_name in replica_servers
                 if server_name in network_maps[client_name]
             ]
-            
+
             # Add connections until we reach the minimum
             needed = MIN_REPLICA_SERVERS - len(reachable_replica_servers)
             if needed > 0:
                 # Find servers with replicas that we're not connected to
                 available_servers = [
-                    s for s in servers 
+                    s for s in servers
                     if s['node_name'] in replica_servers
                     and s['node_name'] not in network_maps[client_name]
                 ]
                 rng.shuffle(available_servers)
-                
+
                 for server in available_servers[:needed]:
                     server_name = server['node_name']
-                    # Use base latency for new connections
-                    latency = config.get('network', {}).get('latency', {}).get('base_latency', 0.1)
+                    latency = _repair_latency(server_name)
                     network_maps[client_name][server_name] = latency
                     network_maps[server_name][client_name] = latency
-                    print(f"[infra-gen] Added {task_type_name} reachability: {client_name} -> {server_name}")
+                    print(
+                        f"[infra-gen] Added {task_type_name} reachability: "
+                        f"{client_name} -> {server_name}"
+                    )
     
     # 3. Generate queue distributions
     print("[infra-gen] Generating queue distributions...")

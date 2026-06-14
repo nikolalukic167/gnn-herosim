@@ -10,7 +10,8 @@ These files contain experimental results, intermediate models, and analyses that
 
 | Reason | Description |
 |---|---|
-| Wrong model generation | Results based on 13-dim models (dg-26, clean-1230 argmax) with broken `shared_fate_signal` and `is_warm` features — not comparable to the 14-dim CE-only anchor |
+| Wrong model generation | Results based on 13-dim models (dg-26, clean-1230 argmax) with broken features — not comparable to 14-dim CE anchor |
+| 150-150 / 450k dg-26 runs | Superseded; see `legacy_results.md` |
 | Rejected interventions | Post-hoc fixes (seqblend, LQB) that were tested and rejected for deployment |
 | Confounded ablations | Comparisons where multiple cache fixes happened simultaneously, preventing clean attribution |
 | Incomplete / rejected experiments | Tests stopped early, lack cross-config coverage, or failed live gates (e.g. Track B r030 +1.9% vs CE post-fix) |

@@ -9,11 +9,15 @@ and temporal state in a format compatible with the GNN training data
 from __future__ import annotations
 
 import json
-from typing import Dict, List, Set, Tuple, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Set, Tuple, Any, Optional, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
     from src.placement.model import SystemState
+
+from src.placement.warmth import node_has_cached_image
+
+DEFAULT_TASK_TYPE_NAMES: Tuple[str, ...] = ("dnn1", "dnn2")
 
 
 class StateCaptureHelper:
@@ -64,6 +68,29 @@ class StateCaptureHelper:
                 key = f"{node.node_name}:{platform.id}"
                 queue_snapshot[key] = platform.queue_length()
         return queue_snapshot
+
+    def capture_disk_snapshot(
+        self,
+        task_type_names: Sequence[str] = DEFAULT_TASK_TYPE_NAMES,
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Capture node disk cache hits per platform and task type at scheduling time.
+
+        Returns:
+            Dict mapping task_type -> {"node_name:platform_id" -> 1.0 if disk hit else 0.0}
+        """
+        snapshot: Dict[str, Dict[str, float]] = {
+            str(task_type): {} for task_type in task_type_names
+        }
+        for node in self.nodes.items:
+            for platform in node.platforms.items:
+                key = f"{node.node_name}:{platform.id}"
+                plat_short = str(platform.type["shortName"])
+                for task_type in task_type_names:
+                    task_type_obj = {"name": str(task_type)}
+                    hit = node_has_cached_image(node, plat_short, task_type_obj)
+                    snapshot[str(task_type)][key] = 1.0 if hit else 0.0
+        return snapshot
 
     def capture_initialized_snapshot(self) -> Dict[str, bool]:
         """
@@ -303,6 +330,8 @@ class StateCaptureHelper:
             # Captured once at batch-scheduling time; tells build_graph() which
             # platforms have completed their image pull (initialized.triggered).
             "initialized_snapshot": self.capture_initialized_snapshot(),
+            # Node disk cache (node_disk_v2): has_function per platform + task type.
+            "disk_snapshot_by_task_type": self.capture_disk_snapshot(),
         }
     
     def _capture_scheduler_state(

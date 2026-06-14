@@ -10,5 +10,17 @@
     "dag": {
       "dnn2": []
     }
+  },
+  "nofs-rf": {
+    "name": "nofs-rf",
+    "dag": {
+      "rf": []
+    }
+  },
+  "nofs-cnn": {
+    "name": "nofs-cnn",
+    "dag": {
+      "cnn": []
+    }
   }
 }

@@ -5,6 +5,7 @@ alwaysApply: true
 
 # Project Guidelines
 
+- **`placements/placements.jsonl` is mandatory** for every co-sim dataset: full `(placement_plan, rtt)` sweep for RTT-hash / near-RTT training. **`--repair` + recache does NOT replace it.** Never treat the placement sweep as optional disk; never `--resume` on `best.json` alone without JSONL; never delete `.bf_scratch` until JSONL is copied. See `memory/placements_jsonl_required.md`.
 - Make sure there are not silent fails. Fail loudly everywhere! Don't skip it for convenience, solve it so it doesn't fail!
 - When I ask for an explanation or analysis do not write md or txt documents, answer in chat directly
 - The project uses pipenv for dependency management

@@ -67,6 +67,12 @@ POLICY_CONFIG: Dict[str, Dict[str, str]] = {
         "scheduling_strategy": "kn_network_kn_network",
         "output_file": OUTPUT_DIR / "simulation_result_knative_network.json",
     },
+    "knative_network_ect": {
+        "progress_log": BASE_DIR / "logs/knative_network_ect_simulation_progress.txt",
+        "policy_name": "knative network ECT",
+        "scheduling_strategy": "kn_network_ect_kn_network_ect",
+        "output_file": OUTPUT_DIR / "simulation_result_knative_network_ect.json",
+    },
     "herocache_network": {
         "progress_log": BASE_DIR / "logs/herocache_network_simulation_progress.txt",
         "policy_name": "herocache network",
@@ -132,6 +138,13 @@ def parse_arguments() -> argparse.Namespace:
                              help="Run with roundrobin network policy")
     policy_group.add_argument("--knative_network", action="store_const", const="knative_network", dest="policy",
                              help="Run with knative network policy")
+    policy_group.add_argument(
+        "--knative_network_ect",
+        action="store_const",
+        const="knative_network_ect",
+        dest="policy",
+        help="Run with knative network ECT baseline (Regime B greedy physics-aware)",
+    )
     policy_group.add_argument("--herocache_network", action="store_const", const="herocache_network", dest="policy",
                              help="Run with herocache network policy")
     policy_group.add_argument("--random_network", action="store_const", const="random_network", dest="policy",
@@ -214,6 +227,21 @@ def extract_rtt(output_file: Path) -> Optional[float]:
             result = json.load(f)
             return result.get('total_rtt')
     except (json.JSONDecodeError, IOError, KeyError):
+        return None
+
+
+def extract_regime_b_score(output_file: Path) -> Optional[float]:
+    """Extract Regime B primary score when burst-tagged workload was used."""
+    try:
+        with open(output_file, 'r') as f:
+            result = json.load(f)
+            score = result.get("regime_b_primary_score_s")
+            if score is not None:
+                return float(score)
+            regime_b = result.get("regime_b") or {}
+            score = regime_b.get("regime_b_primary_score_s")
+            return float(score) if score is not None else None
+    except (json.JSONDecodeError, IOError, KeyError, TypeError, ValueError):
         return None
 
 
@@ -368,11 +396,14 @@ def main():
     # Handle results
     if exit_code == 0 and output_file.exists():
         rtt = extract_rtt(output_file)
+        regime_b = extract_regime_b_score(output_file)
         rtt_str = f"{rtt}s" if rtt is not None else "N/A"
         log("")
         log("=== SUCCESS ===")
         log(f"Duration: {duration:.1f}s")
         log(f"Total RTT: {rtt_str}")
+        if regime_b is not None:
+            log(f"Regime B primary score: {regime_b:.3f}s")
         log(f"Output file: {output_file}")
         sys.exit(0)
     elif exit_code == 124:

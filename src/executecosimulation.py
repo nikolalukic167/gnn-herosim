@@ -172,6 +172,9 @@ def build_system_state_captured(stats: Optional[Dict[str, Any]]) -> Dict[str, An
         # StateCaptureHelper.capture_initialized_snapshot().  Present when
         # schedulingStateCapture is available; falls back to {} for old runs.
         "initialized_snapshot": scheduling_capture.get("initialized_snapshot", {}),
+        "disk_snapshot_by_task_type": scheduling_capture.get(
+            "disk_snapshot_by_task_type", {}
+        ),
     }
     return captured_state
 
@@ -650,6 +653,11 @@ def load_deterministic_infrastructure_data(
         node_config['type'] = device_type
         node_config['network_map'] = network_maps.get(node_config['node_name'], {})
         nodes.append(node_config)
+
+    # Must match generate_deterministic_infrastructure node layout (skew hub xavier cores).
+    from src.generate_infrastructure import apply_degree_skew_core_server_device_types
+
+    apply_degree_skew_core_server_device_types(nodes, original_config)
 
     print("[executecosim] ✓ Loaded deterministic infrastructure:")
     print(f"  Network maps: {len(network_maps)} nodes")
@@ -2216,7 +2224,9 @@ def execute_brute_force_optimized(
     best_rtt_value = manager.Value('d', float('inf'))  # 'd' = double (float)
     best_rtt_lock = manager.Lock()
     
-    # Open placements file for streaming writes (avoid memory accumulation)
+    # Open placements file for streaming writes (avoid memory accumulation).
+    # MUST be copied to ds_*/placements/placements.jsonl — required for RTT-hash training.
+    # memory/placements_jsonl_required.md
     placements_file = output_dir / "placements.jsonl"
     placements_fh = open(placements_file, 'w')
     elapsed_time = 0  # Initialize for finally block safety

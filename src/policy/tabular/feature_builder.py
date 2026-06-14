@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from src.placement.model import SystemState
 
 from src.policy.tabular.constants import FEATURE_DIM
+from src.placement.warmth import node_has_cached_image
 
 LEGACY_FEATURE_DIM = 22
 LEGACY_TASK_FEATURE_DIM = 3
@@ -89,6 +90,23 @@ def _scheduler_adaptive_queue_norm(queue_values: Sequence[int], queue_norm_mode:
         p90 = nonzero[min(idx, len(nonzero) - 1)]
         return float(min(max(1.0, p90), 100.0))
     return 50.0
+
+
+def _batch_task_type_names(batch_tasks: Sequence["Task"]) -> Set[str]:
+    return {str(task.type["name"]) for task in batch_tasks}
+
+
+def _platform_node_disk_hit(
+    node: Any,
+    platform_type: str,
+    batch_task_types: Set[str],
+) -> float:
+    hit = 0.0
+    for task_type in batch_task_types:
+        task_type_obj = {"name": task_type}
+        if node_has_cached_image(node, platform_type, task_type_obj):
+            return 1.0
+    return hit
 
 
 def _shared_fate_by_position(platforms_info: Sequence[PlatformInfo]) -> List[float]:
@@ -183,13 +201,11 @@ def build_inference_feature_bundle(
     for task in batch_tasks:
         task_type = str(task.type["name"])
         onehot = [1.0 if task_type == t else 0.0 for t in TASK_TYPES_VOCAB]
-        if use_dim22:
-            src_idx = node_name_to_idx.get(str(task.node_name), 0)
-            src_norm = float(src_idx) / max(len(nodes), 1)
-            task_features.append(onehot + [src_norm])
-        else:
-            task_features.append(onehot)
+        src_idx = node_name_to_idx.get(str(task.node_name), 0)
+        src_norm = float(src_idx) / max(len(nodes), 1)
+        task_features.append(onehot + [src_norm])
     task_features_arr = np.asarray(task_features, dtype=np.float32)
+    batch_task_types = _batch_task_type_names(batch_tasks)
 
     raw_queue_by_pos: List[int] = []
     for info in platforms_info:
@@ -268,13 +284,20 @@ def build_inference_feature_bundle(
                     target_concurrency = max(1.0, avg_min_exec / exec_time_this * baseline_concurrency)
 
         target_concurrency_raw = float(target_concurrency)
+        node_disk_hit = _platform_node_disk_hit(
+            info.node, str(info.platform_type), batch_task_types
+        )
         if use_dim22:
             target_concurrency_feat = target_concurrency_raw / 20.0
-            usage_ratio_feat = (float(queue_len_raw) / target_concurrency_raw / 5.0) if target_concurrency_raw > 0 else 0.0
+            dim13_feat = (
+                (float(queue_len_raw) / target_concurrency_raw / 5.0)
+                if target_concurrency_raw > 0
+                else 0.0
+            )
             platform_state_dim = shared_fate
         else:
             target_concurrency_feat = target_concurrency_raw
-            usage_ratio_feat = 0.0
+            dim13_feat = node_disk_hit
             platform_state_dim = is_cold
 
         queue_key_to_platform_meta[queue_key] = {
@@ -291,7 +314,7 @@ def build_inference_feature_bundle(
             + [has_dnn1, has_dnn2, queue_len]
             + [platform_state_dim]
             + [current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm]
-            + [target_concurrency_feat, usage_ratio_feat]
+            + [target_concurrency_feat, dim13_feat]
         )
 
     platform_features_arr = np.asarray(platform_features, dtype=np.float32)
@@ -482,10 +505,11 @@ def build_pyg_inference_graph(
         task_features=torch.tensor(bundle.task_features, dtype=torch.float32),
         platform_features=torch.tensor(bundle.platform_features, dtype=torch.float32),
     )
+    if data.task_features.shape[1] != 3:
+        raise ValueError(
+            f"Expected 3-d task features (type onehot + src_norm), got {data.task_features.shape[1]}"
+        )
     layout = _inference_feature_layout()
-    if layout in ("atomic21", "21") and data.task_features.shape[1] == 2:
-        pad = torch.zeros((data.task_features.shape[0], 1), dtype=torch.float32)
-        data.task_features = torch.cat([data.task_features, pad], dim=1)
     if layout in ("ce_reduced", "reduced_ce", "reduced1060"):
         data.task_features = data.task_features[:, :CE_REDUCED_TASK_FEATURE_DIM]
         data.platform_features = data.platform_features[:, CE_REDUCED_PLATFORM_INDICES]
