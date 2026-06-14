@@ -8,6 +8,11 @@ Writes system_state_captured_unique.json with scheduling-time top-level state
 (replicas, available_resources, scheduler_state) plus per-task queue/temporal
 snapshots matching live GNN inference capture.
 
+DOES NOT write or replace placements/placements.jsonl.
+Repair + recache is NOT sufficient for near-RTT training: rtt_chunk_*.pkl needs
+the full (placement_plan, rtt) sweep from brute-force co-sim. See
+memory/placements_jsonl_required.md.
+
 Use --rewrite-ssc to rebuild SSC files from already-refreshed optimal_result.json
 without re-running simulation.
 """
@@ -211,6 +216,18 @@ def main() -> None:
     )
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
+        "--start-from",
+        type=int,
+        default=0,
+        help="Skip first N ds_* directories (sorted) before processing",
+    )
+    parser.add_argument(
+        "--max-datasets",
+        type=int,
+        default=0,
+        help="Process at most N datasets after --start-from (0 = all remaining)",
+    )
+    parser.add_argument(
         "--repair",
         action="store_true",
         help="Re-run optimal sim with SIM_FORCE_FULL_STATS=1 when state is incomplete",
@@ -230,6 +247,10 @@ def main() -> None:
 
     counts: Dict[str, int] = {}
     dirs = sorted(args.base_dir.glob("ds_*"))
+    if args.start_from > 0:
+        dirs = dirs[args.start_from:]
+    if args.max_datasets > 0:
+        dirs = dirs[: args.max_datasets]
     if args.limit > 0:
         dirs = dirs[: args.limit]
 

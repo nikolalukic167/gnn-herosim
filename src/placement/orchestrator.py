@@ -563,7 +563,7 @@ class Orchestrator:
             if num_tasks else 0.0
         )
 
-        task_results_included = num_tasks <= 20
+        task_results_included = num_tasks <= 20 or os.getenv("SIM_FORCE_FULL_STATS", "0") == "1"
         result = {
             "policy": dataclasses.asdict(self.policy),
             "endTime": self.end_time,

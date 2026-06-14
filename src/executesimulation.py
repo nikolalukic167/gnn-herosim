@@ -180,14 +180,60 @@ def prepare_infrastructure_for_real_simulation(
             "bandwidth": float(network_bandwidth)
         },
         "nodes": nodes,
-        # Real simulation: start with zero replicas, rely on autoscaling
-        # No preinitialize_platforms flag
-        # No replica_plan
-        # No deterministic_replica_placements
-        # No deterministic_queue_distributions
     }
+    infrastructure_config.update(
+        _regime_b_infrastructure_overrides(space_config)
+    )
     
     return infrastructure_config
+
+
+def _env_bool(name: str) -> Optional[bool]:
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _regime_b_infrastructure_overrides(space_config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Pass Regime B / warmth flags from space config or HEROSIM_* env vars.
+
+    space_config keys win over environment when both are set.
+    """
+    overrides: Dict[str, Any] = {}
+
+    defer = space_config.get("defer_cold_replica_init")
+    if defer is None:
+        defer = _env_bool("HEROSIM_DEFER_COLD_REPLICA_INIT")
+    if defer is not None:
+        overrides["defer_cold_replica_init"] = bool(defer)
+
+    warmth = space_config.get("warmth_physics")
+    if warmth is None:
+        warmth = os.environ.get("HEROSIM_WARMTH_PHYSICS")
+    if warmth:
+        overrides["warmth_physics"] = warmth
+
+    ff = space_config.get("fast_forward_warmup")
+    if ff is None:
+        ff = _env_bool("HEROSIM_FAST_FORWARD_WARMUP")
+    if ff is not None:
+        overrides["fast_forward_warmup"] = bool(ff)
+        overrides["fast_forward_threshold"] = int(
+            space_config.get("fast_forward_threshold", 1)
+        )
+
+    scheduler = space_config.get("scheduler")
+    if scheduler:
+        overrides["scheduler"] = scheduler
+
+    return overrides
+
+
+def _workload_has_burst_ids(workload: Dict[str, Any]) -> bool:
+    events = workload.get("events") or []
+    return any(ev.get("burst_id") for ev in events)
 
 
 def execute_simulation(
@@ -677,6 +723,24 @@ def run_simulation(
         result_summary["rtt_overview"] = build_rtt_overview(
             stats, total_rtt, decode_stats_summary=decode_stats_summary
         )
+
+        if _workload_has_burst_ids(workload):
+            from scripts_cosim.regime_b_metrics import regime_b_metrics_from_simulation
+            from src.executecosimulation import extract_task_metrics
+
+            regime_b = regime_b_metrics_from_simulation(
+                workload,
+                stats,
+                extract_task_metrics_fn=extract_task_metrics,
+            )
+            result_summary["regime_b"] = regime_b
+            result_summary["regime_b_primary_score_s"] = regime_b["regime_b_primary_score_s"]
+            print(
+                f"  Regime B primary score: {regime_b['regime_b_primary_score_s']:.3f}s "
+                f"(total_rtt trap ratio: "
+                f"{regime_b['total_rtt_trap']['total_rtt_over_primary_ratio']:.2f}x)",
+                flush=True,
+            )
 
         # Save result
         output_file.parent.mkdir(parents=True, exist_ok=True)

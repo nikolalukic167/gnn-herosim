@@ -2,6 +2,18 @@
 """
 Optimized GNN Dataset Generation Script
 
+MANDATORY OUTPUT: placements/placements.jsonl
+  Every successful dataset MUST persist the full brute-force sweep:
+  one JSONL line per (placement_plan, rtt). prepare_graphs_cache* builds
+  rtt_chunk_*.pkl from this file for counterfactual RTT / near-RTT training.
+
+  refresh_optimal_full_stats.py --repair does NOT create JSONL.
+  Repair + recache alone leaves ~40% of CE rows without counterfactual RTT lookup.
+
+  Never delete .bf_scratch until placements/placements.jsonl exists and is non-empty.
+  --resume must not skip datasets that have best.json but lack placements.jsonl.
+  See memory/placements_jsonl_required.md
+
 This Python script replaces generate_gnn_datasets.sh with significant performance improvements:
 1. Eliminates jq overhead (native Python JSON handling)
 2. Eliminates subprocess spawning for infrastructure generation
@@ -119,9 +131,30 @@ SPARSE_WARMTH_V2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_4tasks_sparse_warmth_v2",
 }
 
+# skew_warmth_v2: degree_skewed_core hub topology + 5/30ms asymmetric latency (288 ds).
+SKEW_WARMTH_V2_GRID: GridPreset = {
+    "topology_type": "degree_skewed_core",
+    "k_core_values": [4, 6, 8],
+    "hub_seeker_fractions": [0.35, 0.50, 0.65],
+    "latency_core_ms": 5,
+    "latency_periphery_ms": 30,
+    "connection_probabilities": [],
+    "replica_configs": [
+        (1, 2, 0.0, 0.0),
+        (2, 2, 0.0, 0.0),
+    ],
+    "queue_distributions": [
+        ("pois16", "poisson", 16, 0, 0, 42, 1),
+        ("pois28", "poisson", 28, 0, 0, 72, 1),
+    ],
+    "seeds": list(range(141, 149)),
+    "default_output_subdir": "gnn_datasets_4tasks_skew_warmth_v2",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
+    "skew_warmth_v2": SKEW_WARMTH_V2_GRID,
 }
 
 
@@ -132,13 +165,48 @@ def resolve_grid_preset(grid_name: str) -> GridPreset:
     return GRID_PRESETS[grid_name]
 
 
+def grid_topology_axis_count(preset: GridPreset) -> int:
+    if preset.get("topology_type") == "degree_skewed_core":
+        return len(preset["k_core_values"]) * len(preset["hub_seeker_fractions"])
+    return len(preset["connection_probabilities"])
+
+
 def grid_total_datasets(preset: GridPreset) -> int:
     return (
-        len(preset["connection_probabilities"])
+        grid_topology_axis_count(preset)
         * len(preset["replica_configs"])
         * len(preset["seeds"])
         * len(preset["queue_distributions"])
     )
+
+
+def grid_topology_variants(preset: GridPreset) -> List[Tuple[str, Dict[str, Any]]]:
+    """Ordered (label, kwargs for create_config_for_iteration topology fields)."""
+    if preset.get("topology_type") == "degree_skewed_core":
+        variants: List[Tuple[str, Dict[str, Any]]] = []
+        for k_core in preset["k_core_values"]:
+            for hub_frac in preset["hub_seeker_fractions"]:
+                seek_pct = int(round(hub_frac * 100))
+                variants.append(
+                    (
+                        f"k{k_core}_seek{seek_pct:02d}",
+                        {
+                            "topology_type": "degree_skewed_core",
+                            "k_core": k_core,
+                            "hub_seeker_fraction": hub_frac,
+                            "latency_core_ms": preset.get("latency_core_ms", 5),
+                            "latency_periphery_ms": preset.get("latency_periphery_ms", 30),
+                        },
+                    )
+                )
+        return variants
+    return [
+        (
+            f"conn={conn_prob}",
+            {"topology_type": "erdos_renyi", "connection_prob": conn_prob},
+        )
+        for conn_prob in preset["connection_probabilities"]
+    ]
 
 # Task type ratios: (dnn1%, dnn2%)
 TASK_TYPE_RATIOS = [
@@ -155,6 +223,17 @@ def log(msg: str, quiet: bool = False, force: bool = False):
     """Print message unless in quiet mode."""
     if not quiet or force:
         print(msg)
+
+
+def workload_templates_dir_for_run(sim_input_path: Path) -> Path:
+    """Per-SLURM-task template dir — parallel array shards must not share gnn_templates/."""
+    job_id = (
+        os.environ.get("SLURM_ARRAY_JOB_ID")
+        or os.environ.get("SLURM_JOB_ID")
+        or str(os.getpid())
+    )
+    task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "0")
+    return sim_input_path / "traces" / f"gnn_templates_{job_id}_{task_id}"
 
 
 def generate_workload_templates(
@@ -221,11 +300,16 @@ def generate_workload_templates(
 
 def create_config_for_iteration(
     base_config: Dict[str, Any],
-    connection_prob: float,
     replica_cfg: Tuple[int, int, float, float],
     seed: int,
     queue_dist: Tuple[str, str, int, int, int, int, int],
-    batch_size: int = 4
+    batch_size: int = 4,
+    topology_type: str = "erdos_renyi",
+    connection_prob: Optional[float] = None,
+    k_core: Optional[int] = None,
+    hub_seeker_fraction: Optional[float] = None,
+    latency_core_ms: float = 5.0,
+    latency_periphery_ms: float = 30.0,
 ) -> Dict[str, Any]:
     """
     Create a modified config for a specific iteration.
@@ -243,8 +327,29 @@ def create_config_for_iteration(
         config['network'] = {}
     if 'topology' not in config['network']:
         config['network']['topology'] = {}
-    config['network']['topology']['connection_probability'] = connection_prob
-    config['network']['topology']['seed'] = seed
+    topo = config['network']['topology']
+    if topology_type == "degree_skewed_core":
+        if k_core is None or hub_seeker_fraction is None:
+            raise ValueError(
+                "degree_skewed_core requires k_core and hub_seeker_fraction"
+            )
+        topo.update(
+            {
+                "type": "degree_skewed_core",
+                "k_core": k_core,
+                "hub_seeker_fraction": hub_seeker_fraction,
+                "p_core": 0.95,
+                "p_periphery": 0.15,
+                "latency_core_ms": latency_core_ms,
+                "latency_periphery_ms": latency_periphery_ms,
+                "seed": seed,
+            }
+        )
+    else:
+        if connection_prob is None:
+            raise ValueError("erdos_renyi topology requires connection_prob")
+        topo["connection_probability"] = connection_prob
+        topo["seed"] = seed
     
     # Preinit configuration
     config['preinit'] = {
@@ -365,7 +470,8 @@ def generate_single_dataset(
         # Load apps from config
         apps = list(config['wsc'].keys())
         
-        # Per-dataset scratch dir — parallel-safe (shared initial_results_simple races across shards)
+        # Per-dataset scratch dir — parallel-safe (shared initial_results_simple races across shards).
+        # placements.jsonl lives here during BF; MUST be copied to placements/ before rmtree.
         results_dir = output_dir / ".bf_scratch"
         if results_dir.exists():
             shutil.rmtree(results_dir)
@@ -453,13 +559,19 @@ def generate_single_dataset(
                 elif ssc_path.exists():
                     ssc_path.unlink()
             
-            # Copy placements
-            if placements_file.exists():
-                (output_dir / "placements").mkdir(exist_ok=True)
-                with open(placements_file, 'r') as f:
-                    placements_content = f.read()
-                with open(output_dir / "placements" / "placements.jsonl", 'w') as f:
-                    f.write(placements_content)
+            # REQUIRED: persist full placement sweep for RTT-hash / near-RTT training.
+            pub_placements = output_dir / "placements" / "placements.jsonl"
+            if not placements_file.exists():
+                raise RuntimeError(
+                    f"{dataset_id}: best.json exists but .bf_scratch/placements.jsonl missing — "
+                    "cannot train counterfactual RTT; keep scratch and re-run BF"
+                )
+            (output_dir / "placements").mkdir(exist_ok=True)
+            shutil.copy2(placements_file, pub_placements)
+            if pub_placements.stat().st_size == 0:
+                raise RuntimeError(
+                    f"{dataset_id}: placements/placements.jsonl is empty after copy"
+                )
             
             # Copy placement metadata if it exists (will be written by execute_brute_force_optimized)
             metadata_src = results_dir / "placement_metadata.json"
@@ -471,6 +583,7 @@ def generate_single_dataset(
             if progress_src.exists():
                 shutil.copy2(progress_src, output_dir / "placement_progress.txt")
             
+            # Only remove scratch after public JSONL is verified (see placements_jsonl_required.md)
             shutil.rmtree(results_dir, ignore_errors=True)
 
             duration = time.time() - start_time
@@ -507,8 +620,22 @@ def main():
                         help='Maximum number of datasets to generate')
     parser.add_argument('--workers', '-w', type=int, default=None,
                         help='Number of parallel workers (default: CPU count - 1)')
-    parser.add_argument('--resume', action='store_true',
-                        help='Skip datasets that already exist')
+    parser.add_argument(
+        '--resume',
+        action='store_true',
+        help=(
+            'Skip datasets that already have best.json AND non-empty '
+            'placements/placements.jsonl (JSONL required for RTT-hash training)'
+        ),
+    )
+    parser.add_argument(
+        '--only-missing-jsonl',
+        action='store_true',
+        help=(
+            'Only re-run BF for datasets that have best.json but lack non-empty '
+            'placements/placements.jsonl (skips tail datasets with no best.json)'
+        ),
+    )
     parser.add_argument('--start-from', type=int, default=0,
                         help='Start from dataset index (e.g., 118 to start from ds_00118)')
     parser.add_argument('--fast-forward-warmup', default=True, action='store_true',
@@ -548,6 +675,8 @@ def main():
         help='Progress log filename under logs/ (default: progress_{num_tasks}tasks.txt or derived from --output-subdir)',
     )
     args = parser.parse_args()
+    if args.only_missing_jsonl and not args.resume:
+        args.resume = True
 
     if os.environ.get("COSIM_SUPPRESS_SIM_PRINTS", "0") == "1":
         logging.getLogger().setLevel(logging.ERROR)
@@ -562,7 +691,7 @@ def main():
     
     quiet = args.quiet
     grid_preset = resolve_grid_preset(args.grid)
-    connection_probabilities = grid_preset["connection_probabilities"]
+    topology_variants = grid_topology_variants(grid_preset)
     replica_configs = grid_preset["replica_configs"]
     queue_distributions = grid_preset["queue_distributions"]
     seeds = grid_preset["seeds"]
@@ -589,7 +718,7 @@ def main():
     samples_file = base_dir / "lhs_samples_simple.npy"
     mapping_file = base_dir / "lhs_samples_simple_mapping.pkl"
     workload_base_file = sim_input_path / "traces" / "workload-10.json"
-    workload_templates_dir = sim_input_path / "traces" / "gnn_templates"
+    workload_templates_dir = workload_templates_dir_for_run(sim_input_path)
     if args.progress_log_name:
         progress_log_name = args.progress_log_name
     elif args.output_subdir:
@@ -650,7 +779,7 @@ def main():
     start_from = args.start_from
     current_idx = 0
     
-    for conn_prob in connection_probabilities:
+    for topo_label, topo_kwargs in topology_variants:
         for replica_cfg in replica_configs:
             for seed in seeds:
                 for queue_dist in queue_distributions:
@@ -666,27 +795,85 @@ def main():
                     dataset_id = f"ds_{dataset_idx:05d}"
                     output_dir = output_base / dataset_id
                     
-                    # Skip if resuming and already exists
-                    if args.resume and (output_dir / "best.json").exists():
-                        log(f"[{dataset_id}] Skipping (already exists)", quiet)
+                    # Resume only when full BF artifacts exist (JSONL = placement–RTT universe)
+                    pub_jsonl = output_dir / "placements" / "placements.jsonl"
+                    has_jsonl = pub_jsonl.exists() and pub_jsonl.stat().st_size > 0
+                    has_best = (output_dir / "best.json").exists()
+
+                    if args.only_missing_jsonl:
+                        if has_jsonl:
+                            log(
+                                f"[{dataset_id}] Skipping (--only-missing-jsonl: JSONL ok)",
+                                quiet,
+                            )
+                            dataset_idx += 1
+                            current_idx += 1
+                            template_idx = (template_idx + 1) % NUM_WORKLOAD_TEMPLATES
+                            continue
+                        if not has_best:
+                            log(
+                                f"[{dataset_id}] Skipping (--only-missing-jsonl: no best.json)",
+                                quiet,
+                            )
+                            dataset_idx += 1
+                            current_idx += 1
+                            template_idx = (template_idx + 1) % NUM_WORKLOAD_TEMPLATES
+                            continue
+                        log(
+                            f"[{dataset_id}] BF repair: best.json without placements.jsonl",
+                            quiet,
+                            force=True,
+                        )
+                        if pub_jsonl.exists() and pub_jsonl.stat().st_size == 0:
+                            pub_jsonl.unlink()
+                    elif args.resume and has_best and has_jsonl:
+                        log(
+                            f"[{dataset_id}] Skipping (best.json + placements.jsonl)",
+                            quiet,
+                        )
                         dataset_idx += 1
                         current_idx += 1
                         template_idx = (template_idx + 1) % NUM_WORKLOAD_TEMPLATES
                         continue
+                    elif args.resume and has_best and not has_jsonl:
+                        log(
+                            f"[{dataset_id}] Re-running: best.json exists but "
+                            "placements/placements.jsonl missing or empty",
+                            quiet,
+                            force=True,
+                        )
+                        if pub_jsonl.exists() and pub_jsonl.stat().st_size == 0:
+                            pub_jsonl.unlink()
+                    elif not has_best and has_jsonl:
+                        log(
+                            f"[{dataset_id}] Re-running: stale placements.jsonl without best.json",
+                            quiet,
+                            force=True,
+                        )
+                        pub_jsonl.unlink()
                     
                     # Get workload template
                     template = templates[template_idx]
                     
                     # Create config for this iteration (with batch_size matching num_tasks)
                     config = create_config_for_iteration(
-                        base_config, conn_prob, replica_cfg, seed, queue_dist, batch_size=batch_size
+                        base_config,
+                        replica_cfg,
+                        seed,
+                        queue_dist,
+                        batch_size=batch_size,
+                        **topo_kwargs,
                     )
                     
                     qname = queue_dist[0]
                     per_client, per_server, client_pct, server_pct = replica_cfg
                     
-                    log(f"\n[{dataset_id}] conn={conn_prob} rpc={per_client} rps={per_server} "
-                        f"cpct={client_pct} spct={server_pct} q={qname}", quiet)
+                    log(
+                        f"\n[{dataset_id}] topo={topo_label} rpc={per_client} "
+                        f"rps={per_server} cpct={client_pct} spct={server_pct} "
+                        f"seed={seed} q={qname}",
+                        quiet,
+                    )
                     
                     # Generate dataset
                     status, rtt, duration = generate_single_dataset(

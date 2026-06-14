@@ -4,6 +4,10 @@ from __future__ import annotations
 """
 Pre-generate and cache SEQUENTIAL counterfactual graphs for GNN training (NON-UNIQUE VERSION).
 
+REQUIRES placements/placements.jsonl per parent dataset for rtt_chunk_*.pkl (placement–RTT
+hash). Graphs can be built from optimal_result alone, but counterfactual RTT lookup fails
+without JSONL. repair + recache is NOT a substitute. memory/placements_jsonl_required.md
+
 For each co-sim dataset with N tasks, emits N graphs:
   - Step s uses queue snapshot after placing optimal replicas for tasks 0..s-1
   - Cross-entropy trains only on task s via ce_label_mask (full optimal y kept on all tasks)
@@ -461,7 +465,7 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
     for temp_state in temporal_sources:
         for platform_key, state_dict in temp_state.items():
             if isinstance(state_dict, dict):
-                merged_temporal_state[platform_key] = {
+                entry: Dict[str, Any] = {
                     'current_task_remaining': _safe_float(
                         state_dict.get('current_task_remaining', 0.0), 0.0
                     ),
@@ -472,6 +476,10 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
                         state_dict.get('comm_remaining', 0.0), 0.0
                     ),
                 }
+                prev_type = state_dict.get('previous_task_type_name')
+                if prev_type is not None:
+                    entry['previous_task_type_name'] = str(prev_type)
+                merged_temporal_state[platform_key] = entry
     if not merged_temporal_state:
         msg = (
             f"Empty temporal_state in {ssc_path} for {dataset_dir.name}; "
@@ -489,10 +497,21 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
         k: bool(v) for k, v in raw_initialized.items()
     }
 
+    raw_disk = data.get('disk_snapshot_by_task_type') or {}
+    disk_snapshot_by_task_type: Dict[str, Dict[str, float]] = {}
+    if isinstance(raw_disk, dict):
+        for task_type, plat_map in raw_disk.items():
+            if not isinstance(plat_map, dict):
+                continue
+            disk_snapshot_by_task_type[str(task_type)] = {
+                str(k): float(v) for k, v in plat_map.items()
+            }
+
     return {
         'queue_snapshot': queue_snapshot,
         'temporal_state': merged_temporal_state,
         'initialized_snapshot': initialized_snapshot,
+        'disk_snapshot_by_task_type': disk_snapshot_by_task_type,
     }
 
 
@@ -528,23 +547,26 @@ def extract_per_task_scheduling_snapshots(
                 "temporal_state_at_scheduling", {}
             )
             if isinstance(temp, dict) and temp:
-                per_task_temporal.append(
-                    {
-                        str(pk): {
-                            "current_task_remaining": _safe_float(
-                                sd.get("current_task_remaining", 0.0), 0.0
-                            ),
-                            "cold_start_remaining": _safe_float(
-                                sd.get("cold_start_remaining", 0.0), 0.0
-                            ),
-                            "comm_remaining": _safe_float(
-                                sd.get("comm_remaining", 0.0), 0.0
-                            ),
-                        }
-                        for pk, sd in temp.items()
-                        if isinstance(sd, dict)
+                step_temporal: Dict[str, Dict[str, Any]] = {}
+                for pk, sd in temp.items():
+                    if not isinstance(sd, dict):
+                        continue
+                    entry = {
+                        "current_task_remaining": _safe_float(
+                            sd.get("current_task_remaining", 0.0), 0.0
+                        ),
+                        "cold_start_remaining": _safe_float(
+                            sd.get("cold_start_remaining", 0.0), 0.0
+                        ),
+                        "comm_remaining": _safe_float(
+                            sd.get("comm_remaining", 0.0), 0.0
+                        ),
                     }
-                )
+                    prev_type = sd.get("previous_task_type_name")
+                    if prev_type is not None:
+                        entry["previous_task_type_name"] = str(prev_type)
+                    step_temporal[str(pk)] = entry
+                per_task_temporal.append(step_temporal)
             else:
                 per_task_temporal.append({})
     except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
@@ -606,6 +628,9 @@ def load_all_datasets(
                     'queue_snapshot': extended_state.get('queue_snapshot', {}),
                     'temporal_state': extended_state.get('temporal_state', {}),
                     'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
+                    'disk_snapshot_by_task_type': extended_state.get(
+                        'disk_snapshot_by_task_type', {}
+                    ),
                     'per_task_queue_snapshots': per_task_queues,
                     'per_task_temporal_snapshots': per_task_temporal,
                 }
@@ -748,6 +773,10 @@ def build_and_save_rtt_hash_table_chunked(
 ) -> Tuple[int, int, set]:
     """
     Build (dataset_id, combo)->rtt hash table in chunks for O(1) lookup at train time.
+
+    Source: placements/placements.jsonl only (full BF sweep). Missing JSONL => parent
+    excluded from RTT hash — repair/recache cannot backfill this. See
+    memory/placements_jsonl_required.md.
 
     Returns:
         (num_datasets_with_combos, total_entries, datasets_with_combos)
@@ -948,6 +977,7 @@ def build_graph(
     queue_snapshot: Optional[Mapping[str, int]] = None,
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     initialized_snapshot: Optional[Mapping[str, bool]] = None,
+    disk_snapshot_by_task_type: Optional[Mapping[str, Mapping[str, float]]] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -987,11 +1017,18 @@ def build_graph(
     plat_node_by_pos = df_platforms['node_name'].to_numpy()
     plat_ids_arr = df_platforms['platform_id'].to_numpy()
     
-    # TASK FEATURES (2 dims: task type onehot only — no src_norm)
+    # TASK FEATURES (3 dims: task type onehot + src_norm)
     task_types_vocab = np.array(['dnn1', 'dnn2'])
     task_type_arr = df_tasks['task_type'].to_numpy()
     src_names = df_tasks['source_node'].to_numpy()
-    task_features = (task_type_arr[:, None] == task_types_vocab[None, :]).astype(float)
+    task_onehot = (task_type_arr[:, None] == task_types_vocab[None, :]).astype(float)
+    src_idx = np.fromiter(
+        (first_idx_per_name.get(n, 0) for n in src_names),
+        dtype=np.float64,
+        count=n_tasks,
+    )
+    src_norm = (src_idx / max(len(df_nodes), 1)).reshape(-1, 1)
+    task_features = np.concatenate([task_onehot, src_norm], axis=1)
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
@@ -1073,8 +1110,16 @@ def build_graph(
             is_cold_arr[pos] = 1.0 if cold_start_remaining[pos] > 0.0 else 0.0
     is_cold_norm = is_cold_arr.reshape(-1, 1)
     
-    # Target concurrency (raw — dim 12); dim 13 reserved (0.0, no usage ratio)
+    # Target concurrency (raw — dim 12); dim 13 node_disk_hit (batch task types)
     target_concurrencies = np.zeros(n_platforms, dtype=np.float64)
+    batch_task_types = {str(t) for t in task_type_arr.tolist()}
+    disk_by_type: Dict[str, Dict[str, float]] = {}
+    if disk_snapshot_by_task_type:
+        for task_type, plat_map in disk_snapshot_by_task_type.items():
+            if isinstance(plat_map, dict):
+                disk_by_type[str(task_type)] = {
+                    str(k): float(v) for k, v in plat_map.items()
+                }
     
     # For each platform, calculate target concurrency based on task types it supports
     for pos in range(n_platforms):
@@ -1122,7 +1167,16 @@ def build_graph(
             target_concurrencies[pos] = baseline_concurrency
         
     target_concurrency_raw = target_concurrencies.reshape(-1, 1)
-    reserved_dim = np.zeros((n_platforms, 1), dtype=np.float64)
+    node_disk_hit = np.zeros((n_platforms, 1), dtype=np.float64)
+    for pos in range(n_platforms):
+        node_name = str(plat_node_by_pos[pos])
+        plat_id = int(plat_ids_arr[pos])
+        key = f"{node_name}:{plat_id}"
+        hit = 0.0
+        for task_type in batch_task_types:
+            plat_map = disk_by_type.get(task_type, {})
+            hit = max(hit, float(plat_map.get(key, 0.0)))
+        node_disk_hit[pos, 0] = hit
 
     # Concatenate all platform features
     platform_features = np.concatenate([
@@ -1131,7 +1185,7 @@ def build_graph(
         queue_lengths_raw,  # 1 dim raw queue
         is_cold_norm,  # 1 dim per-platform cold flag
         current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm,  # 3 dims
-        target_concurrency_raw, reserved_dim  # raw tc + reserved placeholder
+        target_concurrency_raw, node_disk_hit  # raw tc + node_disk_hit (dim 13)
     ], axis=1)
     _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
@@ -1259,13 +1313,18 @@ def build_graph(
                 else:
                     latency = _safe_float(lat_entry, 0.0)
                 
-                # Warm replica flag
-                if task_type == 'dnn1':
-                    is_warm = float(has_dnn1_arr[plat_pos])
-                elif task_type == 'dnn2':
-                    is_warm = float(has_dnn2_arr[plat_pos])
-                else:
-                    is_warm = 0.0
+                # Sandbox warm: previous_task type match (matches platform_process / feature_builder)
+                plat_key_for_warm = f"{plat_node_name}:{plat_id}"
+                prev_type = (
+                    (temporal_state or {})
+                    .get(plat_key_for_warm, {})
+                    .get("previous_task_type_name")
+                )
+                is_warm = (
+                    1.0
+                    if (prev_type is not None and str(prev_type) == str(task_type))
+                    else 0.0
+                )
                 
                 # Energy consumption (from task-types.json)
                 energy = 0.0
@@ -1482,6 +1541,7 @@ def build_sequential_graphs_for_dataset(
         dataset_dict.get("per_task_temporal_snapshots") or []
     )
     initialized_snapshot = dataset_dict.get("initialized_snapshot") or {}
+    disk_snapshot_by_task_type = dataset_dict.get("disk_snapshot_by_task_type") or {}
 
     optimal_combo = optimal_combo_from_tasks(
         [
@@ -1531,6 +1591,7 @@ def build_sequential_graphs_for_dataset(
             queue_snapshot=graph_queue,
             temporal_state=step_temporal,
             initialized_snapshot=initialized_snapshot,
+            disk_snapshot_by_task_type=disk_snapshot_by_task_type,
         )
         _attach_ce_label_mask(graph, step, n_tasks)
 
@@ -1584,6 +1645,7 @@ def build_sequential_graphs_for_dataset(
                 queue_snapshot=aug_queue,
                 temporal_state=temporal_state,
                 initialized_snapshot=initialized_snapshot,
+                disk_snapshot_by_task_type=disk_snapshot_by_task_type,
             )
             _attach_ce_label_mask(graph, 0, n_tasks)
             task_map = getattr(graph, "task_logit_to_placement", None) or getattr(

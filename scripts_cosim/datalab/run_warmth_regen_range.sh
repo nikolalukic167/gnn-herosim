@@ -26,9 +26,22 @@ fi
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate "${ENV_NAME}"
 
-scratch_dir="/scratch/${USER}_${SLURM_JOB_ID:-local}"
-mkdir -p "${scratch_dir}"
-chmod 700 "${scratch_dir}"
+scratch_dir=""
+for candidate in \
+  "/scratch/${USER}_${SLURM_JOB_ID:-local}" \
+  "${TMPDIR:-/tmp}/herosim_${USER}_${SLURM_JOB_ID:-local}" \
+  "${PROJECT_ROOT}/.scratch/${USER}_${SLURM_JOB_ID:-local}"; do
+  if mkdir -p "${candidate}" 2>/dev/null; then
+    chmod 700 "${candidate}" 2>/dev/null || true
+    scratch_dir="${candidate}"
+    break
+  fi
+done
+if [[ -z "${scratch_dir}" ]]; then
+  echo "ERROR: could not create scratch directory" >&2
+  exit 1
+fi
+export SLURM_SCRATCH="${scratch_dir}"
 
 if [[ -n "${SLURM_CPUS_PER_TASK:-}" && -z "${WORKERS}" ]]; then
   WORKERS=$(( SLURM_CPUS_PER_TASK > 1 ? SLURM_CPUS_PER_TASK - 1 : 1 ))
@@ -41,10 +54,16 @@ progress_name="progress_${OUTPUT_SUBDIR}_${SHARD_LABEL}.txt"
 LOG="logs/warmth_regen_${SHARD_LABEL}_$(date +%Y%m%d_%H%M%S).log"
 
 echo "=== Warmth regen ${SHARD_LABEL} ==="
-echo "Node: ${SLURMD_NODENAME:-unknown} · Job: ${SLURM_JOB_ID:-local}"
+echo "Node: ${SLURMD_NODENAME:-unknown} · Job: ${SLURM_JOB_ID:-local} · Scratch: ${scratch_dir}"
 echo "Range: ds_$(printf '%05d' "${START_FROM}") .. ds_$(printf '%05d' "${end}") (${MAX_DATASETS} indices)"
 echo "Grid: ${GRID}"
 echo "Workers: ${WORKERS}"
+
+ONLY_MISSING_JSONL="${ONLY_MISSING_JSONL:-0}"
+extra_args=()
+if [[ "${ONLY_MISSING_JSONL}" == "1" ]]; then
+  extra_args+=(--only-missing-jsonl)
+fi
 
 python3 -u scripts_cosim/generate_gnn_datasets_fast.py \
   --quiet \
@@ -56,6 +75,7 @@ python3 -u scripts_cosim/generate_gnn_datasets_fast.py \
   --output-subdir "${OUTPUT_SUBDIR}" \
   --progress-log-name "${progress_name}" \
   --workers "${WORKERS}" \
+  "${extra_args[@]}" \
   2>&1 | tee "${LOG}"
 
 if [[ -d "${scratch_dir}" && "${scratch_dir}" == /scratch/* ]]; then

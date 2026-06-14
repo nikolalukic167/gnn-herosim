@@ -92,4 +92,4 @@ python3 scripts_cosim/run_simulation.py \
   --seed "$SEED"
 
 elapsed=$(( $(date +%s) - start ))
-python3 -c "import json; d=json.load(open('${OUTPUT}')); print(f'OK elapsed={elapsed}s total_rtt={d[\"total_rtt\"]}')"
+python3 -c "import json; d=json.load(open('${OUTPUT}')); print(f'OK elapsed=${elapsed}s total_rtt={d[\"total_rtt\"]}')"

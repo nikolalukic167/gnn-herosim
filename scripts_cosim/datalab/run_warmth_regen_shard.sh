@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # One SLURM array task: co-sim warmth regen for a contiguous index range.
 # Uses SLURM_ARRAY_TASK_ID to pick start/count; auto-sets workers from SLURM_CPUS_PER_TASK.
+#
+# REQUIRED OUTPUT per ds_*: placements/placements.jsonl (not optional — RTT-hash training).
+# --resume skips only best.json + non-empty JSONL. Repair does not recreate JSONL.
+# memory/placements_jsonl_required.md
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-/home/nikola.lukic/gnn-herosim}"
@@ -27,11 +31,22 @@ fi
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate "${ENV_NAME}"
 
-# Job-specific scratch (cluster etiquette: IO-heavy work off /home)
-scratch_dir="/scratch/${USER}_${SLURM_JOB_ID:-local}"
-if [[ ! -d "${scratch_dir}" ]]; then
-  mkdir -p "${scratch_dir}"
-  chmod 700 "${scratch_dir}"
+# Job-specific scratch (cluster etiquette: IO-heavy work off /home).
+# Some nodes lack /scratch — fall back to $TMPDIR or repo-local scratch.
+scratch_dir=""
+for candidate in \
+  "/scratch/${USER}_${SLURM_JOB_ID:-local}" \
+  "${TMPDIR:-/tmp}/herosim_${USER}_${SLURM_JOB_ID:-local}" \
+  "${PROJECT_ROOT}/.scratch/${USER}_${SLURM_JOB_ID:-local}"; do
+  if mkdir -p "${candidate}" 2>/dev/null; then
+    chmod 700 "${candidate}" 2>/dev/null || true
+    scratch_dir="${candidate}"
+    break
+  fi
+done
+if [[ -z "${scratch_dir}" ]]; then
+  echo "ERROR: could not create scratch directory (tried /scratch, TMPDIR, ${PROJECT_ROOT}/.scratch)" >&2
+  exit 1
 fi
 export SLURM_SCRATCH="${scratch_dir}"
 
@@ -75,6 +90,12 @@ echo "Range: ds_$(printf '%05d' "${start}") .. ds_$(printf '%05d' "$((start + co
 echo "Workers: ${WORKERS} (cpus-per-task=${SLURM_CPUS_PER_TASK:-n/a})"
 echo "Log: ${LOG}"
 
+ONLY_MISSING_JSONL="${ONLY_MISSING_JSONL:-0}"
+extra_args=()
+if [[ "${ONLY_MISSING_JSONL}" == "1" ]]; then
+  extra_args+=(--only-missing-jsonl)
+fi
+
 python3 -u scripts_cosim/generate_gnn_datasets_fast.py \
   --quiet \
   --grid "${GRID}" \
@@ -85,6 +106,7 @@ python3 -u scripts_cosim/generate_gnn_datasets_fast.py \
   --output-subdir "${OUTPUT_SUBDIR}" \
   --progress-log-name "${progress_name}" \
   --workers "${WORKERS}" \
+  "${extra_args[@]}" \
   2>&1 | tee "${LOG}"
 
 echo "=== Done array ${SLURM_ARRAY_TASK_ID} ==="

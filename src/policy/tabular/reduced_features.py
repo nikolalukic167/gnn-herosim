@@ -129,6 +129,158 @@ def apply_reduced_features_to_graph(graph: Any, repo_root: Path) -> Any:
     return graph
 
 
+DIM22_FEATURE_DIM = 22  # 3-task + 14-platform + 5-edge
+DIM22_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM22_FEATURE_DIM)]
+
+
+def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+    """Extract full 22-dim (3-task + 14-plat + 5-edge) rows from a seq cache graph.
+
+    Unlike extract_rows_from_reduced_graph, this keeps all platform and edge features.
+    The resulting model is trained with INFERENCE_FEATURE_LAYOUT=dim22, which matches
+    build_inference_feature_bundle(use_dim22=True): 3-task + 14-plat + 5-edge = 22-d.
+
+    Key fix vs ce_reduced: retains is_warm (edge dim 2), is_cold/shared_fate (plat dim 8),
+    has_dnn1/dnn2 (plat dims 5-6), and temporal dims. Queue is still raw here (plat dim 7)
+    vs normalized at inference, but this mismatch is diluted across 21 other features — same
+    situation as the working batch_edge_mlp.pt trained on the v6.5 seq cache.
+    """
+    parent_id = str(getattr(graph, "parent_dataset_id", graph_id))
+    seq_step = int(getattr(graph, "seq_step"))
+    seq_n_tasks = int(getattr(graph, "seq_n_tasks"))
+    prefix_augment = bool(getattr(graph, "prefix_augment", False))
+    task_idx = seq_step
+
+    task_placement_map = _task_placement_map(graph)
+    task_queue_map = _task_queue_key_map(graph)
+
+    if task_idx not in task_placement_map:
+        return [], f"task_idx {task_idx} missing from task_logit_to_placement"
+
+    y_raw = getattr(graph, "y", None)
+    if y_raw is None:
+        return [], "missing y labels"
+
+    target_class_idx = int(y_raw[task_idx].item()) if isinstance(y_raw, torch.Tensor) else int(y_raw[task_idx])
+    if target_class_idx < 0:
+        return [], f"invalid label y[{task_idx}]={target_class_idx}"
+
+    task_features = _as_numpy(graph.task_features)   # (n_tasks, 3) after enrich
+    platform_features = _as_numpy(graph.platform_features)  # (n_plats, 14)
+    edge_attr_all = _as_numpy(graph.edge_attr)
+    edge_attr_directed = _directed_edge_attr_slice(edge_attr_all)  # (n_directed, 5)
+    edge_offset = _directed_edge_offset(task_placement_map, task_idx)
+
+    if task_features.shape[1] < 3:
+        raise ValueError(
+            f"graph {graph_id}: task_features has {task_features.shape[1]} cols, "
+            "expected >= 3 (call enrich_task_features_with_src_norm first)"
+        )
+    if platform_features.shape[1] < 14:
+        raise ValueError(
+            f"graph {graph_id}: platform_features has {platform_features.shape[1]} cols, expected >= 14"
+        )
+    if edge_attr_directed.shape[1] < 5:
+        raise ValueError(
+            f"graph {graph_id}: edge_attr_directed has {edge_attr_directed.shape[1]} cols, expected >= 5"
+        )
+
+    candidates = task_placement_map[task_idx]
+    queue_keys = task_queue_map[task_idx]
+    if len(candidates) != len(queue_keys):
+        raise ValueError(
+            f"task {task_idx}: placement count {len(candidates)} != queue key count {len(queue_keys)}"
+        )
+
+    rows: List[TabularEdgeRow] = []
+    for logit_idx, (node_id, plat_id) in enumerate(candidates):
+        queue_key = str(queue_keys[logit_idx])
+        plat_pos = resolve_platform_pos(graph, int(node_id), int(plat_id), queue_key)
+        global_edge_idx = edge_offset + logit_idx
+        if global_edge_idx >= edge_attr_directed.shape[0]:
+            raise IndexError(
+                f"global_edge_idx={global_edge_idx} out of range for directed edge_attr "
+                f"(size={edge_attr_directed.shape[0]}, task_idx={task_idx}, logit_idx={logit_idx})"
+            )
+
+        x_task = task_features[task_idx, :3]   # (3,)
+        x_plat = platform_features[plat_pos, :14]  # (14,)
+        x_edge = edge_attr_directed[global_edge_idx, :5]  # (5,)
+        features = np.concatenate([x_task, x_plat, x_edge]).astype(np.float64)
+        if features.shape[0] != DIM22_FEATURE_DIM:
+            raise ValueError(f"Expected {DIM22_FEATURE_DIM} dim22 features, got {features.shape[0]}")
+        if not np.isfinite(features).all():
+            raise ValueError(f"Non-finite features for graph={graph_id} task={task_idx} logit={logit_idx}")
+
+        y_class = 1 if logit_idx == target_class_idx else 0
+        rows.append(
+            TabularEdgeRow(
+                row_id=generate_row_id(parent_id, graph_id, task_idx, logit_idx),
+                parent_dataset_id=parent_id,
+                graph_id=graph_id,
+                seq_step=seq_step,
+                seq_n_tasks=seq_n_tasks,
+                task_idx=task_idx,
+                logit_idx=logit_idx,
+                node_id=int(node_id),
+                platform_id=int(plat_id),
+                queue_key=queue_key,
+                prefix_augment=prefix_augment,
+                y_class=y_class,
+                y_logit=target_class_idx,
+                features=features,
+            )
+        )
+
+    return rows, None
+
+
+def dim22_rows_to_dataframe(rows: Sequence[TabularEdgeRow]):
+    import pandas as pd
+
+    records: List[Dict[str, Any]] = []
+    for row in rows:
+        rec: Dict[str, Any] = {
+            "row_id": row.row_id,
+            "parent_dataset_id": row.parent_dataset_id,
+            "graph_id": row.graph_id,
+            "seq_step": row.seq_step,
+            "seq_n_tasks": row.seq_n_tasks,
+            "task_idx": row.task_idx,
+            "logit_idx": row.logit_idx,
+            "node_id": row.node_id,
+            "platform_id": row.platform_id,
+            "queue_key": row.queue_key,
+            "prefix_augment": int(row.prefix_augment),
+            "y_class": row.y_class,
+            "y_logit": row.y_logit,
+        }
+        for col, val in zip(DIM22_FEATURE_COLUMN_NAMES, row.features):
+            rec[col] = float(val)
+        records.append(rec)
+    return pd.DataFrame.from_records(records)
+
+
+def validate_dim22_frame(df) -> Dict[str, Any]:
+    if len(df) == 0:
+        raise ValueError("Extracted dim22 dataframe is empty")
+    if not (df["task_idx"] == df["seq_step"]).all():
+        raise ValueError("Invariant violated: task_idx != seq_step")
+    feature_values = df[DIM22_FEATURE_COLUMN_NAMES].to_numpy()
+    if not np.isfinite(feature_values).all():
+        raise ValueError("Non-finite feature values in dim22 extracted dataframe")
+    pos_per_graph = df.groupby("graph_id")["y_class"].sum()
+    if not (pos_per_graph == 1).all():
+        bad = pos_per_graph[pos_per_graph != 1]
+        raise ValueError(f"Expected exactly one positive edge per graph; bad graphs: {bad.to_dict()}")
+    return {
+        "num_rows": int(len(df)),
+        "num_graphs": int(df["graph_id"].nunique()),
+        "num_parents": int(df["parent_dataset_id"].nunique()),
+        "positives": int(df["y_class"].sum()),
+    }
+
+
 def extract_rows_from_reduced_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
     """Extract reduced-dim tabular rows for the active seq step on this graph."""
     parent_id = str(getattr(graph, "parent_dataset_id", graph_id))

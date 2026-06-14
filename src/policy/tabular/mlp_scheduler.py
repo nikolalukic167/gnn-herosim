@@ -19,7 +19,14 @@ if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
 from src.policy.tabular.constants import FEATURE_DIM
-from src.policy.tabular.feature_builder import build_inference_feature_bundle, InferenceFeatureBundle
+from src.policy.tabular.feature_builder import (
+    build_inference_feature_bundle,
+    InferenceFeatureBundle,
+    CE_REDUCED_EDGE_INDICES,
+    CE_REDUCED_PLATFORM_INDICES,
+    CE_REDUCED_TASK_FEATURE_DIM,
+    _inference_feature_layout,
+)
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
 from src.policy.tabular.scheduler import XGBoostBatchScheduler
 
@@ -157,13 +164,18 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
                 f"[MLP Batch] Edge count mismatch: iterated {edge_row}, expected {total_edges}"
             )
 
-        # Vectorised feature assembly: [N, 3] | [N, 14] | [N, 5]  →  [N, 22]
+        # Vectorised feature assembly (full or ce-reduced layout)
+        task_feats = bundle.task_features[task_idx_arr]
+        plat_feats = bundle.platform_features[plat_pos_arr]
+        edge_feats = bundle.edge_attr_directed
+        layout = _inference_feature_layout()
+        if layout in ("ce_reduced", "reduced_ce", "reduced1060"):
+            task_feats = task_feats[:, :CE_REDUCED_TASK_FEATURE_DIM]
+            plat_feats = plat_feats[:, CE_REDUCED_PLATFORM_INDICES]
+            edge_feats = edge_feats[:, CE_REDUCED_EDGE_INDICES]
+
         feat_matrix = np.concatenate(
-            [
-                bundle.task_features[task_idx_arr],       # [N, 3]
-                bundle.platform_features[plat_pos_arr],   # [N, 14]
-                bundle.edge_attr_directed,                 # [N, 5]
-            ],
+            [task_feats, plat_feats, edge_feats],
             axis=1,
         ).astype(np.float32)
 
