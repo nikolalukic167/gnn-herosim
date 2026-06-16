@@ -441,6 +441,16 @@ def build_rtt_overview(
     return overview
 
 
+def _resolve_queue_length(explicit: Optional[int] = None) -> int:
+    """Target concurrency per platform for Knative-family autoscaling."""
+    if explicit is not None:
+        return int(explicit)
+    env_raw = os.environ.get("HEROSIM_QUEUE_LENGTH")
+    if env_raw is not None and env_raw.strip() != "":
+        return int(env_raw)
+    return int(QUEUE_LENGTH)
+
+
 def run_simulation(
         config_file: Path,
         workload_file: Path,
@@ -454,6 +464,7 @@ def run_simulation(
         task_types_data: Optional[Dict[str, Any]] = None,
         xgb_model_path: Optional[Path] = None,
         mlp_model_path: Optional[Path] = None,
+        queue_length: Optional[int] = None,
 ) -> bool:
     """
     Run simulation with the specified policy.
@@ -621,8 +632,15 @@ def run_simulation(
             logger.error(f"Unknown policy: {policy}")
             return False
 
-        logger.info(f"Running {policy} simulation with strategy {scheduling_strategy}...")
-        print(f"  Running {policy} simulation with strategy {scheduling_strategy}...")
+        resolved_queue_length = _resolve_queue_length(queue_length)
+        logger.info(
+            f"Running {policy} simulation with strategy {scheduling_strategy} "
+            f"(target_concurrency/queue_length={resolved_queue_length})..."
+        )
+        print(
+            f"  Running {policy} simulation with strategy {scheduling_strategy} "
+            f"(queue_length={resolved_queue_length})..."
+        )
 
         # Execute simulation
         result = execute_simulation(
@@ -632,7 +650,7 @@ def run_simulation(
             cache_policy='fifo',
             task_priority='fifo',
             keep_alive=KEEP_ALIVE,
-            queue_length=QUEUE_LENGTH,
+            queue_length=resolved_queue_length,
             models=models,
             reconcile_interval=RECONCILE_INTERVAL,
         )
@@ -661,6 +679,7 @@ def run_simulation(
             "config_file": str(config_file),
             "workload_file": str(workload_file),
             "seed": seed,
+            "queue_length": resolved_queue_length,
             "total_rtt": total_rtt,
             "num_tasks": num_tasks,
             "stats": stats,
@@ -808,6 +827,16 @@ def main():
     output_file = None
     xgb_model_path = None
     mlp_model_path = None
+    queue_length: Optional[int] = None
+
+    if '--queue-length' in sys.argv:
+        idx = sys.argv.index('--queue-length')
+        if idx + 1 < len(sys.argv):
+            try:
+                queue_length = int(sys.argv[idx + 1])
+            except ValueError:
+                print(f"ERROR: Invalid --queue-length value: {sys.argv[idx + 1]}")
+                sys.exit(1)
 
     if '--xgb-model' in sys.argv:
         idx = sys.argv.index('--xgb-model')
@@ -954,6 +983,7 @@ def main():
         config_file, workload_file, output_file, sim_input_path, logger, policy,
         seed=seed, gnn_model=gnn_model, gnn_device=gnn_device, task_types_data=task_types_data,
         xgb_model_path=xgb_model_path, mlp_model_path=mlp_model_path,
+        queue_length=queue_length,
     )
     sys.exit(0 if success else 1)
 

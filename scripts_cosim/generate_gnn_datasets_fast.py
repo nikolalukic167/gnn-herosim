@@ -151,10 +151,81 @@ SKEW_WARMTH_V2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_4tasks_skew_warmth_v2",
 }
 
+# contention_v1: deliberately non-separable regime for GNN-necessity study.
+# Levers (verified to drive joint coupling, see separability_diagnostic):
+#   - sparse topology (few reachable platforms) => tasks must compete for the same options
+#   - all-cold replicas (client_pct=server_pct=0) => simultaneous pulls serialize on node
+#     FilterStore (N x pullTime), so co-locating cold tasks on one node is a real cliff
+#   - heavy queues => stacking two tasks on one platform serializes execution
+# MUST be generated with --allow-non-unique-replicas so the oracle can express collisions.
+CONTENTION_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (1, 1, 0.0, 0.0),
+        (1, 2, 0.0, 0.0),
+        (2, 2, 0.0, 0.0),
+    ],
+    "queue_distributions": [
+        ("pois28", "poisson", 28, 0, 0, 72, 1),
+        ("norm35", "normal", 35, 11, 0, 96, 1),
+        ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
+    ],
+    "seeds": list(range(201, 215)),
+    "default_output_subdir": "gnn_datasets_4tasks_contention_v1",
+}
+
+# contention_v2: SCARCE-WARM-RESOURCE regime. contention_v1 (all-cold) showed that
+# cranking collision frequency does NOT break per-task greedy (regret stayed 0.00%):
+# when colliding is optimal, both tasks independently prefer the same platform anyway.
+# Greedy only breaks when two tasks share a #1 platform AND co-locating there is
+# EXPENSIVE, forcing the optimum to split them. That needs a scarce *attractive* resource:
+#   - warm replicas (high preinit) => a few platforms are clearly best => tasks compete
+#   - heavy/pre-loaded queues => stacking two tasks on the warm platform serializes,
+#     destroying its advantage so the optimum must split => anti-correlated preferences
+#   - sparse topology => few fallback platforms => the split is non-trivial
+# MUST be generated with --allow-non-unique-replicas.
+CONTENTION_V2_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("norm35", "normal", 35, 11, 0, 96, 1),
+        ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
+        ("pois28", "poisson", 28, 0, 0, 72, 1),
+    ],
+    "seeds": list(range(301, 351)),
+    "default_output_subdir": "gnn_datasets_4tasks_contention_v2",
+}
+
+# contention_v3: push coupling further — sparser topology + heavier queues.
+# Target: coupled (>1% greedy regret) fraction >25% (v2 was 7.2%).
+# MUST be generated with --allow-non-unique-replicas.
+CONTENTION_V3_GRID: GridPreset = {
+    "connection_probabilities": [0.15, 0.20],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("norm40", "normal", 40, 13, 0, 110, 1),
+        ("uniform25_90", "uniform", 25, 90, 0, 130, 1),
+        ("pois32", "poisson", 32, 0, 0, 84, 1),
+    ],
+    "seeds": list(range(401, 451)),
+    "default_output_subdir": "gnn_datasets_4tasks_contention_v3",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
     "skew_warmth_v2": SKEW_WARMTH_V2_GRID,
+    "contention_v1": CONTENTION_V1_GRID,
+    "contention_v2": CONTENTION_V2_GRID,
+    "contention_v3": CONTENTION_V3_GRID,
 }
 
 
@@ -225,15 +296,26 @@ def log(msg: str, quiet: bool = False, force: bool = False):
         print(msg)
 
 
-def workload_templates_dir_for_run(sim_input_path: Path) -> Path:
-    """Per-SLURM-task template dir — parallel array shards must not share gnn_templates/."""
+def _run_shard_tag() -> str:
+    """Stable per-process tag so concurrent SLURM array shards / local procs don't collide."""
     job_id = (
         os.environ.get("SLURM_ARRAY_JOB_ID")
         or os.environ.get("SLURM_JOB_ID")
         or str(os.getpid())
     )
-    task_id = os.environ.get("SLURM_ARRAY_TASK_ID", "0")
-    return sim_input_path / "traces" / f"gnn_templates_{job_id}_{task_id}"
+    task_id = os.environ.get("SLURM_ARRAY_TASK_ID", str(os.getpid()))
+    return f"{job_id}_{task_id}"
+
+
+def workload_templates_dir_for_run(sim_input_path: Path) -> Path:
+    """Per-SLURM-task template dir — parallel array shards must not share gnn_templates/."""
+    return sim_input_path / "traces" / f"gnn_templates_{_run_shard_tag()}"
+
+
+def workload_base_file_for_run(sim_input_path: Path) -> Path:
+    """Per-shard workload-10 copy. The BF reads this path; concurrent array shards each
+    overwrite their OWN copy so they cannot clobber each other's workload mid-run."""
+    return sim_input_path / "traces" / f"workload-10_{_run_shard_tag()}.json"
 
 
 def generate_workload_templates(
@@ -443,10 +525,11 @@ def generate_single_dataset(
         with open(workload_path, 'w') as f:
             f.write(json_dumps_pretty(workload))
         
-        # Copy workload to expected location for simulation
+        # Copy workload to a per-shard location for simulation (parallel-array safe).
         traces_dir = sim_input_path / "traces"
         traces_dir.mkdir(parents=True, exist_ok=True)
-        with open(traces_dir / "workload-10.json", 'w') as f:
+        shard_workload_file = workload_base_file_for_run(sim_input_path)
+        with open(shard_workload_file, 'w') as f:
             f.write(json_dumps_pretty(workload))
         
         # Generate infrastructure
@@ -495,7 +578,7 @@ def generate_single_dataset(
             output_dir=results_dir,
             sample=sample,
             sim_input_path=sim_input_path,
-            workload_base_file=str(traces_dir / "workload-10.json"),
+            workload_base_file=str(shard_workload_file),
             max_workers=max_workers,
             infrastructure_file=infra_file,
             quiet=quiet,

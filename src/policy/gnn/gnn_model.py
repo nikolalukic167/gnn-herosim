@@ -7,7 +7,7 @@ used for inference in the co-simulation.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -15,6 +15,45 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.nn.models import GIN
+
+
+def build_same_node_edge_index(
+    node_to_platform_positions: Dict[object, Sequence[int]],
+    n_tasks: int,
+) -> Tensor:
+    """Build undirected platform<->platform edges for platforms on the SAME physical node.
+
+    The bipartite task<->platform graph cannot propagate co-location/contention signal
+    between platforms that share a node (shared FilterStore image pulls, shared node
+    bandwidth). These extra edges let GIN message passing aggregate that signal, which is
+    the structural capability a pointwise MLP fundamentally lacks.
+
+    Platform global index in the graph is ``n_tasks + platform_pos`` (tasks occupy
+    indices ``0..n_tasks-1``). The returned tensor uses 'index' in its eventual attr name
+    so PyG batches it with the same +num_nodes increment as ``edge_index``.
+
+    Args:
+        node_to_platform_positions: physical node -> list of platform row positions.
+        n_tasks: number of task nodes (offset for platform indices).
+
+    Returns:
+        LongTensor of shape ``[2, E]`` (E may be 0). Undirected (both directions emitted).
+    """
+    src: List[int] = []
+    dst: List[int] = []
+    for positions in node_to_platform_positions.values():
+        pos = sorted(set(int(p) for p in positions))
+        if len(pos) < 2:
+            continue
+        for a_i in range(len(pos)):
+            for b_i in range(a_i + 1, len(pos)):
+                ga = n_tasks + pos[a_i]
+                gb = n_tasks + pos[b_i]
+                src.extend([ga, gb])
+                dst.extend([gb, ga])
+    if not src:
+        return torch.empty((2, 0), dtype=torch.long)
+    return torch.tensor([src, dst], dtype=torch.long)
 
 
 class MLPEncoder(nn.Module):
@@ -100,22 +139,32 @@ class TaskPlacementGNN(nn.Module):
         task_embeddings = self.task_encoder(data.task_features)
         platform_embeddings = self.platform_encoder(data.platform_features)
 
-        # Message passing
+        # Message passing. The GIN aggregates over the bipartite task<->platform edges
+        # PLUS optional platform<->platform edges for platforms on the same physical node
+        # (data.node_edge_index). Same-node edges give the GIN the relational signal an MLP
+        # cannot see: contention/co-location coupling between platforms sharing a node.
         x = torch.cat([task_embeddings, platform_embeddings], dim=0)
-        x = self.gin(x, data.edge_index)
+        mp_edge_index = data.edge_index
+        node_ei = getattr(data, "node_edge_index", None)
+        if node_ei is not None and node_ei.numel() > 0:
+            mp_edge_index = torch.cat([data.edge_index, node_ei.to(data.edge_index.device)], dim=1)
+        x = self.gin(x, mp_edge_index)
         x = self.post_gin_dropout(x)
         
         task_emb = x[:n_tasks]
         platform_emb = x[n_tasks:]
 
-        # Score edges
+        # Score edges. Scoring stays on the bipartite task->platform edges only, so
+        # edge_attr alignment is preserved and same-node edges never produce logits.
         ei = data.edge_index
         if ei.numel() == 0:
             return [torch.empty(0, device=x.device) for _ in range(n_tasks)]
 
         ti = ei[0]
         pj = ei[1] - n_tasks
-        valid = (pj >= 0) & (pj < n_platforms)
+        # Defensive: only score edges whose source is a task node (filters any
+        # platform<->platform edge that may have been merged into edge_index).
+        valid = (pj >= 0) & (pj < n_platforms) & (ti < n_tasks)
         ti = ti[valid]
         pj = pj[valid]
         if ti.numel() == 0:

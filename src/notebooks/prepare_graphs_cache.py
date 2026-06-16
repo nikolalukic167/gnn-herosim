@@ -115,6 +115,24 @@ class Config:
     queue_norm_factor: float = 50.0
     queue_norm_mode: str = "scheduler_adaptive"
     require_queue_data: bool = True
+    oversample_manifest: Optional[Path] = None
+
+
+def load_oversample_weights(manifest_path: Path) -> Dict[str, int]:
+    """dataset_id (corp/ds_*) -> repeat count (>=1). Weight 0 excludes."""
+    raw = json.loads(manifest_path.read_text())
+    if isinstance(raw, dict) and "weights" in raw:
+        weights = raw["weights"]
+    else:
+        weights = raw
+    out: Dict[str, int] = {}
+    for k, v in weights.items():
+        repeat = int(v)
+        if repeat > 0:
+            out[str(k)] = repeat
+    if not out:
+        raise ValueError(f"oversample manifest empty: {manifest_path}")
+    return out
 
 
 def _default_base_dirs(project_root: Path, merge_datasets: bool) -> List[Path]:
@@ -147,6 +165,12 @@ def parse_args() -> Config:
         ),
     )
     parser.add_argument("--allow-missing-queue-data", action="store_true")
+    parser.add_argument(
+        "--oversample-manifest",
+        type=Path,
+        default=None,
+        help="JSON with weights{dataset_id: repeat_count} for strategic merge oversampling.",
+    )
     args = parser.parse_args()
 
     if args.queue_norm_mode == "fixed" and args.queue_norm_factor <= 0:
@@ -171,6 +195,7 @@ def parse_args() -> Config:
         queue_norm_factor=args.queue_norm_factor,
         queue_norm_mode=args.queue_norm_mode,
         require_queue_data=not args.allow_missing_queue_data,
+        oversample_manifest=args.oversample_manifest,
     )
 
 
@@ -181,7 +206,7 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "5.3"  # queue_key_to_platform_meta includes platform_pos for tabular extraction
+CACHE_VERSION = "5.4"  # adds data.node_edge_index (same-node platform<->platform edges for GNN node aggregation)
 # - RTT combos loaded from chunked hash table at train time (rtt_chunk_*.pkl)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
@@ -1205,6 +1230,26 @@ def build_graph(
         platform_features=platform_features_tensor,
     )
     data.edge_attr = edge_attr_tensor
+    # Same-node platform<->platform edges for GIN message passing (node aggregation).
+    # Lets the GNN propagate contention/co-location signal between platforms that share a
+    # physical node (shared FilterStore pulls / node bandwidth) — relational structure a
+    # pointwise MLP cannot express. Name contains 'index' so PyG batches it like edge_index.
+    node_edge_src: List[int] = []
+    node_edge_dst: List[int] = []
+    for _positions in plats_by_node.values():
+        _pos = sorted(set(int(p) for p in _positions))
+        if len(_pos) < 2:
+            continue
+        for _a in range(len(_pos)):
+            for _b in range(_a + 1, len(_pos)):
+                _ga = n_tasks + _pos[_a]
+                _gb = n_tasks + _pos[_b]
+                node_edge_src.extend([_ga, _gb])
+                node_edge_dst.extend([_gb, _ga])
+    if node_edge_src:
+        data.node_edge_index = torch.tensor([node_edge_src, node_edge_dst], dtype=torch.long)
+    else:
+        data.node_edge_index = torch.empty((2, 0), dtype=torch.long)
     # Per-task mapping from logit index -> (node_id, platform_id) for regret loss and decoding.
     # Use non-underscore attr so DataLoader worker IPC preserves it.
     data.task_logit_to_placement = task_logit_to_placement
@@ -1274,25 +1319,40 @@ def main():
     logger.info("Built optimal RTT map for %s datasets", len(optimal_rtt_map))
 
     step4_start = time.perf_counter()
+    oversample_weights: Optional[Dict[str, int]] = None
+    if config.oversample_manifest is not None:
+        oversample_weights = load_oversample_weights(config.oversample_manifest)
+        logger.info(
+            "Oversample manifest: %s (%s datasets, %s graph slots)",
+            config.oversample_manifest,
+            len(oversample_weights),
+            sum(oversample_weights.values()),
+        )
+
     graphs = []
     dataset_ids = []
     with time_block("Step 4: Building graphs"):
         for dataset_id, dataset_dict in tqdm(all_datasets.items(), desc="Building graphs", unit="dataset"):
+            if oversample_weights is not None and dataset_id not in oversample_weights:
+                continue
+            repeat = oversample_weights.get(dataset_id, 1) if oversample_weights else 1
             try:
-                graph = build_graph(
-                    dataset_dict['nodes'],
-                    dataset_dict['tasks'],
-                    dataset_dict['platforms'],
-                    task_priors=task_priors,
-                    queue_norm_factor=config.queue_norm_factor,
-                    queue_norm_mode=config.queue_norm_mode,
-                    queue_snapshot=dataset_dict.get('queue_snapshot', {}),
-                    temporal_state=dataset_dict.get('temporal_state', {}),
-                    initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
-                )
-                graph.dataset_id = dataset_id
-                graphs.append(graph)
-                dataset_ids.append(dataset_id)
+                for rep in range(repeat):
+                    graph = build_graph(
+                        dataset_dict['nodes'],
+                        dataset_dict['tasks'],
+                        dataset_dict['platforms'],
+                        task_priors=task_priors,
+                        queue_norm_factor=config.queue_norm_factor,
+                        queue_norm_mode=config.queue_norm_mode,
+                        queue_snapshot=dataset_dict.get('queue_snapshot', {}),
+                        temporal_state=dataset_dict.get('temporal_state', {}),
+                        initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
+                    )
+                    graph_id = dataset_id if repeat == 1 else f"{dataset_id}@os{rep}"
+                    graph.dataset_id = graph_id
+                    graphs.append(graph)
+                    dataset_ids.append(graph_id)
             except Exception as e:
                 tqdm.write(f"  Error building graph for {dataset_id}: {e}")
     step4_time = time.perf_counter() - step4_start
@@ -1354,6 +1414,7 @@ def main():
         'version': CACHE_VERSION,
         'merged_datasets': config.merge_datasets,
         'base_dirs': [str(bd) for bd in config.base_dirs],
+        'oversample_manifest': str(config.oversample_manifest) if config.oversample_manifest else None,
         'num_graphs': len(graphs),
         'rtt_combos_backend': 'hash_table_chunked',
         'rtt_hash_chunks_meta_rel_path': 'rtt_chunks_meta.json',

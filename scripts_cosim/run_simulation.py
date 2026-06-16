@@ -205,6 +205,12 @@ def parse_arguments() -> argparse.Namespace:
         help="MLP model path for --mlp_batch "
         "(default: MLP_MODEL_PATH env or models/tabular/batch_edge_mlp.pt)",
     )
+    parser.add_argument(
+        "--queue-length",
+        type=int,
+        default=None,
+        help="Knative target concurrency per platform (autoscale knob; default QUEUE_LENGTH=100 or HEROSIM_QUEUE_LENGTH)",
+    )
 
     return parser.parse_args()
 
@@ -254,6 +260,7 @@ def run_simulation(
     seed: Optional[int] = None,
     xgb_model: Optional[Path] = None,
     mlp_model: Optional[Path] = None,
+    queue_length: Optional[int] = None,
 ) -> Tuple[int, float]:
     """
     Run the simulation and return exit code and duration.
@@ -275,6 +282,9 @@ def run_simulation(
     
     if seed is not None:
         cmd.extend(["--seed", str(seed)])
+
+    if queue_length is not None:
+        cmd.extend(["--queue-length", str(queue_length)])
 
     if policy in ("xgboost_batch", "xgboost_single"):
         if xgb_model is not None:
@@ -378,6 +388,8 @@ def main():
         log(f"XGB model: {xgb_model_path}")
     if args.policy == "mlp_batch" and mlp_model_path is not None:
         log(f"MLP model: {mlp_model_path}")
+    if args.queue_length is not None:
+        log(f"Queue length (target concurrency): {args.queue_length}")
     log(f"Progress log: {progress_log}")
     log("")
     validate_files(config_file, workload_file)
@@ -391,6 +403,7 @@ def main():
         seed=args.seed,
         xgb_model=xgb_model_path,
         mlp_model=mlp_model_path,
+        queue_length=args.queue_length,
     )
     
     # Handle results

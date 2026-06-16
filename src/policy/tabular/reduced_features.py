@@ -133,24 +133,16 @@ DIM22_FEATURE_DIM = 22  # 3-task + 14-platform + 5-edge
 DIM22_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM22_FEATURE_DIM)]
 
 
-def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
-    """Extract full 22-dim (3-task + 14-plat + 5-edge) rows from a seq cache graph.
-
-    Unlike extract_rows_from_reduced_graph, this keeps all platform and edge features.
-    The resulting model is trained with INFERENCE_FEATURE_LAYOUT=dim22, which matches
-    build_inference_feature_bundle(use_dim22=True): 3-task + 14-plat + 5-edge = 22-d.
-
-    Key fix vs ce_reduced: retains is_warm (edge dim 2), is_cold/shared_fate (plat dim 8),
-    has_dnn1/dnn2 (plat dims 5-6), and temporal dims. Queue is still raw here (plat dim 7)
-    vs normalized at inference, but this mismatch is diluted across 21 other features — same
-    situation as the working batch_edge_mlp.pt trained on the v6.5 seq cache.
-    """
-    parent_id = str(getattr(graph, "parent_dataset_id", graph_id))
-    seq_step = int(getattr(graph, "seq_step"))
-    seq_n_tasks = int(getattr(graph, "seq_n_tasks"))
-    prefix_augment = bool(getattr(graph, "prefix_augment", False))
-    task_idx = seq_step
-
+def _extract_dim22_rows_for_task(
+    graph: Any,
+    graph_id: str,
+    parent_id: str,
+    task_idx: int,
+    seq_n_tasks: int,
+    *,
+    prefix_augment: bool = False,
+) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+    """Shared dim22 row builder for one task decision on a graph."""
     task_placement_map = _task_placement_map(graph)
     task_queue_map = _task_queue_key_map(graph)
 
@@ -165,16 +157,15 @@ def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[Tabul
     if target_class_idx < 0:
         return [], f"invalid label y[{task_idx}]={target_class_idx}"
 
-    task_features = _as_numpy(graph.task_features)   # (n_tasks, 3) after enrich
-    platform_features = _as_numpy(graph.platform_features)  # (n_plats, 14)
+    task_features = _as_numpy(graph.task_features)
+    platform_features = _as_numpy(graph.platform_features)
     edge_attr_all = _as_numpy(graph.edge_attr)
-    edge_attr_directed = _directed_edge_attr_slice(edge_attr_all)  # (n_directed, 5)
+    edge_attr_directed = _directed_edge_attr_slice(edge_attr_all)
     edge_offset = _directed_edge_offset(task_placement_map, task_idx)
 
     if task_features.shape[1] < 3:
         raise ValueError(
-            f"graph {graph_id}: task_features has {task_features.shape[1]} cols, "
-            "expected >= 3 (call enrich_task_features_with_src_norm first)"
+            f"graph {graph_id}: task_features has {task_features.shape[1]} cols, expected >= 3"
         )
     if platform_features.shape[1] < 14:
         raise ValueError(
@@ -192,6 +183,7 @@ def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[Tabul
             f"task {task_idx}: placement count {len(candidates)} != queue key count {len(queue_keys)}"
         )
 
+    decision_graph_id = f"{graph_id}@task{task_idx}"
     rows: List[TabularEdgeRow] = []
     for logit_idx, (node_id, plat_id) in enumerate(candidates):
         queue_key = str(queue_keys[logit_idx])
@@ -203,22 +195,24 @@ def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[Tabul
                 f"(size={edge_attr_directed.shape[0]}, task_idx={task_idx}, logit_idx={logit_idx})"
             )
 
-        x_task = task_features[task_idx, :3]   # (3,)
-        x_plat = platform_features[plat_pos, :14]  # (14,)
-        x_edge = edge_attr_directed[global_edge_idx, :5]  # (5,)
+        x_task = task_features[task_idx, :3]
+        x_plat = platform_features[plat_pos, :14]
+        x_edge = edge_attr_directed[global_edge_idx, :5]
         features = np.concatenate([x_task, x_plat, x_edge]).astype(np.float64)
         if features.shape[0] != DIM22_FEATURE_DIM:
             raise ValueError(f"Expected {DIM22_FEATURE_DIM} dim22 features, got {features.shape[0]}")
         if not np.isfinite(features).all():
-            raise ValueError(f"Non-finite features for graph={graph_id} task={task_idx} logit={logit_idx}")
+            raise ValueError(
+                f"Non-finite features for graph={decision_graph_id} task={task_idx} logit={logit_idx}"
+            )
 
         y_class = 1 if logit_idx == target_class_idx else 0
         rows.append(
             TabularEdgeRow(
-                row_id=generate_row_id(parent_id, graph_id, task_idx, logit_idx),
+                row_id=generate_row_id(parent_id, decision_graph_id, task_idx, logit_idx),
                 parent_dataset_id=parent_id,
-                graph_id=graph_id,
-                seq_step=seq_step,
+                graph_id=decision_graph_id,
+                seq_step=task_idx,
                 seq_n_tasks=seq_n_tasks,
                 task_idx=task_idx,
                 logit_idx=logit_idx,
@@ -233,6 +227,59 @@ def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[Tabul
         )
 
     return rows, None
+
+
+def extract_rows_dim22_from_batch_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+    """Extract dim22 rows for every task in a batch PyG graph (prepare_graphs_cache.py).
+
+    Batch cache platform features already match dim22 inference: normalized queue (dim 7),
+    shared_fate (dim 8), usage_ratio (dim 13) — same as GNN wssm training cache.
+    """
+    parent_id = str(graph_id)
+    n_tasks = int(getattr(graph, "n_tasks"))
+    if n_tasks <= 0:
+        return [], "n_tasks <= 0"
+
+    all_rows: List[TabularEdgeRow] = []
+    for task_idx in range(n_tasks):
+        rows, skip_reason = _extract_dim22_rows_for_task(
+            graph,
+            graph_id,
+            parent_id,
+            task_idx,
+            n_tasks,
+        )
+        if skip_reason:
+            return [], skip_reason
+        all_rows.extend(rows)
+    return all_rows, None
+
+
+def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+    """Extract full 22-dim (3-task + 14-plat + 5-edge) rows from a seq cache graph.
+
+    Unlike extract_rows_from_reduced_graph, this keeps all platform and edge features.
+    The resulting model is trained with INFERENCE_FEATURE_LAYOUT=dim22, which matches
+    build_inference_feature_bundle(use_dim22=True): 3-task + 14-plat + 5-edge = 22-d.
+
+    Key fix vs ce_reduced: retains is_warm (edge dim 2), is_cold/shared_fate (plat dim 8),
+    has_dnn1/dnn2 (plat dims 5-6), and temporal dims. Queue is still raw here (plat dim 7)
+    vs normalized at inference, but this mismatch is diluted across 21 other features — same
+    situation as the working batch_edge_mlp.pt trained on the v6.5 seq cache.
+    """
+    parent_id = str(getattr(graph, "parent_dataset_id", graph_id))
+    seq_step = int(getattr(graph, "seq_step"))
+    seq_n_tasks = int(getattr(graph, "seq_n_tasks"))
+    prefix_augment = bool(getattr(graph, "prefix_augment", False))
+    task_idx = seq_step
+    return _extract_dim22_rows_for_task(
+        graph,
+        graph_id,
+        parent_id,
+        task_idx,
+        seq_n_tasks,
+        prefix_augment=prefix_augment,
+    )
 
 
 def dim22_rows_to_dataframe(rows: Sequence[TabularEdgeRow]):
