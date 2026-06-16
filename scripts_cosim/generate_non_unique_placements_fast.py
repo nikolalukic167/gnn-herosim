@@ -361,7 +361,8 @@ def process_existing_dataset(
     samples_file: Path,
     mapping_file: Path,
     max_workers: int,
-    quiet: bool = False
+    quiet: bool = False,
+    temp_output: Optional[Path] = None,
 ) -> Tuple[str, int, int, float, float]:
     """
     Process an existing dataset to add non-unique placements.
@@ -444,7 +445,12 @@ def process_existing_dataset(
         
         total_cartesian = len(all_placements)
         log(f"  Generated {total_cartesian} total cartesian combinations", quiet)
-        
+        if total_cartesian == 0:
+            raise RuntimeError(
+                f"{dataset_dir.name}: cartesian placement enumeration returned 0 combinations "
+                "(check MAX_PLACEMENT_COMBINATIONS_SKIP or feasible platform counts)"
+            )
+
         # Filter out already-generated placements
         new_placements = filter_new_placements(all_placements, existing_keys)
         num_new = len(new_placements)
@@ -453,8 +459,9 @@ def process_existing_dataset(
         if num_new == 0:
             return 'already_complete', num_existing, 0, float('inf'), time.time() - start_time
         
-        # Create temp output directory
-        temp_output = Path("simulation_data/temp_non_unique_results")
+        # Create temp output directory (per-job path avoids SLURM array collisions)
+        if temp_output is None:
+            temp_output = Path("simulation_data/temp_non_unique_results")
         temp_output.mkdir(parents=True, exist_ok=True)
         
         # Run simulations for new placements
@@ -475,7 +482,12 @@ def process_existing_dataset(
             quiet=quiet,
             progress_dir=dataset_dir
         )
-        
+        if len(new_results) < len(new_placements):
+            raise RuntimeError(
+                f"{dataset_dir.name}: only {len(new_results)}/{len(new_placements)} "
+                "non-unique placement simulations completed"
+            )
+
         # Merge results
         log(f"  Merging results...", quiet)
         overall_best_rtt, total_placements = merge_placements(
@@ -523,8 +535,20 @@ def main():
                         help='Start of dataset range to skip (default: 300000)')
     parser.add_argument('--skip-range-end', type=int, default=600000,
                         help='End of dataset range to skip (default: 600000)')
-    parser.add_argument('--num-tasks', type=int, choices=[2, 3, 4], default=2,
-                        help='Number of tasks per workload (determines dataset folder)')
+    parser.add_argument('--num-tasks', type=int, choices=[2, 3, 4], default=4,
+                        help='Number of tasks per workload when using default dataset folder')
+    parser.add_argument(
+        '--datasets-dir',
+        type=Path,
+        default=None,
+        help='Directory containing ds_* folders (e.g. simulation_data/gnn_datasets_4tasks_1060_warmth_v2)',
+    )
+    parser.add_argument(
+        '--temp-dir',
+        type=Path,
+        default=None,
+        help='Per-run temp directory for placement sim outputs (default: simulation_data/temp_non_unique_results)',
+    )
     args = parser.parse_args()
     
     quiet = args.quiet
@@ -534,12 +558,21 @@ def main():
     
     # Paths
     base_dir = PROJECT_ROOT / "simulation_data"
-    datasets_dir = base_dir / f"gnn_datasets_{args.num_tasks}tasks"
+    if args.datasets_dir is not None:
+        datasets_dir = args.datasets_dir
+        if not datasets_dir.is_absolute():
+            datasets_dir = PROJECT_ROOT / datasets_dir
+    else:
+        datasets_dir = base_dir / f"gnn_datasets_{args.num_tasks}tasks"
     sim_input_path = PROJECT_ROOT / "data" / "nofs-ids"
     sample_json_file = base_dir / "sample_simple.json"
     samples_file = base_dir / "lhs_samples_simple.npy"
     mapping_file = base_dir / "lhs_samples_simple_mapping.pkl"
-    progress_log = PROJECT_ROOT / "logs" / f"non_unique_progress_{args.num_tasks}tasks.txt"
+    corpus_tag = datasets_dir.name.replace("/", "_")
+    progress_log = PROJECT_ROOT / "logs" / f"non_unique_progress_{corpus_tag}.txt"
+    temp_output = args.temp_dir
+    if temp_output is not None and not temp_output.is_absolute():
+        temp_output = PROJECT_ROOT / temp_output
     
     # Create logs directory
     (PROJECT_ROOT / "logs").mkdir(parents=True, exist_ok=True)
@@ -602,7 +635,8 @@ def main():
             samples_file,
             mapping_file,
             max_workers,
-            quiet=quiet
+            quiet=quiet,
+            temp_output=temp_output,
         )
         
         processed += 1
