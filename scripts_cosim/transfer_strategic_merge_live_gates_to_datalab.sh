@@ -84,11 +84,5 @@ rsync -avP -e "$RSYNC_SSH" \
   "${REMOTE}:${REPO}/src/policy/tabular/"
 
 echo "[+] Transfer complete."
-echo "[+] Submitting SLURM on datalab..."
-
-ssh -i "$SSH_KEY" "$REMOTE" "cd ${REPO} && \
-  sed -i 's/\r\$//' scripts_cosim/datalab/*.sh scripts_cosim/datalab/*.sbatch && \
-  chmod +x scripts_cosim/datalab/*.sh scripts_cosim/datalab/submit_strategic_merge_live_gates.sh && \
-  bash scripts_cosim/datalab/submit_strategic_merge_live_gates.sh"
-
-echo "[+] Done. Monitor: ssh -i ${SSH_KEY} ${REMOTE} 'squeue -u nikola.lukic'"
+echo "[+] To rsync results only (no SLURM): bash scripts_cosim/transfer_strategic_merge_live_gates_results_to_datalab.sh"
+echo "[+] To submit SLURM: bash scripts_cosim/datalab/submit_strategic_merge_live_gates.sh"

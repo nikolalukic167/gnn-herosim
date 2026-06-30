@@ -2,6 +2,10 @@
 # Resume learnable live-gate sims after timeout failures.
 # Waits for in-flight strategic-merge WSSM, lets that pipeline finish contention,
 # then runs weighted-merge contention (9 jobs) at limited parallelism.
+# Self-heal Windows CRLF before set -euo (otherwise: "pipefail\r: invalid option").
+if [[ -f "$0" ]] && grep -q $'\r' "$0" 2>/dev/null; then
+  exec /usr/bin/env bash <(sed 's/\r$//' "$0") "$@"
+fi
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
