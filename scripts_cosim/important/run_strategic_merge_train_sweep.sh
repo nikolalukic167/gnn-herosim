@@ -80,6 +80,7 @@ if [[ ! -f "${PHASE_DIR}/phase_sweep_wssm.done" ]]; then
   export GNN_MODEL="$GNN_CKPT"
   export MLP_MODEL="$MLP_CKPT"
   export WORKLOAD="data/nofs-ids/traces/workload-125-225.json"
+  export TIMEOUT="${TIMEOUT:-18000}"
   CONFIGS=(
     "hub_k4_seek50|simulation_data/normal_sim_sweeps/sweep_bipartite_coordination_v1/configs/hub_k4_seek50.json"
     "hub_k6_seek50|simulation_data/normal_sim_sweeps/sweep_bipartite_coordination_v1/configs/hub_k6_seek50.json"
@@ -89,6 +90,15 @@ if [[ ! -f "${PHASE_DIR}/phase_sweep_wssm.done" ]]; then
   for policy in knative mlp gnn; do
     for entry in "${CONFIGS[@]}"; do
       name="${entry%%|*}"; path="${entry#*|}"
+      case "$policy" in
+        knative) out="${WSSM_SWEEP}/results/${name}_knative.json" ;;
+        mlp) out="${WSSM_SWEEP}/results/${name}_mlp_dim22.json" ;;
+        gnn) out="${WSSM_SWEEP}/results/${name}_gnn_wssm.json" ;;
+      esac
+      if [[ -f "$out" ]]; then
+        log "  skip wssm ${policy} ${name} (exists)"
+        continue
+      fi
       log "  wssm ${policy} ${name}"
       if ! bash scripts_cosim/important/run_wssm_expanded_live_gate_one.sh "$policy" "$name" "$path" >> "$LOG" 2>&1; then
         log "ERROR: wssm ${policy} ${name} failed"
@@ -102,7 +112,7 @@ if [[ ! -f "${PHASE_DIR}/phase_sweep_wssm.done" ]]; then
     exit 1
   fi
   pipenv run python3 scripts_cosim/important/compare_wssm_expanded_live_gate.py \
-    --sweep-dir "$WSSM_SWEEP" >> "$LOG" 2>&1
+    --sweep-dir "$WSSM_SWEEP" | tee "${WSSM_SWEEP}/compare.txt" >> "$LOG" 2>&1
   phase_done sweep_wssm
 fi
 
@@ -113,6 +123,7 @@ if [[ ! -f "${PHASE_DIR}/phase_sweep_contention.done" ]]; then
   export GNN_MODEL="$GNN_CKPT"
   export MLP_MODEL="$MLP_CKPT"
   export WORKLOAD="data/nofs-ids/traces/workload-125-225.json"
+  export TIMEOUT="${TIMEOUT:-18000}"
   CONFIGS=(
     "sparse_p25|simulation_data/normal_sim_sweeps/knative_network_20260606_192413/configs/05_sparse_40_40_p25.json"
     "sparse_p35|simulation_data/normal_sim_sweeps/knative_network_20260606_192413/configs/00_balanced_30_30_p35.json"
@@ -122,6 +133,15 @@ if [[ ! -f "${PHASE_DIR}/phase_sweep_contention.done" ]]; then
   for policy in knative mlp gnn; do
     for entry in "${CONFIGS[@]}"; do
       name="${entry%%|*}"; path="${entry#*|}"
+      case "$policy" in
+        knative) out="${CONT_SWEEP}/results/${name}_knative.json" ;;
+        mlp) out="${CONT_SWEEP}/results/${name}_mlp_dim22.json" ;;
+        gnn) out="${CONT_SWEEP}/results/${name}_gnn.json" ;;
+      esac
+      if [[ -f "$out" ]]; then
+        log "  skip contention ${policy} ${name} (exists)"
+        continue
+      fi
       log "  contention ${policy} ${name}"
       if ! bash scripts_cosim/important/run_contention_v2_live_gate_one.sh "$policy" "$name" "$path" >> "$LOG" 2>&1; then
         log "ERROR: contention ${policy} ${name} failed"
@@ -129,13 +149,13 @@ if [[ ! -f "${PHASE_DIR}/phase_sweep_contention.done" ]]; then
       fi
     done
   done
-  n_ok=$(find "${CONT_SWEEP}/results" -maxdepth 1 -name '*.json' | wc -l)
+  n_ok=$(find "${CONT_SWEEP}/results" -maxdepth 1 -name '*.json' ! -name '*.decode_stats.json' | wc -l)
   if [[ "$failed" -gt 0 || "$n_ok" -lt 9 ]]; then
     log "ERROR: contention sweep incomplete (${n_ok}/9 results, ${failed} failures)"
     exit 1
   fi
   pipenv run python3 scripts_cosim/important/compare_contention_v2_live_gate.py \
-    --sweep-dir "$CONT_SWEEP" >> "$LOG" 2>&1
+    --sweep-dir "$CONT_SWEEP" | tee "${CONT_SWEEP}/compare.txt" >> "$LOG" 2>&1
   phase_done sweep_contention
 fi
 
