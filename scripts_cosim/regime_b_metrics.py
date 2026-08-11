@@ -62,23 +62,30 @@ def burst_regime_summary(
 
     burst_summaries: List[Dict[str, Any]] = []
     for bid, rows in sorted(by_burst.items()):
-        elapsed = [float(r["elapsed_time"]) for r in rows]
-        queue = [float(r["queue_time"]) for r in rows]
+        ordered = sorted(rows, key=lambda r: int(r["task_id"]))
+        elapsed = [float(r["elapsed_time"]) for r in ordered]
+        queue = [float(r["queue_time"]) for r in ordered]
         burst_summaries.append(
             {
                 "burst_id": bid,
-                "n_tasks": len(rows),
+                "n_tasks": len(ordered),
                 "max_elapsed_s": max(elapsed),
-                "last_task_elapsed_s": max(elapsed),
+                # Last-by-task_id (arrival order), not max — storage_contention trap
+                # uses the final task's wall time under FilterStore serialization.
+                "last_task_elapsed_s": elapsed[-1],
                 "mean_elapsed_s": mean(elapsed),
                 "mean_queue_time_s": mean(queue),
                 "max_queue_time_s": max(queue),
             }
         )
 
+    # Primary score: worst burst max-elapsed (transient catastrophe), with
+    # last-task reported alongside for FilterStore / cold-start audits.
     policy_rtt = max(b["max_elapsed_s"] for b in burst_summaries)
+    last_task_rtt = max(b["last_task_elapsed_s"] for b in burst_summaries)
     out: Dict[str, Any] = {
         "regime_b_primary_score_s": policy_rtt,
+        "last_task_rtt_s": last_task_rtt,
         "burst_summaries": burst_summaries,
     }
     if oracle_rtt is not None:

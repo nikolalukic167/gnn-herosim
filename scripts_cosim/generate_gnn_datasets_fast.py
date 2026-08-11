@@ -219,6 +219,28 @@ CONTENTION_V3_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_4tasks_contention_v3",
 }
 
+# regime_b_cold_burst_v1: training labels for the frozen Regime B problem.
+# Live gate is N=12 under platform_reuse_v1 (see regime_b_problem_spec.py).
+# Co-sim stays at 4-task BF (placement space); physics + scarce-warm lever match live.
+# MUST use --warmth-physics platform_reuse_v1 (node_disk_v2 kills FilterStore headroom).
+# MUST --allow-non-unique-replicas. Cartesian: 2×3×3×25 = 450.
+REGIME_B_COLD_BURST_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("norm35", "normal", 35, 11, 0, 96, 1),
+        ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
+        ("pois28", "poisson", 28, 0, 0, 72, 1),
+    ],
+    "seeds": list(range(501, 526)),
+    "default_output_subdir": "gnn_datasets_4tasks_regime_b_cold_burst_v1",
+    "required_warmth_physics": "platform_reuse_v1",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
@@ -226,6 +248,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "contention_v1": CONTENTION_V1_GRID,
     "contention_v2": CONTENTION_V2_GRID,
     "contention_v3": CONTENTION_V3_GRID,
+    "regime_b_cold_burst_v1": REGIME_B_COLD_BURST_V1_GRID,
 }
 
 
@@ -774,6 +797,13 @@ def main():
     
     quiet = args.quiet
     grid_preset = resolve_grid_preset(args.grid)
+    required_physics = grid_preset.get("required_warmth_physics")
+    if required_physics and args.warmth_physics != required_physics:
+        raise SystemExit(
+            f"FAIL LOUD: grid {args.grid!r} requires --warmth-physics {required_physics} "
+            f"(got {args.warmth_physics!r}). Regime B / FilterStore headroom collapses under "
+            f"node_disk_v2 same-image — see scripts_cosim/regime_b_problem_spec.py."
+        )
     topology_variants = grid_topology_variants(grid_preset)
     replica_configs = grid_preset["replica_configs"]
     queue_distributions = grid_preset["queue_distributions"]

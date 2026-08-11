@@ -1,0 +1,179 @@
+{
+  "generated": "scripts_cosim/ab_training_contract.py",
+  "date": "2026-08-04",
+  "reports": [
+    {
+      "corpus": "gnn_datasets_4tasks_contention_v2",
+      "datasets_scanned": 900,
+      "datasets_audited": 899,
+      "skipped": {
+        "no_jsonl": 1
+      },
+      "labels": {
+        "old": {
+          "match_sweep_min": 855,
+          "suboptimal": 18,
+          "absent_from_sweep": 26,
+          "nonoptimal_or_absent": 44,
+          "nonoptimal_or_absent_frac": 0.048943270300333706,
+          "mean_label_regret_pct": 0.6048485589400985,
+          "p90_label_regret_pct": 0.0
+        },
+        "new": {
+          "match_sweep_min": 899,
+          "suboptimal": 0,
+          "absent_from_sweep": 0,
+          "nonoptimal_or_absent": 0,
+          "nonoptimal_or_absent_frac": 0.0,
+          "mean_label_regret_pct": 0.0,
+          "p90_label_regret_pct": 0.0
+        }
+      },
+      "replicas": {
+        "compared": 899,
+        "terminal_vs_ssc_mismatch": 0,
+        "mismatch_frac": 0.0
+      },
+      "warmth": {
+        "ssc_platforms_with_temporal": 186992,
+        "ssc_platforms_with_previous_task": 61992,
+        "prev_type_frac": 0.33152220415846667,
+        "old_batch_loader_preserves_prev_type": false,
+        "new_batch_loader_preserves_prev_type": true
+      },
+      "splits_8x_oversample": {
+        "old_copy_level": {
+          "n_ids": 7192,
+          "n_parents": 899,
+          "test_parents": 659,
+          "test_parent_leak_frac": 1.0,
+          "val_parent_leak_frac": 1.0,
+          "os_rtt_miss_frac": 0.875
+        },
+        "new_parent_level": {
+          "n_ids": 7192,
+          "n_parents": 899,
+          "test_parents": 135,
+          "test_parent_leak_frac": 0.0,
+          "val_parent_leak_frac": 0.0,
+          "os_rtt_miss_frac": 0.0
+        }
+      }
+    },
+    {
+      "corpus": "gnn_datasets_4tasks_1060_warmth_v2",
+      "datasets_scanned": 500,
+      "datasets_audited": 487,
+      "skipped": {
+        "no_jsonl": 4,
+        "no_optimal": 9
+      },
+      "labels": {
+        "old": {
+          "match_sweep_min": 277,
+          "suboptimal": 210,
+          "absent_from_sweep": 0,
+          "nonoptimal_or_absent": 210,
+          "nonoptimal_or_absent_frac": 0.43121149897330596,
+          "mean_label_regret_pct": 4.2638588650047184,
+          "p90_label_regret_pct": 12.64961353553596
+        },
+        "new": {
+          "match_sweep_min": 487,
+          "suboptimal": 0,
+          "absent_from_sweep": 0,
+          "nonoptimal_or_absent": 0,
+          "nonoptimal_or_absent_frac": 0.0,
+          "mean_label_regret_pct": 0.0,
+          "p90_label_regret_pct": 0.0
+        }
+      },
+      "replicas": {
+        "compared": 487,
+        "terminal_vs_ssc_mismatch": 0,
+        "mismatch_frac": 0.0
+      },
+      "warmth": {
+        "ssc_platforms_with_temporal": 101296,
+        "ssc_platforms_with_previous_task": 32148,
+        "prev_type_frac": 0.3173669246564524,
+        "old_batch_loader_preserves_prev_type": false,
+        "new_batch_loader_preserves_prev_type": true
+      },
+      "splits_8x_oversample": {
+        "old_copy_level": {
+          "n_ids": 3896,
+          "n_parents": 487,
+          "test_parents": 358,
+          "test_parent_leak_frac": 1.0,
+          "val_parent_leak_frac": 1.0,
+          "os_rtt_miss_frac": 0.875
+        },
+        "new_parent_level": {
+          "n_ids": 3896,
+          "n_parents": 487,
+          "test_parents": 74,
+          "test_parent_leak_frac": 0.0,
+          "val_parent_leak_frac": 0.0,
+          "os_rtt_miss_frac": 0.0
+        }
+      }
+    },
+    {
+      "corpus": "gnn_datasets_4tasks_sparse_warmth_v2",
+      "datasets_scanned": 351,
+      "datasets_audited": 351,
+      "skipped": {},
+      "labels": {
+        "old": {
+          "match_sweep_min": 185,
+          "suboptimal": 166,
+          "absent_from_sweep": 0,
+          "nonoptimal_or_absent": 166,
+          "nonoptimal_or_absent_frac": 0.47293447293447294,
+          "mean_label_regret_pct": 12.483593319021589,
+          "p90_label_regret_pct": 28.323905609881983
+        },
+        "new": {
+          "match_sweep_min": 351,
+          "suboptimal": 0,
+          "absent_from_sweep": 0,
+          "nonoptimal_or_absent": 0,
+          "nonoptimal_or_absent_frac": 0.0,
+          "mean_label_regret_pct": 0.0,
+          "p90_label_regret_pct": 0.0
+        }
+      },
+      "replicas": {
+        "compared": 351,
+        "terminal_vs_ssc_mismatch": 0,
+        "mismatch_frac": 0.0
+      },
+      "warmth": {
+        "ssc_platforms_with_temporal": 73008,
+        "ssc_platforms_with_previous_task": 18368,
+        "prev_type_frac": 0.2515888669734824,
+        "old_batch_loader_preserves_prev_type": false,
+        "new_batch_loader_preserves_prev_type": true
+      },
+      "splits_8x_oversample": {
+        "old_copy_level": {
+          "n_ids": 2808,
+          "n_parents": 351,
+          "test_parents": 255,
+          "test_parent_leak_frac": 1.0,
+          "val_parent_leak_frac": 1.0,
+          "os_rtt_miss_frac": 0.875
+        },
+        "new_parent_level": {
+          "n_ids": 2808,
+          "n_parents": 351,
+          "test_parents": 53,
+          "test_parent_leak_frac": 0.0,
+          "val_parent_leak_frac": 0.0,
+          "os_rtt_miss_frac": 0.0
+        }
+      }
+    }
+  ]
+}

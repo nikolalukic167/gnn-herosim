@@ -19,7 +19,7 @@ import sys
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -28,7 +28,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.model_selection import train_test_split
+
+_NOTEBOOKS_DIR = Path(__file__).resolve().parent
+if str(_NOTEBOOKS_DIR) not in sys.path:
+    sys.path.insert(0, str(_NOTEBOOKS_DIR))
+from non_unique_lib.training_contract import (  # noqa: E402
+    assert_zero_parent_overlap,
+    split_ids_by_canonical_parent,
+)
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torch_geometric.data import Data
@@ -1023,11 +1030,24 @@ if NEAR_CFG.train_all or len(graphs) < 10:
     train_graphs, val_graphs, test_graphs = graphs, graphs, graphs
     train_ids, val_ids, test_ids = dataset_ids, dataset_ids, dataset_ids
 else:
-    train_graphs, temp_graphs, train_ids, temp_ids = train_test_split(
-        graphs, dataset_ids, test_size=0.2, random_state=42
+    (
+        train_graphs,
+        train_ids,
+        val_graphs,
+        val_ids,
+        test_graphs,
+        test_ids,
+    ) = split_ids_by_canonical_parent(
+        graphs,
+        dataset_ids,
+        test_size=0.3,
+        val_fraction_of_holdout=0.5,
+        random_state=42,
     )
-    val_graphs, test_graphs, val_ids, test_ids = train_test_split(
-        temp_graphs, temp_ids, test_size=0.5, random_state=42
+    assert_zero_parent_overlap(train_ids, val_ids, test_ids)
+    print(
+        f"Split (canonical-parent 70/15/15): "
+        f"train={len(train_graphs)} val={len(val_graphs)} test={len(test_graphs)}"
     )
 
 train_dataset = GraphRttDataset(train_graphs, train_ids, DATA_OPTIMAL_RTT)

@@ -15,7 +15,12 @@ ExactRttLookupMap = Dict[str, List[ExactRttEntry]]
 def _dataset_id(data: Data) -> str:
     parent_id = getattr(data, "parent_dataset_id", None)
     dataset_id = parent_id if parent_id else getattr(data, "dataset_id", "")
-    return str(dataset_id or "").split("@seq", 1)[0]
+    s = str(dataset_id or "")
+    for sep in ("@os", "@seq"):
+        idx = s.find(sep)
+        if idx >= 0:
+            s = s[:idx]
+    return s
 
 
 def soft_combo_ce_loss(

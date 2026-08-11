@@ -35,12 +35,14 @@ Run:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def load_workload_task_sigs(ds_dir: Path) -> Optional[List[Tuple[str, str]]]:
@@ -69,32 +71,36 @@ def load_combos(ds_dir: Path) -> Optional[List[Tuple[Dict[int, Tuple[int, int]],
         return None
     combos: List[Tuple[Dict[int, Tuple[int, int]], float]] = []
     with jp.open() as f:
-        for line in f:
+        for line_number, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
             try:
                 rec = json.loads(line)
-            except Exception:
-                continue
+            except Exception as exc:
+                raise RuntimeError(
+                    f"{jp}:{line_number}: invalid JSON"
+                ) from exc
             plan = rec.get("placement_plan")
             rtt = rec.get("rtt")
             if plan is None or rtt is None:
-                continue
+                raise RuntimeError(
+                    f"{jp}:{line_number}: missing placement_plan or rtt"
+                )
             pp: Dict[int, Tuple[int, int]] = {}
-            ok = True
             for k, v in plan.items():
                 try:
                     if isinstance(v, (list, tuple)) and len(v) >= 2:
                         pp[int(k)] = (int(v[0]), int(v[1]))
                     else:
-                        ok = False
-                        break
-                except Exception:
-                    ok = False
-                    break
-            if ok and pp:
-                combos.append((pp, float(rtt)))
+                        raise ValueError("placement must contain node and platform")
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"{jp}:{line_number}: invalid placement plan"
+                    ) from exc
+            if not pp:
+                raise RuntimeError(f"{jp}:{line_number}: empty placement plan")
+            combos.append((pp, float(rtt)))
     return combos or None
 
 
@@ -206,68 +212,249 @@ def pctl(vals: List[float], q: float) -> float:
     return s[min(len(s) - 1, int(q * len(s)))]
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("corpus_dir", type=str)
-    ap.add_argument("--limit", type=int, default=0)
-    args = ap.parse_args()
-
-    base = Path(args.corpus_dir)
-    ds_dirs = sorted(d for d in base.glob("ds_*") if d.is_dir())
-    if args.limit:
-        ds_dirs = ds_dirs[: args.limit]
-    if not ds_dirs:
-        print(f"No ds_* dirs under {base}", file=sys.stderr)
-        return 1
-
-    results = []
-    for d in ds_dirs:
-        r = analyze_dataset(d)
-        if r is not None:
-            results.append(r)
-
+def summarize_results(results: List[dict]) -> dict[str, Any]:
+    if not results:
+        raise ValueError("Cannot summarize empty separability results")
     n = len(results)
-    if n == 0:
-        print("No analyzable datasets.")
-        return 1
-
-    # aggregate
-    m1_rel = [r["m1_regret_rel"] for r in results if r["m1_regret_rel"] is not None]
+    m1_rel = [
+        r["m1_regret_rel"]
+        for r in results
+        if r["m1_regret_rel"] is not None
+    ]
     greedy_eq = sum(1 for r in results if r["m1_greedy_eq_opt"])
     greedy_in = sum(1 for r in results if r["greedy_in_sweep"])
     has_ident = sum(1 for r in results if r["m2"]["has_identical"])
-    spreads = sum(1 for r in results if r["m2"]["opt_spreads_identical"] is True)
-    colo_rel = [r["m2"]["colocate_regret_rel"] for r in results if r["m2"]["colocate_regret_rel"] is not None]
+    spreads = sum(
+        1 for r in results if r["m2"]["opt_spreads_identical"] is True
+    )
+    colo_rel = [
+        r["m2"]["colocate_regret_rel"]
+        for r in results
+        if r["m2"]["colocate_regret_rel"] is not None
+    ]
     opt_coll = sum(1 for r in results if r["opt_has_collision"])
     multitask = [r for r in results if r["n_tasks"] >= 2]
 
-    print(f"\n===== Separability diagnostic: {base.name} =====")
-    print(f"Datasets analyzed: {n} (multi-task >=2: {len(multitask)})")
-    print(f"Mean n_combos: {sum(r['n_combos'] for r in results)/n:.0f}")
+    def distribution(values: List[float]) -> dict[str, float | int | None]:
+        if not values:
+            return {
+                "count": 0,
+                "mean": None,
+                "median": None,
+                "p90": None,
+                "p99": None,
+                "max": None,
+            }
+        return {
+            "count": len(values),
+            "mean": sum(values) / len(values),
+            "median": pctl(values, 0.5),
+            "p90": pctl(values, 0.9),
+            "p99": pctl(values, 0.99),
+            "max": max(values),
+        }
 
+    return {
+        "datasets_analyzed": n,
+        "multitask_datasets": len(multitask),
+        "mean_n_combos": sum(r["n_combos"] for r in results) / n,
+        "m1_marginal_greedy": {
+            "greedy_in_sweep_count": greedy_in,
+            "greedy_in_sweep_fraction": greedy_in / n,
+            "greedy_exact_optimum_count": greedy_eq,
+            "greedy_exact_optimum_fraction": greedy_eq / n,
+            "regret_relative": distribution(m1_rel),
+            "coupled_gt_1pct_count": sum(value > 0.01 for value in m1_rel),
+            "coupled_gt_1pct_fraction": (
+                sum(value > 0.01 for value in m1_rel) / len(m1_rel)
+                if m1_rel
+                else None
+            ),
+            "coupled_gt_5pct_count": sum(value > 0.05 for value in m1_rel),
+            "coupled_gt_5pct_fraction": (
+                sum(value > 0.05 for value in m1_rel) / len(m1_rel)
+                if m1_rel
+                else None
+            ),
+            "coupled_gt_10pct_count": sum(value > 0.10 for value in m1_rel),
+            "coupled_gt_10pct_fraction": (
+                sum(value > 0.10 for value in m1_rel) / len(m1_rel)
+                if m1_rel
+                else None
+            ),
+        },
+        "m2_identical_tasks": {
+            "has_identical_count": has_ident,
+            "has_identical_fraction": has_ident / n,
+            "optimum_spreads_identical_count": spreads,
+            "optimum_spreads_identical_fraction": (
+                spreads / has_ident if has_ident else None
+            ),
+            "forced_colocation_regret_relative": distribution(colo_rel),
+        },
+        "m3_optimum_collision": {
+            "collision_count": opt_coll,
+            "collision_fraction": opt_coll / n,
+            "avg_unique_platforms_multitask": (
+                sum(r["opt_unique_plats"] for r in multitask) / len(multitask)
+                if multitask
+                else None
+            ),
+            "avg_tasks_multitask": (
+                sum(r["n_tasks"] for r in multitask) / len(multitask)
+                if multitask
+                else None
+            ),
+        },
+    }
+
+
+def print_summary(base_name: str, summary: dict[str, Any]) -> None:
+    n = summary["datasets_analyzed"]
+    m1 = summary["m1_marginal_greedy"]
+    m2 = summary["m2_identical_tasks"]
+    m3 = summary["m3_optimum_collision"]
+    regret = m1["regret_relative"]
+    colo = m2["forced_colocation_regret_relative"]
+
+    print(f"\n===== Separability diagnostic: {base_name} =====")
+    print(
+        f"Datasets analyzed: {n} "
+        f"(multi-task >=2: {summary['multitask_datasets']})"
+    )
+    print(f"Mean n_combos: {summary['mean_n_combos']:.0f}")
     print("\n--- M1: marginal-greedy (independent per-task best) vs joint optimum ---")
-    print(f"  greedy combo present in sweep: {greedy_in}/{n} ({100*greedy_in/n:.1f}%)")
-    print(f"  greedy == optimum (exact):     {greedy_eq}/{n} ({100*greedy_eq/n:.1f}%)")
-    if m1_rel:
-        print(f"  regret_rel (greedy vs opt): mean={sum(m1_rel)/len(m1_rel)*100:.2f}%  "
-              f"median={pctl(m1_rel,0.5)*100:.2f}%  p90={pctl(m1_rel,0.9)*100:.2f}%  max={max(m1_rel)*100:.1f}%")
-        frac_big = sum(1 for v in m1_rel if v > 0.05) / len(m1_rel)
-        print(f"  frac datasets with greedy regret > 5%: {frac_big*100:.1f}%")
-
+    print(
+        f"  greedy combo present in sweep: {m1['greedy_in_sweep_count']}/{n} "
+        f"({100 * m1['greedy_in_sweep_fraction']:.1f}%)"
+    )
+    print(
+        f"  greedy == optimum (exact):     {m1['greedy_exact_optimum_count']}/{n} "
+        f"({100 * m1['greedy_exact_optimum_fraction']:.1f}%)"
+    )
+    if regret["count"]:
+        print(
+            "  regret_rel (greedy vs opt): "
+            f"mean={100 * regret['mean']:.2f}%  "
+            f"median={100 * regret['median']:.2f}%  "
+            f"p90={100 * regret['p90']:.2f}%  "
+            f"p99={100 * regret['p99']:.2f}%  "
+            f"max={100 * regret['max']:.1f}%"
+        )
+        print(
+            "  coupled datasets: "
+            f">1%={100 * m1['coupled_gt_1pct_fraction']:.1f}%  "
+            f">5%={100 * m1['coupled_gt_5pct_fraction']:.1f}%  "
+            f">10%={100 * m1['coupled_gt_10pct_fraction']:.1f}%"
+        )
     print("\n--- M2: identical (type,src) tasks => pointwise MUST co-assign ---")
-    print(f"  datasets with >=2 identical tasks: {has_ident}/{n} ({100*has_ident/n:.1f}%)")
-    if has_ident:
-        print(f"  among identical: optimum SPREADS them: {spreads}/{has_ident} ({100*spreads/has_ident:.1f}%)")
-    if colo_rel:
-        print(f"  forced-colocation regret_rel (pointwise floor): mean={sum(colo_rel)/len(colo_rel)*100:.2f}%  "
-              f"median={pctl(colo_rel,0.5)*100:.2f}%  p90={pctl(colo_rel,0.9)*100:.2f}%  max={max(colo_rel)*100:.1f}%")
-
+    print(
+        f"  datasets with >=2 identical tasks: {m2['has_identical_count']}/{n} "
+        f"({100 * m2['has_identical_fraction']:.1f}%)"
+    )
+    if m2["has_identical_count"]:
+        print(
+            "  among identical: optimum SPREADS them: "
+            f"{m2['optimum_spreads_identical_count']}/{m2['has_identical_count']} "
+            f"({100 * m2['optimum_spreads_identical_fraction']:.1f}%)"
+        )
+    if colo["count"]:
+        print(
+            "  forced-colocation regret_rel (pointwise floor): "
+            f"mean={100 * colo['mean']:.2f}%  "
+            f"median={100 * colo['median']:.2f}%  "
+            f"p90={100 * colo['p90']:.2f}%  "
+            f"max={100 * colo['max']:.1f}%"
+        )
     print("\n--- M3: does the OPTIMUM itself collide (2+ tasks same platform)? ---")
-    print(f"  optimal combo has collision: {opt_coll}/{n} ({100*opt_coll/n:.1f}%)")
-    avg_uniq = sum(r["opt_unique_plats"] for r in multitask) / max(len(multitask), 1)
-    avg_nt = sum(r["n_tasks"] for r in multitask) / max(len(multitask), 1)
-    print(f"  avg unique platforms in optimum: {avg_uniq:.2f} / avg n_tasks {avg_nt:.2f} (multi-task)")
-    print()
+    print(
+        f"  optimal combo has collision: {m3['collision_count']}/{n} "
+        f"({100 * m3['collision_fraction']:.1f}%)"
+    )
+    print(
+        "  avg unique platforms in optimum: "
+        f"{m3['avg_unique_platforms_multitask']:.2f} / "
+        f"avg n_tasks {m3['avg_tasks_multitask']:.2f} (multi-task)"
+    )
+
+
+def _load_integrity_manifest(path: Path) -> tuple[dict[str, Any], str]:
+    raw = path.read_bytes()
+    manifest = json.loads(raw)
+    if manifest.get("status") != "clean" or manifest.get("clean") is not True:
+        raise RuntimeError(f"Integrity manifest is not clean: {path}")
+    return manifest, hashlib.sha256(raw).hexdigest()
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("corpus_dir", nargs="+", type=Path)
+    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--integrity-manifest", type=Path)
+    ap.add_argument("--output", type=Path)
+    args = ap.parse_args()
+
+    integrity_manifest = None
+    integrity_sha256 = None
+    if args.integrity_manifest:
+        integrity_manifest, integrity_sha256 = _load_integrity_manifest(
+            args.integrity_manifest
+        )
+
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "integrity_manifest": (
+            str(args.integrity_manifest) if args.integrity_manifest else None
+        ),
+        "integrity_manifest_sha256": integrity_sha256,
+        "corpora": {},
+    }
+    for base in args.corpus_dir:
+        if not base.is_dir():
+            raise FileNotFoundError(f"Corpus directory not found: {base}")
+        if integrity_manifest is not None:
+            corpus_inventory = integrity_manifest["corpora"].get(base.name)
+            if corpus_inventory is None:
+                raise RuntimeError(
+                    f"Corpus absent from integrity manifest: {base.name}"
+                )
+            retained_names = sorted(corpus_inventory["datasets"])
+            ds_dirs = [base / name for name in retained_names]
+            excluded = corpus_inventory["excluded_datasets"]
+        else:
+            ds_dirs = sorted(d for d in base.glob("ds_*") if d.is_dir())
+            excluded = []
+        if args.limit:
+            ds_dirs = ds_dirs[: args.limit]
+        if not ds_dirs:
+            raise RuntimeError(f"No retained datasets under {base}")
+
+        results: list[dict] = []
+        for dataset_dir in ds_dirs:
+            result = analyze_dataset(dataset_dir)
+            if result is None:
+                raise RuntimeError(f"Dataset is not analyzable: {dataset_dir}")
+            result["dataset_id"] = dataset_dir.name
+            results.append(result)
+        summary = summarize_results(results)
+        if summary["m1_marginal_greedy"]["greedy_in_sweep_count"] != len(results):
+            raise RuntimeError(
+                f"{base.name}: marginal greedy combo absent from one or more "
+                "retained full sweeps"
+            )
+        print_summary(base.name, summary)
+        report["corpora"][base.name] = {
+            "path": str(base),
+            "excluded_datasets": excluded,
+            "summary": summary,
+            "datasets": results,
+        }
+
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        print(f"\nFrozen report: {args.output}")
     return 0
 
 

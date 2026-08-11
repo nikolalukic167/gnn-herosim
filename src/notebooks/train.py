@@ -52,6 +52,14 @@ from non_unique_lib.cache_io import (
     load_rtt_hash_table_from_cache,
 )
 from non_unique_lib.training_config import parse_training_config
+from non_unique_lib.training_contract import (
+    assert_zero_parent_overlap,
+    canonical_parent_id,
+    lookup_opt_rtt,
+    lookup_rtt_hash,
+    require_rtt_parent_coverage,
+    split_ids_by_canonical_parent,
+)
 
 
 random.seed(42)
@@ -286,13 +294,19 @@ class StructuredRegretLoss(nn.Module):
         device: torch.device,
     ) -> Tuple[torch.Tensor, int, Dict[str, Any]]:
         dataset_id = getattr(data, 'dataset_id', None)
+        parent_id = canonical_parent_id(
+            getattr(data, "parent_dataset_id", None) or dataset_id
+        )
         opt_rtt = getattr(data, 'opt_rtt', None)
         task_logit_to_placement = getattr(
             data,
             'task_logit_to_placement',
             getattr(data, '_task_logit_to_placement', None),
         )
-        hard_negative_combos = self.hard_negative_map.get(dataset_id or "", [])
+        hard_negative_combos = (
+            self.hard_negative_map.get(dataset_id or "", [])
+            or self.hard_negative_map.get(parent_id, [])
+        )
 
         if (
             not dataset_id
@@ -322,7 +336,10 @@ class StructuredRegretLoss(nn.Module):
 
         neg_combo, neg_rtt = random.choice(hard_negative_combos)
 
-        placement_to_logit_by_task = self.placement_to_logit_map.get(dataset_id)
+        placement_to_logit_by_task = (
+            self.placement_to_logit_map.get(dataset_id)
+            or self.placement_to_logit_map.get(parent_id)
+        )
         neg_indices = []
         for t_idx in range(n_tasks):
             target_node_id, target_plat_id = neg_combo[t_idx]
@@ -391,9 +408,18 @@ class GraphRttDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> Data:
         graph = self.graphs[idx]
         dataset_id = self.dataset_ids[idx]
+        parent_id = canonical_parent_id(
+            getattr(graph, "parent_dataset_id", None) or dataset_id
+        )
         graph.dataset_id = dataset_id
-        graph.opt_rtt = float(self.optimal_rtt_map.get(dataset_id, 0.0))
-        graph.task_logit_to_placement = self._task_map_by_dataset.get(dataset_id, {})
+        graph.parent_dataset_id = parent_id
+        graph.opt_rtt = lookup_opt_rtt(
+            dataset_id, self.optimal_rtt_map, parent_dataset_id=parent_id
+        )
+        graph.task_logit_to_placement = self._task_map_by_dataset.get(
+            dataset_id,
+            self._task_map_by_dataset.get(parent_id, {}),
+        )
         return graph
 
 
@@ -410,6 +436,7 @@ _STRIP_BEFORE_BATCH_KEYS = (
     "queue_snapshot",
     "initial_queue_snapshot",
     "dataset_id",
+    "parent_dataset_id",
     "opt_rtt",
 )
 
@@ -421,6 +448,7 @@ def custom_collate(data_list):
         for d in data_list
     ]
     dataset_ids = [getattr(d, 'dataset_id', None) for d in data_list]
+    parent_ids = [getattr(d, 'parent_dataset_id', None) for d in data_list]
     opt_rtts = [getattr(d, 'opt_rtt', None) for d in data_list]
     stripped = []
     for d in data_list:
@@ -432,6 +460,7 @@ def custom_collate(data_list):
     batch = Batch.from_data_list(stripped)
     batch.task_logit_to_placement_list = task_maps
     batch.dataset_id_list = dataset_ids
+    batch.parent_dataset_id_list = parent_ids
     batch.opt_rtt_list = opt_rtts
     return batch
 
@@ -440,6 +469,7 @@ def restore_custom_attrs(batch, graphs):
     """Restore custom attrs from collate metadata lists."""
     task_maps = getattr(batch, 'task_logit_to_placement_list', [])
     dataset_ids = getattr(batch, 'dataset_id_list', [])
+    parent_ids = getattr(batch, 'parent_dataset_id_list', [])
     opt_rtts = getattr(batch, 'opt_rtt_list', [])
 
     for idx, graph in enumerate(graphs):
@@ -447,6 +477,8 @@ def restore_custom_attrs(batch, graphs):
             graph.task_logit_to_placement = task_maps[idx]
         if idx < len(dataset_ids):
             graph.dataset_id = dataset_ids[idx]
+        if idx < len(parent_ids):
+            graph.parent_dataset_id = parent_ids[idx]
         if idx < len(opt_rtts):
             graph.opt_rtt = opt_rtts[idx]
     return graphs
@@ -718,21 +750,23 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
 
     def _compute_regret_metrics(dataset_id_obj, n_tasks_obj, data_obj, logits_per_task_obj):
         if not dataset_id_obj:
-            return None
+            raise RuntimeError("Regret eval missing dataset_id")
         combo_tuple = decode_inference_placement(logits_per_task_obj, data_obj)
         if combo_tuple is None:
-            return None
+            raise RuntimeError(f"Regret eval failed to decode placement for {dataset_id_obj}")
         opt_rtt = getattr(data_obj, "opt_rtt", None)
         if opt_rtt is None:
-            return None
-        try:
-            opt_rtt_val = float(opt_rtt)
-        except (TypeError, ValueError):
-            return None
-        pred_rtt = placement_rtt_hash_table.get((dataset_id_obj, combo_tuple))
-        if pred_rtt is None:
-            return None
-        pred_rtt_val = float(pred_rtt)
+            raise RuntimeError(f"Regret eval missing opt_rtt for {dataset_id_obj}")
+        opt_rtt_val = float(opt_rtt)
+        parent_id = canonical_parent_id(
+            getattr(data_obj, "parent_dataset_id", None) or dataset_id_obj
+        )
+        pred_rtt_val = lookup_rtt_hash(
+            placement_rtt_hash_table,
+            dataset_id_obj,
+            combo_tuple,
+            parent_dataset_id=parent_id,
+        )
         regret_val = pred_rtt_val - opt_rtt_val
         regret_pct_val = (regret_val / opt_rtt_val) * 100.0 if opt_rtt_val > 0 else 0.0
         return regret_val, regret_pct_val, n_tasks_obj
@@ -748,12 +782,14 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
                 getattr(data, '_task_logit_to_placement', {}),
             )
             dataset_id_orig = getattr(data, 'dataset_id', None)
+            parent_id_orig = getattr(data, 'parent_dataset_id', None)
             opt_rtt_orig = getattr(data, 'opt_rtt', None)
 
             data = data.to(device)
 
             data.task_logit_to_placement = task_logit_to_placement_orig
             data.dataset_id = dataset_id_orig
+            data.parent_dataset_id = parent_id_orig
             data.opt_rtt = opt_rtt_orig
 
             dataset_id = data.dataset_id
@@ -775,14 +811,14 @@ def evaluate(model, loader, device, placement_rtt_hash_table, is_last_epoch=Fals
                     correct_graphs += 1
                     per_task_count_stats[n_tasks]['correct'] += 1
 
-                regret_metrics = _compute_regret_metrics(dataset_id, n_tasks, data, logits_per_task)
-                if regret_metrics is not None:
-                    regret, regret_pct, regret_task_count = regret_metrics
-                    sum_regret += regret
-                    sum_regret_pct += regret_pct
-                    count_regret += 1
-                    per_task_count_stats[regret_task_count]['regret_sum'] += regret
-                    per_task_count_stats[regret_task_count]['regret_count'] += 1
+                regret, regret_pct, regret_task_count = _compute_regret_metrics(
+                    dataset_id, n_tasks, data, logits_per_task
+                )
+                sum_regret += regret
+                sum_regret_pct += regret_pct
+                count_regret += 1
+                per_task_count_stats[regret_task_count]['regret_sum'] += regret
+                per_task_count_stats[regret_task_count]['regret_count'] += 1
 
     avg_loss_ce = total_loss_ce / max(1, total_valid_tasks)
     acc = correct_graphs / max(1, total_graphs)
@@ -856,21 +892,33 @@ print("Max valid tasks:", np.max([(g.y >= 0).sum().item() for g in graphs]))
 print("Min valid tasks:", np.min([(g.y >= 0).sum().item() for g in graphs]))
 
 print(f"\nLoaded {len(graphs)} graphs from cache")
+require_rtt_parent_coverage(dataset_ids, DATA_OPTIMAL_RTT, context="opt_rtt map")
+
+for graph, graph_id in zip(graphs, dataset_ids):
+    if getattr(graph, "parent_dataset_id", None) is None:
+        graph.parent_dataset_id = canonical_parent_id(graph_id)
 
 # ========================================================================
-# Train/Val/Test Split (80/10/10)
+# Train/Val/Test Split — canonical parents first (70/15/15 of parents)
 # ========================================================================
-train_graphs, temp_graphs, train_ids, temp_ids = train_test_split(
-    graphs, dataset_ids, test_size=0.2, random_state=42
+parent_ids_for_split = [
+    canonical_parent_id(getattr(g, "parent_dataset_id", None) or gid)
+    for g, gid in zip(graphs, dataset_ids)
+]
+train_graphs, train_ids, val_graphs, val_ids, test_graphs, test_ids = split_ids_by_canonical_parent(
+    graphs,
+    dataset_ids,
+    test_size=0.3,
+    val_fraction_of_holdout=0.5,
+    random_state=42,
+    parent_ids=parent_ids_for_split,
 )
-val_graphs, test_graphs, val_ids, test_ids = train_test_split(
-    temp_graphs, temp_ids, test_size=0.5, random_state=42
-)
+assert_zero_parent_overlap(train_ids, val_ids, test_ids)
 
-print("Dataset split:")
-print(f"  Train: {len(train_graphs)} datasets ({len(train_graphs)/len(graphs)*100:.1f}%)")
-print(f"  Val:   {len(val_graphs)} datasets ({len(val_graphs)/len(graphs)*100:.1f}%)")
-print(f"  Test:  {len(test_graphs)} datasets ({len(test_graphs)/len(graphs)*100:.1f}%)")
+print("Dataset split (by canonical parent):")
+print(f"  Train: {len(train_graphs)} graphs / {len({canonical_parent_id(x) for x in train_ids})} parents ({len(train_graphs)/len(graphs)*100:.1f}%)")
+print(f"  Val:   {len(val_graphs)} graphs / {len({canonical_parent_id(x) for x in val_ids})} parents ({len(val_graphs)/len(graphs)*100:.1f}%)")
+print(f"  Test:  {len(test_graphs)} graphs / {len({canonical_parent_id(x) for x in test_ids})} parents ({len(test_graphs)/len(graphs)*100:.1f}%)")
 
 # Print task count distribution per split if merged
 if IS_MERGED_CACHE:

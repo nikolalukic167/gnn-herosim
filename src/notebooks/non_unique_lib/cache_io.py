@@ -487,16 +487,33 @@ def build_regret_training_lookups_from_hash_table(
     dataset_ids (the graph cache) so filtered caches don't wastefully iterate over
     the full RTT table for excluded datasets.
     """
-    ids_in_graphs = {ds_id.split("@seq")[0] for ds_id in dataset_ids}
+    ids_in_graphs = set()
+    from non_unique_lib.training_contract import canonical_parent_id
+
+    ids_in_graphs = {canonical_parent_id(ds_id) for ds_id in dataset_ids}
     valid_combos_map = build_valid_combos_map(placement_rtt_hash_table, dataset_ids_filter=ids_in_graphs)
+    # Remap parent-keyed combos onto every graph instance id (@os / @seq copies).
+    remapped: ValidCombosMap = {}
+    empty_parents: List[str] = []
+    for graph_id in dataset_ids:
+        parent = canonical_parent_id(graph_id)
+        combos = valid_combos_map.get(parent, [])
+        if not combos:
+            empty_parents.append(str(graph_id))
+        remapped[graph_id] = combos
+    if empty_parents:
+        raise RuntimeError(
+            f"RTT valid-combo coverage missing for {len(empty_parents)}/{len(dataset_ids)} "
+            f"graphs after @os/@seq canonicalize. Examples: {empty_parents[:10]}"
+        )
     placement_to_logit, hard_negative_map = build_regret_training_lookups(
         graphs,
         dataset_ids,
-        valid_combos_map,
+        remapped,
         hard_negative_fraction=hard_negative_fraction,
         stratified=stratified,
     )
-    del valid_combos_map
+    del valid_combos_map, remapped
     return placement_to_logit, hard_negative_map
 
 

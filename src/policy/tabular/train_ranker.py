@@ -66,6 +66,44 @@ def split_by_parent(
     return train_df, test_df
 
 
+def split_by_parent_three_way(
+    df: pd.DataFrame,
+    *,
+    val_size: float = 0.15,
+    test_size: float = 0.15,
+    random_state: int = 42,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Canonical-parent 70/15/15 split. Val is for selection; test is held out."""
+    unique_parents = df["parent_dataset_id"].unique()
+    if len(unique_parents) < 3:
+        raise ValueError(
+            f"Need at least three parent_dataset_id groups for train/val/test; got {len(unique_parents)}"
+        )
+    holdout = val_size + test_size
+    if not (0.0 < holdout < 1.0):
+        raise ValueError(f"val_size+test_size must be in (0,1); got {holdout}")
+    train_parents, temp_parents = train_test_split(
+        unique_parents,
+        test_size=holdout,
+        random_state=random_state,
+    )
+    relative_test = test_size / holdout
+    val_parents, test_parents = train_test_split(
+        temp_parents,
+        test_size=relative_test,
+        random_state=random_state,
+    )
+    train_df = df[df["parent_dataset_id"].isin(set(train_parents))].copy()
+    val_df = df[df["parent_dataset_id"].isin(set(val_parents))].copy()
+    test_df = df[df["parent_dataset_id"].isin(set(test_parents))].copy()
+    train_p = set(train_df["parent_dataset_id"].unique())
+    val_p = set(val_df["parent_dataset_id"].unique())
+    test_p = set(test_df["parent_dataset_id"].unique())
+    if train_p & val_p or train_p & test_p or val_p & test_p:
+        raise RuntimeError("parent overlap after three-way split")
+    return train_df, val_df, test_df
+
+
 def sort_for_ranking(df: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values(["graph_id", "logit_idx"], kind="mergesort").reset_index(drop=True)
 

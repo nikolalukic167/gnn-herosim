@@ -1,0 +1,333 @@
+{
+  "aggregate": {
+    "gnn_base": {
+      "catastrophic_max_gt_1": 0,
+      "coupled": {
+        "regret_max": {
+          "mean": 0.1319894319673981,
+          "std": 0.06428377879093919,
+          "values": [
+            0.1691036889568732,
+            0.0577609179884479,
+            0.1691036889568732
+          ]
+        },
+        "regret_mean": {
+          "mean": 0.04116788076613214,
+          "std": 0.010097723192715884,
+          "values": [
+            0.045878833091172626,
+            0.029575564785789515,
+            0.04804924442143428
+          ]
+        },
+        "regret_p90": {
+          "mean": 0.08410283332171846,
+          "std": 0.029022659469332353,
+          "values": [
+            0.09698668666057088,
+            0.050868752856263945,
+            0.1044530604483205
+          ]
+        }
+      },
+      "opt_recovered_frac": {
+        "max": 0.6564885496183206,
+        "mean": 0.6412213740458016,
+        "min": 0.6259541984732825,
+        "std": 0.015267175572519054,
+        "values": [
+          0.6259541984732825,
+          0.6412213740458015,
+          0.6564885496183206
+        ]
+      },
+      "regret_max": {
+        "max": 0.2782564229411961,
+        "mean": 0.195278328667888,
+        "min": 0.13847487410559464,
+        "std": 0.07347485400952482,
+        "values": [
+          0.2782564229411961,
+          0.13847487410559464,
+          0.1691036889568732
+        ]
+      },
+      "regret_mean": {
+        "max": 0.012187296030648753,
+        "mean": 0.009719368971964583,
+        "min": 0.007612384476247092,
+        "std": 0.0023087147036760895,
+        "values": [
+          0.012187296030648753,
+          0.007612384476247092,
+          0.0093584264089979
+        ]
+      },
+      "regret_p90": {
+        "max": 0.035450828368055055,
+        "mean": 0.030303922626413404,
+        "min": 0.024461621956677906,
+        "std": 0.00552750802509387,
+        "values": [
+          0.035450828368055055,
+          0.024461621956677906,
+          0.030999317554507248
+        ]
+      },
+      "seed_wins_vs_other": {
+        "opt_recov": 3,
+        "regret_max_lower": 1,
+        "regret_p90_lower": 3,
+        "top1": 3
+      },
+      "top1_acc": {
+        "max": 0.8950381679389313,
+        "mean": 0.8886768447837149,
+        "min": 0.8797709923664122,
+        "std": 0.007945290074298221,
+        "values": [
+          0.8797709923664122,
+          0.8950381679389313,
+          0.8912213740458015
+        ]
+      }
+    },
+    "pointwise": {
+      "catastrophic_max_gt_1": 1,
+      "coupled": {
+        "regret_max": {
+          "mean": 0.11533455184842038,
+          "std": 0.04656571211533744,
+          "values": [
+            0.1691036889568732,
+            0.08860956326720565,
+            0.08829040332118232
+          ]
+        },
+        "regret_mean": {
+          "mean": 0.04215285912254726,
+          "std": 0.007215482052635044,
+          "values": [
+            0.05039677919459078,
+            0.03907565630053117,
+            0.03698614187251982
+          ]
+        },
+        "regret_p90": {
+          "mean": 0.08614440127248828,
+          "std": 0.05080042711636337,
+          "values": [
+            0.14404549536671285,
+            0.06533516076817121,
+            0.04905254768258076
+          ]
+        }
+      },
+      "opt_recovered_frac": {
+        "max": 0.6030534351145038,
+        "mean": 0.5877862595419848,
+        "min": 0.5572519083969466,
+        "std": 0.026443523779677496,
+        "values": [
+          0.5572519083969466,
+          0.6030534351145038,
+          0.6030534351145038
+        ]
+      },
+      "regret_max": {
+        "max": 15.785700542920916,
+        "mean": 5.357596275452239,
+        "min": 0.13847487410559464,
+        "std": 9.031004631677083,
+        "values": [
+          15.785700542920916,
+          0.13847487410559464,
+          0.14861340933020487
+        ]
+      },
+      "regret_mean": {
+        "max": 0.13384004423008092,
+        "mean": 0.052025333604250094,
+        "min": 0.009425010159655944,
+        "std": 0.07087384071140922,
+        "values": [
+          0.13384004423008092,
+          0.009425010159655944,
+          0.012810946423013418
+        ]
+      },
+      "regret_p90": {
+        "max": 0.043855399961455384,
+        "mean": 0.03882588657496625,
+        "min": 0.03337917599051302,
+        "std": 0.005250557808350334,
+        "values": [
+          0.043855399961455384,
+          0.03337917599051302,
+          0.03924308377293036
+        ]
+      },
+      "seed_wins_vs_other": {
+        "opt_recov": 0,
+        "regret_max_lower": 1,
+        "regret_p90_lower": 0,
+        "top1": 0
+      },
+      "top1_acc": {
+        "max": 0.8759541984732825,
+        "mean": 0.8708651399491094,
+        "min": 0.8606870229007634,
+        "std": 0.008814507926559186,
+        "values": [
+          0.8606870229007634,
+          0.8759541984732825,
+          0.8759541984732825
+        ]
+      }
+    }
+  },
+  "cache": "simulation_data/graphs_cache_contention_v2_873_v5.5",
+  "cache_version": "5.5",
+  "epochs": 120,
+  "models": [
+    "pointwise",
+    "gnn_base"
+  ],
+  "n_graphs": 873,
+  "per_seed": {
+    "42": {
+      "coupled_results": {
+        "gnn_base": {
+          "n": 14,
+          "regret_max": 0.1691036889568732,
+          "regret_mean": 0.045878833091172626,
+          "regret_p90": 0.09698668666057088
+        },
+        "pointwise": {
+          "n": 14,
+          "regret_max": 0.1691036889568732,
+          "regret_mean": 0.05039677919459078,
+          "regret_p90": 0.14404549536671285
+        }
+      },
+      "n_coupled": 14,
+      "n_test": 131,
+      "results": {
+        "gnn_base": {
+          "n_collided_plan": 69,
+          "n_missing_plan": 0,
+          "opt_recovered_frac": 0.6259541984732825,
+          "regret_max": 0.2782564229411961,
+          "regret_mean": 0.012187296030648753,
+          "regret_p90": 0.035450828368055055,
+          "top1_acc": 0.8797709923664122
+        },
+        "pointwise": {
+          "n_collided_plan": 85,
+          "n_missing_plan": 0,
+          "opt_recovered_frac": 0.5572519083969466,
+          "regret_max": 15.785700542920916,
+          "regret_mean": 0.13384004423008092,
+          "regret_p90": 0.043855399961455384,
+          "top1_acc": 0.8606870229007634
+        }
+      }
+    },
+    "43": {
+      "coupled_results": {
+        "gnn_base": {
+          "n": 12,
+          "regret_max": 0.0577609179884479,
+          "regret_mean": 0.029575564785789515,
+          "regret_p90": 0.050868752856263945
+        },
+        "pointwise": {
+          "n": 12,
+          "regret_max": 0.08860956326720565,
+          "regret_mean": 0.03907565630053117,
+          "regret_p90": 0.06533516076817121
+        }
+      },
+      "n_coupled": 12,
+      "n_test": 131,
+      "results": {
+        "gnn_base": {
+          "n_collided_plan": 77,
+          "n_missing_plan": 0,
+          "opt_recovered_frac": 0.6412213740458015,
+          "regret_max": 0.13847487410559464,
+          "regret_mean": 0.007612384476247092,
+          "regret_p90": 0.024461621956677906,
+          "top1_acc": 0.8950381679389313
+        },
+        "pointwise": {
+          "n_collided_plan": 79,
+          "n_missing_plan": 0,
+          "opt_recovered_frac": 0.6030534351145038,
+          "regret_max": 0.13847487410559464,
+          "regret_mean": 0.009425010159655944,
+          "regret_p90": 0.03337917599051302,
+          "top1_acc": 0.8759541984732825
+        }
+      }
+    },
+    "44": {
+      "coupled_results": {
+        "gnn_base": {
+          "n": 9,
+          "regret_max": 0.1691036889568732,
+          "regret_mean": 0.04804924442143428,
+          "regret_p90": 0.1044530604483205
+        },
+        "pointwise": {
+          "n": 9,
+          "regret_max": 0.08829040332118232,
+          "regret_mean": 0.03698614187251982,
+          "regret_p90": 0.04905254768258076
+        }
+      },
+      "n_coupled": 9,
+      "n_test": 131,
+      "results": {
+        "gnn_base": {
+          "n_collided_plan": 68,
+          "n_missing_plan": 0,
+          "opt_recovered_frac": 0.6564885496183206,
+          "regret_max": 0.1691036889568732,
+          "regret_mean": 0.0093584264089979,
+          "regret_p90": 0.030999317554507248,
+          "top1_acc": 0.8912213740458015
+        },
+        "pointwise": {
+          "n_collided_plan": 79,
+          "n_missing_plan": 0,
+          "opt_recovered_frac": 0.6030534351145038,
+          "regret_max": 0.14861340933020487,
+          "regret_mean": 0.012810946423013418,
+          "regret_p90": 0.03924308377293036,
+          "top1_acc": 0.8759541984732825
+        }
+      }
+    }
+  },
+  "schema_version": 1,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "split_mode": "canonical_parent",
+  "verdict": {
+    "claim": "On repaired CACHE 5.5 contention_v2 (n=873, parent 70/15/15, seeds 42/43/44): gnn_base wins top-1, mean regret, p90 regret, and opt-recovery on 3/3 seeds; eliminates the catastrophic collision-cliff failure mode (pointwise max 1578% on seed 42; gnn_base max \u226427.8% on all seeds). Coupled-subset ordering is mixed. Architecture claim: GNN advantage is contention-tail robustness / cliff elimination, not universal dominance on every coupled slice.",
+    "coupled_tail": "mixed \u2014 gnn better seeds 42/43; pointwise better seed 44 on coupled subset",
+    "gnn_base_catastrophic_seeds_max_gt_100pct": 0,
+    "gnn_base_maxregret_strict_wins": "1/3",
+    "gnn_base_mean_regret_wins": "3/3",
+    "gnn_base_opt_recov_wins": "3/3",
+    "gnn_base_p90_wins": "3/3",
+    "gnn_base_top1_seed_wins": "3/3",
+    "pointwise_catastrophic_seeds_max_gt_100pct": 1,
+    "status": "PARTIAL_FROZEN \u2014 offline multi-seed on repaired labels; live gate still separate"
+  }
+}
