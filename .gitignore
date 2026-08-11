@@ -172,6 +172,7 @@ simulation_data/network_topology.pdf
 models/
 latex/
 
-# Markdown files (except README)
+# Markdown files (except README / AGENTS)
 *.md
 !README.md
+!AGENTS.md
