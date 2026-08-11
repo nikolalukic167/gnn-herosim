@@ -32,6 +32,7 @@ import json
 import os
 import pickle
 import random
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -42,6 +43,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.nn.models import GIN
+
+_NOTEBOOKS = Path(__file__).resolve().parents[1] / "src" / "notebooks"
+if str(_NOTEBOOKS) not in sys.path:
+    sys.path.insert(0, str(_NOTEBOOKS))
+from non_unique_lib.training_contract import (  # noqa: E402
+    assert_zero_parent_overlap,
+    split_ids_by_canonical_parent,
+)
 
 
 # --------------------------------------------------------------------------------------
@@ -155,17 +164,19 @@ def load_combos(ds_dir: Path) -> Optional[Dict[Tuple, float]]:
         return None
     lut: Dict[Tuple, float] = {}
     with jp.open() as f:
-        for line in f:
+        for line_number, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
             try:
                 rec = json.loads(line)
-            except Exception:
-                continue
+            except Exception as exc:
+                raise RuntimeError(f"{jp}:{line_number}: invalid JSON") from exc
             plan, rtt = rec.get("placement_plan"), rec.get("rtt")
             if plan is None or rtt is None:
-                continue
+                raise RuntimeError(
+                    f"{jp}:{line_number}: missing placement_plan or rtt"
+                )
             key = tuple(sorted((int(k), (int(v[0]), int(v[1]))) for k, v in plan.items()))
             r = float(rtt)
             if key not in lut or r < lut[key]:
@@ -305,9 +316,28 @@ def main() -> int:
     ap.add_argument("--cache", required=True)
     ap.add_argument("--corpus-root", default="simulation_data")
     ap.add_argument("--epochs", type=int, default=120)
-    ap.add_argument("--test-frac", type=float, default=0.2)
+    ap.add_argument(
+        "--test-frac",
+        type=float,
+        default=0.3,
+        help="Holdout parent fraction before val/test split (default 0.3 → 70/15/15)",
+    )
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument(
+        "--models",
+        nargs="+",
+        choices=["pointwise", "gnn_base", "gnn_node"],
+        default=["pointwise", "gnn_base", "gnn_node"],
+    )
+    ap.add_argument("--expected-graphs", type=int, default=0)
+    ap.add_argument("--output", type=Path)
+    ap.add_argument(
+        "--split-mode",
+        choices=["canonical_parent", "copy_shuffle"],
+        default="canonical_parent",
+        help="canonical_parent = training-contract 70/15/15; copy_shuffle = legacy",
+    )
     args = ap.parse_args()
 
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
@@ -315,8 +345,22 @@ def main() -> int:
     print(f"device={device}  cache={args.cache}")
 
     graphs = pickle.load(open(os.path.join(args.cache, "graphs.pkl"), "rb"))
+    dataset_ids_path = os.path.join(args.cache, "dataset_ids.pkl")
+    if os.path.isfile(dataset_ids_path):
+        dataset_ids = pickle.load(open(dataset_ids_path, "rb"))
+    else:
+        dataset_ids = [str(g.dataset_id) for g in graphs]
+    if args.expected_graphs and len(graphs) != args.expected_graphs:
+        raise RuntimeError(
+            f"Cache graph count {len(graphs)} != expected {args.expected_graphs}"
+        )
     if args.limit:
         graphs = graphs[: args.limit]
+        dataset_ids = dataset_ids[: args.limit]
+    if len(graphs) != len(dataset_ids):
+        raise RuntimeError(
+            f"graphs ({len(graphs)}) != dataset_ids ({len(dataset_ids)})"
+        )
     # Always (re)build candidate-restricted same-node edges (override any cached full
     # version, which floods the GIN and oversmooths).
     for g in graphs:
@@ -328,13 +372,35 @@ def main() -> int:
     avg_node_edges = np.mean([g.node_edge_index.shape[1] for g in graphs])
     print(f"avg same-node edges/graph={avg_node_edges:.1f}")
 
-    idx = list(range(len(graphs)))
-    random.shuffle(idx)
-    n_test = max(1, int(len(graphs) * args.test_frac))
-    test_idx, train_idx = set(idx[:n_test]), idx[n_test:]
-    train_graphs = [graphs[i] for i in train_idx]
-    test_graphs = [graphs[i] for i in sorted(test_idx)]
-    print(f"train={len(train_graphs)} test={len(test_graphs)}")
+    if args.split_mode == "canonical_parent":
+        (
+            train_graphs,
+            train_ids,
+            val_graphs,
+            val_ids,
+            test_graphs,
+            test_ids,
+        ) = split_ids_by_canonical_parent(
+            graphs,
+            dataset_ids,
+            test_size=args.test_frac,
+            val_fraction_of_holdout=0.5,
+            random_state=args.seed,
+        )
+        assert_zero_parent_overlap(train_ids, val_ids, test_ids)
+        print(
+            f"split=canonical_parent train={len(train_graphs)} "
+            f"val={len(val_graphs)} test={len(test_graphs)}"
+        )
+    else:
+        idx = list(range(len(graphs)))
+        random.shuffle(idx)
+        n_test = max(1, int(len(graphs) * args.test_frac))
+        test_idx, train_idx = set(idx[:n_test]), idx[n_test:]
+        train_graphs = [graphs[i] for i in train_idx]
+        test_graphs = [graphs[i] for i in sorted(test_idx)]
+        val_graphs, val_ids, train_ids, test_ids = [], [], [], []
+        print(f"split=copy_shuffle train={len(train_graphs)} test={len(test_graphs)}")
 
     corpus_root = Path(args.corpus_root)
     # Pre-load + cache the RTT lookup per test dataset (shared by greedy + all models).
@@ -343,6 +409,8 @@ def main() -> int:
         dsid = str(g.dataset_id)
         if dsid not in lut_cache:
             lut_cache[dsid] = load_combos(corpus_root / dsid)
+            if not lut_cache[dsid]:
+                raise RuntimeError(f"Missing RTT sweep for retained graph: {dsid}")
     base = greedy_baseline_regret(test_graphs, lut_cache)
     print(f"\n[greedy/pointwise-oracle baseline on test] regret mean={base['regret_mean']*100:.2f}% "
           f"p90={base['regret_p90']*100:.2f}% max={base['regret_max']*100:.2f}% (n={base['n']})")
@@ -353,11 +421,12 @@ def main() -> int:
     print(f"[coupling] test datasets with greedy regret > {coupling_thresh*100:.0f}%: "
           f"{len(coupled_ids)}/{len(base['per_ds'])}")
 
-    configs = [
+    all_configs = [
         ("pointwise", dict(use_gin=False, use_node_edges=False)),
         ("gnn_base",  dict(use_gin=True,  use_node_edges=False)),
         ("gnn_node",  dict(use_gin=True,  use_node_edges=True)),
     ]
+    configs = [(name, cfg) for name, cfg in all_configs if name in args.models]
     results = {}
     for name, cfg in configs:
         print(f"\n=== training {name} ({cfg}) ===")
@@ -367,6 +436,11 @@ def main() -> int:
         print(f"  params={nparam}")
         train_model(model, list(train_graphs), device, args.epochs)
         results[name] = eval_regret(model, test_graphs, corpus_root, device, lut_cache)
+        if results[name]["n_missing_plan"]:
+            raise RuntimeError(
+                f"{name}: {results[name]['n_missing_plan']} predicted plans absent "
+                "from retained full placement sweeps"
+            )
 
     print("\n" + "=" * 92)
     print(f"RESULTS  (corpus={Path(args.cache).name}, test n={len(test_graphs)})")
@@ -391,6 +465,46 @@ def main() -> int:
                 continue
             print(f"{name:<12}{vals.mean()*100:>12.2f}%{np.percentile(vals,90)*100:>11.2f}%{vals.max()*100:>11.2f}%")
         print(f"{'greedy':<12}{g_c.mean()*100:>12.2f}%{np.percentile(g_c,90)*100:>11.2f}%{g_c.max()*100:>11.2f}%")
+    if args.output:
+        coupled_results = {}
+        for name, _ in configs:
+            values = np.array(
+                [
+                    results[name]["per_ds"][dataset_id]
+                    for dataset_id in coupled_ids
+                    if dataset_id in results[name]["per_ds"]
+                ]
+            )
+            coupled_results[name] = {
+                "n": int(values.size),
+                "regret_mean": float(values.mean()) if values.size else None,
+                "regret_p90": (
+                    float(np.percentile(values, 90)) if values.size else None
+                ),
+                "regret_max": float(values.max()) if values.size else None,
+            }
+        payload = {
+            "schema_version": 2,
+            "cache": str(args.cache),
+            "corpus_root": str(corpus_root),
+            "seed": args.seed,
+            "epochs": args.epochs,
+            "test_fraction": args.test_frac,
+            "split_mode": args.split_mode,
+            "n_graphs": len(graphs),
+            "n_train": len(train_graphs),
+            "n_val": len(val_graphs),
+            "n_test": len(test_graphs),
+            "models": args.models,
+            "greedy_baseline": base,
+            "coupled_threshold": coupling_thresh,
+            "coupled_dataset_ids": sorted(coupled_ids),
+            "coupled_results": coupled_results,
+            "results": results,
+        }
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        print(f"\nFrozen ablation report: {args.output}")
     return 0
 
 

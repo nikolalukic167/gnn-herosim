@@ -41,7 +41,13 @@ REDUCED_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(REDUCED_FEATURE_DIM)]
 
 
 def parent_dataset_id(dataset_id: Any) -> str:
-    return str(dataset_id or "").split("@seq", 1)[0]
+    """Strip @os / @seq suffixes to the canonical co-sim parent id."""
+    s = str(dataset_id or "")
+    for sep in ("@os", "@seq"):
+        idx = s.find(sep)
+        if idx >= 0:
+            s = s[:idx]
+    return s
 
 
 @lru_cache(maxsize=512)
@@ -235,7 +241,9 @@ def extract_rows_dim22_from_batch_graph(graph: Any, graph_id: str) -> Tuple[List
     Batch cache platform features already match dim22 inference: normalized queue (dim 7),
     shared_fate (dim 8), usage_ratio (dim 13) — same as GNN wssm training cache.
     """
-    parent_id = str(graph_id)
+    parent_id = str(
+        getattr(graph, "parent_dataset_id", None) or parent_dataset_id(graph_id)
+    )
     n_tasks = int(getattr(graph, "n_tasks"))
     if n_tasks <= 0:
         return [], "n_tasks <= 0"

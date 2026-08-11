@@ -38,7 +38,7 @@ from src.policy.tabular.reduced_features import (
     extract_rows_dim22_from_batch_graph,
     validate_dim22_frame,
 )
-from src.policy.tabular.train_ranker import split_by_parent
+from src.policy.tabular.train_ranker import split_by_parent_three_way
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,7 +47,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--test-size", type=float, default=0.2)
+    parser.add_argument("--val-size", type=float, default=0.15,
+                        help="Canonical-parent validation fraction")
+    parser.add_argument("--test-size", type=float, default=0.15,
+                        help="Canonical-parent held-out test fraction")
     parser.add_argument("--random-state", type=int, default=42)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--patience", type=int, default=10)
@@ -162,14 +165,24 @@ def main() -> None:
     metadata, graphs, dataset_ids = load_batch_cache(cache_dir)
     df = extract_dim22_dataframe(args, metadata, graphs, dataset_ids)
 
-    train_df, test_df = split_by_parent(df, args.test_size, args.random_state)
+    train_df, val_df, test_df = split_by_parent_three_way(
+        df,
+        val_size=args.val_size,
+        test_size=args.test_size,
+        random_state=args.random_state,
+    )
     print(
-        f"[MLP dim22 batch] train {len(train_df):,} rows / {train_df['graph_id'].nunique():,} graphs  "
-        f"| test {len(test_df):,} rows / {test_df['graph_id'].nunique():,} graphs",
+        f"[MLP dim22 batch] train {len(train_df):,} rows / {train_df['graph_id'].nunique():,} graphs / "
+        f"{train_df['parent_dataset_id'].nunique():,} parents  | "
+        f"val {len(val_df):,} rows / {val_df['graph_id'].nunique():,} graphs / "
+        f"{val_df['parent_dataset_id'].nunique():,} parents  | "
+        f"test {len(test_df):,} rows / {test_df['graph_id'].nunique():,} graphs / "
+        f"{test_df['parent_dataset_id'].nunique():,} parents",
         flush=True,
     )
 
     train_set = build_graph_dataset(train_df)
+    val_set = build_graph_dataset(val_df)
     test_set = build_graph_dataset(test_df)
     rng = random.Random(args.random_state)
 
@@ -203,9 +216,14 @@ def main() -> None:
                 "epochs": args.epochs,
                 "patience": args.patience,
                 "lr": args.lr,
+                "val_size": args.val_size,
                 "test_size": args.test_size,
                 "train_graphs": int(train_df["graph_id"].nunique()),
+                "val_graphs": int(val_df["graph_id"].nunique()),
                 "test_graphs": int(test_df["graph_id"].nunique()),
+                "train_parents": int(train_df["parent_dataset_id"].nunique()),
+                "val_parents": int(val_df["parent_dataset_id"].nunique()),
+                "test_parents": int(test_df["parent_dataset_id"].nunique()),
             },
             tags=[t for t in os.environ.get("WANDB_TAGS", "mlp,dim22,batchcache").split(",") if t],
         )
@@ -227,7 +245,7 @@ def main() -> None:
             i += args.batch_graphs
 
         train_acc = edge_accuracy_from_dataset(model, train_set, device)
-        val_acc = edge_accuracy_from_dataset(model, test_set, device)
+        val_acc = edge_accuracy_from_dataset(model, val_set, device)
         avg_loss = epoch_loss / max(n_batches, 1)
         history.append({"epoch": epoch, "loss": avg_loss, "train_acc": train_acc, "val_acc": val_acc})
         if wandb_run is not None:
@@ -262,7 +280,8 @@ def main() -> None:
 
     model.load_state_dict(best_state)
     train_acc_final = edge_accuracy_from_dataset(model, train_set, device)
-    val_acc_final = edge_accuracy_from_dataset(model, test_set, device)
+    val_acc_final = edge_accuracy_from_dataset(model, val_set, device)
+    test_acc_final = edge_accuracy_from_dataset(model, test_set, device)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
@@ -282,11 +301,17 @@ def main() -> None:
         "output": str(args.output),
         "train_edge_accuracy": float(train_acc_final),
         "val_edge_accuracy": float(val_acc_final),
+        "test_edge_accuracy": float(test_acc_final),
         "best_val_edge_accuracy": float(best_val_acc),
         "train_rows": int(len(train_df)),
+        "val_rows": int(len(val_df)),
         "test_rows": int(len(test_df)),
         "train_graphs": int(train_df["graph_id"].nunique()),
+        "val_graphs": int(val_df["graph_id"].nunique()),
         "test_graphs": int(test_df["graph_id"].nunique()),
+        "train_parents": int(train_df["parent_dataset_id"].nunique()),
+        "val_parents": int(val_df["parent_dataset_id"].nunique()),
+        "test_parents": int(test_df["parent_dataset_id"].nunique()),
         "hidden_dim": args.hidden_dim,
         "input_dim": DIM22_FEATURE_DIM,
         "inference_feature_layout": "dim22",
@@ -295,8 +320,10 @@ def main() -> None:
         "patience": args.patience,
         "lr": args.lr,
         "random_state": args.random_state,
+        "val_size": args.val_size,
         "test_size": args.test_size,
         "param_count": param_count,
+        "split_note": "Canonical-parent 70/15/15; early-stop on val; test reported once at end.",
         "fix_note": "Trained from batch cache (same as GNN wssm) — platform features match dim22 inference.",
     }
     meta_path = args.output.with_suffix(args.output.suffix + ".meta.json")
@@ -306,7 +333,8 @@ def main() -> None:
     print(f"[+] Saved model  -> {args.output}", flush=True)
     print(f"[+] Saved meta   -> {meta_path}", flush=True)
     print(
-        f"    train_edge_acc={train_acc_final:.4f}  val_edge_acc={val_acc_final:.4f}",
+        f"    train_edge_acc={train_acc_final:.4f}  val_edge_acc={val_acc_final:.4f}  "
+        f"test_edge_acc={test_acc_final:.4f}",
         flush=True,
     )
     if wandb_run is not None:
@@ -315,6 +343,7 @@ def main() -> None:
         wandb.summary["best_val_edge_acc"] = float(best_val_acc)
         wandb.summary["final_train_edge_acc"] = float(train_acc_final)
         wandb.summary["final_val_edge_acc"] = float(val_acc_final)
+        wandb.summary["final_test_edge_acc"] = float(test_acc_final)
         wandb.finish()
 
 

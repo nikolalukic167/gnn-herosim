@@ -41,6 +41,12 @@ from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
 from tqdm import tqdm
 
+_NOTEBOOKS_DIR = Path(__file__).resolve().parent
+if str(_NOTEBOOKS_DIR) not in sys.path:
+    sys.path.insert(0, str(_NOTEBOOKS_DIR))
+
+from non_unique_lib.training_contract import load_sweep_minimum
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
@@ -206,7 +212,10 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "5.4"  # adds data.node_edge_index (same-node platform<->platform edges for GNN node aggregation)
+CACHE_VERSION = "5.5"  # training-contract: sweep-min labels, SSC warmth+replicas, parent_dataset_id
+# - Labels y / opt_rtt from placements.jsonl sweep minima (not optimal_result.sample.placement_plan)
+# - previous_task_type_name preserved for is_warm; replicas from SSC scheduling-time state
+# - graph.parent_dataset_id attached for parent-safe splits / @os RTT identity
 # - RTT combos loaded from chunked hash table at train time (rtt_chunk_*.pkl)
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
@@ -229,8 +238,14 @@ REQUIRED_TASK_FIELDS = (
 # DATA LOADING (same as main script)
 # ============================================================================
 
-def extract_dataset_to_dataframes(optimal_result_path: Path) -> Dict[str, pd.DataFrame]:
-    """Extract a single optimal_result.json into DataFrames."""
+def extract_dataset_to_dataframes(
+    optimal_result_path: Path,
+    *,
+    placement_plan: Dict[str, Any],
+    opt_rtt: float,
+    replicas_by_task: Dict[str, Any],
+) -> Dict[str, pd.DataFrame]:
+    """Extract DataFrames. Labels/opt_rtt/replicas MUST be caller-supplied (sweep + SSC)."""
     with open(optimal_result_path, "r") as f:
         result = json.load(f)
     
@@ -238,7 +253,15 @@ def extract_dataset_to_dataframes(optimal_result_path: Path) -> Dict[str, pd.Dat
     infra_nodes = result.get("config", {}).get("infrastructure", {}).get("nodes", [])
     stats = result.get("stats", {})
     task_results = stats.get("taskResults", [])
-    placement_plan = result.get("sample", {}).get("placement_plan", {})
+
+    if not placement_plan:
+        raise ValueError(f"{dataset_id}: empty sweep-min placement_plan")
+    if not math.isfinite(float(opt_rtt)):
+        raise ValueError(f"{dataset_id}: non-finite sweep-min opt_rtt={opt_rtt!r}")
+    if not replicas_by_task:
+        raise ValueError(
+            f"{dataset_id}: empty scheduling-time replicas; refuse terminal-state fallback"
+        )
 
     if STRICT_TASK_RESULTS and not task_results:
         raise ValueError(
@@ -299,7 +322,9 @@ def extract_dataset_to_dataframes(optimal_result_path: Path) -> Dict[str, pd.Dat
         if isinstance(placement, list) and len(placement) >= 2:
             opt_node_id, opt_platform_id = placement[0], placement[1]
         else:
-            opt_node_id, opt_platform_id = None, None
+            raise ValueError(
+                f"{dataset_id}: sweep-min plan missing valid placement for task {task_id}"
+            )
         
         tasks_data.append({
             'task_id': task_id,
@@ -321,15 +346,18 @@ def extract_dataset_to_dataframes(optimal_result_path: Path) -> Dict[str, pd.Dat
     tasks_data.sort(key=lambda x: x['task_id'])
     
     if len(task_ids_seen) != len(placement_plan_task_ids):
-        logger.error("Task filtering mismatch: %s != %s", len(task_ids_seen), len(placement_plan_task_ids))
+        raise RuntimeError(
+            f"{dataset_id}: task filtering mismatch "
+            f"seen={len(task_ids_seen)} plan={len(placement_plan_task_ids)}"
+        )
+    if not tasks_data:
+        raise RuntimeError(f"{dataset_id}: no tasks after applying sweep-min plan")
     
     df_tasks = pd.DataFrame(tasks_data)
     
-    # PLATFORMS
+    # PLATFORMS — replica flags from scheduling-time SSC only (caller-supplied)
     platforms_data = []
     node_results = stats.get("nodeResults", [])
-    system_state = stats.get("systemStateResults", [{}])[-1] if stats.get("systemStateResults") else {}
-    replicas_by_task = system_state.get("replicas", {})
     
     for node_result in node_results:
         node_id = node_result.get("nodeId")
@@ -362,17 +390,7 @@ def extract_dataset_to_dataframes(optimal_result_path: Path) -> Dict[str, pd.Dat
             })
     
     df_platforms = pd.DataFrame(platforms_data)
-    
-    # METRICS
-    best_json_path = optimal_result_path.parent / "best.json"
-    best_rtt = None
-    if best_json_path.exists():
-        with open(best_json_path, "r") as f:
-            best_rtt = json.load(f).get("rtt")
-    if best_rtt is None:
-        best_rtt = sum(tr.get("elapsedTime", 0) for tr in task_results)
-    
-    df_metrics = pd.DataFrame([{'dataset_id': dataset_id, 'total_rtt': best_rtt}])
+    df_metrics = pd.DataFrame([{'dataset_id': dataset_id, 'total_rtt': float(opt_rtt)}])
     
     return {
         'nodes': df_nodes,
@@ -427,7 +445,7 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
         raise ValueError(msg)
 
     full_temporal = task_placements[0].get('full_temporal_state_at_scheduling') or {}
-    merged_temporal_state: Dict[str, Dict[str, float]] = {}
+    merged_temporal_state: Dict[str, Dict[str, Any]] = {}
     temporal_sources = [full_temporal] if full_temporal else []
     if not temporal_sources:
         temporal_sources = [
@@ -438,7 +456,7 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
     for temp_state in temporal_sources:
         for platform_key, state_dict in temp_state.items():
             if isinstance(state_dict, dict):
-                merged_temporal_state[platform_key] = {
+                entry: Dict[str, Any] = {
                     'current_task_remaining': _safe_float(
                         state_dict.get('current_task_remaining', 0.0), 0.0
                     ),
@@ -449,6 +467,10 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
                         state_dict.get('comm_remaining', 0.0), 0.0
                     ),
                 }
+                prev_type = state_dict.get('previous_task_type_name')
+                if prev_type is not None:
+                    entry['previous_task_type_name'] = str(prev_type)
+                merged_temporal_state[platform_key] = entry
     if not merged_temporal_state:
         msg = (
             f"Empty temporal_state in {ssc_path} for {dataset_dir.name}; "
@@ -470,10 +492,20 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
         k: bool(v) for k, v in raw_initialized.items()
     }
 
+    replicas_by_task = data.get('replicas')
+    if not isinstance(replicas_by_task, dict) or not replicas_by_task:
+        msg = (
+            f"Missing scheduling-time replicas in {ssc_path} for {dataset_dir.name}; "
+            "refuse terminal optimal_result systemStateResults fallback"
+        )
+        logger.warning(msg)
+        raise ValueError(msg)
+
     return {
         'queue_snapshot': queue_snapshot,
         'temporal_state': merged_temporal_state,
         'initialized_snapshot': initialized_snapshot,
+        'replicas': replicas_by_task,
     }
 
 
@@ -501,7 +533,11 @@ def load_all_datasets(
         
         for dataset_dir in tqdm(dataset_dirs, desc=f"Loading {base_dir.name}", unit="dataset"):
             optimal_result_path = dataset_dir / "optimal_result.json"
+            jsonl_path = dataset_dir / "placements" / "placements.jsonl"
             if not optimal_result_path.exists():
+                continue
+            if not jsonl_path.is_file():
+                # Excluded / incomplete sweeps are archived away from placements.jsonl.
                 continue
             
             try:
@@ -513,7 +549,13 @@ def load_all_datasets(
                 continue
             
             try:
-                dataframes = extract_dataset_to_dataframes(optimal_result_path)
+                sweep_plan, sweep_rtt, _sweep_combo = load_sweep_minimum(jsonl_path)
+                dataframes = extract_dataset_to_dataframes(
+                    optimal_result_path,
+                    placement_plan=sweep_plan,
+                    opt_rtt=sweep_rtt,
+                    replicas_by_task=extended_state["replicas"],
+                )
                 # Use unique key: base_dir_name/dataset_name to avoid collisions
                 unique_key = f"{base_dir.name}/{dataset_dir.name}"
                 all_datasets[unique_key] = {
@@ -524,6 +566,8 @@ def load_all_datasets(
                     'queue_snapshot': extended_state.get('queue_snapshot', {}),
                     'temporal_state': extended_state.get('temporal_state', {}),
                     'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
+                    'replicas': extended_state.get('replicas', {}),
+                    'sweep_opt_rtt': float(sweep_rtt),
                 }
             except Exception as e:
                 tqdm.write(f"  Error loading {dataset_dir.name}: {e}")
@@ -1331,6 +1375,8 @@ def main():
 
     graphs = []
     dataset_ids = []
+    parent_dataset_ids = []
+    graph_build_failures: List[str] = []
     with time_block("Step 4: Building graphs"):
         for dataset_id, dataset_dict in tqdm(all_datasets.items(), desc="Building graphs", unit="dataset"):
             if oversample_weights is not None and dataset_id not in oversample_weights:
@@ -1349,12 +1395,29 @@ def main():
                         temporal_state=dataset_dict.get('temporal_state', {}),
                         initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
                     )
+                    invalid = int((graph.y < 0).sum().item())
+                    if invalid:
+                        raise RuntimeError(
+                            f"{dataset_id}: {invalid}/{int(graph.n_tasks)} sweep-min labels "
+                            "absent from scheduling-time candidate edges"
+                        )
                     graph_id = dataset_id if repeat == 1 else f"{dataset_id}@os{rep}"
                     graph.dataset_id = graph_id
+                    graph.parent_dataset_id = dataset_id
                     graphs.append(graph)
                     dataset_ids.append(graph_id)
+                    parent_dataset_ids.append(dataset_id)
             except Exception as e:
-                tqdm.write(f"  Error building graph for {dataset_id}: {e}")
+                msg = f"{dataset_id}: {e}"
+                tqdm.write(f"  Error building graph for {msg}")
+                graph_build_failures.append(msg)
+    if graph_build_failures:
+        raise RuntimeError(
+            f"{len(graph_build_failures)} datasets failed graph build under training-contract "
+            f"5.5 (sweep-min labels must lie on SSC+network candidate edges). "
+            f"Exclude them from the integrity manifest before recache. "
+            f"Examples: {graph_build_failures[:5]}"
+        )
     step4_time = time.perf_counter() - step4_start
 
     stats_start = time.perf_counter()
@@ -1422,6 +1485,14 @@ def main():
         'num_rtt_combo_rows': num_rtt_combos_written,
         'num_datasets': len(all_datasets),
         'dataset_ids': dataset_ids,
+        'parent_dataset_ids': parent_dataset_ids,
+        'training_contract': {
+            'label_source': 'placements.jsonl_sweep_minimum',
+            'replica_source': 'ssc_scheduling_time_replicas',
+            'warmth_source': 'ssc_previous_task_type_name',
+            'canonical_parent_attr': 'parent_dataset_id',
+            'ab_report': 'simulation_data/training_contract_ab_20260804.json',
+        },
         'statistics': {
             'valid_labels': int(np.sum(ys >= 0)),
             'total_labels': len(ys),
