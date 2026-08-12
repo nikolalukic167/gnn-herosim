@@ -274,12 +274,22 @@ def precreate_replicas(
                         queue_key = f"{node_name}:{platform_id}"
                         queue_length = deterministic_queues.get(task_type_name, {}).get(queue_key, 0)
 
+                    # Optional placement flag: warm sandbox without a queue (distill init jitter).
+                    force_warm = bool(placement.get("warm", False))
+                    if force_warm and queue_length > 0:
+                        raise RuntimeError(
+                            f"FAIL LOUD: placement {node_name}:{platform_id} has "
+                            f"warm=True and queue_length={queue_length}; use warm OR busy, not both"
+                        )
+
                     # Cold replicas may defer platform.initialized until image pull completes.
-                    if not (defer_cold_init and queue_length == 0):
+                    # force_warm / busy queue ⇒ succeed initialized immediately.
+                    if not (defer_cold_init and queue_length == 0 and not force_warm):
                         platform.initialized.succeed()
 
                     # Use deterministic queue length if provided
                     # Only mark platform as WARM if it has queue tasks (realistic cold start)
+                    # OR if placement explicitly requests warm sandbox (queue-empty).
                     if env and simulation_policy and deterministic_queues:
                         if queue_length > 0:
                             # Materialize warmup tasks so queue semantics match non-fast-forward mode.
@@ -302,6 +312,15 @@ def precreate_replicas(
                             # Platform has NO queue tasks - leave COLD (previous_task = None)
                             # This enables realistic cold start simulation
                             pass  # platform.previous_task remains None
+                    if force_warm:
+                        if not platform.initialized.triggered:
+                            raise RuntimeError(
+                                f"FAIL LOUD: warm placement {node_name}:{platform_id} "
+                                "not initialized"
+                            )
+                        platform.previous_task = type(
+                            "Task", (), {"type": {"name": task_type_name}}
+                        )()
         
         print(f"\n=== Replica creation complete (deterministic) ===")
         for task_type, replicas in initial_replicas.items():
