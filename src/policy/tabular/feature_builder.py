@@ -21,12 +21,12 @@ if TYPE_CHECKING:
 
 from src.policy.tabular.constants import FEATURE_DIM
 from src.placement.warmth import (
-    DEFAULT_NETWORK_BANDWIDTH_MBPS,
     estimated_pull_remaining_sec,
     node_has_cached_image,
     normalize_estimated_pull_remaining_sec,
     unit_pull_sec_from_task_priors,
 )
+from src.policy.gnn.gnn_model import build_same_node_edge_index
 
 LEGACY_FEATURE_DIM = 22
 LEGACY_TASK_FEATURE_DIM = 3
@@ -310,30 +310,46 @@ def build_inference_feature_bundle(
         cold_start_remaining_norm = cold_start_remaining / 10.0
         comm_remaining_norm = comm_remaining / 10.0
 
+        # Match prepare_graphs_cache.build_graph: only TASK_TYPES_VOCAB (dnn1/dnn2),
+        # positive finite exec times, no max(1.0, ...) floor. Including rf/cnn from
+        # task-types.json inflates target_concurrency and breaks cache↔live parity.
         baseline_concurrency = 5.0
         target_concurrency = baseline_concurrency
         if task_types_data:
             supported_task_types = [
                 task_type_name
-                for task_type_name, task_priors in task_types_data.items()
-                if info.platform_type in task_priors.get("platforms", [])
+                for task_type_name in TASK_TYPES_VOCAB
+                if info.platform_type
+                in (task_types_data.get(task_type_name) or {}).get("platforms", [])
             ]
             min_exec_times = []
             for task_type_name in supported_task_types:
                 task_priors = task_types_data.get(task_type_name, {})
                 exec_map = task_priors.get("executionTime", {})
                 if isinstance(exec_map, dict) and exec_map:
-                    min_exec_times.append(min(exec_map.values()))
+                    pos_exec = [
+                        float(v)
+                        for v in exec_map.values()
+                        if v is not None and float(v) > 0.0
+                    ]
+                    if pos_exec:
+                        min_exec_times.append(min(pos_exec))
             if min_exec_times:
                 avg_min_exec = sum(min_exec_times) / len(min_exec_times)
-                exec_map_this = task_types_data.get(supported_task_types[0], {}).get("executionTime", {})
+                if avg_min_exec <= 0.0:
+                    avg_min_exec = 1.0
+                exec_map_this = task_types_data.get(supported_task_types[0], {}).get(
+                    "executionTime", {}
+                )
                 exec_time_this = (
-                    exec_map_this.get(info.platform_type, avg_min_exec)
+                    float(exec_map_this.get(info.platform_type, avg_min_exec))
                     if isinstance(exec_map_this, dict)
-                    else avg_min_exec
+                    else float(avg_min_exec)
                 )
                 if exec_time_this > 0:
-                    target_concurrency = max(1.0, avg_min_exec / exec_time_this * baseline_concurrency)
+                    target_concurrency = baseline_concurrency * (
+                        avg_min_exec / exec_time_this
+                    )
 
         target_concurrency_raw = float(target_concurrency)
         node_disk_hit = _platform_node_disk_hit(
@@ -372,14 +388,10 @@ def build_inference_feature_bundle(
             if node_cold_count_by_pos is None:
                 raise RuntimeError("dim24 layout requires node_cold_count_by_pos")
             cold_count = float(node_cold_count_by_pos[info.position])
-            bandwidth = DEFAULT_NETWORK_BANDWIDTH_MBPS
-            network = getattr(info.node, "network", None)
-            if isinstance(network, dict) and network.get("bandwidth") is not None:
-                bandwidth = float(network["bandwidth"])
+            # Cache path uses default bandwidth only (no per-node override).
             unit_pull = unit_pull_sec_from_task_priors(
                 task_types_data,
                 str(info.platform_type),
-                network_bandwidth_mbps=bandwidth,
             )
             pull_remaining = estimated_pull_remaining_sec(cold_count, unit_pull)
             plat_row = plat_row + [
@@ -573,9 +585,14 @@ def build_pyg_inference_graph(
     edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long)
     edge_attr = torch.tensor(bundle.edge_attr_directed, dtype=torch.float32)
     num_nodes = n_tasks + n_platforms
-    edge_index = to_undirected(edge_index, num_nodes=num_nodes)
+    # Must pass edge_attr into to_undirected — naive clone misaligns reverse-edge
+    # attrs after PyG lexicographic reordering (breaks cache↔live edge parity).
     if edge_attr.numel() > 0:
-        edge_attr = torch.cat([edge_attr, edge_attr.clone()], dim=0)
+        edge_index, edge_attr = to_undirected(
+            edge_index, edge_attr, num_nodes=num_nodes
+        )
+    else:
+        edge_index = to_undirected(edge_index, num_nodes=num_nodes)
 
     data = Data(
         edge_index=edge_index,
@@ -593,10 +610,27 @@ def build_pyg_inference_graph(
         data.task_features = data.task_features[:, :CE_REDUCED_TASK_FEATURE_DIM]
         data.platform_features = data.platform_features[:, CE_REDUCED_PLATFORM_INDICES]
         if edge_attr.numel() > 0:
-            directed = edge_attr[: edge_attr.shape[0] // 2][:, CE_REDUCED_EDGE_INDICES]
-            edge_attr = torch.cat([directed, directed.clone()], dim=0)
+            n_dir = edge_attr.shape[0] // 2
+            directed = edge_attr[:n_dir][:, CE_REDUCED_EDGE_INDICES]
+            # Re-undirect reduced attrs so reverse edges stay aligned with edge_index.
+            directed_ei = edge_index[:, :n_dir]
+            edge_index, edge_attr = to_undirected(
+                directed_ei, directed, num_nodes=num_nodes
+            )
     data.edge_attr = edge_attr
+
+    # Same-node platform<->platform edges (GIN co-location signal). Cache always
+    # sets this; live must too or train/serve topology diverges.
+    node_to_positions: Dict[str, List[int]] = {}
+    for meta in bundle.queue_key_to_platform_meta.values():
+        node_to_positions.setdefault(str(meta["node_name"]), []).append(
+            int(meta["platform_pos"])
+        )
+    data.node_edge_index = build_same_node_edge_index(node_to_positions, n_tasks)
+
     data._task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.queue_key_to_platform_meta = bundle.queue_key_to_platform_meta
+    data.task_logit_to_placement = bundle.task_logit_to_placement
+    data._task_logit_to_placement = bundle.task_logit_to_placement
     return data, bundle.task_logit_to_placement
