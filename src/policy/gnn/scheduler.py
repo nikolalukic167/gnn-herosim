@@ -116,6 +116,9 @@ class GNNScheduler(Scheduler):
         
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
+        # Phase 3: sim-lifetime FilterStore pull ledger for seq_reforward_pull
+        # (ect_pull persists across decisions; per-batch reset was the Phase 1 gap).
+        self._pulls_committed: Dict[str, int] = {}
 
     def set_models(self, models: dict):
         """
@@ -439,6 +442,7 @@ class GNNScheduler(Scheduler):
                     len(batch_tasks),
                     queue_snapshot,
                     platform_needs_pull=platform_needs_pull,
+                    pulls_committed=self._pulls_committed,
                     stats=self.decode_stats,
                 )
                 if combo is None:
