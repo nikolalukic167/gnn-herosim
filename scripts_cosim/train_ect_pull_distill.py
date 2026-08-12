@@ -62,8 +62,8 @@ def _set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def _move(graph: Data, device: torch.device) -> Data:
-    g = graph.clone()
+def _move(graph: Data, device: torch.device, *, clone: bool = True) -> Data:
+    g = graph.clone() if clone else graph
     g.task_features = g.task_features.to(device)
     g.platform_features = g.platform_features.to(device)
     g.edge_index = g.edge_index.to(device)
@@ -132,6 +132,18 @@ def main() -> int:
     parser.add_argument("--alpha", type=float, default=0.5, help="soft KL weight")
     parser.add_argument("--tau", type=float, default=0.25)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--grad-accum",
+        type=int,
+        default=32,
+        help="Accumulate grads over this many graphs before Adam step",
+    )
+    parser.add_argument(
+        "--log-every",
+        type=int,
+        default=1,
+        help="Print train metrics every N epochs (1=every epoch)",
+    )
     parser.add_argument("--from-scratch", action="store_true")
     args = parser.parse_args()
 
@@ -142,12 +154,12 @@ def main() -> int:
         raise FileNotFoundError(f"FAIL LOUD: missing distill cache {graphs_path}")
 
     with graphs_path.open("rb") as fh:
-        graphs: List[Data] = pickle.load(fh)
-    if not graphs:
+        graphs_cpu: List[Data] = pickle.load(fh)
+    if not graphs_cpu:
         raise RuntimeError("FAIL LOUD: empty distill graphs.pkl")
 
-    plat_dim = int(graphs[0].platform_features.size(-1))
-    task_dim = int(graphs[0].task_features.size(-1))
+    plat_dim = int(graphs_cpu[0].platform_features.size(-1))
+    task_dim = int(graphs_cpu[0].task_features.size(-1))
     if plat_dim < 16 or task_dim != 3:
         raise RuntimeError(
             f"FAIL LOUD: expected dim24 (task=3,plat>=16); got task={task_dim} plat={plat_dim}"
@@ -175,10 +187,15 @@ def main() -> int:
     else:
         print("Training from scratch (no CE init)")
 
+    print(f"Moving {len(graphs_cpu)} graphs → {device} …")
+    graphs = [_move(g, device, clone=True) for g in graphs_cpu]
+    del graphs_cpu
+
+    grad_accum = max(1, int(args.grad_accum))
     opt = torch.optim.Adam(model.parameters(), lr=float(args.lr))
     print(
         f"Distill train: n={len(graphs)} epochs={args.epochs} α={args.alpha} "
-        f"τ={args.tau} device={device}"
+        f"τ={args.tau} grad_accum={grad_accum} device={device}"
     )
 
     history: List[Dict[str, float]] = []
@@ -189,18 +206,20 @@ def main() -> int:
         order = list(range(len(graphs)))
         random.shuffle(order)
         running = {"ce": 0.0, "kl": 0.0, "loss": 0.0, "acc": 0.0}
-        for idx in order:
-            g = _move(graphs[idx], device)
-            opt.zero_grad()
+        opt.zero_grad(set_to_none=True)
+        for step_i, idx in enumerate(order):
+            g = graphs[idx]
             logits = model(g)
             loss, stats = distill_loss(
                 logits, g, alpha=float(args.alpha), tau=float(args.tau)
             )
             if not torch.isfinite(loss):
                 raise RuntimeError(f"FAIL LOUD: non-finite distill loss at epoch {epoch}")
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            opt.step()
+            (loss / float(grad_accum)).backward()
+            if (step_i + 1) % grad_accum == 0 or (step_i + 1) == len(order):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                opt.step()
+                opt.zero_grad(set_to_none=True)
             for k in running:
                 running[k] += stats[k]
         n = float(len(graphs))
@@ -210,7 +229,8 @@ def main() -> int:
         if row["loss"] < best_loss:
             best_loss = row["loss"]
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-        if epoch % 20 == 0 or epoch == int(args.epochs) - 1:
+        log_every = max(1, int(args.log_every))
+        if epoch % log_every == 0 or epoch == int(args.epochs) - 1:
             print(
                 f"Epoch {epoch:3d}/{args.epochs}  loss={row['loss']:.4f}  "
                 f"ce={row['ce']:.4f}  kl={row['kl']:.4f}  acc={row['acc']*100:.1f}%"
@@ -218,11 +238,12 @@ def main() -> int:
 
     if best_state is None:
         raise RuntimeError("FAIL LOUD: no best state saved")
-    if history[-1]["acc"] < 0.99:
-        # With 12 frames we expect near-perfect teacher imitation after fine-tune.
+    # Small single-stub corpora can near-memorize; multi-seed soft targets will not.
+    acc_warn = 0.99 if len(graphs) <= 64 else 0.20
+    if history[-1]["acc"] < acc_warn:
         print(
-            f"WARN: final train acc={history[-1]['acc']*100:.1f}% < 99% — "
-            "student may not have fit the teacher trajectory"
+            f"WARN: final train acc={history[-1]['acc']*100:.1f}% < "
+            f"{acc_warn*100:.0f}% — student may underfit teacher"
         )
 
     out = args.output.resolve()

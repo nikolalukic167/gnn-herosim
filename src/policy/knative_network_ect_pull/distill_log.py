@@ -32,6 +32,20 @@ def distill_tau() -> float:
     return float(os.environ.get("ECT_PULL_DISTILL_TAU", "0.25"))
 
 
+def reset_frame_counter(start: int = 0) -> None:
+    """Reset harvest frame index (call between multi-seed runs / append resume)."""
+    global _FRAME_COUNTER
+    if int(start) < 0:
+        raise ValueError(f"FAIL LOUD: frame counter start={start} < 0")
+    with _LOCK:
+        _FRAME_COUNTER = int(start)
+
+
+def next_frame_index() -> int:
+    with _LOCK:
+        return int(_FRAME_COUNTER)
+
+
 def _distill_dir() -> Path:
     raw = os.environ.get("ECT_PULL_DISTILL_DIR", "").strip()
     if not raw:
