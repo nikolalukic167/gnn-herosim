@@ -375,6 +375,7 @@ def build_inference_feature_bundle(
             "platform_id": int(info.platform_id),
             "node_id": int(info.node_id),
             "platform_pos": int(info.position),
+            "initialized": bool(info.platform.initialized.triggered),
         }
 
         plat_row = (

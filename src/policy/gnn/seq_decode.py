@@ -644,6 +644,206 @@ def decode_sequential_reforward_placement(
     return combo
 
 
+def _unit_pull_from_platform_row(row: Any, cold_count: float) -> float:
+    """Recover T_pull from dim15/dim14, else default."""
+    from src.placement.warmth import DEFAULT_T_PULL_S, ESTIMATED_PULL_REMAINING_NORM_S
+
+    if cold_count > 1e-9 and row.numel() > 15:
+        # dim15 = (cold_count * T_pull) / NORM
+        return float(row[15].item()) * float(ESTIMATED_PULL_REMAINING_NORM_S) / float(
+            cold_count
+        )
+    return float(DEFAULT_T_PULL_S)
+
+
+def _refresh_pull_dependent_platform_features(
+    graph: Any,
+    live_queues: Mapping[str, int],
+    meta: Mapping[str, Mapping[str, Any]],
+    *,
+    base_cold_count_by_node: Mapping[str, float],
+    pulls_committed: Mapping[str, int],
+    unit_pull_by_node: Mapping[str, float],
+    n_platforms_by_node: Mapping[str, int],
+) -> None:
+    """Queue refresh + dim24 pull-ledger roll-forward (node_cold_count / pull_remaining)."""
+    from src.placement.warmth import (
+        estimated_pull_remaining_sec,
+        normalize_estimated_pull_remaining_sec,
+    )
+
+    _refresh_queue_dependent_platform_features(graph, live_queues, meta)
+
+    platform_features = graph.platform_features
+    feat_dim = int(platform_features.size(-1))
+    if feat_dim < 16:
+        raise RuntimeError(
+            f"seq_reforward_pull requires dim24 platform features (>=16 dims); got {feat_dim}."
+        )
+
+    for queue_key, info in meta.items():
+        pos = int(info["platform_pos"])
+        node_name = str(info["node_name"])
+        base_cold = float(base_cold_count_by_node.get(node_name, 0.0))
+        committed = int(pulls_committed.get(node_name, 0))
+        effective_cold = base_cold + float(committed)
+        unit = float(unit_pull_by_node.get(node_name, 0.0))
+        pull_rem = estimated_pull_remaining_sec(effective_cold, unit)
+        platform_features[pos, 14] = effective_cold
+        platform_features[pos, 15] = normalize_estimated_pull_remaining_sec(pull_rem)
+        n_col = max(int(n_platforms_by_node.get(node_name, 1)), 1)
+        # shared_fate density tracks effective FilterStore depth / co-located plats
+        platform_features[pos, 8] = min(1.0, effective_cold / float(n_col))
+
+
+def decode_sequential_reforward_pull_placement(
+    model: Any,
+    graph: Any,
+    n_tasks: int,
+    queue_snapshot: Optional[Mapping[str, int]] = None,
+    *,
+    platform_needs_pull: Optional[Mapping[str, bool]] = None,
+    stats: Optional[GnnDecodeRunStats] = None,
+) -> Optional[PlacementCombo]:
+    """Phase 1 ablation: CE argmax + queue refresh + pulls_committed ledger + re-forward.
+
+    After each placement, if the chosen platform still needs an image pull
+    (``not initialized`` at batch start), increment ``pulls_committed[node]`` and
+    rewrite dim24 ``node_cold_count`` / ``estimated_pull_remaining`` (and shared_fate)
+    for every platform on that node before the next GNN forward. Matches ect_pull's
+    decision-time FilterStore bookkeeping without changing model weights.
+    """
+    import torch
+
+    mapping = _task_logit_mapping(graph)
+    keys_map = getattr(graph, "task_logit_to_queue_key", None) or getattr(
+        graph, "_task_logit_to_queue_key", None
+    )
+    meta = getattr(graph, "queue_key_to_platform_meta", None)
+    snapshot = (
+        queue_snapshot
+        if queue_snapshot is not None
+        else getattr(graph, "queue_snapshot", None)
+    )
+    if not mapping or not keys_map or not meta or snapshot is None:
+        raise RuntimeError(
+            "seq_reforward_pull requires task_logit_to_placement, task_logit_to_queue_key, "
+            "queue_key_to_platform_meta, and queue_snapshot on the inference graph."
+        )
+
+    platform_features = graph.platform_features
+    if int(platform_features.size(-1)) < 16:
+        raise RuntimeError(
+            f"seq_reforward_pull requires dim24 (>=16 platform dims); "
+            f"got {int(platform_features.size(-1))}. Set INFERENCE_FEATURE_LAYOUT=dim24."
+        )
+
+    # Freeze per-platform pull need at batch start (matches ect_pull: no mid-batch init).
+    needs_pull: Dict[str, bool] = {}
+    for queue_key, info in meta.items():
+        qk = str(queue_key)
+        if platform_needs_pull is not None and qk in platform_needs_pull:
+            needs_pull[qk] = bool(platform_needs_pull[qk])
+        elif "initialized" in info:
+            needs_pull[qk] = not bool(info["initialized"])
+        else:
+            raise RuntimeError(
+                f"seq_reforward_pull: missing initialized/needs_pull for {qk}. "
+                "Rebuild graph via feature_builder (initialized in meta) or pass "
+                "platform_needs_pull from the live scheduler."
+            )
+
+    base_cold_count_by_node: Dict[str, float] = {}
+    unit_pull_by_node: Dict[str, float] = {}
+    n_platforms_by_node: Dict[str, int] = {}
+    for queue_key, info in meta.items():
+        node_name = str(info["node_name"])
+        pos = int(info["platform_pos"])
+        n_platforms_by_node[node_name] = n_platforms_by_node.get(node_name, 0) + 1
+        if node_name not in base_cold_count_by_node:
+            cold = float(platform_features[pos, 14].item())
+            base_cold_count_by_node[node_name] = cold
+            unit_pull_by_node[node_name] = _unit_pull_from_platform_row(
+                platform_features[pos], cold
+            )
+
+    live_queues: Dict[str, int] = {str(k): int(v) for k, v in dict(snapshot).items()}
+    pulls_committed: Dict[str, int] = {}
+    combo_list: List[Tuple[int, int]] = []
+    original_platform_features = graph.platform_features
+    graph.platform_features = original_platform_features.clone()
+
+    t0 = time.perf_counter()
+    try:
+        _refresh_pull_dependent_platform_features(
+            graph,
+            live_queues,
+            meta,
+            base_cold_count_by_node=base_cold_count_by_node,
+            pulls_committed=pulls_committed,
+            unit_pull_by_node=unit_pull_by_node,
+            n_platforms_by_node=n_platforms_by_node,
+        )
+        with torch.no_grad():
+            for task_idx in range(n_tasks):
+                if task_idx not in mapping or task_idx not in keys_map:
+                    return None
+                logits_per_task = model(graph)
+                if task_idx >= len(logits_per_task):
+                    return None
+                logits_t = logits_per_task[task_idx]
+                if logits_t.numel() == 0:
+                    return None
+                chosen_idx = int(logits_t.argmax().item())
+                candidates = mapping[task_idx]
+                task_keys = keys_map[task_idx]
+                if chosen_idx >= len(candidates) or chosen_idx >= len(task_keys):
+                    return None
+                queue_key = str(task_keys[chosen_idx])
+                node_id, plat_id = candidates[chosen_idx]
+                combo_list.append((int(node_id), int(plat_id)))
+                live_queues[queue_key] = live_queues.get(queue_key, 0) + 1
+
+                info = meta.get(queue_key)
+                if info is None:
+                    raise RuntimeError(
+                        f"seq_reforward_pull: queue_key {queue_key} missing from meta"
+                    )
+                node_name = str(info["node_name"])
+                if needs_pull.get(queue_key, False):
+                    pulls_committed[node_name] = int(pulls_committed.get(node_name, 0)) + 1
+
+                _refresh_pull_dependent_platform_features(
+                    graph,
+                    live_queues,
+                    meta,
+                    base_cold_count_by_node=base_cold_count_by_node,
+                    pulls_committed=pulls_committed,
+                    unit_pull_by_node=unit_pull_by_node,
+                    n_platforms_by_node=n_platforms_by_node,
+                )
+    finally:
+        graph.platform_features = original_platform_features
+
+    combo = tuple(combo_list)
+    if stats is not None:
+        decode_time_ms = (time.perf_counter() - t0) * 1000.0
+        record_decode_batch(
+            stats,
+            combo=combo,
+            decode_mode="seq_reforward_pull",
+            decode_time_ms=decode_time_ms,
+            combo_search_size=n_tasks,
+            task_logit_to_placement=mapping,
+            queue_snapshot=snapshot,
+            task_logit_to_queue_key=keys_map,
+            roll_forward=True,
+            top_k=0,
+            count_tasks=False,
+        )
+    return combo
+
+
 def decode_frozen_topk_joint_placement(
     logits_per_task: Sequence[Tensor],
     task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
