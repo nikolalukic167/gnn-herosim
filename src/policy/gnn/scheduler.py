@@ -116,6 +116,9 @@ class GNNScheduler(Scheduler):
         
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
+        # Phase 3: sim-lifetime FilterStore pull ledger for seq_reforward_pull
+        # (ect_pull persists across decisions; per-batch reset was the Phase 1 gap).
+        self._pulls_committed: Dict[str, int] = {}
 
     def set_models(self, models: dict):
         """
@@ -413,6 +416,39 @@ class GNNScheduler(Scheduler):
                     return None
                 return {t_idx: combo[t_idx] for t_idx in range(len(combo))}
 
+            if decode_mode in (
+                "seq_reforward_pull",
+                "seq_reforward_pulls",
+                "pulls_committed",
+                "pull_ledger",
+            ):
+                from src.policy.gnn.seq_decode import (
+                    decode_sequential_reforward_pull_placement,
+                )
+
+                # Live initialized flags — source of truth for FilterStore pull need.
+                platform_needs_pull: Dict[str, bool] = {}
+                for node in self.nodes.items:
+                    for platform in node.platforms.items:
+                        key = f"{node.node_name}:{platform.id}"
+                        platform_needs_pull[key] = not bool(
+                            platform.initialized.triggered
+                        )
+
+                graph = graph.to(self.device)
+                combo = decode_sequential_reforward_pull_placement(
+                    self.gnn_model,
+                    graph,
+                    len(batch_tasks),
+                    queue_snapshot,
+                    platform_needs_pull=platform_needs_pull,
+                    pulls_committed=self._pulls_committed,
+                    stats=self.decode_stats,
+                )
+                if combo is None:
+                    return None
+                return {t_idx: combo[t_idx] for t_idx in range(len(combo))}
+
             # Move to device
             graph = graph.to(self.device)
             
@@ -506,6 +542,8 @@ class GNNScheduler(Scheduler):
         argmax (default): sequential per-task argmax with live queue roll-forward.
         argmax_uniq: sequential argmax with intra-batch platform uniqueness mask.
         seq_reforward: per-task argmax with platform queue-feature refresh + GNN re-forward each task.
+        seq_reforward_pull: Phase 1 — seq_reforward + pulls_committed ledger updating dim24
+            node_cold_count / estimated_pull_remaining before each re-forward (ect_pull bookkeeping).
         seqblend: sequential argmax + min-queue override when queue > min + margin.
         frozen: per-task argmax from one snapshot (no roll-forward; matches offline greedy).
         frozen_topk: joint top-k by summed logits from one snapshot (matches near-RTT eval).
