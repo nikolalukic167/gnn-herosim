@@ -62,19 +62,34 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             layout = checkpoint.get("inference_feature_layout")
             if layout:
                 os.environ["INFERENCE_FEATURE_LAYOUT"] = str(layout)
+            elif int(input_dim) == 24:
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim24"
             elif int(input_dim) == 22:
                 os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
             elif int(input_dim) == FEATURE_DIM:
                 os.environ["INFERENCE_FEATURE_LAYOUT"] = "atomic21"
             elif checkpoint.get("reduced_features") or int(input_dim) == 11:
                 os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
+            else:
+                raise RuntimeError(
+                    f"[MLP Batch] FAIL LOUD: cannot infer inference_feature_layout "
+                    f"from input_dim={input_dim} (checkpoint missing inference_feature_layout)"
+                )
             logging.info(
                 "[MLP Batch] Loaded MLP model from %s (input_dim=%s)",
                 path,
                 input_dim,
             )
         else:
-            logging.warning("[MLP Batch] No mlp_model or mlp_model_path in models dict")
+            raise RuntimeError(
+                "[MLP Batch] FAIL LOUD: models dict missing mlp_model and mlp_model_path — "
+                "refusing silent shortest-queue fallback. "
+                f"keys={sorted(models.keys()) if isinstance(models, dict) else models!r}"
+            )
+        if self.mlp_model is None:
+            raise RuntimeError(
+                "[MLP Batch] FAIL LOUD: mlp_model still None after set_models"
+            )
 
     # ------------------------------------------------------------------
     # Override _gnn_inference: build feature bundle, batched MLP forward

@@ -32,8 +32,8 @@ from tqdm import tqdm
 
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
 from src.policy.tabular.reduced_features import (
-    DIM22_FEATURE_COLUMN_NAMES,
     DIM22_FEATURE_DIM,
+    DIM24_FEATURE_DIM,
     dim22_rows_to_dataframe,
     extract_rows_dim22_from_batch_graph,
     validate_dim22_frame,
@@ -41,9 +41,16 @@ from src.policy.tabular.reduced_features import (
 from src.policy.tabular.train_ranker import split_by_parent_three_way
 
 
+def _feature_columns(df: pd.DataFrame) -> List[str]:
+    cols = [c for c in df.columns if str(c).startswith("x_")]
+    if not cols:
+        raise ValueError("No feature columns (x_*) in extracted dataframe")
+    return sorted(cols, key=lambda c: int(str(c).split("_", 1)[1]))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train dim22 PointwiseEdgeMLP from a batch graph cache."
+        description="Train dim22/dim24 PointwiseEdgeMLP from a batch graph cache."
     )
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -88,9 +95,10 @@ def load_batch_cache(cache_dir: Path):
 
 
 def build_graph_dataset(df: pd.DataFrame) -> List[Tuple[np.ndarray, int]]:
+    feature_cols = _feature_columns(df)
     samples = []
     for _, grp in df.groupby("graph_id", sort=True):
-        X = grp[DIM22_FEATURE_COLUMN_NAMES].values.astype(np.float32)
+        X = grp[feature_cols].values.astype(np.float32)
         y = int(grp["y_logit"].iloc[0])
         if y < 0 or y >= X.shape[0]:
             raise ValueError(f"y_logit={y} out of range for graph with {X.shape[0]} edges")
@@ -125,7 +133,7 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
     emitted = 0
     skipped_small = 0
     for graph, graph_id in tqdm(
-        zip(graphs, dataset_ids), total=len(graphs), desc="extract-dim22-batch"
+        zip(graphs, dataset_ids), total=len(graphs), desc="extract-batch-edges"
     ):
         n_tasks = int(getattr(graph, "n_tasks", 0))
         if n_tasks < args.min_batch_tasks:
@@ -138,13 +146,14 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
         emitted += 1
 
     if not all_rows:
-        raise RuntimeError("No dim22 rows extracted from batch cache")
+        raise RuntimeError("No dim22/dim24 rows extracted from batch cache")
 
     df = dim22_rows_to_dataframe(all_rows)
     stats = validate_dim22_frame(df)
     print(
-        f"[MLP dim22 batch] extracted {stats['num_rows']:,} rows / {stats['num_graphs']:,} decision graphs "
+        f"[MLP batch] extracted {stats['num_rows']:,} rows / {stats['num_graphs']:,} decision graphs "
         f"from {emitted:,} batch graphs (skipped {skipped_small} with n_tasks<{args.min_batch_tasks}; "
+        f"feature_dim={stats['feature_dim']} layout={stats['inference_feature_layout']} "
         f"cache={metadata.get('version')})",
         flush=True,
     )
@@ -156,14 +165,22 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cache_dir = args.cache_dir.resolve()
 
-    print(
-        f"[MLP dim22 batch] device={device} input_dim={DIM22_FEATURE_DIM} "
-        f"(batch cache — norm queue + shared_fate, matches GNN + inference)",
-        flush=True,
-    )
-
     metadata, graphs, dataset_ids = load_batch_cache(cache_dir)
     df = extract_dim22_dataframe(args, metadata, graphs, dataset_ids)
+    feature_cols = _feature_columns(df)
+    input_dim = len(feature_cols)
+    if input_dim not in (DIM22_FEATURE_DIM, DIM24_FEATURE_DIM):
+        raise RuntimeError(
+            f"[MLP batch] Unexpected input_dim={input_dim}; "
+            f"expected {DIM22_FEATURE_DIM} or {DIM24_FEATURE_DIM}"
+        )
+    layout = "dim24" if input_dim == DIM24_FEATURE_DIM else "dim22"
+    print(
+        f"[MLP batch] device={device} input_dim={input_dim} layout={layout} "
+        f"(batch cache — norm queue + shared_fate"
+        f"{' + pull observables' if layout == 'dim24' else ''}, matches GNN + inference)",
+        flush=True,
+    )
 
     train_df, val_df, test_df = split_by_parent_three_way(
         df,
@@ -172,7 +189,7 @@ def main() -> None:
         random_state=args.random_state,
     )
     print(
-        f"[MLP dim22 batch] train {len(train_df):,} rows / {train_df['graph_id'].nunique():,} graphs / "
+        f"[MLP batch] train {len(train_df):,} rows / {train_df['graph_id'].nunique():,} graphs / "
         f"{train_df['parent_dataset_id'].nunique():,} parents  | "
         f"val {len(val_df):,} rows / {val_df['graph_id'].nunique():,} graphs / "
         f"{val_df['parent_dataset_id'].nunique():,} parents  | "
@@ -186,9 +203,9 @@ def main() -> None:
     test_set = build_graph_dataset(test_df)
     rng = random.Random(args.random_state)
 
-    model = PointwiseEdgeMLP(input_dim=DIM22_FEATURE_DIM, hidden_dim=args.hidden_dim).to(device)
+    model = PointwiseEdgeMLP(input_dim=input_dim, hidden_dim=args.hidden_dim).to(device)
     param_count = sum(p.numel() for p in model.parameters())
-    print(f"[MLP dim22 batch] params={param_count:,}", flush=True)
+    print(f"[MLP batch] params={param_count:,}", flush=True)
 
     optimizer = Adam(model.parameters(), lr=args.lr)
     best_val_acc = -1.0
@@ -209,7 +226,8 @@ def main() -> None:
             name=args.wandb_run_name,
             config={
                 "model": "PointwiseEdgeMLP",
-                "input_dim": DIM22_FEATURE_DIM,
+                "input_dim": input_dim,
+                "inference_feature_layout": layout,
                 "hidden_dim": args.hidden_dim,
                 "cache_dir": str(cache_dir),
                 "cache_version": metadata.get("version"),
@@ -225,7 +243,13 @@ def main() -> None:
                 "val_parents": int(val_df["parent_dataset_id"].nunique()),
                 "test_parents": int(test_df["parent_dataset_id"].nunique()),
             },
-            tags=[t for t in os.environ.get("WANDB_TAGS", "mlp,dim22,batchcache").split(",") if t],
+            tags=[
+                t
+                for t in os.environ.get(
+                    "WANDB_TAGS", f"mlp,{layout},batchcache"
+                ).split(",")
+                if t
+            ],
         )
 
     for epoch in range(1, args.epochs + 1):
@@ -272,11 +296,11 @@ def main() -> None:
         else:
             no_improve += 1
             if no_improve >= args.patience:
-                print(f"[MLP dim22 batch] early stop at epoch {epoch} (patience={args.patience})", flush=True)
+                print(f"[MLP batch] early stop at epoch {epoch} (patience={args.patience})", flush=True)
                 break
 
     if best_state is None:
-        raise RuntimeError("[MLP dim22 batch] No best state captured")
+        raise RuntimeError("[MLP batch] No best state captured")
 
     model.load_state_dict(best_state)
     train_acc_final = edge_accuracy_from_dataset(model, train_set, device)
@@ -287,9 +311,9 @@ def main() -> None:
     torch.save(
         {
             "model_state_dict": best_state,
-            "input_dim": DIM22_FEATURE_DIM,
+            "input_dim": input_dim,
             "hidden_dim": args.hidden_dim,
-            "inference_feature_layout": "dim22",
+            "inference_feature_layout": layout,
         },
         str(args.output),
     )
@@ -313,8 +337,8 @@ def main() -> None:
         "val_parents": int(val_df["parent_dataset_id"].nunique()),
         "test_parents": int(test_df["parent_dataset_id"].nunique()),
         "hidden_dim": args.hidden_dim,
-        "input_dim": DIM22_FEATURE_DIM,
-        "inference_feature_layout": "dim22",
+        "input_dim": input_dim,
+        "inference_feature_layout": layout,
         "epochs_run": len(history),
         "epochs_max": args.epochs,
         "patience": args.patience,
@@ -324,7 +348,9 @@ def main() -> None:
         "test_size": args.test_size,
         "param_count": param_count,
         "split_note": "Canonical-parent 70/15/15; early-stop on val; test reported once at end.",
-        "fix_note": "Trained from batch cache (same as GNN wssm) — platform features match dim22 inference.",
+        "fix_note": (
+            f"Trained from batch cache (same as GNN) — platform features match {layout} inference."
+        ),
     }
     meta_path = args.output.with_suffix(args.output.suffix + ".meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:

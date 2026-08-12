@@ -132,6 +132,73 @@ def expected_completion_for_candidate(
     return current_work + queue_work + cold_start + exec_time + comm_time + network
 
 
+def node_cold_platform_count(node: "Node") -> int:
+    """Absolute cold (not-yet-initialized) platforms on a node — FilterStore depth proxy."""
+    return sum(1 for p in node.platforms.items if not p.initialized.triggered)
+
+
+def filterstore_pull_wait_sec(
+    node: "Node",
+    platform: "Platform",
+    *,
+    unit_pull_sec: Optional[float] = None,
+    extra_committed_pulls: int = 0,
+    use_marginal_ordinal: bool = True,
+) -> float:
+    """
+    Schedule-time FilterStore pull wait for placing on ``platform``.
+
+    Marginal ordinal (default): (committed_pulls + 1) × T_pull — cost of one more
+    pull on this node's FilterStore. Absolute cold_count × T_pull
+    (use_marginal_ordinal=False) matches CACHE 5.6 feature magnitudes but
+    over-penalizes an unused scarce node vs a depth-2 remote pile.
+    Warm/initialized platforms → 0.
+    """
+    from src.placement.warmth import DEFAULT_T_PULL_S, estimated_pull_remaining_sec
+
+    if platform.initialized.triggered:
+        return 0.0
+    if extra_committed_pulls < 0:
+        raise ValueError(f"extra_committed_pulls must be >= 0, got {extra_committed_pulls}")
+    unit = DEFAULT_T_PULL_S if unit_pull_sec is None else float(unit_pull_sec)
+    if unit < 0:
+        raise ValueError(f"unit_pull_sec must be >= 0, got {unit}")
+    if use_marginal_ordinal:
+        ordinal = float(extra_committed_pulls + 1)
+        return estimated_pull_remaining_sec(ordinal, unit)
+    cold = float(node_cold_platform_count(node) + extra_committed_pulls)
+    return estimated_pull_remaining_sec(cold, unit)
+
+
+def expected_completion_with_filterstore_pull(
+    task: "Task",
+    node: "Node",
+    platform: "Platform",
+    env_now: float,
+    *,
+    added_in_batch: int = 0,
+    extra_committed_pulls: int = 0,
+    unit_pull_sec: Optional[float] = None,
+    nodes: Optional[Mapping[Any, Any]] = None,
+) -> float:
+    """ECT + FilterStore pull serialization (physics-aware residual baseline)."""
+    base = expected_completion_for_candidate(
+        task,
+        node,
+        platform,
+        env_now,
+        added_in_batch=added_in_batch,
+        nodes=nodes,
+    )
+    pull_wait = filterstore_pull_wait_sec(
+        node,
+        platform,
+        unit_pull_sec=unit_pull_sec,
+        extra_committed_pulls=extra_committed_pulls,
+    )
+    return base + pull_wait
+
+
 def expected_completion_from_snapshot_candidate(
     candidate: Dict[str, Any],
     queued_before: int,

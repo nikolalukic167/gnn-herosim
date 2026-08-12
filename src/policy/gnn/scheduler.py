@@ -326,6 +326,19 @@ class GNNScheduler(Scheduler):
                 )
                 self.fallback_decisions += 1
 
+            # Deferred cold pull at place time (scarce-preinit stubs)
+            from src.placement.replica_seeding import start_deferred_cold_init
+
+            start_deferred_cold_init(
+                self.env,
+                self.autoscaler,
+                target_node,
+                target_platform,
+                task_replicas,
+                task.type,
+                current_system_state,
+            )
+
             task.execution_node = target_node.node_name
             task.execution_platform = str(target_platform.id)
             task.gnn_decision_time = inference_time / batch_size  # Amortized

@@ -175,3 +175,4 @@ latex/
 # Markdown files (except README)
 *.md
 !README.md
+!AGENTS.md

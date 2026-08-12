@@ -33,20 +33,18 @@ class GNNOrchestrator(Orchestrator):
     
     def __init__(self, *args, models=None, **kwargs):
         """Initialize orchestrator with optional GNN models."""
-        # Remove unsupported kwargs before calling parent
-        kwargs.pop('initial_replicas', None)
-        kwargs.pop('scheduler_config', None)
+        self.scheduler_config = kwargs.pop('scheduler_config', None)
         kwargs.pop('device_type_mapping', None)
-        
+
         # Store models temporarily - will be overwritten by parent's __init__
         _models = models
         print(f"[GNN Orchestrator] __init__ called with models={models is not None}", flush=True)
         if models:
             print(f"[GNN Orchestrator] models type: {type(models)}, keys: {list(models.keys()) if isinstance(models, dict) else 'N/A'}", flush=True)
-        
+
         # Call parent init (which sets self.models = None since models not in kwargs)
         super().__init__(*args, **kwargs)
-        
+
         # Re-set self.models after parent init
         self.models = _models
         print(f"[GNN Orchestrator] After super().__init__, self.models restored: {self.models is not None}", flush=True)
@@ -74,6 +72,16 @@ class GNNOrchestrator(Orchestrator):
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
+        from src.placement.replica_seeding import integrate_initial_replicas
+
+        integrate_initial_replicas(
+            replicas=replicas,
+            available_resources=available_resources,
+            initial_replicas=self.initial_replicas,
+            task_types=self.data.task_types,
+            average_contention=scheduler_state.average_contention,
+            label="GNNHeteroOrchestrator",
+        )
         system_state = KnativeSystemState(
             scheduler_state=scheduler_state,
             available_resources=available_resources,
@@ -91,7 +99,9 @@ class GNNOrchestrator(Orchestrator):
                 self.scheduler.set_models(self.models)
                 print("[GNN Orchestrator] Models passed to scheduler", flush=True)
             else:
-                print("[GNN Orchestrator] WARNING: scheduler doesn't have set_models method!", flush=True)
+                raise RuntimeError(
+                    "GNNHeteroOrchestrator: scheduler missing set_models — cannot load GNN"
+                )
         else:
             print("[GNN Orchestrator] WARNING: self.models is None or empty!", flush=True)
 
