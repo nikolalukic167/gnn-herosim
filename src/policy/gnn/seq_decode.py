@@ -703,6 +703,7 @@ def decode_sequential_reforward_pull_placement(
     queue_snapshot: Optional[Mapping[str, int]] = None,
     *,
     platform_needs_pull: Optional[Mapping[str, bool]] = None,
+    pulls_committed: Optional[Dict[str, int]] = None,
     stats: Optional[GnnDecodeRunStats] = None,
 ) -> Optional[PlacementCombo]:
     """Phase 1 ablation: CE argmax + queue refresh + pulls_committed ledger + re-forward.
@@ -768,7 +769,9 @@ def decode_sequential_reforward_pull_placement(
             )
 
     live_queues: Dict[str, int] = {str(k): int(v) for k, v in dict(snapshot).items()}
-    pulls_committed: Dict[str, int] = {}
+    # Persist across batches when caller provides a mutable ledger (Phase 3).
+    if pulls_committed is None:
+        pulls_committed = {}
     combo_list: List[Tuple[int, int]] = []
     original_platform_features = graph.platform_features
     graph.platform_features = original_platform_features.clone()
