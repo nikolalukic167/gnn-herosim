@@ -21,7 +21,7 @@ import sys
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -72,18 +72,41 @@ TOY_EXPECTED = {
 }
 
 
-def build_burst_workload(n: int, *, burst_id: str, task_type: str = "dnn1") -> Dict[str, Any]:
+def build_burst_workload(
+    n: int,
+    *,
+    burst_id: str,
+    task_type: str = "dnn1",
+    timestamps: Optional[Sequence[float]] = None,
+) -> Dict[str, Any]:
+    """Build N-task burst workload. Optional per-event timestamps (default all t=0)."""
+    if timestamps is None:
+        ts_list = [0.0] * n
+    else:
+        ts_list = [float(t) for t in timestamps]
+        if len(ts_list) != n:
+            raise ValueError(
+                f"FAIL LOUD: timestamps length {len(ts_list)} != n={n}"
+            )
+        if any(t < 0.0 for t in ts_list):
+            raise ValueError(f"FAIL LOUD: negative timestamps in {ts_list}")
     events = [
         {
-            "timestamp": 0.0,
+            "timestamp": ts_list[i],
             "application": {"name": f"nofs-{task_type}", "dag": {task_type: []}},
             "qos": {"name": "medium", "maxDurationDeviation": 15},
             "node_name": TARGET_CLIENT,
             "burst_id": burst_id,
         }
-        for _ in range(n)
+        for i in range(n)
     ]
-    return {"rps": max(n, 1), "duration": 1, "events": events}
+    # duration must cover last arrival + headroom for sim end.
+    last_ts = max(ts_list) if ts_list else 0.0
+    return {
+        "rps": max(n, 1),
+        "duration": max(1, int(last_ts) + 1),
+        "events": events,
+    }
 
 
 def _rpi_node(

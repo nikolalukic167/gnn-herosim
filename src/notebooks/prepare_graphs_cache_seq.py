@@ -1393,6 +1393,24 @@ def build_graph(
         platform_features=platform_features_tensor,
     )
     data.edge_attr = edge_attr_tensor
+    # Same-node platform<->platform edges for GIN message passing (node aggregation).
+    # Must match prepare_graphs_cache.py / live build_pyg_inference_graph.
+    node_edge_src: List[int] = []
+    node_edge_dst: List[int] = []
+    for _positions in plats_by_node.values():
+        _pos = sorted(set(int(p) for p in _positions))
+        if len(_pos) < 2:
+            continue
+        for _a in range(len(_pos)):
+            for _b in range(_a + 1, len(_pos)):
+                _ga = n_tasks + _pos[_a]
+                _gb = n_tasks + _pos[_b]
+                node_edge_src.extend([_ga, _gb])
+                node_edge_dst.extend([_gb, _ga])
+    if node_edge_src:
+        data.node_edge_index = torch.tensor([node_edge_src, node_edge_dst], dtype=torch.long)
+    else:
+        data.node_edge_index = torch.empty((2, 0), dtype=torch.long)
     # Per-task mapping from logit index -> (node_id, platform_id) for regret loss and decoding.
     # Use non-underscore attr so DataLoader worker IPC preserves it.
     data.task_logit_to_placement = task_logit_to_placement
@@ -1401,7 +1419,7 @@ def build_graph(
     data.queue_snapshot = dict(queue_snapshot) if queue_snapshot else {}
     data.task_logit_to_queue_key = task_logit_to_queue_key
     data.queue_key_to_platform_meta = queue_key_to_platform_meta
-    
+
     return data
 
 
