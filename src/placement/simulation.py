@@ -99,6 +99,9 @@ from src.policy.knative_network.orchestrator import KnativeOrchestrator as Knati
 from src.policy.knative_network.autoscaler import KnativeAutoscaler as KnativeNetworkAutoscaler
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
 from src.policy.knative_network_ect.scheduler import KnativeECTScheduler as KnativeNetworkECTScheduler
+from src.policy.knative_network_ect_pull.scheduler import (
+    KnativeECTPullScheduler as KnativeNetworkECTPullScheduler,
+)
 from src.policy.knative_network_batch.scheduler import KnativeBatchScheduler as KnativeNetworkBatchScheduler
 from src.policy.offload_network.scheduler import OffloadNetworkScheduler
 
@@ -693,6 +696,11 @@ def start_simulation(
         "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),
         "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkScheduler),
         "kn_network_ect_kn_network_ect": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkECTScheduler),
+        "kn_network_ect_pull_kn_network_ect_pull": (
+            KnativeNetworkOrchestrator,
+            KnativeNetworkAutoscaler,
+            KnativeNetworkECTPullScheduler,
+        ),
         "kn_network_batch_kn_network_batch": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkBatchScheduler),
         "rr_network_rr_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, RoundRobinNetworkScheduler),
         "hrc_network_hrc_network": (HRCNetworkOrchestrator, HRCNetworkAutoscaler, HRCNetworkScheduler),

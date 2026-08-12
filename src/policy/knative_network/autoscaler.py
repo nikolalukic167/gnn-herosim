@@ -259,7 +259,10 @@ class KnativeAutoscaler(Autoscaler):
         physics = getattr(self.env, "warmth_physics", PLATFORM_REUSE_V1)
         retrieval_duration: DurationSecond = 0.0
 
-        # warmth: skip entire pull branch when needs_image_pull is False
+        # warmth: skip entire pull branch when needs_image_pull is False.
+        # CRITICAL: hold FilterStore for the full pull timeout (determined parity).
+        # Releasing before timeout lets N co-located cold pulls run in parallel and
+        # destroys Regime B FilterStore headroom for free Kn/MLP/GNN.
         if needs_image_pull(physics, platform, node, task_type):
             node_storage = yield node.storage.get(
                 lambda storage: not storage.type["remote"]
@@ -290,9 +293,12 @@ class KnativeAutoscaler(Autoscaler):
                         f" cache image for {self}"
                     )
 
+                yield self.env.timeout(retrieval_duration)
             yield node.storage.put(node_storage)
+        else:
+            retrieval_duration = 0.0
 
-        # print(f"retrieval duration = {retrieval_duration}")
+        platform.storage_time += retrieval_duration
 
         # Update state
         # FIXME: Move to state update methods
@@ -301,12 +307,6 @@ class KnativeAutoscaler(Autoscaler):
         state.average_contention[task_type["name"]][
             (new_replica[0].id, new_replica[1].id)
         ] = 1.0
-
-        # FIXME: Retrieve function image
-        yield self.env.timeout(retrieval_duration)
-
-        # FIXME: Update platform time spent on storage
-        platform.storage_time += retrieval_duration
 
         # FIXME: Double initialize bug...
         try:

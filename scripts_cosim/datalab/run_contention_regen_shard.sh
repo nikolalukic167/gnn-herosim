@@ -88,7 +88,11 @@ python3 -u scripts_cosim/generate_gnn_datasets_fast.py \
   2>&1 | tee "${LOG}"
 
 echo "=== Done array ${SLURM_ARRAY_TASK_ID} ==="
-jsonl=$(for d in simulation_data/"${OUTPUT_SUBDIR}"/ds_*; do
-  [[ -s "$d/placements/placements.jsonl" ]] && echo x
-done | wc -l)
+jsonl=0
+for d in simulation_data/"${OUTPUT_SUBDIR}"/ds_*; do
+  if [[ -s "$d/placements/placements.jsonl" ]]; then
+    jsonl=$((jsonl + 1))
+  fi
+done
 echo "datasets with placements.jsonl: ${jsonl}"
+exit 0

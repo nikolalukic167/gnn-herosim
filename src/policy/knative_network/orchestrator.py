@@ -50,6 +50,16 @@ class KnativeOrchestrator(Orchestrator):
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
+        from src.placement.replica_seeding import integrate_initial_replicas
+
+        integrate_initial_replicas(
+            replicas=replicas,
+            available_resources=available_resources,
+            initial_replicas=self.initial_replicas,
+            task_types=self.data.task_types,
+            average_contention=scheduler_state.average_contention,
+            label="KnativeOrchestrator",
+        )
         system_state = KnativeSystemState(
             scheduler_state=scheduler_state,
             available_resources=available_resources,

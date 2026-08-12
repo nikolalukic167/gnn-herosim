@@ -20,11 +20,21 @@ if TYPE_CHECKING:
     from src.placement.model import SystemState
 
 from src.policy.tabular.constants import FEATURE_DIM
-from src.placement.warmth import node_has_cached_image
+from src.placement.warmth import (
+    DEFAULT_NETWORK_BANDWIDTH_MBPS,
+    estimated_pull_remaining_sec,
+    node_has_cached_image,
+    normalize_estimated_pull_remaining_sec,
+    unit_pull_sec_from_task_priors,
+)
 
 LEGACY_FEATURE_DIM = 22
 LEGACY_TASK_FEATURE_DIM = 3
 LEGACY_PLATFORM_FEATURE_DIM = 14
+
+# CACHE 5.6 / dim24: 3-task + 16-plat (+ node_cold_count, estimated_pull_remaining) + 5-edge
+DIM24_FEATURE_DIM = 24
+DIM24_PLATFORM_FEATURE_DIM = 16
 
 # CE-reduced ablation (train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
 CE_REDUCED_TASK_FEATURE_DIM = 3
@@ -125,6 +135,39 @@ def _shared_fate_by_position(platforms_info: Sequence[PlatformInfo]) -> List[flo
     return shared_fate
 
 
+def _node_cold_counts_by_position(platforms_info: Sequence[PlatformInfo]) -> List[float]:
+    """Absolute cold platform count per node (shared_fate numerator, not density)."""
+    node_positions: Dict[str, List[int]] = {}
+    for info in platforms_info:
+        node_positions.setdefault(str(info.node_name), []).append(int(info.position))
+    cold_counts = [0.0] * len(platforms_info)
+    for info in platforms_info:
+        co_located = node_positions.get(str(info.node_name), [info.position])
+        cold_count = sum(
+            1
+            for pos in co_located
+            if not platforms_info[pos].platform.initialized.triggered
+        )
+        cold_counts[info.position] = float(cold_count)
+    return cold_counts
+
+
+def _uses_dim22_layout(layout: str) -> bool:
+    return layout in ("dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060")
+
+
+def _uses_dim24_layout(layout: str) -> bool:
+    return layout in ("dim24", "24", "pull_obs", "pull_observables")
+
+
+def _expected_feature_dim_for_layout(layout: str) -> int:
+    if _uses_dim24_layout(layout):
+        return DIM24_FEATURE_DIM
+    if _uses_dim22_layout(layout):
+        return LEGACY_FEATURE_DIM
+    return FEATURE_DIM
+
+
 def _collect_platforms_info(nodes: Sequence[Any]) -> List[PlatformInfo]:
     platforms_info: List[PlatformInfo] = []
     pos = 0
@@ -180,8 +223,10 @@ def build_inference_feature_bundle(
     Returns None when no feasible edges exist.
     """
     layout = _inference_feature_layout(feature_layout)
-    use_dim22 = layout in ("dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060")
-    expected_feature_dim = LEGACY_FEATURE_DIM if use_dim22 else FEATURE_DIM
+    use_dim22 = _uses_dim22_layout(layout)
+    use_dim24 = _uses_dim24_layout(layout)
+    use_norm_queue = use_dim22 or use_dim24
+    expected_feature_dim = _expected_feature_dim_for_layout(layout)
 
     if not batch_tasks:
         return None
@@ -212,9 +257,16 @@ def build_inference_feature_bundle(
         queue_key = f"{info.node_name}:{info.platform_id}"
         raw_queue_by_pos.append(int(queue_snapshot.get(queue_key, 0)))
     queue_norm = (
-        _scheduler_adaptive_queue_norm(raw_queue_by_pos, queue_norm_mode) if use_dim22 else 1.0
+        _scheduler_adaptive_queue_norm(raw_queue_by_pos, queue_norm_mode)
+        if use_norm_queue
+        else 1.0
     )
-    shared_fate_by_pos = _shared_fate_by_position(platforms_info) if use_dim22 else None
+    shared_fate_by_pos = (
+        _shared_fate_by_position(platforms_info) if use_norm_queue else None
+    )
+    node_cold_count_by_pos = (
+        _node_cold_counts_by_position(platforms_info) if use_dim24 else None
+    )
 
     platform_features: List[List[float]] = []
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
@@ -225,7 +277,7 @@ def build_inference_feature_bundle(
         has_dnn2 = 1.0 if (info.node_id, info.platform_id) in dnn2_replicas else 0.0
         queue_key = f"{info.node_name}:{info.platform_id}"
         queue_len_raw = int(queue_snapshot.get(queue_key, 0))
-        if use_dim22:
+        if use_norm_queue:
             queue_len = float(queue_len_raw) / float(queue_norm)
         else:
             queue_len = float(queue_len_raw)
@@ -287,7 +339,7 @@ def build_inference_feature_bundle(
         node_disk_hit = _platform_node_disk_hit(
             info.node, str(info.platform_type), batch_task_types
         )
-        if use_dim22:
+        if use_norm_queue:
             target_concurrency_feat = target_concurrency_raw / 20.0
             dim13_feat = (
                 (float(queue_len_raw) / target_concurrency_raw / 5.0)
@@ -309,13 +361,40 @@ def build_inference_feature_bundle(
             "platform_pos": int(info.position),
         }
 
-        platform_features.append(
+        plat_row = (
             onehot
             + [has_dnn1, has_dnn2, queue_len]
             + [platform_state_dim]
             + [current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm]
             + [target_concurrency_feat, dim13_feat]
         )
+        if use_dim24:
+            if node_cold_count_by_pos is None:
+                raise RuntimeError("dim24 layout requires node_cold_count_by_pos")
+            cold_count = float(node_cold_count_by_pos[info.position])
+            bandwidth = DEFAULT_NETWORK_BANDWIDTH_MBPS
+            network = getattr(info.node, "network", None)
+            if isinstance(network, dict) and network.get("bandwidth") is not None:
+                bandwidth = float(network["bandwidth"])
+            unit_pull = unit_pull_sec_from_task_priors(
+                task_types_data,
+                str(info.platform_type),
+                network_bandwidth_mbps=bandwidth,
+            )
+            pull_remaining = estimated_pull_remaining_sec(cold_count, unit_pull)
+            plat_row = plat_row + [
+                cold_count,
+                normalize_estimated_pull_remaining_sec(pull_remaining),
+            ]
+            if len(plat_row) != DIM24_PLATFORM_FEATURE_DIM:
+                raise ValueError(
+                    f"Expected {DIM24_PLATFORM_FEATURE_DIM} platform dims for dim24, got {len(plat_row)}"
+                )
+        elif use_dim22 and len(plat_row) != LEGACY_PLATFORM_FEATURE_DIM:
+            raise ValueError(
+                f"Expected {LEGACY_PLATFORM_FEATURE_DIM} platform dims for dim22, got {len(plat_row)}"
+            )
+        platform_features.append(plat_row)
 
     platform_features_arr = np.asarray(platform_features, dtype=np.float32)
 

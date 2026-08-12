@@ -99,6 +99,20 @@ class KnativeScheduler(Scheduler):
                 self.placement(system_state, task)
             )
 
+            # Deferred cold replicas: start image pull when task is placed
+            # (needed for scarce-preinit live stubs; matches determined path).
+            from src.placement.replica_seeding import start_deferred_cold_init
+
+            start_deferred_cold_init(
+                self.env,
+                self.autoscaler,
+                sched_node,
+                sched_platform,
+                replicas,
+                task.type,
+                system_state,
+            )
+
             self._maybe_capture_live_audit_snapshot(
                 system_state=system_state,
                 task=task,

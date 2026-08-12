@@ -45,7 +45,16 @@ _NOTEBOOKS_DIR = Path(__file__).resolve().parent
 if str(_NOTEBOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_NOTEBOOKS_DIR))
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from non_unique_lib.training_contract import load_sweep_minimum
+from src.placement.warmth import (
+    estimated_pull_remaining_sec,
+    normalize_estimated_pull_remaining_sec,
+    unit_pull_sec_from_task_priors,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -212,7 +221,7 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "5.5"  # training-contract: sweep-min labels, SSC warmth+replicas, parent_dataset_id
+CACHE_VERSION = "5.6"  # + node_cold_count / estimated_pull_remaining_sec (plat dim 14→16)
 # - Labels y / opt_rtt from placements.jsonl sweep minima (not optimal_result.sample.placement_plan)
 # - previous_task_type_name preserved for is_warm; replicas from SSC scheduling-time state
 # - graph.parent_dataset_id attached for parent-safe splits / @os RTT identity
@@ -220,6 +229,7 @@ CACHE_VERSION = "5.5"  # training-contract: sweep-min labels, SSC warmth+replica
 # - Sanitized queue/temporal JSON, safe divisors, finite exec-time priors; asserts finite task/platform features
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
+# - Platform dims 14–15: absolute node_cold_count + estimated_pull_remaining_sec/100 (FilterStore depth)
 STRICT_TASK_RESULTS = True
 REQUIRED_TASK_FIELDS = (
     "taskId",
@@ -895,7 +905,8 @@ def build_graph(
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
-    # PLATFORM FEATURES (14 dims: 5 type + 2 replica + 1 queue + 1 shared-fate + 3 temporal + 2 consolidation)
+    # PLATFORM FEATURES (16 dims: 5 type + 2 replica + 1 queue + 1 shared-fate + 3 temporal
+    # + 2 consolidation + node_cold_count + estimated_pull_remaining_sec/100)
     platform_types_vocab = np.array(['rpiCpu','xavierCpu','xavierGpu','xavierDla','pynqFpga'])
     plat_type_arr = df_platforms['platform_type'].to_numpy()
     plat_onehot = (plat_type_arr[:, None] == platform_types_vocab[None, :]).astype(float)
@@ -926,12 +937,12 @@ def build_graph(
 
     # SHARED-FATE SIGNAL (1 dim) — fraction of co-located platforms on the same
     # physical node that were cold (not yet initialized) at scheduling time.
-    # Captures the hidden FilterStore serialization multiplier: when N platforms on
-    # the same node are all cold, their image pulls serialize, inflating actual pull
-    # time to N × T_pull.  No local queue-depth heuristic can observe this because
-    # node.storage exposes no pending-pull count.
-    # Falls back to 0 if initialized_snapshot is absent (old SSC files).
+    # Captures density risk but saturates at 1.0 when all co-located plats are cold
+    # (scarce N=12 and remote N=1 both → 1.0). Absolute cold count + pull-remaining
+    # (dims 14–15) break that tie. Falls back to 0 if initialized_snapshot absent.
     node_cold_replicas_arr = np.zeros(n_platforms, dtype=np.float64)
+    node_cold_count_arr = np.zeros(n_platforms, dtype=np.float64)
+    estimated_pull_remaining_arr = np.zeros(n_platforms, dtype=np.float64)
     if initialized_snapshot:
         # Group platform positions by physical node name
         node_platform_positions: Dict[str, List[int]] = {}
@@ -950,7 +961,22 @@ def build_graph(
                 )
             )
             node_cold_replicas_arr[pos] = cold_count / max(len(co_located_positions), 1)
+            node_cold_count_arr[pos] = float(cold_count)
+            unit_pull = unit_pull_sec_from_task_priors(
+                task_priors, str(plat_types_by_pos[pos])
+            )
+            estimated_pull_remaining_arr[pos] = estimated_pull_remaining_sec(
+                float(cold_count), unit_pull
+            )
     node_cold_replicas_norm = node_cold_replicas_arr.reshape(-1, 1)
+    node_cold_count_feat = node_cold_count_arr.reshape(-1, 1)
+    estimated_pull_remaining_norm = np.asarray(
+        [
+            normalize_estimated_pull_remaining_sec(float(v))
+            for v in estimated_pull_remaining_arr
+        ],
+        dtype=np.float64,
+    ).reshape(-1, 1)
 
     # TEMPORAL STATE FEATURES (current task remaining times)
     # Since we don't have exact temporal state, we approximate:
@@ -1066,8 +1092,14 @@ def build_graph(
         queue_lengths_norm,             # dim  7    (1)
         node_cold_replicas_norm,        # dim  8    (1) shared-fate signal
         current_task_remaining_norm, cold_start_remaining_norm, comm_remaining_norm,  # dims 9-11 (3)
-        target_concurrency_norm, usage_ratio_norm  # dims 12-13 (2)
+        target_concurrency_norm, usage_ratio_norm,  # dims 12-13 (2)
+        node_cold_count_feat,           # dim 14    (1) absolute cold platforms on node
+        estimated_pull_remaining_norm,  # dim 15    (1) cold_count × T_pull / 100
     ], axis=1)
+    if platform_features.shape[1] != 16:
+        raise ValueError(
+            f"Expected 16 platform feature dims, got {platform_features.shape[1]}"
+        )
     _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
@@ -1486,12 +1518,18 @@ def main():
         'num_datasets': len(all_datasets),
         'dataset_ids': dataset_ids,
         'parent_dataset_ids': parent_dataset_ids,
+        'platform_feature_dim': 16,
+        'inference_feature_layout': 'dim24',
         'training_contract': {
             'label_source': 'placements.jsonl_sweep_minimum',
             'replica_source': 'ssc_scheduling_time_replicas',
             'warmth_source': 'ssc_previous_task_type_name',
             'canonical_parent_attr': 'parent_dataset_id',
             'ab_report': 'simulation_data/training_contract_ab_20260804.json',
+            'pull_observables': [
+                'node_cold_count',
+                'estimated_pull_remaining_sec',
+            ],
         },
         'statistics': {
             'valid_labels': int(np.sum(ys >= 0)),

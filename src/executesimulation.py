@@ -306,10 +306,17 @@ def load_gnn_model(model_path: Path):
                 f"(task_dim={task_feature_dim}, platform_dim={platform_feature_dim}, edge_dim={edge_dim})",
                 flush=True,
             )
+        elif task_feature_dim == 3 and platform_feature_dim == 16:
+            os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim24"
+            print(
+                f"Using dim24 pull-observable inference layout "
+                f"(task_dim={task_feature_dim}, platform_dim={platform_feature_dim})",
+                flush=True,
+            )
         elif layout in ("dim22", "legacy", "22") or (
             task_feature_dim == 3
             and platform_feature_dim == 14
-            and layout not in ("atomic21", "21", "ce_reduced")
+            and layout not in ("atomic21", "21", "ce_reduced", "dim24", "24")
         ):
             os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
             print(
@@ -492,6 +499,7 @@ def run_simulation(
         'roundrobin',
         'knative_network',
         'knative_network_ect',
+        'knative_network_ect_pull',
         'knative_network_batch',
         'herocache_network',
         'herocache_network_batch',
@@ -593,6 +601,9 @@ def run_simulation(
             models = None
         elif policy == 'knative_network_ect':
             scheduling_strategy = 'kn_network_ect_kn_network_ect'
+            models = None
+        elif policy == 'knative_network_ect_pull':
+            scheduling_strategy = 'kn_network_ect_pull_kn_network_ect_pull'
             models = None
         elif policy == 'knative_network_batch':
             scheduling_strategy = 'kn_network_batch_kn_network_batch'
@@ -888,7 +899,7 @@ def main():
         print(
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
-            "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
+            "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
             "herocache_network_batch|random_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
@@ -899,7 +910,7 @@ def main():
         print(
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
-            "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_batch|herocache_network|"
+            "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
             "herocache_network_batch|random_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
@@ -912,6 +923,7 @@ def main():
         'roundrobin',
         'knative_network',
         'knative_network_ect',
+        'knative_network_ect_pull',
         'knative_network_batch',
         'herocache_network',
         'herocache_network_batch',

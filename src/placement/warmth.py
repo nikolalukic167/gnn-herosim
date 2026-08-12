@@ -3,7 +3,7 @@ Platform warmth predicates — single source of truth for pull vs sandbox gates.
 
 Tier 1: node disk cache can skip image pull (node_disk_v2).
 Tier 2: sandbox cold-start uses previous_task only; pull uses disk only in v2.
-Tier 3 stubs: see comments at bottom of file.
+Tier 3: node_cold_count / estimated_pull_remaining_sec (FilterStore depth observables).
 """
 
 from __future__ import annotations
@@ -18,13 +18,97 @@ PLATFORM_REUSE_V1 = "platform_reuse_v1"
 NODE_DISK_V2 = "node_disk_v2"
 VALID_WARMTH_PHYSICS = frozenset({PLATFORM_REUSE_V1, NODE_DISK_V2})
 
-# TIER3_STUB: node_pulls_in_flight counter → estimated_pull_remaining_sec feature
-# TIER3_STUB: storage_busy = len(node.storage.items) < expected_local_count
-# See memory/storage_contention.md § fair feature candidates
+# FilterStore pull observables (storage_contention.md § fair feature candidates).
+# shared_fate = cold/total saturates at 1.0; absolute cold_count distinguishes N=1 vs N=12.
+DEFAULT_T_PULL_S = 31.3038  # dnn1 @ flashCard write ∩ 100 MB/s network
+DEFAULT_STORAGE_WRITE_MBPS = 171.0
+DEFAULT_NETWORK_BANDWIDTH_MBPS = 100.0
+DEFAULT_STORAGE_WRITE_LATENCY_S = 0.00012
+# Normalize estimated_pull_remaining_sec into ~O(1) for GNN/MLP (31s→0.31, 375s→3.75).
+ESTIMATED_PULL_REMAINING_NORM_S = 100.0
 
 
 class InvalidWarmthPhysicsError(ValueError):
     """Raised when warmth_physics is not a recognized value."""
+
+
+def estimate_unit_pull_sec(
+    image_size_gb: Optional[float] = None,
+    *,
+    storage_write_mbps: float = DEFAULT_STORAGE_WRITE_MBPS,
+    network_bandwidth_mbps: float = DEFAULT_NETWORK_BANDWIDTH_MBPS,
+    write_latency_s: float = DEFAULT_STORAGE_WRITE_LATENCY_S,
+) -> float:
+    """Unit cold-image pull duration (seconds), matching autoscaler FilterStore math."""
+    if image_size_gb is None or float(image_size_gb) <= 0.0:
+        return float(DEFAULT_T_PULL_S)
+    speed = min(float(storage_write_mbps), float(network_bandwidth_mbps))
+    if speed <= 0.0:
+        raise ValueError(
+            f"Invalid pull speed={speed} "
+            f"(storage_write_mbps={storage_write_mbps}, network_bandwidth_mbps={network_bandwidth_mbps})"
+        )
+    return float(image_size_gb) / (speed / 1024.0) + float(write_latency_s)
+
+
+def estimated_pull_remaining_sec(node_cold_count: float, unit_pull_sec: float) -> float:
+    """Schedule-time estimate of FilterStore serialization wait ≈ cold_count × T_pull."""
+    if node_cold_count < 0:
+        raise ValueError(f"node_cold_count must be >= 0, got {node_cold_count}")
+    if unit_pull_sec < 0:
+        raise ValueError(f"unit_pull_sec must be >= 0, got {unit_pull_sec}")
+    return float(node_cold_count) * float(unit_pull_sec)
+
+
+def normalize_estimated_pull_remaining_sec(remaining_sec: float) -> float:
+    """Scale seconds for platform feature vectors (fail-loud on bad norm constant)."""
+    if ESTIMATED_PULL_REMAINING_NORM_S <= 0.0:
+        raise ValueError(
+            f"ESTIMATED_PULL_REMAINING_NORM_S must be > 0, got {ESTIMATED_PULL_REMAINING_NORM_S}"
+        )
+    return float(remaining_sec) / float(ESTIMATED_PULL_REMAINING_NORM_S)
+
+
+def unit_pull_sec_from_task_priors(
+    task_priors: Optional[Any],
+    platform_type: str,
+    *,
+    preferred_task_types: Optional[tuple] = None,
+    network_bandwidth_mbps: float = DEFAULT_NETWORK_BANDWIDTH_MBPS,
+) -> float:
+    """
+    Resolve T_pull from task-type imageSize priors for a platform type.
+
+    Prefers dnn1 then dnn2; falls back to DEFAULT_T_PULL_S when priors lack imageSize.
+    Storage write speed/latency use flashCard defaults (gate physics).
+    """
+    prefs = preferred_task_types or ("dnn1", "dnn2")
+    if not task_priors:
+        return float(DEFAULT_T_PULL_S)
+    for task_name in prefs:
+        priors = task_priors.get(str(task_name)) if hasattr(task_priors, "get") else None
+        if not isinstance(priors, dict):
+            continue
+        image_map = priors.get("imageSize")
+        if not isinstance(image_map, dict):
+            continue
+        raw = image_map.get(platform_type)
+        if raw is None:
+            continue
+        try:
+            image_gb = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Non-numeric imageSize for task={task_name!r} platform={platform_type!r}: {raw!r}"
+            ) from exc
+        if image_gb > 0.0:
+            return estimate_unit_pull_sec(
+                image_gb,
+                storage_write_mbps=DEFAULT_STORAGE_WRITE_MBPS,
+                network_bandwidth_mbps=network_bandwidth_mbps,
+                write_latency_s=DEFAULT_STORAGE_WRITE_LATENCY_S,
+            )
+    return float(DEFAULT_T_PULL_S)
 
 
 def resolve_warmth_physics(

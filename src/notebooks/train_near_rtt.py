@@ -1206,15 +1206,27 @@ for epoch in range(EPOCHS):
 
     if CE_ONLY_TRAINING:
         val_target_acc = float(val_metrics["acc"])
+        val_topk = float(val_metrics["regret_topk"])
+        improved = False
+        reason = ""
         if val_target_acc > best_val_acc:
             best_val_acc = val_target_acc
+            improved = True
+            reason = f"val acc={best_val_acc * 100:.1f}%"
+        elif best_val_acc <= 0.0 and val_topk < best_val_regret:
+            # Small/hard corpora can keep joint combo acc at 0 while top-k regret moves.
+            best_val_regret = val_topk
+            improved = True
+            reason = f"val top{NEAR_CFG.top_k_decode} regret={best_val_regret:.4f}s (acc still 0)"
+        if improved:
             best_val_metrics = val_metrics
             model_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(model.state_dict(), model_path)
             checkpoint_saved = True
             print(
-                f"  *** New best val acc: {best_val_acc * 100:.1f}% "
-                f"(top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s)"
+                f"  *** New best {reason} "
+                f"(top{NEAR_CFG.top_k_decode}={val_metrics['regret_topk']:.4f}s "
+                f"task_acc={float(val_metrics.get('task_acc', 0.0)) * 100:.1f}%)"
             )
     else:
         val_target = ranking_checkpoint_metric(val_metrics)

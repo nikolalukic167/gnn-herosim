@@ -67,6 +67,26 @@ TARGET_STORAGE = ("flashCard", "someRemote")
 PRIMARY_LEVER = "scarce_attractor_filterstore"
 ANTI_CORRELATED_PREFS = True  # greedy #1 site is expensive under co-location
 
+# Live stub v2 (GATE cell): pre-seed N cold deferred on scarce node0 only.
+# Proves free Kn FilterStore headroom. Action space=node0 → no intelligence margin
+# (Kn≡MLP≡GNN≈contended). Keep for ≥10× free-Kn gate only.
+LIVE_STUB_VARIANT = "scarce_preinit_v2"
+LIVE_STUB_SCARCE_NODE = "node0"
+LIVE_STUB_PREINIT_N_COLD = TARGET_N_TASKS  # all platforms on scarce node
+# Free Kn must hit FilterStore headroom (same bar as forced gate).
+MIN_FREE_KN_REGRET_RATIO = MIN_ORACLE_GREEDY_RATIO
+
+# Live stub v3 (INTELLIGENCE cell): union seeds = N cold on node0 + 1 cold on every
+# other server. Opens oracle-split action space; Kn shortest-queue still partially
+# piles (~6–7×). Probe 2026-08-11: Kn~219s, MLP/GNN 873 zero-shot ~125s (beat Kn).
+# Do NOT require ≥10× free Kn here — that bar stays on scarce_preinit_v2.
+INTEL_STUB_VARIANT = "oracle_split_v1"
+INTEL_STUB_DIR = "simulation_data/regime_b_cold_burst_v1/live_stub_oracle_split_v1"
+# Kn must keep nontrivial FilterStore regret vs oracle (else lure collapsed to parallel).
+MIN_INTEL_KN_REGRET_RATIO = 3.0
+# Learned must beat Kn by this many seconds on primary (fail loud if tied/worse).
+MIN_INTEL_MARGIN_S = 30.0
+
 # ---------------------------------------------------------------------------
 # Expected headroom (closed form; sim must match within tolerance)
 # ---------------------------------------------------------------------------
@@ -95,13 +115,15 @@ TARGET_SCORE_TOLERANCE_S = 2.0  # absolute seconds vs theory
 
 COSIM_GRID_NAME = "regime_b_cold_burst_v1"
 COSIM_OUTPUT_SUBDIR = "gnn_datasets_4tasks_regime_b_cold_burst_v1"
+# All-cold union FilterStore labels (N=4 BF) — see generate_regime_b_oracle_split_cosim.py
+COSIM_ORACLE_SPLIT_SUBDIR = "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim"
 COSIM_NUM_TASKS = 4  # BF joint labels; live gate remains TARGET_N_TASKS=12
-COSIM_N_DATASETS = 450  # 2 conn × 3 rep × 3 queue × 25 seeds
+COSIM_N_DATASETS = 450  # 2 conn × 3 rep × 3 queue × 25 seeds (scarce-warm ER — legacy)
 COSIM_REQUIRE_PLACEMENTS_JSONL = True
 COSIM_ALLOW_NON_UNIQUE_REPLICAS = True
 COSIM_WARMTH_PHYSICS = GATE_WARMTH_PHYSICS
-# Live baselines only after gate PASS: Kn / MLP / GNN zero-shot on this env.
-BASELINE_POLICIES = ("knative_network", "mlp_batch", "gnn")
+# Live baselines: Kn + physics ceiling ect_pull + learned.
+BASELINE_POLICIES = ("knative_network", "knative_network_ect_pull", "mlp_batch", "gnn")
 LIVE_STUB_DIR = "simulation_data/regime_b_cold_burst_v1/live_stub"
 
 # Hard stops carried from memory §2
@@ -113,6 +135,8 @@ HARD_STOPS = (
     "cache_5_5_ablation_without_new_env",
     "total_rtt_as_primary",
     "gate_under_node_disk_v2_same_image",
+    "claim_gnn_win_from_tied_scarce_preinit_v2",
+    "retrain_before_oracle_split_zeroshot",
 )
 
 
@@ -155,6 +179,7 @@ def as_dict() -> Dict[str, Any]:
         "cosim": {
             "grid_name": COSIM_GRID_NAME,
             "output_subdir": COSIM_OUTPUT_SUBDIR,
+            "oracle_split_subdir": COSIM_ORACLE_SPLIT_SUBDIR,
             "num_tasks": COSIM_NUM_TASKS,
             "n_datasets": COSIM_N_DATASETS,
             "warmth_physics": COSIM_WARMTH_PHYSICS,
@@ -162,6 +187,14 @@ def as_dict() -> Dict[str, Any]:
             "allow_non_unique_replicas": COSIM_ALLOW_NON_UNIQUE_REPLICAS,
             "baseline_policies": list(BASELINE_POLICIES),
             "live_stub_dir": LIVE_STUB_DIR,
+            "live_stub_variant": LIVE_STUB_VARIANT,
+            "live_stub_scarce_node": LIVE_STUB_SCARCE_NODE,
+            "live_stub_preinit_n_cold": LIVE_STUB_PREINIT_N_COLD,
+            "min_free_kn_regret_ratio": MIN_FREE_KN_REGRET_RATIO,
+            "intel_stub_variant": INTEL_STUB_VARIANT,
+            "intel_stub_dir": INTEL_STUB_DIR,
+            "min_intel_kn_regret_ratio": MIN_INTEL_KN_REGRET_RATIO,
+            "min_intel_margin_s": MIN_INTEL_MARGIN_S,
         },
         "hard_stops": list(HARD_STOPS),
         "toy_regression": {

@@ -33,23 +33,40 @@ class GNNOrchestrator(Orchestrator):
     
     def __init__(self, *args, models=None, **kwargs):
         """Initialize orchestrator with optional GNN models."""
-        # Remove unsupported kwargs before calling parent
-        kwargs.pop('initial_replicas', None)
-        kwargs.pop('scheduler_config', None)
+        # scheduler_config / device_type_mapping are GNN-only; keep initial_replicas
+        # so scarce-preinit live stubs seed replica sets (do NOT pop them).
+        self.scheduler_config = kwargs.pop('scheduler_config', None)
         kwargs.pop('device_type_mapping', None)
-        
+
         # Store models temporarily - will be overwritten by parent's __init__
         _models = models
         print(f"[GNN Orchestrator] __init__ called with models={models is not None}", flush=True)
         if models:
             print(f"[GNN Orchestrator] models type: {type(models)}, keys: {list(models.keys()) if isinstance(models, dict) else 'N/A'}", flush=True)
-        
+
         # Call parent init (which sets self.models = None since models not in kwargs)
         super().__init__(*args, **kwargs)
-        
+
         # Re-set self.models after parent init
         self.models = _models
         print(f"[GNN Orchestrator] After super().__init__, self.models restored: {self.models is not None}", flush=True)
+        # Stub may set scheduler.batch_size=N for determined refs; GNN/MLP must stay
+        # within [2,4] or they silently fall back to shortest-queue.
+        if self.scheduler_config and "batch_timeout" in self.scheduler_config:
+            self.scheduler.batch_timeout = float(self.scheduler_config["batch_timeout"])
+        if self.scheduler_config and "batch_size" in self.scheduler_config:
+            cfg_bs = int(self.scheduler_config["batch_size"])
+            from src.policy.gnn.scheduler import MAX_BATCH_SIZE_FOR_GNN, MIN_BATCH_SIZE_FOR_GNN
+
+            if cfg_bs > MAX_BATCH_SIZE_FOR_GNN or cfg_bs < MIN_BATCH_SIZE_FOR_GNN:
+                print(
+                    f"[GNN Orchestrator] Ignoring infrastructure scheduler.batch_size={cfg_bs} "
+                    f"(outside GNN range [{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}]); "
+                    f"keeping GNN_BATCH_SIZE={self.scheduler.batch_size}",
+                    flush=True,
+                )
+            else:
+                self.scheduler.batch_size = cfg_bs
     
     def initialize_state(self) -> KnativeSystemState:
         """Initialize system state - matches knative_network."""
@@ -74,6 +91,16 @@ class GNNOrchestrator(Orchestrator):
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
+        from src.placement.replica_seeding import integrate_initial_replicas
+
+        integrate_initial_replicas(
+            replicas=replicas,
+            available_resources=available_resources,
+            initial_replicas=self.initial_replicas,
+            task_types=self.data.task_types,
+            average_contention=scheduler_state.average_contention,
+            label="GNNOrchestrator",
+        )
         system_state = KnativeSystemState(
             scheduler_state=scheduler_state,
             available_resources=available_resources,
@@ -91,7 +118,9 @@ class GNNOrchestrator(Orchestrator):
                 self.scheduler.set_models(self.models)
                 print("[GNN Orchestrator] Models passed to scheduler", flush=True)
             else:
-                print("[GNN Orchestrator] WARNING: scheduler doesn't have set_models method!", flush=True)
+                raise RuntimeError(
+                    "GNNOrchestrator: scheduler missing set_models — cannot load GNN/MLP"
+                )
         else:
             print("[GNN Orchestrator] WARNING: self.models is None or empty!", flush=True)
 

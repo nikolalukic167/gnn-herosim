@@ -137,6 +137,20 @@ def apply_reduced_features_to_graph(graph: Any, repo_root: Path) -> Any:
 
 DIM22_FEATURE_DIM = 22  # 3-task + 14-platform + 5-edge
 DIM22_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM22_FEATURE_DIM)]
+DIM24_FEATURE_DIM = 24  # 3-task + 16-platform (pull obs) + 5-edge
+DIM24_PLATFORM_FEATURE_DIM = 16
+DIM24_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM24_FEATURE_DIM)]
+
+
+def _batch_edge_feature_dims(platform_feature_dim: int) -> Tuple[int, List[str], str]:
+    """Map platform width → (total feature dim, column names, inference layout)."""
+    if platform_feature_dim == 14:
+        return DIM22_FEATURE_DIM, DIM22_FEATURE_COLUMN_NAMES, "dim22"
+    if platform_feature_dim == DIM24_PLATFORM_FEATURE_DIM:
+        return DIM24_FEATURE_DIM, DIM24_FEATURE_COLUMN_NAMES, "dim24"
+    raise ValueError(
+        f"Unsupported platform_feature_dim={platform_feature_dim}; expected 14 (dim22) or 16 (dim24)"
+    )
 
 
 def _extract_dim22_rows_for_task(
@@ -148,7 +162,7 @@ def _extract_dim22_rows_for_task(
     *,
     prefix_augment: bool = False,
 ) -> Tuple[List[TabularEdgeRow], Optional[str]]:
-    """Shared dim22 row builder for one task decision on a graph."""
+    """Shared dim22/dim24 row builder for one task decision on a graph."""
     task_placement_map = _task_placement_map(graph)
     task_queue_map = _task_queue_key_map(graph)
 
@@ -173,10 +187,12 @@ def _extract_dim22_rows_for_task(
         raise ValueError(
             f"graph {graph_id}: task_features has {task_features.shape[1]} cols, expected >= 3"
         )
-    if platform_features.shape[1] < 14:
+    plat_dim = int(platform_features.shape[1])
+    if plat_dim < 14:
         raise ValueError(
-            f"graph {graph_id}: platform_features has {platform_features.shape[1]} cols, expected >= 14"
+            f"graph {graph_id}: platform_features has {plat_dim} cols, expected >= 14"
         )
+    feature_dim, _colnames, _layout = _batch_edge_feature_dims(plat_dim)
     if edge_attr_directed.shape[1] < 5:
         raise ValueError(
             f"graph {graph_id}: edge_attr_directed has {edge_attr_directed.shape[1]} cols, expected >= 5"
@@ -202,11 +218,13 @@ def _extract_dim22_rows_for_task(
             )
 
         x_task = task_features[task_idx, :3]
-        x_plat = platform_features[plat_pos, :14]
+        x_plat = platform_features[plat_pos, :plat_dim]
         x_edge = edge_attr_directed[global_edge_idx, :5]
         features = np.concatenate([x_task, x_plat, x_edge]).astype(np.float64)
-        if features.shape[0] != DIM22_FEATURE_DIM:
-            raise ValueError(f"Expected {DIM22_FEATURE_DIM} dim22 features, got {features.shape[0]}")
+        if features.shape[0] != feature_dim:
+            raise ValueError(
+                f"Expected {feature_dim} features (plat_dim={plat_dim}), got {features.shape[0]}"
+            )
         if not np.isfinite(features).all():
             raise ValueError(
                 f"Non-finite features for graph={decision_graph_id} task={task_idx} logit={logit_idx}"
@@ -236,10 +254,11 @@ def _extract_dim22_rows_for_task(
 
 
 def extract_rows_dim22_from_batch_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
-    """Extract dim22 rows for every task in a batch PyG graph (prepare_graphs_cache.py).
+    """Extract dim22/dim24 rows for every task in a batch PyG graph (prepare_graphs_cache.py).
 
-    Batch cache platform features already match dim22 inference: normalized queue (dim 7),
-    shared_fate (dim 8), usage_ratio (dim 13) — same as GNN wssm training cache.
+    Batch cache platform features match inference: normalized queue (dim 7),
+    shared_fate (dim 8), usage_ratio (dim 13); CACHE 5.6 also has node_cold_count /
+    estimated_pull_remaining_sec (dims 14–15) → dim24.
     """
     parent_id = str(
         getattr(graph, "parent_dataset_id", None) or parent_dataset_id(graph_id)
@@ -293,8 +312,16 @@ def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[Tabul
 def dim22_rows_to_dataframe(rows: Sequence[TabularEdgeRow]):
     import pandas as pd
 
+    if not rows:
+        raise ValueError("Cannot build dataframe from empty dim22/dim24 row list")
+    feat_dim = int(rows[0].features.shape[0])
+    colnames = [f"x_{i}" for i in range(feat_dim)]
     records: List[Dict[str, Any]] = []
     for row in rows:
+        if int(row.features.shape[0]) != feat_dim:
+            raise ValueError(
+                f"Mixed feature dims in rows: expected {feat_dim}, got {row.features.shape[0]}"
+            )
         rec: Dict[str, Any] = {
             "row_id": row.row_id,
             "parent_dataset_id": row.parent_dataset_id,
@@ -310,7 +337,7 @@ def dim22_rows_to_dataframe(rows: Sequence[TabularEdgeRow]):
             "y_class": row.y_class,
             "y_logit": row.y_logit,
         }
-        for col, val in zip(DIM22_FEATURE_COLUMN_NAMES, row.features):
+        for col, val in zip(colnames, row.features):
             rec[col] = float(val)
         records.append(rec)
     return pd.DataFrame.from_records(records)
@@ -318,12 +345,21 @@ def dim22_rows_to_dataframe(rows: Sequence[TabularEdgeRow]):
 
 def validate_dim22_frame(df) -> Dict[str, Any]:
     if len(df) == 0:
-        raise ValueError("Extracted dim22 dataframe is empty")
+        raise ValueError("Extracted dim22/dim24 dataframe is empty")
     if not (df["task_idx"] == df["seq_step"]).all():
         raise ValueError("Invariant violated: task_idx != seq_step")
-    feature_values = df[DIM22_FEATURE_COLUMN_NAMES].to_numpy()
+    feature_cols = [c for c in df.columns if str(c).startswith("x_")]
+    if not feature_cols:
+        raise ValueError("No feature columns (x_*) found in extracted dataframe")
+    feature_cols = sorted(feature_cols, key=lambda c: int(str(c).split("_", 1)[1]))
+    n_feat = len(feature_cols)
+    if n_feat not in (DIM22_FEATURE_DIM, DIM24_FEATURE_DIM):
+        raise ValueError(
+            f"Unexpected feature width {n_feat}; expected {DIM22_FEATURE_DIM} or {DIM24_FEATURE_DIM}"
+        )
+    feature_values = df[feature_cols].to_numpy()
     if not np.isfinite(feature_values).all():
-        raise ValueError("Non-finite feature values in dim22 extracted dataframe")
+        raise ValueError("Non-finite feature values in dim22/dim24 extracted dataframe")
     pos_per_graph = df.groupby("graph_id")["y_class"].sum()
     if not (pos_per_graph == 1).all():
         bad = pos_per_graph[pos_per_graph != 1]
@@ -333,6 +369,8 @@ def validate_dim22_frame(df) -> Dict[str, Any]:
         "num_graphs": int(df["graph_id"].nunique()),
         "num_parents": int(df["parent_dataset_id"].nunique()),
         "positives": int(df["y_class"].sum()),
+        "feature_dim": int(n_feat),
+        "inference_feature_layout": "dim24" if n_feat == DIM24_FEATURE_DIM else "dim22",
     }
 
 
