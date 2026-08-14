@@ -200,6 +200,60 @@ CONTENTION_V2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_4tasks_contention_v2",
 }
 
+# contention_v4_deepq: MATCH THE LIVE QUEUE REGIME.
+# Measured 2026-08-13: the live failure of 873/v5.5 GNN/MLP is pure queueing, not pull
+# serialization — live GNN sparse_p35 s42 has averageQueueTime 503.4s out of 503.4s
+# averageElapsedTime, with averagePullTime 0.017s and averageColdStartTime 0.0003s.
+# Meanwhile every contention_v2 label is warm-path: 0/900 datasets have any cold start or
+# pull, and optimum averageQueueTime spans only 0.27-5.47s. The trained models therefore
+# never see a queue deep enough for co-locating a batch to be catastrophic, which is exactly
+# the mistake they make live (penaltyProportion ~80%).
+# Lever: keep contention_v2's scarce-warm attractor (a few clearly-best warm platforms) but
+# push pre-seeded queue depth deep enough that stacking two tasks on the attractive platform
+# costs tens of seconds, so the optimum MUST split them.
+# Depth is calibrated to the queue band the WINNING live policy occupies, not the failing one:
+# live seed-42 averageQueueTime is Knative 7.7/30.6/44.9s vs MLP 25.2/79.5/216.1s vs GNN
+# 87.9/210.0/503.4s on skew/p25/p35. Target label band ~5-50s => ~10x contention_v2's mean 35
+# warmup tasks (which yielded only 0.27-5.47s). Overshooting to mean 1200 was measured at
+# >150s/dataset locally because warmup tasks are materialized per placement, so keep the mean
+# in the hundreds.
+# MUST be generated with --allow-non-unique-replicas.
+CONTENTION_V4_DEEPQ_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("norm350", "normal", 350, 120, 0, 900, 1),
+        ("uniform150_700", "uniform", 150, 700, 0, 900, 1),
+        ("pois400", "poisson", 400, 0, 0, 900, 1),
+    ],
+    "seeds": list(range(601, 651)),
+    "default_output_subdir": "gnn_datasets_4tasks_contention_v4_deepq",
+}
+
+# contention_v5_quick_test: QUICK TEST for deep queues + coupling optimization.
+# Hypothesis: norm450/pois500 (12.9x deeper than v2's norm35) + scarce warm resources
+# should push coupling rate from v2's 7.1% to 15-25%, giving GNN measurable advantage.
+# Target: 216 datasets, 7-10 min walltime with 15 parallel workers on datalab CPU.
+# MUST be generated with --allow-non-unique-replicas.
+CONTENTION_V5_QUICK_TEST_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.30, 0.35],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),  # Minimal replicas, high warmth (strongest scarcity)
+        (1, 2, 0.7, 0.9),  # Slightly more replicas, high warmth
+    ],
+    "queue_distributions": [
+        ("norm450", "normal", 450, 150, 0, 1200, 1),
+        ("uniform200_800", "uniform", 200, 800, 0, 1200, 1),
+        ("pois500", "poisson", 500, 0, 0, 1200, 1),
+    ],
+    "seeds": list(range(701, 713)),  # 12 seeds
+    "default_output_subdir": "gnn_datasets_4tasks_contention_v5_quick_test",
+}
+
 # contention_v3: push coupling further — sparser topology + heavier queues.
 # Target: coupled (>1% greedy regret) fraction >25% (v2 was 7.2%).
 # MUST be generated with --allow-non-unique-replicas.
@@ -248,6 +302,8 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "contention_v1": CONTENTION_V1_GRID,
     "contention_v2": CONTENTION_V2_GRID,
     "contention_v3": CONTENTION_V3_GRID,
+    "contention_v4_deepq": CONTENTION_V4_DEEPQ_GRID,
+    "contention_v5_quick_test": CONTENTION_V5_QUICK_TEST_GRID,
     "regime_b_cold_burst_v1": REGIME_B_COLD_BURST_V1_GRID,
 }
 
