@@ -18,6 +18,12 @@ import torch
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.placement.queue_features import (
+    QUEUE_FEATURE_CONTRACT_ENV,
+    require_matching_queue_feature_contract,
+    resolve_queue_feature_contract,
+    validate_queue_feature_contract,
+)
 from src.policy.tabular.constants import FEATURE_DIM
 from src.policy.tabular.feature_builder import (
     build_inference_feature_bundle,
@@ -75,10 +81,24 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
                     f"[MLP Batch] FAIL LOUD: cannot infer inference_feature_layout "
                     f"from input_dim={input_dim} (checkpoint missing inference_feature_layout)"
                 )
+            # Checkpoints without the field predate the contract split (legacy_v0). A
+            # declared-but-different contract is a hard error: dim7/dim13 would silently
+            # change meaning under the model.
+            trained_contract = checkpoint.get("queue_feature_contract")
+            declared = os.environ.get(QUEUE_FEATURE_CONTRACT_ENV, "").strip()
+            if trained_contract and declared:
+                require_matching_queue_feature_contract(
+                    trained_contract, declared, model_label=f"MLP checkpoint {path}"
+                )
+            elif trained_contract:
+                os.environ[QUEUE_FEATURE_CONTRACT_ENV] = validate_queue_feature_contract(
+                    trained_contract
+                )
             logging.info(
-                "[MLP Batch] Loaded MLP model from %s (input_dim=%s)",
+                "[MLP Batch] Loaded MLP model from %s (input_dim=%s, queue_feature_contract=%s)",
                 path,
                 input_dim,
+                resolve_queue_feature_contract(),
             )
         else:
             raise RuntimeError(

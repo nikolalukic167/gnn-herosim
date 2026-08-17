@@ -1,0 +1,264 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-14T17:02:51.158285Z",
+  "registry_generated_at": "2026-08-14T16:15:09.056639Z",
+  "compatibility_generated_at": "2026-08-14T17:02:48.154600Z",
+  "training_groups": {
+    "legacy_v0_node_disk_v2_4task": {
+      "collections": [
+        "gnn_datasets_4tasks_1060_warmth_v2",
+        "gnn_datasets_4tasks_contention_v1_probe",
+        "gnn_datasets_4tasks_contention_v2",
+        "gnn_datasets_4tasks_contention_v2_verify",
+        "gnn_datasets_4tasks_contention_v3",
+        "gnn_datasets_4tasks_contention_v4_pilot",
+        "gnn_datasets_4tasks_contention_v5_quick_test",
+        "gnn_datasets_4tasks_highq_safe_20260606",
+        "gnn_datasets_4tasks_regime_b_cold_burst_v1",
+        "gnn_datasets_4tasks_skew_warmth_v2",
+        "gnn_datasets_4tasks_skew_warmth_v2_test",
+        "gnn_datasets_4tasks_sparse_warmth_v2",
+        "hetero_large_knative_eval_20260606",
+        "hetero_small_knative_eval_20260606",
+        "hetero_small_knative_eval_5tasks_20260606"
+      ],
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "4task",
+      "total_datasets": 3018,
+      "completed_datasets": 2816,
+      "purpose": "General GNN training"
+    },
+    "legacy_v0_platform_reuse_v1_4task": {
+      "collections": [
+        "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim"
+      ],
+      "physics": {
+        "warmth_model": "platform_reuse_v1",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "4task",
+      "total_datasets": 48,
+      "completed_datasets": 48,
+      "purpose": "General GNN training"
+    }
+  },
+  "collections": [
+    {
+      "collection_name": "hetero_large_knative_eval_20260606",
+      "problem_category": "baseline",
+      "total_datasets": 2,
+      "completed_datasets": 1,
+      "completeness_rate": 0.5,
+      "coupling_rate": 1.0,
+      "queue_depth_status": "SKIP",
+      "enrichment_reasons": [
+        "only 2 datasets (probe-sized, not trainable)",
+        "structural completeness 50.0% (missing required files)"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "hetero_small_knative_eval_5tasks_20260606",
+      "problem_category": "baseline",
+      "total_datasets": 4,
+      "completed_datasets": 3,
+      "completeness_rate": 0.75,
+      "coupling_rate": 0.6667,
+      "queue_depth_status": "SKIP",
+      "enrichment_reasons": [
+        "only 4 datasets (probe-sized, not trainable)",
+        "structural completeness 75.0% (missing required files)"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_contention_v1_probe",
+      "problem_category": "contention",
+      "total_datasets": 3,
+      "completed_datasets": 3,
+      "completeness_rate": 1.0,
+      "coupling_rate": 0.3333,
+      "queue_depth_status": "PASS",
+      "enrichment_reasons": [
+        "only 3 datasets (probe-sized, not trainable)"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_contention_v2_verify",
+      "problem_category": "contention",
+      "total_datasets": 1,
+      "completed_datasets": 1,
+      "completeness_rate": 1.0,
+      "coupling_rate": 1.0,
+      "queue_depth_status": "FAIL",
+      "enrichment_reasons": [
+        "only 1 datasets (probe-sized, not trainable)",
+        "queue depths drift from declared distribution"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_contention_v5_quick_test",
+      "problem_category": "contention",
+      "total_datasets": 3,
+      "completed_datasets": 2,
+      "completeness_rate": 0.6667,
+      "coupling_rate": 0.5,
+      "queue_depth_status": "PASS",
+      "enrichment_reasons": [
+        "only 3 datasets (probe-sized, not trainable)",
+        "structural completeness 66.7% (missing required files)"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_regime_b_cold_burst_v1",
+      "problem_category": "regime_b",
+      "total_datasets": 1,
+      "completed_datasets": 1,
+      "completeness_rate": 1.0,
+      "coupling_rate": 1.0,
+      "queue_depth_status": "FAIL",
+      "enrichment_reasons": [
+        "only 1 datasets (probe-sized, not trainable)",
+        "queue depths drift from declared distribution"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim",
+      "problem_category": "regime_b",
+      "total_datasets": 48,
+      "completed_datasets": 48,
+      "completeness_rate": 1.0,
+      "coupling_rate": 1.0,
+      "queue_depth_status": "FAIL",
+      "enrichment_reasons": [
+        "queue depths drift from declared distribution"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_skew_warmth_v2",
+      "problem_category": "warmth",
+      "total_datasets": 288,
+      "completed_datasets": 98,
+      "completeness_rate": 0.3403,
+      "coupling_rate": 0.0,
+      "queue_depth_status": "FAIL",
+      "enrichment_reasons": [
+        "structural completeness 34.0% (missing required files)",
+        "coupling rate 0.0% (weak multi-task placement signal for GNN)",
+        "queue depths drift from declared distribution"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_skew_warmth_v2_test",
+      "problem_category": "warmth",
+      "total_datasets": 1,
+      "completed_datasets": 1,
+      "completeness_rate": 1.0,
+      "coupling_rate": 0.0,
+      "queue_depth_status": "FAIL",
+      "enrichment_reasons": [
+        "only 1 datasets (probe-sized, not trainable)",
+        "coupling rate 0.0% (weak multi-task placement signal for GNN)",
+        "queue depths drift from declared distribution"
+      ],
+      "needs_enrichment": true
+    },
+    {
+      "collection_name": "hetero_small_knative_eval_20260606",
+      "problem_category": "baseline",
+      "total_datasets": 12,
+      "completed_datasets": 12,
+      "completeness_rate": 1.0,
+      "coupling_rate": 0.25,
+      "queue_depth_status": "SKIP",
+      "enrichment_reasons": [],
+      "needs_enrichment": false
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_contention_v2",
+      "problem_category": "contention",
+      "total_datasets": 900,
+      "completed_datasets": 900,
+      "completeness_rate": 0.97,
+      "coupling_rate": 0.84,
+      "queue_depth_status": "PASS",
+      "enrichment_reasons": [],
+      "needs_enrichment": false
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_contention_v3",
+      "problem_category": "contention",
+      "total_datasets": 900,
+      "completed_datasets": 900,
+      "completeness_rate": 1.0,
+      "coupling_rate": 0.64,
+      "queue_depth_status": "PASS",
+      "enrichment_reasons": [],
+      "needs_enrichment": false
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_contention_v4_pilot",
+      "problem_category": "contention",
+      "total_datasets": 27,
+      "completed_datasets": 27,
+      "completeness_rate": 1.0,
+      "coupling_rate": 0.5185,
+      "queue_depth_status": "PASS",
+      "enrichment_reasons": [],
+      "needs_enrichment": false
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_highq_safe_20260606",
+      "problem_category": "production",
+      "total_datasets": 25,
+      "completed_datasets": 25,
+      "completeness_rate": 1.0,
+      "coupling_rate": 0.88,
+      "queue_depth_status": "SKIP",
+      "enrichment_reasons": [],
+      "needs_enrichment": false
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_1060_warmth_v2",
+      "problem_category": "warmth",
+      "total_datasets": 500,
+      "completed_datasets": 491,
+      "completeness_rate": 0.974,
+      "coupling_rate": 0.86,
+      "queue_depth_status": "PASS",
+      "enrichment_reasons": [],
+      "needs_enrichment": false
+    },
+    {
+      "collection_name": "gnn_datasets_4tasks_sparse_warmth_v2",
+      "problem_category": "warmth",
+      "total_datasets": 351,
+      "completed_datasets": 351,
+      "completeness_rate": 1.0,
+      "coupling_rate": 0.62,
+      "queue_depth_status": "PASS",
+      "enrichment_reasons": [],
+      "needs_enrichment": false
+    }
+  ],
+  "enrichment_candidates": [
+    "hetero_large_knative_eval_20260606",
+    "hetero_small_knative_eval_5tasks_20260606",
+    "gnn_datasets_4tasks_contention_v1_probe",
+    "gnn_datasets_4tasks_contention_v2_verify",
+    "gnn_datasets_4tasks_contention_v5_quick_test",
+    "gnn_datasets_4tasks_regime_b_cold_burst_v1",
+    "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim",
+    "gnn_datasets_4tasks_skew_warmth_v2",
+    "gnn_datasets_4tasks_skew_warmth_v2_test"
+  ]
+}

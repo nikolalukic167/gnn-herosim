@@ -11,12 +11,44 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from src.placement.queue_features import (
+    resolve_queue_feature_contract,
+    usage_ratio_feature,
+)
+
 try:
     from torch import Tensor
 except ImportError:  # pragma: no cover
     Tensor = object  # type: ignore
 
 PlacementCombo = Tuple[Tuple[int, int], ...]
+
+# Every accepted GNN_DECODE_MODE spelling, including aliases. Dispatch is spread
+# across scheduler._gnn_inference (seq_reforward*) and run_decode_with_timing
+# (everything else), and an unknown mode silently degraded to plain argmax — so
+# the scheduler validates against this set at construction.
+KNOWN_DECODE_MODES = frozenset(
+    {
+        "argmax",
+        "argmax_uniq",
+        "uniq_platform",
+        "uniq",
+        "seqblend",
+        "seqblend_p1",
+        "1",
+        "frozen",
+        "frozen_argmax",
+        "frozen_topk",
+        "topk",
+        "topk_joint",
+        "seq_reforward",
+        "seq_reforward_argmax",
+        "seq_reforward_pull",
+        "seq_reforward_pulls",
+        "pulls_committed",
+        "pull_ledger",
+    }
+)
 
 
 @dataclass
@@ -30,6 +62,24 @@ class GnnDecodeRunStats:
     combo_search_size: List[int] = field(default_factory=list)
     intra_batch_platform_collisions: List[int] = field(default_factory=list)
     chosen_queue_minus_min: List[int] = field(default_factory=list)
+
+    # Chosen vs shortest-queue candidate on the *same* snapshot (hard-cell dim7 blind spot).
+    dim7_chosen: List[float] = field(default_factory=list)
+    dim7_minq: List[float] = field(default_factory=list)
+    dim13_chosen: List[float] = field(default_factory=list)
+    dim13_minq: List[float] = field(default_factory=list)
+    raw_q_chosen: List[int] = field(default_factory=list)
+    raw_q_minq: List[int] = field(default_factory=list)
+    logit_margin_top2: List[float] = field(default_factory=list)
+    logit_chosen_minus_minq: List[float] = field(default_factory=list)
+    feature_probe_tasks: int = 0
+    feature_probe_skipped: int = 0
+
+    # argmax_uniq only: how often intra-batch uniqueness was satisfiable. On sparse
+    # topologies a task can have a single feasible platform, so a high relaxed count
+    # means the arm is closer to plain argmax than to a true uniqueness decode.
+    uniq_enforced_tasks: int = 0
+    uniq_relaxed_tasks: int = 0
 
     # Seqblend-specific (argmax + seqblend mode only)
     total_tasks: int = 0
@@ -75,6 +125,16 @@ class GnnDecodeRunStats:
         self.combo_search_size.extend(other.combo_search_size)
         self.intra_batch_platform_collisions.extend(other.intra_batch_platform_collisions)
         self.chosen_queue_minus_min.extend(other.chosen_queue_minus_min)
+        self.dim7_chosen.extend(other.dim7_chosen)
+        self.dim7_minq.extend(other.dim7_minq)
+        self.dim13_chosen.extend(other.dim13_chosen)
+        self.dim13_minq.extend(other.dim13_minq)
+        self.raw_q_chosen.extend(other.raw_q_chosen)
+        self.raw_q_minq.extend(other.raw_q_minq)
+        self.logit_margin_top2.extend(other.logit_margin_top2)
+        self.logit_chosen_minus_minq.extend(other.logit_chosen_minus_minq)
+        self.feature_probe_tasks += other.feature_probe_tasks
+        self.feature_probe_skipped += other.feature_probe_skipped
         self.total_tasks += other.total_tasks
         self.p1_override_count += other.p1_override_count
         self.classic_would_override_count += other.classic_would_override_count
@@ -147,6 +207,15 @@ class GnnDecodeRunStats:
                 "median": round(self._median(self.chosen_queue_minus_min), 3),
                 "p95": round(self._p95([float(v) for v in self.chosen_queue_minus_min]), 3),
             },
+            "uniq_platform": {
+                "enforced_tasks": self.uniq_enforced_tasks,
+                "relaxed_tasks": self.uniq_relaxed_tasks,
+                "relaxed_rate": round(
+                    self.uniq_relaxed_tasks
+                    / max(1, self.uniq_enforced_tasks + self.uniq_relaxed_tasks),
+                    6,
+                ),
+            },
             "p1_margin": int(p1_margin),
             "total_decode_tasks": self.total_tasks,
             "p1_override_count": self.p1_override_count,
@@ -173,6 +242,71 @@ class GnnDecodeRunStats:
                 "gnn_mean": round(self._mean(self.gnn_queue_all), 3),
                 "final_mean": round(self._mean(self.final_queue_all), 3),
             },
+            "queue_feature_discrimination": self._queue_feature_discrimination_summary(),
+        }
+
+    def _float_pct(self, values: Sequence[float], p: float) -> float:
+        if not values:
+            return 0.0
+        s = sorted(float(v) for v in values)
+        idx = int(p / 100.0 * (len(s) - 1))
+        return float(s[idx])
+
+    def _series(self, values: Sequence[float]) -> Dict[str, float]:
+        return {
+            "mean": round(self._mean_float(list(values)), 4),
+            "median": round(self._float_pct(values, 50), 4),
+            "p95": round(self._float_pct(values, 95), 4),
+        }
+
+    def _queue_feature_discrimination_summary(self) -> Dict[str, Any]:
+        n = max(1, self.feature_probe_tasks)
+        d7_gap = [c - m for c, m in zip(self.dim7_chosen, self.dim7_minq)]
+        d13_gap = [c - m for c, m in zip(self.dim13_chosen, self.dim13_minq)]
+        raw_gap = [int(c) - int(m) for c, m in zip(self.raw_q_chosen, self.raw_q_minq)]
+        disagree = [g >= 10 for g in raw_gap]
+        n_dis = max(1, sum(1 for d in disagree if d))
+        dim7_blind = sum(
+            1
+            for g, d7 in zip(raw_gap, d7_gap)
+            if g >= 10 and abs(d7) < 0.05
+        )
+        dim13_blind = sum(
+            1
+            for g, d13 in zip(raw_gap, d13_gap)
+            if g >= 10 and abs(d13) < 0.05
+        )
+        logit_tied = sum(1 for m in self.logit_margin_top2 if abs(m) < 0.1)
+        confident_worse = sum(
+            1
+            for g, lm in zip(raw_gap, self.logit_chosen_minus_minq)
+            if g >= 10 and lm > 1.0
+        )
+        return {
+            "n_tasks": self.feature_probe_tasks,
+            "n_skipped": self.feature_probe_skipped,
+            "raw_q_chosen": self._series(self.raw_q_chosen),
+            "raw_q_minq": self._series(self.raw_q_minq),
+            "dim7_chosen": self._series(self.dim7_chosen),
+            "dim7_minq": self._series(self.dim7_minq),
+            "dim7_gap_chosen_minus_minq": self._series(d7_gap),
+            "dim13_chosen": self._series(self.dim13_chosen),
+            "dim13_minq": self._series(self.dim13_minq),
+            "dim13_gap_chosen_minus_minq": self._series(d13_gap),
+            "logit_margin_top2": self._series(self.logit_margin_top2),
+            "logit_chosen_minus_minq": self._series(self.logit_chosen_minus_minq),
+            "frac_raw_gap_ge_10": round(sum(1 for d in disagree if d) / n, 4),
+            "dim7_blind_rate": round(dim7_blind / n_dis, 4),
+            "dim13_blind_rate": round(dim13_blind / n_dis, 4),
+            "logit_tied_rate": round(logit_tied / n, 4),
+            "confident_worse_queue_rate": round(confident_worse / n_dis, 4),
+            "note": (
+                "dim7_blind_rate = share of tasks with raw chosen-min >= 10 but "
+                "|dim7_chosen-dim7_minq| < 0.05 (feature cannot see the pile). "
+                "confident_worse_queue_rate = raw gap >= 10 and logit_chosen - "
+                "logit_minq > 1 (head prefers the longer line). logit_tied_rate = "
+                "top-2 logit margin < 0.1 (never learned a sharp ranking)."
+            ),
         }
 
     def to_dict(self, *, p1_margin: int = 1) -> Dict[str, Any]:
@@ -266,6 +400,144 @@ def queue_regret_for_combo(
             live_queues[keys[chosen_idx]] = live_queues.get(keys[chosen_idx], 0) + 1
 
     return regrets
+
+
+def record_queue_feature_discrimination(
+    stats: GnnDecodeRunStats,
+    *,
+    combo: PlacementCombo,
+    logits_per_task: Sequence[Any],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    queue_snapshot: Optional[Mapping[str, int]],
+    task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]],
+    platform_features: Any,
+    queue_key_to_platform_meta: Optional[Mapping[str, Mapping[str, Any]]],
+) -> None:
+    """Log dim7/dim13 on the chosen machine vs the shortest-queue candidate.
+
+    Predictions this is built to test (hard-cell live decisions):
+
+    - dim7_blind: raw queues disagree (>=10 extra waiting) but dim7 is tied
+      (|gap| < 0.05) — the relative feature cannot see global congestion.
+    - logit_tied: top-2 margin < 0.1 — loss never taught a sharp ranking.
+    - confident_worse: large raw gap AND logit prefers the longer line —
+      the head is actively ranking against queue.
+    """
+    if not combo or not queue_snapshot or queue_key_to_platform_meta is None:
+        stats.feature_probe_skipped += max(1, len(combo) if combo else 0)
+        return
+    if platform_features is None:
+        raise RuntimeError(
+            "record_queue_feature_discrimination: platform_features is required "
+            "(refusing to silently skip the dim7/dim13 probe)"
+        )
+
+    import torch
+
+    if hasattr(platform_features, "detach"):
+        pf = platform_features.detach().cpu()
+    else:
+        pf = torch.as_tensor(platform_features)
+    if pf.ndim != 2 or pf.size(1) < 14:
+        raise RuntimeError(
+            f"platform_features must be [n, >=14], got {tuple(pf.shape)}"
+        )
+
+    live_queues = {str(k): int(v) for k, v in queue_snapshot.items()}
+    keys_map = task_logit_to_queue_key or {}
+    jsonl_path = os.environ.get("GNN_FEATURE_PROBE_JSONL", "").strip()
+    every = int(os.environ.get("GNN_FEATURE_PROBE_EVERY", "50"))
+    if every < 1:
+        raise ValueError(f"GNN_FEATURE_PROBE_EVERY must be >= 1, got {every}")
+
+    probe_rows: List[Dict[str, Any]] = []
+    for t_idx, placement in enumerate(combo):
+        if t_idx not in task_logit_to_placement:
+            stats.feature_probe_skipped += 1
+            continue
+        candidates = task_logit_to_placement[t_idx]
+        keys = _queue_keys_for_task(t_idx, candidates, keys_map)
+        queues = _candidate_queues(keys, live_queues)
+        if not queues:
+            stats.feature_probe_skipped += 1
+            continue
+        try:
+            chosen_idx = candidates.index(tuple(placement))
+        except ValueError:
+            stats.feature_probe_skipped += 1
+            continue
+        min_idx = min(range(len(queues)), key=lambda i: queues[i])
+        chosen_key = keys[chosen_idx]
+        min_key = keys[min_idx]
+        if chosen_key not in queue_key_to_platform_meta or min_key not in queue_key_to_platform_meta:
+            raise RuntimeError(
+                f"queue_key_to_platform_meta missing {chosen_key!r} or {min_key!r} "
+                f"(task {t_idx}); feature probe cannot proceed"
+            )
+        pos_c = int(queue_key_to_platform_meta[chosen_key]["platform_pos"])
+        pos_m = int(queue_key_to_platform_meta[min_key]["platform_pos"])
+        if pos_c < 0 or pos_c >= pf.size(0) or pos_m < 0 or pos_m >= pf.size(0):
+            raise RuntimeError(
+                f"platform_pos out of range chosen={pos_c} minq={pos_m} n={pf.size(0)}"
+            )
+        d7_c = float(pf[pos_c, 7].item())
+        d7_m = float(pf[pos_m, 7].item())
+        d13_c = float(pf[pos_c, 13].item())
+        d13_m = float(pf[pos_m, 13].item())
+        raw_c = int(queues[chosen_idx])
+        raw_m = int(queues[min_idx])
+
+        logits_t = logits_per_task[t_idx] if t_idx < len(logits_per_task) else None
+        if logits_t is None or (hasattr(logits_t, "numel") and logits_t.numel() == 0):
+            raise RuntimeError(f"empty logits for task {t_idx}")
+        if hasattr(logits_t, "detach"):
+            logits_cpu = logits_t.detach().flatten().cpu()
+        else:
+            logits_cpu = torch.as_tensor(logits_t, dtype=torch.float32).flatten()
+        if logits_cpu.numel() != len(candidates):
+            raise RuntimeError(
+                f"logit/candidate length mismatch task {t_idx}: "
+                f"{int(logits_cpu.numel())} vs {len(candidates)}"
+            )
+        logit_c = float(logits_cpu[chosen_idx].item())
+        logit_min = float(logits_cpu[min_idx].item())
+        if logits_cpu.numel() >= 2:
+            top2 = torch.topk(logits_cpu, k=2).values
+            margin = float(top2[0].item() - top2[1].item())
+        else:
+            margin = 0.0
+
+        stats.dim7_chosen.append(d7_c)
+        stats.dim7_minq.append(d7_m)
+        stats.dim13_chosen.append(d13_c)
+        stats.dim13_minq.append(d13_m)
+        stats.raw_q_chosen.append(raw_c)
+        stats.raw_q_minq.append(raw_m)
+        stats.logit_margin_top2.append(margin)
+        stats.logit_chosen_minus_minq.append(logit_c - logit_min)
+        stats.feature_probe_tasks += 1
+
+        if jsonl_path and (stats.feature_probe_tasks % every == 0):
+            probe_rows.append(
+                {
+                    "task_idx": t_idx,
+                    "raw_chosen": raw_c,
+                    "raw_minq": raw_m,
+                    "dim7_chosen": d7_c,
+                    "dim7_minq": d7_m,
+                    "dim13_chosen": d13_c,
+                    "dim13_minq": d13_m,
+                    "logit_margin_top2": margin,
+                    "logit_chosen_minus_minq": logit_c - logit_min,
+                }
+            )
+
+    if jsonl_path and probe_rows:
+        path = Path(jsonl_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            for row in probe_rows:
+                fh.write(json.dumps(row) + "\n")
 
 
 def record_decode_batch(
@@ -377,8 +649,17 @@ def uniq_platform_chosen_idx(
     logits_t: Tensor,
     candidates: Sequence[Tuple[int, int]],
     used_placements: set[Tuple[int, int]],
+    stats: Optional["GnnDecodeRunStats"] = None,
 ) -> int:
-    """Per-task argmax excluding platforms already picked earlier in the batch."""
+    """Per-task argmax excluding platforms already picked earlier in the batch.
+
+    On sparse topologies a task can have a single feasible platform, so intra-batch
+    uniqueness is not always satisfiable. Relaxing to plain argmax keeps the arm a
+    *decode* ablation; aborting (the previous behaviour) or falling back to
+    shortest-queue would silently substitute a different policy. Relaxations are
+    counted so a run that could rarely honour uniqueness is visible in the sidecar
+    rather than being read as a clean uniq decode.
+    """
     import torch
 
     if logits_t.numel() == 0:
@@ -388,10 +669,11 @@ def uniq_platform_chosen_idx(
         if tuple(placement) in used_placements:
             masked[i] = float("-inf")
     if not torch.isfinite(masked).any():
-        raise RuntimeError(
-            "uniq_platform decode: no unused platform among candidates "
-            f"(candidates={len(candidates)}, used_in_batch={len(used_placements)})."
-        )
+        if stats is not None:
+            stats.uniq_relaxed_tasks += 1
+        return int(logits_t.argmax().item())
+    if stats is not None:
+        stats.uniq_enforced_tasks += 1
     return int(masked.argmax().item())
 
 
@@ -430,7 +712,9 @@ def decode_sequential_placement(
 
         candidates = task_logit_to_placement[t_idx]
         if uniq_platform:
-            chosen_idx = uniq_platform_chosen_idx(logits_t, candidates, used_placements)
+            chosen_idx = uniq_platform_chosen_idx(
+                logits_t, candidates, used_placements, stats=stats
+            )
         else:
             gnn_idx = int(logits_t.argmax().item())
             if gnn_idx >= len(candidates):
@@ -569,7 +853,9 @@ def _refresh_queue_dependent_platform_features(
         else:
             target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
             platform_features[pos, 7] = raw_q / float(queue_norm)
-            platform_features[pos, 13] = (raw_q / target_concurrency) / 5.0
+            platform_features[pos, 13] = usage_ratio_feature(
+                raw_q, target_concurrency, resolve_queue_feature_contract()
+            )
 
 
 def decode_sequential_reforward_placement(

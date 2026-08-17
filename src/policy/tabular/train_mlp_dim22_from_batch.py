@@ -30,6 +30,10 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from tqdm import tqdm
 
+from src.placement.queue_features import (
+    DEFAULT_QUEUE_FEATURE_CONTRACT,
+    validate_queue_feature_contract,
+)
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
 from src.policy.tabular.reduced_features import (
     DIM22_FEATURE_DIM,
@@ -175,8 +179,14 @@ def main() -> None:
             f"expected {DIM22_FEATURE_DIM} or {DIM24_FEATURE_DIM}"
         )
     layout = "dim24" if input_dim == DIM24_FEATURE_DIM else "dim22"
+    # Caches built before CACHE_VERSION 5.7 carry no contract field and are legacy_v0 by
+    # construction; the checkpoint records it so inference cannot serve the wrong scaling.
+    queue_feature_contract = validate_queue_feature_contract(
+        metadata.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
+    )
     print(
         f"[MLP batch] device={device} input_dim={input_dim} layout={layout} "
+        f"queue_feature_contract={queue_feature_contract} "
         f"(batch cache — norm queue + shared_fate"
         f"{' + pull observables' if layout == 'dim24' else ''}, matches GNN + inference)",
         flush=True,
@@ -228,6 +238,7 @@ def main() -> None:
                 "model": "PointwiseEdgeMLP",
                 "input_dim": input_dim,
                 "inference_feature_layout": layout,
+                "queue_feature_contract": queue_feature_contract,
                 "hidden_dim": args.hidden_dim,
                 "cache_dir": str(cache_dir),
                 "cache_version": metadata.get("version"),
@@ -314,6 +325,7 @@ def main() -> None:
             "input_dim": input_dim,
             "hidden_dim": args.hidden_dim,
             "inference_feature_layout": layout,
+            "queue_feature_contract": queue_feature_contract,
         },
         str(args.output),
     )
@@ -339,6 +351,7 @@ def main() -> None:
         "hidden_dim": args.hidden_dim,
         "input_dim": input_dim,
         "inference_feature_layout": layout,
+        "queue_feature_contract": queue_feature_contract,
         "epochs_run": len(history),
         "epochs_max": args.epochs,
         "patience": args.patience,

@@ -1,0 +1,1170 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-14T17:02:48.154600Z",
+  "compatibility_matrix": {
+    "gnn_datasets_1task": {
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      }
+    },
+    "gnn_datasets_4tasks_1060_warmth_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 24.2 vs 38.4"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 24.2 vs 44.2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 24.2 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 24.2 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 24.2 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 24.2 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v1_probe": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 38.4 vs 24.2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 38.4 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 38.4 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 38.4 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 38.4 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 38.4 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v2_verify": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v3": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 44.2 vs 24.2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 44.2 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 44.2 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 44.2 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 44.2 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 44.2 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 44.2 vs 27.9"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v4_pilot": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 24.2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 38.4"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 44.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 32.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 30.0"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 401.2 vs 27.9"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v5_quick_test": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 24.2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 38.4"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 44.2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 32.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 30.0"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 489.3 vs 27.9"
+      }
+    },
+    "gnn_datasets_4tasks_highq_safe_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 32.5 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 32.5 vs 489.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 32.5 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 32.5 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      }
+    },
+    "gnn_datasets_4tasks_skew_warmth_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 38.4"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 44.2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 23.1 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "gnn_datasets_4tasks_skew_warmth_v2_test": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 24.2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 38.4"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 44.2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 32.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 30.0"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 27.9"
+      }
+    },
+    "gnn_datasets_4tasks_sparse_warmth_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 24.2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 38.4"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 44.2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 32.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 23.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 30.0"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 13.3 vs 27.9"
+      }
+    },
+    "hetero_large_knative_eval_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 13.3"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "hetero_small_knative_eval_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 30.0 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 30.0 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 30.0 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 30.0 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    },
+    "hetero_small_knative_eval_5tasks_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.9 vs 44.2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.9 vs 401.2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.9 vs 489.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.9 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.9 vs 13.3"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      }
+    }
+  },
+  "training_groups": {
+    "legacy_v0_node_disk_v2_4task": {
+      "collections": [
+        "gnn_datasets_4tasks_1060_warmth_v2",
+        "gnn_datasets_4tasks_contention_v1_probe",
+        "gnn_datasets_4tasks_contention_v2",
+        "gnn_datasets_4tasks_contention_v2_verify",
+        "gnn_datasets_4tasks_contention_v3",
+        "gnn_datasets_4tasks_contention_v4_pilot",
+        "gnn_datasets_4tasks_contention_v5_quick_test",
+        "gnn_datasets_4tasks_highq_safe_20260606",
+        "gnn_datasets_4tasks_regime_b_cold_burst_v1",
+        "gnn_datasets_4tasks_skew_warmth_v2",
+        "gnn_datasets_4tasks_skew_warmth_v2_test",
+        "gnn_datasets_4tasks_sparse_warmth_v2",
+        "hetero_large_knative_eval_20260606",
+        "hetero_small_knative_eval_20260606",
+        "hetero_small_knative_eval_5tasks_20260606"
+      ],
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "4task",
+      "total_datasets": 3018,
+      "completed_datasets": 2816,
+      "purpose": "General GNN training"
+    },
+    "legacy_v0_platform_reuse_v1_4task": {
+      "collections": [
+        "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim"
+      ],
+      "physics": {
+        "warmth_model": "platform_reuse_v1",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "4task",
+      "total_datasets": 48,
+      "completed_datasets": 48,
+      "purpose": "General GNN training"
+    }
+  }
+}

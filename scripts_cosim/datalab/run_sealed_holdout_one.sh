@@ -21,10 +21,13 @@ OUT_DIR="${SWEEP_DIR:?SWEEP_DIR required}/results"
 TIMEOUT="${TIMEOUT:-18000}"
 
 export HEROSIM_WARMTH_PHYSICS="${HEROSIM_WARMTH_PHYSICS:-node_disk_v2}"
+export HEROSIM_REQUIRE_EXPLICIT_PHYSICS="${HEROSIM_REQUIRE_EXPLICIT_PHYSICS:-1}"
 export GNN_DECODE_MODE=argmax
 export GNN_BATCH_SIZE="${GNN_BATCH_SIZE:-4}"
 export GNN_BATCH_TIMEOUT="${GNN_BATCH_TIMEOUT:-0.002}"
 export PYTHONUNBUFFERED=1
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-4}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-4}"
 
 mkdir -p "$OUT_DIR" logs
 
@@ -59,6 +62,19 @@ OUTPUT="${OUT_DIR}/${CONFIG_NAME}_s${SEED}_${tag}.json"
 [[ -f "$WORKLOAD" ]] || { echo "ERROR: workload missing: $WORKLOAD" >&2; exit 1; }
 [[ -f "$CONFIG_PATH" ]] || { echo "ERROR: config missing: $CONFIG_PATH" >&2; exit 1; }
 [[ -z "$MODEL_CHECK" || -f "$MODEL_CHECK" ]] || { echo "ERROR: model missing: $MODEL_CHECK" >&2; exit 1; }
+
+# A GNN checkpoint carries its queue feature contract only in a .contract.json sidecar.
+# If neither the sidecar nor an explicit declaration is present, the run silently falls back
+# to legacy_v0 dim7/dim13 — which is wrong for any siv1 checkpoint and impossible to detect
+# from the weights. Refuse instead.
+if [[ "$POLICY" == "gnn" && -z "${QUEUE_FEATURE_CONTRACT:-}" ]]; then
+  sidecar="${GNN_MODEL%.pt}.contract.json"
+  [[ -f "$sidecar" ]] || {
+    echo "ERROR: ${GNN_MODEL} has no ${sidecar} and QUEUE_FEATURE_CONTRACT is unset;" >&2
+    echo "       refusing to guess the queue feature contract (would silently serve legacy_v0)." >&2
+    exit 1
+  }
+fi
 
 peek_rtt() {
   python3 - "$1" <<'PY'

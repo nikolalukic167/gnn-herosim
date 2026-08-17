@@ -50,6 +50,13 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from non_unique_lib.training_contract import load_sweep_minimum
+from src.placement.queue_features import (
+    DEFAULT_QUEUE_FEATURE_CONTRACT,
+    VALID_QUEUE_FEATURE_CONTRACTS,
+    queue_depth_norm,
+    usage_ratio_feature,
+    validate_queue_feature_contract,
+)
 from src.placement.warmth import (
     estimated_pull_remaining_sec,
     normalize_estimated_pull_remaining_sec,
@@ -129,6 +136,8 @@ class Config:
     merge_datasets: bool = False
     queue_norm_factor: float = 50.0
     queue_norm_mode: str = "scheduler_adaptive"
+    queue_feature_contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT
+    platform_feature_dim: int = 16
     require_queue_data: bool = True
     oversample_manifest: Optional[Path] = None
 
@@ -179,6 +188,29 @@ def parse_args() -> Config:
             "'fixed' uses --queue-norm-factor."
         ),
     )
+    parser.add_argument(
+        "--queue-feature-contract",
+        choices=sorted(VALID_QUEUE_FEATURE_CONTRACTS),
+        default=DEFAULT_QUEUE_FEATURE_CONTRACT,
+        help=(
+            "Scaling contract for platform dim7/dim13. 'legacy_v0' reproduces every "
+            "pre-2026-08-13 cache bit-exactly; 'scale_invariant_v1' uncaps the dim7 divisor "
+            "and log1p-compresses dim13 so live queue depths ~400x deeper than training stay "
+            "on the training manifold. Checkpoints must be served under the contract they "
+            "were trained on."
+        ),
+    )
+    parser.add_argument(
+        "--platform-feature-dim",
+        type=int,
+        choices=[14, 16],
+        default=16,
+        help=(
+            "16 (dim24 layout) keeps the pull observables added in CACHE 5.6; 14 (dim22) drops "
+            "them, matching pre-5.6 caches such as the 873/v5.5 deploy cache. Use 14 when a "
+            "retrain must be comparable to a dim22 checkpoint."
+        ),
+    )
     parser.add_argument("--allow-missing-queue-data", action="store_true")
     parser.add_argument(
         "--oversample-manifest",
@@ -209,6 +241,8 @@ def parse_args() -> Config:
         merge_datasets=args.merge_datasets,
         queue_norm_factor=args.queue_norm_factor,
         queue_norm_mode=args.queue_norm_mode,
+        queue_feature_contract=validate_queue_feature_contract(args.queue_feature_contract),
+        platform_feature_dim=int(args.platform_feature_dim),
         require_queue_data=not args.allow_missing_queue_data,
         oversample_manifest=args.oversample_manifest,
     )
@@ -221,7 +255,7 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "5.6"  # + node_cold_count / estimated_pull_remaining_sec (plat dim 14→16)
+CACHE_VERSION = "5.7"  # + queue_feature_contract in metadata (dim7 divisor / dim13 scaling)
 # - Labels y / opt_rtt from placements.jsonl sweep minima (not optimal_result.sample.placement_plan)
 # - previous_task_type_name preserved for is_warm; replicas from SSC scheduling-time state
 # - graph.parent_dataset_id attached for parent-safe splits / @os RTT identity
@@ -230,6 +264,8 @@ CACHE_VERSION = "5.6"  # + node_cold_count / estimated_pull_remaining_sec (plat 
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
 # - Platform dims 14–15: absolute node_cold_count + estimated_pull_remaining_sec/100 (FilterStore depth)
+# - metadata.queue_feature_contract records the dim7/dim13 scaling a cache was built under;
+#   'legacy_v0' is bit-identical to 5.6, 'scale_invariant_v1' is not servable by 5.6 checkpoints
 STRICT_TASK_RESULTS = True
 REQUIRED_TASK_FIELDS = (
     "taskId",
@@ -810,36 +846,29 @@ TASK_PLATFORM_COMPATIBILITY = {
 }
 
 
-def _scheduler_adaptive_queue_norm(queue_values: np.ndarray) -> float:
+def _scheduler_adaptive_queue_norm(
+    queue_values: np.ndarray, contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT
+) -> float:
+    """p90 of ALL platforms (idle zeros included), min 1.0; capped only under legacy_v0.
+
+    NOTE: p90-of-all collapses when >=90% of platforms are idle. legacy_v0 keeps the
+    historical collapse-to-1.0 behaviour; scale_invariant_v1 falls back to the busy-platform
+    p90 (see src/placement/queue_features.py).
     """
-    Match GNNScheduler adaptive queue normalization:
-    - 90th percentile of ALL platforms (including idle zeros)
-    - min 1.0, cap 100.0
-    NOTE: collapses to 1.0 when most platforms are idle (p90 of zeros = 0).
-    Use _scheduler_adaptive_queue_norm_nonzero for sparse-heavy-tailed distributions.
-    """
-    if queue_values.size == 0:
-        return 50.0
-    q = np.sort(queue_values.astype(np.float64))
-    idx = int(len(q) * 0.9)
-    percentile_90 = q[idx] if idx < len(q) else q[-1]
-    return float(min(max(1.0, percentile_90), 100.0))
+    return queue_depth_norm(queue_values.tolist(), "scheduler_adaptive", contract)
 
 
-def _scheduler_adaptive_queue_norm_nonzero(queue_values: np.ndarray) -> float:
+def _scheduler_adaptive_queue_norm_nonzero(
+    queue_values: np.ndarray, contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT
+) -> float:
     """
     Robust adaptive queue normalization: p90 of non-zero queues only.
     Fixes the collapse-to-1.0 failure when most platforms are idle.
     Training and inference must use the same mode to preserve the feature contract.
     queue_norm_mode='adaptive_nonzero' selects this path.
     """
-    non_zero = queue_values[queue_values > 0]
-    if non_zero.size == 0:
-        return 1.0
-    nz_sorted = np.sort(non_zero.astype(np.float64))
-    idx = int(len(nz_sorted) * 0.9)
-    p90 = nz_sorted[min(idx, len(nz_sorted) - 1)]
-    return float(min(max(1.0, p90), 100.0))
+    return queue_depth_norm(queue_values.tolist(), "adaptive_nonzero", contract)
+
 
 def build_graph(
     df_nodes: pd.DataFrame,
@@ -851,6 +880,7 @@ def build_graph(
     queue_snapshot: Optional[Mapping[str, int]] = None,
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     initialized_snapshot: Optional[Mapping[str, bool]] = None,
+    queue_feature_contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -927,10 +957,13 @@ def build_graph(
             queue_lengths[pos] = float(_queue_length_int(queue_snapshot.get(key, 0)))
     
     # Normalize queue lengths with scheduler-aligned adaptive mode or fixed mode.
+    queue_feature_contract = validate_queue_feature_contract(queue_feature_contract)
     if queue_norm_mode == "scheduler_adaptive":
-        active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths)
+        active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths, queue_feature_contract)
     elif queue_norm_mode == "adaptive_nonzero":
-        active_queue_norm = _scheduler_adaptive_queue_norm_nonzero(queue_lengths)
+        active_queue_norm = _scheduler_adaptive_queue_norm_nonzero(
+            queue_lengths, queue_feature_contract
+        )
     else:
         active_queue_norm = _safe_positive(float(queue_norm_factor))
     queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)
@@ -1074,16 +1107,14 @@ def build_graph(
         else:
             target_concurrencies[pos] = baseline_concurrency
         
-        # Usage ratio: queue_length / target_concurrency
-        tc = float(target_concurrencies[pos])
-        if math.isfinite(tc) and tc > 0:
-            usage_ratios[pos] = queue_lengths[pos] / tc
-        else:
-            usage_ratios[pos] = 0.0
+        # Usage ratio: queue_length vs target_concurrency, scaled per the active contract.
+        usage_ratios[pos] = usage_ratio_feature(
+            queue_lengths[pos], target_concurrencies[pos], queue_feature_contract
+        )
     
     # Normalize consolidation metrics
     target_concurrency_norm = (target_concurrencies / _safe_positive(20.0)).reshape(-1, 1)
-    usage_ratio_norm = (usage_ratios / _safe_positive(5.0)).reshape(-1, 1)
+    usage_ratio_norm = usage_ratios.reshape(-1, 1)
     
     # Concatenate all platform features
     platform_features = np.concatenate([
@@ -1426,7 +1457,12 @@ def main():
                         queue_snapshot=dataset_dict.get('queue_snapshot', {}),
                         temporal_state=dataset_dict.get('temporal_state', {}),
                         initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
+                        queue_feature_contract=config.queue_feature_contract,
                     )
+                    if config.platform_feature_dim != 16:
+                        graph.platform_features = graph.platform_features[
+                            :, : config.platform_feature_dim
+                        ]
                     invalid = int((graph.y < 0).sum().item())
                     if invalid:
                         raise RuntimeError(
@@ -1518,8 +1554,10 @@ def main():
         'num_datasets': len(all_datasets),
         'dataset_ids': dataset_ids,
         'parent_dataset_ids': parent_dataset_ids,
-        'platform_feature_dim': 16,
-        'inference_feature_layout': 'dim24',
+        'platform_feature_dim': config.platform_feature_dim,
+        'inference_feature_layout': 'dim24' if config.platform_feature_dim == 16 else 'dim22',
+        'queue_norm_mode': config.queue_norm_mode,
+        'queue_feature_contract': config.queue_feature_contract,
         'training_contract': {
             'label_source': 'placements.jsonl_sweep_minimum',
             'replica_source': 'ssc_scheduling_time_replicas',

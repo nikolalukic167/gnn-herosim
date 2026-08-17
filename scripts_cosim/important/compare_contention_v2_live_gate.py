@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Compare contention_v2 live gate sweep: GNN vs MLP dim22 vs Knative."""
+"""
+Compare contention_v2 live gate sweep: GNN vs MLP dim22 vs Knative.
+
+Reports total_rtt (gate metric) and the p90/p99 tail of per-task elapsed time,
+where a pointwise model's collision cliff shows up.
+"""
 from __future__ import annotations
 
 import argparse
-import json
+import sys
 from pathlib import Path
 
-
-def load_rtt(path: Path) -> float:
-    return float(json.loads(path.read_text())["total_rtt"])
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts_cosim.sweep_metrics import load_metrics  # noqa: E402
 
 
 def main() -> int:
@@ -29,8 +33,16 @@ def main() -> int:
             missing = [str(p) for p in (kn, gnn, mlp) if not p.is_file()]
             print(f"SKIP {cfg}: missing {missing}")
             continue
-        r_kn, r_gnn, r_mlp = load_rtt(kn), load_rtt(gnn), load_rtt(mlp)
-        rows.append((cfg, r_kn, r_gnn, r_mlp))
+        metrics = {name: load_metrics(p) for name, p in (("kn", kn), ("gnn", gnn), ("mlp", mlp))}
+        rows.append(
+            (
+                cfg,
+                metrics["kn"]["total_rtt"],
+                metrics["gnn"]["total_rtt"],
+                metrics["mlp"]["total_rtt"],
+                metrics,
+            )
+        )
 
     if not rows:
         print("No complete config triples found.")
@@ -40,7 +52,7 @@ def main() -> int:
     print("-" * 90)
     gnn_wins = mlp_wins = kn_wins = 0
     sum_kn = sum_gnn = sum_mlp = 0.0
-    for cfg, r_kn, r_gnn, r_mlp in rows:
+    for cfg, r_kn, r_gnn, r_mlp, _ in rows:
         g_ratio = r_gnn / r_kn if r_kn > 0 else float("inf")
         m_ratio = r_mlp / r_kn if r_kn > 0 else float("inf")
         if r_gnn <= r_mlp and r_gnn <= r_kn:
@@ -66,6 +78,19 @@ def main() -> int:
         f"{sum_gnn/sum_kn:>7.2f}x {sum_mlp/sum_kn:>7.2f}x"
     )
     print(f"\nWins: GNN {gnn_wins}/{len(rows)} · MLP {mlp_wins}/{len(rows)} · Knative {kn_wins}/{len(rows)}")
+
+    print(
+        f"\n--- tail of per-task elapsed time (s) ---\n"
+        f"{'config':<18} {'metric':>6} {'knative':>10} {'gnn':>10} {'mlp':>10}  winner"
+    )
+    for cfg, _, _, _, metrics in rows:
+        for metric in ("p90", "p99"):
+            vals = {name: metrics[name][metric] for name in ("kn", "gnn", "mlp")}
+            best = min(vals, key=vals.get)
+            print(
+                f"{cfg:<18} {metric:>6} "
+                f"{vals['kn']:>10.1f} {vals['gnn']:>10.1f} {vals['mlp']:>10.1f}  {best}"
+            )
     gate = "PASS" if gnn_wins >= mlp_wins and sum_gnn < sum_mlp else "FAIL"
     print(f"Live gate (GNN >= MLP on wins and sum): {gate}")
     return 0 if gate == "PASS" else 2
