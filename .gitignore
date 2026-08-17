@@ -172,7 +172,28 @@ simulation_data/network_topology.pdf
 models/
 latex/
 
-# Markdown files (except README)
-*.md
-!README.md
-!AGENTS.md
+# Markdown: project docs ARE tracked (CO_SIMULATION_GUIDE.md, LINEAGES.md, memory/,
+# .claude/CLAUDE.md, archive/**/README.md). Only ignore .md generated into output dirs.
+logs/**/*.md
+logs_sim/**/*.md
+analysis_results/**/*.md
+simulation_data/**/*.md
+wandb/**/*.md
+tmp/**/*.md
+
+# Stray dirs created by running scripts from the wrong CWD
+scripts_cosim/logs/
+scripts_cosim/models/
+scripts_cosim/src/
+scripts_cosim/simulation_data/
+
+# Root-level run logs
+/output.log
+/tmp.log
+/run_all_sequential.log
+
+# Local-only Claude Code settings
+.claude/settings.local.json
+
+# Editor backups
+*.bak-*
