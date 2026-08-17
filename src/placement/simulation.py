@@ -57,9 +57,6 @@ from src.policy.gnn_hetero.autoscaler import KnativeAutoscaler as GNNHeteroAutos
 from src.policy.gnn_hetero.orchestrator import GNNOrchestrator as GNNHeteroOrchestrator
 from src.policy.gnn_hetero.scheduler import GNNScheduler as GNNHeteroScheduler
 
-from src.policy.herofake.orchestrator import HROOrchestrator
-from src.policy.herofake.autoscaler import HROAutoscaler
-from src.policy.herofake.scheduler import HROScheduler
 
 from src.policy.herocache.orchestrator import HRCOrchestrator
 from src.policy.herocache.autoscaler import HRCAutoscaler
@@ -70,24 +67,14 @@ from src.policy.herocache_network.scheduler import HRCScheduler as HRCNetworkSch
 from src.policy.herocache_network_batch.orchestrator import HRCOrchestrator as HRCNetworkBatchOrchestrator
 from src.policy.herocache_network_batch.autoscaler import HRCAutoscaler as HRCNetworkBatchAutoscaler
 from src.policy.herocache_network_batch.scheduler import HRCScheduler as HRCNetworkBatchScheduler
-from src.policy.heteroproactiveknative.autoscaler import HeteroProactiveKnativeAutoscaler
-from src.policy.heteroproactiveknative.orchestrator import HeteroProactiveKnativeOrchestrator
-from src.policy.heteroproactiveknative.scheduler import HeteroProactiveKnativeScheduler
 
 from src.policy.knative.orchestrator import KnativeOrchestrator
 from src.policy.knative.autoscaler import KnativeAutoscaler
 from src.policy.knative.scheduler import KnativeScheduler
-from src.policy.proactiveknative.autoscaler import ProactiveKnativeAutoscaler
-from src.policy.proactiveknative.orchestrator import ProactiveKnativeOrchestrator
-from src.policy.proactiveknative.scheduler import ProactiveKnativeScheduler
 
 from src.policy.random.scheduler import RandomScheduler, RandomNetworkScheduler
 
-from src.policy.bpff.scheduler import BPFFScheduler
 
-from src.policy.multiloop.orchestrator import MultiLoopOrchestrator
-from src.policy.multiloop.autoscaler import MultiLoopAutoscaler
-from src.policy.multiloop.scheduler import MultiLoopScheduler
 from src.policy.determined.orchestrator import DeterminedOrchestrator
 from src.policy.determined.autoscaler import DeterminedAutoscaler
 from src.policy.determined.scheduler import DeterminedScheduler
@@ -688,29 +675,17 @@ def start_simulation(
     policies: Dict[
         str, Tuple[Type[Orchestrator], Type[Autoscaler], Type[Scheduler]]
     ] = {
-        "hro_hro": (HROOrchestrator, HROAutoscaler, HROScheduler),
-        "hro_hrc": (HROOrchestrator, HROAutoscaler, HRCScheduler),
-        "hro_kn": (HROOrchestrator, HROAutoscaler, KnativeScheduler),
-        "hro_rp": (HROOrchestrator, HROAutoscaler, RandomScheduler),
-        "hro_bpff": (HROOrchestrator, HROAutoscaler, BPFFScheduler),
         "hrc_hrc": (HRCOrchestrator, HRCAutoscaler, HRCScheduler),
-        "hrc_hro": (HRCOrchestrator, HRCAutoscaler, HROScheduler),
         "hrc_kn": (HRCOrchestrator, HRCAutoscaler, KnativeScheduler),
         "hrc_rp": (HRCOrchestrator, HRCAutoscaler, RandomScheduler),
-        "hrc_bpff": (HRCOrchestrator, HRCAutoscaler, BPFFScheduler),
         "kn_kn": (KnativeOrchestrator, KnativeAutoscaler, KnativeScheduler),
-        "kn_hro": (KnativeOrchestrator, KnativeAutoscaler, HROScheduler),
         "kn_hrc": (KnativeOrchestrator, KnativeAutoscaler, HRCScheduler),
         "kn_rp": (KnativeOrchestrator, KnativeAutoscaler, RandomScheduler),
-        "kn_bpff": (KnativeOrchestrator, KnativeAutoscaler, BPFFScheduler),
-        "prokn_prokn": (ProactiveKnativeOrchestrator, ProactiveKnativeAutoscaler, ProactiveKnativeScheduler),
-        "prohetkn_prohetkn": (HeteroProactiveKnativeOrchestrator, HeteroProactiveKnativeAutoscaler, HeteroProactiveKnativeScheduler),
         "gnn_gnn": (GNNOrchestrator, GNNAutoscaler, GNNScheduler),
         "gnn_hetero_gnn_hetero": (GNNHeteroOrchestrator, GNNHeteroAutoscaler, GNNHeteroScheduler),
         "xgb_batch_xgb_batch": (XGBoostBatchOrchestrator, GNNAutoscaler, XGBoostBatchScheduler),
         "mlp_batch_mlp_batch": (MLPBatchOrchestrator, GNNAutoscaler, MLPBatchScheduler),
         "xgb_single_xgb_single": (XGBoostSingleOrchestrator, KnativeNetworkAutoscaler, XGBoostSingleScheduler),
-        "multiloop_multiloop": (MultiLoopOrchestrator, MultiLoopAutoscaler, MultiLoopScheduler),
         "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
         "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),
         "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkScheduler),
