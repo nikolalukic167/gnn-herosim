@@ -19,7 +19,7 @@ from src.executesimulation import (
     load_simulation_inputs,
     prepare_infrastructure_for_real_simulation,
 )
-from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH
+from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH
 from src.placement.live_snapshot_seed import build_live_snapshot_seed
 
 Choice = Dict[str, Any]

@@ -31,7 +31,7 @@ from src.generate_infrastructure import (
     apply_degree_skew_core_server_device_types,
     generate_network_topology_deterministic,
 )
-from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
+from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.placement.queue_features import (
