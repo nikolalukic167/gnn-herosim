@@ -22,6 +22,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Note**: Regime B is outdated. Focus is now on scenarios that create meaningful graph structure for the GNN to exploit.
 
+## Where things live — READ FIRST
+
+**`LINEAGES.md` is the map of what is current.** Consult it before starting work on any
+experiment. It gives every experiment lineage a status (`ACTIVE` / `SUPERSEDED` /
+`FALSIFIED` / `PAPER`) and an outcome — the code-side counterpart to
+`simulation_data/REGISTRY.json`, which does the same for datasets.
+
+**`archive/` is retired code. Ignore it** unless the user names a specific lineage.
+Do not search it, import from it, or take it as an example of current practice. It exists
+so past results stay reproducible, not so they get revived by accident. Its files were
+moved with `git mv`, so `git log --follow` works; the restore point is tag
+`pre-cleanup-2026-08`.
+
+Rules that keep this true:
+
+1. **Never import from `archive/` in live code.** The live tree is verified closed
+   against it; `LINEAGES.md` carries the re-runnable gate.
+2. **Never fork a training script per experiment.** Forking `train_near_rtt.py` into a
+   per-experiment wrapper is what produced 40 near-identical files that differed only in
+   cache dir and wandb name. New experiments get a config under `experiments/`, run via
+   `run_experiment.py` — not a new `train_*.py`.
+3. **A lineage is not done until it has a `LINEAGES.md` row with an outcome.** A sweep
+   whose result was never written down gets re-run by someone months later.
+
 ## Commands
 
 ### Environment Setup
@@ -43,17 +67,15 @@ pipenv run python3 <script>
 ### Running Simulations
 
 ```bash
-# Basic simulation scenario (from repository examples)
-./scenario-ids.sh
-./scenario-deepfake.sh
-./scenario-proactive.sh
-
-# Run simulation directly
-pipenv run python -m src.placement <policy> <infrastructure> <workload> <output>
-
 # Execute simulation with specific policy
 pipenv run python src/executesimulation.py --policy <policy_name> <args>
+
+# Sweep runner used by the live-gate / comparison scripts
+pipenv run python scripts_cosim/run_simulation.py <args>
 ```
+
+The `scenario-*.sh` demos and `python -m src.placement` belonged to the pre-GNN
+stack and now live in `archive/pre_gnn_herosim/` (see `LINEAGES.md`).
 
 ### Co-Simulation (GNN Dataset Generation)
 
@@ -272,11 +294,17 @@ Queue-aware features are critical for ML schedulers:
 
 ### Running Experiments
 
-1. Define space configuration (JSON with infrastructure/workload parameters)
-2. Generate samples: `src/generateall.py` + `src/sample.py` (LHS sampling)
-3. Execute simulations: `src/executeinitial.py` for initial dataset
-4. Optimize: `src/executeoptimization.py` for Bayesian optimization of underperforming samples
-5. Analyze results: Results in `results/` folder, use `src/charts/` for visualization
+1. Check `LINEAGES.md` — is this a new lineage, or an extension of an ACTIVE one?
+2. Add a grid preset to `scripts_cosim/generate_gnn_datasets_fast.py` and generate
+   datasets (see "Co-Simulation" above)
+3. Recache: `src/notebooks/prepare_graphs_cache.py`
+4. Train via a config under `experiments/` (never a new `train_*.py` fork)
+5. Gate the result with a live-gate / sealed-holdout comparison in `scripts_cosim/important/`
+6. **Write the outcome into `LINEAGES.md`** — the lineage is not done until you do
+
+The old LHS-sampling + Bayesian-optimisation experiment loop (`generateall.py`,
+`sample.py`, `executeinitial.py`, `executeoptimization.py`, `src/charts/`) belonged to
+the pre-GNN stack and is now in `archive/pre_gnn_herosim/`.
 
 ### Working with Co-Simulation Datasets
 
@@ -456,30 +484,33 @@ On datalab, use: `eval "$(micromamba shell hook --bash)" && micromamba activate 
 
 ```
 .
+├── LINEAGES.md                   # WHAT IS CURRENT — read before starting work
 ├── src/                          # Core simulation engine
-│   ├── placement/                # Infrastructure, orchestrator, autoscaler, scheduler
-│   ├── policy/                   # Policy implementations (random, gnn, tabular, etc.)
-│   ├── generator/                # Workload/infrastructure generators
-│   ├── notebooks/                # Training scripts (GNN, MLP)
-│   └── executecosimulation.py   # Co-simulation brute-force engine
+│   ├── placement/                # Infrastructure, orchestrator, autoscaler, scheduler,
+│   │                             #   constants.py, queue_features.py, warmth.py
+│   ├── policy/                   # gnn, gnn_hetero, tabular, knative*, determined, evaluator
+│   ├── notebooks/                # Training + graph-cache scripts, non_unique_lib/
+│   ├── executecosimulation.py    # Co-simulation brute-force engine
+│   └── executesimulation.py      # Live simulation entry point
+├── experiments/                  # Experiment configs (one yaml per run) — NOT script forks
 ├── scripts_cosim/                # Co-simulation scripts and utilities
 │   ├── generate_gnn_datasets_fast.py  # Main dataset generation script
 │   ├── important/                # Key comparison and analysis scripts
 │   ├── datalab/                  # SLURM batch job scripts
 │   └── test_*.py                 # Test files
+├── archive/                      # RETIRED code — ignore unless a lineage is named
 ├── data/                         # Input data (traces, task/platform metadata)
-├── simulation_data/              # Generated datasets and configurations
-│   └── gnn_datasets/             # Co-simulation output datasets
+├── simulation_data/              # Generated datasets + REGISTRY.json / METADATA.json
 ├── models/                       # Trained ML models (GNN, MLP)
 ├── logs/                         # Simulation logs
-├── result/                       # Simulation results
 ├── memory/                       # Design notes and decision records
-├── paper/                        # Research paper content
-└── scenario-*.sh                 # Example scenario scripts
+└── paper/                        # Research paper content
 ```
 
 ## Important Files
 
+- `LINEAGES.md` - **Which experiment lineages are ACTIVE vs retired.** Read first.
+- `archive/README.md` - Rules for the retired-code archive
 - `CO_SIMULATION_GUIDE.md` - Comprehensive co-simulation pipeline documentation
 - `memory/placements_jsonl_required.md` - Critical requirement for placement sweep
 - `.cursor/rules/project-guidelines.mdc` - Project-specific guidelines
