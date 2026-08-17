@@ -23,7 +23,8 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 
 | Lineage | Entry points | Datasets | Notes |
 |---|---|---|---|
-| **siv1_full_corpus** | `scripts_cosim/datalab/full_corpus_siv1_{recache,gnn_train,mlp_train}.sbatch` → `run_full_corpus_siv1_*.sh` | whole `legacy_v0_node_disk_v2_4task` group | Trains on the full corpus under `scale_invariant_v1`. GNN: `src/notebooks/train_near_rtt.py`. MLP: `src/policy/tabular/train_mlp_dim22_from_batch.py`. Recache: `src/notebooks/prepare_graphs_cache.py`. |
+| **siv1_full_corpus** | `scripts_cosim/datalab/full_corpus_siv1_{recache,gnn_train,mlp_train}.sbatch` → `run_full_corpus_siv1_*.sh` | whole `legacy_v0_node_disk_v2_4task` group | Trains on the full corpus under `scale_invariant_v1`. GNN: `src/notebooks/train_near_rtt.py`. MLP: `src/policy/tabular/train_mlp_dim22_from_batch.py`. Recache: `src/notebooks/prepare_graphs_cache.py`. **Outcome 2026-08-17 — see `mp_parity` below.** |
+| **mp_parity** | `scripts_cosim/test_train_serve_mp_parity.py`, `experiments/full_corpus_siv1_gnn_mp_residual{,_node_edges}.yaml`, `datalab/mp_arm_gnn_train.sbatch` | full corpus siv1 | Train/serve message-passing parity, and what to do about it. Outcomes below. |
 | **contention_v4_v5** | `scripts_cosim/datalab/contention_v4_deepq_cosim.sbatch`, `contention_v5_quick_test.sbatch` | `contention_v4_pilot`, `contention_v5_quick_test` | Deep queues + coupling optimisation — the current attempt at giving the GNN real graph structure to exploit. |
 | **contention_v2_v3** | `important/run_contention_v{2,3}_train_and_live_gate_nohup.sh`, `important/compare_contention_v2_live_gate.py` | `contention_v2{,_verify}`, `contention_v3` | Baseline contention series the v4/v5 work is measured against. Trainers: `train_near_rtt_v2_contention_v{2,3}_dim14_ce_only.py`, `train_mlp_contention_v{2,3}_dim22_batchcache.py`. |
 | **sealed_holdout** | `important/run_contention_v2_873_sealed_holdout{,_rebaseline}.sh`, `compare_sealed_live_holdout.py`, `datalab/sealed_holdout_gpu.sbatch` | `contention_v2` | The honest generalisation gate. |
@@ -34,6 +35,53 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 | **dataset_metadata** | `scripts_cosim/{extract_dataset_metadata,validate_dataset_collection,compute_compatibility_matrix}.py` | all | Produces `REGISTRY.json`, `METADATA.json`, `COMPATIBILITY_MATRIX.json`. |
 
 Shared core (not a lineage — everything depends on it): `src/placement/`, `src/policy/{gnn,tabular,knative*,determined,evaluator}/`, `src/executecosimulation.py`, `src/executesimulation.py`, `scripts_cosim/generate_gnn_datasets_fast.py`, `src/notebooks/non_unique_lib/`.
+
+### mp_parity — outcomes (2026-08-17)
+
+**Root cause.** `train_near_rtt.py` fitted `self.gin(x, data.edge_index)` (bipartite only)
+while the serving copy in `src/policy/gnn/gnn_model.py` concatenated every same-node
+platform↔platform edge — ~26:1 more edges than bipartite on the full-corpus cache. The
+served model ran message passing on a graph its weights had never seen. Fixed by making
+same-node edges opt-in, and structurally by deleting the second copy of the model: the
+trainer now imports the one definition.
+
+**Baseline gate** (`normal_sim_sweeps/gnn_mp_parity_gate_20260816`, deployed checkpoint
+with parity fix, 3 configs × 5 seeds):
+
+| config | GNN/Kn | MLP/Kn | GNN cell wins | p99 winner |
+|---|---|---|---|---|
+| sparse_p25 | 1.14x | 0.83x | 0/5 | mlp |
+| sparse_p25_skew | 0.84x | 2.27x | 3/5 | **gnn** (71.0s vs MLP 498.5s) |
+| sparse_p35 | 1.02x | 0.77x | 0/5 | mlp |
+
+Pre-registered PRIMARY (GNN > MLP on total_rtt in ≥2 of 3 configs) = 1/3 **FAILED**.
+TAIL (same on p99) = 1/3 **FAILED**. The parity fix removes the 12.4x catastrophe but the
+fixed baseline still loses to MLP on the two large-RTT configs. It does reproduce the
+pre-registered *collision cliff* on `sparse_p25_skew`, where the MLP is catastrophically
+unreliable (2.27x Knative) and the GNN is not — a bounded claim, not a general win.
+
+**`FALSIFIED` — same-node edges.** Arm B (`full_corpus_siv1_gnn_mp_residual_node_edges`)
+trained *with* candidate-restricted same-node edges (0.37x bipartite, present on 80% of
+graphs, recorded in the checkpoint sidecar) and was worse than Arm A on every metric:
+val acc 62.6% vs 65.6%, test greedy regret 0.4944s vs 0.2621s. Co-location coupling is
+not the signal the GNN was missing. Do not re-try this without new evidence.
+
+**`ACTIVE` — the GIN residual.** Arm A (`full_corpus_siv1_gnn_mp_residual`) more than
+halves offline greedy regret vs the deployed baseline: **0.5682s → 0.2621s (−54%)**,
+top-5 regret 0.0346 → 0.0239. Learned `mp_gate` = 1.08, i.e. the model leans on message
+passing slightly *more* once it augments rather than replaces the per-node encoding.
+Live re-gate running at `normal_sim_sweeps/mp_residual_gate_20260817`.
+
+**Two reproducibility traps found, both still open.**
+1. `run_provenance` records neither the git commit nor `OMP_NUM_THREADS`. The
+   2026-08-16 ablation figure of 0.88x Knative on `sparse_p35/s42` is **not reproducible**
+   — the current gate gives 1.04x for the same cell/seed/model/config. That arm ran with
+   `GNN_DROP_NODE_EDGES=1`, a variable implemented nowhere in the tree today, so the code
+   that produced it no longer exists. Treat the gate as the baseline of record.
+2. `logit_tied_rate ≈ 0.54` — the scoring head's top-2 margin is under 0.1 on half of all
+   live decisions. A model that indifferent is sensitive to FP reduction order, which is
+   why thread count matters. If the residual does not move this, the next lever is the
+   ranking loss or edge features, **not** the encoder.
 
 ---
 
