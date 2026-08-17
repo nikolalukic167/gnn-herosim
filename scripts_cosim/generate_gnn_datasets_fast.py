@@ -274,7 +274,7 @@ CONTENTION_V3_GRID: GridPreset = {
 }
 
 # regime_b_cold_burst_v1: training labels for the frozen Regime B problem.
-# Live gate is N=12 under platform_reuse_v1 (see regime_b_problem_spec.py).
+# Live gate is N=12 under platform_reuse_v1 (see archive/regime_b/scripts_cosim/regime_b_problem_spec.py).
 # Co-sim stays at 4-task BF (placement space); physics + scarce-warm lever match live.
 # MUST use --warmth-physics platform_reuse_v1 (node_disk_v2 kills FilterStore headroom).
 # MUST --allow-non-unique-replicas. Cartesian: 2×3×3×25 = 450.
@@ -858,7 +858,7 @@ def main():
         raise SystemExit(
             f"FAIL LOUD: grid {args.grid!r} requires --warmth-physics {required_physics} "
             f"(got {args.warmth_physics!r}). Regime B / FilterStore headroom collapses under "
-            f"node_disk_v2 same-image — see scripts_cosim/regime_b_problem_spec.py."
+            f"node_disk_v2 same-image — see archive/regime_b/scripts_cosim/regime_b_problem_spec.py."
         )
     topology_variants = grid_topology_variants(grid_preset)
     replica_configs = grid_preset["replica_configs"]

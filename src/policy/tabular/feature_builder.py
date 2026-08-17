@@ -41,7 +41,7 @@ LEGACY_PLATFORM_FEATURE_DIM = 14
 DIM24_FEATURE_DIM = 24
 DIM24_PLATFORM_FEATURE_DIM = 16
 
-# CE-reduced ablation (train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
+# CE-reduced ablation (archive/warmth_sparse/src/notebooks/train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
 CE_REDUCED_TASK_FEATURE_DIM = 3
 CE_REDUCED_PLATFORM_FEATURE_DIM = 6
 CE_REDUCED_EDGE_FEATURE_DIM = 2
