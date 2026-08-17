@@ -73,6 +73,12 @@ POLICY_CONFIG: Dict[str, Dict[str, str]] = {
         "scheduling_strategy": "kn_network_ect_kn_network_ect",
         "output_file": OUTPUT_DIR / "simulation_result_knative_network_ect.json",
     },
+    "knative_network_ect_pull": {
+        "progress_log": BASE_DIR / "logs/knative_network_ect_pull_simulation_progress.txt",
+        "policy_name": "knative network ECT pull (FilterStore teacher)",
+        "scheduling_strategy": "kn_network_ect_pull_kn_network_ect_pull",
+        "output_file": OUTPUT_DIR / "simulation_result_knative_network_ect_pull.json",
+    },
     "herocache_network": {
         "progress_log": BASE_DIR / "logs/herocache_network_simulation_progress.txt",
         "policy_name": "herocache network",
@@ -144,6 +150,13 @@ def parse_arguments() -> argparse.Namespace:
         const="knative_network_ect",
         dest="policy",
         help="Run with knative network ECT baseline (Regime B greedy physics-aware)",
+    )
+    policy_group.add_argument(
+        "--knative_network_ect_pull",
+        action="store_const",
+        const="knative_network_ect_pull",
+        dest="policy",
+        help="Run with knative ECT + FilterStore pull cost (ect_pull teacher)",
     )
     policy_group.add_argument("--herocache_network", action="store_const", const="herocache_network", dest="policy",
                              help="Run with herocache network policy")

@@ -34,6 +34,12 @@ from src.generate_infrastructure import (
 from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
+from src.placement.queue_features import (
+    QUEUE_FEATURE_CONTRACT_ENV,
+    require_matching_queue_feature_contract,
+    resolve_queue_feature_contract,
+    validate_queue_feature_contract,
+)
 from src.policy.tabular.constants import PLATFORM_FEATURE_DIM, TASK_FEATURE_DIM
 
 REQUIRED_SIM_FILES = [
@@ -278,6 +284,57 @@ def execute_simulation(
     }
 
 
+def _adopt_queue_feature_contract(trained: str, model_label: str, source: str) -> None:
+    declared = os.environ.get(QUEUE_FEATURE_CONTRACT_ENV, "").strip()
+    if declared:
+        require_matching_queue_feature_contract(trained, declared, model_label=model_label)
+    else:
+        os.environ[QUEUE_FEATURE_CONTRACT_ENV] = validate_queue_feature_contract(trained)
+    print(
+        f"[QUEUE FEATURES] {model_label} trained under "
+        f"{os.environ[QUEUE_FEATURE_CONTRACT_ENV]} (source={source})",
+        flush=True,
+    )
+
+
+def apply_checkpoint_queue_feature_contract(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the queue feature contract a checkpoint was trained under.
+
+    GNN checkpoints are bare state dicts, so the dim7/dim13 scaling cannot be recovered
+    from weight shapes; trainers write a `<model>.contract.json` sidecar instead. Absent a
+    sidecar the checkpoint predates the split and is legacy_v0 by construction.
+    """
+    sidecar = model_path.with_suffix(".contract.json")
+    if not sidecar.is_file():
+        return
+    try:
+        trained = json.loads(sidecar.read_text()).get("queue_feature_contract")
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{sidecar} is not valid JSON: {exc}") from exc
+    if not trained:
+        raise ValueError(f"{sidecar} has no queue_feature_contract field")
+    _adopt_queue_feature_contract(trained, model_label, sidecar.name)
+
+
+def apply_mlp_checkpoint_queue_feature_contract(model_path: Path, model_label: str) -> None:
+    """Same as the GNN sidecar path, but for MLP checkpoints, which are dicts.
+
+    `MLPBatchScheduler.set_models` also adopts the contract, but it runs *after*
+    `build_run_provenance`, so provenance would otherwise record the pre-load default
+    rather than what actually served. Adopting here keeps the record truthful; the later
+    call then sees a matching declaration and is a no-op.
+    """
+    import torch
+
+    checkpoint = torch.load(str(model_path), map_location="cpu", weights_only=False)
+    if not isinstance(checkpoint, dict):
+        return
+    trained = checkpoint.get("queue_feature_contract")
+    if not trained:
+        return
+    _adopt_queue_feature_contract(trained, model_label, model_path.name)
+
+
 def load_gnn_model(model_path: Path):
     """Load the trained GNN model."""
     import torch
@@ -288,6 +345,9 @@ def load_gnn_model(model_path: Path):
         print(f"Loading GNN model from {model_path} on {device}...", flush=True)
 
         state_dict = torch.load(model_path, map_location='cpu')
+        apply_checkpoint_queue_feature_contract(
+            model_path, f"GNN checkpoint {model_path.name}"
+        )
         task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
         platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])
         embedding_dim = 64
@@ -348,6 +408,13 @@ def load_gnn_model(model_path: Path):
         model.load_state_dict(state_dict)
         model = model.to(device)
         model.eval()
+        mp = os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower()
+        if mp in ("1", "true", "yes"):
+            print(
+                "[GNN] GNN_DISABLE_MESSAGE_PASSING=1 — GIN aggregation skipped; "
+                "encoder embeddings go straight to the edge scorer",
+                flush=True,
+            )
         
         # Clear CUDA cache to avoid memory issues
         if device.type == 'cuda':
@@ -446,6 +513,61 @@ def build_rtt_overview(
             "total_inference_time_s includes graph build + forward + decode."
         )
     return overview
+
+
+def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str, Any]:
+    """
+    Capture the run knobs that silently change results across sweeps.
+
+    warmth_physics alone moves live total RTT by ~100x, and batch window / decode
+    mode / feature layout are env-driven, so results must carry them.
+    """
+    from src.placement.warmth import describe_warmth_physics, require_explicit_warmth_physics
+
+    descriptor = describe_warmth_physics(space_config.get("warmth_physics"))
+    require_explicit_warmth_physics(descriptor)
+
+    provenance: Dict[str, Any] = dict(descriptor)
+    provenance["defer_cold_replica_init"] = space_config.get(
+        "defer_cold_replica_init", _env_bool("HEROSIM_DEFER_COLD_REPLICA_INIT")
+    )
+    provenance["env"] = {
+        name: os.environ.get(name)
+        for name in (
+            "GNN_BATCH_SIZE",
+            "GNN_BATCH_TIMEOUT",
+            "GNN_DECODE_MODE",
+            "GNN_DECODE_TOP_K",
+            "GNN_QUEUE_NORM_MODE",
+            "GNN_DISABLE_MESSAGE_PASSING",
+            "GNN_MP_NODE_EDGES",
+            "GNN_LQB_LAMBDA",
+            "GNN_QUEUE_FILTER_MAX_DELTA",
+            "GNN_SEQBLEND_QUEUE_MARGIN",
+            "INFERENCE_FEATURE_LAYOUT",
+            "KNATIVE_BATCH_SIZE",
+            "KNATIVE_BATCH_TIMEOUT",
+            "GNN_MODEL_PATH",
+            "MLP_MODEL_PATH",
+            QUEUE_FEATURE_CONTRACT_ENV,
+        )
+    }
+    provenance["policy"] = policy
+    # dim7/dim13 scaling changes queue ranking, so it belongs next to warmth_physics.
+    provenance["queue_feature_contract"] = resolve_queue_feature_contract()
+
+    banner = (
+        f"[PHYSICS] warmth_physics={provenance['warmth_physics']} "
+        f"(source={provenance['warmth_physics_source']})"
+    )
+    print(banner, flush=True)
+    if provenance["warmth_physics_source"] == "default":
+        print(
+            "[PHYSICS] WARNING: physics not declared by config or env — "
+            "this run is NOT comparable to sweeps that declared node_disk_v2.",
+            flush=True,
+        )
+    return provenance
 
 
 def _resolve_queue_length(explicit: Optional[int] = None) -> int:
@@ -551,6 +673,15 @@ def run_simulation(
         # Load space config
         with open(config_file, 'r') as f:
             space_config = json.load(f)
+
+        # Adopt the MLP's contract before provenance so the record matches what serves.
+        if policy == 'mlp_batch' and mlp_model_path is not None:
+            apply_mlp_checkpoint_queue_feature_contract(
+                mlp_model_path, f"MLP checkpoint {mlp_model_path.name}"
+            )
+
+        # Before any simulation work: declared physics decides comparability.
+        run_provenance = build_run_provenance(space_config, policy)
 
         placement_seed = seed
         if placement_seed is None:
@@ -693,6 +824,7 @@ def run_simulation(
             "queue_length": resolved_queue_length,
             "total_rtt": total_rtt,
             "num_tasks": num_tasks,
+            "run_provenance": run_provenance,
             "stats": stats,
         }
 

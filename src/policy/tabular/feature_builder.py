@@ -20,6 +20,11 @@ if TYPE_CHECKING:
     from src.placement.model import SystemState
 
 from src.policy.tabular.constants import FEATURE_DIM
+from src.placement.queue_features import (
+    queue_depth_norm,
+    resolve_queue_feature_contract,
+    usage_ratio_feature,
+)
 from src.placement.warmth import (
     estimated_pull_remaining_sec,
     node_has_cached_image,
@@ -83,23 +88,17 @@ def _inference_feature_layout(feature_layout: Optional[str] = None) -> str:
     return (feature_layout or os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21")).strip().lower()
 
 
-def _scheduler_adaptive_queue_norm(queue_values: Sequence[int], queue_norm_mode: str) -> float:
-    if not queue_values:
-        return 50.0
-    values = sorted(int(v) for v in queue_values)
-    mode = queue_norm_mode.strip().lower()
-    if mode in ("adaptive", "scheduler_adaptive"):
-        idx = int(len(values) * 0.9)
-        p90 = values[min(idx, len(values) - 1)]
-        return float(min(max(1.0, p90), 100.0))
-    if mode == "adaptive_nonzero":
-        nonzero = [v for v in values if v > 0]
-        if not nonzero:
-            return 1.0
-        idx = int(len(nonzero) * 0.9)
-        p90 = nonzero[min(idx, len(nonzero) - 1)]
-        return float(min(max(1.0, p90), 100.0))
-    return 50.0
+def _scheduler_adaptive_queue_norm(
+    queue_values: Sequence[int],
+    queue_norm_mode: str,
+    contract: Optional[str] = None,
+) -> float:
+    """Divisor for platform dim 7; see src/placement/queue_features.py for the contracts."""
+    return queue_depth_norm(
+        [int(v) for v in queue_values],
+        queue_norm_mode,
+        resolve_queue_feature_contract(contract),
+    )
 
 
 def _batch_task_type_names(batch_tasks: Sequence["Task"]) -> Set[str]:
@@ -216,6 +215,7 @@ def build_inference_feature_bundle(
     queue_norm_mode: str = "adaptive",
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     feature_layout: Optional[str] = None,
+    queue_feature_contract: Optional[str] = None,
 ) -> Optional[InferenceFeatureBundle]:
     """
     Build tabular/GNN features from live or cached system state.
@@ -223,6 +223,7 @@ def build_inference_feature_bundle(
     Returns None when no feasible edges exist.
     """
     layout = _inference_feature_layout(feature_layout)
+    contract = resolve_queue_feature_contract(queue_feature_contract)
     use_dim22 = _uses_dim22_layout(layout)
     use_dim24 = _uses_dim24_layout(layout)
     use_norm_queue = use_dim22 or use_dim24
@@ -257,7 +258,7 @@ def build_inference_feature_bundle(
         queue_key = f"{info.node_name}:{info.platform_id}"
         raw_queue_by_pos.append(int(queue_snapshot.get(queue_key, 0)))
     queue_norm = (
-        _scheduler_adaptive_queue_norm(raw_queue_by_pos, queue_norm_mode)
+        _scheduler_adaptive_queue_norm(raw_queue_by_pos, queue_norm_mode, contract)
         if use_norm_queue
         else 1.0
     )
@@ -357,10 +358,8 @@ def build_inference_feature_bundle(
         )
         if use_norm_queue:
             target_concurrency_feat = target_concurrency_raw / 20.0
-            dim13_feat = (
-                (float(queue_len_raw) / target_concurrency_raw / 5.0)
-                if target_concurrency_raw > 0
-                else 0.0
+            dim13_feat = usage_ratio_feature(
+                float(queue_len_raw), target_concurrency_raw, contract
             )
             platform_state_dim = shared_fate
         else:
@@ -549,6 +548,7 @@ def build_pyg_inference_graph(
     task_types_data: Optional[Mapping[str, Any]] = None,
     queue_norm_mode: str = "adaptive",
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
+    queue_feature_contract: Optional[str] = None,
 ) -> Tuple[Optional[Data], Optional[Dict[int, List[Tuple[int, int]]]]]:
     """Build PyG Data for GNN/XGB batch schedulers."""
     bundle = build_inference_feature_bundle(
@@ -559,6 +559,7 @@ def build_pyg_inference_graph(
         task_types_data=task_types_data,
         queue_norm_mode=queue_norm_mode,
         temporal_state=temporal_state,
+        queue_feature_contract=queue_feature_contract,
     )
     if bundle is None:
         return None, None

@@ -55,41 +55,28 @@ for entry in "${CONFIGS[@]}"; do
   [[ -f "$path" ]] || { echo "ERROR: config missing: $path" >&2; exit 1; }
 done
 
-# Provenance manifest (fail if write fails)
-pipenv run python3 - <<PY | tee -a "$LOG"
-import hashlib, json
-from pathlib import Path
-from datetime import datetime, timezone
+# Provenance manifest (fail if write fails).
+# Callers that re-run this sweep under different physics/code override the
+# descriptive fields so the artifact never misrepresents itself as the original.
+MANIFEST_KIND="${MANIFEST_KIND:-sealed_multi_seed_live_holdout}"
+MANIFEST_NOTE="${MANIFEST_NOTE:-Unused topology cells vs contention_v2_live_gate_20260615 development trio (sparse_p25/p35/skew).}"
+MANIFEST_EXTRA_JSON="${MANIFEST_EXTRA_JSON:-{\"development_trio_excluded\": [\"sparse_p25\", \"sparse_p35\", \"sparse_p25_skew\"]\}}"
+manifest_names=()
+for entry in "${CONFIGS[@]}"; do manifest_names+=("${entry%%|*}"); done
+MANIFEST_CONFIG_NAMES="$(IFS=,; echo "${manifest_names[*]}")"
 
-def md5(p):
-    h = hashlib.md5()
-    with open(p, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-sweep = Path("${SWEEP_DIR}")
-manifest = {
-    "created_utc": datetime.now(timezone.utc).isoformat(),
-    "kind": "sealed_multi_seed_live_holdout",
-    "note": "Unused topology cells vs contention_v2_live_gate_20260615 development trio (sparse_p25/p35/skew).",
-    "warmth_physics": "${HEROSIM_WARMTH_PHYSICS}",
-    "workload": "${WORKLOAD}",
-    "seeds": [int(s) for s in "${SEEDS_CSV}".split(",")],
-    "configs": [e.split("|")[0] for e in """${CONFIGS[*]}""".replace(" ", "\n").splitlines() if e],
-    "gnn_model": {"path": "${GNN_MODEL}", "md5": md5("${GNN_MODEL}")},
-    "mlp_model": {"path": "${MLP_MODEL}", "md5": md5("${MLP_MODEL}")},
-    "policies": ["knative", "mlp", "gnn"],
-    "development_trio_excluded": ["sparse_p25", "sparse_p35", "sparse_p25_skew"],
-}
-# Fix config list properly
-manifest["configs"] = [
-    "balanced_p50", "balanced_p60", "client_heavy_p50", "server_heavy_p50"
-]
-(sweep / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-print("Wrote", sweep / "manifest.json")
-print(json.dumps(manifest, indent=2))
-PY
+pipenv run python3 scripts_cosim/important/write_sweep_manifest.py \
+  --sweep-dir "$SWEEP_DIR" \
+  --kind "$MANIFEST_KIND" \
+  --note "$MANIFEST_NOTE" \
+  --physics "$HEROSIM_WARMTH_PHYSICS" \
+  --workload "$WORKLOAD" \
+  --seeds "$SEEDS_CSV" \
+  --configs "$MANIFEST_CONFIG_NAMES" \
+  --gnn-model "$GNN_MODEL" \
+  --mlp-model "$MLP_MODEL" \
+  --extra-json "$MANIFEST_EXTRA_JSON" \
+  --force | tee -a "$LOG"
 
 # Fast total_rtt peek — result JSONs are 100MB+; never full-parse.
 peek_rtt() {

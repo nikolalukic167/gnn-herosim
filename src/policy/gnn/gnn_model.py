@@ -7,6 +7,7 @@ used for inference in the co-simulation.
 
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Optional, Sequence
 
 import torch
@@ -15,6 +16,16 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.data import Data
 from torch_geometric.nn.models import GIN
+
+
+def _env_flag(name: str) -> bool:
+    """Parse a boolean ablation flag; fail loud on an unrecognized value."""
+    raw = os.environ.get(name, "").strip().lower()
+    if raw in ("", "0", "false", "no"):
+        return False
+    if raw in ("1", "true", "yes"):
+        return True
+    raise ValueError(f"FAIL LOUD: {name}={raw!r} is not a boolean (use 1/0/true/false/yes/no)")
 
 
 def build_same_node_edge_index(
@@ -132,6 +143,16 @@ class TaskPlacementGNN(nn.Module):
         self.post_gin_dropout = nn.Dropout(p=0.2)
         self.edge_scorer = EdgeScorer(embedding_dim, hidden_dim, edge_dim=edge_dim)
 
+        self._disable_mp = _env_flag("GNN_DISABLE_MESSAGE_PASSING")
+        # Same-node platform<->platform edges are OFF by default because
+        # train_near_rtt.py fits weights with `self.gin(x, data.edge_index)` — bipartite
+        # only. Serving them changed ~87.5% of argmax decisions on the training cache and
+        # cost 12.4x live RTT on sparse_p35 (276.0M -> 22.3M once dropped): there are
+        # ~1428 same-node edges vs ~57 bipartite, a 25:1 flood that averages co-located
+        # platforms together and erases the queue-depth feature that distinguishes them.
+        # Only enable this for a checkpoint actually TRAINED with these edges.
+        self._mp_node_edges = _env_flag("GNN_MP_NODE_EDGES")
+
     def forward(self, data: Data) -> List[Tensor]:
         n_tasks: int = int(data.n_tasks)
         n_platforms: int = int(data.n_platforms)
@@ -143,22 +164,32 @@ class TaskPlacementGNN(nn.Module):
         # PLUS optional platform<->platform edges for platforms on the same physical node
         # (data.node_edge_index). Same-node edges give the GIN the relational signal an MLP
         # cannot see: contention/co-location coupling between platforms sharing a node.
-        x = torch.cat([task_embeddings, platform_embeddings], dim=0)
-        mp_edge_index = data.edge_index
-        node_ei = getattr(data, "node_edge_index", None)
-        if node_ei is not None and node_ei.numel() > 0:
-            mp_edge_index = torch.cat([data.edge_index, node_ei.to(data.edge_index.device)], dim=1)
-        x = self.gin(x, mp_edge_index)
-        x = self.post_gin_dropout(x)
-        
-        task_emb = x[:n_tasks]
-        platform_emb = x[n_tasks:]
+        # Ablation: skip GIN so each platform's encoded features (including dim7/dim13)
+        # reach the scorer unsmoothed. Isolates "message passing dilutes queue" from
+        # "the scoring head never learned queue".
+        if self._disable_mp:
+            task_emb = task_embeddings
+            platform_emb = platform_embeddings
+        else:
+            x = torch.cat([task_embeddings, platform_embeddings], dim=0)
+            mp_edge_index = data.edge_index
+            node_ei = getattr(data, "node_edge_index", None) if self._mp_node_edges else None
+            if node_ei is not None and node_ei.numel() > 0:
+                mp_edge_index = torch.cat(
+                    [data.edge_index, node_ei.to(data.edge_index.device)], dim=1
+                )
+            x = self.gin(x, mp_edge_index)
+            x = self.post_gin_dropout(x)
+            task_emb = x[:n_tasks]
+            platform_emb = x[n_tasks:]
+
+        device = task_embeddings.device
 
         # Score edges. Scoring stays on the bipartite task->platform edges only, so
         # edge_attr alignment is preserved and same-node edges never produce logits.
         ei = data.edge_index
         if ei.numel() == 0:
-            return [torch.empty(0, device=x.device) for _ in range(n_tasks)]
+            return [torch.empty(0, device=device) for _ in range(n_tasks)]
 
         ti = ei[0]
         pj = ei[1] - n_tasks
@@ -168,7 +199,7 @@ class TaskPlacementGNN(nn.Module):
         ti = ti[valid]
         pj = pj[valid]
         if ti.numel() == 0:
-            return [torch.empty(0, device=x.device) for _ in range(n_tasks)]
+            return [torch.empty(0, device=device) for _ in range(n_tasks)]
 
         e_task = task_emb[ti]
         e_platform = platform_emb[pj]

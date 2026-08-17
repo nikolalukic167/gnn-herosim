@@ -32,6 +32,11 @@ import torch.nn.functional as F
 _NOTEBOOKS_DIR = Path(__file__).resolve().parent
 if str(_NOTEBOOKS_DIR) not in sys.path:
     sys.path.insert(0, str(_NOTEBOOKS_DIR))
+# runpy launches this file with sys.path[0] = src/notebooks, so absolute `src.*` imports
+# need the repo root explicitly (same treatment as prepare_graphs_cache.py).
+_REPO_ROOT = _NOTEBOOKS_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 from non_unique_lib.training_contract import (  # noqa: E402
     assert_zero_parent_overlap,
     split_ids_by_canonical_parent,
@@ -59,6 +64,12 @@ from non_unique_lib.cache_io import (
 )
 from non_unique_lib.soft_combo_loss import concentration_penalty, soft_combo_ce_loss
 from non_unique_lib.training_config import parse_training_config
+from src.placement.queue_features import (
+    DEFAULT_QUEUE_FEATURE_CONTRACT,
+    queue_depth_norm,
+    usage_ratio_feature,
+    validate_queue_feature_contract,
+)
 from src.policy.tabular.constants import (
     CACHE_VERSION as ATOMIC_CACHE_VERSION,
     PLATFORM_FEATURE_DIM,
@@ -81,10 +92,13 @@ def lookup_dataset_id(data: Data) -> str:
     return parent_dataset_id(getattr(data, "dataset_id", ""))
 
 
-random.seed(42)
-np.random.seed(42)
-torch.manual_seed(42)
-torch.cuda.manual_seed_all(42)
+# Init/shuffling seed only. The canonical-parent split is seeded separately (random_state=42
+# at the split call) and must stay fixed, so varying this measures weight-init variance alone.
+_TRAIN_SEED = int(os.environ.get("NEAR_RTT_TRAIN_SEED", "42"))
+random.seed(_TRAIN_SEED)
+np.random.seed(_TRAIN_SEED)
+torch.manual_seed(_TRAIN_SEED)
+torch.cuda.manual_seed_all(_TRAIN_SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -162,12 +176,17 @@ print(f"Device: {DEVICE}")
 print(f"Near RTT config: {NEAR_CFG}")
 
 _feature_dim: Optional[int] = None
+_queue_feature_contract = DEFAULT_QUEUE_FEATURE_CONTRACT
 _required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").strip()
 _metadata_path = CACHE_CTX.cache_dir / "metadata.json"
 if _metadata_path.exists():
     with open(_metadata_path, "r", encoding="utf-8") as _mf:
         _cache_meta = json.load(_mf)
     _cache_version = _cache_meta.get("cache_version") or _cache_meta.get("version")
+    # Caches older than CACHE_VERSION 5.7 predate the field and are legacy_v0 by construction.
+    _queue_feature_contract = validate_queue_feature_contract(
+        _cache_meta.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
+    )
     if _required_cache_version and _cache_version != _required_cache_version:
         raise ValueError(
             f"Cache version mismatch: metadata has {_cache_version!r}, "
@@ -176,7 +195,10 @@ if _metadata_path.exists():
     _feature_dim = _cache_meta.get("feature_dim")
     if _required_cache_version == ATOMIC_CACHE_VERSION and _feature_dim not in (None, 21):
         raise ValueError(f"Expected feature_dim=21 in cache metadata, got {_feature_dim!r}")
-    print(f"Cache metadata: version={_cache_version}, feature_dim={_feature_dim}")
+    print(
+        f"Cache metadata: version={_cache_version}, feature_dim={_feature_dim}, "
+        f"queue_feature_contract={_queue_feature_contract}"
+    )
 elif _required_cache_version:
     raise FileNotFoundError(
         f"NEAR_RTT_REQUIRE_CACHE_VERSION={_required_cache_version!r} but metadata.json missing"
@@ -445,19 +467,13 @@ def decode_greedy(logits_per_task: List[Tensor], data: Data) -> Optional[Placeme
 
 
 def _queue_norm_from_values(queue_values: List[int]) -> float:
-    if not queue_values:
-        return 50.0
     mode = os.environ.get("NEAR_RTT_SEQ_VAL_QUEUE_NORM_MODE", os.environ.get("GNN_QUEUE_NORM_MODE", "scheduler_adaptive")).strip()
-    values = sorted(int(v) for v in queue_values)
-    if mode == "adaptive_nonzero":
-        values = [v for v in values if v > 0]
-        if not values:
-            return 1.0
-    elif mode == "fixed":
-        return float(os.environ.get("NEAR_RTT_SEQ_VAL_QUEUE_NORM_FACTOR", "50.0"))
-    idx = int(len(values) * 0.9)
-    p90 = values[min(idx, len(values) - 1)]
-    return float(min(max(1.0, p90), 100.0))
+    return queue_depth_norm(
+        queue_values,
+        mode,
+        _queue_feature_contract,
+        fixed_factor=float(os.environ.get("NEAR_RTT_SEQ_VAL_QUEUE_NORM_FACTOR", "50.0")),
+    )
 
 
 def _require_seq_val_metadata(data: Data) -> Tuple[Dict[int, List[Tuple[int, int]]], Dict[int, List[str]], Dict[str, Dict[str, Any]], Dict[str, int]]:
@@ -501,7 +517,9 @@ def _refresh_queue_dependent_platform_features(
         else:
             target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
             platform_features[pos, 7] = raw_q / float(queue_norm)
-            platform_features[pos, 13] = (raw_q / target_concurrency) / 5.0
+            platform_features[pos, 13] = usage_ratio_feature(
+                raw_q, target_concurrency, _queue_feature_contract
+            )
 
 
 @torch.no_grad()
@@ -1078,6 +1096,7 @@ wandb.init(
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
         "loss_type": str(TRAIN_OBJECTIVE),
+        "queue_feature_contract": str(_queue_feature_contract),
         "loss_variant": str(NEAR_CFG.loss_variant),
         "sidecar_name": str(NEAR_CFG.sidecar_name),
         "near_rtt_training": True,
@@ -1151,6 +1170,32 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay
 criterion = NearRttRankingLoss(EXACT_RTT_MAP, RTT_SCALE_FACTOR, NEAR_CFG)
 
 model_path = Path("models") / f"{wandb.run.name}.pt"
+
+
+def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
+    """Save weights plus a contract sidecar.
+
+    The GNN checkpoint is a bare state_dict, so platform dims 7/13 scaling cannot be
+    inferred from weight shapes at load time. `executesimulation.load_gnn_model` reads this
+    sidecar and refuses to serve a checkpoint under a different contract.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(state_dict, path)
+    sidecar = path.with_suffix(".contract.json")
+    sidecar.write_text(
+        json.dumps(
+            {
+                "queue_feature_contract": _queue_feature_contract,
+                "cache_dir": str(CACHE_CTX.cache_dir),
+                "cache_version": _cache_version if _metadata_path.exists() else None,
+                "feature_dim": _feature_dim,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+
 best_val_regret = float("inf")
 best_val_acc = 0.0
 best_val_metrics: Dict[str, float] = {}
@@ -1170,8 +1215,7 @@ if is_phase_b_ce_init():
     )
     best_val_regret = ranking_checkpoint_metric(phase_b_baseline)
     best_val_metrics = phase_b_baseline
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), model_path)
+    save_checkpoint(model.state_dict(), model_path)
     checkpoint_saved = True
     print(
         f"[Phase B baseline] acc={phase_b_baseline['acc'] * 100:.1f}% "
@@ -1220,8 +1264,7 @@ for epoch in range(EPOCHS):
             reason = f"val top{NEAR_CFG.top_k_decode} regret={best_val_regret:.4f}s (acc still 0)"
         if improved:
             best_val_metrics = val_metrics
-            model_path.parent.mkdir(parents=True, exist_ok=True)
-            torch.save(model.state_dict(), model_path)
+            save_checkpoint(model.state_dict(), model_path)
             checkpoint_saved = True
             print(
                 f"  *** New best {reason} "
@@ -1243,8 +1286,7 @@ for epoch in range(EPOCHS):
             else:
                 best_val_regret = val_target
                 best_val_metrics = val_metrics
-                model_path.parent.mkdir(parents=True, exist_ok=True)
-                torch.save(model.state_dict(), model_path)
+                save_checkpoint(model.state_dict(), model_path)
                 checkpoint_saved = True
                 print(
                     f"  *** New best val {checkpoint_metric_name}: {best_val_regret:.4f}s "

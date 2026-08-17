@@ -3,6 +3,10 @@
 
 Expects result files named: {config}_s{seed}_{knative|gnn|mlp_dim22}.json
 Writes a JSON report with per-config paired stats across seeds.
+
+Reports total_rtt (primary) and the p90/p99 tail of per-task elapsed time. The
+tail is the metric a collision-robustness advantage would appear in, so it is
+reported alongside the primary rather than left in the result JSON unread.
 """
 from __future__ import annotations
 
@@ -13,35 +17,16 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts_cosim.sweep_metrics import load_metrics  # noqa: E402
 
 
 TAG = {"knative": "knative", "gnn": "gnn", "mlp": "mlp_dim22"}
 FILE_RE = re.compile(
     r"^(?P<cfg>.+)_s(?P<seed>\d+)_(?P<tag>knative|gnn|mlp_dim22)\.json$"
 )
-
-
-def load_rtt(path: Path) -> float:
-    """Peek total_rtt without full-parsing 100MB+ result JSONs."""
-    import re
-
-    size = path.stat().st_size
-    with open(path, "rb") as fh:
-        head = fh.read(65536)
-        if size > 131072:
-            fh.seek(max(0, size - 65536))
-            tail = fh.read()
-        else:
-            tail = b""
-    blob = head.decode("utf-8", "ignore") + "\n" + tail.decode("utf-8", "ignore")
-    matches = list(re.finditer(r'"total_rtt"\s*:\s*([0-9.eE+-]+)', blob))
-    if not matches:
-        raise KeyError(f"missing total_rtt in {path}")
-    rtt = float(matches[0].group(1))
-    if not math.isfinite(rtt) or rtt <= 0:
-        raise ValueError(f"non-positive/non-finite total_rtt={rtt} in {path}")
-    return rtt
 
 
 def mean_std(xs: List[float]) -> Tuple[float, float]:
@@ -64,8 +49,11 @@ def main() -> int:
     if not results.is_dir():
         raise FileNotFoundError(f"No results dir: {results}")
 
-    # cfg -> seed -> policy -> rtt
-    table: Dict[str, Dict[int, Dict[str, float]]] = defaultdict(lambda: defaultdict(dict))
+    # cfg -> seed -> policy -> metrics
+    table: Dict[str, Dict[int, Dict[str, Dict[str, Any]]]] = defaultdict(
+        lambda: defaultdict(dict)
+    )
+    physics_seen: Dict[str, int] = defaultdict(int)
     for path in sorted(results.glob("*.json")):
         if path.name.endswith(".decode_stats.json"):
             continue
@@ -76,7 +64,14 @@ def main() -> int:
         seed = int(m.group("seed"))
         tag = m.group("tag")
         policy = {v: k for k, v in TAG.items()}[tag]
-        table[cfg][seed][policy] = load_rtt(path)
+        metrics = load_metrics(path)
+        table[cfg][seed][policy] = metrics
+        physics_seen[str(metrics["warmth_physics"])] += 1
+
+    if len(physics_seen) > 1:
+        raise ValueError(
+            f"sweep mixes warmth_physics regimes {dict(physics_seen)} — not comparable"
+        )
 
     if not table:
         print("ERROR: no sealed holdout result files matched", file=sys.stderr)
@@ -102,9 +97,15 @@ def main() -> int:
     total_wins = {"gnn": 0, "mlp": 0, "knative": 0}
     paired_cells = 0
 
+    tail_rows: List[Dict[str, Any]] = []
+    tail_wins = {m: {"gnn": 0, "mlp": 0, "knative": 0} for m in ("p90", "p99")}
+
     for cfg in configs:
         seeds = sorted(table[cfg])
         kn_l, gnn_l, mlp_l = [], [], []
+        tail_l: Dict[str, Dict[str, List[float]]] = {
+            m: {"knative": [], "gnn": [], "mlp": []} for m in ("p90", "p99")
+        }
         wins = {"gnn": 0, "mlp": 0, "knative": 0}
         per_seed = []
         incomplete = []
@@ -113,7 +114,10 @@ def main() -> int:
             if not all(p in cell for p in ("knative", "gnn", "mlp")):
                 incomplete.append(seed)
                 continue
-            kn, gnn, mlp = cell["knative"], cell["gnn"], cell["mlp"]
+            kn, gnn, mlp = (cell[p]["total_rtt"] for p in ("knative", "gnn", "mlp"))
+            for metric in ("p90", "p99"):
+                for policy in ("knative", "gnn", "mlp"):
+                    tail_l[metric][policy].append(cell[policy][metric])
             kn_l.append(kn)
             gnn_l.append(gnn)
             mlp_l.append(mlp)
@@ -162,9 +166,21 @@ def main() -> int:
             f"{kn_s:>12,.0f} {gnn_s:>12,.0f} {mlp_s:>12,.0f}"
         )
 
+        tail_report: Dict[str, Any] = {}
+        for metric in ("p90", "p99"):
+            means = {
+                policy: mean_std(tail_l[metric][policy])[0]
+                for policy in ("knative", "gnn", "mlp")
+            }
+            winner = min(means, key=means.get)
+            tail_wins[metric][winner] += 1
+            tail_report[metric] = {"means": means, "winner": winner}
+            tail_rows.append({"config": cfg, "metric": metric, **means, "winner": winner})
+
         report["configs"][cfg] = {
             "n_seeds": len(kn_l),
             "incomplete_seeds": incomplete,
+            "tail": tail_report,
             "knative_mean": kn_m,
             "knative_std": kn_s,
             "gnn_mean": gnn_m,
@@ -195,12 +211,31 @@ def main() -> int:
         f"MLP {total_wins['mlp']}/{paired_cells} · Knative {total_wins['knative']}/{paired_cells}"
     )
 
+    print(
+        f"\n--- tail of per-task elapsed time (seconds, seed-averaged) ---\n"
+        f"{'config':<20} {'metric':>6} {'knative':>10} {'gnn':>10} {'mlp':>10}  winner"
+    )
+    for row in tail_rows:
+        print(
+            f"{row['config']:<20} {row['metric']:>6} "
+            f"{row['knative']:>10.1f} {row['gnn']:>10.1f} {row['mlp']:>10.1f}  {row['winner']}"
+        )
+    for metric in ("p90", "p99"):
+        w = tail_wins[metric]
+        print(
+            f"{metric} config wins: GNN {w['gnn']}/{len(configs)} · "
+            f"MLP {w['mlp']}/{len(configs)} · Knative {w['knative']}/{len(configs)}"
+        )
+
     # Deployment conclusion gate (descriptive, not auto-pass): GNN beats MLP on sum and wins
     gnn_vs_mlp_sum = sum_gnn < sum_mlp
     gnn_vs_mlp_wins = total_wins["gnn"] >= total_wins["mlp"]
     gnn_vs_kn_sum = sum_gnn < sum_kn
     verdict = {
         "paired_cells": paired_cells,
+        "warmth_physics": next(iter(physics_seen)),
+        "tail_wins": tail_wins,
+        "tail_rows": tail_rows,
         "sum_knative": sum_kn,
         "sum_gnn": sum_gnn,
         "sum_mlp": sum_mlp,

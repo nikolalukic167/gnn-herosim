@@ -1,0 +1,218 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "schema_version": "1.0.0",
+  "title": "Co-Simulation Dataset Collection Metadata Schema",
+  "description": "Metadata schema for HeROsim co-simulation dataset collections, tracking generation parameters, validation status, and compatibility",
+  "type": "object",
+  "required": ["collection_name", "version", "status", "grid_preset", "problem_category", "generation_params", "physics"],
+  "properties": {
+    "collection_name": {
+      "type": "string",
+      "description": "Directory name of the dataset collection (e.g., gnn_datasets_4tasks_contention_v2)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Version identifier (e.g., v2, v3, v4)",
+      "pattern": "^v[0-9]+(\\.[0-9]+)?$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "deprecated", "archived"],
+      "description": "Current status of the collection"
+    },
+    "created_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date when collection was generated (YYYY-MM-DD)"
+    },
+    "grid_preset": {
+      "type": "string",
+      "description": "Grid preset name used for generation (e.g., contention_v2, warmth_v2)"
+    },
+    "problem_category": {
+      "type": "string",
+      "enum": ["contention", "warmth", "regime_b", "baseline", "production"],
+      "description": "High-level problem category"
+    },
+    "generation_params": {
+      "type": "object",
+      "description": "Parameters from grid preset used to generate datasets",
+      "required": ["seeds"],
+      "properties": {
+        "connection_probabilities": {
+          "type": "array",
+          "items": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "replica_configs": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": {"type": "number"}
+          },
+          "description": "Replica configurations (min_client, min_server, client_pct, server_pct)"
+        },
+        "queue_distributions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "distribution": {"type": "string", "enum": ["normal", "uniform", "poisson"]},
+              "param1": {"type": "number"},
+              "param2": {"type": "number"},
+              "min_val": {"type": "number"},
+              "max_val": {"type": "number"},
+              "multiplier": {"type": "number"}
+            }
+          }
+        },
+        "seeds": {
+          "type": "array",
+          "items": {"type": "integer"}
+        },
+        "topology_type": {
+          "type": "string",
+          "description": "Network topology generation method (optional, for skew_warmth_v2)"
+        },
+        "k_core_values": {
+          "type": "array",
+          "items": {"type": "integer"},
+          "description": "Core values for degree_skewed_core topology (optional)"
+        },
+        "hub_seeker_fractions": {
+          "type": "array",
+          "items": {"type": "number"},
+          "description": "Hub seeker fractions (optional)"
+        }
+      }
+    },
+    "physics": {
+      "type": "object",
+      "description": "Physics models and feature contracts",
+      "required": ["warmth_model"],
+      "properties": {
+        "warmth_model": {
+          "type": "string",
+          "enum": ["node_disk_v2", "platform_reuse_v1"],
+          "description": "Warmth physics model used"
+        },
+        "queue_feature_contract": {
+          "type": "string",
+          "enum": ["legacy_v0", "scale_invariant_v1"],
+          "description": "Queue feature normalization contract"
+        }
+      }
+    },
+    "purpose": {
+      "type": "string",
+      "description": "Human-readable description of what this collection is testing"
+    },
+    "hypothesis": {
+      "type": "string",
+      "description": "Scientific hypothesis being tested with this collection"
+    },
+    "results": {
+      "type": "object",
+      "description": "Measured results from the collection",
+      "properties": {
+        "coupling_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of datasets where greedy fails (>20% RTT spread)"
+        },
+        "total_datasets": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of datasets in collection"
+        },
+        "completed_datasets": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of successfully completed datasets"
+        },
+        "avg_placements_per_dataset": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Average number of placements evaluated per dataset"
+        },
+        "queue_depth_mean": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Mean queue depth across all datasets"
+        },
+        "queue_depth_stddev": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Standard deviation of queue depths"
+        }
+      }
+    },
+    "training_usage": {
+      "type": "object",
+      "description": "How this collection has been used in model training",
+      "properties": {
+        "used_in_models": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "List of model checkpoints trained on this data"
+        },
+        "graph_cache": {
+          "type": "string",
+          "description": "Associated graph cache directory"
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "description": "Compatibility information for dataset combination",
+      "properties": {
+        "combinable_with": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "List of compatible collection names"
+        },
+        "incompatible_with": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "List of incompatible collection names"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Compatibility notes (e.g., reason for incompatibility)"
+        }
+      }
+    },
+    "archive_reason": {
+      "type": "string",
+      "description": "Reason why collection was archived (only for status=archived)"
+    },
+    "validation_status": {
+      "type": "object",
+      "description": "Latest validation results",
+      "properties": {
+        "last_validated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of last validation"
+        },
+        "structural_completeness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of datasets passing structural checks"
+        },
+        "physics_consistency": {
+          "type": "boolean",
+          "description": "Whether all datasets use consistent physics"
+        },
+        "queue_depth_validation": {
+          "type": "boolean",
+          "description": "Whether queue depths match declared distributions"
+        }
+      }
+    }
+  }
+}

@@ -27,8 +27,10 @@ if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
 from src.policy.gnn.seq_decode import (
+    KNOWN_DECODE_MODES,
     PlacementCombo,
     get_run_decode_stats,
+    record_queue_feature_discrimination,
     reset_run_decode_stats,
     run_decode_with_timing,
 )
@@ -104,6 +106,13 @@ class GNNScheduler(Scheduler):
         self.fallback_decisions = 0
         self.decode_stats = reset_run_decode_stats()
         self._decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+        # A typo used to fall through to plain argmax silently, so an ablation could
+        # report "seq_reforwrd" results that were really the control.
+        if self._decode_mode not in KNOWN_DECODE_MODES:
+            raise ValueError(
+                f"FAIL LOUD: GNN_DECODE_MODE={self._decode_mode!r} is not a known decode mode. "
+                f"Known: {sorted(KNOWN_DECODE_MODES)}"
+            )
         self._decode_seqblend = self._decode_mode in ("seqblend", "seqblend_p1", "1")
         self._decode_queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
         if self._decode_mode in ("frozen", "frozen_argmax", "frozen_topk", "topk", "topk_joint"):
@@ -464,7 +473,26 @@ class GNNScheduler(Scheduler):
                 queue_snapshot,
                 task_logit_to_queue_key,
             )
-            
+            if placements and self.decode_stats is not None:
+                missing = [i for i in range(len(batch_tasks)) if i not in placements]
+                if missing:
+                    raise RuntimeError(
+                        f"GNN decode returned a partial placement map (missing {missing}); "
+                        "refusing to probe a truncated combo"
+                    )
+                combo = tuple(placements[i] for i in range(len(batch_tasks)))
+                record_queue_feature_discrimination(
+                    self.decode_stats,
+                    combo=combo,
+                    logits_per_task=logits_per_task,
+                    task_logit_to_placement=task_logit_to_placement,
+                    queue_snapshot=queue_snapshot,
+                    task_logit_to_queue_key=task_logit_to_queue_key,
+                    platform_features=graph.platform_features,
+                    queue_key_to_platform_meta=getattr(
+                        graph, "queue_key_to_platform_meta", None
+                    ),
+                )
             return placements
             
         except Exception as e:
