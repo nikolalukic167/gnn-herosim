@@ -2,7 +2,7 @@
 CE-reduced feature ablation for tabular MLP (task=3, platform=6, edge=2).
 
 Slices full sequential graph caches in-process — no cache regen.
-Matches train_near_rtt_ce_reduced_features.py / feature_builder ce_reduced layout.
+Matches archive/warmth_sparse/src/notebooks/train_near_rtt_ce_reduced_features.py / feature_builder ce_reduced layout.
 """
 
 from __future__ import annotations
