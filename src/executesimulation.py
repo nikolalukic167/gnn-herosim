@@ -316,6 +316,28 @@ def apply_checkpoint_queue_feature_contract(model_path: Path, model_label: str) 
     _adopt_queue_feature_contract(trained, model_label, sidecar.name)
 
 
+def checkpoint_mp_config(model_path: Path) -> dict:
+    """Message-passing options a GNN checkpoint was trained with, from its sidecar.
+
+    Serving the wrong message-passing graph is not a soft degradation: it cost 12.4x live
+    RTT on 2026-08-16. `mp_node_edges` cannot be recovered from weight shapes, so a
+    checkpoint trained with same-node edges MUST carry a sidecar declaring them.
+    Sidecar-less checkpoints predate the flag and are bipartite-only by construction.
+    """
+    sidecar = model_path.with_suffix(".contract.json")
+    if not sidecar.is_file():
+        return {}
+    try:
+        payload = json.loads(sidecar.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{sidecar} is not valid JSON: {exc}") from exc
+    return {
+        key: bool(payload[key])
+        for key in ("mp_residual", "mp_node_edges", "mp_node_edges_candidates_only")
+        if key in payload
+    }
+
+
 def apply_mlp_checkpoint_queue_feature_contract(model_path: Path, model_label: str) -> None:
     """Same as the GNN sidecar path, but for MLP checkpoints, which are dicts.
 
@@ -397,6 +419,28 @@ def load_gnn_model(model_path: Path):
                 flush=True,
             )
 
+        # Reconstruct the architecture the weights were actually fitted with.
+        # `mp_gate` is present iff the checkpoint was trained with the GIN residual, so it
+        # is authoritative; the sidecar supplies what weights cannot encode (node edges).
+        mp_cfg = checkpoint_mp_config(model_path)
+        mp_residual = "mp_gate" in state_dict
+        if mp_cfg.get("mp_residual", mp_residual) != mp_residual:
+            raise ValueError(
+                f"{model_path.name}: sidecar says mp_residual={mp_cfg['mp_residual']} but "
+                f"the state dict {'has' if mp_residual else 'lacks'} an 'mp_gate' weight"
+            )
+        mp_node_edges = mp_cfg.get("mp_node_edges", False)
+        # The sidecar is authoritative here; refuse to let a stale env var be silently
+        # ignored (it used to be the only control, so it WILL still be set in old scripts).
+        _env_node_edges = os.environ.get("GNN_MP_NODE_EDGES", "").strip().lower()
+        if _env_node_edges not in ("", "0", "false", "no") and not mp_node_edges:
+            raise ValueError(
+                f"GNN_MP_NODE_EDGES={_env_node_edges!r} but {model_path.name} was not "
+                f"trained with same-node edges (per {model_path.stem}.contract.json). "
+                "Serving them is the 12.4x-RTT regression; retrain with "
+                "NEAR_RTT_MP_NODE_EDGES=1 instead of forcing it at serve time."
+            )
+
         model = TaskPlacementGNN(
             task_feature_dim=task_feature_dim,
             platform_feature_dim=platform_feature_dim,
@@ -404,6 +448,15 @@ def load_gnn_model(model_path: Path):
             hidden_dim=64,
             num_layers=3,
             edge_dim=edge_dim,
+            normalize_platform_inputs="platform_input_norm.weight" in state_dict,
+            mp_residual=mp_residual,
+            mp_node_edges=mp_node_edges,
+            mp_node_edges_candidates_only=mp_cfg.get("mp_node_edges_candidates_only", True),
+        )
+        print(
+            f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "
+            f"candidates_only={mp_cfg.get('mp_node_edges_candidates_only', True)}",
+            flush=True,
         )
         model.load_state_dict(state_dict)
         model = model.to(device)

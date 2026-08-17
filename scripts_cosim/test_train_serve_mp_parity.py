@@ -135,5 +135,75 @@ def test_same_node_edges_would_flood_message_passing():
     )
 
 
+# ---------------------------------------------------------------------------------------
+# Restoring USEFUL message passing: gated residual + candidate-restricted same-node edges.
+# ---------------------------------------------------------------------------------------
+def test_candidate_restriction_keeps_only_reachable_pairs():
+    """Same-node edges are only meaningful between platforms a task could actually use."""
+    from src.policy.gnn.gnn_model import restrict_node_edges_to_candidates
+
+    data = _graph_with_same_node_edges()
+    # Platforms 0,1 are reachable (edge_index dsts 2,3); add a same-node pair 2<->3 that
+    # no task can reach, plus the reachable 0<->1 pair.
+    node_ei = torch.tensor([[2, 3, 4, 5], [3, 2, 5, 4]])
+    kept = restrict_node_edges_to_candidates(
+        node_ei, data.edge_index, n_tasks=data.n_tasks, n_platforms=data.n_platforms
+    )
+    assert kept.tolist() == [[2, 3], [3, 2]], (
+        "Unreachable same-node pairs must be dropped; they add aggregation mass with no "
+        "decision-relevant signal."
+    )
+
+
+def test_candidate_restriction_survives_no_candidates():
+    """36% of real cached graphs have zero candidate pairs — must degenerate, not crash."""
+    from src.policy.gnn.gnn_model import restrict_node_edges_to_candidates
+
+    data = _graph_with_same_node_edges()
+    node_ei = torch.tensor([[4, 5], [5, 4]])  # neither platform is reachable
+    kept = restrict_node_edges_to_candidates(
+        node_ei, data.edge_index, n_tasks=data.n_tasks, n_platforms=data.n_platforms
+    )
+    assert kept.numel() == 0
+
+
+def test_mp_gate_makes_the_residual_self_describing():
+    """A residual checkpoint must not load into a non-residual model, or vice versa.
+
+    The residual adds no shape change to any existing weight, so without `mp_gate` a
+    residual checkpoint would strict-load into a plain model and silently serve a
+    different architecture — the exact failure mode this whole file exists to prevent.
+    """
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+
+    plain = TaskPlacementGNN(task_feature_dim=3, platform_feature_dim=14)
+    residual = TaskPlacementGNN(task_feature_dim=3, platform_feature_dim=14, mp_residual=True)
+
+    assert "mp_gate" not in plain.state_dict()
+    assert "mp_gate" in residual.state_dict()
+
+    with pytest.raises(RuntimeError):
+        plain.load_state_dict(residual.state_dict())
+    with pytest.raises(RuntimeError):
+        residual.load_state_dict(plain.state_dict())
+
+
+def test_residual_changes_output_with_identical_weights():
+    """The residual must actually alter scoring, or it is dead code."""
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+
+    data = _graph_with_same_node_edges()
+    plain = _model()
+    residual = TaskPlacementGNN(
+        task_feature_dim=3, platform_feature_dim=14, mp_residual=True
+    )
+    state = dict(plain.state_dict())
+    state["mp_gate"] = torch.ones(1)
+    residual.load_state_dict(state)  # ONLY the residual differs
+    residual.eval()
+
+    assert not torch.allclose(_logits(plain, data), _logits(residual, data))
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
