@@ -1,0 +1,23 @@
+# Replaces src/notebooks/train_mlp_contention_v2_dim22_batchcache.py
+trainer: mlp
+lineage: contention_v2_v3
+description: >
+  dim22 MLP from the contention_v2 batch cache (feature parity with the GNN).
+  Verification baseline: a pointwise model must not beat the graph-aware one.
+
+cache_dir: simulation_data/graphs_cache_contention_v2
+
+path_args: [output]
+
+args:
+  output: models/tabular/batch_edge_mlp_contention_v2_dim22_batchcache.pt
+  epochs: 100
+  patience: 10
+  hidden-dim: 64
+  lr: 1e-3
+  random-state: 42
+  test-size: 0.2
+
+wandb:
+  project: gnn-near-rtt-contention-v2-jun2026
+  run_name: mlp-contention-v2-dim22-batchcache

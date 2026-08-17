@@ -1,0 +1,33 @@
+# Replaces src/notebooks/train_near_rtt_v2_contention_v2_dim14_ce_only.py
+trainer: gnn
+lineage: contention_v2_v3
+description: >
+  Train dim14 CE-only from scratch on the contention_v2 cache (711 graphs).
+  Baseline the contention v4/v5 work is measured against.
+
+cache_dir: simulation_data/graphs_cache_contention_v2
+
+unset_env:
+  - TRAIN_INIT_CHECKPOINT   # from scratch, never resume
+
+env:
+  NEAR_RTT_LOSS_VARIANT: near-rtt-v2-trash-exp
+  NEAR_RTT_SIDECAR_NAME: valid_combos_near_rtt_v2_capped.pkl
+  NEAR_RTT_MARGIN_MODE: exp
+  NEAR_RTT_MARGIN_CAP: "8.0"
+  NEAR_RTT_MARGIN_EXP_SCALE: "0.75"
+  NEAR_RTT_MARGIN_EXP_CLIP: "4.0"
+  NEAR_RTT_TRASH_DELTA: "5.0"
+  NEAR_RTT_TRASH_WEIGHT: "1.0"
+  NEAR_RTT_FAR_WEIGHT: "0.75"
+  NEAR_RTT_UNMAPPED_PENALTY: "8.0"
+
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+
+wandb:
+  project: gnn-near-rtt-contention-v2-jun2026
+  run_name: near-rtt-v2-contention-v2-dim14-ce-only
+  tags: [near-rtt, ce-only, dim14, contention-v2, from-scratch, collision-labels]
