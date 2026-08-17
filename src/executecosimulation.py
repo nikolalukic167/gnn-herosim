@@ -64,7 +64,7 @@ except ImportError:
     HAS_ORJSON = False
 
 from src.eventgenerator import increase_events_of_app
-from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH
+from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.sample_loader import load_primary_sample_and_mapping
