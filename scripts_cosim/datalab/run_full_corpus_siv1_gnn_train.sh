@@ -6,8 +6,13 @@ set -euo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-/home/nikola.lukic/gnn-herosim}"
 cd "$PROJECT_ROOT"
 
-CACHE_DIR="simulation_data/graphs_cache_full_corpus_siv1_dim14"
-OUT_CKPT="models/near-rtt-v2-full-corpus-siv1-dim14-ce-only.pt"
+# train_near_rtt.py saves to models/{wandb.run.name}.pt (train_near_rtt.py:1141), so the
+# checkpoint name IS the wandb run name -- they cannot be set independently, and OUT_CKPT is
+# derived from WANDB_RUN_NAME below rather than repeated. Both are overridable so a retrain on
+# a corrected cache lands beside the deployed checkpoint instead of on top of it.
+CACHE_DIR="${CACHE_DIR:-simulation_data/graphs_cache_full_corpus_siv1_dim14}"
+export WANDB_RUN_NAME="${WANDB_RUN_NAME:-near-rtt-v2-full-corpus-siv1-dim14-ce-only}"
+OUT_CKPT="models/${WANDB_RUN_NAME}.pt"
 PHASE_DIR="logs/full_corpus_siv1_pipeline"
 MIN_GRAPHS="${MIN_GRAPHS:-2700}"
 TS="$(date +%Y%m%d_%H%M%S)"
@@ -49,7 +54,6 @@ export NEAR_RTT_TRASH_DELTA="${NEAR_RTT_TRASH_DELTA:-5.0}"
 export NEAR_RTT_TRASH_WEIGHT="${NEAR_RTT_TRASH_WEIGHT:-1.0}"
 export NEAR_RTT_FAR_WEIGHT="${NEAR_RTT_FAR_WEIGHT:-0.75}"
 export NEAR_RTT_UNMAPPED_PENALTY="${NEAR_RTT_UNMAPPED_PENALTY:-8.0}"
-export WANDB_RUN_NAME="near-rtt-v2-full-corpus-siv1-dim14-ce-only"
 export WANDB_TAGS="near-rtt,ce-only,dim14,full-corpus,scale-invariant-v1,from-scratch"
 unset TRAIN_INIT_CHECKPOINT
 
