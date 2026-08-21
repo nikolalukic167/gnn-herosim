@@ -23,7 +23,7 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 
 | Lineage | Entry points | Datasets | Notes |
 |---|---|---|---|
-| **siv1_full_corpus** | `scripts_cosim/datalab/full_corpus_siv1_{recache,gnn_train,mlp_train}.sbatch` → `run_full_corpus_siv1_*.sh` | whole `legacy_v0_node_disk_v2_4task` group | Trains on the full corpus under `scale_invariant_v1`. GNN: `src/notebooks/train_near_rtt.py`. MLP: `src/policy/tabular/train_mlp_dim22_from_batch.py`. Recache: `src/notebooks/prepare_graphs_cache.py`. **Outcome 2026-08-17 — see `mp_parity` below.** **First live-gate on a real trace: FAILED (2026-08-21)** — `datalab/full_corpus_siv1_live_gate.sbatch` (array 0-14 = 3 policies × 5 cells) → `important/run_full_corpus_siv1_live_gate.sh`, cells minted by `important/make_full_corpus_siv1_gate_cells.py`, parity by `scripts_cosim/verify_live_infra_parity.py`, scored by `important/compare_sealed_live_holdout.py`. GNN loses to Knative on all 5 cells after fixing a `PYTHONHASHSEED`-dependent tie-break bug that had made the first attempt look like a sparse-topology win. See "the first real live-gate" below. **Re-graded 2026-08-21 (same day):** the FAIL was measured through a train/serve-divergent live feature path — the uncommitted dims 9-11 fix was absent on datalab. With train-consistent features the same checkpoint goes 2W/1T/2L on the same trace and **wins 5/5 on `workload-150-100` and 5/5 on `workload-175-100`**. See the resolution subsection below before citing the FAIL. |
+| **siv1_full_corpus** | `scripts_cosim/datalab/full_corpus_siv1_{recache,gnn_train,mlp_train}.sbatch` → `run_full_corpus_siv1_*.sh` | whole `legacy_v0_node_disk_v2_4task` group | Trains on the full corpus under `scale_invariant_v1`. GNN: `src/notebooks/train_near_rtt.py`. MLP: `src/policy/tabular/train_mlp_dim22_from_batch.py`. Recache: `src/notebooks/prepare_graphs_cache.py`. **Outcome 2026-08-17 — see `mp_parity` below.** **First live-gate on a real trace: FAILED (2026-08-21)** — `datalab/full_corpus_siv1_live_gate.sbatch` (array 0-14 = 3 policies × 5 cells) → `important/run_full_corpus_siv1_live_gate.sh`, cells minted by `important/make_full_corpus_siv1_gate_cells.py`, parity by `scripts_cosim/verify_live_infra_parity.py`, scored by `important/compare_sealed_live_holdout.py`. GNN loses to Knative on all 5 cells after fixing a `PYTHONHASHSEED`-dependent tie-break bug that had made the first attempt look like a sparse-topology win. See "the first real live-gate" below. **SUPERSEDED 2026-08-21 (same day) — do not cite the FAIL.** It was measured through a train/serve-divergent live feature path: the uncommitted dims 9-11 fix was absent on datalab. The **formal synced-code re-gate (job 709163, 15/15 COMPLETE)** reproduces the local re-grading on every cell to within +0.03%/+0.40%: **2W/1T/2L on `workload-125-225`**, and the same checkpoint **wins 5/5 on `workload-150-100` and 5/5 on `workload-175-100`**. `gnn/cell01` went 65.8M → 50.6M on a code change alone. Two follow-ups now open: the MLP's catastrophic tail is root-caused (occupation collapse, not collisions), and the deployed checkpoint is trained on a cache that disagrees with its serving features on **31.7% of platform rows** — corrected-cache retrain is job 709234, ungated. See the resolution subsection below. |
 | **mp_parity** | `scripts_cosim/test_train_serve_mp_parity.py`, `experiments/full_corpus_siv1_gnn_mp_residual{,_node_edges}.yaml`, `datalab/mp_arm_gnn_train.sbatch` | full corpus siv1 | Train/serve message-passing parity, and what to do about it. Outcomes below. |
 | **graph_structure_physics** | `scripts_cosim/separability_diagnostic.py` (M4 + `--gate-additive-r2`) | all co-sim collections | Does the simulator produce a target a GNN could ever beat a pointwise MLP on? **Outcome 2026-08-17 below: no, not today.** Phases 1-4 (node contention, congestible links, fan-out DAGs, batch size) planned against that measurement. |
 | **network_contention_v1** | `src/placement/scheduling_cost.py` (`ingress_transfer_time`, `ingress_wait`), `scripts_cosim/test_network_contention.py`, `datalab/netc_v1_cosim.sbatch`, grids `netc_{scarce,funnel,hotspot}_v1` | `netc_pilot_*` (local, n=12-16) | Shared per-node ingress bandwidth, opt-in via `--ingress-bandwidth-mbps`. Physics works; the corpus lever is replica concentration, not bandwidth alone. **Outcomes below.** |
@@ -1399,17 +1399,107 @@ comparability checklist now live in **`PARITY.md`**; the hard rules are in `CLAU
 datalab-pitfalls #8.
 
 **Read-off for job 709163** (fixed code, still through the unfixed leak, GPU): with the env
-axis measured at zero, 709163's GNN arm is predicted to land at the local ~50.4M cluster, not
-the recorded 65.8M. If it lands at 65.8M instead, this measurement is contradicted and the
-`--mode logits` probe is not capturing whatever the difference is — record that outcome
-explicitly either way rather than leaving it an unwritten inference.
+axis measured at zero, 709163's GNN arm was predicted to land at the local ~50.4M cluster, not
+the recorded 65.8M. If it landed at 65.8M instead, this measurement would be contradicted and
+the `--mode logits` probe would not be capturing whatever the difference is.
 
-**Partial read, taken while tasks 10-14 were still running.** Knative reproduced
-bit-identically (cell01 `46,556,947` in both 708549 and 709163), confirming the shared physics
-path is unchanged across the two code versions. The MLP arm moved by only −0.2% to +1.9% on
-the three cells that had landed — see the qualification box in the recorded-gate section
-above. The GNN arm had not yet produced a result, so the prediction remains open. **Whoever
-reads this next: fill in the GNN column and grade the prediction explicitly.**
+#### ✅ The prediction is CONFIRMED — job 709163 complete, 15/15 (2026-08-21, 21:2x)
+
+All 15 array tasks COMPLETED at datalab commit `6f24e36`. The GNN arm lands in the local
+working-tree cluster on **every cell**, and the whole gate reproduces the local re-grading
+cell for cell:
+
+| cell (density) | knative | GNN (datalab 709163) | GNN vs kn | GNN (local worktree) | local vs kn | **datalab vs local** |
+|---|---:|---:|---:|---:|---:|---:|
+| cell01 (p=0.25) | 46,556,947 | 50,609,830 | +8.7% | 50,407,465 | +8.3% | **+0.40%** |
+| cell02 (p=0.35) | 39,463,080 | 37,371,050 | −5.3% | 37,358,225 | −5.3% | **+0.03%** |
+| cell03 (p=0.15) | 43,922,518 | 51,640,719 | +17.6% | 51,550,527 | +17.4% | **+0.17%** |
+| cell04 (p=0.50) | 34,942,834 | 32,281,245 | −7.6% | 32,269,908 | −7.6% | **+0.04%** |
+| cell05 (p=0.20) | 46,941,809 | 46,793,121 | −0.3% | 46,905,755 | −0.1% | **−0.24%** |
+
+The recorded gate (708549) had `gnn/cell01` at **65.8M / +41.4%**. Same checkpoint, same cells,
+same trace, same cluster, same GPU partition — **the only thing that changed is the committed
+code**, and 15.2M of `total_rtt` went with it. Cross-venue agreement is now +0.03% to +0.40%,
+i.e. inside the GNN's own 0.1–0.4% run-to-run floor on four of five cells and 0.40% on the
+fifth. **The environment measurement is confirmed end-to-end at the `total_rtt` level, not
+just at the logit level**, and nothing is left of the "datalab and local disagree" hypothesis.
+
+Scored by `compare_sealed_live_holdout.py`: three-way paired cell wins **GNN 1/5 · MLP 2/5 ·
+Knative 2/5**; head-to-head against Knative the GNN is **2W/1T/2L** (better on cells 02/04,
+tie on 05 at −0.3%, worse on 01/03) — identical to the local verdict on this trace. The tool
+prints *"GNN does not dominate MLP on sealed holdout — do not claim uniform live transfer"*,
+which remains the correct reading **for this trace**; `workload-150-100` and `workload-175-100`
+are where the checkpoint wins 5/5.
+
+**The recorded "+12% to +41% worse, GNN 0/5" FAIL is now formally superseded**, not merely
+re-graded: it was a measurement of the uncommitted dims 9-11 diff. Do not cite it.
+
+**MLP arm, all 5 cells (final).** The catastrophic tail is real, survived the fix, and is
+*worse* on this trace than on any other: 4.81× / 5.97× / 8.17× Knative on cells 01/03/05
+(223.7M, 262.2M, 383.5M), against 0.69× and 0.77× on cells 02/04. Pre-fix vs post-fix the MLP
+moved −0.2% to +1.9% — so the fix that moved the GNN 23.3% barely touches the MLP, confirming
+the asymmetry hypothesised in the qualification box above. Root cause now measured; see the
+next subsection.
+
+#### The MLP catastrophic tail, root-caused (2026-08-21)
+
+Standing open thread since the recorded gate ("why does the pointwise baseline blow up at
+sparse topologies?"), guessed at twice as `intra_batch_platform_collisions`. It is not that.
+Measured across 4 local sweeps + job 709163 — two traces, two venues, 8 collapse instances:
+
+| stat (`stats` block of the result JSON) | collapsed MLP | healthy MLP | knative | gnn |
+|---|---:|---:|---:|---:|
+| `averageOccupation` | **1.0–1.5** | 13.6–13.8 | 8.7–10.6 | 5.1–5.6 |
+| `endTime` | 5.1–7.8× knative | 0.4–0.5× | 1.0× | 1.4–1.7× |
+| `averageQueueTime` | 467–535 s | 48–54 s | 78–88 s | 76–92 s |
+| `chosen_queue_vs_min` p95 | **8,964–23,731** | 504–1,129 | — | 539–1,083 |
+| `chosen_queue_vs_min` **median** | 4–129 | 69–192 | — | 8–163 |
+| `intra_batch_platform_collisions` | 0.14–0.18 | 0.13–0.17 | — | 0.22–0.45 |
+
+Every physics component (cold start, execution, communication, `offloadingRate`, cache hits)
+is unchanged between collapsed and healthy runs, and the collision rate is *normal* — the
+collision hypothesis is dead. What separates them is **occupation collapsing to ~1**: the
+cluster idles while a few replicas hold runaway queues.
+
+**The MLP wins by packing and loses by packing.** Its healthy occupation (13.6) is higher than
+Knative's (10.6) and far above the GNN's (5.6) — aggressive packing is exactly why it beats
+Knative on raw margin on most cells. Its pointwise score has no term that sees a platform's
+queue *relative to the alternatives*, so when a packed platform cannot drain, the queue runs
+away and `total_rtt` goes 4–8×. The median `chosen_queue_vs_min` is normal in every collapsed
+run, so this is a compounding minority of decisions, not a systematic mis-ranking. Collapse
+risk rises as topology gets sparser and durations get longer: only cell05 (p=0.20) collapses
+on `workload-150-100`/`175-100`, while the longer-duration `workload-125-225` collapses the
+three sparsest cells and spares p=0.35/0.50. **The GNN has never collapsed in 20 cell-runs**
+(worst p95 1,083). `averageOccupation ≈ 1` is the cheap detector — no need to parse the 200 MB
+result JSON. A fix belongs in the MLP decode (a queue-relative term, or a cap on
+`chosen_queue_vs_min`), not in the simulator.
+
+#### The corrected-cache retrain — the residual train/serve gap, measured (2026-08-21)
+
+The dims 9-11 fix landed 2026-08-19; `graphs_cache_full_corpus_siv1_dim14` was built
+2026-08-15. **The deployed checkpoint was therefore trained on pre-fix features and is now
+served post-fix ones**, which is the same defect class as [[gnn-train-serve-mp-mismatch]].
+Rebuilt the cache post-fix into a **new** directory (`..._tempfix`, job 709232, 2 min;
+`CACHE_DIR` had to be made overridable first — the script `rm -rf`s it, and the default is the
+deployed checkpoint's only training data) and diffed the two, 2,651 shared datasets:
+
+| | siv1 full corpus | `shallow_v1` (for scale) |
+|---|---:|---:|
+| platform rows changed | **175,034 / 551,408 = 31.7%** | 18.7% |
+| graphs with any change | **2,651 / 2,651 (100%)** | — |
+| max abs delta | **2.775** | 0.0086 |
+| changes escaping dims 9-11 | 2 graphs | 0 |
+| labels `y` changed | 2 graphs (0.08%) | 0 |
+
+**The perturbation is ~320× larger than the one measured on `shallow_v1`, and it touches every
+graph in the corpus.** So the live wins on `workload-150-100`/`175-100` were achieved by a
+checkpoint whose training inputs disagree with its serving inputs on a third of all platform
+rows — the wins are real but they are not the ceiling. Retrain submitted as job **709234**
+(`near-rtt-v2-full-corpus-siv1-dim14-ce-only-tempfix`, GPU-a40, corrected cache, 2,658 graphs;
+`OUT_CKPT` is now derived from `WANDB_RUN_NAME` so it lands beside the deployed checkpoint
+rather than on top of it). **Not yet gated — the new checkpoint means nothing until it runs
+the same 5-cell live gate on all three traces.** The MLP has the same mismatch and moved only
+~1% under the fix, so a matched MLP retrain is the fair comparison and has not been run.
 
 ### cache_live_divergence_audit — outcomes (2026-08-19)
 
@@ -2303,6 +2393,9 @@ find out what changed about the tool without reading a lineage's story to get th
 | 2026-08-21 | `generate_infrastructure.py` (`build_core_backbone`) via `verify_live_infra_parity.py` | **The backbone's access-link jitter is drawn from the same `rng` stream the replica-reachability repair already consumed**, and the backbone is built *after* the repair (`:768` then `:780`). A live run performs no repair (it autoscales from zero), so it reaches the backbone build at a different stream position than the corpus generator did — every access-link latency diverges on any cell with a non-empty repair set (measured: 3/5 siv1 gate cells FAIL when a backbone is added, matching exactly the 3 cells with nonzero repair-edge counts; the 2 with zero repair edges PASS). | New `--allow-backbone-latency-divergence` flag on `verify_live_infra_parity.py`, scoped narrowly: downgrades exactly the two affected finding classes to notes, and only fires when a backbone is present on **both** the corpus and live sides — verified it cannot mask a mismatch on a non-backbone collection, and that without the flag the same cells still correctly FAIL. Root rng coupling itself is not fixed (would require an independent substream and would break bit-reproducibility of `gnn_datasets_4tasks_topo_transfer_v1`'s existing 3,744-dataset corpus from its seed — a bigger call than this session's scope; the flag is the practical unblock for a live-vs-live A/B where the corpus-side artifact is only a preflight fixture). |
 | 2026-08-21 | live-gate protocol / `run_provenance` (via `datalab/siv1_env_probe_{gpu,cpu}.sbatch`) | **A live gate can silently measure an uncommitted code diff instead of the model.** `models/` syncs by rsync but `src/` syncs by git, so the dims 9-11 live-feature fix (working tree 2026-08-19, uncommitted) ran locally but not in datalab's job 708549 — 23.3% of `total_rtt` on `gnn/cell01`, flipping the gate verdict. `run_provenance` records env vars and contracts but **not the git commit or working-tree state**, so nothing in either side's result JSON could reveal the split. Root-caused by a 7-run probe matrix (see the siv1 resolution subsection): the two new probe sbatch files re-run one gate cell on the recorded node (GPU ×2) and CPU-forced, establishing datalab-side noise floors (±0.04% GPU run-to-run, ±0.03% GPU↔CPU) as a by-product. | Protocol: `git status --short src/ scripts_cosim/` must be clean before any datalab gate, and local+datalab must be at the same commit. Code fix planned (deferred until no sweep is mid-run): record `git describe --dirty --always` + a hash of `git diff` in `run_provenance`. |
 | 2026-08-21 | `scripts_cosim/important/run_*_live_gate*.sh` (50 `pipenv run python3` call sites in 18 files) + new `scripts_cosim/verify_venue_parity.py`, `src/placement/env_fingerprint.py` | **Every datalab gate ran in an undeclared environment, and nothing recorded which.** `micromamba activate gnn` followed by `pipenv run python3` does not run in the `gnn` env — `pipenv run` resolves its own venv and shells past the activation, so the cluster silently used `~/.local/share/virtualenvs/gnn-herosim-2TQKssTQ` (**torch 2.12.0+cu130**) while `CLAUDE.md`, the sbatch header and this file all asserted the `gnn` env (torch 2.5.1+cu121). Cost: three sessions attributing an 11-26% GNN gap to the venue. **Measured and closed the same day:** a committed 64-graph fixture (256 decisions / 1,738 scored edges) forwarded through the deployed checkpoint gives max|Δlogit| = **exactly 0.0** and **0/256 argmax flips** between local (torch 2.5.1+cu121 / numpy 2.3.0 / PyG 2.6.1), the `gnn` env (numpy 1.26.4 / PyG 2.7.0) and the rogue venv (torch 2.12.0+cu130 / PyG 2.8.0), at 1 and 4 threads. A CPU→CUDA negative control on the *same* env gives 1.9e-5 and still 0 flips, proving the probe is sensitive and the zeros are real. So the library-version axis contributes nothing; only the accelerator does, below the flip threshold. | `verify_venue_parity.py --mode logits --assert` runs in ~6 s (login-node safe) and is the preflight; `--mode run` does the same end-to-end on one cell, keeping a `knative` control arm because Knative never touches `build_inference_feature_bundle` and a Knative-only cross-check is structurally blind to this bug class. Protocol + comparability checklist in **`PARITY.md`**; hard rules in `CLAUDE.md`; datalab-pitfalls **#8**. Leak fix itself (`${HEROSIM_PY:-pipenv run python3}` + `export HEROSIM_PY=python3`) deferred while `a4_wl200200` is mid-run — it is hygiene, not a numerical correction. |
+| 2026-08-21 | `src/policy/{gnn,knative,knative_network}/autoscaler.py` (`remove_replica`) | **Scale-down tie-break was a non-total key**, so the residual 0.05–0.1% run-to-run spread survived `eb6d131`. `sorted(function_replicas, key=len(queue.items))` ties at 0 for every eligible candidate — scale-down only removes empty queues — and the stable sort then returns `Set[Tuple[Node, Platform]]` iteration order, which follows id()-based object hashes that `PYTHONHASHSEED` does **not** pin (it randomizes str/bytes hashing only). Enough to swamp a sub-percent gate margin. | **Fixed.** Key is now `(len(queue.items), node.id, platform.id)` in all three; `mlp_batch` inherits the gnn autoscaler and is covered. `scripts_cosim/test_autoscaler_scaledown_determinism.py` went 3 failed → 9 passed. The other seven policies (`herocache*`, `roundrobin_network`, `offload_network`, `gnn_hetero`, `evaluator`) still carry the old key — deliberately untouched, since changing them would break comparability with their own recorded results and none is in an active gate. |
+| 2026-08-21 | `src/executesimulation.py` `build_run_provenance` + `src/placement/env_fingerprint.py` | **A result JSON could not say what code produced it.** The planned fix from the row above, now implemented: `describe_code_provenance()` records commit / branch / dirty / `diff_sha256` / `changed_files`, and the full `python_env` + `env_fingerprint` ride along, so two disagreeing results are triaged as *different commit* / *same commit, different working tree* / *identical code* without access to either machine. Both banners print at run start. | **Fixed**, 7 tests in `tests/test_code_provenance.py` driving real throwaway repos. The dirty flag is scoped to `CODE_PATHS` (`src`, `scripts_cosim`, `experiments`, `run_experiment.py`) on purpose — a repo-wide flag would fire on every `simulation_data/REGISTRY.json` refresh and be ignored within a week. A non-git tree is reported, not fatal. **Results produced before this commit carry no code stamp; that is what makes 708549-vs-709163 a story rather than a lookup.** |
+| 2026-08-21 | 52 `pipenv run python3` call sites / 18 shell scripts + 3 `.sbatch` | The environment leak from the row above, **closed at the source**. | **Fixed.** All call sites read `${HEROSIM_PY:-pipenv run python3}`; the three sbatch files that activate micromamba `export HEROSIM_PY=python3` immediately after. Locally `HEROSIM_PY` is unset so behaviour is byte-identical. Also adds **`envs/herosim-lock.txt`**, which `PARITY.md` and `CLAUDE.md` had both called the single canonical spec while it did not exist — the same defect class as the leak. Note the cluster `gnn` env lacks `orjson`, `pytest` and a working `scikit-learn` (broken against its scipy 1.17.1); the live-gate and recache import closures were verified clean under it before the flip, and none of the three is on those paths. |
 
 New tool from the same work: **`scripts_cosim/audit_cache_live_divergence.py`** — measures
 cache↔live disagreement across every collection from `optimal_result.json` (+ SSC where
