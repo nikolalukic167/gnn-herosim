@@ -127,3 +127,98 @@ def test_every_gateable_arm_saves(tmp_path, arm, cfg):
     assert path.is_file()
     assert contract["arm"] == arm
     assert contract["arm_config"] == cfg
+
+
+# ---------------------------------------------------------------------------------------
+# The serving port. These lock in a measurement, not a preference: a renamed AblationModel
+# state dict loads into TaskPlacementGNN with strict=True and NO error under the default
+# mp_residual=False, and then computes different logits. Nothing else in the stack catches
+# that, so the contract has to carry it and this has to stay green.
+# ---------------------------------------------------------------------------------------
+from torch_geometric.data import Data  # noqa: E402
+
+from scripts_cosim.gnn_necessity_ablation import (  # noqa: E402
+    ABLATION_TO_PRODUCTION_KEYS,
+    serving_port_for_arm,
+)
+from src.policy.gnn.gnn_model import TaskPlacementGNN  # noqa: E402
+
+N_TASKS, N_PLATFORMS, EDGE_DIM = 4, 10, 2
+
+
+def _graph():
+    torch.manual_seed(0)
+    src = torch.arange(N_TASKS).repeat_interleave(N_PLATFORMS)
+    dst = torch.arange(N_PLATFORMS).repeat(N_TASKS) + N_TASKS
+    g = Data(
+        task_features=torch.randn(N_TASKS, 3),
+        platform_features=torch.randn(N_PLATFORMS, 14),
+        edge_index=torch.stack([src, dst]),
+        edge_attr=torch.randn(N_TASKS * N_PLATFORMS, EDGE_DIM),
+    )
+    g.n_tasks, g.n_platforms = N_TASKS, N_PLATFORMS
+    g.node_edge_index = torch.tensor(
+        [[N_TASKS + 0, N_TASKS + 1], [N_TASKS + 1, N_TASKS + 0]]
+    )
+    return g
+
+
+def _rename(key):
+    head = key.split(".")[0]
+    return key.replace(head, ABLATION_TO_PRODUCTION_KEYS[head], 1) if head in ABLATION_TO_PRODUCTION_KEYS else key
+
+
+def _port(arm_cfg, **override):
+    """Build the production model from an ablation model, per the recorded contract."""
+    torch.manual_seed(0)
+    ablation = AblationModel(3, 14, EDGE_DIM, **arm_cfg).eval()
+    kwargs = dict(serving_port_for_arm(arm_cfg)["constructor_kwargs"])
+    kwargs.update(override)
+    prod = TaskPlacementGNN(
+        task_feature_dim=3, platform_feature_dim=14, edge_dim=EDGE_DIM, **kwargs
+    ).eval()
+    mapped = {_rename(k): v for k, v in ablation.state_dict().items()}
+    for extra in set(prod.state_dict()) - set(mapped):  # e.g. mp_gate, which inits to 1.0
+        mapped[extra] = prod.state_dict()[extra]
+    prod.load_state_dict(mapped)  # strict by default -- the point is that this passes
+    return ablation, prod
+
+
+def _max_delta(a, b, g):
+    with torch.no_grad():
+        return max(float((x - y).abs().max()) for x, y in zip(a(g), b(g)))
+
+
+@pytest.mark.parametrize("arm_cfg", [
+    dict(use_gin=True, use_node_edges=False),
+    dict(use_gin=True, use_node_edges=True),
+])
+def test_recorded_port_reproduces_the_arm_exactly(arm_cfg):
+    ablation, prod = _port(arm_cfg)
+    assert _max_delta(ablation, prod, _graph()) == 0.0
+
+
+def test_default_mp_residual_loads_clean_and_silently_changes_the_answer():
+    g = _graph()
+    ablation, prod = _port(dict(use_gin=True, use_node_edges=False), mp_residual=False)
+    # No exception was raised by load_state_dict above -- that IS the trap.
+    delta = _max_delta(ablation, prod, g)
+    assert delta > 1e-3, "the residual no longer changes the output; re-derive the port"
+    with torch.no_grad():
+        assert any(
+            int(x.argmax()) != int(y.argmax()) for x, y in zip(ablation(g), prod(g))
+        ), "decisions no longer differ; the silent-divergence guard has stopped guarding"
+
+
+def test_pointwise_arm_declares_no_gnn_serving_port(tmp_path):
+    _, contract, _ = _save(
+        tmp_path, arm="pointwise", cfg=dict(use_gin=False, use_node_edges=False)
+    )
+    assert contract["serving_port"] is None
+
+
+def test_gin_arm_contract_carries_the_port(tmp_path):
+    _, contract, _ = _save(tmp_path, arm="gnn_base")
+    port = contract["serving_port"]
+    assert port["constructor_kwargs"]["mp_residual"] is True
+    assert port["state_dict_key_rename"]["plat_enc"] == "platform_encoder"

@@ -501,6 +501,45 @@ def train_model(model, train_graphs, device, epochs: int, lr: float = 1e-3) -> N
             print(f"    epoch {ep:3d}  mean_ce={tot/max(len(train_graphs),1):.4f}")
 
 
+# How an arm's weights become a servable `TaskPlacementGNN`. Verified bit-exact
+# (max |delta| = 0.0, identical argmaxes) for `gnn_base` and `gnn_node` on 2026-08-21;
+# `pointwise` has no GIN and needs the pointwise serving path instead.
+#
+# The state dicts differ ONLY in the top-level module names below — same 31 keys, same
+# shapes — which is why a rename is the whole port and why `strict=True` cannot catch a
+# wrong `mp_residual`.
+ABLATION_TO_PRODUCTION_KEYS = {
+    "task_enc": "task_encoder",
+    "plat_enc": "platform_encoder",
+    "scorer": "edge_scorer",
+}
+
+
+def serving_port_for_arm(arm_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """The `TaskPlacementGNN` kwargs + key renaming that reproduce this arm exactly."""
+    return {
+        "target_class": "src.policy.gnn.gnn_model.TaskPlacementGNN",
+        "state_dict_key_rename": dict(ABLATION_TO_PRODUCTION_KEYS),
+        "constructor_kwargs": {
+            # REQUIRED. AblationModel is unconditionally `x0 + gin(x0)`; production applies
+            # the residual only under this flag, and its default is False. Getting this
+            # wrong does not raise -- it silently changes every decision.
+            "mp_residual": True,
+            "mp_node_edges": bool(arm_cfg.get("use_node_edges")),
+            "mp_network_entities": bool(arm_cfg.get("use_network_entities")),
+            # AblationModel appends node_edge_index unrestricted, so the faithful port does
+            # not restrict either. NOTE: the 2026-08-21 equivalence check used a fully
+            # connected bipartite graph, where this flag is a no-op -- it is recorded from
+            # reading AblationModel.forward, not discriminated by that measurement.
+            "mp_node_edges_candidates_only": False,
+        },
+        "mp_gate_init": 1.0,
+        "verified": "2026-08-21: gnn_base and gnn_node reproduce bit-exactly under these "
+                    "kwargs; with mp_residual=False the load still succeeds and the logits "
+                    "differ by 0.196.",
+    }
+
+
 def save_arm_checkpoint(
     *,
     model,
@@ -523,10 +562,13 @@ def save_arm_checkpoint(
     exist on disk and cannot be trusted in a gate. Weight shapes pin the feature *count*,
     never the layout that assigns meaning to those columns.
 
-    `AblationModel` is not `TaskPlacementGNN`, so these weights do not load into the
-    production serving path as-is; `arm_config` and `model_class` are recorded so a port can
-    be written against a known architecture rather than reverse-engineered from a tensor
-    dump.
+    `AblationModel` is not `TaskPlacementGNN`, but the port is mechanical, and the contract
+    carries it in `serving_port` (measured 2026-08-21, see the constant below). The trap it
+    documents is the reason it is written down: under `TaskPlacementGNN`'s **default**
+    `mp_residual=False`, the renamed state dict loads with `strict=True` and **no error**,
+    and then computes different logits (max |delta| 0.196, different argmaxes on a 4x10
+    graph). `AblationModel` always applies the residual; production only does when asked.
+    A silent wrong-number path is exactly what the sidecar exists to close.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = f"{arm_name}_seed{args.seed}"
@@ -567,6 +609,8 @@ def save_arm_checkpoint(
         "n_train_graphs": n_train,
         "n_val_graphs": n_val,
         "n_test_graphs": n_test,
+        # How to serve this, exactly. Only meaningful for the GIN arms.
+        "serving_port": serving_port_for_arm(arm_cfg) if arm_cfg.get("use_gin") else None,
     }
     (out_dir / f"{stem}.contract.json").write_text(json.dumps(contract, indent=2) + "\n")
     print(f"  saved checkpoint -> {ckpt_path} (+ .contract.json)")
