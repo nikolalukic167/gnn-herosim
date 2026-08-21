@@ -1,6 +1,9 @@
 ---
 name: update-memory
-description: Update memory/memory.md with strict versioning after completing work in this session. Use when the user says "update memory", "/update_memory", or asks to record progress/decisions into the project memory bank.
+description: Update memory/memory.md with strict versioning. Trigger when the user says "update memory", "/update_memory", or asks to record progress or decisions into the project memory bank.
+model: haiku
+effort: low
+tools: [Read, Write, Bash]
 ---
 
 # Memory Update Protocol

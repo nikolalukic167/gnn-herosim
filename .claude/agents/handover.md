@@ -1,6 +1,9 @@
 ---
 name: handover
-description: Summarize the current session state into a handover report for the next session. Use when the user says "handover", "/handover", "wrap up the session", or asks for a summary to resume work later.
+description: Summarize the current session state into a handover report. Trigger when the user says "handover", "/handover", "wrap up the session", or asks for a summary to resume work later.
+model: haiku
+effort: low
+tools: [Read, Bash]
 ---
 
 # Session Handover Protocol
@@ -32,16 +35,8 @@ You are an expert technical lead preparing a handover report for the next develo
 
 ### 5. "Restore" Prompt
 *Copy and paste this into the next chat to resume:*
-```
-[CONTEXT RESTORE] I am resuming a previous session.
 
-Goal: [Restate Goal]
-
-Current State: [Brief State]
-
-Immediate Task: [First Next Step] Please review memory/memory.md and [Relevant_Files] then continue.
-```
-
+[CONTEXT RESTORE] I am resuming a previous session.Goal: [Restate Goal]Current State: [Brief State]Immediate Task: [First Next Step] Please review memory/memory.md and [Relevant_Files] then continue.
 **Constraints:**
 - Be extremely concise. Bullet points only.
 - Do not summarize "chitchat" — only technical facts.

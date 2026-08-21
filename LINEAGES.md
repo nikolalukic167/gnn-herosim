@@ -23,7 +23,7 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 
 | Lineage | Entry points | Datasets | Notes |
 |---|---|---|---|
-| **siv1_full_corpus** | `scripts_cosim/datalab/full_corpus_siv1_{recache,gnn_train,mlp_train}.sbatch` → `run_full_corpus_siv1_*.sh` | whole `legacy_v0_node_disk_v2_4task` group | Trains on the full corpus under `scale_invariant_v1`. GNN: `src/notebooks/train_near_rtt.py`. MLP: `src/policy/tabular/train_mlp_dim22_from_batch.py`. Recache: `src/notebooks/prepare_graphs_cache.py`. **Outcome 2026-08-17 — see `mp_parity` below.** **First live-gate on a real trace: FAILED (2026-08-21)** — `datalab/full_corpus_siv1_live_gate.sbatch` (array 0-14 = 3 policies × 5 cells) → `important/run_full_corpus_siv1_live_gate.sh`, cells minted by `important/make_full_corpus_siv1_gate_cells.py`, parity by `scripts_cosim/verify_live_infra_parity.py`, scored by `important/compare_sealed_live_holdout.py`. GNN loses to Knative on all 5 cells after fixing a `PYTHONHASHSEED`-dependent tie-break bug that had made the first attempt look like a sparse-topology win. See "the first real live-gate" below. |
+| **siv1_full_corpus** | `scripts_cosim/datalab/full_corpus_siv1_{recache,gnn_train,mlp_train}.sbatch` → `run_full_corpus_siv1_*.sh` | whole `legacy_v0_node_disk_v2_4task` group | Trains on the full corpus under `scale_invariant_v1`. GNN: `src/notebooks/train_near_rtt.py`. MLP: `src/policy/tabular/train_mlp_dim22_from_batch.py`. Recache: `src/notebooks/prepare_graphs_cache.py`. **Outcome 2026-08-17 — see `mp_parity` below.** **First live-gate on a real trace: FAILED (2026-08-21)** — `datalab/full_corpus_siv1_live_gate.sbatch` (array 0-14 = 3 policies × 5 cells) → `important/run_full_corpus_siv1_live_gate.sh`, cells minted by `important/make_full_corpus_siv1_gate_cells.py`, parity by `scripts_cosim/verify_live_infra_parity.py`, scored by `important/compare_sealed_live_holdout.py`. GNN loses to Knative on all 5 cells after fixing a `PYTHONHASHSEED`-dependent tie-break bug that had made the first attempt look like a sparse-topology win. See "the first real live-gate" below. **Re-graded 2026-08-21 (same day):** the FAIL was measured through a train/serve-divergent live feature path — the uncommitted dims 9-11 fix was absent on datalab. With train-consistent features the same checkpoint goes 2W/1T/2L on the same trace and **wins 5/5 on `workload-150-100` and 5/5 on `workload-175-100`**. See the resolution subsection below before citing the FAIL. |
 | **mp_parity** | `scripts_cosim/test_train_serve_mp_parity.py`, `experiments/full_corpus_siv1_gnn_mp_residual{,_node_edges}.yaml`, `datalab/mp_arm_gnn_train.sbatch` | full corpus siv1 | Train/serve message-passing parity, and what to do about it. Outcomes below. |
 | **graph_structure_physics** | `scripts_cosim/separability_diagnostic.py` (M4 + `--gate-additive-r2`) | all co-sim collections | Does the simulator produce a target a GNN could ever beat a pointwise MLP on? **Outcome 2026-08-17 below: no, not today.** Phases 1-4 (node contention, congestible links, fan-out DAGs, batch size) planned against that measurement. |
 | **network_contention_v1** | `src/placement/scheduling_cost.py` (`ingress_transfer_time`, `ingress_wait`), `scripts_cosim/test_network_contention.py`, `datalab/netc_v1_cosim.sbatch`, grids `netc_{scarce,funnel,hotspot}_v1` | `netc_pilot_*` (local, n=12-16) | Shared per-node ingress bandwidth, opt-in via `--ingress-bandwidth-mbps`. Physics works; the corpus lever is replica concentration, not bandwidth alone. **Outcomes below.** |
@@ -1158,6 +1158,172 @@ deployable checkpoint (`near-rtt-v2-full-corpus-siv1-dim14-ce-only.pt`) does not
 live. Per `topology_transfer_v1`'s entry above, an ablation-only or offline-greedy result is
 not a substitute for this step — this *is* the step, and the checkpoint does not clear it.
 
+### siv1_full_corpus — re-testing the FAIL against untested real traces (2026-08-21, 🔄 IN PROGRESS)
+
+**Why.** The FAIL above rests on exactly one trace, `workload-125-225.json`. Five of this
+repo's six lineage-level `FALSIFIED`/`FAILED` verdicts were decided entirely on 4-task
+synthetic co-sim snapshots; this is the only one ever gated on a real trace, and n=1 trace is
+the entire evidence base for its headline verdict. `data/nofs-ids/traces/` has 5 named
+full-scale traces that have never been used in any gate
+(`workload-{100-50,150-100,175-100,200-200}.json`, `workload-150-100-30k.json`) — this reuses
+`run_full_corpus_siv1_live_gate.sh`/`.sbatch` unmodified (both already take `WORKLOAD` as an
+env var) against the same 5 parity-verified cells and the same deployed checkpoint.
+
+**⚠ Preliminary reversal found — GNN beats Knative 5/5 on `workload-150-100.json`, not 0/5.**
+301,352 events (rps=150, dur=100), same cells, same checkpoint, run locally (pipenv, not
+datalab), `PYTHONHASHSEED=0`, `OMP_NUM_THREADS=4` pinned:
+
+| cell (density) | knative | mlp | gnn | gnn vs knative | recorded on 125-225 |
+|---|---:|---:|---:|---:|---:|
+| cell03 (p=0.15) | 27,287,566 | 20,596,204 | 23,260,591 | **−14.8%** | +40.0% |
+| cell05 (p=0.20) | 26,455,031 | 161,323,506 | 23,047,726 | **−12.9%** | +12.0% |
+| cell01 (p=0.25) | 24,471,537 | 22,206,010 | 24,252,626 | **−0.9%** | +41.4% |
+| cell02 (p=0.35) | 24,300,898 | 16,637,375 | 21,176,714 | **−12.9%** | +27.9% |
+| cell04 (p=0.50) | 20,426,553 | 16,520,619 | 19,334,793 | **−5.3%** | +22.1% |
+
+Margins 0.9–14.8%, against a measured local noise floor of 0.05% (see GATE TOOLS below) — 18×
+to 296× the noise. MLP beats Knative 4/5, also a reversal from the recorded 2/5.
+
+**Environment ruled out as the explanation — replication control PASSED exactly.** Re-ran the
+*recorded* trace (`workload-125-225.json`) locally on the same cells as a control, since the
+recorded gate ran on datalab/micromamba and this session runs on pipenv/local. Knative
+reproduced the recorded numbers to 3 significant figures on all 5 cells, and matched the one
+full-precision value `LINEAGES.md` already quotes (the pipenv/micromamba cross-check for
+`knative/cell01`) **exactly**: `46,556,946.73649` both times. So the local harness is
+validated; the reversal on `workload-150-100` is not a pipenv-vs-datalab artifact. The
+control's GNN arm — the model-dependent half of the check — was still running when this entry
+was written; the reversal above should be read as preliminary until that lands.
+
+**What this would mean if it holds.** `workload-150-100` differs from `workload-125-225` in
+both rps (150 vs 125) and duration (100 vs 225), so this shows trace-dependence without yet
+isolating which property drives it. `workload-175-100.json` (351,767 events, rps=175,
+duration=100 — holds duration fixed against `workload-150-100`) is queued to separate rps
+from duration. `workload-200-200.json` (800,413 events — the trace this file has named three
+times as an aspirational target and never run) is queued last, at reduced parallelism (GNN
+measured ~2.9 GB RSS/worker on the 301k-event trace, so PAR was cut from 5 to 2 for the 800k
+one to avoid OOM on a 32 GB box).
+
+**Do not treat the FAIL above as retracted yet.** One trace reversing does not overturn a
+result — it demonstrates the result is trace-dependent, which is itself the finding worth
+having either way. If the GNN control arm also passes and `workload-175-100` /
+`workload-200-200` corroborate, the honest updated claim is "the deployed siv1 checkpoint
+beats Knative on some real traces and loses on others" — a materially different, more
+interesting result than an unconditional FAIL, and one that would need its own root-cause
+work (what about `workload-125-225` specifically makes Knative win there) before either verdict
+is final. If they contradict `workload-150-100` instead, the original FAIL stands and
+`workload-150-100`'s result becomes the thing needing an explanation.
+
+**A related MLP finding that corrects prior speculation.** The recorded gate's open thread
+(this file, "MLP's earlier collapse at low density") does not reproduce as a density effect on
+`workload-150-100`: the *sparsest* cell (p=0.15) is fine at 0.75× Knative; only p=0.20 collapses
+(6.10×); MLP beats Knative in 4/5 cells. The `decode_stats.json` sidecars (previously unread —
+see GATE TOOLS) show the collapsing cell's `chosen_queue_vs_min` **median** is unremarkable
+(119, in line with the other cells' 84–147) while its **p95 is 15,401**, ~30× the other cells'
+~500 — a rare catastrophic-choice tail, not a systematically worse policy. Collision rates are
+flat across all 5 cells (0.146–0.179), ruling out intra-batch collisions. Which cell exhibits
+the tail moved between the two traces (p=0.15/0.20/0.25 on `workload-125-225`, only p=0.20 on
+`workload-150-100`), so this reads as a trace-dependent instability, not a property of sparse
+topology — revise the "sparse topologies force remote placements" hypothesis accordingly.
+
+**Group A retest scope, decided this session.** `LINEAGES.md` records six lineage-level
+`FALSIFIED`/`FAILED` rows; this siv1 retest and a `link_contention_v1` real-trace A/B (below)
+are the two live-gate-shaped ones. The other four were evaluated for the same treatment and
+found not to fit:
+- **`contention_v4_v5`** — its failure is a ratio between two terms of the ECT cost formula
+  (`depth × exec_time` grows with the lever, `added_in_batch × exec_time` does not), provable
+  by reading `scheduling_cost.py` and confirmed on all 899 `contention_v2` datasets. A live
+  trace reports `total_rtt`, which has no additive-R² to report — not retestable this way.
+- **`topology_transfer_v1`** — is live-gate-shaped in principle (see its own §a/b/c list
+  above) but needs checkpoint saving, a production `use_network_entities` serving path, and a
+  multi-size GPU retrain (~14 GPU-hours at job 705834's pace) before a live cell can even be
+  minted. Blocked this session on GPU availability (none locally; needs datalab).
+- **`regime_b`** (RETIRED) — its 5 on-disk checkpoints have no `.contract.json` sidecar, so
+  `load_gnn_model`'s warmth-physics guard (`executesimulation.py:486`) silently no-ops instead
+  of raising, and its only real traces are `rps=0` cold-burst files (28–64 events). Also
+  superseded per CLAUDE.md.
+- **`soft_combo`** (RETIRED) — its matched checkpoint pair
+  (`near-rtt-v2-regime-b-oracle-split-cosim-dim16-{ce-only,soft-combo-conc}.pt`) inherits every
+  `regime_b` problem above, and its training collection has no `space_with_network.json` to
+  mint parity-verified cells from at all.
+
+#### Resolution (2026-08-21, later the same day): the replication control FAILED on its GNN arm — and the cause is an uncommitted code fix, not the trace and not the environment
+
+**The control's knative arm passed bit-exactly; its GNN arm did not reproduce on any cell.**
+Local re-run of the recorded trace (`workload-125-225.json`), same cells, same checkpoint
+(sha256 `4df64b6a…` verified identical local↔datalab), same pinned env:
+
+| cell (density) | recorded gnn (datalab) | local gnn | recorded margin vs kn | local margin vs kn |
+|---|---:|---:|---:|---:|
+| cell01 (p=0.25) | 65,822,323.78 | 50,407,465.33 | +41.4% | +8.3% |
+| cell02 (p=0.35) | 50,469,878.45 | 37,358,224.81 | +27.9% | **−5.3% (win)** |
+| cell03 (p=0.15) | 61,505,759.92 | 51,550,526.55 | +40.0% | +17.4% |
+| cell04 (p=0.50) | 42,661,515.61 | 32,269,908.29 | +22.1% | **−7.6% (win)** |
+| cell05 (p=0.20) | 52,580,830.03 | 46,905,755.20 | +12.0% | −0.06% (tie) |
+
+**Root cause isolated by a 7-run probe matrix on `gnn/cell01`** (every value below is the
+same cell, trace, checkpoint, and thread pinning unless noted):
+
+| run | code | machine / device | total_rtt |
+|---|---|---|---:|
+| recorded gate (job 708549_10) | datalab `4db48d9` (clean) | datalab GPU (A40) | 65,822,323.78 |
+| GPU repro ×2 (jobs 709154_0/1, same node) | datalab `4db48d9` | datalab GPU (A40) | 65,849,376.41 / 65,865,441.89 |
+| CPU-forced (job 709155, `CUDA_VISIBLE_DEVICES=`) | datalab `4db48d9` | datalab CPU-amd | 65,806,356.23 |
+| **clean worktree at `4db48d9`** | **committed tree** | **local CPU** | **65,795,161.49** |
+| local working tree (repl + exact re-run) | uncommitted diff | local CPU | 50,407,465.33 / 50,358,532.75 |
+| local working tree, `OMP_NUM_THREADS=1` | uncommitted diff | local CPU | 50,518,223.26 |
+
+Two tight clusters, 23.3% apart, split **exactly on the code version**: committed tree
+65.80–65.87M (spread 0.11% across two machines, two devices, two BLAS thread counts, two
+numpy/pyg versions — numpy 1.26.4/pyg 2.7.0 on datalab vs 2.3.0/2.6.1 locally); working
+tree 50.36–50.52M (spread 0.32%). Environment, GPU-vs-CPU numerics, CUDA scatter-add
+atomics, and library versions are all **exonerated** — GPU run-to-run wobble is ±0.04%,
+thread-count wobble ±0.2%, both the same order as the residual F1 tie-break noise
+(0.05–0.1%, see GATE TOOLS), and none of it cascades.
+
+**The responsible diff is the dims 9-11 live-feature fix that was never committed.**
+`src/placement/temporal_features.py` (in the working tree since 2026-08-19, untracked) and
+the `feature_builder.py` hunk that calls it fix the audit's Bug 1 (estimate gated per
+snapshot vs per platform) and Bug 2 (live estimate averaged over ALL task types incl. the
+9.5×-outlier `cnn`, serving 0.0815 where the vocab-restricted training-side formula gives
+0.0086). Job 708549 ran on datalab's clean tree — i.e. **the recorded FAIL was measured
+serving the known-divergent live features the audit had already flagged, two days after
+those features were fixed locally.** Everything else in the working-tree diff is
+eliminated by the knative arm's bit-exactness (`46,556,946.73649` reproduced exactly
+across both trees and both machines — the shared physics/simulation path is provably
+unchanged) plus code review of the remaining GNN-path hunks (`gnn_model.py` changes are
+opt-in-gated or behavior-identical refactors; `topology_features` v0 is bit-exact by its
+own 40/40 verification).
+
+**Consequences.**
+1. **The recorded 0/5 FAIL is re-graded, not merely trace-dependent**: it measured the
+   checkpoint through a train/serve-divergent live feature path. With train-consistent
+   features (the fixed path — strictly closer to what the checkpoint saw in training,
+   where the affected cache rows were 0.0, not 0.0815), the same checkpoint on the same
+   trace goes **2 wins / 1 tie / 2 losses**, and wins **5/5 on `workload-150-100`** and
+   **5/5 on `workload-175-100`** (kn 34.19/33.21/35.26/31.11/36.63M vs gnn
+   30.99/30.67/32.63/27.77/32.67M — margins −7.5% to −10.8%; MLP wins 4/5 by −19 to −30%
+   but collapses at cell05, +366%). The trace-dependence that remains is real but mild:
+   `workload-125-225` is the hardest of the three traces for the GNN, not a 0/5 outlier.
+2. **The audit's "decision impact is unmeasured" thread is closed**: measured, it is
+   **23.3% of live `total_rtt`** on `gnn/cell01`, enough to flip gate verdicts. The
+   audit's "live-gate corpora unaffected" statement was about the *cache* side of those
+   corpora and remains true; the *live* side of every gate run on the committed tree
+   served Bug 2.
+3. **Process fix, mandatory before the next datalab gate**: the temporal fix (and the rest
+   of the reviewed working-tree diff) must be committed and pushed so datalab and local
+   run the same code — the gate/live scripts sync `models/` by rsync but `src/` by git,
+   and an uncommitted src fix silently splits the two sides. Additionally,
+   `run_provenance` should record `git describe --dirty` + a working-tree diff hash in
+   every live result JSON (small `executesimulation.py` addition; deferred only until the
+   currently-running sweeps finish, same rule as the F1 fix).
+4. Measured noise floors for future margins: GNN local run-to-run 0.1–0.3% (residual F1
+   tie-break + thread wobble), datalab GPU run-to-run ±0.04%. The live margins above are
+   25–300× these floors.
+
+`workload-200-200` (800k events) was still running when this was written — its result
+extends the trace ladder but cannot change the re-grading above, which rests on the
+matched-code probe matrix.
+
 ### cache_live_divergence_audit — outcomes (2026-08-19)
 
 Its own lineage, not part of `topology_transfer_v1`: this is shared-infrastructure
@@ -1237,7 +1403,10 @@ unaffected**. `shallow_v1` — the corpus behind the current necessity ablation 
 Magnitude is small (0.0815 in a `/10`-normalized dim, i.e. ~0.8s of estimated remaining
 execution counted as 0 during training) on 37-75 of ~200 platforms. **Decision impact is
 unmeasured** — the 2e-4 logit shift observed on a random-init model says nothing about a
-trained one's sensitivity.
+trained one's sensitivity. *(Measured 2026-08-21: on live inference it is 23.3% of
+`total_rtt` on `gnn/cell01`, enough to flip live-gate verdicts — see the siv1 resolution
+subsection above. The "unaffected" list below is the cache side only; the live side served
+Bug 2 in every gate run on the committed tree until the fix is committed.)*
 
 #### Fix + re-verification (2026-08-19)
 
@@ -1831,6 +2000,102 @@ node-occupancy integer over the only 2 hosts that existed. Frozen reports:
 `simulation_data/separability_netc_multihop_{pilot,v1}.json`,
 `simulation_data/link_overlap_precheck_netc_multihop_v1.json`.
 
+### link_contention_v1 — a real-trace A/B, at realistic concurrency (2026-08-21, 🔄 IN PROGRESS)
+
+**Why.** The FALSIFIED verdict above ("uniform smallness … regret never exceeds 0.35%") was
+measured entirely on 4-task co-sim sweeps, where at most 4 transfers can ever share a core
+segment. That is a claim about the mechanism's magnitude *at that concurrency*, not a claim
+about its magnitude at realistic load — a real trace at rps=150 presents five to six orders of
+magnitude more simultaneous traffic. This does **not** re-decide the co-sim separability
+claim (`total_rtt` has no additive-argmin regret to report) — it is new evidence on a
+different, previously-untested question: does the backbone change live outcomes at real
+concurrency?
+
+**Design.** Matched A/B: identical parity-verified cells, identical trace
+(`workload-150-100.json`), identical deployed checkpoint; the only difference is a
+`network.backbone` block (`n_core=4, attach_degree=1, chord_count=0, bandwidth_mbps=1.5`) —
+`n_core=4` because it is this lineage's own measured interior peak, the only configuration
+whose max regret cleared the 5% gate (see the closing hub↔mesh sweep above). The no-backbone
+arm is `siv1_full_corpus`'s `workload-150-100` retest (above) on the same cells — reused
+directly, not duplicated.
+
+**Blocker found and resolved: `build_core_backbone`'s jitter rng is offset by the
+replica-reachability repair.** `generate_infrastructure.py`'s backbone build draws
+`rng.sample`/`rng.uniform(-jitter, +jitter)` (`:372-375`) from the *same* rng stream the
+reachability repair already consumed via `rng.shuffle` (`:768`), and the backbone is overlaid
+*after* the repair (`:780`). A live run autoscales from zero and performs no repair, so it
+reaches the backbone build at a different stream position — every access-link latency
+diverges on exactly the cells with a non-empty repair set:
+
+| cell | repair edges (corpus) | backbone parity |
+|---|---|---|
+| cell02 p=0.35 | 0/282 | PASS |
+| cell04 p=0.50 | 0/380 | PASS |
+| cell05 p=0.20 | 12/172 | FAIL — 12 corpus-only edges |
+| cell01 p=0.25 | 14/182 | FAIL — 14 corpus-only edges |
+| cell03 p=0.15 | 34/174 | FAIL — 34 corpus-only edges |
+
+Resolved with a narrowly-scoped, control-tested addition to `verify_live_infra_parity.py`:
+`--allow-backbone-latency-divergence` downgrades exactly the two finding classes this causes
+to notes, and **only** when a backbone is present on both the corpus and live sides (verified:
+relaxes all 5 backbone cells to PASS; the same cells still FAIL 3/5 without the flag; a
+non-backbone collection is unaffected by the flag either way). This is a live-vs-live-only
+relaxation for this matched A/B — the corpus-side artifact exists only to satisfy the
+preflight, and both live arms are self-consistent with each other. It does not paper over a
+real mismatch on any collection that isn't deliberately using a backbone this way. Also see
+GATE TOOLS below — `NetworkFabric.link_wait_total` / `task.link_wait_time` already measure
+exactly the contention quantity this lineage needs and were never surfaced in the live result
+JSON.
+
+**Smoke result — the effect is not small at real concurrency, and decomposes cleanly.**
+Knative, cell02 (p=0.35), `workload-150-100-30k.json` (30,000 events):
+
+| arm | total_rtt | |
+|---|---:|---|
+| no backbone | 2,043,279.3 | |
+| backbone @ 1000 MB/s (non-binding) | 1,451,938.7 | routing/path-sum effect only |
+| backbone @ 1.5 MB/s (binding) | 7,867,634.7 | + transmission + contention |
+
+Routing alone **improves** RTT by 28.9% (shorter/better-latency paths over the core vs. direct
+one-hop); the binding bandwidth then adds +441.9%; net **+285.1%**, ~entirely bandwidth-driven.
+This measures `total_rtt`, an absolute-cost effect — it does not by itself say whether the
+backbone changes the *decision* (policy ordering), which is the full-trace A/B's actual
+question and was still running when this entry was written.
+
+**Full-scale result (2026-08-21): at real concurrency the backbone dominates absolute cost
+AND changes the policy ordering in the GNN's favor.** All 15 runs complete
+(`a1_backbone_bw1p5`, backbone `n_core=4, bw=1.5 MB/s`, vs the no-backbone arm
+`a4_wl150100`, same cells/trace/checkpoints; local working tree, i.e. the fixed dims 9-11
+live path — see the siv1 resolution subsection):
+
+| cell | knative | mlp (vs kn) | gnn (vs kn) | kn backbone/no-backbone |
+|---|---:|---:|---:|---:|
+| cell01 (p=0.25) | 282,087,829.7 | 201,011,470.6 (−28.7%) | 192,457,679.0 (**−31.8%**) | 11.5× |
+| cell02 (p=0.35) | 224,756,932.5 | 133,554,067.3 (−40.6%) | 169,969,881.1 (**−24.4%**) | 9.2× |
+| cell03 (p=0.15) | 225,705,548.2 | 168,869,109.0 (−25.2%) | 165,408,019.3 (**−26.7%**) | 8.3× |
+| cell04 (p=0.50) | 286,046,987.2 | 169,992,579.0 (−40.6%) | 260,550,047.3 (**−8.9%**) | 14.0× |
+| cell05 (p=0.20) | 196,851,644.1 | 487,049,588.6 (+147.4%) | 141,739,988.9 (**−28.0%**) | 7.4× |
+
+Three findings:
+1. **Binding bandwidth is a 7–14× absolute-cost effect at real concurrency** — the co-sim
+   FALSIFIED verdict's "regret never exceeds 0.35%" was a statement about 4-task sweeps,
+   and does not describe live load. (This still does not reopen the co-sim separability
+   claim, which is about a different statistic on different data.)
+2. **The GNN's advantage over Knative widens under binding bandwidth**: mean margin −9.4%
+   (0.9–14.8%) without the backbone → **−24.0% (8.9–31.8%) with it**, 5/5 both arms. This
+   is the first live regime where the GNN's edge grows as network structure starts to
+   bind — directionally what this lineage's physics was built to create, though from a
+   checkpoint never trained on backbone corpora.
+3. **MLP beats the GNN on 3/5 cells but keeps its catastrophic cell05 tail** (+147% here,
+   +366% on `workload-175-100`, 6.1× on the no-backbone arm) — its wins don't survive its
+   worst cell, and the GNN has no such tail on any of the six live sweeps run to date.
+
+Margins are 25–300× the measured 0.1–0.3% local noise floor. Caveat: single trace, single
+seed per cell, one backbone configuration; the rng-stream coupling in
+`generate_infrastructure.py` (above) is still unfixed, so backbone cells still need
+`--allow-backbone-latency-divergence` for parity. The rng bug and the parity-tool fix
+stand regardless of this result.
+
 ### mp_parity — outcomes (2026-08-17)
 
 **Root cause.** `train_near_rtt.py` fitted `self.gin(x, data.edge_index)` (bipartite only)
@@ -1945,6 +2210,11 @@ find out what changed about the tool without reading a lineage's story to get th
 | 2026-08-20 | `src/executesimulation.py` (`--seed`) | **`--seed` overrides the config's topology seed, so every "multi-seed" live gate was a multi-*topology* gate.** `prepare_infrastructure_for_real_simulation(space_config, seed=seed)` uses the CLI seed for topology generation and only falls back to `network.topology.seed` when it is absent (`:842-854`). Measured against `contention_v2/ds_00000`'s own config: `--seed 42` yields **144/210 directed edges different and 64/64 shared edges disagreeing on latency**. Runs reported as "seeds 42..46 on config X" therefore varied the infrastructure and the simulation randomness together, and any per-seed spread conflates the two — the same confound class as the GIN non-determinism row above, in the data rather than the optimizer. | `run_full_corpus_siv1_live_gate.sh` passes **no `--seed`**, so topology comes from each cell's config; replication comes from distinct parity-verified cells instead. `verify_live_infra_parity.py --seed N` reproduces the divergence on demand, and `test_seed_override_fails_parity` pins it. Pre-existing gate results are not retracted by this — they were internally consistent — but their per-seed variance should not be read as simulation-seed variance. |
 
 | 2026-08-20 | any new `*.sbatch` (env activation) | **`micromamba shell hook --bash` fails on compute nodes but works on login nodes.** Compute nodes run a newer micromamba that requires `--shell bash` and rejects the old spelling with `The following argument was not expected: --bash`. Job 707292 (`siv1_full_corpus` live gate) died with all 15 array tasks failing in ~1s. The trap is that a **login-node sanity check cannot catch this** — the login node accepts the old form, so the pre-submit validation passed while every compute node rejected it. | Use `eval "$(micromamba shell hook --shell bash)"`; every other script in `scripts_cosim/datalab/` already did, and the broken one was a hand-written outlier. When adding an sbatch, diff its env-activation preamble against a neighbouring script rather than trusting a login-node dry run. |
+
+| 2026-08-21 | `{knative,gnn,knative_network}/autoscaler.py` (all 3, `mlp_batch` inherits `GNNAutoscaler`) | **`eb6d131`'s tie-break fix was incomplete, and `PYTHONHASHSEED` does not cover this class of bug at all.** All three scale-down sites do `sorted(function_replicas, key=lambda couple: len(couple[1].queue.items))` — a **non-total** key over a `Set[Tuple[Node, Platform]]`. `sorted()` is stable, so any tie (two idle replicas with equal queue length) keeps the underlying set's iteration order, which for a set of *objects* is `id()`-derived — Python only randomizes `str`/`bytes` hashing, so `PYTHONHASHSEED` genuinely does nothing here. Proved directly: 3 processes under identical `PYTHONHASHSEED=0` iterate a set of 8 objects in 3 different orders, while a control set of 8 strings is identical across all 3. Measured consequence: `knative_network`/cell03 p=0.15, 4 independent processes, identical inputs, `PYTHONHASHSEED=0` pinned — `total_rtt` took 4 distinct values, 0.05% spread (sd 0.0235%). Small relative to any recorded gate margin (239-816x below the siv1 gate's 12-41%), but real and previously unmeasured — the `PYTHONHASHSEED=0` "defense-in-depth" in the live-gate scripts was assumed to cover this and does not. | **Not yet fixed** (found mid live-gate run this session; deferred to avoid splitting one gate's results across two code versions). Fix is a total key: `key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)`. See `memory/herosim-pythonhashseed-tiebreak-nondeterminism.md` for the full empirical writeup. |
+| 2026-08-21 | `src/executesimulation.py` / live result JSON (reporting gap, not a bug) | **`NetworkFabric.link_wait_total` (`network_fabric.py:133`) and `task.link_wait_time` (`infrastructure.py:196`, serialized as `linkWaitTime`) accumulate real link-contention waiting and are never surfaced outside the test suite.** The live result JSON's `stats` block has no link field, so the simulator computes exactly the quantity `link_contention_v1`'s real-trace A/B needs (splitting a backbone's total_rtt delta into transmission vs. contention) and discards it. | Not fixed — noted as a small, reporting-only addition (no behaviour change) for whoever next needs to decompose a backbone's cost. |
+| 2026-08-21 | `generate_infrastructure.py` (`build_core_backbone`) via `verify_live_infra_parity.py` | **The backbone's access-link jitter is drawn from the same `rng` stream the replica-reachability repair already consumed**, and the backbone is built *after* the repair (`:768` then `:780`). A live run performs no repair (it autoscales from zero), so it reaches the backbone build at a different stream position than the corpus generator did — every access-link latency diverges on any cell with a non-empty repair set (measured: 3/5 siv1 gate cells FAIL when a backbone is added, matching exactly the 3 cells with nonzero repair-edge counts; the 2 with zero repair edges PASS). | New `--allow-backbone-latency-divergence` flag on `verify_live_infra_parity.py`, scoped narrowly: downgrades exactly the two affected finding classes to notes, and only fires when a backbone is present on **both** the corpus and live sides — verified it cannot mask a mismatch on a non-backbone collection, and that without the flag the same cells still correctly FAIL. Root rng coupling itself is not fixed (would require an independent substream and would break bit-reproducibility of `gnn_datasets_4tasks_topo_transfer_v1`'s existing 3,744-dataset corpus from its seed — a bigger call than this session's scope; the flag is the practical unblock for a live-vs-live A/B where the corpus-side artifact is only a preflight fixture). |
+| 2026-08-21 | live-gate protocol / `run_provenance` (via `datalab/siv1_env_probe_{gpu,cpu}.sbatch`) | **A live gate can silently measure an uncommitted code diff instead of the model.** `models/` syncs by rsync but `src/` syncs by git, so the dims 9-11 live-feature fix (working tree 2026-08-19, uncommitted) ran locally but not in datalab's job 708549 — 23.3% of `total_rtt` on `gnn/cell01`, flipping the gate verdict. `run_provenance` records env vars and contracts but **not the git commit or working-tree state**, so nothing in either side's result JSON could reveal the split. Root-caused by a 7-run probe matrix (see the siv1 resolution subsection): the two new probe sbatch files re-run one gate cell on the recorded node (GPU ×2) and CPU-forced, establishing datalab-side noise floors (±0.04% GPU run-to-run, ±0.03% GPU↔CPU) as a by-product. | Protocol: `git status --short src/ scripts_cosim/` must be clean before any datalab gate, and local+datalab must be at the same commit. Code fix planned (deferred until no sweep is mid-run): record `git describe --dirty --always` + a hash of `git diff` in `run_provenance`. |
 
 New tool from the same work: **`scripts_cosim/audit_cache_live_divergence.py`** — measures
 cache↔live disagreement across every collection from `optimal_result.json` (+ SSC where
