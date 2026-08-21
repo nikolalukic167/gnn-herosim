@@ -24,6 +24,17 @@ from typing import Callable, Dict, List, Tuple, Optional, TypedDict, Any
 
 from src.placement.warmth import NODE_DISK_V2, sandbox_is_warm
 
+# network_contention_v1: the transfer-time formula is shared with the ECT cost model so
+# the two cannot drift apart, which is what produced the train/serve MP mismatch.
+# scheduling_cost imports this module only under TYPE_CHECKING, so there is no cycle.
+from src.placement.scheduling_cost import (
+    transfer_time as _transfer_time,
+)
+from src.placement.network_fabric import NetworkFabric
+
+# network_contention_v1 spelling, kept where the ingress pipe is charged.
+_ingress_transfer_time = _transfer_time
+
 # Set GNN_CAPTURE_DATASET_STATE=1 when generating GNN training datasets (co-sim).
 DATASET_STATE_CAPTURE = os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1"
 
@@ -38,6 +49,7 @@ def slim_completed_task(task: "Task") -> None:
         task.system_state_snapshot = None
 
 from simpy.core import Environment, SimTime
+from simpy.resources.resource import Resource
 from simpy.resources.store import FilterStore, Store
 
 from src.placement.model import (
@@ -172,6 +184,17 @@ class Task:
         self.construction_time: DurationSecond = 0.0
 
         self.network_latency: DurationSecond = 0.0
+        self.node_contention_time: DurationSecond = 0.0
+        # network_contention_v1: transfer is the (task, node)-additive transmission cost;
+        # wait is the queueing for the shared pipe, i.e. the non-additive part.
+        self.ingress_transfer_time: DurationSecond = 0.0
+        self.ingress_wait_time: DurationSecond = 0.0
+        # link_contention_v1: the same split, one level down. Transfer is summed over the
+        # route's hops and stays a function of (task, source, destination); wait is the
+        # queueing on shared segments and is the non-additive part.
+        self.link_transfer_time: DurationSecond = 0.0
+        self.link_wait_time: DurationSecond = 0.0
+        self.link_hops: int = 0
         self.source_node: str = node_name
         self.execution_node: str = ""
         self.execution_platform: str = ""
@@ -364,6 +387,12 @@ class Task:
             "localCommunications": self.local_communications,
             "energy": self.energy,
             "networkLatency": self.network_latency,
+            "nodeContentionTime": self.node_contention_time,
+            "ingressTransferTime": self.ingress_transfer_time,
+            "ingressWaitTime": self.ingress_wait_time,
+            "linkTransferTime": self.link_transfer_time,
+            "linkWaitTime": self.link_wait_time,
+            "linkHops": self.link_hops,
             "sourceNode": self.node_name,
             "executionNode": self.execution_node,
             "executionPlatform": self.execution_platform,
@@ -733,7 +762,16 @@ class Platform:
         if task.node_name != self.node.node_name and task.node and task.node.network_map:
             if task.node_name in self.node.network_map:
                 network = self.node.network_map[task.node_name]
-        
+
+        # network_contention_v1 deliberately charges NO ingress transfer here, unlike
+        # node_contention_v3 which had to account for this backlog. The seeded queue
+        # depth is work that already arrived before t=0; the compressed drain is a
+        # fast-forward of the past, so billing it for a transfer now would both
+        # double-count the arrival and — because it is a per-(task, platform) constant —
+        # inflate the additive term and dilute the coupling, which is the exact mistake
+        # the deep-queue series made. Only tasks that traverse the network during the
+        # run pay ingress. See platform_process.
+
         # Communication time (I/O) - mirror platform_process assumptions:
         # input from remote storage, output to local storage, and output path
         # is network-bounded when input storage is remote.
@@ -949,7 +987,18 @@ class Platform:
         # Doing this on first real queue pop shifts warmup delay to request time and
         # does not match the non-fast-forward timeline.
         if self.virtual_warmup_count > 0 and self.virtual_warmup_total_time > 0:
-            yield self.env.timeout(self.virtual_warmup_total_time)
+            # Under node_contention_v3 the seeded backlog is real work on the node's
+            # shared slots, so draining it blocks co-located platforms. Without this the
+            # backlog -- which is ~95% of RTT -- would bypass contention entirely and the
+            # target would stay additive.
+            if self.node.compute_slots is not None:
+                backlog_start = self.env.now
+                with self.node.compute_slots.request() as slot:
+                    yield slot
+                    self.node.contention_time += self.env.now - backlog_start
+                    yield self.env.timeout(self.virtual_warmup_total_time)
+            else:
+                yield self.env.timeout(self.virtual_warmup_total_time)
             if self.virtual_warmup_task_type:
                 self.previous_task = type(
                     'Task', (), {'type': {'name': self.virtual_warmup_task_type}}
@@ -991,6 +1040,47 @@ class Platform:
                         network_time = self.node.network_map[task.node_name]
                         task.network_latency = network_time
                         yield self.env.timeout(network_time)
+                        # network_contention_v1: propagation above is un-serialized and
+                        # stays additive; the input transmission below is served through
+                        # the destination node's single shared pipe, so concurrent
+                        # inbound transfers queue behind each other. That wait is the
+                        # only term whose cost depends on where the *other* tasks went.
+                        if self.node.ingress_pipe is not None:
+                            transfer_time = _ingress_transfer_time(
+                                task, self.node.ingress_bandwidth_mbps
+                            )
+                            if transfer_time > 0:
+                                wait_start = self.env.now
+                                with self.node.ingress_pipe.request() as pipe:
+                                    yield pipe
+                                    ingress_wait = self.env.now - wait_start
+                                    task.ingress_wait_time = ingress_wait
+                                    task.ingress_transfer_time = transfer_time
+                                    self.node.ingress_wait_total += ingress_wait
+                                    yield self.env.timeout(transfer_time)
+                        # link_contention_v1: the same transmission, but served hop by hop
+                        # along the task's actual route instead of at one endpoint. Each
+                        # link is a capacity-1 pipe shared by every path that crosses it,
+                        # so the wait depends on which *links* the rest of the plan loaded
+                        # — a fact about the path structure, not about any one node's
+                        # occupancy. Store-and-forward: hold each hop for the full
+                        # transmission before moving to the next.
+                        if self.node.fabric is not None:
+                            for link_key_, bandwidth in self.node.fabric.hops(
+                                task.node_name, self.node.node_name
+                            ):
+                                hold = _transfer_time(task, bandwidth)
+                                if hold <= 0:
+                                    continue
+                                wait_start = self.env.now
+                                with self.node.fabric.pipe(link_key_).request() as hop:
+                                    yield hop
+                                    link_wait = self.env.now - wait_start
+                                    task.link_wait_time += link_wait
+                                    task.link_transfer_time += hold
+                                    task.link_hops += 1
+                                    self.node.fabric.link_wait_total += link_wait
+                                    yield self.env.timeout(hold)
                     else:
                         # No network connectivity - this should not happen if scheduler filters correctly
                         logging.error(f"No network connectivity from {self.node.node_name} to {task.node_name}")
@@ -1114,8 +1204,20 @@ class Platform:
 
             logging.info(f"[ {self.env.now} ] {self} started {task} execution")
 
-            # Run the task to completion
-            yield self.env.timeout(task_duration)
+            # Run the task to completion. Under node_contention_v3 the platform must first
+            # acquire one of the node's shared execution slots, so co-located platforms
+            # serialize against each other; task.node_contention_time records that wait
+            # separately from execution so RTT stays decomposable for analysis.
+            if self.node.compute_slots is not None:
+                contention_start = self.env.now
+                with self.node.compute_slots.request() as slot:
+                    yield slot
+                    contention_wait = self.env.now - contention_start
+                    task.node_contention_time = contention_wait
+                    self.node.contention_time += contention_wait
+                    yield self.env.timeout(task_duration)
+            else:
+                yield self.env.timeout(task_duration)
             task.execution_time = task_duration
 
             # Store output data
@@ -1219,7 +1321,10 @@ class Node:
         policy: SimulationPolicy,
         data: SimulationData,
         node_type: str,
-        node_name: str
+        node_name: str,
+        compute_slots: Optional[int] = None,
+        ingress_bandwidth_mbps: Optional[float] = None,
+        fabric: Optional["NetworkFabric"] = None,
     ):
         self.id = node_id
         self.memory = memory
@@ -1234,6 +1339,46 @@ class Node:
         self.orchestrator_ref = None
 
         self.env = env
+
+        # node_contention_v3 physics: co-located platforms contend for a shared pool of
+        # node execution slots. Left as None the node has no shared resource at all and
+        # platforms run fully independently, which is node_disk_v2 physics — so existing
+        # corpora reproduce bit-identically unless a slot count is supplied.
+        if compute_slots is not None and compute_slots < 1:
+            raise ValueError(
+                f"compute_slots must be >= 1 when set, got {compute_slots} "
+                f"for node {node_name}"
+            )
+        self.compute_slots_capacity: Optional[int] = compute_slots
+        self.compute_slots: Optional[Resource] = (
+            Resource(env, capacity=compute_slots) if compute_slots is not None else None
+        )
+        self.contention_time: SimTime = 0.0
+
+        # network_contention_v1 physics: inbound task inputs share this node's ingress
+        # pipe, so two batch-mates placed anywhere on the same node serialize their
+        # transfers and the cost of a placement depends on what else was placed here.
+        # Left as None the node has no pipe and pays no transmission time at all, which
+        # is node_disk_v2 physics — existing corpora reproduce bit-identically.
+        if ingress_bandwidth_mbps is not None and ingress_bandwidth_mbps <= 0:
+            raise ValueError(
+                f"ingress_bandwidth_mbps must be > 0 when set, got "
+                f"{ingress_bandwidth_mbps} for node {node_name}"
+            )
+        self.ingress_bandwidth_mbps: Optional[float] = (
+            float(ingress_bandwidth_mbps) if ingress_bandwidth_mbps is not None else None
+        )
+        self.ingress_pipe: Optional[Resource] = (
+            Resource(env, capacity=1) if ingress_bandwidth_mbps is not None else None
+        )
+        self.ingress_wait_total: SimTime = 0.0
+
+        # link_contention_v1 physics: the shared NetworkFabric, owned by the simulation
+        # and handed to every node, holds one pipe per network link. Unlike the ingress
+        # pipe this is NOT indexed by destination node — two tasks bound for different
+        # nodes still queue behind each other on a shared core segment, which is the
+        # coupling no node-occupancy count can express. None ⇒ no fabric, nothing charged.
+        self.fabric: Optional["NetworkFabric"] = fabric
 
         self.available_platforms = 0
         self.available_memory = memory

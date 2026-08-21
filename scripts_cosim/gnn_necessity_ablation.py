@@ -2,13 +2,15 @@
 """GNN-necessity ablation: does message passing (and same-node aggregation) beat a
 pointwise edge scorer on co-sim placement labels?
 
-Three models share an IDENTICAL encoder + edge scorer; the ONLY difference is the
+Four models share an IDENTICAL encoder + edge scorer; the ONLY difference is the
 relational structure used between encoding and scoring:
 
   pointwise   : no message passing            (feature-parity MLP baseline)
   gnn_base    : GIN over task<->platform edges (bipartite message passing)
   gnn_node    : GIN over task<->platform + same-node platform<->platform edges
                 (the node-aggregation prototype: signal a pointwise model cannot see)
+  gnn_topo    : GIN over task<->platform edges + backbone/link network entities
+                (use_network_entities=True; the only arm with topology awareness at all)
 
 Trained with identical CE loss / optimizer / splits / seed. We report, on a held-out
 test split:
@@ -47,9 +49,28 @@ from torch_geometric.nn.models import GIN
 _NOTEBOOKS = Path(__file__).resolve().parents[1] / "src" / "notebooks"
 if str(_NOTEBOOKS) not in sys.path:
     sys.path.insert(0, str(_NOTEBOOKS))
+from src.placement.network_graph import (  # noqa: E402
+    NET_LINK_FEATURE_DIM,
+    NET_NODE_FEATURE_DIM,
+)
+from src.policy.gnn.gnn_model import split_task_platform_embeddings  # noqa: E402
 from non_unique_lib.training_contract import (  # noqa: E402
     assert_zero_parent_overlap,
     split_ids_by_canonical_parent,
+    split_ids_by_topology_size,
+    topology_sizes_by_parent,
+)
+
+_SCRIPTS_COSIM = Path(__file__).resolve().parent
+if str(_SCRIPTS_COSIM) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_COSIM))
+from gate_statistics import (  # noqa: E402
+    PHASE4_TIERS,
+    escalation_note,
+    format_comparison_table,
+    paired_regret_comparison,
+    phase4_verdict,
+    power_note,
 )
 
 
@@ -83,12 +104,24 @@ class EdgeScorer(nn.Module):
 class AblationModel(nn.Module):
     def __init__(self, task_dim: int, plat_dim: int, edge_dim: int,
                  use_gin: bool, use_node_edges: bool,
+                 use_network_entities: bool = False,
+                 net_node_dim: int = NET_NODE_FEATURE_DIM,
+                 net_link_dim: int = NET_LINK_FEATURE_DIM,
                  emb: int = 64, hidden: int = 128, layers: int = 3):
         super().__init__()
         self.use_gin = use_gin
         self.use_node_edges = use_node_edges
+        # Network entities come from the cache, which builds them through the SAME
+        # src/placement/network_graph.py path live inference uses. This harness deliberately
+        # does not construct any graph of its own — a third construction is how the formulas
+        # this repo has already had to de-duplicate (queue, topology, temporal) got their
+        # divergences in the first place.
+        self.use_network_entities = use_network_entities
         self.task_enc = MLPEncoder(task_dim, hidden, emb)
         self.plat_enc = MLPEncoder(plat_dim, hidden, emb)
+        if use_network_entities:
+            self.net_node_enc = MLPEncoder(net_node_dim, hidden, emb)
+            self.net_link_enc = MLPEncoder(net_link_dim, hidden, emb)
         self.gin = GIN(in_channels=emb, hidden_channels=hidden, num_layers=layers, out_channels=emb) if use_gin else None
         self.post_drop = nn.Dropout(0.2)
         self.scorer = EdgeScorer(emb, hidden, edge_dim)
@@ -98,15 +131,37 @@ class AblationModel(nn.Module):
         te = self.task_enc(g.task_features)
         pe = self.plat_enc(g.platform_features)
         if self.use_gin:
-            x0 = torch.cat([te, pe], dim=0)
-            ei = g.edge_index
+            blocks = [te, pe]
+            extra = []
             if self.use_node_edges and getattr(g, "node_edge_index", None) is not None and g.node_edge_index.numel() > 0:
-                ei = torch.cat([ei, g.node_edge_index.to(ei.device)], dim=1)
+                extra.append(g.node_edge_index.to(g.edge_index.device))
+            if self.use_network_entities:
+                missing = [
+                    n for n in ("net_node_features", "net_link_features", "net_edge_index")
+                    if getattr(g, n, None) is None
+                ]
+                if missing:
+                    raise ValueError(
+                        f"FAIL LOUD: use_network_entities is on but the cached graph is "
+                        f"missing {missing}. Rebuild the cache with "
+                        f"NETWORK_GRAPH_CONTRACT=core_v1 over a corpus that has a "
+                        f"link_topology."
+                    )
+                blocks.extend([
+                    self.net_node_enc(g.net_node_features),
+                    self.net_link_enc(g.net_link_features),
+                ])
+                if g.net_edge_index.numel() > 0:
+                    extra.append(g.net_edge_index.to(g.edge_index.device))
+            x0 = torch.cat(blocks, dim=0)
+            ei = torch.cat([g.edge_index] + extra, dim=1) if extra else g.edge_index
             # Residual around GIN: message passing AUGMENTS the per-node encoding instead of
             # replacing it. Prevents oversmoothing/training-collapse when many (e.g. same-node)
             # edges flood aggregation, and guarantees GNN capacity >= pointwise.
             x = x0 + self.post_drop(self.gin(x0, ei))
-            te, pe = x[:nt], x[nt:]
+            # Shared bounded split — see split_task_platform_embeddings for why this is not
+            # written inline as `x[nt:]`.
+            te, pe = split_task_platform_embeddings(x, nt, npl)
         ei = g.edge_index
         ti, pj = ei[0], ei[1] - nt
         valid = (pj >= 0) & (pj < npl) & (ti < nt)
@@ -189,12 +244,134 @@ def plan_key(plan: Dict[int, Tuple[int, int]]) -> Tuple:
 
 
 # --------------------------------------------------------------------------------------
+# Preflight: the labels the models are trained and scored against must BE the sweep optima.
+#
+# The separability gate (separability_diagnostic.py) measures coupling in placements.jsonl.
+# The ablation measures models against cache labels. Those are two different objects, and
+# nothing used to check they agree -- so a cache whose labels came from
+# optimal_result.json's `sample.placement_plan` (which is not guaranteed to be the sweep
+# minimum) would silently invalidate a run while every other check passed. Audit here, on
+# every graph, before a single epoch is spent.
+# --------------------------------------------------------------------------------------
+def label_plan(g) -> Optional[Dict[int, Tuple[int, int]]]:
+    """Decode a graph's oracle label into a joint (node, platform) plan."""
+    if not hasattr(g, "y"):
+        return None
+    l2p = g.task_logit_to_placement
+    plan: Dict[int, Tuple[int, int]] = {}
+    for t in range(int(g.n_tasks)):
+        if t >= g.y.numel() or t >= len(l2p):
+            return None
+        idx = int(g.y[t].item())
+        if idx < 0 or idx >= len(l2p[t]):
+            return None
+        plan[t] = tuple(l2p[t][idx])
+    return plan or None
+
+
+def audit_label_provenance(graphs, corpus_root: Path) -> dict:
+    """Fail loud unless every cache label is its dataset's placements.jsonl minimum.
+
+    Streams each sweep once, keeping only the running minimum and the label combo's RTT,
+    so this stays cheap on corpora far larger than the graph cache itself.
+    """
+    n_checked = 0
+    undecodable: List[str] = []
+    absent: List[str] = []
+    drifted: List[Tuple[str, float]] = []
+
+    for g in graphs:
+        dsid = str(g.dataset_id)
+        plan = label_plan(g)
+        if plan is None:
+            undecodable.append(dsid)
+            continue
+        key = plan_key(plan)
+        jp = corpus_root / dsid / "placements" / "placements.jsonl"
+        if not jp.is_file():
+            raise RuntimeError(f"Label audit: missing placements.jsonl for {dsid}: {jp}")
+
+        min_rtt: Optional[float] = None
+        label_rtt: Optional[float] = None
+        with jp.open() as f:
+            for line_number, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception as exc:
+                    raise RuntimeError(f"{jp}:{line_number}: invalid JSON") from exc
+                rplan, rtt = rec.get("placement_plan"), rec.get("rtt")
+                if rplan is None or rtt is None:
+                    raise RuntimeError(
+                        f"{jp}:{line_number}: missing placement_plan or rtt"
+                    )
+                r = float(rtt)
+                rkey = tuple(
+                    sorted((int(k), (int(v[0]), int(v[1]))) for k, v in rplan.items())
+                )
+                if min_rtt is None or r < min_rtt:
+                    min_rtt = r
+                if rkey == key and (label_rtt is None or r < label_rtt):
+                    label_rtt = r
+        if min_rtt is None:
+            raise RuntimeError(f"Label audit: empty sweep for {dsid}: {jp}")
+
+        n_checked += 1
+        if label_rtt is None:
+            absent.append(dsid)
+        elif label_rtt > min_rtt + 1e-9:
+            drifted.append((dsid, (label_rtt - min_rtt) / min_rtt))
+
+    regrets = [r for _, r in drifted]
+    report = {
+        "n_checked": n_checked,
+        "n_label_is_sweep_min": n_checked - len(drifted) - len(absent),
+        "n_label_suboptimal": len(drifted),
+        "n_label_absent_from_sweep": len(absent),
+        "n_label_undecodable": len(undecodable),
+        "label_regret_mean": float(np.mean(regrets)) if regrets else 0.0,
+        "label_regret_max": float(np.max(regrets)) if regrets else 0.0,
+        "worst_datasets": [
+            {"dataset_id": d, "regret": r}
+            for d, r in sorted(drifted, key=lambda kv: -kv[1])[:10]
+        ],
+    }
+
+    failures = []
+    if undecodable:
+        failures.append(f"{len(undecodable)} graphs have undecodable labels: {undecodable[:5]}")
+    if absent:
+        failures.append(
+            f"{len(absent)} labels are absent from their sweep: {absent[:5]}"
+        )
+    if drifted:
+        worst = sorted(drifted, key=lambda kv: -kv[1])[:5]
+        failures.append(
+            f"{len(drifted)}/{n_checked} labels are not the sweep minimum "
+            f"(mean regret {100 * report['label_regret_mean']:.2f}%, "
+            f"max {100 * report['label_regret_max']:.2f}%); worst: "
+            + ", ".join(f"{d} +{100 * r:.1f}%" for d, r in worst)
+        )
+    if failures:
+        raise RuntimeError(
+            "LABEL PROVENANCE AUDIT FAILED -- the cache labels are not the brute-force "
+            "optima, so every number this ablation would print is measured against the "
+            "wrong target. Rebuild the cache with prepare_graphs_cache.py (label_source="
+            "placements.jsonl_sweep_minimum) before rerunning.\n  - "
+            + "\n  - ".join(failures)
+        )
+    return report
+
+
+# --------------------------------------------------------------------------------------
 # Eval: RTT regret of a model's argmax joint plan vs the oracle optimum.
 # --------------------------------------------------------------------------------------
 def eval_regret(model, graphs, corpus_root: Path, device, lut_cache: dict) -> dict:
     model.eval()
     regrets, top1_hits, top1_n = [], 0, 0
-    found, collided, missing = 0, 0, 0
+    found, collided, missing_collided, missing_clean = 0, 0, 0, 0
     opt_recovered = 0
     per_ds: Dict[str, float] = {}
     with torch.no_grad():
@@ -225,7 +402,8 @@ def eval_regret(model, graphs, corpus_root: Path, device, lut_cache: dict) -> di
                         top1_hits += 1
             if not ok:
                 continue
-            if len(set(plan.values())) < len(plan):
+            has_collision = len(set(plan.values())) < len(plan)
+            if has_collision:
                 collided += 1
             key = plan_key(plan)
             if key in lut:
@@ -236,13 +414,21 @@ def eval_regret(model, graphs, corpus_root: Path, device, lut_cache: dict) -> di
                 per_ds[dsid] = reg
                 if reg <= 1e-9:
                     opt_recovered += 1
+            elif has_collision:
+                # Expected: a colliding plan (two tasks on the same platform) is not a
+                # jointly-feasible combination, so a brute-force sweep correctly omits it.
+                missing_collided += 1
             else:
-                missing += 1
+                # No collision explains the absence -- the sweep should contain every
+                # jointly-feasible combination, so this is a corpus/harness bug.
+                missing_clean += 1
     regrets_arr = np.array(regrets) if regrets else np.array([0.0])
     return {
         "n_eval": len(graphs),
         "n_found": found,
-        "n_missing_plan": missing,
+        "n_missing_collided": missing_collided,
+        "n_missing_clean": missing_clean,
+        "n_missing_plan": missing_collided + missing_clean,
         "n_collided_plan": collided,
         "top1_acc": (top1_hits / top1_n) if top1_n else float("nan"),
         "regret_mean": float(regrets_arr.mean()),
@@ -327,22 +513,75 @@ def main() -> int:
     ap.add_argument(
         "--models",
         nargs="+",
-        choices=["pointwise", "gnn_base", "gnn_node"],
+        choices=["pointwise", "gnn_base", "gnn_node", "gnn_topo"],
         default=["pointwise", "gnn_base", "gnn_node"],
     )
     ap.add_argument("--expected-graphs", type=int, default=0)
+    ap.add_argument(
+        "--skip-label-audit",
+        action="store_true",
+        help="Skip the sweep-minimum label provenance preflight (NOT for reported runs)",
+    )
     ap.add_argument("--output", type=Path)
     ap.add_argument(
+        "--power-tier",
+        default="tier_0.02",
+        choices=[t["name"] for t in PHASE4_TIERS],
+        help=(
+            "Which pre-registered power tier this run is being read at "
+            "(gate_statistics.PHASE4_TIERS). Decides the escalation target when the "
+            "win_rate CI straddles 0.5; does not change any computed statistic."
+        ),
+    )
+    ap.add_argument(
+        "--nondeterministic",
+        action="store_true",
+        help=(
+            "Disable torch deterministic algorithms. Reproduces the pre-2026-08-19 "
+            "behaviour where two identical commands give different GIN results. "
+            "NOT for reported runs -- see the note in main()."
+        ),
+    )
+    ap.add_argument(
         "--split-mode",
-        choices=["canonical_parent", "copy_shuffle"],
+        choices=["canonical_parent", "copy_shuffle", "topology_size"],
         default="canonical_parent",
-        help="canonical_parent = training-contract 70/15/15; copy_shuffle = legacy",
+        help=(
+            "canonical_parent = training-contract 70/15/15; copy_shuffle = legacy; "
+            "topology_size = topology_transfer_v1 Phase 4 gate (train on "
+            "--train-sizes, test on --held-out-sizes, val is a held-out slice of "
+            "the train sizes only)"
+        ),
+    )
+    ap.add_argument(
+        "--train-sizes", type=int, nargs="+", default=[20, 28, 40],
+        help="topology_size split only: server_node_count values used for train/val",
+    )
+    ap.add_argument(
+        "--held-out-sizes", type=int, nargs="+", default=[60, 80],
+        help="topology_size split only: server_node_count values held out as test",
     )
     args = ap.parse_args()
 
+    # REPRODUCIBILITY. Measured 2026-08-19: at a FIXED seed on CPU, `pointwise` is
+    # bit-identical run to run while `gnn_base`/`gnn_node` are not -- the training loss
+    # itself diverges (mean_ce 0.9604 vs 0.9601 at epoch 5). So the non-reproducibility
+    # recorded in this repo is NOT CUDA-specific, as the pre-registered gate's control 1
+    # assumed; it is a non-deterministic op in the GIN autograd path and it fires on CPU
+    # too. It is not intra-op threading (OMP_NUM_THREADS=1 still diverges) and not
+    # PYTHONHASHSEED. This one line makes all three models bit-identical across repeated
+    # identical commands, verified on every reported statistic.
+    #
+    # Why this matters for the gate: without it, ">=3 seeds" conflates seed effects with
+    # run-to-run training noise, and the noise is the LARGER of the two -- win_rate moved
+    # 0.517 -> 0.550 between two identical seed-44 runs, against a seed-to-seed spread of
+    # only 0.517-0.533. Any seed spread measured without this is uninterpretable.
+    if not args.nondeterministic:
+        torch.use_deterministic_algorithms(True, warn_only=True)
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"device={device}  cache={args.cache}")
+    print(f"device={device}  cache={args.cache}  "
+          f"deterministic={not args.nondeterministic}")
 
     graphs = pickle.load(open(os.path.join(args.cache, "graphs.pkl"), "rb"))
     dataset_ids_path = os.path.join(args.cache, "dataset_ids.pkl")
@@ -372,6 +611,17 @@ def main() -> int:
     avg_node_edges = np.mean([g.node_edge_index.shape[1] for g in graphs])
     print(f"avg same-node edges/graph={avg_node_edges:.1f}")
 
+    corpus_root = Path(args.corpus_root)
+    if args.skip_label_audit:
+        label_audit = {"skipped": True}
+        print("\n[label audit] SKIPPED -- results are not reportable")
+    else:
+        label_audit = audit_label_provenance(graphs, corpus_root)
+        print(
+            f"\n[label audit] {label_audit['n_label_is_sweep_min']}/"
+            f"{label_audit['n_checked']} labels are the placements.jsonl minimum -> OK"
+        )
+
     if args.split_mode == "canonical_parent":
         (
             train_graphs,
@@ -392,6 +642,30 @@ def main() -> int:
             f"split=canonical_parent train={len(train_graphs)} "
             f"val={len(val_graphs)} test={len(test_graphs)}"
         )
+    elif args.split_mode == "topology_size":
+        sizes_by_parent = topology_sizes_by_parent(dataset_ids, corpus_root)
+        (
+            train_graphs,
+            train_ids,
+            val_graphs,
+            val_ids,
+            test_graphs,
+            test_ids,
+        ) = split_ids_by_topology_size(
+            graphs,
+            dataset_ids,
+            sizes_by_parent,
+            train_sizes=args.train_sizes,
+            held_out_sizes=args.held_out_sizes,
+            val_fraction_of_train=0.15,
+            random_state=args.seed,
+        )
+        assert_zero_parent_overlap(train_ids, val_ids, test_ids)
+        print(
+            f"split=topology_size train_sizes={args.train_sizes} "
+            f"held_out_sizes={args.held_out_sizes} train={len(train_graphs)} "
+            f"val={len(val_graphs)} test={len(test_graphs)}"
+        )
     else:
         idx = list(range(len(graphs)))
         random.shuffle(idx)
@@ -402,7 +676,6 @@ def main() -> int:
         val_graphs, val_ids, train_ids, test_ids = [], [], [], []
         print(f"split=copy_shuffle train={len(train_graphs)} test={len(test_graphs)}")
 
-    corpus_root = Path(args.corpus_root)
     # Pre-load + cache the RTT lookup per test dataset (shared by greedy + all models).
     lut_cache: Dict[str, dict] = {}
     for g in test_graphs:
@@ -425,6 +698,11 @@ def main() -> int:
         ("pointwise", dict(use_gin=False, use_node_edges=False)),
         ("gnn_base",  dict(use_gin=True,  use_node_edges=False)),
         ("gnn_node",  dict(use_gin=True,  use_node_edges=True)),
+        # Only arm that gives the model access to backbone/link topology at all --
+        # gnn_base/gnn_node never see network entities, so a loss for them says nothing
+        # about whether topology-aware message passing helps. Requires a cache built with
+        # NETWORK_GRAPH_CONTRACT=core_v1 (raises loudly otherwise, see AblationModel).
+        ("gnn_topo",  dict(use_gin=True,  use_node_edges=False, use_network_entities=True)),
     ]
     configs = [(name, cfg) for name, cfg in all_configs if name in args.models]
     results = {}
@@ -436,22 +714,59 @@ def main() -> int:
         print(f"  params={nparam}")
         train_model(model, list(train_graphs), device, args.epochs)
         results[name] = eval_regret(model, test_graphs, corpus_root, device, lut_cache)
-        if results[name]["n_missing_plan"]:
+        if results[name]["n_missing_clean"]:
             raise RuntimeError(
-                f"{name}: {results[name]['n_missing_plan']} predicted plans absent "
-                "from retained full placement sweeps"
+                f"{name}: {results[name]['n_missing_clean']} predicted plans absent from "
+                "the retained full placement sweep with NO collision to explain it -- a "
+                "brute-force sweep should contain every jointly-feasible combination, so "
+                "this is a corpus/harness bug, not a model artifact. "
+                f"(separately, {results[name]['n_missing_collided']} plans were missing "
+                "BECAUSE they collided -- that's expected and reported, not raised on)"
             )
 
     print("\n" + "=" * 92)
     print(f"RESULTS  (corpus={Path(args.cache).name}, test n={len(test_graphs)})")
     print("=" * 92)
-    hdr = f"{'model':<12}{'top1_acc':>10}{'regret_mean':>13}{'regret_p90':>12}{'regret_max':>12}{'opt_recov':>11}{'collide':>9}{'missing':>9}"
+    hdr = (f"{'model':<12}{'top1_acc':>10}{'regret_mean':>13}{'regret_p90':>12}{'regret_max':>12}"
+           f"{'opt_recov':>11}{'collide':>9}{'miss_coll':>11}{'miss_clean':>12}")
     print(hdr)
     for name, _ in configs:
         r = results[name]
         print(f"{name:<12}{r['top1_acc']*100:>9.1f}%{r['regret_mean']*100:>12.2f}%{r['regret_p90']*100:>11.2f}%"
-              f"{r['regret_max']*100:>11.2f}%{r['opt_recovered_frac']*100:>10.1f}%{r['n_collided_plan']:>9}{r['n_missing_plan']:>9}")
+              f"{r['regret_max']*100:>11.2f}%{r['opt_recovered_frac']*100:>10.1f}%{r['n_collided_plan']:>9}"
+              f"{r['n_missing_collided']:>11}{r['n_missing_clean']:>12}")
     print(f"\ngreedy baseline regret: mean={base['regret_mean']*100:.2f}% p90={base['regret_p90']*100:.2f}%")
+
+    # PRIMARY gate statistics. The regret table above is reported for continuity with
+    # earlier LINEAGES rows but is NOT gated on: measured on shallow_v1, a decision rule
+    # of constant expressive power still drifts 2.58x in regret_mean across sweep-size
+    # bins, and trimming/log-scaling do not fix it (2.27 / 2.64). See gate_statistics.py.
+    comparisons = {}
+    verdicts = {}
+    ref_name = "pointwise"
+    if ref_name in results:
+        for name, _ in configs:
+            if name == ref_name:
+                continue
+            comparisons[name] = paired_regret_comparison(
+                results[name]["per_ds"], results[ref_name]["per_ds"]
+            )
+        if comparisons:
+            print()
+            print(format_comparison_table(
+                comparisons, ref_name, [n for n, _ in configs if n != ref_name]
+            ))
+            for name, cmp in comparisons.items():
+                print(f"  {name}: {power_note(cmp)}")
+            # Pre-registered escalation rule (gate_statistics.PHASE4_TIERS, fixed
+            # 2026-08-19 before any topo_transfer_v1 corpus existed). A CI straddling
+            # 0.5 is an under-powered result, not a null one, and the two must not be
+            # reported the same way -- only a CI excluding 0.5 on the reference's side
+            # licenses "does not transfer".
+            print()
+            for name, cmp in comparisons.items():
+                verdicts[name] = phase4_verdict(cmp, tier_name=args.power_tier)
+                print(f"  {name}: {escalation_note(verdicts[name])}")
 
     # Stratified: regret on the COUPLED subset (where joint reasoning matters)
     if coupled_ids:
@@ -484,13 +799,20 @@ def main() -> int:
                 "regret_max": float(values.max()) if values.size else None,
             }
         payload = {
-            "schema_version": 2,
+            "schema_version": 6,
+            "paired_comparisons": comparisons,
+            "phase4_verdicts": verdicts,
+            "power_tier": args.power_tier,
+            "paired_reference": ref_name,
+            "label_audit": label_audit,
             "cache": str(args.cache),
             "corpus_root": str(corpus_root),
             "seed": args.seed,
             "epochs": args.epochs,
             "test_fraction": args.test_frac,
             "split_mode": args.split_mode,
+            "train_sizes": args.train_sizes if args.split_mode == "topology_size" else None,
+            "held_out_sizes": args.held_out_sizes if args.split_mode == "topology_size" else None,
             "n_graphs": len(graphs),
             "n_train": len(train_graphs),
             "n_val": len(val_graphs),

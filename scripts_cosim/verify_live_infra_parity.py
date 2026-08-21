@@ -147,12 +147,32 @@ def compare_topology(
     corpus_infra: Dict[str, Any],
     sim_input_path: Path,
     seed: Optional[int] = None,
+    allow_backbone_latency_divergence: bool = False,
 ) -> ParityResult:
     result = ParityResult(dataset=str(dataset_dir), ok=True)
 
     corpus_maps: Dict[str, Dict[str, float]] = corpus_infra["network_maps"]
     live_infra = regenerate_live_topology(space_config, sim_input_path, seed=seed)
     live_maps = {node["node_name"]: node.get("network_map", {}) for node in live_infra["nodes"]}
+
+    # `build_core_backbone` draws its access-link jitter (generate_infrastructure.py:372-375)
+    # from the SAME rng the replica-reachability repair has already consumed
+    # (generate_infrastructure.py:768, `rng.shuffle`), and the backbone is overlaid *after*
+    # that repair. A live run autoscales from zero, performs no repair, and therefore reaches
+    # the backbone build at a different position in the rng stream -- so every access-link
+    # latency diverges on exactly those cells whose repair set is non-empty. Measured on the
+    # siv1 gate cells: p=0.35 and p=0.50 (repair 0/282 and 0/380) reproduce exactly, while
+    # p=0.15/0.20/0.25 (repair 34/12/14) diverge on 100% of shared edges.
+    #
+    # This flag exists for a live-vs-live matched A/B (backbone on vs off, same cells, same
+    # trace, same checkpoint), where the corpus-side artifact is only a preflight fixture and
+    # both live arms are self-consistent with each other. It is NOT a general escape hatch:
+    # it downgrades exactly two finding classes, and only when a backbone is present on BOTH
+    # sides, so it cannot silently pass a backbone-less corpus.
+    backbone_relaxation = allow_backbone_latency_divergence and (
+        (corpus_infra.get("link_topology") or {}).get("links") is not None
+        and (live_infra.get("link_topology") or {}).get("links") is not None
+    )
 
     # --- node identity -----------------------------------------------------------
     corpus_names, live_names = set(corpus_maps), set(live_maps)
@@ -195,11 +215,17 @@ def compare_topology(
         )
     if unexplained:
         sample = [(e, round(v, 6)) for e, v in sorted(unexplained.items())[:6]]
-        result.fail(
+        msg = (
             f"{len(unexplained)} corpus-only edge(s) that do not match the "
             f"replica-reachability signature (client<->server at base_latency="
             f"{base_latency}). e.g. {sample}"
         )
+        if backbone_relaxation:
+            # Under a backbone these edges are real repair edges; they simply no longer sit
+            # at exactly base_latency because their latency became a path sum over the core.
+            result.notes.append(f"[backbone-relaxed] {msg}")
+        else:
+            result.fail(msg)
 
     # --- latency on shared edges -------------------------------------------------
     shared = [e for e in corpus_edges if e in live_edges]
@@ -209,10 +235,14 @@ def compare_topology(
     ]
     if lat_mismatch:
         worst = max(lat_mismatch, key=lambda e: abs(corpus_edges[e] - live_edges[e]))
-        result.fail(
+        msg = (
             f"{len(lat_mismatch)}/{len(shared)} shared edge(s) disagree on latency; "
             f"worst {worst}: corpus={corpus_edges[worst]:.9f} live={live_edges[worst]:.9f}"
         )
+        if backbone_relaxation:
+            result.notes.append(f"[backbone-relaxed] {msg} (access-link jitter rng offset)")
+        else:
+            result.fail(msg)
 
     # --- backbone ----------------------------------------------------------------
     corpus_links = (corpus_infra.get("link_topology") or {}).get("links")
@@ -275,6 +305,7 @@ def verify_dataset(
     sim_input_path: Path,
     config_override: Optional[Path] = None,
     seed: Optional[int] = None,
+    allow_backbone_latency_divergence: bool = False,
 ) -> ParityResult:
     infra_path = dataset_dir / "infrastructure.json"
     config_path = config_override or (dataset_dir / "space_with_network.json")
@@ -287,6 +318,7 @@ def verify_dataset(
         _load_json(infra_path),
         sim_input_path,
         seed=seed,
+        allow_backbone_latency_divergence=allow_backbone_latency_divergence,
     )
 
 
@@ -329,6 +361,16 @@ def main() -> int:
         "parity: the live --seed overrides the config seed and changes the topology.",
     )
     parser.add_argument("--sim-input", type=Path, default=DEFAULT_SIM_INPUT)
+    parser.add_argument(
+        "--allow-backbone-latency-divergence",
+        action="store_true",
+        help="Downgrade access-link latency divergence (and repair edges no longer at "
+        "base_latency) from findings to notes, ONLY when a backbone is present on both "
+        "sides. build_core_backbone's jitter rng is offset by the replica-reachability "
+        "repair, which live runs never perform, so these diverge on any cell with a "
+        "non-empty repair set. Use for a live-vs-live matched A/B where the corpus-side "
+        "artifact is only a preflight fixture -- never to wave through a real mismatch.",
+    )
     parser.add_argument("--json-out", type=Path, help="write per-dataset results here")
     parser.add_argument("-v", "--verbose", action="store_true", help="print notes as well as findings")
     args = parser.parse_args()
@@ -349,7 +391,13 @@ def main() -> int:
 
     results: List[ParityResult] = []
     for dataset in datasets:
-        result = verify_dataset(dataset, args.sim_input, config_override=args.config, seed=args.seed)
+        result = verify_dataset(
+            dataset,
+            args.sim_input,
+            config_override=args.config,
+            seed=args.seed,
+            allow_backbone_latency_divergence=args.allow_backbone_latency_divergence,
+        )
         results.append(result)
         _print_result(result, args.verbose)
 

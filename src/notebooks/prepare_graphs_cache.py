@@ -62,6 +62,14 @@ from src.placement.warmth import (
     normalize_estimated_pull_remaining_sec,
     unit_pull_sec_from_task_priors,
 )
+from src.placement.network_graph import (
+    NETWORK_GRAPH_CONTRACT_OFF,
+    attach_network_graph_block,
+    build_network_graph_block,
+    resolve_network_graph_contract,
+)
+from src.placement.temporal_features import temporal_remainders
+from src.placement.topology_features import build_source_feature_context
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -442,7 +450,11 @@ def extract_dataset_to_dataframes(
         'nodes': df_nodes,
         'tasks': df_tasks,
         'platforms': df_platforms,
-        'metrics': df_metrics
+        'metrics': df_metrics,
+        # link_contention_v1 routes + per-link capacities. None for every corpus generated
+        # without a network.backbone block, which is most of them; build_graph then emits
+        # no network entities and the cached graph is unchanged.
+        'link_topology': result.get("config", {}).get("infrastructure", {}).get("link_topology"),
     }
 
 
@@ -881,6 +893,8 @@ def build_graph(
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     initialized_snapshot: Optional[Mapping[str, bool]] = None,
     queue_feature_contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT,
+    link_topology: Optional[Mapping[str, Any]] = None,
+    network_graph_contract: Optional[str] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -927,11 +941,15 @@ def build_graph(
     task_onehot = (task_type_arr[:, None] == task_types_vocab[None, :]).astype(float)
     
     src_names = df_tasks['source_node'].to_numpy()
-    src_idx = np.fromiter((first_idx_per_name.get(n, 0) for n in src_names),
-                          dtype=np.float64, count=n_tasks)
-    src_norm = (src_idx / max(len(df_nodes), 1)).reshape(-1, 1)
-    
-    task_features = np.concatenate([task_onehot, src_norm], axis=1)
+    source_ctx = build_source_feature_context(
+        df_nodes['node_name'].tolist(),
+        network_map_by_node,
+        first_idx_by_name=first_idx_per_name,
+    )
+    src_feat = np.fromiter((source_ctx.feature(n) for n in src_names),
+                           dtype=np.float64, count=n_tasks).reshape(-1, 1)
+
+    task_features = np.concatenate([task_onehot, src_feat], axis=1)
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
@@ -1019,38 +1037,25 @@ def build_graph(
     cold_start_remaining = np.zeros(n_platforms, dtype=np.float64)
     comm_remaining = np.zeros(n_platforms, dtype=np.float64)
     
-    if temporal_state:
-        for pos in range(n_platforms):
-            node_name = str(plat_node_by_pos[pos])
-            plat_id = int(plat_ids_arr[pos])
-            key = f"{node_name}:{plat_id}"
-            temp_state = temporal_state.get(key, {})
-            current_task_remaining[pos] = _safe_float(temp_state.get('current_task_remaining', 0.0), 0.0)
-            cold_start_remaining[pos] = _safe_float(temp_state.get('cold_start_remaining', 0.0), 0.0)
-            comm_remaining[pos] = _safe_float(temp_state.get('comm_remaining', 0.0), 0.0)
-    else:
-        # Approximate: if queue > 0, estimate some remaining time
-        for pos in range(n_platforms):
-            if queue_lengths[pos] > 0:
-                # Estimate: average execution time for platform type
-                plat_type = str(plat_types_by_pos[pos])
-                # Get average exec time across task types for this platform
-                avg_exec = 0.0
-                count = 0
-                for task_type in task_types_vocab:
-                    task_type_priors = task_priors.get(str(task_type), {})
-                    exec_map = task_type_priors.get("executionTime", {})
-                    if isinstance(exec_map, dict):
-                        exec_time = _safe_float(exec_map.get(plat_type, 0.0), 0.0)
-                        if exec_time > 0:
-                            avg_exec += exec_time
-                            count += 1
-                if count > 0:
-                    current_task_remaining[pos] = avg_exec / count
-                    # Cold start typically much shorter than execution for warm platforms
-                    cold_start_remaining[pos] = current_task_remaining[pos] * 0.1
-                    comm_remaining[pos] = current_task_remaining[pos] * 0.05
-    
+    # Shared with live inference and the other two cache builders — see
+    # src/placement/temporal_features.py for the two bugs this replaced (a snapshot-level
+    # estimate gate, and an average over task types no corpus dispatches).
+    for pos in range(n_platforms):
+        node_name = str(plat_node_by_pos[pos])
+        plat_id = int(plat_ids_arr[pos])
+        key = f"{node_name}:{plat_id}"
+        (
+            current_task_remaining[pos],
+            cold_start_remaining[pos],
+            comm_remaining[pos],
+        ) = temporal_remainders(
+            queue_depth=queue_lengths[pos],
+            recorded=(temporal_state or {}).get(key),
+            platform_type=str(plat_types_by_pos[pos]),
+            task_types_data=task_priors,
+            task_types_vocab=task_types_vocab,
+        )
+
     # Normalize temporal features (assume max ~10s)
     current_task_remaining_norm = (current_task_remaining / 10.0).reshape(-1, 1)
     cold_start_remaining_norm = (cold_start_remaining / 10.0).reshape(-1, 1)
@@ -1357,6 +1362,30 @@ def build_graph(
         data.node_edge_index = torch.tensor([node_edge_src, node_edge_dst], dtype=torch.long)
     else:
         data.node_edge_index = torch.empty((2, 0), dtype=torch.long)
+    # Network entities (physical nodes + core links + route edges), built by the SAME
+    # shared code path live inference uses — see src/placement/network_graph.py. Default
+    # OFF, so this is a no-op for every existing cache.
+    net_contract = resolve_network_graph_contract(network_graph_contract)
+    if net_contract != NETWORK_GRAPH_CONTRACT_OFF:
+        attach_network_graph_block(
+            data,
+            build_network_graph_block(
+                node_names=df_nodes['node_name'].tolist(),
+                platform_node_names=[str(name) for name in plat_node_by_pos],
+                task_source_names=[str(name) for name in src_names],
+                task_candidate_node_names=[
+                    [
+                        str(queue_key_to_platform_meta[key]["node_name"])
+                        for key in task_logit_to_queue_key.get(t_pos, [])
+                    ]
+                    for t_pos in range(n_tasks)
+                ],
+                link_topology=link_topology,
+                n_tasks=n_tasks,
+                n_platforms=n_platforms,
+                contract=net_contract,
+            ),
+        )
     # Per-task mapping from logit index -> (node_id, platform_id) for regret loss and decoding.
     # Use non-underscore attr so DataLoader worker IPC preserves it.
     data.task_logit_to_placement = task_logit_to_placement
@@ -1458,6 +1487,7 @@ def main():
                         temporal_state=dataset_dict.get('temporal_state', {}),
                         initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
                         queue_feature_contract=config.queue_feature_contract,
+                        link_topology=dataset_dict.get('link_topology'),
                     )
                     if config.platform_feature_dim != 16:
                         graph.platform_features = graph.platform_features[

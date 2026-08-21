@@ -467,6 +467,15 @@ def prepare_workloads(
     prepared_workloads = {}
 
     # Process each application
+    missing = [a for a in apps if f'workload_{a}' not in reverse_mapping]
+    if missing:
+        raise RuntimeError(
+            f"No workload parameter in the sample mapping for: {missing}. "
+            f"Known workload keys: "
+            f"{sorted(k for k in reverse_mapping if k.startswith('workload_'))}. "
+            f"A grid naming new task types also needs those apps in the sampled space "
+            f"(simulation_data/combinations_simple_mapping.pkl), not just in wsc/prewarm."
+        )
     for app_name in apps:
         # Get the workload factor from sample
         workload_key = f'workload_{app_name}'
@@ -673,6 +682,9 @@ def load_deterministic_infrastructure_data(
         "network_maps": network_maps,
         "deterministic_replica_placements": deterministic_replica_placements,
         "deterministic_queue_distributions": deterministic_queue_distributions,
+        # link_contention_v1: the routes and per-link capacities the backbone overlay
+        # emitted. Absent (every pre-existing corpus) this is None and no fabric is built.
+        "link_topology": infra_data.get("link_topology"),
         "metadata": metadata,
     }
 
@@ -717,6 +729,19 @@ def prepare_simulation_config(
         "preinitialize_platforms": True,
         "defer_cold_replica_init": original_config.get("defer_cold_replica_init", True),
         "warmth_physics": original_config.get("warmth_physics", "node_disk_v2"),
+        # node_contention_v3: shared execution slots per node. None (the default) leaves
+        # platforms fully independent, which is node_disk_v2 physics.
+        "compute_slots_per_node": original_config.get("nodes", {}).get(
+            "compute_slots_per_node"
+        ),
+        # network_contention_v1: shared inbound bandwidth (MB/s) per node. None (the
+        # default) means no ingress pipe and no transmission time, i.e. node_disk_v2.
+        "ingress_bandwidth_mbps": original_config.get("nodes", {}).get(
+            "ingress_bandwidth_mbps"
+        ),
+        # link_contention_v1: filled in from the deterministic infrastructure below, since
+        # routes are a property of the generated topology, not of the space config.
+        "link_topology": None,
         # New configuration parameters
         "preinit": original_config.get('preinit', {}),
         "replicas": original_config.get('replicas', {}),
@@ -735,6 +760,9 @@ def prepare_simulation_config(
         )
         infrastructure_config['deterministic_queue_distributions'] = deepcopy(
             deterministic_data['deterministic_queue_distributions']
+        )
+        infrastructure_config['link_topology'] = deepcopy(
+            deterministic_data.get('link_topology')
         )
     elif base_nodes is not None and len(base_nodes) > 0:
         # Reuse provided nodes (and their network maps) to keep topology consistent
@@ -855,10 +883,14 @@ def execute_simulation(
 def calculate_workload_stats(events: List[Dict]) -> Dict[str, float]:
     """Calculate statistics for the flattened workload."""
     if not events:
+        # Key must be "rps": flatten_workloads reads stats['rps']. Returning
+        # "average_rps" here turned an empty workload into a bare KeyError: 'rps'.
         return {
-            "average_rps": 0,
+            "rps": 0,
             "duration": 0,
-            "total_events": 0
+            "total_events": 0,
+            "start_timestamp": 0,
+            "end_timestamp": 0,
         }
 
     # Get timestamps as integers

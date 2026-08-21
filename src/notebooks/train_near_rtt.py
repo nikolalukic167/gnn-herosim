@@ -64,12 +64,18 @@ from non_unique_lib.cache_io import (
 )
 from non_unique_lib.soft_combo_loss import concentration_penalty, soft_combo_ce_loss
 from non_unique_lib.training_config import parse_training_config
+from src.placement.network_graph import (
+    NETWORK_GRAPH_CONTRACT_OFF,
+    resolve_network_graph_contract,
+)
+from src.placement.corpus_provenance import derive_corpus_provenance
 from src.placement.queue_features import (
     DEFAULT_QUEUE_FEATURE_CONTRACT,
     queue_depth_norm,
     usage_ratio_feature,
     validate_queue_feature_contract,
 )
+from src.placement.topology_features import resolve_topology_feature_contract
 from src.policy.tabular.constants import (
     CACHE_VERSION as ATOMIC_CACHE_VERSION,
     PLATFORM_FEATURE_DIM,
@@ -135,6 +141,10 @@ class NearRttConfig:
     mp_node_edges_candidates_only: bool = (
         os.environ.get("NEAR_RTT_MP_NODE_EDGES_CANDIDATES_ONLY", "1") == "1"
     )
+    # Network entities (physical nodes + core links + route edges). Off unless the cache
+    # was built with them; $NETWORK_GRAPH_CONTRACT names which graph that was, and the
+    # sidecar records it so serving resolves the same one.
+    mp_network_entities: bool = os.environ.get("NEAR_RTT_MP_NETWORK_ENTITIES", "0") == "1"
 
 
 _DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-near-rtt-jun2026"
@@ -184,6 +194,7 @@ print(f"Near RTT config: {NEAR_CFG}")
 
 _feature_dim: Optional[int] = None
 _queue_feature_contract = DEFAULT_QUEUE_FEATURE_CONTRACT
+_corpus_provenance: Optional[Dict[str, Any]] = None
 _required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").strip()
 _metadata_path = CACHE_CTX.cache_dir / "metadata.json"
 if _metadata_path.exists():
@@ -205,6 +216,15 @@ if _metadata_path.exists():
     print(
         f"Cache metadata: version={_cache_version}, feature_dim={_feature_dim}, "
         f"queue_feature_contract={_queue_feature_contract}"
+    )
+    # Which infrastructure the corpus spans, for the checkpoint sidecar. Derived from the
+    # cache's own dataset list so it cannot drift from the data it describes.
+    _corpus_provenance = derive_corpus_provenance(_cache_meta)
+    print(
+        f"Corpus provenance: {_corpus_provenance.get('n_datasets')} datasets, "
+        f"{_corpus_provenance.get('client_node_count')}c/"
+        f"{_corpus_provenance.get('server_node_count')}s, "
+        f"warmth={_corpus_provenance.get('warmth_physics')}"
     )
 elif _required_cache_version:
     raise FileNotFoundError(
@@ -1078,11 +1098,22 @@ model = TaskPlacementGNN(
     mp_residual=NEAR_CFG.mp_residual,
     mp_node_edges=NEAR_CFG.mp_node_edges,
     mp_node_edges_candidates_only=NEAR_CFG.mp_node_edges_candidates_only,
+    mp_network_entities=NEAR_CFG.mp_network_entities,
 ).to(DEVICE)
 print(
     f"Message passing: residual={NEAR_CFG.mp_residual} node_edges={NEAR_CFG.mp_node_edges} "
-    f"candidates_only={NEAR_CFG.mp_node_edges_candidates_only}"
+    f"candidates_only={NEAR_CFG.mp_node_edges_candidates_only} "
+    f"network_entities={NEAR_CFG.mp_network_entities} "
+    f"({resolve_network_graph_contract()})"
 )
+if NEAR_CFG.mp_network_entities and (
+    resolve_network_graph_contract() == NETWORK_GRAPH_CONTRACT_OFF
+):
+    raise ValueError(
+        "NEAR_RTT_MP_NETWORK_ENTITIES=1 but NETWORK_GRAPH_CONTRACT resolves to 'off', so "
+        "the cache carries no network entities for the model to message-pass over. Set "
+        "NETWORK_GRAPH_CONTRACT=core_v1 and rebuild the cache."
+    )
 
 
 def init_weights(module: nn.Module) -> None:
@@ -1133,6 +1164,25 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "mp_residual": NEAR_CFG.mp_residual,
                 "mp_node_edges": NEAR_CFG.mp_node_edges,
                 "mp_node_edges_candidates_only": NEAR_CFG.mp_node_edges_candidates_only,
+                # Which network entities were in the training graph. The encoders show up
+                # in the weights; the contract that built their *features* does not.
+                "network_graph_contract": (
+                    resolve_network_graph_contract()
+                    if NEAR_CFG.mp_network_entities
+                    else NETWORK_GRAPH_CONTRACT_OFF
+                ),
+                # Task feature dim 2 means different things under each contract and is
+                # invisible in the weights, so serving cannot infer it.
+                "topology_feature_contract": resolve_topology_feature_contract(),
+                # Weight shapes pin the platform feature *count*, not which layout assigns
+                # meaning to those columns.
+                "inference_feature_layout": os.environ.get(
+                    "INFERENCE_FEATURE_LAYOUT", ""
+                ).strip().lower()
+                or None,
+                # Which infrastructure this was actually fitted on, so a live run can say
+                # whether it is in-distribution instead of guessing.
+                "corpus": _corpus_provenance,
             },
             indent=2,
         )

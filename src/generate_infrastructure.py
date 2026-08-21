@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
+from src.placement.network_fabric import CORE_PREFIX, link_key
 from src.utils.distributions import sample_bounded_int, sample_replica_count
 
 SKEW_TOPOLOGY_TYPES = frozenset({"degree_skewed_core"})
@@ -246,6 +247,176 @@ def generate_network_topology_deterministic(
     return network_maps
 
 
+def _dijkstra_paths(
+    adjacency: Dict[str, Dict[str, float]],
+    source: str,
+) -> Dict[str, List[str]]:
+    """Shortest paths by latency from ``source``. The graph is ~46 nodes, so a heap-free
+    scan is plenty and keeps this dependency-free (no networkx in the Pipfile)."""
+    import heapq
+
+    dist = {source: 0.0}
+    prev: Dict[str, str] = {}
+    visited = set()
+    heap = [(0.0, source)]
+    while heap:
+        d, node = heapq.heappop(heap)
+        if node in visited:
+            continue
+        visited.add(node)
+        for neighbour, weight in adjacency.get(node, {}).items():
+            nd = d + weight
+            if nd < dist.get(neighbour, float('inf')):
+                dist[neighbour] = nd
+                prev[neighbour] = node
+                heapq.heappush(heap, (nd, neighbour))
+
+    paths: Dict[str, List[str]] = {source: [source]}
+    for node in dist:
+        if node == source:
+            continue
+        path = [node]
+        cursor = node
+        while cursor != source:
+            cursor = prev[cursor]
+            path.append(cursor)
+        paths[node] = list(reversed(path))
+    return paths
+
+
+def build_core_backbone(
+    network_maps: Dict[str, Dict[str, float]],
+    nodes: List[Dict],
+    config: Dict[str, Any],
+    rng: random.Random,
+) -> Optional[Dict[str, Any]]:
+    """link_contention_v1: overlay a core router tier and route every logical edge over it.
+
+    Applied as a post-processing overlay *after* every connectivity repair has run, so it
+    composes with all three topology types and does not disturb the logical client<->server
+    adjacency that candidate filtering (``node_name in source_node.network_map``) depends
+    on. What it changes is the *meaning* of the latency: instead of a one-hop constant it
+    becomes the sum along a real path, and that path is recorded so the simulator can
+    charge contention on each hop.
+
+    Deliberately a ring-plus-chords core rather than a hub. A single bottleneck link would
+    reproduce the node-ingress degeneracy one level up -- "load on the busiest link" would
+    then be one scalar that repairs everything, which is precisely what
+    ``--gate-link-repair`` exists to catch. Multiple comparably-loaded segments, traversed
+    by different subsets of client/server pairs, are the whole point.
+
+    Returns ``None`` when no ``network.backbone`` block is configured, in which case
+    latencies are left exactly as generated and no fabric is built downstream.
+    """
+    backbone_config = config.get('network', {}).get('backbone')
+    if not backbone_config:
+        return None
+
+    n_core = int(backbone_config.get('n_core', 6))
+    if n_core < 2:
+        raise ValueError(
+            f"network.backbone.n_core must be >= 2 to form a backbone, got {n_core}"
+        )
+    attach_degree = int(backbone_config.get('attach_degree', 2))
+    if not 1 <= attach_degree <= n_core:
+        raise ValueError(
+            f"network.backbone.attach_degree must be in [1, n_core={n_core}], "
+            f"got {attach_degree}"
+        )
+    chord_count = int(backbone_config.get('chord_count', n_core // 2))
+    core_latency = float(backbone_config.get('core_link_latency_ms', 4.0)) / 1000.0
+    access_latency = float(backbone_config.get('access_link_latency_ms', 20.0)) / 1000.0
+    latency_jitter = float(backbone_config.get('access_latency_jitter', 0.3))
+
+    bandwidth_mbps = backbone_config.get('bandwidth_mbps')
+    if bandwidth_mbps is None or float(bandwidth_mbps) <= 0:
+        raise ValueError(
+            f"network.backbone.bandwidth_mbps must be > 0 when a backbone is configured, "
+            f"got {bandwidth_mbps}"
+        )
+    bandwidth_mbps = float(bandwidth_mbps)
+    core_bandwidth_mbps = float(
+        backbone_config.get('core_bandwidth_mbps') or bandwidth_mbps
+    )
+    if core_bandwidth_mbps <= 0:
+        raise ValueError(
+            f"network.backbone.core_bandwidth_mbps must be > 0, got {core_bandwidth_mbps}"
+        )
+
+    core_names = [f"{CORE_PREFIX}{i}" for i in range(n_core)]
+    links: Dict[str, Dict[str, float]] = {}
+    adjacency: Dict[str, Dict[str, float]] = {name: {} for name in core_names}
+
+    def _add_link(a: str, b: str, latency: float, bandwidth: float) -> None:
+        links[link_key(a, b)] = {
+            "latency": latency,
+            "bandwidth_mbps": bandwidth,
+        }
+        adjacency.setdefault(a, {})[b] = latency
+        adjacency.setdefault(b, {})[a] = latency
+
+    # Core ring, then chords across it. Both are deterministic in n_core -- the skew we
+    # want comes from where clients and servers attach, not from a random core.
+    for i in range(n_core):
+        _add_link(core_names[i], core_names[(i + 1) % n_core], core_latency, core_bandwidth_mbps)
+    for i in range(min(chord_count, n_core)):
+        partner = core_names[(i + n_core // 2) % n_core]
+        if partner != core_names[i]:
+            _add_link(core_names[i], partner, core_latency, core_bandwidth_mbps)
+
+    # Attach every node to `attach_degree` cores. Access links carry one node's traffic
+    # only, so they stay additive; they exist to give paths somewhere to diverge.
+    attachments: Dict[str, List[str]] = {}
+    for node in nodes:
+        node_name = node['node_name']
+        chosen = rng.sample(core_names, attach_degree)
+        attachments[node_name] = chosen
+        for core_name in chosen:
+            jitter = 1.0 + rng.uniform(-latency_jitter, latency_jitter)
+            _add_link(node_name, core_name, access_latency * jitter, bandwidth_mbps)
+
+    # Route every logical edge and rewrite its latency as the path sum.
+    routes: Dict[str, Dict[str, List[str]]] = {}
+    used_links = set()
+    clients = [n['node_name'] for n in nodes if n['node_name'].startswith('client_node')]
+    for client_name in clients:
+        paths = _dijkstra_paths(adjacency, client_name)
+        for server_name in list(network_maps.get(client_name, {})):
+            path = paths.get(server_name)
+            if path is None:
+                raise RuntimeError(
+                    f"link_contention_v1: {client_name} -> {server_name} is a logical "
+                    f"network_map edge with no path over the backbone. The core tier must "
+                    f"span every node or the simulator would silently charge nothing."
+                )
+            routes.setdefault(client_name, {})[server_name] = path
+            total = 0.0
+            for i in range(len(path) - 1):
+                key = link_key(path[i], path[i + 1])
+                used_links.add(key)
+                total += links[key]["latency"]
+            network_maps[client_name][server_name] = total
+            network_maps[server_name][client_name] = total
+
+    # Keep only links some route actually traverses: an untraversed pipe never contends,
+    # and pruning keeps `link_keys` an honest denominator for the overlap pre-check.
+    links = {key: attrs for key, attrs in links.items() if key in used_links}
+
+    return {
+        "links": links,
+        "routes": routes,
+        "params": {
+            "n_core": n_core,
+            "attach_degree": attach_degree,
+            "chord_count": chord_count,
+            "core_link_latency_ms": core_latency * 1000.0,
+            "access_link_latency_ms": access_latency * 1000.0,
+            "bandwidth_mbps": bandwidth_mbps,
+            "core_bandwidth_mbps": core_bandwidth_mbps,
+        },
+    }
+
+
 def generate_replica_placements_deterministic(
     nodes: List[Dict],
     config: Dict[str, Any],
@@ -286,7 +457,23 @@ def generate_replica_placements_deterministic(
         server_pct = float(preinit_config.get('server_percentage', 0))
         # For replica placement, use at least 60% of servers even for cold start
         # This ensures replicas are spread across enough nodes for network reachability
-        replica_server_pct = max(server_pct, 0.6)
+        #
+        # network_contention_v1: that 0.6 floor is also what keeps candidate sets DISPERSED.
+        # Measured on the pilots, tasks' mean pairwise candidate-node overlap was 0.93 (dense
+        # grid), 0.36 (scarce) and 0.14 (funnelled) out of 4 tasks — so every task had its own
+        # favourite node and spreading was free, which is why M1 marginal-greedy regret sat at
+        # exactly 0%. Concentrating replicas onto few hosts is what forces tasks to compete for
+        # the same nodes. Explicit replica_server_percentage overrides the floor; absent, the
+        # floor applies and every existing grid is unchanged.
+        explicit = preinit_config.get('replica_server_percentage')
+        if explicit is not None:
+            replica_server_pct = float(explicit)
+            if not 0.0 < replica_server_pct <= 1.0:
+                raise ValueError(
+                    f"preinit.replica_server_percentage must be in (0, 1], got {explicit}"
+                )
+        else:
+            replica_server_pct = max(server_pct, 0.6)
         k = max(1, int(len(all_server_nodes) * replica_server_pct))
         preinit_servers = [n['node_name'] for n in all_server_nodes[:k]]
     
@@ -590,16 +777,57 @@ def generate_deterministic_infrastructure(
                         f"{client_name} -> {server_name}"
                     )
     
+    # 2c. link_contention_v1: overlay the core backbone. Runs after every connectivity
+    # repair so each logical edge that survives gets a route; absent a
+    # network.backbone block this is a no-op and latencies stay one-hop constants.
+    link_topology = build_core_backbone(network_maps, nodes, config, rng)
+    if link_topology is not None:
+        print(
+            f"[infra-gen] Core backbone: {len(link_topology['links'])} links, "
+            f"{sum(len(v) for v in link_topology['routes'].values())} routes"
+        )
+
     # 3. Generate queue distributions
     print("[infra-gen] Generating queue distributions...")
     queue_distributions = generate_queue_distributions_deterministic(
         replica_placements, config, rng
     )
     
+    # node_contention_v3: shared execution slots per node. Absent from the config this
+    # stays None and platforms run independently (node_disk_v2), so existing corpora
+    # regenerate unchanged.
+    compute_slots_per_node = config.get("nodes", {}).get("compute_slots_per_node")
+    if compute_slots_per_node is not None and int(compute_slots_per_node) < 1:
+        raise ValueError(
+            f"nodes.compute_slots_per_node must be >= 1 when set, "
+            f"got {compute_slots_per_node}"
+        )
+
+    # network_contention_v1: shared inbound bandwidth (MB/s) per node. Absent from the
+    # config this stays None, no ingress pipe is built and no transmission time is
+    # charged, so existing corpora regenerate unchanged.
+    ingress_bandwidth_mbps = config.get("nodes", {}).get("ingress_bandwidth_mbps")
+    if ingress_bandwidth_mbps is not None and float(ingress_bandwidth_mbps) <= 0:
+        raise ValueError(
+            f"nodes.ingress_bandwidth_mbps must be > 0 when set, "
+            f"got {ingress_bandwidth_mbps}"
+        )
+
     infrastructure = {
         "network_maps": network_maps,
         "replica_placements": replica_placements,
         "queue_distributions": queue_distributions,
+        "compute_slots_per_node": (
+            int(compute_slots_per_node) if compute_slots_per_node is not None else None
+        ),
+        "ingress_bandwidth_mbps": (
+            float(ingress_bandwidth_mbps)
+            if ingress_bandwidth_mbps is not None
+            else None
+        ),
+        # link_contention_v1: None keeps today's physics exactly -- no fabric is built and
+        # no per-hop transmission is charged.
+        "link_topology": link_topology,
         "metadata": {
             "seed": seed,
             "config_file": config_file,
