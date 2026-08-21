@@ -55,7 +55,7 @@ echo "  result JSONs: ${n}/45"
 (( n == 45 )) || { echo "ERROR: incomplete sweep (${n}/45)" >&2; exit 1; }
 
 echo "=== 5) manifest ==="
-pipenv run python3 scripts_cosim/important/write_sweep_manifest.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/write_sweep_manifest.py \
   --sweep-dir "$SWEEP" \
   --kind multi_seed_live_gate_coupled_trio_scale_invariant_v1 \
   --note "Coupled trio with scale_invariant_v1 queue features (uncapped dim7 p90, log1p dim13) after the queue-feature OOD post-mortem. Same labels/splits/hparams as 873/v5.5; only dim7/dim13 scaling and the resulting weights differ. Knative arm symlinked from ${KN_SWEEP} (policy-independent: identical configs, seeds, workload and node_disk_v2 physics)." \
@@ -85,7 +85,7 @@ JSON
   ${FORCE_MANIFEST:+--force}
 
 echo "=== 6) compare ==="
-pipenv run python3 scripts_cosim/important/compare_sealed_live_holdout.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_sealed_live_holdout.py \
   --sweep-dir "$SWEEP" \
   --report "${SWEEP}/compare.json"
 

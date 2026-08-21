@@ -79,7 +79,7 @@ for entry in "${CONFIGS[@]}"; do
 done
 
 peek_rtt() {
-  pipenv run python3 - "$1" <<'PY'
+  ${HEROSIM_PY:-pipenv run python3} - "$1" <<'PY'
 import sys
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -123,7 +123,7 @@ run_one() {
   log "RUN ${tag} ${name} seed=${SEED} env=[$*]"
   local start elapsed rtt
   start=$(date +%s)
-  pipenv run python3 scripts_cosim/run_simulation.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
     --config "$path" \
     --workload "$WORKLOAD" \
     --output "$output" \

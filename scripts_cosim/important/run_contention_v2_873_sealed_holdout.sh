@@ -65,7 +65,7 @@ manifest_names=()
 for entry in "${CONFIGS[@]}"; do manifest_names+=("${entry%%|*}"); done
 MANIFEST_CONFIG_NAMES="$(IFS=,; echo "${manifest_names[*]}")"
 
-pipenv run python3 scripts_cosim/important/write_sweep_manifest.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/write_sweep_manifest.py \
   --sweep-dir "$SWEEP_DIR" \
   --kind "$MANIFEST_KIND" \
   --note "$MANIFEST_NOTE" \
@@ -134,7 +134,7 @@ run_one() {
   log "RUN ${policy} ${name} seed=${seed}"
   local start elapsed rtt
   start=$(date +%s)
-  pipenv run python3 scripts_cosim/run_simulation.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
     --config "$path" \
     --workload "$WORKLOAD" \
     --output "$output" \
@@ -217,7 +217,7 @@ fi
 
 
 log "Phase 4: compare"
-pipenv run python3 scripts_cosim/important/compare_sealed_live_holdout.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_sealed_live_holdout.py \
   --sweep-dir "$SWEEP_DIR" \
   --report "${SWEEP_DIR}/compare.json" | tee -a "$LOG"
 

@@ -19,7 +19,7 @@ export LIVE_AUDIT_MIN_CANDIDATES=4
 export KNATIVE_BATCH_SIZE=4
 export GNN_CAPTURE_DATASET_STATE=0
 
-pipenv run python3 -m src.executesimulation \
+${HEROSIM_PY:-pipenv run python3} -m src.executesimulation \
   --config simulation_data/space_with_network.json \
   --workload data/nofs-ids/traces/workload-150-150.json \
   --policy knative_network_batch \
@@ -35,7 +35,7 @@ if [ "${SNAP_COUNT}" -eq 0 ]; then
 fi
 
 echo "=== Phase 2+3: Co-sim brute-force oracle + Knative/HRC/GNN comparison ==="
-pipenv run python3 scripts_cosim/live_snapshot_oracle_audit.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/live_snapshot_oracle_audit.py \
   --snapshots "$LIVE_AUDIT_SNAPSHOT_PATH" \
   --output "$AUDIT_DIR/knative_batch_4candidate_150_150_cosim.csv" \
   --config simulation_data/space_with_network.json \

@@ -348,7 +348,11 @@ class KnativeAutoscaler(Autoscaler):
 
         # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
-            function_replicas, key=lambda couple: len(couple[1].queue.items)
+            function_replicas,
+            # Total key: the queue length alone ties for every eligible candidate
+            # (scale-down only removes empty queues), so stable sort would fall back
+            # to Set iteration order, which PYTHONHASHSEED does not pin.
+            key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id),
         )
 
         # Mark replica for removal if its task queue is empty
