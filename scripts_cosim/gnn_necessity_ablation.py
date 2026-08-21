@@ -37,7 +37,7 @@ import random
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -52,7 +52,11 @@ if str(_NOTEBOOKS) not in sys.path:
 from src.placement.network_graph import (  # noqa: E402
     NET_LINK_FEATURE_DIM,
     NET_NODE_FEATURE_DIM,
+    NETWORK_GRAPH_CONTRACT_OFF,
+    resolve_network_graph_contract,
 )
+from src.placement.queue_features import resolve_queue_feature_contract  # noqa: E402
+from src.placement.topology_features import resolve_topology_feature_contract  # noqa: E402
 from src.policy.gnn.gnn_model import split_task_platform_embeddings  # noqa: E402
 from non_unique_lib.training_contract import (  # noqa: E402
     assert_zero_parent_overlap,
@@ -497,6 +501,78 @@ def train_model(model, train_graphs, device, epochs: int, lr: float = 1e-3) -> N
             print(f"    epoch {ep:3d}  mean_ce={tot/max(len(train_graphs),1):.4f}")
 
 
+def save_arm_checkpoint(
+    *,
+    model,
+    out_dir: Path,
+    arm_name: str,
+    arm_cfg: Dict[str, Any],
+    args,
+    dims: Tuple[int, int, int],
+    n_train: int,
+    n_val: int,
+    n_test: int,
+) -> Path:
+    """Persist one arm's weights plus the contract needed to ever serve them.
+
+    The sidecar is not optional bookkeeping. `executesimulation._read_checkpoint_sidecar`
+    returns `{}` for a checkpoint that lacks one, and every contract check downstream then
+    silently adopts its default: a sidecar-less checkpoint is served as `legacy_v0`, under
+    `src_index_v0`, with no infra provenance and no record of which message passing it was
+    fitted with. That is how `regime_b`'s five checkpoints became unusable evidence -- they
+    exist on disk and cannot be trusted in a gate. Weight shapes pin the feature *count*,
+    never the layout that assigns meaning to those columns.
+
+    `AblationModel` is not `TaskPlacementGNN`, so these weights do not load into the
+    production serving path as-is; `arm_config` and `model_class` are recorded so a port can
+    be written against a known architecture rather than reverse-engineered from a tensor
+    dump.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = f"{arm_name}_seed{args.seed}"
+    ckpt_path = out_dir / f"{stem}.pt"
+    torch.save(model.state_dict(), ckpt_path)
+
+    task_dim, plat_dim, edge_dim = dims
+    contract = {
+        "model_class": "AblationModel",
+        "produced_by": "scripts_cosim/gnn_necessity_ablation.py",
+        "arm": arm_name,
+        "arm_config": dict(arm_cfg),
+        "seed": args.seed,
+        "epochs": args.epochs,
+        "deterministic": not args.nondeterministic,
+        "task_feature_dim": task_dim,
+        "platform_feature_dim": plat_dim,
+        "edge_feature_dim": edge_dim,
+        "queue_feature_contract": resolve_queue_feature_contract(),
+        "topology_feature_contract": resolve_topology_feature_contract(),
+        "network_graph_contract": (
+            resolve_network_graph_contract()
+            if arm_cfg.get("use_network_entities")
+            else NETWORK_GRAPH_CONTRACT_OFF
+        ),
+        "inference_feature_layout": os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+        or None,
+        # Which corpus, and which slice of it. The topology_size split is the whole point of
+        # this harness -- a checkpoint that does not record which sizes it never saw cannot
+        # be used to test transfer to those sizes.
+        "cache_dir": str(args.cache),
+        "corpus_root": str(args.corpus_root),
+        "split_mode": args.split_mode,
+        "train_sizes": list(args.train_sizes) if args.split_mode == "topology_size" else None,
+        "held_out_sizes": (
+            list(args.held_out_sizes) if args.split_mode == "topology_size" else None
+        ),
+        "n_train_graphs": n_train,
+        "n_val_graphs": n_val,
+        "n_test_graphs": n_test,
+    }
+    (out_dir / f"{stem}.contract.json").write_text(json.dumps(contract, indent=2) + "\n")
+    print(f"  saved checkpoint -> {ckpt_path} (+ .contract.json)")
+    return ckpt_path
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", required=True)
@@ -551,6 +627,19 @@ def main() -> int:
             "topology_size = topology_transfer_v1 Phase 4 gate (train on "
             "--train-sizes, test on --held-out-sizes, val is a held-out slice of "
             "the train sizes only)"
+        ),
+    )
+    ap.add_argument(
+        "--save-checkpoints",
+        type=Path,
+        default=None,
+        help=(
+            "Directory to persist each arm's trained weights into, with a "
+            "`<arm>.contract.json` sidecar. Off by default, so an eval-only run is "
+            "unchanged. Required by anything downstream of this harness: "
+            "topology_transfer_v1 ran a full 5-seed gate with no torch.save anywhere and "
+            "ended with zero deployable weights, so its own stated next step (a live gate "
+            "across topology sizes) had nothing to run."
         ),
     )
     ap.add_argument(
@@ -713,6 +802,18 @@ def main() -> int:
         nparam = sum(p.numel() for p in model.parameters())
         print(f"  params={nparam}")
         train_model(model, list(train_graphs), device, args.epochs)
+        if args.save_checkpoints is not None:
+            save_arm_checkpoint(
+                model=model,
+                out_dir=args.save_checkpoints,
+                arm_name=name,
+                arm_cfg=cfg,
+                args=args,
+                dims=(task_dim, plat_dim, edge_dim),
+                n_train=len(train_graphs),
+                n_val=len(val_graphs),
+                n_test=len(test_graphs),
+            )
         results[name] = eval_regret(model, test_graphs, corpus_root, device, lut_cache)
         if results[name]["n_missing_clean"]:
             raise RuntimeError(
