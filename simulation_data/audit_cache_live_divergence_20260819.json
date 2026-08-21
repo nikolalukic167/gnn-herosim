@@ -1,0 +1,890 @@
+{
+  "collections": [
+    {
+      "collection": "gnn_datasets_1task",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 208,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 20,
+      "temporal_worst_platforms": 75,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 153,
+          "cache_at_first": [
+            31,
+            163
+          ],
+          "live_at_first": [
+            30,
+            153
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 55
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 138,
+          "cache_at_first": [
+            28,
+            148
+          ],
+          "live_at_first": [
+            27,
+            138
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 70
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_divergent": 53,
+          "n_queued": 53
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 53,
+          "n_queued": 53
+        }
+      ]
+    },
+    {
+      "collection": "gnn_datasets_4tasks_1060_warmth_v2",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 208,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 20,
+      "temporal_worst_platforms": 53,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 108,
+          "cache_at_first": [
+            22,
+            118
+          ],
+          "live_at_first": [
+            21,
+            108
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 100
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 15,
+          "cache_at_first": [
+            4,
+            19
+          ],
+          "live_at_first": [
+            3,
+            15
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 193
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_divergent": 53,
+          "n_queued": 53
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 53,
+          "n_queued": 53
+        }
+      ]
+    },
+    {
+      "collection": "gnn_datasets_4tasks_contention_v1_probe",
+      "datasets_checked": 3,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 3,
+      "worst_misplaced_platforms": 174,
+      "temporal_datasets_with_ssc": 0,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 108,
+          "cache_at_first": [
+            22,
+            118
+          ],
+          "live_at_first": [
+            21,
+            108
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 100
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 34,
+          "cache_at_first": [
+            8,
+            44
+          ],
+          "live_at_first": [
+            7,
+            34
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 174
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "gnn_datasets_4tasks_contention_v2",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 204,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 20,
+      "temporal_worst_platforms": 54,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 34,
+          "cache_at_first": [
+            8,
+            44
+          ],
+          "live_at_first": [
+            7,
+            34
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 174
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 34,
+          "cache_at_first": [
+            8,
+            44
+          ],
+          "live_at_first": [
+            7,
+            34
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 174
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_divergent": 54,
+          "n_queued": 54
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 54,
+          "n_queued": 54
+        }
+      ]
+    },
+    {
+      "collection": "gnn_datasets_4tasks_contention_v2_verify",
+      "datasets_checked": 1,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 1,
+      "worst_misplaced_platforms": 85,
+      "temporal_datasets_with_ssc": 0,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 123,
+          "cache_at_first": [
+            25,
+            133
+          ],
+          "live_at_first": [
+            24,
+            123
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 85
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "gnn_datasets_4tasks_contention_v3",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 194,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 20,
+      "temporal_worst_platforms": 54,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 19,
+          "cache_at_first": [
+            5,
+            29
+          ],
+          "live_at_first": [
+            4,
+            19
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 189
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 179,
+          "cache_at_first": [
+            38,
+            194
+          ],
+          "live_at_first": [
+            35,
+            179
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 29
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_divergent": 54,
+          "n_queued": 54
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 54,
+          "n_queued": 54
+        }
+      ]
+    },
+    {
+      "collection": "gnn_datasets_4tasks_contention_v4_pilot",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 208,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 20,
+      "temporal_worst_platforms": 54,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 138,
+          "cache_at_first": [
+            28,
+            148
+          ],
+          "live_at_first": [
+            27,
+            138
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 70
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 108,
+          "cache_at_first": [
+            23,
+            119
+          ],
+          "live_at_first": [
+            21,
+            108
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 100
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_divergent": 54,
+          "n_queued": 54
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 54,
+          "n_queued": 54
+        }
+      ]
+    },
+    {
+      "collection": "gnn_datasets_4tasks_contention_v5_quick_test",
+      "datasets_checked": 19,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 19,
+      "worst_misplaced_platforms": 204,
+      "temporal_datasets_with_ssc": 0,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 19,
+          "cache_at_first": [
+            5,
+            29
+          ],
+          "live_at_first": [
+            4,
+            19
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 189
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 108,
+          "cache_at_first": [
+            22,
+            118
+          ],
+          "live_at_first": [
+            21,
+            108
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 100
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "gnn_datasets_4tasks_highq_safe_20260606",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 208,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 108,
+          "cache_at_first": [
+            22,
+            118
+          ],
+          "live_at_first": [
+            21,
+            108
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 100
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 123,
+          "cache_at_first": [
+            25,
+            133
+          ],
+          "live_at_first": [
+            24,
+            123
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 85
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "gnn_datasets_4tasks_regime_b_cold_burst_v1",
+      "datasets_checked": 1,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 1,
+      "worst_misplaced_platforms": 69,
+      "temporal_datasets_with_ssc": 0,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 138,
+          "cache_at_first": [
+            28,
+            148
+          ],
+          "live_at_first": [
+            27,
+            138
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 69
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 4,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 8,
+          "first_divergent_position": 1,
+          "cache_at_first": [
+            1,
+            2
+          ],
+          "live_at_first": [
+            1,
+            1
+          ],
+          "node_ids_sorted": true,
+          "misplaced_platforms": 4
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 8,
+          "first_divergent_position": 1,
+          "cache_at_first": [
+            1,
+            2
+          ],
+          "live_at_first": [
+            1,
+            1
+          ],
+          "node_ids_sorted": true,
+          "misplaced_platforms": 4
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "gnn_datasets_4tasks_shallow_v1",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 208,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 20,
+      "temporal_worst_platforms": 49,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 19,
+          "cache_at_first": [
+            5,
+            29
+          ],
+          "live_at_first": [
+            4,
+            19
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 189
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 104,
+          "cache_at_first": [
+            22,
+            118
+          ],
+          "live_at_first": [
+            20,
+            104
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 104
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_divergent": 30,
+          "n_queued": 30
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 30,
+          "n_queued": 30
+        }
+      ]
+    },
+    {
+      "collection": "gnn_datasets_4tasks_skew_warmth_v2",
+      "datasets_checked": 12,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 12,
+      "worst_misplaced_platforms": 229,
+      "temporal_datasets_with_ssc": 12,
+      "temporal_datasets_diverging": 12,
+      "temporal_worst_platforms": 70,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 229,
+          "first_divergent_position": 14,
+          "cache_at_first": [
+            3,
+            15
+          ],
+          "live_at_first": [
+            2,
+            14
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 215
+        },
+        {
+          "dataset": "ds_00002",
+          "diverges": true,
+          "n_platforms": 229,
+          "first_divergent_position": 155,
+          "cache_at_first": [
+            27,
+            159
+          ],
+          "live_at_first": [
+            26,
+            155
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 74
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 56,
+          "n_queued": 56
+        },
+        {
+          "dataset": "ds_00002",
+          "diverges": true,
+          "n_divergent": 56,
+          "n_queued": 56
+        }
+      ]
+    },
+    {
+      "collection": "gnn_datasets_4tasks_skew_warmth_v2_test",
+      "datasets_checked": 1,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 1,
+      "worst_misplaced_platforms": 199,
+      "temporal_datasets_with_ssc": 0,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 229,
+          "first_divergent_position": 30,
+          "cache_at_first": [
+            7,
+            34
+          ],
+          "live_at_first": [
+            6,
+            30
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 199
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "gnn_datasets_4tasks_sparse_warmth_v2",
+      "datasets_checked": 20,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 20,
+      "worst_misplaced_platforms": 194,
+      "temporal_datasets_with_ssc": 20,
+      "temporal_datasets_diverging": 20,
+      "temporal_worst_platforms": 37,
+      "verdict": "STALE_CACHE",
+      "examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 104,
+          "cache_at_first": [
+            22,
+            118
+          ],
+          "live_at_first": [
+            20,
+            104
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 104
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_platforms": 208,
+          "first_divergent_position": 123,
+          "cache_at_first": [
+            25,
+            133
+          ],
+          "live_at_first": [
+            24,
+            123
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 85
+        }
+      ],
+      "temporal_examples": [
+        {
+          "dataset": "ds_00000",
+          "diverges": true,
+          "n_divergent": 37,
+          "n_queued": 37
+        },
+        {
+          "dataset": "ds_00001",
+          "diverges": true,
+          "n_divergent": 37,
+          "n_queued": 37
+        }
+      ]
+    },
+    {
+      "collection": "hetero_large_knative_eval_20260606",
+      "datasets_checked": 1,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 1,
+      "worst_misplaced_platforms": 180,
+      "temporal_datasets_with_ssc": 1,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_000_00_balanced_p35_sym_high_warm",
+          "diverges": true,
+          "n_platforms": 398,
+          "first_divergent_position": 218,
+          "cache_at_first": [
+            45,
+            228
+          ],
+          "live_at_first": [
+            44,
+            218
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 180
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "hetero_small_knative_eval_20260606",
+      "datasets_checked": 12,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 12,
+      "worst_misplaced_platforms": 86,
+      "temporal_datasets_with_ssc": 12,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_000_00_balanced_p35_sym_high_warm",
+          "diverges": true,
+          "n_platforms": 88,
+          "first_divergent_position": 48,
+          "cache_at_first": [
+            10,
+            58
+          ],
+          "live_at_first": [
+            9,
+            48
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 40
+        },
+        {
+          "dataset": "ds_001_01_balanced_p35_asym_high_cold",
+          "diverges": true,
+          "n_platforms": 88,
+          "first_divergent_position": 14,
+          "cache_at_first": [
+            3,
+            15
+          ],
+          "live_at_first": [
+            2,
+            14
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 74
+        }
+      ],
+      "temporal_examples": []
+    },
+    {
+      "collection": "hetero_small_knative_eval_5tasks_20260606",
+      "datasets_checked": 3,
+      "datasets_unreadable": 0,
+      "datasets_without_platform_results": 0,
+      "platform_order_differs": 3,
+      "worst_misplaced_platforms": 84,
+      "temporal_datasets_with_ssc": 3,
+      "temporal_datasets_diverging": 0,
+      "temporal_worst_platforms": 0,
+      "verdict": "order-only",
+      "examples": [
+        {
+          "dataset": "ds_000_00_balanced_p35_sym_high_warm",
+          "diverges": true,
+          "n_platforms": 88,
+          "first_divergent_position": 48,
+          "cache_at_first": [
+            10,
+            58
+          ],
+          "live_at_first": [
+            9,
+            48
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 40
+        },
+        {
+          "dataset": "ds_001_01_balanced_p35_asym_high_cold",
+          "diverges": true,
+          "n_platforms": 88,
+          "first_divergent_position": 14,
+          "cache_at_first": [
+            3,
+            15
+          ],
+          "live_at_first": [
+            2,
+            14
+          ],
+          "node_ids_sorted": false,
+          "misplaced_platforms": 74
+        }
+      ],
+      "temporal_examples": []
+    }
+  ]
+}
