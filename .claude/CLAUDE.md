@@ -137,7 +137,7 @@ pipenv run python src/notebooks/prepare_graphs_cache.py
 
 **Activating environment on datalab**:
 ```bash
-eval "$(micromamba shell hook --bash)" && micromamba activate gnn
+eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn
 ```
 
 **SLURM Batch Jobs** (submit on datalab):
@@ -301,6 +301,17 @@ Queue-aware features are critical for ML schedulers:
 4. Train via a config under `experiments/` (never a new `train_*.py` fork)
 5. Gate the result with a live-gate / sealed-holdout comparison in `scripts_cosim/important/`
 6. **Write the outcome into `LINEAGES.md`** — the lineage is not done until you do
+
+**Ablation harnesses are not a substitute for step 5.** A standalone comparison script (e.g.
+`scripts_cosim/gnn_necessity_ablation.py`) that trains models in-process purely to compute an
+eval statistic has no reason to persist checkpoints, and typically doesn't — see
+`topology_transfer_v1` in `LINEAGES.md` (2026-08-20 entry) for a lineage that ran a full
+pre-registered gate this way and ended up with zero deployable model weights and no live-gate
+step at all. If a lineage's result should eventually run against a real workload, its training
+must go through step 4 (an `experiments/` config, which is what produces a checkpoint) at some
+point before that's possible — an ablation-only harness proving a point about architecture is a
+legitimate final answer for a narrow question, but it is not a step 5 substitute and should not
+be mistaken for one.
 
 The old LHS-sampling + Bayesian-optimisation experiment loop (`generateall.py`,
 `sample.py`, `executeinitial.py`, `executeoptimization.py`, `src/charts/`) belonged to
@@ -478,7 +489,7 @@ When asked for explanations or analysis, **answer in chat directly** - do not wr
 
 Always use `pipenv run python3` or activate the pipenv environment first. Never run Python commands directly outside the virtual environment.
 
-On datalab, use: `eval "$(micromamba shell hook --bash)" && micromamba activate gnn`
+On datalab, use: `eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn`
 
 ## Directory Structure
 
