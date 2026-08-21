@@ -183,9 +183,10 @@ class KnativeScheduler(Scheduler):
         # (scheduler_process already limits queue depth on uninitialized replicas)
         candidates = initialized_replicas if initialized_replicas else valid_replicas
         
-        # Least Connected (shortest queue) among candidates
+        # Least Connected (shortest queue) among candidates. Set iteration order is not
+        # reproducible across processes (PYTHONHASHSEED), so tie-break on replica identity.
         bounded_concurrency = min(
-            candidates, key=lambda couple: len(couple[1].queue.items)
+            candidates, key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)
         )
 
         # print(f"task: {task.id}")
@@ -217,6 +218,9 @@ class KnativeScheduler(Scheduler):
                 # Fallback: check bidirectional connectivity
                 elif hasattr(node, 'network_map') and task.node_name in node.network_map:
                     valid_replicas.append((node, platform))
+        # `replicas` is a set, so its iteration order (and therefore this list's order)
+        # is not reproducible across processes (PYTHONHASHSEED) — sort for determinism.
+        valid_replicas.sort(key=lambda couple: (couple[0].id, couple[1].id))
         return valid_replicas
 
     # ==================== Live Oracle Audit Capture ====================

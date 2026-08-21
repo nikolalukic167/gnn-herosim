@@ -46,9 +46,10 @@ class KnativeScheduler(Scheduler):
         except Exception:
             pass
 
-        # Least Connected
+        # Least Connected. Set iteration order is not reproducible across processes
+        # (PYTHONHASHSEED), so tie-break deterministically on replica identity.
         bounded_concurrency = min(
-            replicas, key=lambda couple: len(couple[1].queue.items)
+            replicas, key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)
         )
 
         print(f"task: {task.id}")
