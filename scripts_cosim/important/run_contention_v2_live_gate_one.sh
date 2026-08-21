@@ -59,7 +59,7 @@ esac
 [[ -z "$MODEL_CHECK" || -f "$MODEL_CHECK" ]] || { echo "ERROR: model missing: $MODEL_CHECK" >&2; exit 1; }
 
 if [[ -f "$OUTPUT" && "${FORCE_RERUN:-0}" != "1" ]]; then
-  rtt=$(pipenv run python3 -c "import json; d=json.load(open('${OUTPUT}')); print(d.get('total_rtt', 0))" 2>/dev/null || echo 0)
+  rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json; d=json.load(open('${OUTPUT}')); print(d.get('total_rtt', 0))" 2>/dev/null || echo 0)
   if [[ "${rtt}" != "0" && "${rtt}" != "0.0" ]]; then
     echo "SKIP (exists): $OUTPUT  total_rtt=${rtt}"
     exit 0
@@ -73,7 +73,7 @@ echo "  INFERENCE_FEATURE_LAYOUT=${INFERENCE_FEATURE_LAYOUT:-<default>}"
 echo "  workload=${WORKLOAD}"
 
 start=$(date +%s)
-pipenv run python3 scripts_cosim/run_simulation.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
   --config "$CONFIG_PATH" \
   --workload "$WORKLOAD" \
   --output "$OUTPUT" \
@@ -81,5 +81,5 @@ pipenv run python3 scripts_cosim/run_simulation.py \
   --timeout "$TIMEOUT" \
   "${RUN_ARGS[@]}"
 elapsed=$(( $(date +%s) - start ))
-rtt=$(pipenv run python3 -c "import json; d=json.load(open('${OUTPUT}')); print(d.get('total_rtt','?'))" 2>/dev/null || echo "?")
+rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json; d=json.load(open('${OUTPUT}')); print(d.get('total_rtt','?'))" 2>/dev/null || echo "?")
 echo "DONE: $OUTPUT  elapsed=${elapsed}s  total_rtt=${rtt}"

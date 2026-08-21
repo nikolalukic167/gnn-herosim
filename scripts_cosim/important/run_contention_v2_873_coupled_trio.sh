@@ -70,7 +70,7 @@ for entry in "${CONFIGS[@]}"; do
   [[ -f "$path" ]] || { echo "ERROR: config missing: $path" >&2; exit 1; }
 done
 
-pipenv run python3 - <<PY | tee -a "$LOG"
+${HEROSIM_PY:-pipenv run python3} - <<PY | tee -a "$LOG"
 import hashlib, json
 from pathlib import Path
 from datetime import datetime, timezone
@@ -120,7 +120,7 @@ PY
 
 peek_rtt() {
   local f="$1"
-  pipenv run python3 - "$f" <<'PY'
+  ${HEROSIM_PY:-pipenv run python3} - "$f" <<'PY'
 import sys
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -157,7 +157,7 @@ run_one() {
   log "RUN ${policy} ${name} seed=${seed}"
   local start elapsed rtt
   start=$(date +%s)
-  pipenv run python3 scripts_cosim/run_simulation.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
     --config "$path" \
     --workload "$WORKLOAD" \
     --output "$output" \
@@ -219,7 +219,7 @@ if [[ "${SKIP_GNN:-0}" != "1" ]]; then
 fi
 
 log "Phase: compare"
-pipenv run python3 scripts_cosim/important/compare_sealed_live_holdout.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_sealed_live_holdout.py \
   --sweep-dir "$SWEEP_DIR" \
   --report "${SWEEP_DIR}/compare.json" | tee -a "$LOG"
 

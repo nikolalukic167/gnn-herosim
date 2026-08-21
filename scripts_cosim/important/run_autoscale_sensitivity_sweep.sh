@@ -53,7 +53,7 @@ run_one() {
     *) log "ERROR unknown policy $policy"; return 1 ;;
   esac
 
-  pipenv run python3 scripts_cosim/run_simulation.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
     $flag \
     --config "$config_path" \
     --workload "$workload_path" \
@@ -96,7 +96,7 @@ for job in "${JOBS[@]}"; do
 done
 
 log "=== Compare ==="
-pipenv run python3 scripts_cosim/important/compare_autoscale_sensitivity.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_autoscale_sensitivity.py \
   --sweep-dir "$SWEEP_DIR" | tee -a "${SWEEP_DIR}/progress.log"
 
 log "Done. Results: ${RES_DIR}/"

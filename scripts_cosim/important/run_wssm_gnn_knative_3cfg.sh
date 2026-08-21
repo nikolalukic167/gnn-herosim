@@ -60,7 +60,7 @@ run_one() {
   log "RUN ${cfg_name} ${suffix} ql=${QL}"
   local run_log="${LOG_DIR}/${cfg_name}__${suffix}.log"
 
-  pipenv run python3 scripts_cosim/run_simulation.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
     $flag \
     --config "$config_path" \
     --workload "$workload_path" \
@@ -92,7 +92,7 @@ for job in "${JOBS[@]}"; do
 done
 
 log "=== Summary ==="
-pipenv run python3 - <<'PY' | tee -a "${SWEEP_DIR}/progress.log"
+${HEROSIM_PY:-pipenv run python3} - <<'PY' | tee -a "${SWEEP_DIR}/progress.log"
 import json
 from pathlib import Path
 

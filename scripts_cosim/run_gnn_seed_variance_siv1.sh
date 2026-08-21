@@ -38,7 +38,7 @@ run_one() {
   WANDB_PROJECT="$PROJECT" \
   WANDB_RUN_NAME="$name" \
   WANDB_TAGS="near-rtt,ce-only,dim14,contention-v2,seed-variance,${tag}" \
-    pipenv run python3 src/notebooks/train_near_rtt_v2_contention_v2_dim14_ce_only.py \
+    ${HEROSIM_PY:-pipenv run python3} src/notebooks/train_near_rtt_v2_contention_v2_dim14_ce_only.py \
     >"$log" 2>&1
   echo "done -> models/${name}.pt (log ${log})"
 }

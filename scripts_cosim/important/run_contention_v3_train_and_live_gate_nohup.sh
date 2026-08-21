@@ -30,13 +30,13 @@ fi
 if [[ ! -f "${CACHE}/graphs.pkl" || "${FORCE_RECACHE:-0}" == "1" ]]; then
   log "Phase 1: refresh SSC + prepare_graphs_cache"
   rm -rf "$CACHE"
-  PYTHONPATH="$(pwd)" pipenv run python3 scripts_cosim/refresh_optimal_full_stats.py \
+  PYTHONPATH="$(pwd)" ${HEROSIM_PY:-pipenv run python3} scripts_cosim/refresh_optimal_full_stats.py \
     --base-dir "$CORPUS" --rewrite-ssc >> "$LOG" 2>&1
-  PYTHONPATH="$(pwd)" pipenv run python3 src/notebooks/prepare_graphs_cache.py \
+  PYTHONPATH="$(pwd)" ${HEROSIM_PY:-pipenv run python3} src/notebooks/prepare_graphs_cache.py \
     --base-dirs "$CORPUS" --cache-dir "$CACHE" >> "$LOG" 2>&1
 fi
 
-n_graphs=$(pipenv run python3 -c "import pickle; print(len(pickle.load(open('${CACHE}/graphs.pkl','rb'))))")
+n_graphs=$(${HEROSIM_PY:-pipenv run python3} -c "import pickle; print(len(pickle.load(open('${CACHE}/graphs.pkl','rb'))))")
 log "Graphs: ${n_graphs}"
 [[ "$n_graphs" -ge 850 ]] || { log "ERROR: cache too small"; exit 1; }
 
@@ -46,13 +46,13 @@ export NEAR_RTT_TRAIN_EPOCHS="${NEAR_RTT_TRAIN_EPOCHS:-100}"
 
 log "Phase 2: GNN train"
 cd src/notebooks
-pipenv run python3 train_near_rtt_v2_contention_v3_dim14_ce_only.py >> "${ROOT}/${LOG}" 2>&1
+${HEROSIM_PY:-pipenv run python3} train_near_rtt_v2_contention_v3_dim14_ce_only.py >> "${ROOT}/${LOG}" 2>&1
 cd "$ROOT"
 cp -f src/notebooks/models/near-rtt-v2-contention-v3-dim14-ce-only.pt "$GNN_CKPT" 2>/dev/null || true
 [[ -f "$GNN_CKPT" ]] || { log "ERROR: GNN ckpt missing"; exit 1; }
 
 log "Phase 3: MLP train"
-pipenv run python3 src/notebooks/train_mlp_contention_v3_dim22_batchcache.py >> "$LOG" 2>&1
+${HEROSIM_PY:-pipenv run python3} src/notebooks/train_mlp_contention_v3_dim22_batchcache.py >> "$LOG" 2>&1
 [[ -f "$MLP_CKPT" ]] || { log "ERROR: MLP ckpt missing"; exit 1; }
 
 log "Phase 4: live gate"
@@ -77,7 +77,7 @@ for policy in knative mlp gnn; do
 done
 
 log "Phase 5: compare"
-pipenv run python3 scripts_cosim/important/compare_contention_v2_live_gate.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_contention_v2_live_gate.py \
   --sweep-dir "$SWEEP_DIR" >> "$LOG" 2>&1
 
 log "=== complete === sweep=${SWEEP_DIR} log=${LOG}"

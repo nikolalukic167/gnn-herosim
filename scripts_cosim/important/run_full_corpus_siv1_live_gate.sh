@@ -59,7 +59,7 @@ log() { echo "[$(date -Is)] $*" | tee -a "$LOG"; }
 
 if [[ ! -d "$CFG_DIR" ]]; then
   log "Cells missing; minting them"
-  pipenv run python3 scripts_cosim/important/make_full_corpus_siv1_gate_cells.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/make_full_corpus_siv1_gate_cells.py \
     --sweep-dir "$SWEEP_DIR" | tee -a "$LOG"
 fi
 
@@ -78,7 +78,7 @@ for cell in "${CELLS[@]}"; do PARITY_ARGS+=(--dataset "$cell"); done
 # script -- currently only --allow-backbone-latency-divergence, for the link_contention_v1
 # live A/B (see that flag's help). It is deliberately NOT defaulted to anything.
 read -r -a PARITY_EXTRA <<< "${PARITY_EXTRA_ARGS:-}"
-pipenv run python3 scripts_cosim/verify_live_infra_parity.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/verify_live_infra_parity.py \
   "${PARITY_ARGS[@]}" "${PARITY_EXTRA[@]}" -v --json-out "${SWEEP_DIR}/infra_parity.json" | tee -a "$LOG"
 log "Infra parity preflight PASSED for ${#CELLS[@]} cells"
 
@@ -93,7 +93,7 @@ run_one() {
 
   if [[ -f "$output" && "${FORCE_RERUN:-0}" != "1" ]]; then
     local rtt
-    rtt=$(pipenv run python3 -c "import json;print(json.load(open('${output}')).get('total_rtt',0))" 2>/dev/null || echo 0)
+    rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json;print(json.load(open('${output}')).get('total_rtt',0))" 2>/dev/null || echo 0)
     if [[ "$rtt" != "0" && "$rtt" != "0.0" ]]; then
       log "SKIP (exists): $output total_rtt=${rtt}"; return 0
     fi
@@ -102,13 +102,13 @@ run_one() {
   log "--- ${policy} / ${cell_name} ---"
   local start; start=$(date +%s)
   # NOTE: no --seed. See the header.
-  pipenv run python3 scripts_cosim/run_simulation.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
     --config "$config_path" \
     --workload "$WORKLOAD" \
     --output "$output" \
     --timeout "$TIMEOUT" \
     "${run_args[@]}" 2>&1 | tee -a "$LOG"
-  local rtt; rtt=$(pipenv run python3 -c "import json;print(json.load(open('${output}')).get('total_rtt','?'))" 2>/dev/null || echo "?")
+  local rtt; rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json;print(json.load(open('${output}')).get('total_rtt','?'))" 2>/dev/null || echo "?")
   log "DONE ${policy}/${cell_name} elapsed=$(( $(date +%s) - start ))s total_rtt=${rtt}"
 }
 
@@ -125,4 +125,4 @@ for policy in "${POLICIES[@]}"; do
 done
 
 log "=== Gate complete. Score with: ==="
-log "  pipenv run python3 scripts_cosim/important/compare_sealed_live_holdout.py --sweep-dir $SWEEP_DIR"
+log "  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_sealed_live_holdout.py --sweep-dir $SWEEP_DIR"
