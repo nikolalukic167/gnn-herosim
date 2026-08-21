@@ -47,8 +47,8 @@ Expected if everything is right: knative bit-identical to the recorded gate
 (cell01 ≈ 50.4M ± ~0.1%, i.e. 2W/1T/2L overall). Score with
 `compare_sealed_live_holdout.py --sweep-dir <sweep>`. **Then update the LINEAGES siv1
 resolution subsection with the re-gate outcome — it currently notes the re-run as the
-remaining step.** Job id: see the sbatch submission echo in the session log /
-`logs/siv1-gate-*` on datalab dated 2026-08-21 evening.
+remaining step.** Job id: **709163** (array 0-14, submitted 2026-08-21 ~19:05 at datalab
+commit `6f24e36`; logs `logs/siv1-gate-709163_*.{out,err}`).
 
 **(b) Local `workload-200-200`** (800k events, last phase of the run_rest2.sh queue,
 PAR=2, takes hours):
