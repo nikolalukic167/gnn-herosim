@@ -144,7 +144,9 @@ class KnativeAutoscaler(Autoscaler):
 
         stop = None
         # FIXME: What if no available hardware?
-        for platform_name in available_hardware:
+        # `available_hardware` is a set, so its iteration order is not reproducible
+        # across processes (PYTHONHASHSEED) — sort for a deterministic tie-break.
+        for platform_name in sorted(available_hardware):
             stop = yield self.env.process(
                 self.scale_up(
                     1,
@@ -176,11 +178,13 @@ class KnativeAutoscaler(Autoscaler):
         ))
         """
 
-        # Knative selects a replica on the most available node (cf. ENSURE)
+        # Knative selects a replica on the most available node (cf. ENSURE). `couples_suitable`
+        # is a set, so its iteration order is not reproducible across processes
+        # (PYTHONHASHSEED) — tie-break deterministically on replica identity.
         available_couple = max(
             # filtered_couples, key=lambda couple: couple[0].available_platforms
             couples_suitable,
-            key=lambda couple: couple[0].available_platforms,
+            key=lambda couple: (couple[0].available_platforms, -couple[0].id, -couple[1].id),
         )
 
         return available_couple

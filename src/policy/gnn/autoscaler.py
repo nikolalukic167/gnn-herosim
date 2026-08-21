@@ -173,8 +173,10 @@ class KnativeAutoscaler(Autoscaler):
                 )
 
             stop = None
-            # Try each available hardware type
-            for platform_name in available_hardware:
+            # Try each available hardware type. `available_hardware` is a set, so its
+            # iteration order is not reproducible across processes (PYTHONHASHSEED) —
+            # sort so which hardware type gets scaled up first is deterministic.
+            for platform_name in sorted(available_hardware):
                 stop = yield self.env.process(
                     self.scale_up(
                         1,
@@ -220,10 +222,12 @@ class KnativeAutoscaler(Autoscaler):
         ]
         candidates = server_couples if server_couples else client_couples
 
-        # Select a replica on the most available node
+        # Select a replica on the most available node. `couples_suitable` is a set, so
+        # `candidates`' order is not reproducible across processes (PYTHONHASHSEED) —
+        # tie-break deterministically on replica identity.
         available_couple = max(
             candidates,
-            key=lambda couple: couple[0].available_platforms,
+            key=lambda couple: (couple[0].available_platforms, -couple[0].id, -couple[1].id),
         )
 
         return available_couple

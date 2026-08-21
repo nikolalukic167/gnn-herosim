@@ -654,7 +654,11 @@ class GNNScheduler(Scheduler):
                 # Fallback: check bidirectional connectivity
                 elif hasattr(node, 'network_map') and task.node_name in node.network_map:
                     valid_replicas.append((node, platform))
-        
+
+        # `replicas` is a set, so its iteration order (and therefore this list's order,
+        # which feeds candidate/graph-node ordering for the GNN's tie-break-sensitive
+        # argmax decode) is not reproducible across processes (PYTHONHASHSEED).
+        valid_replicas.sort(key=lambda couple: (couple[0].id, couple[1].id))
         return valid_replicas
 
     def _capture_temporal_state_snapshot(self) -> Dict[str, Dict[str, float]]:

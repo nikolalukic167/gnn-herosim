@@ -202,7 +202,9 @@ class KnativeAutoscaler(Autoscaler):
                 logging.warning(f"[ {self.env.now} ]   Source node {source_node_name} network_map: {list(source_node.network_map.keys())[:5] if source_node else 'N/A'}")
         else:
             logging.info(f"[ {self.env.now} ] 🔍 Autoscaler: Found {len(available_hardware)} available hardware types for {task_type['name']}: {list(available_hardware)}")
-        for platform_name in available_hardware:
+        # `available_hardware` is a set, so its iteration order is not reproducible
+        # across processes (PYTHONHASHSEED) — sort for a deterministic tie-break.
+        for platform_name in sorted(available_hardware):
             stop = yield self.env.process(
                 self.scale_up(
                     1,
@@ -238,10 +240,12 @@ class KnativeAutoscaler(Autoscaler):
         # Prefer server nodes, fall back to client nodes only if no server capacity
         candidates = server_couples if server_couples else client_couples
         
-        # Select the node with the most available platforms
+        # Select the node with the most available platforms. `couples_suitable` is a set,
+        # so `candidates`' order is not reproducible across processes (PYTHONHASHSEED) —
+        # tie-break deterministically on replica identity.
         available_couple = max(
             candidates,
-            key=lambda couple: couple[0].available_platforms,
+            key=lambda couple: (couple[0].available_platforms, -couple[0].id, -couple[1].id),
         )
 
         return available_couple
