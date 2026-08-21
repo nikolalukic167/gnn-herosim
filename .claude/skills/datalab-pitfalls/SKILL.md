@@ -140,3 +140,55 @@ all asserted the `gnn` env's `torch 2.5.1+cu121`. Three sessions spent attributi
 GNN gap to the environment. (Measured 2026-08-21: the version delta contributes *exactly zero*
 — the gap was a code bug all along. See `PARITY.md`. The pitfall is that nothing recorded which
 interpreter served, so it took three sessions to rule out.)
+
+**Status 2026-08-21: fixed in-tree** — all 52 `pipenv run python3` call sites across 18 shell
+scripts now read `${HEROSIM_PY:-pipenv run python3}`, and the three sbatch that activate
+micromamba export `HEROSIM_PY=python3`. This is now "do not reintroduce", not "go do this".
+
+## 9. An import-closure preflight does not prove a job will start — lazy imports are invisible to it
+
+Checking that a job's modules import cleanly under the cluster env is a good preflight and it
+**does not cover imports written inside functions**. Job 709234 (a GNN retrain) passed a clean
+preflight of `prepare_graphs_cache`, `training_contract` and `refresh_optimal_full_stats`
+minutes before dying 84 s in — on `non_unique_lib/training_contract.py:128`, which does
+`from sklearn.model_selection import train_test_split` *inside*
+`split_ids_by_canonical_parent`.
+
+```bash
+# preflight that actually reaches the lazy paths: import, then call the entry point with
+# --help or a 1-epoch/1-dataset smoke config, under the same env the job will use
+eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn
+PYTHONPATH=$PWD python3 -c "import src.notebooks.prepare_graphs_cache"   # eager only
+grep -rn "^\s\+\(import\|from\) " <the modules the job calls>            # find the lazy ones
+```
+
+## 10. A micromamba env can hold two disagreeing installs of the same package
+
+The cluster `gnn` env had `conda-meta` declaring **scikit-learn 1.9.0** built against numpy 2
+(`np2py312...`) while pip's metadata said **1.6.1**, in an env whose numpy is 1.26.4. `scipy`
+was damaged the same way: its Python layer imported a `_promote` symbol its own compiled
+`_rotation` extension did not export. Nothing surfaces until something imports the broken
+package — see pitfall 9 for why that can be long after your preflight.
+
+```bash
+# when an env misbehaves, compare BOTH metadata stores -- the mismatch is the bug
+ls ~/micromamba/envs/gnn/conda-meta/ | grep -iE "^(scipy|scikit|numpy)"
+micromamba activate gnn && python3 -m pip list | grep -iE "^(scipy|scikit-learn|numpy) "
+```
+
+Repair toward the declared canonical stack rather than sideways, and keep pip off the numeric
+packages you are not fixing:
+
+```bash
+python3 -m pip install --no-deps --force-reinstall "scipy==1.15.3" "scikit-learn==1.7.0"
+```
+
+`--no-deps` is load-bearing — without it pip may "helpfully" move `numpy` or `torch`.
+
+**Then prove the repair was numerically inert instead of assuming it.** Any env change to a
+box that produces gate numbers must be followed by:
+
+```bash
+python3 scripts_cosim/verify_venue_parity.py --mode logits --assert   # ~6 s, login-node safe
+# after the 2026-08-21 repair: max|delta| 0.0, argmax flips 0/256
+```

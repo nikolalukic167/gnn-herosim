@@ -28,7 +28,7 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 | **graph_structure_physics** | `scripts_cosim/separability_diagnostic.py` (M4 + `--gate-additive-r2`) | all co-sim collections | Does the simulator produce a target a GNN could ever beat a pointwise MLP on? **Outcome 2026-08-17 below: no, not today.** Phases 1-4 (node contention, congestible links, fan-out DAGs, batch size) planned against that measurement. |
 | **network_contention_v1** | `src/placement/scheduling_cost.py` (`ingress_transfer_time`, `ingress_wait`), `scripts_cosim/test_network_contention.py`, `datalab/netc_v1_cosim.sbatch`, grids `netc_{scarce,funnel,hotspot}_v1` | `netc_pilot_*` (local, n=12-16) | Shared per-node ingress bandwidth, opt-in via `--ingress-bandwidth-mbps`. Physics works; the corpus lever is replica concentration, not bandwidth alone. **Outcomes below.** |
 | **link_contention_v1** | `src/placement/network_fabric.py`, `src/generate_infrastructure.py` (`build_core_backbone`), `scripts_cosim/{link_overlap_precheck,test_link_contention,test_link_repair_control}.py`, grid `netc_multihop_v1` | `netc_multihop_v1_mh_{off,bw1p5}` (local, n=48 each) | Per-link capacity over a multi-hop core backbone, opt-in via `--link-bandwidth-mbps`. **`FALSIFIED` 2026-08-18 — gate FAILED on both criteria.** The link controls do *not* repair (median 0.000), which is a genuinely new signature, but node-collision coupling still dominates (node repair median 1.000). **Outcomes below.** |
-| **topology_transfer_v1** | `src/placement/topology_features.py`, `src/placement/network_graph.py`, `scripts_cosim/test_topology_features.py`, `scripts_cosim/test_network_graph.py`, grid `topo_transfer_v1` | `gnn_datasets_4tasks_topo_transfer_v1` (3,744 datasets), graph cache `graphs_cache_topo_transfer_v1` | **Changes the win condition from per-plan accuracy to inductive generalization across topology sizes.** Phases 0-4 all landed. **`FAILED` 2026-08-20 — Phase 4 gate: `gnn_base` loses to `pointwise` on paired `win_rate` in 5/5 seeds** (CI excludes 0.5 below every time, effects 0.022-0.088); `gnn_node` never PASSES either (2/5 FAIL, 3/5 inconclusive-but-trending-to-null, none positive). **Same-day follow-up (2026-08-20, second pass): added the `gnn_topo` arm (`use_network_entities=True` — the only arm with backbone/link topology in the graph at all; `gnn_base`/`gnn_node` never had it) and re-ran the full 5-seed gate. `gnn_topo` also `FAILED`** (pooled win_rate 0.449, CI [0.417, 0.481], resolved not underpowered) — the FAIL is not an artifact of testing topology-blind models. **⚠ SCOPE CAVEAT, unresolved: every arm in this lineage (`pointwise`/`gnn_base`/`gnn_node`/`gnn_topo`, all 20 seed-runs) was only ever evaluated on brute-force-labeled 4-task synthetic co-sim snapshots (`rps=2, duration=1`, fixed regardless of cluster size) — none has ever been live-gated against a real trace (e.g. `data/nofs-ids/traces/workload-200-200.json`, 800k events). No lineage in this repo has ever live-gated across mismatched train/eval topology sizes; this is unexplored, not just untried here. ⚠ Trained model weights were never persisted to disk** (`AblationModel` in `gnn_necessity_ablation.py` has no `torch.save`/checkpoint call anywhere) **— there is currently nothing to deploy for a live-gate run; every number here comes from in-process eval that discards the model after each training run.** See the "Co-sim-only scope and live-gate traceability" subsection below before planning a live cross-size gate. |
+| **topology_transfer_v1** | `src/placement/topology_features.py`, `src/placement/network_graph.py`, `scripts_cosim/test_topology_features.py`, `scripts_cosim/test_network_graph.py`, grid `topo_transfer_v1` | `gnn_datasets_4tasks_topo_transfer_v1` (3,744 datasets), graph cache `graphs_cache_topo_transfer_v1` | **Changes the win condition from per-plan accuracy to inductive generalization across topology sizes.** Phases 0-4 all landed. **`FAILED` 2026-08-20 — Phase 4 gate: `gnn_base` loses to `pointwise` on paired `win_rate` in 5/5 seeds** (CI excludes 0.5 below every time, effects 0.022-0.088); `gnn_node` never PASSES either (2/5 FAIL, 3/5 inconclusive-but-trending-to-null, none positive). **Same-day follow-up (2026-08-20, second pass): added the `gnn_topo` arm (`use_network_entities=True` — the only arm with backbone/link topology in the graph at all; `gnn_base`/`gnn_node` never had it) and re-ran the full 5-seed gate. `gnn_topo` also `FAILED`** (pooled win_rate 0.449, CI [0.417, 0.481], resolved not underpowered) — the FAIL is not an artifact of testing topology-blind models. **⚠ SCOPE CAVEAT, unresolved: every arm in this lineage (`pointwise`/`gnn_base`/`gnn_node`/`gnn_topo`, all 20 seed-runs) was only ever evaluated on brute-force-labeled 4-task synthetic co-sim snapshots (`rps=2, duration=1`, fixed regardless of cluster size) — none has ever been live-gated against a real trace (e.g. `data/nofs-ids/traces/workload-200-200.json`, 800k events). No lineage in this repo has ever live-gated across mismatched train/eval topology sizes; this is unexplored, not just untried here. ⚠ Trained model weights were never persisted to disk** (`AblationModel` in `gnn_necessity_ablation.py` had no `torch.save`/checkpoint call anywhere) **— every number in this lineage comes from in-process eval that discarded the model after each training run.** **UNBLOCKED 2026-08-21:** `--save-checkpoints DIR` now persists each arm's weights plus a `.contract.json` (split, held-out sizes, feature contracts, verified `serving_port`), and the serving port itself was measured — it is a **three-module rename** into `TaskPlacementGNN`, not the multi-session build it was costed as, but it requires `mp_residual=True` and getting that wrong is **silent**. The remaining cost of the partial gate is the ~14 GPU-hours, nothing else. See the 2026-08-21 subsection below and the "Co-sim-only scope and live-gate traceability" one. |
 | **cache_live_divergence_audit** | `scripts_cosim/audit_cache_live_divergence.py`, `scripts_cosim/verify_cache_live_feature_parity.py` | all 18 collections with `optimal_result.json` | Where do the cache and live feature builders actually disagree? **Platform reordering: 18/18 collections, BENIGN** — the model has no per-position parameter; logits agree to 3e-8 under the identity permutation, so no recache and no asterisk on any result. **Dims 9-11 temporal estimate: 8/18 collections, REAL** (incl. `shallow_v1`; live-gate corpora clean). Parity verifier now compares by platform identity. **Outcomes below.** |
 | **contention_v4_v5** | `scripts_cosim/datalab/contention_v4_deepq_cosim.sbatch`, `contention_v5_quick_test.sbatch` | `contention_v4_pilot`, `contention_v5_quick_test` | Deep queues + coupling optimisation — the attempt at giving the GNN real graph structure to exploit. **`FALSIFIED` 2026-08-17: moved the corpus the wrong way** (additive R² 0.988 → 0.9997). See `graph_structure_physics`. |
 | **contention_v2_v3** | `important/run_contention_v{2,3}_train_and_live_gate_nohup.sh`, `important/compare_contention_v2_live_gate.py` | `contention_v2{,_verify}`, `contention_v3` | Baseline contention series the v4/v5 work is measured against. Trainers: `train_near_rtt_v2_contention_v{2,3}_dim14_ce_only.py`, `train_mlp_contention_v{2,3}_dim22_batchcache.py`. |
@@ -1500,6 +1500,58 @@ rows — the wins are real but they are not the ceiling. Retrain submitted as jo
 rather than on top of it). **Not yet gated — the new checkpoint means nothing until it runs
 the same 5-cell live gate on all three traces.** The MLP has the same mismatch and moved only
 ~1% under the fix, so a matched MLP retrain is the fair comparison and has not been run.
+
+### topology_transfer_v1 — unblocked, and two cost estimates corrected (2026-08-21)
+
+No new gate result. This closes the lineage's §a blocker and re-costs its §b, both by
+measurement rather than by plan.
+
+**§a — weights are now persisted.** `gnn_necessity_ablation.py --save-checkpoints DIR` writes
+`<arm>_seed<N>.pt` plus a `<arm>_seed<N>.contract.json`. Off by default, so an eval-only run
+is byte-unchanged. The sidecar is the substance, not the `.pt`: a checkpoint without one is
+read as `{}` by `executesimulation._read_checkpoint_sidecar`, and every downstream contract
+check then adopts its default silently — `legacy_v0`, `src_index_v0`, no infra provenance, no
+record of which message passing it was fitted with. The contract records the queue / topology /
+network-graph contracts, feature layout, arm config, seed, and — for the `topology_size` split
+— **which sizes were trained on and which were held out**. A checkpoint that cannot say which
+sizes it never saw cannot be used to test transfer to those sizes, which is the whole
+hypothesis. 14 tests in `tests/test_ablation_checkpoint.py`.
+
+**§b — the serving port is a rename, not a build.** The plan costed a production
+`use_network_entities` serving path as a multi-session job and assumed `gnn_base`/`pointwise`
+"already load through `src/policy/gnn/scheduler.py`". Measured:
+
+| | result |
+|---|---|
+| `AblationModel` vs `TaskPlacementGNN` state dicts | **31 keys each, 15 shared, same shapes** |
+| difference | three top-level module names: `task_enc`→`task_encoder`, `plat_enc`→`platform_encoder`, `scorer`→`edge_scorer` |
+| renamed load, `mp_residual=False` (production **default**) | `load_state_dict(strict=True)` **succeeds, no error** — and max \|Δlogit\| **0.196**, different argmaxes |
+| renamed load, `mp_residual=True` (`mp_gate` inits to 1.0) | **max \|Δlogit\| 0.0**, identical argmaxes, `gnn_base` and `gnn_node` both |
+
+`AblationModel` is unconditionally `x0 + gin(x0)`; production applies the residual only under
+`mp_residual`, whose default is `False`. **So the cheap port also contains a silent
+wrong-numbers path that nothing in the stack catches** — precisely the class this file's
+checkpoint-contract rows keep recording. The verified port now ships in the contract as a
+`serving_port` block (target class, key rename, constructor kwargs), with a test that fails if
+the residual ever stops changing the output, so the guard cannot pass vacuously.
+Recorded honestly: `mp_node_edges_candidates_only=False` comes from reading
+`AblationModel.forward`, **not** from the equivalence check — that used a fully connected
+bipartite graph, where the flag is a no-op.
+
+**Remaining cost of the partial gate:** the ~14 GPU-hours (train `gnn_base` + `pointwise` with
+`--save-checkpoints`, mint live cells at 60/80 servers, run the 15-task gate per size). Not
+launched — it is a large speculative spend on a lineage already `FAILED`, and it would contend
+with the siv1 retrain for GPUs. Nothing else blocks it.
+
+**A6 (`soft_combo` live retest) is NOT viable as planned — checked, not assumed.** The plan
+called it "the only item testable today with zero training" and flagged one caveat to verify.
+Two hold, and either is disqualifying: (1) neither
+`near-rtt-v2-regime-b-oracle-split-cosim-dim16-{ce-only,soft-combo-conc}.pt` has a
+`.contract.json`, so both would serve blind under adopted defaults; (2) both take **16**
+platform features (`platform_encoder.net.0.weight` is `(64, 16)`) against the siv1 gate cells'
+**14** — before even reaching the `platform_reuse_v1` vs `node_disk_v2` physics mismatch.
+Do not spend time on A6 without first retraining that pair under a recorded contract.
+
 
 ### cache_live_divergence_audit — outcomes (2026-08-19)
 
