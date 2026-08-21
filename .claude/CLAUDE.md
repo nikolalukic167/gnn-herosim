@@ -164,10 +164,14 @@ different machines.** The hard rules, because they are easy to violate by accide
    resolves its own venv and shells straight past `micromamba activate gnn`. On the cluster
    this silently created a third, undeclared environment that every gate has actually used.
    Write `${HEROSIM_PY:-pipenv run python3}` and `export HEROSIM_PY=python3` after activation
-   in the `.sbatch`.
+   in the `.sbatch`. **Applied 2026-08-21** across all 52 call sites / 18 scripts and the 3
+   sbatch that activate micromamba — so this is now "do not reintroduce", not "do this".
 2. **One environment spec: `envs/herosim-lock.txt`.** Canonical stack is the local one
    (torch 2.5.1+cu121 / numpy 2.3.0 / PyG 2.6.1). Do not add a fourth answer alongside
-   `Pipfile`, `Pipfile.lock` and `requirements.txt`.
+   `Pipfile`, `Pipfile.lock` and `requirements.txt`. The file itself was created 2026-08-21;
+   before that it was cited as canonical here and in `PARITY.md` without existing. **An
+   env-version match is not proof of comparability and a mismatch is not proof of a problem —
+   run `verify_venue_parity.py --mode logits --assert` (~6 s) and let it decide.**
 3. **Never compare `total_rtt` across venues without running the checks.** In order:
    `verify_code_identity.py` → `verify_live_infra_parity.py` → `verify_venue_parity.py`.
    Unknown is not a pass.
@@ -178,7 +182,17 @@ different machines.** The hard rules, because they are easy to violate by accide
    perturb decisions *symmetrically*. A gap that is one-directional on every cell and never
    flips sign is a **biased-estimator bug in the feature code**, not an environment problem.
    Measured 2026-08-21: library versions and thread count contribute **exactly 0.0** to GNN
-   logits; only the accelerator moves them, at 1.9e-5, flipping no decisions.
+   logits; only the accelerator moves them, at 1.9e-5, flipping no decisions. Confirmed
+   end-to-end the same day — with code synced, a datalab gate reproduces the local run to
+   **+0.03%–0.40% of `total_rtt`** on all 5 cells (job 709163). The venue is not a variable.
+6. **A gate's result JSON now records its own code and interpreter** (`run_provenance.code`,
+   `.python_env`, `.env_fingerprint`). Before triaging a cross-venue disagreement, diff those:
+   *different commit*, *same commit / different working tree* (`diff_sha256`), or *identical
+   code* — one lookup instead of a probe matrix. **Results predating 2026-08-21 carry no code
+   stamp**, which is exactly why job 708549 vs 709163 cost three sessions.
+7. **An import-closure preflight does not prove a job will start.** It only exercises *eager*
+   imports; a lazy `import` inside a function is invisible to it. Job 709234 passed a clean
+   preflight and died 84 s in on `training_contract.py:128`'s in-function sklearn import.
 
 ## Architecture
 
@@ -339,6 +353,26 @@ must go through step 4 (an `experiments/` config, which is what produces a check
 point before that's possible — an ablation-only harness proving a point about architecture is a
 legitimate final answer for a narrow question, but it is not a step 5 substitute and should not
 be mistaken for one.
+
+**If you do run the ablation harness for anything that might be gated later, pass
+`--save-checkpoints DIR`** (added 2026-08-21). It writes `<arm>_seed<N>.pt` plus a
+`.contract.json` carrying the split (including which topology sizes were held out), the
+feature contracts, and a verified `serving_port` block. Two rules that come out of that work:
+
+1. **A checkpoint without a `.contract.json` is not evidence.**
+   `executesimulation._read_checkpoint_sidecar` returns `{}` for one, and every contract check
+   downstream then silently adopts its default — the checkpoint serves as `legacy_v0`, under
+   `src_index_v0`, with no infra provenance. That is why `regime_b`'s five checkpoints exist on
+   disk and cannot be used in a gate, and why the planned `soft_combo` (A6) live retest is
+   **not viable**: both `oracle_split` checkpoints are sidecar-less *and* take 16 platform
+   features against the gate cells' 14.
+2. **`load_state_dict(strict=True)` is not a compatibility check.** Ablation arms port into
+   `TaskPlacementGNN` by renaming three modules (`task_enc`/`plat_enc`/`scorer` →
+   `task_encoder`/`platform_encoder`/`edge_scorer`) — same 31 keys, same shapes. Under
+   production's **default** `mp_residual=False` that load succeeds with no error and then
+   computes different logits (0.196 max delta, different argmaxes); under `mp_residual=True`
+   it is bit-exact. Architecture flags that are invisible in weight shapes must come from the
+   contract, never from a successful load.
 
 The old LHS-sampling + Bayesian-optimisation experiment loop (`generateall.py`,
 `sample.py`, `executeinitial.py`, `executeoptimization.py`, `src/charts/`) belonged to
