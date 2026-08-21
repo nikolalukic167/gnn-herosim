@@ -1153,6 +1153,30 @@ the density-dependent pattern in the first attempt was entirely tie-break noise.
 earlier collapse at low density (4.7-8.0x Knative at p=0.15/0.20/0.25, ~0.7x at p=0.35/0.50)
 is unaffected by this bug and stands as a separate, real finding.
 
+> **QUALIFIED 2026-08-21 — the reasoning above was unsound, but the conclusion survives
+> re-measurement.** The dims 9-11 estimator bug lives in `build_inference_feature_bundle`,
+> which serves the **MLP path as well as the GNN path**; only Knative never touches it. So
+> "unaffected by this bug" was an assertion with nothing behind it — the MLP column was
+> measured through exactly the same divergent features as the GNN column.
+>
+> Job 709163 re-ran these cells with the fix in place, same trace, same cells, same
+> (leaked) environment — a clean code-only A/B. The MLP barely moved:
+>
+> | cell | 708549 (pre-fix) | 709163 (post-fix) | Δ |
+> |---|---:|---:|---:|
+> | cell01 (p=0.25) | 219.6M | 223,741,718 | +1.9% |
+> | cell02 (p=0.35) | 27.1M | 27,037,296 | −0.2% |
+> | cell03 (p=0.15) | 259.6M | 262,234,499 | +1.0% |
+>
+> (Knative reproduced bit-identically at cell01: 46,556,947 both runs.) So the collapse is
+> **real and not an artifact of the bug** — but note the asymmetry that needs explaining: the
+> same fix moved the GNN by −23.3% and the MLP by ~1%. The likely reading is that the MLP's
+> fitted weights put little mass on dims 9-11 while the GNN's decode is highly sensitive to
+> them; that is a hypothesis, not a measurement. cell04/cell05 MLP arms were still running
+> when this was written. See also the partial walk-back later in this file ("A related MLP
+> finding that corrects prior speculation"), which reached a compatible conclusion from the
+> trace side.
+
 **This is `siv1_full_corpus`'s first live gate on a real workload, and it FAILED.** The
 deployable checkpoint (`near-rtt-v2-full-corpus-siv1-dim14-ce-only.pt`) does not beat Knative
 live. Per `topology_transfer_v1`'s entry above, an ablation-only or offline-greedy result is
@@ -1323,6 +1347,69 @@ own 40/40 verification).
 `workload-200-200` (800k events) was still running when this was written — its result
 extends the trace ladder but cannot change the re-grading above, which rests on the
 matched-code probe matrix.
+
+#### The environment axis, measured directly and closed (2026-08-21)
+
+The resolution above exonerated the environment *by inference* — two clusters splitting on
+code version, with library differences absorbed inside a 0.11% within-cluster spread. That
+left one axis genuinely untested, and one assertion in this file simply false.
+
+**The false assertion.** `CLAUDE.md`, `full_corpus_siv1_live_gate.sbatch` and this file all
+stated that datalab gates run in the micromamba `gnn` env. They never have.
+`run_full_corpus_siv1_live_gate.sh` calls `pipenv run python3` (50 call sites across 18 shell
+scripts), and `pipenv run` resolves its own venv and shells straight past
+`micromamba activate gnn`. Every cluster gate has actually run in an undeclared third
+environment, `~/.local/share/virtualenvs/gnn-herosim-2TQKssTQ` — **torch 2.12.0+cu130**, where
+the `gnn` env and local both have torch 2.5.1+cu121. The probe matrix above therefore compared
+across a torch major *and* a CUDA major without anyone knowing.
+
+**The measurement.** New tool `scripts_cosim/verify_venue_parity.py --mode logits` forwards a
+committed 64-graph fixture (`tests/fixtures/venue_parity/`, 256 decisions / 1,738 scored edges)
+through `near-rtt-v2-full-corpus-siv1-dim14-ce-only.pt` and diffs logits and per-decision
+argmax against a committed reference. Run at `22e8f27` with md5-verified identical weights and
+import closure on both sides:
+
+| stack | python | torch | numpy | PyG | max\|Δlogit\| | argmax flips |
+|---|---|---|---|---|---:|---:|
+| local pipenv (reference) | 3.12.3 | 2.5.1+cu121 | 2.3.0 | 2.6.1 | — | — |
+| cluster `gnn` env | 3.12.12 | 2.5.1+cu121 | 1.26.4 | 2.7.0 | **0.0** | **0 / 256** |
+| **cluster pipenv venv (what gates actually used)** | 3.12.12 | **2.12.0+cu130** | 1.26.4 | 2.8.0 | **0.0** | **0 / 256** |
+| cluster pipenv venv, 4 threads | " | " | " | " | **0.0** | **0 / 256** |
+| local, `--device cuda` (negative control) | 3.12.3 | 2.5.1+cu121 | 2.3.0 | 2.6.1 | 1.9e-5 | **0 / 256** |
+
+The last row is a deliberate negative control: it produces a nonzero delta, proving the probe
+can detect a difference, so the zeros are a result rather than a broken comparison.
+
+**Outcome: the library-version axis contributes exactly zero.** A torch major across a CUDA
+major, a numpy major, and a PyG minor together move the logits by zero bits. Only the
+accelerator moves them, at 1.9e-5, flipping no decisions — consistent with the ±0.09% GPU↔CPU
+`total_rtt` figure already recorded above. **Keeping the repo in sync is sufficient for GNN
+inference numerics; the environment leak is a provenance and governance defect, not a
+numerical one.** It stays worth fixing (`${HEROSIM_PY:-pipenv run python3}` +
+`export HEROSIM_PY=python3`) because a declared environment that is not the running
+environment made this take three sessions to rule out — but it is hygiene, and it does not
+block the lineage.
+
+**The generalisable diagnostic, recorded so the next incident is cheaper.** Environment and
+float drift perturb decisions *symmetrically* — a flip helps as often as it hurts. The
+observed gap was one-directional on all five cells and never flipped sign, which is a
+**biased-estimator signature**, not an environment signature. That pattern had already ruled
+out the environment on day one. Diagnose sign pattern before venue. Full protocol and the
+comparability checklist now live in **`PARITY.md`**; the hard rules are in `CLAUDE.md` and
+datalab-pitfalls #8.
+
+**Read-off for job 709163** (fixed code, still through the unfixed leak, GPU): with the env
+axis measured at zero, 709163's GNN arm is predicted to land at the local ~50.4M cluster, not
+the recorded 65.8M. If it lands at 65.8M instead, this measurement is contradicted and the
+`--mode logits` probe is not capturing whatever the difference is — record that outcome
+explicitly either way rather than leaving it an unwritten inference.
+
+**Partial read, taken while tasks 10-14 were still running.** Knative reproduced
+bit-identically (cell01 `46,556,947` in both 708549 and 709163), confirming the shared physics
+path is unchanged across the two code versions. The MLP arm moved by only −0.2% to +1.9% on
+the three cells that had landed — see the qualification box in the recorded-gate section
+above. The GNN arm had not yet produced a result, so the prediction remains open. **Whoever
+reads this next: fill in the GNN column and grade the prediction explicitly.**
 
 ### cache_live_divergence_audit — outcomes (2026-08-19)
 
@@ -2215,6 +2302,7 @@ find out what changed about the tool without reading a lineage's story to get th
 | 2026-08-21 | `src/executesimulation.py` / live result JSON (reporting gap, not a bug) | **`NetworkFabric.link_wait_total` (`network_fabric.py:133`) and `task.link_wait_time` (`infrastructure.py:196`, serialized as `linkWaitTime`) accumulate real link-contention waiting and are never surfaced outside the test suite.** The live result JSON's `stats` block has no link field, so the simulator computes exactly the quantity `link_contention_v1`'s real-trace A/B needs (splitting a backbone's total_rtt delta into transmission vs. contention) and discards it. | Not fixed — noted as a small, reporting-only addition (no behaviour change) for whoever next needs to decompose a backbone's cost. |
 | 2026-08-21 | `generate_infrastructure.py` (`build_core_backbone`) via `verify_live_infra_parity.py` | **The backbone's access-link jitter is drawn from the same `rng` stream the replica-reachability repair already consumed**, and the backbone is built *after* the repair (`:768` then `:780`). A live run performs no repair (it autoscales from zero), so it reaches the backbone build at a different stream position than the corpus generator did — every access-link latency diverges on any cell with a non-empty repair set (measured: 3/5 siv1 gate cells FAIL when a backbone is added, matching exactly the 3 cells with nonzero repair-edge counts; the 2 with zero repair edges PASS). | New `--allow-backbone-latency-divergence` flag on `verify_live_infra_parity.py`, scoped narrowly: downgrades exactly the two affected finding classes to notes, and only fires when a backbone is present on **both** the corpus and live sides — verified it cannot mask a mismatch on a non-backbone collection, and that without the flag the same cells still correctly FAIL. Root rng coupling itself is not fixed (would require an independent substream and would break bit-reproducibility of `gnn_datasets_4tasks_topo_transfer_v1`'s existing 3,744-dataset corpus from its seed — a bigger call than this session's scope; the flag is the practical unblock for a live-vs-live A/B where the corpus-side artifact is only a preflight fixture). |
 | 2026-08-21 | live-gate protocol / `run_provenance` (via `datalab/siv1_env_probe_{gpu,cpu}.sbatch`) | **A live gate can silently measure an uncommitted code diff instead of the model.** `models/` syncs by rsync but `src/` syncs by git, so the dims 9-11 live-feature fix (working tree 2026-08-19, uncommitted) ran locally but not in datalab's job 708549 — 23.3% of `total_rtt` on `gnn/cell01`, flipping the gate verdict. `run_provenance` records env vars and contracts but **not the git commit or working-tree state**, so nothing in either side's result JSON could reveal the split. Root-caused by a 7-run probe matrix (see the siv1 resolution subsection): the two new probe sbatch files re-run one gate cell on the recorded node (GPU ×2) and CPU-forced, establishing datalab-side noise floors (±0.04% GPU run-to-run, ±0.03% GPU↔CPU) as a by-product. | Protocol: `git status --short src/ scripts_cosim/` must be clean before any datalab gate, and local+datalab must be at the same commit. Code fix planned (deferred until no sweep is mid-run): record `git describe --dirty --always` + a hash of `git diff` in `run_provenance`. |
+| 2026-08-21 | `scripts_cosim/important/run_*_live_gate*.sh` (50 `pipenv run python3` call sites in 18 files) + new `scripts_cosim/verify_venue_parity.py`, `src/placement/env_fingerprint.py` | **Every datalab gate ran in an undeclared environment, and nothing recorded which.** `micromamba activate gnn` followed by `pipenv run python3` does not run in the `gnn` env — `pipenv run` resolves its own venv and shells past the activation, so the cluster silently used `~/.local/share/virtualenvs/gnn-herosim-2TQKssTQ` (**torch 2.12.0+cu130**) while `CLAUDE.md`, the sbatch header and this file all asserted the `gnn` env (torch 2.5.1+cu121). Cost: three sessions attributing an 11-26% GNN gap to the venue. **Measured and closed the same day:** a committed 64-graph fixture (256 decisions / 1,738 scored edges) forwarded through the deployed checkpoint gives max|Δlogit| = **exactly 0.0** and **0/256 argmax flips** between local (torch 2.5.1+cu121 / numpy 2.3.0 / PyG 2.6.1), the `gnn` env (numpy 1.26.4 / PyG 2.7.0) and the rogue venv (torch 2.12.0+cu130 / PyG 2.8.0), at 1 and 4 threads. A CPU→CUDA negative control on the *same* env gives 1.9e-5 and still 0 flips, proving the probe is sensitive and the zeros are real. So the library-version axis contributes nothing; only the accelerator does, below the flip threshold. | `verify_venue_parity.py --mode logits --assert` runs in ~6 s (login-node safe) and is the preflight; `--mode run` does the same end-to-end on one cell, keeping a `knative` control arm because Knative never touches `build_inference_feature_bundle` and a Knative-only cross-check is structurally blind to this bug class. Protocol + comparability checklist in **`PARITY.md`**; hard rules in `CLAUDE.md`; datalab-pitfalls **#8**. Leak fix itself (`${HEROSIM_PY:-pipenv run python3}` + `export HEROSIM_PY=python3`) deferred while `a4_wl200200` is mid-run — it is hygiene, not a numerical correction. |
 
 New tool from the same work: **`scripts_cosim/audit_cache_live_divergence.py`** — measures
 cache↔live disagreement across every collection from `optimal_result.json` (+ SSC where

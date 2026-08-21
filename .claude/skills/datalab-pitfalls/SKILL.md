@@ -105,3 +105,38 @@ config) and each task tries to generate it independently, they race and can corr
 duplicate work. Pattern: have `SLURM_ARRAY_TASK_ID == 0` build it if absent, and every
 other task poll (`sleep`-loop with a cap, then fail loud if it never appears) rather than
 regenerating it itself.
+
+## 8. `pipenv run` inside an sbatch silently ignores `micromamba activate`
+
+`micromamba activate gnn` followed by `pipenv run python3` does **not** run in the `gnn` env.
+`pipenv run` resolves its own project venv from `Pipfile` and execs that interpreter, shelling
+straight past the activation. Worse, if no venv exists yet, pipenv *creates* one — so the
+cluster silently grew a third, unmanaged, undeclared environment and every live gate that has
+ever run there used it.
+
+The `.sbatch` looks correct in review, because the activation line is right there. The
+substitution happens one level down, inside the `.sh` the sbatch calls.
+
+```bash
+# in any .sh that may be invoked under sbatch
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py ...   # correct
+
+pipenv run python3 scripts_cosim/run_simulation.py ...                  # WRONG — ignores the activated env
+```
+
+```bash
+# in the .sbatch, immediately after activation
+micromamba activate gnn
+export HEROSIM_PY=python3
+```
+
+**Check before submitting:** `grep -rn "pipenv run" <the .sh files your .sbatch calls>` — not
+just the `.sbatch` itself, which is where reviews stop looking. Then prove which interpreter
+actually served: `python3 -c "import sys,torch;print(sys.executable, torch.__version__)"`
+through the *same call chain* the job uses, not from an interactive shell.
+
+Cost: the cluster ran `torch 2.12.0+cu130` while CLAUDE.md, the sbatch header and `LINEAGES.md`
+all asserted the `gnn` env's `torch 2.5.1+cu121`. Three sessions spent attributing an 11-26%
+GNN gap to the environment. (Measured 2026-08-21: the version delta contributes *exactly zero*
+— the gap was a code bug all along. See `PARITY.md`. The pitfall is that nothing recorded which
+interpreter served, so it took three sessions to rule out.)

@@ -131,7 +131,9 @@ pipenv run python src/notebooks/prepare_graphs_cache.py
 
 - **Cluster**: `cluster.datalab.tuwien.ac.at`
 - **Repository**: `/home/nikola.lukic/gnn-herosim`
-- **Environment**: micromamba with `gnn` environment (NOT pipenv)
+- **Environment**: micromamba with `gnn` environment (NOT pipenv) — but see the parity
+  section below: `micromamba activate gnn` followed by `pipenv run python3` does **not** run
+  in the `gnn` env, and every gate that has run on the cluster was affected
 - **Resources**: GPU nodes (GPU-a40, GPU-l40s) and CPU-only nodes
 - **Workflow**: Code changes via git push/pull, large binaries (models, datasets) via rsync
 
@@ -152,6 +154,31 @@ sbatch scripts_cosim/datalab/contention_v4_deepq_cosim.sbatch
 # Monitor jobs
 squeue -u nikola.lukic
 ```
+
+### Local ↔ datalab parity
+
+**`PARITY.md` is the full protocol — read it before comparing any two numbers produced on
+different machines.** The hard rules, because they are easy to violate by accident:
+
+1. **Never write `pipenv run python3` in a script that may run under `sbatch`.** `pipenv run`
+   resolves its own venv and shells straight past `micromamba activate gnn`. On the cluster
+   this silently created a third, undeclared environment that every gate has actually used.
+   Write `${HEROSIM_PY:-pipenv run python3}` and `export HEROSIM_PY=python3` after activation
+   in the `.sbatch`.
+2. **One environment spec: `envs/herosim-lock.txt`.** Canonical stack is the local one
+   (torch 2.5.1+cu121 / numpy 2.3.0 / PyG 2.6.1). Do not add a fourth answer alongside
+   `Pipfile`, `Pipfile.lock` and `requirements.txt`.
+3. **Never compare `total_rtt` across venues without running the checks.** In order:
+   `verify_code_identity.py` → `verify_live_infra_parity.py` → `verify_venue_parity.py`.
+   Unknown is not a pass.
+4. **Source syncs by git push/pull, binaries by rsync** — and md5 both sides afterwards.
+   `models/` is gitignored, so a checkpoint's `.contract.json` sidecar must travel with the
+   `.pt` or the receiving venue serves under an unknown contract.
+5. **Diagnose a cross-venue gap by its sign pattern first.** Environment and float drift
+   perturb decisions *symmetrically*. A gap that is one-directional on every cell and never
+   flips sign is a **biased-estimator bug in the feature code**, not an environment problem.
+   Measured 2026-08-21: library versions and thread count contribute **exactly 0.0** to GNN
+   logits; only the accelerator moves them, at 1.9e-5, flipping no decisions.
 
 ## Architecture
 
@@ -521,6 +548,8 @@ On datalab, use: `eval "$(micromamba shell hook --shell bash)" && micromamba act
 ## Important Files
 
 - `LINEAGES.md` - **Which experiment lineages are ACTIVE vs retired.** Read first.
+- `PARITY.md` - **When two numbers from different machines may be compared.** Read before any
+  cross-venue claim, and before writing a `.sbatch`.
 - `archive/README.md` - Rules for the retired-code archive
 - `CO_SIMULATION_GUIDE.md` - Comprehensive co-simulation pipeline documentation
 - `memory/placements_jsonl_required.md` - Critical requirement for placement sweep
