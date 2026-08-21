@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Dict, Tuple, Type, Set, Any, List, Optional
 
 from src.placement.infrastructure import Node, Platform, Storage, Application, Task
+from src.placement.network_fabric import build_fabric
 
 from simpy.core import Environment  # type: ignore[import-not-found]
 from simpy.resources.store import FilterStore  # type: ignore[import-not-found]
@@ -113,6 +114,19 @@ def create_nodes(
 
     nodes_store = FilterStore(env)
 
+    # node_contention_v3: a node-level pool of execution slots that co-located platforms
+    # contend for. Absent from the infrastructure (the node_disk_v2 default) it stays None
+    # and platforms run independently, so existing corpora reproduce unchanged.
+    default_compute_slots = infrastructure.get("compute_slots_per_node")
+
+    # network_contention_v1: shared inbound bandwidth per node, same opt-in shape.
+    default_ingress_bandwidth = infrastructure.get("ingress_bandwidth_mbps")
+
+    # link_contention_v1: one fabric for the whole run, because a link belongs to no
+    # single node — this is the only place that owns cross-node state. Absent a
+    # link_topology this is None and no pipes exist, so the default path is unchanged.
+    fabric = build_fabric(env, infrastructure.get("link_topology"))
+
     for node in infrastructure["nodes"]:
         platforms_store = FilterStore(env)
         storage_store = FilterStore(env)
@@ -129,7 +143,12 @@ def create_nodes(
             policy=simulation_policy,
             data=simulation_data,
             node_type=node["type"],
-            node_name=node["node_name"]
+            node_name=node["node_name"],
+            compute_slots=node.get("compute_slots", default_compute_slots),
+            ingress_bandwidth_mbps=node.get(
+                "ingress_bandwidth_mbps", default_ingress_bandwidth
+            ),
+            fabric=fabric,
         )
         nodes_store.put(current_node)
 

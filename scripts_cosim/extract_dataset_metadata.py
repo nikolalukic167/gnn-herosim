@@ -26,6 +26,26 @@ from scripts_cosim.generate_gnn_datasets_fast import GRID_PRESETS
 
 # Collection metadata (manually curated)
 COLLECTION_INFO = {
+    # Shallow-queue series — inverts the contention series' core lever
+    "gnn_datasets_4tasks_shallow_v1": {
+        "version": "v1",
+        "status": "active",
+        "problem_category": "separability",
+        "purpose": "Shallow queues (depth ~0-8) so the collision term dominates instead of being diluted",
+        "hypothesis": (
+            "Queue depth predicts separability: measured monotonic across all 899 "
+            "contention_v2 sweeps (shallowest quartile additive R2 0.978 / +1.986pp "
+            "collision gain, deepest 0.998 / +0.181pp). The additive term is "
+            "depth x exec_time and grows with depth while the interaction term "
+            "added_in_batch x exec_time does not, so deep queues dilute the only coupling "
+            "the corpus has. SUCCESS: coupled(>1%) 31.0% vs contention_v2's 7.1%, "
+            "coupled(>5%) 19.6% vs 2.4%, pointwise worst-case regret 48.4% vs 3.6%. "
+            "Note additive R2 mean 0.961 but median 0.9999 -- the target is bimodal, so "
+            "use the coupled fraction as the gate, not mean R2."
+        ),
+        "created_date": "2026-08-17"
+    },
+
     # Contention series
     "gnn_datasets_4tasks_contention_v1": {
         "version": "v1",
@@ -201,6 +221,67 @@ def count_datasets(collection_path: Path) -> Tuple[int, int]:
     return total, completed
 
 
+LEGACY_CONTRACT_DEFAULT = "legacy_v0"
+
+
+def detect_queue_feature_contract(collection_path: Path) -> str:
+    """Read the queue feature contract from this collection's graph cache.
+
+    The contract governs platform dims 7/13 and lives in the cache, not the datasets.
+    ``compute_compatibility_matrix`` refuses to mix collections whose contracts differ, so
+    a wrong value here silently permits an invalid training merge. Falls back to
+    ``legacy_v0`` only when no cache exists — every pre-2026-08 cache was built that way.
+    """
+    collection_name = collection_path.name
+    suffix = collection_name.removeprefix("gnn_datasets_4tasks_")
+    data_dir = collection_path.parent
+
+    # Exact-name caches first: an unambiguous 1:1 mapping to this collection.
+    for cache_dir in (
+        data_dir / f"graphs_cache_{suffix}",
+        data_dir / f"graphs_cache_{collection_name}",
+    ):
+        contract = _read_cache_contract(cache_dir / "metadata.json")
+        if contract:
+            return contract
+
+    # Otherwise a collection may have several caches. contention_v2 has both a legacy_v0
+    # cache (_873_v5.5) and a scale_invariant_v1 one (_873_v5.7_siv1_dim14), so the
+    # contract is NOT single-valued per collection. Only report one when every candidate
+    # agrees; a conflict means the schema cannot express the truth and picking either
+    # would license an invalid merge.
+    found = {
+        contract
+        for cache_dir in sorted(data_dir.glob(f"graphs_cache_{suffix}*"))
+        if (contract := _read_cache_contract(cache_dir / "metadata.json"))
+    }
+    if len(found) == 1:
+        return found.pop()
+    if len(found) > 1:
+        print(
+            f"Warning: {collection_name} has caches with conflicting queue feature "
+            f"contracts {sorted(found)}; recording {LEGACY_CONTRACT_DEFAULT}. Verify the "
+            f"contract against the specific cache before training on this collection.",
+            file=sys.stderr,
+        )
+    return LEGACY_CONTRACT_DEFAULT
+
+
+def _read_cache_contract(meta_path: Path) -> Optional[str]:
+    if not meta_path.exists():
+        return None
+    try:
+        contract = json.loads(meta_path.read_text()).get("queue_feature_contract")
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Warning: could not read {meta_path}: {exc}", file=sys.stderr)
+        return None
+    # A cache that declares no contract predates the field, which per CLAUDE.md means
+    # legacy_v0. Skipping it instead would hide a real conflict: contention_v2's deployed
+    # _873_v5.5 cache has no field, so ignoring it made the collection look like pure
+    # scale_invariant_v1.
+    return str(contract) if contract else LEGACY_CONTRACT_DEFAULT
+
+
 def sample_infrastructure_physics(collection_path: Path, sample_size: int = 3) -> Optional[Dict[str, str]]:
     """Sample infrastructure.json files to extract physics configuration."""
     ds_dirs = [d for d in collection_path.glob("ds_*") if (d / "infrastructure.json").exists()]
@@ -219,9 +300,12 @@ def sample_infrastructure_physics(collection_path: Path, sample_size: int = 3) -
             # Extract warmth physics (from config or infer from structure)
             warmth_model = infra.get("warmth_physics", "node_disk_v2")  # Default
 
-            # Queue feature contract - harder to determine, use heuristics
-            # legacy_v0 for v2/v3/v4, scale_invariant_v1 for v5.7+
-            queue_contract = "legacy_v0"  # Default assumption
+            # The queue feature contract is a property of the CACHE, not the raw
+            # dataset -- the datasets only carry queue depths. Read it from the
+            # associated graph cache's metadata.json, which records it authoritatively.
+            # Guessing here is a correctness hazard because compute_compatibility_matrix
+            # decides what may be trained together from this field.
+            queue_contract = detect_queue_feature_contract(collection_path)
 
             physics_configs.append({
                 "warmth_model": warmth_model,

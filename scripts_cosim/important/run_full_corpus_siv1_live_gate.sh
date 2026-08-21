@@ -74,8 +74,12 @@ fi
 [[ ${#CELLS[@]} -gt 0 ]] || { echo "ERROR: no cells under $INFRA_DIR" >&2; exit 1; }
 PARITY_ARGS=()
 for cell in "${CELLS[@]}"; do PARITY_ARGS+=(--dataset "$cell"); done
+# PARITY_EXTRA_ARGS lets a caller add a narrowly-scoped relaxation without editing this
+# script -- currently only --allow-backbone-latency-divergence, for the link_contention_v1
+# live A/B (see that flag's help). It is deliberately NOT defaulted to anything.
+read -r -a PARITY_EXTRA <<< "${PARITY_EXTRA_ARGS:-}"
 pipenv run python3 scripts_cosim/verify_live_infra_parity.py \
-  "${PARITY_ARGS[@]}" -v --json-out "${SWEEP_DIR}/infra_parity.json" | tee -a "$LOG"
+  "${PARITY_ARGS[@]}" "${PARITY_EXTRA[@]}" -v --json-out "${SWEEP_DIR}/infra_parity.json" | tee -a "$LOG"
 log "Infra parity preflight PASSED for ${#CELLS[@]} cells"
 
 run_one() {

@@ -25,6 +25,14 @@ from src.placement.queue_features import (
     resolve_queue_feature_contract,
     usage_ratio_feature,
 )
+from src.placement.network_graph import (
+    NETWORK_GRAPH_CONTRACT_OFF,
+    attach_network_graph_block,
+    build_network_graph_block,
+    resolve_network_graph_contract,
+)
+from src.placement.temporal_features import temporal_remainders
+from src.placement.topology_features import build_source_feature_context
 from src.placement.warmth import (
     estimated_pull_remaining_sec,
     node_has_cached_image,
@@ -216,6 +224,7 @@ def build_inference_feature_bundle(
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     feature_layout: Optional[str] = None,
     queue_feature_contract: Optional[str] = None,
+    topology_feature_contract: Optional[str] = None,
 ) -> Optional[InferenceFeatureBundle]:
     """
     Build tabular/GNN features from live or cached system state.
@@ -241,15 +250,17 @@ def build_inference_feature_bundle(
     dnn1_replicas, dnn2_replicas = _replica_id_sets(system_state)
     network_maps = _network_maps(nodes)
 
-    node_name_to_idx = {str(node.node_name): idx for idx, node in enumerate(nodes)}
+    source_ctx = build_source_feature_context(
+        [str(node.node_name) for node in nodes],
+        network_maps,
+        contract=topology_feature_contract,
+    )
 
     task_features = []
     for task in batch_tasks:
         task_type = str(task.type["name"])
         onehot = [1.0 if task_type == t else 0.0 for t in TASK_TYPES_VOCAB]
-        src_idx = node_name_to_idx.get(str(task.node_name), 0)
-        src_norm = float(src_idx) / max(len(nodes), 1)
-        task_features.append(onehot + [src_norm])
+        task_features.append(onehot + [source_ctx.feature(str(task.node_name))])
     task_features_arr = np.asarray(task_features, dtype=np.float32)
     batch_task_types = _batch_task_type_names(batch_tasks)
 
@@ -288,24 +299,14 @@ def build_inference_feature_bundle(
             float(shared_fate_by_pos[info.position]) if shared_fate_by_pos is not None else 0.0
         )
 
-        temporal = (temporal_state or {}).get(queue_key, {})
-        current_task_remaining = float(temporal.get("current_task_remaining", 0.0))
-        cold_start_remaining = float(temporal.get("cold_start_remaining", 0.0))
-        comm_remaining = float(temporal.get("comm_remaining", 0.0))
-        if queue_len_raw > 0 and current_task_remaining == 0.0 and task_types_data:
-            avg_exec = 0.0
-            count = 0
-            for _task_type_name, task_priors in task_types_data.items():
-                exec_map = task_priors.get("executionTime", {})
-                if isinstance(exec_map, dict):
-                    exec_time = exec_map.get(info.platform_type, 0.0)
-                    if exec_time > 0:
-                        avg_exec += float(exec_time)
-                        count += 1
-            if count > 0:
-                current_task_remaining = avg_exec / count
-                cold_start_remaining = current_task_remaining * 0.1
-                comm_remaining = current_task_remaining * 0.05
+        # Shared with all three cache builders — see src/placement/temporal_features.py.
+        current_task_remaining, cold_start_remaining, comm_remaining = temporal_remainders(
+            queue_depth=queue_len_raw,
+            recorded=(temporal_state or {}).get(queue_key),
+            platform_type=info.platform_type,
+            task_types_data=task_types_data,
+            task_types_vocab=TASK_TYPES_VOCAB,
+        )
 
         current_task_remaining_norm = current_task_remaining / 10.0
         cold_start_remaining_norm = cold_start_remaining / 10.0
@@ -539,6 +540,57 @@ def edge_row_features(
     return feat
 
 
+def _platform_node_names_by_position(bundle: InferenceFeatureBundle) -> List[str]:
+    """Host node name per platform position, dense over `[0, n_platforms)`.
+
+    `queue_key_to_platform_meta` covers every platform (it is filled in the platform-feature
+    loop, not the candidate loop), so a gap here means the bundle is malformed rather than
+    that a platform is uninteresting — hence the raise instead of a placeholder.
+    """
+    by_pos: List[Optional[str]] = [None] * bundle.n_platforms
+    for meta in bundle.queue_key_to_platform_meta.values():
+        by_pos[int(meta["platform_pos"])] = str(meta["node_name"])
+    missing = [i for i, name in enumerate(by_pos) if name is None]
+    if missing:
+        raise ValueError(
+            f"platform positions {missing[:5]} have no platform meta; the bundle's "
+            f"platform features and its meta map disagree"
+        )
+    return [str(name) for name in by_pos]
+
+
+def _candidate_node_names_by_task(bundle: InferenceFeatureBundle) -> List[List[str]]:
+    """Host node name per candidate edge, per task — repeats kept.
+
+    Repeats are load-bearing: the per-link candidate fraction weights a node by how many
+    candidate placements it actually offers this task, so de-duplicating would flatten a
+    10-platform node onto a 1-platform node.
+    """
+    per_task: List[List[str]] = []
+    for t_idx in range(bundle.n_tasks):
+        queue_keys = bundle.task_logit_to_queue_key.get(t_idx, [])
+        per_task.append(
+            [
+                str(bundle.queue_key_to_platform_meta[key]["node_name"])
+                for key in queue_keys
+            ]
+        )
+    return per_task
+
+
+def _live_link_topology(nodes: Sequence[Any]) -> Optional[Mapping[str, Any]]:
+    """The run's `link_topology`, read off the shared fabric every Node points at.
+
+    `None` for every corpus generated without a backbone — the network graph then has no
+    fabric to describe and degrades to an empty block, which is a no-op and not an error.
+    """
+    for node in nodes:
+        fabric = getattr(node, "fabric", None)
+        if fabric is not None:
+            return fabric.link_topology
+    return None
+
+
 def build_pyg_inference_graph(
     batch_tasks: Sequence["Task"],
     system_state: "SystemState",
@@ -549,6 +601,8 @@ def build_pyg_inference_graph(
     queue_norm_mode: str = "adaptive",
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     queue_feature_contract: Optional[str] = None,
+    topology_feature_contract: Optional[str] = None,
+    network_graph_contract: Optional[str] = None,
 ) -> Tuple[Optional[Data], Optional[Dict[int, List[Tuple[int, int]]]]]:
     """Build PyG Data for GNN/XGB batch schedulers."""
     bundle = build_inference_feature_bundle(
@@ -560,6 +614,7 @@ def build_pyg_inference_graph(
         queue_norm_mode=queue_norm_mode,
         temporal_state=temporal_state,
         queue_feature_contract=queue_feature_contract,
+        topology_feature_contract=topology_feature_contract,
     )
     if bundle is None:
         return None, None
@@ -605,7 +660,7 @@ def build_pyg_inference_graph(
     )
     if data.task_features.shape[1] != 3:
         raise ValueError(
-            f"Expected 3-d task features (type onehot + src_norm), got {data.task_features.shape[1]}"
+            f"Expected 3-d task features (type onehot + source feature), got {data.task_features.shape[1]}"
         )
     layout = _inference_feature_layout()
     if layout in ("ce_reduced", "reduced_ce", "reduced1060"):
@@ -629,6 +684,25 @@ def build_pyg_inference_graph(
             int(meta["platform_pos"])
         )
     data.node_edge_index = build_same_node_edge_index(node_to_positions, n_tasks)
+
+    # Network entities (physical nodes + core links + route edges). Default OFF: a
+    # checkpoint trained on the bipartite graph must never be served these, which is the
+    # same rule `mp_node_edges` above exists to enforce.
+    net_contract = resolve_network_graph_contract(network_graph_contract)
+    if net_contract != NETWORK_GRAPH_CONTRACT_OFF:
+        attach_network_graph_block(
+            data,
+            build_network_graph_block(
+                node_names=[str(node.node_name) for node in nodes],
+                platform_node_names=_platform_node_names_by_position(bundle),
+                task_source_names=[str(task.node_name) for task in batch_tasks],
+                task_candidate_node_names=_candidate_node_names_by_task(bundle),
+                link_topology=_live_link_topology(nodes),
+                n_tasks=n_tasks,
+                n_platforms=n_platforms,
+                contract=net_contract,
+            ),
+        )
 
     data._task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.task_logit_to_queue_key = bundle.task_logit_to_queue_key

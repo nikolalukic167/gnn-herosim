@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
+from src.placement.topology_features import build_source_feature_context
 from src.policy.tabular.graph_extraction import (
     TabularEdgeRow,
     _as_numpy,
@@ -83,11 +84,20 @@ def _load_parent_task_src_norms(parent_id: str, repo_root: str) -> Tuple[tuple, 
         raise ValueError(f"Cannot resolve node list for parent {parent_id!r}")
 
     first_idx: Dict[str, int] = {}
+    node_names: List[str] = []
+    network_maps: Dict[str, Any] = {}
     for i, node in enumerate(nodes):
         name = node.get("node_name") or node.get("nodeName") or node.get("name")
         if name is not None:
             first_idx[str(name)] = i
+            node_names.append(str(name))
+            network_maps[str(name)] = (
+                node.get("network_map") or node.get("networkMap") or {}
+            )
     n_nodes = len(nodes)
+    source_ctx = build_source_feature_context(
+        node_names, network_maps, first_idx_by_name=first_idx, node_count=n_nodes
+    )
 
     def _task_sort_key(tr: Mapping[str, Any]) -> int:
         for key in ("taskId", "task_id", "id"):
@@ -98,8 +108,7 @@ def _load_parent_task_src_norms(parent_id: str, repo_root: str) -> Tuple[tuple, 
     src_norms: List[float] = []
     for tr in sorted(task_results, key=_task_sort_key):
         src = tr.get("sourceNode") or tr.get("source_node") or ""
-        idx = first_idx.get(str(src), 0)
-        src_norms.append(float(idx) / max(n_nodes, 1))
+        src_norms.append(source_ctx.feature(str(src)))
     return tuple(src_norms), n_nodes
 
 

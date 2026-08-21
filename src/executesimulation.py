@@ -29,16 +29,30 @@ from typing import Dict, List, Any, Optional
 
 from src.generate_infrastructure import (
     apply_degree_skew_core_server_device_types,
+    build_core_backbone,
     generate_network_topology_deterministic,
 )
 from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
+from src.placement.network_graph import (
+    NETWORK_GRAPH_CONTRACT_ENV,
+    NETWORK_GRAPH_CONTRACT_OFF,
+    require_matching_network_graph_contract,
+    resolve_network_graph_contract,
+)
 from src.placement.queue_features import (
     QUEUE_FEATURE_CONTRACT_ENV,
     require_matching_queue_feature_contract,
     resolve_queue_feature_contract,
     validate_queue_feature_contract,
+)
+from src.placement.topology_features import (
+    CLIENT_NODE_PREFIX,
+    TOPOLOGY_FEATURE_CONTRACT_ENV,
+    require_matching_topology_feature_contract,
+    resolve_topology_feature_contract,
+    validate_topology_feature_contract,
 )
 from src.policy.tabular.constants import PLATFORM_FEATURE_DIM, TASK_FEATURE_DIM
 
@@ -171,7 +185,18 @@ def prepare_infrastructure_for_real_simulation(
 
     # Generate network topology deterministically
     network_maps = generate_network_topology_deterministic(nodes, space_config, rng, task_types_data=task_types_data)
-    
+
+    # link_contention_v1: overlay the core backbone on the live path too. Without this the
+    # live gate would run different physics from the corpus the model trained on — the
+    # exact class of train/serve mismatch that cost the mp_parity lineage a headline.
+    _apply_link_backbone_env_default(space_config)
+    link_topology = build_core_backbone(network_maps, nodes, space_config, rng)
+    if link_topology is not None:
+        print(
+            f"Core backbone: {len(link_topology['links'])} links, "
+            f"{sum(len(v) for v in link_topology['routes'].values())} routes"
+        )
+
     # Assign network maps to nodes
     for node in nodes:
         node['network_map'] = network_maps.get(node['node_name'], {})
@@ -186,12 +211,48 @@ def prepare_infrastructure_for_real_simulation(
             "bandwidth": float(network_bandwidth)
         },
         "nodes": nodes,
+        "link_topology": link_topology,
     }
     infrastructure_config.update(
         _regime_b_infrastructure_overrides(space_config)
     )
-    
+
     return infrastructure_config
+
+
+# Pilot defaults, chosen by the P0 overlap pre-check
+# (scripts_cosim/link_overlap_precheck.py): a pure ring with single attachment forces
+# traffic across multiple shared segments — 30.3% of task pairs contend on a core link and
+# 91.3% of that contention is between tasks on DIFFERENT destination nodes, which is the
+# part no node-occupancy repair column can express. Chords and a second attachment both
+# let paths diverge and collapse the overlap (5.2% at n_core=6, attach_degree=2).
+_BACKBONE_ENV_DEFAULTS = {
+    "n_core": 12,
+    "attach_degree": 1,
+    "chord_count": 0,
+    "core_link_latency_ms": 4.0,
+    "access_link_latency_ms": 20.0,
+}
+
+
+def _apply_link_backbone_env_default(space_config: Dict[str, Any]) -> None:
+    """Let HEROSIM_LINK_BANDWIDTH_MBPS switch the backbone on, mirroring the ingress knob.
+
+    An explicit network.backbone block always wins; the env var only synthesizes one when
+    the config is silent, so a sweep can A/B the physics without editing every config.
+    """
+    network = space_config.setdefault("network", {})
+    if network.get("backbone"):
+        return
+    raw = os.environ.get("HEROSIM_LINK_BANDWIDTH_MBPS")
+    if not raw:
+        return
+    bandwidth = float(raw)
+    if bandwidth <= 0:
+        raise ValueError(
+            f"HEROSIM_LINK_BANDWIDTH_MBPS must be > 0 when set, got {raw}"
+        )
+    network["backbone"] = {**_BACKBONE_ENV_DEFAULTS, "bandwidth_mbps": bandwidth}
 
 
 def _env_bool(name: str) -> Optional[bool]:
@@ -233,6 +294,24 @@ def _regime_b_infrastructure_overrides(space_config: Dict[str, Any]) -> Dict[str
     scheduler = space_config.get("scheduler")
     if scheduler:
         overrides["scheduler"] = scheduler
+
+    # Contention physics. These were previously unreachable from the live-simulation
+    # path: node_contention_v3 shipped without a pass-through here, so a live gate could
+    # not exercise it at all. Both are opt-in and stay None unless configured, which is
+    # node_disk_v2 physics.
+    compute_slots = space_config.get("nodes", {}).get("compute_slots_per_node")
+    if compute_slots is None:
+        raw = os.environ.get("HEROSIM_COMPUTE_SLOTS_PER_NODE")
+        compute_slots = int(raw) if raw else None
+    if compute_slots is not None:
+        overrides["compute_slots_per_node"] = int(compute_slots)
+
+    ingress_bw = space_config.get("nodes", {}).get("ingress_bandwidth_mbps")
+    if ingress_bw is None:
+        raw = os.environ.get("HEROSIM_INGRESS_BANDWIDTH_MBPS")
+        ingress_bw = float(raw) if raw else None
+    if ingress_bw is not None:
+        overrides["ingress_bandwidth_mbps"] = float(ingress_bw)
 
     return overrides
 
@@ -316,6 +395,149 @@ def apply_checkpoint_queue_feature_contract(model_path: Path, model_label: str) 
     _adopt_queue_feature_contract(trained, model_label, sidecar.name)
 
 
+def _read_checkpoint_sidecar(model_path: Path) -> dict:
+    """The `<model>.contract.json` payload, or {} when the checkpoint predates sidecars."""
+    sidecar = model_path.with_suffix(".contract.json")
+    if not sidecar.is_file():
+        return {}
+    try:
+        return json.loads(sidecar.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{sidecar} is not valid JSON: {exc}") from exc
+
+
+def apply_checkpoint_topology_feature_contract(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the topology feature contract a checkpoint was trained under.
+
+    Task feature dim 2 is `index(src)/n_nodes` under `src_index_v0` and reachable-server
+    fraction under `size_invariant_v1` — different quantities on different scales. Nothing
+    in the weights distinguishes them, so serving the wrong one silently corrupts every
+    placement decision rather than failing. Sidecar-less checkpoints predate the split and
+    are `src_index_v0` by construction, matching the resolver's default.
+    """
+    trained = _read_checkpoint_sidecar(model_path).get("topology_feature_contract")
+    if not trained:
+        return
+    trained = validate_topology_feature_contract(trained)
+    declared = os.environ.get(TOPOLOGY_FEATURE_CONTRACT_ENV, "").strip()
+    if declared:
+        require_matching_topology_feature_contract(
+            trained, resolve_topology_feature_contract(), model_label=model_label
+        )
+    else:
+        os.environ[TOPOLOGY_FEATURE_CONTRACT_ENV] = trained
+    print(
+        f"[TOPOLOGY FEATURES] {model_label} trained under "
+        f"{os.environ[TOPOLOGY_FEATURE_CONTRACT_ENV]}",
+        flush=True,
+    )
+
+
+def apply_checkpoint_inference_feature_layout(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the platform-feature layout a checkpoint was trained under.
+
+    Weight shapes pin the feature *dimension* but not its *meaning*: a task_dim=3 /
+    platform_dim=14 checkpoint is served as `atomic21` by this loader's default, yet every
+    live-gate script in `scripts_cosim/important/` exports `INFERENCE_FEATURE_LAYOUT=dim22`
+    for exactly these checkpoints. Whichever is right, it must not depend on whether a
+    caller remembered to export the variable — so a checkpoint that declares its layout
+    wins, and a conflicting declaration is an error rather than a silent override.
+    """
+    trained = _read_checkpoint_sidecar(model_path).get("inference_feature_layout")
+    if not trained:
+        return
+    trained = str(trained).strip().lower()
+    declared = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+    if declared and declared != trained:
+        raise ValueError(
+            f"{model_label} was trained with inference feature layout {trained!r} but this "
+            f"run declares INFERENCE_FEATURE_LAYOUT={declared!r}. The layouts assign "
+            "different meanings to the same platform feature columns; serving the wrong "
+            "one corrupts every score without changing any tensor shape."
+        )
+    os.environ["INFERENCE_FEATURE_LAYOUT"] = trained
+    print(f"[FEATURE LAYOUT] {model_label} trained under {trained}", flush=True)
+
+
+def check_checkpoint_corpus_compatibility(
+    model_path: Path, model_label: str, space_config: Optional[Dict[str, Any]]
+) -> None:
+    """Compare the live infrastructure against the corpus the checkpoint trained on.
+
+    Two different severities, on purpose:
+
+    * **Raises** on `warmth_physics`. It changes the simulated cost model, so a mismatch
+      makes the live number incomparable to the corpus in a way no amount of care at
+      analysis time can repair.
+    * **Warns loudly** on cluster size and topology density. Both the GNN's
+      `build_inference_graph` and `PointwiseEdgeMLP` are candidate-pair based, so a model
+      genuinely *can* run at another size — that is the `topology_transfer_v1` question,
+      not an error. But it must never happen by accident, unnoticed: the existing
+      sealed-holdout gate ran 40/40 p50 against a 20/20 p25 corpus and nothing said so.
+
+    Only fields the sidecar actually declares are checked, so older checkpoints keep
+    loading unchanged.
+    """
+    payload = _read_checkpoint_sidecar(model_path)
+    corpus = payload.get("corpus")
+    if not corpus or not space_config:
+        return
+
+    trained_warmth = corpus.get("warmth_physics")
+    if trained_warmth:
+        serving_warmth = os.environ.get("HEROSIM_WARMTH_PHYSICS", "").strip()
+        if serving_warmth and serving_warmth != trained_warmth:
+            raise ValueError(
+                f"{model_label} was trained under warmth physics {trained_warmth!r} but "
+                f"this run declares HEROSIM_WARMTH_PHYSICS={serving_warmth!r}. The cost "
+                "model differs; the resulting RTT is not comparable to the training corpus."
+            )
+        if not serving_warmth:
+            os.environ["HEROSIM_WARMTH_PHYSICS"] = trained_warmth
+
+    warnings: List[str] = []
+    live_topology = space_config.get("network", {}).get("topology", {})
+    live_shape = {
+        "client_node_count": space_config.get("nodes", {}).get("client_nodes", {}).get("count"),
+        "server_node_count": space_config.get("nodes", {}).get("server_nodes", {}).get("count"),
+        "topology_type": live_topology.get("type"),
+        "connection_probability": live_topology.get("connection_probability"),
+    }
+    for key, live_value in live_shape.items():
+        if live_value is None:
+            continue
+        # A corpus may span several values of an axis (the full siv1 corpus mixes six
+        # connection probabilities). Then "in distribution" means membership, not equality.
+        allowed = corpus.get(f"{key}_values")
+        if allowed is not None:
+            if live_value not in allowed:
+                warnings.append(f"{key}: live={live_value} not in trained set {sorted(allowed)}")
+            continue
+        trained_value = corpus.get(key)
+        if trained_value is None:
+            continue
+        if trained_value != live_value:
+            warnings.append(f"{key}: trained={trained_value} live={live_value}")
+
+    if warnings:
+        print(
+            f"\n!! INFRA MISMATCH: {model_label} is being served on infrastructure that "
+            f"differs from its training corpus:\n"
+            + "".join(f"     - {w}\n" for w in warnings)
+            + "   The model will still run (both model classes are candidate-pair based), "
+            "but this is\n   an out-of-distribution evaluation. Verify with "
+            "scripts_cosim/verify_live_infra_parity.py.\n",
+            flush=True,
+        )
+    else:
+        print(
+            f"[CORPUS] {model_label} infrastructure matches its training corpus "
+            f"({live_shape['client_node_count']}c/{live_shape['server_node_count']}s "
+            f"{live_shape['topology_type']} p={live_shape['connection_probability']})",
+            flush=True,
+        )
+
+
 def checkpoint_mp_config(model_path: Path) -> dict:
     """Message-passing options a GNN checkpoint was trained with, from its sidecar.
 
@@ -324,18 +546,20 @@ def checkpoint_mp_config(model_path: Path) -> dict:
     checkpoint trained with same-node edges MUST carry a sidecar declaring them.
     Sidecar-less checkpoints predate the flag and are bipartite-only by construction.
     """
-    sidecar = model_path.with_suffix(".contract.json")
-    if not sidecar.is_file():
+    payload = _read_checkpoint_sidecar(model_path)
+    if not payload:
         return {}
-    try:
-        payload = json.loads(sidecar.read_text())
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"{sidecar} is not valid JSON: {exc}") from exc
-    return {
+    config = {
         key: bool(payload[key])
         for key in ("mp_residual", "mp_node_edges", "mp_node_edges_candidates_only")
         if key in payload
     }
+    # Not a bool: which network entities the training graph contained. Recoverable from
+    # weights only as "some encoder exists", never as *which* contract built the features,
+    # so it has to come from here.
+    if "network_graph_contract" in payload:
+        config["network_graph_contract"] = str(payload["network_graph_contract"])
+    return config
 
 
 def apply_mlp_checkpoint_queue_feature_contract(model_path: Path, model_label: str) -> None:
@@ -357,8 +581,13 @@ def apply_mlp_checkpoint_queue_feature_contract(model_path: Path, model_label: s
     _adopt_queue_feature_contract(trained, model_label, model_path.name)
 
 
-def load_gnn_model(model_path: Path):
-    """Load the trained GNN model."""
+def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = None):
+    """Load the trained GNN model.
+
+    `space_config` is optional so existing callers keep working, but passing it enables
+    the corpus-compatibility check — without it a size/density mismatch between the live
+    infrastructure and the training corpus goes unreported.
+    """
     import torch
     from src.policy.gnn.gnn_model import TaskPlacementGNN
     
@@ -367,9 +596,11 @@ def load_gnn_model(model_path: Path):
         print(f"Loading GNN model from {model_path} on {device}...", flush=True)
 
         state_dict = torch.load(model_path, map_location='cpu')
-        apply_checkpoint_queue_feature_contract(
-            model_path, f"GNN checkpoint {model_path.name}"
-        )
+        _label = f"GNN checkpoint {model_path.name}"
+        apply_checkpoint_queue_feature_contract(model_path, _label)
+        apply_checkpoint_topology_feature_contract(model_path, _label)
+        apply_checkpoint_inference_feature_layout(model_path, _label)
+        check_checkpoint_corpus_compatibility(model_path, _label, space_config)
         task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
         platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])
         embedding_dim = 64
@@ -441,6 +672,28 @@ def load_gnn_model(model_path: Path):
                 "NEAR_RTT_MP_NODE_EDGES=1 instead of forcing it at serve time."
             )
 
+        # Network entities. Unlike mp_node_edges these ARE visible in the weights (two
+        # extra encoders), so the state dict is authoritative for *whether* and the
+        # sidecar for *which contract* built the features. Both must line up with the
+        # contract this run resolves, or the served graph is not the trained graph.
+        mp_network_entities = any(
+            key.startswith("net_node_encoder.") for key in state_dict
+        )
+        trained_net_contract = mp_cfg.get("network_graph_contract")
+        if mp_network_entities and trained_net_contract is None:
+            raise ValueError(
+                f"{model_path.name} has network-entity encoders but its sidecar declares "
+                f"no network_graph_contract, so there is no way to know which graph it was "
+                f"fitted on. Retrain with a trainer that records it."
+            )
+        if mp_network_entities:
+            os.environ[NETWORK_GRAPH_CONTRACT_ENV] = trained_net_contract
+        require_matching_network_graph_contract(
+            trained_net_contract if mp_network_entities else NETWORK_GRAPH_CONTRACT_OFF,
+            resolve_network_graph_contract(),
+            model_label=model_path.name,
+        )
+
         model = TaskPlacementGNN(
             task_feature_dim=task_feature_dim,
             platform_feature_dim=platform_feature_dim,
@@ -452,10 +705,13 @@ def load_gnn_model(model_path: Path):
             mp_residual=mp_residual,
             mp_node_edges=mp_node_edges,
             mp_node_edges_candidates_only=mp_cfg.get("mp_node_edges_candidates_only", True),
+            mp_network_entities=mp_network_entities,
         )
         print(
             f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "
-            f"candidates_only={mp_cfg.get('mp_node_edges_candidates_only', True)}",
+            f"candidates_only={mp_cfg.get('mp_node_edges_candidates_only', True)} "
+            f"network_entities={mp_network_entities}"
+            + (f" ({trained_net_contract})" if mp_network_entities else ""),
             flush=True,
         )
         model.load_state_dict(state_dict)
@@ -1146,8 +1402,14 @@ def main():
         if not gnn_model_path.exists():
             print(f"ERROR: GNN model not found at {gnn_model_path}")
             sys.exit(1)
-        
-        gnn_model, gnn_device = load_gnn_model(gnn_model_path)
+
+        # `run_simulation` loads this again for the sim itself; the checkpoint's
+        # corpus-compatibility check needs it before the model is constructed.
+        with open(config_file, 'r') as _f:
+            space_config_for_checkpoint = json.load(_f)
+        gnn_model, gnn_device = load_gnn_model(
+            gnn_model_path, space_config=space_config_for_checkpoint
+        )
         task_types_data = load_task_types_data(sim_input_path)
     elif policy == 'gnn_hetero':
         if not gnn_hetero_model_path.exists():

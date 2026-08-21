@@ -118,6 +118,41 @@ def restrict_node_edges_to_candidates(
     return node_edge_index[:, keep]
 
 
+def split_task_platform_embeddings(
+    x: Tensor, n_tasks: int, n_platforms: int
+) -> tuple[Tensor, Tensor]:
+    """Split the post-message-passing stack into its task and platform blocks.
+
+    Bounded on purpose, and shared on purpose. `x[n_tasks:]` is correct only while tasks and
+    platforms are the *only* entities in the stack; the moment anything is appended it
+    silently feeds foreign rows to the scorer, misaligned against `edge_index`. That
+    open-ended slice has now been the bug three times in this repo:
+
+      1. `mp_node_edges` (2026-08-16) — same-node edges merged into the message-passing
+         index, 12.4x live RTT.
+      2. `TaskPlacementGNN.forward` (2026-08-18) — would have leaked node/link rows into
+         `platform_emb` once network entities were appended.
+      3. `gnn_necessity_ablation.AblationModel` — the same open slice, in the harness whose
+         numbers the pre-registered topology-transfer gate depends on.
+
+    Fixing it per-model as it is found is how it reached three. Every model that concatenates
+    entity blocks calls this instead, and the bound is asserted rather than assumed.
+
+    Raises:
+        ValueError: if the stack is too short to contain both blocks — which means the
+            caller's `n_tasks`/`n_platforms` disagree with what it actually concatenated.
+    """
+    n_tasks = int(n_tasks)
+    n_platforms = int(n_platforms)
+    if x.shape[0] < n_tasks + n_platforms:
+        raise ValueError(
+            f"FAIL LOUD: embedding stack has {x.shape[0]} rows but n_tasks={n_tasks} + "
+            f"n_platforms={n_platforms} = {n_tasks + n_platforms} were expected. The model "
+            f"concatenated a different set of entities than it is slicing."
+        )
+    return x[:n_tasks], x[n_tasks : n_tasks + n_platforms]
+
+
 class MLPEncoder(nn.Module):
     """Generic 2-layer MLP encoder with LayerNorm (matches train.py / desert-galaxy-26)."""
 
@@ -199,6 +234,9 @@ class TaskPlacementGNN(nn.Module):
         mp_residual: bool = False,
         mp_node_edges: Optional[bool] = None,
         mp_node_edges_candidates_only: bool = True,
+        mp_network_entities: Optional[bool] = None,
+        net_node_feature_dim: int = 6,
+        net_link_feature_dim: int = 5,
     ) -> None:
         super().__init__()
 
@@ -241,6 +279,53 @@ class TaskPlacementGNN(nn.Module):
         )
         self.mp_node_edges_candidates_only = mp_node_edges_candidates_only
 
+        # Network entities: physical nodes and core links, joined by the route table
+        # (see src/placement/network_graph.py). Without them the graph contains no
+        # topology at all — network latency is a static scalar in edge_attr — so a
+        # topology-transfer claim would be made by a model that cannot see topology.
+        #
+        # Default OFF, same rule as mp_node_edges: a checkpoint trained on the bipartite
+        # graph must never be served these. Unlike mp_node_edges this one is
+        # self-describing — the two extra encoders make a strict load fail loudly across
+        # the boundary instead of drifting silently.
+        self.mp_network_entities = (
+            _env_flag("GNN_MP_NETWORK_ENTITIES")
+            if mp_network_entities is None
+            else bool(mp_network_entities)
+        )
+        if self.mp_network_entities:
+            self.net_node_encoder = MLPEncoder(
+                net_node_feature_dim, hidden_dim, embedding_dim, dropout
+            )
+            self.net_link_encoder = MLPEncoder(
+                net_link_feature_dim, hidden_dim, embedding_dim, dropout
+            )
+
+    def _network_entity_embeddings(self, data: Data) -> List[Tensor]:
+        """Encoded [nodes, links], or a loud failure when the graph has none.
+
+        Loud on purpose. A model built with network entities being handed a graph without
+        them is the 2026-08-16 train/serve mismatch with the arrow reversed, and it would
+        otherwise degrade to a silently different (bipartite) model. Contract `core_v1`
+        requires a corpus generated with a `network.backbone` block; run one that has no
+        fabric and this is where you find out.
+        """
+        missing = [
+            name
+            for name in ("net_node_features", "net_link_features", "net_edge_index")
+            if getattr(data, name, None) is None
+        ]
+        if missing:
+            raise ValueError(
+                f"FAIL LOUD: mp_network_entities is on but the graph is missing {missing}. "
+                f"Build the cache and run live inference with NETWORK_GRAPH_CONTRACT="
+                f"core_v1 over a corpus that has a link_topology (network.backbone)."
+            )
+        return [
+            self.net_node_encoder(data.net_node_features),
+            self.net_link_encoder(data.net_link_features),
+        ]
+
     def forward(self, data: Data) -> List[Tensor]:
         n_tasks: int = int(data.n_tasks)
         n_platforms: int = int(data.n_platforms)
@@ -262,8 +347,9 @@ class TaskPlacementGNN(nn.Module):
             task_emb = task_embeddings
             platform_emb = platform_embeddings
         else:
-            x0 = torch.cat([task_embeddings, platform_embeddings], dim=0)
-            mp_edge_index = data.edge_index
+            blocks = [task_embeddings, platform_embeddings]
+            extra_edges: List[Tensor] = []
+
             node_ei = getattr(data, "node_edge_index", None) if self.mp_node_edges else None
             if node_ei is not None and node_ei.numel() > 0:
                 node_ei = node_ei.to(data.edge_index.device)
@@ -272,11 +358,25 @@ class TaskPlacementGNN(nn.Module):
                         node_ei, data.edge_index, n_tasks, n_platforms
                     )
                 if node_ei.numel() > 0:
-                    mp_edge_index = torch.cat([data.edge_index, node_ei], dim=1)
+                    extra_edges.append(node_ei)
+
+            # Network entities append AFTER platforms, so the task/platform slices below
+            # are unchanged and every pre-existing checkpoint keeps its index layout.
+            if self.mp_network_entities:
+                blocks.extend(self._network_entity_embeddings(data))
+                net_ei = data.net_edge_index
+                if net_ei.numel() > 0:
+                    extra_edges.append(net_ei.to(data.edge_index.device))
+
+            x0 = torch.cat(blocks, dim=0)
+            mp_edge_index = (
+                torch.cat([data.edge_index] + extra_edges, dim=1)
+                if extra_edges
+                else data.edge_index
+            )
             h = self.post_gin_dropout(self.gin(x0, mp_edge_index))
             x = x0 + self.mp_gate * h if self.mp_residual else h
-            task_emb = x[:n_tasks]
-            platform_emb = x[n_tasks:]
+            task_emb, platform_emb = split_task_platform_embeddings(x, n_tasks, n_platforms)
 
         device = task_embeddings.device
 

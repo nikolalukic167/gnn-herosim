@@ -67,6 +67,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sweep-dir", type=Path, default=DEFAULT_SWEEP_DIR)
     parser.add_argument("--sim-input", type=Path, default=DEFAULT_SIM_INPUT)
+    parser.add_argument(
+        "--backbone-bandwidth-mbps",
+        type=float,
+        default=None,
+        help=(
+            "Mint the cells with a `network.backbone` block at this per-link capacity "
+            "(link_contention_v1 physics). Omitted, no backbone block is written and the "
+            "cells are bit-identical to the stock ones. NOTE: the backbone must be present "
+            "when the cell's corpus-side infrastructure.json is generated, not bolted on "
+            "afterwards -- verify_live_infra_parity compares link_topology *presence*, so "
+            "a live-only backbone fails parity by construction."
+        ),
+    )
+    parser.add_argument("--backbone-n-core", type=int, default=4)
+    parser.add_argument("--backbone-attach-degree", type=int, default=1)
+    parser.add_argument("--backbone-chord-count", type=int, default=0)
     args = parser.parse_args()
 
     config_dir = args.sweep_dir / "configs"
@@ -82,6 +98,19 @@ def main() -> int:
         space_config = json.loads(json.dumps(base))  # deep copy
         space_config["network"]["topology"]["connection_probability"] = conn_prob
         space_config["network"]["topology"]["seed"] = seed
+
+        if args.backbone_bandwidth_mbps is not None:
+            # n_core=4 is the measured interior peak of the hub<->mesh sweep -- the only
+            # configuration whose max additive-argmin regret cleared the 5% gate
+            # (LINEAGES.md, link_contention_v1 closing sweep). attach_degree=1 + no chords
+            # because chords and a second attachment both collapse route overlap (P0
+            # pre-check).
+            space_config.setdefault("network", {})["backbone"] = {
+                "n_core": args.backbone_n_core,
+                "attach_degree": args.backbone_attach_degree,
+                "chord_count": args.backbone_chord_count,
+                "bandwidth_mbps": args.backbone_bandwidth_mbps,
+            }
 
         config_path = config_dir / f"{name}.json"
         with open(config_path, "w") as handle:

@@ -79,7 +79,7 @@ except ImportError:
 
 from src.generate_infrastructure import generate_deterministic_infrastructure
 from src.executecosimulation import execute_brute_force_optimized, load_simulation_inputs
-from src.sample_loader import load_primary_sample_and_mapping
+from src.sample_loader import ensure_workload_params, load_primary_sample_and_mapping
 
 # Timeout for brute-force simulation (1 hour per dataset)
 SIMULATION_TIMEOUT = 900  # seconds
@@ -184,6 +184,282 @@ CONTENTION_V1_GRID: GridPreset = {
 #     destroying its advantage so the optimum must split => anti-correlated preferences
 #   - sparse topology => few fallback platforms => the split is non-trivial
 # MUST be generated with --allow-non-unique-replicas.
+# shallow_longexec_v1: the inverse of the contention series' core lever.
+#
+# Measured 2026-08-17 on all 899 contention_v2 sweeps: queue depth PREDICTS separability,
+# monotonically. Shallowest quartile (depth 27.6) -> additive R^2 0.97822, collision gain
+# +1.986pp; deepest quartile (depth 50.8) -> 0.99803, +0.181pp. The coupling is 11x weaker
+# when queues are deep.
+#
+# The reason is arithmetic. The additive term is `depth x exec_time` and grows with depth;
+# the interaction term is `added_in_batch x exec_time` and does NOT. Deepening queues
+# therefore dilutes the only coupling the corpus has -- which is why contention_v4/v5
+# landed at R^2 0.9997.
+#
+# So invert both factors: make queues shallow so the additive term is small, and use
+# long-execution task types so each collision is large. cnn runs 0.706s on xavierCpu and
+# 3.086s on rpiCpu vs dnn2's 0.024s.
+# MUST be generated with --allow-non-unique-replicas so the oracle can express collisions.
+SHALLOW_LONGEXEC_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    "seeds": list(range(701, 751)),
+    "task_type_pair": ("cnn", "rf"),
+    "default_output_subdir": "gnn_datasets_4tasks_shallow_longexec_v1",
+}
+
+# shallow_v1: the queue-depth half of shallow_longexec_v1, on the stock dnn1/dnn2 apps.
+# Isolates the lever the 899-dataset measurement directly supports, with no new task types
+# (which additionally require workload params in the sampled space).
+SHALLOW_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    "seeds": list(range(701, 751)),
+    "default_output_subdir": "gnn_datasets_4tasks_shallow_v1",
+}
+
+# netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
+#
+# The first matched pilot ran link_contention_v1 on the stock shallow_v1 grid and all three
+# arms failed the gate on headroom (additive-argmin regret 2.51% off / 1.07% bw5p0 / 1.09%
+# bw1p5, threshold 5%). The backbone made things *more* separable, not less.
+#
+# Mechanism: shallow_v1 keeps per_client >= 1, so most tasks can run on their own source
+# node and never touch the network at all. A cost that only prices *remoteness* then pushes
+# the optimum further toward the local corner the additive fit already picks -- the same
+# shape as netc_scarce_v1, where penalising co-location pushed the optimum toward the corner
+# greedy already picked. Measured on the bw5p0 arm: the optimum left 0 or 1 task remote in
+# 5/16 datasets.
+#
+# per_client = 0 is the single-variable fix: every task must cross the network, so the
+# per-link pipes are on the critical path for all four. Deliberately NOT combined with a
+# replica_server_percentage cut -- netc_hotspot_v1 moved that and per_client together and
+# its "cliff" turned out to be one node-occupancy integer over the only 2 hosts that
+# existed. Server spread stays at the 0.6 floor so contention has somewhere to spread.
+NETC_MULTIHOP_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (0, 1, 0.7, 0.9),
+        (0, 2, 0.7, 0.9),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    "seeds": list(range(701, 751)),
+    "default_output_subdir": "gnn_datasets_4tasks_netc_multihop_v1",
+}
+
+# topo_transfer_v1: the topology-SIZE axis, for topology_transfer_v1.
+#
+# Every corpus in this repo before this one was generated at exactly one size --
+# space_with_network.json's 20 clients + 20 servers -- so nothing could be held out to ask
+# whether a model transfers across infrastructure. (`cluster_size` in sample_simple.json
+# looks like the size knob but is inert: `calculate_device_counts` is defined in
+# executecosimulation.py and never called. Node counts come from the config.)
+#
+# Inherits netc_multihop_v1's two deliberate choices, both load-bearing here:
+#   - per_client = 0, so every task must cross the network. A grid where tasks can run on
+#     their own source node makes topology irrelevant to the optimum, which is precisely
+#     how the first link_contention_v1 pilot failed.
+#   - shallow queues, which keep the pointwise ceiling low (the deep-queue arithmetic in
+#     graph_structure_physics dilutes every interaction term).
+#
+# The size axis holds the CLIENT tier fixed at 20 and scales only servers, so matched arms
+# differ in candidate-set size and nothing else; scaling clients would move the task-source
+# draw itself.
+#
+# Ladder chosen from a measured combination-count probe (1 dataset per size, conn=0.25,
+# rps=1, seed 801, shallow_pois2), because generating past the enumeration cap silently
+# SKIPS datasets and would bias a held-out size toward its easier half. That cap is
+# MAX_PLACEMENT_COMBINATIONS_SKIP_DEFAULT = 250,000 (this file, exported as
+# $MAX_PLACEMENT_COMBINATIONS); earlier revisions of this comment said "100k", which was
+# never the value in code.
+#
+# ⚠ The original probe table (2026-08-18) DOES NOT REPRODUCE. Re-measured 2026-08-19 on a
+# 32-core box at --workers 8, both plan counts and times differ:
+#
+#     servers   plans (orig)   plans (re-run)   time (orig)   time (re-run)
+#          20             32               18         0.8s          0.4s
+#          28             48               44         0.8s          0.5s
+#          40            432              343         2.0s          3.3s
+#          60          2,730            2,231         9.3s         23.0s
+#          80          9,828            8,698        39.0s        117.2s
+#
+# Suspected cause, NOT confirmed: the 2026-08-18 workload-seeding fix changed the draw, so
+# the two tables enumerate different workloads. Use the re-run numbers for budgeting -- the
+# top of the ladder is ~3x more expensive than recorded, and the LOW end is coarser than
+# recorded (18 plans at 20 servers, not 32), which is what the ladder's low-end cutoff was
+# justified on. Both tables are kept so a future re-run can tell which one it matches.
+#
+# The sweep grows ~quartically (4 tasks x candidates each), so full enumeration stays well
+# inside the cap up to ~100 servers -- the ceiling is not the binding constraint here (the
+# re-run peak, 8,698 plans, is 3.5% of the cap). The low end is: at 10-14 servers a sweep of
+# 16 plans makes regret far too coarse to measure a degradation curve against. Hence a
+# ladder starting at 20 rather than 10, giving train sizes {20, 28, 40} and held-out sizes
+# {60, 80} at 1.5-4x the largest size seen in training, every label still a true sweep
+# minimum.
+#
+# The candidates/task floor worry that motivated the probe is unfounded: geometric-mean
+# candidates/task grows 2.38 -> 9.96 strictly monotonically across the ladder (replica-host
+# nodes 7 -> 29), because `replica_server_pct = max(server_pct, 0.6)` is a PERCENTAGE and
+# scales with server count.
+TOPO_TRANSFER_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "server_node_counts": [20, 28, 40, 60, 80],
+    "replica_configs": [
+        (0, 1, 0.7, 0.9),
+        (0, 2, 0.7, 0.9),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    # 75 seeds -> 2*2*3*75 = 900 datasets/server_node_count, i.e. `tier_launch` in
+    # gate_statistics.PHASE4_TIERS (registered 2026-08-19 as the Phase 4 launch tier;
+    # was 30 seeds / 360 per size = tier_0.02, which the ladder arithmetic showed
+    # cannot resolve either observed shallow_v1 win_rate effect). The size axis has
+    # no per-size override, so this seed count applies uniformly across all five
+    # server_node_counts, not just the two held-out sizes (60, 80) the gate reads.
+    "seeds": list(range(801, 876)),
+    "default_output_subdir": "gnn_datasets_4tasks_topo_transfer_v1",
+    # BACKBONE ON BY DEFAULT (decided 2026-08-19). Without this the preset produced
+    # `link_topology: null`, because the backbone block was only written when
+    # --link-bandwidth-mbps was passed -- and `build_network_graph_block` treats a
+    # missing fabric as a legitimate silent no-op. Training that corpus under
+    # NETWORK_GRAPH_CONTRACT=core_v1 would have yielded zero network entities and
+    # zero network edges without a word of warning: two topology-blind models, which
+    # is precisely the failure Phase 2 exists to prevent. A grid whose whole question
+    # is topology must not depend on the operator remembering a flag.
+    #
+    # 1000 MB/s is deliberately NON-BINDING: it buys routing STRUCTURE (routes, core
+    # segments, shared-segment adjacency) without the link-contention effect, which
+    # `link_contention_v1` already measured as real but small (0.08-0.35% regret).
+    # Stacking a known-small, known-noisy mechanism on top of a signal being resolved
+    # at MDG ~0.02 is how netc_hotspot_v1 lost attribution -- it moved percentage and
+    # per_client together and could not say which produced the cliff. Contention under
+    # transfer is a follow-on lineage, not a rider on this one.
+    #
+    # n_core stays FIXED at the argparse default (12) and does NOT scale with servers.
+    # That makes the transfer axis candidate-set growth (2.38 -> 9.96 candidates/task,
+    # 4.19x) over a fixed-complexity fabric: measured core links/route 3.13 -> 3.02
+    # from 20 to 80 servers, i.e. more nodes hang off the same ring without lengthening
+    # routes. The claim this corpus can support is therefore "generalizes across
+    # candidate-set growth", NOT "generalizes to larger networks" -- narrower, and
+    # labelled as such. Scaling n_core is defensible but untested against Phase 2's
+    # aggregation-invariance property (GIN sums, so any degree growing with N shifts
+    # embedding magnitudes with N); it would need the degree-bound asserts re-run at
+    # every rung, which is a separate phase with its own budget.
+    "backbone_defaults": {"link_bandwidth_mbps": 1000.0},
+}
+
+# netc_scarce_v1: shallow_v1 queues + a SCARCE candidate set, for network_contention_v1.
+#
+# The 12-dataset matched pilot showed ingress contention moves every M4 metric monotonically
+# with bandwidth (additive R^2 0.9667 -> 0.9596 -> 0.9478 at unset/1.5/0.5 MB/s) but leaves
+# M1 marginal-greedy regret at exactly 0% -- greedy finds the joint optimum 12/12 in every
+# arm. The reason is structural, not statistical: tasks had 4.56 candidate NODES each and
+# 0/12 datasets lacked a fully-spread plan, so co-location was never forced. A cost that
+# only PENALISES co-location then pushes the optimum toward the corner greedy already picks.
+#
+# For a joint decision to exist, tasks must compete for scarce good options. This grid cuts
+# connectivity and holds replicas at one per client/server so the candidate set per task
+# shrinks toward the batch size.
+NETC_SCARCE_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.12, 0.18],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    "seeds": list(range(701, 751)),
+    "default_output_subdir": "gnn_datasets_4tasks_netc_scarce_v1",
+}
+
+# netc_funnel_v1: shallow queues + a FUNNELING topology, for network_contention_v1.
+#
+# netc_scarce_v1 established that cutting candidate COUNT does not create a joint decision
+# (4.56 -> 3.23 candidate nodes/task left M1 at 0%). The spreading-slack pre-check explains
+# why: what matters is whether tasks' cheap sets OVERLAP, not how large they are. Four tasks
+# with three candidates each still spread perfectly if those sets are disjoint -- and they
+# were: each task's single favourite node was already distinct in ~3.9 of 4 tasks, so
+# theta* (the premium needed to spread) was 0 in 92% of datasets.
+#
+# degree_skewed_core makes a few core nodes cheap for MANY clients at once (latency_core_ms
+# 5 vs periphery 30, p_core 0.95 vs p_periphery 0.15), so the cheap sets collide by
+# construction. Measured on the existing skew_warmth_v2 corpus: free-spreading drops to
+# 61.2% (vs 76.0% on shallow_v1) and 28/98 datasets need a >25% premium to spread (vs
+# 11/200). Hub-seeker fractions here are pushed above that corpus's 0.35-0.65 to sharpen it.
+NETC_FUNNEL_V1_GRID: GridPreset = {
+    "topology_type": "degree_skewed_core",
+    "k_core_values": [3, 4],
+    "hub_seeker_fractions": [0.70, 0.90],
+    "latency_core_ms": 5,
+    "latency_periphery_ms": 30,
+    "connection_probabilities": [],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    "seeds": list(range(701, 751)),
+    "default_output_subdir": "gnn_datasets_4tasks_netc_funnel_v1",
+}
+
+# netc_hotspot_v1: shallow queues + DENSE connectivity + replicas concentrated on few hosts.
+#
+# This inverts the two failed attempts. netc_scarce_v1 (cut connectivity) and
+# netc_funnel_v1 (funnel to hubs) both left M1 at 0%, and the overlap measurement says why:
+# they made tasks' candidate sets more DISJOINT, not more shared -- mean pairwise overlap
+# fell 0.93 -> 0.36 -> 0.14 of 4 tasks, so every task kept a private favourite node and
+# spreading stayed free (theta* = 0 in 92-100% of datasets).
+#
+# Overlap needs the opposite: dense connectivity so every client can reach every host, and
+# FEW hosts so they must all use the same ones. The blocker was
+# generate_infrastructure.py's `replica_server_pct = max(server_pct, 0.6)` floor, which
+# spread replicas over >=60% of servers no matter what the grid asked for; this grid sets
+# preinit.replica_server_percentage to override it.
+NETC_HOTSPOT_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.85],
+    "replica_configs": [
+        (0, 1, 0.2, 0.15),
+    ],
+    "replica_server_percentage": 0.15,
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    "seeds": list(range(701, 751)),
+    "default_output_subdir": "gnn_datasets_4tasks_netc_hotspot_v1",
+}
+
 CONTENTION_V2_GRID: GridPreset = {
     "connection_probabilities": [0.25, 0.35],
     "replica_configs": [
@@ -301,6 +577,13 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "skew_warmth_v2": SKEW_WARMTH_V2_GRID,
     "contention_v1": CONTENTION_V1_GRID,
     "contention_v2": CONTENTION_V2_GRID,
+    "shallow_v1": SHALLOW_V1_GRID,
+    "netc_multihop_v1": NETC_MULTIHOP_V1_GRID,
+    "topo_transfer_v1": TOPO_TRANSFER_V1_GRID,
+    "netc_scarce_v1": NETC_SCARCE_V1_GRID,
+    "netc_funnel_v1": NETC_FUNNEL_V1_GRID,
+    "netc_hotspot_v1": NETC_HOTSPOT_V1_GRID,
+    "shallow_longexec_v1": SHALLOW_LONGEXEC_V1_GRID,
     "contention_v3": CONTENTION_V3_GRID,
     "contention_v4_deepq": CONTENTION_V4_DEEPQ_GRID,
     "contention_v5_quick_test": CONTENTION_V5_QUICK_TEST_GRID,
@@ -315,23 +598,31 @@ def resolve_grid_preset(grid_name: str) -> GridPreset:
     return GRID_PRESETS[grid_name]
 
 
-def grid_topology_axis_count(preset: GridPreset) -> int:
-    if preset.get("topology_type") == "degree_skewed_core":
-        return len(preset["k_core_values"]) * len(preset["hub_seeker_fractions"])
-    return len(preset["connection_probabilities"])
+def grid_server_node_counts(preset: GridPreset) -> List[Optional[int]]:
+    """The topology-size axis. `[None]` means "leave the base config's count alone".
+
+    Every grid written before topology_transfer_v1 omits the key and therefore keeps
+    generating at the base config's 20 servers, unchanged.
+    """
+    counts = preset.get("server_node_counts")
+    if not counts:
+        return [None]
+    return list(counts)
 
 
 def grid_total_datasets(preset: GridPreset) -> int:
+    # grid_topology_variants already crosses shape x size, so it is the single source of
+    # truth for the topology axis -- do not multiply the size axis in again here.
     return (
-        grid_topology_axis_count(preset)
+        len(grid_topology_variants(preset))
         * len(preset["replica_configs"])
         * len(preset["seeds"])
         * len(preset["queue_distributions"])
     )
 
 
-def grid_topology_variants(preset: GridPreset) -> List[Tuple[str, Dict[str, Any]]]:
-    """Ordered (label, kwargs for create_config_for_iteration topology fields)."""
+def _grid_topology_shape_variants(preset: GridPreset) -> List[Tuple[str, Dict[str, Any]]]:
+    """The topology *shape* axis, before the size axis is crossed in."""
     if preset.get("topology_type") == "degree_skewed_core":
         variants: List[Tuple[str, Dict[str, Any]]] = []
         for k_core in preset["k_core_values"]:
@@ -358,15 +649,52 @@ def grid_topology_variants(preset: GridPreset) -> List[Tuple[str, Dict[str, Any]
         for conn_prob in preset["connection_probabilities"]
     ]
 
+
+def grid_topology_variants(preset: GridPreset) -> List[Tuple[str, Dict[str, Any]]]:
+    """Ordered (label, kwargs for create_config_for_iteration topology fields).
+
+    Topology shape x topology size. The size axis rides here rather than as its own loop
+    level because these kwargs are already splatted straight into
+    `create_config_for_iteration`, so `server_node_count` needs no separate plumbing and
+    the size lands in the dataset label for free.
+    """
+    variants: List[Tuple[str, Dict[str, Any]]] = []
+    for shape_label, shape_kwargs in _grid_topology_shape_variants(preset):
+        for server_count in grid_server_node_counts(preset):
+            if server_count is None:
+                variants.append((shape_label, dict(shape_kwargs)))
+            else:
+                variants.append(
+                    (
+                        f"{shape_label},srv={server_count}",
+                        {**shape_kwargs, "server_node_count": server_count},
+                    )
+                )
+    return variants
+
 # Task type ratios: (dnn1%, dnn2%)
 TASK_TYPE_RATIOS = [
     (0, 100), (50, 50), (100, 0)
 ]
 
+# Which two task types the workload mixes, in TASK_TYPE_RATIOS proportions.
+# Grid presets may override via "task_type_pair". The default (dnn1, dnn2) is what every
+# existing corpus was generated with.
+#
+# Why this is a lever: the coupling in the co-sim target is `added_in_batch x exec_time`,
+# so it scales with execution time. dnn2 runs in 0.024s on xavierCpu, while cnn runs in
+# 0.706s there and 3.086s on rpiCpu -- 30-130x more interaction per collision.
+DEFAULT_TASK_TYPE_PAIR = ("dnn1", "dnn2")
+
 # Workload parameters (can be overridden via --num-tasks)
 NUM_TASKS = 4
 NUM_CLIENT_NODES = 20  # matches space_with_network.json client_nodes.count
 NUM_WORKLOAD_TEMPLATES = 10
+
+# Seed for the workload task-source draw. Fixed so a grid regenerates identically and
+# matched A/B arms (e.g. network_contention_v1's baseline vs ingress-bandwidth arms)
+# differ only in the variable under test. Override with --workload-seed to resample.
+DEFAULT_WORKLOAD_SEED = 42
 
 
 def log(msg: str, quiet: bool = False, force: bool = False):
@@ -401,13 +729,23 @@ def generate_workload_templates(
     base_workload_path: Path,
     output_dir: Path,
     num_templates: int = NUM_WORKLOAD_TEMPLATES,
-    quiet: bool = False
+    quiet: bool = False,
+    task_type_pair: Tuple[str, str] = DEFAULT_TASK_TYPE_PAIR,
+    workload_seed: int = DEFAULT_WORKLOAD_SEED,
 ) -> List[Path]:
     """
     Generate workload templates with varied task type ratios.
-    
+
+    Task source nodes are drawn from a LOCAL seeded RNG. They previously came from the
+    unseeded global `random`, which meant two runs of the same grid with the same seeds
+    produced different workloads and therefore different RTTs — corpora were not
+    reproducible from their recorded seed, and matched A/B arms could not be built at all
+    (any measured difference would be confounded by a different workload draw). A local
+    Random keeps this independent of any other module's use of the global RNG.
+
     Returns list of paths to generated template files.
     """
+    rng = random.Random(workload_seed)
     with open(base_workload_path, 'r') as f:
         base_workload = json.load(f)
     
@@ -416,16 +754,17 @@ def generate_workload_templates(
     
     for template_idx in range(num_templates):
         # Cycle through task type ratios
-        dnn1_pct, dnn2_pct = TASK_TYPE_RATIOS[template_idx % len(TASK_TYPE_RATIOS)]
-        
-        num_dnn1 = NUM_TASKS * dnn1_pct // 100
-        num_dnn2 = NUM_TASKS - num_dnn1
-        
+        first_pct, _second_pct = TASK_TYPE_RATIOS[template_idx % len(TASK_TYPE_RATIOS)]
+        first_name, second_name = task_type_pair
+
+        num_first = NUM_TASKS * first_pct // 100
+        num_second = NUM_TASKS - num_first
+
         # Create task types list
-        task_types = ['dnn1'] * num_dnn1 + ['dnn2'] * num_dnn2
+        task_types = [first_name] * num_first + [second_name] * num_second
         
         # Random client node assignments
-        client_nodes = [random.randint(0, NUM_CLIENT_NODES - 1) for _ in range(NUM_TASKS)]
+        client_nodes = [rng.randint(0, NUM_CLIENT_NODES - 1) for _ in range(NUM_TASKS)]
         
         # Create workload with improved duration for queue accumulation
         workload = {
@@ -454,7 +793,10 @@ def generate_workload_templates(
         templates.append(template_path)
         
         if not quiet:
-            log(f"  Template {template_idx}: {num_dnn1} dnn1 + {num_dnn2} dnn2")
+            log(
+                f"  Template {template_idx}: {num_first} {first_name} "
+                f"+ {num_second} {second_name}"
+            )
     
     return templates
 
@@ -471,6 +813,9 @@ def create_config_for_iteration(
     hub_seeker_fraction: Optional[float] = None,
     latency_core_ms: float = 5.0,
     latency_periphery_ms: float = 30.0,
+    task_type_pair: Tuple[str, str] = DEFAULT_TASK_TYPE_PAIR,
+    replica_server_percentage: Optional[float] = None,
+    server_node_count: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Create a modified config for a specific iteration.
@@ -512,16 +857,36 @@ def create_config_for_iteration(
         topo["connection_probability"] = connection_prob
         topo["seed"] = seed
     
+    # Topology SIZE. Only the server tier scales: servers are the placement substrate, so
+    # they are the axis a transfer study is actually about. Holding the client tier fixed
+    # keeps the workload's task-source draw identical across sizes, so matched arms differ
+    # in candidate-set size and nothing else -- scaling clients too would move the tasks
+    # themselves and confound the comparison. Unset leaves the base config untouched, so
+    # every pre-existing grid regenerates bit-identically.
+    if server_node_count is not None:
+        if server_node_count < 1:
+            raise ValueError(f"server_node_count must be >= 1, got {server_node_count}")
+        config.setdefault('nodes', {}).setdefault('server_nodes', {})['count'] = int(
+            server_node_count
+        )
+
     # Preinit configuration
     config['preinit'] = {
         'client_percentage': client_pct,
         'server_percentage': server_pct
     }
+    # Optional: concentrate replicas onto few server hosts, overriding the 0.6 spreading
+    # floor in generate_infrastructure. This is what makes tasks compete for the SAME nodes
+    # rather than each owning a private favourite.
+    if replica_server_percentage is not None:
+        config['preinit']['replica_server_percentage'] = replica_server_percentage
     
-    # Replica configuration
+    # Replica configuration. Keyed by the grid's task types, not a hardcoded dnn1/dnn2 --
+    # this dict REPLACES whatever main() synthesized, so hardcoding it left a grid with a
+    # substituted pair holding replicas for task types its workload never asks for.
     config['replicas'] = {
-        'dnn1': {'per_client': per_client, 'per_server': per_server},
-        'dnn2': {'per_client': per_client, 'per_server': per_server}
+        task_type: {'per_client': per_client, 'per_server': per_server}
+        for task_type in task_type_pair
     }
     
     # Queue distribution parameters
@@ -538,16 +903,12 @@ def create_config_for_iteration(
         q_params = {'type': 'poisson', 'lambda': 4, 'min': qmin, 'max': qmax, 'step': qstep}
     
     config['prewarm'] = {
-        'dnn1': {
-            'distribution': 'none',
-            'queue_distribution': 'statistical',
-            'queue_distribution_params': q_params
-        },
-        'dnn2': {
+        task_type: {
             'distribution': 'none',
             'queue_distribution': 'statistical',
             'queue_distribution_params': q_params
         }
+        for task_type in task_type_pair
     }
     
     # Set scheduler batch_size to match num_tasks (for determined scheduler)
@@ -631,6 +992,9 @@ def generate_single_dataset(
         
         # Load apps from config
         apps = list(config['wsc'].keys())
+        # A grid naming new task types gets synthesized wsc entries but no sampled workload
+        # factor; grow this run's copy of the sample rather than the shared input files.
+        sample, mapping = ensure_workload_params(sample, mapping, apps)
         
         # Per-dataset scratch dir — parallel-safe (shared initial_results_simple races across shards).
         # placements.jsonl lives here during BF; MUST be copied to placements/ before rmtree.
@@ -815,6 +1179,39 @@ def main():
     )
     parser.add_argument('--allow-non-unique-replicas', action='store_true',
                         help='Allow multiple tasks to share the same replica')
+    parser.add_argument('--compute-slots-per-node', type=int, default=None,
+                        help='node_contention_v3: shared execution slots per node, so '
+                             'co-located platforms contend. Unset keeps node_disk_v2 '
+                             'physics (platforms fully independent).')
+    parser.add_argument('--ingress-bandwidth-mbps', type=float, default=None,
+                        help='network_contention_v1: shared inbound bandwidth (MB/s) per '
+                             'node, so tasks placed on the same node serialize their '
+                             'input transfers. Unset keeps node_disk_v2 physics (no '
+                             'ingress pipe, no transmission time).')
+    parser.add_argument('--link-bandwidth-mbps', type=float, default=None,
+                        help='link_contention_v1: per-link capacity (MB/s) over a core '
+                             'backbone, so tasks whose ROUTES cross a shared segment '
+                             'serialize even when they land on different nodes. Unset '
+                             'keeps node_disk_v2 physics (no backbone, one-hop latency).')
+    parser.add_argument('--backbone-n-core', type=int, default=12,
+                        help='link_contention_v1: core routers in the ring (default 12, '
+                             'chosen by scripts_cosim/link_overlap_precheck.py).')
+    parser.add_argument('--backbone-attach-degree', type=int, default=1,
+                        help='link_contention_v1: cores each node attaches to (default 1; '
+                             '2 lets paths diverge and collapses route overlap).')
+    parser.add_argument('--backbone-chord-count', type=int, default=0,
+                        help='link_contention_v1: chords across the core ring (default 0; '
+                             'chords let traffic bypass shared segments).')
+    parser.add_argument('--replica-server-percentage', type=float, default=None,
+                        help='Override the grid/default fraction of server nodes hosting '
+                             'replicas. Lower concentrates replicas so tasks compete for '
+                             'the same hosts (overlapping candidate sets). Overrides the '
+                             '0.6 spreading floor in generate_infrastructure.')
+    parser.add_argument('--workload-seed', type=int, default=DEFAULT_WORKLOAD_SEED,
+                        help=f'Seed for the workload task-source draw (default: '
+                             f'{DEFAULT_WORKLOAD_SEED}). Fixed so a grid regenerates '
+                             f'identically and matched A/B arms differ only in the '
+                             f'variable under test.')
     parser.add_argument('--num-tasks', type=int, choices=[1, 2, 3, 4, 5], default=4,
                         help='Number of tasks per workload (1-5). Sets batch_size accordingly.')
     parser.add_argument(
@@ -916,16 +1313,93 @@ def main():
     # Load base config
     with open(config_path, 'r') as f:
         base_config = json.load(f)
-    
+
+    # node_contention_v3: co-located platforms contend for a shared pool of node
+    # execution slots. Left unset the corpus keeps node_disk_v2 physics exactly.
+    # build_config() deepcopies base_config, so this propagates to every dataset.
+    if args.compute_slots_per_node is not None:
+        base_config.setdefault('nodes', {})['compute_slots_per_node'] = (
+            args.compute_slots_per_node
+        )
+        log(
+            f"node_contention_v3: {args.compute_slots_per_node} shared execution "
+            f"slot(s) per node",
+            quiet,
+        )
+
+    # network_contention_v1: inbound transfers to a node share one pipe, so co-placement
+    # on a node costs queueing time. Left unset the corpus keeps node_disk_v2 physics.
+    if args.ingress_bandwidth_mbps is not None:
+        base_config.setdefault('nodes', {})['ingress_bandwidth_mbps'] = (
+            args.ingress_bandwidth_mbps
+        )
+        log(
+            f"network_contention_v1: {args.ingress_bandwidth_mbps} MB/s shared ingress "
+            f"bandwidth per node",
+            quiet,
+        )
+
+    # link_contention_v1: route every logical edge over a core backbone whose segments
+    # have finite capacity. Unlike the ingress pipe this is not indexed by destination, so
+    # two tasks on DIFFERENT nodes can contend — the coupling a node-occupancy count
+    # cannot express. Left unset the corpus keeps node_disk_v2 physics.
+    # A grid may REQUIRE a backbone (topo_transfer_v1 does: contract core_v1 on a
+    # fabric-less corpus is a silent no-op, not an error, so the grid has to carry the
+    # default rather than trusting the operator to pass the flag).
+    link_bandwidth_mbps = args.link_bandwidth_mbps
+    if link_bandwidth_mbps is None:
+        grid_backbone = grid_preset.get("backbone_defaults") or {}
+        link_bandwidth_mbps = grid_backbone.get("link_bandwidth_mbps")
+        if link_bandwidth_mbps is not None:
+            log(
+                f"grid {args.grid!r} declares a backbone by default "
+                f"({link_bandwidth_mbps} MB/s); override with --link-bandwidth-mbps",
+                quiet,
+            )
+    if link_bandwidth_mbps is not None:
+        base_config.setdefault('network', {})['backbone'] = {
+            'n_core': args.backbone_n_core,
+            'attach_degree': args.backbone_attach_degree,
+            'chord_count': args.backbone_chord_count,
+            'core_link_latency_ms': 4.0,
+            'access_link_latency_ms': 20.0,
+            'bandwidth_mbps': link_bandwidth_mbps,
+        }
+        log(
+            f"link_contention_v1: {link_bandwidth_mbps} MB/s per link over a "
+            f"{args.backbone_n_core}-core ring (attach={args.backbone_attach_degree}, "
+            f"chords={args.backbone_chord_count})",
+            quiet,
+        )
+
+    # A grid may name task types the base config has no application entries for
+    # (space_with_network.json ships only nofs-dnn1/nofs-dnn2). Synthesize them from an
+    # existing entry so the shared config stays untouched for every other grid.
+    task_type_pair = tuple(grid_preset.get("task_type_pair", DEFAULT_TASK_TYPE_PAIR))
+    for task_type_name in task_type_pair:
+        app_name = f"nofs-{task_type_name}"
+        if app_name in base_config.get('wsc', {}):
+            continue
+        template_app = next(iter(base_config['wsc'].values()))
+        template_prewarm = next(iter(base_config['prewarm'].values()))
+        template_replicas = next(iter(base_config['replicas'].values()))
+        base_config['wsc'][app_name] = deepcopy(template_app)
+        base_config['prewarm'][task_type_name] = deepcopy(template_prewarm)
+        base_config['replicas'][task_type_name] = deepcopy(template_replicas)
+        log(f"Added application entries for {app_name}", quiet)
+
     # Generate workload templates
     log(f"\nGenerating workload templates...", quiet)
     templates = generate_workload_templates(
         workload_base_file,
         workload_templates_dir,
         NUM_WORKLOAD_TEMPLATES,
-        quiet
+        quiet,
+        task_type_pair=task_type_pair,
+        workload_seed=args.workload_seed,
     )
-    log(f"Generated {len(templates)} workload templates", quiet)
+    log(f"Generated {len(templates)} workload templates "
+        f"(workload_seed={args.workload_seed})", quiet)
     
     # Generate datasets
     log(f"\n=== Starting Dataset Generation ===", quiet)
@@ -1031,6 +1505,12 @@ def main():
                         seed,
                         queue_dist,
                         batch_size=batch_size,
+                        task_type_pair=task_type_pair,
+                        replica_server_percentage=(
+                            args.replica_server_percentage
+                            if args.replica_server_percentage is not None
+                            else grid_preset.get("replica_server_percentage")
+                        ),
                         **topo_kwargs,
                     )
                     
