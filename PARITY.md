@@ -173,7 +173,41 @@ pipenv run python3 scripts_cosim/verify_venue_parity.py --mode logits --write-re
 `tests/test_venue_parity.py` guards the fixture against rot (missing env stamp, pickled
 objects, checkpoint drift). Note that the cluster `gnn` env has **no `pytest` installed**, so
 on datalab the guard runs only through the CLI probe — folding `pytest` into
-`envs/herosim-lock.txt` would close that gap.
+`envs/herosim-lock.txt` would close that gap. `envs/herosim-lock.txt` now exists (added
+2026-08-21; it had been cited as canonical here and in `CLAUDE.md` for a while without being
+a real file).
+
+### The cluster `gnn` env had rotted — repaired 2026-08-21
+
+Worth recording because it cost a failed job and is invisible until something imports the
+broken package. The env had **two disagreeing installs of the same packages**: `conda-meta`
+declared `scikit-learn 1.9.0` built against numpy 2 (`np2py312`), while pip's metadata said
+`1.6.1`, over an env whose numpy is `1.26.4`. `scipy 1.17.1` was damaged the same way — its
+Python layer imported a `_promote` symbol its own compiled `_rotation` extension did not
+export. Nothing surfaced until `training_contract.split_ids_by_canonical_parent` did its
+**lazy** `from sklearn.model_selection import train_test_split` at line 128, which is why an
+import-closure preflight of the same modules passed cleanly minutes earlier. Job 709234 died
+84 s in; 709235 is the resubmit.
+
+Repair, which also moves the cluster *toward* the canonical stack rather than sideways:
+
+```bash
+python3 -m pip install --no-deps --force-reinstall "scipy==1.15.3" "scikit-learn==1.7.0"
+```
+
+`--no-deps` is load-bearing: it keeps pip from touching `numpy`/`torch` on the way past.
+Afterwards, **prove the repair was numerically inert** rather than assuming it — the whole
+point of the probe:
+
+```bash
+python3 scripts_cosim/verify_venue_parity.py --mode logits --assert
+# max|delta| 0.0, argmax flips 0/256 -- confirmed after this repair
+```
+
+Two lessons. An import-closure check only covers *eager* imports; a lazy import inside a
+function is invisible to it, so a preflight that passes is not proof a job will start. And a
+`conda-meta` version is not evidence of what will import — check pip and conda metadata
+together when an env misbehaves, since a mismatch between them *is* the bug.
 
 ---
 
