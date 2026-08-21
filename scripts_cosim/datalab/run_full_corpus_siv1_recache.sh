@@ -52,7 +52,11 @@ BAD_DATASET_IDS=(
   "gnn_datasets_4tasks_sparse_warmth_v2/ds_00289"
 )
 OVERSAMPLE_MANIFEST="logs/full_corpus_siv1_pipeline/oversample_manifest_exclude_bad31.json"
-CACHE_DIR="simulation_data/graphs_cache_full_corpus_siv1_dim14"
+# Overridable, because line ~106 does `rm -rf "$CACHE_DIR"`. The default is the cache the
+# *deployed* checkpoint (near-rtt-v2-full-corpus-siv1-dim14-ce-only.pt, built 2026-08-15) was
+# trained on; a post-dims-9-11-fix rebuild must go to a NEW directory or that checkpoint's
+# training data — and with it any chance of reproducing its live wins — is gone.
+CACHE_DIR="${CACHE_DIR:-simulation_data/graphs_cache_full_corpus_siv1_dim14}"
 PHASE_DIR="logs/full_corpus_siv1_pipeline"
 MIN_GRAPHS="${MIN_GRAPHS:-2600}"
 TS="$(date +%Y%m%d_%H%M%S)"
