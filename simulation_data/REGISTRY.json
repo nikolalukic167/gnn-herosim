@@ -1,13 +1,13 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-08-14T16:15:09.056639Z",
+  "generated_at": "2026-08-17T14:05:20.977854Z",
   "summary": {
-    "total_collections": 17,
-    "active_collections": 16,
+    "total_collections": 18,
+    "active_collections": 17,
     "deprecated_collections": 1,
     "archived_collections": 0,
-    "total_datasets": 3566,
-    "completed_datasets": 3364
+    "total_datasets": 3801,
+    "completed_datasets": 3597
   },
   "collections_by_status": {
     "active": [
@@ -21,6 +21,7 @@
       "gnn_datasets_4tasks_highq_safe_20260606",
       "gnn_datasets_4tasks_regime_b_cold_burst_v1",
       "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim",
+      "gnn_datasets_4tasks_shallow_v1",
       "gnn_datasets_4tasks_skew_warmth_v2",
       "gnn_datasets_4tasks_skew_warmth_v2_test",
       "gnn_datasets_4tasks_sparse_warmth_v2",
@@ -60,6 +61,9 @@
     "regime_b": [
       "gnn_datasets_4tasks_regime_b_cold_burst_v1",
       "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim"
+    ],
+    "separability": [
+      "gnn_datasets_4tasks_shallow_v1"
     ]
   },
   "collections": {
@@ -80,9 +84,9 @@
       "results": {
         "total_datasets": 500,
         "completed_datasets": 500,
-        "queue_depth_mean": 28.69,
-        "queue_depth_stddev": 14.68,
-        "avg_placements_per_dataset": 10.0
+        "queue_depth_mean": 25.64,
+        "queue_depth_stddev": 12.64,
+        "avg_placements_per_dataset": 9.3
       },
       "archive_reason": "Single-task scenarios don't provide network heterogeneity signal needed for GNN advantage"
     },
@@ -208,9 +212,9 @@
       "results": {
         "total_datasets": 500,
         "completed_datasets": 491,
-        "queue_depth_mean": 24.23,
-        "queue_depth_stddev": 9.78,
-        "avg_placements_per_dataset": 14143.2
+        "queue_depth_mean": 29.91,
+        "queue_depth_stddev": 14.97,
+        "avg_placements_per_dataset": 14461.3
       }
     },
     "gnn_datasets_4tasks_contention_v1_probe": {
@@ -428,9 +432,9 @@
       "results": {
         "total_datasets": 900,
         "completed_datasets": 900,
-        "queue_depth_mean": 38.41,
-        "queue_depth_stddev": 15.72,
-        "avg_placements_per_dataset": 3248.4
+        "queue_depth_mean": 34.99,
+        "queue_depth_stddev": 13.41,
+        "avg_placements_per_dataset": 2309.3
       }
     },
     "gnn_datasets_4tasks_contention_v2_verify": {
@@ -684,9 +688,9 @@
       "results": {
         "total_datasets": 900,
         "completed_datasets": 900,
-        "queue_depth_mean": 44.23,
-        "queue_depth_stddev": 18.51,
-        "avg_placements_per_dataset": 980.4
+        "queue_depth_mean": 39.96,
+        "queue_depth_stddev": 15.15,
+        "avg_placements_per_dataset": 1177.3
       }
     },
     "gnn_datasets_4tasks_contention_v4_pilot": {
@@ -812,9 +816,9 @@
       "results": {
         "total_datasets": 27,
         "completed_datasets": 27,
-        "queue_depth_mean": 401.24,
-        "queue_depth_stddev": 133.7,
-        "avg_placements_per_dataset": 478.9
+        "queue_depth_mean": 398.2,
+        "queue_depth_stddev": 121.76,
+        "avg_placements_per_dataset": 431.4
       }
     },
     "gnn_datasets_4tasks_contention_v5_quick_test": {
@@ -895,11 +899,11 @@
       "purpose": "Quick test of deepest queues for GNN advantage",
       "hypothesis": "norm450/pois500 (12.9x deeper than v2) push coupling to 15-25%",
       "results": {
-        "total_datasets": 3,
-        "completed_datasets": 2,
-        "queue_depth_mean": 489.33,
-        "queue_depth_stddev": 141.87,
-        "avg_placements_per_dataset": 232.0
+        "total_datasets": 38,
+        "completed_datasets": 35,
+        "queue_depth_mean": 481.33,
+        "queue_depth_stddev": 158.61,
+        "avg_placements_per_dataset": 593.5
       }
     },
     "gnn_datasets_4tasks_highq_safe_20260606": {
@@ -919,9 +923,9 @@
       "results": {
         "total_datasets": 25,
         "completed_datasets": 25,
-        "queue_depth_mean": 32.5,
-        "queue_depth_stddev": 18.21,
-        "avg_placements_per_dataset": 24188.2
+        "queue_depth_mean": 26.59,
+        "queue_depth_stddev": 15.44,
+        "avg_placements_per_dataset": 13268.6
       }
     },
     "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
@@ -1128,6 +1132,28 @@
         "avg_placements_per_dataset": 2401.0
       }
     },
+    "gnn_datasets_4tasks_shallow_v1": {
+      "collection_name": "gnn_datasets_4tasks_shallow_v1",
+      "version": "v1",
+      "status": "active",
+      "created_date": "2026-08-17",
+      "grid_preset": null,
+      "problem_category": "separability",
+      "generation_params": null,
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "scale_invariant_v1"
+      },
+      "purpose": "Shallow queues (depth ~0-8) so the collision term dominates instead of being diluted",
+      "hypothesis": "Queue depth predicts separability: measured monotonic across all 899 contention_v2 sweeps (shallowest quartile additive R2 0.978 / +1.986pp collision gain, deepest 0.998 / +0.181pp). The additive term is depth x exec_time and grows with depth while the interaction term added_in_batch x exec_time does not, so deep queues dilute the only coupling the corpus has. SUCCESS: coupled(>1%) 31.0% vs contention_v2's 7.1%, coupled(>5%) 19.6% vs 2.4%, pointwise worst-case regret 48.4% vs 3.6%. Note additive R2 mean 0.961 but median 0.9999 -- the target is bimodal, so use the coupled fraction as the gate, not mean R2.",
+      "results": {
+        "total_datasets": 200,
+        "completed_datasets": 200,
+        "queue_depth_mean": 2.04,
+        "queue_depth_stddev": 1.21,
+        "avg_placements_per_dataset": 1070.4
+      }
+    },
     "gnn_datasets_4tasks_skew_warmth_v2": {
       "collection_name": "gnn_datasets_4tasks_skew_warmth_v2",
       "version": "v2",
@@ -1202,9 +1228,9 @@
       "results": {
         "total_datasets": 288,
         "completed_datasets": 98,
-        "queue_depth_mean": 23.13,
-        "queue_depth_stddev": 7.7,
-        "avg_placements_per_dataset": 66.3
+        "queue_depth_mean": 21.79,
+        "queue_depth_stddev": 7.48,
+        "avg_placements_per_dataset": 46.0
       }
     },
     "gnn_datasets_4tasks_skew_warmth_v2_test": {
@@ -1373,9 +1399,9 @@
       "results": {
         "total_datasets": 351,
         "completed_datasets": 351,
-        "queue_depth_mean": 13.31,
-        "queue_depth_stddev": 4.37,
-        "avg_placements_per_dataset": 1767.7
+        "queue_depth_mean": 15.08,
+        "queue_depth_stddev": 4.73,
+        "avg_placements_per_dataset": 1132.5
       }
     },
     "hetero_large_knative_eval_20260606": {
@@ -1417,8 +1443,8 @@
       "results": {
         "total_datasets": 12,
         "completed_datasets": 12,
-        "queue_depth_mean": 29.96,
-        "queue_depth_stddev": 10.73,
+        "queue_depth_mean": 29.77,
+        "queue_depth_stddev": 10.79,
         "avg_placements_per_dataset": 730.7
       }
     },
