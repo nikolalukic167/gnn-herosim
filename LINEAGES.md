@@ -1536,6 +1536,52 @@ also takes 4/5 cells on both p90 and p99 per-task tails. Three findings:
    MLP — the packing that destroys the MLP on 125-225 is exactly what wins at sustained high
    throughput when queues do drain.
 
+#### ❌ The corrected-cache retrain FAILS its live gate — 0/15, uniformly, on all three traces (2026-08-22)
+
+The retrain (job 709235, `near-rtt-v2-full-corpus-siv1-dim14-ce-only-tempfix.pt`, corrected
+post-dims-9-11 cache, contract sidecar present) ran the full 15-task gate on all three traces
+(jobs 709296 / 709435 / 709436, datalab commit `37e5004` — pre-merge, same code lineage as
+709163; `workload-{150,175}-100.json` had to be rsynced first, md5-verified both sides — they
+had **never existed on datalab**, which also retro-explains why every prior datalab gate used
+125-225 only). Deployed-checkpoint margins vs Knative alongside, for contrast:
+
+| trace | tempfix GNN vs kn (cells 01..05) | deployed GNN vs kn | verdict |
+|---|---|---|---|
+| workload-125-225 | +47.3 / +53.4 / +63.3 / +42.2 / +27.0 % | +8.7 / −5.3 / +17.6 / −7.6 / −0.3 % | **0/5** (deployed: 2W/1T/2L) |
+| workload-150-100 | +9.3 / +34.7 / +13.5 / +43.8 / +19.8 % | −0.9 / −12.9 / −14.8 / −5.3 / −12.9 % | **0/5** (deployed: 5/5 W) |
+| workload-175-100 | +14.6 / +36.7 / +31.7 / +39.0 / +5.6 % | −9.4 / −7.6 / −7.5 / −10.8 / −10.8 % | **0/5** (deployed: 5/5 W) |
+
+The comparison is clean: the Knative and deployed-MLP arms in these sweeps reproduce the
+recorded values **exactly** (e.g. `knative/cell01` 24,471,537 and `mlp/cell01` 22,206,010 on
+150-100, digit for digit) — same cells, same traces, same code; only the GNN checkpoint
+differs.
+
+**The inversion is the finding.** In-distribution the retrain is the *better* model: best val
+acc 70.7% vs the deployed 66.3% (different caches, same corpus/split/hyperparameters/seed —
+the runner was identical except `CACHE_DIR`/`WANDB_RUN_NAME`). Live it is uniformly 1.06–1.63×
+Knative and loses every cell to the deployed checkpoint, on the traces where the deployed one
+wins 5/5. Making training features consistent with serving features — removing the 31.7%-of-rows
+mismatch — made the live policy drastically worse while making the co-sim metric better.
+
+**What this does and does not establish.**
+- It *supports* the §"retrain's own risk" reading (HANDOVER 2026-08-21): some of the deployed
+  checkpoint's live edge is attributable to the train/serve mismatch itself — training on
+  pre-fix dims 9-11 acted as an accidental regularizer / decision-bias that happens to help
+  live, and "fixing" it removed that.
+- It does *not* yet separate that from **retrain variance**: this is one training run against
+  one training run. The discriminating control is a retrain on the **pre-fix** cache with the
+  identical pipeline (only `CACHE_DIR` differing) — if that lands near the deployed checkpoint,
+  the cache is causal; if it also collapses live, the deployed checkpoint is a lucky draw and
+  the corpus/live gap is wider than either cache. **Not run.**
+- The `logit_tied_rate ≈ 0.54` thread gets its first answer: the dims 9-11 feature bug was
+  not what was holding the model back — correcting it helps no trace.
+
+**Decision: the deployed checkpoint stays deployed.** The tempfix checkpoint is evidence, not
+a candidate. The matched tempfix-**MLP** gates (jobs 709495-97, retrained MLP `..._tempfix.pt`
+on the same corrected cache, MLP arm only, same cells/traces) were in flight when this was
+written — prediction from the ~1% logit movement: the MLP barely moves, confirming the
+mismatch-sensitivity is GNN-specific.
+
 ### topology_transfer_v1 — unblocked, and two cost estimates corrected (2026-08-21)
 
 No new gate result. This closes the lineage's §a blocker and re-costs its §b, both by
