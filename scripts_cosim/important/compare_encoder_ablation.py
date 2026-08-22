@@ -96,7 +96,8 @@ def main() -> int:
     if not baseline.is_dir():
         raise SystemExit(f"FAIL LOUD: missing baseline results dir {baseline}")
 
-    cells = sorted({p.name.split("_s")[0] for p in results.glob("*_s*.json")
+    seed_marker = f"_s{args.seed}_"
+    cells = sorted({p.name.split(seed_marker)[0] for p in results.glob(f"*{seed_marker}*.json")
                     if not p.name.endswith(".decode_stats.json")})
     if not cells:
         raise SystemExit(f"FAIL LOUD: no result JSONs under {results}")
@@ -149,6 +150,11 @@ def main() -> int:
         physics = {row.get("warmth_physics") for row in rows.values()}
         if len(physics) > 1:
             raise SystemExit(f"FAIL LOUD: {cell} mixes warmth_physics {physics}")
+        if physics == {None}:
+            raise SystemExit(
+                f"FAIL LOUD: {cell} — no arm declares warmth_physics, so comparability "
+                "was never verified (predates HEROSIM_REQUIRE_EXPLICIT_PHYSICS=1 stamping)"
+            )
         report["cells"][cell] = {
             "warmth_physics": physics.pop() if physics else None,
             "arms": {tag: row for tag, row in rows.items()},

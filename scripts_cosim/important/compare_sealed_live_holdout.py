@@ -72,6 +72,11 @@ def main() -> int:
         raise ValueError(
             f"sweep mixes warmth_physics regimes {dict(physics_seen)} — not comparable"
         )
+    if physics_seen and set(physics_seen) == {"None"}:
+        raise ValueError(
+            "no result file declares warmth_physics — sweep predates physics stamping "
+            "(HEROSIM_REQUIRE_EXPLICIT_PHYSICS=1), so comparability was never verified"
+        )
 
     if not table:
         print("ERROR: no sealed holdout result files matched", file=sys.stderr)

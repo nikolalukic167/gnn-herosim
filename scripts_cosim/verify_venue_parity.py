@@ -542,7 +542,7 @@ def main() -> int:
     run_group.add_argument("--policies", default="knative,gnn")
     run_group.add_argument("--timeout", type=int, default=18000)
     run_group.add_argument("--tolerance", type=float, default=0.0038,
-                           help="relative total_rtt tolerance; default is the measured 0.38% "
+                           help="relative total_rtt tolerance; default is the measured 0.38%% "
                                 "GNN noise floor")
 
     args = parser.parse_args()
@@ -595,8 +595,16 @@ def main() -> int:
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
         args.json_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-    if args.do_assert and report.get("comparison"):
-        failures = [p for p, e in report["comparison"].items() if e.get("status") != "PASS"]
+    if args.do_assert and not args.write_reference:
+        comparison = report.get("comparison")
+        if not comparison:
+            print(
+                "FAIL: --assert requested but nothing was compared "
+                "(empty --policies or no results)",
+                file=sys.stderr,
+            )
+            return 1
+        failures = [p for p, e in comparison.items() if e.get("status") != "PASS"]
         if failures:
             print(f"FAIL: arms outside tolerance: {', '.join(failures)}", file=sys.stderr)
             return 1
