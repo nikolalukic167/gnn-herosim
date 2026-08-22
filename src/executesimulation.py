@@ -831,6 +831,13 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
     warmth_physics alone moves live total RTT by ~100x, and batch window / decode
     mode / feature layout are env-driven, so results must carry them.
     """
+    from src.placement.env_fingerprint import (
+        describe_code_provenance,
+        describe_python_env,
+        env_fingerprint,
+        format_code_banner,
+        format_env_banner,
+    )
     from src.placement.warmth import describe_warmth_physics, require_explicit_warmth_physics
 
     descriptor = describe_warmth_physics(space_config.get("warmth_physics"))
@@ -864,6 +871,16 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
     provenance["policy"] = policy
     # dim7/dim13 scaling changes queue ranking, so it belongs next to warmth_physics.
     provenance["queue_feature_contract"] = resolve_queue_feature_contract()
+
+    # Which code, and which interpreter, actually produced this number. Both axes have
+    # silently invalidated a gate: an uncommitted feature fix (23.3% of total_rtt, job
+    # 708549) and an undeclared venv. See src/placement/env_fingerprint.py.
+    provenance["code"] = describe_code_provenance()
+    python_env = describe_python_env()
+    provenance["python_env"] = python_env
+    provenance["env_fingerprint"] = env_fingerprint(python_env)
+    print(format_code_banner(provenance["code"]), flush=True)
+    print(format_env_banner(python_env), flush=True)
 
     banner = (
         f"[PHYSICS] warmth_physics={provenance['warmth_physics']} "

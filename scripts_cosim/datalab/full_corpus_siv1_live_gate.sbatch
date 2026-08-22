@@ -34,6 +34,14 @@ cd "$PROJECT_ROOT"
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate gnn
 
+# REQUIRED. `pipenv run python3` resolves its own venv and shells straight past the
+# activation above, so without this every runner script below would silently execute in
+# an undeclared venv (torch 2.12.0+cu130) instead of the `gnn` env this job just
+# activated. That is what happened to every cluster gate through 2026-08-21; see
+# PARITY.md rule 1. The runners read ${HEROSIM_PY:-pipenv run python3}, so locally
+# (where this is unset) nothing changes.
+export HEROSIM_PY=python3
+
 # Placement tie-breaks are now sorted deterministically by (node.id, platform.id), so this
 # is defense-in-depth against any unaudited set/dict-hash dependency, not the primary fix.
 export PYTHONHASHSEED="${PYTHONHASHSEED:-0}"

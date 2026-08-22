@@ -48,7 +48,7 @@ run_one() {
   log "Running ${name}"
   local start elapsed rtt
   start=$(date +%s)
-  if pipenv run python3 scripts_cosim/run_simulation.py \
+  if ${HEROSIM_PY:-pipenv run python3} scripts_cosim/run_simulation.py \
     --gnn \
     --config "$config" \
     --workload "$WORKLOAD" \
@@ -56,7 +56,7 @@ run_one() {
     --timeout "$TIMEOUT" \
     --seed "$SEED"; then
     elapsed=$(( $(date +%s) - start ))
-    rtt=$(pipenv run python3 -c "import json; print(json.load(open('${output}'))['total_rtt'])" 2>/dev/null || echo "NA")
+    rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json; print(json.load(open('${output}'))['total_rtt'])" 2>/dev/null || echo "NA")
     log "${name} SUCCESS ${elapsed}s total_rtt=${rtt}"
     echo "${name} SUCCESS ${elapsed}s total_rtt=${rtt}" >> "$PROGRESS_LOG"
   else

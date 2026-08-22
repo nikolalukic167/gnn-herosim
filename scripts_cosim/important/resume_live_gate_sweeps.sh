@@ -38,7 +38,7 @@ count_valid_results() {
   [[ -d "$dir" ]] || { echo 0; return; }
   while IFS= read -r f; do
     [[ "$f" == *decode_stats* ]] && continue
-    rtt=$(pipenv run python3 -c "import json; d=json.load(open('${f}')); print(d.get('total_rtt', 0))" 2>/dev/null || echo 0)
+    rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json; d=json.load(open('${f}')); print(d.get('total_rtt', 0))" 2>/dev/null || echo 0)
     if [[ "$rtt" != "0" && "$rtt" != "0.0" ]]; then
       n=$((n + 1))
     fi
@@ -92,7 +92,7 @@ verify_sweep() {
   if [[ "$n" -lt "$expected" ]]; then
     log "ERROR: ${label} incomplete (${n}/${expected} valid JSONs with total_rtt>0)"
     find "$dir" -maxdepth 1 -name '*.json' -type f 2>/dev/null | while read -r f; do
-      rtt=$(pipenv run python3 -c "import json; d=json.load(open('${f}')); print(d.get('total_rtt', '?'))" 2>/dev/null || echo ERR)
+      rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json; d=json.load(open('${f}')); print(d.get('total_rtt', '?'))" 2>/dev/null || echo ERR)
       log "  $(basename "$f"): total_rtt=${rtt}"
     done
     return 1
@@ -191,18 +191,18 @@ resume_weighted_contention
 
 # Compare scripts
 if verify_sweep "${STRATEGIC_CONT_SWEEP}/results" 9 "strategic contention (final)"; then
-  pipenv run python3 scripts_cosim/important/compare_contention_v2_live_gate.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_contention_v2_live_gate.py \
     --sweep-dir "$STRATEGIC_CONT_SWEEP" >> "$LOG" 2>&1 || log "ERROR: strategic compare failed"
 fi
 
 WSSM_SWEEP="simulation_data/normal_sim_sweeps/strategic_merge_wss_live_gate_20260616"
 if verify_sweep "${WSSM_SWEEP}/results" 9 "strategic wssm (final)"; then
-  pipenv run python3 scripts_cosim/important/compare_wssm_expanded_live_gate.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_wssm_expanded_live_gate.py \
     --sweep-dir "$WSSM_SWEEP" >> "$LOG" 2>&1 || log "ERROR: wssm compare failed"
 fi
 
 if verify_sweep "${WEIGHTED_SWEEP}/results" 12 "weighted contention (final)"; then
-  pipenv run python3 scripts_cosim/important/compare_merged_contention_live_gate.py \
+  ${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_merged_contention_live_gate.py \
     --sweep-dir "$WEIGHTED_SWEEP" >> "$LOG" 2>&1 || log "ERROR: weighted compare failed"
 fi
 

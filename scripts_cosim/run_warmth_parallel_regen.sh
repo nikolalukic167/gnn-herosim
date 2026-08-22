@@ -40,7 +40,7 @@ for shard in $(seq 0 $((SHARDS - 1))); do
   (
     export GNN_CAPTURE_DATASET_STATE=0
     export COSIM_SUPPRESS_SIM_PRINTS=1
-    pipenv run python3 -u scripts_cosim/generate_gnn_datasets_fast.py \
+    ${HEROSIM_PY:-pipenv run python3} -u scripts_cosim/generate_gnn_datasets_fast.py \
       --quiet \
       --warmth-physics "${WARMTH}" \
       --resume \
