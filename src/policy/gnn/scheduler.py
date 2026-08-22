@@ -481,18 +481,24 @@ class GNNScheduler(Scheduler):
                         "refusing to probe a truncated combo"
                     )
                 combo = tuple(placements[i] for i in range(len(batch_tasks)))
-                record_queue_feature_discrimination(
-                    self.decode_stats,
-                    combo=combo,
-                    logits_per_task=logits_per_task,
-                    task_logit_to_placement=task_logit_to_placement,
-                    queue_snapshot=queue_snapshot,
-                    task_logit_to_queue_key=task_logit_to_queue_key,
-                    platform_features=graph.platform_features,
-                    queue_key_to_platform_meta=getattr(
-                        graph, "queue_key_to_platform_meta", None
-                    ),
-                )
+                # Pure instrumentation: a bug here must never discard an already-computed,
+                # valid placement (that would silently fall back to shortest-queue for the
+                # whole batch just because a diagnostic probe tripped).
+                try:
+                    record_queue_feature_discrimination(
+                        self.decode_stats,
+                        combo=combo,
+                        logits_per_task=logits_per_task,
+                        task_logit_to_placement=task_logit_to_placement,
+                        queue_snapshot=queue_snapshot,
+                        task_logit_to_queue_key=task_logit_to_queue_key,
+                        platform_features=graph.platform_features,
+                        queue_key_to_platform_meta=getattr(
+                            graph, "queue_key_to_platform_meta", None
+                        ),
+                    )
+                except Exception as probe_exc:
+                    print(f"[GNN] queue-feature-discrimination probe failed (non-fatal): {probe_exc}")
             return placements
             
         except Exception as e:
