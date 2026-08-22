@@ -18,10 +18,22 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
+
+
+def task_type_label(collection_name: str) -> str:
+    """The N-task structure implied by a collection name, e.g. "4task", "5task".
+
+    Matches the `_<N>task(s)` naming convention (gnn_datasets_4tasks_..., gnn_datasets_1task,
+    hetero_small_knative_eval_5tasks_...). Collections that don't follow it default to "4task",
+    the historical majority, rather than silently matching every other non-1task count.
+    """
+    match = re.search(r"(\d+)tasks?(?:_|$)", collection_name)
+    return f"{match.group(1)}task" if match else "4task"
 
 
 def load_registry(simulation_data_dir: Path) -> Dict[str, Any]:
@@ -58,10 +70,10 @@ def check_compatibility(collection_a: Dict[str, Any], collection_b: Dict[str, An
         return ("incompatible", f"Different queue_feature_contract: {contract_a} vs {contract_b}")
 
     # Check task structure (infer from collection name)
-    is_1task_a = "1task" in collection_a["collection_name"]
-    is_1task_b = "1task" in collection_b["collection_name"]
-    if is_1task_a != is_1task_b:
-        return ("incompatible", "Different task counts (1-task vs 4-task)")
+    task_type_a = task_type_label(collection_a["collection_name"])
+    task_type_b = task_type_label(collection_b["collection_name"])
+    if task_type_a != task_type_b:
+        return ("incompatible", f"Different task counts: {task_type_a} vs {task_type_b}")
 
     # Check if same collection
     if collection_a["collection_name"] == collection_b["collection_name"]:
@@ -118,10 +130,9 @@ def identify_training_groups(registry: Dict[str, Any], compatibility_matrix: Dic
         meta = collections[name]
         warmth = meta["physics"]["warmth_model"]
         contract = meta["physics"]["queue_feature_contract"]
-        is_1task = "1task" in name
+        task_type = task_type_label(name)
 
         # Create group key
-        task_type = "1task" if is_1task else "4task"
         group_key = f"{contract}_{warmth}_{task_type}"
 
         if group_key not in groups:
@@ -150,9 +161,9 @@ def identify_training_groups(registry: Dict[str, Any], compatibility_matrix: Dic
         group_data["completed_datasets"] = completed_datasets
 
         # Add purpose
-        if "regime_b" in group_key:
+        if any("regime_b" in name for name in group_data["collections"]):
             group_data["purpose"] = "Regime B distillation"
-        elif "1task" in group_key:
+        elif group_data["task_structure"] == "1task":
             group_data["purpose"] = "Single-task baseline (deprecated)"
         else:
             group_data["purpose"] = "General GNN training"

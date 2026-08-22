@@ -214,12 +214,15 @@ def main() -> int:
         values = [r[key] for r in rows if r[key] is not None]
         return statistics.fmean(values) if values else 0.0
 
+    node_blind_coverage = sum(1 for r in rows if r["node_blind_share_frac"] is not None) / len(rows)
+
     summary = {
         "datasets_analysed": len(rows),
         "backbone": backbone_config,
         "pair_share_frac": mean_of("pair_share_frac"),
         "core_pair_share_frac": mean_of("core_pair_share_frac"),
         "node_blind_share_frac": mean_of("node_blind_share_frac"),
+        "node_blind_share_frac_coverage": node_blind_coverage,
         "mean_distinct_loaded_core_links": mean_of("mean_distinct_loaded_core_links"),
         "mean_core_link_load": mean_of("mean_core_link_load"),
         "max_core_link_load": max(r["max_core_link_load"] for r in rows),
@@ -243,11 +246,25 @@ def main() -> int:
         print(f"  wrote {args.output}")
 
     if args.gate_node_blind_share is not None:
+        # node_blind_share_frac is conditioned on datasets that had ANY core-link overlap
+        # (see module docstring: it's a fraction *of those pairs*). If most datasets had no
+        # overlap at all, the mean is computed over a small, unrepresentative subset and can
+        # PASS even though route overlap essentially doesn't exist -- the P0 question this
+        # script exists to answer. core_pair_share_frac is the unconditional signal for that.
+        if node_blind_coverage < 0.5:
+            print(
+                f"\n[gate] FAIL LOUD: node_blind_share_frac is backed by only "
+                f"{node_blind_coverage:.1%} of datasets (core_pair_share_frac="
+                f"{summary['core_pair_share_frac']:.4f} overall) -- route overlap barely "
+                "exists, so the conditional statistic is not a meaningful gate here."
+            )
+            return 1
         ok = summary["node_blind_share_frac"] >= args.gate_node_blind_share
         verdict = "PASS" if ok else "FAIL"
         print(
             f"\n[gate] node_blind_share_frac {summary['node_blind_share_frac']:.3f} "
-            f"(must be >= {args.gate_node_blind_share:.3f}) -> {verdict}"
+            f"(must be >= {args.gate_node_blind_share:.3f}, coverage="
+            f"{node_blind_coverage:.1%}) -> {verdict}"
         )
         if not ok:
             print(

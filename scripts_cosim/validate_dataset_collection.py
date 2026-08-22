@@ -243,7 +243,7 @@ def estimate_coupling_rate(collection_path: Path, sample_size: int = 50, spread_
             with open(jsonl_path) as f:
                 for line in f:
                     data = json.loads(line)
-                    rtts.append(data.get("rtt", 0))
+                    rtts.append(data["rtt"])
 
             if len(rtts) >= 2:
                 rtts.sort()
