@@ -1594,14 +1594,50 @@ contrast stands: the GNN degrades systematically and one-directionally under the
 cache (every cell, every trace); the MLP is indifferent except where it was already unstable.
 The mismatch-sensitivity is GNN-specific.**
 
-**Variance control in flight when this was written:** `...-prefixctl.pt` (job 709516) — same
-pre-fix cache, pipeline and seed as the deployed checkpoint, fresh training draw
-(`MIN_GRAPHS` overridden to 2651: the guard postdates the deployed run, which itself trained
-on 2,651 graphs; note the tempfix cache has 2,658 — the rebuild picked up 7 extra datasets, a
-second small train-set delta). Gate plan: GNN arm only, `workload-150-100` (sharpest
-contrast). If it lands near the deployed numbers → the pre-fix cache is causal and the
-accidental-regularizer reading holds. If it collapses like the tempfix model → the deployed
-checkpoint is a lucky draw and live quality of any retrain is a lottery.
+#### ⚠ The variance control answers: it is a lottery — the deployed checkpoint is a lucky draw (2026-08-22)
+
+`...-prefixctl.pt` (train job 709516, gate job 709534): **same pre-fix cache, same pipeline,
+same seed** as the deployed checkpoint — the only difference is GPU/dataloader nondeterminism
+in one training run. (`MIN_GRAPHS` overridden to 2651: the guard postdates the deployed run,
+which itself trained on 2,651 graphs; the tempfix cache has 2,658 — the rebuild picked up 7
+extra datasets, a second small train-set delta.) In-distribution it is the deployed model's
+twin: val acc **66.8% vs 66.3%**, greedy regret identical to 4 decimals (0.6467s). Live, on
+`workload-150-100` (same cells, GNN arm only):
+
+| cell | deployed | **prefixctl (control)** | tempfix |
+|---|---:|---:|---:|
+| cell01 (p=0.25) | −0.9% | **+4.8%** | +9.3% |
+| cell02 (p=0.35) | −12.9% | **+14.8%** | +34.7% |
+| cell03 (p=0.15) | −14.8% | **−0.6%** | +13.5% |
+| cell04 (p=0.50) | −5.3% | **+28.5%** | +43.8% |
+| cell05 (p=0.20) | −12.9% | **+4.2%** | +19.8% |
+
+**Control: 1/5 vs Knative (and that one at −0.6%, inside noise) where the deployed draw won
+5/5.** Per cell the control is +5.8% to +35.7% worse than the deployed checkpoint — from
+training nondeterminism alone, against a 0.1–0.4% run-to-run simulation floor.
+
+Three conclusions, in order of weight:
+
+1. **Live quality of this pipeline is a training-draw lottery.** Two checkpoints
+   indistinguishable in-distribution (0.5pp val acc, identical greedy regret) differ by
+   5–36% of live `total_rtt` per cell. In-distribution metrics have **zero** discriminating
+   power over which draw wins live — the sharpest form yet of the co-sim/live disconnect
+   (`graph_structure_physics` / `logit_tied_rate` thread).
+2. **The tempfix FAIL above is therefore confounded.** Cache ordering is consistent
+   (deployed < control < tempfix on every cell), so the corrected cache *may* still be worse —
+   but with one draw per cache and within-cache variance this size, the cache effect is not
+   separable from draw luck. The "mismatch was an accidental regularizer" reading is
+   downgraded from supported to *possible*; the demonstrated effect is the variance.
+3. **Any single-checkpoint live-gate verdict in this lineage is a claim about a draw, not
+   about the recipe.** Every siv1 gate row above (including the 709163 CONFIRMED one, which
+   compared the *same* checkpoint file across venues, and is unaffected as a venue
+   measurement) generalizes to the training pipeline only up to this lottery. A future gate
+   that wants a recipe-level claim needs multiple training draws per arm — which the ablation
+   harness already does (5 seeds) and the production pipeline does not.
+
+**The deployed checkpoint stays deployed** — it is demonstrably the best live artifact on
+disk. But it should be described as "the checkpoint that won", not "what the pipeline
+produces".
 
 ### topology_transfer_v1 — unblocked, and two cost estimates corrected (2026-08-21)
 
