@@ -1,155 +1,103 @@
-# 🚀 Session Handover (2026-08-21, late evening)
+# 🚀 Session Handover (2026-08-22)
 
-**Status:** The siv1 re-gate is **done and CONFIRMED** — the recorded FAIL is formally
-superseded, not merely re-graded. All three deferred code fixes are implemented but sit on an
-**unmerged branch**. A corrected-cache retrain and one local sweep are in flight. The MLP's
-catastrophic tail is root-caused. `topology_transfer_v1` is unblocked.
+**Status:** `fix/deferred-gate-fixes` is **merged, pushed, and synced onto datalab** — no
+unmerged work, no in-flight jobs, nothing pending. This session's headline result: **live
+quality of the GNN training pipeline is a draw-to-draw lottery**, discovered via a variance
+control that nobody had run before. That finding **confounds** the corrected-cache retrain's
+0/15 FAIL from earlier the same session — read both together, not the FAIL alone.
 
-> Read first: `LINEAGES.md` → `siv1_full_corpus` → "✅ The prediction is CONFIRMED — job
-> 709163". Then the two subsections after it (MLP tail root cause; the corrected-cache
-> train/serve gap), and `### topology_transfer_v1 — unblocked` further down.
+> Read first: `LINEAGES.md` → search "The variance control answers" (siv1_full_corpus
+> section, 2026-08-22). Then the two entries directly above it (the tempfix FAIL, and the
+> matched MLP gates) for the full arc.
 
 ## 0. The one-paragraph story
 
-Job 709163 (synced code, 15/15 COMPLETE) closed the case the previous session opened. The GNN
-arm reproduces the local working-tree numbers on **all five cells to +0.03%–0.40%**, inside its
-own 0.1–0.4% run-to-run floor on four of them. `gnn/cell01` went **65.8M → 50.6M** with the
-checkpoint, cells, trace, cluster and GPU partition all held fixed — only the committed code
-changed. Head-to-head vs Knative: **2W/1T/2L** on `workload-125-225`, identical to the local
-verdict; the checkpoint still wins 5/5 on `workload-150-100` and `workload-175-100`. The
-environment measurement is now confirmed at the `total_rtt` level, not just at the logit level.
-Three things came out of the follow-up work: the MLP tail is an **occupation collapse**, the
-deployed checkpoint has a **31.7%-of-rows train/serve feature gap** (retrain running), and the
-`topology_transfer_v1` serving port is a **three-module rename** containing a silent trap.
+Picked up from the 2026-08-21 handover: merged `fix/deferred-gate-fixes` (84 tests green),
+gated the corrected-cache GNN retrain on all three real traces — it **FAILED 0/15**, uniformly
+1.06–1.63× Knative, despite *better* val acc (70.7% vs deployed's 66.3%). That inversion
+prompted a control nobody had run: retrain on the **same cache/pipeline/seed as the deployed
+checkpoint**, differing only by GPU/dataloader nondeterminism. The control is the deployed
+model's in-distribution twin (val 66.8%, greedy regret identical to 4 decimals) and **loses
+4/5 cells live** where the deployed draw won 5/5, by +5.8% to +35.7% per cell — against a
+0.1–0.4% simulation noise floor. Two val-acc-identical checkpoints differ by up to 36% of live
+`total_rtt`. This is now the load-bearing fact for every future gate in this repo: **a
+single-checkpoint live-gate verdict is a claim about one training draw, not about the recipe
+that produced it.** Also landed: the local `a4_wl200200` trace (800k events) completed —
+MLP sweeps 5/5 with zero collapse, GNN 3W/2L vs Knative, settling the trace-dependence
+question; and `topology_transfer_v1`'s first-ever deployable checkpoints (10 `.pt` +
+`.contract.json` sidecars, 5 seeds × `{pointwise, gnn_base}`) are on disk on datalab.
 
-## 1. FIRST THING TO DO: two in-flight jobs
-
-**(a) Datalab retrain 709235** — GNN on the corrected (post-dims-9-11-fix) cache. At handover:
-epoch 40/100, ~25 s/epoch, so ~25 min left.
-
-```bash
-ssh datalab 'squeue -u nikola.lukic; cd ~/gnn-herosim && \
-  ls -la models/near-rtt-v2-full-corpus-siv1-dim14-ce-only-tempfix.* && \
-  tail -5 logs/fc-siv1-gnn-709235.out'
-```
-
-**When it lands, gate it — that is the whole point of the retrain and it is not yet run.** Same
-15-task gate, three traces, against the deployed checkpoint's recorded numbers (§3):
+## 1. Nothing is in flight — start clean
 
 ```bash
-ssh datalab 'cd ~/gnn-herosim && for wl in 125-225 150-100 175-100; do
-  sbatch --export=ALL,\
-GNN_MODEL=models/near-rtt-v2-full-corpus-siv1-dim14-ce-only-tempfix.pt,\
-WORKLOAD=data/nofs-ids/traces/workload-${wl}.json,\
-SWEEP_DIR=simulation_data/normal_sim_sweeps/siv1_tempfix_gate_${wl} \
-    scripts_cosim/datalab/full_corpus_siv1_live_gate.sbatch; done'
+ssh datalab 'squeue -u nikola.lukic'   # expect empty
+git -C /root/projects/my-herosim status --porcelain   # expect clean
 ```
 
-Score with `compare_sealed_live_holdout.py --sweep-dir <sweep>`; **write the outcome into
-`LINEAGES.md` either way** — a retrain that beats the deployed checkpoint changes what gets
-deployed, and one that loses is the more interesting result (see §4.3).
+Both true as of this writing. No jobs to check on, no branch to merge.
 
-**(b) Local `a4_wl200200`** (800k events, PAR=2). At handover **8/15** results: 5 knative done,
-MLP on cells 04/05, then 5 GNN cells. ~2–2.5 h.
+## 2. What is now established (safe to build on)
 
-```bash
-ls simulation_data/normal_sim_sweeps/a4_wl200200/results/*_s0_*.json | grep -v decode | wc -l  # 15 = done
-pgrep -af run_rest2.sh || echo "runner gone"
-```
+- **Deployed checkpoint** (`near-rtt-v2-full-corpus-siv1-dim14-ce-only.pt`) stays deployed —
+  it is the best live artifact on disk, described honestly as *"the draw that won"*, not
+  "what the pipeline produces." Recorded margins vs Knative (unchanged from 2026-08-21):
+  2W/1T/2L on `workload-125-225`, **5/5 W** on `workload-150-100` and `workload-175-100`,
+  **3W/2L** on `workload-200-200` (new this session).
+- **Live quality is a training-draw lottery** — the session's central finding. In-distribution
+  metrics (val acc, greedy regret) have **zero** discriminating power over which draw wins
+  live. See `memory/herosim-live-quality-is-a-training-draw-lottery.md`.
+- **The corrected-cache (tempfix) retrain is confounded, not cleanly falsified.** Cache
+  ordering held on every cell (deployed < control < tempfix), which is *suggestive* the
+  corrected cache is worse, but with one draw per cache the cache effect isn't separable from
+  draw luck at this variance. Do not cite the tempfix 0/15 as "the corrected cache loses" —
+  cite it as "the corrected cache lost, in a regime where a single draw can lose by 30%+ for
+  no reason at all."
+- **The MLP is much more draw-stable than the GNN.** Matched MLP retrain on the same
+  corrected cache: −6.6% to +2.6% on 9 healthy cells (essentially inert), and on the 3
+  collapse-implicated cells it *re-rolls* which cell collapses rather than fixing or uniformly
+  worsening the tail. The GNN's systematic, one-directional degradation under the cache fix
+  is a real GNN-specific signature — separate from and layered on top of the lottery finding.
+- **`a4_wl200200` (workload-200-200, 800k events) settles trace-dependence.** MLP 5/5 paired
+  wins, zero occupation collapse anywhere (bounds the collapse story — long-duration traces
+  collapse it, this shorter/higher-rps one never does). GNN is 3W/2L, losing specifically on
+  the two densest cells (opposite of its 125-225 losses on the two sparsest).
+- **`topology_transfer_v1` has deployable checkpoints for the first time ever** — 5 seeds ×
+  {`pointwise`, `gnn_base`}, each with a `.contract.json` recording split/held-out-sizes/
+  `serving_port` (the verified `mp_residual=True` three-module rename). On
+  `~/gnn-herosim/models/topo_transfer_v1_ckpts/` on datalab, **not yet rsynced to local**, and
+  its own eval JSONs (`simulation_data/topo_transfer_v1_phase4_ckpt_seed{42..46}.json`) are
+  untracked on datalab. This is co-sim eval only — no live cells have been minted at 60/80
+  servers yet.
 
-## 2. ⚠ THE UNMERGED BRANCH — do not lose this
+## 3. Open threads, prioritized
 
-All three deferred fixes are implemented, tested and pushed on **`fix/deferred-gate-fixes`**
-(`374accc`), developed in a git worktree specifically so the in-flight local sweep kept running
-on unchanged code. **It is not merged**, because merging mid-sweep splits `a4_wl200200` across
-two code versions — the exact failure this session spent its first hours undoing.
+1. **A multi-draw re-gate, if the tempfix-cache question is worth resolving.** The confound in
+   §2 can only be broken by training ≥3 draws per cache (pre-fix vs tempfix) and gating all of
+   them — expensive (each draw is a ~25 min GPU train + a 15-task gate) but it's the only way
+   to get a recipe-level verdict instead of a draw-level one. Given the lottery finding, this
+   arguably has a stronger claim on the next session's GPU budget than any other open item.
+2. **`topology_transfer_v1` — the live-gate steps are the only ones left.** Checkpoints exist;
+   next needed: (a) `rsync` the 10 `.pt` + `.contract.json` files to local or leave them on
+   datalab and work there, (b) mint parity-verified live cells at 60 and 80 servers (no
+   existing script does this — `make_full_corpus_siv1_gate_cells.py` is siv1-specific), (c)
+   run the 15-task-per-size gate, (d) **given §1's finding, gate more than one seed per arm
+   before drawing a conclusion** — a single `gnn_base_seed42.pt` live result would repeat this
+   session's original mistake.
+3. **Root cause still open: the additive, queue-dominated co-sim target.** Untouched this
+   session. `logit_tied_rate ≈ 0.54` / `confident_worse_queue_rate ≈ 0.8` remain unexplained —
+   the tempfix retrain ruled out the dims 9-11 bug as the cause (fixing it didn't help any
+   trace), so whatever is capping the model's decisiveness is elsewhere in
+   `graph_structure_physics`.
+4. **A6 (`soft_combo` live retest) is still dead as specified** — unchanged from 2026-08-21,
+   both checkpoints sidecar-less and feature-dim-mismatched. No new information this session.
+5. **Untracked artifacts on datalab, not yet committed anywhere:** `simulation_data/topo_
+   transfer_v1_phase4_ckpt_seed{42..46}.json` and the `scratch/` dir (ad hoc sbatch scripts
+   written this session — `topo_xfer_v1_partial_gate_train.sbatch`,
+   `fc_siv1_mlp_tempfix.sbatch`). None are load-bearing for anything already recorded in
+   `LINEAGES.md`, but if a future session wants to reproduce this session's launches exactly,
+   they're there rather than lost.
 
-```bash
-# ONCE a4_wl200200 has all 15 results and no executesimulation is running:
-git merge fix/deferred-gate-fixes
-PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=$PWD pipenv run python3 -m pytest \
-  scripts_cosim/test_autoscaler_scaledown_determinism.py tests/ -q      # expect all green
-git push && ssh datalab 'cd ~/gnn-herosim && git pull --ff-only'
-```
-
-What is on it:
-
-1. **Scale-down tie-break → total key** in `{gnn,knative,knative_network}/autoscaler.py`.
-   Removes the residual 0.05–0.1% run-to-run floor. Guard test went 3 failed → 9 passed.
-   `mlp_batch` inherits the gnn autoscaler. The other seven policies deliberately untouched.
-2. **`run_provenance` now records code + interpreter** — `describe_code_provenance()` stamps
-   commit / branch / dirty / `diff_sha256` / `changed_files`, plus `python_env` and
-   `env_fingerprint`. 7 tests. A future 708549 is a one-command diff instead of a probe matrix.
-3. **`HEROSIM_PY` leak closed** at all 52 call sites / 18 scripts + 3 sbatch, plus
-   `envs/herosim-lock.txt` — which `PARITY.md` and `CLAUDE.md` had both called canonical while
-   it did not exist.
-
-**After merging, the first gate run on the new code is not comparable to anything recorded
-before it** (the tie-break fix moves `total_rtt` by up to 0.1%). That is fine and expected —
-just do not quote a pre-merge and a post-merge number in the same row without saying so.
-
-## 3. What is now established (safe to build on)
-
-**Deployed checkpoint** (`near-rtt-v2-full-corpus-siv1-dim14-ce-only.pt`), served
-train-consistent features, margins vs knative (− = GNN better):
-
-| trace | per cell (01..05) | verdict |
-|---|---|---|
-| workload-125-225 (**datalab 709163**) | +8.7 / −5.3 / +17.6 / −7.6 / −0.3 % | 2W/1T/2L |
-| workload-125-225 (local) | +8.3 / −5.3 / +17.4 / −7.6 / −0.06 % | 2W/1T/2L |
-| workload-150-100 | −0.9 / −12.9 / −14.8 / −5.3 / −12.9 % | **5/5 W** |
-| workload-175-100 | −9.4 / −7.6 / −7.5 / −10.8 / −10.8 % | **5/5 W** |
-| workload-150-100 + backbone 1.5MB/s | −31.8 / −24.4 / −26.7 / −8.9 / −28.0 % | **5/5 W** |
-
-- **Cross-venue agreement: +0.03% to +0.40%.** Repo sync is sufficient; the venue is not a
-  variable. Confirmed at both the logit level (exactly 0.0) and the `total_rtt` level.
-- **The MLP's catastrophic tail is `averageOccupation` collapsing to ~1**, not
-  `intra_batch_platform_collisions` (normal in every collapsed run) and not physics (every
-  component identical). The MLP *wins by packing and loses by packing*: healthy occupation 13.6
-  vs Knative 10.6 vs GNN 5.6, and its pointwise score has no queue-relative term. 8 collapse
-  instances across two traces and two venues; **the GNN has never collapsed in 20 cell-runs.**
-  `averageOccupation ≈ 1` is the cheap detector — no need to parse the 200 MB result JSON.
-- **The deployed checkpoint's own train/serve gap is 31.7% of platform rows** (100% of graphs,
-  max delta 2.775 — ~320× the `shallow_v1` figure). Its wins are real but are not the ceiling.
-
-## 4. Open threads, prioritized
-
-1. §1 — gate the retrain; finish `a4_wl200200`; write both into `LINEAGES.md`.
-2. §2 — merge `fix/deferred-gate-fixes` once nothing is mid-run.
-3. **The retrain's own risk.** A corrected-cache model is *expected* to be better, but the
-   deployed one won live **despite** a 31.7% mismatch — so if the retrain loses, the honest
-   reading is that some of the deployed checkpoint's edge came from the mismatch, which would
-   be a finding, not a regression to fix. A matched **MLP** retrain has not been run; the MLP
-   moved only ~1% under the dims 9-11 fix, so it is the fair comparison arm.
-4. **`logit_tied_rate ≈ 0.54` / `confident_worse_queue_rate ≈ 0.8`** — the model still has no
-   sharp ranking on half its decisions (root cause: the additive, queue-dominated co-sim
-   target, `graph_structure_physics`). Untouched this session. The corrected-cache retrain is
-   the first test of whether the feature bug was contributing to it.
-5. **`topology_transfer_v1` partial gate** — now blocked on ~14 GPU-hours **and nothing else**.
-   §a (checkpoint persistence) landed; §b (serving port) turned out to be a three-module
-   rename, verified bit-exact. Not launched: large speculative spend on a `FAILED` lineage,
-   and it would contend with the retrain for GPUs.
-6. **A6 (`soft_combo` live retest) is dead as specified** — checked, not assumed. Both
-   `oracle_split` checkpoints are sidecar-less *and* take 16 platform features against the gate
-   cells' 14. Needs a retrain under a recorded contract before it is worth anything.
-
-## 5. Traps confirmed this session (all now in the docs)
-
-- **`load_state_dict(strict=True)` is not a compatibility check.** Ablation arms load into
-  `TaskPlacementGNN` cleanly under the default `mp_residual=False` and then compute different
-  logits (0.196, different argmaxes). Bit-exact under `mp_residual=True`. Architecture flags
-  invisible in weight shapes must come from the contract, never from a successful load.
-- **An import-closure preflight only covers eager imports.** Job 709234 passed one and died
-  84 s later on a lazy in-function sklearn import (`training_contract.py:128`).
-- **A micromamba env can hold two disagreeing installs.** `conda-meta` said scikit-learn 1.9.0
-  (built for numpy 2); pip said 1.6.1; numpy was 1.26.4; scipy was damaged the same way.
-  Repaired with `pip install --no-deps --force-reinstall scipy==1.15.3 scikit-learn==1.7.0`,
-  then **proved inert** with `verify_venue_parity.py --mode logits` (0.0, 0/256 flips).
-- **Recache/train runners `rm -rf` their output dir and derive the checkpoint name from the
-  wandb run name.** Both are now overridable (`CACHE_DIR`, `WANDB_RUN_NAME` → `OUT_CKPT`); the
-  defaults still point at the deployed checkpoint's only training data.
-
-## 6. Environment gotchas (unchanged)
+## 4. Environment gotchas (unchanged)
 
 ```bash
 PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
@@ -159,16 +107,27 @@ PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
 # ssh alias `datalab` works; the raw hostname with BatchMode=yes does not (key is agent-loaded)
 ```
 
-## 7. Restore prompt for next session
+One new trap hit and fixed this session: `sbatch --wrap="..."` swallowed the MLP retrain
+silently (0 s FAILED, empty logs, no error text anywhere) — resubmitting as a proper `.sbatch`
+file worked first try. Prefer a real sbatch file over `--wrap` for anything beyond a one-liner.
+Also: two of the five named real traces (`workload-150-100.json`, `workload-175-100.json`)
+had **never existed on datalab** before this session — every prior datalab gate silently only
+ever used `workload-125-225.json`. Both are now rsynced and md5-verified; check before
+assuming a trace is present on the cluster.
+
+## 5. Restore prompt for next session
 
 ```
-[CONTEXT RESTORE] The siv1 live-gate FAIL is formally SUPERSEDED: the synced-code re-gate
-(job 709163, 15/15) reproduces the local re-grading on all 5 cells to +0.03%-0.40%, so
-cell01's 65.8M -> 50.6M was a code diff, not the model. GNN is 2W/1T/2L on workload-125-225
-and 5/5 on 150-100 and 175-100. Three follow-ups landed: the MLP tail is an occupation
-collapse to ~1 (not collisions), the deployed checkpoint has a 31.7%-of-rows train/serve
-feature gap (retrain = job 709235, UNGATED), and topology_transfer_v1 is unblocked (its
-serving port is a 3-module rename that is silently wrong under mp_residual=False). Read
-HANDOVER.md §1 to gate the retrain and check the local a4_wl200200 finisher, and §2 for the
-unmerged fix/deferred-gate-fixes branch that must land once nothing is mid-run.
+[CONTEXT RESTORE] fix/deferred-gate-fixes is merged and synced to datalab, nothing in flight.
+This session's finding: GNN live quality is a training-draw lottery -- a retrain on the exact
+same cache/pipeline/seed as the deployed checkpoint is its in-distribution twin (val acc
+66.8% vs 66.3%) but loses 4/5 cells live by up to 36% of total_rtt. This confounds the
+corrected-cache (tempfix) retrain's earlier 0/15 FAIL -- cache ordering (deployed < control <
+tempfix) is suggestive but not separable from draw luck with n=1 per cache. The deployed
+checkpoint stays deployed as "the draw that won." Also landed: a4_wl200200 settles
+trace-dependence (GNN 3W/2L, MLP 5/5 with zero collapse), and topology_transfer_v1 has its
+first-ever deployable checkpoints (10 .pt + .contract.json on datalab, untested live). Read
+LINEAGES.md's "variance control answers" entry first, then HANDOVER.md §3 for priorities --
+top candidate is a multi-draw re-gate to get a recipe-level (not draw-level) verdict on the
+cache question, or minting live cells for the topo_transfer_v1 checkpoints.
 ```
