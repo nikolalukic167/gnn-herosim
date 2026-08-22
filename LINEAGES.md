@@ -1501,6 +1501,41 @@ rather than on top of it). **Not yet gated — the new checkpoint means nothing 
 the same 5-cell live gate on all three traces.** The MLP has the same mismatch and moved only
 ~1% under the fix, so a matched MLP retrain is the fair comparison and has not been run.
 
+#### `workload-200-200` — the fourth trace lands: MLP sweeps, GNN 3W/2L, and no MLP collapse (2026-08-22)
+
+The queued 800k-event trace (`workload-200-200.json`, rps=200, dur=200 s — the trace this file
+had named three times as an aspirational target) completed locally as sweep `a4_wl200200`
+(PAR=2, 15/15 results, pre-merge working tree — same fixed dims 9-11 live path as every other
+row in this retest; `fix/deferred-gate-fixes` was merged only after the sweep finished).
+Deployed checkpoint, same 5 parity-verified cells:
+
+| cell (density) | knative | mlp (vs kn) | gnn (vs kn) | occ mlp / gnn |
+|---|---:|---:|---:|---:|
+| cell01 (p=0.25) | 167,472,990 | 109,546,546 (**−34.6%**) | 130,089,834 (−22.3%) | 7.8 / 6.7 |
+| cell02 (p=0.35) | 113,833,627 | 95,576,423 (**−16.0%**) | 117,217,941 (+3.0%) | 12.5 / 9.5 |
+| cell03 (p=0.15) | 136,967,398 | 112,812,746 (**−17.6%**) | 126,429,628 (−7.7%) | 7.5 / 7.5 |
+| cell04 (p=0.50) | 107,589,923 | 94,604,668 (**−12.1%**) | 114,534,379 (+6.5%) | 12.2 / 8.8 |
+| cell05 (p=0.20) | 139,429,374 | 130,150,818 (**−6.7%**) | 135,213,788 (−3.0%) | 3.6 / 6.1 |
+
+`compare_sealed_live_holdout.py`: paired cell wins **GNN 0/5 · MLP 5/5 · Knative 0/5**; MLP
+also takes 4/5 cells on both p90 and p99 per-task tails. Three findings:
+
+1. **The trace-dependence claim is now the settled reading.** Deployed checkpoint vs Knative
+   across the four full-scale traces: 2W/1T/2L (125-225) · 5/5 W (150-100) · 5/5 W (175-100) ·
+   **3W/2L (200-200)**. "Beats Knative on some real traces and loses on others" is confirmed;
+   the losses concentrate on the two *densest* cells here (p=0.35/0.50, +3.0%/+6.5%), the
+   opposite cells from the 125-225 losses (p=0.15/0.25).
+2. **The MLP's catastrophic tail does not appear at the heaviest load.** No collapse on any
+   cell (occupations 3.6–12.5, nothing near 1; worst p99 is cell05's 2,416 s, still ~2× not
+   4–8×). This bounds the collapse subsection above: 225 s durations collapse three cells,
+   200 s durations at *higher* rps collapse none — so duration alone is not the driver either;
+   the instability needs both long durations and something this trace lacks. First trace of
+   the four where the MLP dominates both baselines outright.
+3. **The GNN has still never collapsed** (20 → 25 cell-runs), but at rps=200 its conservative
+   low-occupation placement (5.6–9.5 vs MLP's 7.5–12.5) costs it every head-to-head vs the
+   MLP — the packing that destroys the MLP on 125-225 is exactly what wins at sustained high
+   throughput when queues do drain.
+
 ### topology_transfer_v1 — unblocked, and two cost estimates corrected (2026-08-21)
 
 No new gate result. This closes the lineage's §a blocker and re-costs its §b, both by
