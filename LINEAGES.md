@@ -1577,10 +1577,31 @@ mismatch — made the live policy drastically worse while making the co-sim metr
   not what was holding the model back — correcting it helps no trace.
 
 **Decision: the deployed checkpoint stays deployed.** The tempfix checkpoint is evidence, not
-a candidate. The matched tempfix-**MLP** gates (jobs 709495-97, retrained MLP `..._tempfix.pt`
-on the same corrected cache, MLP arm only, same cells/traces) were in flight when this was
-written — prediction from the ~1% logit movement: the MLP barely moves, confirming the
-mismatch-sensitivity is GNN-specific.
+a candidate.
+
+**The matched MLP control landed the same day (jobs 709495-97, `..._tempfix.pt` MLP retrained
+on the same corrected cache, MLP arm only, same cells/traces) and confirms the prediction with
+one refinement.** On the 9 healthy cells across the three traces the tempfix MLP moves
+**−6.6% to +2.6%** vs the deployed MLP (most within ±3%) — the feature fix is inert for the
+pointwise model, consistent with its ~1% logit movement. On the collapse-implicated cells the
+fix does not fix or worsen the tail so much as **re-roll it**: 150-100 cell03 (p=0.15,
+previously healthy at 0.75× Knative) *newly* collapses (+281%, occupation 1.10) while 125-225
+cell01 improves 23% yet stays collapsed (occ 0.98); the always-collapsing cell05 gets worse on
+both 125-225 (+45%) and 175-100 (+48%). So which cell collapses is chaotic under small feature
+perturbations — reinforcing that the MLP tail is a knife-edge packing instability
+([[herosim-mlp-collapse-is-occupation-collapse]]), not a feature-quality effect. **The
+contrast stands: the GNN degrades systematically and one-directionally under the corrected
+cache (every cell, every trace); the MLP is indifferent except where it was already unstable.
+The mismatch-sensitivity is GNN-specific.**
+
+**Variance control in flight when this was written:** `...-prefixctl.pt` (job 709516) — same
+pre-fix cache, pipeline and seed as the deployed checkpoint, fresh training draw
+(`MIN_GRAPHS` overridden to 2651: the guard postdates the deployed run, which itself trained
+on 2,651 graphs; note the tempfix cache has 2,658 — the rebuild picked up 7 extra datasets, a
+second small train-set delta). Gate plan: GNN arm only, `workload-150-100` (sharpest
+contrast). If it lands near the deployed numbers → the pre-fix cache is causal and the
+accidental-regularizer reading holds. If it collapses like the tempfix model → the deployed
+checkpoint is a lucky draw and live quality of any retrain is a lottery.
 
 ### topology_transfer_v1 — unblocked, and two cost estimates corrected (2026-08-21)
 
