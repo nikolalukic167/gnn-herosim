@@ -31,7 +31,9 @@ import hashlib
 import importlib
 import json
 import os
+import pathlib
 import platform
+import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -139,6 +141,95 @@ def format_env_banner(description: Optional[Dict[str, Any]] = None) -> str:
     return (
         "[ENV] python={python_version} torch={torch} (cuda={torch_cuda}) "
         "numpy={numpy} pyg={torch_geometric} exe={executable}".format(**description)
+    )
+
+
+# Paths whose contents can change a simulated number. Deliberately not the whole repo:
+# `simulation_data/REGISTRY.json` and friends are tracked and get refreshed constantly, so
+# a repo-wide dirty flag would fire on every run and be ignored within a week.
+CODE_PATHS: Tuple[str, ...] = ("src", "scripts_cosim", "experiments", "run_experiment.py")
+
+_GIT_TIMEOUT_S = 10
+
+
+def _git(repo_root: pathlib.Path, *args: str) -> Optional[str]:
+    """Run a git command, or return None if git/the repo is unavailable."""
+    try:
+        result = subprocess.run(
+            ("git", "-C", str(repo_root)) + args,
+            capture_output=True,
+            text=True,
+            timeout=_GIT_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def describe_code_provenance(repo_root: Optional[pathlib.Path] = None) -> Dict[str, Any]:
+    """The commit *and working-tree state* of the code that produced a result.
+
+    Job 708549 measured an uncommitted feature fix instead of the model and moved
+    `total_rtt` by 23.3%, flipping a gate verdict — `models/` syncs by rsync while `src/`
+    syncs by git, so the two venues ran different code. Nothing in either result JSON could
+    reveal it, because provenance recorded env vars and contracts but never the code.
+
+    `dirty` is scoped to `CODE_PATHS`, and `diff_sha256` covers the same paths, so two
+    results that disagree can be triaged as "different commit", "same commit, different
+    working tree", or "identical code" without access to either machine.
+    """
+    if repo_root is None:
+        repo_root = pathlib.Path(__file__).resolve().parents[2]
+
+    head = _git(repo_root, "rev-parse", "HEAD")
+    if head is None:
+        # Loud, but not fatal: a run from a tarball deploy is still a legitimate run, it
+        # just cannot be compared against one from a checkout.
+        print(
+            "[CODE] WARNING: no git metadata for this checkout — this run's code version "
+            "is unrecorded and it is NOT comparable to a gate run from a git tree.",
+            flush=True,
+        )
+        return {"git_available": False, "code_paths": list(CODE_PATHS)}
+
+    status = _git(repo_root, "status", "--porcelain", "--", *CODE_PATHS) or ""
+    diff = _git(repo_root, "diff", "HEAD", "--", *CODE_PATHS) or ""
+    changed = sorted(line[3:] for line in status.splitlines() if line.strip())
+
+    provenance: Dict[str, Any] = {
+        "git_available": True,
+        "commit": head.strip(),
+        "describe": (_git(repo_root, "describe", "--dirty", "--always") or "").strip(),
+        "branch": (_git(repo_root, "rev-parse", "--abbrev-ref", "HEAD") or "").strip(),
+        "code_paths": list(CODE_PATHS),
+        "dirty": bool(changed),
+        # Hash of the tracked-file diff. Untracked files show up in `changed_files` but
+        # cannot be hashed this way; both are needed to tell two working trees apart.
+        "diff_sha256": hashlib.sha256(diff.encode("utf-8")).hexdigest(),
+        "changed_files": changed[:50],
+        "changed_file_count": len(changed),
+    }
+    if provenance["dirty"]:
+        print(
+            f"[CODE] WARNING: working tree dirty under {'/'.join(CODE_PATHS)} "
+            f"({len(changed)} file(s)) — this run is NOT comparable to a clean-tree gate. "
+            f"diff_sha256={provenance['diff_sha256'][:12]}",
+            flush=True,
+        )
+    return provenance
+
+
+def format_code_banner(provenance: Optional[Dict[str, Any]] = None) -> str:
+    """One-line human summary for run logs."""
+    if provenance is None:
+        provenance = describe_code_provenance()
+    if not provenance.get("git_available"):
+        return "[CODE] git=unavailable"
+    return (
+        f"[CODE] commit={provenance['commit'][:12]} branch={provenance['branch']} "
+        f"dirty={provenance['dirty']} diff={provenance['diff_sha256'][:12]}"
     )
 
 

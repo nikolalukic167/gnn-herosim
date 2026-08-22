@@ -21,7 +21,7 @@ log "=== contention_v2 train + live gate pipeline ==="
 log "Cache: ${CACHE}"
 log "Sweep: ${SWEEP_DIR}"
 
-n_graphs=$(pipenv run python3 -c "import pickle; print(len(pickle.load(open('${CACHE}/graphs.pkl','rb'))))")
+n_graphs=$(${HEROSIM_PY:-pipenv run python3} -c "import pickle; print(len(pickle.load(open('${CACHE}/graphs.pkl','rb'))))")
 log "Graphs in cache: ${n_graphs}"
 if [[ "${n_graphs}" -lt 500 ]]; then
   log "ERROR: cache too small (${n_graphs} graphs)" >&2
@@ -34,7 +34,7 @@ export NEAR_RTT_TRAIN_EPOCHS="${NEAR_RTT_TRAIN_EPOCHS:-100}"
 
 log "Phase 1: GNN dim14 CE-only train"
 cd src/notebooks
-if ! pipenv run python3 train_near_rtt_v2_contention_v2_dim14_ce_only.py >> "${ROOT}/${LOG}" 2>&1; then
+if ! ${HEROSIM_PY:-pipenv run python3} train_near_rtt_v2_contention_v2_dim14_ce_only.py >> "${ROOT}/${LOG}" 2>&1; then
   log "ERROR: GNN training failed"
   exit 1
 fi
@@ -52,7 +52,7 @@ fi
 log "GNN checkpoint: ${GNN_CKPT}"
 
 log "Phase 2: MLP dim22 batchcache train"
-if ! pipenv run python3 src/notebooks/train_mlp_contention_v2_dim22_batchcache.py >> "$LOG" 2>&1; then
+if ! ${HEROSIM_PY:-pipenv run python3} src/notebooks/train_mlp_contention_v2_dim22_batchcache.py >> "$LOG" 2>&1; then
   log "ERROR: MLP training failed"
   exit 1
 fi
@@ -81,7 +81,7 @@ for policy in knative mlp gnn; do
 done
 
 log "Phase 4: compare"
-pipenv run python3 scripts_cosim/important/compare_contention_v2_live_gate.py \
+${HEROSIM_PY:-pipenv run python3} scripts_cosim/important/compare_contention_v2_live_gate.py \
   --sweep-dir "$SWEEP_DIR" >> "$LOG" 2>&1
 
 log "=== pipeline complete ==="
