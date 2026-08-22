@@ -686,13 +686,15 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                 f"no network_graph_contract, so there is no way to know which graph it was "
                 f"fitted on. Retrain with a trainer that records it."
             )
-        if mp_network_entities:
+        declared_net_contract = os.environ.get(NETWORK_GRAPH_CONTRACT_ENV, "").strip()
+        if declared_net_contract:
+            require_matching_network_graph_contract(
+                trained_net_contract if mp_network_entities else NETWORK_GRAPH_CONTRACT_OFF,
+                resolve_network_graph_contract(),
+                model_label=model_path.name,
+            )
+        elif mp_network_entities:
             os.environ[NETWORK_GRAPH_CONTRACT_ENV] = trained_net_contract
-        require_matching_network_graph_contract(
-            trained_net_contract if mp_network_entities else NETWORK_GRAPH_CONTRACT_OFF,
-            resolve_network_graph_contract(),
-            model_label=model_path.name,
-        )
 
         model = TaskPlacementGNN(
             task_feature_dim=task_feature_dim,

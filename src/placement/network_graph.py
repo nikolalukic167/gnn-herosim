@@ -316,7 +316,7 @@ def build_network_graph_block(
 
     # Access latency of the node's own attachment links. A property of the node, in
     # seconds, scaled by a constant — not by anything that grows with the cluster.
-    access_latency = np.zeros(n_net_nodes, dtype=np.float64)
+    access_latency = np.full(n_net_nodes, np.inf, dtype=np.float64)
     for key, attrs in links.items():
         if is_core_link(key):
             continue
@@ -326,8 +326,9 @@ def build_network_graph_block(
             if pos is None:
                 continue
             lat = float(attrs.get("latency", 0.0))
-            if access_latency[pos] == 0.0 or lat < access_latency[pos]:
+            if lat < access_latency[pos]:
                 access_latency[pos] = lat
+    access_latency[np.isinf(access_latency)] = 0.0
 
     node_features = np.zeros((n_net_nodes, NET_NODE_FEATURE_DIM), dtype=np.float32)
     node_features[:, 0] = [
