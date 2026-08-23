@@ -142,6 +142,20 @@ the rogue venv anyway. Caught 2026-08-23 by reading `run_provenance.python_env` 
 gate whose own sbatch banner printed the correct interpreter. Both now use
 `shlex.split(os.environ.get("HEROSIM_PY") or "pipenv run python")`.
 
+**The fix was numerically inert, measured end-to-end (job 710432).** Re-running one gate cell
+(`workload-150-100`, 301,352 tasks, backbone, deployed checkpoint) under the corrected
+interpreter against the same cell produced under the rogue venv:
+
+| | torch | `total_rtt` |
+|---|---|---:|
+| rogue venv (pre-fix) | 2.12.0+cu130 | 192,382,730.2 |
+| `gnn` env (post-fix) | 2.5.1+cu121 | 192,382,730.2 |
+
+**Delta exactly +0.0000%** — bit-identical, not merely inside the 0.1–0.4% noise floor. This
+extends the earlier logits-level result (max |Δ| 0.0 over 256 decisions) to a full trace where
+a single flipped decision would have compounded over 301k tasks. **Results produced before and
+after the interpreter fix are comparable**; nothing needed re-running.
+
 The lesson generalizes past this one fix:
 
 > **`run_provenance.python_env` is the authority on which interpreter served — not the

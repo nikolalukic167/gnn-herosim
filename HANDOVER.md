@@ -1,7 +1,7 @@
 # 🚀 Session Handover (2026-08-23)
 
-**Status:** All work committed and pushed on `feat/network-contention-v1`; datalab synced and
-idle apart from one probe (job 710432, see §4). This session's headline: **the GNN's win under
+**Status:** All work committed and pushed on `feat/network-contention-v1`; datalab synced,
+no jobs in flight, clean tree both sides. This session's headline: **the GNN's win under
 network contention is regime-level and robust on every axis tested** — and the two results
 that most undermined the GNN's story (the "training-draw lottery" and the corrected-cache
 "0/15 FAIL") were **both confounded by a serving bug**, now found, measured and fixed.
@@ -96,13 +96,11 @@ the rogue venv despite the 2026-08-21 "closed" claim.
 
 ## 4. In flight / open
 
-- **Job 710432** (`interpreter_delta_probe.sbatch`) — was still RUNNING at handover. Re-runs
-  one drawgate cell under the fixed interpreter and diffs `total_rtt` against the same cell
-  produced under the rogue venv. `PARITY.md` measured the library axis at exactly 0.0 on
-  *logits* but never end-to-end on a 301k-task trace. Expected inside the 0.1–0.4% noise
-  floor; check `logs/interp-delta-710432.out`, which prints its own verdict line. Only matters
-  for comparing pre-fix (150-100 drawgate) against post-fix (175-100, bbrob) numbers — each
-  gate is internally consistent regardless.
+- ~~Job 710432 (interpreter delta probe)~~ — **done, and the answer is clean.** The same gate
+  cell (301,352 tasks) gives `total_rtt` **192,382,730.2 under both** torch 2.12.0+cu130 (rogue
+  venv) and torch 2.5.1+cu121 (`gnn` env): delta **exactly +0.0000%**, bit-identical rather than
+  merely within noise. Pre-fix and post-fix numbers are fully comparable; nothing needs
+  re-running. Recorded in `PARITY.md`. **Nothing is now in flight.**
 - **Promote `tempfix`?** Wants `workload-125-225` (where the deployed checkpoint is weakest,
   2W/1T/2L) and `workload-200-200` first. `workload-200-200` is **not on datalab** (224MB,
   local only). Reuse `tempfix_promotion_gate.sbatch` with `WORKLOAD` changed.
@@ -135,8 +133,7 @@ PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
 ## 6. Restore prompt for next session
 
 ```
-[CONTEXT RESTORE] feat/network-contention-v1 is pushed and synced to datalab; only job 710432
-(interpreter delta probe) may still be running. This session found that load_gnn_model silently
+[CONTEXT RESTORE] feat/network-contention-v1 is pushed and synced to datalab, nothing in flight. This session found that load_gnn_model silently
 defaulted an undeclared platform-feature layout to atomic21, so every deployed-checkpoint gate
 served dim22 while the prefixctl and tempfix gates served atomic21 -- worth up to 40.8% of live
 total_rtt. That confounded BOTH the "training-draw lottery" and the corrected-cache "0/15 FAIL".
