@@ -427,6 +427,9 @@ def analyze_dataset(ds_dir: Path, spread_only: bool = False) -> Optional[dict]:
     m1_regret = None
     m1_regret_rel = None
     greedy_in_sweep = greedy_rtt is not None
+    # A greedy plan that re-uses a platform is structurally absent from a
+    # unique-replicas sweep; only a collision-FREE absence indicates truncation.
+    greedy_has_collision = len(set(greedy_key)) < len(greedy_key)
     if greedy_rtt is not None:
         m1_regret = greedy_rtt - opt_rtt
         m1_regret_rel = m1_regret / opt_rtt
@@ -481,6 +484,7 @@ def analyze_dataset(ds_dir: Path, spread_only: bool = False) -> Optional[dict]:
         "n_combos": len(combos),
         "opt_rtt": opt_rtt,
         "greedy_in_sweep": greedy_in_sweep,
+        "greedy_has_collision": greedy_has_collision,
         "m1_regret_rel": m1_regret_rel,
         "m1_greedy_eq_opt": (greedy_key == tuple(opt_plan[t] for t in task_ids)),
         "m2": m2,
@@ -821,6 +825,15 @@ def main() -> int:
     ap.add_argument("--integrity-manifest", type=Path)
     ap.add_argument("--output", type=Path)
     ap.add_argument(
+        "--skip-corrupt",
+        action="store_true",
+        help=(
+            "Skip datasets whose placements.jsonl fails to parse instead of aborting the "
+            "corpus, and list them in the report as excluded. Diagnose-only alternative "
+            "to archiving them via audit_placements_jsonl_integrity.py --exclude."
+        ),
+    )
+    ap.add_argument(
         "--gate-coupled-fraction",
         type=float,
         default=None,
@@ -946,8 +959,16 @@ def main() -> int:
             raise RuntimeError(f"No retained datasets under {base}")
 
         results: list[dict] = []
+        skipped_corrupt: list[str] = []
         for dataset_dir in ds_dirs:
-            result = analyze_dataset(dataset_dir, spread_only=args.spread_plans_only)
+            try:
+                result = analyze_dataset(dataset_dir, spread_only=args.spread_plans_only)
+            except RuntimeError as exc:
+                if args.skip_corrupt and "invalid JSON" in str(exc):
+                    skipped_corrupt.append(dataset_dir.name)
+                    print(f"  SKIPPED (corrupt placements.jsonl): {dataset_dir.name}")
+                    continue
+                raise
             if result is None:
                 if args.spread_plans_only:
                     # Too few all-distinct-node plans to fit anything. A real property of
@@ -960,18 +981,27 @@ def main() -> int:
         # Under --spread-plans-only the sweep is deliberately incomplete, so the marginal
         # greedy plan may legitimately have been filtered out. Everywhere else its absence
         # means a truncated placements.jsonl and must still fail loudly.
-        if (
-            not args.spread_plans_only
-            and summary["m1_marginal_greedy"]["greedy_in_sweep_count"] != len(results)
-        ):
+        # A greedy plan containing a platform collision is structurally absent from a
+        # unique-replicas sweep (highq_safe hits this on complete 25/25 sweeps), so only
+        # a collision-free absence is evidence of truncation.
+        suspicious_absent = [
+            r["dataset_id"]
+            for r in results
+            if not r["greedy_in_sweep"] and not r.get("greedy_has_collision")
+        ]
+        if not args.spread_plans_only and suspicious_absent:
             raise RuntimeError(
-                f"{base.name}: marginal greedy combo absent from one or more "
-                "retained full sweeps"
+                f"{base.name}: collision-free marginal greedy combo absent from "
+                f"{len(suspicious_absent)} retained full sweeps "
+                f"(e.g. {suspicious_absent[:5]}) — truncated placements.jsonl"
             )
         print_summary(base.name, summary)
+        if skipped_corrupt:
+            print(f"  corrupt datasets skipped ({len(skipped_corrupt)}): {skipped_corrupt}")
         report["corpora"][base.name] = {
             "path": str(base),
             "excluded_datasets": excluded,
+            "skipped_corrupt_datasets": skipped_corrupt,
             "summary": summary,
             "datasets": results,
         }
