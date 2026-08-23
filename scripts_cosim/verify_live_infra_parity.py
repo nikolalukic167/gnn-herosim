@@ -52,6 +52,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.executesimulation import prepare_infrastructure_for_real_simulation  # noqa: E402
 from src.placement.topology_features import CLIENT_NODE_PREFIX  # noqa: E402
+from src.placement.network_fabric import link_key  # noqa: E402
 
 # Latency equality tolerance. Both sides come from the same seeded RNG and the same
 # formula, so agreement is exact in practice; this only guards float round-tripping
@@ -126,15 +127,47 @@ def _edge_set(maps: Dict[str, Dict[str, float]]) -> Dict[Tuple[str, str], float]
 def _classify_corpus_only_edges(
     corpus_only: Dict[Tuple[str, str], float],
     base_latency: float,
+    backbone: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[Tuple[str, str], float], Dict[Tuple[str, str], float]]:
-    """Split corpus-only edges into the expected repair class and everything else."""
+    """Split corpus-only edges into the expected repair class and everything else.
+
+    Without a backbone a repair edge is recognizable by its latency sitting at exactly
+    `base_latency`. Under a backbone that signature is gone — `build_core_backbone`
+    rewrites every logical edge's latency as the sum along its core route — so the same
+    genuine repair edges look "unexplained". When the backbone is available we therefore
+    check the *structural* property instead: the edge crosses tiers and its latency equals
+    the path sum over the recorded route. That is a stricter test than the base_latency
+    one, not a relaxation: an edge whose latency does not match its own route is still
+    reported.
+    """
+    routes = (backbone or {}).get("routes") or {}
+    links = (backbone or {}).get("links") or {}
+
+    def route_latency(src: str, dst: str) -> Optional[float]:
+        path = routes.get(src, {}).get(dst) or routes.get(dst, {}).get(src)
+        if not path:
+            return None
+        total = 0.0
+        for i in range(len(path) - 1):
+            attrs = links.get(link_key(path[i], path[i + 1]))
+            if attrs is None:
+                return None
+            total += float(attrs["latency"])
+        return total
+
     repair: Dict[Tuple[str, str], float] = {}
     unexplained: Dict[Tuple[str, str], float] = {}
     for edge, latency in corpus_only.items():
         src, dst = edge
         crosses_tiers = is_client(src) != is_client(dst)
         at_base = math.isclose(latency, base_latency, rel_tol=0.0, abs_tol=LATENCY_TOL)
-        if crosses_tiers and at_base:
+        on_route = False
+        if backbone:
+            expected = route_latency(src, dst)
+            on_route = expected is not None and math.isclose(
+                latency, expected, rel_tol=0.0, abs_tol=LATENCY_TOL
+            )
+        if crosses_tiers and (at_base or on_route):
             repair[edge] = latency
         else:
             unexplained[edge] = latency
@@ -205,7 +238,9 @@ def compare_topology(
     base_latency = float(
         space_config.get("network", {}).get("latency", {}).get("base_latency", 0.1)
     )
-    repair_edges, unexplained = _classify_corpus_only_edges(corpus_only, base_latency)
+    repair_edges, unexplained = _classify_corpus_only_edges(
+        corpus_only, base_latency, backbone=corpus_infra.get("link_topology")
+    )
 
     if live_only:
         sample = sorted(live_only)[:6]

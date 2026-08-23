@@ -74,6 +74,46 @@ def test_repair_signature_requires_both_tier_crossing_and_base_latency():
     }
 
 
+def test_backbone_repair_edges_are_recognized_by_their_route_sum():
+    """Under a backbone a repair edge's latency is a path sum, not base_latency, so the
+    base-latency signature alone reports genuine repair edges as unexplained (which is
+    what --allow-backbone-latency-divergence used to paper over). With the fabric passed
+    in, the structural check identifies them exactly — and still rejects an edge whose
+    latency does not match its own route."""
+    base = 0.1
+    backbone = {
+        "links": {
+            "client_node1|core0": {"latency": 0.02},
+            "core0|core1": {"latency": 0.004},
+            "core1|node2": {"latency": 0.021},
+            "core0|node3": {"latency": 0.019},
+        },
+        "routes": {
+            "client_node1": {
+                "node2": ["client_node1", "core0", "core1", "node2"],  # sum = 0.045
+                "node3": ["client_node1", "core0", "node3"],           # sum = 0.039
+            }
+        },
+    }
+    edges = {
+        ("client_node1", "node2"): 0.045,   # repair: matches its route sum
+        ("node2", "client_node1"): 0.045,   # repair: reverse direction
+        ("client_node1", "node3"): 0.077,   # NOT repair: route says 0.039
+        ("client_node1", "client_node2"): 0.045,  # NOT repair: same tier
+    }
+    repair, unexplained = _classify_corpus_only_edges(edges, base, backbone=backbone)
+    assert set(repair) == {("client_node1", "node2"), ("node2", "client_node1")}
+    assert set(unexplained) == {
+        ("client_node1", "node3"),
+        ("client_node1", "client_node2"),
+    }
+
+    # Without the fabric the same genuine repair edges are unexplained — the exact gap.
+    repair_blind, unexplained_blind = _classify_corpus_only_edges(edges, base)
+    assert not repair_blind
+    assert len(unexplained_blind) == 4
+
+
 # --- positive case ---------------------------------------------------------------
 
 

@@ -101,7 +101,8 @@ def analyse_dataset(
     network_maps = {name: dict(edges) for name, edges in infrastructure["network_maps"].items()}
 
     link_topology = build_core_backbone(
-        network_maps, nodes, {"network": {"backbone": backbone_config}}, random.Random(seed)
+        network_maps, nodes, {"network": {"backbone": backbone_config}}, random.Random(seed),
+        seed=seed,
     )
     if link_topology is None:
         raise ValueError("backbone config produced no link topology")
