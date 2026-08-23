@@ -12,6 +12,10 @@
             "total_rtt": 266332044.14606246,
             "vs_knative_pct": -32.554327311508814
           },
+          "mlptempfix": {
+            "total_rtt": 266050587.7375338,
+            "vs_knative_pct": -32.62560306379979
+          },
           "tempfix": {
             "total_rtt": 246723597.0741067,
             "vs_knative_pct": -37.51995173490506
@@ -26,6 +30,10 @@
           "mlp": {
             "total_rtt": 205340006.12598455,
             "vs_knative_pct": -32.05454516342737
+          },
+          "mlptempfix": {
+            "total_rtt": 228639979.4122272,
+            "vs_knative_pct": -24.34476024386115
           },
           "tempfix": {
             "total_rtt": 213173689.87874416,
@@ -42,6 +50,10 @@
             "total_rtt": 236467795.9455407,
             "vs_knative_pct": -24.681820404676557
           },
+          "mlptempfix": {
+            "total_rtt": 248501820.49218634,
+            "vs_knative_pct": -20.848821418770125
+          },
           "tempfix": {
             "total_rtt": 231139538.057606,
             "vs_knative_pct": -26.378942344384946
@@ -56,6 +68,10 @@
           "mlp": {
             "total_rtt": 196257365.2918921,
             "vs_knative_pct": -51.19585252703467
+          },
+          "mlptempfix": {
+            "total_rtt": 287678234.7077585,
+            "vs_knative_pct": -28.46183902164205
           },
           "tempfix": {
             "total_rtt": 225378881.9835486,
@@ -72,6 +88,10 @@
             "total_rtt": 190781648.2446086,
             "vs_knative_pct": -35.01605724720647
           },
+          "mlptempfix": {
+            "total_rtt": 668929237.6491259,
+            "vs_knative_pct": 127.85031833526496
+          },
           "tempfix": {
             "total_rtt": 198543090.51683155,
             "vs_knative_pct": -32.37235894111691
@@ -81,12 +101,14 @@
       "mean_margin_pct": {
         "deployed": -23.86637801193589,
         "mlp": -35.10052053077077,
+        "mlptempfix": 4.3138589174383695,
         "tempfix": -33.93755470538516
       },
       "n_cells": 5,
       "wins_vs_knative": {
         "deployed": 5,
         "mlp": 5,
+        "mlptempfix": 4,
         "tempfix": 5
       }
     },
@@ -101,6 +123,10 @@
           "mlp": {
             "total_rtt": 25917412.294035118,
             "vs_knative_pct": -24.1809942597333
+          },
+          "mlptempfix": {
+            "total_rtt": 25685578.725937523,
+            "vs_knative_pct": -24.859202038772395
           },
           "tempfix": {
             "total_rtt": 29053518.76390502,
@@ -117,6 +143,10 @@
             "total_rtt": 23338716.946481608,
             "vs_knative_pct": -29.72232551629269
           },
+          "mlptempfix": {
+            "total_rtt": 23404186.395975284,
+            "vs_knative_pct": -29.52518354526254
+          },
           "tempfix": {
             "total_rtt": 27529541.235794175,
             "vs_knative_pct": -17.102892070225604
@@ -131,6 +161,10 @@
           "mlp": {
             "total_rtt": 28648299.162269317,
             "vs_knative_pct": -18.721159663831948
+          },
+          "mlptempfix": {
+            "total_rtt": 28525352.24542264,
+            "vs_knative_pct": -19.069975583674278
           },
           "tempfix": {
             "total_rtt": 32102977.876808006,
@@ -147,6 +181,10 @@
             "total_rtt": 22987524.172977813,
             "vs_knative_pct": -26.110193511652533
           },
+          "mlptempfix": {
+            "total_rtt": 23586399.407301415,
+            "vs_knative_pct": -24.185202597369898
+          },
           "tempfix": {
             "total_rtt": 24671777.914061606,
             "vs_knative_pct": -20.6964228911414
@@ -162,6 +200,10 @@
             "total_rtt": 170534919.50479966,
             "vs_knative_pct": 365.5070642411604
           },
+          "mlptempfix": {
+            "total_rtt": 252193299.6613516,
+            "vs_knative_pct": 588.4089363489153
+          },
           "tempfix": {
             "total_rtt": 30704897.96400813,
             "vs_knative_pct": -16.185219129578172
@@ -171,12 +213,14 @@
       "mean_margin_pct": {
         "deployed": -9.168527102489207,
         "mlp": 53.35447825792998,
+        "mlptempfix": 98.15387451676723,
         "tempfix": -15.582187496738516
       },
       "n_cells": 5,
       "wins_vs_knative": {
         "deployed": 5,
         "mlp": 4,
+        "mlptempfix": 4,
         "tempfix": 5
       }
     }
