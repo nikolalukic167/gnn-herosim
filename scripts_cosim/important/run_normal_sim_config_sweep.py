@@ -10,6 +10,8 @@ This script:
 
 import argparse
 import json
+import os
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass
@@ -134,10 +136,10 @@ def main() -> None:
             print(line.strip())
             continue
 
-        cmd = [
-            "pipenv",
-            "run",
-            "python3",
+        # See the HEROSIM_PY note in scripts_cosim/run_simulation.py: an argv list is
+        # invisible to a grep for the shell spelling, which is how this call site kept
+        # re-spawning under pipenv after the 2026-08-21 sweep.
+        cmd = shlex.split(os.environ.get("HEROSIM_PY") or "pipenv run python3") + [
             "scripts_cosim/run_simulation.py",
             f"--{args.policy}",
             "--config",
