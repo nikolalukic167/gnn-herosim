@@ -12,11 +12,15 @@ Refuses to print a table whose arms disagree on INFERENCE_FEATURE_LAYOUT or
 warmth_physics: the first is the confound that sat underneath the 2026-08-22 lottery
 result, and a scorer that averages over it produces a number that means nothing.
 
+`mlp` is a valid arm: the pointwise verification baseline CLAUDE.md keeps a GNN honest
+against. It reads from <prefix>_<cond>_mlp/ like any other arm, only under the MLP result
+suffix.
+
 Usage:
   score_live_gate_matrix.py --prefix drawgate --conditions nobackbone,backbone \\
-      --arms deployed,prefixctl,tempfix
+      --arms deployed,prefixctl,tempfix,mlp
   score_live_gate_matrix.py --prefix bbrob \\
-      --conditions bb_core8_bw1p5,bb_core4_bw0p5 --arms deployed,tempfix
+      --conditions bb_core8_bw1p5,bb_core4_bw0p5 --arms deployed,tempfix,mlp
 """
 
 import argparse
@@ -26,9 +30,15 @@ from pathlib import Path
 
 NOISE_FLOOR_PCT = 0.4  # measured run-to-run spread; see PARITY.md
 
+# Result-file suffix per arm. Anything not listed is a GNN draw, which is the common case:
+# an arm name like `deployed` or `tempfix` names a checkpoint, not a policy. `mlp` is the
+# pointwise verification baseline and run_full_corpus_siv1_live_gate.sh writes it as
+# `<cell>_s0_mlp_dim22.json`.
+ARM_SUFFIX = {"knative": "knative", "mlp": "mlp_dim22"}
+
 
 def load(root: Path, prefix: str, cond: str, arm: str, cell: str) -> dict:
-    suffix = "knative" if arm == "knative" else "gnn"
+    suffix = ARM_SUFFIX.get(arm, "gnn")
     p = root / f"{prefix}_{cond}_{arm}" / "results" / f"{cell}_s0_{suffix}.json"
     if not p.is_file():
         raise SystemExit(f"FAIL LOUD: missing result {p}")
