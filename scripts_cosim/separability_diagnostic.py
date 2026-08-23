@@ -969,6 +969,12 @@ def main() -> int:
                     print(f"  SKIPPED (corrupt placements.jsonl): {dataset_dir.name}")
                     continue
                 raise
+            if result is None and args.skip_corrupt and not args.spread_plans_only:
+                # Missing/empty placements.jsonl (e.g. the 9 warmth_1060 datasets that
+                # never got one). Same diagnose-only skip as a corrupt file.
+                skipped_corrupt.append(dataset_dir.name)
+                print(f"  SKIPPED (missing/empty placements.jsonl): {dataset_dir.name}")
+                continue
             if result is None:
                 if args.spread_plans_only:
                     # Too few all-distinct-node plans to fit anything. A real property of
