@@ -9,8 +9,11 @@
 # swept by the live-regime separability experiment (WS3). Capture filters follow the
 # 4-candidate audit pipeline: batch >= 4 tasks, every task >= 4 candidates.
 #
-# Stride is 1 and MAX_SNAPSHOTS generous (500): qualifying batches may be rare, so we
-# capture everything and subsample stratified-by-time locally rather than re-running.
+# Stride spreads capture across the whole trace: the smoke run (job 710722_4) showed
+# stride=1 saturates the 500-snapshot cap in the early window, and the late
+# queue-buildup states are exactly the ones the separability question is about. The
+# stride is keyed on the batch's first task id, which grows monotonically over the
+# trace, so `id % stride == 0` subsamples uniformly in task-id space.
 #
 # The block -> (cells, workload, PARITY_EXTRA_ARGS) mapping is byte-matched to
 # mlp_tempfix_arm_all_gates.sbatch so the captured states come from exactly the gate
@@ -83,7 +86,9 @@ export FORCE_RERUN=1
 
 export LIVE_AUDIT_SNAPSHOT_PATH="$SNAP_PATH"
 export LIVE_AUDIT_MAX_SNAPSHOTS=500
-export LIVE_AUDIT_STRIDE=1
+# 31/37 are primes ~ (trace task count / cap), so the cap is reached near trace end
+# rather than in the first seconds.
+if [[ "$WL" == "175-100" ]]; then export LIVE_AUDIT_STRIDE=37; else export LIVE_AUDIT_STRIDE=31; fi
 export LIVE_AUDIT_MIN_BATCH_SIZE=4
 export LIVE_AUDIT_MIN_CANDIDATES=4
 export KNATIVE_BATCH_SIZE=4
