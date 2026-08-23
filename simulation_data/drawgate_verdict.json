@@ -8,6 +8,10 @@
             "vs_knative_pct": -31.802324299563743
           },
           "knative": 282095728.6797308,
+          "mlp": {
+            "total_rtt": 201004956.8064101,
+            "vs_knative_pct": -28.74583470400033
+          },
           "prefixctl": {
             "total_rtt": 213165845.12173408,
             "vs_knative_pct": -24.434926356596574
@@ -23,6 +27,10 @@
             "vs_knative_pct": -24.357697065147217
           },
           "knative": 224771368.89396608,
+          "mlp": {
+            "total_rtt": 133583056.46753114,
+            "vs_knative_pct": -40.569362937613384
+          },
           "prefixctl": {
             "total_rtt": 201961001.6200938,
             "vs_knative_pct": -10.148253038683443
@@ -38,6 +46,10 @@
             "vs_knative_pct": -26.655804217909413
           },
           "knative": 225689053.48860815,
+          "mlp": {
+            "total_rtt": 168865532.2235729,
+            "vs_knative_pct": -25.17779235930176
+          },
           "prefixctl": {
             "total_rtt": 171037549.36553124,
             "vs_knative_pct": -24.21539869935938
@@ -53,6 +65,10 @@
             "vs_knative_pct": -8.860366377306764
           },
           "knative": 286051178.1027614,
+          "mlp": {
+            "total_rtt": 169975134.3451989,
+            "vs_knative_pct": -40.57876794196009
+          },
           "prefixctl": {
             "total_rtt": 387339686.7968668,
             "vs_knative_pct": 35.40922619718013
@@ -68,6 +84,10 @@
             "vs_knative_pct": -28.16210456777995
           },
           "knative": 196827570.50547132,
+          "mlp": {
+            "total_rtt": 487017477.3326429,
+            "vs_knative_pct": 147.43356638601855
+          },
           "prefixctl": {
             "total_rtt": 157950118.41050503,
             "vs_knative_pct": -19.752035751457694
@@ -80,11 +100,14 @@
       },
       "mean_margin_pct": {
         "deployed": -23.967659305541417,
+        "mlp": 2.472361688628599,
         "prefixctl": -8.628277529783393,
         "tempfix": -34.12891701191633
       },
+      "n_cells": 5,
       "wins_vs_knative": {
         "deployed": 5,
+        "mlp": 4,
         "prefixctl": 4,
         "tempfix": 5
       }
@@ -97,6 +120,10 @@
             "vs_knative_pct": -1.247514515910075
           },
           "knative": 24471537.169834714,
+          "mlp": {
+            "total_rtt": 22204301.36226622,
+            "vs_knative_pct": -9.264787053766462
+          },
           "prefixctl": {
             "total_rtt": 25338264.49689053,
             "vs_knative_pct": 3.5417772126068274
@@ -112,6 +139,10 @@
             "vs_knative_pct": -12.959579636318503
           },
           "knative": 24300898.29606715,
+          "mlp": {
+            "total_rtt": 16637375.195876965,
+            "vs_knative_pct": -31.535966312119605
+          },
           "prefixctl": {
             "total_rtt": 23769864.218968377,
             "vs_knative_pct": -2.1852446384038173
@@ -127,6 +158,10 @@
             "vs_knative_pct": -14.655824832853284
           },
           "knative": 27267201.58773162,
+          "mlp": {
+            "total_rtt": 20592297.503038414,
+            "vs_knative_pct": -24.479608085988758
+          },
           "prefixctl": {
             "total_rtt": 24952535.15345427,
             "vs_knative_pct": -8.48883016773819
@@ -142,6 +177,10 @@
             "vs_knative_pct": -5.3752736317201695
           },
           "knative": 20426552.81720019,
+          "mlp": {
+            "total_rtt": 16520825.54366054,
+            "vs_knative_pct": -19.12083408538141
+          },
           "prefixctl": {
             "total_rtt": 25439171.972859874,
             "vs_knative_pct": 24.539721413193146
@@ -157,6 +196,10 @@
             "vs_knative_pct": -12.981546746162609
           },
           "knative": 26455031.136788435,
+          "mlp": {
+            "total_rtt": 161323506.19022268,
+            "vs_knative_pct": 509.8027454818823
+          },
           "prefixctl": {
             "total_rtt": 24867227.80201629,
             "vs_knative_pct": -6.0018955432796295
@@ -169,11 +212,14 @@
       },
       "mean_margin_pct": {
         "deployed": -9.443947872592927,
+        "mlp": 85.08030998892522,
         "prefixctl": 2.2811056552756677,
         "tempfix": -13.97632789051861
       },
+      "n_cells": 5,
       "wins_vs_knative": {
         "deployed": 5,
+        "mlp": 4,
         "prefixctl": 3,
         "tempfix": 5
       }
@@ -181,5 +227,6 @@
   },
   "inference_feature_layout": "dim22",
   "noise_floor_pct": 0.4,
+  "prefix": "drawgate",
   "warmth_physics": "node_disk_v2"
 }

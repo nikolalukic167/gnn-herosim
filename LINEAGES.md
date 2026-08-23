@@ -2595,7 +2595,52 @@ no-backbone); 2 traces × (backbone, no-backbone); 3 backbone configurations —
 beats Knative on ≥4/5 cells under binding bandwidth, and every 5/5 except the weak
 `prefixctl` draw. The remaining scope limits are honest and named: one topology family
 (20c/20s sparse), and `workload-125-225` / `workload-200-200` not yet run under the
-corrected layout.
+corrected layout. **The MLP baseline was added to all three gates on 2026-08-23 and changes
+how this should be read — see the subsection immediately below.**
+
+#### ⚠ The MLP baseline says the GNN's edge is RELIABILITY, not mean latency (2026-08-23)
+
+Every gate above compared GNN draws against Knative only, which cannot distinguish "the graph
+model wins here" from "any learned model wins here". The pointwise MLP
+(`batch_edge_mlp_full_corpus_siv1_dim22_batchcache.pt`) was run as a fourth arm on all 30
+cells of all three gates — same cells, same traces, same `dim22` layout, same
+`node_disk_v2` physics (`datalab/mlp_arm_all_gates.sbatch`, jobs 710450/710451). The GNN and
+Knative numbers did not move: the re-score is a pure addition to the three verdict JSONs.
+
+Mean margin vs Knative · wins (a win is `< −0.4%`, the noise floor):
+
+| gate / condition | deployed | tempfix | **mlp** |
+|---|---|---|---|
+| drawgate, no backbone | −9.4% · 5/5 | −14.0% · 5/5 | **+85.1% · 4/5** |
+| drawgate, backbone | −24.0% · 5/5 | −34.1% · 5/5 | **+2.5% · 4/5** |
+| promo175, no backbone | −9.2% · 5/5 | −15.6% · 5/5 | **+53.4% · 4/5** |
+| promo175, backbone | −23.9% · 5/5 | −33.9% · 5/5 | **−35.1% · 5/5** |
+| bbrob `n_core=8, bw=1.5` | −22.4% · 5/5 | −30.8% · 5/5 | **+38.5% · 3/5** |
+| bbrob `n_core=4, bw=0.5` | −24.4% · 5/5 | −34.4% · 5/5 | **+11.3% · 3/5** |
+
+**The MLP's mean margin is positive — worse than Knative — in 5 of 6 conditions, while every
+GNN arm is negative in all 6.** But the mechanism is entirely a tail, and the per-cell record
+is uncomfortable:
+
+* **`tempfix` beats the MLP on only 17 of 30 cells; `deployed` on 13 of 30.** On the 23 cells
+  where the MLP does not collapse it usually beats *both* GNN arms, often by 10pp or more
+  (`promo175`/nobackbone/cell04: MLP −26.1% vs `tempfix` −20.7% vs `deployed` −10.7%).
+* **7 of 30 cells collapse catastrophically** — `cell05` in five conditions (+509.8%, +365.5%,
+  +195.4%, +147.4%, +119.1%) and `cell03` under both bbrob configs (+79.0%, +31.4%). One such
+  cell is enough to swing a 5-cell mean by 100pp.
+* The collapse is the `averageOccupation → ~1` packing failure recorded in
+  `memory/herosim-mlp-collapse-is-occupation-collapse.md`, reproduced here on cells the MLP
+  has never been gated on. It is a known failure mode, not a new one.
+
+**So the defensible claim is narrower than "the GNN beats the pointwise baseline".** It is:
+*the GNN is the only arm that beats Knative on every cell of every condition tested; the MLP
+achieves a better typical cell and loses the regime on a fifth of them.* For a scheduler that
+is a real advantage and it is exactly the advantage a graph-aware model should have — but a
+paper claim of the form "GNN > MLP on latency" is **not** supported by these 30 cells and
+should not be written. Two open questions this raises, neither answered here: whether the
+collapse cells share a structural property the GNN exploits and the MLP cannot see, and
+whether an MLP trained on the corrected cache (`..._tempfix`, on datalab since 2026-08-22,
+deliberately **not** run as a second arm here) collapses on the same cells.
 
 ### mp_parity — outcomes (2026-08-17)
 
