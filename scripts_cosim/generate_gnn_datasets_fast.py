@@ -1118,7 +1118,20 @@ def generate_single_dataset(
             # No results - check if this was an infeasible scenario (placements.jsonl empty or missing)
             duration = time.time() - start_time
             if placements_file.exists() and placements_file.stat().st_size == 0:
-                # Empty placements file = infeasible scenario, skip gracefully
+                # Empty placements file = skipped scenario. The engine records WHY in
+                # skip_reason.json (infeasible_no_candidates vs too_many_combinations);
+                # keep that distinction in the log and in the dataset dir.
+                skip_reason_src = results_dir / "skip_reason.json"
+                if skip_reason_src.exists():
+                    try:
+                        reason = json.loads(skip_reason_src.read_text()).get("reason", "unknown")
+                    except (json.JSONDecodeError, OSError):
+                        reason = "unreadable"
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(skip_reason_src, output_dir / "skip_reason.json")
+                else:
+                    reason = "unknown (pre-skip_reason engine)"
+                log(f"  SKIP REASON: {reason}", quiet, force=True)
                 shutil.rmtree(results_dir, ignore_errors=True)
                 return 'skipped', float('inf'), duration
             else:

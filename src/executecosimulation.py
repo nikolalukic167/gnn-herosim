@@ -77,6 +77,11 @@ from src.sample_loader import load_primary_sample_and_mapping
 QUIET_MODE = False
 
 
+# Why the last combination-generation call produced no placements (None = it didn't).
+# See generate_brute_force_placement_combinations.
+_LAST_SKIP_REASON: Optional[Dict[str, Any]] = None
+
+
 def rtt_from_stats(stats: Optional[Dict[str, Any]]) -> float:
     """
     Total RTT for scoring / brute-force comparison.
@@ -1194,7 +1199,12 @@ def generate_brute_force_placement_combinations(
     logger = logging.getLogger('simulation')
     logger.info(f"=== Generating Brute Force Placement Combinations (ALL combinations) ===")
     _log("\n=== Generating Brute Force Placement Combinations (ALL combinations) ===")
-    
+
+    # Cleared here, set by whichever bail-out empties the result; read by the caller so
+    # "no combinations" is recorded with its cause instead of a generic "infeasible".
+    global _LAST_SKIP_REASON
+    _LAST_SKIP_REASON = None
+
     # Determine which replica source to use
     det_placements = infrastructure_config.get('deterministic_replica_placements', {})
     
@@ -1532,6 +1542,10 @@ def generate_brute_force_placement_combinations(
                 })
                 task_id += 1
             else:
+                _LAST_SKIP_REASON = {
+                    "reason": "infeasible_no_candidates",
+                    "task_type": task_type_name,
+                }
                 print(f"❌ Abort: No feasible platforms for workload task index {task_id} ({task_type_name}). Skipping this sample.")
                 return []
     
@@ -1596,6 +1610,13 @@ def generate_brute_force_placement_combinations(
         )
     
     if not combinations:
+        # The zero-candidate infeasible case returned earlier, so empty here can only be
+        # the over-limit skip. Record which, so the census can tell them apart — both
+        # used to surface as a generic "SKIPPED (infeasible)".
+        _LAST_SKIP_REASON = {
+            "reason": "too_many_combinations",
+            "skip_threshold": skip_threshold,
+        }
         logger.warning("No placement combinations generated (dataset skipped due to size)")
         print("⚠️  Dataset skipped: too many placement combinations")
     
@@ -2240,7 +2261,13 @@ def execute_brute_force_optimized(
         # Create empty placements.jsonl to indicate infeasible scenario
         placements_file = output_dir / "placements.jsonl"
         placements_file.touch()
-        _log("  No valid placement combinations - scenario is infeasible")
+        # Record WHY: an over-limit skip and a zero-candidate infeasibility used to be
+        # indistinguishable downstream, which made a MAX_SKIP sampling-bias census
+        # impossible after the fact.
+        reason = _LAST_SKIP_REASON or {"reason": "unknown"}
+        with open(output_dir / "skip_reason.json", "w") as f:
+            json.dump(reason, f)
+        _log(f"  No valid placement combinations - skipped ({reason.get('reason')})")
         return []  # Return empty list instead of raising exception
     
     # Phase 3: Execute simulations in parallel with worker initializer
