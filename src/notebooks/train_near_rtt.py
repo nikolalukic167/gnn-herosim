@@ -195,6 +195,13 @@ print(f"Near RTT config: {NEAR_CFG}")
 _feature_dim: Optional[int] = None
 _queue_feature_contract = DEFAULT_QUEUE_FEATURE_CONTRACT
 _corpus_provenance: Optional[Dict[str, Any]] = None
+# The platform-feature layout is a property of the CACHE's feature construction, not of
+# whatever the training shell happened to export. Reading it from the environment (as this
+# script did until 2026-08-23) writes `null` into the sidecar whenever an sbatch forgets to
+# export it — which is exactly how the tempfix and prefixctl checkpoints came to declare no
+# layout and then serve as `atomic21` while the deployed checkpoint served `dim22`, a
+# difference worth up to 40.8% of live total_rtt. The cache already records the answer.
+_inference_feature_layout: Optional[str] = None
 _required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").strip()
 _metadata_path = CACHE_CTX.cache_dir / "metadata.json"
 if _metadata_path.exists():
@@ -213,9 +220,21 @@ if _metadata_path.exists():
     _feature_dim = _cache_meta.get("feature_dim")
     if _required_cache_version == ATOMIC_CACHE_VERSION and _feature_dim not in (None, 21):
         raise ValueError(f"Expected feature_dim=21 in cache metadata, got {_feature_dim!r}")
+    _cache_layout = (_cache_meta.get("inference_feature_layout") or "").strip().lower()
+    _env_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+    if _cache_layout and _env_layout and _cache_layout != _env_layout:
+        raise ValueError(
+            f"Cache {CACHE_CTX.cache_dir} was built with inference_feature_layout="
+            f"{_cache_layout!r} but this run exports INFERENCE_FEATURE_LAYOUT="
+            f"{_env_layout!r}. The layouts assign different meanings to the same platform "
+            "columns; training against one and recording the other produces a checkpoint "
+            "that serves wrong numbers with no error."
+        )
+    _inference_feature_layout = _cache_layout or _env_layout or None
     print(
         f"Cache metadata: version={_cache_version}, feature_dim={_feature_dim}, "
-        f"queue_feature_contract={_queue_feature_contract}"
+        f"queue_feature_contract={_queue_feature_contract}, "
+        f"inference_feature_layout={_inference_feature_layout}"
     )
     # Which infrastructure the corpus spans, for the checkpoint sidecar. Derived from the
     # cache's own dataset list so it cannot drift from the data it describes.
@@ -1176,10 +1195,8 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "topology_feature_contract": resolve_topology_feature_contract(),
                 # Weight shapes pin the platform feature *count*, not which layout assigns
                 # meaning to those columns.
-                "inference_feature_layout": os.environ.get(
-                    "INFERENCE_FEATURE_LAYOUT", ""
-                ).strip().lower()
-                or None,
+                # From the CACHE, not the environment — see the note at _inference_feature_layout.
+                "inference_feature_layout": _inference_feature_layout,
                 # Which infrastructure this was actually fitted on, so a live run can say
                 # whether it is in-distribution instead of guessing.
                 "corpus": _corpus_provenance,
