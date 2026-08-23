@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -44,16 +45,23 @@ SCALARS = [
     "nodeCacheHitsProportion", "taskCacheHitsProportion", "coldStartProportion",
 ]
 
-PREFIX_BYTES = 262144  # 256KB: stats has been observed to close well inside 64KB
+PREFIX_BYTES = 262144  # 256KB; every field read here lands in the first ~10KB
+
+# `stats` cannot be brace-matched: the ~80MB of per-task records are nested INSIDE it
+# (`stats.tasks` opens at byte ~2400 and the object closes at ~79.87MB). So the scalars are
+# pulled out by name from a bounded prefix instead, and the two response-time curves by
+# bracket-matching just their own arrays. `run_provenance` sits before `stats` and is small,
+# so that one really can be brace-matched.
+SCALAR_RE = r'"{}"\s*:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)'
 
 
-def extract_object(text: str, key: str) -> dict | None:
-    """Brace-match the JSON object stored under `"<key>":` inside a prefix of a document."""
+def extract_object(text: str, key: str, open_c: str = "{", close_c: str = "}"):
+    """Bracket-match the JSON value stored under `"<key>":` inside a prefix of a document."""
     marker = f'"{key}"'
     i = text.find(marker)
     if i < 0:
         return None
-    i = text.find("{", i + len(marker))
+    i = text.find(open_c, i + len(marker))
     if i < 0:
         return None
     depth, j, in_str, esc = 0, i, False, False
@@ -68,9 +76,9 @@ def extract_object(text: str, key: str) -> dict | None:
                 in_str = False
         elif c == '"':
             in_str = True
-        elif c == "{":
+        elif c == open_c:
             depth += 1
-        elif c == "}":
+        elif c == close_c:
             depth -= 1
             if depth == 0:
                 return json.loads(text[i:j + 1])
@@ -81,24 +89,29 @@ def extract_object(text: str, key: str) -> dict | None:
 def read_result(path: Path) -> dict:
     with path.open("r", encoding="utf-8", errors="replace") as fh:
         head = fh.read(PREFIX_BYTES)
-    stats = extract_object(head, "stats")
-    if stats is None:
-        raise SystemExit(
-            f"FAIL LOUD: no complete `stats` object in the first {PREFIX_BYTES}B of {path}. "
-            "Raise PREFIX_BYTES rather than silently reporting a partial record."
-        )
-    prov = extract_object(head, "run_provenance") or {}
-    total_rtt = None
-    for line in head.splitlines():
-        if '"total_rtt"' in line:
-            total_rtt = json.loads("{" + line.rstrip(",") + "}")["total_rtt"]
-            break
-    if not total_rtt:
-        raise SystemExit(f"FAIL LOUD: {path} has no usable total_rtt")
+    s = head.find('"stats"')
+    if s < 0:
+        raise SystemExit(f"FAIL LOUD: no `stats` key in the first {PREFIX_BYTES}B of {path}")
+    tail = head[s:]
+    prov = extract_object(head[:s], "run_provenance") or {}
 
-    out = {k: stats.get(k) for k in SCALARS}
+    m = re.search(SCALAR_RE.format("total_rtt"), head[:s])
+    if not m or not float(m.group(1)):
+        raise SystemExit(f"FAIL LOUD: {path} has no usable total_rtt")
+    total_rtt = float(m.group(1))
+
+    out = {}
+    for k in SCALARS:
+        m = re.search(SCALAR_RE.format(k), tail)
+        if m is None:
+            raise SystemExit(
+                f"FAIL LOUD: {path} has no `{k}` in the first {PREFIX_BYTES}B after `stats`. "
+                "Raise PREFIX_BYTES rather than silently reporting a partial record."
+            )
+        out[k] = float(m.group(1))
     out["total_rtt"] = total_rtt
-    out["taskResponseTimeDistribution"] = stats.get("taskResponseTimeDistribution")
+    out["taskResponseTimeDistribution"] = extract_object(
+        tail, "taskResponseTimeDistribution", "[", "]")
     env = prov.get("env", {}) or {}
     out["provenance"] = {
         "INFERENCE_FEATURE_LAYOUT": env.get("INFERENCE_FEATURE_LAYOUT"),
