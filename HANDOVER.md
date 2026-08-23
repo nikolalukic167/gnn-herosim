@@ -1,119 +1,148 @@
-# 🚀 Session Handover (2026-08-23)
+# 🚀 Session Handover (2026-08-23, later session)
 
-**Status:** All work committed and pushed on `feat/network-contention-v1`; datalab synced,
-no jobs in flight, clean tree both sides. This session's headline: **the GNN's win under
-network contention is regime-level and robust on every axis tested** — and the two results
-that most undermined the GNN's story (the "training-draw lottery" and the corrected-cache
-"0/15 FAIL") were **both confounded by a serving bug**, now found, measured and fixed.
+**Status:** All work committed and pushed on `feat/network-contention-v1` (`6129e9e`); datalab
+synced at the same commit, clean tree both sides, **nothing in flight**. This session added the
+**MLP verification baseline** to all three network-contention gates — and the result narrows
+the claim the previous session's headline supported.
 
-> Read first: `LINEAGES.md` → search **"The backbone win is REGIME-LEVEL"**
-> (`link_contention_v1`, 2026-08-23). Then the two superseding notes it points back to.
+> Read first: `LINEAGES.md` → search **"The MLP baseline says the GNN's edge is RELIABILITY"**
+> (`link_contention_v1`, 2026-08-23). It sits directly under the "backbone win is REGIME-LEVEL"
+> subsection, which it qualifies rather than overturns.
 
 ## 0. The one-paragraph story
 
-The plan was to harden the recorded backbone win (deployed GNN, 5/5 vs Knative at −24.0%)
-against training-draw variation, because the 2026-08-22 variance control said a single
-checkpoint's verdict is a claim about one draw. Setting that gate up surfaced a **serving
-confound** first: `load_gnn_model` silently defaulted an undeclared platform-feature layout to
-`atomic21`, and the deployed checkpoint declares `dim22` in its sidecar while `prefixctl` and
-`tempfix` declare none. So **every deployed-checkpoint gate served `dim22` and both
-alternate-draw gates served `atomic21`** — worth **up to 40.8% of live `total_rtt`**, 102× the
-noise floor, with `dim22` uniformly better. Re-running everything at a fixed layout: all three
-draws win ≥4/5 vs Knative under a backbone, the corrected-cache checkpoint (`tempfix`) turns
-out to be the **best artifact on disk** rather than a failure, and the lottery shrinks to a
-real-but-modest draw effect. Extending to a second trace and two more backbone configs
-reproduced it all to within ~2pp. Along the way: the backbone rng coupling was fixed at the
-root, and a **53rd pipenv call site** was found that meant every datalab gate ever had run in
-the rogue venv despite the 2026-08-21 "closed" claim.
+The three gates that establish the network-contention win (`drawgate`, `promo175`, `bbrob`)
+compared GNN draws against **Knative only**, which cannot separate *"the graph model wins"*
+from *"any learned model wins here"*. The MLP was run as a fourth arm on all 30 cells. On the
+summary line the GNN looks dominant — **the MLP's mean margin vs Knative is positive (worse
+than Knative) in 5 of 6 conditions, while every GNN arm is negative in all 6**. But that is
+driven entirely by a tail: **7 of 30 cells collapse** (up to +509.8%), and on the other 23 the
+MLP usually beats *both* GNN arms. `tempfix` wins the head-to-head on only **17/30** cells,
+`deployed` on **13/30**. The supported claim is therefore *"the GNN is the only arm that beats
+Knative on every cell of every condition tested"* — a **reliability** argument — and **not**
+"GNN > MLP on latency", which these 30 cells actively contradict.
 
-## 1. What is now established (safe to build on)
+## 1. Next session: exactly two tasks
 
-**The GNN win, at a fixed `dim22` layout, vs Knative, `node_disk_v2`:**
+### Task A — run the `tempfix` MLP as a second MLP arm
 
-| axis varied | result |
-|---|---|
-| 3 training draws (deployed, prefixctl, tempfix) × backbone | **all ≥4/5**; 5/5 for two of three |
-| 2 traces (150-100, 175-100) × {backbone, no-backbone} | **all 5/5** for deployed and tempfix |
-| 3 backbone configs (`n_core` 4/8, `bw` 1.5/0.5) | **30/30 cells**, mean margins within 2pp |
+The MLP arm above used `batch_edge_mlp_full_corpus_siv1_dim22_batchcache.pt` (the standard siv1
+baseline). A **corrected-cache MLP exists and was deliberately not run**:
+`models/tabular/batch_edge_mlp_full_corpus_siv1_dim22_batchcache_tempfix.pt` (trained
+2026-08-22, **datalab-only** — not on this machine; `models/` is gitignored, so rsync it and
+md5 both sides if you want it locally).
 
-- **Binding bandwidth roughly doubles the GNN's edge.** Every draw improves markedly when the
-  backbone is added: deployed −9.4→−24.0%, prefixctl +2.3→−8.6%, tempfix −14.0→−34.1%.
-- **`tempfix` is the promotion candidate, not a failure.** 5/5 on both traces in both
-  conditions, beating the deployed checkpoint on mean margin in all four, losing on only 2 of
-  20 individual cells. Its 2026-08-22 "0/15 FAIL" was the layout, not the cache — **the
-  corrected cache is better**, which reverses the "mismatch was an accidental regularizer"
-  reading entirely.
-- **The lottery is real but much smaller than recorded.** `prefixctl` is genuinely the weak
-  draw (cell04: +24.5% no-backbone, +35.4% backbone) and that survives the layout fix. The
-  qualitative rule stands — a single-checkpoint gate is a claim about one draw — but the
-  2026-08-22 magnitudes were draw **plus** layout.
-- **Venue/code is inert, confirmed again.** The deployed arm re-run on datalab at a clean
-  committed tree reproduces its 2026-08-21 local numbers to ≤0.2pp on all five cells.
+The question it answers: **does the corrected cache fix the collapse, or does the collapse
+survive retraining?** If `tempfix`-MLP collapses on the same cells, the failure is the
+pointwise architecture and the reliability claim hardens into an architectural one. If it does
+not, the collapse was a training-data artifact and the GNN's whole reliability advantage over
+the MLP needs restating.
 
-## 2. Bugs found and fixed this session (all with tests)
+Mechanically this is small — the infrastructure landed this session:
 
-1. **Inference-layout guess** (`load_gnn_model`) — `task_dim=3/platform_dim=14` is valid under
-   both `atomic21` and `dim22`, which give the same columns different meanings, so nothing
-   raised. Now fails loud when neither the sidecar nor the env declares one.
-   `tests/test_inference_layout_contract.py`. **GNN-specific** — `mlp_scheduler` reads its own
-   checkpoint, so all MLP results are unaffected.
-2. **The trainer recorded the layout from the shell** (`train_near_rtt.py`), defaulting to
-   `null` whenever an sbatch forgot to export it — the origin of (1). Now taken from the
-   cache's `metadata.json`, which already records it, with a hard error on disagreement. Both
-   ends of the loop are now closed.
-3. **Backbone rng coupling, fixed at the root** — `network.backbone.rng_stream`.
-   `independent_v1` derives jitter from the seed alone; `legacy_v0` stays the default in
-   `build_core_backbone` so every existing corpus still regenerates byte-identically (that
-   bit-reproducibility was the stated reason for deferring this on 2026-08-21). New corpora
-   default to `independent_v1` via `generate_gnn_datasets_fast.py`.
-4. **Parity classifier couldn't see backbone repair edges** — under a backbone a repair edge's
-   latency is a route sum, not `base_latency`, so real repair edges were reported
-   "unexplained" and waived. Now checked against each edge's own recorded route (stricter, not
-   a relaxation). Parity now reports `repair=34/174` where it used to say `0/174`.
-5. **The 53rd pipenv call site.** `run_simulation.py` and
-   `important/run_normal_sim_config_sweep.py` built `["pipenv","run","python",...]` as argv
-   **lists**, invisible to the 2026-08-21 grep sweep over the shell spelling. Since
-   `run_simulation.py` is what launches the simulator, the shell `HEROSIM_PY` guard pinned only
-   the wrapper: **every datalab gate through it ran in the rogue venv** (torch 2.12.0+cu130)
-   while its sbatch banner said otherwise. Job 710366 is the first datalab gate whose result
-   JSON shows the declared `gnn` env. `PARITY.md` and `CLAUDE.md` corrected — both asserted
-   this was closed.
-6. Smaller: fail-loud hardening across 6 gate/validation scripts; a decode-stats probe that
-   could discard a valid placement; `network_graph.py` treating a genuine 0.0-latency access
-   link as unset (verified to move no served logits).
+- `scripts_cosim/datalab/mlp_arm_all_gates.sbatch` is the template. Add a second checkpoint
+  dimension, or copy it with `MLP_MODEL` and the `_mlp` sweep-dir suffix changed (e.g.
+  `${PREFIX}_${COND}_mlptempfix`). **Keep the block→(cells, workload, `PARITY_EXTRA_ARGS`)
+  mapping exactly as it is** — it is matched per-gate to the Knative arm each run is scored
+  against, and the bbrob blocks must keep `PARITY_EXTRA_ARGS=""`.
+- `score_live_gate_matrix.py` needs **one line**: add the new arm name to `ARM_SUFFIX` pointing
+  at whatever result suffix the runner writes (`mlp` → `mlp_dim22` today; the runner names the
+  file from the policy, not the checkpoint, so **two MLP arms cannot share one sweep dir** —
+  give the second arm its own `SWEEP_DIR`, which the suffix above already does).
+- Then re-score all three gates with the extra arm and rewrite the verdict JSONs.
+- 30 tasks, `CPU-amd`, ~16h wall is ample (this session's 30 finished well inside it).
 
-## 3. Reproducibility / provenance state
+**Verify the same three things this session did:** result `total_rtt` non-zero,
+`run_provenance.env.INFERENCE_FEATURE_LAYOUT == "dim22"` on every arm (the scorer fails loud
+otherwise), and `run_provenance.code.dirty == false` at the same commit as local.
 
-- Working tree clean, everything pushed; datalab at the same commit with a clean tree.
-- `topology_transfer_v1`'s 10 checkpoints + sidecars rsynced local, **md5-verified 20/20**.
-  Its 5 eval JSONs and the two previously-untracked sbatch are now in git.
-- New backbone cells are **regenerable, not committed** — `simulation_data/**` is gitignored,
-  and `important/make_backbone_gate_cells.py` reproduces them deterministically from a seed.
-- **Read `run_provenance.python_env` from the result JSON** to know which interpreter served.
-  An sbatch banner describes the process that printed it — that is how bug (5) hid.
-- Gate results carry `run_provenance.code` (commit / dirty / diff hash), so cross-venue
-  disagreements are a lookup.
+### Task B — do the collapse cells share a structure the GNN sees and the MLP cannot?
 
-## 4. In flight / open
+**Start from this table, not from scratch.** `averageOccupation` from each result's `stats`,
+per cell and arm (`gnn` = `tempfix`):
 
-- ~~Job 710432 (interpreter delta probe)~~ — **done, and the answer is clean.** The same gate
-  cell (301,352 tasks) gives `total_rtt` **192,382,730.2 under both** torch 2.12.0+cu130 (rogue
-  venv) and torch 2.5.1+cu121 (`gnn` env): delta **exactly +0.0000%**, bit-identical rather than
-  merely within noise. Pre-fix and post-fix numbers are fully comparable; nothing needs
-  re-running. Recorded in `PARITY.md`. **Nothing is now in flight.**
-- **Promote `tempfix`?** Wants `workload-125-225` (where the deployed checkpoint is weakest,
-  2W/1T/2L) and `workload-200-200` first. `workload-200-200` is **not on datalab** (224MB,
-  local only). Reuse `tempfix_promotion_gate.sbatch` with `WORKLOAD` changed.
+| gate / condition | cell | mlp | gnn | knative | mlp vs Knative |
+|---|---|---:|---:|---:|---:|
+| drawgate / nobackbone | cell05_p20 | **1.02** | 5.13 | 8.71 | **+509.8%** |
+| drawgate / backbone | cell05_p20 | **0.44** | 2.00 | 1.90 | **+147.4%** |
+| promo175 / nobackbone | cell05_p20 | **0.78** | 6.53 | 8.60 | **+365.5%** |
+| promo175 / backbone | cell05_p20 | 1.63 | 1.95 | 1.91 | −35.0% (healthy!) |
+| bbrob / core8_bw1.5 | cell03_p15 | **0.30** | 1.61 | 1.45 | **+79.0%** |
+| bbrob / core8_bw1.5 | cell05_p20 | **0.36** | 1.28 | 1.88 | **+195.4%** |
+| bbrob / core4_bw0.5 | cell03_p15 | **0.15** | 0.53 | 0.46 | **+31.4%** |
+| bbrob / core4_bw0.5 | cell05_p20 | **0.17** | 0.39 | 0.53 | **+119.1%** |
+
+Three findings already in hand, each of which saves a wrong start:
+
+1. **The collapse is NOT a pure property of the topology — the same cell flips on trace
+   alone.** `cell05` under the *same* `a1_backbone_bw1p5` backbone collapses on
+   `workload-150-100` (+147.4%, occ 0.44) and is perfectly healthy on `workload-175-100`
+   (−35.0%, occ 1.63). Any hypothesis of the form "cell05's graph has property P" must
+   therefore explain a trace interaction too. **Frame the question as structure × load, not
+   structure.**
+2. **Sparsity is not monotone.** `cell03` is the *sparsest* cell (p=0.15) and collapses only
+   under the two bbrob configs; `cell05` (p=0.20) collapses in 5 of 6. `cell01` (p=0.25),
+   `cell02` (p=0.35) and `cell04` (p=0.50) never collapse. So "sparser ⇒ collapse" is too
+   coarse — something distinguishes p=0.20 from p=0.15 here.
+3. **The absolute `averageOccupation ≈ 1` detector from
+   `memory/herosim-mlp-collapse-is-occupation-collapse.md` DOES NOT transfer to backbone
+   runs** — a binding backbone compresses every arm's occupation to ~0.15–2.0, so Knative
+   itself sits near 1. Use the **ratio to the Knative arm on the same cell**: every collapse
+   here is ≤0.33× Knative, every healthy cell ≥0.41×. Worth promoting into the memory file
+   once confirmed on more cells.
+
+Suggested cheap next probes, in order (all read existing artifacts — no new sims):
+
+- `*.decode_stats.json` sits beside every result. Compare `chosen_queue_vs_min` p95/median for
+  MLP vs GNN on collapse vs healthy cells; the memory file says the tail is a *minority* of
+  decisions that compounds, and this is where that shows.
+- Diff the cell topologies directly (`cell_infrastructure/<cell>/infrastructure.json` under
+  `a1_backbone_bw1p5`, `bb_core8_bw1p5`, `bb_core4_bw0p5`,
+  `full_corpus_siv1_live_gate_20260820`): degree distribution, replica-to-node concentration,
+  and how many platforms are reachable at low latency from the busiest ingress. The mechanism
+  in the memory file is a packed platform that cannot drain — look for cells with few
+  low-latency alternatives to the platform the MLP prefers.
+- `src/placement/network_fabric.py:133` `link_wait_total` and `linkWaitTime` are computed and
+  **never serialized** (LINEAGES gate-tools row, 2026-08-21). If the collapse is link-side
+  rather than platform-side, surfacing that field is the direct measurement — a reporting-only
+  change, no behaviour change.
+
+**Do not** treat this as a lineage that needs a new corpus or new training. It is an analysis
+of artifacts already on disk; only Task A needs the cluster.
+
+## 2. What this session changed (all committed)
+
+- `scripts_cosim/important/score_live_gate_matrix.py` — `ARM_SUFFIX` lookup, so `mlp` is a
+  valid arm. Everything else in the scorer was already arm-generic.
+- `scripts_cosim/datalab/mlp_arm_all_gates.sbatch` — **new**, 30 tasks = 3 gates × 2 conditions
+  × 5 cells, one checkpoint. Jobs 710450 (smoke, array 5) + 710451 (array 0-4,6-29), all green.
+- The three verdict JSONs gained an `mlp` column: **135 insertions, 0 deletions** — no GNN or
+  Knative number moved, which is the integrity check that the re-score reused the identical
+  result files.
+- `LINEAGES.md` — new subsection stating the narrowed claim explicitly, so the stronger
+  "GNN > MLP" version does not get written into the paper by someone reading only the table.
+- Memory `herosim-mlp-collapse-is-occupation-collapse.md` updated with the 30-cell head-to-head.
+
+## 3. Still-standing context from the previous session
+
+- **The GNN win itself is unchanged**: 3 training draws × (backbone, no-backbone), 2 traces ×
+  (backbone, no-backbone), 3 backbone configs — every GNN arm ≥4/5 vs Knative under binding
+  bandwidth, 5/5 for all but the weak `prefixctl` draw. Scope limits unchanged: one topology
+  family (20c/20s sparse); `workload-125-225` and `workload-200-200` still not run under the
+  corrected `dim22` layout.
+- **`tempfix` (GNN) is still the promotion candidate** — best artifact on disk, beats deployed
+  on both traces in both conditions. Gating it on `workload-125-225` (where deployed is
+  weakest) and `workload-200-200` remains open; `workload-200-200` is **not on datalab**
+  (224 MB, local only). Reuse `tempfix_promotion_gate.sbatch` with `WORKLOAD` changed.
 - **Re-serve any GNN checkpoint whose sidecar says `inference_feature_layout: null`** before
-  citing its past results — `prefixctl`, `tempfix`, and anything else trained before fix (2).
-- **`topology_transfer_v1`** still has no live cells minted at 60/80 servers; unchanged.
-  `make_backbone_gate_cells.py` is a usable template for minting them.
-- **Root cause still open:** the additive, queue-dominated co-sim target
-  (`logit_tied_rate ≈ 0.54`). Untouched.
+  citing its past results. `mlp_scheduler` reads its own checkpoint, so **MLP results are not
+  affected by the layout confound** — that is why this session's MLP numbers needed no caveat.
+- `topology_transfer_v1` still has no live cells minted at 60/80 servers.
+- Root cause still open: the additive, queue-dominated co-sim target (`logit_tied_rate ≈ 0.54`).
 - `main` is far behind `feat/network-contention-v1`, which is acting as trunk. Not merged —
   flagging rather than deciding.
 
-## 5. Environment gotchas
+## 4. Environment gotchas
 
 ```bash
 PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
@@ -125,24 +154,29 @@ PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
 
 - **Never `[[ -d X ]] || cp -r`** to stage shared files in a SLURM array — not atomic, killed
   3 tasks of job 710315. Use `mkdir -p` + `rsync -a`.
-- Running `pipenv run` from a directory outside the repo creates a **new empty venv** and fails
-  with confusing `ModuleNotFoundError`. Always invoke from the repo root.
+- Running `pipenv run` from outside the repo creates a **new empty venv** and fails with a
+  confusing `ModuleNotFoundError`. Always invoke from the repo root.
 - Grep **both** pipenv spellings when auditing the env leak: the shell form and `"pipenv"` in
   Python argv lists.
+- **Read `run_provenance.python_env` from the result JSON**, not the sbatch banner — the banner
+  describes the process that printed it.
 
-## 6. Restore prompt for next session
+## 5. Restore prompt for next session
 
 ```
-[CONTEXT RESTORE] feat/network-contention-v1 is pushed and synced to datalab, nothing in flight. This session found that load_gnn_model silently
-defaulted an undeclared platform-feature layout to atomic21, so every deployed-checkpoint gate
-served dim22 while the prefixctl and tempfix gates served atomic21 -- worth up to 40.8% of live
-total_rtt. That confounded BOTH the "training-draw lottery" and the corrected-cache "0/15 FAIL".
-Re-gated at a fixed dim22 layout: the GNN beats Knative 5/5 under a binding-bandwidth backbone
-across 3 training draws, 2 traces and 3 backbone configs (30/30 cells), and tempfix -- the
-corrected-cache checkpoint -- is now the best artifact on disk, beating the deployed one on
-every trace/condition. Fixed at both ends (trainer now reads the layout from the cache; serving
-refuses to guess). Also fixed the backbone rng coupling at the root and found a 53rd pipenv call
-site meaning every prior datalab gate ran in the rogue venv. Read LINEAGES.md "The backbone win
-is REGIME-LEVEL" first, then HANDOVER.md §4 -- top item is gating tempfix on workload-125-225
-and workload-200-200 to decide promotion.
+[CONTEXT RESTORE] feat/network-contention-v1 is pushed and synced to datalab, nothing in flight.
+Last session added the MLP baseline as a fourth arm to all 30 cells of the drawgate/promo175/bbrob
+contention gates. Result narrows the claim: the MLP's mean margin vs Knative is POSITIVE in 5 of 6
+conditions while every GNN arm is negative in all 6, but that is driven entirely by 7 of 30 cells
+collapsing (up to +509.8%, the averageOccupation packing failure) -- on the other 23 the MLP usually
+beats both GNN arms, and tempfix wins the head-to-head on only 17/30. So the supported claim is "the
+GNN is the only arm that beats Knative on every cell", NOT "GNN > MLP on latency". Read LINEAGES.md
+"The MLP baseline says the GNN's edge is RELIABILITY" first, then HANDOVER.md section 1, which has
+exactly two tasks: (A) run the tempfix MLP as a second arm to see whether the corrected cache fixes
+the collapse -- template is scripts_cosim/datalab/mlp_arm_all_gates.sbatch, needs one line in
+score_live_gate_matrix.py's ARM_SUFFIX and its own SWEEP_DIR; (B) work out whether the collapse cells
+share a structure the GNN sees and the MLP cannot -- start from the occupation table in section 1,
+and note the key clue that cell05 collapses on workload-150-100 but is healthy on 175-100 under the
+SAME backbone, so it is structure x load, not structure alone. Task B needs no cluster and no
+training -- it is analysis of artifacts already on disk.
 ```
