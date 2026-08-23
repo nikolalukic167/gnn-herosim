@@ -1536,7 +1536,17 @@ also takes 4/5 cells on both p90 and p99 per-task tails. Three findings:
    MLP — the packing that destroys the MLP on 125-225 is exactly what wins at sustained high
    throughput when queues do drain.
 
-#### ❌ The corrected-cache retrain FAILS its live gate — 0/15, uniformly, on all three traces (2026-08-22)
+#### ❌ The corrected-cache retrain FAILS its live gate — 0/15, uniformly, on all three traces (2026-08-22) — **FALSIFIED 2026-08-23**
+
+> **⚠ This FAIL was a serving artifact, not a model or cache result.** The `tempfix`
+> checkpoint's sidecar declares `inference_feature_layout: null`, so it served **`atomic21`**
+> while the deployed checkpoint it was compared against served **`dim22`** from its sidecar.
+> Re-serving `tempfix` under `dim22` on the same cells improves `total_rtt` by **13.3–40.8%
+> (mean −29.8%)**, and it then wins **5/5 vs Knative at −14.0% mean** without a backbone and
+> **5/5 at −34.1%** with one — beating the deployed checkpoint in both conditions. The
+> corrected cache is **better**, not worse. See *"The backbone win is REGIME-LEVEL"*
+> (`link_contention_v1`, 2026-08-23). The table below is retained as the record of what was
+> measured, not as a finding about the cache.
 
 The retrain (job 709235, `near-rtt-v2-full-corpus-siv1-dim14-ce-only-tempfix.pt`, corrected
 post-dims-9-11 cache, contract sidecar present) ran the full 15-task gate on all three traces
@@ -1577,7 +1587,10 @@ mismatch — made the live policy drastically worse while making the co-sim metr
   not what was holding the model back — correcting it helps no trace.
 
 **Decision: the deployed checkpoint stays deployed.** The tempfix checkpoint is evidence, not
-a candidate.
+a candidate. — **REVERSED 2026-08-23:** at a fixed `dim22` serving layout `tempfix` beats the
+deployed checkpoint on mean margin in both conditions (5/5 each), so it is now the leading
+*candidate*. Promotion still wants a re-gate on `workload-175-100` and `workload-200-200`,
+since its advantage is so far measured on one trace.
 
 **The matched MLP control landed the same day (jobs 709495-97, `..._tempfix.pt` MLP retrained
 on the same corrected cache, MLP arm only, same cells/traces) and confirms the prediction with
@@ -1594,7 +1607,17 @@ contrast stands: the GNN degrades systematically and one-directionally under the
 cache (every cell, every trace); the MLP is indifferent except where it was already unstable.
 The mismatch-sensitivity is GNN-specific.**
 
-#### ⚠ The variance control answers: it is a lottery — the deployed checkpoint is a lucky draw (2026-08-22)
+#### ⚠ The variance control answers: it is a lottery — the deployed checkpoint is a lucky draw (2026-08-22) — **PARTLY SUPERSEDED 2026-08-23**
+
+> **⚠ Read the correction first.** This comparison is **confounded by the serving layout**:
+> the deployed checkpoint served `INFERENCE_FEATURE_LAYOUT=dim22` (declared in its sidecar)
+> while `prefixctl` and `tempfix` served `atomic21` (sidecar silent, and `load_gnn_model`
+> defaulted). Re-serving `prefixctl` under `dim22` on these same cells improves it by
+> 1.2–14.8%, and `tempfix` by 13.3–40.8%. At a fixed layout the draw spread is **much**
+> smaller than the 5–36% below, `tempfix` becomes the best checkpoint on disk, and the
+> backbone win is regime-level. See *"The backbone win is REGIME-LEVEL"*
+> (`link_contention_v1`, 2026-08-23). The qualitative point — that a single-checkpoint gate
+> is a claim about one draw — survives; the magnitudes do not.
 
 `...-prefixctl.pt` (train job 709516, gate job 709534): **same pre-fix cache, same pipeline,
 same seed** as the deployed checkpoint — the only difference is GPU/dataloader nondeterminism
@@ -2462,6 +2485,76 @@ seed per cell, one backbone configuration; the rng-stream coupling in
 `generate_infrastructure.py` (above) is still unfixed, so backbone cells still need
 `--allow-backbone-latency-divergence` for parity. The rng bug and the parity-tool fix
 stand regardless of this result.
+
+#### ✅ The backbone win is REGIME-LEVEL, not draw luck — and the serving layout was confounding everything (2026-08-23)
+
+**Why this ran.** The result above rests on one trace, one backbone config and **one training
+draw**, and the 2026-08-22 variance control said a single-checkpoint verdict is a claim about
+a draw. So: take the two draws that **lost** their no-backbone gates — `prefixctl` (the
+variance control, 1/5) and `tempfix` (the corrected cache, 0/15 across three traces) — and run
+them on the same parity-verified cells, same trace, under both conditions. 2×2×5, plus
+`knative` and the deployed checkpoint re-run **in the same batch** so no arm's baseline comes
+from a different venue or an unstamped working tree (jobs 710315 / 710335 / 710341).
+
+**A confound had to be removed first, and it is the larger finding.** `prefixctl` and
+`tempfix` declare `inference_feature_layout: null` in their sidecars, and
+`load_gnn_model` defaulted an undeclared layout to **`atomic21`**, while the deployed
+checkpoint's sidecar declares **`dim22`**. `task_dim=3 / platform_dim=14` is structurally
+valid under both — they give the same platform columns different meanings (`dim22`
+normalizes the queue features) — so nothing raised. **Every deployed-checkpoint gate served
+`dim22`; both alternate-draw gates served `atomic21`.** Re-serving the same checkpoints on
+the same cells under `dim22`:
+
+| checkpoint | per-cell delta | mean | worst vs 0.1–0.4% noise floor |
+|---|---|---:|---:|
+| `prefixctl` | −1.2% … −14.8% | **−7.4%** | 37× |
+| `tempfix` | −13.3% … −40.8% | **−29.8%** | **102×** |
+
+`dim22` is uniformly better. This is **GNN-specific**: `mlp_scheduler` reads the layout from
+its own checkpoint (and infers `dim22` from `input_dim=22` otherwise), so the MLP arms and
+every MLP-vs-MLP comparison are unaffected.
+
+**The gate, all arms at `layout=dim22`, `workload-150-100`, vs Knative per cell:**
+
+| cell | deployed | prefixctl | tempfix |
+|---|---:|---:|---:|
+| *no backbone* | | | |
+| cell01 (p=0.25) | −1.2% | +3.5% | −5.2% |
+| cell02 (p=0.35) | −13.0% | −2.2% | −20.2% |
+| cell03 (p=0.15) | −14.7% | −8.5% | −16.8% |
+| cell04 (p=0.50) | −5.4% | +24.5% | −14.2% |
+| cell05 (p=0.20) | −13.0% | −6.0% | −13.4% |
+| **mean / wins** | **−9.4% · 5/5** | **+2.3% · 3/5** | **−14.0% · 5/5** |
+| *backbone `n_core=4, bw=1.5`* | | | |
+| cell01 | −31.8% | −24.4% | −32.9% |
+| cell02 | −24.4% | −10.1% | −38.6% |
+| cell03 | −26.7% | −24.2% | −30.0% |
+| cell04 | −8.9% | +35.4% | −37.4% |
+| cell05 | −28.2% | −19.8% | −31.8% |
+| **mean / wins** | **−24.0% · 5/5** | **−8.6% · 4/5** | **−34.1% · 5/5** |
+
+Four conclusions:
+
+1. **`REGIME-LEVEL` — the backbone win survives draw variation.** Every draw improves
+   markedly under binding bandwidth (−9.4→−24.0, +2.3→−8.6, −14.0→−34.1) and every one wins
+   ≥4/5. The claim "under binding network contention the GNN beats Knative" no longer rests
+   on the lucky checkpoint. It remains one trace and one backbone config.
+2. **The `tempfix` 0/15 FAIL is FALSIFIED — it was the serving layout, not the cache.** At a
+   fixed layout the corrected-cache checkpoint is the **best artifact on disk**: 5/5 in both
+   conditions, beating the deployed draw on mean margin in both (−14.0% vs −9.4%, −34.1% vs
+   −24.0%). The 2026-08-21 reading ("the mismatch was an accidental regularizer") is dead;
+   the corrected cache is *better*, and the earlier gate could not see it.
+3. **The lottery is real but much smaller than recorded.** `prefixctl` is genuinely the weak
+   draw — cell04 is +24.5% / +35.4%, a draw-specific failure that persists at a fixed layout
+   — but the 2026-08-22 table's 5–36% spread was draw **plus** layout. Ordering at a fixed
+   layout: `tempfix` ≳ `deployed` > `prefixctl`.
+4. **The venue/code axis is confirmed inert, again.** The deployed arm, re-run on datalab at
+   a clean committed tree, reproduces its 2026-08-21 local numbers to
+   −31.8/−24.4/−26.7/−8.9/−28.2 against the recorded −31.8/−24.4/−26.7/−8.9/−28.0.
+
+**Recommended next:** re-gate `tempfix` on `workload-175-100` and `workload-200-200` before
+promoting it over the deployed checkpoint — its advantage is currently one trace, and the
+whole point of this entry is that one cell of evidence is not a verdict.
 
 ### mp_parity — outcomes (2026-08-17)
 
