@@ -1588,6 +1588,10 @@ def main():
         'inference_feature_layout': 'dim24' if config.platform_feature_dim == 16 else 'dim22',
         'queue_norm_mode': config.queue_norm_mode,
         'queue_feature_contract': config.queue_feature_contract,
+        # build_graph resolves this from the process env; record what was actually used so
+        # the trainer can read it from the cache instead of trusting its own shell — the
+        # same bug class the inference_feature_layout confound (40.8% of total_rtt) had.
+        'topology_feature_contract': resolve_topology_feature_contract(),
         'training_contract': {
             'label_source': 'placements.jsonl_sweep_minimum',
             'replica_source': 'ssc_scheduling_time_replicas',

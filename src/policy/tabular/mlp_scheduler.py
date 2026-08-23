@@ -40,6 +40,8 @@ from src.policy.tabular.scheduler import XGBoostBatchScheduler
 class MLPBatchScheduler(XGBoostBatchScheduler):
     """Batch MLP scheduler: GNNScheduler loop with PointwiseEdgeMLP edge scoring."""
 
+    _live_audit_policy_name = "mlp_batch"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.mlp_model: Optional[PointwiseEdgeMLP] = None
@@ -67,20 +69,41 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             self.mlp_model.to(self.device)
             layout = checkpoint.get("inference_feature_layout")
             if layout:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = str(layout)
-            elif int(input_dim) == 24:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim24"
-            elif int(input_dim) == 22:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
-            elif int(input_dim) == FEATURE_DIM:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "atomic21"
-            elif checkpoint.get("reduced_features") or int(input_dim) == 11:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
+                # Mirror the GNN loader: a declared-but-different layout is a hard error,
+                # never a silent override — the columns change meaning, not shape.
+                trained_layout = str(layout).strip().lower()
+                declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+                if declared_layout and declared_layout != trained_layout:
+                    raise ValueError(
+                        f"[MLP Batch] checkpoint {path} was trained with "
+                        f"inference_feature_layout={trained_layout!r} but this run declares "
+                        f"INFERENCE_FEATURE_LAYOUT={declared_layout!r}. Serving the wrong "
+                        f"layout corrupts every score without changing any tensor shape."
+                    )
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = trained_layout
             else:
-                raise RuntimeError(
-                    f"[MLP Batch] FAIL LOUD: cannot infer inference_feature_layout "
-                    f"from input_dim={input_dim} (checkpoint missing inference_feature_layout)"
-                )
+                if int(input_dim) == 24:
+                    inferred_layout = "dim24"
+                elif int(input_dim) == 22:
+                    inferred_layout = "dim22"
+                elif int(input_dim) == FEATURE_DIM:
+                    inferred_layout = "atomic21"
+                elif checkpoint.get("reduced_features") or int(input_dim) == 11:
+                    inferred_layout = "ce_reduced"
+                else:
+                    raise RuntimeError(
+                        f"[MLP Batch] FAIL LOUD: cannot infer inference_feature_layout "
+                        f"from input_dim={input_dim} (checkpoint missing inference_feature_layout)"
+                    )
+                declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+                if declared_layout and declared_layout != inferred_layout:
+                    raise ValueError(
+                        f"[MLP Batch] checkpoint {path} has no inference_feature_layout; its "
+                        f"input_dim={input_dim} implies {inferred_layout!r}, but this run "
+                        f"declares INFERENCE_FEATURE_LAYOUT={declared_layout!r}. Refusing to "
+                        f"silently override the declaration."
+                    )
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = inferred_layout
             # Checkpoints without the field predate the contract split (legacy_v0). A
             # declared-but-different contract is a hard error: dim7/dim13 would silently
             # change meaning under the model.

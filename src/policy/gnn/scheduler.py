@@ -35,6 +35,7 @@ from src.policy.gnn.seq_decode import (
     run_decode_with_timing,
 )
 from src.policy.tabular.feature_builder import build_pyg_inference_graph
+from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -83,6 +84,9 @@ def _read_gnn_batch_timeout() -> float:
 
 
 class GNNScheduler(Scheduler):
+    # Snapshot "policy" field for live-audit capture; subclasses override.
+    _live_audit_policy_name = "gnn"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Batch collection window — override via GNN_BATCH_SIZE / GNN_BATCH_TIMEOUT env vars.
@@ -264,7 +268,13 @@ class GNNScheduler(Scheduler):
         
         # Get system state once for the entire batch
         system_state: SystemState = yield self.mutex.get()
-        
+
+        # Same oracle-audit capture the knative_network_batch arm has, so collapse-moment
+        # states from ML arms are capturable (off unless LIVE_AUDIT_SNAPSHOT_PATH is set).
+        maybe_capture_batch_live_audit_snapshot(
+            self, system_state, batch_tasks, self._live_audit_policy_name
+        )
+
         # Full-infra queue + temporal snapshot at batch start (matches SSC/cache graph build)
         queue_snapshot = self._capture_full_queue_snapshot()
         temporal_state = self._capture_temporal_state_snapshot()

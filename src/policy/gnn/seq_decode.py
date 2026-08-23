@@ -825,7 +825,17 @@ def _refresh_queue_dependent_platform_features(
 
     platform_features = graph.platform_features
     feat_dim = int(platform_features.size(-1))
-    layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "dim22").strip().lower()
+    layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+    if not layout:
+        # The graph was built under the builder's layout resolution; refreshing it under a
+        # guessed one rewrites dim7/dim13 with different semantics mid-decode. The model
+        # loader always pins the layout before any decode, so an unset value here means
+        # nothing declared it — refuse rather than guess (this default used to be dim22
+        # while the builder's was atomic21).
+        raise RuntimeError(
+            "seq_reforward: INFERENCE_FEATURE_LAYOUT is unset. The layout must be pinned "
+            "by the checkpoint sidecar or the environment before decoding."
+        )
     ce_reduced = layout in ("ce_reduced", "reduced_ce", "reduced1060")
     atomic21 = layout in ("atomic21", "21")
     if feat_dim < 6:

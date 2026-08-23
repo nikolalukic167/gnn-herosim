@@ -856,7 +856,10 @@ def generate_deterministic_infrastructure(
         "metadata": {
             "seed": seed,
             "config_file": config_file,
-            "generation_time": datetime.now().isoformat()
+            "generation_time": datetime.now().isoformat(),
+            # Which warmth physics this dataset was generated for. Metadata extraction
+            # used to report a .get() default here and call it measured.
+            "warmth_physics": config.get("warmth_physics"),
         }
     }
     

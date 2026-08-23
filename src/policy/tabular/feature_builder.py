@@ -92,8 +92,25 @@ class InferenceFeatureBundle:
     feature_dim: int = FEATURE_DIM
 
 
+_warned_layout_fallback = False
+
+
 def _inference_feature_layout(feature_layout: Optional[str] = None) -> str:
-    return (feature_layout or os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21")).strip().lower()
+    resolved = (feature_layout or os.environ.get("INFERENCE_FEATURE_LAYOUT", "")).strip().lower()
+    if resolved:
+        return resolved
+    # atomic21 is a serve-only layout no current cache produces; falling back to it
+    # silently is how a layout mismatch becomes invisible. Warn once, loudly.
+    global _warned_layout_fallback
+    if not _warned_layout_fallback:
+        _warned_layout_fallback = True
+        print(
+            "[FEATURE LAYOUT] WARNING: INFERENCE_FEATURE_LAYOUT is unset; defaulting to "
+            "atomic21. Model-serving paths must pin the layout via the checkpoint sidecar "
+            "or the environment.",
+            flush=True,
+        )
+    return "atomic21"
 
 
 def _scheduler_adaptive_queue_norm(
