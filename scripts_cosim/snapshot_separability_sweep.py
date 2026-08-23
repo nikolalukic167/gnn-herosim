@@ -197,7 +197,9 @@ def main() -> int:
     ap.add_argument("--cell-infra", type=Path, default=None,
                     help="Cell infrastructure.json — copied in for link-repair context")
     ap.add_argument("--out-root", type=Path, required=True)
-    ap.add_argument("--seed", type=int, default=101)
+    # None = use the cell config's own topology seed. Passing an explicit seed OVERRIDES
+    # the topology (the documented --seed trap) and must never happen for gate cells.
+    ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--top-k", type=int, default=6)
     ap.add_argument("--horizon", type=int, default=4)
     ap.add_argument("--max-snapshots", type=int, default=50)
