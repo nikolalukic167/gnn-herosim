@@ -2552,9 +2552,50 @@ Four conclusions:
    a clean committed tree, reproduces its 2026-08-21 local numbers to
    −31.8/−24.4/−26.7/−8.9/−28.2 against the recorded −31.8/−24.4/−26.7/−8.9/−28.0.
 
-**Recommended next:** re-gate `tempfix` on `workload-175-100` and `workload-200-200` before
-promoting it over the deployed checkpoint — its advantage is currently one trace, and the
-whole point of this entry is that one cell of evidence is not a verdict.
+**The second trace agrees (job 710366, `workload-175-100`, same three arms, same cells,
+`layout=dim22`, 30/30 clean).** This was run precisely because the paragraph above demanded
+it before any promotion:
+
+| | deployed | tempfix |
+|---|---:|---:|
+| no backbone, mean / wins | −9.2% · 5/5 | **−15.6% · 5/5** |
+| backbone, mean / wins | −23.9% · 5/5 | **−33.9% · 5/5** |
+
+Against `workload-150-100`'s −9.4% / −24.0% and −14.0% / −34.1%, the two traces reproduce
+each other to within ~1.6pp on every one of the four cells of that table. `tempfix` beats the
+deployed checkpoint on **both traces in both conditions**, 20/20 cells beat Knative, and it
+loses to deployed on only 2 of 20 individual cells (175-100 backbone cell03 and cell05, by
+2.7 and 0.9pp). **`tempfix` is the promotion candidate**; what remains before swapping it in
+is a re-gate on `workload-125-225` (the trace where the deployed checkpoint is weakest, 2W/1T/2L)
+and `workload-200-200`.
+
+**And the win is not specific to the tuned backbone config (job 710398, 30/30 clean).**
+`n_core=4 / bw=1.5` was this lineage's own measured interior peak — chosen because the effect
+was largest there — so a win visible only at that point would not be a claim about network
+contention. Two further configurations, `workload-150-100`, same cells:
+
+| backbone config | knative baseline | deployed | tempfix |
+|---|---|---:|---:|
+| `n_core=8, bw=1.5` (different core topology) | — | −22.4% · 5/5 | **−30.8% · 5/5** |
+| `n_core=4, bw=0.5` (more binding bandwidth) | — | −24.4% · 5/5 | **−34.4% · 5/5** |
+| `n_core=4, bw=1.5` (the original) | — | −24.0% · 5/5 | **−34.1% · 5/5** |
+
+Mean margins move by ≤2pp across a doubled core tier and a 3× tighter bandwidth. **30/30
+cells beat Knative across the three configurations.**
+
+**These are also the first backbone gate cells in the repo that are parity-exact by
+construction rather than by relaxation** — minted by `important/make_backbone_gate_cells.py`
+with `rng_stream: independent_v1`, they pass `verify_live_infra_parity` with **no
+`--allow-backbone-latency-divergence`**, including the three cells whose non-empty repair
+sets forced the waiver on the legacy `a1` cells. The gate exports `PARITY_EXTRA_ARGS=""`
+deliberately, so a regression in the rng fix would fail the job rather than be waived.
+
+**Standing evidence for the GNN win, as of 2026-08-23:** 3 training draws × (backbone,
+no-backbone); 2 traces × (backbone, no-backbone); 3 backbone configurations — every GNN arm
+beats Knative on ≥4/5 cells under binding bandwidth, and every 5/5 except the weak
+`prefixctl` draw. The remaining scope limits are honest and named: one topology family
+(20c/20s sparse), and `workload-125-225` / `workload-200-200` not yet run under the
+corrected layout.
 
 ### mp_parity — outcomes (2026-08-17)
 
