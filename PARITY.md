@@ -131,6 +131,31 @@ micromamba activate gnn
 export HEROSIM_PY=python3
 ```
 
+**A wrapper honoring `HEROSIM_PY` is not enough if it re-spawns.** The 2026-08-21 sweep
+converted 52 *shell* call sites and declared this closed. It missed two **Python argv
+lists** — `scripts_cosim/run_simulation.py` and
+`scripts_cosim/important/run_normal_sim_config_sweep.py` both built
+`["pipenv", "run", "python", ...]`, invisible to a grep for the shell spelling. Since
+`run_simulation.py` is what actually launches `src.executesimulation`, the shell guard only
+ever pinned the *wrapper*: every datalab live gate routed through it ran the simulator in
+the rogue venv anyway. Caught 2026-08-23 by reading `run_provenance.python_env` on a fresh
+gate whose own sbatch banner printed the correct interpreter. Both now use
+`shlex.split(os.environ.get("HEROSIM_PY") or "pipenv run python")`.
+
+The lesson generalizes past this one fix:
+
+> **`run_provenance.python_env` is the authority on which interpreter served — not the
+> sbatch, not a banner, not an `[INTERP]` echo.** Those describe the process that printed
+> them, which need not be the process that produced the numbers. When checking a gate's
+> environment, read it from the result JSON.
+
+Grep both spellings when auditing:
+
+```bash
+grep -rn '${HEROSIM_PY' --include='*.sh' --include='*.sbatch' .   # shell form
+grep -rn '"pipenv"' --include='*.py' src/ scripts_cosim/          # argv-list form
+```
+
 ---
 
 ## Verification — the checks, in the order to run them
