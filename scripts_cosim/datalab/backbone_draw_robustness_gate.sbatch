@@ -82,11 +82,14 @@ export INFERENCE_FEATURE_LAYOUT=dim22
 [[ -d "${SRC_SWEEP}/cell_infrastructure/${CELL}" ]] || {
   echo "FAIL LOUD: missing cell ${SRC_SWEEP}/cell_infrastructure/${CELL}" >&2; exit 1; }
 
-# Cells are shared and pre-minted; every task copies from the same read-only source and
-# none generates them, so there is no artifact to elect a builder for (pitfalls #7).
-mkdir -p "${SWEEP_DIR}/results" logs
+# Cells are shared and pre-minted, but `[[ -d ]] || cp -r` is NOT atomic: the five tasks
+# of an arm start together, all see the directory missing, and all four losers die on
+# "cp: cannot create directory ... File exists" (pitfalls #7 — cost tasks 16/17/19 of job
+# 710315). Populate with rsync into a pre-created directory instead: idempotent, safe to
+# run concurrently, and a no-op once the files are there.
+mkdir -p "${SWEEP_DIR}/results" "${SWEEP_DIR}/cell_infrastructure" "${SWEEP_DIR}/configs" logs
 for d in cell_infrastructure configs; do
-  [[ -d "${SWEEP_DIR}/${d}" ]] || cp -r "${SRC_SWEEP}/${d}" "${SWEEP_DIR}/${d}"
+  rsync -a "${SRC_SWEEP}/${d}/" "${SWEEP_DIR}/${d}/"
 done
 
 echo "=== task=${I} draw=${DRAW} cond=${COND} cell=${CELL} layout=${INFERENCE_FEATURE_LAYOUT} ==="
