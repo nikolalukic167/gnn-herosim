@@ -88,6 +88,9 @@ run_one() {
     gnn)     output="${OUT_DIR}/${cell_name}_s0_gnn.json";       export GNN_MODEL_PATH="$GNN_MODEL"; run_args=(--gnn) ;;
     mlp)     output="${OUT_DIR}/${cell_name}_s0_mlp_dim22.json"; export MLP_MODEL_PATH="$MLP_MODEL"; run_args=(--mlp_batch --mlp-model "$MLP_MODEL") ;;
     knative) output="${OUT_DIR}/${cell_name}_s0_knative.json";   run_args=(--knative_network) ;;
+    # Live-audit snapshot capture arm (WS2): same shortest-queue rule as knative, but
+    # batched, so LIVE_AUDIT_SNAPSHOT_PATH captures batch>=4 oracle-audit states.
+    knative_batch) output="${OUT_DIR}/${cell_name}_s0_knative_batch.json"; run_args=(--knative_network_batch) ;;
     *) echo "ERROR: unknown policy $policy" >&2; return 1 ;;
   esac
 
