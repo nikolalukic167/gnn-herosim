@@ -50,8 +50,16 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path,
                     default=Path("simulation_data/normal_sim_sweeps"))
+    ap.add_argument("--arms", default=",".join(GNN_ARMS),
+                    help="comma-separated GNN arms to score; use this to report before a "
+                         "slower arm has landed (default: %(default)s)")
     ap.add_argument("--json-out", type=Path, default=None)
     args = ap.parse_args()
+
+    global GNN_ARMS
+    GNN_ARMS = [a.strip() for a in args.arms.split(",") if a.strip()]
+    if not GNN_ARMS:
+        raise SystemExit("FAIL LOUD: --arms selected no arms")
 
     report = {"conditions": {}, "noise_floor_pct": NOISE_FLOOR_PCT}
     layouts, physics = set(), set()
@@ -119,12 +127,16 @@ def main() -> int:
     bb = report["conditions"]["backbone"]["wins_vs_knative"]
     alts = [a for a in GNN_ARMS if a != "deployed"]
     print("\n=== verdict ===")
-    print(f"alternate draws vs knative: no-backbone "
-          f"{'/'.join(str(nb[a]) for a in alts)} -> backbone "
-          f"{'/'.join(str(bb[a]) for a in alts)} (of 5 cells each)")
-    if all(bb[a] >= 4 for a in alts):
+    if not alts:
+        print("no alternate draws selected — nothing to decide")
+        alts = []
+    else:
+        print(f"alternate draws vs knative: no-backbone "
+              f"{'/'.join(str(nb[a]) for a in alts)} -> backbone "
+              f"{'/'.join(str(bb[a]) for a in alts)} (of 5 cells each)")
+    if alts and all(bb[a] >= 4 for a in alts):
         print("REGIME-LEVEL: every alternate draw wins >=4/5 under the backbone.")
-    elif all(bb[a] > nb[a] for a in alts):
+    elif alts and all(bb[a] > nb[a] for a in alts):
         print("PARTIAL: the backbone improves every alternate draw, but not to >=4/5.")
     else:
         print("DRAW-LEVEL: the backbone does not rescue the losing draws.")
