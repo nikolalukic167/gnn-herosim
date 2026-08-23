@@ -1202,6 +1202,14 @@ def main():
     parser.add_argument('--backbone-chord-count', type=int, default=0,
                         help='link_contention_v1: chords across the core ring (default 0; '
                              'chords let traffic bypass shared segments).')
+    parser.add_argument('--backbone-rng-stream', choices=('legacy_v0', 'independent_v1'),
+                        default='independent_v1',
+                        help='Which rng stream draws backbone access-link jitter. '
+                             'independent_v1 (default for new corpora) derives it from the '
+                             'topology seed alone, so corpus and live generation agree '
+                             'exactly (no --allow-backbone-latency-divergence waiver). '
+                             'legacy_v0 reproduces pre-2026-08-22 corpora, whose jitter '
+                             'stream was offset by the replica-reachability repair.')
     parser.add_argument('--replica-server-percentage', type=float, default=None,
                         help='Override the grid/default fraction of server nodes hosting '
                              'replicas. Lower concentrates replicas so tasks compete for '
@@ -1364,6 +1372,7 @@ def main():
             'core_link_latency_ms': 4.0,
             'access_link_latency_ms': 20.0,
             'bandwidth_mbps': link_bandwidth_mbps,
+            'rng_stream': args.backbone_rng_stream,
         }
         log(
             f"link_contention_v1: {link_bandwidth_mbps} MB/s per link over a "

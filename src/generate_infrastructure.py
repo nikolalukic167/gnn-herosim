@@ -289,6 +289,7 @@ def build_core_backbone(
     nodes: List[Dict],
     config: Dict[str, Any],
     rng: random.Random,
+    seed: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """link_contention_v1: overlay a core router tier and route every logical edge over it.
 
@@ -311,6 +312,29 @@ def build_core_backbone(
     backbone_config = config.get('network', {}).get('backbone')
     if not backbone_config:
         return None
+
+    # rng_stream=legacy_v0 draws jitter from the caller's shared stream, whose position
+    # differs between the corpus path (replica-reachability repair has consumed draws)
+    # and the live path (no repair) — the parity divergence recorded in LINEAGES.md
+    # (link_contention_v1, 2026-08-21). independent_v1 draws from a dedicated stream
+    # derived from the topology seed alone, so both venues produce identical backbone
+    # latencies regardless of what ran before. legacy_v0 stays the default so every
+    # already-minted backbone cell regenerates byte-identically from its config.
+    rng_stream = str(backbone_config.get('rng_stream', 'legacy_v0'))
+    if rng_stream == 'independent_v1':
+        if seed is None:
+            raise ValueError(
+                "network.backbone.rng_stream=independent_v1 requires the topology seed "
+                "to derive the dedicated backbone rng, but no seed was passed"
+            )
+        draw_rng = random.Random(f"{seed}:backbone_v1")
+    elif rng_stream == 'legacy_v0':
+        draw_rng = rng
+    else:
+        raise ValueError(
+            f"network.backbone.rng_stream must be 'legacy_v0' or 'independent_v1', "
+            f"got {rng_stream!r}"
+        )
 
     n_core = int(backbone_config.get('n_core', 6))
     if n_core < 2:
@@ -369,10 +393,10 @@ def build_core_backbone(
     attachments: Dict[str, List[str]] = {}
     for node in nodes:
         node_name = node['node_name']
-        chosen = rng.sample(core_names, attach_degree)
+        chosen = draw_rng.sample(core_names, attach_degree)
         attachments[node_name] = chosen
         for core_name in chosen:
-            jitter = 1.0 + rng.uniform(-latency_jitter, latency_jitter)
+            jitter = 1.0 + draw_rng.uniform(-latency_jitter, latency_jitter)
             _add_link(node_name, core_name, access_latency * jitter, bandwidth_mbps)
 
     # Route every logical edge and rewrite its latency as the path sum.
@@ -413,6 +437,7 @@ def build_core_backbone(
             "access_link_latency_ms": access_latency * 1000.0,
             "bandwidth_mbps": bandwidth_mbps,
             "core_bandwidth_mbps": core_bandwidth_mbps,
+            "rng_stream": rng_stream,
         },
     }
 
@@ -780,7 +805,7 @@ def generate_deterministic_infrastructure(
     # 2c. link_contention_v1: overlay the core backbone. Runs after every connectivity
     # repair so each logical edge that survives gets a route; absent a
     # network.backbone block this is a no-op and latencies stay one-hop constants.
-    link_topology = build_core_backbone(network_maps, nodes, config, rng)
+    link_topology = build_core_backbone(network_maps, nodes, config, rng, seed=seed)
     if link_topology is not None:
         print(
             f"[infra-gen] Core backbone: {len(link_topology['links'])} links, "

@@ -186,6 +186,83 @@ def test_generator_rejects_a_backbone_without_bandwidth():
         )
 
 
+def test_independent_rng_stream_is_immune_to_prior_consumption():
+    """rng_stream=independent_v1: backbone links must be identical no matter how many
+    draws the shared stream consumed beforehand (the corpus-side reachability repair vs
+    the live path's clean stream — the parity divergence recorded in LINEAGES.md,
+    link_contention_v1 2026-08-21). legacy_v0 must stay position-dependent so every
+    pre-2026-08-22 corpus regenerates byte-identically from its config."""
+    import random
+
+    from src.generate_infrastructure import build_core_backbone
+
+    nodes = [{"node_name": f"client_node{i}", "type": "rpi"} for i in range(3)] + [
+        {"node_name": f"node{i}", "type": "rpi"} for i in range(3)
+    ]
+
+    def fresh_maps():
+        return {
+            "client_node0": {"node0": 0.1},
+            "node0": {"client_node0": 0.1},
+            "client_node1": {"node1": 0.2},
+            "node1": {"client_node1": 0.2},
+            "client_node2": {"node2": 0.3},
+            "node2": {"client_node2": 0.3},
+        }
+
+    def build(stream, consume_first):
+        rng = random.Random(7)
+        if consume_first:
+            rng.shuffle(list(range(50)))  # stand-in for the reachability repair's draws
+            rng.random()
+        config = {"network": {"backbone": {
+            "n_core": 4, "attach_degree": 1, "bandwidth_mbps": 1.5, "rng_stream": stream,
+        }}}
+        return build_core_backbone(fresh_maps(), nodes, config, rng, seed=7)
+
+    clean = build("independent_v1", consume_first=False)
+    offset = build("independent_v1", consume_first=True)
+    assert clean["links"] == offset["links"]
+    assert clean["routes"] == offset["routes"]
+    assert clean["params"]["rng_stream"] == "independent_v1"
+
+    legacy_clean = build("legacy_v0", consume_first=False)
+    legacy_offset = build("legacy_v0", consume_first=True)
+    assert legacy_clean["links"] != legacy_offset["links"], (
+        "legacy_v0 stopped depending on stream position — old corpora would no longer "
+        "regenerate from their configs"
+    )
+    assert legacy_clean["params"]["rng_stream"] == "legacy_v0"
+
+
+def test_independent_rng_stream_requires_a_seed():
+    import random
+
+    from src.generate_infrastructure import build_core_backbone
+
+    nodes = [{"node_name": "client_node0", "type": "rpi"}, {"node_name": "node0", "type": "rpi"}]
+    network_maps = {"client_node0": {"node0": 0.1}, "node0": {"client_node0": 0.1}}
+    config = {"network": {"backbone": {
+        "n_core": 2, "attach_degree": 1, "bandwidth_mbps": 1.5, "rng_stream": "independent_v1",
+    }}}
+    with pytest.raises(ValueError, match="requires the topology seed"):
+        build_core_backbone(network_maps, nodes, config, random.Random(0))
+
+
+def test_unknown_rng_stream_fails_loudly():
+    import random
+
+    from src.generate_infrastructure import build_core_backbone
+
+    nodes = [{"node_name": "client_node0", "type": "rpi"}, {"node_name": "node0", "type": "rpi"}]
+    network_maps = {"client_node0": {"node0": 0.1}, "node0": {"client_node0": 0.1}}
+    config = {"network": {"backbone": {
+        "n_core": 2, "attach_degree": 1, "bandwidth_mbps": 1.5, "rng_stream": "typo_v9",
+    }}}
+    with pytest.raises(ValueError, match="rng_stream must be"):
+        build_core_backbone(network_maps, nodes, config, random.Random(0), seed=0)
+
+
 def test_empty_fabric_fails_loudly():
     """An empty links dict is a config mistake, not a quiet no-op."""
     env = simpy.Environment()

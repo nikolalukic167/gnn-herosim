@@ -190,7 +190,7 @@ def prepare_infrastructure_for_real_simulation(
     # live gate would run different physics from the corpus the model trained on — the
     # exact class of train/serve mismatch that cost the mp_parity lineage a headline.
     _apply_link_backbone_env_default(space_config)
-    link_topology = build_core_backbone(network_maps, nodes, space_config, rng)
+    link_topology = build_core_backbone(network_maps, nodes, space_config, rng, seed=seed)
     if link_topology is not None:
         print(
             f"Core backbone: {len(link_topology['links'])} links, "
