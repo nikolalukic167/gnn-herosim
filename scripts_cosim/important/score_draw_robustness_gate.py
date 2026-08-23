@@ -23,14 +23,12 @@ CELLS = [
     "cell04_p50_s9004",
     "cell05_p20_s9005",
 ]
-GNN_ARMS = ["deployed", "prefixctl", "tempfix"]
+DEFAULT_GNN_ARMS = ["deployed", "prefixctl", "tempfix"]
 NOISE_FLOOR_PCT = 0.4  # measured local run-to-run spread, LINEAGES/PARITY
 
 
 def result_path(root: Path, cond: str, arm: str, cell: str) -> Path:
-    policy = "knative" if arm == "knative" else "gnn"
     suffix = "knative" if arm == "knative" else "gnn"
-    del policy
     return root / f"drawgate_{cond}_{arm}" / "results" / f"{cell}_s0_{suffix}.json"
 
 
@@ -50,15 +48,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path,
                     default=Path("simulation_data/normal_sim_sweeps"))
-    ap.add_argument("--arms", default=",".join(GNN_ARMS),
+    ap.add_argument("--arms", default=",".join(DEFAULT_GNN_ARMS),
                     help="comma-separated GNN arms to score; use this to report before a "
                          "slower arm has landed (default: %(default)s)")
     ap.add_argument("--json-out", type=Path, default=None)
     args = ap.parse_args()
 
-    global GNN_ARMS
-    GNN_ARMS = [a.strip() for a in args.arms.split(",") if a.strip()]
-    if not GNN_ARMS:
+    arms = [a.strip() for a in args.arms.split(",") if a.strip()]
+    if not arms:
         raise SystemExit("FAIL LOUD: --arms selected no arms")
 
     report = {"conditions": {}, "noise_floor_pct": NOISE_FLOOR_PCT}
@@ -67,12 +64,12 @@ def main() -> int:
     for cond in ("nobackbone", "backbone"):
         print(f"\n=== {cond} ===")
         header = f"{'cell':22s} {'knative':>16s}"
-        for arm in GNN_ARMS:
+        for arm in arms:
             header += f" {arm:>16s}"
         print(header)
 
-        cond_rows, wins = {}, {arm: 0 for arm in GNN_ARMS}
-        margins = {arm: [] for arm in GNN_ARMS}
+        cond_rows, wins = {}, {arm: 0 for arm in arms}
+        margins = {arm: [] for arm in arms}
 
         for cell in CELLS:
             kn = load(args.root, cond, "knative", cell)
@@ -82,7 +79,7 @@ def main() -> int:
             line = f"{cell:22s} {kn_rtt:16,.0f}"
             cell_row = {"knative": kn_rtt}
 
-            for arm in GNN_ARMS:
+            for arm in arms:
                 d = load(args.root, cond, arm, cell)
                 layouts.add(d["run_provenance"]["env"].get("INFERENCE_FEATURE_LAYOUT"))
                 physics.add(d["run_provenance"].get("warmth_physics"))
@@ -98,19 +95,19 @@ def main() -> int:
             cond_rows[cell] = cell_row
 
         print(f"{'':22s} {'':16s}", end="")
-        for arm in GNN_ARMS:
+        for arm in arms:
             mean = sum(margins[arm]) / len(margins[arm])
             print(f" {mean:+15.1f}%", end="")
         print("   <- mean margin")
         print(f"{'':22s} {'wins vs knative:':>16s}", end="")
-        for arm in GNN_ARMS:
+        for arm in arms:
             print(f" {str(wins[arm]) + '/5':>16s}", end="")
         print()
 
         report["conditions"][cond] = {
             "cells": cond_rows,
             "wins_vs_knative": wins,
-            "mean_margin_pct": {a: sum(margins[a]) / len(margins[a]) for a in GNN_ARMS},
+            "mean_margin_pct": {a: sum(margins[a]) / len(margins[a]) for a in arms},
         }
 
     # Comparability guards -- a table that silently mixes these is not a comparison.
@@ -125,7 +122,7 @@ def main() -> int:
 
     nb = report["conditions"]["nobackbone"]["wins_vs_knative"]
     bb = report["conditions"]["backbone"]["wins_vs_knative"]
-    alts = [a for a in GNN_ARMS if a != "deployed"]
+    alts = [a for a in arms if a != "deployed"]
     print("\n=== verdict ===")
     if not alts:
         print("no alternate draws selected — nothing to decide")
