@@ -34,7 +34,13 @@ NOISE_FLOOR_PCT = 0.4  # measured run-to-run spread; see PARITY.md
 # an arm name like `deployed` or `tempfix` names a checkpoint, not a policy. `mlp` is the
 # pointwise verification baseline and run_full_corpus_siv1_live_gate.sh writes it as
 # `<cell>_s0_mlp_dim22.json`.
-ARM_SUFFIX = {"knative": "knative", "mlp": "mlp_dim22"}
+#
+# `mlptempfix` is the SAME policy under a different checkpoint (the corrected batch cache),
+# so it shares the `mlp_dim22` suffix. The runner names the result file from the policy and
+# not from the checkpoint, which means the two MLP arms are only kept apart by their sweep
+# dirs -- <prefix>_<cond>_mlp/ vs <prefix>_<cond>_mlptempfix/. Pointing a second MLP arm at
+# the first one's SWEEP_DIR silently overwrites it; see mlp_tempfix_arm_all_gates.sbatch.
+ARM_SUFFIX = {"knative": "knative", "mlp": "mlp_dim22", "mlptempfix": "mlp_dim22"}
 
 
 def load(root: Path, prefix: str, cond: str, arm: str, cell: str) -> dict:
