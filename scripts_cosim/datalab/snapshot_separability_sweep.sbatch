@@ -10,16 +10,17 @@
 # per (gate, cond, cell), consumable by separability_diagnostic.py unmodified.
 #
 # Sizing knobs (env overridable at submit): TOP_K=6 -> <=1296 combos/snapshot,
-# MAX_SNAPSHOTS=50 stratified by time. Calibrated per J2 before full submit.
+# MAX_SNAPSHOTS=100 stratified by time. J2 calibration (job 710754): 1.27 ms/combo at
+# 8 cpus, so a full cell (100 x <=1296 combos) is minutes -- 16 cpus / 2h is generous.
 #SBATCH --job-name=snap-sep-sweep
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/snap-sep-sweep-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/snap-sep-sweep-%A_%a.err
 #SBATCH --partition=CPU-amd
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
-#SBATCH --mem=96G
-#SBATCH --time=24:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=48G
+#SBATCH --time=2:00:00
 #SBATCH --array=0-29
 
 set -euo pipefail
@@ -69,7 +70,7 @@ python3 scripts_cosim/snapshot_separability_sweep.py \
   --out-root "$OUT_ROOT" \
   --top-k "${TOP_K:-6}" \
   --horizon 4 \
-  --max-snapshots "${MAX_SNAPSHOTS:-50}" \
+  --max-snapshots "${MAX_SNAPSHOTS:-100}" \
   --workers "${SLURM_CPUS_PER_TASK}" \
   ${CALIBRATE:+--calibrate}
 echo "=== task=${I} COMPLETE ==="

@@ -85,7 +85,7 @@ rm -f "$SNAP_PATH"   # capture appends; never mix two runs in one JSONL
 export FORCE_RERUN=1
 
 export LIVE_AUDIT_SNAPSHOT_PATH="$SNAP_PATH"
-export LIVE_AUDIT_MAX_SNAPSHOTS=500
+export LIVE_AUDIT_MAX_SNAPSHOTS=2000
 # 31/37 are primes ~ (trace task count / cap), so the cap is reached near trace end
 # rather than in the first seconds.
 if [[ "$WL" == "175-100" ]]; then export LIVE_AUDIT_STRIDE=37; else export LIVE_AUDIT_STRIDE=31; fi
