@@ -2642,6 +2642,95 @@ collapse cells share a structural property the GNN exploits and the MLP cannot s
 whether an MLP trained on the corrected cache (`..._tempfix`, on datalab since 2026-08-22,
 deliberately **not** run as a second arm here) collapses on the same cells.
 
+**Both of those questions are answered in the next subsection.**
+
+#### ✅ The MLP collapse is ARCHITECTURAL — retraining relocates it without reducing it (2026-08-23)
+
+The corrected-cache MLP (`..._batchcache_tempfix.pt`) was run as a fifth arm on the same 30
+cells (`datalab/mlp_tempfix_arm_all_gates.sbatch`, jobs 710656/710657, commit `98b41e9`,
+all 30 verified `dim22` / non-zero `total_rtt` / clean tree). Only the checkpoint and the
+sweep dir differ from the `mlp` arm — cells, traces and parity waivers are byte-identical, so
+this is an A/B on training data alone.
+
+| gate / condition | mlp | **mlptempfix** |
+|---|---|---|
+| drawgate, no backbone | +85.1% · 4/5 | **+133.4% · 3/5** |
+| drawgate, backbone | +2.5% · 4/5 | **+12.8% · 4/5** |
+| promo175, no backbone | +53.4% · 4/5 | **+98.2% · 4/5** |
+| promo175, backbone | −35.1% · 5/5 | **+4.3% · 4/5** |
+| bbrob `n_core=8, bw=1.5` | +38.5% · 3/5 | **+28.6% · 4/5** |
+| bbrob `n_core=4, bw=0.5` | +11.3% · 3/5 | **+10.5% · 4/5** |
+
+**Exactly 7 of 30 cells collapse under each checkpoint — the same count, a different set.**
+The corrected cache *fixed* `cell03` under both bbrob configs (+79.0% → −22.6%, +31.4% →
+−21.6%) and *broke* two cells that were healthy before: `cell03` on drawgate/nobackbone
+(−24.5% → **+187.6%**) and `cell05` on promo175/backbone (−35.0% → **+127.9%**), the one
+condition where the first MLP's `cell05` had survived. Five `cell05` collapses are shared.
+Mean margin is *worse* under the corrected cache in 4 of 6 conditions.
+
+A training-data artifact would have been reduced by fixing the training data. An invariant
+7/30 with a reshuffled victim list is the signature of an architectural failure whose victim
+set is a function of the *weights*, not of the data or the graph. **The reliability claim
+therefore hardens: across 120 scheduler runs (2 MLP × 2–3 GNN arms × 30 cells), all 14
+collapse events are MLP arms and none is a GNN arm.**
+
+**A detector that separates perfectly on all 120 runs.** `chosen_queue_vs_min` **p95** from
+the `.decode_stats.json` sidecar: collapse 13,485–23,866, healthy 449–1,387 — a 9.7x gap with
+no overlap. The *median* is normal in both (46–131 collapse vs 43–312 healthy), which is the
+direct confirmation that this is a minority-of-decisions tail that compounds. The occupation
+ratio to the same cell's Knative arm also holds on all 120 (collapse ≤0.33x, healthy ≥0.41x)
+but with only a 1.24x gap, so prefer the p95.
+
+#### ✅ The collapse cells share no STRUCTURE — it is a dispersal failure with two mechanisms (2026-08-23)
+
+Analysis of artifacts already on disk (`extract_gate_stats_summary.py`,
+`extract_platform_dispersal.py`; no new sims). The answer to "do the collapse cells share a
+structure the GNN sees and the MLP cannot?" is **no**, and four independent checks kill it:
+
+1. **Adjacency is byte-identical across all four cell sets** (`nobackbone`, `a1_backbone`,
+   `bb_core8`, `bb_core4` differ only in link latencies, queues and fabric). Degree, choice-set
+   size and nearest-replica-host concentration (HHI) do **not** separate collapse from healthy
+   — `cell03` is *more* constrained than `cell05` (14 vs 11 clients with ≤2 reachable hosts for
+   `dnn2`) yet collapses less often.
+2. **It is not an initial-queue "bait".** The platforms that hog the load rank 26/54, 31/54 and
+   51/54 by initial queue depth; platform 134 (rank 51/54, one of the *longest* initial queues)
+   is the top hog in a collapse run and also the top platform in a healthy one.
+3. **The trace that flips `cell05` is a different draw of the same distribution.**
+   `workload-150-100` and `workload-175-100` are both 50/50 `dnn1`/`dnn2`, uniform over 20
+   sources (4.8–5.2% each), same 100 s duration; they differ in rate and random draw only. On
+   identical infrastructure and checkpoint: 6 platforms busy >1% (collapse) vs 83 (healthy).
+4. **The victim set moves when only the weights move** (previous subsection). A structural
+   property would collapse the same cells under both checkpoints; 4 of the 9 distinct
+   (cell, condition) collapse events are checkpoint-specific.
+
+What *does* separate them is dispersal — how widely the scheduler spread load — and there are
+**two distinct failure mechanisms** hiding under one `averageOccupation` symptom:
+
+* **Platform-side packing** (12 of 14 events): top-3 platforms hold 43–65% of all busy time,
+  2–33 platforms busy >1%. `cell05`/nobackbone MLP puts 63% of busy time on 3 platforms while
+  the GNN spreads over 109.
+* **Link-side starvation** (2 of 14: `cell03` under both bbrob configs): dispersal looks
+  *normal* (top-3 share 16–17%, in the healthy range) and every platform is nearly idle
+  (max utilisation **5.6%** and **2.2%**) while RTT is +79.0% / +31.4%. The fabric is empty and
+  the tasks still wait.
+
+**Why the link-side one is invisible in the existing metrics, and why `link_wait_total` is the
+right fix.** `averageCommunicationsTime` is pinned at ~16.7 ms across all 150 runs (range
+0.016662–0.016668) even where `total_rtt` swings 10x between backbone and no-backbone — it
+does not measure link queueing at all. The wait is taken *inside* the replica's serving loop
+(`infrastructure.py:1082`, `with self.node.fabric.pipe(...).request()`), so it blocks the
+replica and surfaces as **queue time**: `averageQueueTime / averageElapsedTime` is 0.9990–1.0000
+in every one of the 150 runs. Serialising `link_wait_total` / `linkWaitTime` (gate-tools row,
+2026-08-21) would separate these two mechanisms directly instead of by inference from
+`max_busy_pct`; it remains a reporting-only change.
+
+**Consequence for the research goal.** The GNN's advantage here is not that it reads a
+topological property the MLP is blind to — no such property distinguishes these cells. It is
+that it *disperses*, and dispersal is what keeps a metastable queueing instability from
+igniting. That is still a graph-aware advantage (a pointwise scorer cannot condition on where
+its peers are going), but it should be stated as a dispersal/reliability argument, not as
+"the GNN exploits topology `P`".
+
 ### mp_parity — outcomes (2026-08-17)
 
 **Root cause.** `train_near_rtt.py` fitted `self.gin(x, data.edge_index)` (bipartite only)
