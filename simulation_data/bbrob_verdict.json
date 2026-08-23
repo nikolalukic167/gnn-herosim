@@ -1,0 +1,144 @@
+{
+  "conditions": {
+    "bb_core4_bw0p5": {
+      "cells": {
+        "cell01_p25_s9001": {
+          "deployed": {
+            "total_rtt": 459477728.54206383,
+            "vs_knative_pct": -31.608105592245998
+          },
+          "knative": 671830678.9436879,
+          "tempfix": {
+            "total_rtt": 436988199.74298596,
+            "vs_knative_pct": -34.955605119126474
+          }
+        },
+        "cell02_p35_s9002": {
+          "deployed": {
+            "total_rtt": 587622098.7227155,
+            "vs_knative_pct": -24.29085323496083
+          },
+          "knative": 776157338.7511303,
+          "tempfix": {
+            "total_rtt": 488819229.7639131,
+            "vs_knative_pct": -37.020600674800846
+          }
+        },
+        "cell03_p15_s9003": {
+          "deployed": {
+            "total_rtt": 419814660.0585861,
+            "vs_knative_pct": -39.4606426426256
+          },
+          "knative": 693457410.8217682,
+          "tempfix": {
+            "total_rtt": 424623391.72852093,
+            "vs_knative_pct": -38.767199671955446
+          }
+        },
+        "cell04_p50_s9004": {
+          "deployed": {
+            "total_rtt": 630908238.2044109,
+            "vs_knative_pct": -13.036521322768813
+          },
+          "knative": 725486431.5468047,
+          "tempfix": {
+            "total_rtt": 439643436.57820815,
+            "vs_knative_pct": -39.40018483311295
+          }
+        },
+        "cell05_p20_s9005": {
+          "deployed": {
+            "total_rtt": 534447522.7673996,
+            "vs_knative_pct": -13.654329612919573
+          },
+          "knative": 618962734.7515122,
+          "tempfix": {
+            "total_rtt": 483628167.5725049,
+            "vs_knative_pct": -21.864735884841032
+          }
+        }
+      },
+      "mean_margin_pct": {
+        "deployed": -24.410090481104163,
+        "tempfix": -34.40166523676735
+      },
+      "n_cells": 5,
+      "wins_vs_knative": {
+        "deployed": 5,
+        "tempfix": 5
+      }
+    },
+    "bb_core8_bw1p5": {
+      "cells": {
+        "cell01_p25_s9001": {
+          "deployed": {
+            "total_rtt": 201964577.00326425,
+            "vs_knative_pct": -23.63398700564474
+          },
+          "knative": 264469191.3118377,
+          "tempfix": {
+            "total_rtt": 189804632.3633666,
+            "vs_knative_pct": -28.231855127667227
+          }
+        },
+        "cell02_p35_s9002": {
+          "deployed": {
+            "total_rtt": 208836024.20945603,
+            "vs_knative_pct": -22.84599442064094
+          },
+          "knative": 270674247.74809843,
+          "tempfix": {
+            "total_rtt": 184370778.2079076,
+            "vs_knative_pct": -31.884625249059052
+          }
+        },
+        "cell03_p15_s9003": {
+          "deployed": {
+            "total_rtt": 148929210.37617147,
+            "vs_knative_pct": -31.291799558027023
+          },
+          "knative": 216756092.31237045,
+          "tempfix": {
+            "total_rtt": 149722971.16349524,
+            "vs_knative_pct": -30.925599568510755
+          }
+        },
+        "cell04_p50_s9004": {
+          "deployed": {
+            "total_rtt": 211919411.14469588,
+            "vs_knative_pct": -14.12490495844867
+          },
+          "knative": 246776333.74630564,
+          "tempfix": {
+            "total_rtt": 151713988.18634754,
+            "vs_knative_pct": -38.52166215326198
+          }
+        },
+        "cell05_p20_s9005": {
+          "deployed": {
+            "total_rtt": 152105988.7288124,
+            "vs_knative_pct": -20.22769282626176
+          },
+          "knative": 190675178.0383344,
+          "tempfix": {
+            "total_rtt": 144243412.58793524,
+            "vs_knative_pct": -24.35123749619065
+          }
+        }
+      },
+      "mean_margin_pct": {
+        "deployed": -22.424875753804628,
+        "tempfix": -30.782995918937935
+      },
+      "n_cells": 5,
+      "wins_vs_knative": {
+        "deployed": 5,
+        "tempfix": 5
+      }
+    }
+  },
+  "inference_feature_layout": "dim22",
+  "noise_floor_pct": 0.4,
+  "prefix": "bbrob",
+  "warmth_physics": "node_disk_v2"
+}
