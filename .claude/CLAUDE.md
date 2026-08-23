@@ -164,8 +164,16 @@ different machines.** The hard rules, because they are easy to violate by accide
    resolves its own venv and shells straight past `micromamba activate gnn`. On the cluster
    this silently created a third, undeclared environment that every gate has actually used.
    Write `${HEROSIM_PY:-pipenv run python3}` and `export HEROSIM_PY=python3` after activation
-   in the `.sbatch`. **Applied 2026-08-21** across all 52 call sites / 18 scripts and the 3
-   sbatch that activate micromamba — so this is now "do not reintroduce", not "do this".
+   in the `.sbatch`. Applied 2026-08-21 across 52 *shell* call sites / 18 scripts and the 3
+   sbatch that activate micromamba. **That sweep was incomplete and the "closed" claim here
+   was false until 2026-08-23:** it grepped for the shell spelling and so missed two Python
+   **argv lists** — `run_simulation.py` and `important/run_normal_sim_config_sweep.py` built
+   `["pipenv", "run", "python", ...]`. Since `run_simulation.py` is what launches the
+   simulator, the shell guard pinned only the wrapper and every datalab gate through it still
+   ran in the rogue venv. Both fixed. When auditing, grep **both** spellings, and read
+   `run_provenance.python_env` from a result JSON rather than trusting an sbatch banner —
+   the banner describes the process that printed it, not necessarily the one that produced
+   the numbers.
 2. **One environment spec: `envs/herosim-lock.txt`.** Canonical stack is the local one
    (torch 2.5.1+cu121 / numpy 2.3.0 / PyG 2.6.1). Do not add a fourth answer alongside
    `Pipfile`, `Pipfile.lock` and `requirements.txt`. The file itself was created 2026-08-21;
