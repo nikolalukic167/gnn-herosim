@@ -202,6 +202,8 @@ _corpus_provenance: Optional[Dict[str, Any]] = None
 # layout and then serve as `atomic21` while the deployed checkpoint served `dim22`, a
 # difference worth up to 40.8% of live total_rtt. The cache already records the answer.
 _inference_feature_layout: Optional[str] = None
+_topology_feature_contract: Optional[str] = None
+_queue_norm_mode: Optional[str] = None
 _required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").strip()
 _metadata_path = CACHE_CTX.cache_dir / "metadata.json"
 if _metadata_path.exists():
@@ -231,10 +233,24 @@ if _metadata_path.exists():
             "that serves wrong numbers with no error."
         )
     _inference_feature_layout = _cache_layout or _env_layout or None
+    # Same rule for the topology contract: the cache's value wins, a conflicting shell
+    # export is an error, and a cache that predates the field leaves it to the resolver.
+    _cache_topo = (_cache_meta.get("topology_feature_contract") or "").strip()
+    _env_topo = os.environ.get("TOPOLOGY_FEATURE_CONTRACT", "").strip()
+    if _cache_topo and _env_topo and _cache_topo != _env_topo:
+        raise ValueError(
+            f"Cache {CACHE_CTX.cache_dir} was built under topology_feature_contract="
+            f"{_cache_topo!r} but this run exports TOPOLOGY_FEATURE_CONTRACT="
+            f"{_env_topo!r}. Task dim 2 means different quantities under the two contracts."
+        )
+    _topology_feature_contract = _cache_topo or None
+    _queue_norm_mode = _cache_meta.get("queue_norm_mode")
     print(
         f"Cache metadata: version={_cache_version}, feature_dim={_feature_dim}, "
         f"queue_feature_contract={_queue_feature_contract}, "
-        f"inference_feature_layout={_inference_feature_layout}"
+        f"inference_feature_layout={_inference_feature_layout}, "
+        f"topology_feature_contract={_topology_feature_contract or '(pre-field cache)'}, "
+        f"queue_norm_mode={_queue_norm_mode}"
     )
     # Which infrastructure the corpus spans, for the checkpoint sidecar. Derived from the
     # cache's own dataset list so it cannot drift from the data it describes.
@@ -1191,12 +1207,18 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                     else NETWORK_GRAPH_CONTRACT_OFF
                 ),
                 # Task feature dim 2 means different things under each contract and is
-                # invisible in the weights, so serving cannot infer it.
-                "topology_feature_contract": resolve_topology_feature_contract(),
+                # invisible in the weights, so serving cannot infer it. From the CACHE
+                # when it records one; the resolver only covers pre-field caches.
+                "topology_feature_contract": (
+                    _topology_feature_contract or resolve_topology_feature_contract()
+                ),
                 # Weight shapes pin the platform feature *count*, not which layout assigns
                 # meaning to those columns.
                 # From the CACHE, not the environment — see the note at _inference_feature_layout.
                 "inference_feature_layout": _inference_feature_layout,
+                # dim7's divisor semantics (adaptive p90 vs fixed factor) — a cache built
+                # with one and served under another is a silent divisor mismatch.
+                "queue_norm_mode": _queue_norm_mode,
                 # Which infrastructure this was actually fitted on, so a live run can say
                 # whether it is in-distribution instead of guessing.
                 "corpus": _corpus_provenance,

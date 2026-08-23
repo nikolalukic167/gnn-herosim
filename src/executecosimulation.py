@@ -2291,8 +2291,13 @@ def execute_brute_force_optimized(
             }
             
             completed = 0
-            timeout_per_placement = 2  # 2 seconds per placement (sims take ~10ms, 2s provides 200x safety margin)
+            # Sims take ~10ms; the default 2s gives a 200x margin. Overridable because a
+            # truncated sweep silently changes the "optimum" (WS0.2, 2026-08-23).
+            timeout_per_placement = float(os.environ.get("COSIM_PLACEMENT_TIMEOUT_S", "2"))
             timed_out_count = 0
+            worker_failed_count = 0  # worker returned (None, inf, None): row NOT in placements.jsonl
+            worker_exception_count = 0  # future.result() raised: row NOT in placements.jsonl
+            early_terminated = False
             
             # Calculate update interval once
             update_interval = max(1, min(1000, num_placements // 100))
@@ -2311,6 +2316,11 @@ def execute_brute_force_optimized(
                     if placement_plan is None:
                         # Error case: placement_plan is None (worker failed)
                         # Still update progress even for None results
+                        worker_failed_count += 1
+                        logger.warning(
+                            f"Placement {placement_idx} lost: worker returned no plan "
+                            f"(row omitted from placements.jsonl)"
+                        )
                         if completed % update_interval == 0 and progress_dir:
                             try:
                                 progress_file = progress_dir / "placement_progress.txt"
@@ -2338,6 +2348,7 @@ def execute_brute_force_optimized(
                             
                             # Early termination: stop if we found a "good enough" RTT
                             if early_termination_rtt is not None and best_rtt <= early_termination_rtt:
+                                early_terminated = True
                                 if not quiet:
                                     _log(f"  Early termination: Found RTT {best_rtt:.3f}s <= {early_termination_rtt:.3f}s", force=True)
                                 logger.info(f"Early termination triggered: RTT {best_rtt:.3f}s <= {early_termination_rtt:.3f}s")
@@ -2375,6 +2386,7 @@ def execute_brute_force_optimized(
                     logger.warning(f"Placement {placement_idx} timed out after {timeout_per_placement}s")
                     # Continue to progress update below
                 except Exception as e:
+                    worker_exception_count += 1
                     if not quiet:
                         _log(f"  Worker failed for placement {placement_idx}: {e}")
                     logger.warning(f"Worker failed for placement {placement_idx}: {e}")
@@ -2398,6 +2410,7 @@ def execute_brute_force_optimized(
                 
                 # Early termination: stop after checking X% of placements
                 if early_termination_pct is not None and completed >= int(num_placements * early_termination_pct):
+                    early_terminated = True
                     if not quiet:
                         _log(f"  Early termination: Checked {completed}/{num_placements} ({100*completed/num_placements:.1f}%) placements", force=True)
                     logger.info(f"Early termination triggered: Checked {100*early_termination_pct:.1f}% of placements")
@@ -2423,9 +2436,20 @@ def execute_brute_force_optimized(
             if best_rtt_value.value < best_rtt:
                 best_rtt = best_rtt_value.value
     
-    if timed_out_count > 0:
-        _log(f"\n[WARNING] {timed_out_count} placement(s) timed out and were skipped", force=True)
-        logger.warning(f"{timed_out_count} placement(s) timed out during execution")
+    lost_placements = timed_out_count + worker_failed_count + worker_exception_count
+    if lost_placements > 0:
+        _log(
+            f"\n[WARNING] {lost_placements} placement(s) missing from placements.jsonl "
+            f"(timeouts={timed_out_count}, worker_failed={worker_failed_count}, "
+            f"exceptions={worker_exception_count}) — the sweep is TRUNCATED and its "
+            f"minimum may not be the true optimum",
+            force=True,
+        )
+        logger.warning(
+            f"Sweep truncated: {lost_placements} placements lost "
+            f"(timeouts={timed_out_count}, failed={worker_failed_count}, "
+            f"exceptions={worker_exception_count})"
+        )
     
     # Write results
     _log(f"\n[Phase 4] Writing results...")
@@ -2503,9 +2527,24 @@ def execute_brute_force_optimized(
         try:
             metadata_file = progress_dir / "placement_metadata.json"
             with open(metadata_file, 'w') as mf:
-                json.dump({"num_placements": num_placements, "completed": len(rtts)}, mf)
-        except Exception:
-            pass
+                json.dump(
+                    {
+                        "num_placements": num_placements,
+                        "completed": len(rtts),
+                        "rows_written": num_written,
+                        "timed_out": timed_out_count,
+                        "worker_failed": worker_failed_count,
+                        "worker_exception": worker_exception_count,
+                        "early_terminated": early_terminated,
+                        "timeout_per_placement_s": timeout_per_placement,
+                        "sweep_complete": (
+                            num_written == num_placements and not early_terminated
+                        ),
+                    },
+                    mf,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to write placement_metadata.json: {e}")
     
     # Summary
     _log(f"\n=== Optimization Complete ===")

@@ -26,6 +26,8 @@ from src.policy.tabular.graph_extraction import resolve_platform_pos
 class XGBoostBatchScheduler(GNNScheduler):
     """Batch tabular scheduler: GNNScheduler loop with XGBoost edge ranking."""
 
+    _live_audit_policy_name = "xgboost_batch"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.xgb_model: Optional[xgb.Booster] = None

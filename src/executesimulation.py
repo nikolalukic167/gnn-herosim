@@ -886,8 +886,19 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "KNATIVE_BATCH_TIMEOUT",
             "GNN_MODEL_PATH",
             "MLP_MODEL_PATH",
+            "TOPOLOGY_FEATURE_CONTRACT",
+            "NETWORK_GRAPH_CONTRACT",
             QUEUE_FEATURE_CONTRACT_ENV,
         )
+    }
+    provenance["slurm"] = {
+        name: os.environ.get(name)
+        for name in (
+            "SLURM_JOB_ID",
+            "SLURM_ARRAY_JOB_ID",
+            "SLURM_ARRAY_TASK_ID",
+        )
+        if os.environ.get(name) is not None
     }
     provenance["policy"] = policy
     # dim7/dim13 scaling changes queue ranking, so it belongs next to warmth_physics.
@@ -1023,9 +1034,13 @@ def run_simulation(
 
         # Adopt the MLP's contract before provenance so the record matches what serves.
         if policy == 'mlp_batch' and mlp_model_path is not None:
-            apply_mlp_checkpoint_queue_feature_contract(
-                mlp_model_path, f"MLP checkpoint {mlp_model_path.name}"
-            )
+            _mlp_label = f"MLP checkpoint {mlp_model_path.name}"
+            apply_mlp_checkpoint_queue_feature_contract(mlp_model_path, _mlp_label)
+            # Same protections the GNN path gets (no-ops on sidecar-less checkpoints):
+            # topology contract and warmth/corpus compatibility must not depend on which
+            # model class is being served.
+            apply_checkpoint_topology_feature_contract(mlp_model_path, _mlp_label)
+            check_checkpoint_corpus_compatibility(mlp_model_path, _mlp_label, space_config)
 
         # Before any simulation work: declared physics decides comparability.
         run_provenance = build_run_provenance(space_config, policy)
@@ -1168,6 +1183,9 @@ def run_simulation(
             "config_file": str(config_file),
             "workload_file": str(workload_file),
             "seed": seed,
+            # The seed actually used: the CLI value defaults to the topology seed (or 42)
+            # at placement_seed resolution above. "seed": null does NOT mean unseeded.
+            "placement_seed": placement_seed,
             "queue_length": resolved_queue_length,
             "total_rtt": total_rtt,
             "num_tasks": num_tasks,

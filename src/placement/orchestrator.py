@@ -153,6 +153,8 @@ class Orchestrator:
         sum_pull = sum_cold = sum_exec = sum_wait = sum_queue = 0.0
         sum_init = sum_compute = sum_comm = 0.0
         sum_network = 0.0
+        sum_link_wait = sum_link_transfer = 0.0
+        sum_ingress_wait = sum_node_contention = 0.0
         sum_local_deps = sum_local_comms = 0.0
         sum_cold_started = sum_cache_hit = 0.0
         sum_task_energy = 0.0
@@ -183,6 +185,10 @@ class Orchestrator:
             sum_compute += float(getattr(task, "compute_time", 0.0) or 0.0)
             sum_comm += float(getattr(task, "communications_time", 0.0) or 0.0)
             sum_network += float(getattr(task, "network_latency", 0.0) or 0.0)
+            sum_link_wait += float(getattr(task, "link_wait_time", 0.0) or 0.0)
+            sum_link_transfer += float(getattr(task, "link_transfer_time", 0.0) or 0.0)
+            sum_ingress_wait += float(getattr(task, "ingress_wait_time", 0.0) or 0.0)
+            sum_node_contention += float(getattr(task, "node_contention_time", 0.0) or 0.0)
             sum_local_deps += float(getattr(task, "local_dependencies", 0.0) or 0.0)
             sum_local_comms += float(getattr(task, "local_communications", 0.0) or 0.0)
             sum_cold_started += float(getattr(task, "cold_started", False) or False)
@@ -323,6 +329,12 @@ class Orchestrator:
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
             "averageNetworkLatency": sum_network / n_tasks,
+            "averageLinkWaitTime": sum_link_wait / n_tasks,
+            "totalLinkWaitTime": sum_link_wait,
+            "averageLinkTransferTime": sum_link_transfer / n_tasks,
+            "averageIngressWaitTime": sum_ingress_wait / n_tasks,
+            "averageNodeContentionTime": sum_node_contention / n_tasks,
+            "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
             "offloadingRate": offloaded / n_tasks * 100,
@@ -330,6 +342,14 @@ class Orchestrator:
         }
         check_serializable(result, "stats")
         return result
+
+    def _fabric_link_wait_total(self) -> float:
+        """Total wait accumulated on shared backbone links, all tasks (incl. internal)."""
+        for node in self.nodes.items:
+            fabric = getattr(node, "fabric", None)
+            if fabric is not None:
+                return float(getattr(fabric, "link_wait_total", 0.0) or 0.0)
+        return 0.0
 
     def stats(self) -> SimulationStats:
         logger = logging.getLogger('simulation')
@@ -536,6 +556,22 @@ class Orchestrator:
         average_network_latency = sum(
             task_result["networkLatency"] for task_result in task_results
         ) / len(task_results)
+        sum_link_wait = sum(
+            float(task_result.get("linkWaitTime", 0.0) or 0.0)
+            for task_result in task_results
+        )
+        average_link_transfer_time = sum(
+            float(task_result.get("linkTransferTime", 0.0) or 0.0)
+            for task_result in task_results
+        ) / len(task_results)
+        average_ingress_wait_time = sum(
+            float(task_result.get("ingressWaitTime", 0.0) or 0.0)
+            for task_result in task_results
+        ) / len(task_results)
+        average_node_contention_time = sum(
+            float(task_result.get("nodeContentionTime", 0.0) or 0.0)
+            for task_result in task_results
+        ) / len(task_results)
 
         # Calculate per-node-pair latencies
         node_pair_latencies = defaultdict(list)
@@ -606,6 +642,12 @@ class Orchestrator:
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
             "averageNetworkLatency": average_network_latency,
+            "averageLinkWaitTime": sum_link_wait / num_tasks,
+            "totalLinkWaitTime": sum_link_wait,
+            "averageLinkTransferTime": average_link_transfer_time,
+            "averageIngressWaitTime": average_ingress_wait_time,
+            "averageNodeContentionTime": average_node_contention_time,
+            "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
             "offloadingRate": offloading_rate,
