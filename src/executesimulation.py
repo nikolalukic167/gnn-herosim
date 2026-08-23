@@ -611,7 +611,26 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                 f"Cannot infer edge_dim from edge_scorer.fc1 in_dim={edge_fc1_in}"
             )
 
-        layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21").strip().lower()
+        # A task_dim=3 / platform_dim=14 checkpoint is structurally valid under BOTH
+        # atomic21 and dim22 — the layouts assign different meanings to the same platform
+        # columns (dim22 normalizes the queue features, atomic21 does not), so the weight
+        # shapes cannot disambiguate them and neither load nor forward raises. Defaulting
+        # silently to atomic21 is how the prefixctl and tempfix gates came to serve a
+        # different layout than every deployed-checkpoint gate (which served dim22 from a
+        # sidecar), with nothing in the result but an easily-missed banner line. For that
+        # ambiguous shape, refuse to guess.
+        declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip()
+        if not declared_layout and task_feature_dim == 3 and platform_feature_dim == 14:
+            raise ValueError(
+                f"{model_path.name}: task_dim=3 / platform_dim=14 is served under either "
+                f"'atomic21' or 'dim22', and this run declares neither — the checkpoint has "
+                f"no inference_feature_layout in its .contract.json and "
+                f"INFERENCE_FEATURE_LAYOUT is unset. The two layouts give the same tensor "
+                f"shapes different meanings (dim22 normalizes the platform queue features), "
+                f"so guessing silently changes every score. Declare one explicitly, or "
+                f"retrain with a trainer that records it in the sidecar."
+            )
+        layout = (declared_layout or "atomic21").lower()
         if task_feature_dim == 3 and platform_feature_dim == 6:
             os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
             print(
