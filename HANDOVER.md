@@ -1,43 +1,47 @@
 # 🚀 Session Handover (2026-08-24)
 
-> ## ⏳ IN FLIGHT — P5b gate array, datalab job `711679` (60 tasks)
+> ## ✅ P5b DONE — verdict **INDETERMINATE**, and it changes the plan below
 >
-> Branch `feat/network-contention-v1` at **`886f559`, pushed**; datalab is synced to the
-> same commit with a clean tree. **Step 1 of the sequence below (P5b) is running.**
+> Branch at **`b850da7`+, pushed**; datalab synced, clean tree. Pre-registration `2c5e676`
+> (written before submission), implementation `886f559`, jobs `711675` (retrains, both
+> validity gates passed) and `711679` (60/60 COMPLETED). Full record: `LINEAGES.md` →
+> `### p5b_candidate_relative — OUTCOME`. Artifact: `simulation_data/p5b_verdict.json`.
 >
-> * Pre-registration: commit `2c5e676`, written **before** anything was submitted —
->   `LINEAGES.md` → `### p5b_candidate_relative — PRE-REGISTRATION`.
-> * Implementation: commit `886f559` (`dim25cr` = dim22 + 3 candidate-relative queue
->   columns).
-> * Retrains (job `711675`, **DONE, both validity gates passed**):
->   `models/tabular/batch_edge_mlp_full_corpus_siv1_dim25cr_batchcache{,_tempfix}.pt`
->   — gate 1 (acc vs own baseline) +0.0000 / −0.0038; gate 2 (CR-ablation argmax change)
->   21.3% / 28.8%. **Accuracy is flat while ~1/4 of decisions move** — the feature
->   redistributes without improving the supervised target, which is what
->   pointwise-separability predicts and why the live gate is the informative test.
-> * Gate array `711679`: 60 tasks = 2 arms (`mlpcandrel`, `mlpcandreltf`) × 30 cells.
+> **The two cache arms moved in opposite directions**, robustly (survives dropping the
+> registered detector for a plain RTT criterion):
 >
-> **When it finishes**, on datalab:
-> ```bash
-> PYTHONPATH=$PWD python3 scripts_cosim/important/extract_gate_stats_summary.py \
->   --root simulation_data/normal_sim_sweeps --out simulation_data/gate_stats_summary.json
-> PYTHONPATH=$PWD python3 scripts_cosim/important/score_p5b_collapse_pairs.py \
->   --summary simulation_data/gate_stats_summary.json \
->   --json-out simulation_data/p5b_verdict.json
-> # secondary (layouts differ BY DESIGN here, so they must be declared):
-> PYTHONPATH=$PWD python3 scripts_cosim/important/score_live_gate_matrix.py \
->   --prefix drawgate --conditions nobackbone,backbone --arms mlp,mlpcandrel \
->   --expect-layouts knative=dim22,mlp=dim22,mlpcandrel=dim25cr
-> ```
-> The scorer prints REFUTE / HARDEN / INDETERMINATE per the registered rule and takes no
-> threshold arguments. **Then write the outcome into `LINEAGES.md`** — the lineage is not
-> done until that row exists — and re-point this handover at step 2 (P5a) or at the
-> shrunken claim, whichever the verdict dictates.
+> | arm | cache | collapses | mean margin vs Knative |
+> |---|---|---|---|
+> | `mlpcandrel` | `dim14` | 7/30 → **17/30** | blows out to +436% / +510% |
+> | `mlpcandreltf` | `dim14_tempfix` | 7/30 → **2/30** | **negative in 4 of 6 conditions**, 26/30 cells |
 >
-> **Detector preflight, run before submitting:** the registered `chosen_queue_vs_min` p95
-> ≥ 5,000 rule reproduces **exactly 7/30 for both baselines**, healthy ≤ 749 vs collapse
-> ≥ 13,485, nothing in the never-observed band. The threshold-sensitivity clause should be
-> a formality, but it stays in the rule.
+> **What it killed:** the sentence "a pointwise scorer collapses *because* it cannot
+> condition on where its peers are going." `mlpcandreltf` has exactly that conditioning,
+> demonstrably uses it (28.8% of argmaxes move when the columns are ablated), and largely
+> stops collapsing. **That mechanism claim must not go in the paper.** The GNN's 0/120
+> record is untouched (no GNN arm was re-run) — what is gone is the *explanation*.
+>
+> **What it strengthened:** all four MLP checkpoints sit within ±0.004 test edge accuracy
+> while their live collapse counts span 2/30 → 17/30. Supervised accuracy does not
+> constrain live reliability at all.
+>
+> ### Start here: resolve the seed/cache confound (~half a day)
+> Both candrel arms used `--random-state 42`, so cache and training draw are **perfectly
+> confounded** — the exact confound `memory/herosim-live-quality-is-a-training-draw-lottery.md`
+> describes. Retrain both at ≥3 seeds and re-gate; ~4 min per train, 30 gate runs each.
+> Everything needed is in place — `fc_siv1_mlp_candrel.sbatch` and
+> `mlp_candrel_arm_all_gates.sbatch` need only a seed/output loop.
+> **No claim about which cache is "better" may be written until this is done.**
+>
+> **P5a (step 2 below) should NOT be run as written.** Its win condition assumed the MLP
+> arm was the reliability foil; one MLP arm now beats Knative in 4 of 6 conditions.
+>
+> **Detector caveat, measured:** `chosen_queue_vs_min` p95 agrees with catastrophic RTT
+> 29-30/30 on `mlp`/`mlptempfix`/`mlpcandreltf` but only **25/30 on `mlpcandrel`**, firing
+> on five healthy cells including one **−2.5% win** — the CR feature makes non-min-queue
+> choice deliberate, so the detector partly measures the intervention. Errors are
+> one-directional in all 180 runs (never quiet-but-collapsed), so it stays valid as a
+> negative test. **Score candidate-relative arms on RTT.**
 
 **Status of the session below:** work committed on `feat/network-contention-v1`
 (`6a2ec46`). This was a read-mostly *verdict* session: no retrains, no physics changes, no

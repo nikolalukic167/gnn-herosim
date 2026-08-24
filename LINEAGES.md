@@ -42,7 +42,7 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 
 | **program_verdict_v1** | this file (2026-08-24 subsection); artifacts cited in place | P7 frozen reports (scratchpad) | **Closed 2026-08-24.** Terminal answer to the D3 fork: the supervised co-sim path to "GNN > MLP on latency" is closed by measurement (5 mechanisms + live-state additivity + the P7 warmth-stratum controls, which take the least-additive 31% of the cache to spread-plans R² = 1.00000 exactly). The reliability/regime win over both baselines exists on the 30-cell backbone record but is exploratory — it needs one pre-registered gate. P2 ruled out (labeller is the one-step oracle); P4 ruled out on the empirical rule (the built slot holds exec only; the residency-hold variant is unbuilt but node-indexed); P3 (in-horizon dynamics, tail-sensitive pre-registration) is the highest-upside open measurement; P1 (closed-loop objective) the only path to the latency claim. **Outcomes below.** |
 
-| **p5b_candidate_relative** | `src/policy/tabular/reduced_features.py` (`candidate_relative_queue_columns`), `train_mlp_dim22_from_batch.py --candidate-relative-queue`, `datalab/{fc_siv1_mlp_candrel,mlp_candrel_arm_all_gates}.sbatch`, `important/score_p5b_collapse_pairs.py`, `scripts_cosim/test_{candidate_relative_features,mlp_serving_layout}.py` | no new datasets — derived in-process from `graphs_cache_full_corpus_siv1_dim14{,_tempfix}` | **🔄 IN PROGRESS 2026-08-24.** Step 1 of `program_verdict_v1`'s registered sequence, and the control that gates the paper: is the MLP's 14/120 collapse architectural, or was it just never given the candidate-relative view? Hands the pointwise scorer that view as 3 engineered columns (`dim25cr`) and re-gates all 30 backbone cells on **both** caches. **Decision rule pre-registered below BEFORE the array was submitted** — the point of the exercise is that the record it tests was scored under a rule written afterwards. |
+| **p5b_candidate_relative** | `src/policy/tabular/reduced_features.py` (`candidate_relative_queue_columns`), `train_mlp_dim22_from_batch.py --candidate-relative-queue`, `datalab/{fc_siv1_mlp_candrel,mlp_candrel_arm_all_gates}.sbatch`, `important/score_p5b_collapse_pairs.py`, `scripts_cosim/test_{candidate_relative_features,mlp_serving_layout}.py` | no new datasets — derived in-process from `graphs_cache_full_corpus_siv1_dim14{,_tempfix}` | **Closed 2026-08-24 as INDETERMINATE — and the indeterminacy is the result.** Step 1 of `program_verdict_v1`'s sequence, pre-registered before submission (commit `2c5e676`), run clean (jobs `711675`/`711679`, 60/60 COMPLETED). Handing the pointwise MLP the candidate-relative view (`dim25cr`) moved the two cache arms in **opposite** directions: `mlpcandrel` 7/30 → **17/30** collapses, `mlpcandreltf` 7/30 → **2/30** (and negative mean margin vs Knative in 4 of 6 conditions — the first MLP arm to approach the GNN's record). Robust to dropping the registered detector for an RTT criterion. **Kills the mechanism sentence "a pointwise scorer collapses because it cannot condition on its peers"** — one arm has exactly that conditioning, uses it (28.8% ablation), and stops collapsing. Cache and seed are perfectly confounded (both `--random-state 42`); resolve with ≥3 seeds per cache before any further claim. **Do not proceed to P5a as written.** Outcome below. |
 
 Shared core (not a lineage — everything depends on it): `src/placement/`, `src/policy/{gnn,tabular,knative*,determined,evaluator}/`, `src/executecosimulation.py`, `src/executesimulation.py`, `scripts_cosim/generate_gnn_datasets_fast.py`, `src/notebooks/non_unique_lib/`.
 
@@ -3157,6 +3157,72 @@ sidecar; `dim22` declared → refuses). Checkpoints carry `inference_feature_lay
 pass `--expect-layouts` to `score_live_gate_matrix.py`: the arms differ in layout **by
 design** here, and the guard was changed from an equality check to a declaration check
 precisely so that an *unintended* mixture still fails loud.
+
+### p5b_candidate_relative — OUTCOME: **INDETERMINATE**, and the reason is the finding (2026-08-24)
+
+**Ran as registered.** Retrains job `711675` (both validity gates passed: accuracy vs own
+baseline +0.0000 / −0.0038; CR-ablation argmax change 21.3% / 28.8%). Gate array `711679`,
+60/60 COMPLETED, 30 results + 30 decode-stats sidecars per arm, no failures, all runs
+`commit=886f5593 dirty=False torch=2.5.1+cu121`. Verdict artifact:
+`simulation_data/p5b_verdict.json`.
+
+**Registered verdict: INDETERMINATE — the two paired arms moved in opposite directions.**
+
+| arm | cache | collapses (registered detector) | fixed / broken / both | p (1-sided) | pair verdict |
+|---|---|---|---|---|---|
+| `mlpcandrel` | `dim14` | 7/30 → **17/30** | 2 / 12 / 5 | 0.9991 | HARDEN |
+| `mlpcandreltf` | `dim14_tempfix` | 7/30 → **2/30** | 5 / 0 / 2 | 0.0312 | INDETERMINATE (threshold-unstable: 2,000 → p=0.062) |
+
+**The split is not noise, and it survives dropping the registered detector entirely.**
+Re-scored post-hoc on `total_rtt` vs the same-cell Knative arm, at +30/+50/+100%:
+`mlpcandrel` goes 7→13, 6→12, 5→11 (p = 0.989 / 0.996 / 1.000); `mlpcandreltf` goes
+7→2 at **all three** thresholds (p = 0.0312 each, i.e. *more* stable than under the
+registered detector). Registered secondary — mean margin vs same-condition Knative:
+`mlpcandrel` blows out to **+436.1%** and **+509.9%** on the two nobackbone blocks, while
+`mlpcandreltf` turns **negative in 4 of 6 conditions** (−23.2%, −20.0%, −26.8%, −33.8%)
+and wins 26/30 cells — the first MLP arm in this repo to approach the GNN's record.
+
+**What this does and does not license.**
+- **"A candidate-relative feature fixes the MLP collapse" is NOT supported** — it fixed
+  one arm and made the other roughly twice as bad.
+- **"A pointwise scorer collapses *because* it cannot condition on the candidate set" is
+  also no longer supported**, and this is the load-bearing correction: `mlpcandreltf` has
+  exactly that conditioning, uses it heavily (28.8% of argmaxes move when it is ablated),
+  and largely stops collapsing. The mechanism sentence in the 2026-08-23 subsection above
+  ("a pointwise scorer cannot condition on where its peers are going") must not be written
+  as the explanation of the reliability gap.
+- **The GNN's 0/120 record is untouched** by this lineage — no GNN arm was re-run.
+- What the split *does* support is the existing architectural reading in its weaker,
+  weights-not-data form (`memory/herosim-mlp-collapse-is-occupation-collapse.md`): all
+  four MLP checkpoints sit within ±0.004 test edge accuracy of each other while their live
+  collapse counts range 2/30 → 17/30. **Supervised accuracy does not constrain live
+  reliability at all**, and the same feature added to two caches moves reliability in
+  opposite directions. Pointwise reliability here is a property of the draw.
+
+**Blocking confound, unresolved: cache or seed?** Both candrel arms used `--random-state
+42`, so "cache" and "training draw" are perfectly confounded — exactly the confound
+`memory/herosim-live-quality-is-a-training-draw-lottery.md` was written about. The 7→17
+and 7→2 results cannot be attributed to the corpus difference until the same checkpoints
+are retrained at ≥3 seeds per cache and re-gated. Cheap: ~4 min per train, 30 gate runs
+per checkpoint. **No claim about which cache is "better" may be written before that.**
+
+**Methodological finding — the pre-registered detector is confounded by this specific
+intervention.** `chosen_queue_vs_min` p95 agrees with catastrophic RTT on 29/30 (`mlp`),
+30/30 (`mlptempfix`) and 30/30 (`mlpcandreltf`) — but only **25/30 for `mlpcandrel`**,
+where it fires on five cells whose RTT is fine, including one at **−2.5% (a win)**. The
+cause is structural, not statistical: the CR columns make choosing a non-minimum-queue
+candidate a *deliberate learned behaviour*, so the detector partly measures the
+intervention itself. Its errors are one-directional in all 180 runs (fires-but-healthy,
+never quiet-but-collapsed), so it remains sound as a *negative* test. **Any future gate on
+a candidate-relative arm must score collapse on RTT, not on this detector** — and the
+registered verdict above would be INDETERMINATE either way, so nothing is being rescued
+by saying so after the fact.
+
+**Status: CLOSED as INDETERMINATE.** It did its job: it was registered first, it ran
+clean, and it falsified the mechanism sentence the paper was going to lean on. The
+sequence does **not** proceed to P5a as written — P5a's win condition assumed the MLP arm
+was the reliability foil, and one MLP arm now beats Knative in 4 of 6 conditions. Resolve
+the seed/cache confound first.
 
 ---
 
