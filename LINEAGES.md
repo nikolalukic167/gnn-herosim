@@ -2939,8 +2939,15 @@ fork: is there any path by which a GNN trained here beats MLP and Knative on a l
   regret > 2% ≥ 15% (≥ 4× the 3.3% t=0 base rate, binomial-testable at the stated n) —
   either fires only with node-count repair < 0.5 AND link repair < 0.5 **on the affected
   stratum**. n ≥ 300 snapshots (≥ 2 backbone cells, K=4 ≈ 256 combos), so the tail holds
-  ≥ 10 states under H0 and ~45 under H1. ~1–2 days build + ~80 CPU-h (one overnight SLURM
-  array). Prior 0.2–0.35. A null at this n is terminal for the horizon axis.
+  ≥ 10 states under H0 and ~45 under H1. **Cost calibrated 2026-08-24, not estimated:**
+  the trace carries ~3,000 events/s (301k events / 100 s — "rps=150" names the request
+  rate, not the event rate), so a 10 s horizon is ~4.6k events; one measured
+  `knative_network_batch` episode on that slice is 7.3 s wall of which 5.1 s is process
+  startup ⇒ **~2.2 s marginal sim cost per combo** at a 10 s horizon (in-process oracle
+  combos amortize the startup). 300 × 256 combos ⇒ ~47 CPU-h at 10 s, ~23 at 5 s;
+  backbone fabric overhead may push per-combo to 2–5 s, so **re-calibrate in-harness on
+  3 snapshots before queueing the array** — abort and re-scope if > 6 s/combo. ~1–2 days
+  build. Prior 0.2–0.35. A null at this n is terminal for the horizon axis.
 - **P4 held-duration node contention — RULED OUT on the empirical rule, corrected
   2026-08-24 (the first write-up of this entry overstated it).** What exists holds the
   node slot only around exec (`infrastructure.py:1213-1218` wraps
@@ -2955,9 +2962,15 @@ fork: is there any path by which a GNN trained here beats MLP and Knative on a l
   slot-contention config with additive-argmin regret > 5% and node-occupancy repair < 50%
   under `--spread-plans-only`.
 - **P5a reliability win condition — VIABLE, needs one pre-registered gate** (see the
-  provenance caveat in half 1: the 30/30 record is exploratory). Remaining: register the
-  win condition + thresholds *before* running `tempfix` on `workload-125-225`/`200-200`
-  and one set of freshly minted backbone cells, then promote.
+  provenance caveat in half 1: the 30/30 record is exploratory). The gate must
+  co-register the **MLP arm**, not just Knative — the paper's claim is collapse-freedom
+  *relative to the MLP*, and the 14/120 collapse count comes from the same exploratory
+  campaign as the 30/30. Fresh cells must be minted by a **new** script that does not
+  inherit the A/B design (`make_backbone_gate_cells.py`'s cells are the ones the
+  "< −0.4%" rule was written against). Remaining: register win condition + thresholds
+  (incl. the collapse detector, `chosen_queue_vs_min` p95 with the measured 9.7×
+  no-overlap gap) *before* running `tempfix` + MLP + Knative on
+  `workload-125-225`/`200-200` and the fresh cells, then promote.
 - **P5b batch conditioning — claim must be re-worded before publication.** The deployed
   gates run an *identical* decode for GNN and MLP arms (`mlp_scheduler.py:5-7` inherits it;
   in `argmax` mode `chosen_idx = gnn_idx` unconditionally, `seq_decode.py:719-728` — the
@@ -2991,12 +3004,36 @@ fork: is there any path by which a GNN trained here beats MLP and Knative on a l
   8 underdetermined by too few spread plans) — identical to the base-physics isolation
   result. The warmth stratum's non-additivity is entirely the collision term. Frozen
   reports: `simulation_data/separability_{warmth_1060,sparse_warmth}_n150{,_spread}.json`.
+  **The spread control itself was then audited for mechanical saturation** (R² = 1.00000
+  exactly is also the signature of params ≈ observations, and the control is load-bearing
+  for the throughline's "no reservoir" sentence too). Pre-registered (suspect if median
+  rows/params < 2; survives iff median held-out R² ≥ 0.999 on a seed-0 half split), then
+  measured with `scripts_cosim/audit_spread_fit_saturation.py`: `warmth_1060` ratio
+  median 97.3, held-out R² = 1.00000 on 150/150; **`mh_off` (the throughline's base
+  corpus) ratio median 7.8 (min 2.0), held-out R² = 1.00000 on 48/48**; `sparse_warmth`
+  ratio median 14.7, held-out 1.00000 on 137/144, with 7 failures all at ratio ≤ 2.29 /
+  ≤ 16 spread rows — unresolvable at their own n, excluded from the claim's basis rather
+  than counted as counter-evidence. Held-out *exactness* is the strong form: overfitting
+  cannot produce exact out-of-sample predictions, so the spread-plans conclusion — and
+  the "no reservoir of non-count coupling" sentence it underwrites — now rests on
+  out-of-sample evidence, not in-sample R². The one-integer repair fractions (51%/68%,
+  with 51% one point over the DEGENERATE threshold) are secondary; the spread control is
+  the criterion this entry leans on.
 
 **Recommended sequence (reordered 2026-08-24 — downside protection before upside):**
 P5b control first (1–2 d; if a candidate-relative queue feature stops the MLP collapsing,
 every subsequent P5a gate would have been wasted) → P5a pre-registered gate + re-gates
-(2–3 d CPU) → P3 pilot (2–3 d) → P1 only if P3 finds signal (its horizon labels are also
-DAgger targets).
+(2–3 d CPU) → P3 pilot (2–3 d) → **if P3 nulls, the residency-hold scaling test on paper
+and, if it demands one, its 16-dataset pilot (~0.5 d) before any P1 spend** — cold start
+at 38 s vs 0.024 s exec is a ~1,500× longer hold, so mechanism #1's ≡ 0.0 says nothing
+about it, and unlike link bandwidth (where additive `hops×T` and interaction
+`crossings×T` scale together, ratio-invariant) a longer hold flips overlap from *never*
+to *always* — a threshold, not a ratio. The two-line prediction: interaction =
+`(co-residents − slots)⁺ × residency` — a node-occupancy count times a scalar — so it
+should create coupling *with teeth* that the one-integer column repairs; the pilot's
+`--spread-plans-only` + node-repair verdict settles it either way for two orders of
+magnitude less than P1's 500–5,000 CPU-h → P1 only if P3 (or that pilot) finds
+non-count signal (P3's horizon labels are also DAgger targets).
 
 ---
 
