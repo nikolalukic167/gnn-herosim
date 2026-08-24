@@ -40,7 +40,17 @@ NOISE_FLOOR_PCT = 0.4  # measured run-to-run spread; see PARITY.md
 # not from the checkpoint, which means the two MLP arms are only kept apart by their sweep
 # dirs -- <prefix>_<cond>_mlp/ vs <prefix>_<cond>_mlptempfix/. Pointing a second MLP arm at
 # the first one's SWEEP_DIR silently overwrites it; see mlp_tempfix_arm_all_gates.sbatch.
-ARM_SUFFIX = {"knative": "knative", "mlp": "mlp_dim22", "mlptempfix": "mlp_dim22"}
+#
+# `mlpcandrel` / `mlpcandreltf` are the P5b candidate-relative arms (program_verdict_v1):
+# the same policy again, under a dim25cr checkpoint, so they share the suffix too and are
+# likewise kept apart only by their sweep dirs.
+ARM_SUFFIX = {
+    "knative": "knative",
+    "mlp": "mlp_dim22",
+    "mlptempfix": "mlp_dim22",
+    "mlpcandrel": "mlp_dim22",
+    "mlpcandreltf": "mlp_dim22",
+}
 
 
 def load(root: Path, prefix: str, cond: str, arm: str, cell: str) -> dict:
@@ -54,6 +64,24 @@ def load(root: Path, prefix: str, cond: str, arm: str, cell: str) -> dict:
     return d
 
 
+def _parse_expect_layouts(spec):
+    """`arm=layout,...` → {arm: layout}, or None when the flag was not given."""
+    if not spec:
+        return None
+    out = {}
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise SystemExit(f"FAIL LOUD: --expect-layouts entry {item!r} is not arm=layout")
+        arm, layout = item.split("=", 1)
+        out[arm.strip()] = layout.strip().lower()
+    if not out:
+        raise SystemExit("FAIL LOUD: --expect-layouts was empty")
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path,
@@ -64,6 +92,17 @@ def main() -> int:
     ap.add_argument("--cells", default=None,
                     help="default: every cell present in the first condition's knative arm")
     ap.add_argument("--json-out", type=Path, default=None)
+    ap.add_argument(
+        "--expect-layouts",
+        default=None,
+        help=(
+            "arm=layout,... — declare the INFERENCE_FEATURE_LAYOUT each arm was served "
+            "under, for the case where the difference IS the intervention (P5b's "
+            "candidate-relative arms serve dim25cr against dim22 baselines). Every arm "
+            "must be declared and must match what run_provenance recorded. Omit this and "
+            "the arms must all agree, which is the right default."
+        ),
+    )
     args = ap.parse_args()
 
     conds = [c.strip() for c in args.conditions.split(",") if c.strip()]
@@ -82,8 +121,19 @@ def main() -> int:
         if not cells:
             raise SystemExit(f"FAIL LOUD: no knative results under {kn_dir}")
 
+    expect_layouts = _parse_expect_layouts(args.expect_layouts)
+    if expect_layouts is not None:
+        undeclared = sorted(set(["knative"] + arms) - set(expect_layouts))
+        if undeclared:
+            raise SystemExit(
+                f"FAIL LOUD: --expect-layouts must declare every arm; missing {undeclared}. "
+                f"Declaring only some arms would let an unintended layout through under the "
+                f"cover of an intended one."
+            )
+
     report = {"prefix": args.prefix, "conditions": {}, "noise_floor_pct": NOISE_FLOOR_PCT}
-    layouts, physics = set(), set()
+    layouts_by_arm: dict = {}
+    physics = set()
 
     for cond in conds:
         print(f"\n=== {cond} ===")
@@ -95,14 +145,18 @@ def main() -> int:
 
         for cell in cells:
             kn = load(args.root, args.prefix, cond, "knative", cell)
-            layouts.add(kn["run_provenance"]["env"].get("INFERENCE_FEATURE_LAYOUT"))
+            layouts_by_arm.setdefault("knative", set()).add(
+                kn["run_provenance"]["env"].get("INFERENCE_FEATURE_LAYOUT")
+            )
             physics.add(kn["run_provenance"].get("warmth_physics"))
             kn_rtt = kn["total_rtt"]
             line = f"{cell:22s} {kn_rtt:16,.0f}"
             rows[cell] = {"knative": kn_rtt}
             for a in arms:
                 d = load(args.root, args.prefix, cond, a, cell)
-                layouts.add(d["run_provenance"]["env"].get("INFERENCE_FEATURE_LAYOUT"))
+                layouts_by_arm.setdefault(a, set()).add(
+                    d["run_provenance"]["env"].get("INFERENCE_FEATURE_LAYOUT")
+                )
                 physics.add(d["run_provenance"].get("warmth_physics"))
                 pct = 100.0 * (d["total_rtt"] - kn_rtt) / kn_rtt
                 margins[a].append(pct)
@@ -124,14 +178,45 @@ def main() -> int:
             "mean_margin_pct": {a: sum(margins[a]) / len(margins[a]) for a in arms},
         }
 
-    if len(layouts) > 1:
-        raise SystemExit(f"FAIL LOUD: arms mix INFERENCE_FEATURE_LAYOUT {layouts}")
+    # An arm that is internally inconsistent is always a bug, declared or not.
+    for arm, seen in sorted(layouts_by_arm.items()):
+        if len(seen) > 1:
+            raise SystemExit(
+                f"FAIL LOUD: arm {arm!r} mixes INFERENCE_FEATURE_LAYOUT {seen} across its own cells"
+            )
+    observed = {arm: next(iter(seen)) for arm, seen in layouts_by_arm.items()}
+
+    if expect_layouts is None:
+        distinct = set(observed.values())
+        if len(distinct) > 1:
+            raise SystemExit(
+                f"FAIL LOUD: arms mix INFERENCE_FEATURE_LAYOUT {observed}. If the difference "
+                f"is the intervention rather than an accident, declare it: "
+                f"--expect-layouts "
+                + ",".join(f"{a}={l}" for a, l in sorted(observed.items()))
+            )
+        report["inference_feature_layout"] = distinct.pop() if distinct else None
+        print(f"\nall arms served layout={report['inference_feature_layout']!r} ", end="")
+    else:
+        wrong = {
+            arm: (observed[arm], expect_layouts[arm])
+            for arm in observed
+            if str(observed[arm] or "").lower() != expect_layouts[arm]
+        }
+        if wrong:
+            raise SystemExit(
+                "FAIL LOUD: served layout does not match the declaration "
+                + "; ".join(f"{a}: served {s!r}, declared {d!r}" for a, (s, d) in sorted(wrong.items()))
+            )
+        report["inference_feature_layout"] = observed
+        report["inference_feature_layout_declared"] = expect_layouts
+        print("\nlayouts served as declared: "
+              + ", ".join(f"{a}={observed[a]}" for a in sorted(observed)) + " ", end="")
+
     if len(physics) > 1:
         raise SystemExit(f"FAIL LOUD: arms mix warmth_physics {physics}")
-    report["inference_feature_layout"] = layouts.pop() if layouts else None
     report["warmth_physics"] = physics.pop() if physics else None
-    print(f"\nall arms served layout={report['inference_feature_layout']!r} "
-          f"physics={report['warmth_physics']!r}")
+    print(f"physics={report['warmth_physics']!r}")
 
     print("\n=== summary ===")
     for a in arms:

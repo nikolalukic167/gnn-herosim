@@ -49,6 +49,9 @@ LEGACY_PLATFORM_FEATURE_DIM = 14
 DIM24_FEATURE_DIM = 24
 DIM24_PLATFORM_FEATURE_DIM = 16
 
+# P5b / dim25cr: dim22 + 3 candidate-relative queue columns, appended per candidate set.
+DIM25CR_FEATURE_DIM = 25
+
 # CE-reduced ablation (archive/warmth_sparse/src/notebooks/train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
 CE_REDUCED_TASK_FEATURE_DIM = 3
 CE_REDUCED_PLATFORM_FEATURE_DIM = 6
@@ -177,16 +180,29 @@ def _node_cold_counts_by_position(platforms_info: Sequence[PlatformInfo]) -> Lis
 
 
 def _uses_dim22_layout(layout: str) -> bool:
-    return layout in ("dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060")
+    # dim25cr is a dim22 layout as far as the BUNDLE is concerned: identical task,
+    # platform and edge arrays. Its three extra columns are set-relative, so they exist
+    # only per (task, candidate) group and are appended during MLP row assembly — the GNN
+    # path never sees them and must stay byte-identical.
+    return layout in (
+        "dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060", "dim25cr",
+    )
 
 
 def _uses_dim24_layout(layout: str) -> bool:
     return layout in ("dim24", "24", "pull_obs", "pull_observables")
 
 
+def _uses_candidate_relative_layout(layout: str) -> bool:
+    """P5b: dim22 + 3 candidate-relative queue columns (program_verdict_v1)."""
+    return layout in ("dim25cr", "25", "candrel")
+
+
 def _expected_feature_dim_for_layout(layout: str) -> int:
     if _uses_dim24_layout(layout):
         return DIM24_FEATURE_DIM
+    if _uses_candidate_relative_layout(layout):
+        return DIM25CR_FEATURE_DIM
     if _uses_dim22_layout(layout):
         return LEGACY_FEATURE_DIM
     return FEATURE_DIM

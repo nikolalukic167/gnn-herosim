@@ -31,8 +31,17 @@ GATES = [
     ("bbrob", "bb_core8_bw1p5"),
     ("bbrob", "bb_core4_bw0p5"),
 ]
-ARMS = ["knative", "deployed", "tempfix", "mlp", "mlptempfix"]
-ARM_SUFFIX = {"knative": "knative", "mlp": "mlp_dim22", "mlptempfix": "mlp_dim22"}
+ARMS = [
+    "knative", "deployed", "tempfix", "mlp", "mlptempfix", "mlpcandrel", "mlpcandreltf",
+]
+ARM_SUFFIX = {
+    "knative": "knative",
+    "mlp": "mlp_dim22",
+    "mlptempfix": "mlp_dim22",
+    # P5b candidate-relative arms: same policy, dim25cr checkpoints (program_verdict_v1).
+    "mlpcandrel": "mlp_dim22",
+    "mlpcandreltf": "mlp_dim22",
+}
 
 # Scalars worth carrying; the two response-time distributions are kept separately because
 # they are 100-element percentile curves and dominate the output size otherwise.
