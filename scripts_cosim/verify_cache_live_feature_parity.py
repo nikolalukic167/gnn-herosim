@@ -52,7 +52,14 @@ from src.placement.model import SystemState  # noqa: E402
 from src.placement.queue_features import (  # noqa: E402
     resolve_queue_feature_contract,
 )
-from src.policy.tabular.feature_builder import build_pyg_inference_graph  # noqa: E402
+from src.policy.tabular.feature_builder import (  # noqa: E402
+    build_pyg_inference_graph,
+    _uses_candidate_relative_layout,
+)
+from src.policy.tabular.reduced_features import (  # noqa: E402
+    FULL_PLATFORM_QUEUE_DIM,
+    candidate_relative_queue_columns,
+)
 
 EPS = 1e-6
 EPS_RELATIVE = 1e-5
@@ -231,6 +238,53 @@ def _platform_permutation(cache_g: Any, live_g: Any) -> Optional[np.ndarray]:
     return np.asarray([cache_pos[ident] for ident in live_ident], dtype=np.int64)
 
 
+def _candidate_relative_by_identity(
+    graph: Any, placement_map: Optional[Mapping[int, Any]]
+) -> Dict[Tuple[int, Tuple[str, int]], np.ndarray]:
+    """`{(task_idx, (node_name, platform_id)): [3]}` — the P5b columns, order-independent.
+
+    Keyed by identity rather than by row for the same reason as
+    `_platform_identity_by_pos`: the cache and live builders enumerate platforms (and so
+    candidates) in different orders, and the feature is a function of the candidate SET.
+    """
+    ident_by_pos = _platform_identity_by_pos(graph)
+    plat_feats = _safe_array(graph.platform_features)
+    out: Dict[Tuple[int, Tuple[str, int]], np.ndarray] = {}
+    for t_idx, candidates in (placement_map or {}).items():
+        positions = [
+            int(graph.queue_key_to_platform_meta[qk]["platform_pos"])
+            for qk in _queue_keys_for_candidates(graph, int(t_idx), candidates)
+        ]
+        cols = candidate_relative_queue_columns(
+            plat_feats[positions, FULL_PLATFORM_QUEUE_DIM]
+        )
+        for row, pos in enumerate(positions):
+            out[(int(t_idx), ident_by_pos[pos])] = np.asarray(cols[row], dtype=np.float64)
+    return out
+
+
+def _queue_keys_for_candidates(graph: Any, task_idx: int, candidates: Any) -> List[str]:
+    """Queue keys for one task's candidates, in the graph's own candidate order."""
+    keys_map = getattr(graph, "task_logit_to_queue_key", None) or {}
+    keys = keys_map.get(task_idx)
+    if keys is not None:
+        return [str(k) for k in keys]
+    # Seq/cache graphs that predate the queue-key map: fall back to the identity search
+    # resolve_platform_pos already implements.
+    meta = graph.queue_key_to_platform_meta
+    resolved: List[str] = []
+    for node_id, plat_id in candidates:
+        for qk, entry in meta.items():
+            if int(entry["node_id"]) == int(node_id) and int(entry["platform_id"]) == int(plat_id):
+                resolved.append(str(qk))
+                break
+        else:
+            raise ValueError(
+                f"no queue_key for candidate (node_id={node_id}, platform_id={plat_id})"
+            )
+    return resolved
+
+
 def _bipartite_edges_by_identity(graph: Any) -> set:
     """`{(task_idx, (node_name, platform_id))}` — the edge set, order-independent."""
     ident = _platform_identity_by_pos(graph)
@@ -403,8 +457,11 @@ def _build_cache_graph(
     if layout in ("dim24", "24", "pull_obs", "pull_observables"):
         return build_cache_graph_dim24(**common, **dim24_only)
 
-    if layout in ("dim22", "legacy", "22"):
+    if layout in ("dim22", "legacy", "22", "dim25cr", "25", "candrel"):
         # dim22 = dim24 platform features without cold_count / pull_remaining.
+        # dim25cr shares this graph exactly: its three extra columns are set-relative and
+        # so exist per (task, candidate) group, never on the graph — see the CR block in
+        # the comparison section below, which is what actually verifies them.
         g = build_cache_graph_dim24(**common, **dim24_only)
         g.platform_features = g.platform_features[:, :14]
         return g
@@ -422,7 +479,9 @@ def _build_cache_graph(
 def _expected_platform_dims(layout: str) -> int:
     if layout in ("dim24", "24", "pull_obs", "pull_observables"):
         return 16
-    if layout in ("dim22", "legacy", "22", "dim14", "atomic21", "14"):
+    if layout in (
+        "dim22", "legacy", "22", "dim14", "atomic21", "14", "dim25cr", "25", "candrel",
+    ):
         return 14
     raise ValueError(layout)
 
@@ -749,6 +808,37 @@ def verify_parity(
                 )
                 break
 
+    # P5b candidate-relative columns (dim25cr). They never appear on the graph — the
+    # training extractor appends them per candidate group and the MLP scheduler appends
+    # them per task_boundaries group — so this is the only place the two paths can be
+    # compared, and it is the guard against the train/serve skew that cost 12x live RTT
+    # the last time a served model saw features its weights had not been fitted on.
+    if _uses_candidate_relative_layout(layout):
+        cr_cache = _candidate_relative_by_identity(cache_g, cache_place)
+        cr_live = _candidate_relative_by_identity(live_g, live_placement)
+        if set(cr_cache) != set(cr_live):
+            failures.append(
+                f"candidate-relative keys differ: cache_only={sorted(set(cr_cache) - set(cr_live))[:3]} "
+                f"live_only={sorted(set(cr_live) - set(cr_cache))[:3]}"
+            )
+        else:
+            worst = 0.0
+            worst_key = None
+            for key in cr_cache:
+                delta = float(np.max(np.abs(cr_cache[key] - cr_live[key])))
+                if delta > worst:
+                    worst, worst_key = delta, key
+            if worst > EPS:
+                failures.append(
+                    f"candidate_relative columns differ: max|cache-live|={worst:.3e} "
+                    f"at {worst_key} cache={cr_cache[worst_key]} live={cr_live[worst_key]}"
+                )
+            elif verbose:
+                print(
+                    f"candidate_relative: {len(cr_cache)} (task, platform) pairs agree "
+                    f"to {worst:.3e}"
+                )
+
     # is_warm: edge attr dim 2 must reflect SSC previous_task_type_name
     cea = _directed_edge_attr(cache_g.edge_attr)
     lea = _directed_edge_attr(live_g.edge_attr)
@@ -827,8 +917,8 @@ def main() -> None:
         "--layout",
         type=str,
         default="dim24",
-        choices=["dim14", "dim22", "dim24", "atomic21"],
-        help="Feature layout to test",
+        choices=["dim14", "dim22", "dim24", "atomic21", "dim25cr"],
+        help="Feature layout to test (dim25cr = dim22 + the P5b candidate-relative columns)",
     )
     parser.add_argument(
         "--queue-norm",

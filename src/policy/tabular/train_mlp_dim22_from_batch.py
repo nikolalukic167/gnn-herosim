@@ -30,14 +30,21 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from tqdm import tqdm
 
+from src.placement.env_fingerprint import (
+    describe_code_provenance,
+    describe_python_env,
+)
 from src.placement.queue_features import (
     DEFAULT_QUEUE_FEATURE_CONTRACT,
     validate_queue_feature_contract,
 )
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
 from src.policy.tabular.reduced_features import (
+    CANDIDATE_RELATIVE_COLUMN_SPEC,
+    CANDIDATE_RELATIVE_FEATURE_DIM,
     DIM22_FEATURE_DIM,
     DIM24_FEATURE_DIM,
+    DIM25CR_FEATURE_DIM,
     dim22_rows_to_dataframe,
     extract_rows_dim22_from_batch_graph,
     validate_dim22_frame,
@@ -70,6 +77,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-graphs", type=int, default=64)
     parser.add_argument("--min-batch-tasks", type=int, default=2,
                         help="Skip batch graphs with fewer tasks (GNN/MLP deploy range)")
+    parser.add_argument("--candidate-relative-queue", action="store_true",
+                        help="P5b: append the 3 candidate-relative queue columns (dim22 -> dim25cr). "
+                             "Gives the pointwise scorer the set-relative view a graph model "
+                             "gets from message passing; see program_verdict_v1 in LINEAGES.md.")
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument("--wandb-run-name", type=str, default=None)
     parser.add_argument("--wandb-entity", type=str, default=None)
@@ -122,6 +133,25 @@ def edge_accuracy_from_dataset(model, dataset, device) -> float:
     return correct / max(len(dataset), 1)
 
 
+def candidate_relative_ablation_change(model, dataset, device, n_cr: int) -> float:
+    """Fraction of held-out decisions whose argmax moves when the CR columns are zeroed.
+
+    P5b validity gate 2 (pre-registered): a null from a model that IGNORED the new
+    columns is evidence about nothing. If this is near zero the feature is inert and the
+    control must be fixed before it is gated, not reported as a null result.
+    """
+    model.eval()
+    changed = 0
+    with torch.no_grad():
+        for X_np, _y in dataset:
+            x = torch.from_numpy(X_np).to(device)
+            x_ablated = x.clone()
+            x_ablated[:, -n_cr:] = 0.0
+            if int(model(x).argmax().item()) != int(model(x_ablated).argmax().item()):
+                changed += 1
+    return changed / max(len(dataset), 1)
+
+
 def grouped_ce_loss(model, batch, device) -> torch.Tensor:
     total_loss = torch.tensor(0.0, device=device)
     for X_np, y in batch:
@@ -143,7 +173,9 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
         if n_tasks < args.min_batch_tasks:
             skipped_small += 1
             continue
-        rows, skip_reason = extract_rows_dim22_from_batch_graph(graph, str(graph_id))
+        rows, skip_reason = extract_rows_dim22_from_batch_graph(
+            graph, str(graph_id), candidate_relative=bool(args.candidate_relative_queue)
+        )
         if skip_reason or not rows:
             raise RuntimeError(f"Failed to extract {graph_id}: {skip_reason}")
         all_rows.extend(rows)
@@ -173,12 +205,26 @@ def main() -> None:
     df = extract_dim22_dataframe(args, metadata, graphs, dataset_ids)
     feature_cols = _feature_columns(df)
     input_dim = len(feature_cols)
-    if input_dim not in (DIM22_FEATURE_DIM, DIM24_FEATURE_DIM):
+    candidate_relative = bool(args.candidate_relative_queue)
+    _LAYOUT_BY_WIDTH = {
+        DIM22_FEATURE_DIM: "dim22",
+        DIM24_FEATURE_DIM: "dim24",
+        DIM25CR_FEATURE_DIM: "dim25cr",
+    }
+    if input_dim not in _LAYOUT_BY_WIDTH:
         raise RuntimeError(
             f"[MLP batch] Unexpected input_dim={input_dim}; "
-            f"expected {DIM22_FEATURE_DIM} or {DIM24_FEATURE_DIM}"
+            f"expected one of {sorted(_LAYOUT_BY_WIDTH)}"
         )
-    layout = "dim24" if input_dim == DIM24_FEATURE_DIM else "dim22"
+    layout = _LAYOUT_BY_WIDTH[input_dim]
+    # The flag and the extracted width must agree, or the checkpoint would declare a
+    # layout it was not trained under — the confound tests/test_inference_layout_contract
+    # exists to prevent.
+    if candidate_relative != (layout == "dim25cr"):
+        raise RuntimeError(
+            f"[MLP batch] --candidate-relative-queue={candidate_relative} but extracted "
+            f"width {input_dim} implies layout {layout!r}"
+        )
     # Caches built before CACHE_VERSION 5.7 carry no contract field and are legacy_v0 by
     # construction; the checkpoint records it so inference cannot serve the wrong scaling.
     queue_feature_contract = validate_queue_feature_contract(
@@ -318,17 +364,30 @@ def main() -> None:
     val_acc_final = edge_accuracy_from_dataset(model, val_set, device)
     test_acc_final = edge_accuracy_from_dataset(model, test_set, device)
 
+    cr_ablation_change = None
+    if candidate_relative:
+        cr_ablation_change = candidate_relative_ablation_change(
+            model, test_set, device, CANDIDATE_RELATIVE_FEATURE_DIM
+        )
+        print(
+            f"[MLP batch] VALIDITY GATE 2 — zeroing the {CANDIDATE_RELATIVE_FEATURE_DIM} "
+            f"candidate-relative columns moves {cr_ablation_change:.1%} of held-out argmaxes "
+            f"(pre-registered threshold: >= 5%)",
+            flush=True,
+        )
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "model_state_dict": best_state,
-            "input_dim": input_dim,
-            "hidden_dim": args.hidden_dim,
-            "inference_feature_layout": layout,
-            "queue_feature_contract": queue_feature_contract,
-        },
-        str(args.output),
-    )
+    checkpoint = {
+        "model_state_dict": best_state,
+        "input_dim": input_dim,
+        "hidden_dim": args.hidden_dim,
+        "inference_feature_layout": layout,
+        "queue_feature_contract": queue_feature_contract,
+        "candidate_relative": candidate_relative,
+    }
+    if candidate_relative:
+        checkpoint["candidate_relative_columns"] = CANDIDATE_RELATIVE_COLUMN_SPEC
+    torch.save(checkpoint, str(args.output))
 
     meta = {
         "cache_dir": str(cache_dir),
@@ -352,6 +411,15 @@ def main() -> None:
         "input_dim": input_dim,
         "inference_feature_layout": layout,
         "queue_feature_contract": queue_feature_contract,
+        "candidate_relative": candidate_relative,
+        "candidate_relative_columns": (
+            CANDIDATE_RELATIVE_COLUMN_SPEC if candidate_relative else None
+        ),
+        "candidate_relative_ablation_argmax_change": cr_ablation_change,
+        # Which code produced these weights. Without it a checkpoint cannot be told apart
+        # from one built by a different working tree (PARITY.md rule 6).
+        "code_provenance": describe_code_provenance(),
+        "python_env": describe_python_env(),
         "epochs_run": len(history),
         "epochs_max": args.epochs,
         "patience": args.patience,
@@ -383,6 +451,9 @@ def main() -> None:
         wandb.summary["final_train_edge_acc"] = float(train_acc_final)
         wandb.summary["final_val_edge_acc"] = float(val_acc_final)
         wandb.summary["final_test_edge_acc"] = float(test_acc_final)
+        wandb.summary["inference_feature_layout"] = layout
+        if cr_ablation_change is not None:
+            wandb.summary["cr_ablation_argmax_change"] = float(cr_ablation_change)
         wandb.finish()
 
 

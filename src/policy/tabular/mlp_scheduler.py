@@ -32,8 +32,13 @@ from src.policy.tabular.feature_builder import (
     CE_REDUCED_PLATFORM_INDICES,
     CE_REDUCED_TASK_FEATURE_DIM,
     _inference_feature_layout,
+    _uses_candidate_relative_layout,
 )
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
+from src.policy.tabular.reduced_features import (
+    FULL_PLATFORM_QUEUE_DIM,
+    candidate_relative_queue_columns,
+)
 from src.policy.tabular.scheduler import XGBoostBatchScheduler
 
 
@@ -82,7 +87,9 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
                     )
                 os.environ["INFERENCE_FEATURE_LAYOUT"] = trained_layout
             else:
-                if int(input_dim) == 24:
+                if int(input_dim) == 25:
+                    inferred_layout = "dim25cr"
+                elif int(input_dim) == 24:
                     inferred_layout = "dim24"
                 elif int(input_dim) == 22:
                     inferred_layout = "dim22"
@@ -178,15 +185,15 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             logging.exception("[MLP Batch] Inference error: %s", exc)
             return None
 
-    def _mlp_logits_from_bundle(
-        self,
+    @staticmethod
+    def build_feature_matrix(
         bundle: InferenceFeatureBundle,
-    ) -> List[torch.Tensor]:
-        """Vectorised [N_total_edges, 22] → [N_total_edges] forward pass.
+    ) -> Tuple[np.ndarray, List[Tuple[int, int]]]:
+        """Assemble the [N_total_edges, D] serving matrix and its per-task row spans.
 
-        Builds the full feature matrix via numpy fancy indexing (no per-row allocation),
-        then runs one torch.from_numpy + one model forward on GPU/CPU.
-        Returns a List[Tensor] of per-task score vectors.
+        Split out of `_mlp_logits_from_bundle` so the serving-side feature layout can be
+        asserted directly (scripts_cosim/test_mlp_serving_layout.py) instead of only
+        through a model forward. Static and side-effect free for the same reason.
         """
         n_tasks = bundle.n_tasks
         total_edges = int(bundle.edge_attr_directed.shape[0])
@@ -232,18 +239,41 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             plat_feats = plat_feats[:, CE_REDUCED_PLATFORM_INDICES]
             edge_feats = edge_feats[:, CE_REDUCED_EDGE_INDICES]
 
-        feat_matrix = np.concatenate(
-            [task_feats, plat_feats, edge_feats],
-            axis=1,
-        ).astype(np.float32)
+        parts = [task_feats, plat_feats, edge_feats]
+        if _uses_candidate_relative_layout(layout):
+            # Set-relative columns, computed per task's candidate group over the SAME
+            # normalized queue column the training extractor reads. task_boundaries
+            # already delimits the groups. Shared formula — see
+            # reduced_features.candidate_relative_queue_columns.
+            cand_rel = np.zeros((total_edges, 3), dtype=np.float32)
+            for start, end in task_boundaries:
+                if end > start:
+                    cand_rel[start:end] = candidate_relative_queue_columns(
+                        plat_feats[start:end, FULL_PLATFORM_QUEUE_DIM]
+                    )
+            parts.append(cand_rel)
+
+        feat_matrix = np.concatenate(parts, axis=1).astype(np.float32)
+        if not np.isfinite(feat_matrix).all():
+            raise ValueError("[MLP Batch] Non-finite values in feature matrix")
+        return feat_matrix, task_boundaries
+
+    def _mlp_logits_from_bundle(
+        self,
+        bundle: InferenceFeatureBundle,
+    ) -> List[torch.Tensor]:
+        """Vectorised [N_total_edges, D] → [N_total_edges] forward pass.
+
+        One torch.from_numpy + one model forward on GPU/CPU; returns a List[Tensor] of
+        per-task score vectors.
+        """
+        feat_matrix, task_boundaries = self.build_feature_matrix(bundle)
 
         expected_dim = int(self.mlp_model.input_dim)
         if feat_matrix.shape[1] != expected_dim:
             raise ValueError(
                 f"[MLP Batch] Feature dim mismatch: {feat_matrix.shape[1]} != {expected_dim}"
             )
-        if not np.isfinite(feat_matrix).all():
-            raise ValueError("[MLP Batch] Non-finite values in feature matrix")
 
         x = torch.from_numpy(feat_matrix).to(self.device)
         with torch.no_grad():

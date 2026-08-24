@@ -150,12 +150,86 @@ DIM24_FEATURE_DIM = 24  # 3-task + 16-platform (pull obs) + 5-edge
 DIM24_PLATFORM_FEATURE_DIM = 16
 DIM24_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM24_FEATURE_DIM)]
 
+# P5b (program_verdict_v1): dim22 + 3 candidate-relative queue columns.
+# 25 is unambiguous against every other layout width (11 ce_reduced / 21 atomic21 /
+# 22 dim22 / 24 dim24), so the input_dim -> layout fallback stays a lookup, never a guess.
+CANDIDATE_RELATIVE_FEATURE_DIM = 3
+DIM25CR_FEATURE_DIM = DIM22_FEATURE_DIM + CANDIDATE_RELATIVE_FEATURE_DIM
+DIM25CR_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM25CR_FEATURE_DIM)]
+CANDIDATE_RELATIVE_COLUMN_SPEC = (
+    "x_22=q-min(q_cand), x_23=avg_rank(q)/max(1,n-1), x_24=(q-mean)/std (std==0 -> 0)"
+)
 
-def _batch_edge_feature_dims(platform_feature_dim: int) -> Tuple[int, List[str], str]:
+
+def candidate_relative_queue_columns(queue_vals) -> np.ndarray:
+    """Set-relative view of one task's candidate queues → [n, 3] float32.
+
+    THE single definition of the P5b feature. Both the training extractor
+    (``_extract_dim22_rows_for_task``) and the live scheduler
+    (``MLPBatchScheduler._mlp_logits_from_bundle``) import this and nothing else may
+    recompute it: a second copy of the formula is precisely how a served model comes to
+    see features its weights were never fitted on (see the train/serve MP mismatch,
+    scripts_cosim/test_train_serve_mp_parity.py).
+
+    ``queue_vals`` is the *normalized* platform queue column (platform feature index
+    ``FULL_PLATFORM_QUEUE_DIM``) for the candidates of ONE task, in logit order.
+
+    Columns:
+      0  q - min(q)            absolute headroom over the best candidate
+      1  avg_rank(q)/(n-1)     within-set rank fraction; ties share their average rank
+      2  (q - mean)/std        within-set z-score; std == 0 -> 0.0
+
+    All three are invariant to adding a constant to every candidate (cols 1-2 are also
+    scale-invariant), and a single-candidate set yields zeros — there is no choice to
+    inform.
+    """
+    q = np.asarray(queue_vals, dtype=np.float64).reshape(-1)
+    n = int(q.shape[0])
+    if n == 0:
+        return np.zeros((0, CANDIDATE_RELATIVE_FEATURE_DIM), dtype=np.float32)
+    if not np.isfinite(q).all():
+        raise ValueError(f"Non-finite candidate queue values: {q!r}")
+
+    out = np.zeros((n, CANDIDATE_RELATIVE_FEATURE_DIM), dtype=np.float64)
+    if n == 1:
+        return out.astype(np.float32)
+
+    out[:, 0] = q - q.min()
+
+    # Average ranks for ties, so the columns are a function of the SET and not of the
+    # order candidates happen to be enumerated in.
+    order = np.argsort(q, kind="stable")
+    ranks = np.empty(n, dtype=np.float64)
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and q[order[j + 1]] == q[order[i]]:
+            j += 1
+        ranks[order[i : j + 1]] = 0.5 * (i + j)
+        i = j + 1
+    out[:, 1] = ranks / float(n - 1)
+
+    std = float(q.std())
+    if std > 0.0:
+        out[:, 2] = (q - q.mean()) / std
+
+    return out.astype(np.float32)
+
+
+def _batch_edge_feature_dims(
+    platform_feature_dim: int, *, candidate_relative: bool = False
+) -> Tuple[int, List[str], str]:
     """Map platform width → (total feature dim, column names, inference layout)."""
     if platform_feature_dim == 14:
+        if candidate_relative:
+            return DIM25CR_FEATURE_DIM, DIM25CR_FEATURE_COLUMN_NAMES, "dim25cr"
         return DIM22_FEATURE_DIM, DIM22_FEATURE_COLUMN_NAMES, "dim22"
     if platform_feature_dim == DIM24_PLATFORM_FEATURE_DIM:
+        if candidate_relative:
+            raise ValueError(
+                "candidate-relative columns are defined on the dim22 platform layout only; "
+                f"got platform_feature_dim={platform_feature_dim} (dim24)"
+            )
         return DIM24_FEATURE_DIM, DIM24_FEATURE_COLUMN_NAMES, "dim24"
     raise ValueError(
         f"Unsupported platform_feature_dim={platform_feature_dim}; expected 14 (dim22) or 16 (dim24)"
@@ -170,8 +244,9 @@ def _extract_dim22_rows_for_task(
     seq_n_tasks: int,
     *,
     prefix_augment: bool = False,
+    candidate_relative: bool = False,
 ) -> Tuple[List[TabularEdgeRow], Optional[str]]:
-    """Shared dim22/dim24 row builder for one task decision on a graph."""
+    """Shared dim22/dim24/dim25cr row builder for one task decision on a graph."""
     task_placement_map = _task_placement_map(graph)
     task_queue_map = _task_queue_key_map(graph)
 
@@ -201,7 +276,9 @@ def _extract_dim22_rows_for_task(
         raise ValueError(
             f"graph {graph_id}: platform_features has {plat_dim} cols, expected >= 14"
         )
-    feature_dim, _colnames, _layout = _batch_edge_feature_dims(plat_dim)
+    feature_dim, _colnames, _layout = _batch_edge_feature_dims(
+        plat_dim, candidate_relative=candidate_relative
+    )
     if edge_attr_directed.shape[1] < 5:
         raise ValueError(
             f"graph {graph_id}: edge_attr_directed has {edge_attr_directed.shape[1]} cols, expected >= 5"
@@ -215,10 +292,24 @@ def _extract_dim22_rows_for_task(
         )
 
     decision_graph_id = f"{graph_id}@task{task_idx}"
+
+    # Platform positions are resolved up front because the candidate-relative columns are a
+    # function of the whole candidate SET, not of one edge — the same reason the serving
+    # side computes them per task_boundaries group rather than per row.
+    plat_pos_by_logit = [
+        resolve_platform_pos(graph, int(node_id), int(plat_id), str(queue_keys[logit_idx]))
+        for logit_idx, (node_id, plat_id) in enumerate(candidates)
+    ]
+    cand_rel = None
+    if candidate_relative:
+        cand_rel = candidate_relative_queue_columns(
+            platform_features[plat_pos_by_logit, FULL_PLATFORM_QUEUE_DIM]
+        )
+
     rows: List[TabularEdgeRow] = []
     for logit_idx, (node_id, plat_id) in enumerate(candidates):
         queue_key = str(queue_keys[logit_idx])
-        plat_pos = resolve_platform_pos(graph, int(node_id), int(plat_id), queue_key)
+        plat_pos = plat_pos_by_logit[logit_idx]
         global_edge_idx = edge_offset + logit_idx
         if global_edge_idx >= edge_attr_directed.shape[0]:
             raise IndexError(
@@ -229,7 +320,10 @@ def _extract_dim22_rows_for_task(
         x_task = task_features[task_idx, :3]
         x_plat = platform_features[plat_pos, :plat_dim]
         x_edge = edge_attr_directed[global_edge_idx, :5]
-        features = np.concatenate([x_task, x_plat, x_edge]).astype(np.float64)
+        parts = [x_task, x_plat, x_edge]
+        if cand_rel is not None:
+            parts.append(cand_rel[logit_idx])
+        features = np.concatenate(parts).astype(np.float64)
         if features.shape[0] != feature_dim:
             raise ValueError(
                 f"Expected {feature_dim} features (plat_dim={plat_dim}), got {features.shape[0]}"
@@ -262,12 +356,18 @@ def _extract_dim22_rows_for_task(
     return rows, None
 
 
-def extract_rows_dim22_from_batch_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+def extract_rows_dim22_from_batch_graph(
+    graph: Any, graph_id: str, *, candidate_relative: bool = False
+) -> Tuple[List[TabularEdgeRow], Optional[str]]:
     """Extract dim22/dim24 rows for every task in a batch PyG graph (prepare_graphs_cache.py).
 
     Batch cache platform features match inference: normalized queue (dim 7),
     shared_fate (dim 8), usage_ratio (dim 13); CACHE 5.6 also has node_cold_count /
     estimated_pull_remaining_sec (dims 14–15) → dim24.
+
+    ``candidate_relative=True`` appends the three P5b set-relative queue columns → dim25cr.
+    They are derived in-process from columns the cache already holds, so this needs no
+    cache regeneration.
     """
     parent_id = str(
         getattr(graph, "parent_dataset_id", None) or parent_dataset_id(graph_id)
@@ -284,6 +384,7 @@ def extract_rows_dim22_from_batch_graph(graph: Any, graph_id: str) -> Tuple[List
             parent_id,
             task_idx,
             n_tasks,
+            candidate_relative=candidate_relative,
         )
         if skip_reason:
             return [], skip_reason
@@ -362,9 +463,14 @@ def validate_dim22_frame(df) -> Dict[str, Any]:
         raise ValueError("No feature columns (x_*) found in extracted dataframe")
     feature_cols = sorted(feature_cols, key=lambda c: int(str(c).split("_", 1)[1]))
     n_feat = len(feature_cols)
-    if n_feat not in (DIM22_FEATURE_DIM, DIM24_FEATURE_DIM):
+    _LAYOUT_BY_WIDTH = {
+        DIM22_FEATURE_DIM: "dim22",
+        DIM24_FEATURE_DIM: "dim24",
+        DIM25CR_FEATURE_DIM: "dim25cr",
+    }
+    if n_feat not in _LAYOUT_BY_WIDTH:
         raise ValueError(
-            f"Unexpected feature width {n_feat}; expected {DIM22_FEATURE_DIM} or {DIM24_FEATURE_DIM}"
+            f"Unexpected feature width {n_feat}; expected one of {sorted(_LAYOUT_BY_WIDTH)}"
         )
     feature_values = df[feature_cols].to_numpy()
     if not np.isfinite(feature_values).all():
@@ -379,7 +485,7 @@ def validate_dim22_frame(df) -> Dict[str, Any]:
         "num_parents": int(df["parent_dataset_id"].nunique()),
         "positives": int(df["y_class"].sum()),
         "feature_dim": int(n_feat),
-        "inference_feature_layout": "dim24" if n_feat == DIM24_FEATURE_DIM else "dim22",
+        "inference_feature_layout": _LAYOUT_BY_WIDTH[n_feat],
     }
 
 
