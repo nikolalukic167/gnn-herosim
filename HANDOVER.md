@@ -1,9 +1,47 @@
 # 🚀 Session Handover (2026-08-24)
 
-**Status:** All work committed on `feat/network-contention-v1` (`6a2ec46`), **not yet
-pushed** — push before any datalab work so the cluster doesn't run stale code. Nothing in
-flight. This was a read-mostly *verdict* session: no retrains, no physics changes, no new
-corpora — it closed the D3 fork left open by `cosim_deepdive_v1` and registered the
+> ## ⏳ IN FLIGHT — P5b gate array, datalab job `711679` (60 tasks)
+>
+> Branch `feat/network-contention-v1` at **`886f559`, pushed**; datalab is synced to the
+> same commit with a clean tree. **Step 1 of the sequence below (P5b) is running.**
+>
+> * Pre-registration: commit `2c5e676`, written **before** anything was submitted —
+>   `LINEAGES.md` → `### p5b_candidate_relative — PRE-REGISTRATION`.
+> * Implementation: commit `886f559` (`dim25cr` = dim22 + 3 candidate-relative queue
+>   columns).
+> * Retrains (job `711675`, **DONE, both validity gates passed**):
+>   `models/tabular/batch_edge_mlp_full_corpus_siv1_dim25cr_batchcache{,_tempfix}.pt`
+>   — gate 1 (acc vs own baseline) +0.0000 / −0.0038; gate 2 (CR-ablation argmax change)
+>   21.3% / 28.8%. **Accuracy is flat while ~1/4 of decisions move** — the feature
+>   redistributes without improving the supervised target, which is what
+>   pointwise-separability predicts and why the live gate is the informative test.
+> * Gate array `711679`: 60 tasks = 2 arms (`mlpcandrel`, `mlpcandreltf`) × 30 cells.
+>
+> **When it finishes**, on datalab:
+> ```bash
+> PYTHONPATH=$PWD python3 scripts_cosim/important/extract_gate_stats_summary.py \
+>   --root simulation_data/normal_sim_sweeps --out simulation_data/gate_stats_summary.json
+> PYTHONPATH=$PWD python3 scripts_cosim/important/score_p5b_collapse_pairs.py \
+>   --summary simulation_data/gate_stats_summary.json \
+>   --json-out simulation_data/p5b_verdict.json
+> # secondary (layouts differ BY DESIGN here, so they must be declared):
+> PYTHONPATH=$PWD python3 scripts_cosim/important/score_live_gate_matrix.py \
+>   --prefix drawgate --conditions nobackbone,backbone --arms mlp,mlpcandrel \
+>   --expect-layouts knative=dim22,mlp=dim22,mlpcandrel=dim25cr
+> ```
+> The scorer prints REFUTE / HARDEN / INDETERMINATE per the registered rule and takes no
+> threshold arguments. **Then write the outcome into `LINEAGES.md`** — the lineage is not
+> done until that row exists — and re-point this handover at step 2 (P5a) or at the
+> shrunken claim, whichever the verdict dictates.
+>
+> **Detector preflight, run before submitting:** the registered `chosen_queue_vs_min` p95
+> ≥ 5,000 rule reproduces **exactly 7/30 for both baselines**, healthy ≤ 749 vs collapse
+> ≥ 13,485, nothing in the never-observed band. The threshold-sensitivity clause should be
+> a formality, but it stays in the rule.
+
+**Status of the session below:** work committed on `feat/network-contention-v1`
+(`6a2ec46`). This was a read-mostly *verdict* session: no retrains, no physics changes, no
+new corpora — it closed the D3 fork left open by `cosim_deepdive_v1` and registered the
 execution sequence for what comes next.
 
 > Read first: `PROGRAM_VERDICT.md` (plain-language, 2 min) then `LINEAGES.md` → search
