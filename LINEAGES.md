@@ -40,6 +40,8 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 | **dataset_metadata** | `scripts_cosim/{extract_dataset_metadata,validate_dataset_collection,compute_compatibility_matrix}.py` | all | Produces `REGISTRY.json`, `METADATA.json`, `COMPATIBILITY_MATRIX.json`. |
 | **cosim_deepdive_v1** | `scripts_cosim/{audit_sweep_truncation,audit_regen_reproducibility,snapshot_separability_sweep,analyze_snapshot_separability}.py`, `datalab/live_audit_capture_{all_gates,mlp_collapse}.sbatch`, `datalab/snapshot_separability_sweep{,_mlpcollapse}.sbatch` | `snapshot_sweeps{,_mlpcollapse}` (44 cells × 100 pseudo-datasets) | **Closed 2026-08-23.** Does the co-sim target's additivity come from the synthetic t=0 snapshot regime? **No — live-visited states are equally additive** (4,400 swept live states incl. all 14 MLP collapse trajectories: median additive R² 0.99999, median additive-choice regret 0.000; jobs 710774/710775/710818/710819). The GNN's dispersal edge is a closed-loop property no single-batch regret target can express under current physics. Plus a pipeline-integrity census (sweep truncation, label provenance, contract audit of the collapse events). **Outcomes below.** |
 
+| **program_verdict_v1** | this file (2026-08-24 subsection); artifacts cited in place | P7 frozen reports (scratchpad) | **Closed 2026-08-24.** Terminal answer to the D3 fork: the supervised co-sim path to "GNN > MLP on latency" is closed by measurement (5 mechanisms + live-state additivity + the P7 warmth-stratum controls, which take the least-additive 31% of the cache to spread-plans R² = 1.00000 exactly). The reliability/regime win over both baselines exists on the 30-cell backbone record but is exploratory — it needs one pre-registered gate. P2 ruled out (labeller is the one-step oracle); P4 ruled out on the empirical rule (the built slot holds exec only; the residency-hold variant is unbuilt but node-indexed); P3 (in-horizon dynamics, tail-sensitive pre-registration) is the highest-upside open measurement; P1 (closed-loop objective) the only path to the latency claim. **Outcomes below.** |
+
 Shared core (not a lineage — everything depends on it): `src/placement/`, `src/policy/{gnn,tabular,knative*,determined,evaluator}/`, `src/executecosimulation.py`, `src/executesimulation.py`, `scripts_cosim/generate_gnn_datasets_fast.py`, `src/notebooks/non_unique_lib/`.
 
 ### graph_structure_physics — outcomes (2026-08-17)
@@ -2887,6 +2889,114 @@ aggregates in both stats paths (`totalLinkWaitTime`, `fabricLinkWaitTotal` — c
 `topology_feature_contract` in cache metadata and sidecars (same bug class as the 40.8%
 layout confound, one field over), `queue_norm_mode` in the sidecar, live-audit capture on
 the ML serve paths, `warmth_physics` persisted into `infrastructure.json` metadata.
+
+### program_verdict_v1 — can the co-sim → GNN program ever work? (2026-08-24)
+
+**Closed. Read-only investigation (no new sims, no retrains) answering the generalised D3
+fork: is there any path by which a GNN trained here beats MLP and Knative on a live gate.**
+
+**Verdict, in two halves.**
+1. **On the win condition the evidence already supports — regime win + reliability — the
+   program has already worked, but the evidence is post-hoc, not gate-grade.** `tempfix`
+   beats Knative on 30/30 backbone cells across 3 training draws, 2 traces, 3 backbone
+   configs (jobs 710315/710335/710341/710366/710398), and beats the MLP's *aggregate*
+   margin in 5 of 6 gate conditions because 7/30 MLP cells collapse (jobs
+   710450/710451/710656/710657); 0 of 120 GNN runs ever collapsed. **Provenance caveat,
+   verified 2026-08-24:** those cells were minted for the `link_contention_v1` real-trace
+   A/B, the "< −0.4%" win rule appears at scoring time, and no pre-registration language
+   exists anywhere in that campaign's span — each follow-up run was motivated by the
+   previous result. Internally well-controlled (same-batch Knative baselines, parity-exact
+   cells, measured noise floors), but a reviewer will correctly call it exploratory. The
+   claim to publish — after one pre-registered confirmatory gate (below).
+2. **On per-cell mean latency vs the MLP, through any single-batch supervised co-sim
+   target, the program is terminally closed** — five physics mechanisms
+   (`graph_structure_physics` → `link_contention_v1`) plus the live state distribution
+   (`cosim_deepdive_v1`, incl. all 14 collapse trajectories) all measure the target as
+   pointwise-separable. No corpus design can reopen this; only a change of objective can.
+
+**Path verdicts** (mechanism-level; citations in the session record):
+- **P1 closed-loop RL/DAgger — EXPENSIVE-BUT-VIABLE.** A rollout episode exists today
+  (`executesimulation.py` + `run_simulation.py`); wall-clock **measured** from
+  `logs_sim/`: GNN 754.9 s on the 301k-event `workload-150-100`, 1001.8 s on `175-100`
+  (~2.9 GB RSS/worker). ~10³ episodes ≈ 5K CPU-h at gate scale (~500 on the 30k trace)
+  plus a 1–2 week build; prior 0.15–0.25 of beating the MLP's healthy-cell packing margin.
+  The only path whose objective matches the known live edge (closed-loop dispersal).
+- **P2 live-snapshot labels — RULED OUT.** `label_live_snapshots_for_training.py` imports
+  `oracle_choice_cosim` — it *is* the one-step oracle `cosim_deepdive_v1` already tested
+  on exactly those states. Any non-one-step labelling is P1 or P3 by definition. Flip
+  condition: exhibit a single-state labelling that is neither one-step RTT nor a
+  horizon/trajectory return and encodes dispersal value — none is known.
+- **P3 dynamics inside the oracle horizon — VIABLE, the highest-upside measurement.**
+  The two-line scaling test does **not** kill it: node-mediated interaction under arrivals
+  is occupancy-count-shaped (empirical rule, 5 mechanisms), but the *link* term is the one
+  mechanism that escaped the count control, and it scales with concurrency (0.08–0.35%
+  regret at 4-task vs 7–14× cost and ordering changes at rps=150). Pre-registered pilot
+  (thresholds fixed 2026-08-24, before any build): extend `live_snapshot_cosim_oracle` to
+  continue trace arrivals for a ~10 s horizon on backbone cells; M4 unmodified. Because
+  the hypothesised mechanism is link-shaped and link effects surfaced at t=0 as a **3.3%
+  tail**, a median-only criterion cannot resolve its own hypothesis — co-primaries:
+  (a) median `additive_choice_regret_rel` > 0.02, **or** (b) fraction of snapshots with
+  regret > 2% ≥ 15% (≥ 4× the 3.3% t=0 base rate, binomial-testable at the stated n) —
+  either fires only with node-count repair < 0.5 AND link repair < 0.5 **on the affected
+  stratum**. n ≥ 300 snapshots (≥ 2 backbone cells, K=4 ≈ 256 combos), so the tail holds
+  ≥ 10 states under H0 and ~45 under H1. ~1–2 days build + ~80 CPU-h (one overnight SLURM
+  array). Prior 0.2–0.35. A null at this n is terminal for the horizon axis.
+- **P4 held-duration node contention — RULED OUT on the empirical rule, corrected
+  2026-08-24 (the first write-up of this entry overstated it).** What exists holds the
+  node slot only around exec (`infrastructure.py:1213-1218` wraps
+  `yield timeout(task_duration)` alone; exec ≈ 0.024 s), and `memory/memory.md:79`
+  correctly recorded in 2026-08-17 both why that measured `nodeContentionTime ≡ 0.0`
+  (backlogs drain in one timeout; placed tasks never overlap) and the unbuilt candidates
+  that would couple: a hold across the whole residency (cold starts reach 38 s) or a warm
+  lifetime. So the residency-hold variant is *not implemented here*, not already
+  falsified. It stays ruled out because its contended object is still node-indexed ⇒ the
+  interaction is a co-residency count ⇒ the throughline predicts one-integer degeneracy —
+  an invocation of the empirical rule, not a measurement. Flip condition unchanged: a
+  slot-contention config with additive-argmin regret > 5% and node-occupancy repair < 50%
+  under `--spread-plans-only`.
+- **P5a reliability win condition — VIABLE, needs one pre-registered gate** (see the
+  provenance caveat in half 1: the 30/30 record is exploratory). Remaining: register the
+  win condition + thresholds *before* running `tempfix` on `workload-125-225`/`200-200`
+  and one set of freshly minted backbone cells, then promote.
+- **P5b batch conditioning — claim must be re-worded before publication.** The deployed
+  gates run an *identical* decode for GNN and MLP arms (`mlp_scheduler.py:5-7` inherits it;
+  in `argmax` mode `chosen_idx = gnn_idx` unconditionally, `seq_decode.py:719-728` — the
+  queue roll-forward feeds stats only). The separation is therefore *score-side
+  set-conditioning* (message passing sees the candidate context; a pointwise edge score
+  cannot), *not* decode-time peer conditioning. Required control before the paper: MLP +
+  candidate-relative queue feature (rank/z-score), retrain + 30-cell re-gate (~1–2 days).
+  If that MLP stops collapsing, the honest claim shrinks to feature engineering.
+- **P5c topology transfer — stays FAILED for the supervised objective** (its own 5-seed
+  gate; note that gate scored the additive target, so the FAIL is *predicted by*
+  additivity). Reopening evidence: a live *reliability* gate across sizes (~14 GPU-h
+  partial gate, already unblocked). Only worth it as an extension of P5a's claim.
+- **P6 freeze — the recommended frame.** Publish (1) the terminal negative — single-batch
+  placement targets in this simulator class are pointwise-separable, with
+  `separability_diagnostic.py` + the one-integer/link repair controls as the reusable
+  artifact — and (2) the reliability result (half 1). Residual reviewer risks, named: one
+  topology family (20c/20s); two traces not yet re-gated under the corrected layout; the
+  P5b control unrun (the largest); backbone physics authored, not trace-calibrated;
+  "GNN > MLP on latency" must not be written.
+
+- **P7 — the least-additive stratum, measured (2026-08-24): the terminal statement holds
+  unqualified.** `cosim_deepdive_v1`'s census left `warmth_1060`/`sparse_warmth` (31.1%
+  of the training cache, additive-argmin-optimal only 51.7%/56.1%) as the one stratum
+  where the one-integer and `--spread-plans-only` controls had never run. Pre-registered
+  (STRENGTHEN iff median repair ≥ 0.5 or spread-plans R² ≥ 0.999 with ~zero spread
+  regret; QUALIFY iff repair < 0.5 and spread regret > 1%), then run at n=150 per
+  collection: `1060_warmth` regret 2.01% → 1.15% under the node-count column (repairs 51%,
+  n=67 with any regret, `!! DEGENERATE`); `sparse_warmth` 2.12% → 0.49% (repairs 68%,
+  n=64, `!! DEGENERATE`). Decisively, **`--spread-plans-only` takes both collections to
+  additive R² = 1.00000 exactly, 0.00% regret, 100% optimal** (sparse: 142/150 fitted,
+  8 underdetermined by too few spread plans) — identical to the base-physics isolation
+  result. The warmth stratum's non-additivity is entirely the collision term. Frozen
+  reports: `simulation_data/separability_{warmth_1060,sparse_warmth}_n150{,_spread}.json`.
+
+**Recommended sequence (reordered 2026-08-24 — downside protection before upside):**
+P5b control first (1–2 d; if a candidate-relative queue feature stops the MLP collapsing,
+every subsequent P5a gate would have been wasted) → P5a pre-registered gate + re-gates
+(2–3 d CPU) → P3 pilot (2–3 d) → P1 only if P3 finds signal (its horizon labels are also
+DAgger targets).
 
 ---
 
