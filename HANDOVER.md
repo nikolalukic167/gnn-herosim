@@ -1,119 +1,120 @@
-# 🚀 Session Handover (2026-08-23, later session)
+# 🚀 Session Handover (2026-08-24)
 
-**Status:** All work committed and pushed on `feat/network-contention-v1` (`e1443e5`); datalab
-synced at the same commit, clean tree both sides, **nothing in flight**. This session closed
-the two open MLP questions from the previous handover — both answered decisively, both
-recorded in `LINEAGES.md`.
+**Status:** All work committed on `feat/network-contention-v1` (`6a2ec46`), **not yet
+pushed** — push before any datalab work so the cluster doesn't run stale code. Nothing in
+flight. This was a read-mostly *verdict* session: no retrains, no physics changes, no new
+corpora — it closed the D3 fork left open by `cosim_deepdive_v1` and registered the
+execution sequence for what comes next.
 
-> Read first: `LINEAGES.md` → search **"The MLP collapse is ARCHITECTURAL"** and **"no
-> STRUCTURE"** (`link_contention_v1`, 2026-08-23). Both sit directly under the "GNN's edge is
-> RELIABILITY" subsection from the prior session, which they answer rather than revise.
+> Read first: `PROGRAM_VERDICT.md` (plain-language, 2 min) then `LINEAGES.md` → search
+> **"program_verdict_v1"** (the authoritative entry: every path verdict with citations,
+> costs, priors, and pre-registered thresholds).
 
 ## 0. The one-paragraph story
 
-Task A: the corrected-cache MLP (`tempfix`) was run as a fifth arm on the same 30 cells.
-**Exactly 7 of 30 collapse under each checkpoint — same count, a different set of cells.**
-Retraining relocated the failure instead of reducing it, which is the signature of an
-architectural failure, not a training-data artifact. Across 120 scheduler runs (2 MLP × 2–3
-GNN arms × 30 cells) **all 14 collapse events are MLP arms and none is a GNN arm** — the
-reliability claim from the prior session hardens.
-
-Task B: the collapse cells share **no structural property**. Adjacency is byte-identical
-across all four cell sets and no degree/HHI/choice-set statistic separates collapse from
-healthy; the hogging platforms don't have unusually short initial queues; the trace that
-flips a cell is a different random draw of the same distribution, not a different shape; and
-the victim set moves when only the weights move. What actually separates them is
-**dispersal** — how widely the scheduler spread load — and there are two distinct mechanisms
-under one symptom: platform-side packing (12 of 14 events) and link-side starvation (2 of
-14, where every platform sits at 2–6% utilisation and RTT still blows up).
+The question was: can a GNN trained on this repo's co-sim pipeline *ever* beat the MLP and
+Knative on a live gate? The answer splits. On per-cell mean latency vs the MLP through any
+single-batch supervised target: **no, terminally** — five physics mechanisms, the live
+state distribution, and (new this session) the least-additive warmth stratum all measure
+the target as pointwise-separable, and the spread-plans control that carries that
+conclusion survived its own saturation audit with held-out R² = 1.0 to machine precision.
+On the win condition the evidence actually supports — beats Knative everywhere + never
+collapses — **the program has already worked**, but the 30/30 record is exploratory (cells
+minted for the link A/B, win rule written at scoring time), so it needs one pre-registered
+gate before it is publishable. The open paths are ranked and costed; the sequence is
+registered at the end of the LINEAGES entry.
 
 ## 1. What this session did, in order
 
-1. **Task A infra.** Added `mlptempfix` to `score_live_gate_matrix.py`'s `ARM_SUFFIX`;
-   wrote `scripts_cosim/datalab/mlp_tempfix_arm_all_gates.sbatch` (byte-identical to the
-   `mlp` template except checkpoint + `SWEEP_DIR`, plus a guard asserting the sweep dir
-   isn't shared with the first arm). Smoke-tested array index 4 (the +147.4% collapse cell)
-   before submitting the other 29 — jobs 710656 + 710657, all green, verified `dim22` /
-   non-zero `total_rtt` / clean tree at `98b41e9`.
-2. **Re-scored all three gates** with the new arm. Verdict JSONs gained an `mlptempfix`
-   column: **132 insertions, 0 deletions** — the integrity check that no GNN or Knative
-   number moved.
-3. **Task B tooling**, both reading bounded byte ranges instead of parsing ~80 MB result
-   files (safe to run on the login node, per datalab pitfall #2):
-   - `scripts_cosim/important/extract_gate_stats_summary.py` — pulls `stats` scalars +
-     the response-time curve + the `.decode_stats.json` sidecar into one 700 KB summary
-     (`simulation_data/gate_stats_summary.json`, 150 results).
-   - `scripts_cosim/important/extract_platform_dispersal.py` — pairs each
-     `idleProportion` in `nodeResults` with its `platformId` to get per-platform
-     utilisation (`simulation_data/platform_dispersal.json`, 150 runs). This is what
-     told the two collapse mechanisms apart.
-4. **Structural checks that came up empty**, each recorded in `LINEAGES.md` and
-   `memory/herosim-mlp-collapse-has-no-structural-signature.md`: adjacency diff across
-   the four cell sets, initial-queue rank of the platforms that get hogged, and a
-   statistical comparison of the two workload traces that flip cell05.
-5. **`LINEAGES.md`** — two new subsections under the RELIABILITY finding, closing both
-   open questions with numbers.
-6. **Memory** — `herosim-mlp-collapse-is-occupation-collapse.md` updated with the
-   retraining result and the better detector; new file
-   `herosim-mlp-collapse-has-no-structural-signature.md` for the dispersal finding.
+1. **Assembled the verdict** (`program_verdict_v1` in `LINEAGES.md`, commit `2ffa7be`):
+   path table P1–P7 with mechanism → cheapest decisive test → cost → prior → verdict,
+   plus flip conditions for every RULED OUT.
+2. **P7 — ran the missing controls on the least-additive stratum** (pre-registered, then
+   ~40 s of compute): `warmth_1060` / `sparse_warmth` (31% of the training cache, the one
+   place the census showed real additive-argmin regret) go to **spread-plans additive
+   R² = 1.00000 exactly, 0.00% regret, 100% optimal** — the non-additivity is entirely
+   the collision term. Frozen reports:
+   `simulation_data/separability_{warmth_1060,sparse_warmth}_n150{,_spread}.json`.
+3. **Audited the spread-plans control itself for mechanical saturation** (commit
+   `16ad458`) — it is load-bearing for the throughline's "no reservoir" sentence, and
+   R² = 1.0 exactly is also the overfit signature. It survives: held-out R² (seed-0 half
+   split) is exactly 1.00000 on 150/150 warmth_1060, **48/48 mh_off (the throughline's
+   own base corpus)**, 137/144 sparse_warmth; the 7 failures are all near-saturated
+   sweeps (rows/params ≤ 2.29, ≤ 16 spread rows), reported as *unresolvable*, excluded
+   from the claim's basis. New tool: `scripts_cosim/audit_spread_fit_saturation.py`.
+4. **Calibrated the P3 pilot cost — and found the rps naming bug** (commit `d6d5fa2`):
+   `rps=150` is **per client node**; `workload-150-100` runs ~3,000 events/s steady state
+   (t≈20–100 s, ~20 s ramps both ends). The first calibration slice sat in the ramp.
+   Corrected: ~0.48 ms marginal per event ⇒ ~1.4 s per horizon-second per combo ⇒ h=10 s
+   is ~300 CPU-h, not 47. Horizon length is now a registered parameter with a blocking
+   in-harness calibration (which must also confirm combos run in-process).
+5. **Hardened the gate designs**: P5a must co-register the MLP arm (collapse detector =
+   `chosen_queue_vs_min` p95, 9.7× no-overlap gap) and mint fresh cells outside the A/B
+   design; P3 got tail co-primaries (median-only can't resolve a link-shaped 3.3% tail);
+   residency-hold pre-registers both the count column *and* the spread control.
+6. **`PROGRAM_VERDICT.md`** — plain-language executive summary at repo root (`6a2ec46`).
 
-## 2. Numbers worth keeping close
+## 2. Findings that correct earlier records
 
-**Collapse survives retraining, relocated:**
+- **P4 was never "already falsified."** `node_contention_v3` holds the node slot only
+  around exec (~0.024 s; `src/placement/infrastructure.py:1213-1218`); the residency-hold
+  variant (cold starts reach 38 s, a ~1,500× longer hold) is **unbuilt**, and a longer
+  hold flips overlap from *never* to *always* — a threshold, not the ratio-invariance
+  that killed link bandwidth. It stays ruled out only via the empirical count-shaped
+  rule; a 0.5-day pilot converts that into a measurement (registered as step 4 below).
+- **The decode-conditioning phrasing in earlier entries is imprecise.** The gates' GNN
+  and MLP arms run an *identical* decode (`mlp_scheduler.py:5-7` inherits it; in `argmax`
+  mode `chosen_idx = gnn_idx` unconditionally, `seq_decode.py:719-728` — the queue
+  roll-forward feeds stats only). Neither arm conditions on batch peers at decode time;
+  the real separation is **score-side set-conditioning** (message passing sees the
+  candidate context; a pointwise edge score cannot). This is why the P5b control below
+  gates the paper.
+- **Every "at rps=150" framing describes a system rate 20× the label** — the link A/B's
+  "7–14× at rps=150" measurements are untouched, but external-realism judgements made
+  against the label are off by 20×. Paper text must state the per-client convention.
+- **The 30/30 GNN-vs-Knative record and the 14/120 collapse count are exploratory** — no
+  pre-registration language exists anywhere in the backbone campaign span; the "< −0.4%"
+  win rule was written at scoring time.
 
-| gate / condition | mlp | mlptempfix |
-|---|---|---|
-| drawgate, no backbone | +85.1% · 4/5 | +133.4% · 3/5 |
-| drawgate, backbone | +2.5% · 4/5 | +12.8% · 4/5 |
-| promo175, no backbone | +53.4% · 4/5 | +98.2% · 4/5 |
-| promo175, backbone | −35.1% · 5/5 | +4.3% · 4/5 |
-| bbrob core8/bw1.5 | +38.5% · 3/5 | +28.6% · 4/5 |
-| bbrob core4/bw0.5 | +11.3% · 3/5 | +10.5% · 4/5 |
+## 3. The registered execution sequence (start here next session)
 
-Head-to-head: `tempfix` (GNN) beats `mlptempfix` on 23/30 cells (vs 17/30 against the
-original MLP); `deployed` on 16/30 (vs 13/30).
+1. **P5b — try to break our own result (1–2 days).** Retrain the MLP with one
+   candidate-relative queue feature (rank/z-score within the candidate set), re-gate the
+   30 cells. If it stops collapsing, the reliability separation is feature engineering,
+   not architecture — and every P5a gate run before knowing that would be wasted. This
+   gates the paper.
+2. **P5a — the pre-registered reliability gate (2–3 days, CPU).** Win condition,
+   thresholds, and the p95 collapse detector registered *before* running; arms = tempfix
+   + MLP + Knative; traces `workload-125-225` + `workload-200-200`; fresh cells from a
+   **new** minting script (not `make_backbone_gate_cells.py`). Then promote `tempfix`.
+3. **P3 — in-horizon dynamics pilot (2–3 days).** Extend `live_snapshot_cosim_oracle`
+   with in-horizon trace arrivals on backbone cells; M4 unmodified. Blocking
+   preconditions: 3-snapshot in-harness calibration at h ∈ {2, 5, 10} confirming
+   in-process amortization, horizon registered before the array. Co-primaries: median
+   regret > 0.02 OR tail fraction (>2%) ≥ 15%, either only with node AND link repair
+   < 0.5 on the affected stratum; n ≥ 300 snapshots. A null at h ≥ 5 s is terminal for
+   the axis; at h ≤ 3 s it closes only short-horizon dynamics.
+4. **Residency-hold pilot (0.5 day) if P3 nulls, before any P1 spend.** 16 datasets,
+   both controls pre-registered. Expected outcome: sixth confirmation of the count rule —
+   the point is converting the weakest ruling into a measured one for ~1/1000 of P1's
+   cost. P1 (closed-loop RL/DAgger, 1–2 wk + 500–5,000 CPU-h, episode wall-clock
+   measured at 754.9–1001.8 s) only if P3 or this pilot finds non-count signal.
 
-**The best collapse detector found this session:** `chosen_queue_vs_min` **p95** from the
-`.decode_stats.json` sidecar — collapse 13,485–23,866, healthy 449–1,387 across all 120
-scheduler runs, a 9.7× gap with zero overlap. Better than the occupation-ratio rule from the
-prior session (still valid, ≤0.33× vs ≥0.41×, but only a 1.24× gap) because the sidecar is
-2.5 KB and nothing large needs parsing.
+## 4. Numbers worth keeping close
 
-**Why the link-side mechanism was invisible until now:** `averageCommunicationsTime` sits at
-~16.7 ms across all 150 runs (0.016662–0.016668) regardless of whether the backbone is
-binding — it never measured link queueing. The wait is taken *inside* the replica's serving
-loop (`src/placement/infrastructure.py:1082`, `with self.node.fabric.pipe(...).request()`),
-so it blocks the replica and surfaces as queue time instead:
-`averageQueueTime / averageElapsedTime` is 0.9990–1.0000 in every one of the 150 runs.
-`link_wait_total` / `linkWaitTime` are computed there and never serialized (gate-tools row,
-2026-08-21) — still open, still a reporting-only change, and now has a concrete payoff: it
-would separate the two collapse mechanisms directly instead of by inference from
-`max_busy_pct`.
+- Warmth stratum under `--spread-plans-only`: **R² = 1.00000 exactly, 0.00% regret, 100%
+  optimal** (both collections; sparse 142/150 fitted). One-integer repair 51%/68%
+  (secondary — lean on the spread control).
+- Saturation audit basis: **137/144 + 150/150 + 48/48** held-out R² = 1.00000 exactly;
+  the 7 exclusions all at ratio ≤ 2.29. Overfit cannot fake held-out exactness.
+- Trace profile: ~3,000 events/s steady state, 461/s in the first 10 s (ramp), 20
+  sources × ~15,067 events.
+- P3 cost surface: ~1.4 s per horizon-second per combo (× assumed 1.5–2× backbone
+  overhead): h=2/3/5/10 s ⇒ ~62/92/154/300 CPU-h at 300 × 256 combos.
+- Episode wall-clock (P1 costing): GNN 754.9 s on 301k events, 1001.8 s on 352k,
+  Knative 472.4 s; ~2.9 GB RSS/worker.
 
-## 3. Framing consequence for the paper
-
-The GNN's advantage here is not "it reads a topological property the MLP is blind to" — no
-such property distinguishes these cells, and a reviewer could check that in one pass over
-the infrastructure JSONs. It is that the GNN **disperses** load and the MLP does not, and
-dispersal is what keeps a metastable queueing instability from igniting. Still a legitimate
-graph-aware advantage (a pointwise scorer cannot condition on where its peers in the same
-batch are going), but state it as a **dispersal / reliability** argument, not as "the GNN
-exploits topology P" — the data does not support the latter phrasing.
-
-## 4. Open threads, not started this session
-
-- **Serialize `link_wait_total`.** Cheap, reporting-only, and now has a specific use: split
-  the 2 link-side collapse events cleanly from the 12 platform-side ones instead of by
-  `max_busy_pct` inference. Would also let the two mechanisms be quoted separately in the
-  paper rather than folded into one "collapse" bucket.
-- **Everything in section 3 of the previous handover is still true and still open**: the GNN
-  win itself is unchanged (scope: one topology family, 20c/20s sparse); `tempfix` is still
-  the promotion candidate, still not gated on `workload-125-225` / `workload-200-200`;
-  re-serve any GNN checkpoint with `inference_feature_layout: null` before citing it;
-  `topology_transfer_v1` still has no live cells at 60/80 servers; root cause of the
-  additive co-sim target is still open; `main` is still far behind this branch, unmerged.
-
-## 5. Environment gotchas
+## 5. Environment gotchas (unchanged from last session — still all true)
 
 ```bash
 PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
@@ -123,41 +124,33 @@ PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
 # pin OMP/MKL/OPENBLAS/TORCH_NUM_THREADS=4 for ML runs
 ```
 
-- Live-gate result JSONs are ~80 MB each; **do not parse them wholesale**. `stats` is not a
-  small header object — the per-task records are nested *inside* it (`stats.tasks` opens at
-  byte ~2400, closes at ~79.87 MB in a typical file). Read a bounded prefix and pull fields
-  by name/regex, or bracket-match only the specific array you need
-  (`extract_gate_stats_summary.py`, `extract_platform_dispersal.py` are the reusable
-  versions of this).
-- **Never `[[ -d X ]] || cp -r`** to stage shared files in a SLURM array — not atomic, killed
-  3 tasks of job 710315. Use `mkdir -p` + `rsync -a`.
-- Running `pipenv run` from outside the repo creates a **new empty venv** and fails with a
-  confusing `ModuleNotFoundError`. Always invoke from the repo root.
-- Grep **both** pipenv spellings when auditing the env leak: the shell form and `"pipenv"` in
-  Python argv lists.
-- **Read `run_provenance.python_env` from the result JSON**, not the sbatch banner — the
-  banner describes the process that printed it.
+- Live-gate result JSONs are ~80 MB; read bounded prefixes
+  (`extract_gate_stats_summary.py` / `extract_platform_dispersal.py` are the reusable
+  patterns).
+- `executesimulation --policy` takes registry names (`knative_network_batch`), **not**
+  the `run_simulation.py` strategy strings (`kn_network_kn_network`) — costs a 5 s
+  startup round-trip per wrong guess.
+- Read `run_provenance.python_env` from result JSONs, not sbatch banners; grep both
+  pipenv spellings when auditing the env leak.
 
 ## 6. Restore prompt for next session
 
 ```
-[CONTEXT RESTORE] feat/network-contention-v1 is pushed and synced to datalab, nothing in
-flight, at e1443e5. This session closed both open MLP questions from the prior handover.
-(A) Retrained the MLP on the corrected batch cache as a fifth arm (mlptempfix): exactly 7 of
-30 cells still collapse, but a DIFFERENT 7 -- the corrected cache fixed cell03 under bbrob and
-broke cell03 on drawgate/nobackbone and cell05 on promo175/backbone. Retraining relocated the
-failure instead of reducing it, so it's architectural: across 120 scheduler runs all 14
-collapse events are MLP, none GNN. (B) The collapse cells share NO structural property --
-adjacency is identical across all four cell sets, the hogged platforms don't have short
-initial queues, and the trace that flips a cell is just a different random draw. What
-separates collapse from healthy is dispersal, in two mechanisms: platform-side packing (12 of
-14 events) and link-side starvation (2 of 14, cell03 under bbrob, where every platform sits at
-2-6% utilisation and RTT still blows up because link wait is charged inside the replica's
-serving loop and surfaces as queue time, not comms time). Read LINEAGES.md's two new
-subsections ("MLP collapse is ARCHITECTURAL" and "no STRUCTURE") for the full numbers. Best
-new detector: chosen_queue_vs_min p95 from .decode_stats.json separates all 120 runs with a
-9.7x gap and zero overlap. Open thread: serialize link_wait_total (src/placement/
-infrastructure.py:1082) to split the two mechanisms directly instead of by max_busy_pct
-inference. Section 4 of HANDOVER.md lists everything else still open from before this session
-(GNN promotion gating, topology_transfer_v1, the additive co-sim target, unmerged main).
+[CONTEXT RESTORE] feat/network-contention-v1 at 6a2ec46, committed but NOT pushed --
+push before any datalab work. Last session was the program_verdict_v1 verdict session
+(read PROGRAM_VERDICT.md for the 2-minute version, LINEAGES.md "program_verdict_v1" for
+the authoritative entry). Verdict: the supervised co-sim path to "GNN > MLP on latency"
+is terminally closed -- five mechanisms + live states + the warmth stratum (P7: spread-
+plans R^2 = 1.00000 exactly on both warmth collections) + a saturation audit showing the
+spread control's conclusion is out-of-sample exact (137/144 + 150/150 + 48/48). The
+reliability result (GNN beats Knative 30/30, 0/120 collapses vs MLP 14/120) is real but
+exploratory -- no pre-registration existed. Also found: rps is PER CLIENT NODE (x20 =
+~3,000 events/s system rate; every "at rps=150" framing understates concurrency 20x),
+and the GNN/MLP arms share an identical decode (the separation is score-side set-
+conditioning, not decode-time peer conditioning). Registered sequence, start at step 1:
+(1) P5b MLP + candidate-relative queue feature retrain + 30-cell re-gate -- gates the
+paper; (2) pre-registered P5a reliability gate (MLP arm included, fresh cells, p95
+collapse detector, traces 125-225 + 200-200), then promote tempfix; (3) P3 in-horizon
+dynamics pilot with blocking cost calibration (h registered, ~1.4 s per horizon-second
+per combo); (4) residency-hold 0.5-day pilot if P3 nulls, before any P1 spend.
 ```
