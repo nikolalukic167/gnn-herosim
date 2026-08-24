@@ -198,6 +198,14 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
 
 def main() -> None:
     args = parse_args()
+    # --random-state used to seed only the parent split and the batch order; the model's
+    # weight INIT came from torch's global RNG, which nothing seeded. Two identical
+    # invocations therefore produced different weights, and since the MLP's live collapse
+    # victim set is a function of the weights, every MLP checkpoint in this repo before
+    # 2026-08-24 is an unreproducible draw. Checkpoints record `torch_seeded` so a seeded
+    # one can be told from a drawn one.
+    torch.manual_seed(args.random_state)
+    np.random.seed(args.random_state)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cache_dir = args.cache_dir.resolve()
 
@@ -383,6 +391,7 @@ def main() -> None:
         "hidden_dim": args.hidden_dim,
         "inference_feature_layout": layout,
         "queue_feature_contract": queue_feature_contract,
+        "torch_seeded": True,
         "candidate_relative": candidate_relative,
     }
     if candidate_relative:
@@ -411,6 +420,7 @@ def main() -> None:
         "input_dim": input_dim,
         "inference_feature_layout": layout,
         "queue_feature_contract": queue_feature_contract,
+        "torch_seeded": True,
         "candidate_relative": candidate_relative,
         "candidate_relative_columns": (
             CANDIDATE_RELATIVE_COLUMN_SPEC if candidate_relative else None

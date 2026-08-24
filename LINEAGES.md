@@ -3222,7 +3222,73 @@ by saying so after the fact.
 clean, and it falsified the mechanism sentence the paper was going to lean on. The
 sequence does **not** proceed to P5a as written — P5a's win condition assumed the MLP arm
 was the reliability foil, and one MLP arm now beats Knative in 4 of 6 conditions. Resolve
-the seed/cache confound first.
+the seed/cache confound first — see the draw study below.
+
+### p5b_draw_study — PRE-REGISTRATION (written 2026-08-24, before any run)
+
+**🔴 First, a defect that reframes every MLP result in this repo.** Nothing ever called
+`torch.manual_seed`. `--random-state` seeded the parent split
+(`split_by_parent_three_way`) and the batch order (`random.Random`) — **the model's weight
+init came from OS entropy**. Verified by construction: two identical invocations of the
+trainer produce different first-layer weights; with an explicit seed they are bit-identical.
+
+Consequences, stated plainly:
+- **Every MLP checkpoint produced before 2026-08-24 is an unreproducible draw.** Re-running
+  its exact command cannot recover it. `random_state: 42` in those `.meta.json` files
+  describes the split, not the model.
+- The 2026-08-23 subsection above describes the `mlp` vs `mlptempfix` comparison as
+  "an A/B on training data alone" and concludes the collapse is architectural because
+  "only the checkpoint and the sweep dir differ". **That description is wrong**: the two
+  checkpoints differ by cache *and* by an uncontrolled weight init. The observation
+  (7/30 each, different victims) stands; the attribution to the cache does not.
+- P5b's own confound is therefore not merely "cache vs seed" but "cache vs an
+  uncontrolled draw", which is worse and cannot be resolved by re-reading anything.
+
+`torch.manual_seed(args.random_state)` + `np.random.seed` are now wired in, and
+checkpoints record `torch_seeded: true` so a seeded checkpoint can be told from a drawn
+one. Verified: same seed → bit-identical weights.
+
+**The study.** A full grid, so variance can finally be attributed instead of assumed:
+`{dim14, dim14_tempfix} × {dim22, dim25cr} × seeds {1,2,3,4}` = 16 checkpoints × the same
+30 backbone cells = 480 gate runs (`p5b_draw_study_{train,gate}.sbatch`). The `dim22` arms
+are **not** padding: they measure what a *fixed* cache and layout does across draws, which
+is the quantity every reliability claim in this program has silently assumed to be small.
+Existing s42 checkpoints are retained as a 5th, unseeded draw and are never mixed into the
+seeded statistics.
+
+**Criterion, registered.** Collapse = `total_rtt` ≥ **+50%** vs the same-cell Knative arm.
+Chosen over the P5b detector because `chosen_queue_vs_min` p95 is *measured* invalid for
+candidate-relative arms (fires on 5/30 healthy `mlpcandrel` cells, one a −2.5% win).
+Sensitivity at +30% and +100%; a verdict that does not hold at all three is INDETERMINATE.
+
+**Q1 — is pointwise reliability a draw lottery?** Per condition, the range of collapse
+counts across its 4 seeds.
+- **LOTTERY** iff the largest within-condition range ≥ **5**/30.
+- **STABLE** iff every condition's range ≤ **2**/30.
+- **PARTIAL** otherwise.
+Rationale for 5: P5b's headline effect was 7→2 and 7→17. If a *fixed* cache and layout
+swings ≥ 5 cells on the seed alone, the feature effect was never distinguishable from a
+draw, and neither was the 7/30-vs-7/30 result the architectural reading rests on.
+
+**Q2 — does the candrel effect have a cache-determined sign?** Per (cache, seed),
+`delta = collapses(dim25cr) − collapses(dim22)` at the same cache and seed: 8 deltas.
+- **CACHE-DETERMINED** iff all 4 deltas of one cache are > 0 and all 4 of the other < 0
+  (perfect sign separation; coin-flip null p = 2 × 2⁻⁸ = 0.0078).
+- **DRAW-DOMINATED** iff the sign is mixed within either cache.
+- Ties (delta = 0) count against separation.
+
+**Q3 — descriptive, no threshold.** Mean and range of collapse count per layout, pooled
+over caches and seeds (8 checkpoints each). Reported whatever Q1 says, but **not**
+interpreted as a feature effect if Q1 returns LOTTERY.
+
+**Validity gate 2 still applies** to every `dim25cr` checkpoint (CR-ablation argmax change
+≥ 5%), asserted in the training sbatch, which refuses to finish otherwise.
+
+**What closes the story.** Q1 = LOTTERY would mean the honest headline is *"pointwise
+reliability on this benchmark is a property of the draw; the GNN's 0/120 is the only
+claim that survives, and it needs its own multi-seed check"*. Q1 = STABLE with Q2 =
+CACHE-DETERMINED would restore a real, attributable feature/corpus effect. Either way the
+`p5b_candidate_relative` INDETERMINATE resolves into a statement that can be written down.
 
 ---
 
