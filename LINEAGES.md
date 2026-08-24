@@ -2939,15 +2939,24 @@ fork: is there any path by which a GNN trained here beats MLP and Knative on a l
   regret > 2% ≥ 15% (≥ 4× the 3.3% t=0 base rate, binomial-testable at the stated n) —
   either fires only with node-count repair < 0.5 AND link repair < 0.5 **on the affected
   stratum**. n ≥ 300 snapshots (≥ 2 backbone cells, K=4 ≈ 256 combos), so the tail holds
-  ≥ 10 states under H0 and ~45 under H1. **Cost calibrated 2026-08-24, not estimated:**
-  the trace carries ~3,000 events/s (301k events / 100 s — "rps=150" names the request
-  rate, not the event rate), so a 10 s horizon is ~4.6k events; one measured
+  ≥ 10 states under H0 and ~45 under H1. **Cost calibrated 2026-08-24, then corrected the
+  same day when the trace-rate naming was measured** (see the propagation note below):
+  `workload-150-100` runs ~3,000 events/s at steady state (t≈20–100 s; "rps=150" is
+  *per client node*, ×20 clients) with ~20 s ramps at both ends, and the first
+  calibration slice (first 10 s, 4,609 events) sat in the ramp. Measured floor: one
   `knative_network_batch` episode on that slice is 7.3 s wall of which 5.1 s is process
-  startup ⇒ **~2.2 s marginal sim cost per combo** at a 10 s horizon (in-process oracle
-  combos amortize the startup). 300 × 256 combos ⇒ ~47 CPU-h at 10 s, ~23 at 5 s;
-  backbone fabric overhead may push per-combo to 2–5 s, so **re-calibrate in-harness on
-  3 snapshots before queueing the array** — abort and re-scope if > 6 s/combo. ~1–2 days
-  build. Prior 0.2–0.35. A null at this n is terminal for the horizon axis.
+  startup ⇒ ~0.48 ms marginal per event ⇒ **~1.4 s per horizon-second per combo at
+  steady state**: h=10 s ⇒ ~14 s/combo (~300 CPU-h at 300×256), h=5 s ⇒ ~7 s
+  (~154 CPU-h), h=3 s ⇒ ~4.3 s (~92 CPU-h), h=2 s ⇒ ~2.9 s (~62 CPU-h) — before
+  backbone-fabric overhead (assumed 1.5–2×). **The horizon length is therefore a
+  registered design parameter, not a default**: the in-harness calibration (3 snapshots,
+  h ∈ {2, 5, 10}) must (a) confirm combos genuinely run in-process — if each combo pays
+  the 5.1 s startup the budget quadruples and the pilot is re-scoped before queueing —
+  and (b) fix h at the largest value the stated budget affords, registered before the
+  array. Honesty cost of a short horizon, stated up front: queue-runaway ignition may
+  need sustained load, so a null at h ≤ 3 s is terminal only for *short-horizon*
+  dynamics; terminality for the axis as a whole requires h ≥ 5 s. ~1–2 days build.
+  Prior 0.2–0.35.
 - **P4 held-duration node contention — RULED OUT on the empirical rule, corrected
   2026-08-24 (the first write-up of this entry overstated it).** What exists holds the
   node slot only around exec (`infrastructure.py:1213-1218` wraps
@@ -3016,9 +3025,24 @@ fork: is there any path by which a GNN trained here beats MLP and Knative on a l
   than counted as counter-evidence. Held-out *exactness* is the strong form: overfitting
   cannot produce exact out-of-sample predictions, so the spread-plans conclusion — and
   the "no reservoir of non-count coupling" sentence it underwrites — now rests on
-  out-of-sample evidence, not in-sample R². The one-integer repair fractions (51%/68%,
-  with 51% one point over the DEGENERATE threshold) are secondary; the spread control is
-  the criterion this entry leans on.
+  out-of-sample evidence, not in-sample R². **The claim's basis is 137/144 sparse
+  datasets plus 150/150 warmth_1060 plus 48/48 mh_off — not 144/144**; the 7 excluded
+  sweeps are unresolved, full stop. The one-integer repair fractions (51%/68%, with 51%
+  one point over the DEGENERATE threshold) are secondary; the spread control is the
+  criterion this entry leans on.
+
+- **Trace-rate naming propagation check (2026-08-24).** Measured on
+  `workload-150-100.json`: the `rps` field is **per client node** — 20 sources ×
+  ~15,067 events each, steady state ~3,000 events/s over t≈20–100 s, ~20 s ramps at both
+  ends (ts max 118.7 s). Every claim framed "at rps=150" therefore describes an
+  operating point whose *system* arrival rate is 20× the label — most prominently
+  `link_contention_v1`'s real-trace A/B ("the effect is not small at rps=150", 7–14×
+  Knative cost): the measured numbers are untouched, but the concurrency they occurred
+  at is ~3,000 events/s, and any external-realism judgement ("is 150 rps a realistic
+  load?") made against the label is off by that factor. The same naming corrupted this
+  entry's first P3 cost estimate (calibrated on the ramp; corrected above). Paper text
+  quoting an "rps" operating point must state the per-client convention and the system
+  rate.
 
 **Recommended sequence (reordered 2026-08-24 — downside protection before upside):**
 P5b control first (1–2 d; if a candidate-relative queue feature stops the MLP collapsing,
@@ -3029,11 +3053,16 @@ at 38 s vs 0.024 s exec is a ~1,500× longer hold, so mechanism #1's ≡ 0.0 say
 about it, and unlike link bandwidth (where additive `hops×T` and interaction
 `crossings×T` scale together, ratio-invariant) a longer hold flips overlap from *never*
 to *always* — a threshold, not a ratio. The two-line prediction: interaction =
-`(co-residents − slots)⁺ × residency` — a node-occupancy count times a scalar — so it
-should create coupling *with teeth* that the one-integer column repairs; the pilot's
-`--spread-plans-only` + node-repair verdict settles it either way for two orders of
-magnitude less than P1's 500–5,000 CPU-h → P1 only if P3 (or that pilot) finds
-non-count signal (P3's horizon labels are also DAgger targets).
+`(co-residents − slots)⁺ × residency` — a node-occupancy count times a scalar — so the
+**expected** outcome is a sixth confirmation of the empirical rule: coupling *with
+teeth* that the one-integer column repairs. The pilot is still worth its 0.5 day
+because it converts the weakest ruling in the set (a rule invocation) into a
+measurement before any P1 spend. Pre-register **both** controls before generating:
+the node-count repair column *and* `--spread-plans-only` — the spread control is the
+comparison that would actually surprise (residual regret on all-distinct-node plans
+under residency holds would be the first non-link escape), and registering only the
+count column would leave the surprising outcome ungated → P1 only if P3 (or that
+pilot) finds non-count signal (P3's horizon labels are also DAgger targets).
 
 ---
 
