@@ -42,6 +42,8 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 
 | **program_verdict_v1** | this file (2026-08-24 subsection); artifacts cited in place | P7 frozen reports (scratchpad) | **Closed 2026-08-24.** Terminal answer to the D3 fork: the supervised co-sim path to "GNN > MLP on latency" is closed by measurement (5 mechanisms + live-state additivity + the P7 warmth-stratum controls, which take the least-additive 31% of the cache to spread-plans R² = 1.00000 exactly). The reliability/regime win over both baselines exists on the 30-cell backbone record but is exploratory — it needs one pre-registered gate. P2 ruled out (labeller is the one-step oracle); P4 ruled out on the empirical rule (the built slot holds exec only; the residency-hold variant is unbuilt but node-indexed); P3 (in-horizon dynamics, tail-sensitive pre-registration) is the highest-upside open measurement; P1 (closed-loop objective) the only path to the latency claim. **Outcomes below.** |
 
+| **p5b_candidate_relative** | `src/policy/tabular/reduced_features.py` (`candidate_relative_queue_columns`), `train_mlp_dim22_from_batch.py --candidate-relative-queue`, `datalab/{fc_siv1_mlp_candrel,mlp_candrel_arm_all_gates}.sbatch`, `important/score_p5b_collapse_pairs.py`, `scripts_cosim/test_{candidate_relative_features,mlp_serving_layout}.py` | no new datasets — derived in-process from `graphs_cache_full_corpus_siv1_dim14{,_tempfix}` | **🔄 IN PROGRESS 2026-08-24.** Step 1 of `program_verdict_v1`'s registered sequence, and the control that gates the paper: is the MLP's 14/120 collapse architectural, or was it just never given the candidate-relative view? Hands the pointwise scorer that view as 3 engineered columns (`dim25cr`) and re-gates all 30 backbone cells on **both** caches. **Decision rule pre-registered below BEFORE the array was submitted** — the point of the exercise is that the record it tests was scored under a rule written afterwards. |
+
 Shared core (not a lineage — everything depends on it): `src/placement/`, `src/policy/{gnn,tabular,knative*,determined,evaluator}/`, `src/executecosimulation.py`, `src/executesimulation.py`, `scripts_cosim/generate_gnn_datasets_fast.py`, `src/notebooks/non_unique_lib/`.
 
 ### graph_structure_physics — outcomes (2026-08-17)
@@ -3063,6 +3065,98 @@ comparison that would actually surprise (residual regret on all-distinct-node pl
 under residency holds would be the first non-link escape), and registering only the
 count column would leave the surprising outcome ungated → P1 only if P3 (or that
 pilot) finds non-count signal (P3's horizon labels are also DAgger targets).
+
+---
+
+### p5b_candidate_relative — PRE-REGISTRATION (written 2026-08-24, before any gate run)
+
+**Everything in this subsection was committed before the training or gate jobs were
+submitted.** `program_verdict_v1` closed by finding that its own headline positive — GNN
+beats Knative 30/30, MLP collapses 14/120, GNN 0/120 — was scored under a win rule written
+at scoring time. Repeating that mistake in the control that tests it would make the whole
+exercise worthless, so the rule is fixed here first and
+`important/score_p5b_collapse_pairs.py` takes no threshold arguments.
+
+**The question.** The 14/120 collapse was read as architectural because retraining on a
+corrected cache moved the victim set (7/30 → a different 7/30) without shrinking it. The
+untested cheaper explanation: the MLP's 22 features describe one (task, platform) edge in
+absolute terms and never say that this platform's queue is the deepest in the task's own
+candidate set. Message passing gives the GNN that comparison for free. So hand it to the
+MLP directly and re-run the same cells.
+
+**The intervention.** `dim25cr` = dim22 + 3 columns per (task, candidate) edge, over the
+same normalized queue column the model already reads (platform index 7):
+`x_22 = q - min(q_cand)`, `x_23 = avg_rank(q)/max(1, n-1)`, `x_24 = (q - mean)/std`
+(std == 0 → 0). Shift-invariant; rank and z are also scale-invariant; a single-candidate
+task gets zeros. One shared definition
+(`reduced_features.candidate_relative_queue_columns`) is imported by both the training
+extractor and `MLPBatchScheduler.build_feature_matrix` — a second copy of the formula is
+how train/serve skew recurs. **The strongest reasonable version of the feature was chosen
+deliberately**: this control exists to break our own result, and a weak version that fails
+would be uninformative.
+
+**Design.** Paired, 30 `(cell, condition)` pairs per arm; two arms, each against the
+baseline trained on the *same* cache, so the pairing is an A/B on the feature set alone:
+
+| arm | cache | baseline |
+|---|---|---|
+| `mlpcandrel` | `graphs_cache_full_corpus_siv1_dim14` | `mlp` |
+| `mlpcandreltf` | `graphs_cache_full_corpus_siv1_dim14_tempfix` | `mlptempfix` |
+
+Cells, traces, hyperparameters (hidden 64, lr 1e-3, seed 42, test-size 0.2, epochs 100,
+patience 10), physics and parity waivers are copied verbatim from
+`mlp_tempfix_arm_all_gates.sbatch`.
+
+**Collapse detector.** `chosen_queue_vs_min.p95` from the `.decode_stats.json` sidecar —
+the detector measured to separate all 120 prior runs with no overlap (collapse
+13,485–23,866, healthy 449–1,387; the *median* is normal in both, which is the direct
+evidence that collapse is a compounding minority-of-decisions tail). **Collapse iff
+p95 ≥ 5,000.** A cell landing in the never-observed band (1,387, 13,485) is reported as
+such: the separation is an empirical fact about 120 runs, not a law.
+
+**Primary test.** Exact one-sided McNemar on the paired collapse indicator. `b` = baseline
+collapsed / candrel healthy, `c` = baseline healthy / candrel collapsed; under H0,
+`b | b+c ~ Binom(b+c, ½)`.
+- **REFUTE** — one-sided `p ≤ 0.05` with `b > c`, in **both** arms. Against a 7/30
+  baseline that means `b=6, c=0` (p = 0.0156) or `b=7, c≤1` (p = 0.0352).
+- **HARDEN** — ≥ 5 of the baseline's collapses still collapse, arm total ≥ 5/30, and
+  `p > 0.05`, in **both** arms.
+- **INDETERMINATE** — anything else, *including* the two arms disagreeing. Reported as
+  indeterminate; not read as either result.
+
+**Threshold sensitivity is part of the rule, not a robustness afterthought.** Each arm's
+verdict is recomputed at 2,000 / 5,000 / 10,000; if it is not identical at all three, that
+arm is INDETERMINATE regardless of its p-value at 5,000.
+
+**Secondary, reported always, never the basis of the verdict.** Mean margin vs the
+same-condition Knative arm and per-cell wins at the measured `< −0.4%` noise floor.
+
+**Validity gates — both must pass before the 60 gate runs are submitted.** A null from a
+model that ignored the new columns is evidence about nothing.
+1. Held-out test edge accuracy ≥ its own baseline − 0.01 (`mlp` baseline: 0.8842).
+2. Zeroing `x_22..x_24` moves ≥ 5% of held-out argmaxes.
+
+Both are computed by the trainer, recorded in the checkpoint `.meta.json`, and asserted by
+`fc_siv1_mlp_candrel.sbatch`, which refuses to finish if either fails. **If (2) fails the
+feature is inert: fix the representation and retrain — do not report the null.** Measured
+locally at 2 epochs on the `dim14` cache before submission: **29.1%**, so the feature is
+demonstrably load-bearing.
+
+**What each outcome does to the paper.**
+- REFUTE → the reliability separation is feature engineering, not architecture. "The GNN
+  is the only learned scheduler that never collapses" must be restated as a statement
+  about a feature the baseline lacked, and P5a's pre-registered gate is not worth running
+  in its current form.
+- HARDEN → the architectural reading stands, now against the strongest hand-engineered
+  version of the missing feature rather than against its absence. Proceed to P5a.
+
+**Provenance.** Layout served as `dim25cr` and declared in the sbatch; a conflicting
+declaration is a hard load error, verified before submission (undeclared → pins from the
+sidecar; `dim22` declared → refuses). Checkpoints carry `inference_feature_layout`,
+`candidate_relative`, the column spec, `code_provenance` and `python_env`. Scoring must
+pass `--expect-layouts` to `score_live_gate_matrix.py`: the arms differ in layout **by
+design** here, and the guard was changed from an equality check to a declaration check
+precisely so that an *unintended* mixture still fails loud.
 
 ---
 
