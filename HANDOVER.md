@@ -1,5 +1,52 @@
 # 🚀 Session Handover (2026-08-24)
 
+> ## 🔴 CLOSED 2026-08-24 — the reliability result was a training-draw lottery
+>
+> **Read this before citing any per-checkpoint number in this repo.**
+>
+> `p5b_draw_study` (jobs `711758` / `711774`, 480/480 COMPLETED, verdict
+> `simulation_data/p5b_draw_study_verdict.json`; full record in `LINEAGES.md`):
+>
+> **The MLP trainer never seeded torch.** `--random-state` pinned the parent split and the
+> batch order; the weight init came from OS entropy. **Every MLP checkpoint in this repo
+> before 2026-08-24 is an unreproducible draw.** Fixed now (`torch.manual_seed`, and
+> checkpoints carry `torch_seeded`). `src/notebooks/train_near_rtt.py:104-107` always
+> seeded properly — the defect is MLP-only, which is why nobody caught it.
+>
+> With seeds actually controlled, collapse count over the same 30 cells:
+>
+> | condition | s1 | s2 | s3 | s4 | range |
+> |---|---|---|---|---|---|
+> | `dim14 / dim22` | 0 | 0 | 8 | 10 | **10** |
+> | `dim14 / dim25cr` | 5 | 3 | 0 | 11 | **11** |
+> | `tempfix / dim22` | 0 | 0 | 21 | 16 | **21** |
+> | `tempfix / dim25cr` | 26 | 0 | 0 | 7 | **26** |
+>
+> **Retired by this:** "the MLP collapses 7/30" (that exact config gives 0, 0, 21, 16);
+> "exactly 7/30 under each checkpoint ⇒ architectural" (two samples from a range-21
+> distribution); and P5b's own 7→2 / 7→17 split. The candidate-relative feature's pooled
+> median effect is **zero**. Stable at +30/+50/+100%.
+>
+> **What survives:** both GNN arms are 0/30 with mean margins −18.9% / −27.1% here. But
+> that is 2–3 GNN draws against a measured MLP draw distribution in which 4 of 8 draws
+> collapse — p ≈ 0.5³ = **0.125**. The GNN's reliability edge is **unfalsified, not
+> established.**
+>
+> ### Start here
+> 1. **≥ 8 seeded GNN draws × 30 cells, pre-registered**, if the reliability claim is to be
+>    made at all. This is the only remaining route to it. The `p5b_draw_study_*.sbatch`
+>    pair is the template — it needs the GNN trainer swapped in and its seeds varied.
+> 2. **P5a as written is superseded.** Any reliability gate must compare draw
+>    *distributions*, not one checkpoint per arm.
+> 3. **Untouched:** the terminal negative from `program_verdict_v1` (single-batch co-sim
+>    targets are pointwise-separable) never rested on a checkpoint and still stands. That
+>    remains the paper's solid result.
+>
+> Everything below this box predates the draw study; per-checkpoint margins in it are each
+> one draw.
+
+---
+
 > ## ✅ P5b DONE — verdict **INDETERMINATE**, and it changes the plan below
 >
 > Branch at **`b850da7`+, pushed**; datalab synced, clean tree. Pre-registration `2c5e676`

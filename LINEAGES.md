@@ -42,7 +42,11 @@ Retired code lives in [`archive/`](archive/README.md) — moved with `git mv`, s
 
 | **program_verdict_v1** | this file (2026-08-24 subsection); artifacts cited in place | P7 frozen reports (scratchpad) | **Closed 2026-08-24.** Terminal answer to the D3 fork: the supervised co-sim path to "GNN > MLP on latency" is closed by measurement (5 mechanisms + live-state additivity + the P7 warmth-stratum controls, which take the least-additive 31% of the cache to spread-plans R² = 1.00000 exactly). The reliability/regime win over both baselines exists on the 30-cell backbone record but is exploratory — it needs one pre-registered gate. P2 ruled out (labeller is the one-step oracle); P4 ruled out on the empirical rule (the built slot holds exec only; the residency-hold variant is unbuilt but node-indexed); P3 (in-horizon dynamics, tail-sensitive pre-registration) is the highest-upside open measurement; P1 (closed-loop objective) the only path to the latency claim. **Outcomes below.** |
 
-| **p5b_candidate_relative** | `src/policy/tabular/reduced_features.py` (`candidate_relative_queue_columns`), `train_mlp_dim22_from_batch.py --candidate-relative-queue`, `datalab/{fc_siv1_mlp_candrel,mlp_candrel_arm_all_gates}.sbatch`, `important/score_p5b_collapse_pairs.py`, `scripts_cosim/test_{candidate_relative_features,mlp_serving_layout}.py` | no new datasets — derived in-process from `graphs_cache_full_corpus_siv1_dim14{,_tempfix}` | **Closed 2026-08-24 as INDETERMINATE — and the indeterminacy is the result.** Step 1 of `program_verdict_v1`'s sequence, pre-registered before submission (commit `2c5e676`), run clean (jobs `711675`/`711679`, 60/60 COMPLETED). Handing the pointwise MLP the candidate-relative view (`dim25cr`) moved the two cache arms in **opposite** directions: `mlpcandrel` 7/30 → **17/30** collapses, `mlpcandreltf` 7/30 → **2/30** (and negative mean margin vs Knative in 4 of 6 conditions — the first MLP arm to approach the GNN's record). Robust to dropping the registered detector for an RTT criterion. **Kills the mechanism sentence "a pointwise scorer collapses because it cannot condition on its peers"** — one arm has exactly that conditioning, uses it (28.8% ablation), and stops collapsing. Cache and seed are perfectly confounded (both `--random-state 42`); resolve with ≥3 seeds per cache before any further claim. **Do not proceed to P5a as written.** Outcome below. |
+| **p5b_candidate_relative** | `src/policy/tabular/reduced_features.py` (`candidate_relative_queue_columns`), `train_mlp_dim22_from_batch.py --candidate-relative-queue`, `datalab/{fc_siv1_mlp_candrel,mlp_candrel_arm_all_gates}.sbatch`, `important/score_p5b_collapse_pairs.py`, `scripts_cosim/test_{candidate_relative_features,mlp_serving_layout}.py` | no new datasets — derived in-process from `graphs_cache_full_corpus_siv1_dim14{,_tempfix}` | **Closed 2026-08-24 as INDETERMINATE — and the indeterminacy is the result.** Step 1 of `program_verdict_v1`'s sequence, pre-registered before submission (commit `2c5e676`), run clean (jobs `711675`/`711679`, 60/60 COMPLETED). Handing the pointwise MLP the candidate-relative view (`dim25cr`) moved the two cache arms in **opposite** directions: `mlpcandrel` 7/30 → **17/30** collapses, `mlpcandreltf` 7/30 → **2/30** (and negative mean margin vs Knative in 4 of 6 conditions — the first MLP arm to approach the GNN's record). Robust to dropping the registered detector for an RTT criterion. **Kills the mechanism sentence "a pointwise scorer collapses because it cannot condition on its peers"** — one arm has exactly that conditioning, uses it (28.8% ablation), and stops collapsing. Cache and seed are perfectly confounded (both `--random-state 42`). **RESOLVED 2026-08-24 by `p5b_draw_study` (below): it was neither the feature nor the cache — it was the training draw.** Outcome below. |
+
+| **p5b_draw_study** | `scripts_cosim/datalab/p5b_draw_study_{train,gate}.sbatch`, `important/score_p5b_draw_study.py`; `torch.manual_seed` fix in `train_mlp_dim22_from_batch.py` | none — 16 checkpoints over the two existing caches | **Closed 2026-08-24. Q1 = LOTTERY, Q2 = DRAW-DOMINATED, stable at +30/+50/+100%.** Found first that the MLP trainer **never seeded torch** — `--random-state` pinned the split, not the weights — so every MLP checkpoint here before today is an unreproducible draw (the GNN trainer always seeded; the asymmetry went unnoticed). Then measured the full `{dim14,tempfix} × {dim22,dim25cr} × seeds{1..4}` grid, 480 gate runs: collapse counts swing **0→10, 0→11, 0→21, 0→26** on the seed alone, and the candrel effect flips sign *within* both caches. **Retires "the MLP collapses 7/30" (that config gives 0, 0, 21, 16), the "same count, different set ⇒ architectural" inference, and P5b's split — all noise.** The GNN's 0-collapse record survives on these cells (0/30 both arms, −18.9%/−27.1%) but at 2–3 draws vs a measured MLP draw distribution it is p ≈ 0.125 — **unfalsified, not established.** Any future reliability gate must compare draw *distributions*. Outcome below. |
+
+| **m3_batch_makespan_v1** | `src/executecosimulation.py` (`HEROSIM_RETAIN_TASK_TIMES=1` retains `task_times` per placements.jsonl row), `scripts_cosim/score_makespan_vs_sum.py` | `gnn_datasets_4tasks_m3_makespan_pilot` (local, n=200, shallow_v1 grid) | **Closed 2026-08-24 — below both registered thresholds; the escape is real but thin.** The cheapest possible M3 test: the 4 co-sim tasks are already a fan-out of width 4, so re-score existing-physics sweeps under the batch makespan `max(done) − min(dispatched)` instead of the sum. Rule registered before the run (session record + `simulator round 3` doc): fires iff sum-vs-makespan argmin disagreement ≥ 10% of datasets full-sweep or ≥ 5% spread-plans-only (conservative ties: a dataset disagrees only if NO sum-optimal plan is makespan-optimal). Measured at n=200: **full-sweep 3.5% (7/200), spread-only 4.0% (8/200)** — neither fires. But of the 9 datasets involved, **6 disagree identically with collisions removed** (spread regret up to 17.25%, mean-when-firing ~5%) — the first mechanism whose escape is not collision-derived and not count-shaped, with the link-contention profile: genuine non-pointwise structure, thin base rate. Mechanistic read: at width 4 with queue-dominated branch times, sum and max share the bottleneck-avoiding argmin; the max−sum gap grows with fan-out width and branch-time variance (~σ√(2 ln w)), so wider synthesized fan-out is the lever this pilot did not test. Makespan optima tie 2–34 deep where the sum argmin is unique — any makespan label is multi-modal. Frozen reports: `simulation_data/m3_makespan_vs_sum_pilot_n{48,200}.json`. Retention flag is opt-in and default-off; rows without it are refused by the scorer (fail loud), and the scorer cross-checks `rtt == Σ task elapsed` per row before scoring. |
 
 Shared core (not a lineage — everything depends on it): `src/placement/`, `src/policy/{gnn,tabular,knative*,determined,evaluator}/`, `src/executecosimulation.py`, `src/executesimulation.py`, `scripts_cosim/generate_gnn_datasets_fast.py`, `src/notebooks/non_unique_lib/`.
 
@@ -3289,6 +3293,68 @@ reliability on this benchmark is a property of the draw; the GNN's 0/120 is the 
 claim that survives, and it needs its own multi-seed check"*. Q1 = STABLE with Q2 =
 CACHE-DETERMINED would restore a real, attributable feature/corpus effect. Either way the
 `p5b_candidate_relative` INDETERMINATE resolves into a statement that can be written down.
+
+### p5b_draw_study — OUTCOME: **Q1 = LOTTERY, Q2 = DRAW-DOMINATED** (2026-08-24)
+
+Trains job `711758` (16/16; every `dim25cr` arm passed validity gate 2, 0.179–0.291); gate
+array `711774`, **480/480 COMPLETED**, 96 sweep dirs, zero failures. Artifact:
+`simulation_data/p5b_draw_study_verdict.json`.
+
+**Collapse counts, `total_rtt` ≥ +50% vs the same-cell Knative arm:**
+
+| condition | s1 | s2 | s3 | s4 | range |
+|---|---|---|---|---|---|
+| `dim14 / dim22` | 0/30 | 0/30 | 8/30 | 10/30 | **10** |
+| `dim14 / dim25cr` | 5/30 | 3/30 | 0/30 | 11/30 | **11** |
+| `tempfix / dim22` | 0/30 | 0/30 | 21/30 | 16/30 | **21** |
+| `tempfix / dim25cr` | 26/30 | 0/30 | 0/30 | 7/30 | **26** |
+
+**Q1 = LOTTERY** (worst range 26/30 against a threshold of 5). **Q2 = DRAW-DOMINATED** —
+paired deltas are `dim14: +5, +3, −8, +1` and `tempfix: +26, 0, −21, −9`; the sign is mixed
+*within* both caches, so cache separation is arithmetically impossible. **Both verdicts
+hold at +30%, +50% and +100%**, as the registered rule requires. Q3 (descriptive): pooled
+over caches and seeds the two layouts have the **same median, 4.0/30** — the
+candidate-relative feature has no average effect whatsoever.
+
+**This retires three claims that were load-bearing in this file.**
+1. **"The MLP collapses 7/30" was one draw.** The same configuration
+   (`tempfix / dim22` — the corrected-cache baseline) gives **0, 0, 21, 16** across seeds.
+   Two of four draws never collapse on any of the 30 cells.
+2. **"Exactly 7 of 30 under each checkpoint — same count, different set" is a
+   coincidence**, not the signature of an architectural failure. It was two samples from a
+   distribution whose range is 21.
+3. **P5b's 7→2 / 7→17 split was noise.** It sits well inside the baseline's own draw
+   spread, and the feature's pooled median effect is zero.
+
+**The seeding defect is MLP-specific.** `src/notebooks/train_near_rtt.py:104-107` seeds
+`random`/`numpy`/`torch`/`torch.cuda`; the MLP trainer seeded none of them until today. The
+GNN's checkpoints were always reproducible and its arms are genuine distinct draws — the
+asymmetry went unnoticed because nobody compared the two trainers' seeding.
+
+**What survives, and how strong it actually is.** On these 30 cells both GNN arms are 0/30
+collapses with mean margins −18.9% (`deployed`) and −27.1% (`tempfix`), against MLP arms at
+6/30, 7/30, 12/30, 2/30 and margins +25.9%, +48.0%, +203.8%, −6.9%. Real — **but it is 2–3
+GNN draws against a now-measured MLP draw distribution.** Under the MLP's own draw-level
+rate (4 of 8 seeded draws collapse at least once), three clean GNN draws is
+p ≈ 0.5³ = **0.125 — not significant**. *The GNN's reliability advantage is not
+established; it is unfalsified.* Establishing it requires exactly what was just done to the
+MLP: ≥ 8 seeded GNN draws × 30 cells, pre-registered.
+
+**Consequences for the program.**
+- **Do not write "the GNN never collapses and the MLP does."** Write, if anything: *across
+  the draws tested, every GNN draw was collapse-free while MLP draws collapsed in 4 of 8 —
+  a difference this evidence cannot separate from a 1-in-8 outcome.*
+- **P5a is superseded, not merely unrunnable.** Any reliability gate on this benchmark must
+  compare *draw distributions*; one checkpoint per arm measures nothing. This is the most
+  important design change to come out of `program_verdict_v1`.
+- The terminal negative from `program_verdict_v1` (single-batch co-sim targets are
+  pointwise-separable) is **untouched** — it never rested on any checkpoint.
+- Every past per-checkpoint live-gate margin in this file inherits the caveat. The numbers
+  are correct; what they measure is one draw.
+
+**Status: CLOSED.** `p5b_candidate_relative`'s INDETERMINATE is resolved: the feature did
+nothing, the cache did nothing, and the variable that moved was the one nobody was
+controlling.
 
 ---
 

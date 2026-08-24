@@ -1,0 +1,77 @@
+{
+ "counts": {
+  "dim14/dim22/s1": 0,
+  "dim14/dim22/s2": 0,
+  "dim14/dim22/s3": 8,
+  "dim14/dim22/s4": 10,
+  "dim14/dim25cr/s1": 5,
+  "dim14/dim25cr/s2": 3,
+  "dim14/dim25cr/s3": 0,
+  "dim14/dim25cr/s4": 11,
+  "tempfix/dim22/s1": 0,
+  "tempfix/dim22/s2": 0,
+  "tempfix/dim22/s3": 21,
+  "tempfix/dim22/s4": 16,
+  "tempfix/dim25cr/s1": 26,
+  "tempfix/dim25cr/s2": 0,
+  "tempfix/dim25cr/s3": 0,
+  "tempfix/dim25cr/s4": 7
+ },
+ "criterion": "total_rtt >= +50.0% vs same-cell knative",
+ "deltas": {
+  "dim14/s1": 5,
+  "dim14/s2": 3,
+  "dim14/s3": -8,
+  "dim14/s4": 1,
+  "tempfix/s1": 26,
+  "tempfix/s2": 0,
+  "tempfix/s3": -21,
+  "tempfix/s4": -9
+ },
+ "q1": "LOTTERY",
+ "q1_threshold_stable": true,
+ "q2": "DRAW-DOMINATED",
+ "q2_threshold_stable": true,
+ "ranges": {
+  "dim14/dim22": [
+   0,
+   10,
+   10
+  ],
+  "dim14/dim25cr": [
+   0,
+   11,
+   11
+  ],
+  "tempfix/dim22": [
+   0,
+   21,
+   21
+  ],
+  "tempfix/dim25cr": [
+   0,
+   26,
+   26
+  ]
+ },
+ "sensitivity": [
+  {
+   "q1": "LOTTERY",
+   "q2": "DRAW-DOMINATED",
+   "threshold": 30.0,
+   "worst_range": 26
+  },
+  {
+   "q1": "LOTTERY",
+   "q2": "DRAW-DOMINATED",
+   "threshold": 50.0,
+   "worst_range": 26
+  },
+  {
+   "q1": "LOTTERY",
+   "q2": "DRAW-DOMINATED",
+   "threshold": 100.0,
+   "worst_range": 23
+  }
+ ]
+}
