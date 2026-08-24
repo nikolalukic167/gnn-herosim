@@ -1963,25 +1963,32 @@ def process_sample_with_placement(args):
         return None, float('inf'), None
 
 
-def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[Optional[Path], float, Optional[Dict]]:
+def process_placement_fast(
+    placement_plan: Dict[int, Tuple[int, int]]
+) -> Tuple[Optional[Path], float, Optional[Dict], Optional[List[List[float]]]]:
     """
     Optimized worker function that uses shared data from _worker_shared_data.
-    
+
     This function is called with ONLY the placement_plan - all other data
     is accessed from the global _worker_shared_data dict initialized by _init_worker.
     This dramatically reduces pickling overhead for each task submission.
-    
+
     OPTIMIZATION: Only writes result file if RTT is better than current best.
     This reduces I/O by 99%+ for large datasets.
-    
+
     Args:
         placement_plan: Dict mapping task_id -> (node_id, platform_id)
-    
+
     Returns:
-        Tuple of (result_file_path, rtt_value, placement_plan)
+        Tuple of (result_file_path, rtt_value, placement_plan, task_times)
         - result_file_path is None if this result was not written (worse than best)
         - rtt_value is always returned (for tracking and placements.jsonl)
         - placement_plan is always returned (for placements.jsonl)
+        - task_times is [[task_id, dispatched, done], ...] for the real (non-internal)
+          tasks when HEROSIM_RETAIN_TASK_TIMES=1, else None. Opt-in because it grows
+          every placements.jsonl row; needed to re-score a sweep under a per-batch
+          makespan (max over tasks) instead of the sum -- the sum discards exactly
+          the max-structure a fan-out objective would need.
     """
     global _worker_shared_data, QUIET_MODE
     
@@ -2052,6 +2059,25 @@ def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[
         stats = result.get('stats', {})
         rtt_value = rtt_from_stats(stats)
 
+        # Opt-in per-plan task-time retention (fail loud rather than write rows without it:
+        # a sweep that silently mixes rows with and without task_times is unscoreable).
+        task_times: Optional[List[List[float]]] = None
+        if os.environ.get("HEROSIM_RETAIN_TASK_TIMES", "0") == "1":
+            rows = [
+                tr for tr in (stats.get('taskResults') or [])
+                if tr.get('taskId') is not None and tr.get('taskId') >= 0
+            ]
+            if not rows:
+                raise RuntimeError(
+                    "HEROSIM_RETAIN_TASK_TIMES=1 but stats.taskResults has no real tasks "
+                    f"(taskResultsIncluded={stats.get('taskResultsIncluded')}, "
+                    f"num_tasks={stats.get('num_tasks')}); cannot retain per-plan task times"
+                )
+            task_times = [
+                [int(tr['taskId']), float(tr['dispatchedTime']), float(tr['doneTime'])]
+                for tr in rows
+            ]
+
         # OPTIMIZATION: Only write file if this is better than current best RTT
         # Use lock-free read first to minimize contention, then lock only if needed
         should_write = False
@@ -2089,12 +2115,12 @@ def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[
 
         # Return file path (None if not written), RTT, and placement plan
         # RTT and placement_plan are always returned (needed for placements.jsonl)
-        return result_file, rtt_value, placement_plan
+        return result_file, rtt_value, placement_plan, task_times
 
     except Exception as e:
         if not QUIET_MODE:
             print(f"[worker] Error in simulation: {str(e)}")
-        return None, float('inf'), None
+        return None, float('inf'), None, None
 
 
 def execute_brute_force_optimized(
@@ -2336,9 +2362,9 @@ def execute_brute_force_optimized(
                 
                 try:
                     # Add timeout to prevent infinite hangs
-                    # Workers now return (result_file, rtt, placement_plan) - no large result dict
+                    # Workers now return (result_file, rtt, placement_plan, task_times) - no large result dict
                     # result_file may be None if worker didn't write (worse than best RTT)
-                    result_file, cur_rtt, placement_plan = future.result(timeout=timeout_per_placement)
+                    result_file, cur_rtt, placement_plan, task_times = future.result(timeout=timeout_per_placement)
                     
                     if placement_plan is None:
                         # Error case: placement_plan is None (worker failed)
@@ -2398,6 +2424,8 @@ def execute_brute_force_optimized(
                     # Write to placements.jsonl regardless of whether file was written
                     # This preserves all placement-RTT pairs for RTT hash table
                     summary = {"placement_plan": placement_plan, "rtt": cur_rtt}
+                    if task_times is not None:
+                        summary["task_times"] = task_times
                     placements_fh.write(json.dumps(summary, separators=(',', ':')) + '\n')
                     num_written += 1
                     
