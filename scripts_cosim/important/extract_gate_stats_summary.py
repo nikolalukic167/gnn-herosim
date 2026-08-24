@@ -34,6 +34,15 @@ GATES = [
 ARMS = [
     "knative", "deployed", "tempfix", "mlp", "mlptempfix", "mlpcandrel", "mlpcandreltf",
 ]
+
+# p5b_draw_study: {cache} x {layout} x seed, one arm (and one sweep dir) per checkpoint.
+DRAW_STUDY_ARMS = [
+    f"ds{cache}{layout}s{seed}"
+    for cache in ("dim14", "tempfix")
+    for layout in ("dim22", "dim25cr")
+    for seed in (1, 2, 3, 4)
+]
+ARMS += DRAW_STUDY_ARMS
 ARM_SUFFIX = {
     "knative": "knative",
     "mlp": "mlp_dim22",
@@ -42,6 +51,9 @@ ARM_SUFFIX = {
     "mlpcandrel": "mlp_dim22",
     "mlpcandreltf": "mlp_dim22",
 }
+# Every draw-study arm is the same `mlp` policy under a different checkpoint, so the runner
+# writes them all as `<cell>_s0_mlp_dim22.json`; only the sweep dir keeps them apart.
+ARM_SUFFIX.update({a: "mlp_dim22" for a in DRAW_STUDY_ARMS})
 
 # Scalars worth carrying; the two response-time distributions are kept separately because
 # they are 100-element percentile curves and dominate the output size otherwise.
