@@ -3902,6 +3902,78 @@ n≈200, same seeds, env-matched keep-alive), verifier, gate.
 
 ---
 
+### route_b_v1 — OUTCOME: **PASS (stage 1).** Contention + coupling produces the non-pointwise structure five mechanisms and route A could not (2026-08-25)
+
+**The registered row** (`score_route_b_gate.py`, no threshold arguments; Arm S, tight
+α=2.0, rtt, n=204, zero truncated sweeps, enumerations bit-matched across arms):
+
+> **35/204 = 17.2%** of datasets with `R_exact > 5%`, Wilson 95% CI **[0.126, 0.229]**
+> — excludes 0.10 from below (condition 1 ✓). Median repair fraction **0.000** for BOTH
+> the one-integer excess-sharing column and the k-integer per-node×type count vector,
+> over all 35 firing datasets, none saturated (condition 2 ✓). Attribution:
+> **0/204 fire unconstrained**; both binding rungs fire at 0.172 (condition 3′ ✓).
+> Spread view: 14/109 firing — not collision-channel-only (condition 4 ✓). Arm B0
+> validity: **0/204** above the material bar (max 2.49%) ✓. Independent verifier:
+> 612 + 612 (dataset, α) cells agree to 1e-9 ✓. Positive controls 13/13 ✓.
+> **VERDICT: PASS.**
+
+**Full cell table** (`frac(R_exact > 5%)` / max `R_exact`):
+
+| arm | objective | α=2.0 (tight) | α=3.0 (loose) | ∞ |
+|---|---|---|---|---|
+| **S** (coupling+competition) | rtt | **0.172** / 53.5% | 0.172 / 48.7% | 0.000 / 0 |
+| **S** | makespan | 0.162 / 32.1% | 0.118 / 27.4% | 0.000 / 0 |
+| **B0** (competition only) | rtt | 0.000 / 2.5% | 0.000 / 2.0% | 0.000 / 0 |
+| **B0** | makespan | 0.000 / 1.6% | 0.000 / 1.7% | 0.000 / 0 |
+
+**What this establishes.**
+1. **The composition theorem's free-choice hypothesis is the load-bearing one, and
+   violating BOTH hypotheses at once is what creates structure.** Under the memory
+   knapsack + the 800 MB pairwise transfer, the best additive surrogate *with a perfect
+   decoder* is suboptimal by up to 53% on 17% of datasets — a target no pointwise
+   scorer can express regardless of decode.
+2. **The effect is not count-shaped.** The empirical rule that killed five co-location
+   mechanisms ("every escape collapses to an occupancy integer") does NOT extend here:
+   the constraint's own sufficient statistic (per-node×type counts) repairs a median of
+   exactly nothing. (Honest detail: the k-integer repair does pull ~1/3 of firing
+   datasets under the 5% bar — 0.172 → 0.118 — but the median closure is 0.000 and the
+   registered condition is decisive.)
+3. **Competition alone is not sufficient either — the stacking argument was right.**
+   Arm B0's score-side structure never crosses 2.5%, while its *greedy* regret reaches
+   3578%: scarcity without coupling produces only decoder-shaped error, which a better
+   decoder erases. Coupling decides *who should yield*; that is the graph question.
+4. Both objectives fire; makespan is slightly weaker (0.162/0.118) but the same shape.
+
+**What is NOT established, stated before anyone asks.** No model has been trained;
+nothing here says a GNN can *learn* this structure, and nothing compares GNN to MLP —
+that is stage 2, valid only with the registered decoder discipline (one shared
+constraint-aware sequential masked decoder, dim25cr+k-integer MLP arm, exact-assignment
+decode arm). Nothing about live serving. One topology family (6 servers, per_client=0,
+diamond4 over dnn1/dnn2/rf/cnn), one demand table (the welded task-types.json), one
+frozen α ladder. The 17.2% firing fraction is a property of this grid, not a universal
+rate.
+
+**Falsified along the way:** the B0-as-separable premise in the original registration
+(a backbone corpus carries the collision + link channels; amendment A1); the 30–70%
+tightness band (cliff-shaped α response; A2); the monotone-in-α firing condition (A3);
+and the first scorer's LS-surrogate `R_exact` (12% false-fire unconstrained) plus its
+unguarded repair fits (Control 2 caught interpolation at rig scale).
+
+**Artifacts.** Corpora (local, gitignored): `gnn_datasets_dag4_route_b_pilot_v1_arm_{s,b0}`
+(204 each; regenerable from `ROUTE_B_PILOT_V1_GRID` seeds 901–917 with
+`HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_RETAIN_TASK_TIMES=1`, Arm S adding
+`HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000`). Frozen reports:
+`simulation_data/route_b_pilot_v1_arm_{s,b0}_{rtt,makespan}.json`,
+`route_b_preprobe_{rtt,makespan}.json`. Tools: `score_route_b_contention.py`,
+`score_route_b_gate.py`, `verify_route_b_scorer_agreement.py`,
+`tests/test_route_b_positive_controls.py` (13 tests).
+
+**Status: PASS — stage 1 CLOSED. Stage 2 (can a GNN learn it and beat the
+constraint-aware pointwise baseline?) requires its own pre-registration before any
+training run.**
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |
