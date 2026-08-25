@@ -2,7 +2,7 @@
 #SBATCH --job-name=rb8t-probe
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/route-b-8task-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/route-b-8task-%A_%a.err
-#SBATCH --partition=GPU-a40,GPU-a100s,GPU-l40s,GPU-a100
+#SBATCH --partition=CPU-amd
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
@@ -26,11 +26,16 @@
 # Reuses run_contention_regen_shard.sh unchanged (generic sharded-generation runner) —
 # only the env vars differ. Two are new here and are NOT read by that script directly;
 # they pass through because it execs python3 as a plain subprocess:
-#   MAX_PLACEMENT_COMBINATIONS_SKIP — raised from the 250,000 default. Confirmed by local
-#     smoke test (2026-08-25) that 8-task datasets exceed 250k combinations routinely; the
-#     default would SILENTLY SKIP them and bias the corpus toward its easier (less
-#     contended) half — exactly the failure mode documented at
+#   MAX_PLACEMENT_COMBINATIONS_SKIP — raised from the 250,000 default. 8-task datasets
+#     exceed 250k routinely; the default would SILENTLY SKIP them and bias the corpus
+#     toward its easier (less contended) half — exactly the failure mode documented at
 #     generate_gnn_datasets_fast.py:387-391 for the route_a sizing ladder.
+#     1,000,000 is provably sufficient, not a guess: with no-replica-reuse the exact
+#     per-dataset ceiling is prod over task types of n_t*(n_t-1), computed from each
+#     infrastructure.json's replica_placements. Across all 204 datasets that ceiling
+#     maxes at 580,608 (median 552,384), so NO dataset can hit the threshold even before
+#     reachability filtering. Measured actuals, for calibration: ds_00002 161,280 /
+#     ds_00000 175,104 / ds_00092 193,500 / ds_00189 483,840 — i.e. 28%-92% of ceiling.
 #   HEROSIM_DATA_LOCALITY / HEROSIM_OUTPUT_SIZE_BYTES — Arm S (primary) physics, matching
 #     ROUTE_B_PILOT_V1_GRID's original arm-S env exactly (see its comment block).
 #
