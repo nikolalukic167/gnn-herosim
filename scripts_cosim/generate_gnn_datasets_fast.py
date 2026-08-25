@@ -45,7 +45,7 @@ from copy import deepcopy
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any, Sequence, Tuple, Optional
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -234,6 +234,42 @@ SHALLOW_V1_GRID: GridPreset = {
     ],
     "seeds": list(range(701, 751)),
     "default_output_subdir": "gnn_datasets_4tasks_shallow_v1",
+}
+
+# route_a_pilot_v1: the first grid whose applications are a real DAG.
+#
+# Shallow queues are copied from shallow_v1 deliberately, not for variety: the additive
+# term is depth x exec_time and dilutes every interaction, which is what falsified
+# contention_v4/v5. Against shallow queues the parent->child transfer is not drowned.
+#
+# `state_size_bytes` is the lever and MUST be set from the 4e scaling probe rather than
+# guessed. At the welded 153,600 B the dependency read is ~1.2% of the queue term. Unlike
+# link bandwidth — where the additive and interaction terms both scale as 1/bandwidth and
+# the ratio is invariant — the coupled term scales with stateSize while queue work does
+# not, so the ratio MOVES. That is the whole reason this lever is worth pulling.
+#
+# `server_mesh` is required: without it a parent and child that both land on servers have
+# no distance and no route, and the transfer term fails loud rather than charging 0.0.
+#
+# Seeds 801+ do not overlap any existing range (101-148, 201-214, 701-750).
+ROUTE_A_PILOT_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "replica_configs": [
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("shallow_uniform0_4", "uniform", 0, 4, 0, 8, 1),
+        ("shallow_norm3", "normal", 3, 1, 0, 8, 1),
+    ],
+    "seeds": list(range(801, 851)),
+    "dag_shape": "diamond4",
+    # Four DISTINCT types: a dag node name must be a unique key in task-types.json.
+    "dag_task_types": ("dnn1", "dnn2", "rf", "cnn"),
+    "server_mesh": True,
+    "default_output_subdir": "gnn_datasets_dag4_route_a_pilot_v1",
 }
 
 # netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
@@ -588,6 +624,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "contention_v4_deepq": CONTENTION_V4_DEEPQ_GRID,
     "contention_v5_quick_test": CONTENTION_V5_QUICK_TEST_GRID,
     "regime_b_cold_burst_v1": REGIME_B_COLD_BURST_V1_GRID,
+    "route_a_pilot_v1": ROUTE_A_PILOT_V1_GRID,
 }
 
 
@@ -725,6 +762,30 @@ def workload_base_file_for_run(sim_input_path: Path) -> Path:
     return sim_input_path / "traces" / f"workload-10_{_run_shard_tag()}.json"
 
 
+def _diamond4_dag(task_types: Sequence[str]) -> Dict[str, List[str]]:
+    """`A -> {B, C} -> D` over four DISTINCT task types.
+
+    Distinct because `Orchestrator.create_application` keys tasks by function name and
+    looks each one up in `task-types.json`, so a dag cannot use the same type twice.
+
+    Why a diamond rather than a plain fan-out: the fan-out gives siblings that are
+    co-decidable (route A needs the parent and child in one jointly-decided plan), and the
+    fan-in gives a genuine `max` over *coupled* branch costs — which is where the
+    composition theorem stops applying, and the only place Decima's `g(·)` argument
+    actually transfers. A pure fan-out has no fan-in term at all.
+    """
+    if len(set(task_types)) != 4:
+        raise ValueError(
+            f"diamond4 needs 4 distinct task types, got {task_types!r}; a DAG node name "
+            f"must be a unique key in task-types.json"
+        )
+    a, b, c, d = task_types
+    return {a: [], b: [a], c: [a], d: [b, c]}
+
+
+DAG_SHAPES = {"diamond4": _diamond4_dag}
+
+
 def generate_workload_templates(
     base_workload_path: Path,
     output_dir: Path,
@@ -732,6 +793,8 @@ def generate_workload_templates(
     quiet: bool = False,
     task_type_pair: Tuple[str, str] = DEFAULT_TASK_TYPE_PAIR,
     workload_seed: int = DEFAULT_WORKLOAD_SEED,
+    dag_shape: Optional[str] = None,
+    dag_task_types: Optional[Sequence[str]] = None,
 ) -> List[Path]:
     """
     Generate workload templates with varied task type ratios.
@@ -774,16 +837,33 @@ def generate_workload_templates(
         }
         
         base_events = base_workload.get('events', [])
-        for idx in range(NUM_TASKS):
-            base_event = deepcopy(base_events[idx % len(base_events)])
-            task_type = task_types[idx]
-            client_node = client_nodes[idx]
-            
-            base_event['application']['name'] = f"nofs-{task_type}"
-            base_event['application']['dag'] = {task_type: []}
-            base_event['node_name'] = f"client_node{client_node}"
-            
+        if dag_shape:
+            # ONE application containing a real DAG, instead of NUM_TASKS independent
+            # single-task applications. This is what makes the tasks co-decidable: co-sim
+            # enumerates a placement_plan over every task in the event before the episode
+            # runs, so a parent and its child are chosen jointly. If they were decided
+            # separately, "distance from the parent's node" would be ordinary known state
+            # and a pointwise model would recover optimality — see route_a in LINEAGES.
+            if dag_shape not in DAG_SHAPES:
+                raise ValueError(f"unknown dag_shape {dag_shape!r}; known: {sorted(DAG_SHAPES)}")
+            types = list(dag_task_types or [])
+            dag = DAG_SHAPES[dag_shape](types)
+            base_event = deepcopy(base_events[0])
+            base_event['application']['name'] = f"nofs-{dag_shape}"
+            base_event['application']['dag'] = dag
+            base_event['node_name'] = f"client_node{client_nodes[0]}"
             workload['events'].append(base_event)
+        else:
+            for idx in range(NUM_TASKS):
+                base_event = deepcopy(base_events[idx % len(base_events)])
+                task_type = task_types[idx]
+                client_node = client_nodes[idx]
+
+                base_event['application']['name'] = f"nofs-{task_type}"
+                base_event['application']['dag'] = {task_type: []}
+                base_event['node_name'] = f"client_node{client_node}"
+
+                workload['events'].append(base_event)
         
         # Save template
         template_path = output_dir / f"workload_template_{template_idx}.json"
@@ -1394,10 +1474,25 @@ def main():
             quiet,
         )
 
+    # route_a: server<->server reachability. Every edge the generator makes is
+    # client<->server, so a parent and child that both land on servers have no distance
+    # and no route at all — and `_dependency_transfer_time` fails loud rather than
+    # charging 0.0 for one. A DAG grid therefore REQUIRES this, the same way
+    # topo_transfer_v1 has to carry its backbone default rather than trust the operator.
+    if grid_preset.get("server_mesh"):
+        base_config.setdefault('network', {})['server_mesh'] = True
+        log("route_a: server<->server mesh enabled (parent->child distances)", quiet)
+
     # A grid may name task types the base config has no application entries for
     # (space_with_network.json ships only nofs-dnn1/nofs-dnn2). Synthesize them from an
     # existing entry so the shared config stays untouched for every other grid.
     task_type_pair = tuple(grid_preset.get("task_type_pair", DEFAULT_TASK_TYPE_PAIR))
+    # route_a: a DAG preset names its own (distinct) task types, which replace the pair as
+    # the set needing wsc/prewarm/replicas entries below.
+    dag_shape = grid_preset.get("dag_shape")
+    dag_task_types = tuple(grid_preset.get("dag_task_types", ())) if dag_shape else ()
+    if dag_shape:
+        task_type_pair = dag_task_types
     for task_type_name in task_type_pair:
         app_name = f"nofs-{task_type_name}"
         if app_name in base_config.get('wsc', {}):
@@ -1419,6 +1514,8 @@ def main():
         quiet,
         task_type_pair=task_type_pair,
         workload_seed=args.workload_seed,
+        dag_shape=dag_shape,
+        dag_task_types=dag_task_types,
     )
     log(f"Generated {len(templates)} workload templates "
         f"(workload_seed={args.workload_seed})", quiet)
