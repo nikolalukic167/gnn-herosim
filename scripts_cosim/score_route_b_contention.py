@@ -132,6 +132,36 @@ def load_task_type_names(ds_dir: Path) -> List[str]:
     return names
 
 
+def load_dag_edges(ds_dir: Path) -> List[Tuple[int, int]]:
+    """(parent_task_id, child_task_id) edges, task ids in the same static_order id
+    assignment load_task_type_names uses."""
+    from graphlib import TopologicalSorter
+    with open(ds_dir / "workload.json") as fh:
+        workload = json.load(fh)
+    edges: List[Tuple[int, int]] = []
+    offset = 0
+    for event in workload["events"]:
+        dag = event["application"]["dag"]
+        if isinstance(dag, list):
+            offset += len(dag)  # linear-list DAGs carry no explicit edges here
+            continue
+        order = list(TopologicalSorter(dag).static_order())
+        local = {name: offset + i for i, name in enumerate(order)}
+        for child, parents in dag.items():
+            for parent in parents:
+                edges.append((local[parent], local[child]))
+        offset += len(order)
+    return edges
+
+
+def load_network(ds_dir: Path) -> Tuple[dict, dict, dict]:
+    """(routes, links, network_maps) straight from infrastructure.json."""
+    with open(ds_dir / "infrastructure.json") as fh:
+        infra = json.load(fh)
+    lt = infra.get("link_topology") or {}
+    return lt.get("routes") or {}, lt.get("links") or {}, infra.get("network_maps") or {}
+
+
 def load_platform_map(ds_dir: Path) -> Dict[int, Tuple[str, str]]:
     """platform_id -> (node_name, platform_type), merged over all task types."""
     with open(ds_dir / "infrastructure.json") as fh:
@@ -158,6 +188,9 @@ class Dataset:
         self.task_type_names = load_task_type_names(ds_dir)
         self.platform_map = load_platform_map(ds_dir)
         self.task_types_db = task_types_db
+        self.dag_edges = load_dag_edges(ds_dir)
+        self.routes, self.links, self.network_maps = load_network(ds_dir)
+        self._route_cache: Dict[Tuple[str, str], Tuple[int, float, float]] = {}
         # Per-task demand for every placement that appears in the sweep.
         self.demand: Dict[Tuple[int, Tuple[int, int]], float] = {}
         for plan, _v in self.rows:
@@ -208,6 +241,42 @@ class Dataset:
     def is_spread(self, plan: Plan) -> bool:
         nodes = [self.node_of(p) for p in plan.values()]
         return len(set(nodes)) == len(nodes)
+
+    def route_metrics(self, parent_node: str, child_node: str
+                      ) -> Tuple[int, float, float]:
+        """(n_hops, bottleneck_bandwidth_mbps, latency) for a parent->child transfer,
+        from the dataset's own precomputed routes — the same quantities
+        `Platform._dependency_transfer_time` charges (payload uniform, so scale is a
+        surrogate coefficient). Same node: (0, inf, 0.0). Missing route/link: fail loud,
+        mirroring the simulator's unreachable-parent RuntimeError."""
+        if parent_node == child_node:
+            return 0, math.inf, 0.0
+        key = (parent_node, child_node)
+        if key in self._route_cache:
+            return self._route_cache[key]
+        path = (self.routes.get(parent_node) or {}).get(child_node)
+        if not path:
+            raise RuntimeError(
+                f"{self.ds_dir}: no route {parent_node}->{child_node} in link_topology "
+                "— server mesh reachability missing, refusing to invent a distance")
+        bandwidths = []
+        for a, b in zip(path, path[1:]):
+            link = self.links.get("|".join(sorted((a, b))))
+            if link is None:
+                raise RuntimeError(
+                    f"{self.ds_dir}: route {parent_node}->{child_node} uses link "
+                    f"{a}|{b} absent from link_topology.links")
+            bandwidths.append(float(link["bandwidth_mbps"]))
+        entry = (self.network_maps.get(child_node) or {}).get(parent_node)
+        if entry is None:
+            raise RuntimeError(
+                f"{self.ds_dir}: no network_maps[{child_node}][{parent_node}] — the "
+                "simulator would raise here too (unreachable parent)")
+        latency = (float(entry.get("latency", 0.0)) if isinstance(entry, dict)
+                   else float(entry))
+        result = (len(path) - 1, min(bandwidths), latency)
+        self._route_cache[key] = result
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +475,63 @@ def k_integer_cols(ds: Dataset):
     return fn
 
 
+def t1_cols(ds: Dataset, caps: Dict[str, float]):
+    """Plan-level sums of the stage-2 T1 (partial-state) per-edge features — the §9a
+    pre-probe-zero column set of ROUTE_B_STAGE2_PREREGISTRATION.md. T1 ⊇ kint, plus:
+    per-type quadratic co-residency Σ_t occ_{node(t)}[k]; Σ_t load/cap; over-cap task
+    count; per-task min/max parent-hop sums; and the coupling-term columns
+    Σ_edges hops/bottleneck, Σ_edges latency, same-node-parent count — computed from the
+    dataset's own routes, i.e. exactly what `_dependency_transfer_time` charges (uniform
+    payload absorbed by the LS coefficient). Requires a constrained rung (caps), because
+    the capacity-normalized columns are undefined at alpha=inf."""
+    kint = k_integer_cols(ds)
+    type_order = sorted(set(ds.task_type_names))
+    parents_of: Dict[int, List[int]] = {}
+    for parent, child in ds.dag_edges:
+        parents_of.setdefault(child, []).append(parent)
+
+    def fn(plan: Plan) -> List[float]:
+        occ: Dict[str, Dict[str, int]] = {}
+        tot: Dict[str, int] = {}
+        load: Dict[str, float] = {}
+        for task_id, placement in plan.items():
+            node = ds.node_of(placement)
+            ttype = ds.task_type_names[task_id]
+            occ.setdefault(node, {})[ttype] = occ.setdefault(node, {}).get(ttype, 0) + 1
+            tot[node] = tot.get(node, 0) + 1
+            load[node] = load.get(node, 0.0) + ds.demand[(task_id, placement)]
+        quad = [float(sum(tot[n] * occ[n].get(k, 0) for n in occ)) for k in type_order]
+        # A node whose max single demand is 0 has no cap entry and is uncapped —
+        # caps.get(n, inf), the same convention plan_feasible and the greedy use;
+        # load/inf contributes 0.0 and such a node can never be over cap.
+        load_over_cap = sum(tot[n] * load[n] / caps.get(n, math.inf) for n in occ)
+        overcap_tasks = float(sum(
+            tot[n] for n in occ if load[n] > caps.get(n, math.inf) + EPS))
+        min_hop_sum = max_hop_sum = transfer = latency_sum = 0.0
+        same_node_edges = 0.0
+        for task_id, placement in plan.items():
+            parents = parents_of.get(task_id)
+            if not parents:
+                continue
+            child_node = ds.node_of(placement)
+            hops_here = []
+            for parent in parents:
+                n_hops, bottleneck, latency = ds.route_metrics(
+                    ds.node_of(plan[parent]), child_node)
+                hops_here.append(n_hops)
+                if n_hops == 0:
+                    same_node_edges += 1.0
+                else:
+                    transfer += n_hops / bottleneck
+                    latency_sum += latency
+            min_hop_sum += min(hops_here)
+            max_hop_sum += max(hops_here)
+        return (kint(plan) + quad
+                + [load_over_cap, overcap_tasks, min_hop_sum, max_hop_sum,
+                   transfer, latency_sum, same_node_edges])
+    return fn
+
+
 # ---------------------------------------------------------------------------
 # Per-dataset scoring
 # ---------------------------------------------------------------------------
@@ -455,7 +581,12 @@ def score_dataset(ds: Dataset, alpha: Optional[float]) -> dict:
     # the pointwise side, so the repaired regret is min(base, repaired).
     r_base = marginal_surrogate_regret(ds, marginal, feasible_rows)
     out["r_exact_pct"] = r_base
-    for name, cols in (("1int", one_integer_cols(ds)), ("kint", k_integer_cols(ds))):
+    repair_sets = [("1int", one_integer_cols(ds)), ("kint", k_integer_cols(ds))]
+    if caps is not None:
+        # Stage-2 §9a pre-probe zero: the T1 (partial-state) column set. Constrained
+        # rungs only — the capacity-normalized columns are undefined at alpha=inf.
+        repair_sets.append(("t1", t1_cols(ds, caps)))
+    for name, cols in repair_sets:
         repaired = marginal_surrogate_regret(ds, marginal, feasible_rows, cols)
         if repaired is None:
             out[f"repair_{name}_saturated"] = True
@@ -550,6 +681,11 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
             "r_exact_repaired_kint": summarize(
                 [r["r_exact_repaired_kint_pct"] for r in scored
                  if r.get("r_exact_repaired_kint_pct") is not None]),
+            "repair_t1_saturated": sum(
+                1 for r in scored if r.get("repair_t1_saturated")),
+            "r_exact_repaired_t1": summarize(
+                [r["r_exact_repaired_t1_pct"] for r in scored
+                 if r.get("r_exact_repaired_t1_pct") is not None]),
             "r_exact_ls": summarize(
                 [r["r_exact_ls_pct"] for r in scored]),
             "r_exact_spread": summarize(
@@ -596,11 +732,13 @@ def main() -> int:
         print(f"\n=== {corpus}  ({rep['n_datasets']} datasets, {args.objective}) ===")
         header = (f"{'alpha':>6} {'feas_rows':>9} {'cw_infeas':>9} {'stuck':>5} "
                   f"{'nofeas':>6} {'sat':>5} | {'Rg>1%':>6} {'Rg max':>8} | "
-                  f"{'Rx>1%':>6} {'Rx max':>8} {'Rx1i>1%':>7} {'Rxki>1%':>7}")
+                  f"{'Rx>1%':>6} {'Rx max':>8} {'Rx1i>1%':>7} {'Rxki>1%':>7} "
+                  f"{'Rxt1>1%':>7} {'Rxt1>5%':>7}")
         print(header)
         for key, s in rep["per_alpha"].items():
             rg, rx = s["r_greedy"], s["r_exact"]
             r1, rk = s["r_exact_repaired_1int"], s["r_exact_repaired_kint"]
+            rt = s["r_exact_repaired_t1"]
             print(f"{key:>6} {s['mean_feasible_rows']:>9.1f} "
                   f"{s['componentwise_infeasible_frac']:>9.2f} "
                   f"{s['greedy_stuck']:>5d} {s['no_feasible_rows']:>6d} "
@@ -610,7 +748,9 @@ def main() -> int:
                   f"{rx.get('frac_gt_1pct', float('nan')):>6.2f} "
                   f"{rx.get('max', float('nan')):>8.2f} "
                   f"{r1.get('frac_gt_1pct', float('nan')):>7.2f} "
-                  f"{rk.get('frac_gt_1pct', float('nan')):>7.2f}")
+                  f"{rk.get('frac_gt_1pct', float('nan')):>7.2f} "
+                  f"{rt.get('frac_gt_1pct', float('nan')):>7.2f} "
+                  f"{rt.get('frac_gt_5pct', float('nan')):>7.2f}")
 
     if args.out:
         payload = reports
