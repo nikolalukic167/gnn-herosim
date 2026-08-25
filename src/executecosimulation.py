@@ -369,10 +369,13 @@ def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
     silently rewrite the physics of every existing collection. The same reasoning as
     `sample_loader.ensure_workload_params`: grow the copy this run uses.
 
-    This matters for route_a because the parent->child transfer term scales with stateSize
-    while queue work does not, so the ratio between the coupled term and the additive one
-    is the one lever in this program with a favourable prediction rather than an invariant
-    one. At the welded 153,600 B the dependency read is ~1.2% of the queue term.
+    Intended for route_a as the lever that would raise the coupled parent->child transfer
+    relative to additive queue work. **The 2026-08-25 scaling probe showed it is not that
+    lever**: `_dependency_transfer_time` divides the payload by the CHILD's own bandwidth,
+    so the part that scales here is separable by construction, and only the (unscaled)
+    parent->child latency is pairwise. Raising this drove additive cost to ~950 s/episode
+    and left additive-argmin regret at exactly 0.000%. Still the right way to change
+    stateSize; just not a lever on separability. See route_a_v1 in LINEAGES.md.
 
     Returns the applied value, or None when unset.
     """
