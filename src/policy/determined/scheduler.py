@@ -80,33 +80,47 @@ class DeterminedScheduler(Scheduler):
             yield self.env.process(self._process_task_batch(batch_tasks))
 
     def _collect_task_batch(self) -> Generator[Any, Any, List[Task]]:
-        """Collect a batch of tasks that are ready for scheduling"""
-        batch = []
-        
+        """Collect a batch of tasks that are ready for scheduling.
+
+        The first `get` blocks — a batch of zero is nothing to schedule. Every
+        subsequent one races `batch_timeout`, which is the difference between this
+        working and deadlocking on a DAG workload: with `batch_size = 4` and tasks that
+        become ready only as their parents finish, an unconditionally blocking loop waits
+        for a task that cannot be dispatched until the batch it is waiting inside of
+        closes. Flat workloads, where all tasks arrive together, are unaffected — the
+        queue is already full and the timeout never elapses.
+
+        Mirrors GNNScheduler._collect_task_batch, which has always done it this way;
+        `batch_timeout` was configured for this scheduler and simply never read.
+        """
+        batch: List[Task] = []
+
         self._debug_info(f"DeterminedScheduler: _collect_task_batch starting (batch_size={self.batch_size})")
         self._debug(f"[ {self.env.now} ] DEBUG: Starting batch collection (size={self.batch_size})")
-        
-        # Try to get up to batch_size tasks
-        for i in range(self.batch_size):
-            try:
-                self._debug_info(f"DeterminedScheduler: Attempting to get task {i+1}/{self.batch_size}")
-                # Try to get a task (this will block until a task is available)
-                task: Task = yield self.tasks.get(
-                    lambda queued_task: all(
-                        dependency.finished for dependency in queued_task.dependencies
-                    )
-                )
+
+        def task_filter(queued_task) -> bool:
+            return all(dependency.finished for dependency in queued_task.dependencies)
+
+        # First task: block. There is nothing to do with an empty batch.
+        task: Task = yield self.tasks.get(task_filter)
+        batch.append(task)
+        self._debug_info(f"DeterminedScheduler: Added task {task.id} to batch (size={len(batch)})")
+
+        timeout_remaining = float(getattr(self, "batch_timeout", 0.002) or 0.0)
+        poll_interval = 0.001
+
+        while len(batch) < self.batch_size and timeout_remaining > 0:
+            if any(task_filter(queued) for queued in self.tasks.items):
+                task = yield self.tasks.get(task_filter)
                 batch.append(task)
                 self._debug_info(f"DeterminedScheduler: Added task {task.id} to batch (size={len(batch)})")
                 self._debug(f"[ {self.env.now} ] DEBUG: Added task {task.id} to batch (size={len(batch)})")
-            except:
-                # No more tasks available
-                # logger.info(f"DeterminedScheduler: No more tasks available after {len(batch)} tasks")
-                # print(f"[ {self.env.now} ] DEBUG: No more tasks available after {len(batch)} tasks")
-                break
-        
+            else:
+                wait_time = min(poll_interval, timeout_remaining)
+                yield self.env.timeout(wait_time)
+                timeout_remaining -= wait_time
+
         self._debug_info(f"DeterminedScheduler: Batch collection complete, returning {len(batch)} tasks")
-        # print(f"[ {self.env.now} ] DEBUG: Batch collection complete, returning {len(batch)} tasks")
         return batch
 
     def _process_task_batch(self, batch_tasks: List[Task]) -> Generator:

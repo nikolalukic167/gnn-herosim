@@ -711,6 +711,14 @@ class Orchestrator:
             for predecessor_name in predecessors:
                 dependencies[function_name].append(function_tasks[predecessor_name])
 
+        # Invert the dag once, here, instead of rebuilding a TopologicalSorter on every task
+        # completion. `workflow_process` needs children; the dag stores parents.
+        children: Dict[str, List[Task]] = {name: [] for name in ordered}
+        for function_name in ordered:
+            for predecessor_name in application_type["dag"][function_name]:
+                children[predecessor_name].append(function_tasks[function_name])
+        application.children_by_function = children
+
         return application
 
     @abstractmethod
@@ -757,46 +765,64 @@ class Orchestrator:
         pass
 
     def workflow_process(self, task: Task) -> Generator:
-        # Find next task in the application
-        task_dag = task.application.type["dag"]
-        sorter = TopologicalSorter(task_dag)
-        ordered = tuple(sorter.static_order())
-        current_index = ordered.index(task.type["name"])
+        """Dispatch a task's children once it finishes.
 
-        # If current task is the last task of the application, clear application data
-        # FIXME
-        # first_task = task.application.tasks[0]
-        # first_task.storage["input"].remove_data(first_task)
-        if current_index == len(ordered) - 1:
-            for application_task in task.application.tasks:
-                application_task.storage["input"]
+        Was: take `TopologicalSorter(dag).static_order()` and dispatch `ordered[i + 1]` —
+        the single successor in a *linearization*, regardless of whether that node is
+        actually a child of this task. For `A -> {B, C, D}` that runs a width-3 fan-out as
+        a depth-3 chain: siblings never overlap in time and are never co-decidable. Every
+        application in the corpora is a single-node dag, so the bug never had anything to
+        act on.
+        """
+        application = task.application
+        children = application.children_by_function.get(task.type["name"])
+        if children is None:
+            # Application built by something other than create_application (tests, older
+            # pickles). Derive children from the dag rather than guessing at an order.
+            dag = application.type["dag"]
+            name_to_task = {t.type["name"]: t for t in application.tasks}
+            children = [
+                name_to_task[child_name]
+                for child_name, parents in dag.items()
+                if task.type["name"] in parents and child_name in name_to_task
+            ]
+
+        # Wait for this task's execution before doing anything else.
+        yield task.done
+
+        if children:
+            # `Task.task_process` sets `.finished` one line AFTER succeeding `.done`, and
+            # both processes wake from the same event, so `task.finished` is not reliably
+            # True here. A zero-delay timeout re-queues us behind that callback at the same
+            # simulation time, which keeps `.finished` — the flag the scheduler's own
+            # readiness filter uses — the single source of truth. Skipped entirely when
+            # there are no children, so single-node applications (every corpus as of
+            # 2026-08-25) keep their exact previous callback ordering.
+            yield self.env.timeout(0)
+
+        for child in children:
+            # Fan-in: with {A: [], B: [A], C: [A], D: [B, C]} both B's and C's process see
+            # D. Dispatch it when the LAST parent lands, and only once — Task.dispatched is
+            # a bare env.event() and a second .succeed() raises RuntimeError.
+            if child.dispatched.triggered:
+                continue
+            if not all(dependency.finished for dependency in child.dependencies):
+                continue
+
+            child.dispatched.succeed()
+            yield self.scheduler.tasks.put(child)
+            self.env.process(self.workflow_process(child))
+
+        # Application storage is freed only when the whole application is done, not when
+        # one branch reaches its end. The old test was "last in the linearization", which
+        # under a real fan-out would free output a sibling still has to read.
+        # `done.triggered` rather than `.finished` for the same ordering reason as above.
+        if all(application_task.done.triggered for application_task in application.tasks):
+            for application_task in application.tasks:
                 output_storage = application_task.storage["output"]
 
                 if output_storage:
                     output_storage.remove_data(application_task)
-
-            return
-
-        # Else, schedule next task to be run after current task finishes its execution
-        next_task_name = ordered[current_index + 1]
-        next_task = next(
-            filter(
-                lambda app_task: app_task.type["name"] == next_task_name,
-                task.application.tasks,
-            )
-        )
-
-        # Wait for current task execution
-        yield task.done
-
-        # Dispatch next task
-        yield next_task.dispatched.succeed()
-
-        # Put next task in scheduler queue
-        yield self.scheduler.tasks.put(next_task)
-
-        # Monitor workflow execution
-        self.env.process(self.workflow_process(next_task))
 
     def gateway_process(self) -> Generator:
         print(f"[ {self.env.now} ] API Gateway started with {len(self.time_series.events)} events")
