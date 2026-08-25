@@ -261,3 +261,70 @@ def test_server_mesh_is_deterministic_for_a_seed():
         build_server_mesh(maps, nodes, {"network": {"server_mesh": True}}, random.Random(1234))
         results.append({k: dict(v) for k, v in maps.items()})
     assert results[0] == results[1]
+
+
+# --------------------------------------------------------------------------------------
+# 6. the payload must be PAIRWISE — the defect the first scaling probe exposed
+# --------------------------------------------------------------------------------------
+
+
+class FakeFabric:
+    """Minimal stand-in for NetworkFabric.hops."""
+
+    def __init__(self, routes):
+        self.routes = routes  # (src, dst) -> [(link_key, bandwidth_mbps)]
+
+    def hops(self, src, dst):
+        try:
+            return self.routes[(src, dst)]
+        except KeyError:
+            raise RuntimeError(f"no route {src}->{dst}")
+
+
+def test_payload_cost_scales_with_hop_count_not_just_the_childs_nic(data_locality_on):
+    """The property that makes route_a testable at all.
+
+    The first implementation divided the payload by the CHILD's own bandwidth, so the
+    magnitude-carrying half of the transfer was a function of the child alone — separable
+    by construction, and exactly what a pointwise model already fits. The 2026-08-25
+    scaling probe measured the consequence: additive-argmin regret pinned at 0.000% across
+    a 100,000x payload range, even with the term at ~95% of episode cost.
+
+    Store-and-forward over the route fixes it: a parent two hops away costs twice a parent
+    one hop away, for the same payload and the same child.
+    """
+    child_node = FakeNode("node1", {"node2": 0.01, "node3": 0.01})
+    child_node.fabric = FakeFabric({
+        ("node2", "node1"): [("l1", 1000.0)],
+        ("node3", "node1"): [("l1", 1000.0), ("l2", 1000.0)],
+    })
+
+    near = transfer_time(child_node, FakeTask("dnn2", child_node, [FakeTask("dnn1", FakeNode("node2", {}))]))
+    far = transfer_time(child_node, FakeTask("dnn2", child_node, [FakeTask("dnn1", FakeNode("node3", {}))]))
+
+    # Identical latency (0.01) on both, so any difference is the payload half.
+    assert (far - 0.01) == pytest.approx(2 * (near - 0.01)), (
+        f"two hops must cost twice one hop: near={near} far={far}. If these are equal the "
+        f"payload term is child-indexed and route_a cannot be tested with it."
+    )
+
+
+def test_bottleneck_link_limits_the_transfer(data_locality_on):
+    """A slow link anywhere on the path throttles the whole store-and-forward transfer."""
+    child_node = FakeNode("node1", {"node2": 0.0, "node3": 0.0})
+    child_node.fabric = FakeFabric({
+        ("node2", "node1"): [("fast", 1000.0)],
+        ("node3", "node1"): [("fast", 1000.0), ("slow", 100.0)],
+    })
+    fast = transfer_time(child_node, FakeTask("dnn2", child_node, [FakeTask("dnn1", FakeNode("node2", {}))]))
+    slow = transfer_time(child_node, FakeTask("dnn2", child_node, [FakeTask("dnn1", FakeNode("node3", {}))]))
+    # 2 hops at the 100 Mbps bottleneck vs 1 hop at 1000 Mbps => 20x
+    assert slow == pytest.approx(20 * fast), f"fast={fast} slow={slow}"
+
+
+def test_falls_back_to_the_child_nic_without_a_fabric(data_locality_on):
+    """No backbone configured => previous behaviour, not a crash."""
+    child_node = FakeNode("node1", {"node2": 0.01})
+    assert not hasattr(child_node, "fabric")
+    got = transfer_time(child_node, FakeTask("dnn2", child_node, [FakeTask("dnn1", FakeNode("node2", {}))]))
+    assert got == pytest.approx(expected(0.01))

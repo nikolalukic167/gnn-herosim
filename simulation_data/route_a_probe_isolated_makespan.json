@@ -1,0 +1,71 @@
+{
+ "best_spread_regret_pct": 0.0,
+ "min_regret_pct": 5.0,
+ "reports": [
+  {
+   "componentwise_plan_infeasible": 0,
+   "corpus": "simulation_data/gnn_datasets_route_a_p4_8000000",
+   "full": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 6,
+    "nonzero_frac": 0.0
+   },
+   "n_datasets": 6,
+   "n_missing_sweeps": 0,
+   "objective": "makespan",
+   "spread": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 3,
+    "nonzero_frac": 0.0
+   }
+  },
+  {
+   "componentwise_plan_infeasible": 0,
+   "corpus": "simulation_data/gnn_datasets_route_a_p4_80000000",
+   "full": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 6,
+    "nonzero_frac": 0.0
+   },
+   "n_datasets": 6,
+   "n_missing_sweeps": 0,
+   "objective": "makespan",
+   "spread": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 4,
+    "nonzero_frac": 0.0
+   }
+  },
+  {
+   "componentwise_plan_infeasible": 0,
+   "corpus": "simulation_data/gnn_datasets_route_a_p4_800000000",
+   "full": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 6,
+    "nonzero_frac": 0.0
+   },
+   "n_datasets": 6,
+   "n_missing_sweeps": 0,
+   "objective": "makespan",
+   "spread": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 5,
+    "nonzero_frac": 0.0
+   }
+  }
+ ],
+ "rising": false,
+ "verdict": "NO-GO"
+}

@@ -379,6 +379,22 @@ def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
 
     Returns the applied value, or None when unset.
     """
+    # `output` alone, for isolating the COUPLED term. `input` is a per-task storage read
+    # (separable); `output` is what a child pulls from its parent and is therefore the only
+    # payload the pairwise transfer carries. Scaling both together — which
+    # HEROSIM_STATE_SIZE_BYTES does — grows the separable half far faster, and measured
+    # 2026-08-25 it buried the pairwise variation 200:1 (episode ~1000 s, hop-count spread
+    # ~4.6 s). Set this to move the coupled term without touching the additive one.
+    raw_output = os.environ.get("HEROSIM_OUTPUT_SIZE_BYTES", "").strip()
+    if raw_output:
+        output_size = int(raw_output)
+        if output_size <= 0:
+            raise ValueError(f"HEROSIM_OUTPUT_SIZE_BYTES must be positive, got {output_size}")
+        task_types_out = sim_inputs.get("task_types") or {}
+        for task_type in task_types_out.values():
+            for app_entry in (task_type.get("stateSize") or {}).values():
+                app_entry["output"] = output_size
+
     raw = os.environ.get("HEROSIM_STATE_SIZE_BYTES", "").strip()
     if not raw:
         return None

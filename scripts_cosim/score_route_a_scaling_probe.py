@@ -104,16 +104,39 @@ def additive_argmin_regret(rows, objective: str) -> Optional[float]:
     }
 
     lookup = {tuple(sorted(plan.items())): value for plan, value in scored}
-    key = tuple(sorted(additive_plan.items()))
-    if key not in lookup:
-        # The componentwise minimiser is not itself a feasible plan (collisions, or the
-        # sweep does not enumerate it). That is a coupling signal in its own right, but a
-        # different one; report it rather than silently scoring something else.
-        return None
     best = min(value for _plan, value in scored)
     if best <= 0:
         return None
-    return 100.0 * (lookup[key] - best) / best
+
+    key = tuple(sorted(additive_plan.items()))
+    if key in lookup:
+        return 100.0 * (lookup[key] - best) / best
+
+    # The componentwise minimiser is not a feasible plan here — two tasks want the same
+    # placement, or the sweep does not enumerate it. Returning None (the first version of
+    # this function) DROPPED the dataset, which is precisely backwards: a pointwise model
+    # being unable to even express the optimum is the strongest coupling signal available,
+    # and discarding it biases the statistic toward zero on exactly the interesting cases.
+    #
+    # Score what a real pointwise scheduler achieves instead: greedy sequential decode by
+    # marginal cost with feasibility masking, which is what the `pointwise` arm does when
+    # its grouped argmax collides (see P5b's n_missing_collided).
+    taken: set = set()
+    greedy: Dict[int, Tuple[int, int]] = {}
+    for task_id in sorted(marginal, key=lambda t: min(marginal[t].values())):
+        options = sorted(marginal[task_id].items(), key=lambda kv: (kv[1], kv[0]))
+        choice = next((placement for placement, _v in options if placement not in taken), None)
+        if choice is None:
+            return None
+        greedy[task_id] = choice
+        taken.add(choice)
+
+    greedy_key = tuple(sorted(greedy.items()))
+    if greedy_key not in lookup:
+        # Even the masked greedy plan is outside the enumerated sweep; cannot score it
+        # honestly, so say so rather than substituting something else.
+        return None
+    return 100.0 * (lookup[greedy_key] - best) / best
 
 
 def score_corpus(corpus: Path, objective: str) -> Dict[str, object]:
