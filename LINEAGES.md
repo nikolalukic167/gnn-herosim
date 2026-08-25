@@ -3883,7 +3883,11 @@ values, and the power ladder are all UNTOUCHED from the blind registration.
   rung** — the free-choice attribution the condition was always meant to capture.
   Disclosed plainly: this amendment was made after seeing the 12-dataset smoke values;
   a reader may discount condition 3′ accordingly. Conditions 1, 2, 4 stand as
-  registered blind.
+  registered blind. Outcome-cell closure, fixed before any corpus scoring: if the CI
+  clears the PASS bar but condition 3′ or 4 fails, the verdict is **FAIL** with the
+  failed condition named — the effect exists but is not attributable as registered;
+  there is no fourth outcome. `score_route_b_gate.py` implements exactly this mapping
+  and takes no threshold arguments.
 
 **End-to-end control, form finalized:** the registered "rigged dataset" is superseded by
 something stronger — `verify_route_b_scorer_agreement.py`, an independent from-scratch
