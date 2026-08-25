@@ -817,14 +817,21 @@ def generate_workload_templates(
     
     for template_idx in range(num_templates):
         # Cycle through task type ratios
-        first_pct, _second_pct = TASK_TYPE_RATIOS[template_idx % len(TASK_TYPE_RATIOS)]
-        first_name, second_name = task_type_pair
+        # The type-ratio axis is meaningless for a DAG: its node types are fixed by the
+        # shape, and varying their mix would change the dag rather than the workload.
+        if dag_shape:
+            task_types = list(dag_task_types or ())
+            num_first = num_second = 0
+            first_name = second_name = ""
+        else:
+            first_pct, _second_pct = TASK_TYPE_RATIOS[template_idx % len(TASK_TYPE_RATIOS)]
+            first_name, second_name = task_type_pair
 
-        num_first = NUM_TASKS * first_pct // 100
-        num_second = NUM_TASKS - num_first
+            num_first = NUM_TASKS * first_pct // 100
+            num_second = NUM_TASKS - num_first
 
-        # Create task types list
-        task_types = [first_name] * num_first + [second_name] * num_second
+            # Create task types list
+            task_types = [first_name] * num_first + [second_name] * num_second
         
         # Random client node assignments
         client_nodes = [rng.randint(0, NUM_CLIENT_NODES - 1) for _ in range(NUM_TASKS)]
@@ -873,10 +880,13 @@ def generate_workload_templates(
         templates.append(template_path)
         
         if not quiet:
-            log(
-                f"  Template {template_idx}: {num_first} {first_name} "
-                f"+ {num_second} {second_name}"
-            )
+            if dag_shape:
+                log(f"  Template {template_idx}: {dag_shape} over {list(task_types)}")
+            else:
+                log(
+                    f"  Template {template_idx}: {num_first} {first_name} "
+                    f"+ {num_second} {second_name}"
+                )
     
     return templates
 
@@ -896,6 +906,7 @@ def create_config_for_iteration(
     task_type_pair: Tuple[str, str] = DEFAULT_TASK_TYPE_PAIR,
     replica_server_percentage: Optional[float] = None,
     server_node_count: Optional[int] = None,
+    dag_task_types: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     """
     Create a modified config for a specific iteration.
@@ -964,9 +975,13 @@ def create_config_for_iteration(
     # Replica configuration. Keyed by the grid's task types, not a hardcoded dnn1/dnn2 --
     # this dict REPLACES whatever main() synthesized, so hardcoding it left a grid with a
     # substituted pair holding replicas for task types its workload never asks for.
+    # A DAG's node types all need replicas: every one of them is a real task that has to
+    # land somewhere, and a type with no replica anywhere fails the episode with
+    # "No valid replicas for task N".
+    replica_task_types = tuple(dag_task_types) if dag_task_types else task_type_pair
     config['replicas'] = {
         task_type: {'per_client': per_client, 'per_server': per_server}
-        for task_type in task_type_pair
+        for task_type in replica_task_types
     }
     
     # Queue distribution parameters
@@ -988,7 +1003,7 @@ def create_config_for_iteration(
             'queue_distribution': 'statistical',
             'queue_distribution_params': q_params
         }
-        for task_type in task_type_pair
+        for task_type in replica_task_types
     }
     
     # Set scheduler batch_size to match num_tasks (for determined scheduler)
@@ -1222,6 +1237,11 @@ def generate_single_dataset(
     except Exception as e:
         duration = time.time() - start_time
         log(f"  ERROR: {e}", quiet, force=True)
+        # The message alone routinely says nothing useful ("System state capture FAILED"),
+        # and the traceback is the only thing that names the line that actually raised.
+        if os.environ.get("HEROSIM_TRACE_DATASET_ERRORS", "0") == "1":
+            import traceback
+            traceback.print_exc()
         return 'failed', float('inf'), duration
 
 
@@ -1491,19 +1511,41 @@ def main():
     # the set needing wsc/prewarm/replicas entries below.
     dag_shape = grid_preset.get("dag_shape")
     dag_task_types = tuple(grid_preset.get("dag_task_types", ())) if dag_shape else ()
-    if dag_shape:
-        task_type_pair = dag_task_types
-    for task_type_name in task_type_pair:
+    # A DAG names 4 types, all of which need wsc/prewarm/replicas entries — but
+    # `task_type_pair` stays a PAIR, because the ratio arithmetic in
+    # generate_workload_templates unpacks exactly two names.
+    types_needing_entries = dag_task_types if dag_shape else task_type_pair
+    template_prewarm = next(iter(base_config['prewarm'].values()))
+    template_replicas = next(iter(base_config['replicas'].values()))
+    for task_type_name in types_needing_entries:
+        # prewarm/replicas are keyed by TASK TYPE — every DAG node type needs them, or it
+        # has no replica anywhere and the placement enumerator finds no candidate for it.
+        if task_type_name not in base_config['prewarm']:
+            base_config['prewarm'][task_type_name] = deepcopy(template_prewarm)
+            base_config['replicas'][task_type_name] = deepcopy(template_replicas)
+            log(f"Added prewarm/replica entries for task type {task_type_name}", quiet)
+        # wsc is keyed by APPLICATION. For a flat grid each task type is its own
+        # application; for a DAG they are all nodes of ONE application, handled below.
+        if dag_shape:
+            continue
         app_name = f"nofs-{task_type_name}"
         if app_name in base_config.get('wsc', {}):
             continue
-        template_app = next(iter(base_config['wsc'].values()))
-        template_prewarm = next(iter(base_config['prewarm'].values()))
-        template_replicas = next(iter(base_config['replicas'].values()))
-        base_config['wsc'][app_name] = deepcopy(template_app)
-        base_config['prewarm'][task_type_name] = deepcopy(template_prewarm)
-        base_config['replicas'][task_type_name] = deepcopy(template_replicas)
+        base_config['wsc'][app_name] = deepcopy(next(iter(base_config['wsc'].values())))
         log(f"Added application entries for {app_name}", quiet)
+
+    if dag_shape:
+        # `apps` is derived from wsc.keys(), and prepare_workloads keeps only events whose
+        # application.name is in it — so without this the DAG event is filtered out and the
+        # run dies later with the uninformative "No workload events available for state
+        # capture". The DAG application replaces the per-type ones rather than joining
+        # them: the trace contains no `nofs-<type>` events at all, and each surviving one
+        # would demand its own sampled workload factor for zero events.
+        dag_app_name = f"nofs-{dag_shape}"
+        base_config['wsc'] = {
+            dag_app_name: deepcopy(next(iter(base_config['wsc'].values())))
+        }
+        log(f"DAG application {dag_app_name} is the only wsc entry", quiet)
 
     # Generate workload templates
     log(f"\nGenerating workload templates...", quiet)
@@ -1625,6 +1667,7 @@ def main():
                         queue_dist,
                         batch_size=batch_size,
                         task_type_pair=task_type_pair,
+                        dag_task_types=dag_task_types or None,
                         replica_server_percentage=(
                             args.replica_server_percentage
                             if args.replica_server_percentage is not None

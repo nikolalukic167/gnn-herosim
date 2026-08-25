@@ -292,3 +292,60 @@ def test_storage_is_not_freed_while_a_sibling_still_needs_it():
     assert freed_at["A"] == pytest.approx(11.0), (
         f"A's output was freed at {freed_at.get('A')} but C only finishes at 11.0"
     )
+
+
+def test_gateway_waits_for_children_dispatched_after_the_roots_finish():
+    """The termination fixed point.
+
+    `gateway_process` snapshots which tasks are dispatched and waits on that snapshot. For
+    a DAG that snapshot is only the roots — children are dispatched as their parents
+    finish — so waiting on it alone ends the simulation while the children are still
+    queued, and every one of them keeps `done_time is None`. That surfaces far away from
+    its cause as "Task 1 has not completed or is missing required attributes", inside the
+    warmup state capture, reported as an unexplained "System state capture FAILED".
+
+    Asserted here on the shape rather than through a whole simulation: the wait must not
+    conclude while a task that has since been dispatched is still unfinished.
+    """
+    dag = {"A": [], "B": ["A"], "C": ["A"], "D": ["B", "C"]}
+    env, app, tasks, scheduler, orch = build(dag)
+
+    tasks["A"].dispatched.succeed()
+    tasks["A"].run(at=1.0)
+    env.process(orch.workflow_process(tasks["A"]))
+    for name, duration in (("B", 1.0), ("C", 2.0), ("D", 1.0)):
+        def arm(t=tasks[name], d=duration):
+            def _proc():
+                yield t.dispatched
+                yield env.timeout(d)
+                t.done.succeed()
+                t.finished = True
+            return env.process(_proc())
+        arm()
+
+    # Stand-in for the gateway's wait: snapshot, wait, then re-check for newcomers.
+    concluded_at = {}
+
+    def gateway_like():
+        waited = set()
+        while True:
+            current = [t for t in tasks.values() if t.dispatched.triggered]
+            pending = [t for t in current if t.type["name"] not in waited and not t.done.triggered]
+            if pending:
+                yield env.all_of([t.done for t in pending])
+            waited.update(t.type["name"] for t in current)
+            yield env.timeout(0)
+            current = [t for t in tasks.values() if t.dispatched.triggered]
+            if all(t.type["name"] in waited for t in current):
+                break
+        concluded_at["t"] = env.now
+
+    env.process(gateway_like())
+    env.run()
+
+    unfinished = [n for n, t in tasks.items() if not t.done.triggered]
+    assert not unfinished, f"simulation concluded with unfinished tasks: {unfinished}"
+    # D is the last to finish: A(1) -> C(2) -> D(1) = 4.0
+    assert concluded_at["t"] == pytest.approx(4.0), (
+        f"gateway concluded at {concluded_at.get('t')}, before the DAG's last task"
+    )
