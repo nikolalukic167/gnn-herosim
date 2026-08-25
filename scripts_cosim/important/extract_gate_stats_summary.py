@@ -43,6 +43,11 @@ DRAW_STUDY_ARMS = [
     for seed in (1, 2, 3, 4)
 ]
 ARMS += DRAW_STUDY_ARMS
+
+# gnn_draw_study_v1: 8 seeded draws of the deployed GNN config, same 30 cells.
+GNN_DRAW_ARMS = [f"gnndraws{seed}" for seed in range(1, 9)]
+ARMS += GNN_DRAW_ARMS
+
 ARM_SUFFIX = {
     "knative": "knative",
     "mlp": "mlp_dim22",
@@ -54,6 +59,8 @@ ARM_SUFFIX = {
 # Every draw-study arm is the same `mlp` policy under a different checkpoint, so the runner
 # writes them all as `<cell>_s0_mlp_dim22.json`; only the sweep dir keeps them apart.
 ARM_SUFFIX.update({a: "mlp_dim22" for a in DRAW_STUDY_ARMS})
+# The GNN draw arms need no entry: they are the `gnn` policy, and ARM_SUFFIX.get defaults
+# to "gnn". Listed here only so the asymmetry is not read as an omission.
 
 # Scalars worth carrying; the two response-time distributions are kept separately because
 # they are 100-element percentile curves and dominate the output size otherwise.
