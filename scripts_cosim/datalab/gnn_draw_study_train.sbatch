@@ -56,6 +56,29 @@ export WANDB_RUN_NAME="gnn-draw-s${SEED}"
 export NEAR_RTT_TRAIN_SEED="$SEED"
 OUT="models/${WANDB_RUN_NAME}.pt"
 
+# run_full_corpus_siv1_gnn_train.sh guards on MIN_GRAPHS, default 2700 — a stale floor
+# taken from the 2,816-dataset compatibility group, not from what actually survives
+# caching. The deployed checkpoint's own contract records n_datasets=2651, so the default
+# rejects the very corpus it was fitted on. Replace the magic number with the thing it was
+# trying to approximate: these draws must be trained on the SAME corpus as the deployed
+# checkpoint, or they are not draws of the deployed config and the study compares nothing.
+DEPLOYED_CONTRACT="models/near-rtt-v2-full-corpus-siv1-dim14-ce-only.contract.json"
+export MIN_GRAPHS
+MIN_GRAPHS=$(python3 - "$DEPLOYED_CONTRACT" "$CACHE_DIR" <<'PY'
+import json, pickle, sys
+contract_path, cache_dir = sys.argv[1], sys.argv[2]
+want = int(json.load(open(contract_path))["corpus"]["n_datasets"])
+have = len(pickle.load(open(f"{cache_dir}/graphs.pkl", "rb")))
+if have != want:
+    raise SystemExit(
+        f"FAIL LOUD: cache has {have} graphs, deployed checkpoint was fitted on {want}. "
+        f"These would not be draws of the deployed config."
+    )
+print(want)
+PY
+) || { echo "FAIL LOUD: corpus does not match the deployed checkpoint" >&2; exit 1; }
+echo "[CORPUS] ${MIN_GRAPHS} graphs, matches deployed checkpoint contract"
+
 # train_near_rtt.py saves to models/{wandb.run.name}.pt, so an unset WANDB_RUN_NAME means
 # wandb invents a name and the checkpoint lands somewhere nobody is looking for it.
 [[ -n "${WANDB_RUN_NAME}" ]] || { echo "FAIL LOUD: WANDB_RUN_NAME must be set" >&2; exit 1; }
