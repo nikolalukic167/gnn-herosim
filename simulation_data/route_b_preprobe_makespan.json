@@ -66,6 +66,8 @@
      "n": 200,
      "nonzero_frac": 0.035
     },
+    "repair_1int_saturated": 0,
+    "repair_kint_saturated": 0,
     "saturated_fit_frac": 0.01
    },
    "1.5": {
@@ -129,6 +131,8 @@
      "n": 200,
      "nonzero_frac": 0.035
     },
+    "repair_1int_saturated": 0,
+    "repair_kint_saturated": 0,
     "saturated_fit_frac": 0.01
    },
    "2.0": {
@@ -192,6 +196,8 @@
      "n": 200,
      "nonzero_frac": 0.0
     },
+    "repair_1int_saturated": 0,
+    "repair_kint_saturated": 0,
     "saturated_fit_frac": 0.01
    },
    "2.5": {
@@ -255,6 +261,8 @@
      "n": 200,
      "nonzero_frac": 0.0
     },
+    "repair_1int_saturated": 0,
+    "repair_kint_saturated": 0,
     "saturated_fit_frac": 0.01
    },
    "3.0": {
@@ -318,6 +326,8 @@
      "n": 200,
      "nonzero_frac": 0.0
     },
+    "repair_1int_saturated": 0,
+    "repair_kint_saturated": 0,
     "saturated_fit_frac": 0.01
    },
    "None": {
@@ -381,6 +391,8 @@
      "n": 200,
      "nonzero_frac": 0.0
     },
+    "repair_1int_saturated": 0,
+    "repair_kint_saturated": 0,
     "saturated_fit_frac": 0.01
    }
   },

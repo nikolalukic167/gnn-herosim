@@ -3730,6 +3730,105 @@ is reusable — route B needs all of it.
 
 ---
 
+### route_b_v1 — PRE-REGISTRATION (written 2026-08-25, before any route B corpus exists)
+
+**The hypothesis.** Route A violated the composition theorem's *separability* hypothesis
+and its conclusion still held: coupling without competition leaves every task free to take
+its individual favourite. This lineage attacks the other hypothesis, **free choice**:
+contention for a scarce resource, so that some task must yield. Mechanism: **node-memory
+knapsack** — a plan is feasible iff every node's co-resident demand
+`Σ memReq[task_type][platform_type] ≤ cap_node(α)`, with
+`cap_node(α) = α × max single candidate demand on that node`. Demands are the welded
+`task-types.json` values (type-asymmetric on GPU: dnn1/dnn2 0.9, rf 1.5, cnn 1.3);
+**the file is not edited** — the scarcity knob is per-node capacity. Memory occupancy does
+not change episode physics, so the constraint is applied to the full enumerated sweep **at
+scoring time**; one corpus serves the whole tightness ladder, and stage-1 zero-diff is
+structural. Stacked design, two arms differing in exactly one flag: **Arm S** (primary) =
+diamond4 DAG, distinct types, server mesh + backbone, `HEROSIM_DATA_LOCALITY=1`, payload
+800 MB (the point where route A measured the pairwise term at 10–30% of episode cost);
+**Arm B0** = identical, locality OFF. Rationale: under competition with *separable* costs
+any regret is decoder myopia and a perfect decoder erases it — only competition **plus**
+coupling forces the score itself to be joint. B0's predicted-zero is the built-in
+instrumentation control.
+
+**Statistics** (`scripts_cosim/score_route_b_contention.py`, per dataset / α / objective):
+`R_greedy` = feasibility-masked sequential greedy over min-marginals (deployable pointwise
+scheduler) vs constrained sweep optimum. **`R_exact` (primary)** = feasible-set exhaustive
+argmin of the min-marginal-sum surrogate `Σ_t m_t(p_t)` — on separable physics
+`m_t(p) = c_t(p) + const`, so `R_exact ≡ 0` under ANY feasibility restriction; nonzero
+constrained `R_exact` can be neither a decoder nor an LS-fitting artifact. Repairs =
+`y ~ a + b·Σm + counts` (one-integer: node-occupancy excess sharing, the program's
+established collision column; k-integer: per-node×type counts, the constraint's own
+sufficient statistic), fit on the full sweep, **refused as `saturated` when rows < 2×params**
+— never silently reported. Views: memory-feasible (primary), memory-feasible ∩ spread
+(secondary). A full indicator-LS surrogate is a sensitivity row only: measured on the m3
+pilot it fires ~12% even *unconstrained* (collision channel + argmin tie noise) where the
+registered statistic measures the established 0.000% — it is not the gate.
+
+**Deviation from the phase-1 plan text, recorded honestly and made before any route B
+corpus existed:** the plan named the LS surrogate as `R_exact`'s fit; measurement on the
+m3 pilot showed that statistic broken as a gate (12% unconstrained false-fire), and it was
+replaced by the min-marginal-sum form, which is *stronger for the pointwise side* (exactly
+optimal wherever physics is separable). Control 1's expectation was also re-derived from
+395.45% to 450% when the rig arithmetic was corrected to min-over-totals marginals.
+
+**Positive controls, frozen (`tests/test_route_b_positive_controls.py`, 12 tests, all
+passing before this entry):** Control 1 (separable, hot-node cap, wrong-task yield):
+`R_greedy = 450.000000%` exactly, `R_exact = 0`; cap removed → both 0. Control 2 (pairwise
+matching-shaped costs, 3×3): `R_exact = R_greedy = 150.000000%` exactly, 1int repair
+**cannot** clean it (150% in every LS branch), kint repair **refused as saturated** at rig
+scale; cap removed → 0. The guard exists because the 4-row rig caught the scorer's first
+version reporting interpolated repairs as 0.0 — kept as a regression test. **Any control
+failure makes route B runs VOID, not NO-GO**, and controls re-run after any scorer edit.
+Still owed before corpus scoring: the end-to-end rigged dataset through the real
+generation→sweep→scorer path (predicted `R_greedy ≥ 50%`, cross-checked by an independent
+reader of the produced placements.jsonl).
+
+**Pre-probe — run 2026-08-25, route B SURVIVES.** Registered kill condition (at the
+tightest non-degenerate α on the existing m3 pilot n=200: `R_greedy>1%` on <5% of datasets
+AND max < 17.25%): does **not** fire — measured 7% firing with max **92.10%** (rtt) /
+**157.81%** (makespan) at α=1.0; `R_exact` stays ≈0 (≤1.46% max, 1% firing), as the
+theorem predicts on separable physics. The M3 matching hint amplifies 5×. Calibration
+finding: α=1.0 leaves the free-choice plan infeasible in only 10% of datasets — the corpus
+grid needs scarcer candidates (`per_client=0`, fewer server hosts) to reach the 30–70%
+band. Frozen: `simulation_data/route_b_preprobe_{rtt,makespan}.json`.
+
+**THE GATE — Arm S, registered tightness, n=200, both objectives scored, rtt primary:**
+- **PASS** iff ALL of: (1) fraction of datasets with `R_exact > 5%` is ≥ 10% with the 95%
+  binomial CI excluding 10% from below; (2) repair fraction < 0.5 for BOTH count repairs
+  (medians over firing datasets, saturated repairs excluded and counted); (3) the firing
+  fraction rises monotonically along ∞ → loose → tight; (4) the spread-view firing
+  fraction is nonzero.
+- **FAIL** iff the CI excludes 10% from above, or condition (2) fails (count-shaped ⇒
+  sixth confirmation of the empirical rule; route B closed as a GNN argument).
+- **VOID** iff any positive control fails, or Arm B0 fires materially
+  (`R_exact > 1%` on > 2% of datasets — theorem says ~0, so that is instrumentation), or
+  the CI straddles 10% → escalate n = 200 → 400 → 800; ladder exhausted →
+  **VOID-UNDERPOWERED**, never FAIL. Arm-vs-arm comparisons go through
+  `gate_statistics.paired_regret_comparison` / `pooled_phase4_verdict`.
+- **Tightness two-step:** three α values chosen from the smoke corpus so "tight" makes the
+  free-choice plan infeasible in 30–70% of datasets, then **frozen here before the n=200
+  corpus is scored**. Zero-feasible datasets are counted (`no_feasible_rows`), never
+  dropped.
+
+**The thresholds above may not be revised after data exists. A near-miss is a FAIL or a
+VOID per the rules; there is no third option.**
+
+**Stage 2 (conditional on PASS), binding constraints registered now:** any "GNN beats MLP
+under constraints" claim requires (a) ONE shared constraint-aware sequential
+feasibility-masked decoder used by both models (scarcity-pressure order, single
+implementation both models plug scores into); (b) the MLP arm at its strongest (dim25cr +
+the k-integer features); (c) an exact-assignment decode arm on the MLP's scores. Labels
+become any-of-K tied-optimal sets; `audit_label_provenance` gains a tie-tolerant mode; the
+cache carries the feasibility mask + capacity map (one contract, sidecar rule). Grouped
+argmax is not an arm. Scope exclusions: no edits to `task-types.json`, no episode-physics
+changes beyond route A's landed term, no training/checkpoints/live gates/datalab in stage
+1, no new `train_*.py` ever.
+
+**Status: PRE-REGISTERED.** Outcome row to follow.
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |

@@ -322,12 +322,18 @@ def marginal_surrogate_regret(ds: Dataset,
                               feasible_rows: Sequence[Tuple[Plan, float]],
                               count_fn=None,
                               fit_rows: Optional[Sequence[Tuple[Plan, float]]] = None,
-                              ) -> float:
+                              ) -> Optional[float]:
     """Regret of the feasible plan minimizing sum_t m_t(p_t) (+ fitted count columns).
 
     Without count_fn no fitting happens at all: the surrogate is the raw marginal sum
     (monotone-equivalent to any a + b*sum with b > 0). With count_fn, coefficients for
     y ~ a + b*marginal_sum + counts are fit by LS on fit_rows (default: the full sweep).
+
+    Saturation guard (the P7 / audit_spread_fit_saturation lesson, and what route B's
+    own Control 2 caught at rig scale): a repair fit with fewer than 2x as many rows as
+    parameters can interpolate the sweep — coupling included — and mechanically zero
+    the regret it exists to measure. Such a repair is refused: returns None, and the
+    caller records it as saturated rather than repaired.
     """
     truths = np.array([v for _p, v in feasible_rows], dtype=float)
     best = float(truths.min())
@@ -340,6 +346,9 @@ def marginal_surrogate_regret(ds: Dataset,
         return 100.0 * (float(truths[pick]) - best) / best
 
     rows = list(fit_rows) if fit_rows is not None else list(ds.rows)
+    n_params = 2 + len(count_fn(rows[0][0]))
+    if len(rows) < 2 * n_params:
+        return None
     X = np.array([[1.0, marginal_sum(marginal, p)] + count_fn(p) for p, _v in rows])
     y = np.array([v for _p, v in rows], dtype=float)
     beta, *_ = np.linalg.lstsq(X, y, rcond=None)
@@ -431,10 +440,13 @@ def score_dataset(ds: Dataset, alpha: Optional[float]) -> dict:
     # the pointwise side, so the repaired regret is min(base, repaired).
     r_base = marginal_surrogate_regret(ds, marginal, feasible_rows)
     out["r_exact_pct"] = r_base
-    out["r_exact_repaired_1int_pct"] = min(r_base, marginal_surrogate_regret(
-        ds, marginal, feasible_rows, one_integer_cols(ds)))
-    out["r_exact_repaired_kint_pct"] = min(r_base, marginal_surrogate_regret(
-        ds, marginal, feasible_rows, k_integer_cols(ds)))
+    for name, cols in (("1int", one_integer_cols(ds)), ("kint", k_integer_cols(ds))):
+        repaired = marginal_surrogate_regret(ds, marginal, feasible_rows, cols)
+        if repaired is None:
+            out[f"repair_{name}_saturated"] = True
+            out[f"r_exact_repaired_{name}_pct"] = None
+        else:
+            out[f"r_exact_repaired_{name}_pct"] = min(r_base, repaired)
 
     # sensitivity row: full per-(task,placement) indicator LS surrogate
     r_ls, fit_info = surrogate_regret(ds, ds.rows, feasible_rows)
@@ -513,10 +525,16 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
             "r_greedy": summarize([r["r_greedy_pct"] for r in scored
                                    if "r_greedy_pct" in r]),
             "r_exact": summarize([r["r_exact_pct"] for r in scored]),
+            "repair_1int_saturated": sum(
+                1 for r in scored if r.get("repair_1int_saturated")),
+            "repair_kint_saturated": sum(
+                1 for r in scored if r.get("repair_kint_saturated")),
             "r_exact_repaired_1int": summarize(
-                [r["r_exact_repaired_1int_pct"] for r in scored]),
+                [r["r_exact_repaired_1int_pct"] for r in scored
+                 if r.get("r_exact_repaired_1int_pct") is not None]),
             "r_exact_repaired_kint": summarize(
-                [r["r_exact_repaired_kint_pct"] for r in scored]),
+                [r["r_exact_repaired_kint_pct"] for r in scored
+                 if r.get("r_exact_repaired_kint_pct") is not None]),
             "r_exact_ls": summarize(
                 [r["r_exact_ls_pct"] for r in scored]),
             "r_exact_spread": summarize(
