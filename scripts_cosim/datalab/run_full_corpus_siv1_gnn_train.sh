@@ -57,10 +57,15 @@ export NEAR_RTT_UNMAPPED_PENALTY="${NEAR_RTT_UNMAPPED_PENALTY:-8.0}"
 export WANDB_TAGS="near-rtt,ce-only,dim14,full-corpus,scale-invariant-v1,from-scratch"
 unset TRAIN_INIT_CHECKPOINT
 
+# DataLoader workers are overridable because the cluster's ulimit -n is 1024 and the
+# default of 4 exhausts file descriptors under torch's fd-based tensor sharing: job 712372
+# died 6 batches into epoch 0 with EOFError in rebuild_storage_fd, on all 8 array tasks.
+# Default is unchanged at 4, so every existing caller behaves exactly as before.
 python3 -u src/notebooks/train_near_rtt.py \
   --cache-dir "$CACHE_DIR" \
   --regret-loss-weight 0 \
   --ce-loss-weight 1 \
+  --num-dataloader-workers "${NEAR_RTT_DATALOADER_WORKERS:-4}" \
   --epochs "${NEAR_RTT_TRAIN_EPOCHS:-100}" \
   --wandb-project "${WANDB_PROJECT:-gnn-full-corpus-siv1-aug2026}"
 

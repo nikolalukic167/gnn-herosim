@@ -93,6 +93,15 @@ for v in NEAR_RTT_MP_RESIDUAL GNN_MP_NODE_EDGES GNN_DISABLE_MESSAGE_PASSING; do
   fi
 done
 
+# Single-process data loading. Two reasons, and the second is the better one:
+#   1. The cluster's ulimit -n is 1024, and 4 workers sharing tensors by file descriptor
+#      exhausts it — job 712372 died 6 batches into epoch 0 on all 8 tasks with EOFError
+#      in rebuild_storage_fd.
+#   2. This is a reproducibility study. Worker processes introduce an ordering the seed
+#      does not control, which is exactly the class of variance the study exists to rule
+#      out. __getitem__ only attaches lightweight metadata, so the workers bought little.
+export NEAR_RTT_DATALOADER_WORKERS=0
+
 echo "=== task=${SLURM_ARRAY_TASK_ID} seed=${SEED} cache=${CACHE_DIR} -> ${OUT} ==="
 bash scripts_cosim/datalab/run_full_corpus_siv1_gnn_train.sh
 
