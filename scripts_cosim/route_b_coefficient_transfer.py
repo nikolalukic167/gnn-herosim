@@ -478,11 +478,18 @@ def identity_or_features(cells: List[Cell]) -> dict:
     """§9c(a): is the fitted kint block a function of node FEATURES, or of node IDENTITY?
 
     Gauge fix, and it is not optional. Within a dataset the kint columns for a given task
-    type sum to exactly 1 (each type has exactly one task in `diamond4`), so the design is
-    rank-deficient by one dimension per type and the fitted coefficients are defined only up
-    to a per-type additive shift — `lstsq` returns the minimum-norm representative, which is
-    a convention, not a fact. Regressing a convention on node features would be meaningless.
-    So both the target and the score are taken on coefficients CENTERED within
+    type sum, on every row, to that type's fixed task count n_type (every valid plan places
+    every task, so Σ_node kint(node, type) = n_type identically across all candidate plans).
+    That row-wise identity — not the specific value of n_type — is what makes the design
+    rank-deficient by exactly one dimension per type: the fitted coefficients are defined
+    only up to a per-type additive shift, and `lstsq` returns the minimum-norm
+    representative, which is a convention, not a fact. Re-derived 2026-08-25 for the 8-task
+    probe (two diamond4 instances, n_type=2 for every type, kint no longer one-hot per row):
+    the argument depends only on the row sum being constant, so it is unchanged by n_type
+    going from 1 to 2 — confirmed against the `centre = mean(coefs[same type])` code below,
+    which was already written for a general group size, not hardcoded to pairs of 1.
+    Regressing a convention on node features would be meaningless. So both the target and
+    the score are taken on coefficients CENTERED within
     (dataset, task_type): the gauge-invariant content is a node's coefficient RELATIVE to the
     other nodes' for that type, which is exactly the quantity a model would have to recover.
     """
