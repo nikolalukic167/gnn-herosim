@@ -3543,6 +3543,29 @@ draws (≥12 at the +50% line), not a different rule.
 GNN reliability claim cannot be written as stated. The terminal negative
 (`program_verdict_v1`) is untouched — it never rested on any checkpoint.
 
+**Addendum (2026-08-25): a POST-HOC EXPLORATORY rank statistic, checked against a
+pre-written decision rule, does not reopen this.** The registered dichotomy (clean/not-clean)
+discards the collapse-count magnitude — a 26-cell draw scores identically to a 3-cell one —
+so an exact permutation rank-sum test was run on the full collapse-count vectors (same
+`collapse_counts()` rule, same cells, same three thresholds) as a check on whether that loss
+of power was hiding a real effect. It was pre-decided that this would only be actionable if
+the rank statistic cleared α=0.05 at **all three** thresholds, matching the registered
+sensitivity requirement:
+
+| threshold | GNN counts (s1–s8) | rank-sum | exact p | binary Fisher p |
+|---|---|---:|---:|---:|
+| +30% | 0, 8, 0, 0, 10, 2, 0, 0 | 80.0 | 0.1041 | 0.235 |
+| +50% | 0, 1, 0, 0, 3, 0, 0, 0 | 71.5 | 0.0274 | 0.156 |
+| +100% | all zero | — | 0.0087 | 0.0087 |
+
+The rank statistic clears α at +50% and +100% but **not at +30%** (p=0.1041), so it fails the
+same sensitivity requirement the registered dichotomy failed, for the same reason: whichever
+statistic is used, the verdict is not stable across the pre-registered threshold ladder. No
+new registration, no escalation to n=12. This was the one outstanding number from
+`gnn_draw_study_verdict.json`'s Q2 (the local summary predated job 712389 and only carried
+clean/not-clean counts, not full vectors); it is now filled from the synced 930-result
+`gate_stats_summary.json` and closes the question the same way. CLOSED stands.
+
 ---
 
 ### route_a_v1 — the five blockers, cleared (2026-08-25)
@@ -4246,6 +4269,16 @@ remote_edge_count` is collinear with the hop block on `diamond4`. Recorded becau
 registered, and because a *correctly specified* pooled fit would be the place to test the
 762.94 prediction properly.
 
+**Re-derived 2026-08-25 for the 8-task probe.** The "4" here is `diamond4`'s total edge
+count (4 parent-child pairs), not a hardcoded constant in the scorer — `score_route_b_contention.py`'s
+`same_node_edges`/`transfer` loop (`fn`, around line 596) sums over `parents_of` for
+whatever edges the plan's DAG actually has, so no code change is needed. For two diamond4
+instances co-decided in one episode (8 tasks, 8 edges total, 4 per instance), the identity
+becomes `same_node_edges = 8 − remote_edge_count` and the collinearity with the hop block
+persists at the new constant — the mechanism (total edge count is fixed per dataset, so
+same-node and remote edge counts are complementary) is unchanged by doubling, only the
+number is.
+
 **Verification.** `verify_route_b_scorer_agreement.py --check-blocks` — an independent
 pure-Python/QR recomputation from each dataset's raw files — agrees on **315/315 (dataset,
 arm) repair fractions to 1e-9** across 35 datasets and 9 arms, with the three cell-B tie
@@ -4306,6 +4339,27 @@ On (b), the readings disagree because tie groups run up to **16 plans wide** and
 sorted-plan-key rule lands *worse than an average tie-break* on this corpus. **§4's decoder
 never specified what to do with tied scores, and the anonymous verdict flips on that choice.**
 That is a real hole in the registration, not a numerical nuisance.
+
+**A second registration defect, found the same way (recorded 2026-08-25):** §4 pinned
+"scarcity-pressure order" to `greedy_masked_plan`'s ascending `(best available marginal,
+task_id)`. On this corpus that order does not exist: in **all 204 datasets the four
+min-marginal minima are exactly tied** — every task's best placement lies in the globally
+best plan, so `min_p m_t(p)` equals the global minimum RTT for every task — and the tie-break
+collapses the order to `task_id`, which is the DAG's topological order. Measured
+consequences: **0 of 816 DAG edges decode child-before-parent** (§2's hedge that "parents are
+not guaranteed to precede children" never fires) and **0 of 816 steps** have a task's best
+choice already taken by an earlier task; only capacity ever blocks the top choice, on
+167/816 = 20.5% of steps. The registered order therefore carries no scarcity information
+whatsoever. This is the same class of hole as the unspecified tie rule: a registration naming
+a discriminator that is constant on its own corpus. **A corrected stage 2 must fix both**, or
+it repeats the error under a new name.
+
+Also measured: **T1 ≡ T0 at decode step 0** (all eleven partial-state columns are zero when
+nothing is placed), and the prefix-oracle curve (7.78 → 9.84 → 1.98 → 0.31) puts essentially
+all decoder myopia in the first two of four steps. **Write-up rule, binding: wherever the
+four-task limit is doing the work, the sentence is "the corpus is too small to test the
+architecture claim", never "the architecture claim is false."** These two measurements
+support the first reading, not the second.
 
 **Consequence: NO-GO-PREPROBE-T1 is retracted as measured, and stage 2's architecture
 question is reopened.** Per §9c this is explicitly **not** a licence to start the build queue:

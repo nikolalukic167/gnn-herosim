@@ -191,6 +191,27 @@ over remaining capacity under `cap_node(α)`; ties by placement id.
   `KNOWN_DECODE_MODES` registry: **hetero is out of scope for stage 2**, and a static test
   asserts the new mode's name does not appear in `src/policy/gnn_hetero/` (drift guard).
 
+**A second registration defect, found the same way as the tie rule (recorded 2026-08-25):**
+§4 pinned "scarcity-pressure order" to `greedy_masked_plan`'s ascending `(best available
+marginal, task_id)`. On this corpus that order does not exist: in **all 204 datasets the four
+min-marginal minima are exactly tied** — every task's best placement lies in the globally best
+plan, so `min_p m_t(p)` equals the global minimum RTT for every task — and the tie-break
+collapses the order to `task_id`, which is the DAG's topological order. Measured consequences:
+**0 of 816 DAG edges decode child-before-parent** (§2's hedge that "parents are not guaranteed
+to precede children" never fires) and **0 of 816 steps** have a task's best choice already
+taken by an earlier task; only capacity ever blocks the top choice, on 167/816 = 20.5% of
+steps. The registered order therefore carries no scarcity information whatsoever. This is the
+same class of hole as the unspecified tie rule: a registration naming a discriminator that is
+constant on its own corpus. **A corrected stage 2 must fix both**, or it repeats the error
+under a new name.
+
+Also measured: **T1 ≡ T0 at decode step 0** (all eleven partial-state columns are zero when
+nothing is placed), and the prefix-oracle curve (7.78 → 9.84 → 1.98 → 0.31) puts essentially
+all decoder myopia in the first two of four steps. The framing this supports is that four
+tasks is too small a joint decision to test the architecture question, not that the question
+is answered — the four-task limit is doing the work here, and no sentence built on it should
+read as "the architecture claim is false."
+
 ---
 
 ## 5. Corpus, split, and labels
