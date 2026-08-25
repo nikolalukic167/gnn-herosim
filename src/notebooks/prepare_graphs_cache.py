@@ -423,24 +423,32 @@ def extract_dataset_to_dataframes(
             
             has_dnn1_replica = False
             has_dnn2_replica = False
-            
+            # Which task types actually have a replica here, for ANY task type. The two
+            # booleans above stay exactly as they were because they are also platform
+            # FEATURES (dims 5-6 under dim22/dim24) and the layout is contract-governed;
+            # this set is used only for candidate filtering, which must work for the other
+            # task types too — see the filter in build_graph.
+            replica_task_types = set()
+
             for task_type, replica_list in replicas_by_task.items():
                 if isinstance(replica_list, list):
                     for replica in replica_list:
                         if isinstance(replica, list) and len(replica) >= 2:
                             if replica[0] == node_name and replica[1] == plat_id:
+                                replica_task_types.add(str(task_type))
                                 if task_type == "dnn1":
                                     has_dnn1_replica = True
                                 elif task_type == "dnn2":
                                     has_dnn2_replica = True
-            
+
             platforms_data.append({
                 'platform_id': plat_id,
                 'node_id': node_id,
                 'node_name': node_name,
                 'platform_type': plat_type,
                 'has_dnn1_replica': has_dnn1_replica,
-                'has_dnn2_replica': has_dnn2_replica
+                'has_dnn2_replica': has_dnn2_replica,
+                'replica_task_types': frozenset(replica_task_types),
             })
     
     df_platforms = pd.DataFrame(platforms_data)
@@ -961,6 +969,13 @@ def build_graph(
     
     has_dnn1_arr = df_platforms['has_dnn1_replica'].to_numpy(dtype=bool)
     has_dnn2_arr = df_platforms['has_dnn2_replica'].to_numpy(dtype=bool)
+    # Generic replica presence, for task types other than dnn1/dnn2. Older extractions have
+    # no such column; an empty frozenset then yields no candidates, which is exactly the
+    # previous behaviour for those task types.
+    if 'replica_task_types' in df_platforms.columns:
+        replica_types_arr = df_platforms['replica_task_types'].to_numpy()
+    else:
+        replica_types_arr = np.array([frozenset()] * len(df_platforms), dtype=object)
     
     has_dnn1 = has_dnn1_arr.astype(float).reshape(-1, 1)
     has_dnn2 = has_dnn2_arr.astype(float).reshape(-1, 1)
@@ -1221,7 +1236,19 @@ def build_graph(
             elif task_type == 'dnn2':
                 compat_plats = compat_plats[has_dnn2_arr[compat_plats]]
             else:
-                compat_plats = np.empty(0, dtype=np.int64)
+                # Was `np.empty(0)` — every task type other than dnn1/dnn2 got ZERO
+                # candidates, so its label could not be a candidate index and came out -1,
+                # failing the contract-5.5 assertion for the whole cache. Harmless while
+                # every corpus was a dnn1/dnn2 pair; fatal for a 4-type DAG. The dnn1/dnn2
+                # branches above are kept verbatim rather than folded into this one so
+                # existing caches stay bit-identical.
+                compat_plats = compat_plats[
+                    np.fromiter(
+                        (task_type in replica_types_arr[p] for p in compat_plats),
+                        dtype=bool,
+                        count=compat_plats.size,
+                    )
+                ]
         
         if compat_plats.size:
             # Sort compatible platforms so their order matches the per-task

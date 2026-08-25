@@ -311,7 +311,38 @@ def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
             key = filename.replace('.json', '').replace('-', '_')
             sim_inputs[key] = json.load(f)
 
+    apply_state_size_override(sim_inputs)
+
     return sim_inputs
+
+
+def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
+    """Scale every task type's input stateSize in memory, from HEROSIM_STATE_SIZE_BYTES.
+
+    `stateSize` is welded into `data/nofs-ids/task-types.json` at 153,600 B, and that file
+    is shared by EVERY corpus — it is never copied per dataset — so editing it would
+    silently rewrite the physics of every existing collection. The same reasoning as
+    `sample_loader.ensure_workload_params`: grow the copy this run uses.
+
+    This matters for route_a because the parent->child transfer term scales with stateSize
+    while queue work does not, so the ratio between the coupled term and the additive one
+    is the one lever in this program with a favourable prediction rather than an invariant
+    one. At the welded 153,600 B the dependency read is ~1.2% of the queue term.
+
+    Returns the applied value, or None when unset.
+    """
+    raw = os.environ.get("HEROSIM_STATE_SIZE_BYTES", "").strip()
+    if not raw:
+        return None
+    state_size = int(raw)
+    if state_size <= 0:
+        raise ValueError(f"HEROSIM_STATE_SIZE_BYTES must be positive, got {state_size}")
+
+    task_types = sim_inputs.get("task_types") or {}
+    for task_type in task_types.values():
+        for app_entry in (task_type.get("stateSize") or {}).values():
+            app_entry["input"] = state_size
+    return state_size
 
 
 def generate_network_latencies(nodes: List[Dict], config: Dict[str, Any]) -> Dict[str, Dict[str, float]]:

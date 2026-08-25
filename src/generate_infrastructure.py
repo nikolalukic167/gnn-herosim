@@ -243,8 +243,79 @@ def generate_network_topology_deterministic(
                             f"[infra-gen] Added {task_type_name}-compatibility connection: {client_name} -> {server_name} "
                             f"(client platforms: {client_platforms}, server platforms: {set(server.get('platforms', []))})"
                         )
-    
+
+    build_server_mesh(network_maps, nodes, config, rng, latency_fn=generate_latency)
+
     return network_maps
+
+
+def _config_latency_fn(config: Dict[str, Any], rng: random.Random):
+    """Same latency lookup `generate_network_topology_deterministic` uses internally.
+
+    That one is a closure over the config it already parsed; this rebuilds it for callers
+    that only have the config, so the two cannot drift into different distributions.
+    """
+    latency_config = (config.get('network', {}) or {}).get('latency', {}) or {}
+    device_latencies = latency_config.get('device_latencies', {})
+    base_latency = latency_config.get('base_latency', 0.1)
+
+    def latency(device_type1: str, device_type2: str) -> float:
+        if device_type1 in device_latencies and device_type2 in device_latencies[device_type1]:
+            entry = device_latencies[device_type1][device_type2]
+            return rng.uniform(entry.get('min', base_latency), entry.get('max', base_latency))
+        return base_latency
+
+    return latency
+
+
+def build_server_mesh(
+    network_maps: Dict[str, Dict[str, float]],
+    nodes: List[Dict],
+    config: Dict[str, Any],
+    rng: random.Random,
+    latency_fn=None,
+) -> int:
+    """route_a: add server<->server latencies so parent->child transfers have a distance.
+
+    Every edge this generator produces is client<->server: `network_maps[server]` contains
+    only clients, and the backbone rewrite iterates clients too. That is fine while an
+    application is a single task, because the only distance anything prices is
+    (source client -> execution node). A DAG needs the distance between two *execution*
+    nodes, and for a parent and child that both landed on servers there is currently no
+    entry and no route at all.
+
+    Opt-in via `config['network']['server_mesh']`, absent from every existing config, so
+    this is a no-op for every corpus generated so far. It runs BEFORE build_core_backbone
+    so the backbone can route these edges like any other.
+
+    Returns the number of edges added.
+    """
+    network_config = config.get('network', {}) or {}
+    if not network_config.get('server_mesh'):
+        return 0
+
+    # Complete, deliberately. Any server can host any task, so a parent and child can land
+    # on any pair; a sparse mesh would leave pairs with no entry, and the transfer term
+    # fails loud on a missing one rather than charging 0.0. Distance heterogeneity — which
+    # is the signal route A needs — comes from `generate_latency` varying with node type,
+    # and from build_core_backbone rewriting these edges as path sums when a backbone is
+    # configured, not from dropping edges.
+    if latency_fn is None:
+        latency_fn = _config_latency_fn(config, rng)
+
+    servers = [n for n in nodes if not n['node_name'].startswith('client_node')]
+    added = 0
+    for i, left in enumerate(servers):
+        for right in servers[i + 1:]:
+            left_name, right_name = left['node_name'], right['node_name']
+            if right_name in network_maps[left_name]:
+                continue
+            latency = latency_fn(left['type'], right['type'])
+            network_maps[left_name][right_name] = latency
+            network_maps[right_name][left_name] = latency
+            added += 1
+
+    return added
 
 
 def _dijkstra_paths(
@@ -403,24 +474,38 @@ def build_core_backbone(
     routes: Dict[str, Dict[str, List[str]]] = {}
     used_links = set()
     clients = [n['node_name'] for n in nodes if n['node_name'].startswith('client_node')]
-    for client_name in clients:
-        paths = _dijkstra_paths(adjacency, client_name)
-        for server_name in list(network_maps.get(client_name, {})):
-            path = paths.get(server_name)
+    # Sources are clients plus — when a server mesh exists (route_a) — servers, so that
+    # server<->server edges are path sums over the same core tier rather than the one-hop
+    # constants generate_latency produced. Without this a DAG's parent->child distance
+    # would ignore the backbone that every other distance in the run respects.
+    servers_with_mesh = [
+        n['node_name'] for n in nodes
+        if not n['node_name'].startswith('client_node')
+        and any(
+            not peer.startswith('client_node')
+            for peer in network_maps.get(n['node_name'], {})
+        )
+    ]
+    for source_name in clients + servers_with_mesh:
+        paths = _dijkstra_paths(adjacency, source_name)
+        for peer_name in list(network_maps.get(source_name, {})):
+            if source_name in routes and peer_name in routes[source_name]:
+                continue
+            path = paths.get(peer_name)
             if path is None:
                 raise RuntimeError(
-                    f"link_contention_v1: {client_name} -> {server_name} is a logical "
+                    f"link_contention_v1: {source_name} -> {peer_name} is a logical "
                     f"network_map edge with no path over the backbone. The core tier must "
                     f"span every node or the simulator would silently charge nothing."
                 )
-            routes.setdefault(client_name, {})[server_name] = path
+            routes.setdefault(source_name, {})[peer_name] = path
             total = 0.0
             for i in range(len(path) - 1):
                 key = link_key(path[i], path[i + 1])
                 used_links.add(key)
                 total += links[key]["latency"]
-            network_maps[client_name][server_name] = total
-            network_maps[server_name][client_name] = total
+            network_maps[source_name][peer_name] = total
+            network_maps[peer_name][source_name] = total
 
     # Keep only links some route actually traverses: an untraversed pipe never contends,
     # and pruning keeps `link_keys` an honest denominator for the overlap pre-check.
