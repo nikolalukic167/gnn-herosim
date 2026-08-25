@@ -383,10 +383,24 @@ def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
     if state_size <= 0:
         raise ValueError(f"HEROSIM_STATE_SIZE_BYTES must be positive, got {state_size}")
 
+    # BOTH directions. `input` is what the storage branch reads; `output` is what a CHILD
+    # reads from its parent, and therefore the payload of the parent->child transfer — the
+    # only term in the simulator that couples two placements. Scaling `input` alone moves
+    # the additive storage cost and leaves the coupled term pinned at its welded 8,000 B,
+    # so the lever would appear to do nothing to separability while visibly changing RTT.
+    # That is exactly the false negative this probe exists to avoid.
     task_types = sim_inputs.get("task_types") or {}
     for task_type in task_types.values():
         for app_entry in (task_type.get("stateSize") or {}).values():
+            baseline_input = float(app_entry.get("input") or 0.0)
+            baseline_output = float(app_entry.get("output") or 0.0)
             app_entry["input"] = state_size
+            # Keep the output/input ratio the application shipped with, so the DAG's
+            # transfer payload scales with the lever instead of being redefined by it.
+            if baseline_input > 0 and baseline_output > 0:
+                app_entry["output"] = max(1, int(round(state_size * baseline_output / baseline_input)))
+            else:
+                app_entry["output"] = state_size
     return state_size
 
 
