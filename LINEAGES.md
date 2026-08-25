@@ -4048,6 +4048,73 @@ literal re-verification of route A's condition is the 6-dataset retro-check reco
 constraint-aware pointwise baseline?) requires its own pre-registration before any
 training run.**
 
+### route_b_v1 — stage 2 pre-probe zero: **NO-GO-PREPROBE-T1** (2026-08-25)
+
+Stage 2's pre-registration was drafted (`ROUTE_B_STAGE2_PREREGISTRATION.md`, this commit)
+and, on review, the user identified its load-bearing hole before sign-off: the registered
+strongest-MLP arm (T1 = dim25cr + k-integer + partial-assignment state, including
+parent-placement/hop/transfer columns) is **not a pointwise baseline** — its plan-level
+score is non-separable, and stage 1's `R_exact` (a *separable* surrogate) and its
+median-0.000 count-repair result say nothing about it. The doc's §9a registered an offline
+kill test with the reading fixed **before** the number existed: recompute `R_exact` on the
+stage-1 204 (Arm S, α=2.0, rtt) with the surrogate augmented by the full T1 plan-level
+column set — kint + per-type quadratic co-residency + load/cap + over-cap count + min/max
+parent-hop sums + `Σ_edges hops/bottleneck` + `Σ_edges latency` + same-node-parent count,
+the last three computed from each dataset's own `link_topology.routes`, i.e. exactly what
+`_dependency_transfer_time` charges (uniform 800 MB payload absorbed by the LS
+coefficient, so the columns **span the charged coupling term exactly**). Registered
+reading: median repair fraction ≥ 0.5 over the stage-1 firing datasets ⇒ the architecture
+claim is pre-falsified and stage 2 does not run as registered.
+
+**Result: median T1 repair fraction 1.000** (mean 0.730; 26/35 firing datasets closed
+≥ 0.5; kint comparison: median 0.000, mean 0.357, matching the stage-1 scrutiny to the
+digit). `frac(R_exact > 5%)` falls 0.172 → **0.054** (11/204 residual, max 22.2%).
+Attribution ablation over the firing 35: the parent-coupling block alone closes at median
+1.000, the occupancy block alone at median 0.892 — two largely redundant routes to the
+same closure. Scorer: `score_route_b_contention.py` (`t1` repair, constrained rungs only);
+report frozen at `simulation_data/route_b_stage2_preprobe_t1_rtt.json`. Verification:
+`verify_route_b_scorer_agreement.py --check-repairs` agrees on **all 204 cells and all
+612 repair values (1int, kint, t1), zero tie-acceptances**.
+
+**Two verifier defects found and fixed en route — both matter to the stage-1 record:**
+
+1. **The pure-Python solver did not reach the true LS optimum on the wider t1 matrix.**
+   Standardized normal equations (the stage-1 scrutiny's own fix) produced fitted values
+   diverging from the unique LS projection on ds_00008 (fitted values on fit rows are
+   solver-independent, so this is a numerical failure, not a tie). Replaced with
+   hand-rolled MGS QR (one re-orthogonalization pass, dependent-column dropping) — still
+   no numpy, still zero scorer imports; verified against numpy to 1.6e-13.
+2. **The verifier's 1int column was `max` node-occupancy excess where the registration
+   (and `separability_diagnostic._excess_sharing`) says `sum`.** A real bug, masked by
+   defect 1: the imprecise fits happened to argmin onto the same plans on every dataset
+   previously checked. The QR solver exposed it (ds_00019: scorer 1.036 vs
+   verifier-with-max 9.633). With both fixes, **ds_00008's recorded "genuine
+   floating-point-level tie" dissolves** — scorer and verifier now agree outright there;
+   that scrutiny interpretation is superseded (the disagreement was the verifier's wrong
+   column plus solver imprecision, not an inherent tie). Stage 1's gate verdict is
+   untouched (the gate consumed the scorer's statistics, which were correct and are now
+   re-verified under the fixed verifier), but the stage-1 claim "1int independently
+   confirmed" was, until today, confirmed against a different column definition. It is
+   now actually confirmed: 612/612 repair values agree.
+
+**What this establishes:** on this grid, a pointwise score given partial-assignment state
+(exactly what a sequential masked decoder exposes for free) is sufficient at the
+surrogate-expressiveness level to close the median stage-1 firing dataset completely. The
+"GNN beats strongest-MLP under constraints" claim is pre-falsified before any cache,
+decoder, model, or corpus was built — for the price of one scorer run. **What is NOT
+established:** the T1 repair is a per-dataset LS fit on the dataset's own sweep — an
+expressiveness upper bound, not a trained cross-dataset model; whether a *trained*
+pointwise-plus-state model realizes this bound is the reduced V5-shaped question
+("decoder-state features suffice — no graph needed"), which needs no GNN and its own
+registration if pursued. The 11-dataset residual stratum (5.4%, below stage 1's 10% bar,
+max 22.2%) is real but does not clear the program's own materiality standard. The α=∞
+rung's 0/204 remains corroborating evidence for route A's conclusion at n=204 (not a
+literal grid re-run — see the stage-1 outcome entry's caveat).
+
+**Status: stage 2 as drafted does NOT run — NO-GO-PREPROBE-T1, reading applied as
+registered. Open decision (user's): pursue the reduced pointwise-plus-state question, or
+close route B's GNN argument here. Either path requires its own registration.**
+
 ---
 
 ## RETIRED
