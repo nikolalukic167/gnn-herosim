@@ -3432,6 +3432,64 @@ and is manual.
 
 ---
 
+### gnn_draw_study_v1 — PRE-REGISTRATION (written 2026-08-25, before any run)
+
+**The only open empirical question in the program.** `p5b_draw_study` retired the MLP's
+reliability record by showing it is a draw lottery. The GNN's record — both arms 0/30, mean
+margins −18.9% and −27.1% — survived only because nobody had varied its seed. It is 2–3
+draws against a measured distribution in which **7 of 16** MLP draws are clean, so a clean
+GNN draw is roughly a coin flip and p ≈ 0.125. Writing "the GNN never collapses and the MLP
+does" on that evidence repeats exactly the error `p5b_draw_study` was run to find.
+
+**Design.** 8 seeded draws of the **deployed** config
+(`graphs_cache_full_corpus_siv1_dim14`, seeds 1–8, `NEAR_RTT_TRAIN_SEED`), gated on the same
+30 cells (5 topology cells × 6 blocks) with the same Knative arms already in
+`gate_stats_summary.json`. 8 × 30 = 240 gate tasks. One config, not four: the claim under
+test is about the checkpoint that is deployed, and splitting the budget would halve the
+power on the only question asked. Nothing may vary across arms but the seed — the split
+stays fixed at `random_state=42` inside the trainer, and `NEAR_RTT_MP_RESIDUAL` /
+`GNN_MP_NODE_EDGES` are asserted unset.
+
+**Entry points.** `datalab/gnn_draw_study_{train,gate}.sbatch` →
+`important/score_gnn_draw_study.py` (a sibling of `score_p5b_draw_study.py`, not an edit).
+
+**The rule, registered now.** Collapse is `total_rtt ≥ +50%` vs the same-cell Knative arm,
+sensitivity at +30/+50/+100, verdict INDETERMINATE if it does not hold at all three —
+identical to `p5b_draw_study`, deliberately, because the two distributions are being
+compared and a different threshold would compare different questions. A draw is **clean**
+when it collapses on zero of its 30 cells.
+
+- **Q1** — within-condition range across the 8 seeds: `LOTTERY` if ≥ 5, `STABLE` if ≤ 2.
+- **Q2** — one-sided Fisher exact, GNN clean draws vs the frozen MLP 7/16, α = 0.05. The
+  MLP side is **read from the same summary at scoring time**, not typed in.
+
+**Power, computed before the run, and the reason there is an escalation clause.** Against
+7/16:
+
+| GNN clean | Fisher p | |
+|---|---:|---|
+| 8/8 | **0.0087** | significant |
+| 7/8 | **0.0507** | misses, by 0.0007 |
+| 6/8 | 0.1557 | |
+
+At n=8 **one unclean draw takes the study from decisive to not-established.** That is not a
+licence to read 7/8 as a positive afterwards; it is why the response is fixed in advance,
+in the same shape as `gate_statistics.py`'s tier ladder and for the same stated reason ("a
+run below the power table is VOID, not FAIL"):
+
+> **7/8 clean → `ESCALATE`, verdict VOID**, train seeds 9–12 and re-gate (existing draws
+> stay valid, nothing is re-run); at n=12 the rule tolerates 2 unclean draws
+> (10/12 → p = 0.0398). **≤ 6/8 clean → `NOT-ESTABLISHED`**, and that is a real negative.
+
+**What each outcome means.** `STABLE` + `GNN-MORE-RELIABLE` is the one result that lets the
+reliability claim be written. `LOTTERY` closes the last open empirical question in favour of
+the program's terminal negative: the GNN's 0/30 arms were lucky draws and the claim retires
+the way the MLP's did. Anything else is reported as a table and summarised as neither.
+
+**Status: PRE-REGISTERED.** Outcome row to follow.
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |
