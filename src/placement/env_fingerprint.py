@@ -118,6 +118,10 @@ def describe_python_env() -> Dict[str, Any]:
     except Exception:
         description["torch_num_threads"] = None
         description["cuda_available"] = None
+    # What the GNN actually served on, not merely what was available: `cuda_available`
+    # describes the box, and a run on a GPU node that served CPU used to be
+    # indistinguishable from one that served cuda.
+    description["gnn_serving_device"] = os.environ.get("HEROSIM_GNN_DEVICE", "cpu").strip().lower()
     return description
 
 
