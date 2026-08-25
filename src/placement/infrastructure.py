@@ -92,6 +92,11 @@ class Application:
         self.qos = qos_type
         self.tasks = tasks
 
+        # function name -> child Tasks, built once by Orchestrator.create_application.
+        # Empty for a single-node dag, which is every application in the corpora as of
+        # 2026-08-25; workflow_process falls back to the dag itself when it is unset.
+        self.children_by_function: Dict[str, List["Task"]] = {}
+
         self.finished = False
 
         self.dispatched_time: SimTime = dispatched_time

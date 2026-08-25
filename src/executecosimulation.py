@@ -9,6 +9,7 @@ import time
 import hashlib
 import uuid
 from copy import deepcopy
+from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Set, Optional
 
@@ -1486,11 +1487,18 @@ def generate_brute_force_placement_combinations(
         application = event['application']
         dag = application.get('dag', {})
         
-        # Handle both list and dict DAG formats
+        # Handle both list and dict DAG formats.
+        #
+        # The dict branch must use the SAME order the simulator assigns task ids in.
+        # `Orchestrator.create_application` walks `TopologicalSorter(dag).static_order()`,
+        # and `forced_placements` is keyed by `task.id` — so taking `dag.keys()` here
+        # silently assigns each task another task's platform whenever the JSON key order is
+        # not already topological. Every dag in the corpora is single-node, where the two
+        # orders trivially agree, which is why this has never fired.
         if isinstance(dag, list):
             task_type_names = dag
         elif isinstance(dag, dict):
-            task_type_names = list(dag.keys())
+            task_type_names = list(TopologicalSorter(dag).static_order())
         else:
             task_type_names = []
         
@@ -2426,6 +2434,15 @@ def execute_brute_force_optimized(
                     summary = {"placement_plan": placement_plan, "rtt": cur_rtt}
                     if task_times is not None:
                         summary["task_times"] = task_times
+                        # Span, not sum. `rtt` sums per-task (done - dispatched), which
+                        # cannot see critical-path structure at all: a child's wait for its
+                        # parents lands in its DISPATCH time and is therefore excluded from
+                        # every per-task elapsed it is summed from. One definition here
+                        # rather than one per consumer.
+                        summary["makespan"] = (
+                            max(done for _, _, done in task_times)
+                            - min(dispatched for _, dispatched, _ in task_times)
+                        )
                     placements_fh.write(json.dumps(summary, separators=(',', ':')) + '\n')
                     num_written += 1
                     
