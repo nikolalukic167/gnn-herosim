@@ -1,0 +1,92 @@
+{
+ "best_spread_regret_pct": 0.0,
+ "min_regret_pct": 5.0,
+ "reports": [
+  {
+   "componentwise_plan_infeasible": 0,
+   "corpus": "simulation_data/gnn_datasets_route_a_probe2_153600",
+   "full": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 6,
+    "nonzero_frac": 0.0
+   },
+   "n_datasets": 6,
+   "n_missing_sweeps": 0,
+   "objective": "rtt",
+   "spread": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 5,
+    "nonzero_frac": 0.0
+   }
+  },
+  {
+   "componentwise_plan_infeasible": 0,
+   "corpus": "simulation_data/gnn_datasets_route_a_probe2_15360000",
+   "full": {
+    "max": 4.105181197933205,
+    "mean": 0.6841968663222008,
+    "median": 0.0,
+    "n": 6,
+    "nonzero_frac": 0.16666666666666666
+   },
+   "n_datasets": 6,
+   "n_missing_sweeps": 0,
+   "objective": "rtt",
+   "spread": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 5,
+    "nonzero_frac": 0.0
+   }
+  },
+  {
+   "componentwise_plan_infeasible": 0,
+   "corpus": "simulation_data/gnn_datasets_route_a_probe2_153600000",
+   "full": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 6,
+    "nonzero_frac": 0.0
+   },
+   "n_datasets": 6,
+   "n_missing_sweeps": 0,
+   "objective": "rtt",
+   "spread": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 5,
+    "nonzero_frac": 0.0
+   }
+  },
+  {
+   "componentwise_plan_infeasible": 0,
+   "corpus": "simulation_data/gnn_datasets_route_a_probe2_15360000000",
+   "full": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 5,
+    "nonzero_frac": 0.0
+   },
+   "n_datasets": 6,
+   "n_missing_sweeps": 1,
+   "objective": "rtt",
+   "spread": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 4,
+    "nonzero_frac": 0.0
+   }
+  }
+ ],
+ "rising": false,
+ "verdict": "NO-GO"
+}

@@ -3608,6 +3608,68 @@ route A.**
 
 ---
 
+### route_a_v1 — scaling probe: **NO-GO**, and the reason is a defect in the term, not a verdict on route A (2026-08-25)
+
+The pre-registered go/no-go before spending an n≥200 corpus
+(`scripts_cosim/score_route_a_scaling_probe.py`, thresholds fixed before any arm ran):
+proceed only if spread-plan **additive-argmin regret > 5%** *and* it **rises with
+`stateSize`**. Artifacts: `simulation_data/route_a_scaling_probe_final_{rtt,makespan}.json`.
+
+**4 arms × 6 datasets (23 with sweeps), `stateSize` spanning 100,000× — 8 KB to 800 MB
+transfer payloads:**
+
+| `stateSize` | transfer payload | best RTT | spread-plan regret (rtt) | (makespan) |
+|---:|---:|---:|---:|---:|
+| 153,600 | 8 KB | 9.75 s | **0.000%** | **0.000%** |
+| 15,360,000 | 800 KB | 10.34 s | **0.000%** | **0.000%** |
+| 153,600,000 | 8 MB | 15.18 s | **0.000%** | **0.000%** |
+| 15,360,000,000 | 800 MB | **950 s** | **0.000%** | **0.000%** |
+
+Zero in every arm, every dataset, both objectives — `nonzero_frac = 0.00` throughout. Not a
+marginal miss.
+
+**Everything the probe needed was verified present**, which is what makes the diagnosis
+below trustworthy rather than a shrug:
+- the DAG is real — retained `task_times` show both children dispatching at the parent's
+  completion (0.204) and the join dispatching at `max(0.891, 0.505)`;
+- the mesh is real — 380 server↔server edges, **190 distinct latencies**, 4.8× spread;
+- the term is material — at the top arm it *dominates*, taking RTT from ~10 s to ~950 s.
+
+**So why exactly zero? The implemented term's magnitude-carrying half is separable by
+construction.** `_dependency_transfer_time` charges
+
+```
+payload / bandwidth(CHILD's node)   +   latency(parent, child)
+```
+
+The first term is indexed by the **child alone** — a per-task cost, exactly the shape a
+pointwise model already fits. Only `latency(parent, child)` is pairwise, and latency does
+**not** scale with `stateSize`: it stays bounded at 0.031–0.149 s while the separable half
+grows to hundreds of seconds. Raising `stateSize` therefore drove the *additive* term and
+left the coupled term pinned. This is the same class of error as the `input`/`output` field
+mismatch found earlier in the same probe (the lever initially scaled `input` while the
+transfer reads the parent's `output`) — one level deeper.
+
+**What this does and does not establish.**
+- It does **not** show route A's hypothesis is false. The hypothesis — a child's cost
+  depending on *where its parent went* — was never actually exercised at magnitude.
+- It does show the term **as implemented cannot express that hypothesis**, and that
+  `stateSize` is the wrong lever for it.
+
+**What a real test needs:** the payload must divide by a **path** bandwidth between parent
+and child (minimum link bandwidth along the route), not the child's local NIC — so that
+distance carries magnitude rather than only a small additive latency. The machinery exists
+(`NetworkFabric.route_links`, per-link bandwidth), but it requires the backbone enabled for
+server↔server routes, which `build_core_backbone` now emits and `ROUTE_A_PILOT_V1_GRID`
+does not yet turn on.
+
+**Status: NO-GO on this term. Route A is UNTESTED, not falsified.** Do not cite this as
+evidence against route A, and do not soften the 5% threshold — re-run it against a
+path-bandwidth transfer term instead. The probe cost ~1 h and is exactly the cheap failure
+point it was designed to be: no corpus, no gate, no training was spent.
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |
