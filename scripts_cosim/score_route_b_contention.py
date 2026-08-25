@@ -401,12 +401,31 @@ def marginal_sum(marginal: Dict[int, Dict[Tuple[int, int], float]],
     return sum(marginal[t][p] for t, p in plan.items())
 
 
+def decode_regret(feasible_rows: Sequence[Tuple[Plan, float]],
+                  predicted: Sequence[float],
+                  best: float) -> float:
+    """Regret (%) of the feasible plan a surrogate's scores rank first.
+
+    The tie-break is part of the registered statistic: equal scores are resolved by the
+    plan's sorted (task_id, placement) items, so the decode is deterministic and
+    independent of sweep row order. Shared, so that every consumer — the per-dataset
+    repairs, the block ablation, the pooled cross-dataset fit — decodes identically
+    rather than through a re-typed copy of these four lines.
+    """
+    order = sorted(range(len(feasible_rows)),
+                   key=lambda i: (predicted[i],
+                                  tuple(sorted(feasible_rows[i][0].items()))))
+    pick = order[0]
+    return 100.0 * (float(feasible_rows[pick][1]) - best) / best
+
+
 def marginal_surrogate_regret(ds: Dataset,
                               marginal: Dict[int, Dict[Tuple[int, int], float]],
                               feasible_rows: Sequence[Tuple[Plan, float]],
                               count_fn=None,
                               fit_rows: Optional[Sequence[Tuple[Plan, float]]] = None,
-                              ) -> Optional[float]:
+                              return_beta: bool = False,
+                              ):
     """Regret of the feasible plan minimizing sum_t m_t(p_t) (+ fitted count columns).
 
     Without count_fn no fitting happens at all: the surrogate is the raw marginal sum
@@ -418,32 +437,32 @@ def marginal_surrogate_regret(ds: Dataset,
     parameters can interpolate the sweep — coupling included — and mechanically zero
     the regret it exists to measure. Such a repair is refused: returns None, and the
     caller records it as saturated rather than repaired.
+
+    With return_beta the fitted coefficient vector is returned alongside the regret
+    ((regret, beta)); beta is None on the no-fit path and on a saturated refusal. The
+    default single-value return is unchanged.
     """
     truths = np.array([v for _p, v in feasible_rows], dtype=float)
     best = float(truths.min())
     if best <= 0:
         raise RuntimeError(f"{ds.ds_dir}: non-positive constrained optimum {best}")
     if count_fn is None:
-        scores = [(marginal_sum(marginal, p), tuple(sorted(p.items())))
-                  for p, _v in feasible_rows]
-        pick = min(range(len(scores)), key=lambda i: scores[i])
-        return 100.0 * (float(truths[pick]) - best) / best
+        predicted = [marginal_sum(marginal, p) for p, _v in feasible_rows]
+        regret = decode_regret(feasible_rows, predicted, best)
+        return (regret, None) if return_beta else regret
 
     rows = list(fit_rows) if fit_rows is not None else list(ds.rows)
     n_params = 2 + len(count_fn(rows[0][0]))
     if len(rows) < 2 * n_params:
-        return None
+        return (None, None) if return_beta else None
     X = np.array([[1.0, marginal_sum(marginal, p)] + count_fn(p) for p, _v in rows])
     y = np.array([v for _p, v in rows], dtype=float)
     beta, *_ = np.linalg.lstsq(X, y, rcond=None)
     Xf = np.array([[1.0, marginal_sum(marginal, p)] + count_fn(p)
                    for p, _v in feasible_rows])
     predicted = Xf @ beta
-    order = sorted(range(len(feasible_rows)),
-                   key=lambda i: (predicted[i],
-                                  tuple(sorted(feasible_rows[i][0].items()))))
-    pick = order[0]
-    return 100.0 * (float(truths[pick]) - best) / best
+    regret = decode_regret(feasible_rows, predicted, best)
+    return (regret, beta) if return_beta else regret
 
 
 # --- repair columns --------------------------------------------------------
@@ -460,11 +479,21 @@ def one_integer_cols(ds: Dataset):
     return fn
 
 
+def k_integer_keys(ds: Dataset) -> List[Tuple[str, str]]:
+    """The (node, task_type) column vocabulary of the k-integer block, sorted.
+
+    Dataset-dependent by construction — K ranges 8..13 over the route_b_v1 corpus — which
+    is why this block cannot carry a coefficient shared across datasets (see
+    route_b_coefficient_transfer.py).
+    """
+    return sorted({(ds.node_of(placement), ds.task_type_names[task_id])
+                   for (task_id, placement) in ds.demand})
+
+
 def k_integer_cols(ds: Dataset):
     """Per-node x per-type co-residency counts — the constraint's own sufficient
     statistic. Column space fixed from the sweep's node/type vocabulary."""
-    keys = sorted({(ds.node_of(placement), ds.task_type_names[task_id])
-                   for (task_id, placement) in ds.demand})
+    keys = k_integer_keys(ds)
     key_index = {k: i for i, k in enumerate(keys)}
 
     def fn(plan: Plan) -> List[float]:
@@ -475,7 +504,50 @@ def k_integer_cols(ds: Dataset):
     return fn
 
 
-def t1_cols(ds: Dataset, caps: Dict[str, float]):
+# The T1 column set, split into named blocks. The ORDER of this tuple is the column
+# order of t1_cols and must not change: the frozen §9a pre-probe report
+# (simulation_data/route_b_stage2_preprobe_t1_rtt.json) was produced by the flat
+# concatenation kint + quad + [load_over_cap, overcap_tasks, min_hop_sum, max_hop_sum,
+# transfer, latency_sum, same_node_edges], and t1_cols(ds, caps) with the default blocks
+# reproduces it exactly (proven byte-identical, see LINEAGES route_b_v1).
+T1_BLOCKS: Tuple[str, ...] = ("kint", "quad", "cap", "hop", "coupling")
+
+
+def _check_blocks(blocks: Sequence[str]) -> None:
+    unknown = [b for b in blocks if b not in T1_BLOCKS]
+    if unknown:
+        raise ValueError(f"unknown T1 block(s) {unknown}; known blocks {list(T1_BLOCKS)}")
+    if not blocks:
+        raise ValueError("empty T1 block set — a repair with no columns is just the "
+                         "unrepaired marginal surrogate; ask for that explicitly")
+
+
+def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_BLOCKS) -> List[str]:
+    """Column labels for t1_cols(ds, caps, blocks), in the same order as the values.
+
+    Nothing in the pipeline persisted a fitted coefficient before 2026-08-25, so the
+    question "which column carried the closure" was unanswerable from the frozen
+    artifacts. These names are what make a reported coefficient vector readable.
+    """
+    _check_blocks(blocks)
+    names: List[str] = []
+    for block in T1_BLOCKS:
+        if block not in blocks:
+            continue
+        if block == "kint":
+            names.extend(f"kint[{node}|{ttype}]" for node, ttype in k_integer_keys(ds))
+        elif block == "quad":
+            names.extend(f"quad[{k}]" for k in sorted(set(ds.task_type_names)))
+        elif block == "cap":
+            names.extend(["load_over_cap", "overcap_tasks"])
+        elif block == "hop":
+            names.extend(["min_hop_sum", "max_hop_sum"])
+        elif block == "coupling":
+            names.extend(["transfer", "latency_sum", "same_node_edges"])
+    return names
+
+
+def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_BLOCKS):
     """Plan-level sums of the stage-2 T1 (partial-state) per-edge features — the §9a
     pre-probe-zero column set of ROUTE_B_STAGE2_PREREGISTRATION.md. T1 ⊇ kint, plus:
     per-type quadratic co-residency Σ_t occ_{node(t)}[k]; Σ_t load/cap; over-cap task
@@ -483,12 +555,21 @@ def t1_cols(ds: Dataset, caps: Dict[str, float]):
     Σ_edges hops/bottleneck, Σ_edges latency, same-node-parent count — computed from the
     dataset's own routes, i.e. exactly what `_dependency_transfer_time` charges (uniform
     payload absorbed by the LS coefficient). Requires a constrained rung (caps), because
-    the capacity-normalized columns are undefined at alpha=inf."""
-    kint = k_integer_cols(ds)
+    the capacity-normalized columns are undefined at alpha=inf.
+
+    `blocks` selects a SUBSET of T1_BLOCKS, always emitted in T1_BLOCKS order. The
+    default is every block, which is the registered §9a column set; subsets exist for the
+    block-attribution ablation (which columns actually close the effect) and for the
+    pooled cross-dataset fit, which cannot carry the dataset-specific kint vocabulary.
+    """
+    _check_blocks(blocks)
+    want = {block: (block in blocks) for block in T1_BLOCKS}
+    kint = k_integer_cols(ds) if want["kint"] else None
     type_order = sorted(set(ds.task_type_names))
     parents_of: Dict[int, List[int]] = {}
     for parent, child in ds.dag_edges:
         parents_of.setdefault(child, []).append(parent)
+    need_parents = want["hop"] or want["coupling"]
 
     def fn(plan: Plan) -> List[float]:
         occ: Dict[str, Dict[str, int]] = {}
@@ -500,13 +581,19 @@ def t1_cols(ds: Dataset, caps: Dict[str, float]):
             occ.setdefault(node, {})[ttype] = occ.setdefault(node, {}).get(ttype, 0) + 1
             tot[node] = tot.get(node, 0) + 1
             load[node] = load.get(node, 0.0) + ds.demand[(task_id, placement)]
-        quad = [float(sum(tot[n] * occ[n].get(k, 0) for n in occ)) for k in type_order]
-        # A node whose max single demand is 0 has no cap entry and is uncapped —
-        # caps.get(n, inf), the same convention plan_feasible and the greedy use;
-        # load/inf contributes 0.0 and such a node can never be over cap.
-        load_over_cap = sum(tot[n] * load[n] / caps.get(n, math.inf) for n in occ)
-        overcap_tasks = float(sum(
-            tot[n] for n in occ if load[n] > caps.get(n, math.inf) + EPS))
+        cols: List[float] = kint(plan) if want["kint"] else []
+        if want["quad"]:
+            cols += [float(sum(tot[n] * occ[n].get(k, 0) for n in occ))
+                     for k in type_order]
+        if want["cap"]:
+            # A node whose max single demand is 0 has no cap entry and is uncapped —
+            # caps.get(n, inf), the same convention plan_feasible and the greedy use;
+            # load/inf contributes 0.0 and such a node can never be over cap.
+            cols += [sum(tot[n] * load[n] / caps.get(n, math.inf) for n in occ),
+                     float(sum(tot[n] for n in occ
+                               if load[n] > caps.get(n, math.inf) + EPS))]
+        if not need_parents:
+            return cols
         min_hop_sum = max_hop_sum = transfer = latency_sum = 0.0
         same_node_edges = 0.0
         for task_id, placement in plan.items():
@@ -526,9 +613,11 @@ def t1_cols(ds: Dataset, caps: Dict[str, float]):
                     latency_sum += latency
             min_hop_sum += min(hops_here)
             max_hop_sum += max(hops_here)
-        return (kint(plan) + quad
-                + [load_over_cap, overcap_tasks, min_hop_sum, max_hop_sum,
-                   transfer, latency_sum, same_node_edges])
+        if want["hop"]:
+            cols += [min_hop_sum, max_hop_sum]
+        if want["coupling"]:
+            cols += [transfer, latency_sum, same_node_edges]
+        return cols
     return fn
 
 

@@ -215,11 +215,25 @@ def route_hops_bneck_latency(net, parent_node, child_node):
     return len(path) - 1, bneck, lat
 
 
-def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net):
+# The scorer's T1_BLOCKS, deliberately RE-TYPED rather than imported: this file exists to
+# reproduce the scorer's definitions without sharing a line of code with it, so an ordering
+# or membership drift in one has to be made twice to survive.
+T1_BLOCKS = ("kint", "quad", "cap", "hop", "coupling")
+
+
+def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net,
+               blocks=T1_BLOCKS):
     """The §9a T1 column set, recomputed from scratch (see the scorer's t1_cols for the
     registered definition this must reproduce). Uncapped nodes (no caps entry) are
-    treated as infinite-capacity, the same convention feasibility uses."""
-    cols = repair_columns("kint", plan, ttypes, pid_map, task_db, kint_keys)
+    treated as infinite-capacity, the same convention feasibility uses.
+
+    `blocks` selects a subset, always emitted in T1_BLOCKS order — the §9b block
+    attribution and the pooled (kint-free) column set both need subsets."""
+    unknown = [b for b in blocks if b not in T1_BLOCKS]
+    if unknown:
+        fail(f"unknown T1 block(s) {unknown}")
+    cols = (repair_columns("kint", plan, ttypes, pid_map, task_db, kint_keys)
+            if "kint" in blocks else [])
     per_node = {}
     for t, p in plan.items():
         node, d = demand_of(t, p, ttypes, pid_map, task_db)
@@ -227,18 +241,23 @@ def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net):
         slot["types"][ttypes[t]] = slot["types"].get(ttypes[t], 0) + 1
         slot["tot"] += 1
         slot["load"] += d
-    for ttype in sorted(set(ttypes)):
-        cols.append(float(sum(s["tot"] * s["types"].get(ttype, 0)
-                              for s in per_node.values())))
+    if "quad" in blocks:
+        for ttype in sorted(set(ttypes)):
+            cols.append(float(sum(s["tot"] * s["types"].get(ttype, 0)
+                                  for s in per_node.values())))
+
     # The verifier's caps dict carries 0.0 entries for nodes whose max single demand
     # is 0; the scorer's node_caps omits them (uncapped). Feasibility-identical, but
     # these columns divide by cap — normalize to the scorer's uncapped convention.
     def cap_of(n):
         cap = caps.get(n, math.inf)
         return math.inf if cap <= 0 else cap
-    cols.append(sum(s["tot"] * s["load"] / cap_of(n) for n, s in per_node.items()))
-    cols.append(float(sum(s["tot"] for n, s in per_node.items()
-                          if s["load"] > cap_of(n) + EPS)))
+    if "cap" in blocks:
+        cols.append(sum(s["tot"] * s["load"] / cap_of(n) for n, s in per_node.items()))
+        cols.append(float(sum(s["tot"] for n, s in per_node.items()
+                              if s["load"] > cap_of(n) + EPS)))
+    if not ({"hop", "coupling"} & set(blocks)):
+        return cols
     min_sum = max_sum = transfer = lat_sum = same = 0.0
     children = {}
     for parent, child in dag_edges:
@@ -257,11 +276,15 @@ def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net):
                 lat_sum += lat
         min_sum += min(hop_list)
         max_sum += max(hop_list)
-    return cols + [min_sum, max_sum, transfer, lat_sum, same]
+    if "hop" in blocks:
+        cols += [min_sum, max_sum]
+    if "coupling" in blocks:
+        cols += [transfer, lat_sum, same]
+    return cols
 
 
 def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, best,
-                     caps=None, dag_edges=None, net=None):
+                     caps=None, dag_edges=None, net=None, blocks=T1_BLOCKS):
     kint_keys = None
     if kind in ("kint", "t1"):
         kint_keys = sorted({(node_of(t, p, ttypes, pid_map, task_db), ttypes[t])
@@ -270,7 +293,7 @@ def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, best,
     def columns(plan):
         if kind == "t1":
             return t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps,
-                              dag_edges, net)
+                              dag_edges, net, blocks=blocks)
         return repair_columns(kind, plan, ttypes, pid_map, task_db, kint_keys)
 
     n_params = 2 + len(columns(rows[0][0]))
@@ -381,12 +404,97 @@ def recompute(rows, ttypes, pid_map, task_db, alpha, check_repairs=False,
     return r_exact, r_greedy, repairs
 
 
+def check_blocks(corpus, transfer_report, task_types_path):
+    """Independent recomputation of the §9b per-dataset arms (cells A and B, and every
+    block-attribution arm) straight from each dataset's files.
+
+    Same discipline as --check-repairs and for the same reason: §9b's registered VOID
+    condition turns on cell B's median, an arm no committed code computed before today,
+    and this file's own solver has been wrong twice. The pooled cell C is deliberately NOT
+    checked here — it is a single global fit whose value is decoded per dataset, and the
+    VOID it produced is driven by cell B, which is checked.
+    """
+    report = json.load(open(transfer_report))
+    rows_by_ds = {r["ds"]: r for r in report["per_dataset"]}
+    ds_dirs = [d for d in sorted(Path(corpus).glob("ds_*")) if d.name in rows_by_ds]
+    if len(ds_dirs) != len(rows_by_ds):
+        fail(f"{corpus}: {len(ds_dirs)} of {len(rows_by_ds)} §9b datasets found")
+    alpha = float(report["alpha"])
+    pooled = tuple(report["pooled_blocks"])
+    arms = {"cell_a": tuple(T1_BLOCKS), "cell_b": pooled}
+    for name, arm in report.get("ablation", {}).items():
+        arms[name] = tuple(arm["blocks"])
+    order = [r["ds"] for r in report["per_dataset"]]
+
+    checked = 0
+    for ds in ds_dirs:
+        rows, ttypes, pid_map, task_db, dag_edges, net = load(ds, task_types_path)
+        peak = {}
+        for plan, _v in rows:
+            for t, p in plan.items():
+                node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                peak[node] = max(peak.get(node, 0.0), d)
+        caps = {n: alpha * m for n, m in peak.items()}
+
+        def feasible(plan):
+            load_ = {}
+            for t, p in plan.items():
+                node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                load_[node] = load_.get(node, 0.0) + d
+            return all(v <= caps.get(n, math.inf) + EPS for n, v in load_.items())
+
+        feas = [(plan, v) for plan, v in rows if feasible(plan)]
+        best = min(v for _p, v in feas)
+        marg = {}
+        for plan, v in rows:
+            for t, p in plan.items():
+                cur = marg.setdefault(t, {})
+                if p not in cur or v < cur[p]:
+                    cur[p] = v
+        keyed = sorted(((sum(marg[t][p] for t, p in plan.items()),
+                         tuple(sorted(plan.items())), v) for plan, v in feas))
+        r_exact = 100.0 * (keyed[0][2] - best) / best
+        row = rows_by_ds[ds.name]
+        if abs(row["r_exact_pct"] - r_exact) > 1e-9:
+            fail(f"{ds}: R_exact §9b={row['r_exact_pct']!r} verifier={r_exact!r}")
+
+        for name, blocks in arms.items():
+            got = repaired_r_exact(rows, feas, marg, "t1", ttypes, pid_map, task_db,
+                                   best, caps=caps, dag_edges=dag_edges, net=net,
+                                   blocks=blocks)
+            if got is None:
+                fail(f"{ds}: verifier says arm {name} saturated, §9b reported a value")
+            regret, tied = got
+            fraction = 1.0 - min(r_exact, regret) / r_exact
+            if name in ("cell_a", "cell_b"):
+                expected = row[f"{name}_fraction"]
+            else:
+                expected = report["ablation"][name]["fractions"][order.index(ds.name)]
+            if abs(expected - fraction) > 1e-9:
+                # the same machine-precision tie escape --check-repairs grants
+                tied_fracs = [1.0 - min(r_exact, t) / r_exact for t in tied]
+                if any(abs(expected - t) <= 1e-6 for t in tied_fracs):
+                    print(f"TIE (accepted): {ds.name} arm {name}: §9b={expected:.9f} "
+                          f"verifier={fraction:.9f}")
+                else:
+                    fail(f"{ds} arm {name}: §9b fraction={expected!r} "
+                         f"verifier={fraction!r}")
+            checked += 1
+    print(f"OK: {checked} §9b (dataset, arm) repair fractions agree to 1e-9 "
+          f"across {len(ds_dirs)} datasets and {len(arms)} arms")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--corpus", action="append", required=True)
-    ap.add_argument("--report", required=True,
-                    help="scorer report JSON written with --include-per-dataset")
+    ap.add_argument("--report",
+                    help="scorer report JSON written with --include-per-dataset; "
+                         "required unless --check-blocks is used")
     ap.add_argument("--task-types", default="data/nofs-ids/task-types.json")
+    ap.add_argument("--check-blocks", metavar="TRANSFER_REPORT",
+                    help="instead of the scorer report, independently recompute the §9b "
+                         "block arms in route_b_coefficient_transfer.py's output")
     ap.add_argument("--check-repairs", action="store_true",
                     help="also independently recompute the 1int/kint repair fits "
                          "(slower: one small linear solve per dataset)")
@@ -394,6 +502,13 @@ def main() -> int:
                     help="restrict to these alpha keys (e.g. --alpha 2.0), default all "
                          "in the report")
     args = ap.parse_args()
+
+    if args.check_blocks:
+        if len(args.corpus) != 1:
+            fail("--check-blocks takes exactly one --corpus")
+        return check_blocks(args.corpus[0], args.check_blocks, args.task_types)
+    if not args.report:
+        fail("--report is required unless --check-blocks is used")
 
     reports = json.load(open(args.report))
     by_corpus = {r["corpus"]: r for r in reports}
