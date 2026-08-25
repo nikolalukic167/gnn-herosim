@@ -912,6 +912,47 @@ class Platform:
         
         return total_time
 
+    def _payload_transfer_time(self, parent_node_name: str, payload_bytes: float) -> SimTime:
+        """Time to move `payload_bytes` from the parent's node to this one.
+
+        This is the whole difference between route_a testing its hypothesis and not testing
+        it. Dividing the payload by the child's own NIC — the first implementation — makes
+        the magnitude-carrying half of the transfer a function of the child ALONE, i.e.
+        separable by construction and exactly what a pointwise model already fits. The
+        2026-08-25 scaling probe measured that: additive-argmin regret stayed at 0.000%
+        across a 100,000x payload range, even once the term reached ~95% of episode cost,
+        because only the (unscaled, 0.03-0.15 s) latency was ever pairwise.
+
+        With a fabric this is **store-and-forward over the route**, the same model the
+        ingress path already uses (see the `fabric.hops` loop in platform_process): each
+        link on the parent->child path carries the whole payload in turn, so the cost is
+        `n_hops * payload / bottleneck_bandwidth`. Hop count is what makes DISTANCE carry
+        magnitude — a min-bandwidth-only model is constant when the backbone's links are
+        uniform, which is precisely the degenerate case that produced the first null.
+
+        Falls back to the child's node bandwidth (one hop) when no fabric is configured, so
+        a corpus without a backbone behaves as before rather than failing.
+        """
+        seconds_per_hop_divisor = 1024 * 1024
+        fabric = getattr(self.node, "fabric", None)
+        if fabric is not None:
+            try:
+                hops = fabric.hops(parent_node_name, self.node.node_name)
+            except Exception:
+                hops = []
+            if hops:
+                bottleneck = min(bandwidth for _key, bandwidth in hops)
+                if bottleneck > 0:
+                    return len(hops) * payload_bytes / (bottleneck * seconds_per_hop_divisor)
+
+        bandwidth_mbps = float(self.node.network.get("bandwidth", 0.0) or 0.0)
+        if bandwidth_mbps <= 0.0:
+            raise RuntimeError(
+                f"HEROSIM_DATA_LOCALITY=1 but {self.node.node_name} has non-positive "
+                f"network bandwidth ({bandwidth_mbps}); refusing to charge 0.0"
+            )
+        return payload_bytes / (bandwidth_mbps * seconds_per_hop_divisor)
+
     def _dependency_transfer_time(self, task: "Task") -> SimTime:
         """Cost of pulling each remote parent's output to this node.
 
@@ -970,13 +1011,7 @@ class Platform:
             latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
 
             payload = float(dependency.type["stateSize"][app_name]["output"])
-            bandwidth_mbps = float(self.node.network.get("bandwidth", 0.0) or 0.0)
-            if bandwidth_mbps <= 0.0:
-                raise RuntimeError(
-                    f"HEROSIM_DATA_LOCALITY=1 but {self.node.node_name} has non-positive "
-                    f"network bandwidth ({bandwidth_mbps}); refusing to charge 0.0"
-                )
-            total += payload / (bandwidth_mbps * 1024 * 1024) + latency
+            total += self._payload_transfer_time(parent_node_name, payload) + latency
 
         return total
 

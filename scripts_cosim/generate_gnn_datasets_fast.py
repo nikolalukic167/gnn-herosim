@@ -269,6 +269,12 @@ ROUTE_A_PILOT_V1_GRID: GridPreset = {
     # Four DISTINCT types: a dag node name must be a unique key in task-types.json.
     "dag_task_types": ("dnn1", "dnn2", "rf", "cnn"),
     "server_mesh": True,
+    # REQUIRED, not decorative. Without a fabric there is no parent->child ROUTE, and
+    # `_payload_transfer_time` falls back to the child's own NIC — which makes the
+    # magnitude-carrying half of the transfer separable by construction and produces a
+    # guaranteed 0.000% regret regardless of payload size (measured 2026-08-25 over a
+    # 100,000x range). Hop count over the backbone is what makes distance carry magnitude.
+    "backbone_defaults": {"link_bandwidth_mbps": 1000.0},
     "default_output_subdir": "gnn_datasets_dag4_route_a_pilot_v1",
 }
 

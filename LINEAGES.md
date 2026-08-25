@@ -3663,10 +3663,67 @@ distance carries magnitude rather than only a small additive latency. The machin
 server↔server routes, which `build_core_backbone` now emits and `ROUTE_A_PILOT_V1_GRID`
 does not yet turn on.
 
-**Status: NO-GO on this term. Route A is UNTESTED, not falsified.** Do not cite this as
-evidence against route A, and do not soften the 5% threshold — re-run it against a
-path-bandwidth transfer term instead. The probe cost ~1 h and is exactly the cheap failure
-point it was designed to be: no corpus, no gate, no training was spent.
+**Status of that first probe: NO-GO on that term, superseded below.** It was re-run against
+a path-bandwidth term, as it said to.
+
+---
+
+### route_a_v1 — **NO-GO, now properly tested. Breaking separability is NECESSARY BUT NOT SUFFICIENT** (2026-08-25)
+
+The probe above was rejected as a test of route A because the term's magnitude was
+child-indexed. Both defects were fixed and it was re-run twice.
+
+**Fix 1 — the payload is now pairwise.** `_payload_transfer_time` does store-and-forward
+over the parent→child route (`n_hops × payload / bottleneck_bandwidth`), the same model the
+ingress path already uses, instead of dividing by the child's own NIC. The preset now
+requires a backbone, which yields **server↔server hop counts of 2–8** — so distance carries
+magnitude, with a 4× spread between the nearest and farthest server pair.
+
+**Fix 2 — `HEROSIM_OUTPUT_SIZE_BYTES`**, scaling the transfer payload *alone*.
+`HEROSIM_STATE_SIZE_BYTES` moves `input` too, and `input` is a per-task storage read: at the
+extreme arm it drove the episode to ~1000 s while the pairwise variation was ~4.6 s, burying
+the coupled term **200:1**. Same error as the first probe, one level up.
+
+**The properly isolated measurement** — baseline input, transfer payload 8/80/800 MB:
+
+| payload | pairwise cost per remote parent | episode RTT | spread-plan regret (rtt / makespan) |
+|---:|---:|---:|---:|
+| 8 MB | 0.02–0.06 s | 10–100 s | 0.000% / 0.000% |
+| 80 MB | 0.15–0.61 s | — | 0.000% / 0.000% |
+| **800 MB** | **1.53–6.10 s** (4× by hop count) | 58–135 s | **0.000% / 0.000%** |
+
+At the top arm the coupled term is roughly **10–30% of episode cost and varies 4× with the
+parent/child pair** — and the componentwise minimiser is *still* exactly optimal, on every
+dataset, both objectives. The scorer was also corrected mid-probe: it had been *dropping*
+datasets where the componentwise plan is infeasible (the strongest coupling signal there
+is), and now scores them by masked greedy decode, as a real pointwise scheduler would.
+
+**The finding, and it is sharper than "route A failed":**
+
+> **Non-separability is necessary but not sufficient.** `f_child(p_child, p_parent)` is
+> genuinely pairwise here — the composition theorem's *hypothesis* is violated — and its
+> *conclusion* still holds empirically. Breaking separability does not make the
+> componentwise minimiser suboptimal. For that, the tasks' individually-best placements
+> must **conflict**, so that one has to yield. Dependency + distance creates coupling
+> without creating competition: every task can take its own favourite, and does.
+
+That is why the five earlier co-location mechanisms and this one fail for the *same*
+underlying reason, and it identifies what the program has never actually tried:
+**contention for a scarce resource** — hard capacity, anti-affinity, exclusive GPUs — i.e.
+§9's route B, which attacks the theorem's *free choice* hypothesis rather than its
+separability hypothesis. The one hint already on record points the same way: the M3 pilot's
+only non-collision-shaped escape (17.25% regret) came from the **distinct-node matching
+constraint**, which is a feasibility restriction, not a physics term.
+
+**Route B's stated caveat still applies and must be handled**: a grouped-argmax pointwise
+decoder cannot represent a matching at all, so "GNN beats MLP under constraints" would be a
+*decoder* result unless compared against a constraint-aware sequential pointwise decoder.
+
+**Status: CLOSED — NO-GO.** Route A is tested and does not clear its pre-registered bar.
+Do not soften the 5% threshold, and do not retry it with a larger payload: the term was
+taken to 30% of episode cost with 4× pairwise variation and produced exactly zero. The
+groundwork (DAG dispatch, fan-in, server mesh, path transfer, makespan channel) stands and
+is reusable — route B needs all of it.
 
 ---
 
