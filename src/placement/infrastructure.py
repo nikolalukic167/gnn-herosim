@@ -912,6 +912,74 @@ class Platform:
         
         return total_time
 
+    def _dependency_transfer_time(self, task: "Task") -> SimTime:
+        """Cost of pulling each remote parent's output to this node.
+
+        `stateSize[app]["output"]` bytes per parent, over the slower of this node's link
+        bandwidth and the storage read throughput, plus the network latency between the
+        parent's node and this one. Parents that ran on this node cost nothing extra —
+        their output is already local, and the storage branch above has priced that read.
+
+        Why this exists (route_a). Every other distance-aware term in the simulator is
+        indexed by (source client -> execution node): `network_latency`, the ingress pipe,
+        and the link fabric all price getting the REQUEST to the node. None of them can see
+        where a *sibling task* went, so with per-task costs separable and placements freely
+        chosen the componentwise minimiser is optimal under any monotone aggregation and no
+        objective change can create structure. A parent->child transfer is a pairwise term
+        over two jointly-decided placements, which is what breaks that.
+
+        Reads ALL parents, not `dependencies[-1]`. The storage branch above picks one
+        arbitrary parent (the `FIXME: Support more complex application DAGs`); for a fan-in
+        that silently drops every other parent's read.
+
+        Returns 0.0 unless HEROSIM_DATA_LOCALITY=1, and 0.0 for a task with no
+        dependencies — so single-task corpora are bit-identical either way.
+        """
+        if not task.dependencies:
+            return 0.0
+        if os.environ.get("HEROSIM_DATA_LOCALITY", "0") != "1":
+            return 0.0
+
+        app_name = task.application.type["name"]
+        network_map = getattr(self.node, "network_map", None) or {}
+        total: SimTime = 0.0
+
+        for dependency in task.dependencies:
+            # Where the parent actually RAN, which is the whole point — not where its
+            # request came from. `task.platform` is set when the task is scheduled.
+            parent_platform = getattr(dependency, "platform", None)
+            if parent_platform is None:
+                raise RuntimeError(
+                    f"HEROSIM_DATA_LOCALITY=1 but parent {dependency} of {task} has no "
+                    f"platform; a child must not be dispatched before its parents finish"
+                )
+            parent_node_name = parent_platform.node.node_name
+            if parent_node_name == self.node.node_name:
+                continue
+
+            entry = network_map.get(parent_node_name)
+            if entry is None:
+                # Fail loud. Charging 0.0 for an unreachable parent would make a bad
+                # placement look free, which is exactly the signal this term supplies.
+                raise RuntimeError(
+                    f"HEROSIM_DATA_LOCALITY=1 but {self.node.node_name} has no network_map "
+                    f"entry for {parent_node_name} (parent of {task}). Server-to-server "
+                    f"reachability must be generated for DAG workloads — see "
+                    f"generate_infrastructure.build_server_mesh."
+                )
+            latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+
+            payload = float(dependency.type["stateSize"][app_name]["output"])
+            bandwidth_mbps = float(self.node.network.get("bandwidth", 0.0) or 0.0)
+            if bandwidth_mbps <= 0.0:
+                raise RuntimeError(
+                    f"HEROSIM_DATA_LOCALITY=1 but {self.node.node_name} has non-positive "
+                    f"network bandwidth ({bandwidth_mbps}); refusing to charge 0.0"
+                )
+            total += payload / (bandwidth_mbps * 1024 * 1024) + latency
+
+        return total
+
     def platform_process(self):
         """
         Platform process that executes tasks from the queue.
@@ -1196,6 +1264,18 @@ class Platform:
                 / (input_speed * 1024 * 1024)
                 + input_storage.type["latency"]["read"]
             )
+
+            # route_a: data locality. A child reads its parents' output, and if a parent ran
+            # somewhere else that read crosses the network. The branch above prices the
+            # STORAGE tier only — its remote arm charges a constant `someRemote` latency,
+            # blind to where the parent actually ran — so without this term a child's cost
+            # is a function of its own placement alone, and the whole plan is separable.
+            # This is the one term that makes f_child depend on p_parent.
+            #
+            # Opt-in (`HEROSIM_DATA_LOCALITY=1`) and inert without dependencies, so every
+            # existing corpus — all of which are single-task applications — is unaffected
+            # whether it is set or not.
+            input_duration += self._dependency_transfer_time(task)
 
             # Start the task
             yield task.started.succeed()

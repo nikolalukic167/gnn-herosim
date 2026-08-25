@@ -3490,6 +3490,69 @@ the way the MLP's did. Anything else is reported as a table and summarised as ne
 
 ---
 
+### route_a_v1 — the five blockers, cleared (2026-08-25)
+
+**The hypothesis.** `program_verdict_v1` closed the supervised route by theorem: with
+per-task costs separable and placements freely chosen, the componentwise minimiser is
+optimal under **any** monotone aggregation, so no objective, target or scoring rule can
+create structure — and co-location coupling cannot supply it either, because co-residents
+are exchangeable within type and every symmetric function of a multiset is a function of
+counts. Route A is the one structure that defeats both barriers at once: **a child's input
+read priced by the network distance from its parent's node**, which is a pairwise term over
+two *jointly decided* placements, between tasks playing *different structural roles*.
+
+The trap that governs the whole design: if the parent is already placed when the child is
+decided, "distance from the parent's node" is just another edge feature and a pointwise
+model recovers optimality. Non-separability requires parent and child in the **same
+jointly-decided set** — which co-sim already gives, since a `placement_plan` fixes every
+task's platform before the episode runs.
+
+**This entry is the groundwork, not the experiment.** No corpus has been generated and no
+gate has been run. What it records is that the simulator can now express the hypothesis at
+all — it could not before, in five separate ways, none of which could ever fire while every
+application in every corpus is a single-node dag:
+
+| # | Blocker | State |
+|---|---|---|
+| 1 | `workflow_process` dispatched a **linearization**, so `A → {B,C,D}` ran as a depth-3 chain — siblings never overlapped and were never co-decidable | fixed, 5 tests |
+| 2 | `DeterminedScheduler._collect_task_batch` blocked without a timeout ⇒ **deadlock** on any DAG (`batch_timeout` was configured and never read) | fixed |
+| 3 | Placement enumerator walked `dag.keys()` while the simulator assigns ids by `static_order()` ⇒ silent `forced_placements` mis-assignment | fixed |
+| 4 | **No server↔server distance exists anywhere** — `network_map` and backbone routes are client↔server only, so a parent and child on two servers have no distance and no path | `build_server_mesh`, opt-in |
+| 5 | `prepare_graphs_cache` hardcoded dnn1/dnn2 candidates ⇒ any other task type gets **zero** candidates, label `-1`, contract-5.5 failure for the whole cache | fixed, filter only |
+
+**The new physics.** `Platform._dependency_transfer_time` charges each *remote* parent's
+`stateSize[...]["output"]` over this node's bandwidth plus the parent→child network latency.
+It reads **all** parents, closing the `dependencies[-1]` FIXME that silently drops every
+parent but one on a fan-in. Gated on `HEROSIM_DATA_LOCALITY=1` and inert without
+dependencies. Missing reachability **raises** rather than charging 0.0 — a free bad
+placement is the signal inverted.
+
+`HEROSIM_STATE_SIZE_BYTES` scales the input `stateSize` in memory. It is not a convenience:
+`data/nofs-ids/task-types.json` is shared by *every* corpus and is never copied per dataset,
+so editing the welded 153,600 B would rewrite the physics of every existing collection. It
+is also the lever — the coupled term scales with `stateSize` while queue work does not, so
+unlike link bandwidth (where both scale as `1/bandwidth` and the ratio is invariant) **the
+ratio moves**. At the welded value the dependency read is ~1.2% of the queue term.
+
+**Zero-diff is the load-bearing claim here**, since all of this touches shared physics: a
+30k-event GNN episode on `cell01` reproduces `total_rtt = 1375056.421447831` bit-identically
+before and after, *including with `HEROSIM_DATA_LOCALITY=1` set* — the term cannot fire
+without dependencies, and no corpus has any. 385 tests pass. New: `tests/test_dag_dispatch.py`
+(5), `tests/test_data_locality_cost.py` (14); the DAG-specific dispatch tests are verified to
+fail against the old implementation.
+
+**Not done, and required before any claim** — the pilot itself: DAG workload templates +
+grid preset (§9 route A), the `stateSize` scaling probe with its **go/no-go** (if no
+plausible `stateSize` makes additive-argmin regret non-zero on spread plans, stop — that is
+the cheap intended failure point), pre-registration, the n≥200 corpus, the k-integer and
+parent-node-identity repair controls in `separability_diagnostic.py`, and set-valued labels
+(makespan optima tie 2–34 deep, and `audit_label_provenance` asserts a unique minimum).
+
+**Status: ACTIVE — groundwork only. No result. Do not cite as evidence for or against
+route A.**
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |
