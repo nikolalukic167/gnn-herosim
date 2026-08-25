@@ -3951,12 +3951,29 @@ n≈200, same seeds, env-matched keep-alive), verifier, gate.
    knapsack + the 800 MB pairwise transfer, the best additive surrogate *with a perfect
    decoder* is suboptimal by up to 53% on 17% of datasets — a target no pointwise
    scorer can express regardless of decode.
-2. **The effect is not count-shaped.** The empirical rule that killed five co-location
-   mechanisms ("every escape collapses to an occupancy integer") does NOT extend here:
-   the constraint's own sufficient statistic (per-node×type counts) repairs a median of
+2. **The effect is not LINEARLY count-shaped.** *(Amended in place 2026-08-25 by the §9b
+   block ablation — see the correction paragraph below. The original text read "The
+   effect is not count-shaped … does NOT extend here", which is wrong as written.)* The
+   empirical rule that killed five co-location mechanisms ("every escape collapses to an
+   occupancy integer") does not extend here **in its linear form**: the constraint's own
+   sufficient statistic (per-node×type counts), entered linearly, repairs a median of
    exactly nothing. (Honest detail: the k-integer repair does pull ~1/3 of firing
    datasets under the 5% bar — 0.172 → 0.118 — but the median closure is 0.000 and the
    registered condition is decisive.)
+
+   **The correction.** kint is *linear* in the counts. Adding the per-type quadratic
+   co-residency sums Σ_t occ_{node(t)}[k] — the SAME statistic, entered nonlinearly, with
+   no parent-placement or network columns at all — takes the median closure from 0.000 to
+   **0.843**, and adding load/cap and the over-cap count takes it to **0.892**. So the
+   occupancy rule DOES extend; a linear repair simply could not see it, and reporting
+   "not count-shaped" on the strength of a linear fit was an overreach. What the stage-1
+   PASS actually established is narrower and still stands: *the linear* count repair
+   closes nothing, which is what registered condition 2 tested and what the 17.2% firing
+   rate is measured against. Neither the PASS nor any of its four gate conditions moves —
+   condition 2 was registered with the 1int/kint linear repairs and both still close a
+   median of 0.000. Reproduced by `route_b_coefficient_transfer.py` (arms `kint`,
+   `kint+quad`, `occupancy`), independently recomputed by
+   `verify_route_b_scorer_agreement.py --check-blocks`, 315/315 arm-values to 1e-9.
 3. **Competition alone is not sufficient either — the stacking argument was right.**
    Arm B0's score-side structure never crosses 2.5%, while its *greedy* regret reaches
    3578%: scarcity without coupling produces only decoder-shaped error, which a better
@@ -4001,11 +4018,25 @@ exactly the one nobody feels the urge to re-check.
    across columns of wildly different scale (intercept, RTT-magnitude sums, 0/1 counts);
    fixed by standardizing columns before solving (confirmed against numpy/SVD:
    coefficients now agree to 1e-13). One dataset (`ds_00008`, Arm S, α=2.0) still
-   disagrees even after the fix — traced to a **genuine near-tie**: 4+ feasible plans
-   with materially different true costs (78.1s, 60.8s, 58.2s) predicted equal to ~13
-   significant figures by the fitted surrogate, so which one "wins" the argmin is
-   decided by floating-point noise below the two implementations' shared precision, not
-   by a bug in either. **This is real, not an artifact — reported, not hidden.**
+   disagrees even after the fix — traced *at the time* to a "genuine near-tie": 4+
+   feasible plans with materially different true costs (78.1s, 60.8s, 58.2s) predicted
+   equal to ~13 significant figures by the fitted surrogate.
+
+   > **RETRACTED 2026-08-25 (same day, later session).** This was **not** a genuine tie
+   > and was not real: it was an artifact of *two* verifier bugs compounding — the
+   > standardized-normal-equations solver still not reaching the true LS optimum on the
+   > wider t1 matrix, and the verifier's 1int column computing `max` node-occupancy
+   > excess where the registration says `sum`. Each masked the other. With the MGS-QR
+   > solver and the correct column, scorer and verifier agree outright on `ds_00008` and
+   > **all 612 repair values agree with zero tie-acceptances**. The original sentence
+   > below — "This is real, not an artifact" — was wrong, and is struck rather than
+   > silently deleted, because it was recorded here as an established finding and read
+   > that way. Detail in the stage-2 pre-probe entry's defect 2. (Prediction ties DO
+   > occur in this machinery and are real where they occur — see §9b's tie bands, where
+   > 22/35 firing datasets tie at the full-T1 argmin — but `ds_00008` under the registered
+   > columns was not one of them.)
+
+   ~~**This is real, not an artifact — reported, not hidden.**~~
    Independently recomputing repair_fraction for **all 35 firing datasets from scratch**
    (ignoring the scorer's numbers entirely): **median 0.000 for 1int, median 0.000 for
    kint** (kint mean 0.357, max 1.0 — a few datasets ARE fully repaired by kint, but the
@@ -4071,7 +4102,22 @@ claim is pre-falsified and stage 2 does not run as registered.
 digit). `frac(R_exact > 5%)` falls 0.172 → **0.054** (11/204 residual, max 22.2%).
 Attribution ablation over the firing 35: the parent-coupling block alone closes at median
 1.000, the occupancy block alone at median 0.892 — two largely redundant routes to the
-same closure. Scorer: `score_route_b_contention.py` (`t1` repair, constrained rungs only);
+same closure.
+
+> **AMENDED 2026-08-25 by §9b, which put this ablation in code for the first time.** Both
+> numbers reproduce exactly (1.000 and 0.892), but "two largely redundant routes" is
+> wrong: **both blocks contained `kint`**, and `kint` is the shared ingredient. Membership,
+> now unambiguous — occupancy = `kint+quad+cap`, parent-coupling *as originally run* =
+> `kint+hop+coupling` (PREREG:406's parenthetical "kint + cols 33–35 analogues" was
+> literal). Stripped of `kint`, the parent block alone closes only **0.392**, and `quad`
+> alone closes **0.000**. The honest decomposition is that neither block is a route on its
+> own: `kint` alone closes 0.000, and it is `kint` *combined with* either the quadratics
+> (0.843) or the parent columns (1.000) that closes the effect. When this prose was
+> written, no committed code computed it — the fitted coefficients were discarded at every
+> solver call site — so it could not be checked. It can now:
+> `route_b_coefficient_transfer.py`, verified 315/315 arm-values to 1e-9.
+
+Scorer: `score_route_b_contention.py` (`t1` repair, constrained rungs only);
 report frozen at `simulation_data/route_b_stage2_preprobe_t1_rtt.json`. Verification:
 `verify_route_b_scorer_agreement.py --check-repairs` agrees on **all 204 cells and all
 612 repair values (1int, kint, t1), zero tie-acceptances**.
@@ -4111,9 +4157,190 @@ max 22.2%) is real but does not clear the program's own materiality standard. Th
 rung's 0/204 remains corroborating evidence for route A's conclusion at n=204 (not a
 literal grid re-run — see the stage-1 outcome entry's caveat).
 
-**Status: stage 2 as drafted does NOT run — NO-GO-PREPROBE-T1, reading applied as
-registered. Open decision (user's): pursue the reduced pointwise-plus-state question, or
-close route B's GNN argument here. Either path requires its own registration.**
+**Status: PROVISIONAL — NO-GO-PREPROBE-T1 was RETRACTED AS MEASURED on 2026-08-25 by §9c
+(entry below). Do not read this entry as settled.** The T1 column set used here includes
+`kint`, one free coefficient per `(node, task_type)` — an identity-indexed per-dataset
+lookup table with **no corresponding column in the registration's own §2 `dim36crk`
+table**. So the kill test was run with a surrogate strictly more expressive than the T1 arm
+it stands in for. Stripped of that block, the closure of the actually-registered feature set
+is 0.392–0.648 depending on a tie rule §4 never specified, and §9c(a) measured the block's
+coefficients to be unrecoverable from node features (held-out R² 0.014). **Stage 2's
+architecture question is reopened and requires re-registration with a corrected T1
+definition before anything is built.** The one thing this entry establishes unconditionally
+is the reverse-direction result: whatever closes the effect, it is *not* message passing
+that is needed — see §9c's exploratory pooled `krank` (0.790 under one coefficient set).
+
+---
+
+### route_b_v1 — STAGE 2 PRE-REGISTRATION (recorded retroactively 2026-08-25)
+
+`ROUTE_B_STAGE2_PREREGISTRATION.md` at commit `df9971e` is the registration under which
+the §9a pre-probe's reading was fixed before its number existed. Its own header (line 6)
+required this row and it was never written — recorded now, late, rather than left absent.
+§9b was added to that file 2026-08-25 (this commit) and is disclosed as a post-outcome
+deviation in its §11.
+
+---
+
+### route_b_v1 — §9b coefficient transfer: **VOID-KINT-CONFOUNDED**, and the §9a bound is confirmed tie-robust (2026-08-25)
+
+**The question.** §9a's T1 repair fits fresh coefficients on *every dataset's own sweep*;
+a trained cross-dataset model gets **one** set. So NO-GO-PREPROBE-T1 rests on a bound that
+may not transfer. Registered in `ROUTE_B_STAGE2_PREREGISTRATION.md` §9b before the number
+existed, with three cells so that "cost of dropping kint" could never be confused with
+"cost of pooling", and with the VOID condition written in advance.
+
+**The obstruction, found while designing and stated before measuring:** `kint` **cannot be
+pooled at all.** Its columns are one per `(node, task_type)` pair *in that dataset's own
+demand*, so vocabulary and width both vary (K ∈ 8…13, X widths 21–26 over this corpus).
+There is no cross-dataset coefficient vector to fit.
+
+| cell | fit | median | tie-band | ≥0.5 |
+|---|---|---|---|---|
+| A | per-dataset, full T1 | **1.0000** | **[1.0000, 1.0000]** | 26/35 |
+| B | per-dataset, T1 − kint | 0.3922 | [0.3922, 1.0000] | 17/35 |
+| C | **pooled**, T1 − kint | 0.0000 | [0.0000, 1.0000] | 16/35 |
+| C′ | pooled, equal dataset weight (sensitivity) | 0.0000 | [0.0000, 1.0000] | 15/35 |
+
+**VERDICT: VOID-KINT-CONFOUNDED**, the registered branch — cell B is already below 0.5, so
+cell C cannot be read as a test of *pooling*: the drop is attributable to dropping `kint`,
+which no single coefficient set can carry anyway. **§9b does not weaken NO-GO-PREPROBE-T1
+and does not strengthen it. The V5 question stays open and stays empirical.**
+
+**What §9b did establish, and it is the more useful half:**
+
+1. **The §9a statistic is tie-robust, which nobody had checked.** Cell A's median is 1.0000
+   whether prediction ties at the argmin are resolved optimistically, pessimistically, or
+   by the registered plan-key tie-break — even though **22/35 firing datasets do tie**
+   (max group 8). A NO-GO resting on a tie-break would have been worth exactly as much as
+   `ds_00008`'s retracted "genuine tie". It does not.
+2. **Cell B, by contrast, is genuinely indeterminate** — band [0.392, 1.000] straddles the
+   0.5 threshold, with ties up to 16 plans wide. This is not float noise: stripped of
+   `kint`, the 9 node-agnostic columns **cannot separate up to 16 feasible plans at all**.
+   That is the finding, not a nuisance. The independent verifier surfaced it first, as
+   three "TIE (accepted)" lines on cell B where scorer and verifier picked different plans
+   from the same tied group (0.000 vs 1.000) — a disagreement that is real and that the
+   band now reports as first-class output rather than a footnote.
+3. **The block attribution now exists in code** and both prose numbers reproduce — but
+   their interpretation was wrong; see the amendment in the §9a entry above and the
+   in-place correction of stage-1 finding #2.
+
+| arm | blocks | median | ≥0.5 | residual >5% |
+|---|---|---|---|---|
+| kint | linear counts | 0.0000 | 13/35 | 24 |
+| quad | quadratic counts only | 0.0000 | 7/35 | 32 |
+| **kint+quad** | **counts, nonlinearly** | **0.8429** | 23/35 | 15 |
+| occupancy | kint+quad+cap | 0.8924 | 24/35 | 14 |
+| parent-coupling | hop+coupling | 0.3922 | 17/35 | 22 |
+| parent-coupling incl kint | kint+hop+coupling | 1.0000 | 27/35 | 10 |
+| full T1 | all five | 1.0000 | 26/35 | 11 |
+
+**Coefficients (descriptive, as registered — the repair fraction is the decisive statistic
+and this is not).** The pooled `transfer` coefficient is 330.96 against the registered
+physical prediction of 762.939453125 (`800e6 / 1024²`), and pooled `latency_sum` is −38.4
+against a predicted 1.0. Per-dataset dispersion is enormous (transfer mean −277, sd 8106).
+**None of this is evidence about the physics**, and the registration said so in advance:
+the cell-B/C fits are mis-specified by construction (they omit the block that does the
+work), 9/35 per-dataset designs are rank-deficient, and `same_node_edges = 4 −
+remote_edge_count` is collinear with the hop block on `diamond4`. Recorded because it was
+registered, and because a *correctly specified* pooled fit would be the place to test the
+762.94 prediction properly.
+
+**Verification.** `verify_route_b_scorer_agreement.py --check-blocks` — an independent
+pure-Python/QR recomputation from each dataset's raw files — agrees on **315/315 (dataset,
+arm) repair fractions to 1e-9** across 35 datasets and 9 arms, with the three cell-B tie
+acceptances described above. Cell A reproduces §9a exactly (median 1.0000, mean 0.7302,
+26/35, 11 residual). The verifier itself is, as of this commit, backstopped by
+`tests/test_route_b_repair_fixtures.py`: 16 closed-form fixtures (29 with the positive
+controls) covering `solve_least_squares` against textbook OLS, the `sum`-vs-`max` 1int
+distinction that survived three rounds of checking, the t1 columns hand-computed on a
+4-node toy, the scorer/verifier cap-convention divergence on an uncapped node, and the
+saturation guard. Refactor safety: `t1_cols`'s new block registry is proven **byte-identical**
+on the frozen §9a report (204 datasets × 3 α).
+
+**Residual stratum (11 datasets, DESCRIPTIVE — 5.4% is below the program's 10% materiality
+bar and this is not a claim).** No separating structure found. Medians, residual vs closed:
+feasible fraction 0.643/0.643, distinct nodes in the optimum 2/2, same-node edges 2/2,
+max load/cap 0.921/0.921, kint width 11/11. The only gaps are small and in the direction
+you would expect from their larger regret: R_exact 16.8 vs 14.7, transfer in the optimum
+0.0140 vs 0.0100, hop sum 11 vs 10, RTT spread CV 0.197 vs 0.175. **There is no "a graph is
+needed when X" sentence here** — at n=11 with no separating feature, the residual reads as
+the tail of the same distribution, not a distinct stratum. The edge closes cleanly.
+
+**Artifacts:** `simulation_data/route_b_coefficient_transfer.json`;
+`scripts_cosim/route_b_coefficient_transfer.py`; `--check-blocks` in the verifier;
+`tests/test_route_b_repair_fixtures.py`.
+
+**Status: §9b returned VOID on its own question — whether the bound survives one coefficient
+set is NOT answered by this method, because the block carrying the closure is not poolable.
+Superseded in part by §9c below, which asked why that block was in the column set at all.**
+
+---
+
+### route_b_v1 — §9c: `kint` is not a T1 feature — **NO-GO-PREPROBE-T1 RETRACTED AS MEASURED** (2026-08-25)
+
+**The objection, against §9a itself.** §9a's T1 set includes `kint`: one free coefficient per
+`(node, task_type)`, a per-dataset lookup table over node **identities**. **No column of the
+registration's own §2 `dim36crk` table is identity-indexed** — cols 25–28 are per-type
+occupancy on *the candidate's own node*: anonymous, fixed width, four columns. §2's verbatim
+rule cuts both ways, and a feature the MLP cannot have must not be credited to it. So §9a's
+kill test may have been run with a surrogate strictly more expressive than the arm it stands
+in for. Registered in `ROUTE_B_STAGE2_PREREGISTRATION.md` §9c before either number existed.
+
+**The load-bearing observation, and it needed no new code.** The scorer's `quad` block is
+*exactly* the plan-level rendering of cols 25–28:
+`quad[k] = Σ_n tot[n]·occ[n][k] = Σ_t occ_{node(t)}[k]`. Likewise `load_over_cap` = col 29,
+`overcap_tasks` = col 31, `min/max_hop_sum` = 33–34, `transfer` = 35. **T1 − kint is
+precisely the dim36crk-expressible set — so §9b's cell B already WAS the anonymous closure
+measurement**, at 0.392. `kint` is the only T1 block with no §2 column.
+
+| measurement | result | registered reading |
+|---|---|---|
+| **(a)** kint coefficients regressed on node features, held out by dataset | **R² = 0.0138** (in-sample 0.0974) | < 0.5 ⇒ **identity-memorized; §9a does not bound the T1 arm** |
+| **(b)** anonymous (dim36crk) closure | `mean_tied` **0.648** vs `registered`/`pessimistic` **0.392** | directions disagree ⇒ **VOID-TIE-INDETERMINATE** |
+
+**(a) is decisive and (b) is a specification gap.** On (a), the in-sample R² is the telling
+figure: node features barely explain these coefficients even without a generalization gap,
+so it is not a small-sample artifact — the block is genuinely a per-dataset identity lookup.
+On (b), the readings disagree because tie groups run up to **16 plans wide** and the
+sorted-plan-key rule lands *worse than an average tie-break* on this corpus. **§4's decoder
+never specified what to do with tied scores, and the anonymous verdict flips on that choice.**
+That is a real hole in the registration, not a numerical nuisance.
+
+**Consequence: NO-GO-PREPROBE-T1 is retracted as measured, and stage 2's architecture
+question is reopened.** Per §9c this is explicitly **not** a licence to start the build queue:
+the corrected T1 definition — including a tie rule — gets re-registered first. §9a's purpose
+was to kill cheaply; a corrected §9a that fails to kill changes the registration, not the
+discipline.
+
+**Exploratory (NOT registered, NOT independently verified, no verdict read from it) — and
+it is why the reopening may be short.** Replacing `kint` with `krank`, occupancy indexed by
+identity-free node **rank** (ascending capacity, then mean hop, padded to a common width):
+
+| arm | median | ≥0.5 |
+|---|---|---|
+| krank + dim36crk, per dataset | **1.000** | 26/35 |
+| **krank + dim36crk, ONE pooled coefficient set** | **0.790** (mean_tied 0.824) | 20/35 |
+
+So the closure never needed node *identity* — it needed per-node occupancy **resolution**,
+which dim36crk's four candidate-local columns do not supply. And unlike `kint`, `krank`
+pools: a single coefficient set over identity-free columns closes the median firing dataset
+at 0.79, with no message passing. **That is the follow-up the §9b VOID named, and it points
+where §9a did: the structure looks reachable by a pointwise scorer, just not by the one
+stage 2 registered.** A hypothesis for the corrected registration, not a result.
+
+**Verification.** Cells and all ablation arms: `--check-blocks`, 315/315 to 1e-9. **The §9c(a)
+regression and both `krank` arms are single implementations and are NOT independently
+verified** — stated rather than implied. Gauge note: within a dataset the `kint` columns for
+a given type sum to exactly 1 (each type has one task in `diamond4`), so the fit is
+rank-deficient by one dimension per type and the coefficients are defined only up to a
+per-type shift; `lstsq` returns the minimum-norm representative, a convention. (a) therefore
+scores coefficients **centered within (dataset, task_type)**, the gauge-invariant content.
+
+**Status: NO-GO-PREPROBE-T1 retracted as measured. Stage 2 REOPENED, pending re-registration
+with (i) a T1 definition that either justifies identity-indexed columns or replaces them with
+an anonymous per-node-resolution block, and (ii) a decoder tie rule. Nothing is built until
+that registration exists.**
 
 ---
 
