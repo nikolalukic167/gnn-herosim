@@ -320,6 +320,18 @@ ROUTE_B_PILOT_V1_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1",
 }
 
+# route_b_pilot_v1_8task: the 8-task probe named in the route_b_v1 handover plan
+# (2026-08-25) — same grid as ROUTE_B_PILOT_V1_GRID (2 conn_probs x 2 replica_configs x 3
+# queue_dists x 17 seeds = 204 datasets), differing only in `dag_instances: 2`. Two
+# diamond4 DAG instances submitted from different client nodes, co-decided in one episode
+# (see generate_workload_templates), doubling the joint decision from 4 to 8 tasks. Tests
+# whether pooled `krank` closure (0.790 at 4 tasks, LINEAGES §9c) survives the doubling.
+ROUTE_B_PILOT_V1_8TASK_GRID: GridPreset = {
+    **ROUTE_B_PILOT_V1_GRID,
+    "dag_instances": 2,
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1_8task",
+}
+
 # netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
 #
 # The first matched pilot ran link_contention_v1 on the stock shallow_v1 grid and all three
@@ -674,6 +686,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "regime_b_cold_burst_v1": REGIME_B_COLD_BURST_V1_GRID,
     "route_a_pilot_v1": ROUTE_A_PILOT_V1_GRID,
     "route_b_pilot_v1": ROUTE_B_PILOT_V1_GRID,
+    "route_b_pilot_v1_8task": ROUTE_B_PILOT_V1_8TASK_GRID,
 }
 
 
@@ -844,6 +857,7 @@ def generate_workload_templates(
     workload_seed: int = DEFAULT_WORKLOAD_SEED,
     dag_shape: Optional[str] = None,
     dag_task_types: Optional[Sequence[str]] = None,
+    dag_instances: int = 1,
 ) -> List[Path]:
     """
     Generate workload templates with varied task type ratios.
@@ -903,12 +917,17 @@ def generate_workload_templates(
             if dag_shape not in DAG_SHAPES:
                 raise ValueError(f"unknown dag_shape {dag_shape!r}; known: {sorted(DAG_SHAPES)}")
             types = list(dag_task_types or [])
-            dag = DAG_SHAPES[dag_shape](types)
-            base_event = deepcopy(base_events[0])
-            base_event['application']['name'] = f"nofs-{dag_shape}"
-            base_event['application']['dag'] = dag
-            base_event['node_name'] = f"client_node{client_nodes[0]}"
-            workload['events'].append(base_event)
+            # Multiple instances of the same DAG shape, submitted from different client
+            # nodes, land in ONE workload's events list and are therefore co-decided by the
+            # same co-sim episode (see route_b_v1 8-task probe, LINEAGES.md) — the tasks
+            # across instances compete for the same platforms, not just within one DAG.
+            for inst in range(dag_instances):
+                dag = DAG_SHAPES[dag_shape](types)
+                base_event = deepcopy(base_events[0])
+                base_event['application']['name'] = f"nofs-{dag_shape}"
+                base_event['application']['dag'] = dag
+                base_event['node_name'] = f"client_node{client_nodes[inst % len(client_nodes)]}"
+                workload['events'].append(base_event)
         else:
             for idx in range(NUM_TASKS):
                 base_event = deepcopy(base_events[idx % len(base_events)])
@@ -1607,6 +1626,7 @@ def main():
         workload_seed=args.workload_seed,
         dag_shape=dag_shape,
         dag_task_types=dag_task_types,
+        dag_instances=grid_preset.get("dag_instances", 1),
     )
     log(f"Generated {len(templates)} workload templates "
         f"(workload_seed={args.workload_seed})", quiet)
