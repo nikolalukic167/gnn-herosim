@@ -3829,6 +3829,75 @@ changes beyond route A's landed term, no training/checkpoints/live gates/datalab
 
 ---
 
+### route_b_v1 — calibration freeze + three registration amendments (2026-08-25, before any gated corpus exists)
+
+**What the smoke (12 matched datasets per arm, designated calibration data in the
+registered two-step) established, and two harness defects it caught first:**
+
+1. **Mid-episode replica scale-down corrupted DAG sweeps and their substrate.**
+   `KEEP_ALIVE = 30 s` evicts idle replicas; under Arm S physics parents run past 30 s,
+   so children's *forced* replicas were scaled down before dispatch — 66–72/240 rows
+   lost per dataset, nondeterministically (the unstable scale-down victim sort), with
+   `sweep_complete: false` recorded and nothing reading it. Worse: the same eviction ran
+   during the *warmup capture*, so the enumerator's candidate substrate itself varied
+   with physics speed — Arm B0 and Arm S got different enumerations (270 vs 576 plans on
+   the same seed) until fixed. Fixes: `cosim_keep_alive()` env override
+   (`HEROSIM_COSIM_KEEP_ALIVE`, unset = bit-identical); workers now append tracebacks to
+   `placement_errors.log` (preserved next to `placement_metadata.json` — a truncated
+   sweep without its error log is undebuggable); the route B scorer **refuses** truncated
+   or metadata-less sweeps. Both corpus arms generate with the override set; enumeration
+   counts verified identical across arms on all 12 smoke seeds.
+2. **The smoke result itself, matched arms:** Arm B0 `R_exact` max 2.07% (the known
+   collision/link residue; `R_greedy` up to 3578% — greedy myopia under scarcity is
+   catastrophic but decoder-shaped). Arm S `R_exact` max **42.0%**, firing 25–33% at the
+   >5% level, count repairs closing **nothing** — the joint signature the lineage
+   predicts, 20× the B0 residue. Makespan channel fires too (max 19.6%).
+
+**Amendments, each disclosed with what had been seen when it was made.** No gated
+(n=200) data exists; the smoke's 12 datasets/arm had been scored. The PASS fraction
+(≥10% at `R_exact > 5%`), the magnitude bar, the repair threshold (<0.5), α ladder
+values, and the power ladder are all UNTOUCHED from the blind registration.
+
+- **(A1) Arm B0 VOID trigger, was: `R_exact > 1%` on > 2% of datasets.** Premise error,
+  visible in the registration's own text ("separable costs ⇒ surrogate = truth"): a
+  backbone corpus is NOT separable — the collision channel and the link channel are
+  real, known, count-shaped-or-thin couplings that produce exactly the 1–2% B0 residue
+  measured. As registered, VOID would trip on real physics, not instrumentation.
+  **Now: VOID iff B0 shows `R_exact > 5%` (the material bar) on > 2% of datasets.**
+  Direction: loosens a validity check, does not touch the claim gate.
+- **(A2) Tightness calibration, was: "tight" = free-choice plan infeasible in 30–70% of
+  datasets.** Unsatisfiable: the α response is cliff-shaped (0.92 → 0.00 between α 3.2
+  and 3.4 on the smoke) because CPU demands are near-equal; no α lands in the band.
+  The band was a proxy for "binding but not degenerate" — replaced by the direct
+  criteria: `no_feasible_rows = 0`, `greedy_stuck = 0`, mean feasible rows ≥ 50, and
+  cw-infeasible ≥ 30%. **Frozen ladder: α ∈ {∞, 3.0 (loose), 2.0 (tight)}, tight = 2.0
+  primary.** On the smoke: cw-infeasible 0.75–1.00, feasible rows 388–584, zero stuck,
+  zero empty at both binding rungs.
+- **(A3) PASS condition 3, was: firing fraction rises monotonically ∞ → loose → tight.**
+  Two defects: (i) transplanted from route A, where the lever scaled a physics term —
+  here the lever restricts a feasible set and the within-binding-regime gradient is
+  flat/noisy (smoke: 0.33 at loose vs 0.25 at tight — one dataset's difference at
+  n=12); (ii) as registered, "conditions 1,2,4 hold but 3 fails" lands in NONE of
+  PASS/FAIL/VOID — an undefined outcome cell. **Now: (3′) the unconstrained rung fires
+  `R_exact > 5%` on < 2% of datasets AND each binding rung fires above the unconstrained
+  rung** — the free-choice attribution the condition was always meant to capture.
+  Disclosed plainly: this amendment was made after seeing the 12-dataset smoke values;
+  a reader may discount condition 3′ accordingly. Conditions 1, 2, 4 stand as
+  registered blind.
+
+**End-to-end control, form finalized:** the registered "rigged dataset" is superseded by
+something stronger — `verify_route_b_scorer_agreement.py`, an independent from-scratch
+recomputation of `R_greedy` and `R_exact` from `placements.jsonl` (no imports from the
+scorer), which must agree within 1e-9 on **every** corpus dataset; plus the measured fact
+that the real generation → sweep → scorer path fires at rig-scale magnitudes on the smoke
+(`R_exact` 42%, `R_greedy` 151% on Arm S) — the "predicted ≥ 50% end-to-end fire" is
+satisfied by measurement. Any verifier disagreement ⇒ VOID.
+
+**Status: CALIBRATION FROZEN.** Next: zero-diff proof, corpus generation (2 arms ×
+n≈200, same seeds, env-matched keep-alive), verifier, gate.
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |

@@ -56,6 +56,9 @@ def write_rig(tmp_path: Path, replica_placements: dict, rows: list) -> Path:
                 "placement_plan": {str(k): list(v) for k, v in plan.items()},
                 "rtt": rtt,
             }) + "\n")
+    with open(ds / "placement_metadata.json", "w") as fh:
+        json.dump({"num_placements": len(rows), "rows_written": len(rows),
+                   "worker_failed": 0, "timed_out": 0, "sweep_complete": True}, fh)
     return ds
 
 
@@ -262,6 +265,19 @@ def test_missing_placements_jsonl_raises(tmp_path):
     with open(ds_dir / "workload.json", "w") as fh:
         json.dump({"events": []}, fh)
     with pytest.raises(RuntimeError, match="placements.jsonl missing"):
+        Dataset(ds_dir, RIG_TASK_TYPES, "rtt")
+
+
+def test_truncated_sweep_is_refused(tmp_path):
+    # Route B's Arm S smoke lost 66-72/240 rows to mid-episode replica scale-down;
+    # a truncated sweep biases marginals, optima and feasible sets and must be refused,
+    # not scored.
+    ds_dir = control1_rig(tmp_path).ds_dir
+    meta = ds_dir / "placement_metadata.json"
+    meta.write_text(json.dumps({
+        "num_placements": 240, "rows_written": 174, "worker_failed": 66,
+        "timed_out": 0, "sweep_complete": False}))
+    with pytest.raises(RuntimeError, match="TRUNCATED"):
         Dataset(ds_dir, RIG_TASK_TYPES, "rtt")
 
 
