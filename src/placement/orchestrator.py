@@ -23,7 +23,7 @@ import statistics
 from abc import abstractmethod
 from collections import defaultdict
 from graphlib import TopologicalSorter
-from typing import Dict, Generator, List, Tuple, Type
+from typing import Dict, Generator, List, Set, Tuple, Type
 
 from simpy.core import Environment, SimTime
 from simpy.events import Event, Process
@@ -909,9 +909,44 @@ class Orchestrator:
         # Simulation ends when:
         #  - all platforms are released
         #  - all dispatched real tasks are done (internal and undispatched tasks excluded)
-        if real_tasks:
-            yield self.env.all_of([task.done for task in real_tasks])
-        else:
+        #
+        # `real_tasks` is a SNAPSHOT of what is dispatched right now, and for a DAG that is
+        # only the roots: children are dispatched as their parents finish. Waiting on the
+        # snapshot alone ends the simulation the moment the roots complete, leaving every
+        # child with `done_time is None` — which surfaces much later and much less clearly
+        # as "Task 1 has not completed or is missing required attributes".
+        #
+        # So wait to a FIXED POINT: after the current wave completes, let the dispatch
+        # callbacks run (workflow_process defers by one zero-delay timeout) and pick up any
+        # task that became dispatched in the meantime. Terminates because each pass either
+        # finds new dispatched tasks or stops; a task that never dispatches is still
+        # excluded, exactly as before.
+        waited_for: Set[int] = set()
+        while True:
+            pending = [
+                task for task in real_tasks
+                if task.id not in waited_for and not task.done.triggered
+            ]
+            if pending:
+                yield self.env.all_of([task.done for task in pending])
+            waited_for.update(task.id for task in real_tasks)
+
+            # Let the finishing tasks' workflow_process dispatch their children before
+            # deciding there is nothing left.
+            yield self.env.timeout(0)
+
+            real_tasks = [
+                task for task in self.task_archive
+                if not getattr(task, 'is_internal', False) and task.dispatched_time is not None
+            ]
+            if all(task.id in waited_for for task in real_tasks):
+                break
+            print(
+                f"[ {self.env.now} ] Gateway: {len([t for t in real_tasks if t.id not in waited_for])} "
+                f"newly dispatched task(s) (DAG children); continuing to wait"
+            )
+
+        if not real_tasks:
             print(f"[ {self.env.now} ] Gateway: No dispatched tasks to wait for")
         
         # Debug logging: final task status after all tasks complete

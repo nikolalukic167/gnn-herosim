@@ -316,6 +316,51 @@ def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
     return sim_inputs
 
 
+def ensure_application_state_size(
+    sim_inputs: Dict[str, Any], application_names: Any
+) -> List[str]:
+    """Give every named application a `stateSize` entry on every task type.
+
+    `Platform.platform_process` indexes `task.type["stateSize"][application_name]`, so an
+    application the task types have never heard of is a hard KeyError mid-episode rather
+    than a startup error. Every corpus so far uses `nofs-<task_type>` applications, which
+    the shipped task-types file happens to cover; a DAG application (`nofs-diamond4`) is
+    ONE application containing several task types, and no task type has an entry for it.
+
+    Names come from the WORKLOAD, not `application-types.json`: the simulator reads each
+    event's `application` dict verbatim, so a DAG application exists only in the trace and
+    is never registered anywhere.
+
+    Clones each task type's existing `nofs-*` entry, so a DAG task keeps exactly the I/O
+    sizes it would have had as a standalone application — the DAG changes the topology of
+    the work, not the size of it. In memory only: `data/nofs-ids/` is shared by every
+    corpus and is never copied per dataset.
+
+    Returns the `task_type/application` pairs it had to synthesize.
+    """
+    task_types = sim_inputs.get("task_types") or {}
+    added: List[str] = []
+
+    for app_name in application_names:
+        for type_name, task_type in task_types.items():
+            state_size = task_type.get("stateSize") or {}
+            if app_name in state_size:
+                continue
+            donor_key = next(
+                (k for k in state_size if k.startswith("nofs-")),
+                next(iter(state_size), None),
+            )
+            if donor_key is None:
+                raise RuntimeError(
+                    f"task type {type_name!r} has no stateSize entries at all; cannot "
+                    f"synthesize one for application {app_name!r}"
+                )
+            state_size[app_name] = deepcopy(state_size[donor_key])
+            added.append(f"{type_name}/{app_name}")
+
+    return added
+
+
 def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
     """Scale every task type's input stateSize in memory, from HEROSIM_STATE_SIZE_BYTES.
 
@@ -1036,10 +1081,21 @@ def capture_system_state_from_first_task(
     }
     logger.info(f"Created workload with {len(single_event_workload['events'])} event(s)")
     
-    # Prepare infrastructure configuration with auto-resolve for task 0
-    # Auto-resolve will find a warm replica that was created during precreate_replicas
-    placement_plan = {0: (-1, -1)}
-    logger.info(f"Preparing infrastructure configuration with auto-resolve placement for task 0...")
+    # Prepare infrastructure configuration with auto-resolve for every task the event
+    # creates. Auto-resolve finds a warm replica created during precreate_replicas.
+    #
+    # One event does NOT mean one task: an application's dag creates a task per node, so a
+    # 4-node DAG event yields task ids 0..3. `{0: (-1, -1)}` left tasks 1+ with no entry
+    # and the run died on "No forced placement found for task 1" — inside the warmup
+    # capture, before any measurement, which is why it presents as an unexplained
+    # "System state capture FAILED".
+    _first_dag = (first_event.get('application') or {}).get('dag') or {}
+    _n_tasks_in_event = max(1, len(_first_dag))
+    placement_plan = {task_id: (-1, -1) for task_id in range(_n_tasks_in_event)}
+    logger.info(
+        f"Preparing infrastructure configuration with auto-resolve placement for "
+        f"{_n_tasks_in_event} task(s)..."
+    )
     logger.info("NOTE: Replicas should be pre-created via replica_plan and warmed up before task 0 arrives")
     sim_config = prepare_simulation_config(
         sample,
@@ -2247,7 +2303,23 @@ def execute_brute_force_optimized(
     workloads = prepare_workloads(sample, mapping, workload_base, apps)
     flattened_workloads = flatten_workloads(workloads)
     _log(f"Prepared {len(flattened_workloads['events'])} workload events")
-    
+
+    # A DAG application exists only in the trace — the simulator reads each event's
+    # `application` dict verbatim and nothing registers it — so its stateSize entry has to
+    # be synthesized before any episode runs, or the first task raises KeyError deep inside
+    # Platform.platform_process.
+    _synth = ensure_application_state_size(
+        sim_inputs,
+        {
+            event['application']['name']
+            for event in flattened_workloads['events']
+            if isinstance(event.get('application'), dict) and event['application'].get('name')
+        },
+    )
+    if _synth:
+        _log(f"Synthesized stateSize entries: {', '.join(sorted(_synth))}")
+
+
     # Add fast-forward warmup flag to infrastructure config (will be passed to workers)
     infra_config['fast_forward_warmup'] = fast_forward_warmup
     infra_config['fast_forward_threshold'] = fast_forward_threshold
