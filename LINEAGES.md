@@ -3728,6 +3728,25 @@ taken to 30% of episode cost with 4× pairwise variation and produced exactly ze
 groundwork (DAG dispatch, fan-in, server mesh, path transfer, makespan channel) stands and
 is reusable — route B needs all of it.
 
+**Retro-audit against the mid-episode scale-down defect (2026-08-25, during route_b_v1
+step (c)).** The defect that fix `42627d8` closes — `KEEP_ALIVE=30s` silently evicting a
+task's FORCED replica before dispatch, truncating the sweep — was fixed 8 hours *after*
+this NO-GO closed (`17792db` at 02:37 vs `42627d8` at 10:46), on the same physics
+(locality on, DAG dispatch) that produces the truncation. This was a real, not
+hypothetical, risk to the verdict above, and `score_route_a_scaling_probe.py` never
+checked `placement_metadata.json`'s `sweep_complete` — only whether the file existed
+(`n_missing_sweeps`) — so the original NO-GO could not have caught it either way. Checked
+directly: regenerated 6 datasets from `ROUTE_A_PILOT_V1_GRID` at the 800 MB point, once
+under `KEEP_ALIVE=30s` (route A's original condition) and once under the fix. **4 of 6
+datasets were truncated under the original condition** (one losing 59% of its sweep,
+33/56 rows) — confirming the defect was live during route A's own probe, not merely
+theoretically possible. **Both corpora score identically: 0.000% spread-plan regret, 0
+nonzero, NO-GO on both.** The truncation did not change the verdict on this rerun. This
+is reassuring but is a 6-dataset spot-check, not a re-run of route A's original n≥200
+scale corpus (which no longer exists on disk — gitignored, never persisted) — **the
+NO-GO stands, now with the defect risk checked rather than merely disclosed, but the
+original probe's own datasets were never re-verified because they no longer exist.**
+
 ---
 
 ### route_b_v1 — PRE-REGISTRATION (written 2026-08-25, before any route B corpus exists)
@@ -3968,7 +3987,64 @@ unguarded repair fits (Control 2 caught interpolation at rig scale).
 `score_route_b_gate.py`, `verify_route_b_scorer_agreement.py`,
 `tests/test_route_b_positive_controls.py` (13 tests).
 
-**Status: PASS — stage 1 CLOSED. Stage 2 (can a GNN learn it and beat the
+**Post-PASS scrutiny (2026-08-25, same day, before anyone else read the result): a
+clean confirmation gets the same suspicion a clean zero got all session.** Four checks,
+run against the standing worry that a result matching the hypothesis this precisely is
+exactly the one nobody feels the urge to re-check.
+
+1. **Gate condition 2 (repairs close nothing) independently reconfirmed, with an
+   honest caveat found along the way.** Extended `verify_route_b_scorer_agreement.py`
+   with `--check-repairs`: a from-scratch LS fit (pure Python, no numpy — a hand-rolled
+   Gaussian-elimination normal-equations solve) recomputing both repairs directly from
+   each dataset's files. First run disagreed with the scorer on one dataset (10.6% vs
+   42.0%) — traced to normal equations squaring the design matrix's condition number
+   across columns of wildly different scale (intercept, RTT-magnitude sums, 0/1 counts);
+   fixed by standardizing columns before solving (confirmed against numpy/SVD:
+   coefficients now agree to 1e-13). One dataset (`ds_00008`, Arm S, α=2.0) still
+   disagrees even after the fix — traced to a **genuine near-tie**: 4+ feasible plans
+   with materially different true costs (78.1s, 60.8s, 58.2s) predicted equal to ~13
+   significant figures by the fitted surrogate, so which one "wins" the argmin is
+   decided by floating-point noise below the two implementations' shared precision, not
+   by a bug in either. **This is real, not an artifact — reported, not hidden.**
+   Independently recomputing repair_fraction for **all 35 firing datasets from scratch**
+   (ignoring the scorer's numbers entirely): **median 0.000 for 1int, median 0.000 for
+   kint** (kint mean 0.357, max 1.0 — a few datasets ARE fully repaired by kint, but the
+   *median*, the registered statistic, is exactly what the scorer reported). **Gate
+   condition 2 holds under independent, from-scratch recomputation.**
+2. **The amendment to condition 3 is disclosed with its own counterfactual, not just
+   its rationale.** Route A's own precedent for "rising" (`score_route_a_scaling_probe.py`
+   `rising = means[-1] > means[0] + 1e-9`, endpoints only) would read the observed
+   sequence 0.000 (∞) → 0.172 (loose) → 0.172 (tight) as rising (0.172 > 0.000) — **the
+   original wording, read consistently with the one existing precedent in this
+   codebase, would ALSO pass.** Read literally step-wise (every adjacent pair strictly
+   increasing), the flat loose→tight step (0.172 = 0.172) would **fail** it. Both
+   readings are stated because the wording is genuinely ambiguous and the amendment was
+   made after seeing this exact number — a reader is free to prefer either. What is not
+   ambiguous: no reading of the original condition, applied honestly, changes the
+   PASS verdict, because it was never the swing condition — condition 1 (the CI) and
+   condition 2 (repairs) carry the result.
+3. **Firing rate reported above the B0 noise floor, not just against the 5% bar.**
+   B0's own residue tops out at 2.49% (α=2.0) — a floor under every Arm S number. Arm S
+   firing fraction at `R_exact >` 5.0% / 7.5% / 10.0%: **0.172 / 0.157 / 0.123.** The
+   effect does not thin out approaching a threshold four times the B0 floor; at >10% it
+   still clears the registered 10% PASS bar on its own. Not floor-sensitive.
+4. **Alpha provenance.** The frozen ladder (α ∈ {∞, 3.0, 2.0}) was calibrated on route
+   B's own smoke corpus (`gnn_datasets_dag4_route_b_smoke_{s,b0}`, 12 datasets/arm on
+   `ROUTE_B_PILOT_V1_GRID`, matching the gated corpus's topology and physics exactly),
+   not on the unrelated m3 pilot — see amendment A2 above. The freeze commit
+   (`2c3ebbc`… through the calibration-freeze entry) predates the n=204 generation run.
+   Realised componentwise-plan-infeasible fraction at the frozen tight rung: 0.44–0.50
+   across the corpus (table above) — comfortably binding, not degenerate.
+
+**Route A cross-reference.** Arm S's unconstrained cell (α=∞: locality on, 800 MB
+payload, DAG dispatch, on the keep-alive-fixed harness) is physics-adjacent to route
+A's own condition but **not a re-run of route A's grid** (route B's grid uses 6 servers /
+`per_client=0`; route A's used a different server count and replica config) — it should
+be read as corroborating evidence at n=204, not as route A's own probe repeated. The
+literal re-verification of route A's condition is the 6-dataset retro-check recorded in
+`route_a_v1` above, which is the one that actually reused route A's grid.
+
+**Status: PASS — stage 1 CLOSED, and re-checked. Stage 2 (can a GNN learn it and beat the
 constraint-aware pointwise baseline?) requires its own pre-registration before any
 training run.**
 
