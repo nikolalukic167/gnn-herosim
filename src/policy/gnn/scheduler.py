@@ -40,6 +40,27 @@ from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
 
+def move_graph_tensors_(graph: Data, device: torch.device) -> Data:
+    """Move a graph's tensor fields to `device`, in place.
+
+    `Data.to()` recurses through every stored attribute, including the plain-Python
+    dicts the scheduler attaches (`queue_snapshot`, `task_logit_to_placement`). Those
+    are decode bookkeeping the forward pass never reads, and walking them cost ~26%
+    of a live episode. Only tensors are moved; everything else is left alone.
+    """
+    # `Tensor.to` returns self when the tensor is already on `device`, so it is its own
+    # short-circuit. An explicit `value.device != device` guard would be wrong anyway:
+    # torch.device('cuda') never compares equal to the cuda:0 a tensor reports.
+    moved = [
+        (key, value.to(device))
+        for key, value in list(graph._store.items())
+        if isinstance(value, torch.Tensor)
+    ]
+    for key, value in moved:
+        graph._store[key] = value
+    return graph
+
+
 # Task-platform compatibility (same as training)
 TASK_PLATFORM_COMPATIBILITY = {
     'dnn1': ['rpiCpu', 'xavierGpu', 'xavierCpu', 'pynqFpga'],
@@ -423,7 +444,7 @@ class GNNScheduler(Scheduler):
             if decode_mode in ("seq_reforward", "seq_reforward_argmax"):
                 from src.policy.gnn.seq_decode import decode_sequential_reforward_placement
 
-                graph = graph.to(self.device)
+                graph = move_graph_tensors_(graph, self.device)
                 combo = decode_sequential_reforward_placement(
                     self.gnn_model,
                     graph,
@@ -454,7 +475,7 @@ class GNNScheduler(Scheduler):
                             platform.initialized.triggered
                         )
 
-                graph = graph.to(self.device)
+                graph = move_graph_tensors_(graph, self.device)
                 combo = decode_sequential_reforward_pull_placement(
                     self.gnn_model,
                     graph,
@@ -469,7 +490,7 @@ class GNNScheduler(Scheduler):
                 return {t_idx: combo[t_idx] for t_idx in range(len(combo))}
 
             # Move to device
-            graph = graph.to(self.device)
+            graph = move_graph_tensors_(graph, self.device)
             
             # Run inference
             with torch.no_grad():

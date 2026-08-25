@@ -68,6 +68,11 @@ torch.manual_seed(42)
 torch.cuda.manual_seed_all(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
+# Seeding alone does NOT make this trainer reproducible: the GIN autograd path diverges
+# run to run at a fixed seed even on CPU (measured 2026-08-19, see
+# scripts_cosim/gnn_necessity_ablation.py). cudnn.deterministic above cannot reach it.
+if os.environ.get("NEAR_RTT_NONDETERMINISTIC", "").strip().lower() not in ("1", "true", "yes"):
+    torch.use_deterministic_algorithms(True, warn_only=True)
 
 # %%
 # Configuration

@@ -3358,6 +3358,80 @@ controlling.
 
 ---
 
+### serving_speed_v1 — the episode cost was `Data.to()`, not the device (2026-08-25)
+
+Groundwork for the `gnn_draw_study_v1` gate below: 240 gate episodes are worth speeding up
+first, and the draws must be trained under a settled regime.
+
+**What was measured.** One 30k-event episode, `cell01_p25_s9001` × `workload-150-100-30k`,
+GNN policy, deployed checkpoint, same box:
+
+| arm | wall |
+|---|---:|
+| before (whole-graph `Data.to()`, cuda) | **93 s** |
+| after (tensor-only move, cuda) | **72 s** |
+| after (tensor-only move, cpu) | **86 s** |
+
+**The predicted lever was the wrong one.** `PROGRAM_VERDICT`'s profiling attributed ~26% of
+the episode to `Data.to(device)` and concluded "a ~3–4× is free: run inference on CPU."
+Half right. The 26% was real and is recovered (93 s → 72 s, 22.6%), but it was never a
+*transfer* cost — it is PyG's `Data.to()` recursing through every stored attribute,
+including the `queue_snapshot` and `task_logit_to_placement` dicts the scheduler attaches
+before the move, which the forward pass never reads. Moving only tensors is **174× faster
+per call** and the win is the same on CPU. Serving on CPU is *slower* than cuda here (86 s
+vs 72 s); there is no 3–4×, on either device.
+
+**Changes.** `move_graph_tensors_` in `src/policy/gnn/scheduler.py` replaces `graph.to()`
+at all three decode call sites (the field list comes from `verify_venue_parity.py`'s
+`GRAPH_TENSOR_FIELDS`, which had already worked this out for the fixture path).
+`resolve_serving_device()` in `executesimulation.py` reads `HEROSIM_GNN_DEVICE`
+(`cpu` default | `cuda` | `auto` = old behavior), and the resolved device is now stamped
+into `run_provenance` — `env_fingerprint` previously recorded only `cuda_available`, which
+describes the box, not what served. Not added to `STRICT_KEYS`, so existing fingerprints
+stand.
+
+**Why cpu is the default given cuda is faster.** For parity, not speed. `cuda` is the only
+axis `PARITY.md` finds that moves GNN logits at all (1.9e-5), and it is visible end to end:
+the same cell's `total_rtt` differs by **4.6e-6 relative** between the two devices. A cpu
+default makes a local run and a datalab `CPU-amd` gate resolve to the same device. The cost
+is ~19% on a GPU box and **zero on the partition every gate actually runs on**. Set
+`HEROSIM_GNN_DEVICE=auto` to restore the old behavior.
+
+**Status: ACTIVE.** 366 tests pass, `test_venue_parity` included — no fixture re-baseline.
+
+---
+
+### trainer_determinism_v1 — the seed fix reached 1 of 4 trainers (2026-08-25)
+
+`p5b_draw_study` fixed `train_mlp_dim22_from_batch.py` and stopped there.
+`train_mlp.py`, `train_mlp_ce_reduced.py` and `train_mlp_dim22_from_seq.py` still had the
+identical defect — split and batch order seeded, weight init from OS entropy — so
+"every MLP checkpoint before 2026-08-24 is an unreproducible draw" was still *true going
+forward* for three of the four trainers. All three now seed torch and stamp `torch_seeded`.
+
+`torch.use_deterministic_algorithms(True, warn_only=True)` added to all four notebook GNN
+trainers (`train_near_rtt`, `train`, `train_ram`, `train_seq`), default-on, escape hatch
+`NEAR_RTT_NONDETERMINISTIC=1`. `gnn_necessity_ablation.py` has had this since 2026-08-19;
+the trainers that produce deployable checkpoints did not. **This changes training numerics**
+— a different algorithm is selected — so checkpoints trained from here are not bit-comparable
+to earlier ones. Deliberate, and it lands *before* the draw study trains.
+
+**`tests/test_trainer_determinism.py`** (10 tests, ~12 s, no GPU). Two runs at one seed must
+give bit-identical weights. Both dynamic arms are verified to have teeth: remove
+`torch.manual_seed` and the MLP arm fails 2 ways, the GNN arm diverges 28/31 tensors.
+
+**What the test does not cover, measured rather than assumed.** It cannot catch removal of
+`use_deterministic_algorithms`. The GIN nondeterminism recorded on 2026-08-19 **did not
+reproduce on this box at any size tried** — 12 to 200 graphs, 2 to 5 epochs, node edges on
+and off, flag on and off, all bit-identical. So the dynamic test cannot discriminate, and
+the guard for that half is a *static* assertion that the line is present in every trainer.
+Absence on one box is not evidence the op is gone; it is build- and hardware-dependent.
+
+**Status: ACTIVE.** No CI exists in this repo — the command is documented in `CLAUDE.md`
+and is manual.
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |

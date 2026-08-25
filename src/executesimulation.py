@@ -581,6 +581,41 @@ def apply_mlp_checkpoint_queue_feature_contract(model_path: Path, model_label: s
     _adopt_queue_feature_contract(trained, model_label, model_path.name)
 
 
+def resolve_serving_device():
+    """Resolve the torch device used for GNN serving.
+
+    Controlled by HEROSIM_GNN_DEVICE: 'cpu' (default), 'cuda' (require CUDA, fail
+    loud if absent), or 'auto' (cuda-if-available, the pre-2026-08-25 behavior).
+
+    Default is cpu for PARITY, not for speed. Measured 2026-08-25 on a 30k-event episode
+    (cell01, workload-150-100-30k): cuda 72 s vs cpu 86 s — cuda is the FASTER device
+    here, so this default costs ~19% on a GPU box. What it buys is that a local run and a
+    datalab CPU-amd gate run resolve to the same device: cuda is the only axis PARITY.md
+    finds that moves GNN logits at all (1.9e-5), and it is visible end-to-end — the same
+    cell's total_rtt differs by 4.6e-6 relative between the two devices here.
+
+    The episode speedup the profiling predicted from "serve on CPU" did NOT come from the
+    device. It came from not calling `Data.to()` — see move_graph_tensors_ in
+    policy/gnn/scheduler.py, worth 93 s -> 72 s on the same episode, on cuda.
+    """
+    import torch
+
+    requested = os.environ.get("HEROSIM_GNN_DEVICE", "cpu").strip().lower()
+    if requested == "cpu":
+        return torch.device("cpu")
+    if requested == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "HEROSIM_GNN_DEVICE=cuda but torch.cuda.is_available() is False"
+            )
+        return torch.device("cuda")
+    if requested == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    raise ValueError(
+        f"HEROSIM_GNN_DEVICE={requested!r} — expected 'cpu', 'cuda' or 'auto'"
+    )
+
+
 def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = None):
     """Load the trained GNN model.
 
@@ -592,7 +627,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
     from src.policy.gnn.gnn_model import TaskPlacementGNN
     
     try:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = resolve_serving_device()
         print(f"Loading GNN model from {model_path} on {device}...", flush=True)
 
         state_dict = torch.load(model_path, map_location='cpu')
@@ -765,7 +800,7 @@ def load_gnn_hetero_model(model_path: Path):
     from src.policy.gnn_hetero.gnn_model import TaskPlacementGNN
 
     try:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = resolve_serving_device()
         print(f"Loading hetero GNN model from {model_path} on {device}...", flush=True)
 
         model = TaskPlacementGNN(
@@ -881,6 +916,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_LQB_LAMBDA",
             "GNN_QUEUE_FILTER_MAX_DELTA",
             "GNN_SEQBLEND_QUEUE_MARGIN",
+            "HEROSIM_GNN_DEVICE",
             "INFERENCE_FEATURE_LAYOUT",
             "KNATIVE_BATCH_SIZE",
             "KNATIVE_BATCH_TIMEOUT",

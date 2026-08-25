@@ -107,6 +107,19 @@ torch.manual_seed(_TRAIN_SEED)
 torch.cuda.manual_seed_all(_TRAIN_SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
+# Seeding alone does NOT make this trainer reproducible. Measured 2026-08-19 in
+# gnn_necessity_ablation.py: at a fixed seed on CPU the GIN autograd path diverges run to
+# run (mean_ce 0.9604 vs 0.9601 at epoch 5) — it is not cudnn, not intra-op threading
+# (OMP_NUM_THREADS=1 still diverges) and not PYTHONHASHSEED. cudnn.deterministic above
+# cannot reach it. Without this line a seed sweep conflates seed effects with run-to-run
+# noise, and the noise is the larger of the two.
+_NONDETERMINISTIC = os.environ.get("NEAR_RTT_NONDETERMINISTIC", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+if not _NONDETERMINISTIC:
+    torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 @dataclass(frozen=True)
@@ -1076,6 +1089,8 @@ wandb.init(
         "num_gin_layers": int(NUM_GIN_LAYERS),
         "weight_decay": float(WEIGHT_DECAY),
         "device": str(DEVICE),
+        "train_seed": int(_TRAIN_SEED),
+        "deterministic_algorithms": bool(not _NONDETERMINISTIC),
         "ce_weight": float(CE_LOSS_WEIGHT),
         "regret_weight": float(REGRET_LOSS_WEIGHT),
         "rtt_scale_factor": float(RTT_SCALE_FACTOR),
@@ -1222,6 +1237,12 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # Which infrastructure this was actually fitted on, so a live run can say
                 # whether it is in-distribution instead of guessing.
                 "corpus": _corpus_provenance,
+                # Which draw this is. A seeded-draw study attributes variance to the seed,
+                # so serving the wrong checkpoint would be silent — the filename is not
+                # evidence. `deterministic_algorithms` says whether the seed was actually
+                # sufficient to reproduce these weights (see the seed block at the top).
+                "train_seed": _TRAIN_SEED,
+                "deterministic_algorithms": not _NONDETERMINISTIC,
             },
             indent=2,
         )

@@ -110,6 +110,19 @@ pipenv run python3 scripts_cosim/test_regime_b_metrics.py
 pipenv run python3 -m pytest scripts_cosim/test_queue_features.py::test_function_name -v
 ```
 
+**Run this before training anything you intend to gate** (~12 s, no GPU):
+
+```bash
+PIPENV_IGNORE_VIRTUALENVS=1 OMP_NUM_THREADS=1 pipenv run python3 -m pytest tests/test_trainer_determinism.py -q
+```
+
+Two runs of a trainer at one seed must give bit-identical weights. The MLP trainer seeded
+its split and batch order but never `torch.manual_seed`, so weight init came from OS
+entropy — every MLP checkpoint before 2026-08-24 is an unreproducible draw, and three
+published-track claims were retired because of it. The defect survived months because the
+seeded trainer and the unseeded one were never diffed, so this test covers **every**
+trainer, not the one that broke. There is no CI in this repo; running it is manual.
+
 ### Training Models
 
 **CRITICAL**: All training runs must be logged to Weights & Biases (wandb) for tracking and comparison.
