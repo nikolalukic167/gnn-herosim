@@ -917,10 +917,23 @@ def generate_workload_templates(
             if dag_shape not in DAG_SHAPES:
                 raise ValueError(f"unknown dag_shape {dag_shape!r}; known: {sorted(DAG_SHAPES)}")
             types = list(dag_task_types or [])
-            # Multiple instances of the same DAG shape, submitted from different client
-            # nodes, land in ONE workload's events list and are therefore co-decided by the
-            # same co-sim episode (see route_b_v1 8-task probe, LINEAGES.md) — the tasks
-            # across instances compete for the same platforms, not just within one DAG.
+            # Multiple instances of the same DAG shape land in ONE workload's events list
+            # and are therefore co-decided by the same co-sim episode (see route_b_v1
+            # 8-task probe, LINEAGES.md) — the tasks across instances compete for the same
+            # platforms, not just within one DAG.
+            #
+            # Instance client nodes are INDEPENDENT draws, not distinct ones: two instances
+            # share a client node in ~1/NUM_CLIENT_NODES of templates. That is deliberate.
+            # Distinctness would be the wrong trade twice over:
+            #   - it buys nothing physically. route_b's grid sets per_client = 0, so no task
+            #     runs on its own client node — every task crosses the network regardless of
+            #     which client emitted it. A shared source node is not a shared *host*.
+            #   - it would cost matched-seed comparability. `inst = 0` draws client_nodes[0],
+            #     which is exactly what the 1-instance (4-task) corpus draws for its single
+            #     instance at the same workload_seed, so the 8-task corpus is a strict
+            #     perturbation of the 4-task one: instance 0 identical, instance 1 added.
+            #     Resampling to force distinctness would move instance 0 too, and the
+            #     4-vs-8-task closure comparison is the entire point of the probe.
             for inst in range(dag_instances):
                 dag = DAG_SHAPES[dag_shape](types)
                 base_event = deepcopy(base_events[0])

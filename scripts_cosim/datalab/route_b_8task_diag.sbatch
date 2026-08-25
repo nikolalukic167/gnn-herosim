@@ -37,6 +37,18 @@ export MAX_PLACEMENT_COMBINATIONS_SKIP=1000000
 export HEROSIM_DATA_LOCALITY=1
 export HEROSIM_OUTPUT_SIZE_BYTES=800000000
 
+# Both of these were MISSING from the first version of this file and of the probe, and
+# their absence is what truncated the sweeps in job 713615 (8 of the first 16 datasets,
+# sweep_complete=false, every failure an rf task forced onto an evicted replica). They are
+# not optional physics knobs — they are half of the Arm S generation recipe recorded at
+# LINEAGES.md:4022-4023, and the 4-task baseline this probe is compared against was built
+# with them. See cosim_keep_alive()'s docstring (src/executecosimulation.py:86-109): a DAG
+# stage stretched past KEEP_ALIVE=30s by route B's 800 MB transfers gets the CHILD's forced
+# replica scaled down before the child dispatches, killing the episode with "Invalid forced
+# placement ... not in replicas". 8-task episodes are long enough to hit it routinely.
+export HEROSIM_COSIM_KEEP_ALIVE=1000000
+export HEROSIM_RETAIN_TASK_TIMES=1
+
 # The diagnostic flip, relative to route_b_8task_probe.sbatch:
 export GNN_CAPTURE_DATASET_STATE=1
 export COSIM_SUPPRESS_SIM_PRINTS=0

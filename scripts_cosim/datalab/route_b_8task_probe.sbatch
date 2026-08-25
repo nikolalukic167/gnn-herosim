@@ -13,9 +13,15 @@
 # route_b_v1 8-task probe (LINEAGES.md, handover plan item 4, 2026-08-25): does pooled
 # krank closure (0.790 at 4 tasks, §9c) survive doubling the joint decision to 8 tasks?
 # 204 Arm S datasets (2 conn_probs x 2 replica_configs x 3 queue_dists x 17 seeds),
-# 16 shards of ~13 datasets each. Projected ~3,800 CPU-h / ~7.4h wall at 16x32c
-# (scratchpad costing in the handover plan); --time gives ~1.6x margin per shard since
-# per-shard dataset cost is uneven (worst single dataset projected ~45 CPU-h alone).
+# 16 shards of ~13 datasets each.
+#
+# COST: the original ~3,800 CPU-h projection in this header was wrong by ~20x. It came
+# from the unreachability-free upper bound on placement combinations (~580k/dataset);
+# reachability filtering cuts real sweeps to 1,440-57,600 combinations. Measured 8-task
+# rate: ~2,935 sims/min on 8 cores WITH print I/O on (job 713559). 204 datasets is a few
+# CPU-hours, not thousands — cheap enough that the corpus is generated LOCALLY (matching
+# the 4-task baseline's venue, LINEAGES.md:4021) and this sbatch is the fallback, not the
+# default route. The 12h walltime is left as generous margin.
 #
 # Reuses run_contention_regen_shard.sh unchanged (generic sharded-generation runner) —
 # only the env vars differ. Two are new here and are NOT read by that script directly;
@@ -50,5 +56,20 @@ export COSIM_SUPPRESS_SIM_PRINTS=1
 export MAX_PLACEMENT_COMBINATIONS_SKIP=1000000
 export HEROSIM_DATA_LOCALITY=1
 export HEROSIM_OUTPUT_SIZE_BYTES=800000000
+
+# These two were MISSING in the version that ran as job 713615, and that is why it was
+# cancelled: 8 of the first 16 datasets came back with sweep_complete=false (up to 45,387
+# failed placements of 57,600), every failure an rf task forced onto a replica the episode
+# had already reclaimed. They are not optional — they are half of the Arm S generation
+# recipe recorded at LINEAGES.md:4022-4023, and the 4-task baseline this probe is compared
+# against was built with them. See cosim_keep_alive()'s docstring
+# (src/executecosimulation.py:86-109): a DAG stage stretched past KEEP_ALIVE=30s by route
+# B's 800 MB transfers gets the CHILD's forced replica scaled down before the child
+# dispatches, killing the episode with "Invalid forced placement ... not in replicas".
+# 4-task episodes are short enough to mostly survive it; 8-task ones are not.
+# HEROSIM_RETAIN_TASK_TIMES is what makes rows carry task_times, without which
+# score_route_b_contention.py refuses the makespan objective (its lines 103-107).
+export HEROSIM_COSIM_KEEP_ALIVE=1000000
+export HEROSIM_RETAIN_TASK_TIMES=1
 
 bash scripts_cosim/datalab/run_contention_regen_shard.sh
