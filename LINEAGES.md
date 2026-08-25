@@ -3603,8 +3603,11 @@ the cheap intended failure point), pre-registration, the n≥200 corpus, the k-i
 parent-node-identity repair controls in `separability_diagnostic.py`, and set-valued labels
 (makespan optima tie 2–34 deep, and `audit_label_provenance` asserts a unique minimum).
 
-**Status: ACTIVE — groundwork only. No result. Do not cite as evidence for or against
-route A.**
+**Status: SUPERSEDED by the two probe entries below — route_a_v1 is CLOSED (NO-GO).** This
+row documents the *machinery*, which stands and is reusable: DAG dispatch, fan-in, the
+server mesh, the path-bandwidth transfer term, and the makespan channel are all
+prerequisites for §9 route B, which is where the closing entry points next. Nothing here
+is evidence for or against route A; the verdict is below.
 
 ---
 
