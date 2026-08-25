@@ -30,12 +30,21 @@
 #     exceed 250k routinely; the default would SILENTLY SKIP them and bias the corpus
 #     toward its easier (less contended) half — exactly the failure mode documented at
 #     generate_gnn_datasets_fast.py:387-391 for the route_a sizing ladder.
-#     1,000,000 is provably sufficient, not a guess: with no-replica-reuse the exact
-#     per-dataset ceiling is prod over task types of n_t*(n_t-1), computed from each
-#     infrastructure.json's replica_placements. Across all 204 datasets that ceiling
-#     maxes at 580,608 (median 552,384), so NO dataset can hit the threshold even before
-#     reachability filtering. Measured actuals, for calibration: ds_00002 161,280 /
-#     ds_00000 175,104 / ds_00092 193,500 / ds_00189 483,840 — i.e. 28%-92% of ceiling.
+#     2,000,000, and the bound is derived rather than guessed. THE THRESHOLD IS TESTED
+#     AGAINST total_possible, WHICH IS COMPUTED BEFORE THE UNIQUENESS CONSTRAINT
+#     (executecosimulation.py:1808-1817) — not against the post-uniqueness sweep size.
+#     For 2 DAG instances total_possible = n4(client_0) * n4(client_1), where n4(c) is the
+#     4-task combination count from client node c: the two instances are emitted from
+#     independently drawn client nodes, and per-task feasible_platforms is filtered by
+#     reachability FROM THAT CLIENT, so instance 1 sees a different candidate set even
+#     though the infrastructure is byte-identical to the 4-task dataset at the same index
+#     (verified). Since feasible_t <= n_t, the hard upper bound is (max_ds prod_t n_t)^2 =
+#     1248^2 = 1,557,504, so 2,000,000 cannot be reached by any dataset in this grid.
+#     1,000,000 was NOT enough: job 713656 skipped ds_00026 (n4=1152) and was cancelled.
+#     Post-uniqueness sweep sizes are much smaller — measured ds_00002 161,280 /
+#     ds_00000 175,104 / ds_00092 193,500 / ds_00189 483,840 — so raising the threshold
+#     costs little wall time; it only stops the largest-candidate-space datasets from
+#     being dropped, which is the biased half.
 #   HEROSIM_DATA_LOCALITY / HEROSIM_OUTPUT_SIZE_BYTES — Arm S (primary) physics, matching
 #     ROUTE_B_PILOT_V1_GRID's original arm-S env exactly (see its comment block).
 #
@@ -58,7 +67,7 @@ export ALLOW_NON_UNIQUE=0
 export GNN_CAPTURE_DATASET_STATE=0
 export COSIM_SUPPRESS_SIM_PRINTS=1
 
-export MAX_PLACEMENT_COMBINATIONS_SKIP=1000000
+export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000
 export HEROSIM_DATA_LOCALITY=1
 export HEROSIM_OUTPUT_SIZE_BYTES=800000000
 
