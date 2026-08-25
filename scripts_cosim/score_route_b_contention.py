@@ -76,6 +76,21 @@ def load_rows(ds_dir: Path, objective: str) -> List[Tuple[Plan, float]]:
     if not jsonl.exists():
         raise RuntimeError(f"{ds_dir}: placements/placements.jsonl missing — the full "
                            "sweep is mandatory (CO_SIMULATION_GUIDE), refusing to score")
+    # A truncated sweep biases every statistic here (marginals, optima, feasible sets)
+    # toward whatever subset survived, and route B's smoke lost 66-72/240 rows to
+    # mid-episode replica scale-down before this check existed. Unscoreable — refuse.
+    meta_path = ds_dir / "placement_metadata.json"
+    if not meta_path.exists():
+        raise RuntimeError(f"{ds_dir}: placement_metadata.json missing — cannot verify "
+                           "the sweep is complete, refusing to score")
+    with open(meta_path) as fh:
+        meta = json.load(fh)
+    if not meta.get("sweep_complete", False):
+        raise RuntimeError(
+            f"{ds_dir}: sweep is TRUNCATED ({meta.get('rows_written')}/"
+            f"{meta.get('num_placements')} rows, worker_failed="
+            f"{meta.get('worker_failed')}, timed_out={meta.get('timed_out')}) — see "
+            "placement_errors.log in the dataset dir; refusing to score")
     rows: List[Tuple[Plan, float]] = []
     with open(jsonl) as fh:
         for i, line in enumerate(fh):

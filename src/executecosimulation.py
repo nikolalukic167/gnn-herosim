@@ -83,6 +83,32 @@ QUIET_MODE = False
 _LAST_SKIP_REASON: Optional[Dict[str, Any]] = None
 
 
+def cosim_keep_alive() -> float:
+    """Replica keep-alive for co-sim sweep episodes, overridable by env.
+
+    The default (constants.KEEP_ALIVE = 30 s) lets the autoscaler scale down replicas
+    that idle longer than 30 s MID-EPISODE. For single-node dags that is invisible —
+    all tasks batch at t~0 and nothing needs a replica after it goes idle. For a DAG it
+    corrupts the sweep: children dispatch at their parents' completion, and any physics
+    that stretches a parent stage past 30 s (route B's 800 MB transfers do) gets the
+    child's FORCED replica evicted first, killing the episode with "Invalid forced
+    placement ... not in replicas" — nondeterministically, because the scale-down victim
+    sort is the known unstable set-order tie-break. A forced-placement sweep evaluates a
+    plan over the dataset's DECLARED replica substrate; whether a replica survives to be
+    used must not depend on autoscaler timing no scheduler controls.
+
+    Set HEROSIM_COSIM_KEEP_ALIVE (seconds) to override; unset keeps KEEP_ALIVE and is
+    bit-identical to prior behavior.
+    """
+    raw = os.environ.get("HEROSIM_COSIM_KEEP_ALIVE", "").strip()
+    if not raw:
+        return KEEP_ALIVE
+    value = float(raw)
+    if value <= 0:
+        raise ValueError(f"HEROSIM_COSIM_KEEP_ALIVE must be positive, got {value}")
+    return value
+
+
 def rtt_from_stats(stats: Optional[Dict[str, Any]]) -> float:
     """
     Total RTT for scoring / brute-force comparison.
@@ -1174,7 +1200,7 @@ def capture_system_state_from_first_task(
         # Execute simulation
         cache_policy = 'fifo'
         task_priority = 'fifo'
-        keep_alive = KEEP_ALIVE
+        keep_alive = cosim_keep_alive()
         queue_length = QUEUE_LENGTH
         scheduling_strategy = 'determined_determined'
         
@@ -2038,7 +2064,7 @@ def process_sample_with_placement(args):
         # Execute simulation with additional inputs
         cache_policy = 'fifo'
         task_priority = 'fifo'
-        keep_alive = KEEP_ALIVE
+        keep_alive = cosim_keep_alive()
         queue_length = QUEUE_LENGTH
         scheduling_strategy = 'determined_determined'
 
@@ -2173,7 +2199,7 @@ def process_placement_fast(
             models={},
             cache_policy='fifo',
             task_priority='fifo',
-            keep_alive=KEEP_ALIVE,
+            keep_alive=cosim_keep_alive(),
             queue_length=QUEUE_LENGTH,
         )
         
@@ -2246,6 +2272,17 @@ def process_placement_fast(
         return result_file, rtt_value, placement_plan, task_times
 
     except Exception as e:
+        # A lost placement truncates the sweep, and a truncated sweep is unscoreable —
+        # the parent counts these (worker_failed) but had no record of WHY. Route B's
+        # smoke lost 66-69/240 rows with zero diagnostic. Always append the cause to
+        # placement_errors.log in the output dir; never fail silently.
+        try:
+            import traceback as _tb
+            with open(output_dir / "placement_errors.log", "a") as _ef:
+                _ef.write(f"placement={sorted(placement_plan.items())}\n")
+                _ef.write(_tb.format_exc() + "\n")
+        except Exception:
+            pass
         if not QUIET_MODE:
             print(f"[worker] Error in simulation: {str(e)}")
         return None, float('inf'), None, None
@@ -2753,7 +2790,18 @@ def execute_brute_force_optimized(
                 )
         except Exception as e:
             logger.warning(f"Failed to write placement_metadata.json: {e}")
-    
+
+        # Workers append per-placement failure tracebacks to placement_errors.log in the
+        # scratch output_dir, which callers routinely delete after copying results out —
+        # preserve the diagnostics next to placement_metadata.json, where the failure
+        # COUNTS already live. A truncated sweep without its error log is undebuggable.
+        try:
+            worker_error_log = output_dir / "placement_errors.log"
+            if worker_error_log.exists() and progress_dir != output_dir:
+                shutil.copy2(worker_error_log, progress_dir / "placement_errors.log")
+        except Exception as e:
+            logger.warning(f"Failed to preserve placement_errors.log: {e}")
+
     # Summary
     _log(f"\n=== Optimization Complete ===")
     _log(f"Total time: {elapsed_time:.1f}s")

@@ -278,6 +278,48 @@ ROUTE_A_PILOT_V1_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_dag4_route_a_pilot_v1",
 }
 
+# route_b_pilot_v1: route A's stacked machinery + SCARCE placement substrate, for the
+# free-choice (contention) hypothesis. See route_b_v1 PRE-REGISTRATION in LINEAGES.md.
+#
+# The memory-knapsack constraint itself is applied at SCORING time
+# (scripts_cosim/score_route_b_contention.py) — it changes no physics, so one corpus
+# serves the whole capacity-tightness ladder. What this grid must supply is the
+# *competition substrate* the pre-probe found missing (free-choice plans collided in only
+# 10% of m3-pilot datasets against ~22 candidate hosts):
+#   - server_node_counts [4]: four servers for four tasks, so individual favourites
+#     genuinely overlap;
+#   - per_client = 0: every task crosses the network (netc_multihop_v1's lesson — a
+#     client-local corner makes everything more separable, not less);
+#   - four DISTINCT task types: the knapsack demands are type-asymmetric (GPU: dnn1/dnn2
+#     0.9, rf 1.5, cnn 1.3), so WHICH types co-reside determines feasibility, not just
+#     how many — the count-vector collapse the five co-location mechanisms died of does
+#     not describe this constraint.
+#
+# The two arms are generated from THIS grid with the same seeds, differing only in env:
+#   Arm S  (primary): HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000
+#   Arm B0 (control): both unset (separable physics; theorem-predicted R_exact == 0)
+#
+# Seeds 901+ do not overlap any existing range (101-148, 201-214, 701-750, 801-850).
+ROUTE_B_PILOT_V1_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "server_node_counts": [6],
+    "replica_configs": [
+        (0, 2, 0.7, 0.9),
+        (0, 3, 0.7, 0.9),
+    ],
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("deepvar_uniform0_12", "uniform", 0, 12, 0, 16, 1),
+        ("deepvar_pois4", "poisson", 4, 0, 0, 16, 1),
+    ],
+    "seeds": list(range(901, 918)),
+    "dag_shape": "diamond4",
+    "dag_task_types": ("dnn1", "dnn2", "rf", "cnn"),
+    "server_mesh": True,
+    "backbone_defaults": {"link_bandwidth_mbps": 1000.0},
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1",
+}
+
 # netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
 #
 # The first matched pilot ran link_contention_v1 on the stock shallow_v1 grid and all three
@@ -631,6 +673,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "contention_v5_quick_test": CONTENTION_V5_QUICK_TEST_GRID,
     "regime_b_cold_burst_v1": REGIME_B_COLD_BURST_V1_GRID,
     "route_a_pilot_v1": ROUTE_A_PILOT_V1_GRID,
+    "route_b_pilot_v1": ROUTE_B_PILOT_V1_GRID,
 }
 
 
