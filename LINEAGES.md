@@ -4635,6 +4635,54 @@ evidence). What it fixes, in one line each:
 **Status: REGISTERED AND SIGNED OFF. The §9c gating condition is discharged; the §10
 build queue (B0–B8, PP0′ first) may start. Nothing was built before this row existed.**
 
+### route_b_v1 — stage 2 build queue: A1 is genuinely T2, B6 closed, pilot cache built (2026-08-26)
+
+Build progress under the v2 registration. **No GNN-vs-MLP performance was measured** —
+the registered comparison is now *runnable*, not run.
+
+- **A1 implementation** (commit `28fbe35`). Before this, the "GNN" arm was structurally
+  identical to A3: message passing saw only the bipartite task↔platform graph, and
+  `masked_topo` decode read one static logit vector computed before any placement was
+  committed. Now, behind default-off flags (`NEAR_RTT_MP_DAG_EDGES` /
+  `NEAR_RTT_TASK_TYPE_ONEHOT` / `NEAR_RTT_PARTIAL_STATE_EDGES`): undirected workload-DAG
+  edges plus the mandatory 4-way task-type one-hot (a fairness repair — the T1 MLP
+  already sees task type via krank) enter message passing; the 38 prefix columns enter
+  at the EdgeScorer only, in a separate `partial_state_edge_attr` (`edge_attr` stays
+  5-wide, load-bearing for the A2/A3 extractors); the decoder re-scores each task
+  against the committed prefix via `score_fn`. Serving refuses a
+  `partial_state_edge_features` checkpoint (live prefix construction is stage 3) — a
+  refusal that initially did NOT fire because `checkpoint_mp_config`'s key whitelist
+  silently dropped the sidecar field (memory
+  `herosim-sidecar-keys-need-serving-whitelist`). Verified: frozen decoder acceptance
+  unchanged at 408 cells; T1/T2 column parity bit-identical keyed on `logit_idx`.
+- **B6 closed** (commit `0ac184c`): one shared split artifact,
+  `experiments/route_b_stage2_split_v1.json` — 142/31/31 over the 204 pilot parents,
+  seed 42, sha256 `0171ef14…`. The GNN loads it via `NEAR_RTT_SPLIT_ARTIFACT`, the MLP
+  via `--split-artifact`; both fail loud on any artifact/corpus parent-set mismatch, the
+  GNN additionally on the `train_all` / <10-graph bypasses (the sidecar would otherwise
+  claim a split the run did not use), and the MLP refuses `--val-size`/`--test-size`
+  alongside an artifact. A "draw" therefore varies initialisation and batch order ONLY —
+  §3's definition. Sidecar/meta stamp `{path, sha256}`, verified byte-identical across
+  an A1 2-epoch smoke and an MLP 1-epoch smoke on the real cache. 18 tests in
+  `tests/test_split_artifact.py`, including the cross-trainer parity of the two
+  duplicated parent-derivation implementations the scheme keys on.
+- **Real DAG cache built**: `graphs_cache_route_b_pilot_s_dag` — 204 graphs from
+  `gnn_datasets_dag4_route_b_pilot_v1_arm_s`, built locally in 7.65 s (no datalab job;
+  the 8-hour recache precedent was a 2,816-dataset merged corpus). All 204 datasets
+  passed every alpha-ladder feasibility gate (`inf`/`3.0`/`2.0`).
+  `--platform-feature-dim 14` was passed explicitly — the CLI default is 16 and the
+  trainer only *warns* on a mismatch — plus `--queue-feature-contract legacy_v0`. The
+  12-graph smoke cache stays: two tests hardcode its path.
+- `experiments/route_b_stage2_a1.yaml` repointed to the real cache and pinned to the
+  artifact; its B6 do-not-run warning removed as discharged.
+
+**Next, per registered order: write `experiments/route_b_stage2_a{2,3}.yaml` (they do
+not exist) and run the MLP arms first, then A1 — multi-seed, all arms on the same split
+artifact.** The honest risk stands (`HANDOVER_route_b_stage2_a1.md` §6): the measured
+contention ceiling (<10%, `herosim-link-contention-charges-input-ingress`) may be too
+low for a GNN win; that outcome would point at the environment (CLAUDE.md option 2),
+not at more model work.
+
 ---
 
 ## RETIRED

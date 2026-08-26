@@ -8,6 +8,35 @@ in the working tree.
 
 ---
 
+> ## STATUS UPDATE — 2026-08-26, follow-up session
+>
+> Everything §5 listed as blocking-before-runs is now done and committed; the sections
+> below are kept as written for the record. What changed:
+>
+> - **Committed** in grouped commits: `26cb6f1` (B2+ DAG cache path + dim63crk
+>   extraction), `28fbe35` (this handover's A1 work), `523aeaf` (docs/domain model),
+>   `0ac184c` (B6). Working tree clean.
+> - **B6 CLOSED.** Shared split artifact `experiments/route_b_stage2_split_v1.json`
+>   (142/31/31 over 204 parents, seed 42, sha256 `0171ef14…`), producer
+>   `scripts_cosim/make_split_artifact.py`, consumers in both trainers
+>   (`NEAR_RTT_SPLIT_ARTIFACT` / `--split-artifact`), fail-loud coverage + bypass
+>   guards, `{path, sha256}` stamped in sidecar/meta — verified identical across an A1
+>   and an MLP smoke. 18 tests in `tests/test_split_artifact.py`; full suite 249 pass.
+> - **Real DAG cache built** — locally in 7.65 s, not on datalab (step 2's datalab
+>   estimate was wrong by ~3 orders of magnitude; timing metadata in every cache says
+>   so): `graphs_cache_route_b_pilot_s_dag`, 204 graphs, all alpha rungs feasible,
+>   dim14/`legacy_v0`/`partial_state_v1`. Built with explicit
+>   `--platform-feature-dim 14` — the CLI default is 16 and the trainer only warns.
+> - **`experiments/route_b_stage2_a1.yaml` repointed** to the real cache and pinned to
+>   the artifact. Frozen decoder acceptance re-run: still 408 cells.
+>
+> **Remaining before the registered draws:** write `experiments/route_b_stage2_a{2,3}.yaml`
+> (MLP arms first, per registration), then multi-seed runs, then the LINEAGES outcome
+> row. LINEAGES.md now carries a stage-2 build-queue progress row dated 2026-08-26.
+> §6's honest risk is unchanged.
+
+---
+
 ## 1. What this session did, in one paragraph
 
 Before this session the "GNN" arm of the route_b stage-2 comparison was structurally
@@ -96,6 +125,8 @@ graphs. The comparison is now *askable*, not *answered*.
 ## 5. What is left to do
 
 ### BLOCKER — do this before running any registered draws
+**[RESOLVED 2026-08-26 — see STATUS UPDATE above; commit `0ac184c`.]**
+
 **B6: the shared split artifact.** `split_by_parent_three_way` is MLP-only; the GNN still
 uses `split_ids_by_canonical_parent(random_state=42)` at `train_near_rtt.py`. Until one
 split artifact is loaded by both arms, a "draw" varies the split as well as the
@@ -108,7 +139,8 @@ initialisation, and §3's paired test is confounded. The A1 sidecar currently re
 Swap in `{"path": ..., "sha256": ...}` when B6 lands.
 
 ### Then, in order
-2. **Build the real DAG cache.** `prepare_graphs_cache.py --dag-partial-state` over
+2. **[DONE 2026-08-26 — built locally, not on datalab; see STATUS UPDATE.]**
+   **Build the real DAG cache.** `prepare_graphs_cache.py --dag-partial-state` over
    `simulation_data/gnn_datasets_dag4_route_b_pilot_v1_arm_s` (204 datasets). Only a
    12-graph smoke cache (`graphs_cache_route_b_smoke_s_dag`) exists today. Likely a
    datalab job — read `PARITY.md` and the `datalab-pitfalls` skill first, and never write
@@ -121,8 +153,9 @@ Swap in `{"path": ..., "sha256": ...}` when B6 lands.
    outcome.
 
 ### Also worth doing
-- Commit this work (currently uncommitted on `feat/network-contention-v1`).
-- Consider whether `experiments/route_b_stage2_a1.yaml` should point at the full cache
+- **[DONE]** Commit this work (currently uncommitted on `feat/network-contention-v1`).
+- **[DONE — repointed to `graphs_cache_route_b_pilot_s_dag` + the B6 artifact.]**
+  Consider whether `experiments/route_b_stage2_a1.yaml` should point at the full cache
   rather than the smoke cache before the real runs (`cache_dir` is currently
   `graphs_cache_route_b_smoke_s_dag`, and `epochs: 40`).
 
