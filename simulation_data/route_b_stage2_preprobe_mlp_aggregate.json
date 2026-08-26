@@ -1,0 +1,43 @@
+{
+  "note": "route_b stage 2 preprobe -- MLP arms report first, per SS3 registered order. A1 (GNN) has not been trained/evaluated at the time this file was written.",
+  "a2_dim63crk": {
+    "arm_type": "mlp_dim63crk",
+    "num_draws": 4,
+    "reports": [
+      "simulation_data/route_b_stage2_a2_eval_seed1.json",
+      "simulation_data/route_b_stage2_a2_eval_seed2.json",
+      "simulation_data/route_b_stage2_a2_eval_seed3.json",
+      "simulation_data/route_b_stage2_a2_eval_seed4.json"
+    ],
+    "per_draw_train_regret_pct": [
+      19.934359146296124,
+      18.744663543369647,
+      21.079595018002042,
+      13.05586252408176
+    ],
+    "mean_train_regret_pct": 18.203620057937393,
+    "median_train_regret_pct": 19.339511344832886,
+    "pooled_per_dataset_paired_diff_sigma": 6.768927466968489,
+    "num_datasets_common_to_all_draws": 204
+  },
+  "a3_dim25cr": {
+    "arm_type": "mlp_dim25cr",
+    "num_draws": 4,
+    "reports": [
+      "simulation_data/route_b_stage2_a3_eval_seed1.json",
+      "simulation_data/route_b_stage2_a3_eval_seed2.json",
+      "simulation_data/route_b_stage2_a3_eval_seed3.json",
+      "simulation_data/route_b_stage2_a3_eval_seed4.json"
+    ],
+    "per_draw_train_regret_pct": [
+      15.756017368915268,
+      18.881794007057618,
+      16.974994750585115,
+      18.6505435376266
+    ],
+    "mean_train_regret_pct": 17.56583741604615,
+    "median_train_regret_pct": 17.812769144105857,
+    "pooled_per_dataset_paired_diff_sigma": 7.602083983936787,
+    "num_datasets_common_to_all_draws": 204
+  }
+}

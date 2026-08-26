@@ -4683,6 +4683,70 @@ contention ceiling (<10%, `herosim-link-contention-charges-input-ingress`) may b
 low for a GNN win; that outcome would point at the environment (CLAUDE.md option 2),
 not at more model work.
 
+### route_b_v1 — stage 2 §9 pre-probe: **NO-GO-PREPROBE** (2026-08-26)
+
+- **Registered deviations, per user decision 2026-08-26:** the §9 pre-probe ran on the
+  **pilot-204 corpus** (`gnn_datasets_dag4_route_b_pilot_v1_arm_s` — the stage-1 corpus
+  carrying the 35 firing datasets) instead of the registered 12-graph smoke corpus;
+  "train-set eval" = the shared split artifact's 142-parent train split (full-204 view
+  reported alongside, labelled); 4 draws/arm (seeds 1–4), all arms on split artifact
+  sha256 `0171ef14…` — a draw varies init + batch order only (§3). MLP arms trained and
+  their aggregate was written to disk **before** any A1 training (§3 registered order;
+  `route_b_stage2_preprobe_mlp_aggregate.json`).
+- **Build items landed to make the arms runnable:** `run_experiment.py` bare-flag args +
+  `--seed` (per-seed env/argv, B6's templated-config option); A3 tied-label dim25cr
+  extraction — a label-parity repair mandated by §3's "same labels, same α" (the plain
+  dim25cr path labels from `graph.y`, the unconstrained sweep argmin, not the α=2.0
+  tied-optimal set); `scripts_cosim/eval_route_b_stage2_arm.py` computing the §6
+  registered statistic (decode regret vs the α=2.0 constrained-feasible optimum),
+  self-check reproducing the frozen greedy plans to 1e-9 on all 408 stage-1 cells. Note
+  recorded: the trainer's internal `regret_masked_topo` divides by the **unconstrained**
+  sweep minimum and is a checkpoint-selection convenience, not the registered statistic —
+  the two disagree by construction (e.g. `ds_00000`: 19.4% vs 57.3% for the same decoded
+  plan).
+- **VOID first A1 sweep, cause found and fixed:** the four initial A1 "draws" were one
+  draw repeated — `src/notebooks/prepare_graphs_cache.py` seeded random/numpy/torch with
+  a hardcoded 42 at **module import**, and `train_near_rtt.py`'s
+  `from ...prepare_graphs_cache import DAG_TASK_TYPE_VOCAB` executed that after the
+  trainer's own `NEAR_RTT_TRAIN_SEED` seeding, so every draw's weight init and batch
+  order came from 42 (sidecars stamped the right `train_seed`; weights bitwise
+  identical; wandb curves identical to full precision). **Third seeding-defect class in
+  this repo** (see `herosim-pythonhashseed-tiebreak-nondeterminism` and the MLP
+  `torch.manual_seed` gap for the first two). Fix: seeding moved into that script's
+  `main()`; regression tests go through the real `run_experiment --seed` subprocess
+  path (same seed ⇒ bit-identical, different seeds ⇒ diverge — the existing in-process
+  determinism tests could not see the import chain). MLP draws were never affected.
+- **Results** (mean decode regret vs α=2.0 constrained optimum; train-split = median
+  over 4 draws, per-draw in parentheses): A1 GNN(T2) **28.45%** (24.43/32.46/23.67/36.55);
+  A2 dim63crk(T1) **19.34%** (19.93/18.74/21.08/13.06); A3 dim25cr(T0) **17.81%**
+  (15.76/18.88/16.97/18.65). Full-204 view alongside (labelled): A1 29.38%, A2 20.10%,
+  A3 17.29%. Floors: F3 uniform-feasible exact expectation **89.73%** train mean — no
+  arm above it, so §8 V1's instrumentation check does not fire; F2 greedy-on-true-
+  marginals 8.86% mean / 0.00% median. 0 infeasible completions in all 12 valid draws;
+  every tie band collapsed to a point.
+- **Reading, applied as registered (§9): A1 train-set regret ≥ A2's ⇒ NO-GO-PREPROBE.**
+  A model that cannot beat pointwise-plus-state when both are allowed to memorize will
+  not generalize past it. Stage 2 stops here: the B4 fresh-corpus generation and the §8
+  gate do not run under this registration. Facts recorded without advocacy: A1 trained
+  under its config's `epochs: 40` (convergence not separately verified); the four-task-
+  limit sentence of §4 stands ("the corpus is too small to test the architecture claim",
+  never "the architecture claim is false").
+- **σ calibration (§6), recorded for any future re-registration:** pooled per-dataset
+  paired-difference σ (A2−A1) = 18.36%; per-arm seed-to-seed σ A1 13.57% / A2 6.77% /
+  A3 7.60% — far above the registered 3.75% trigger, so the provisional n=504 ladder
+  start was insufficient regardless.
+- **Context observations, no verdict read:** A3(T0) ≤ A2(T1) at 4 draws — the corrected
+  T1 layout did not help a trained model here; the cheap-falsifier scenario (T1 decodes
+  near-optimally ⇒ V5 on paper) did NOT occur (T1 sits ~19% train regret). Consistent
+  with the handover §6 honest risk: the open decision — environment pivot (CLAUDE.md
+  option 2) vs closing route B's GNN argument — belongs to the user and needs its own
+  registration either way.
+- **Artifacts:** `simulation_data/route_b_stage2_{a1,a2,a3}_eval_seed{1..4}.json`,
+  per-arm aggregates, `route_b_stage2_preprobe_mlp_aggregate.json`,
+  `route_b_stage2_preprobe_readings.json`; checkpoints + sidecars in `models/`
+  (gitignored); wandb project `gnn-route-b-stage2`, 16 online runs (8 MLP + 4 void A1 +
+  4 valid A1).
+
 ---
 
 ## RETIRED
