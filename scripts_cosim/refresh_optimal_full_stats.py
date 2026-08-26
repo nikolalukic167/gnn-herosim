@@ -32,9 +32,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.executecosimulation import (
-    KEEP_ALIVE,
     QUEUE_LENGTH,
     build_system_state_captured,
+    cosim_keep_alive,
     execute_simulation,
 )
 from src.placement.model import DataclassJSONEncoder
@@ -169,15 +169,37 @@ def repair_dataset(
     os.environ["SIM_FORCE_FULL_STATS"] = "1"
     full_config = copy.deepcopy(config)
     full_config.setdefault("infrastructure", {})["forced_placements"] = placement_plan
+    # keep_alive goes through cosim_keep_alive() (HEROSIM_COSIM_KEEP_ALIVE, unset =
+    # constants.KEEP_ALIVE, bit-identical to prior behavior). The route_b DAG corpora
+    # were generated with HEROSIM_COSIM_KEEP_ALIVE=1000000 — replaying them at the
+    # default 30 s evicts idle forced replicas mid-episode ("Invalid forced placement
+    # ... not in replicas"), exactly the failure cosim_keep_alive()'s docstring
+    # records. The repair env must match the collection's generation env.
     result = execute_simulation(
         full_config,
         sim_inputs,
         "determined_determined",
         cache_policy="fifo",
         task_priority="fifo",
-        keep_alive=KEEP_ALIVE,
+        keep_alive=cosim_keep_alive(),
         queue_length=QUEUE_LENGTH,
     )
+    # Faithfulness guard: the replay re-runs the SAME forced plan under the SAME
+    # config/sim_inputs, so when the old export carries a total_rtt the replay must
+    # reproduce it — a divergence means the replay env does not match the generation
+    # env (keep-alive, HEROSIM_DATA_LOCALITY, ...) and the rewritten export would
+    # silently describe different physics than the corpus. Fail before touching the
+    # file.
+    old_rtt = (old.get("stats") or {}).get("total_rtt")
+    new_rtt = (result.get("stats") or {}).get("total_rtt")
+    if old_rtt is not None and new_rtt is not None:
+        if abs(new_rtt - old_rtt) > 1e-9 * max(1.0, abs(old_rtt)):
+            raise RuntimeError(
+                f"{optimal_path.parent.name}: replay total_rtt {new_rtt!r} != stored "
+                f"{old_rtt!r} — replay env does not reproduce the generation env; "
+                "refusing to overwrite. Set the collection's generation env "
+                "(HEROSIM_COSIM_KEEP_ALIVE / HEROSIM_DATA_LOCALITY / ...) and re-run."
+            )
     result["sample"] = {
         **(old.get("sample") or {}),
         "placement_plan": {str(k): [v[0], v[1]] for k, v in placement_plan.items()},
