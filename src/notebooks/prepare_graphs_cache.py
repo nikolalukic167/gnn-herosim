@@ -69,7 +69,24 @@ from src.placement.network_graph import (
     resolve_network_graph_contract,
 )
 from src.placement.temporal_features import temporal_remainders
-from src.placement.topology_features import build_source_feature_context
+# resolve_topology_feature_contract has been cited by the metadata block since
+# d88278c (2026-08-23) but was never imported — a latent NameError that crashed
+# the FIRST full cache build attempted after that commit (this one, 2026-08-26).
+from src.placement.topology_features import (
+    build_source_feature_context,
+    resolve_topology_feature_contract,
+)
+from src.placement.dag_workload import (
+    load_link_topology,
+    load_workload_dag,
+    parents_map,
+    route_hops_and_bottleneck,
+)
+from src.placement.network_fabric import is_core_link, route_links
+from src.policy.tabular.reduced_features import (
+    krank_node_order,
+    resolve_partial_state_contract,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -148,6 +165,7 @@ class Config:
     platform_feature_dim: int = 16
     require_queue_data: bool = True
     oversample_manifest: Optional[Path] = None
+    dag_partial_state: bool = False
 
 
 def load_oversample_weights(manifest_path: Path) -> Dict[str, int]:
@@ -221,6 +239,20 @@ def parse_args() -> Config:
     )
     parser.add_argument("--allow-missing-queue-data", action="store_true")
     parser.add_argument(
+        "--dag-partial-state",
+        action="store_true",
+        help=(
+            "route_b stage 2 (ROUTE_B_STAGE2_PREREGISTRATION.md §2/§5, build item "
+            "B3): attach the DAG block to every graph — parent edges "
+            "(dag_edge_index), a 4-type task one-hot (task_type_onehot4, a separate "
+            "attr so the legacy 3-dim task block stays bit-identical), the capacity "
+            "map for the alpha ladder {inf, 3.0, 2.0}, tied-optimal label sets per "
+            "alpha (any-of-K CE), and the partial_state_ctx ingredients the "
+            "single-source dim63crk extractor consumes. Requires DAG workloads "
+            "with ingress endpoints and a link fabric; fails loud otherwise."
+        ),
+    )
+    parser.add_argument(
         "--oversample-manifest",
         type=Path,
         default=None,
@@ -253,6 +285,7 @@ def parse_args() -> Config:
         platform_feature_dim=int(args.platform_feature_dim),
         require_queue_data=not args.allow_missing_queue_data,
         oversample_manifest=args.oversample_manifest,
+        dag_partial_state=bool(args.dag_partial_state),
     )
 
 
@@ -1197,14 +1230,25 @@ def build_graph(
         """Filter platforms by compatibility rules."""
         if network_feasible_plats.size == 0:
             return network_feasible_plats
-        
+
         if task_type == 'dnn1':
             type_mask = plat_type_compat_dnn1
         elif task_type == 'dnn2':
             type_mask = plat_type_compat_dnn2
         else:
-            return np.empty(0, dtype=np.int64)
-        
+            # Same shape as the replica-filter fix further down: every task type
+            # other than dnn1/dnn2 used to get ZERO candidates here, which was
+            # harmless while every corpus was a dnn1/dnn2 pair and fatal for a
+            # 4-type DAG. Compatibility for the other types comes from the run's
+            # own task-types: the memoryRequirements keys ARE the platforms the
+            # simulator can run the type on (the frozen two-type table above is
+            # exactly the dnn1/dnn2 slice of it, kept verbatim so existing caches
+            # stay bit-identical).
+            mem = (task_priors.get(task_type) or {}).get('memoryRequirements') or {}
+            if not mem:
+                return np.empty(0, dtype=np.int64)
+            type_mask = np.isin(plat_type_arr, np.array(sorted(mem.keys())))
+
         compatible_mask = type_mask[network_feasible_plats]
         return network_feasible_plats[compatible_mask]
     
@@ -1426,6 +1470,272 @@ def build_graph(
 
 
 # ============================================================================
+# route_b stage 2: the DAG / partial-state block (build item B3)
+# ============================================================================
+
+# The route_b grids' task-type vocabulary, sorted. Fixed rather than inferred per
+# dataset so the one-hot means the same thing in every graph of the cache.
+DAG_TASK_TYPE_VOCAB: Tuple[str, ...] = ("cnn", "dnn1", "dnn2", "rf")
+# alpha ladder frozen by the registration (§5): unconstrained + the two binding rungs.
+DAG_ALPHA_LADDER: Tuple[Optional[float], ...] = (None, 3.0, 2.0)
+DAG_PRIMARY_ALPHA_KEY = "2.0"
+_DAG_EPS = 1e-12  # the scorer's feasibility EPS
+
+
+def _dag_alpha_key(alpha: Optional[float]) -> str:
+    # str(float) so the keys match the scorer reports' per_dataset alpha keys
+    # ("2.0", "3.0"), not "%g"'s "2"/"3".
+    return "inf" if alpha is None else str(float(alpha))
+
+
+def attach_dag_partial_state_block(
+    graph: Data,
+    dataset_dir: Path,
+    task_priors: Mapping[str, Any],
+    task_types_from_results: List[str],
+) -> None:
+    """Attach the §2/§5 DAG block to one built graph, from the dataset's own files.
+
+    Adds (all loud on any inconsistency; nothing existing is modified, so a cache
+    built without --dag-partial-state stays bit-identical):
+
+      dag_edge_index          [2, E] parent->child task edges (task node indices)
+      dag_parents             {task_id: [parent ids]}
+      task_type_onehot4       [n_tasks, 4] one-hot over DAG_TASK_TYPE_VOCAB — a
+                              SEPARATE attr: the legacy 3-dim task block is part of
+                              the dim22/dim25cr contract and must not change width.
+                              (T1 parity: this-task's 4-way type is pointwise-
+                              recoverable from the krank one-hot block.)
+      node_caps_by_alpha      {alpha_key: {node_id: cap}} — cap_node(alpha) =
+                              alpha * max single sweep-candidate demand on the node
+      tied_optimal_logit_plans {alpha_key: [[logit_idx per task], ...]} — the
+                              any-of-K label sets: feasible sweep plans within the
+                              relative 1e-9 tie tolerance of that alpha's
+                              constrained optimum (§5); every member must lie on
+                              the candidate edges (contract 5.5, extended to K)
+      tied_optimal_rtts       {alpha_key: [rtt, ...]} aligned with the plans
+      partial_state_ctx       the PartialStateContext ingredients for the
+                              single-source dim63crk extractor (demands, caps at
+                              the primary alpha, routes' hops/bottlenecks, payload,
+                              transfer_norm, canonical node ranks, ingress links,
+                              core links)
+    """
+    ds = Path(dataset_dir)
+    n_tasks = int(graph.n_tasks)
+    dag = load_workload_dag(ds)
+    if len(dag["task_type_names"]) != n_tasks:
+        raise RuntimeError(
+            f"{ds.name}: workload has {len(dag['task_type_names'])} tasks, graph "
+            f"has {n_tasks}"
+        )
+    if list(dag["task_type_names"]) != [str(t) for t in task_types_from_results]:
+        raise RuntimeError(
+            f"{ds.name}: workload task-type order {dag['task_type_names']} != "
+            f"taskResults order {list(task_types_from_results)} — the static_order "
+            "id assignment is broken somewhere"
+        )
+    unknown_types = set(dag["task_type_names"]) - set(DAG_TASK_TYPE_VOCAB)
+    if unknown_types:
+        raise RuntimeError(f"{ds.name}: task types {unknown_types} not in "
+                           f"{DAG_TASK_TYPE_VOCAB}")
+    if any(src is None for src in dag["task_sources"]):
+        raise RuntimeError(f"{ds.name}: workload event without node_name — the "
+                           "linkrank ingress endpoints are mandatory for a DAG cache")
+
+    parents = parents_map(n_tasks, dag["dag_edges"])
+    if dag["dag_edges"]:
+        dag_edge_index = torch.tensor(
+            [[p for p, _c in dag["dag_edges"]], [c for _p, c in dag["dag_edges"]]],
+            dtype=torch.long,
+        )
+    else:
+        dag_edge_index = torch.empty((2, 0), dtype=torch.long)
+
+    onehot4 = torch.zeros((n_tasks, len(DAG_TASK_TYPE_VOCAB)), dtype=torch.float32)
+    type_index = {name: k for k, name in enumerate(DAG_TASK_TYPE_VOCAB)}
+    task_type_idx = {}
+    for t, name in enumerate(dag["task_type_names"]):
+        onehot4[t, type_index[name]] = 1.0
+        task_type_idx[t] = type_index[name]
+
+    # --- sweep, demands, capacities -------------------------------------
+    jsonl = ds / "placements" / "placements.jsonl"
+    _ds_id, sweep = _placement_combos_from_jsonl(jsonl)
+    if not sweep:
+        raise RuntimeError(f"{ds.name}: empty placement sweep at {jsonl}")
+
+    meta_by_key = graph.queue_key_to_platform_meta
+    ptype_by_pid: Dict[int, str] = {}
+    name_by_node_id: Dict[int, str] = {}
+    for meta in meta_by_key.values():
+        ptype_by_pid[int(meta["platform_id"])] = str(meta["platform_type"])
+        nid, nname = int(meta["node_id"]), str(meta["node_name"])
+        if name_by_node_id.get(nid, nname) != nname:
+            raise RuntimeError(f"{ds.name}: node_id {nid} maps to two names")
+        name_by_node_id[nid] = nname
+
+    demand: Dict[Tuple[int, Tuple[int, int]], float] = {}
+    for combo, _rtt in sweep:
+        if len(combo) != n_tasks:
+            raise RuntimeError(f"{ds.name}: sweep row has {len(combo)} tasks, "
+                               f"expected {n_tasks}")
+        for t, placement in enumerate(combo):
+            if (t, placement) in demand:
+                continue
+            pid = int(placement[1])
+            if pid not in ptype_by_pid:
+                raise RuntimeError(f"{ds.name}: sweep references platform_id {pid} "
+                                   "absent from the graph's platform meta")
+            ttype = dag["task_type_names"][t]
+            mem = (task_priors.get(ttype) or {}).get("memoryRequirements") or {}
+            ptype = ptype_by_pid[pid]
+            if ptype not in mem:
+                raise RuntimeError(f"{ds.name}: no memoryRequirements[{ttype}]"
+                                   f"[{ptype}] — refusing to invent a demand")
+            demand[(t, placement)] = float(mem[ptype])
+
+    peak: Dict[int, float] = {}
+    for (t, placement), d in demand.items():
+        nid = int(placement[0])
+        if nid not in peak or d > peak[nid]:
+            peak[nid] = d
+    node_caps_by_alpha: Dict[str, Dict[int, float]] = {}
+    for alpha in DAG_ALPHA_LADDER:
+        if alpha is None:
+            node_caps_by_alpha[_dag_alpha_key(alpha)] = {}
+            continue
+        node_caps_by_alpha[_dag_alpha_key(alpha)] = {
+            nid: alpha * m for nid, m in peak.items() if m > 0
+        }
+
+    # --- tied-optimal label sets per alpha ------------------------------
+    logit_index: Dict[int, Dict[Tuple[int, int], int]] = {
+        t: {tuple(p): i for i, p in enumerate(graph.task_logit_to_placement[t])}
+        for t in range(n_tasks)
+    }
+    tied_plans: Dict[str, List[List[int]]] = {}
+    tied_rtts: Dict[str, List[float]] = {}
+    for alpha in DAG_ALPHA_LADDER:
+        key = _dag_alpha_key(alpha)
+        caps = node_caps_by_alpha[key]
+
+        def _feasible(combo) -> bool:
+            if not caps:
+                return True
+            load: Dict[int, float] = {}
+            for t, placement in enumerate(combo):
+                nid = int(placement[0])
+                load[nid] = load.get(nid, 0.0) + demand[(t, placement)]
+            return all(v <= caps.get(nid, math.inf) + _DAG_EPS
+                       for nid, v in load.items())
+
+        feas = [(combo, rtt) for combo, rtt in sweep if _feasible(combo)]
+        if not feas:
+            raise RuntimeError(f"{ds.name}: no feasible sweep rows at alpha={key} "
+                               "— the dataset cannot carry a label set for this "
+                               "rung")
+        best = min(rtt for _c, rtt in feas)
+        tol = 1e-9 * max(1.0, abs(best))
+        plans: List[List[int]] = []
+        rtts: List[float] = []
+        for combo, rtt in feas:
+            if rtt - best > tol:
+                continue
+            idxs: List[int] = []
+            for t, placement in enumerate(combo):
+                logit = logit_index[t].get(tuple(placement))
+                if logit is None:
+                    raise RuntimeError(
+                        f"{ds.name}: tied-optimal plan at alpha={key} places task "
+                        f"{t} on {placement}, which is not a candidate edge — "
+                        "contract 5.5 extended to the label SET is violated"
+                    )
+                idxs.append(int(logit))
+            plans.append(idxs)
+            rtts.append(float(rtt))
+        tied_plans[key] = plans
+        tied_rtts[key] = rtts
+
+    # --- partial-state context ingredients ------------------------------
+    routes, links = load_link_topology(ds)
+    if not routes or not links:
+        raise RuntimeError(f"{ds.name}: no link_topology — the DAG cache requires "
+                           "the fabric (routes + links)")
+    cand_node_ids = sorted(peak)
+    route_hb: Dict[Tuple[int, int], Tuple[float, float]] = {}
+    for a in cand_node_ids:
+        for b in cand_node_ids:
+            h, bneck = (0, math.inf) if a == b else route_hops_and_bottleneck(
+                routes, links, name_by_node_id[a], name_by_node_id[b])
+            route_hb[(a, b)] = (float(h), float(bneck))
+
+    # payload: the uniform parent->child output size, from the dataset's own
+    # sim_inputs (embedded in optimal_result.json) — asserted uniform, never guessed
+    with open(ds / "optimal_result.json") as fh:
+        sim_inputs = json.load(fh).get("sim_inputs") or {}
+    outputs = {
+        float(entry["output"])
+        for tt in (sim_inputs.get("task_types") or {}).values()
+        for entry in (tt.get("stateSize") or {}).values()
+        if isinstance(entry, dict) and "output" in entry
+    }
+    if len(outputs) != 1:
+        raise RuntimeError(f"{ds.name}: non-uniform stateSize.output set {outputs} "
+                           "— §2 col 34 assumes a uniform payload")
+    payload_bytes = outputs.pop()
+
+    transfer_norm = max(
+        (h * payload_bytes / bneck)
+        for (a, b), (h, bneck) in route_hb.items()
+        if h > 0
+    ) if any(h > 0 for (h, _bn) in route_hb.values()) else 0.0
+
+    mean_hop = {
+        a: (
+            sum(route_hb[(b, a)][0] for b in cand_node_ids if b != a)
+            / max(1, len(cand_node_ids) - 1)
+        )
+        for a in cand_node_ids
+    }
+    primary_caps = node_caps_by_alpha[DAG_PRIMARY_ALPHA_KEY]
+    node_rank = krank_node_order(
+        {nid: primary_caps.get(nid, 0.0) for nid in cand_node_ids}, mean_hop
+    )
+
+    ingress: Dict[Tuple[int, int], Tuple[str, ...]] = {}
+    for t in range(n_tasks):
+        src = str(dag["task_sources"][t])
+        for nid in cand_node_ids:
+            dst = name_by_node_id[nid]
+            ingress[(t, nid)] = (
+                () if src == dst else tuple(route_links(routes, src, dst))
+            )
+    core = frozenset(lk for lk in links if is_core_link(lk))
+
+    graph.dag_edge_index = dag_edge_index
+    graph.dag_parents = parents
+    graph.task_type_onehot4 = onehot4
+    graph.dag_task_type_vocab = list(DAG_TASK_TYPE_VOCAB)
+    graph.node_caps_by_alpha = node_caps_by_alpha
+    graph.tied_optimal_logit_plans = tied_plans
+    graph.tied_optimal_rtts = tied_rtts
+    graph.dag_primary_alpha_key = DAG_PRIMARY_ALPHA_KEY
+    graph.partial_state_ctx = {
+        "node_caps": dict(primary_caps),
+        "node_caps_by_alpha": node_caps_by_alpha,
+        "demand": demand,
+        "task_type_index": task_type_idx,
+        "parents": parents,
+        "route_hops_bneck": route_hb,
+        "payload_bytes": float(payload_bytes),
+        "transfer_norm": float(transfer_norm),
+        "node_rank": dict(node_rank),
+        "ingress_links": ingress,
+        "core_links": sorted(core),
+    }
+
+
+# ============================================================================
 # MAIN SCRIPT
 # ============================================================================
 
@@ -1520,6 +1830,13 @@ def main():
                         graph.platform_features = graph.platform_features[
                             :, : config.platform_feature_dim
                         ]
+                    if config.dag_partial_state:
+                        attach_dag_partial_state_block(
+                            graph,
+                            dataset_dict['dataset_dir'],
+                            task_priors,
+                            dataset_dict['tasks']['task_type'].tolist(),
+                        )
                     invalid = int((graph.y < 0).sum().item())
                     if invalid:
                         raise RuntimeError(
@@ -1619,6 +1936,24 @@ def main():
         # the trainer can read it from the cache instead of trusting its own shell — the
         # same bug class the inference_feature_layout confound (40.8% of total_rtt) had.
         'topology_feature_contract': resolve_topology_feature_contract(),
+        # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk
+        # trainer refuses a cache without partial_state_contract, so a legacy cache
+        # can never silently serve a stage-2 arm.
+        'dag_partial_state': config.dag_partial_state,
+        'partial_state_contract': (
+            resolve_partial_state_contract() if config.dag_partial_state else None
+        ),
+        'dag_task_type_vocab': (
+            list(DAG_TASK_TYPE_VOCAB) if config.dag_partial_state else None
+        ),
+        'dag_alpha_ladder': (
+            [_dag_alpha_key(a) for a in DAG_ALPHA_LADDER]
+            if config.dag_partial_state else None
+        ),
+        'dag_label_rtt_eps': (
+            'relative 1e-9 (tol = 1e-9 * max(1, |best|)), the §4 tie-tolerance '
+            'convention' if config.dag_partial_state else None
+        ),
         'training_contract': {
             'label_source': 'placements.jsonl_sweep_minimum',
             'replica_source': 'ssc_scheduling_time_replicas',
