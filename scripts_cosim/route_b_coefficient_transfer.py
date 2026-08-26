@@ -671,21 +671,40 @@ def main() -> int:
     out["residual_characterization"] = characterize(cells, out["per_dataset"])
     out["identity_or_features"] = identity_or_features(cells)
 
-    # exploratory krank arm (§9c, no verdict read from it)
-    kr = []
+    # exploratory krank arm (§9c, no verdict read from it). Per-dataset fractions and
+    # tie bands are report fields since PP0′ (stage-2 corrected registration §10): the
+    # independent verifier must agree on EVERY (dataset, arm) fraction, band included,
+    # so the aggregates alone stopped being enough. Purely additive — every
+    # pre-existing key is computed exactly as before.
+    kr, kr_bands = [], []
     for cell in cells:
         cols = krank_cols(cell)
         combined = t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks)
         merged = (lambda p, a=cols, b=combined: a(p) + b(p))
-        repaired, _b = marginal_surrogate_regret(
+        repaired, beta_k = marginal_surrogate_regret(
             cell.ds, cell.marginal, cell.feasible, merged, return_beta=True)
-        kr.append(cell.fraction(min(cell.r_base, repaired))
-                  if repaired is not None else None)
+        if repaired is None:
+            kr.append(None)
+            kr_bands.append(None)
+            continue
+        Xf = np.array([[1.0, marginal_sum(cell.marginal, p)] + merged(p)
+                       for p, _v in cell.feasible])
+        best_tied, worst_tied, mean_tied, n_tied = cell.tie_band(Xf @ beta_k)
+        kr.append(cell.fraction(min(cell.r_base, repaired)))
+        kr_bands.append({
+            "registered": kr[-1],
+            "optimistic": cell.fraction(min(cell.r_base, best_tied)),
+            "pessimistic": cell.fraction(min(cell.r_base, worst_tied)),
+            "mean_tied": cell.fraction(min(cell.r_base, mean_tied)),
+            "n_tied": n_tied, "n_feasible": len(cell.feasible)})
     if all(v is not None for v in kr):
         out["krank_exploratory"] = {
             "note": "occupancy by identity-free node rank + the dim36crk set; NOT "
                     "registered, no verdict read from it",
             "blocks": list(krank_pool_blocks),
+            "ds": [cell.ds_dir.name for cell in cells],
+            "fractions": kr,
+            "bands": kr_bands,
             "median_fraction": registered_median(kr),
             "mean_fraction": float(np.mean(kr)),
             "n_closed_ge_half": sum(1 for f in kr if f >= REPAIR_MAX)}
@@ -714,6 +733,7 @@ def main() -> int:
             beta, *_ = np.linalg.lstsq(np.hstack([inter, shared]),
                                        np.concatenate(y_parts), rcond=None)
             sb = beta[n:]
+            full_bands_kr = []
             for cell in cells:
                 kc, bc = (krank_cols(cell, n_ranks),
                           t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks))
@@ -722,12 +742,28 @@ def main() -> int:
                 pred = Xf @ sb
                 rep = min(cell.r_base, decode_regret(cell.feasible, pred, cell.best))
                 pooled_kr.append(cell.fraction(rep))
-                _o, _p, mt, _n = cell.tie_band(pred)
+                bo, bp, mt, nt = cell.tie_band(pred)
                 bands_kr.append(cell.fraction(min(cell.r_base, mt)))
+                full_bands_kr.append({
+                    "registered": pooled_kr[-1],
+                    "optimistic": cell.fraction(min(cell.r_base, bo)),
+                    "pessimistic": cell.fraction(min(cell.r_base, bp)),
+                    "mean_tied": bands_kr[-1],
+                    "n_tied": nt, "n_feasible": len(cell.feasible)})
+            types0 = sorted(set(cells[0].ds.task_type_names))
+            krank_names = [f"krank[r{r}|{k}]"
+                           for r in range(n_ranks) for k in types0]
+            pooled_names = (["marginal_sum"] + krank_names
+                            + t1_column_names(cells[0].ds, blocks=krank_pool_blocks))
             out["krank_pooled_exploratory"] = {
                 "note": "ONE coefficient set over identity-free rank-indexed occupancy + "
                         "the dim36crk set — the follow-up the §9b VOID named. Exploratory.",
                 "blocks": list(krank_pool_blocks),
+                "n_ranks": int(n_ranks),
+                "ds": [cell.ds_dir.name for cell in cells],
+                "fractions": pooled_kr,
+                "bands": full_bands_kr,
+                "coefficients": dict(zip(pooled_names, [float(v) for v in sb])),
                 "median_fraction": registered_median(pooled_kr),
                 "median_mean_tied": registered_median(bands_kr),
                 "mean_fraction": float(np.mean(pooled_kr)),

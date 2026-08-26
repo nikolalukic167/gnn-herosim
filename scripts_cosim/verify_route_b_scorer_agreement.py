@@ -33,6 +33,21 @@ Definitions verified (must match the registration exactly):
                      co-residency + load/cap + over-cap count + min/max parent-hop sums
                      + hops/bottleneck + latency + same-node-parent count, from the
                      dataset's own link_topology routes. Constrained alphas only.
+  krank arms       = --check-krank (PP0' of the corrected stage-2 registration §10):
+                     the per-dataset and POOLED repair fractions of the krank block —
+                     occupancy indexed by node rank under the identity-free canonical
+                     ordering ascending (cap at alpha, mean hop, node name), padded to
+                     a common width for pooling — plus the dim36crk-expressible block
+                     set, and the linkrank ingress-route co-use block when the report
+                     was produced with --add-linkrank. Tie bands included. The pooled
+                     fit is recomputed by a DIFFERENT algorithm on purpose: per-dataset
+                     intercepts are projected out by within-dataset demeaning
+                     (Frisch-Waugh) and the reduced system solved with this file's own
+                     QR, instead of numpy lstsq on the full indicator design. Any exact
+                     LS solution's shared-part predictions differ from any other's by a
+                     per-dataset CONSTANT only (the difference lies in the design's
+                     null space, so it is absorbed by the intercepts), and the decode
+                     fraction and tie band are invariant to a constant shift.
 """
 
 from __future__ import annotations
@@ -89,7 +104,12 @@ def load(ds, task_types_path):
     lt = infra.get("link_topology") or {}
     net = {"routes": lt.get("routes") or {}, "links": lt.get("links") or {},
            "maps": infra.get("network_maps") or {}}
-    return rows, ttypes, pid_map, task_db, dag_edges, net
+    # Submitting client node per task_id (the linkrank ingress endpoint). May be None
+    # on pre-fabric corpora; the linkrank columns fail loudly if they ever need one.
+    sources = []
+    for ev in workload["events"]:
+        sources.extend([ev.get("node_name")] * len(ev["application"]["dag"]))
+    return rows, ttypes, pid_map, task_db, dag_edges, net, sources
 
 
 def demand_of(task_id, placement, ttypes, pid_map, task_db):
@@ -428,7 +448,8 @@ def check_blocks(corpus, transfer_report, task_types_path):
 
     checked = 0
     for ds in ds_dirs:
-        rows, ttypes, pid_map, task_db, dag_edges, net = load(ds, task_types_path)
+        rows, ttypes, pid_map, task_db, dag_edges, net, _src = load(
+            ds, task_types_path)
         peak = {}
         for plan, _v in rows:
             for t, p in plan.items():
@@ -485,6 +506,311 @@ def check_blocks(corpus, transfer_report, task_types_path):
     return 0
 
 
+# ---------------------------------------------------------------------------
+# PP0' (corrected stage-2 registration §10): the krank arms + linkrank block
+# ---------------------------------------------------------------------------
+
+def krank_rank_map(rows, ttypes, pid_map, task_db, net, alpha):
+    """node -> rank under the canonical identity-free ordering ascending
+    (cap at alpha, mean hop from the other candidate-hosting nodes, node name),
+    recomputed straight from the raw files. Mirrors the definition pinned at
+    route_b_coefficient_transfer.krank_cols/node_features while sharing no code:
+    the node set is every node hosting a candidate placement, cap is
+    alpha * max single demand (0.0 for an all-zero-demand node, matching the
+    scorer's node_caps omission read back as .get(node, 0.0)), and hops come from
+    the dataset's own routes."""
+    peak = {}
+    for plan, _v in rows:
+        for t, p in plan.items():
+            node, d = demand_of(t, p, ttypes, pid_map, task_db)
+            if node not in peak or d > peak[node]:
+                peak[node] = d
+    nodes = sorted(peak)
+
+    def mean_hop(node):
+        hops = [float(route_hops_bneck_latency(net, other, node)[0])
+                for other in nodes if other != node]
+        return sum(hops) / len(hops) if hops else 0.0
+
+    order = sorted(nodes, key=lambda n: (alpha * peak[n] if peak[n] > 0 else 0.0,
+                                         mean_hop(n), n))
+    return {n: i for i, n in enumerate(order)}
+
+
+def krank_columns_fn(ttypes, pid_map, task_db, rank, width):
+    """Per-plan krank block: occupancy count at (node rank, task type), rank-major,
+    types in sorted order, padded to `width` ranks (top slots stay zero)."""
+    types = sorted(set(ttypes))
+    if len(rank) > width:
+        fail(f"krank: {len(rank)} nodes exceed pad width {width}")
+
+    def fn(plan):
+        cols = [0.0] * (width * len(types))
+        for t, p in plan.items():
+            r = rank[node_of(t, p, ttypes, pid_map, task_db)]
+            cols[r * len(types) + types.index(ttypes[t])] += 1.0
+        return cols
+    return fn
+
+
+def ingress_links_indep(net, src, dst):
+    """Undirected link keys on the client->destination route. Re-types
+    network_fabric.route_links: forward lookup, reversed-route fallback, sorted
+    'a|b' keys; same node or no fabric at all -> the true empty set."""
+    if src == dst or not net["routes"]:
+        return []
+    path = net["routes"].get(src, {}).get(dst)
+    if not path:
+        rev = net["routes"].get(dst, {}).get(src)
+        if not rev:
+            fail(f"linkrank: no route between {src} and {dst}")
+        path = list(reversed(rev))
+    return ["|".join(sorted((path[i], path[i + 1]))) for i in range(len(path) - 1)]
+
+
+def linkrank_columns(plan, ttypes, pid_map, task_db, net, sources):
+    """The 8 linkrank order-statistic columns (the scorer's t1_cols 'linkrank'
+    branch, re-typed): per-link co-use over each task's ingress route, emitted as
+    top-4 counts, excess sums, and >=2-co-use link counts, core-restricted twins
+    included. Never a link identity."""
+    couse = {}
+    for t, p in plan.items():
+        src = sources[t]
+        if src is None:
+            fail("linkrank: workload event without node_name — cannot resolve "
+                 "ingress routes")
+        for lk in ingress_links_indep(
+                net, src, node_of(t, p, ttypes, pid_map, task_db)):
+            couse[lk] = couse.get(lk, 0) + 1
+
+    def core(lk):
+        a, _, b = lk.partition("|")
+        return a.startswith("core") and b.startswith("core")
+
+    top = sorted(couse.values(), reverse=True)[:4]
+    top += [0] * (4 - len(top))
+    return ([float(v) for v in top]
+            + [float(sum(c - 1 for c in couse.values() if c > 1)),
+               float(sum(c - 1 for lk, c in couse.items() if c > 1 and core(lk))),
+               float(sum(1 for c in couse.values() if c >= 2)),
+               float(sum(1 for lk, c in couse.items() if c >= 2 and core(lk)))])
+
+
+def decode_band(feas, predicted, best, r_base):
+    """(fraction, band, tied_fractions): the registered decode (ties by sorted plan
+    key), the [pessimistic, mean_tied, optimistic] repair-fraction band over the
+    argmin tie group, and every tied plan's fraction (the machine-precision tie
+    escape the other checks already grant)."""
+    scored = sorted((predicted[i], tuple(sorted(feas[i][0].items())), feas[i][1])
+                    for i in range(len(feas)))
+    lo = scored[0][0]
+    tol = 1e-9 * max(1.0, abs(lo))
+    tied = [v for i, (_p, v) in enumerate(feas) if predicted[i] - lo <= tol]
+
+    def frac(rtt):
+        return 1.0 - min(r_base, 100.0 * (rtt - best) / best) / r_base
+
+    band = {"registered": frac(scored[0][2]),
+            "optimistic": frac(min(tied)),
+            "pessimistic": frac(max(tied)),
+            "mean_tied": frac(sum(tied) / len(tied)),
+            "n_tied": len(tied)}
+    return band["registered"], band, [frac(v) for v in tied]
+
+
+def compare_krank_row(ds_name, arm, got_frac, got_band, tied_fracs,
+                      exp_frac, exp_band, counters):
+    for key in ("optimistic", "pessimistic", "mean_tied"):
+        if abs(got_band[key] - exp_band[key]) > 1e-9:
+            fail(f"{ds_name} {arm}: band {key} transfer={exp_band[key]!r} "
+                 f"verifier={got_band[key]!r}")
+    if got_band["n_tied"] != exp_band["n_tied"]:
+        fail(f"{ds_name} {arm}: n_tied transfer={exp_band['n_tied']} "
+             f"verifier={got_band['n_tied']}")
+    if exp_band["registered"] != exp_frac:
+        fail(f"{ds_name} {arm}: report-internal mismatch — band registered "
+             f"{exp_band['registered']!r} vs fraction {exp_frac!r}")
+    if abs(got_frac - exp_frac) > 1e-9:
+        if any(abs(exp_frac - t) <= 1e-6 for t in tied_fracs):
+            print(f"TIE (accepted): {ds_name} {arm}: transfer={exp_frac:.9f} "
+                  f"verifier={got_frac:.9f} — both argmins of one machine-"
+                  "precision tie group")
+            counters["ties"] += 1
+        else:
+            fail(f"{ds_name} {arm}: fraction transfer={exp_frac!r} "
+                 f"verifier={got_frac!r}")
+    counters["checked"] += 1
+
+
+def check_krank(corpus, transfer_report, task_types_path):
+    """PP0' verification gate: independently recompute the per-dataset and pooled
+    krank repair fractions (and the linkrank block when the report used
+    --add-linkrank) from raw files, tie bands included. 1e-9 agreement with
+    route_b_coefficient_transfer.py or the lineage is VOID until resolved. This is
+    a verification gate, NOT a kill test — no threshold reading is taken here."""
+    report = json.load(open(transfer_report))
+    kre = report.get("krank_exploratory")
+    kpe = report.get("krank_pooled_exploratory")
+    for label, block in (("krank_exploratory", kre),
+                         ("krank_pooled_exploratory", kpe)):
+        if not block:
+            fail(f"{transfer_report}: no {label} block")
+        if "fractions" not in block:
+            fail(f"{transfer_report}: {label} lacks per-dataset fractions/bands — "
+                 "re-run route_b_coefficient_transfer.py (PP0' report extension)")
+    alpha = float(report["alpha"])
+    blocks = tuple(kre["blocks"])
+    if tuple(kpe["blocks"]) != blocks:
+        fail(f"krank arms disagree on blocks: {kre['blocks']} vs {kpe['blocks']}")
+    base_blocks = tuple(b for b in blocks if b != "linkrank")
+    want_linkrank = "linkrank" in blocks
+    unknown = [b for b in base_blocks if b not in T1_BLOCKS]
+    if unknown:
+        fail(f"unknown krank pool block(s) {unknown}")
+    names = kre["ds"]
+    if kpe["ds"] != names:
+        fail("krank arms list different datasets")
+    rows_by_ds = {r["ds"]: r for r in report["per_dataset"]}
+
+    # The report's own aggregates must be the aggregates of its own per-dataset
+    # fractions (upper-middle median, the registered gate convention).
+    for label, block in (("krank_exploratory", kre),
+                         ("krank_pooled_exploratory", kpe)):
+        fr = block["fractions"]
+        if abs(sorted(fr)[len(fr) // 2] - block["median_fraction"]) > 1e-12:
+            fail(f"{label}: median_fraction inconsistent with its own fractions")
+        if abs(sum(fr) / len(fr) - block["mean_fraction"]) > 1e-9:
+            fail(f"{label}: mean_fraction inconsistent with its own fractions")
+        if sum(1 for f in fr if f >= 0.5) != block["n_closed_ge_half"]:
+            fail(f"{label}: n_closed_ge_half inconsistent with its own fractions")
+    mt = [b["mean_tied"] for b in kpe["bands"]]
+    if abs(sorted(mt)[len(mt) // 2] - kpe["median_mean_tied"]) > 1e-12:
+        fail("krank_pooled_exploratory: median_mean_tied inconsistent with bands")
+
+    ctx = []
+    for name in names:
+        ds = Path(corpus) / name
+        if not ds.is_dir():
+            fail(f"{ds}: firing dataset missing from corpus")
+        rows, ttypes, pid_map, task_db, dag_edges, net, sources = load(
+            ds, task_types_path)
+        peak = {}
+        for plan, _v in rows:
+            for t, p in plan.items():
+                node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                if node not in peak or d > peak[node]:
+                    peak[node] = d
+        caps = {n: alpha * m for n, m in peak.items()}
+
+        def feasible(plan):
+            load_ = {}
+            for t, p in plan.items():
+                node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                load_[node] = load_.get(node, 0.0) + d
+            return all(v <= caps.get(n, math.inf) + EPS for n, v in load_.items())
+
+        feas = [(plan, v) for plan, v in rows if feasible(plan)]
+        if not feas:
+            fail(f"{ds}: no feasible rows at alpha={alpha}")
+        best = min(v for _p, v in feas)
+        marg = {}
+        for plan, v in rows:
+            for t, p in plan.items():
+                cur = marg.setdefault(t, {})
+                if p not in cur or v < cur[p]:
+                    cur[p] = v
+        keyed = sorted(((sum(marg[t][p] for t, p in plan.items()),
+                         tuple(sorted(plan.items())), v) for plan, v in feas))
+        r_exact = 100.0 * (keyed[0][2] - best) / best
+        row = rows_by_ds.get(name)
+        if row is None:
+            fail(f"{name}: not in the report's per_dataset rows")
+        if abs(row["r_exact_pct"] - r_exact) > 1e-9:
+            fail(f"{ds}: R_exact report={row['r_exact_pct']!r} "
+                 f"verifier={r_exact!r}")
+        ctx.append({"name": name, "rows": rows, "feas": feas, "best": best,
+                    "marg": marg, "r_exact": r_exact, "caps": caps,
+                    "ttypes": ttypes, "pid_map": pid_map, "task_db": task_db,
+                    "dag_edges": dag_edges, "net": net, "sources": sources,
+                    "rank": krank_rank_map(rows, ttypes, pid_map, task_db, net,
+                                           alpha)})
+    n_ranks = max(len(c["rank"]) for c in ctx)
+    if n_ranks != int(kpe["n_ranks"]):
+        fail(f"pad width: verifier {n_ranks} vs report n_ranks {kpe['n_ranks']}")
+
+    def merged_fn(c, width):
+        kfn = krank_columns_fn(c["ttypes"], c["pid_map"], c["task_db"],
+                               c["rank"], width)
+
+        def fn(plan):
+            cols = kfn(plan) + t1_columns(
+                plan, c["ttypes"], c["pid_map"], c["task_db"], None, c["caps"],
+                c["dag_edges"], c["net"], blocks=base_blocks)
+            if want_linkrank:
+                cols += linkrank_columns(plan, c["ttypes"], c["pid_map"],
+                                         c["task_db"], c["net"], c["sources"])
+            return cols
+        return fn
+
+    def msum(c, plan):
+        return sum(c["marg"][t][p] for t, p in plan.items())
+
+    counters = {"checked": 0, "ties": 0}
+
+    # arm 1: per-dataset fits (own width, own QR)
+    for i, c in enumerate(ctx):
+        fn = merged_fn(c, len(c["rank"]))
+        n_params = 2 + len(fn(c["rows"][0][0]))
+        if len(c["rows"]) < 2 * n_params:
+            fail(f"{c['name']}: verifier says the per-dataset krank fit is "
+                 "saturated, the report carries a value")
+        X = [[1.0, msum(c, plan)] + fn(plan) for plan, _v in c["rows"]]
+        y = [v for _p, v in c["rows"]]
+        beta = solve_least_squares(X, y)
+        pred = [sum(b * x for b, x in zip(beta, [1.0, msum(c, plan)] + fn(plan)))
+                for plan, _v in c["feas"]]
+        got_frac, got_band, tied = decode_band(c["feas"], pred, c["best"],
+                                               c["r_exact"])
+        compare_krank_row(c["name"], "krank_per_dataset", got_frac, got_band,
+                          tied, kre["fractions"][i], kre["bands"][i], counters)
+
+    # arm 2: the pooled fit. The transfer solves one numpy lstsq over the full
+    # design with explicit per-dataset intercept indicator columns; here the
+    # intercepts are projected out by within-dataset demeaning (Frisch-Waugh) and
+    # the reduced system goes through this file's own QR — a deliberately
+    # different algorithm. Any exact LS solution's shared-part predictions differ
+    # from any other's by a per-dataset constant only (the difference lies in the
+    # design's null space and is absorbed by the intercepts), and the decode
+    # fraction and tie band are invariant to a constant shift.
+    X_all, y_all, shared_fns = [], [], []
+    for c in ctx:
+        fn = merged_fn(c, n_ranks)
+        shared_fns.append(fn)
+        rows_X = [[msum(c, plan)] + fn(plan) for plan, _v in c["rows"]]
+        rows_y = [v for _p, v in c["rows"]]
+        m = len(rows_X)
+        col_mean = [sum(r[j] for r in rows_X) / m for j in range(len(rows_X[0]))]
+        y_mean = sum(rows_y) / m
+        for r, v in zip(rows_X, rows_y):
+            X_all.append([1.0] + [a - mu for a, mu in zip(r, col_mean)])
+            y_all.append(v - y_mean)
+    sb = solve_least_squares(X_all, y_all)[1:]
+    for i, c in enumerate(ctx):
+        fn = shared_fns[i]
+        pred = [sum(b * x for b, x in zip(sb, [msum(c, plan)] + fn(plan)))
+                for plan, _v in c["feas"]]
+        got_frac, got_band, tied = decode_band(c["feas"], pred, c["best"],
+                                               c["r_exact"])
+        compare_krank_row(c["name"], "krank_pooled", got_frac, got_band, tied,
+                          kpe["fractions"][i], kpe["bands"][i], counters)
+
+    print(f"OK: {counters['checked']} krank (dataset, arm) fractions + tie bands "
+          f"agree to 1e-9 across {len(ctx)} datasets and 2 arms "
+          f"({counters['ties']} machine-precision ties accepted; "
+          f"blocks={list(blocks)}, pad width {n_ranks})")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--corpus", action="append", required=True)
@@ -495,6 +821,11 @@ def main() -> int:
     ap.add_argument("--check-blocks", metavar="TRANSFER_REPORT",
                     help="instead of the scorer report, independently recompute the §9b "
                          "block arms in route_b_coefficient_transfer.py's output")
+    ap.add_argument("--check-krank", metavar="TRANSFER_REPORT",
+                    help="PP0': independently recompute the per-dataset and pooled "
+                         "krank repair fractions (and the linkrank block when the "
+                         "report used --add-linkrank), tie bands included, in "
+                         "route_b_coefficient_transfer.py's output")
     ap.add_argument("--check-repairs", action="store_true",
                     help="also independently recompute the 1int/kint repair fits "
                          "(slower: one small linear solve per dataset)")
@@ -503,6 +834,13 @@ def main() -> int:
                          "in the report")
     args = ap.parse_args()
 
+    if args.check_blocks and args.check_krank:
+        fail("--check-blocks and --check-krank are separate passes; run one at "
+             "a time")
+    if args.check_krank:
+        if len(args.corpus) != 1:
+            fail("--check-krank takes exactly one --corpus")
+        return check_krank(args.corpus[0], args.check_krank, args.task_types)
     if args.check_blocks:
         if len(args.corpus) != 1:
             fail("--check-blocks takes exactly one --corpus")
@@ -531,7 +869,7 @@ def main() -> int:
                 fail(f"{corpus} alpha={alpha_key}: {len(results)} scored rows vs "
                      f"{len(ds_dirs)} datasets")
             for ds, scored in zip(ds_dirs, results):
-                rows, ttypes, pid_map, task_db, dag_edges, net = load(
+                rows, ttypes, pid_map, task_db, dag_edges, net, _src = load(
                     ds, args.task_types)
                 r_exact, r_greedy, repairs = recompute(
                     rows, ttypes, pid_map, task_db, alpha,
