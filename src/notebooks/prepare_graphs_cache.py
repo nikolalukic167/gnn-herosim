@@ -145,11 +145,6 @@ def _finite_positive_exec_values(exec_map: Mapping[str, Any]) -> List[float]:
     return out
 
 
-# Set seeds for reproducibility
-random.seed(42)
-np.random.seed(42)
-torch.manual_seed(42)
-
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -1740,6 +1735,19 @@ def attach_dag_partial_state_block(
 # ============================================================================
 
 def main():
+    # Seeds for THIS SCRIPT's own reproducibility (dataset/graph generation order).
+    # Deliberately NOT at module scope: this module is also imported purely for
+    # DAG_TASK_TYPE_VOCAB (train_near_rtt.py, eval_route_b_stage2_arm.py), and a
+    # module-level torch.manual_seed(42) fired on every such import, clobbering
+    # whatever seed the importer had already set — see the route_b stage-2 A1 seed
+    # clobber (--seed had zero effect on training; all draws were bit-identical to
+    # full wandb-summary precision because THIS constant always ran last, after
+    # train_near_rtt.py's own NEAR_RTT_TRAIN_SEED-derived manual_seed at import
+    # time). A module must never reseed the global RNG as an import side effect.
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
+
     config = parse_args()
     script_start_time = time.perf_counter()
 
