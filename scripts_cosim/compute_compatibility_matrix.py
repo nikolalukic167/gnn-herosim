@@ -26,12 +26,19 @@ from typing import Any, Dict, List, Set, Tuple
 
 
 def task_type_label(collection_name: str) -> str:
-    """The N-task structure implied by a collection name, e.g. "4task", "5task".
+    """The task structure implied by a collection name, e.g. "4task", "5task", "dag4".
 
     Matches the `_<N>task(s)` naming convention (gnn_datasets_4tasks_..., gnn_datasets_1task,
-    hetero_small_knative_eval_5tasks_...). Collections that don't follow it default to "4task",
-    the historical majority, rather than silently matching every other non-1task count.
+    hetero_small_knative_eval_5tasks_...). The `dag<N>` convention
+    (gnn_datasets_dag4_route_b_...) is its OWN structure: a DAG-coupled corpus dispatches
+    children at parent completion and carries parent edges/labels no independent-N-task
+    cache has, so grouping it with plain "4task" collections (which the old fallback did)
+    would recommend training mixes that are incompatible by construction. Collections
+    matching neither convention default to "4task", the historical majority.
     """
+    dag = re.search(r"(?:^|_)dag(\d+)(?:_|$)", collection_name)
+    if dag:
+        return f"dag{dag.group(1)}"
     match = re.search(r"(\d+)tasks?(?:_|$)", collection_name)
     return f"{match.group(1)}task" if match else "4task"
 

@@ -1,13 +1,13 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-08-17T14:05:20.977854Z",
+  "generated_at": "2026-08-26T14:44:00.186959Z",
   "summary": {
-    "total_collections": 18,
-    "active_collections": 17,
+    "total_collections": 22,
+    "active_collections": 21,
     "deprecated_collections": 1,
     "archived_collections": 0,
-    "total_datasets": 3801,
-    "completed_datasets": 3597
+    "total_datasets": 4233,
+    "completed_datasets": 4029
   },
   "collections_by_status": {
     "active": [
@@ -25,6 +25,10 @@
       "gnn_datasets_4tasks_skew_warmth_v2",
       "gnn_datasets_4tasks_skew_warmth_v2_test",
       "gnn_datasets_4tasks_sparse_warmth_v2",
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0",
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s",
+      "gnn_datasets_dag4_route_b_smoke_b0",
+      "gnn_datasets_dag4_route_b_smoke_s",
       "hetero_large_knative_eval_20260606",
       "hetero_small_knative_eval_20260606",
       "hetero_small_knative_eval_5tasks_20260606"
@@ -64,6 +68,12 @@
     ],
     "separability": [
       "gnn_datasets_4tasks_shallow_v1"
+    ],
+    "route_b": [
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0",
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s",
+      "gnn_datasets_dag4_route_b_smoke_b0",
+      "gnn_datasets_dag4_route_b_smoke_s"
     ]
   },
   "collections": {
@@ -84,9 +94,9 @@
       "results": {
         "total_datasets": 500,
         "completed_datasets": 500,
-        "queue_depth_mean": 25.64,
-        "queue_depth_stddev": 12.64,
-        "avg_placements_per_dataset": 9.3
+        "queue_depth_mean": 30.9,
+        "queue_depth_stddev": 12.66,
+        "avg_placements_per_dataset": 10.3
       },
       "archive_reason": "Single-task scenarios don't provide network heterogeneity signal needed for GNN advantage"
     },
@@ -212,9 +222,9 @@
       "results": {
         "total_datasets": 500,
         "completed_datasets": 491,
-        "queue_depth_mean": 29.91,
-        "queue_depth_stddev": 14.97,
-        "avg_placements_per_dataset": 14461.3
+        "queue_depth_mean": 27.81,
+        "queue_depth_stddev": 13.49,
+        "avg_placements_per_dataset": 21772.1
       }
     },
     "gnn_datasets_4tasks_contention_v1_probe": {
@@ -432,9 +442,9 @@
       "results": {
         "total_datasets": 900,
         "completed_datasets": 900,
-        "queue_depth_mean": 34.99,
-        "queue_depth_stddev": 13.41,
-        "avg_placements_per_dataset": 2309.3
+        "queue_depth_mean": 35.79,
+        "queue_depth_stddev": 14.7,
+        "avg_placements_per_dataset": 5256.9
       }
     },
     "gnn_datasets_4tasks_contention_v2_verify": {
@@ -688,9 +698,9 @@
       "results": {
         "total_datasets": 900,
         "completed_datasets": 900,
-        "queue_depth_mean": 39.96,
-        "queue_depth_stddev": 15.15,
-        "avg_placements_per_dataset": 1177.3
+        "queue_depth_mean": 40.15,
+        "queue_depth_stddev": 15.84,
+        "avg_placements_per_dataset": 891.0
       }
     },
     "gnn_datasets_4tasks_contention_v4_pilot": {
@@ -816,9 +826,9 @@
       "results": {
         "total_datasets": 27,
         "completed_datasets": 27,
-        "queue_depth_mean": 398.2,
-        "queue_depth_stddev": 121.76,
-        "avg_placements_per_dataset": 431.4
+        "queue_depth_mean": 384.88,
+        "queue_depth_stddev": 138.75,
+        "avg_placements_per_dataset": 467.4
       }
     },
     "gnn_datasets_4tasks_contention_v5_quick_test": {
@@ -901,9 +911,9 @@
       "results": {
         "total_datasets": 38,
         "completed_datasets": 35,
-        "queue_depth_mean": 481.33,
-        "queue_depth_stddev": 158.61,
-        "avg_placements_per_dataset": 593.5
+        "queue_depth_mean": 488.26,
+        "queue_depth_stddev": 127.71,
+        "avg_placements_per_dataset": 794.3
       }
     },
     "gnn_datasets_4tasks_highq_safe_20260606": {
@@ -923,9 +933,9 @@
       "results": {
         "total_datasets": 25,
         "completed_datasets": 25,
-        "queue_depth_mean": 26.59,
-        "queue_depth_stddev": 15.44,
-        "avg_placements_per_dataset": 13268.6
+        "queue_depth_mean": 33.53,
+        "queue_depth_stddev": 16.84,
+        "avg_placements_per_dataset": 25443.2
       }
     },
     "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
@@ -1149,9 +1159,9 @@
       "results": {
         "total_datasets": 200,
         "completed_datasets": 200,
-        "queue_depth_mean": 2.04,
-        "queue_depth_stddev": 1.21,
-        "avg_placements_per_dataset": 1070.4
+        "queue_depth_mean": 1.87,
+        "queue_depth_stddev": 1.29,
+        "avg_placements_per_dataset": 579.5
       }
     },
     "gnn_datasets_4tasks_skew_warmth_v2": {
@@ -1228,9 +1238,9 @@
       "results": {
         "total_datasets": 288,
         "completed_datasets": 98,
-        "queue_depth_mean": 21.79,
-        "queue_depth_stddev": 7.48,
-        "avg_placements_per_dataset": 46.0
+        "queue_depth_mean": 21.15,
+        "queue_depth_stddev": 7.43,
+        "avg_placements_per_dataset": 43.1
       }
     },
     "gnn_datasets_4tasks_skew_warmth_v2_test": {
@@ -1399,9 +1409,365 @@
       "results": {
         "total_datasets": 351,
         "completed_datasets": 351,
-        "queue_depth_mean": 15.08,
-        "queue_depth_stddev": 4.73,
-        "avg_placements_per_dataset": 1132.5
+        "queue_depth_mean": 14.51,
+        "queue_depth_stddev": 4.67,
+        "avg_placements_per_dataset": 1354.8
+      }
+    },
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+      "collection_name": "gnn_datasets_dag4_route_b_pilot_v1_arm_b0",
+      "version": "v1",
+      "status": "active",
+      "created_date": "2026-08-25",
+      "grid_preset": "route_b_pilot_v1",
+      "problem_category": "route_b",
+      "generation_params": {
+        "connection_probabilities": [
+          0.25,
+          0.35
+        ],
+        "replica_configs": [
+          [
+            0,
+            2,
+            0.7,
+            0.9
+          ],
+          [
+            0,
+            3,
+            0.7,
+            0.9
+          ]
+        ],
+        "queue_distributions": [
+          {
+            "name": "shallow_pois2",
+            "distribution": "poisson",
+            "param1": 2,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 8,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_uniform0_12",
+            "distribution": "uniform",
+            "param1": 0,
+            "param2": 12,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_pois4",
+            "distribution": "poisson",
+            "param1": 4,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          }
+        ],
+        "seeds": [
+          901,
+          902,
+          903,
+          904,
+          905,
+          906,
+          907,
+          908,
+          909,
+          910,
+          911,
+          912,
+          913,
+          914,
+          915,
+          916,
+          917
+        ]
+      },
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "purpose": "Route B stage-1 corpus, Arm B0 (competition without coupling), 204 datasets, seeds 901-917. Specificity control: firing fraction at the 5% bar is 0 with residue <=2.49%, so Arm S firing is attributable to the coupling, not the decoder or the scarcity alone. Replay env: HEROSIM_COSIM_KEEP_ALIVE=1000000 (no HEROSIM_DATA_LOCALITY)",
+      "hypothesis": "",
+      "results": {
+        "total_datasets": 204,
+        "completed_datasets": 204,
+        "queue_depth_mean": 3.61,
+        "queue_depth_stddev": 2.7,
+        "avg_placements_per_dataset": 639.8
+      }
+    },
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+      "collection_name": "gnn_datasets_dag4_route_b_pilot_v1_arm_s",
+      "version": "v1",
+      "status": "active",
+      "created_date": "2026-08-25",
+      "grid_preset": "route_b_pilot_v1",
+      "problem_category": "route_b",
+      "generation_params": {
+        "connection_probabilities": [
+          0.25,
+          0.35
+        ],
+        "replica_configs": [
+          [
+            0,
+            2,
+            0.7,
+            0.9
+          ],
+          [
+            0,
+            3,
+            0.7,
+            0.9
+          ]
+        ],
+        "queue_distributions": [
+          {
+            "name": "shallow_pois2",
+            "distribution": "poisson",
+            "param1": 2,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 8,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_uniform0_12",
+            "distribution": "uniform",
+            "param1": 0,
+            "param2": 12,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_pois4",
+            "distribution": "poisson",
+            "param1": 4,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          }
+        ],
+        "seeds": [
+          901,
+          902,
+          903,
+          904,
+          905,
+          906,
+          907,
+          908,
+          909,
+          910,
+          911,
+          912,
+          913,
+          914,
+          915,
+          916,
+          917
+        ]
+      },
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "purpose": "Route B stage-1 gated corpus, Arm S (coupling + competition), 204 datasets, seeds 901-917. Stage-1 PASS: best pointwise surrogate wrong >5% on 17.2% of datasets at alpha=2.0. Stage 2 demotes this to the SECONDARY (statistics-known) replication set \u2014 never the primary gate (ROUTE_B_STAGE2_PREREGISTRATION.md par.5). Replay env: HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_DATA_LOCALITY=1",
+      "hypothesis": "Node-memory contention stacked on route A's pairwise transfer term breaks additive-argmin optimality where competition binds (alpha=2.0); confirmed at n=204 (Wilson CI [0.126, 0.229]), verifier-agreed to 1e-9",
+      "results": {
+        "total_datasets": 204,
+        "completed_datasets": 204,
+        "queue_depth_mean": 3.58,
+        "queue_depth_stddev": 2.71,
+        "avg_placements_per_dataset": 665.2
+      }
+    },
+    "gnn_datasets_dag4_route_b_smoke_b0": {
+      "collection_name": "gnn_datasets_dag4_route_b_smoke_b0",
+      "version": "v1",
+      "status": "active",
+      "created_date": "2026-08-25",
+      "grid_preset": "route_b_pilot_v1",
+      "problem_category": "route_b",
+      "generation_params": {
+        "connection_probabilities": [
+          0.25,
+          0.35
+        ],
+        "replica_configs": [
+          [
+            0,
+            2,
+            0.7,
+            0.9
+          ],
+          [
+            0,
+            3,
+            0.7,
+            0.9
+          ]
+        ],
+        "queue_distributions": [
+          {
+            "name": "shallow_pois2",
+            "distribution": "poisson",
+            "param1": 2,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 8,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_uniform0_12",
+            "distribution": "uniform",
+            "param1": 0,
+            "param2": 12,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_pois4",
+            "distribution": "poisson",
+            "param1": 4,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          }
+        ],
+        "seeds": [
+          901,
+          902,
+          903,
+          904,
+          905,
+          906,
+          907,
+          908,
+          909,
+          910,
+          911,
+          912,
+          913,
+          914,
+          915,
+          916,
+          917
+        ]
+      },
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "purpose": "Route B smoke corpus, Arm B0 (competition without coupling: same grid and scarcity, no locality/payload physics). Specificity-control twin of the smoke_s corpus; alpha-ladder calibration. Replay env: HEROSIM_COSIM_KEEP_ALIVE=1000000 (no HEROSIM_DATA_LOCALITY)",
+      "hypothesis": "",
+      "results": {
+        "total_datasets": 12,
+        "completed_datasets": 12,
+        "queue_depth_mean": 3.75,
+        "queue_depth_stddev": 2.85,
+        "avg_placements_per_dataset": 616.0
+      }
+    },
+    "gnn_datasets_dag4_route_b_smoke_s": {
+      "collection_name": "gnn_datasets_dag4_route_b_smoke_s",
+      "version": "v1",
+      "status": "active",
+      "created_date": "2026-08-25",
+      "grid_preset": "route_b_pilot_v1",
+      "problem_category": "route_b",
+      "generation_params": {
+        "connection_probabilities": [
+          0.25,
+          0.35
+        ],
+        "replica_configs": [
+          [
+            0,
+            2,
+            0.7,
+            0.9
+          ],
+          [
+            0,
+            3,
+            0.7,
+            0.9
+          ]
+        ],
+        "queue_distributions": [
+          {
+            "name": "shallow_pois2",
+            "distribution": "poisson",
+            "param1": 2,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 8,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_uniform0_12",
+            "distribution": "uniform",
+            "param1": 0,
+            "param2": 12,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          },
+          {
+            "name": "deepvar_pois4",
+            "distribution": "poisson",
+            "param1": 4,
+            "param2": 0,
+            "min_val": 0,
+            "max_val": 16,
+            "multiplier": 1
+          }
+        ],
+        "seeds": [
+          901,
+          902,
+          903,
+          904,
+          905,
+          906,
+          907,
+          908,
+          909,
+          910,
+          911,
+          912,
+          913,
+          914,
+          915,
+          916,
+          917
+        ]
+      },
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "purpose": "Route B smoke corpus, Arm S (coupling + competition: data locality on, 800MB parent->child output, DAG dispatch). Calibrated the frozen alpha ladder {inf, 3.0, 2.0} (stage-1 amendment A2); stage-2 B5 overfit pre-probe + sigma calibration corpus. Replay env: HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_DATA_LOCALITY=1",
+      "hypothesis": "",
+      "results": {
+        "total_datasets": 12,
+        "completed_datasets": 12,
+        "queue_depth_mean": 3.57,
+        "queue_depth_stddev": 2.72,
+        "avg_placements_per_dataset": 616.0
       }
     },
     "hetero_large_knative_eval_20260606": {
@@ -1443,8 +1809,8 @@
       "results": {
         "total_datasets": 12,
         "completed_datasets": 12,
-        "queue_depth_mean": 29.77,
-        "queue_depth_stddev": 10.79,
+        "queue_depth_mean": 28.53,
+        "queue_depth_stddev": 10.74,
         "avg_placements_per_dataset": 730.7
       }
     },

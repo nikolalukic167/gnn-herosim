@@ -165,7 +165,12 @@ def check_queue_depth_validation(collection_path: Path, metadata: Dict[str, Any]
             "reason": "No queue distributions in metadata"
         }
 
-    sample = random.sample(ds_dirs, min(sample_size, len(ds_dirs)))
+    # Queue depths are cheap to read (one small JSON field per dataset), and a
+    # 20-of-N dataset sample is a CLUSTER sample over a 3-distribution mixture —
+    # its mixture imbalance alone moved the collection mean by ±0.4 on route_b's
+    # 204-dataset arms, dwarfing the slot-level SEM the band is computed from.
+    # Read every dataset instead: the statistic becomes exact and deterministic.
+    sample = ds_dirs
     all_queue_depths = []
 
     for ds in sample:
@@ -199,17 +204,34 @@ def check_queue_depth_validation(collection_path: Path, metadata: Dict[str, Any]
         elif qd["distribution"] == "poisson":
             expected_means.append(qd["param1"])
         elif qd["distribution"] == "uniform":
-            expected_means.append((qd["param1"] + qd["param2"]) / 2)
+            # The generator draws CONTINUOUS uniform(param1, param2) and floors it
+            # (generate_queue_distributions_deterministic: max(0, int(sampled_q))),
+            # so the realized support is {param1..param2-1} with mean
+            # (param1+param2)/2 - 0.5 — not the naive midpoint. Measured on
+            # route_b's 204-dataset arms: uniform(0,12) realizes mean 5.62 against
+            # floored-expected 5.5 (z=1.5) vs the naive 6.0 (z=-4.7 false alarm).
+            expected_means.append((qd["param1"] + qd["param2"]) / 2 - 0.5)
 
     expected_mean = sum(expected_means) / len(expected_means) if expected_means else None
 
-    # Validate mean is within tolerance
+    # Validate mean is within tolerance. The band is sample-size aware: a fixed 5%
+    # relative band is a mis-specified test for a small collection — a 12-dataset
+    # smoke (300 queue slots, sd ~2.9) has SEM ~0.17, so a 2-sigma draw of the
+    # DECLARED process already lands ~8% off the declared mean and would fail a
+    # check that its own 204-dataset twin (same generator, same grid) passes. The
+    # effective band is therefore max(tolerance, 3*SEM/expected_mean): identical to
+    # the fixed band for large collections (only ever looser, never tighter, so no
+    # existing PASS/FAIL flips to FAIL), and a proper 3-sigma screen for small ones.
     if expected_mean is not None:
         deviation = abs(mean - expected_mean) / expected_mean
-        status = "PASS" if deviation <= tolerance else "FAIL"
+        sem = stddev / (len(all_queue_depths) ** 0.5) if all_queue_depths else 0.0
+        effective_tolerance = max(tolerance, 3.0 * sem / expected_mean)
+        status = "PASS" if deviation <= effective_tolerance else "FAIL"
     else:
         status = "SKIP"
         deviation = None
+        sem = None
+        effective_tolerance = None
 
     return {
         "status": status,
@@ -219,7 +241,10 @@ def check_queue_depth_validation(collection_path: Path, metadata: Dict[str, Any]
         "actual_stddev": round(stddev, 2),
         "expected_mean": round(expected_mean, 2) if expected_mean else None,
         "deviation": round(deviation, 4) if deviation is not None else None,
-        "tolerance": tolerance
+        "tolerance": tolerance,
+        "sem": round(sem, 4) if sem is not None else None,
+        "effective_tolerance": (round(effective_tolerance, 4)
+                                if effective_tolerance is not None else None)
     }
 
 
@@ -284,6 +309,15 @@ def estimate_coupling_rate(collection_path: Path, sample_size: int = 50, spread_
 def validate_collection(collection_name: str, collection_path: Path, light: bool = False) -> Dict[str, Any]:
     """Perform complete validation for a collection."""
     print(f"Validating {collection_name}...")
+
+    # A validation VERDICT must be a function of the collection, not of an RNG
+    # draw. The sampled checks (physics n=10, coupling n=50) previously used the
+    # unseeded module RNG, so a borderline collection could PASS on one run and
+    # FAIL on the next — observed 2026-08-26 on route_b arm_b0 (queue-depth
+    # deviation 2.5% one run, 12.0% the next, from cluster imbalance in an
+    # unseeded 20-of-204 dataset sample). Same defect class as the
+    # PYTHONHASHSEED tie-break and the unseeded MLP trainer: seed it.
+    random.seed(f"validate:{collection_name}")
 
     # Load metadata
     metadata = load_metadata(collection_path)

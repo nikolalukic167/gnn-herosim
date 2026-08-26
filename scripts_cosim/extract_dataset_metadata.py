@@ -193,6 +193,70 @@ COLLECTION_INFO = {
         "archive_reason": "Single-task scenarios don't provide network heterogeneity signal needed for GNN advantage",
         "created_date": "2025-12-01"
     },
+
+    # route_b_v1 series — diamond4 DAG (4 tasks, parent-coupled dispatch) on the
+    # ROUTE_B_PILOT_V1_GRID scarce-placement substrate. Registered in
+    # ROUTE_B_STAGE2_PREREGISTRATION.md and the route_b_v1 LINEAGES entries.
+    # Generation env (needed verbatim by any replay, e.g. the ssc repair):
+    # HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_RETAIN_TASK_TIMES=1, Arm S corpora
+    # adding HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000.
+    "gnn_datasets_dag4_route_b_smoke_s": {
+        "version": "v1",
+        "status": "active",
+        "problem_category": "route_b",
+        "purpose": (
+            "Route B smoke corpus, Arm S (coupling + competition: data locality on, "
+            "800MB parent->child output, DAG dispatch). Calibrated the frozen alpha "
+            "ladder {inf, 3.0, 2.0} (stage-1 amendment A2); stage-2 B5 overfit "
+            "pre-probe + sigma calibration corpus. Replay env: "
+            "HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_DATA_LOCALITY=1"
+        ),
+        "created_date": "2026-08-25"
+    },
+    "gnn_datasets_dag4_route_b_smoke_b0": {
+        "version": "v1",
+        "status": "active",
+        "problem_category": "route_b",
+        "purpose": (
+            "Route B smoke corpus, Arm B0 (competition without coupling: same grid "
+            "and scarcity, no locality/payload physics). Specificity-control twin "
+            "of the smoke_s corpus; alpha-ladder calibration. Replay env: "
+            "HEROSIM_COSIM_KEEP_ALIVE=1000000 (no HEROSIM_DATA_LOCALITY)"
+        ),
+        "created_date": "2026-08-25"
+    },
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "version": "v1",
+        "status": "active",
+        "problem_category": "route_b",
+        "purpose": (
+            "Route B stage-1 gated corpus, Arm S (coupling + competition), 204 "
+            "datasets, seeds 901-917. Stage-1 PASS: best pointwise surrogate wrong "
+            ">5% on 17.2% of datasets at alpha=2.0. Stage 2 demotes this to the "
+            "SECONDARY (statistics-known) replication set — never the primary gate "
+            "(ROUTE_B_STAGE2_PREREGISTRATION.md par.5). Replay env: "
+            "HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_DATA_LOCALITY=1"
+        ),
+        "hypothesis": (
+            "Node-memory contention stacked on route A's pairwise transfer term "
+            "breaks additive-argmin optimality where competition binds (alpha=2.0); "
+            "confirmed at n=204 (Wilson CI [0.126, 0.229]), verifier-agreed to 1e-9"
+        ),
+        "created_date": "2026-08-25"
+    },
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "version": "v1",
+        "status": "active",
+        "problem_category": "route_b",
+        "purpose": (
+            "Route B stage-1 corpus, Arm B0 (competition without coupling), 204 "
+            "datasets, seeds 901-917. Specificity control: firing fraction at the "
+            "5% bar is 0 with residue <=2.49%, so Arm S firing is attributable to "
+            "the coupling, not the decoder or the scarcity alone. Replay env: "
+            "HEROSIM_COSIM_KEEP_ALIVE=1000000 (no HEROSIM_DATA_LOCALITY)"
+        ),
+        "created_date": "2026-08-25"
+    },
 }
 
 # Map collection names to grid presets
@@ -210,6 +274,10 @@ COLLECTION_TO_GRID = {
     "gnn_datasets_4tasks_skew_warmth_v2_test": "skew_warmth_v2",
     "gnn_datasets_4tasks_regime_b_cold_burst_v1": "regime_b_cold_burst_v1",
     "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": "regime_b_cold_burst_v1",
+    "gnn_datasets_dag4_route_b_smoke_s": "route_b_pilot_v1",
+    "gnn_datasets_dag4_route_b_smoke_b0": "route_b_pilot_v1",
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_s": "route_b_pilot_v1",
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": "route_b_pilot_v1",
 }
 
 
