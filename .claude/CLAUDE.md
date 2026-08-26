@@ -238,9 +238,15 @@ The simulator is built on **SimPy** (discrete-event simulation) with three exten
 Key infrastructure models in `src/placement/infrastructure.py`:
 - **`Node`** - Physical/virtual machines in the cluster
 - **`Platform`** - Execution environments (CPU cores, GPUs, etc.)
-- **`Replica`** - Function instances running on platforms
 - **`Task`** - User requests to be executed
 - **`Application`** - Collections of functions
+- **`Storage`** - Node-attached disks holding cached images and task data
+
+**There is no `Replica` class** — do not go looking for one. A *replica* is a
+`(Node, Platform)` pair held in `system_state.replicas[task_type_name]`, i.e. an
+eligibility fact with no identity, lifecycle or state. The autoscaler "creates" one by
+adding a tuple to that set, and `_get_valid_replicas` is a filter, not a lookup. See
+`CONTEXT.md`.
 
 Simulation runtime: `src/placement/simulation.py` (SimPy-based event loop)
 
