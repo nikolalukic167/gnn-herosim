@@ -142,6 +142,28 @@ def test_mlp_batch_trainer_is_reproducible_at_a_fixed_seed(tmp_path):
     assert meta.get("torch_seeded") is True, "checkpoint does not record torch_seeded"
 
 
+@pytest.mark.skipif(not BATCH_CACHE.is_dir(), reason=f"cache not present at {BATCH_CACHE}")
+def test_mlp_partial_state_flag_refuses_contractless_cache(tmp_path):
+    """B2 (route_b stage 2): --partial-state on a cache with no partial_state_contract
+    must fail loudly BEFORE extraction — silently training a dim25cr model under a
+    dim63crk-declaring flag is exactly the layout-mismatch class the sidecar rules
+    exist to prevent. The reproducibility run for the dim63crk path itself is added
+    when a B3 stage-2 cache exists to pin."""
+    with pytest.raises(AssertionError, match="partial_state_contract"):
+        _run_trainer(
+            [
+                "src/policy/tabular/train_mlp_dim22_from_batch.py",
+                "--cache-dir", str(BATCH_CACHE),
+                "--output", str(tmp_path / "mlp_ps.pt"),
+                "--epochs", "1",
+                "--random-state", str(SEED),
+                "--candidate-relative-queue",
+                "--partial-state",
+            ],
+            env_extra={},
+        )
+
+
 @pytest.mark.parametrize(
     "trainer",
     [

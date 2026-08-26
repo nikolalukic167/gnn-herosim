@@ -216,11 +216,312 @@ def candidate_relative_queue_columns(queue_vals) -> np.ndarray:
     return out.astype(np.float32)
 
 
+# --- dim63crk: route_b stage 2 T1 layout (ROUTE_B_STAGE2_PREREGISTRATION.md §2) ---
+#
+# dim63crk = dim25cr (25) + 38 partial-state columns computed per (task, candidate)
+# edge GIVEN the partial assignment of the shared masked decoder (§4, masked_topo):
+#
+#   10 base partial-state columns (§2 cols 25-34):
+#     0-3  per-type occupancy count on the candidate's node (4 types, sorted order)
+#     4    committed memory demand on the candidate's node / cap_node(alpha)
+#     5    remaining capacity AFTER hypothetically placing this task, / cap_node(alpha)
+#     6    would-violate indicator (redundant with the mask; lets the score anticipate it)
+#     7-8  min / max hop distance from committed parents' nodes to the candidate's
+#          node (0 for a task with no parents)
+#     9    sum over committed parents of n_hops * payload / bottleneck_bandwidth on the
+#          parent->candidate route, / the per-dataset max of that quantity
+#   24 krank one-hot columns (§2 cols 35-58): indicator of (candidate node's canonical
+#     identity-free rank r, THIS task's type k); rank ascending (capacity at alpha,
+#     mean hop, node name), padded to width KRANK_WIDTH = 6; rank-major, type-minor —
+#     summing the block over a plan's edges reproduces the §9c/§9d plan-level
+#     krank_cols construction exactly, which is what puts the pooled-krank closure
+#     inside MLP(T1)'s hypothesis space by construction.
+#   4 linkrank edge columns (§2 cols 59-62), registered no-op expectation (route_c
+#     screen FAILED BY EXHAUSTION), included for feature parity:
+#     34   max per-link co-use over the candidate's own ingress route counting this
+#          task (0 when client and candidate are co-located)
+#     35   number of candidate-route links already used by >= 1 committed task
+#     36-37 the same two restricted to core links
+#
+# The retracted layout's "fraction of parents committed" column is NOT here: under
+# §4's topological decode order it is identically 1 (a constant discriminator, the
+# §9c defect class), and partial_state_columns enforces the all-parents-committed
+# invariant loudly instead.
+
+PARTIAL_STATE_BASE_DIM = 10
+KRANK_WIDTH = 6  # registered pad width R = the route_b grid's max node count
+KRANK_TYPES = 4  # task types on the route_b grids, in sorted-name order
+KRANK_FEATURE_DIM = KRANK_WIDTH * KRANK_TYPES
+LINKRANK_FEATURE_DIM = 4
+PARTIAL_STATE_FEATURE_DIM = (
+    PARTIAL_STATE_BASE_DIM + KRANK_FEATURE_DIM + LINKRANK_FEATURE_DIM
+)
+DIM63CRK_FEATURE_DIM = DIM25CR_FEATURE_DIM + PARTIAL_STATE_FEATURE_DIM
+DIM63CRK_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM63CRK_FEATURE_DIM)]
+_PARTIAL_STATE_EPS = 1e-12  # the scorer's feasibility EPS, kept in agreement
+
+# Contract versioning, the queue_features.py pattern: a checkpoint's sidecar declares
+# the partial-state contract it was trained under, and serving fails loudly on a
+# mismatch instead of silently changing what the 38 columns mean. Only v1 exists;
+# the machinery exists so a future change is a new contract, never an in-place edit.
+PARTIAL_STATE_CONTRACT_V1 = "partial_state_v1"
+VALID_PARTIAL_STATE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1})
+DEFAULT_PARTIAL_STATE_CONTRACT = PARTIAL_STATE_CONTRACT_V1
+PARTIAL_STATE_CONTRACT_ENV = "PARTIAL_STATE_CONTRACT"
+
+
+class InvalidPartialStateContractError(ValueError):
+    """Raised when a partial-state contract name is not recognized."""
+
+
+class PartialStateContractMismatchError(ValueError):
+    """Raised when a checkpoint's training contract differs from the serving one."""
+
+
+def validate_partial_state_contract(contract: str) -> str:
+    normalized = str(contract).strip().lower()
+    if normalized not in VALID_PARTIAL_STATE_CONTRACTS:
+        raise InvalidPartialStateContractError(
+            f"Unknown partial-state contract {contract!r}; expected one of "
+            f"{sorted(VALID_PARTIAL_STATE_CONTRACTS)}"
+        )
+    return normalized
+
+
+def resolve_partial_state_contract(explicit: Optional[str] = None) -> str:
+    """Explicit argument wins, then $PARTIAL_STATE_CONTRACT, then the default."""
+    import os as _os
+
+    if explicit is not None and str(explicit).strip():
+        return validate_partial_state_contract(explicit)
+    from_env = _os.environ.get(PARTIAL_STATE_CONTRACT_ENV, "").strip()
+    if from_env:
+        return validate_partial_state_contract(from_env)
+    return DEFAULT_PARTIAL_STATE_CONTRACT
+
+
+def require_matching_partial_state_contract(
+    trained_contract: Optional[str], serving_contract: str, *, model_label: str
+) -> None:
+    """Fail loudly rather than serve a dim63crk checkpoint features it was never
+    trained on. A sidecar-less trained_contract (None) is NOT accepted for the
+    dim63crk layout — a checkpoint without a contract is not evidence."""
+    serving = validate_partial_state_contract(serving_contract)
+    if trained_contract is None:
+        raise PartialStateContractMismatchError(
+            f"{model_label} declares no partial-state contract in its sidecar; a "
+            "dim63crk checkpoint without one cannot be served (the sidecar rule)."
+        )
+    trained = validate_partial_state_contract(trained_contract)
+    if trained != serving:
+        raise PartialStateContractMismatchError(
+            f"{model_label} was trained under partial-state contract {trained!r} "
+            f"but the run resolves to {serving!r}. Set "
+            f"{PARTIAL_STATE_CONTRACT_ENV}={trained} or load a matching checkpoint."
+        )
+
+
+def krank_node_order(
+    caps_at_alpha: Mapping[Any, float], mean_hop: Mapping[Any, float]
+) -> Dict[Any, int]:
+    """THE canonical identity-free node ranking (§2): ascending (capacity at alpha,
+    mean hop to the other candidate-hosting nodes, node name). Single source — the
+    cache builder and the offline-eval/serving path must both import this; the
+    scripts_cosim analysis copy (route_b_coefficient_transfer.krank_cols) is pinned
+    to the same ordering and independently verified by PP0'."""
+    nodes = sorted(mean_hop)
+    if sorted(caps_at_alpha) != nodes:
+        missing = set(nodes) ^ set(caps_at_alpha)
+        raise ValueError(f"krank_node_order: cap/hop node sets differ on {missing}")
+    order = sorted(nodes, key=lambda n: (caps_at_alpha[n], mean_hop[n], n))
+    if len(order) > KRANK_WIDTH:
+        raise ValueError(
+            f"krank_node_order: {len(order)} nodes exceed the registered pad "
+            f"width {KRANK_WIDTH}"
+        )
+    return {n: i for i, n in enumerate(order)}
+
+
+class PartialStateContext:
+    """Static per-dataset context for partial_state_columns.
+
+    Everything here is a function of the dataset/infrastructure alone — no decode
+    state. The dynamic argument is `committed` (the partial assignment). Node keys
+    and candidate keys are opaque to this module; the caller uses them consistently.
+
+      node_caps        node -> cap_node(alpha); a node absent is uncapped
+      demand           (task_id, candidate) -> memory demand of that task there
+      node_of          candidate -> node
+      task_type_index  task_id -> type index k in the sorted-type order (0..3)
+      parents          task_id -> parent task ids (the batch DAG)
+      route_hops_bneck (parent_node, cand_node) -> (n_hops, bottleneck_mbps);
+                       a same-node pair MUST be present as (0, inf)
+      payload_bytes    the uniform parent->child payload
+      transfer_norm    per-dataset max of n_hops*payload/bottleneck over node pairs
+                       (0 or negative disables col 9's normalization -> zeros)
+      node_rank        node -> canonical rank (krank_node_order output)
+      ingress_links    (task_id, node) -> link keys on that task's client->node
+                       ingress route (empty when co-located / no fabric)
+      core_links       the subset of link keys that are core links
+    """
+
+    def __init__(
+        self,
+        *,
+        node_caps: Mapping[Any, float],
+        demand: Mapping[Tuple[int, Any], float],
+        node_of: Mapping[Any, Any],
+        task_type_index: Mapping[int, int],
+        parents: Mapping[int, Sequence[int]],
+        route_hops_bneck: Mapping[Tuple[Any, Any], Tuple[float, float]],
+        payload_bytes: float,
+        transfer_norm: float,
+        node_rank: Mapping[Any, int],
+        ingress_links: Mapping[Tuple[int, Any], Sequence[str]],
+        core_links: frozenset,
+    ) -> None:
+        self.node_caps = node_caps
+        self.demand = demand
+        self.node_of = node_of
+        self.task_type_index = task_type_index
+        self.parents = parents
+        self.route_hops_bneck = route_hops_bneck
+        self.payload_bytes = float(payload_bytes)
+        self.transfer_norm = float(transfer_norm)
+        self.node_rank = node_rank
+        self.ingress_links = ingress_links
+        self.core_links = core_links
+
+
+def partial_state_columns(
+    ctx: PartialStateContext,
+    task_id: int,
+    candidates: Sequence[Any],
+    committed: Mapping[int, Any],
+) -> np.ndarray:
+    """The 38 dim63crk partial-state columns for ONE task's candidate set, given the
+    partial assignment → [n_candidates, PARTIAL_STATE_FEATURE_DIM] float32.
+
+    THE single definition (§2's one-definition rule, same as
+    candidate_relative_queue_columns): the training extractor and the
+    MLPBatchScheduler/offline-eval path import this and nothing else may recompute
+    it. Layout: [occ x4, load/cap, remaining/cap, would_violate, min_hop, max_hop,
+    transfer_norm, krank one-hot x24, linkrank x4].
+
+    Invariant enforced loudly: every parent of `task_id` must already be committed —
+    that is §4's topological-order guarantee, and a violation means the caller is
+    not decoding in the registered order.
+    """
+    import math as _math
+
+    n = len(candidates)
+    out = np.zeros((n, PARTIAL_STATE_FEATURE_DIM), dtype=np.float64)
+
+    occ: Dict[Any, List[float]] = {}
+    load: Dict[Any, float] = {}
+    for t, cand in committed.items():
+        node = ctx.node_of[cand]
+        k = int(ctx.task_type_index[t])
+        occ.setdefault(node, [0.0] * KRANK_TYPES)[k] += 1.0
+        load[node] = load.get(node, 0.0) + float(ctx.demand[(t, cand)])
+
+    parent_ids = list(ctx.parents.get(task_id) or ())
+    missing = [p for p in parent_ids if p not in committed]
+    if missing:
+        raise ValueError(
+            f"partial_state_columns: task {task_id} scored with uncommitted "
+            f"parents {missing} — the §4 topological decode order guarantees all "
+            "parents are committed; the caller is not honoring it"
+        )
+
+    couse: Dict[str, int] = {}
+    for t, cand in committed.items():
+        for lk in ctx.ingress_links.get((t, ctx.node_of[cand]), ()):
+            couse[lk] = couse.get(lk, 0) + 1
+
+    k_self = int(ctx.task_type_index[task_id])
+    if not (0 <= k_self < KRANK_TYPES):
+        raise ValueError(f"partial_state_columns: type index {k_self} out of range")
+
+    for i, cand in enumerate(candidates):
+        node = ctx.node_of[cand]
+        cap = float(ctx.node_caps.get(node, _math.inf))
+        node_occ = occ.get(node)
+        if node_occ is not None:
+            out[i, 0:KRANK_TYPES] = node_occ
+        d = float(ctx.demand[(task_id, cand)])
+        ld = load.get(node, 0.0)
+        if _math.isfinite(cap) and cap > 0.0:
+            out[i, 4] = ld / cap
+            out[i, 5] = (cap - ld - d) / cap
+            out[i, 6] = 1.0 if ld + d > cap + _PARTIAL_STATE_EPS else 0.0
+        else:
+            # an uncapped node has no contention pressure, full headroom, and can
+            # never violate — stated, not implied
+            out[i, 4] = 0.0
+            out[i, 5] = 1.0
+            out[i, 6] = 0.0
+
+        if parent_ids:
+            hops: List[float] = []
+            transfer = 0.0
+            for p in parent_ids:
+                pnode = ctx.node_of[committed[p]]
+                pair = (pnode, node)
+                if pair not in ctx.route_hops_bneck:
+                    raise ValueError(
+                        f"partial_state_columns: no route metrics for {pair!r}"
+                    )
+                h, bneck = ctx.route_hops_bneck[pair]
+                hops.append(float(h))
+                if h > 0:
+                    transfer += float(h) * ctx.payload_bytes / float(bneck)
+            out[i, 7] = min(hops)
+            out[i, 8] = max(hops)
+            out[i, 9] = (
+                transfer / ctx.transfer_norm if ctx.transfer_norm > 0.0 else 0.0
+            )
+
+        r = int(ctx.node_rank[node])
+        if not (0 <= r < KRANK_WIDTH):
+            raise ValueError(
+                f"partial_state_columns: node rank {r} outside pad width "
+                f"{KRANK_WIDTH}"
+            )
+        out[i, PARTIAL_STATE_BASE_DIM + r * KRANK_TYPES + k_self] = 1.0
+
+        links = ctx.ingress_links.get((task_id, node), ())
+        if links:
+            base = PARTIAL_STATE_BASE_DIM + KRANK_FEATURE_DIM
+            counts = [couse.get(lk, 0) for lk in links]
+            out[i, base + 0] = float(max(c + 1 for c in counts))
+            out[i, base + 1] = float(sum(1 for c in counts if c >= 1))
+            core = [c for lk, c in zip(links, counts) if lk in ctx.core_links]
+            if core:
+                out[i, base + 2] = float(max(c + 1 for c in core))
+                out[i, base + 3] = float(sum(1 for c in core if c >= 1))
+
+    return out.astype(np.float32)
+
+
 def _batch_edge_feature_dims(
-    platform_feature_dim: int, *, candidate_relative: bool = False
+    platform_feature_dim: int, *, candidate_relative: bool = False,
+    partial_state: bool = False
 ) -> Tuple[int, List[str], str]:
     """Map platform width → (total feature dim, column names, inference layout)."""
+    if partial_state and platform_feature_dim != 14:
+        raise ValueError(
+            "the dim63crk partial-state layout is defined on the dim22/dim25cr "
+            f"platform width (14) only; got platform_feature_dim={platform_feature_dim}"
+        )
     if platform_feature_dim == 14:
+        if partial_state:
+            if not candidate_relative:
+                raise ValueError(
+                    "dim63crk is dim25cr + partial state; partial_state=True "
+                    "requires candidate_relative=True"
+                )
+            return DIM63CRK_FEATURE_DIM, DIM63CRK_FEATURE_COLUMN_NAMES, "dim63crk"
         if candidate_relative:
             return DIM25CR_FEATURE_DIM, DIM25CR_FEATURE_COLUMN_NAMES, "dim25cr"
         return DIM22_FEATURE_DIM, DIM22_FEATURE_COLUMN_NAMES, "dim22"

@@ -45,6 +45,9 @@ from src.policy.tabular.reduced_features import (
     DIM22_FEATURE_DIM,
     DIM24_FEATURE_DIM,
     DIM25CR_FEATURE_DIM,
+    DIM63CRK_FEATURE_DIM,
+    PARTIAL_STATE_FEATURE_DIM,
+    validate_partial_state_contract,
     dim22_rows_to_dataframe,
     extract_rows_dim22_from_batch_graph,
     validate_dim22_frame,
@@ -77,6 +80,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-graphs", type=int, default=64)
     parser.add_argument("--min-batch-tasks", type=int, default=2,
                         help="Skip batch graphs with fewer tasks (GNN/MLP deploy range)")
+    parser.add_argument("--partial-state", action="store_true",
+                        help="route_b stage 2 (ROUTE_B_STAGE2_PREREGISTRATION.md §2): "
+                             "train on the dim63crk layout — dim25cr + the 38 "
+                             "partial-state/krank/linkrank columns. Requires "
+                             "--candidate-relative-queue and a stage-2 cache that "
+                             "declares a partial_state_contract.")
     parser.add_argument("--candidate-relative-queue", action="store_true",
                         help="P5b: append the 3 candidate-relative queue columns (dim22 -> dim25cr). "
                              "Gives the pointwise scorer the set-relative view a graph model "
@@ -210,14 +219,32 @@ def main() -> None:
     cache_dir = args.cache_dir.resolve()
 
     metadata, graphs, dataset_ids = load_batch_cache(cache_dir)
+    candidate_relative = bool(args.candidate_relative_queue)
+    partial_state = bool(args.partial_state)
+    partial_state_contract = None
+    if partial_state:
+        if not candidate_relative:
+            raise RuntimeError(
+                "[MLP batch] --partial-state requires --candidate-relative-queue "
+                "(dim63crk = dim25cr + the partial-state block)"
+            )
+        cache_contract = metadata.get("partial_state_contract")
+        if not cache_contract:
+            raise RuntimeError(
+                "[MLP batch] --partial-state needs a stage-2 cache that declares "
+                "partial_state_contract in its metadata (build item B3); this cache "
+                "does not — refusing to train a dim63crk arm on rows that cannot "
+                "carry the partial-state columns"
+            )
+        partial_state_contract = validate_partial_state_contract(cache_contract)
     df = extract_dim22_dataframe(args, metadata, graphs, dataset_ids)
     feature_cols = _feature_columns(df)
     input_dim = len(feature_cols)
-    candidate_relative = bool(args.candidate_relative_queue)
     _LAYOUT_BY_WIDTH = {
         DIM22_FEATURE_DIM: "dim22",
         DIM24_FEATURE_DIM: "dim24",
         DIM25CR_FEATURE_DIM: "dim25cr",
+        DIM63CRK_FEATURE_DIM: "dim63crk",
     }
     if input_dim not in _LAYOUT_BY_WIDTH:
         raise RuntimeError(
@@ -225,12 +252,17 @@ def main() -> None:
             f"expected one of {sorted(_LAYOUT_BY_WIDTH)}"
         )
     layout = _LAYOUT_BY_WIDTH[input_dim]
-    # The flag and the extracted width must agree, or the checkpoint would declare a
+    # The flags and the extracted width must agree, or the checkpoint would declare a
     # layout it was not trained under — the confound tests/test_inference_layout_contract
     # exists to prevent.
-    if candidate_relative != (layout == "dim25cr"):
+    if candidate_relative != (layout in ("dim25cr", "dim63crk")):
         raise RuntimeError(
             f"[MLP batch] --candidate-relative-queue={candidate_relative} but extracted "
+            f"width {input_dim} implies layout {layout!r}"
+        )
+    if partial_state != (layout == "dim63crk"):
+        raise RuntimeError(
+            f"[MLP batch] --partial-state={partial_state} but extracted "
             f"width {input_dim} implies layout {layout!r}"
         )
     # Caches built before CACHE_VERSION 5.7 carry no contract field and are legacy_v0 by
@@ -373,7 +405,25 @@ def main() -> None:
     test_acc_final = edge_accuracy_from_dataset(model, test_set, device)
 
     cr_ablation_change = None
-    if candidate_relative:
+    partial_state_ablation_change = None
+    if partial_state:
+        # B2's registered ablation gate: zeroing the 38 partial-state/krank/linkrank
+        # columns (the LAST 38 of dim63crk) must move >= 5% of held-out argmaxes,
+        # else the arm is VOID as not-actually-T1. The number is recorded in the
+        # sidecar; the VOID reading is applied by the gate, not silently here.
+        partial_state_ablation_change = candidate_relative_ablation_change(
+            model, test_set, device, PARTIAL_STATE_FEATURE_DIM
+        )
+        print(
+            f"[MLP batch] B2 ABLATION GATE — zeroing the {PARTIAL_STATE_FEATURE_DIM} "
+            f"partial-state/krank/linkrank columns moves "
+            f"{partial_state_ablation_change:.1%} of held-out argmaxes "
+            f"(registered threshold: >= 5%, else VOID as not-actually-T1)",
+            flush=True,
+        )
+    elif candidate_relative:
+        # zero-the-LAST-n ablation is only the CR ablation when the CR columns are
+        # last, i.e. on dim25cr; on dim63crk the last block is the partial state.
         cr_ablation_change = candidate_relative_ablation_change(
             model, test_set, device, CANDIDATE_RELATIVE_FEATURE_DIM
         )
@@ -393,6 +443,8 @@ def main() -> None:
         "queue_feature_contract": queue_feature_contract,
         "torch_seeded": True,
         "candidate_relative": candidate_relative,
+        "partial_state": partial_state,
+        "partial_state_contract": partial_state_contract,
     }
     if candidate_relative:
         checkpoint["candidate_relative_columns"] = CANDIDATE_RELATIVE_COLUMN_SPEC
@@ -426,6 +478,9 @@ def main() -> None:
             CANDIDATE_RELATIVE_COLUMN_SPEC if candidate_relative else None
         ),
         "candidate_relative_ablation_argmax_change": cr_ablation_change,
+        "partial_state": partial_state,
+        "partial_state_contract": partial_state_contract,
+        "partial_state_ablation_argmax_change": partial_state_ablation_change,
         # Which code produced these weights. Without it a checkpoint cannot be told apart
         # from one built by a different working tree (PARITY.md rule 6).
         "code_provenance": describe_code_provenance(),
