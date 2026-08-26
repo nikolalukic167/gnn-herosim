@@ -198,3 +198,200 @@ def test_hetero_static_guard_mode_name_absent():
         f"'masked_topo' appears in {offenders} — the hetero decoder copy is out "
         "of scope for stage 2 and must not grow the registered mode"
     )
+
+
+# =======================================================================================
+# Per-step rescoring (score_fn) — the §2 information-tier hook.
+#
+# A T1/T2 arm conditions each step's scores on the prefix committed so far, but it must
+# do so through THIS decoder: §4 requires A1-A4 to share one decode order, one mask and
+# one tie rule. So score_fn changes only where a number comes from, never how the plan is
+# assembled — and with score_fn absent the decoder must behave exactly as before, because
+# B1's frozen 408+408-cell acceptance was measured on that path.
+# =======================================================================================
+def _decode_rescored(logits, candidates, caps, demands, score_fn, parents=DIAMOND, stats=None):
+    n = len(logits)
+    return decode_masked_topo_placement(
+        logits,
+        {t: candidates[t] for t in range(n)},
+        n,
+        dag_parents=parents,
+        node_caps=caps,
+        demands=demands,
+        stats=stats,
+        score_fn=score_fn,
+    )
+
+
+def test_score_fn_absent_is_identical_to_the_frozen_path():
+    """The static path must not move: it is what the 408+408 acceptance measured."""
+    cands = {0: [(1, 11), (2, 21)], 1: [(1, 11), (2, 21)]}
+    args = dict(
+        candidates=cands,
+        caps={},
+        demands={0: [1.0, 1.0], 1: [1.0, 1.0]},
+        parents={0: [], 1: [0]},
+    )
+    logits = [[5.0, 1.0], [5.0, 1.0]]
+    assert _decode(logits, **args) == _decode_rescored(logits, score_fn=None, **args)
+
+
+def test_score_fn_replaces_the_static_logits():
+    """A prefix-aware score must be able to overturn the static argmax."""
+    cands = {0: [(1, 11), (2, 21)], 1: [(1, 11), (2, 21)]}
+    # Static logits prefer (1, 11) for task 0; the score_fn prefers (2, 21).
+    combo = _decode_rescored(
+        [[5.0, 1.0], [5.0, 1.0]],
+        cands,
+        caps={},
+        demands={0: [1.0, 1.0], 1: [1.0, 1.0]},
+        score_fn=lambda t, committed: [1.0, 5.0],
+        parents={0: [], 1: [0]},
+    )
+    assert combo == ((2, 21), (1, 11))
+
+
+def test_score_fn_sees_the_committed_prefix_in_topological_order():
+    """The whole point of T2: every step is handed the placements already committed."""
+    seen = []
+
+    def spy(task_idx, committed):
+        seen.append((task_idx, dict(committed)))
+        return [1.0, 0.0]
+
+    cands = {t: [(1, 10 + t), (2, 20 + t)] for t in range(4)}
+    _decode_rescored(
+        [[0.0, 0.0]] * 4,
+        cands,
+        caps={},
+        demands={t: [1.0, 1.0] for t in range(4)},
+        score_fn=spy,
+        parents=DIAMOND,
+    )
+    assert [t for t, _ in seen] == [0, 1, 2, 3], "not the §4 topological order"
+    assert seen[0][1] == {}, "the root was scored against a non-empty prefix"
+    # Every parent must be committed by the time its child is scored.
+    for task_idx, committed in seen:
+        for parent in DIAMOND[task_idx]:
+            assert parent in committed, f"task {task_idx} scored before parent {parent}"
+
+
+def test_score_fn_cannot_mutate_decoder_state():
+    """`committed` is handed over as a copy; a careless callback must not corrupt it."""
+
+    def vandal(task_idx, committed):
+        committed.clear()
+        committed[999] = (0, 0)
+        return [1.0, 0.0]
+
+    cands = {t: [(1, 10 + t), (2, 20 + t)] for t in range(4)}
+    combo = _decode_rescored(
+        [[0.0, 0.0]] * 4,
+        cands,
+        caps={},
+        demands={t: [1.0, 1.0] for t in range(4)},
+        score_fn=vandal,
+        parents=DIAMOND,
+    )
+    assert combo == ((1, 10), (1, 11), (1, 12), (1, 13))
+
+
+def test_score_fn_length_mismatch_fails_loud():
+    """A misaligned score vector would silently score the wrong candidates."""
+    stats = GnnDecodeRunStats()
+    cands = {0: [(1, 11), (2, 21)], 1: [(1, 11), (2, 21)]}
+    with pytest.raises(RuntimeError, match="score_fn returned"):
+        _decode_rescored(
+            [[0.0, 0.0], [0.0, 0.0]],
+            cands,
+            caps={},
+            demands={0: [1.0, 1.0], 1: [1.0, 1.0]},
+            score_fn=lambda t, committed: [1.0],
+            parents={0: [], 1: [0]},
+            stats=stats,
+        )
+    assert stats.masked_topo_score_fn_failures == 1
+    assert stats.masked_topo_failed_decodes == 1
+
+
+def test_score_fn_exception_is_fatal_not_absorbed():
+    """Falling back to the static logits would reinstate the relax path §4 forbids."""
+    stats = GnnDecodeRunStats()
+    cands = {0: [(1, 11), (2, 21)], 1: [(1, 11), (2, 21)]}
+
+    def boom(task_idx, committed):
+        raise KeyError("missing demand")
+
+    with pytest.raises(KeyError):
+        _decode_rescored(
+            [[5.0, 1.0], [5.0, 1.0]],
+            cands,
+            caps={},
+            demands={0: [1.0, 1.0], 1: [1.0, 1.0]},
+            score_fn=boom,
+            parents={0: [], 1: [0]},
+            stats=stats,
+        )
+    assert stats.masked_topo_score_fn_failures == 1
+
+
+def test_rescored_steps_are_counted():
+    """A dead callback must show up as 0, not pass as 'the static scores were fine'."""
+    stats = GnnDecodeRunStats()
+    cands = {t: [(1, 10 + t), (2, 20 + t)] for t in range(4)}
+    _decode_rescored(
+        [[0.0, 0.0]] * 4,
+        cands,
+        caps={},
+        demands={t: [1.0, 1.0] for t in range(4)},
+        score_fn=lambda t, committed: [1.0, 0.0],
+        parents=DIAMOND,
+        stats=stats,
+    )
+    assert stats.masked_topo_rescored_steps == 4
+    assert stats.masked_topo_score_fn_failures == 0
+    assert stats.to_dict()["masked_topo"]["rescored_steps"] == 4
+
+
+def test_score_fn_infeasible_still_counted_not_relaxed():
+    """Rescoring does not buy an escape from the no-relax rule."""
+    stats = GnnDecodeRunStats()
+    # Both tasks have only one candidate, and it is the same one: task 1 is stuck.
+    cands = {0: [(1, 11)], 1: [(1, 11)]}
+    combo = _decode_rescored(
+        [[0.0], [0.0]],
+        cands,
+        caps={},
+        demands={0: [1.0], 1: [1.0]},
+        score_fn=lambda t, committed: [1.0],
+        parents={0: [], 1: [0]},
+        stats=stats,
+    )
+    assert combo is None
+    assert stats.masked_topo_infeasible_tasks == 1
+    assert stats.masked_topo_failed_decodes == 1
+
+
+def test_run_decode_with_timing_forwards_score_fn():
+    """The dispatcher must actually pass it through, and keep the mode name."""
+    stats = GnnDecodeRunStats()
+    cands = {0: [(1, 11), (2, 21)], 1: [(1, 11), (2, 21)]}
+    combo = run_decode_with_timing(
+        "masked_topo",
+        [[5.0, 1.0], [5.0, 1.0]],
+        cands,
+        2,
+        dag_parents={0: [], 1: [0]},
+        node_caps={},
+        demands={0: [1.0, 1.0], 1: [1.0, 1.0]},
+        stats=stats,
+        score_fn=lambda t, committed: [1.0, 5.0],
+    )
+    assert combo == ((2, 21), (1, 11)), "score_fn did not reach the decoder"
+    assert stats.masked_topo_rescored_steps == 2
+
+
+def test_rescoring_does_not_mint_a_second_decode_mode():
+    """§4 requires ONE decoder across A1-A4; where scores come from is an arm property."""
+    assert "masked_topo" in KNOWN_DECODE_MODES
+    assert not any("rescore" in mode for mode in KNOWN_DECODE_MODES)

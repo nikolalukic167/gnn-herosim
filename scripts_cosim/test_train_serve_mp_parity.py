@@ -207,3 +207,164 @@ def test_residual_changes_output_with_identical_weights():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+# ---------------------------------------------------------------------------------------
+# route_b stage 2: workload-DAG message passing + per-step prefix conditioning.
+#
+# Same rule as same-node edges, one lineage later: both blocks are opt-in, and a default
+# checkpoint must be bit-identical whether or not a graph happens to carry them. The
+# cache now ships dag_edge_index / task_type_onehot4 on every --dag-partial-state graph,
+# so "the graph doesn't have it" no longer protects an older checkpoint — only the flag
+# defaults do.
+# ---------------------------------------------------------------------------------------
+DAG_EDGES_ENV = "GNN_MP_DAG_EDGES"
+
+_PARTIAL_STATE_DIM = 38
+
+
+def _graph_with_dag_and_prefix(seed: int = 0) -> Data:
+    """The same 2-task/4-platform graph, plus the stage-2 DAG and prefix blocks."""
+    data = _graph_with_same_node_edges(seed)
+    # task 0 -> task 1, stored parent->child; the model emits both directions itself.
+    data.dag_edge_index = torch.tensor([[0], [1]])
+    data.task_type_onehot4 = torch.tensor(
+        [[0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    )
+    torch.manual_seed(seed + 991)
+    data.partial_state_edge_attr = torch.randn(4, _PARTIAL_STATE_DIM)
+    return data
+
+
+def _dag_model(*, dag: bool, onehot: int = 4, prefix: int = 0, seed: int = 0):
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+
+    os.environ.pop(DAG_EDGES_ENV, None)
+    torch.manual_seed(seed)
+    model = TaskPlacementGNN(
+        task_feature_dim=3,
+        platform_feature_dim=14,
+        mp_dag_edges=dag,
+        task_type_onehot_dim=onehot,
+        partial_state_edge_dim=prefix,
+    )
+    model.eval()
+    return model
+
+
+def test_default_ignores_dag_edges():
+    """A default checkpoint must not message-pass over DAG edges it never trained on."""
+    data = _graph_with_dag_and_prefix()
+    bare = _graph_with_dag_and_prefix()
+    bare.dag_edge_index = torch.empty((2, 0), dtype=torch.long)
+
+    model = _model()
+    assert torch.allclose(_logits(model, data), _logits(model, bare)), (
+        "Serving default message-passes over workload-DAG edges. Same failure mode as "
+        "same-node edges in 2026-08-16: keep them opt-in."
+    )
+
+
+def test_default_ignores_partial_state_edge_attr():
+    """A default checkpoint must never be silently prefix-conditioned."""
+    data = _graph_with_dag_and_prefix()
+    bare = _graph_with_dag_and_prefix()
+    del bare.partial_state_edge_attr
+
+    model = _model()
+    assert torch.allclose(_logits(model, data), _logits(model, bare)), (
+        "A checkpoint with partial_state_edge_dim=0 read the prefix block. Prefix "
+        "conditioning must be a declared, weight-visible property."
+    )
+
+
+def test_dag_flag_actually_changes_message_passing():
+    """Kills flag rot: an opt-in that changes nothing is worse than no flag."""
+    data = _graph_with_dag_and_prefix()
+    on = _dag_model(dag=True)
+    off = _dag_model(dag=False)
+    assert not torch.allclose(_logits(on, data), _logits(off, data)), (
+        "mp_dag_edges changed no logits, so the arm registered as DAG-aware is not."
+    )
+
+
+def test_prefix_block_actually_changes_scores():
+    """Same, for the prefix half: the 38 columns must reach the scorer."""
+    from src.policy.tabular.reduced_features import PARTIAL_STATE_FEATURE_DIM
+
+    data = _graph_with_dag_and_prefix()
+    zeroed = _graph_with_dag_and_prefix()
+    zeroed.partial_state_edge_attr = torch.zeros(4, PARTIAL_STATE_FEATURE_DIM)
+
+    model = _dag_model(dag=True, prefix=PARTIAL_STATE_FEATURE_DIM)
+    assert not torch.allclose(_logits(model, data), _logits(model, zeroed)), (
+        "The partial-state block did not move any score; the T2 arm would be scoring "
+        "as if no prefix existed."
+    )
+
+
+def test_dag_flag_without_type_onehot_fails_loud():
+    """Undirected DAG mixing without the 4-way one-hot makes cnn/rf interchangeable."""
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+
+    with pytest.raises(ValueError, match="task_type_onehot_dim"):
+        TaskPlacementGNN(
+            task_feature_dim=3, platform_feature_dim=14, mp_dag_edges=True
+        )
+
+
+def test_mp_dag_edges_missing_attr_fails_loud():
+    """A DAG model handed a non-DAG graph must fail, not degrade to bipartite."""
+    data = _graph_with_dag_and_prefix()
+    del data.dag_edge_index
+    model = _dag_model(dag=True)
+    with pytest.raises(ValueError, match="dag_edge_index"):
+        _logits(model, data)
+
+
+def test_task_type_onehot_missing_fails_loud():
+    data = _graph_with_dag_and_prefix()
+    del data.task_type_onehot4
+    model = _dag_model(dag=True)
+    with pytest.raises(ValueError, match="task_type_onehot4"):
+        _logits(model, data)
+
+
+def test_partial_state_attr_missing_fails_loud():
+    """Never score an all-zero prefix by accident — that is arm A3, not A1."""
+    from src.policy.tabular.reduced_features import PARTIAL_STATE_FEATURE_DIM
+
+    data = _graph_with_dag_and_prefix()
+    del data.partial_state_edge_attr
+    model = _dag_model(dag=True, prefix=PARTIAL_STATE_FEATURE_DIM)
+    with pytest.raises(ValueError, match="partial_state_edge_attr"):
+        _logits(model, data)
+
+
+def test_dag_edges_out_of_range_fail_loud():
+    """DAG edges index the task block only; a platform index would corrupt the graph."""
+    data = _graph_with_dag_and_prefix()
+    data.dag_edge_index = torch.tensor([[0], [5]])  # 5 is a platform node
+    model = _dag_model(dag=True)
+    with pytest.raises(ValueError, match="outside the task block"):
+        _logits(model, data)
+
+
+def test_dag_edges_are_a_minority_term():
+    """The 2026-08-16 flood guard, rewritten for DAG edges.
+
+    Measured on gnn_datasets_dag4_route_b_smoke_s/ds_00000: candidates per task are
+    6/6/4/4, so the bipartite graph has 40 columns after to_undirected, while diamond4's
+    4 DAG edges become 8 — 0.20x, versus the 25.9x-29.9x same-node flood. Platform
+    in-degree is also untouched (DAG edges are task<->task), so the queue-erasure
+    mechanism that made the same-node flood catastrophic cannot fire here at all.
+
+    Pinned as a fact rather than left in a comment: if a future grid makes DAG edges
+    dominant, that rationale needs re-measuring before the arm is trusted.
+    """
+    dag_edges_undirected = 2 * 4  # diamond4, both directions
+    bipartite_edges = 6 + 6 + 4 + 4  # the measured route_b candidate counts
+    assert dag_edges_undirected <= 0.5 * bipartite_edges, (
+        "Workload-DAG edges are expected to be a minority term against the bipartite "
+        "graph; if this no longer holds, re-measure the flood rationale."
+    )
