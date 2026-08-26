@@ -4394,7 +4394,81 @@ scores coefficients **centered within (dataset, task_type)**, the gauge-invarian
 **Status: NO-GO-PREPROBE-T1 retracted as measured. Stage 2 REOPENED, pending re-registration
 with (i) a T1 definition that either justifies identity-indexed columns or replaces them with
 an anonymous per-node-resolution block, and (ii) a decoder tie rule. Nothing is built until
-that registration exists.**
+that registration exists. The 8-task probe of the exploratory pooled result is §9d below.**
+
+### route_b_v1 — §9d: 8-task probe — pooled `krank` closure SURVIVES the doubling, attenuated (2026-08-26)
+
+**The question.** §9c's exploratory pooled result — ONE identity-free coefficient set
+(`krank` + dim36crk) closing the median firing dataset at 0.790 — was measured on 4-task
+episodes, where the joint decision is small enough that a lookup-table-shaped fit is cheap.
+Does it survive doubling the joint decision to 8 tasks (2 `diamond4` DAG instances per
+episode, independently drawn client nodes, byte-identical infrastructure per index)?
+
+**Corpus.** `gnn_datasets_dag4_route_b_pilot_v1_8task`, 204 datasets, generated on datalab
+(job 713673): 204/204 complete, 0 silent skips, 0 truncated sweeps, 0 worker failures; sweep
+sizes 27,648–516,096 (~41M sims, ~23 GB). Venue measured not to be a variable twice over:
+the 4-task identity gate (job 713654, 16/16 artifact hashes match the frozen local corpus)
+plus an 8-task spot check (cluster `ds_00002` vs the validated local smoke run —
+`best.json`/`workload.json` byte-identical, 161,280-row `placements.jsonl` identical as a
+set, `infrastructure.json` differing only in `metadata.{generation_time,config_file}`).
+Generation recipe is the full Arm S env block — job 713615 failed for lack of
+`HEROSIM_COSIM_KEEP_ALIVE`/`HEROSIM_RETAIN_TASK_TIMES`, and the skip threshold had to be
+raised to 2,000,000 against the *pre*-uniqueness `total_possible` (hard bound 1,248² =
+1,557,504) after 1,000,000 silently dropped `ds_00026`; both are documented in
+`route_b_8task_probe.sbatch`.
+
+**Alpha correspondence — registered a priori, not searched.** `cap_node = alpha ·
+max_single_demand` has no task-count term, so 8 tasks against the same cap is ~2× tighter;
+the equal-tightness match to `TIGHT_ALPHA = 2.0` is its double, **4.0** (ladder
+3.0/4.0/5.0/6.0 covers both doubled rungs plus the response curve). At the primary 4.0 the
+silent-bias counters are clean: `greedy_stuck = 0`, `no_feasible_rows = 0` (at 3.0: 76
+stuck, 2 no-feasible — the tight end is real, and it is not the primary).
+
+**Firing: 33/204 = 16.2%** at `r_exact_pct > 5.0`, vs the 4-task 35/204 = 17.2% — the
+a-priori doubling landed on matched power (pooled statistic rests on 19 closed cells vs 20),
+so the two closures are directly comparable. Firing `r_exact_pct` spans 5.3–63.7%, median
+14.3%.
+
+| arm (exploratory, NOT registered, no verdict read from it) | 4-task (§9c) | 8-task |
+|---|---|---|
+| krank + dim36crk, per dataset | 1.000 (26/35) | **0.988** (20/33) |
+| **krank + dim36crk, ONE pooled coefficient set** | 0.790 (mean_tied 0.824, 20/35) | **0.617** (mean_tied 0.617, 19/33) |
+
+**Reading: the layout hypothesis survives the doubling, attenuated.** A single pooled,
+identity-free coefficient set still closes the median firing dataset above half
+(0.790 → 0.617); per-dataset closure is essentially unchanged (1.000 → 0.988). Per §9c's
+own framing this remains **evidence about the corrected-registration hypothesis (per-node
+occupancy *resolution*, no identity, no message passing), not a gate** — it feeds the
+stage-2 re-registration and changes no verdict.
+
+**Registered readings of §9c(a)/(b), applied to this corpus — both land opposite their
+4-task values:**
+
+- **(a)** `kint` coefficients regressed on node features, held out by dataset:
+  **R² = 0.607** (in-sample 0.644; 390 coefficients, 33 datasets) — ≥ 0.5 reads
+  *feature-representable*, where the 4-task corpus measured 0.0138 (*identity-memorized*).
+  With 2 tasks of each type per dataset the per-type gauge degeneracy §9c's verification
+  note describes is also broken, so the fit is better-posed here, not just luckier.
+- **(b)** anonymous (dim36crk-expressible) closure: **all three tie readings agree at
+  0.988** (optimistic upper bound 0.997) — the 4-task VOID-TIE-INDETERMINATE does not recur
+  at 8 tasks; the script's registered rule prints `NO-GO-PREPROBE-T1-STANDS`, and the
+  transfer's top-level verdict is `BOUND-TRANSFERS`.
+- Decomposition against the registered physical predictions: the closure is carried by the
+  **parent-coupling block** (hop+coupling pooled median 0.997, 23/33); the occupancy blocks
+  (`kint`/`quad`/cap) pool to median **0.000**. At 8 tasks the pooled structure is
+  parent-coupling-shaped, not occupancy-shaped.
+
+**Provenance.** Corpus job 713673, scorer job 713793, transfer job 713794 (41 min), all
+CPU-amd, repo at `72d75e7` both venues. Artifacts (both venues):
+`simulation_data/route_b_8task_rtt.json` (frozen report, `--include-per-dataset`),
+`simulation_data/route_b_8task_coefficient_transfer.json`. Harnesses:
+`scripts_cosim/datalab/route_b_8task_{probe,score,transfer}.sbatch`,
+`route_b_venue_identity_gate.sbatch`.
+
+**Status: route_b_v1 item 4 CLOSED — probe complete, outcome recorded. The anonymous
+per-node-resolution layout hypothesis survives the 4→8 task doubling at matched firing
+power (0.790 → 0.617 pooled, per-dataset ~1.0 both). Exploratory throughout; the stage-2
+re-registration required by §9c remains the gating step.**
 
 ---
 
