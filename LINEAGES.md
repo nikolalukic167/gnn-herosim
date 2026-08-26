@@ -4599,6 +4599,42 @@ enumerable-sweep concurrency — the corpus (not the architecture) is the limit.
 re-registration on the current corpus; recipe in
 `handover-route-b-stage2-or-env-pivot.md` §2).
 
+### route_b_v1 — STAGE 2 CORRECTED PRE-REGISTRATION (v2, signed off 2026-08-26)
+
+The §9c-mandated re-registration exists and is signed off:
+`ROUTE_B_STAGE2_PREREGISTRATION.md` **at commit `b7553cf`** is the registration under
+which stage 2 now runs (in-place v2 rewrite; the retracted 2026-08-25 text remains
+readable at `df9971e`/`597e7ab`, and the file's §11 logs every replacement with its
+evidence). What it fixes, in one line each:
+
+- **T1 layout `dim63crk`** (was `dim36crk`): + 24-col `krank` one-hot — the anonymous
+  per-node-resolution block §9c named and §9d validated, pinned to `krank_cols`
+  (`route_b_coefficient_transfer.py`), whose per-edge sum reproduces the pooled surrogate
+  exactly; + 4 `linkrank` edge cols (registered **no-op** expectation per the route_c
+  FAIL-BY-EXHAUSTION, included for feature parity; user decision 2026-08-26); − old col 32
+  (constant ≡ 1 under the corrected order).
+- **Decode order = DAG topological, ties by `task_id`** (mode `masked_topo`) — registers
+  what §9c measured the retracted "scarcity-pressure order" to already collapse to; the
+  frozen stage-1 greedy plans stay the 1e-9 acceptance target.
+- **Tie rule registered**: [pessimistic, mean_tied, optimistic] band mandatory on every
+  gate statistic, `mean_tied` the fair reading, direction disagreement =
+  VOID-TIE-INDETERMINATE (§8 V1 trigger) — the §9c(b) hole, closed.
+- **Power refloored**: §9a t1 residual floor (the frozen conservative substitute — the
+  artifacts carry no per-dataset pooled-krank residual); provisional HOLDOUT-P
+  **n = 504** (seeds 2001–2042), ladder 504 → 804. The two stale defaults the old §13
+  recorded (`route_b_stage2_power.py`, `score_route_b_gate.py`) are fixed in `b7553cf`;
+  the gate script's cond-2 kill set is unchanged and its verdict on the frozen reports is
+  unchanged (29 tests pass).
+- **8-task corpus: no gate role** (user decision 2026-08-26) — §9d's pooled-krank
+  0.790/0.617 numbers stand in §2 as the honest claim-to-beat, context only.
+- **PP0′**: the single-implementation krank arms get independent verification
+  (`verify_route_b_scorer_agreement.py` extension, 1e-9) before any training — a
+  verification VOID-gate, explicitly not a re-registered kill test for a number §9d
+  already saw. **MLP-first training order** registered (the cheap falsifier runs first).
+
+**Status: REGISTERED AND SIGNED OFF. The §9c gating condition is discharged; the §10
+build queue (B0–B8, PP0′ first) may start. Nothing was built before this row existed.**
+
 ---
 
 ## RETIRED
