@@ -20,17 +20,17 @@ description: >
   columns plus structure) and it keeps one GIN pass valid across every step and plan.
   The prefix-into-node-features variant is a §3 sensitivity row, not this arm.
 
-  NOTE: this config must not be used for the registered 8 draws until B6's shared split
-  artifact exists. Until then the sidecar records
-  split_ids_by_canonical_parent/random_state=42, and a draw would vary the split as well
-  as the initialisation, confounding the paired test.
-
-cache_dir: simulation_data/graphs_cache_route_b_smoke_s_dag
+cache_dir: simulation_data/graphs_cache_route_b_pilot_s_dag
 
 unset_env:
   - TRAIN_INIT_CHECKPOINT   # from scratch, never resume
 
 env:
+  # B6: the shared split artifact (sha256 0171ef14…, 142/31/31 over 204 parents).
+  # Every stage-2 arm — A2/A3's --split-artifact included — must point at this same
+  # file, or a draw varies the split as well as the initialisation and the paired
+  # test is confounded. The sidecar records path + sha256.
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/route_b_stage2_split_v1.json
   # Arm A1's three switches. All default off; the trainer refuses
   # PARTIAL_STATE_EDGES without MP_DAG_EDGES (that combination is A3 wearing A1's name)
   # and refuses any objective other than ce_only.

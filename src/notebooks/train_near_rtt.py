@@ -38,7 +38,10 @@ _REPO_ROOT = _NOTEBOOKS_DIR.parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from non_unique_lib.training_contract import (  # noqa: E402
+    assert_split_artifact_covers,
     assert_zero_parent_overlap,
+    canonical_parent_id,
+    load_split_artifact,
     split_ids_by_canonical_parent,
 )
 from torch import Tensor
@@ -174,6 +177,11 @@ class NearRttConfig:
     # it is recorded in the sidecar and applied deterministically (first N in cache
     # order — never a random sample).
     tied_max_plans: int = int(os.environ.get("NEAR_RTT_TIED_MAX_PLANS", "0"))
+    # B6: path to the shared split artifact (scripts_cosim/make_split_artifact.py).
+    # When set, the trainer loads the pinned parent-level split instead of drawing
+    # one, so a "draw" varies initialisation and batch order ONLY (§3). Every arm of
+    # a paired comparison must point at the same file.
+    split_artifact: str = os.environ.get("NEAR_RTT_SPLIT_ARTIFACT", "").strip()
 
 
 _DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-near-rtt-jun2026"
@@ -1291,9 +1299,65 @@ ys = np.concatenate([g.y.numpy() for g in graphs])
 print("Valid labels:", int(np.sum(ys >= 0)), "/", len(ys))
 print("Avg edges:", float(np.mean([g.edge_index.size(1) for g in graphs])))
 
-if NEAR_CFG.train_all or len(graphs) < 10:
+if NEAR_CFG.split_artifact:
+    # B6: the pinned split. The bypasses below would silently produce a different
+    # split than the sidecar claims, so both are refused outright while an
+    # artifact is set.
+    if NEAR_CFG.train_all:
+        raise RuntimeError(
+            "NEAR_RTT_SPLIT_ARTIFACT is set but NEAR_RTT_TRAIN_ALL=1 would bypass "
+            "the split — the sidecar would then claim a split this run did not use. "
+            "Unset one of them."
+        )
+    if len(graphs) < 10:
+        raise RuntimeError(
+            f"NEAR_RTT_SPLIT_ARTIFACT is set but the cache has only {len(graphs)} "
+            f"graphs, which would trigger the train=val=test small-corpus bypass. "
+            f"A pinned split on a corpus this small is not meaningful."
+        )
+    _split_path = Path(NEAR_CFG.split_artifact)
+    if not _split_path.is_absolute() and not _split_path.is_file():
+        # run_experiment configs carry repo-relative paths; the trainer may be
+        # launched from elsewhere (sbatch cd's around), so fall back to the root.
+        _split_path = _REPO_ROOT / NEAR_CFG.split_artifact
+    _split_payload, _split_sha256 = load_split_artifact(_split_path)
+    _graph_parents = [
+        canonical_parent_id(getattr(g, "parent_dataset_id", None) or gid)
+        for g, gid in zip(graphs, dataset_ids)
+    ]
+    assert_split_artifact_covers(
+        _split_payload, _graph_parents, artifact_path=str(_split_path)
+    )
+    _parent_to_split = {
+        parent: name
+        for name in ("train", "val", "test")
+        for parent in _split_payload[name]
+    }
+    _buckets: Dict[str, Tuple[list, list]] = {
+        "train": ([], []), "val": ([], []), "test": ([], [])
+    }
+    for g, gid, parent in zip(graphs, dataset_ids, _graph_parents):
+        bucket_graphs, bucket_ids = _buckets[_parent_to_split[parent]]
+        bucket_graphs.append(g)
+        bucket_ids.append(gid)
+    train_graphs, train_ids = _buckets["train"]
+    val_graphs, val_ids = _buckets["val"]
+    test_graphs, test_ids = _buckets["test"]
+    assert_zero_parent_overlap(train_ids, val_ids, test_ids)
+    SPLIT_ARTIFACT_PROVENANCE = {
+        "path": str(_split_path),
+        "sha256": _split_sha256,
+    }
+    print(
+        f"Split (B6 artifact {_split_path}, sha256={_split_sha256[:12]}…): "
+        f"train={len(train_graphs)} val={len(val_graphs)} test={len(test_graphs)}"
+    )
+elif NEAR_CFG.train_all or len(graphs) < 10:
     train_graphs, val_graphs, test_graphs = graphs, graphs, graphs
     train_ids, val_ids, test_ids = dataset_ids, dataset_ids, dataset_ids
+    # Record the bypass honestly — a sidecar claiming a split this run did not
+    # perform is worse than no record.
+    SPLIT_ARTIFACT_PROVENANCE = {"mode": "train_all"}
 else:
     (
         train_graphs,
@@ -1310,6 +1374,10 @@ else:
         random_state=42,
     )
     assert_zero_parent_overlap(train_ids, val_ids, test_ids)
+    SPLIT_ARTIFACT_PROVENANCE = {
+        "mode": "split_ids_by_canonical_parent",
+        "random_state": 42,
+    }
     print(
         f"Split (canonical-parent 70/15/15): "
         f"train={len(train_graphs)} val={len(val_graphs)} test={len(test_graphs)}"
@@ -1536,15 +1604,14 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 ),
                 # Non-zero CHANGES the loss definition, so it is recorded, not implied.
                 "tied_max_plans": NEAR_CFG.tied_max_plans if TEACHER_FORCED else None,
-                # §3 requires a draw to vary initialisation and batch order ONLY. B6's
-                # shared split artifact does not exist yet, so record the split this run
-                # actually used; swap in {"path", "sha256"} when B6 lands. Do NOT ship
-                # the registered A1 draws until it does — the paired test is otherwise
-                # confounded by a split that moves between arms.
-                "split_artifact": {
-                    "mode": "split_ids_by_canonical_parent",
-                    "random_state": 42,
-                },
+                # §3 requires a draw to vary initialisation and batch order ONLY.
+                # Under NEAR_RTT_SPLIT_ARTIFACT (B6) this is {"path", "sha256"} of the
+                # shared artifact; otherwise it names the split this run actually drew.
+                # Registered draws must carry the artifact form — a paired test whose
+                # split moves between arms is confounded. Analysis provenance only:
+                # not consumed by checkpoint_mp_config at serve time, so no serving
+                # whitelist entry is needed.
+                "split_artifact": SPLIT_ARTIFACT_PROVENANCE,
                 # Message passing sees DAG structure but NOT the prefix: the 38 columns
                 # enter at the EdgeScorer. Still strictly T2 (the head interacts
                 # graph-derived embeddings with the prefix), and it is §2's fairness

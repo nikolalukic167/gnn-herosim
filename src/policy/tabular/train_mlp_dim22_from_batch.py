@@ -14,6 +14,11 @@ from pathlib import Path as _Path
 _repo = _Path(__file__).resolve().parents[3]
 if str(_repo) not in _sys.path:
     _sys.path.insert(0, str(_repo))
+# non_unique_lib lives under src/notebooks, which is not a package (same treatment
+# as the scripts_cosim consumers of training_contract).
+_notebooks = _repo / "src" / "notebooks"
+if str(_notebooks) not in _sys.path:
+    _sys.path.insert(0, str(_notebooks))
 
 import argparse
 import json
@@ -54,6 +59,11 @@ from src.policy.tabular.reduced_features import (
     validate_dim22_frame,
 )
 from src.policy.tabular.train_ranker import split_by_parent_three_way
+from non_unique_lib.training_contract import (  # noqa: E402
+    assert_split_artifact_covers,
+    canonical_parent_id,
+    load_split_artifact,
+)
 
 
 def _feature_columns(df: pd.DataFrame) -> List[str]:
@@ -74,6 +84,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-size", type=float, default=0.15,
                         help="Canonical-parent held-out test fraction")
     parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument("--split-artifact", type=Path, default=None,
+                        help="B6: path to the shared split artifact "
+                             "(scripts_cosim/make_split_artifact.py). When set, the "
+                             "pinned parent-level split replaces the drawn one, so "
+                             "--random-state seeds initialisation and batch order "
+                             "ONLY. Every arm of a paired comparison must point at "
+                             "the same file; --val-size/--test-size are then refused.")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--hidden-dim", type=int, default=64)
@@ -285,12 +302,47 @@ def main() -> None:
         flush=True,
     )
 
-    train_df, val_df, test_df = split_by_parent_three_way(
-        df,
-        val_size=args.val_size,
-        test_size=args.test_size,
-        random_state=args.random_state,
-    )
+    if args.split_artifact is not None:
+        # B6: the pinned split. The size knobs describe a drawn split; silently
+        # ignoring them under an artifact would misrepresent what ran.
+        if args.val_size != 0.15 or args.test_size != 0.15:
+            raise RuntimeError(
+                "--split-artifact fixes the split; --val-size/--test-size have no "
+                "effect and non-default values are refused."
+            )
+        split_payload, split_sha256 = load_split_artifact(args.split_artifact)
+        canonical_parents = df["parent_dataset_id"].map(canonical_parent_id)
+        assert_split_artifact_covers(
+            split_payload,
+            canonical_parents.unique(),
+            artifact_path=str(args.split_artifact),
+        )
+        train_df = df[canonical_parents.isin(set(split_payload["train"]))].copy()
+        val_df = df[canonical_parents.isin(set(split_payload["val"]))].copy()
+        test_df = df[canonical_parents.isin(set(split_payload["test"]))].copy()
+        for name, part in (("train", train_df), ("val", val_df), ("test", test_df)):
+            if part.empty:
+                raise RuntimeError(
+                    f"Split artifact {args.split_artifact} leaves the {name} split "
+                    f"empty on this cache"
+                )
+        split_artifact_meta = {
+            "path": str(args.split_artifact),
+            "sha256": split_sha256,
+        }
+        print(
+            f"[MLP batch] split artifact {args.split_artifact} "
+            f"(sha256={split_sha256[:12]}…) — --random-state seeds init/batch order only",
+            flush=True,
+        )
+    else:
+        train_df, val_df, test_df = split_by_parent_three_way(
+            df,
+            val_size=args.val_size,
+            test_size=args.test_size,
+            random_state=args.random_state,
+        )
+        split_artifact_meta = None
     print(
         f"[MLP batch] train {len(train_df):,} rows / {train_df['graph_id'].nunique():,} graphs / "
         f"{train_df['parent_dataset_id'].nunique():,} parents  | "
@@ -499,8 +551,15 @@ def main() -> None:
         "random_state": args.random_state,
         "val_size": args.val_size,
         "test_size": args.test_size,
+        # B6: {"path", "sha256"} of the shared artifact, or None for a drawn split.
+        # A registered paired run must carry the artifact form.
+        "split_artifact": split_artifact_meta,
         "param_count": param_count,
-        "split_note": "Canonical-parent 70/15/15; early-stop on val; test reported once at end.",
+        "split_note": (
+            "Pinned by split artifact; --random-state seeds init/batch order only."
+            if split_artifact_meta is not None
+            else "Canonical-parent 70/15/15; early-stop on val; test reported once at end."
+        ),
         "fix_note": (
             f"Trained from batch cache (same as GNN) — platform features match {layout} inference."
         ),
