@@ -55,3 +55,17 @@ Notes:
 - Secrets are injected when the agent starts; adding them mid-run requires restarting the agent.
 - Keep `tailscaled` running in the background (tmux/`nohup`); a plain `&` in a one-shot shell may exit with the shell.
 - If `tailscale up` reports `invalid key: API key ... not valid`, regenerate a Tailscale **auth** key (not an API key) and update `TS_AUTH_KEY`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `nikolalukic167/gnn-herosim`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
