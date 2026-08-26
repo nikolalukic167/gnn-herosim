@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import itertools
 import json
 import math
@@ -47,6 +48,12 @@ KNOWN_DECODE_MODES = frozenset(
         "seq_reforward_pulls",
         "pulls_committed",
         "pull_ledger",
+        # The §4 shared masked decoder of ROUTE_B_STAGE2_PREREGISTRATION.md
+        # (corrected 2026-08-26): DAG topological order, capacity + reuse mask,
+        # placement-id tie rule, no relax path. Needs the masked-decoder inputs
+        # (dag_parents / node_caps / demands) — run_decode_with_timing fails loud
+        # without them; live-serving wiring is stage 3.
+        "masked_topo",
     }
 )
 
@@ -80,6 +87,13 @@ class GnnDecodeRunStats:
     # means the arm is closer to plain argmax than to a true uniqueness decode.
     uniq_enforced_tasks: int = 0
     uniq_relaxed_tasks: int = 0
+
+    # masked_topo only: the registered §4 prohibition is that there is NO relax
+    # path — a task whose masked candidate set is empty fails the whole batch
+    # decode, and that failure is counted here (no_feasible_rows-style loud
+    # accounting), never converted into an unmasked argmax.
+    masked_topo_infeasible_tasks: int = 0
+    masked_topo_failed_decodes: int = 0
 
     # Seqblend-specific (argmax + seqblend mode only)
     total_tasks: int = 0
@@ -135,6 +149,10 @@ class GnnDecodeRunStats:
         self.logit_chosen_minus_minq.extend(other.logit_chosen_minus_minq)
         self.feature_probe_tasks += other.feature_probe_tasks
         self.feature_probe_skipped += other.feature_probe_skipped
+        self.uniq_enforced_tasks += other.uniq_enforced_tasks
+        self.uniq_relaxed_tasks += other.uniq_relaxed_tasks
+        self.masked_topo_infeasible_tasks += other.masked_topo_infeasible_tasks
+        self.masked_topo_failed_decodes += other.masked_topo_failed_decodes
         self.total_tasks += other.total_tasks
         self.p1_override_count += other.p1_override_count
         self.classic_would_override_count += other.classic_would_override_count
@@ -215,6 +233,10 @@ class GnnDecodeRunStats:
                     / max(1, self.uniq_enforced_tasks + self.uniq_relaxed_tasks),
                     6,
                 ),
+            },
+            "masked_topo": {
+                "infeasible_tasks": self.masked_topo_infeasible_tasks,
+                "failed_decodes": self.masked_topo_failed_decodes,
             },
             "p1_margin": int(p1_margin),
             "total_decode_tasks": self.total_tasks,
@@ -675,6 +697,124 @@ def uniq_platform_chosen_idx(
     if stats is not None:
         stats.uniq_enforced_tasks += 1
     return int(masked.argmax().item())
+
+
+# The scorer's feasibility EPS (score_route_b_contention.EPS), reproduced here so the
+# decoder's mask and the enumerated feasible set agree at the boundary.
+_MASKED_TOPO_EPS = 1e-12
+
+
+def topological_task_order(
+    n_tasks: int,
+    dag_parents: Mapping[int, Sequence[int]],
+) -> List[int]:
+    """Kahn's algorithm over the batch DAG, lowest task index first among the ready
+    set — the §4 registered decode order of masked_topo (parents before children,
+    ties by task_id). A dependency cycle raises: silently decoding a cyclic batch in
+    index order would hide exactly the ordering property the mode is named for."""
+    parents = {
+        t: [p for p in (dag_parents.get(t) or ()) if p != t] for t in range(n_tasks)
+    }
+    remaining = {t: len(parents[t]) for t in range(n_tasks)}
+    children: Dict[int, List[int]] = {}
+    for t, ps in parents.items():
+        for p in ps:
+            if not (0 <= p < n_tasks):
+                raise RuntimeError(
+                    f"masked_topo: task {t} names parent {p} outside the batch "
+                    f"(n_tasks={n_tasks})"
+                )
+            children.setdefault(p, []).append(t)
+    ready = [t for t in range(n_tasks) if remaining[t] == 0]
+    heapq.heapify(ready)
+    order: List[int] = []
+    while ready:
+        t = heapq.heappop(ready)
+        order.append(t)
+        for c in children.get(t, ()):
+            remaining[c] -= 1
+            if remaining[c] == 0:
+                heapq.heappush(ready, c)
+    if len(order) != n_tasks:
+        raise RuntimeError(
+            "masked_topo: dependency cycle among tasks "
+            f"{sorted(set(range(n_tasks)) - set(order))}"
+        )
+    return order
+
+
+def decode_masked_topo_placement(
+    logits_per_task: Sequence[Any],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    n_tasks: int,
+    *,
+    dag_parents: Mapping[int, Sequence[int]],
+    node_caps: Mapping[int, float],
+    demands: Mapping[int, Sequence[float]],
+    stats: Optional[GnnDecodeRunStats] = None,
+) -> Optional[PlacementCombo]:
+    """The §4 shared masked decoder (ROUTE_B_STAGE2_PREREGISTRATION.md, corrected
+    2026-08-26) — decode mode "masked_topo".
+
+    Tasks commit in DAG topological order (Kahn, lowest task_id first), so every
+    parent is committed when its child is scored. The mask forbids replica reuse
+    and any placement that would push a node's committed memory over its cap.
+    Among feasible candidates the HIGHEST score wins; exact score ties break by
+    the lowest (node_id, platform_id) — the registered decoder-step tie rule.
+
+    Registered prohibition: there is NO relax path. A task whose masked candidate
+    set is empty fails the whole decode (returns None) and is counted in
+    GnnDecodeRunStats.masked_topo_* — never converted into an unmasked argmax.
+
+    Inputs beyond the shared decode signature, all mandatory:
+      dag_parents  batch-local task index -> parent task indices (the batch DAG)
+      node_caps    node_id -> cap_node(alpha), computed by the caller; a node
+                   absent from the mapping is uncapped
+      demands      task index -> per-candidate memory demand, aligned index-for-
+                   index with task_logit_to_placement[task]
+
+    Deliberately pure Python (no tensor ops): candidate lists are tiny, the exact
+    (score, placement-id) tie semantics stay visible, and the offline acceptance
+    harness can drive it with plain float lists as well as tensors.
+    """
+    if len(logits_per_task) != n_tasks:
+        return None
+    order = topological_task_order(n_tasks, dag_parents)
+    used: set = set()
+    load: Dict[int, float] = {}
+    chosen: Dict[int, Tuple[int, int]] = {}
+    for t_idx in order:
+        if t_idx not in task_logit_to_placement:
+            raise RuntimeError(f"masked_topo: task {t_idx} has no candidate mapping")
+        candidates = task_logit_to_placement[t_idx]
+        logits_t = logits_per_task[t_idx]
+        dem = demands.get(t_idx) if hasattr(demands, "get") else None
+        if dem is None or len(dem) != len(candidates):
+            raise RuntimeError(
+                f"masked_topo: task {t_idx} demand vector does not align with its "
+                f"{len(candidates)} candidates"
+            )
+        best: Optional[Tuple[Tuple[float, Tuple[int, int]], Tuple[int, int], int]] = None
+        for i, cand in enumerate(candidates):
+            placement = (int(cand[0]), int(cand[1]))
+            if placement in used:
+                continue
+            cap = node_caps.get(placement[0], math.inf)
+            if load.get(placement[0], 0.0) + float(dem[i]) > cap + _MASKED_TOPO_EPS:
+                continue
+            key = (-float(logits_t[i]), placement)
+            if best is None or key < best[0]:
+                best = (key, placement, i)
+        if best is None:
+            if stats is not None:
+                stats.masked_topo_infeasible_tasks += 1
+                stats.masked_topo_failed_decodes += 1
+            return None
+        _key, placement, i = best
+        chosen[t_idx] = placement
+        used.add(placement)
+        load[placement[0]] = load.get(placement[0], 0.0) + float(dem[i])
+    return tuple(chosen[t] for t in range(n_tasks))
 
 
 def decode_sequential_placement(
@@ -1193,6 +1333,9 @@ def run_decode_with_timing(
     uniq_platform: bool = False,
     top_k: int = 10,
     stats: Optional[GnnDecodeRunStats] = None,
+    dag_parents: Optional[Mapping[int, Sequence[int]]] = None,
+    node_caps: Optional[Mapping[int, float]] = None,
+    demands: Optional[Mapping[int, Sequence[float]]] = None,
 ) -> Optional[PlacementCombo]:
     """Run decode for the requested mode and record batch instrumentation."""
     t0 = time.perf_counter()
@@ -1200,7 +1343,24 @@ def run_decode_with_timing(
     branching: Optional[List[int]] = None
     effective_mode = decode_mode
 
-    if decode_mode in ("frozen", "frozen_argmax"):
+    if decode_mode == "masked_topo":
+        if dag_parents is None or node_caps is None or demands is None:
+            raise RuntimeError(
+                "FAIL LOUD: decode mode 'masked_topo' needs dag_parents, node_caps "
+                "and demands (the §4 masked-decoder state). The stage-2 offline "
+                "harness supplies them; live-serving wiring is stage 3 and does "
+                "not exist yet."
+            )
+        combo = decode_masked_topo_placement(
+            logits_per_task,
+            task_logit_to_placement,
+            n_tasks,
+            dag_parents=dag_parents,
+            node_caps=node_caps,
+            demands=demands,
+            stats=stats,
+        )
+    elif decode_mode in ("frozen", "frozen_argmax"):
         combo = decode_frozen_argmax_placement(
             logits_per_task, task_logit_to_placement, n_tasks
         )
