@@ -1,0 +1,56 @@
+# route_b stage 2, arm A1 — the genuine T2 GNN.
+trainer: gnn
+lineage: route_b_v1
+description: >
+  Arm A1: DAG message passing (undirected task<->task edges + the 4-way task-type
+  one-hot) plus per-step prefix conditioning (the 38 partial-state columns on candidate
+  edges), trained with the teacher-forced any-of-K marginalized CE over the tied-optimal
+  plan set at alpha=2.0. Decoding is the §4 shared masked_topo decoder — the same one
+  A2/A3/A4 use — driven per step by the prefix-conditioned scorer, so the arms differ
+  only in how a candidate is scored, never in how the plan is assembled.
+
+  The 4-way one-hot is a FAIRNESS REPAIR, not a T2 privilege: task_features encodes only
+  a 2-way one-hot over ('dnn1','dnn2') plus a source scalar, so on a diamond4 grid 'cnn'
+  and 'rf' are indistinguishable to the GNN while the T1 MLP already separates them via
+  the krank block. It is also a hard prerequisite of undirected DAG edges (the model
+  raises without it).
+
+  Prefix conditioning is scoped to the EdgeScorer: message passing sees DAG structure
+  but not the prefix. That is §2's fairness bargain (the GNN gets T1's 38 pointwise
+  columns plus structure) and it keeps one GIN pass valid across every step and plan.
+  The prefix-into-node-features variant is a §3 sensitivity row, not this arm.
+
+  NOTE: this config must not be used for the registered 8 draws until B6's shared split
+  artifact exists. Until then the sidecar records
+  split_ids_by_canonical_parent/random_state=42, and a draw would vary the split as well
+  as the initialisation, confounding the paired test.
+
+cache_dir: simulation_data/graphs_cache_route_b_smoke_s_dag
+
+unset_env:
+  - TRAIN_INIT_CHECKPOINT   # from scratch, never resume
+
+env:
+  # Arm A1's three switches. All default off; the trainer refuses
+  # PARTIAL_STATE_EDGES without MP_DAG_EDGES (that combination is A3 wearing A1's name)
+  # and refuses any objective other than ce_only.
+  NEAR_RTT_MP_DAG_EDGES: "1"
+  NEAR_RTT_TASK_TYPE_ONEHOT: "1"
+  NEAR_RTT_PARTIAL_STATE_EDGES: "1"
+  # The capacity rung. Moving it changes the capacity columns AND the tied-optimal
+  # label set together — they are one choice, not two.
+  NEAR_RTT_DAG_ALPHA_KEY: "2.0"
+  # 0 = marginalize over every tied-optimal plan. Any other value changes the loss
+  # definition and is recorded in the checkpoint sidecar.
+  NEAR_RTT_TIED_MAX_PLANS: "0"
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 40
+
+wandb:
+  project: gnn-route-b-stage2
+  run_name: route-b-stage2-a1-t2-dag-prefix
+  tags: [route-b, stage2, a1, t2, dag-mp, prefix-conditioned, any-of-k-ce, masked-topo]

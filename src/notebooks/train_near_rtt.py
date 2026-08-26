@@ -159,6 +159,22 @@ class NearRttConfig:
     # sidecar records it so serving resolves the same one.
     mp_network_entities: bool = os.environ.get("NEAR_RTT_MP_NETWORK_ENTITIES", "0") == "1"
 
+    # route_b stage 2 (arm A1, the genuine T2 GNN). All three default OFF, so an
+    # unflagged run is bit-identical to today's trainer.
+    #   mp_dag_edges         workload-DAG task<->task edges into message passing
+    #   task_type_onehot     the 4-way task-type one-hot (a fairness repair: the T1 MLP
+    #                        already sees task type via krank), and a hard prerequisite
+    #                        of mp_dag_edges
+    #   partial_state_edges  per-step prefix conditioning + teacher-forced any-of-K CE
+    mp_dag_edges: bool = os.environ.get("NEAR_RTT_MP_DAG_EDGES", "0") == "1"
+    task_type_onehot: bool = os.environ.get("NEAR_RTT_TASK_TYPE_ONEHOT", "0") == "1"
+    partial_state_edges: bool = os.environ.get("NEAR_RTT_PARTIAL_STATE_EDGES", "0") == "1"
+    dag_alpha_key: str = os.environ.get("NEAR_RTT_DAG_ALPHA_KEY", "2.0")
+    # 0 = use every tied-optimal plan. Any other value CHANGES THE LOSS DEFINITION, so
+    # it is recorded in the sidecar and applied deterministically (first N in cache
+    # order — never a random sample).
+    tied_max_plans: int = int(os.environ.get("NEAR_RTT_TIED_MAX_PLANS", "0"))
+
 
 _DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-near-rtt-jun2026"
 
@@ -185,6 +201,20 @@ TRAIN_OBJECTIVE = NEAR_CFG.train_objective or ("ce_only" if REGRET_LOSS_WEIGHT <
 SOFT_COMBO_TRAINING = TRAIN_OBJECTIVE in {"soft_combo", "soft_combo_conc"}
 CONCENTRATION_TRAINING = TRAIN_OBJECTIVE == "soft_combo_conc"
 CE_ONLY_TRAINING = TRAIN_OBJECTIVE == "ce_only"
+# route_b stage 2 arm A1: prefix conditioning implies the teacher-forced any-of-K CE.
+TEACHER_FORCED = NEAR_CFG.partial_state_edges
+if TEACHER_FORCED and TRAIN_OBJECTIVE != "ce_only":
+    raise ValueError(
+        f"NEAR_RTT_PARTIAL_STATE_EDGES=1 registers arm A1 as CE-only, but "
+        f"TRAIN_OBJECTIVE resolves to {TRAIN_OBJECTIVE!r}. The teacher-forced any-of-K "
+        "CE is the registered objective; a ranking/regret term is not part of it."
+    )
+if TEACHER_FORCED and not NEAR_CFG.mp_dag_edges:
+    raise ValueError(
+        "NEAR_RTT_PARTIAL_STATE_EDGES=1 without NEAR_RTT_MP_DAG_EDGES=1 is arm A3 "
+        "(pointwise scoring under a masked decoder) wearing A1's name — the model would "
+        "get the prefix columns but no graph structure. Set NEAR_RTT_MP_DAG_EDGES=1."
+    )
 NUM_DATALOADER_WORKERS = RUNTIME_CONFIG.num_dataloader_workers
 PHASE_B_CHECKPOINT_METRIC = os.environ.get(
     "NEAR_RTT_PHASE_B_CHECKPOINT_METRIC",
@@ -287,6 +317,24 @@ elif _required_cache_version:
 # flipped, 12.4x live RTT on sparse_p35). One definition, imported by both sides, is the
 # structural fix. Do not re-declare these classes here.
 from src.policy.gnn.gnn_model import TaskPlacementGNN  # noqa: E402
+from src.policy.gnn.partial_state_edges import (  # noqa: E402
+    make_partial_state_score_fn,
+)
+from src.policy.gnn.seq_decode import (  # noqa: E402
+    decode_masked_topo_placement,
+    topological_task_order,
+)
+from src.policy.tabular.reduced_features import (  # noqa: E402
+    PARTIAL_STATE_FEATURE_DIM,
+    build_partial_state_context_from_graph,
+    resolve_partial_state_contract,
+)
+
+# The 4-way DAG task-type vocabulary. Imported rather than restated so a vocab change
+# cannot silently disagree with the cache that built the one-hot.
+from src.notebooks.prepare_graphs_cache import DAG_TASK_TYPE_VOCAB  # noqa: E402
+
+DAG_TASK_TYPE_ONEHOT_DIM = len(DAG_TASK_TYPE_VOCAB)
 
 
 def combo_score(logits_per_task: List[Tensor], indices: List[int]) -> Tensor:
@@ -310,6 +358,134 @@ def loss_original_ce(logits_per_task: List[Tensor], data: Data, device: torch.de
         loss_total = loss_total + F.cross_entropy(logits_t.unsqueeze(0), target.view(1))
         valid_tasks += 1
     return loss_total / max(1, valid_tasks), valid_tasks
+
+
+def _prefix_free_prefix_block(data: Data) -> None:
+    """Zero the prefix block so a plain ``model(data)`` is well-defined for arm A1.
+
+    Used only for the static per-task metrics (top-1, greedy) so they stay comparable
+    across arms. A1's actual decision rule is the prefix-conditioned masked_topo decode;
+    an all-zero prefix is NOT that, and nothing that gates the arm may read these.
+    """
+    n_edges = int(data.edge_index.size(1))
+    data.partial_state_edge_attr = torch.zeros(
+        (n_edges, PARTIAL_STATE_FEATURE_DIM),
+        dtype=torch.float32,
+        device=data.edge_index.device,
+    )
+
+
+def _masked_topo_regret_for_graph(
+    model: nn.Module, data: Data
+) -> Optional[Tuple[int, ...]]:
+    """Arm A1's real decision: the §4 shared masked decoder driven by the per-step
+    prefix-conditioned scorer. Returns the decoded combo, or None if the decode failed
+    (which §4 forbids relaxing — a failure stays a failure)."""
+    alpha_key = str(
+        NEAR_CFG.dag_alpha_key or getattr(data, "dag_primary_alpha_key", "2.0")
+    )
+    ctx = build_partial_state_context_from_graph(data)
+    ctx.node_caps = data.partial_state_ctx["node_caps_by_alpha"][alpha_key]
+    n_tasks = int(data.n_tasks)
+    demands = {
+        t: [float(ctx.demand[(t, tuple(int(v) for v in c))])
+            for c in data.task_logit_to_placement[t]]
+        for t in range(n_tasks)
+    }
+    return decode_masked_topo_placement(
+        [torch.empty(0)] * n_tasks,
+        data.task_logit_to_placement,
+        n_tasks,
+        dag_parents=data.dag_parents,
+        node_caps=ctx.node_caps,
+        demands=demands,
+        score_fn=make_partial_state_score_fn(model, data, ctx),
+    )
+
+
+def loss_tied_teacher_forced_ce(
+    model: nn.Module, data: Data, device: torch.device
+) -> Tuple[Tensor, int]:
+    """The §5 any-of-K marginalized CE for arm A1: ``-log Σ_k Π_t p_t^{(k)}``.
+
+    Tasks are walked in the SAME topological order the §4 masked decoder uses
+    (``topological_task_order``, imported not re-typed), the prefix at each step is
+    plan k's own committed placements, and each step's logits come from
+    ``make_partial_state_score_fn`` — the same closure the decoder calls, so train-time
+    and decode-time prefixes agree by construction rather than by two implementations
+    staying in sync.
+
+    Two costs are collapsed:
+      * one GIN pass per graph, reused across every step and plan (valid because the
+        prefix columns enter at the EdgeScorer only — asserted in the score_fn), and
+      * a prefix trie: tied plans share prefixes, so a step is scored once per DISTINCT
+        (task, committed-prefix) rather than once per (plan, task).
+
+    Note on dropout: the shared encode means every step of every plan sees ONE dropout
+    draw on the node embeddings. That is deliberate — a single consistent graph
+    representation per graph per batch — but it is a real difference from scoring each
+    step independently, so it is stated rather than discovered.
+    """
+    alpha_key = str(
+        NEAR_CFG.dag_alpha_key or getattr(data, "dag_primary_alpha_key", "2.0")
+    )
+    tied = data.tied_optimal_logit_plans
+    if alpha_key not in tied:
+        raise ValueError(
+            f"loss_tied_teacher_forced_ce: alpha_key {alpha_key!r} not in "
+            f"tied_optimal_logit_plans {sorted(tied)} for graph "
+            f"{getattr(data, 'dataset_id', '?')}"
+        )
+    plans = tied[alpha_key]
+    if not plans:
+        return torch.zeros((), device=device), 0
+    if NEAR_CFG.tied_max_plans > 0:
+        # Deterministic: the first N in cache order. Never a random sample — this
+        # changes the loss definition and is recorded in the sidecar.
+        plans = plans[: NEAR_CFG.tied_max_plans]
+
+    caps_by_alpha = data.partial_state_ctx["node_caps_by_alpha"]
+    if alpha_key not in caps_by_alpha:
+        raise ValueError(
+            f"loss_tied_teacher_forced_ce: alpha_key {alpha_key!r} not in "
+            f"node_caps_by_alpha {sorted(caps_by_alpha)}"
+        )
+    ctx = build_partial_state_context_from_graph(data)
+    ctx.node_caps = caps_by_alpha[alpha_key]
+
+    n_tasks = int(data.n_tasks)
+    order = topological_task_order(n_tasks, data.dag_parents)
+    score = make_partial_state_score_fn(model, data, ctx)
+    placements = data.task_logit_to_placement
+
+    memo: Dict[Tuple[Any, ...], Tensor] = {}
+
+    def log_probs(task_idx: int, committed: Dict[int, Tuple[int, int]]) -> Tensor:
+        key = (task_idx, tuple(sorted(committed.items())))
+        cached = memo.get(key)
+        if cached is None:
+            cached = F.log_softmax(score(task_idx, committed), dim=-1)
+            memo[key] = cached
+        return cached
+
+    plan_logps: List[Tensor] = []
+    for plan in plans:
+        committed: Dict[int, Tuple[int, int]] = {}
+        logp = torch.zeros((), device=device)
+        for t in order:
+            lp = log_probs(t, committed)
+            idx = int(plan[t])
+            if idx < 0 or idx >= lp.numel():
+                raise ValueError(
+                    f"loss_tied_teacher_forced_ce: tied plan logit index {idx} out of "
+                    f"range for task {t} ({lp.numel()} candidates)"
+                )
+            logp = logp + lp[idx]
+            committed[t] = tuple(int(v) for v in placements[t][idx])
+        plan_logps.append(logp)
+
+    # -log Σ_k Π_t p: any tied-optimal member counts as correct (§5).
+    return -torch.logsumexp(torch.stack(plan_logps), dim=0), n_tasks
 
 
 class NearRttRankingLoss(nn.Module):
@@ -631,10 +807,34 @@ def move_graph_to_device(data: Data, device: torch.device) -> Data:
             "task_logit_to_placement",
             getattr(data, "_task_logit_to_placement", {}),
         ),
+        # route_b stage-2 DAG block. These are plain Python containers, so `.to(device)`
+        # drops them; the tensors alongside them (dag_edge_index, task_type_onehot4,
+        # partial_state_edge_attr) move on their own and need no entry here.
+        "dag_parents": getattr(data, "dag_parents", None),
+        "partial_state_ctx": getattr(data, "partial_state_ctx", None),
+        "tied_optimal_logit_plans": getattr(data, "tied_optimal_logit_plans", None),
+        "tied_optimal_rtts": getattr(data, "tied_optimal_rtts", None),
+        "node_caps_by_alpha": getattr(data, "node_caps_by_alpha", None),
+        "dag_primary_alpha_key": getattr(data, "dag_primary_alpha_key", None),
+        "dag_task_type_vocab": getattr(data, "dag_task_type_vocab", None),
     }
     data = data.to(device)
     for key, value in saved.items():
         setattr(data, key, value)
+    if TEACHER_FORCED:
+        # A cache built without --dag-partial-state must not degrade into an arm that
+        # trains on an all-zero prefix block; say so here rather than 40 epochs later.
+        missing = [
+            name
+            for name in ("partial_state_ctx", "tied_optimal_logit_plans", "dag_parents")
+            if getattr(data, name, None) is None
+        ]
+        if missing:
+            raise ValueError(
+                f"FAIL LOUD: NEAR_RTT_PARTIAL_STATE_EDGES=1 but graph "
+                f"{getattr(data, 'dataset_id', '?')} is missing {missing}. Rebuild the "
+                "cache with prepare_graphs_cache.py --dag-partial-state."
+            )
     return data
 
 
@@ -676,9 +876,14 @@ def train_epoch(
 
         for graph in batch:
             data = move_graph_to_device(graph, DEVICE)
-            logits = model(data)
-
-            loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
+            if TEACHER_FORCED:
+                # Arm A1: no single static forward exists — each step is scored under
+                # its own prefix inside the loss.
+                logits = None
+                loss_ce, valid_ce = loss_tied_teacher_forced_ce(model, data, DEVICE)
+            else:
+                logits = model(data)
+                loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
             if valid_ce > 0 and torch.isfinite(loss_ce):
                 loss_ce_total = loss_ce_total + loss_ce
                 n_ce += 1
@@ -791,12 +996,24 @@ def evaluate(
     seq_reforward_total = 0
     topk_mapped = 0
     topk_total = 0
+    regret_masked_topo: List[float] = []
+    masked_topo_mapped = 0
+    masked_topo_total = 0
 
     for batch in tqdm(loader, desc=f"Evaluating {split_name}", leave=False):
         for graph in batch:
             data = move_graph_to_device(graph, DEVICE)
+            if TEACHER_FORCED:
+                # A prefix-free forward for the static per-task metrics below: score
+                # every task against the EMPTY prefix. It is not this arm's decision
+                # rule (that is masked_topo below), but it keeps top-1/greedy
+                # comparable with the other arms instead of silently absent.
+                _prefix_free_prefix_block(data)
             logits = model(data)
-            loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
+            if TEACHER_FORCED:
+                loss_ce, valid_ce = loss_tied_teacher_forced_ce(model, data, DEVICE)
+            else:
+                loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
             if valid_ce > 0:
                 ce_total += float(loss_ce.item()) * valid_ce
                 valid_tasks += valid_ce
@@ -842,6 +1059,25 @@ def evaluate(
                 if greedy_regret is not None:
                     regret_greedy.append(greedy_regret)
 
+            if TEACHER_FORCED:
+                # Arm A1 is judged on the prefix-conditioned masked_topo decode, so the
+                # checkpoint-selection metric must be that decode and not the static
+                # greedy above.
+                mt_combo = _masked_topo_regret_for_graph(model, data)
+                if mt_combo is not None:
+                    masked_topo_total += 1
+                    if mt_combo in rtt_map:
+                        masked_topo_mapped += 1
+                    mt_regret = regret_for_combo(
+                        mt_combo,
+                        rtt_map,
+                        opt_rtt,
+                        worst_regret,
+                        NEAR_CFG.unmapped_penalty,
+                    )
+                    if mt_regret is not None:
+                        regret_masked_topo.append(mt_regret)
+
             if PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret":
                 seq_combo = decode_sequential_reforward(model, data)
                 if seq_combo is not None:
@@ -883,6 +1119,10 @@ def evaluate(
         "acc": graph_correct / max(1, graphs),
         "task_acc": tasks_correct / max(1, tasks_total),
         "regret_greedy": avg(regret_greedy),
+        "regret_masked_topo": avg(regret_masked_topo),
+        "count_regret_masked_topo": float(len(regret_masked_topo)),
+        "masked_topo_mapped_rate": masked_topo_mapped / max(1, masked_topo_total),
+        "masked_topo_decoded": float(masked_topo_total),
         "regret_seq_reforward": avg(regret_seq_reforward),
         "regret_topk": avg(regret_topk),
         "regret_oracle_topk": avg(regret_oracle_topk),
@@ -943,6 +1183,16 @@ def phase_b_acc_collapse_floor() -> Optional[float]:
 
 
 def ranking_checkpoint_metric(val_metrics: Dict[str, float]) -> float:
+    if TEACHER_FORCED:
+        # Arm A1 is gated on the prefix-conditioned masked_topo decode, so that is what
+        # selects its checkpoint. Selecting on the static greedy would pick the weights
+        # that are best at a decision rule this arm never uses.
+        if val_metrics["count_regret_masked_topo"] <= 0:
+            raise RuntimeError(
+                "Arm A1 validation produced no masked_topo regret samples — every "
+                "decode failed or no combo mapped to a known RTT."
+            )
+        return float(val_metrics["regret_masked_topo"])
     if is_phase_b_ce_init() and PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret":
         if val_metrics["count_regret_seq_reforward"] <= 0:
             raise RuntimeError("Phase B sequential validation produced no regret samples.")
@@ -1149,11 +1399,21 @@ model = TaskPlacementGNN(
     mp_node_edges=NEAR_CFG.mp_node_edges,
     mp_node_edges_candidates_only=NEAR_CFG.mp_node_edges_candidates_only,
     mp_network_entities=NEAR_CFG.mp_network_entities,
+    # _task_feature_dim stays the cache-derived width; the model adds the one-hot
+    # itself, so the printed provenance above stays honest about the cache.
+    mp_dag_edges=NEAR_CFG.mp_dag_edges,
+    task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
+    partial_state_edge_dim=(
+        PARTIAL_STATE_FEATURE_DIM if NEAR_CFG.partial_state_edges else 0
+    ),
 ).to(DEVICE)
 print(
     f"Message passing: residual={NEAR_CFG.mp_residual} node_edges={NEAR_CFG.mp_node_edges} "
     f"candidates_only={NEAR_CFG.mp_node_edges_candidates_only} "
     f"network_entities={NEAR_CFG.mp_network_entities} "
+    f"dag_edges={NEAR_CFG.mp_dag_edges} "
+    f"task_type_onehot={NEAR_CFG.task_type_onehot} "
+    f"partial_state_edges={NEAR_CFG.partial_state_edges} "
     f"({resolve_network_graph_contract()})"
 )
 if NEAR_CFG.mp_network_entities and (
@@ -1243,6 +1503,57 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # sufficient to reproduce these weights (see the seed block at the top).
                 "train_seed": _TRAIN_SEED,
                 "deterministic_algorithms": not _NONDETERMINISTIC,
+                # route_b stage 2. mp_dag_edges is weight-invisible (recoverable ONLY
+                # from here); the one-hot and prefix widths ARE weight-visible, but a
+                # VOCAB REORDER is not — it stays 4 columns and would silently permute
+                # the types — hence dag_task_type_vocab.
+                "mp_dag_edges": NEAR_CFG.mp_dag_edges,
+                "mp_dag_edges_undirected": True if NEAR_CFG.mp_dag_edges else None,
+                "task_type_onehot_dim": (
+                    DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0
+                ),
+                "dag_task_type_vocab": (
+                    list(DAG_TASK_TYPE_VOCAB) if NEAR_CFG.task_type_onehot else None
+                ),
+                # Prefix conditioning. `partial_state_edge_features` is what makes
+                # executesimulation refuse to serve this checkpoint: its scores are a
+                # function of the committed decode prefix, and live prefix construction
+                # is stage 3.
+                "partial_state_edge_features": NEAR_CFG.partial_state_edges,
+                "partial_state_contract": (
+                    resolve_partial_state_contract()
+                    if NEAR_CFG.partial_state_edges
+                    else None
+                ),
+                "partial_state_feature_dim": (
+                    PARTIAL_STATE_FEATURE_DIM if NEAR_CFG.partial_state_edges else None
+                ),
+                # Which capacity rung the labels AND the capacity columns came from —
+                # they move together, so this names both.
+                "dag_alpha_key": NEAR_CFG.dag_alpha_key if TEACHER_FORCED else None,
+                "tied_label_mode": (
+                    "any_of_k_marginalized" if TEACHER_FORCED else None
+                ),
+                # Non-zero CHANGES the loss definition, so it is recorded, not implied.
+                "tied_max_plans": NEAR_CFG.tied_max_plans if TEACHER_FORCED else None,
+                # §3 requires a draw to vary initialisation and batch order ONLY. B6's
+                # shared split artifact does not exist yet, so record the split this run
+                # actually used; swap in {"path", "sha256"} when B6 lands. Do NOT ship
+                # the registered A1 draws until it does — the paired test is otherwise
+                # confounded by a split that moves between arms.
+                "split_artifact": {
+                    "mode": "split_ids_by_canonical_parent",
+                    "random_state": 42,
+                },
+                # Message passing sees DAG structure but NOT the prefix: the 38 columns
+                # enter at the EdgeScorer. Still strictly T2 (the head interacts
+                # graph-derived embeddings with the prefix), and it is §2's fairness
+                # bargain — the GNN gets the same 38 pointwise columns as T1, plus
+                # structure. The prefix-into-node-features variant is a §3 sensitivity
+                # row, not this arm.
+                "prefix_conditioning_scope": (
+                    "edge_scorer_only" if TEACHER_FORCED else None
+                ),
             },
             indent=2,
         )
@@ -1256,6 +1567,9 @@ best_val_metrics: Dict[str, float] = {}
 checkpoint_saved = False
 phase_b_baseline: Optional[Dict[str, float]] = None
 checkpoint_metric_name = "regret_topk"
+if TEACHER_FORCED:
+    checkpoint_metric_name = "regret_masked_topo"
+    print(f"[route_b A1] Checkpoint metric: val/{checkpoint_metric_name}")
 
 if is_phase_b_ce_init():
     checkpoint_metric_name = (
@@ -1302,7 +1616,24 @@ for epoch in range(EPOCHS):
         log_dict["train/effective_regret_weight"] = float(effective_regret_weight(epoch))
     wandb.log(log_dict, step=epoch)
 
-    if CE_ONLY_TRAINING:
+    if TEACHER_FORCED:
+        # Arm A1 is CE-only, but it must NOT select on the CE-only branch's acc/top-k:
+        # both are read off the prefix-free forward, which is not this arm's decision
+        # rule. Select on the prefix-conditioned masked_topo decode it is gated on.
+        val_target = ranking_checkpoint_metric(val_metrics)
+        if val_target < best_val_regret:
+            best_val_regret = val_target
+            best_val_metrics = val_metrics
+            best_val_acc = max(best_val_acc, float(val_metrics["acc"]))
+            save_checkpoint(model.state_dict(), model_path)
+            checkpoint_saved = True
+            print(
+                f"  *** New best val {checkpoint_metric_name}: {best_val_regret:.4f}s "
+                f"(decoded={int(val_metrics['masked_topo_decoded'])}, "
+                f"mapped={val_metrics['masked_topo_mapped_rate'] * 100:.1f}%, "
+                f"ce={val_metrics['ce']:.4f})"
+            )
+    elif CE_ONLY_TRAINING:
         val_target_acc = float(val_metrics["acc"])
         val_topk = float(val_metrics["regret_topk"])
         improved = False

@@ -551,9 +551,28 @@ def checkpoint_mp_config(model_path: Path) -> dict:
         return {}
     config = {
         key: bool(payload[key])
-        for key in ("mp_residual", "mp_node_edges", "mp_node_edges_candidates_only")
+        for key in (
+            "mp_residual",
+            "mp_node_edges",
+            "mp_node_edges_candidates_only",
+            # route_b stage 2. mp_dag_edges is weight-invisible, exactly like
+            # mp_node_edges; partial_state_edge_features is what makes a stage-2 T2
+            # checkpoint refuse to serve. This whitelist is why a new sidecar key is
+            # invisible to serving until it is added here — omitting one is a silent
+            # default, not an error.
+            "mp_dag_edges",
+            "partial_state_edge_features",
+        )
         if key in payload
     }
+    # Not bools: the one-hot width, and the contract that defines what the 38
+    # partial-state columns mean.
+    if "task_type_onehot_dim" in payload:
+        config["task_type_onehot_dim"] = int(payload["task_type_onehot_dim"] or 0)
+    if payload.get("partial_state_contract"):
+        config["partial_state_contract"] = str(payload["partial_state_contract"])
+    if payload.get("dag_task_type_vocab"):
+        config["dag_task_type_vocab"] = list(payload["dag_task_type_vocab"])
     # Not a bool: which network entities the training graph contained. Recoverable from
     # weights only as "some encoder exists", never as *which* contract built the features,
     # so it has to come from here.
@@ -726,6 +745,30 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                 "NEAR_RTT_MP_NODE_EDGES=1 instead of forcing it at serve time."
             )
 
+        # route_b stage-2 T2 checkpoints refuse to serve. Their scores are a function of
+        # the committed decode prefix, and live prefix construction is stage 3 — it does
+        # not exist. edge_dim is back-inferred from edge_scorer.fc1, so such a checkpoint
+        # would otherwise rebuild at edge_dim=43 and die inside fc1 on a 5-wide edge_attr:
+        # loud, but cryptic, and only by luck. Say what is actually wrong instead.
+        if mp_cfg.get("partial_state_edge_features"):
+            raise ValueError(
+                f"{model_path.name} is a route_b stage-2 T2 checkpoint (partial-state "
+                "edge features + teacher-forced prefix conditioning). Live serving of "
+                "the masked_topo prefix is stage 3 and does not exist; serving it here "
+                "would score every candidate against an all-zero prefix block. Use the "
+                "offline stage-2 harness."
+            )
+        # mp_dag_edges is weight-invisible, exactly like mp_node_edges: refuse to let a
+        # stale env var silently add DAG message passing a checkpoint never trained on.
+        mp_dag_edges = mp_cfg.get("mp_dag_edges", False)
+        _env_dag_edges = os.environ.get("GNN_MP_DAG_EDGES", "").strip().lower()
+        if _env_dag_edges not in ("", "0", "false", "no") and not mp_dag_edges:
+            raise ValueError(
+                f"GNN_MP_DAG_EDGES={_env_dag_edges!r} but {model_path.name} was not "
+                f"trained with workload-DAG edges (per {model_path.stem}.contract.json). "
+                "Retrain with NEAR_RTT_MP_DAG_EDGES=1 instead of forcing it at serve time."
+            )
+
         # Network entities. Unlike mp_node_edges these ARE visible in the weights (two
         # extra encoders), so the state dict is authoritative for *whether* and the
         # sidecar for *which contract* built the features. Both must line up with the
@@ -762,6 +805,8 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_node_edges=mp_node_edges,
             mp_node_edges_candidates_only=mp_cfg.get("mp_node_edges_candidates_only", True),
             mp_network_entities=mp_network_entities,
+            mp_dag_edges=mp_dag_edges,
+            task_type_onehot_dim=int(mp_cfg.get("task_type_onehot_dim", 0)),
         )
         print(
             f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "

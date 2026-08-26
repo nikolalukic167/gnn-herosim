@@ -8,7 +8,7 @@ used for inference in the co-simulation.
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 import torch.nn as nn
@@ -219,6 +219,11 @@ class TaskPlacementGNN(nn.Module):
       Silent behavioural drift becomes a loud load error.
     * ``mp_node_edges`` cannot be inferred from weights; trainers record it in the
       ``<model>.contract.json`` sidecar next to the queue feature contract.
+    * ``mp_dag_edges`` likewise cannot be inferred from weights, and is recorded in the
+      sidecar together with ``mp_dag_edges_undirected`` and ``dag_task_type_vocab``.
+      ``task_type_onehot_dim`` and ``partial_state_edge_dim`` ARE weight-visible (they
+      widen ``task_encoder.net.0`` and ``edge_scorer.fc1`` respectively), so a strict
+      load across those boundaries fails loudly.
     """
     def __init__(
         self,
@@ -237,11 +242,22 @@ class TaskPlacementGNN(nn.Module):
         mp_network_entities: Optional[bool] = None,
         net_node_feature_dim: int = 6,
         net_link_feature_dim: int = 5,
+        mp_dag_edges: Optional[bool] = None,
+        task_type_onehot_dim: int = 0,
+        partial_state_edge_dim: int = 0,
     ) -> None:
         super().__init__()
 
         self.embedding_dim = embedding_dim
-        self.task_encoder = MLPEncoder(task_feature_dim, hidden_dim, embedding_dim, dropout)
+        # The 4-way task-type one-hot (route_b stage 2) is appended to task_features on
+        # the TASK side. It is deliberately NOT covered by platform_input_norm: that
+        # LayerNorm is platform-side (driven by the atomic21 layout) and the appended
+        # columns are already 0/1 alongside the pre-normalised src_feat scalar, so there
+        # is no scale mismatch to fix. Do not "fix" this by widening the norm.
+        self.task_type_onehot_dim = int(task_type_onehot_dim)
+        self.task_encoder = MLPEncoder(
+            task_feature_dim + self.task_type_onehot_dim, hidden_dim, embedding_dim, dropout
+        )
         self.platform_input_norm = (
             nn.LayerNorm(platform_feature_dim) if normalize_platform_inputs else None
         )
@@ -254,7 +270,18 @@ class TaskPlacementGNN(nn.Module):
             out_channels=embedding_dim
         )
         self.post_gin_dropout = nn.Dropout(p=post_gin_dropout)
-        self.edge_scorer = EdgeScorer(embedding_dim, hidden_dim, edge_dim=edge_dim, dropout=dropout)
+        # Prefix conditioning (route_b stage 2, T2): the 38 partial-state columns ride
+        # in their own data.partial_state_edge_attr and are concatenated onto edge_attr
+        # at scoring time. edge_attr itself is NOT widened — its 5-column width is
+        # load-bearing for the dim22/dim25cr/dim63crk row extractors that build the
+        # A2/A3 baselines this arm is compared against.
+        self.partial_state_edge_dim = int(partial_state_edge_dim)
+        self.edge_scorer = EdgeScorer(
+            embedding_dim,
+            hidden_dim,
+            edge_dim=edge_dim + self.partial_state_edge_dim,
+            dropout=dropout,
+        )
 
         # Residual around the GIN: message passing AUGMENTS the per-node encoding instead
         # of replacing it, so the scorer keeps an undiluted view of each platform's own
@@ -301,6 +328,38 @@ class TaskPlacementGNN(nn.Module):
                 net_link_feature_dim, hidden_dim, embedding_dim, dropout
             )
 
+        # Workload-DAG task<->task edges (route_b stage 2). Emitted UNDIRECTED: PyG
+        # aggregates source->target only, so a parent->child-only variant leaves the
+        # root task with a bit-identical no-DAG embedding — and the §4 prefix-oracle
+        # curve puts nearly all decoder myopia in the first two of four steps, exactly
+        # where such a variant is blind. The direction is not lost: task_type_onehot4
+        # identifies each node's role and on the frozen diamond4 grids the type
+        # determines the DAG position, whereas a missing edge loses reachability
+        # outright. A future directed variant is a NEW contract, never a silent edit —
+        # hence mp_dag_edges_undirected in the sidecar.
+        #
+        # Default OFF, same rule as mp_node_edges: weight-invisible, so a checkpoint
+        # trained without them must never be served them.
+        self.mp_dag_edges = (
+            _env_flag("GNN_MP_DAG_EDGES") if mp_dag_edges is None else bool(mp_dag_edges)
+        )
+        self.mp_dag_edges_undirected = True
+        if self.mp_dag_edges and self.task_type_onehot_dim <= 0:
+            # Not a style preference: undirected DAG edges make a 4-task block fully
+            # connected within 2 hops, and a 3-layer GIN then mixes all four task
+            # embeddings. task_features encodes only a 2-way one-hot over
+            # ('dnn1','dnn2') plus a source scalar, so on a diamond4 grid 'cnn' and 'rf'
+            # are already indistinguishable at the node level and mixing makes them
+            # more so. The 4-way one-hot is the prerequisite that keeps them apart (and
+            # is a fairness repair — the T1 MLP already sees task type via krank).
+            raise ValueError(
+                "FAIL LOUD: mp_dag_edges=True requires task_type_onehot_dim > 0. "
+                "Undirected DAG message passing over a 4-task block makes task types "
+                "that share a task_features encoding (e.g. 'cnn'/'rf' on diamond4) "
+                "interchangeable. Pass task_type_onehot_dim=4 and a cache built with "
+                "--dag-partial-state."
+            )
+
     def _network_entity_embeddings(self, data: Data) -> List[Tensor]:
         """Encoded [nodes, links], or a loud failure when the graph has none.
 
@@ -326,11 +385,33 @@ class TaskPlacementGNN(nn.Module):
             self.net_link_encoder(data.net_link_features),
         ]
 
-    def forward(self, data: Data) -> List[Tensor]:
+    def _task_input_features(self, data: Data) -> Tensor:
+        """task_features, plus the 4-way DAG task-type one-hot when enabled."""
+        tf = data.task_features
+        if not self.task_type_onehot_dim:
+            return tf
+        onehot = getattr(data, "task_type_onehot4", None)
+        if onehot is None or int(onehot.size(-1)) != self.task_type_onehot_dim:
+            got = "absent" if onehot is None else f"width {int(onehot.size(-1))}"
+            raise ValueError(
+                f"FAIL LOUD: task_type_onehot_dim={self.task_type_onehot_dim} but the "
+                f"graph's task_type_onehot4 is {got}. Build the cache with "
+                "--dag-partial-state."
+            )
+        return torch.cat([tf, onehot.to(tf.device, dtype=tf.dtype)], dim=-1)
+
+    def _encode(self, data: Data) -> Tuple[Tensor, Tensor]:
+        """Node encoding + message passing → (task_emb, platform_emb).
+
+        Split out of ``forward`` so a prefix-conditioned decode can reuse one GIN pass
+        across every step and every tied plan. That reuse is only valid because the
+        partial-state columns enter at the SCORER (see ``_score``) and never touch a
+        node feature — ``make_partial_state_score_fn`` asserts that precondition.
+        """
         n_tasks: int = int(data.n_tasks)
         n_platforms: int = int(data.n_platforms)
 
-        task_embeddings = self.task_encoder(data.task_features)
+        task_embeddings = self.task_encoder(self._task_input_features(data))
         platform_feats = data.platform_features
         if self.platform_input_norm is not None:
             platform_feats = self.platform_input_norm(platform_feats)
@@ -360,6 +441,27 @@ class TaskPlacementGNN(nn.Module):
                 if node_ei.numel() > 0:
                     extra_edges.append(node_ei)
 
+            # Workload-DAG task<->task edges. Unlike mp_network_entities this adds NO
+            # node rows — it reuses existing task indices — so the x0 block order and
+            # therefore split_task_platform_embeddings are untouched. This option
+            # cannot move the platform block.
+            if self.mp_dag_edges:
+                dag_ei = getattr(data, "dag_edge_index", None)
+                if dag_ei is None:
+                    raise ValueError(
+                        "FAIL LOUD: mp_dag_edges is on but the graph has no "
+                        "dag_edge_index. Build the cache with --dag-partial-state."
+                    )
+                if dag_ei.numel() > 0:
+                    dag_ei = dag_ei.to(data.edge_index.device)
+                    if int(dag_ei.max()) >= n_tasks or int(dag_ei.min()) < 0:
+                        raise ValueError(
+                            f"FAIL LOUD: dag_edge_index indexes outside the task block "
+                            f"[0, {n_tasks}): min={int(dag_ei.min())} "
+                            f"max={int(dag_ei.max())}. DAG edges are task<->task only."
+                        )
+                    extra_edges.append(torch.cat([dag_ei, dag_ei.flip(0)], dim=1))
+
             # Network entities append AFTER platforms, so the task/platform slices below
             # are unchanged and every pre-existing checkpoint keeps its index layout.
             if self.mp_network_entities:
@@ -378,7 +480,13 @@ class TaskPlacementGNN(nn.Module):
             x = x0 + self.mp_gate * h if self.mp_residual else h
             task_emb, platform_emb = split_task_platform_embeddings(x, n_tasks, n_platforms)
 
-        device = task_embeddings.device
+        return task_emb, platform_emb
+
+    def _score(self, task_emb: Tensor, platform_emb: Tensor, data: Data) -> List[Tensor]:
+        """Edge scoring from precomputed node embeddings → per-task logits."""
+        n_tasks: int = int(data.n_tasks)
+        n_platforms: int = int(data.n_platforms)
+        device = task_emb.device
 
         # Score edges. Scoring stays on the bipartite task->platform edges only, so
         # edge_attr alignment is preserved and same-node edges never produce logits.
@@ -400,10 +508,31 @@ class TaskPlacementGNN(nn.Module):
         e_platform = platform_emb[pj]
         e_attr: Optional[Tensor] = None
         if hasattr(data, 'edge_attr') and data.edge_attr.numel() > 0:
-            try:
+            if self.partial_state_edge_dim:
+                # No silent swallow when prefix conditioning is on: an alignment fault
+                # here would drop edge_attr and produce a quietly wrong T2 arm.
                 e_attr = data.edge_attr[valid]
-            except (IndexError, RuntimeError):
-                e_attr = None
+            else:
+                try:
+                    e_attr = data.edge_attr[valid]
+                except (IndexError, RuntimeError):
+                    e_attr = None
+
+        # The partial-state prefix block rides in its own attr, aligned row-for-row with
+        # the FULL edge_index, and is selected by the same `valid` mask as edge_attr —
+        # so its alignment with the per-task logit order is inherited, not re-derived.
+        if self.partial_state_edge_dim:
+            ps = getattr(data, "partial_state_edge_attr", None)
+            if ps is None or int(ps.size(-1)) != self.partial_state_edge_dim:
+                got = "absent" if ps is None else f"width {int(ps.size(-1))}"
+                raise ValueError(
+                    f"FAIL LOUD: partial_state_edge_dim={self.partial_state_edge_dim} "
+                    f"but the graph's partial_state_edge_attr is {got}. Populate it via "
+                    "src.policy.gnn.partial_state_edges.refresh_partial_state_edge_attr."
+                )
+            ps_valid = ps.to(e_task.device, dtype=e_task.dtype)[valid]
+            e_attr = ps_valid if e_attr is None else torch.cat([e_attr, ps_valid], dim=-1)
+
         edge_scores = self.edge_scorer(e_task, e_platform, e_attr)
 
         # Split scores per task
@@ -414,4 +543,8 @@ class TaskPlacementGNN(nn.Module):
             logits_per_task.append(logits_t)
 
         return logits_per_task
+
+    def forward(self, data: Data) -> List[Tensor]:
+        task_emb, platform_emb = self._encode(data)
+        return self._score(task_emb, platform_emb, data)
 

@@ -258,3 +258,74 @@ def test_gnn_training_is_bit_identical_at_a_fixed_seed():
         return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
     _assert_state_dicts_identical(one_run(), one_run(), "gnn_necessity_ablation (GIN)")
+
+
+def test_a1_teacher_forced_loss_is_bit_identical_at_a_fixed_seed():
+    """route_b stage-2 arm A1: the prefix-conditioned path, seeded.
+
+    Higher nondeterminism risk than the static trainers and worth its own case: the loss
+    runs many small forwards, memoizes on a dict keyed by tuples, and reduces with
+    logsumexp over a variable-length stack. Iteration order over plans and over the
+    topological task order must be deterministic (it is — lists plus a Kahn heap), but
+    "must be" is what the 2026-08-24 MLP seed defect also assumed.
+
+    Exercised in-process, since train_near_rtt.py trains at import time.
+    """
+    import pickle
+
+    import numpy as np
+
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+    from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
+    from src.policy.gnn.seq_decode import topological_task_order
+    from src.policy.tabular.reduced_features import (
+        PARTIAL_STATE_FEATURE_DIM,
+        build_partial_state_context_from_graph,
+    )
+
+    cache = REPO_ROOT / "simulation_data" / "graphs_cache_route_b_smoke_s_dag" / "graphs.pkl"
+    if not cache.exists():
+        pytest.skip(f"no --dag-partial-state cache at {cache}")
+    with open(cache, "rb") as handle:
+        graphs = pickle.load(handle)[:4]
+
+    torch.set_num_threads(1)
+    device = torch.device("cpu")
+
+    def one_run():
+        np.random.seed(SEED)
+        torch.manual_seed(SEED)
+        sample = graphs[0]
+        model = TaskPlacementGNN(
+            task_feature_dim=int(sample.task_features.shape[1]),
+            platform_feature_dim=int(sample.platform_features.shape[1]),
+            edge_dim=int(sample.edge_attr.shape[1]),
+            mp_dag_edges=True,
+            task_type_onehot_dim=4,
+            partial_state_edge_dim=PARTIAL_STATE_FEATURE_DIM,
+        ).to(device)
+        opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+        for _ in range(2):
+            for graph in graphs:
+                ctx = build_partial_state_context_from_graph(graph)
+                ctx.node_caps = graph.partial_state_ctx["node_caps_by_alpha"]["2.0"]
+                order = topological_task_order(int(graph.n_tasks), graph.dag_parents)
+                score = make_partial_state_score_fn(model, graph, ctx)
+                plan_logps = []
+                for plan in graph.tied_optimal_logit_plans["2.0"]:
+                    committed, logp = {}, torch.zeros((), device=device)
+                    for task_idx in order:
+                        lp = torch.log_softmax(score(task_idx, committed), dim=-1)
+                        logp = logp + lp[int(plan[task_idx])]
+                        committed[task_idx] = tuple(
+                            int(v)
+                            for v in graph.task_logit_to_placement[task_idx][plan[task_idx]]
+                        )
+                    plan_logps.append(logp)
+                loss = -torch.logsumexp(torch.stack(plan_logps), dim=0)
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+        return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+    _assert_state_dicts_identical(one_run(), one_run(), "route_b A1 teacher-forced CE")

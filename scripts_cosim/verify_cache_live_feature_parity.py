@@ -760,6 +760,29 @@ def verify_parity(
             )
         )
 
+    # route_b stage-2 DAG block. The semantics here differ from the network-entity case
+    # above: live serving CANNOT build these (prefix construction is stage 3), so the
+    # right answer is not "compare them" but "refuse to claim parity". Passing by
+    # omission — the harness silently ignoring attrs it does not know about — is exactly
+    # how a cache/live divergence goes unnoticed, so an offline-only cache is a hard
+    # failure with a specific message instead.
+    dag_attrs = (
+        "dag_edge_index",
+        "dag_parents",
+        "task_type_onehot4",
+        "partial_state_ctx",
+        "tied_optimal_logit_plans",
+    )
+    cache_dag = [a for a in dag_attrs if getattr(cache_g, a, None) is not None]
+    if cache_dag:
+        failures.append(
+            f"cache carries the offline-only route_b stage-2 DAG block "
+            f"({sorted(cache_dag)}); live parity is NOT defined for it — live serving "
+            "cannot construct a decode prefix (that is stage 3, and "
+            "executesimulation refuses such checkpoints). Run the offline stage-2 "
+            "harness instead of this cache/live comparison."
+        )
+
     for name, c_arr, l_arr in checks:
         ok, msg = _compare_arrays(name, c_arr, l_arr)
         if not ok:

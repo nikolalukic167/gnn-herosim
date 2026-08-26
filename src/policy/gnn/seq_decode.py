@@ -10,7 +10,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from src.placement.queue_features import (
     resolve_queue_feature_contract,
@@ -94,6 +94,12 @@ class GnnDecodeRunStats:
     # accounting), never converted into an unmasked argmax.
     masked_topo_infeasible_tasks: int = 0
     masked_topo_failed_decodes: int = 0
+    # Steps where a per-step score_fn was consulted, and steps where it failed.
+    # A score_fn failure is fatal to the decode (see decode_masked_topo_placement):
+    # falling back to the static logits would silently reinstate exactly the relax
+    # path §4 forbids, so it is counted and re-raised, never absorbed.
+    masked_topo_rescored_steps: int = 0
+    masked_topo_score_fn_failures: int = 0
 
     # Seqblend-specific (argmax + seqblend mode only)
     total_tasks: int = 0
@@ -153,6 +159,8 @@ class GnnDecodeRunStats:
         self.uniq_relaxed_tasks += other.uniq_relaxed_tasks
         self.masked_topo_infeasible_tasks += other.masked_topo_infeasible_tasks
         self.masked_topo_failed_decodes += other.masked_topo_failed_decodes
+        self.masked_topo_rescored_steps += other.masked_topo_rescored_steps
+        self.masked_topo_score_fn_failures += other.masked_topo_score_fn_failures
         self.total_tasks += other.total_tasks
         self.p1_override_count += other.p1_override_count
         self.classic_would_override_count += other.classic_would_override_count
@@ -237,6 +245,8 @@ class GnnDecodeRunStats:
             "masked_topo": {
                 "infeasible_tasks": self.masked_topo_infeasible_tasks,
                 "failed_decodes": self.masked_topo_failed_decodes,
+                "rescored_steps": self.masked_topo_rescored_steps,
+                "score_fn_failures": self.masked_topo_score_fn_failures,
             },
             "p1_margin": int(p1_margin),
             "total_decode_tasks": self.total_tasks,
@@ -752,6 +762,9 @@ def decode_masked_topo_placement(
     node_caps: Mapping[int, float],
     demands: Mapping[int, Sequence[float]],
     stats: Optional[GnnDecodeRunStats] = None,
+    score_fn: Optional[
+        "Callable[[int, Mapping[int, Tuple[int, int]]], Sequence[float]]"
+    ] = None,
 ) -> Optional[PlacementCombo]:
     """The §4 shared masked decoder (ROUTE_B_STAGE2_PREREGISTRATION.md, corrected
     2026-08-26) — decode mode "masked_topo".
@@ -773,6 +786,25 @@ def decode_masked_topo_placement(
       demands      task index -> per-candidate memory demand, aligned index-for-
                    index with task_logit_to_placement[task]
 
+    Optional per-step rescoring (`score_fn`), for the §2 information tiers:
+      score_fn(task_idx, committed) -> scores aligned with this task's candidates,
+      where `committed` is the prefix built so far (task index -> placement). When
+      supplied it REPLACES logits_per_task[task_idx] for that step, which is what
+      lets a T1/T2 arm condition its score on the committed prefix — §2's "the
+      GNN's sequential decode sees the same committed prefix at the same step".
+      Both arms plug into this one decoder, so decode order, mask and tie rule are
+      shared by construction.
+
+      When `score_fn is None` this function behaves EXACTLY as before — that is a
+      hard requirement, because B1's frozen acceptance (408+408 cells against
+      topological-order greedy_masked_plan fed true, static min-marginals) must not
+      move. `logits_per_task` therefore stays required and remains the fallback.
+
+      A score_fn that raises, or returns a vector that does not align with the
+      task's candidate list, is FATAL to the decode: it is counted and re-raised,
+      never silently replaced by the static logits. Absorbing it would reinstate
+      exactly the relax path §4 forbids.
+
     Deliberately pure Python (no tensor ops): candidate lists are tiny, the exact
     (score, placement-id) tie semantics stay visible, and the offline acceptance
     harness can drive it with plain float lists as well as tensors.
@@ -787,7 +819,25 @@ def decode_masked_topo_placement(
         if t_idx not in task_logit_to_placement:
             raise RuntimeError(f"masked_topo: task {t_idx} has no candidate mapping")
         candidates = task_logit_to_placement[t_idx]
-        logits_t = logits_per_task[t_idx]
+        if score_fn is None:
+            logits_t = logits_per_task[t_idx]
+        else:
+            try:
+                # A COPY: the callback is arbitrary arm code, and handing it the live
+                # `chosen` would let a careless one corrupt decoder state mid-plan.
+                logits_t = score_fn(t_idx, dict(chosen))
+                if len(logits_t) != len(candidates):
+                    raise RuntimeError(
+                        f"masked_topo: score_fn returned {len(logits_t)} scores for "
+                        f"task {t_idx}, which has {len(candidates)} candidates"
+                    )
+            except Exception:
+                if stats is not None:
+                    stats.masked_topo_score_fn_failures += 1
+                    stats.masked_topo_failed_decodes += 1
+                raise
+            if stats is not None:
+                stats.masked_topo_rescored_steps += 1
         dem = demands.get(t_idx) if hasattr(demands, "get") else None
         if dem is None or len(dem) != len(candidates):
             raise RuntimeError(
@@ -1336,6 +1386,9 @@ def run_decode_with_timing(
     dag_parents: Optional[Mapping[int, Sequence[int]]] = None,
     node_caps: Optional[Mapping[int, float]] = None,
     demands: Optional[Mapping[int, Sequence[float]]] = None,
+    score_fn: Optional[
+        "Callable[[int, Mapping[int, Tuple[int, int]]], Sequence[float]]"
+    ] = None,
 ) -> Optional[PlacementCombo]:
     """Run decode for the requested mode and record batch instrumentation."""
     t0 = time.perf_counter()
@@ -1359,6 +1412,7 @@ def run_decode_with_timing(
             node_caps=node_caps,
             demands=demands,
             stats=stats,
+            score_fn=score_fn,
         )
     elif decode_mode in ("frozen", "frozen_argmax"):
         combo = decode_frozen_argmax_placement(
