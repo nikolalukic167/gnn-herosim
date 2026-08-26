@@ -744,26 +744,40 @@ def build_partial_state_context_from_graph(graph: Any) -> "PartialStateContext":
     )
 
 
-def extract_rows_dim63crk_from_batch_graph(
-    graph: Any, graph_id: str, *, alpha_key: Optional[str] = None
+def _extract_tied_plan_rows_from_batch_graph(
+    graph: Any,
+    graph_id: str,
+    *,
+    include_partial_state: bool,
+    alpha_key: Optional[str] = None,
 ) -> Tuple[List[TabularEdgeRow], Optional[str]]:
-    """dim63crk training rows from a --dag-partial-state cache graph (B3).
+    """Shared tied-optimal-plan row walk for the dim63crk (T1) and tied-dim25cr (T0)
+    extractors (route_b stage 2, W2: one function, no second copy of the plan walk).
 
     Teacher forcing along the tied-optimal label SET (§5's any-of-K labels): for
     every tied plan k at `alpha_key` (default: the cache's primary alpha, 2.0),
     tasks are walked in the SAME topological order the §4 masked decoder uses
     (seq_decode.topological_task_order — imported, not re-typed, so train-time
     prefixes and decode-time prefixes agree by construction), the partial
-    assignment is plan k's committed prefix, the 38 partial-state columns come
-    from the single-source partial_state_columns, and the decision label is plan
-    k's own placement. Rows carry the plan in their graph_id
-    (``...#planK@taskT``), so a loss can group per plan; per-row CE over these
-    rows is the teacher-forced factorization — the exact any-of-K marginalized
-    CE (-log sum_k prod_t p) is assembled by the stage-2 trainer configs (B6)
-    from the same rows.
+    assignment is plan k's committed prefix, and the decision label is plan k's
+    own placement. Rows carry the plan in their graph_id (``...#planK@taskT``),
+    so a loss can group per plan; per-row CE over these rows is the
+    teacher-forced factorization — the exact any-of-K marginalized CE
+    (-log sum_k prod_t p) is assembled by the stage-2 trainer configs (B6) from
+    the same rows.
 
-    Note the §2 capacity columns use cap_node(alpha_key): extracting a
-    sensitivity rung (e.g. "3.0") changes cols 29-31 AND the label set together.
+    ``include_partial_state=True`` appends the 38 partial-state/krank/linkrank
+    columns computed from the SAME committed prefix (dim63crk, T1 — arm A2).
+    ``include_partial_state=False`` omits that block entirely (candidate-relative
+    dim25cr rows, T0 — arm A3's tied-label mode): the walk still commits plan k's
+    placements in topological order so `target_override` and the row's graph_id
+    match the T1 extraction exactly (byte-identical targets/graph_ids on the same
+    graph is the parity property W2's tests pin), but no partial-state block is
+    computed or appended, so a T0 model never sees decoder-state features.
+
+    Note the §2 capacity columns (when included) use cap_node(alpha_key):
+    extracting a sensitivity rung (e.g. "3.0") changes cols 29-31 AND the label
+    set together.
     """
     from src.policy.gnn.seq_decode import topological_task_order
 
@@ -783,11 +797,13 @@ def extract_rows_dim63crk_from_batch_graph(
     if not plans:
         return [], f"empty tied-optimal set at alpha={key}"
 
-    ctx = build_partial_state_context_from_graph(graph)
-    caps_by_alpha = graph.partial_state_ctx["node_caps_by_alpha"]
-    if key not in caps_by_alpha:
-        return [], f"alpha_key {key!r} not in node_caps_by_alpha"
-    ctx.node_caps = caps_by_alpha[key]
+    ctx = None
+    if include_partial_state:
+        ctx = build_partial_state_context_from_graph(graph)
+        caps_by_alpha = graph.partial_state_ctx["node_caps_by_alpha"]
+        if key not in caps_by_alpha:
+            return [], f"alpha_key {key!r} not in node_caps_by_alpha"
+        ctx.node_caps = caps_by_alpha[key]
 
     order = topological_task_order(n_tasks, graph.dag_parents)
     tl = graph.task_logit_to_placement
@@ -803,7 +819,11 @@ def extract_rows_dim63crk_from_batch_graph(
         plan_rows: List[TabularEdgeRow] = []
         for task_idx in order:
             candidates = [tuple(c) for c in tl[task_idx]]
-            block = partial_state_columns(ctx, task_idx, candidates, committed)
+            block = (
+                partial_state_columns(ctx, task_idx, candidates, committed)
+                if include_partial_state
+                else None
+            )
             rows, skip_reason = _extract_dim22_rows_for_task(
                 graph,
                 f"{graph_id}#plan{k}",
@@ -820,6 +840,41 @@ def extract_rows_dim63crk_from_batch_graph(
             committed[task_idx] = candidates[int(plan[task_idx])]
         all_rows.extend(plan_rows)
     return all_rows, None
+
+
+def extract_rows_dim63crk_from_batch_graph(
+    graph: Any, graph_id: str, *, alpha_key: Optional[str] = None
+) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+    """dim63crk (T1) training rows from a --dag-partial-state cache graph (B3).
+
+    Thin wrapper around ``_extract_tied_plan_rows_from_batch_graph`` with the
+    partial-state block included. See that function for the full contract.
+    """
+    return _extract_tied_plan_rows_from_batch_graph(
+        graph, graph_id, include_partial_state=True, alpha_key=alpha_key
+    )
+
+
+def extract_rows_dim25cr_tied_from_batch_graph(
+    graph: Any, graph_id: str, *, alpha_key: Optional[str] = None
+) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+    """dim25cr (T0) rows teacher-forced along the SAME tied-optimal plan set A1/A2
+    use (route_b stage 2, W2 / A3's label-parity repair).
+
+    §3 requires "same labels, same alpha" across arms: A3's plain dim25cr path
+    (``extract_rows_dim22_from_batch_graph`` with ``candidate_relative=True``)
+    labels from ``graph.y`` — the unconstrained sweep minimum — which is NOT the
+    alpha=2.0 constrained tied-optimal label set A1/A2 teacher-force along. This
+    function walks the identical tied-plan loop as
+    ``extract_rows_dim63crk_from_batch_graph`` (same topological order, same
+    per-plan target_override, same ``#planK@taskT`` graph_ids) but with
+    ``include_partial_state=False``, so a T0 model trains on the same labels
+    without ever seeing a partial-state/krank/linkrank column. See that function
+    for the full contract; this is a thin wrapper.
+    """
+    return _extract_tied_plan_rows_from_batch_graph(
+        graph, graph_id, include_partial_state=False, alpha_key=alpha_key
+    )
 
 
 def extract_rows_dim22_from_graph(graph: Any, graph_id: str) -> Tuple[List[TabularEdgeRow], Optional[str]]:
