@@ -1,0 +1,33 @@
+# route_b stage 2, arm A2 — MLP dim63crk, the registered strongest pointwise (T1)
+# baseline (ROUTE_B_STAGE2_PREREGISTRATION.md §3).
+trainer: mlp
+lineage: route_b_v1
+description: >
+  Arm A2: PointwiseEdgeMLP trained on the dim63crk layout — dim25cr + the 38
+  partial-state/krank/linkrank columns (§2), teacher-forced along the SAME alpha=2.0
+  any-of-K tied-optimal plan set arm A1 uses (§5). This is the registered strongest
+  pointwise (T1) baseline: any feature the GNN can compute as a function of (this
+  candidate, the partial assignment) is handed to this arm too, so a GNN win here can
+  only come from what message passing adds. Decodes through the same §4 shared
+  masked_topo decoder as every other arm (scripts_cosim/eval_route_b_stage2_arm.py).
+
+  Pinned to the B6 shared split artifact (same file as A1/A3) so a draw varies
+  initialisation and batch order only — --random-state is overridden per draw by
+  run_experiment.py --seed N.
+
+cache_dir: simulation_data/graphs_cache_route_b_pilot_s_dag
+
+path_args: [output, split-artifact]
+
+args:
+  output: models/tabular/route_b_stage2_a2_dim63crk.pt
+  split-artifact: experiments/route_b_stage2_split_v1.json
+  partial-state: null
+  candidate-relative-queue: null
+  epochs: 100
+  patience: 10
+  random-state: 42
+
+wandb:
+  project: gnn-route-b-stage2
+  run_name: route-b-stage2-a2-t1-dim63crk
