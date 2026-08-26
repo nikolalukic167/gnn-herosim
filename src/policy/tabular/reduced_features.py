@@ -546,19 +546,32 @@ def _extract_dim22_rows_for_task(
     *,
     prefix_augment: bool = False,
     candidate_relative: bool = False,
+    partial_state_block: Optional[np.ndarray] = None,
+    target_override: Optional[int] = None,
 ) -> Tuple[List[TabularEdgeRow], Optional[str]]:
-    """Shared dim22/dim24/dim25cr row builder for one task decision on a graph."""
+    """Shared dim22/dim24/dim25cr/dim63crk row builder for one task decision.
+
+    ``partial_state_block`` ([n_candidates, PARTIAL_STATE_FEATURE_DIM], from the
+    single-source partial_state_columns) appends the dim63crk partial-state
+    columns; ``target_override`` replaces graph.y's label — the dim63crk path
+    teacher-forces along a tied-optimal plan, whose per-task placement is the
+    label for that decision, not the unconstrained sweep minimum in y."""
     task_placement_map = _task_placement_map(graph)
     task_queue_map = _task_queue_key_map(graph)
 
     if task_idx not in task_placement_map:
         return [], f"task_idx {task_idx} missing from task_logit_to_placement"
 
-    y_raw = getattr(graph, "y", None)
-    if y_raw is None:
-        return [], "missing y labels"
-
-    target_class_idx = int(y_raw[task_idx].item()) if isinstance(y_raw, torch.Tensor) else int(y_raw[task_idx])
+    if target_override is not None:
+        target_class_idx = int(target_override)
+    else:
+        y_raw = getattr(graph, "y", None)
+        if y_raw is None:
+            return [], "missing y labels"
+        target_class_idx = (
+            int(y_raw[task_idx].item())
+            if isinstance(y_raw, torch.Tensor) else int(y_raw[task_idx])
+        )
     if target_class_idx < 0:
         return [], f"invalid label y[{task_idx}]={target_class_idx}"
 
@@ -578,7 +591,9 @@ def _extract_dim22_rows_for_task(
             f"graph {graph_id}: platform_features has {plat_dim} cols, expected >= 14"
         )
     feature_dim, _colnames, _layout = _batch_edge_feature_dims(
-        plat_dim, candidate_relative=candidate_relative
+        plat_dim,
+        candidate_relative=candidate_relative,
+        partial_state=partial_state_block is not None,
     )
     if edge_attr_directed.shape[1] < 5:
         raise ValueError(
@@ -624,6 +639,13 @@ def _extract_dim22_rows_for_task(
         parts = [x_task, x_plat, x_edge]
         if cand_rel is not None:
             parts.append(cand_rel[logit_idx])
+        if partial_state_block is not None:
+            if partial_state_block.shape[0] != len(candidates):
+                raise ValueError(
+                    f"partial_state_block rows {partial_state_block.shape[0]} != "
+                    f"{len(candidates)} candidates for task {task_idx}"
+                )
+            parts.append(partial_state_block[logit_idx])
         features = np.concatenate(parts).astype(np.float64)
         if features.shape[0] != feature_dim:
             raise ValueError(
@@ -690,6 +712,113 @@ def extract_rows_dim22_from_batch_graph(
         if skip_reason:
             return [], skip_reason
         all_rows.extend(rows)
+    return all_rows, None
+
+
+def build_partial_state_context_from_graph(graph: Any) -> "PartialStateContext":
+    """PartialStateContext from a DAG cache graph's partial_state_ctx block
+    (prepare_graphs_cache.attach_dag_partial_state_block). Node keys are node_ids;
+    candidate keys are (node_id, platform_id) tuples."""
+    psc = getattr(graph, "partial_state_ctx", None)
+    if not psc:
+        raise ValueError(
+            "graph carries no partial_state_ctx — not a --dag-partial-state cache"
+        )
+    node_of = {}
+    tl = graph.task_logit_to_placement
+    for t in range(int(graph.n_tasks)):
+        for cand in tl[t]:
+            node_of[tuple(cand)] = int(cand[0])
+    return PartialStateContext(
+        node_caps=psc["node_caps"],
+        demand=psc["demand"],
+        node_of=node_of,
+        task_type_index=psc["task_type_index"],
+        parents=psc["parents"],
+        route_hops_bneck=psc["route_hops_bneck"],
+        payload_bytes=psc["payload_bytes"],
+        transfer_norm=psc["transfer_norm"],
+        node_rank=psc["node_rank"],
+        ingress_links=psc["ingress_links"],
+        core_links=frozenset(psc["core_links"]),
+    )
+
+
+def extract_rows_dim63crk_from_batch_graph(
+    graph: Any, graph_id: str, *, alpha_key: Optional[str] = None
+) -> Tuple[List[TabularEdgeRow], Optional[str]]:
+    """dim63crk training rows from a --dag-partial-state cache graph (B3).
+
+    Teacher forcing along the tied-optimal label SET (§5's any-of-K labels): for
+    every tied plan k at `alpha_key` (default: the cache's primary alpha, 2.0),
+    tasks are walked in the SAME topological order the §4 masked decoder uses
+    (seq_decode.topological_task_order — imported, not re-typed, so train-time
+    prefixes and decode-time prefixes agree by construction), the partial
+    assignment is plan k's committed prefix, the 38 partial-state columns come
+    from the single-source partial_state_columns, and the decision label is plan
+    k's own placement. Rows carry the plan in their graph_id
+    (``...#planK@taskT``), so a loss can group per plan; per-row CE over these
+    rows is the teacher-forced factorization — the exact any-of-K marginalized
+    CE (-log sum_k prod_t p) is assembled by the stage-2 trainer configs (B6)
+    from the same rows.
+
+    Note the §2 capacity columns use cap_node(alpha_key): extracting a
+    sensitivity rung (e.g. "3.0") changes cols 29-31 AND the label set together.
+    """
+    from src.policy.gnn.seq_decode import topological_task_order
+
+    parent_id = str(
+        getattr(graph, "parent_dataset_id", None) or parent_dataset_id(graph_id)
+    )
+    n_tasks = int(getattr(graph, "n_tasks"))
+    if n_tasks <= 0:
+        return [], "n_tasks <= 0"
+    tied = getattr(graph, "tied_optimal_logit_plans", None)
+    if not tied:
+        return [], "graph carries no tied_optimal_logit_plans (not a DAG cache)"
+    key = alpha_key or str(getattr(graph, "dag_primary_alpha_key", "2.0"))
+    if key not in tied:
+        return [], f"alpha_key {key!r} not in tied_optimal_logit_plans {sorted(tied)}"
+    plans = tied[key]
+    if not plans:
+        return [], f"empty tied-optimal set at alpha={key}"
+
+    ctx = build_partial_state_context_from_graph(graph)
+    caps_by_alpha = graph.partial_state_ctx["node_caps_by_alpha"]
+    if key not in caps_by_alpha:
+        return [], f"alpha_key {key!r} not in node_caps_by_alpha"
+    ctx.node_caps = caps_by_alpha[key]
+
+    order = topological_task_order(n_tasks, graph.dag_parents)
+    tl = graph.task_logit_to_placement
+
+    all_rows: List[TabularEdgeRow] = []
+    for k, plan in enumerate(plans):
+        if len(plan) != n_tasks:
+            raise ValueError(
+                f"{graph_id}: tied plan {k} has {len(plan)} entries, expected "
+                f"{n_tasks}"
+            )
+        committed: Dict[int, Tuple[int, int]] = {}
+        plan_rows: List[TabularEdgeRow] = []
+        for task_idx in order:
+            candidates = [tuple(c) for c in tl[task_idx]]
+            block = partial_state_columns(ctx, task_idx, candidates, committed)
+            rows, skip_reason = _extract_dim22_rows_for_task(
+                graph,
+                f"{graph_id}#plan{k}",
+                parent_id,
+                task_idx,
+                n_tasks,
+                candidate_relative=True,
+                partial_state_block=block,
+                target_override=int(plan[task_idx]),
+            )
+            if skip_reason:
+                return [], f"plan {k}: {skip_reason}"
+            plan_rows.extend(rows)
+            committed[task_idx] = candidates[int(plan[task_idx])]
+        all_rows.extend(plan_rows)
     return all_rows, None
 
 
@@ -768,6 +897,7 @@ def validate_dim22_frame(df) -> Dict[str, Any]:
         DIM22_FEATURE_DIM: "dim22",
         DIM24_FEATURE_DIM: "dim24",
         DIM25CR_FEATURE_DIM: "dim25cr",
+        DIM63CRK_FEATURE_DIM: "dim63crk",
     }
     if n_feat not in _LAYOUT_BY_WIDTH:
         raise ValueError(

@@ -50,6 +50,7 @@ from src.policy.tabular.reduced_features import (
     validate_partial_state_contract,
     dim22_rows_to_dataframe,
     extract_rows_dim22_from_batch_graph,
+    extract_rows_dim63crk_from_batch_graph,
     validate_dim22_frame,
 )
 from src.policy.tabular.train_ranker import split_by_parent_three_way
@@ -182,9 +183,15 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
         if n_tasks < args.min_batch_tasks:
             skipped_small += 1
             continue
-        rows, skip_reason = extract_rows_dim22_from_batch_graph(
-            graph, str(graph_id), candidate_relative=bool(args.candidate_relative_queue)
-        )
+        if getattr(args, "partial_state", False):
+            rows, skip_reason = extract_rows_dim63crk_from_batch_graph(
+                graph, str(graph_id)
+            )
+        else:
+            rows, skip_reason = extract_rows_dim22_from_batch_graph(
+                graph, str(graph_id),
+                candidate_relative=bool(args.candidate_relative_queue),
+            )
         if skip_reason or not rows:
             raise RuntimeError(f"Failed to extract {graph_id}: {skip_reason}")
         all_rows.extend(rows)
