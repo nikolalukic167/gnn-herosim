@@ -4470,6 +4470,109 @@ per-node-resolution layout hypothesis survives the 4→8 task doubling at matche
 power (0.790 → 0.617 pooled, per-dataset ~1.0 both). Exploratory throughout; the stage-2
 re-registration required by §9c remains the gating step.**
 
+### route_c_link_transfer_v1 — SCREEN REGISTRATION (2026-08-26, registered BEFORE generation)
+
+**Question.** §9b/§9d say node-memory contention is pointwise-closable with the right
+feature layout. The one mechanism pointwise link controls could NOT repair is link
+contention (`link_contention_v1`, FALSIFIED on magnitude only: 0.08–0.35% regret). Can an
+environment where link waiting is a *material* share of RTT resist a fairly-armed pointwise
+competitor? If yes, the stage-2 re-registration is rewritten against that environment
+(Branch B of the 2026-08-26 handover); if no, Branch A proceeds on the current corpus.
+The lineage name is reserved; it is **named only if this screen passes**.
+
+**Physics facts the screen rests on** (verified in code 2026-08-26): link waiting accrues
+ONLY on the client→executing-node ingress transmission of a task's INPUT
+(`infrastructure.py` store-and-forward loop; payload = `stateSize[app]["input"]` via
+`scheduling_cost.transfer_time`). The parent→child dependency payload (`output`, Arm S's
+800 MB lever) never touches the fabric — `_payload_transfer_time` charges hop-count time
+with no pipes. Hence the new input-only lever `HEROSIM_INPUT_SIZE_BYTES`
+(`executecosimulation.apply_state_size_override`; mutually exclusive with
+`HEROSIM_STATE_SIZE_BYTES`), and hence the competitor block counts co-use on ingress
+routes, not DAG-edge routes.
+
+**Instruments** (all changes landed and validated before this registration):
+- `score_route_b_contention.py` with the opt-in `linkrank` block: fixed-width order
+  statistics of per-link co-use over the plan's ingress routes (top-4 counts, excess
+  Σ(c−1)+ all/core, shared-link counts all/core; 8 columns, identity-free, poolable).
+  Registered §9a statistics are proven unchanged (default blocks =
+  `T1_REGISTERED_BLOCKS`; old-vs-new report diff identical on 24 Arm S datasets; one
+  plan's co-use hand-verified against `infrastructure.json` routes). New per-dataset
+  arms: `r_exact_repaired_lnk_pct` (all rows incl. unconstrained), `r_exact_repaired_t1lnk_pct`
+  (constrained rows).
+- `route_b_coefficient_transfer.py --add-linkrank`: extends ONLY the exploratory krank
+  pooled arm with `linkrank` (registered §9b cells untouched; without the flag the frozen
+  §9c artifacts reproduce exactly: pooled 0.7898, mean_tied 0.8242, R² 0.0138 — re-run
+  2026-08-26).
+- `HEROSIM_RETAIN_LINK_STATS=1`: every `placements.jsonl` row carries `link_wait_total`,
+  `link_transfer_avg`, `fabric_link_wait_total` (fail-loud, `HEROSIM_RETAIN_TASK_TIMES`
+  precedent) — the manipulation-check statistic.
+
+**Registered reading, per rung.** Scorer alphas `2.0,6.0` (+ auto `None`); objective rtt.
+Two channels: the **unconstrained row** is candidate 1 (pure link coupling — anchor: on
+Arm S today unconstrained R_exact = 0.000 across 24/24 datasets, so any nonzero here is
+the fabric), and **α=2.0** is candidate 2 (link + memory contention; α=6.0 is the
+near-unconstrained cross-check for the pooled machinery, which needs finite caps).
+A rung is GNN-promising on a channel iff ALL of:
+1. *Manipulation check*: median over datasets of (Σ per-plan `link_wait_total` share of
+   summed rtt) ≥ **10%** — otherwise the rung failed to make contention material and is
+   INVALID (no verdict read from it, ladder continues).
+2. *Firing*: ≥ **15%** of datasets at `r_exact_pct > 5.0` on that channel.
+3. *Closure*: pooled anonymous closure (krank + dim36crk-expressible + linkrank, ONE
+   coefficient set; `--add-linkrank`) median fraction < **0.5** on the firing set,
+   reading `mean_tied`, with registered and optimistic readings agreeing within 0.1
+   (disagreement ⇒ AMBIGUOUS: widen the ladder, never lower the bar). Per-dataset
+   `r_exact_repaired_lnk_pct` / `t1lnk` are reported as diagnostics, no verdict.
+Screen PASSES iff at least one VALID rung is GNN-promising on either channel. §9c's
+write-up rule binds: a failed screen reads "this environment class is pointwise-closable;
+the corpus is the limit", never "the GNN is falsified".
+
+**Disclosure.** During instrument validation (before this registration was written) the
+`--add-linkrank` pooled arm was run once on the existing Arm S corpus: pooled median
+0.648 (mean_tied 0.790) vs 0.790 (0.824) without. No verdict is read from it — rung 0
+has no manipulation check (old jsonl lacks link fields) and its bandwidth (1000 MB/s)
+makes contention ~0 by the anchor above.
+
+**Rungs** (4-task, local, `ROUTE_B_PILOT_V1_GRID` physics + Arm S env
+`HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000` +
+`HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_RETAIN_TASK_TIMES=1 HEROSIM_RETAIN_LINK_STATS=1`,
+24–48 datasets/rung; backbone via preset `backbone_defaults`):
+- R1: n_core=4, attach_degree=1, chord_count=0 (the measured `link_contention_v1`
+  coupling peak), bandwidth 1000 MB/s, `HEROSIM_INPUT_SIZE_BYTES=157286400` (150 MB).
+- R2+: lower bandwidth (100, then 25 MB/s) at the same topology until the manipulation
+  check passes; bandwidth moves link cost's share of RTT even though it cannot move the
+  wait/transfer ratio (the 2026-08-18 null-lever result — the ratio lever is crossings,
+  which n_core=4 maximizes).
+- Contingency (only if AMBIGUOUS): 8-task (2× diamond4, α ladder ×2 per §9d equal
+  tightness) at the best 4-task rung, on datalab via the `route_b_8task_probe.sbatch`
+  pattern — concurrency is the known 7–14× amplifier (real-trace A/B).
+- Control anchor per rung family: the existing Arm S corpus itself (bandwidth 1000,
+  input 153,600 B) with its measured unconstrained 0.000.
+
+**Decision gate** (write the outcome here): PASS → name the lineage, register its full
+gate before any full corpus, rewrite the stage-2 registration against the new
+environment; the GNN's claim-to-beat is the linkrank-augmented pointwise model. FAIL on
+all valid rungs → Branch A on the current corpus with the honest sentence above.
+AMBIGUOUS → widen the ladder.
+
+**4-task ladder outcome (2026-08-26): ALL THREE RUNGS INVALID — AMBIGUOUS, contingency
+invoked.** R1/R2/R3 (24 datasets each, local, corpora
+`gnn_datasets_dag4_route_c_link_screen_r{1_bw1000,2_bw100,3_bw25}`): link-wait share of
+rtt median 0.0007 / 0.0045 / 0.0104 against the 0.10 bar
+(`simulation_data/route_c_screen_manipulation.json`). The failure is **structural, not a
+tuning miss**: the bandwidth-free ceiling wait/(wait+transfer) — the share link waiting
+reaches even if link cost consumed ALL of rtt — is median 4–6%, max 8.8%, because one
+client and a diamond DAG cap concurrent transfers at 2 (root and sink transfer alone; the
+two mids always share the client trunk). No bandwidth or payload value can pass the
+manipulation check in this family — the 2026-08-18 null-lever result reappearing at the
+rtt level. Corroborating diagnostic (no verdict — rungs invalid): unconstrained R_exact
+is **exactly 0.000 on all 72 datasets across the 40× bandwidth range**
+(`simulation_data/route_c_screen_4task_rtt.json`), i.e. at this concurrency link waiting
+never moves the argmin at all; the α=2.0 firing seen is route_b's known memory channel.
+Per the registered gate: widen the ladder along the only remaining lever, concurrency —
+the 8-task contingency rung (grid `route_c_link_screen_8task`, 2 diamond4 instances from
+independent clients, bw=25, input 150 MB, α ladder ×2), generated on datalab via the
+`route_b_8task_probe.sbatch` pattern.
+
 ---
 
 ## RETIRED
@@ -4520,7 +4623,7 @@ find out what changed about the tool without reading a lineage's story to get th
 | 2026-08-20 | any new `*.sbatch` (env activation) | **`micromamba shell hook --bash` fails on compute nodes but works on login nodes.** Compute nodes run a newer micromamba that requires `--shell bash` and rejects the old spelling with `The following argument was not expected: --bash`. Job 707292 (`siv1_full_corpus` live gate) died with all 15 array tasks failing in ~1s. The trap is that a **login-node sanity check cannot catch this** — the login node accepts the old form, so the pre-submit validation passed while every compute node rejected it. | Use `eval "$(micromamba shell hook --shell bash)"`; every other script in `scripts_cosim/datalab/` already did, and the broken one was a hand-written outlier. When adding an sbatch, diff its env-activation preamble against a neighbouring script rather than trusting a login-node dry run. |
 
 | 2026-08-21 | `{knative,gnn,knative_network}/autoscaler.py` (all 3, `mlp_batch` inherits `GNNAutoscaler`) | **`eb6d131`'s tie-break fix was incomplete, and `PYTHONHASHSEED` does not cover this class of bug at all.** All three scale-down sites do `sorted(function_replicas, key=lambda couple: len(couple[1].queue.items))` — a **non-total** key over a `Set[Tuple[Node, Platform]]`. `sorted()` is stable, so any tie (two idle replicas with equal queue length) keeps the underlying set's iteration order, which for a set of *objects* is `id()`-derived — Python only randomizes `str`/`bytes` hashing, so `PYTHONHASHSEED` genuinely does nothing here. Proved directly: 3 processes under identical `PYTHONHASHSEED=0` iterate a set of 8 objects in 3 different orders, while a control set of 8 strings is identical across all 3. Measured consequence: `knative_network`/cell03 p=0.15, 4 independent processes, identical inputs, `PYTHONHASHSEED=0` pinned — `total_rtt` took 4 distinct values, 0.05% spread (sd 0.0235%). Small relative to any recorded gate margin (239-816x below the siv1 gate's 12-41%), but real and previously unmeasured — the `PYTHONHASHSEED=0` "defense-in-depth" in the live-gate scripts was assumed to cover this and does not. | **Not yet fixed** (found mid live-gate run this session; deferred to avoid splitting one gate's results across two code versions). Fix is a total key: `key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)`. See `memory/herosim-pythonhashseed-tiebreak-nondeterminism.md` for the full empirical writeup. |
-| 2026-08-21 | `src/executesimulation.py` / live result JSON (reporting gap, not a bug) | **`NetworkFabric.link_wait_total` (`network_fabric.py:133`) and `task.link_wait_time` (`infrastructure.py:196`, serialized as `linkWaitTime`) accumulate real link-contention waiting and are never surfaced outside the test suite.** The live result JSON's `stats` block has no link field, so the simulator computes exactly the quantity `link_contention_v1`'s real-trace A/B needs (splitting a backbone's total_rtt delta into transmission vs. contention) and discards it. | Not fixed — noted as a small, reporting-only addition (no behaviour change) for whoever next needs to decompose a backbone's cost. |
+| 2026-08-21 | `src/executesimulation.py` / live result JSON (reporting gap, not a bug) | **`NetworkFabric.link_wait_total` (`network_fabric.py:133`) and `task.link_wait_time` (`infrastructure.py:196`, serialized as `linkWaitTime`) accumulate real link-contention waiting and are never surfaced outside the test suite.** The live result JSON's `stats` block has no link field, so the simulator computes exactly the quantity `link_contention_v1`'s real-trace A/B needs (splitting a backbone's total_rtt delta into transmission vs. contention) and discards it. | **Fixed in two stages.** Stats-level: since `d88278c` (2026-08-23) both stats paths emit `averageLinkWaitTime` / `totalLinkWaitTime` / `averageLinkTransferTime` / `fabricLinkWaitTotal` next to `total_rtt` (`orchestrator.py` `_stats_low_memory()` and `stats()`), so live result JSONs and co-sim `best.json` carry them. Per-plan: 2026-08-26, opt-in `HEROSIM_RETAIN_LINK_STATS=1` writes `link_wait_total` / `link_transfer_avg` / `fabric_link_wait_total` into every `placements.jsonl` row (`executecosimulation.py`, same fail-loud contract as `HEROSIM_RETAIN_TASK_TIMES`) — the sweep-wide decomposition the route-C screen needs. |
 | 2026-08-21 | `generate_infrastructure.py` (`build_core_backbone`) via `verify_live_infra_parity.py` | **The backbone's access-link jitter is drawn from the same `rng` stream the replica-reachability repair already consumed**, and the backbone is built *after* the repair (`:768` then `:780`). A live run performs no repair (it autoscales from zero), so it reaches the backbone build at a different stream position than the corpus generator did — every access-link latency diverges on any cell with a non-empty repair set (measured: 3/5 siv1 gate cells FAIL when a backbone is added, matching exactly the 3 cells with nonzero repair-edge counts; the 2 with zero repair edges PASS). | New `--allow-backbone-latency-divergence` flag on `verify_live_infra_parity.py`, scoped narrowly: downgrades exactly the two affected finding classes to notes, and only fires when a backbone is present on **both** the corpus and live sides — verified it cannot mask a mismatch on a non-backbone collection, and that without the flag the same cells still correctly FAIL. Root rng coupling itself is not fixed (would require an independent substream and would break bit-reproducibility of `gnn_datasets_4tasks_topo_transfer_v1`'s existing 3,744-dataset corpus from its seed — a bigger call than this session's scope; the flag is the practical unblock for a live-vs-live A/B where the corpus-side artifact is only a preflight fixture). |
 | 2026-08-21 | live-gate protocol / `run_provenance` (via `datalab/siv1_env_probe_{gpu,cpu}.sbatch`) | **A live gate can silently measure an uncommitted code diff instead of the model.** `models/` syncs by rsync but `src/` syncs by git, so the dims 9-11 live-feature fix (working tree 2026-08-19, uncommitted) ran locally but not in datalab's job 708549 — 23.3% of `total_rtt` on `gnn/cell01`, flipping the gate verdict. `run_provenance` records env vars and contracts but **not the git commit or working-tree state**, so nothing in either side's result JSON could reveal the split. Root-caused by a 7-run probe matrix (see the siv1 resolution subsection): the two new probe sbatch files re-run one gate cell on the recorded node (GPU ×2) and CPU-forced, establishing datalab-side noise floors (±0.04% GPU run-to-run, ±0.03% GPU↔CPU) as a by-product. | Protocol: `git status --short src/ scripts_cosim/` must be clean before any datalab gate, and local+datalab must be at the same commit. Code fix planned (deferred until no sweep is mid-run): record `git describe --dirty --always` + a hash of `git diff` in `run_provenance`. |
 | 2026-08-21 | `scripts_cosim/important/run_*_live_gate*.sh` (50 `pipenv run python3` call sites in 18 files) + new `scripts_cosim/verify_venue_parity.py`, `src/placement/env_fingerprint.py` | **Every datalab gate ran in an undeclared environment, and nothing recorded which.** `micromamba activate gnn` followed by `pipenv run python3` does not run in the `gnn` env — `pipenv run` resolves its own venv and shells past the activation, so the cluster silently used `~/.local/share/virtualenvs/gnn-herosim-2TQKssTQ` (**torch 2.12.0+cu130**) while `CLAUDE.md`, the sbatch header and this file all asserted the `gnn` env (torch 2.5.1+cu121). Cost: three sessions attributing an 11-26% GNN gap to the venue. **Measured and closed the same day:** a committed 64-graph fixture (256 decisions / 1,738 scored edges) forwarded through the deployed checkpoint gives max|Δlogit| = **exactly 0.0** and **0/256 argmax flips** between local (torch 2.5.1+cu121 / numpy 2.3.0 / PyG 2.6.1), the `gnn` env (numpy 1.26.4 / PyG 2.7.0) and the rogue venv (torch 2.12.0+cu130 / PyG 2.8.0), at 1 and 4 threads. A CPU→CUDA negative control on the *same* env gives 1.9e-5 and still 0 flips, proving the probe is sensitive and the zeros are real. So the library-version axis contributes nothing; only the accelerator does, below the flip threshold. | `verify_venue_parity.py --mode logits --assert` runs in ~6 s (login-node safe) and is the preflight; `--mode run` does the same end-to-end on one cell, keeping a `knative` control arm because Knative never touches `build_inference_feature_bundle` and a Knative-only cross-check is structurally blind to this bug class. Protocol + comparability checklist in **`PARITY.md`**; hard rules in `CLAUDE.md`; datalab-pitfalls **#8**. Leak fix itself (`${HEROSIM_PY:-pipenv run python3}` + `export HEROSIM_PY=python3`) deferred while `a4_wl200200` is mid-run — it is hygiene, not a numerical correction. |

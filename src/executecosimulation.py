@@ -421,6 +421,29 @@ def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
             for app_entry in (task_type.get("stateSize") or {}).values():
                 app_entry["output"] = output_size
 
+    # `input` alone, for isolating the CONTENDED term. The store-and-forward fabric
+    # loop (infrastructure.py, link_contention_v1 block) transmits the task's INPUT
+    # from its client to its executing node, holding each link on the route — that is
+    # the only place link waiting accrues. `output` (above) is the pairwise
+    # parent->child payload and never touches the fabric (`_payload_transfer_time`
+    # charges time from hop count alone, no pipes). Set this to make link contention
+    # a material share of RTT without inflating the un-contended dependency transfer.
+    # Route-C screen lever, 2026-08-26.
+    raw_input = os.environ.get("HEROSIM_INPUT_SIZE_BYTES", "").strip()
+    if raw_input:
+        if os.environ.get("HEROSIM_STATE_SIZE_BYTES", "").strip():
+            raise ValueError(
+                "HEROSIM_INPUT_SIZE_BYTES and HEROSIM_STATE_SIZE_BYTES are both set — "
+                "STATE rewrites input AND output and would clobber this override; "
+                "pick one lever")
+        input_size = int(raw_input)
+        if input_size <= 0:
+            raise ValueError(f"HEROSIM_INPUT_SIZE_BYTES must be positive, got {input_size}")
+        task_types_in = sim_inputs.get("task_types") or {}
+        for task_type in task_types_in.values():
+            for app_entry in (task_type.get("stateSize") or {}).values():
+                app_entry["input"] = input_size
+
     raw = os.environ.get("HEROSIM_STATE_SIZE_BYTES", "").strip()
     if not raw:
         return None
@@ -2232,6 +2255,27 @@ def process_placement_fast(
                 for tr in rows
             ]
 
+        # Opt-in per-plan link-contention retention (same fail-loud contract as
+        # task_times above: a sweep mixing rows with and without link fields is
+        # undecomposable). The stats-level fields exist since d88278c; this is the
+        # only artifact that exists for EVERY placement in a sweep.
+        link_stats: Optional[Dict[str, float]] = None
+        if os.environ.get("HEROSIM_RETAIN_LINK_STATS", "0") == "1":
+            missing = [
+                k for k in ("totalLinkWaitTime", "averageLinkTransferTime", "fabricLinkWaitTotal")
+                if k not in stats
+            ]
+            if missing:
+                raise RuntimeError(
+                    f"HEROSIM_RETAIN_LINK_STATS=1 but stats is missing {missing}; "
+                    "cannot retain per-plan link stats"
+                )
+            link_stats = {
+                "link_wait_total": float(stats["totalLinkWaitTime"]),
+                "link_transfer_avg": float(stats["averageLinkTransferTime"]),
+                "fabric_link_wait_total": float(stats["fabricLinkWaitTotal"]),
+            }
+
         # OPTIMIZATION: Only write file if this is better than current best RTT
         # Use lock-free read first to minimize contention, then lock only if needed
         should_write = False
@@ -2269,7 +2313,7 @@ def process_placement_fast(
 
         # Return file path (None if not written), RTT, and placement plan
         # RTT and placement_plan are always returned (needed for placements.jsonl)
-        return result_file, rtt_value, placement_plan, task_times
+        return result_file, rtt_value, placement_plan, task_times, link_stats
 
     except Exception as e:
         # A lost placement truncates the sweep, and a truncated sweep is unscoreable —
@@ -2285,7 +2329,7 @@ def process_placement_fast(
             pass
         if not QUIET_MODE:
             print(f"[worker] Error in simulation: {str(e)}")
-        return None, float('inf'), None, None
+        return None, float('inf'), None, None, None
 
 
 def execute_brute_force_optimized(
@@ -2543,9 +2587,9 @@ def execute_brute_force_optimized(
                 
                 try:
                     # Add timeout to prevent infinite hangs
-                    # Workers now return (result_file, rtt, placement_plan, task_times) - no large result dict
+                    # Workers now return (result_file, rtt, placement_plan, task_times, link_stats) - no large result dict
                     # result_file may be None if worker didn't write (worse than best RTT)
-                    result_file, cur_rtt, placement_plan, task_times = future.result(timeout=timeout_per_placement)
+                    result_file, cur_rtt, placement_plan, task_times, link_stats = future.result(timeout=timeout_per_placement)
                     
                     if placement_plan is None:
                         # Error case: placement_plan is None (worker failed)
@@ -2616,6 +2660,8 @@ def execute_brute_force_optimized(
                             max(done for _, _, done in task_times)
                             - min(dispatched for _, dispatched, _ in task_times)
                         )
+                    if link_stats is not None:
+                        summary.update(link_stats)
                     placements_fh.write(json.dumps(summary, separators=(',', ':')) + '\n')
                     num_written += 1
                     

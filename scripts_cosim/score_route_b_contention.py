@@ -57,6 +57,12 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from src.placement.network_fabric import is_core_link, route_links  # noqa: E402
+
 Plan = Dict[int, Tuple[int, int]]
 
 EPS = 1e-12
@@ -132,6 +138,26 @@ def load_task_type_names(ds_dir: Path) -> List[str]:
     return names
 
 
+def load_task_sources(ds_dir: Path) -> List[str]:
+    """Submitting client node per task_id, same id-assignment order as
+    load_task_type_names. Every task of an event ingresses from that event's
+    node_name — the source endpoint the simulator's store-and-forward hop loop
+    charges (infrastructure.py, link_contention_v1 block)."""
+    with open(ds_dir / "workload.json") as fh:
+        workload = json.load(fh)
+    sources: List[str] = []
+    for event in workload["events"]:
+        node_name = event.get("node_name")
+        if not node_name:
+            raise RuntimeError(
+                f"{ds_dir}: workload event without node_name — cannot resolve "
+                "ingress routes for the linkrank block")
+        # len(dag) is the event's task count for both dag shapes (list of names,
+        # or dict task -> parents).
+        sources.extend([node_name] * len(event["application"]["dag"]))
+    return sources
+
+
 def load_dag_edges(ds_dir: Path) -> List[Tuple[int, int]]:
     """(parent_task_id, child_task_id) edges, task ids in the same static_order id
     assignment load_task_type_names uses."""
@@ -189,8 +215,10 @@ class Dataset:
         self.platform_map = load_platform_map(ds_dir)
         self.task_types_db = task_types_db
         self.dag_edges = load_dag_edges(ds_dir)
+        self.task_sources = load_task_sources(ds_dir)
         self.routes, self.links, self.network_maps = load_network(ds_dir)
         self._route_cache: Dict[Tuple[str, str], Tuple[int, float, float]] = {}
+        self._ingress_cache: Dict[Tuple[str, str], List[str]] = {}
         # Per-task demand for every placement that appears in the sweep.
         self.demand: Dict[Tuple[int, Tuple[int, int]], float] = {}
         for plan, _v in self.rows:
@@ -277,6 +305,22 @@ class Dataset:
         result = (len(path) - 1, min(bandwidths), latency)
         self._route_cache[key] = result
         return result
+
+    def ingress_links(self, src: str, dst: str) -> List[str]:
+        """Link keys on the client->destination route — exactly the links the
+        simulator's store-and-forward hop loop holds for this task's input
+        transmission. Same node: no traversal. No link_topology at all: there are
+        structurally no links to contend on, so the answer is the true empty set
+        (this is a value, not a silent skip). A missing route on a dataset that
+        HAS a fabric fails loud inside route_links, mirroring route_metrics."""
+        if src == dst or not self.routes:
+            return []
+        key = (src, dst)
+        cached = self._ingress_cache.get(key)
+        if cached is None:
+            cached = route_links(self.routes, src, dst)
+            self._ingress_cache[key] = cached
+        return cached
 
 
 # ---------------------------------------------------------------------------
@@ -504,13 +548,21 @@ def k_integer_cols(ds: Dataset):
     return fn
 
 
-# The T1 column set, split into named blocks. The ORDER of this tuple is the column
+# The T1 column set, split into named blocks. The ORDER of these tuples is the column
 # order of t1_cols and must not change: the frozen §9a pre-probe report
 # (simulation_data/route_b_stage2_preprobe_t1_rtt.json) was produced by the flat
 # concatenation kint + quad + [load_over_cap, overcap_tasks, min_hop_sum, max_hop_sum,
 # transfer, latency_sum, same_node_edges], and t1_cols(ds, caps) with the default blocks
 # reproduces it exactly (proven byte-identical, see LINEAGES route_b_v1).
-T1_BLOCKS: Tuple[str, ...] = ("kint", "quad", "cap", "hop", "coupling")
+#
+# T1_REGISTERED_BLOCKS is that frozen §9a layout and stays the DEFAULT of t1_cols /
+# t1_column_names, so every registered statistic is unchanged by later block additions.
+# `linkrank` (2026-08-26, route-C screen) is a known-but-opt-in extension: fixed-width
+# order statistics of per-link co-use over the plan's ingress routes (client -> executing
+# node), i.e. the honest pointwise competitor for a link-contention environment. It is
+# identity-free by construction (counts, not link names), so it pools across datasets.
+T1_REGISTERED_BLOCKS: Tuple[str, ...] = ("kint", "quad", "cap", "hop", "coupling")
+T1_BLOCKS: Tuple[str, ...] = T1_REGISTERED_BLOCKS + ("linkrank",)
 
 
 def _check_blocks(blocks: Sequence[str]) -> None:
@@ -522,7 +574,7 @@ def _check_blocks(blocks: Sequence[str]) -> None:
                          "unrepaired marginal surrogate; ask for that explicitly")
 
 
-def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_BLOCKS) -> List[str]:
+def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_REGISTERED_BLOCKS) -> List[str]:
     """Column labels for t1_cols(ds, caps, blocks), in the same order as the values.
 
     Nothing in the pipeline persisted a fitted coefficient before 2026-08-25, so the
@@ -544,10 +596,14 @@ def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_BLOCKS) -> List[str]
             names.extend(["min_hop_sum", "max_hop_sum"])
         elif block == "coupling":
             names.extend(["transfer", "latency_sum", "same_node_edges"])
+        elif block == "linkrank":
+            names.extend(["link_couse_top1", "link_couse_top2", "link_couse_top3",
+                          "link_couse_top4", "link_excess", "link_excess_core",
+                          "link_shared_links", "link_shared_core_links"])
     return names
 
 
-def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_BLOCKS):
+def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_REGISTERED_BLOCKS):
     """Plan-level sums of the stage-2 T1 (partial-state) per-edge features — the §9a
     pre-probe-zero column set of ROUTE_B_STAGE2_PREREGISTRATION.md. T1 ⊇ kint, plus:
     per-type quadratic co-residency Σ_t occ_{node(t)}[k]; Σ_t load/cap; over-cap task
@@ -558,9 +614,12 @@ def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_BLOC
     the capacity-normalized columns are undefined at alpha=inf.
 
     `blocks` selects a SUBSET of T1_BLOCKS, always emitted in T1_BLOCKS order. The
-    default is every block, which is the registered §9a column set; subsets exist for the
+    default is T1_REGISTERED_BLOCKS, the registered §9a column set; subsets exist for the
     block-attribution ablation (which columns actually close the effect) and for the
     pooled cross-dataset fit, which cannot carry the dataset-specific kint vocabulary.
+    The opt-in `linkrank` block (ingress-route per-link co-use order statistics) is
+    NOT in the default — asking for it is a deliberate act, so no registered statistic
+    silently changes meaning.
     """
     _check_blocks(blocks)
     want = {block: (block in blocks) for block in T1_BLOCKS}
@@ -592,31 +651,52 @@ def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_BLOC
             cols += [sum(tot[n] * load[n] / caps.get(n, math.inf) for n in occ),
                      float(sum(tot[n] for n in occ
                                if load[n] > caps.get(n, math.inf) + EPS))]
-        if not need_parents:
-            return cols
-        min_hop_sum = max_hop_sum = transfer = latency_sum = 0.0
-        same_node_edges = 0.0
-        for task_id, placement in plan.items():
-            parents = parents_of.get(task_id)
-            if not parents:
-                continue
-            child_node = ds.node_of(placement)
-            hops_here = []
-            for parent in parents:
-                n_hops, bottleneck, latency = ds.route_metrics(
-                    ds.node_of(plan[parent]), child_node)
-                hops_here.append(n_hops)
-                if n_hops == 0:
-                    same_node_edges += 1.0
-                else:
-                    transfer += n_hops / bottleneck
-                    latency_sum += latency
-            min_hop_sum += min(hops_here)
-            max_hop_sum += max(hops_here)
-        if want["hop"]:
-            cols += [min_hop_sum, max_hop_sum]
-        if want["coupling"]:
-            cols += [transfer, latency_sum, same_node_edges]
+        if need_parents:
+            min_hop_sum = max_hop_sum = transfer = latency_sum = 0.0
+            same_node_edges = 0.0
+            for task_id, placement in plan.items():
+                parents = parents_of.get(task_id)
+                if not parents:
+                    continue
+                child_node = ds.node_of(placement)
+                hops_here = []
+                for parent in parents:
+                    n_hops, bottleneck, latency = ds.route_metrics(
+                        ds.node_of(plan[parent]), child_node)
+                    hops_here.append(n_hops)
+                    if n_hops == 0:
+                        same_node_edges += 1.0
+                    else:
+                        transfer += n_hops / bottleneck
+                        latency_sum += latency
+                min_hop_sum += min(hops_here)
+                max_hop_sum += max(hops_here)
+            if want["hop"]:
+                cols += [min_hop_sum, max_hop_sum]
+            if want["coupling"]:
+                cols += [transfer, latency_sum, same_node_edges]
+        if want["linkrank"]:
+            # Per-link co-use over the plan's ingress routes (client -> executing
+            # node) — the exact links the store-and-forward hop loop serializes on.
+            # Emitted as fixed-width order statistics, never link identities: the
+            # block must pool across datasets and stay far from the saturation
+            # guard (38 links vs 576 rows would trip 2*n_params).
+            couse: Dict[str, int] = {}
+            for task_id, placement in plan.items():
+                for lk in ds.ingress_links(
+                        ds.task_sources[task_id], ds.node_of(placement)):
+                    couse[lk] = couse.get(lk, 0) + 1
+            top = sorted(couse.values(), reverse=True)[:4]
+            top += [0] * (4 - len(top))
+            cols += [float(v) for v in top]
+            cols += [
+                float(sum(c - 1 for c in couse.values() if c > 1)),
+                float(sum(c - 1 for lk, c in couse.items()
+                          if c > 1 and is_core_link(lk))),
+                float(sum(1 for c in couse.values() if c >= 2)),
+                float(sum(1 for lk, c in couse.items()
+                          if c >= 2 and is_core_link(lk))),
+            ]
         return cols
     return fn
 
@@ -671,10 +751,17 @@ def score_dataset(ds: Dataset, alpha: Optional[float]) -> dict:
     r_base = marginal_surrogate_regret(ds, marginal, feasible_rows)
     out["r_exact_pct"] = r_base
     repair_sets = [("1int", one_integer_cols(ds)), ("kint", k_integer_cols(ds))]
+    # route-C screen arm (2026-08-26): ingress-route link co-use alone — the honest
+    # pointwise competitor for a link-contention environment. Needs no caps (link
+    # co-use is cap-free), so it runs on the unconstrained row too, where any nonzero
+    # R_exact is attributable to the fabric alone (memory constraint absent).
+    # Diagnostic, not a registered §9a statistic.
+    repair_sets.append(("lnk", t1_cols(ds, caps or {}, blocks=("linkrank",))))
     if caps is not None:
         # Stage-2 §9a pre-probe zero: the T1 (partial-state) column set. Constrained
         # rungs only — the capacity-normalized columns are undefined at alpha=inf.
         repair_sets.append(("t1", t1_cols(ds, caps)))
+        repair_sets.append(("t1lnk", t1_cols(ds, caps, blocks=T1_BLOCKS)))
     for name, cols in repair_sets:
         repaired = marginal_surrogate_regret(ds, marginal, feasible_rows, cols)
         if repaired is None:
@@ -775,6 +862,16 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
             "r_exact_repaired_t1": summarize(
                 [r["r_exact_repaired_t1_pct"] for r in scored
                  if r.get("r_exact_repaired_t1_pct") is not None]),
+            "repair_lnk_saturated": sum(
+                1 for r in scored if r.get("repair_lnk_saturated")),
+            "r_exact_repaired_lnk": summarize(
+                [r["r_exact_repaired_lnk_pct"] for r in scored
+                 if r.get("r_exact_repaired_lnk_pct") is not None]),
+            "repair_t1lnk_saturated": sum(
+                1 for r in scored if r.get("repair_t1lnk_saturated")),
+            "r_exact_repaired_t1lnk": summarize(
+                [r["r_exact_repaired_t1lnk_pct"] for r in scored
+                 if r.get("r_exact_repaired_t1lnk_pct") is not None]),
             "r_exact_ls": summarize(
                 [r["r_exact_ls_pct"] for r in scored]),
             "r_exact_spread": summarize(
@@ -822,12 +919,14 @@ def main() -> int:
         header = (f"{'alpha':>6} {'feas_rows':>9} {'cw_infeas':>9} {'stuck':>5} "
                   f"{'nofeas':>6} {'sat':>5} | {'Rg>1%':>6} {'Rg max':>8} | "
                   f"{'Rx>1%':>6} {'Rx max':>8} {'Rx1i>1%':>7} {'Rxki>1%':>7} "
-                  f"{'Rxt1>1%':>7} {'Rxt1>5%':>7}")
+                  f"{'Rxt1>1%':>7} {'Rxt1>5%':>7} {'Rxlk>1%':>7} {'Rxtl>1%':>7}")
         print(header)
         for key, s in rep["per_alpha"].items():
             rg, rx = s["r_greedy"], s["r_exact"]
             r1, rk = s["r_exact_repaired_1int"], s["r_exact_repaired_kint"]
             rt = s["r_exact_repaired_t1"]
+            rl = s["r_exact_repaired_lnk"]
+            rtl = s["r_exact_repaired_t1lnk"]
             print(f"{key:>6} {s['mean_feasible_rows']:>9.1f} "
                   f"{s['componentwise_infeasible_frac']:>9.2f} "
                   f"{s['greedy_stuck']:>5d} {s['no_feasible_rows']:>6d} "
@@ -839,7 +938,9 @@ def main() -> int:
                   f"{r1.get('frac_gt_1pct', float('nan')):>7.2f} "
                   f"{rk.get('frac_gt_1pct', float('nan')):>7.2f} "
                   f"{rt.get('frac_gt_1pct', float('nan')):>7.2f} "
-                  f"{rt.get('frac_gt_5pct', float('nan')):>7.2f}")
+                  f"{rt.get('frac_gt_5pct', float('nan')):>7.2f} "
+                  f"{rl.get('frac_gt_1pct', float('nan')):>7.2f} "
+                  f"{rtl.get('frac_gt_1pct', float('nan')):>7.2f}")
 
     if args.out:
         payload = reports
