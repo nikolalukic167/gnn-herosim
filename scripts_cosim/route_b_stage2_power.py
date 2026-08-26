@@ -34,11 +34,14 @@ T95 = 1.645  # one-sided z; every n here is >= 100
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--report", default="simulation_data/route_b_pilot_v1_arm_s_rtt.json",
-                    help="frozen stage-1 report (must contain per_dataset)")
+    ap.add_argument("--report",
+                    default="simulation_data/route_b_stage2_preprobe_t1_rtt.json",
+                    help="frozen §9a pre-probe report (must contain per_dataset with the "
+                         "t1 repair column); the stage-1 report carries no t1 column")
     ap.add_argument("--alpha-key", default="2.0")
-    ap.add_argument("--floor-column", default="r_exact_repaired_kint_pct",
-                    help="per-dataset MLP(T1) floor; post-§9a use r_exact_repaired_t1_pct")
+    ap.add_argument("--floor-column", default="r_exact_repaired_t1_pct",
+                    help="per-dataset MLP(T1) floor; the kint column is the obsolete "
+                         "planning-draft floor (§9a declared it superseded)")
     ap.add_argument("--sigma", type=float, default=2.5,
                     help="per-dataset paired-difference noise sd (%%); calibrated by §9")
     ap.add_argument("--materiality-floor", type=float, default=0.25,

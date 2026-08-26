@@ -87,7 +87,12 @@ def main() -> int:
     # --- condition 2: repairs ---------------------------------------------
     firing = [r for r in rows_tight if r["r_exact_pct"] > MATERIAL_PCT]
     cond2, repair_stats = True, {}
-    for name in ("1int", "kint"):
+    # ("1int", "kint") is the registered condition-2 kill set and must not grow: only
+    # the count-based repairs can flip cond2. "t1" is reported through the same loop so
+    # the headline t1 statistic passes through this registered machinery (the stage-2
+    # prereg §13 defect: it used to be computed ad hoc from the frozen JSON) — it is
+    # NOT part of the cond2 verdict; its reading belongs to §9a of the stage-2 prereg.
+    for name in ("1int", "kint", "t1"):
         fractions, saturated = [], 0
         for r in firing:
             repaired = r.get(f"r_exact_repaired_{name}_pct")
@@ -95,11 +100,14 @@ def main() -> int:
                 saturated += 1
                 continue
             fractions.append(1.0 - repaired / r["r_exact_pct"])
+        if not fractions and saturated == len(firing) and name == "t1":
+            print("repair t1: no data in this report (pre-§9a report) — skipped")
+            continue
         med = sorted(fractions)[len(fractions) // 2] if fractions else 0.0
         repair_stats[name] = (med, len(fractions), saturated)
         print(f"repair {name}: median repair_fraction={med:.3f} over "
               f"{len(fractions)} firing datasets ({saturated} saturated, excluded)")
-        if fractions and med >= REPAIR_MAX:
+        if name in ("1int", "kint") and fractions and med >= REPAIR_MAX:
             cond2 = False
             reasons.append(f"repair {name} closes {med:.0%} >= 50% — count-shaped")
 
