@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts_cosim")
 
 from score_route_b_contention import (  # noqa: E402
     T1_BLOCKS,
+    T1_REGISTERED_BLOCKS,
     Dataset,
     k_integer_cols,
     k_integer_keys,
@@ -165,6 +166,12 @@ def write_toy(tmp_path: Path, rtt_fn, candidates=None) -> Path:
             routes.setdefault(a, {})[b] = _LINE[i:j + step:step] if step > 0 else \
                 list(reversed(_LINE[j:i + 1]))
             maps.setdefault(b, {})[a] = {"latency": TOY_LATENCY[_pair(a, b)]}
+    # The client attaches at n0 (an access trunk, like the generator's backbone):
+    # ingress routes for the linkrank block, which walks client -> executing node.
+    # route_links needs only the paths — linkrank never reads link bandwidths.
+    for b in _LINE:
+        routes.setdefault("client_node0", {})[b] = \
+            ["client_node0"] + _LINE[:_LINE.index(b) + 1]
     for (a, b), bw in TOY_LINK_BW.items():
         links["|".join(sorted((a, b)))] = {"bandwidth_mbps": bw}
     with open(ds / "infrastructure.json", "w") as fh:
@@ -354,11 +361,18 @@ def test_blocks_partition_the_registered_column_set(tmp_path):
     caps = ds.node_caps(2.0)
     full = t1_cols(ds, caps)(PLAN_P)
     pieces = []
-    for block in T1_BLOCKS:
+    for block in T1_REGISTERED_BLOCKS:
         piece = t1_cols(ds, caps, blocks=[block])(PLAN_P)
         assert len(piece) == len(t1_column_names(ds, blocks=[block]))
         pieces += piece
     assert pieces == pytest.approx(full, abs=TOL)
+    # the opt-in linkrank block EXTENDS the registered set and never changes it: the
+    # default emission is exactly the frozen §9a layout, and asking for every known
+    # block appends linkrank's 8 columns after it.
+    lnk = t1_cols(ds, caps, blocks=["linkrank"])(PLAN_P)
+    assert len(lnk) == len(t1_column_names(ds, blocks=["linkrank"])) == 8
+    assert t1_cols(ds, caps, blocks=T1_BLOCKS)(PLAN_P) == pytest.approx(
+        full + lnk, abs=TOL)
     assert t1_column_names(ds) == (
         [f"kint[{n}|{t}]" for n, t in k_integer_keys(ds)]
         + ["quad[cnn]", "quad[dnn1]", "quad[dnn2]", "quad[rf]",

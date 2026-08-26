@@ -55,6 +55,9 @@ from score_route_b_contention import (
 )
 
 # The T1 blocks that carry a dataset-independent meaning, hence the pooled column set.
+# The registered §9b cells always use exactly this tuple; `--add-linkrank` extends only
+# the exploratory krank arms with the ingress-route co-use block (route-C screen), so
+# re-running without the flag reproduces the frozen §9c/§9d artifacts unchanged.
 POOLED_BLOCKS = ("quad", "cap", "hop", "coupling")
 
 MATERIAL_PCT = 5.0        # stage-1's materiality bar, unchanged
@@ -652,7 +655,13 @@ def main() -> int:
                     default=Path("data/nofs-ids/task-types.json"))
     ap.add_argument("--alpha", type=float, default=TIGHT_ALPHA)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--add-linkrank", action="store_true",
+                    help="extend the exploratory krank arms with the linkrank block "
+                         "(ingress-route link co-use; route-C screen competitor). "
+                         "Registered §9b cells are never affected.")
     args = ap.parse_args()
+    krank_pool_blocks = (POOLED_BLOCKS + ("linkrank",) if args.add_linkrank
+                         else POOLED_BLOCKS)
 
     out = run(args.corpus, args.report, args.task_types, args.alpha)
     task_types_db = load_task_types(args.task_types)
@@ -666,7 +675,7 @@ def main() -> int:
     kr = []
     for cell in cells:
         cols = krank_cols(cell)
-        combined = t1_cols(cell.ds, cell.caps, blocks=POOLED_BLOCKS)
+        combined = t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks)
         merged = (lambda p, a=cols, b=combined: a(p) + b(p))
         repaired, _b = marginal_surrogate_regret(
             cell.ds, cell.marginal, cell.feasible, merged, return_beta=True)
@@ -676,6 +685,7 @@ def main() -> int:
         out["krank_exploratory"] = {
             "note": "occupancy by identity-free node rank + the dim36crk set; NOT "
                     "registered, no verdict read from it",
+            "blocks": list(krank_pool_blocks),
             "median_fraction": registered_median(kr),
             "mean_fraction": float(np.mean(kr)),
             "n_closed_ge_half": sum(1 for f in kr if f >= REPAIR_MAX)}
@@ -690,7 +700,7 @@ def main() -> int:
             X_parts, y_parts, owner = [], [], []
             for i, cell in enumerate(cells):
                 kc, bc = (krank_cols(cell, n_ranks),
-                          t1_cols(cell.ds, cell.caps, blocks=POOLED_BLOCKS))
+                          t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks))
                 X_parts.append(np.array(
                     [[marginal_sum(cell.marginal, p)] + kc(p) + bc(p)
                      for p, _v in cell.ds.rows]))
@@ -706,7 +716,7 @@ def main() -> int:
             sb = beta[n:]
             for cell in cells:
                 kc, bc = (krank_cols(cell, n_ranks),
-                          t1_cols(cell.ds, cell.caps, blocks=POOLED_BLOCKS))
+                          t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks))
                 Xf = np.array([[marginal_sum(cell.marginal, p)] + kc(p) + bc(p)
                                for p, _v in cell.feasible])
                 pred = Xf @ sb
@@ -717,6 +727,7 @@ def main() -> int:
             out["krank_pooled_exploratory"] = {
                 "note": "ONE coefficient set over identity-free rank-indexed occupancy + "
                         "the dim36crk set — the follow-up the §9b VOID named. Exploratory.",
+                "blocks": list(krank_pool_blocks),
                 "median_fraction": registered_median(pooled_kr),
                 "median_mean_tied": registered_median(bands_kr),
                 "mean_fraction": float(np.mean(pooled_kr)),

@@ -332,6 +332,39 @@ ROUTE_B_PILOT_V1_8TASK_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1_8task",
 }
 
+# route_c_link_screen: the route_c_link_transfer_v1 SCREEN grid (registration in
+# LINEAGES.md, 2026-08-26). ROUTE_B_PILOT_V1_GRID physics with the backbone squeezed to
+# the measured link_contention_v1 coupling peak (n_core=4, attach=1, chords=0 — crossings
+# per segment are the ratio lever; bandwidth is a null lever on wait/transfer but moves
+# link cost's share of RTT). Bandwidth per rung comes from --link-bandwidth-mbps at the
+# CLI (R1: 1000, R2+: 100, 25); the contended payload comes from
+# HEROSIM_INPUT_SIZE_BYTES in the env (the fabric transmits INPUT over ingress routes —
+# see apply_state_size_override). Same seeds as route_b so datasets pair with the Arm S
+# anchor corpus.
+ROUTE_C_LINK_SCREEN_GRID: GridPreset = {
+    **ROUTE_B_PILOT_V1_GRID,
+    "backbone_defaults": {
+        "link_bandwidth_mbps": 1000.0,
+        "n_core": 4,
+        "attach_degree": 1,
+        "chord_count": 0,
+    },
+    "default_output_subdir": "gnn_datasets_dag4_route_c_link_screen",
+}
+
+# route_c_link_screen_8task: the screen's registered CONTINGENCY rung. The 4-task ladder
+# measured a STRUCTURAL ceiling on link-wait share (wait/(wait+transfer) median 4-6%, max
+# 8.8% — under the 10% manipulation bar at ANY bandwidth): one client and a diamond DAG
+# cap concurrent transfers at 2. Two diamond4 instances from independently drawn clients
+# double the joint decision to 8 tasks and the peak transfer concurrency to 4+ — the
+# 7-14x amplifier the link_contention_v1 real-trace A/B measured. Sweeps are ~100x the
+# 4-task rungs; generate on datalab (route_b_8task_probe.sbatch pattern).
+ROUTE_C_LINK_SCREEN_8TASK_GRID: GridPreset = {
+    **ROUTE_C_LINK_SCREEN_GRID,
+    "dag_instances": 2,
+    "default_output_subdir": "gnn_datasets_route_c_link_screen_8task",
+}
+
 # netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
 #
 # The first matched pilot ran link_contention_v1 on the stock shallow_v1 grid and all three
@@ -687,6 +720,8 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_a_pilot_v1": ROUTE_A_PILOT_V1_GRID,
     "route_b_pilot_v1": ROUTE_B_PILOT_V1_GRID,
     "route_b_pilot_v1_8task": ROUTE_B_PILOT_V1_8TASK_GRID,
+    "route_c_link_screen": ROUTE_C_LINK_SCREEN_GRID,
+    "route_c_link_screen_8task": ROUTE_C_LINK_SCREEN_8TASK_GRID,
 }
 
 
@@ -1387,15 +1422,18 @@ def main():
                              'backbone, so tasks whose ROUTES cross a shared segment '
                              'serialize even when they land on different nodes. Unset '
                              'keeps node_disk_v2 physics (no backbone, one-hop latency).')
-    parser.add_argument('--backbone-n-core', type=int, default=12,
+    parser.add_argument('--backbone-n-core', type=int, default=None,
                         help='link_contention_v1: core routers in the ring (default 12, '
-                             'chosen by scripts_cosim/link_overlap_precheck.py).')
-    parser.add_argument('--backbone-attach-degree', type=int, default=1,
+                             'chosen by scripts_cosim/link_overlap_precheck.py; a grid '
+                             'preset may carry its own in backbone_defaults["n_core"]).')
+    parser.add_argument('--backbone-attach-degree', type=int, default=None,
                         help='link_contention_v1: cores each node attaches to (default 1; '
-                             '2 lets paths diverge and collapses route overlap).')
-    parser.add_argument('--backbone-chord-count', type=int, default=0,
+                             '2 lets paths diverge and collapses route overlap; preset: '
+                             'backbone_defaults["attach_degree"]).')
+    parser.add_argument('--backbone-chord-count', type=int, default=None,
                         help='link_contention_v1: chords across the core ring (default 0; '
-                             'chords let traffic bypass shared segments).')
+                             'chords let traffic bypass shared segments; preset: '
+                             'backbone_defaults["chord_count"]).')
     parser.add_argument('--backbone-rng-stream', choices=('legacy_v0', 'independent_v1'),
                         default='independent_v1',
                         help='Which rng stream draws backbone access-link jitter. '
@@ -1548,9 +1586,9 @@ def main():
     # A grid may REQUIRE a backbone (topo_transfer_v1 does: contract core_v1 on a
     # fabric-less corpus is a silent no-op, not an error, so the grid has to carry the
     # default rather than trusting the operator to pass the flag).
+    grid_backbone = grid_preset.get("backbone_defaults") or {}
     link_bandwidth_mbps = args.link_bandwidth_mbps
     if link_bandwidth_mbps is None:
-        grid_backbone = grid_preset.get("backbone_defaults") or {}
         link_bandwidth_mbps = grid_backbone.get("link_bandwidth_mbps")
         if link_bandwidth_mbps is not None:
             log(
@@ -1559,10 +1597,22 @@ def main():
                 quiet,
             )
     if link_bandwidth_mbps is not None:
+        # Topology knobs: explicit CLI wins, then the preset's backbone_defaults, then
+        # the historical defaults (12/1/0) — a grid whose question IS the topology must
+        # not depend on the operator remembering three flags (topo_transfer_v1's rule,
+        # extended to n_core/attach/chords for the route_c screen).
+        backbone_n_core = (args.backbone_n_core if args.backbone_n_core is not None
+                           else grid_backbone.get("n_core", 12))
+        backbone_attach_degree = (
+            args.backbone_attach_degree if args.backbone_attach_degree is not None
+            else grid_backbone.get("attach_degree", 1))
+        backbone_chord_count = (
+            args.backbone_chord_count if args.backbone_chord_count is not None
+            else grid_backbone.get("chord_count", 0))
         base_config.setdefault('network', {})['backbone'] = {
-            'n_core': args.backbone_n_core,
-            'attach_degree': args.backbone_attach_degree,
-            'chord_count': args.backbone_chord_count,
+            'n_core': backbone_n_core,
+            'attach_degree': backbone_attach_degree,
+            'chord_count': backbone_chord_count,
             'core_link_latency_ms': 4.0,
             'access_link_latency_ms': 20.0,
             'bandwidth_mbps': link_bandwidth_mbps,
@@ -1570,8 +1620,8 @@ def main():
         }
         log(
             f"link_contention_v1: {link_bandwidth_mbps} MB/s per link over a "
-            f"{args.backbone_n_core}-core ring (attach={args.backbone_attach_degree}, "
-            f"chords={args.backbone_chord_count})",
+            f"{backbone_n_core}-core ring (attach={backbone_attach_degree}, "
+            f"chords={backbone_chord_count})",
             quiet,
         )
 
