@@ -329,3 +329,114 @@ def test_a1_teacher_forced_loss_is_bit_identical_at_a_fixed_seed():
         return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
     _assert_state_dicts_identical(one_run(), one_run(), "route_b A1 teacher-forced CE")
+
+
+# --------------------------------------------------------------------------------------
+# run_experiment.py --seed, end to end through train_near_rtt.py itself
+#
+# The tests above exercise trainer LOGIC in-process (gnn_necessity_ablation.AblationModel,
+# or a hand-built TaskPlacementGNN loop) precisely because "train_near_rtt.py trains at
+# import time and cannot be exercised this way" — but that means none of them go through
+# train_near_rtt.py's OWN import chain. That chain had a real defect (found 2026-08-26,
+# route_b stage-2 A1 draws): `from src.notebooks.prepare_graphs_cache import
+# DAG_TASK_TYPE_VOCAB` at train_near_rtt.py:343 pulled in prepare_graphs_cache.py, whose
+# module body used to call `torch.manual_seed(42)` unconditionally at IMPORT time — after
+# train_near_rtt.py's own NEAR_RTT_TRAIN_SEED-derived seed block (lines ~103-110), so it
+# always ran last and clobbered every requested seed back to 42. All 4 of a route_b A1
+# seed sweep (seeds 1-4) produced bit-identical weights and byte-identical wandb summaries
+# to full precision; run_experiment.py --seed correctly set the env var (verified via
+# --dry-run and the checkpoint sidecar's `train_seed` field), so nothing short of actually
+# training end to end through the real import chain would have caught this. Fixed by
+# moving prepare_graphs_cache.py's seed calls from module scope into its own `main()` —
+# a module must never reseed the global RNG as an import side effect.
+# --------------------------------------------------------------------------------------
+
+SMOKE_DAG_CACHE = REPO_ROOT / "simulation_data" / "graphs_cache_route_b_smoke_s_dag"
+
+
+def _run_a1_via_run_experiment(seed: int, tmp_path: Path) -> Dict[str, torch.Tensor]:
+    """One real train_near_rtt.py run through run_experiment.py --seed, on the tiny
+    12-graph smoke DAG cache, 1 epoch. Returns the saved checkpoint's tensor weights."""
+    import shutil
+
+    import yaml
+
+    cfg = yaml.safe_load((REPO_ROOT / "experiments/route_b_stage2_a1.yaml").read_text())
+    # Point at the tiny smoke cache and drop the pilot-204 split artifact (it does not
+    # cover this cache's parents) so the run is fast and self-contained; everything else
+    # (the A1 flags, ce_only objective) stays exactly as registered.
+    cfg["cache_dir"] = "simulation_data/graphs_cache_route_b_smoke_s_dag"
+    cfg["env"].pop("NEAR_RTT_SPLIT_ARTIFACT", None)
+    cfg["args"]["epochs"] = 1
+    cfg.pop("wandb", None)  # WANDB_MODE=disabled (via _run_trainer's env) makes this moot
+    config_path = tmp_path / "a1_smoke.yaml"
+    config_path.write_text(yaml.dump(cfg))
+
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    # train_near_rtt.py writes to Path("models") relative to CWD — run from tmp_path so
+    # parallel test runs / repeated seeds never collide with real checkpoints.
+    _run_trainer(
+        ["run_experiment.py", str(config_path), "--seed", str(seed)],
+        {},
+        cwd=REPO_ROOT,
+    )
+    # The trainer writes models/{wandb.run.name}.pt relative to REPO_ROOT since we ran
+    # with cwd=REPO_ROOT; wandb.run.name falls back to a random wandb-generated name when
+    # WANDB_MODE=disabled and no run_name is set, so locate the newest checkpoint instead
+    # of guessing the name.
+    candidates = sorted(
+        (REPO_ROOT / "models").glob("*.pt"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    assert candidates, "no checkpoint written under models/"
+    newest = candidates[-1]
+    checkpoint = torch.load(str(newest), map_location="cpu", weights_only=False)
+    weights = _weights_of(checkpoint)
+    newest.unlink()
+    sidecar = newest.with_suffix(".contract.json")
+    if sidecar.is_file():
+        sidecar.unlink()
+    return weights
+
+
+@pytest.mark.skipif(
+    not SMOKE_DAG_CACHE.is_dir(), reason=f"cache not present at {SMOKE_DAG_CACHE}"
+)
+def test_run_experiment_seed_same_seed_is_reproducible_for_a1():
+    """Regression-shaped companion to the different-seed test below: same seed twice
+    through the REAL run_experiment.py -> train_near_rtt.py path must still agree."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
+        w1 = _run_a1_via_run_experiment(4242, Path(d1))
+        w2 = _run_a1_via_run_experiment(4242, Path(d2))
+    _assert_state_dicts_identical(w1, w2, "run_experiment.py --seed 4242 (A1, twice)")
+
+
+@pytest.mark.skipif(
+    not SMOKE_DAG_CACHE.is_dir(), reason=f"cache not present at {SMOKE_DAG_CACHE}"
+)
+def test_run_experiment_seed_different_seeds_diverge_for_a1():
+    """THE inverse regression test for the import-time reseed bug: two DIFFERENT
+    --seed values through the real train_near_rtt.py path must produce DIFFERENT
+    weights. Before the fix this failed (seeds 1-4 were bit-identical, see the module
+    note above) because prepare_graphs_cache.py's import-time torch.manual_seed(42)
+    always ran after train_near_rtt.py's own seed block and won."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
+        w1 = _run_a1_via_run_experiment(1, Path(d1))
+        w2 = _run_a1_via_run_experiment(2, Path(d2))
+
+    assert set(w1) == set(w2), "parameter names differ between the two runs"
+    differing = [k for k in w1 if not torch.equal(w1[k], w2[k])]
+    assert differing, (
+        "run_experiment.py --seed 1 vs --seed 2 produced BIT-IDENTICAL weights for "
+        "train_near_rtt.py (A1) -- the seed had no effect on training. This is the "
+        "exact signature of the import-time reseed clobber: something imported after "
+        "train_near_rtt.py's own seed block is calling torch.manual_seed with a "
+        "constant. Check for module-level random.seed/np.random.seed/torch.manual_seed "
+        "calls anywhere on train_near_rtt.py's import path (prepare_graphs_cache.py is "
+        "the known offender; a NEW one would reproduce this exact failure)."
+    )
