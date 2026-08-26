@@ -6,8 +6,10 @@ placements.jsonl is the only label/RTT ground truth. Graph instance IDs may carr
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import pickle
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -171,6 +173,150 @@ def split_ids_by_canonical_parent(
     test_graphs, test_ids = _flatten(test_parents)
     assert_zero_parent_overlap(train_ids, val_ids, test_ids)
     return train_graphs, train_ids, val_graphs, val_ids, test_graphs, test_ids
+
+
+SPLIT_ARTIFACT_SCHEMA = "split_artifact_v1"
+SPLIT_NAMES = ("train", "val", "test")
+
+
+def write_split_artifact(
+    cache_dir: Path,
+    out_path: Path,
+    *,
+    test_size: float = 0.3,
+    val_fraction_of_holdout: float = 0.5,
+    random_state: int = 42,
+) -> Tuple[Dict[str, Any], str]:
+    """B6: generate the shared train/val/test split artifact from a batch cache.
+
+    Every arm of a paired comparison must load the SAME parent-level split, or a
+    "draw" varies the split as well as the initialisation and the paired test is
+    confounded. This partitions the cache's canonical parents with the same nested
+    sklearn calls as `split_ids_by_canonical_parent` and freezes the result as
+    canonical JSON. Canonical parent ids are the unit — the only identity the GNN
+    (one graph per instance) and the MLP (one row per task decision) share.
+
+    Returns ``(payload, sha256)`` where the sha is over the bytes written to disk.
+    """
+    from sklearn.model_selection import train_test_split
+
+    cache_dir = Path(cache_dir)
+    ids_path = cache_dir / "dataset_ids.pkl"
+    if not ids_path.is_file():
+        raise FileNotFoundError(f"Missing {ids_path}")
+    with ids_path.open("rb") as f:
+        dataset_ids = pickle.load(f)
+    parent_ids: Optional[Sequence[str]] = None
+    meta_path = cache_dir / "metadata.json"
+    if meta_path.is_file():
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        parent_ids = metadata.get("parent_dataset_ids")
+        if parent_ids is not None and len(parent_ids) != len(dataset_ids):
+            raise RuntimeError(
+                f"{meta_path}: parent_dataset_ids ({len(parent_ids)}) != "
+                f"dataset_ids.pkl ({len(dataset_ids)})"
+            )
+
+    parents_in_order: List[str] = []
+    seen: set = set()
+    for idx, dsid in enumerate(dataset_ids):
+        parent = canonical_parent_id(
+            parent_ids[idx] if parent_ids is not None else dsid
+        )
+        if parent not in seen:
+            seen.add(parent)
+            parents_in_order.append(parent)
+    if len(parents_in_order) < 3:
+        raise RuntimeError(
+            f"Need >=3 canonical parents for train/val/test; got {len(parents_in_order)}"
+        )
+
+    train_parents, temp_parents = train_test_split(
+        parents_in_order, test_size=test_size, random_state=random_state
+    )
+    val_parents, test_parents = train_test_split(
+        temp_parents, test_size=val_fraction_of_holdout, random_state=random_state
+    )
+
+    payload: Dict[str, Any] = {
+        "schema": SPLIT_ARTIFACT_SCHEMA,
+        "cache_dir": str(cache_dir),
+        "n_parents": len(parents_in_order),
+        "random_state": int(random_state),
+        "test_size": float(test_size),
+        "val_fraction_of_holdout": float(val_fraction_of_holdout),
+        # Sorted for set semantics and diffability; consumers filter by membership,
+        # so list order carries no meaning.
+        "train": sorted(train_parents),
+        "val": sorted(val_parents),
+        "test": sorted(test_parents),
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(raw)
+    return payload, hashlib.sha256(raw).hexdigest()
+
+
+def load_split_artifact(path: Path) -> Tuple[Dict[str, Any], str]:
+    """Read, hash, and validate a split artifact. Returns ``(payload, sha256)``."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing split artifact: {path}")
+    raw = path.read_bytes()
+    sha256 = hashlib.sha256(raw).hexdigest()
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema") != SPLIT_ARTIFACT_SCHEMA:
+        got = payload.get("schema") if isinstance(payload, dict) else type(payload).__name__
+        raise RuntimeError(
+            f"{path}: not a {SPLIT_ARTIFACT_SCHEMA} artifact (schema={got!r})"
+        )
+    for name in SPLIT_NAMES:
+        parents = payload.get(name)
+        if (
+            not isinstance(parents, list)
+            or not parents
+            or not all(isinstance(p, str) and p for p in parents)
+        ):
+            raise RuntimeError(
+                f"{path}: split {name!r} must be a non-empty list of parent-id strings"
+            )
+        if len(set(parents)) != len(parents):
+            raise RuntimeError(f"{path}: split {name!r} contains duplicate parents")
+    train_p, val_p, test_p = (set(payload[name]) for name in SPLIT_NAMES)
+    leaks = (train_p & val_p) | (train_p & test_p) | (val_p & test_p)
+    if leaks:
+        raise RuntimeError(
+            f"{path}: parent overlap across splits ({len(leaks)}); "
+            f"examples={sorted(leaks)[:5]}"
+        )
+    return payload, sha256
+
+
+def assert_split_artifact_covers(
+    payload: Mapping[str, Any],
+    parents_present: Iterable[Any],
+    *,
+    artifact_path: str = "",
+) -> None:
+    """Fail loud unless the artifact's parents equal EXACTLY the parents present.
+
+    A subset match would silently drop data; a superset would mean the artifact was
+    generated from a different cache. Either way the pinned split is not the split
+    of THIS corpus, so refuse.
+    """
+    artifact_parents: set = set()
+    for name in SPLIT_NAMES:
+        artifact_parents.update(payload[name])
+    present = {canonical_parent_id(p) for p in parents_present}
+    missing = sorted(present - artifact_parents)
+    stale = sorted(artifact_parents - present)
+    if missing or stale:
+        raise RuntimeError(
+            f"Split artifact {artifact_path or '<unknown>'} does not match this corpus: "
+            f"{len(missing)} parents in data but not artifact (examples={missing[:5]}), "
+            f"{len(stale)} parents in artifact but not data (examples={stale[:5]})"
+        )
 
 
 def topology_size_of_dataset(dataset_id: Any, corpus_root: Path) -> int:
