@@ -1,0 +1,20 @@
+{
+  "arm_type": "gnn",
+  "num_draws": 4,
+  "reports": [
+    "simulation_data/route_b_stage2_a1_eval_seed1.json",
+    "simulation_data/route_b_stage2_a1_eval_seed2.json",
+    "simulation_data/route_b_stage2_a1_eval_seed3.json",
+    "simulation_data/route_b_stage2_a1_eval_seed4.json"
+  ],
+  "per_draw_train_regret_pct": [
+    24.433408068795927,
+    32.46063065964459,
+    23.6663247465783,
+    36.551541914739744
+  ],
+  "mean_train_regret_pct": 29.27797634743964,
+  "median_train_regret_pct": 28.44701936422026,
+  "pooled_per_dataset_paired_diff_sigma": 13.570420441991345,
+  "num_datasets_common_to_all_draws": 204
+}

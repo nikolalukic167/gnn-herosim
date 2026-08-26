@@ -34,6 +34,18 @@ in the working tree.
 > (MLP arms first, per registration), then multi-seed runs, then the LINEAGES outcome
 > row. LINEAGES.md now carries a stage-2 build-queue progress row dated 2026-08-26.
 > §6's honest risk is unchanged.
+>
+> ## STATUS UPDATE — 2026-08-26, §9 pre-probe
+>
+> The §9 pre-probe ran on the pilot-204 corpus (registered deviation, 4 draws/arm) →
+> **NO-GO-PREPROBE** per §9: A1 train-split median regret 28.45% ≥ A2's 19.34%. Along
+> the way, a seed-clobber bug in `prepare_graphs_cache.py` (import-time
+> `torch.manual_seed(42)` was overwriting every A1 draw's actual seed) was found and
+> fixed, with regression tests added. Full record — deviations, build items, the void
+> first A1 sweep, results, σ calibration, and context observations — is in the
+> `route_b_v1 — stage 2 §9 pre-probe: NO-GO-PREPROBE (2026-08-26)` row of LINEAGES.md.
+> The next decision (environment pivot per CLAUDE.md option 2, vs closing route B's GNN
+> argument) is the user's and needs its own registration either way.
 
 ---
 
