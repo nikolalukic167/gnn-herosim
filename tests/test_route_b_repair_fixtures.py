@@ -401,7 +401,8 @@ def test_scorer_and_verifier_agree_column_for_column(tmp_path):
     tt_path = tmp_path / "task_types.json"
     with open(tt_path, "w") as fh:
         json.dump(TOY_TASK_TYPES, fh)
-    rows, ttypes, pid_map, task_db, dag_edges, net = verifier.load(ds_dir, tt_path)
+    rows, ttypes, pid_map, task_db, dag_edges, net, _sources = verifier.load(
+        ds_dir, tt_path)
 
     # the verifier's own capacity construction: peak demand per node, INCLUDING the 0.0
     peak = {}
