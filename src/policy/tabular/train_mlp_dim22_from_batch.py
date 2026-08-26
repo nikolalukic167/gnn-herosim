@@ -55,6 +55,7 @@ from src.policy.tabular.reduced_features import (
     validate_partial_state_contract,
     dim22_rows_to_dataframe,
     extract_rows_dim22_from_batch_graph,
+    extract_rows_dim25cr_tied_from_batch_graph,
     extract_rows_dim63crk_from_batch_graph,
     validate_dim22_frame,
 )
@@ -108,6 +109,14 @@ def parse_args() -> argparse.Namespace:
                         help="P5b: append the 3 candidate-relative queue columns (dim22 -> dim25cr). "
                              "Gives the pointwise scorer the set-relative view a graph model "
                              "gets from message passing; see program_verdict_v1 in LINEAGES.md.")
+    parser.add_argument("--tied-labels", action="store_true",
+                        help="route_b stage 2 arm A3 (ROUTE_B_STAGE2_PREREGISTRATION.md "
+                             "§3/§5, W2): train dim25cr on the SAME alpha=2.0 tied-optimal "
+                             "any-of-K label set A1/A2 teacher-force along, instead of the "
+                             "plain dim25cr path's graph.y (unconstrained sweep minimum). "
+                             "Valid only with --candidate-relative-queue and without "
+                             "--partial-state (dim63crk already implies tied labels). "
+                             "Requires a --dag-partial-state cache (tied_optimal_logit_plans).")
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument("--wandb-run-name", type=str, default=None)
     parser.add_argument("--wandb-entity", type=str, default=None)
@@ -204,6 +213,10 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
             rows, skip_reason = extract_rows_dim63crk_from_batch_graph(
                 graph, str(graph_id)
             )
+        elif getattr(args, "tied_labels", False):
+            rows, skip_reason = extract_rows_dim25cr_tied_from_batch_graph(
+                graph, str(graph_id)
+            )
         else:
             rows, skip_reason = extract_rows_dim22_from_batch_graph(
                 graph, str(graph_id),
@@ -245,6 +258,7 @@ def main() -> None:
     metadata, graphs, dataset_ids = load_batch_cache(cache_dir)
     candidate_relative = bool(args.candidate_relative_queue)
     partial_state = bool(args.partial_state)
+    tied_labels = bool(args.tied_labels)
     partial_state_contract = None
     if partial_state:
         if not candidate_relative:
@@ -261,6 +275,28 @@ def main() -> None:
                 "carry the partial-state columns"
             )
         partial_state_contract = validate_partial_state_contract(cache_contract)
+    if tied_labels:
+        # route_b stage 2 arm A3 (§3/§5, W2): same label parity gate as
+        # --partial-state, minus the partial-state dependency itself (dim63crk
+        # already implies tied labels; --tied-labels is for the T0 arm that must
+        # NOT see the partial-state block but must train on the same labels).
+        if partial_state:
+            raise RuntimeError(
+                "[MLP batch] --tied-labels is redundant with --partial-state "
+                "(dim63crk already teacher-forces the tied-optimal label set); "
+                "pick one"
+            )
+        if not candidate_relative:
+            raise RuntimeError(
+                "[MLP batch] --tied-labels requires --candidate-relative-queue "
+                "(tied-dim25cr is dim25cr with alpha=2.0 tied-optimal labels)"
+            )
+        if not metadata.get("dag_partial_state"):
+            raise RuntimeError(
+                "[MLP batch] --tied-labels needs a --dag-partial-state cache "
+                "(tied_optimal_logit_plans); this cache does not declare "
+                "dag_partial_state — refusing to train on labels that do not exist"
+            )
     df = extract_dim22_dataframe(args, metadata, graphs, dataset_ids)
     feature_cols = _feature_columns(df)
     input_dim = len(feature_cols)
@@ -493,17 +529,34 @@ def main() -> None:
             flush=True,
         )
 
+    # Label mode + alpha key, next to inference_feature_layout: dim63crk (partial_state)
+    # and tied-dim25cr (tied_labels) both teacher-force along the alpha=2.0 any-of-K
+    # tied-optimal plan set (ROUTE_B_STAGE2_PREREGISTRATION.md §5); the plain dim22/
+    # dim24/dim25cr path labels from graph.y (the unconstrained sweep minimum) instead.
+    # An eval harness needs this to know which optimum a checkpoint's argmax should be
+    # compared against.
+    # Neither extractor takes an --alpha-key CLI override today; both default to the
+    # cache's dag_primary_alpha_key, which is "2.0" on every stage-2 cache built so
+    # far. Recorded explicitly (not derived from the cache at load time) so a future
+    # cache with a different primary alpha cannot silently mislabel an old checkpoint.
+    tied_optimal_training = partial_state or tied_labels
+    label_mode = "any_of_k_tied_optimal" if tied_optimal_training else "sweep_minimum"
+    label_alpha_key = "2.0" if tied_optimal_training else None
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         "model_state_dict": best_state,
         "input_dim": input_dim,
         "hidden_dim": args.hidden_dim,
         "inference_feature_layout": layout,
+        "label_mode": label_mode,
+        "label_alpha_key": label_alpha_key,
         "queue_feature_contract": queue_feature_contract,
         "torch_seeded": True,
         "candidate_relative": candidate_relative,
         "partial_state": partial_state,
         "partial_state_contract": partial_state_contract,
+        "tied_labels": tied_labels,
     }
     if candidate_relative:
         checkpoint["candidate_relative_columns"] = CANDIDATE_RELATIVE_COLUMN_SPEC
@@ -530,6 +583,8 @@ def main() -> None:
         "hidden_dim": args.hidden_dim,
         "input_dim": input_dim,
         "inference_feature_layout": layout,
+        "label_mode": label_mode,
+        "label_alpha_key": label_alpha_key,
         "queue_feature_contract": queue_feature_contract,
         "torch_seeded": True,
         "candidate_relative": candidate_relative,
@@ -540,6 +595,7 @@ def main() -> None:
         "partial_state": partial_state,
         "partial_state_contract": partial_state_contract,
         "partial_state_ablation_argmax_change": partial_state_ablation_change,
+        "tied_labels": tied_labels,
         # Which code produced these weights. Without it a checkpoint cannot be told apart
         # from one built by a different working tree (PARITY.md rule 6).
         "code_provenance": describe_code_provenance(),
