@@ -338,16 +338,52 @@ def min_marginals(rows: Sequence[Tuple[Plan, float]]
     return marginal
 
 
+def topological_task_order(ds: Dataset) -> List[int]:
+    """DAG topological order over the dataset's tasks, lowest task_id first among
+    the ready set (Kahn) — the §4 corrected decode order of masked_topo. On the
+    stage-1 corpora this equals ascending task_id (the ids are assigned by
+    static_order), and §9c measured the historical (min marginal, task_id) order
+    collapsing to the same thing; the helper exists so the order is model- and
+    score-independent by construction rather than by measurement."""
+    n = len(ds.task_type_names)
+    remaining = {t: 0 for t in range(n)}
+    children: Dict[int, List[int]] = {}
+    for parent, child in ds.dag_edges:
+        remaining[child] += 1
+        children.setdefault(parent, []).append(child)
+    import heapq
+    ready = [t for t in range(n) if remaining[t] == 0]
+    heapq.heapify(ready)
+    order: List[int] = []
+    while ready:
+        t = heapq.heappop(ready)
+        order.append(t)
+        for c in children.get(t, ()):
+            remaining[c] -= 1
+            if remaining[c] == 0:
+                heapq.heappush(ready, c)
+    if len(order) != n:
+        raise RuntimeError(f"{ds.ds_dir}: dependency cycle in dag_edges")
+    return order
+
+
 def greedy_masked_plan(ds: Dataset,
                        marginal: Dict[int, Dict[Tuple[int, int], float]],
-                       caps: Optional[Dict[str, float]]) -> Optional[Plan]:
+                       caps: Optional[Dict[str, float]],
+                       order: Optional[List[int]] = None) -> Optional[Plan]:
     """Sequential greedy: ascending best-marginal order, mask replica reuse and any
     placement that would push a node over its remaining capacity. Returns None when no
-    feasible completion exists (caller counts it loudly)."""
+    feasible completion exists (caller counts it loudly).
+
+    `order` overrides the task loop order (default: the frozen stage-1 ascending
+    (min marginal, task_id) order, unchanged). The §4 acceptance check runs it with
+    topological_task_order(ds) — measured fact (§9c): on the stage-1 corpora the two
+    orders produce identical plans, which is exactly what the check asserts."""
     taken: set = set()
     load: Dict[str, float] = {}
     plan: Plan = {}
-    order = sorted(marginal, key=lambda t: (min(marginal[t].values()), t))
+    if order is None:
+        order = sorted(marginal, key=lambda t: (min(marginal[t].values()), t))
     for task_id in order:
         options = sorted(marginal[task_id].items(), key=lambda kv: (kv[1], kv[0]))
         choice = None

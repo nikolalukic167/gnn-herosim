@@ -811,6 +811,206 @@ def check_krank(corpus, transfer_report, task_types_path):
     return 0
 
 
+# ---------------------------------------------------------------------------
+# B1 (corrected stage-2 registration §4/§10): the masked_topo decoder acceptance
+# ---------------------------------------------------------------------------
+
+def _kahn_order(n_tasks, dag_edges):
+    """Verifier-local topological order (Kahn, lowest task_id first) — deliberately
+    re-typed, not imported from the decoder under test."""
+    remaining = {t: 0 for t in range(n_tasks)}
+    children = {}
+    for parent, child in dag_edges:
+        remaining[child] += 1
+        children.setdefault(parent, []).append(child)
+    order = []
+    ready = sorted(t for t in range(n_tasks) if remaining[t] == 0)
+    while ready:
+        t = ready.pop(0)
+        order.append(t)
+        grew = False
+        for c in children.get(t, ()):
+            remaining[c] -= 1
+            if remaining[c] == 0:
+                ready.append(c)
+                grew = True
+        if grew:
+            ready.sort()
+    if len(order) != n_tasks:
+        fail(f"masked_topo check: dependency cycle in dag_edges")
+    return order
+
+
+def _greedy_masked(order, marg, caps, ttypes, pid_map, task_db):
+    """Verifier-local masked greedy: for each task in `order`, the cheapest
+    (marginal value, placement) not reusing a replica nor overflowing a node."""
+    taken, load_, plan = set(), {}, {}
+    for t in order:
+        choice = None
+        for p, _v in sorted(marg[t].items(), key=lambda kv: (kv[1], kv[0])):
+            if p in taken:
+                continue
+            node, d = demand_of(t, p, ttypes, pid_map, task_db)
+            if load_.get(node, 0.0) + d > caps.get(node, math.inf) + EPS:
+                continue
+            choice = p
+            break
+        if choice is None:
+            return None
+        plan[t] = choice
+        taken.add(choice)
+        node, d = demand_of(t, choice, ttypes, pid_map, task_db)
+        load_[node] = load_.get(node, 0.0) + d
+    return plan
+
+
+def check_decoder(corpus, report_path, task_types_path, alpha_keys):
+    """B1 acceptance (§4): fed the true min-marginals, the production masked_topo
+    decoder (src/policy/gnn/seq_decode.decode_masked_topo_placement) must reproduce
+    the masked greedy run in the corrected topological order, and that plan's
+    regret must match the FROZEN stage-1 r_greedy_pct to 1e-9 — the §9c measured
+    fact that the correction leaves the stage-1 plans unchanged, asserted dataset
+    by dataset. The reference (Kahn order + masked greedy) is verifier-local code;
+    only the SUBJECT is imported from src/. An infeasible completion must be
+    None on both sides and flagged greedy_stuck in the frozen report."""
+    import sys as _sys
+    repo_root = str(Path(__file__).resolve().parents[1])
+    if repo_root not in _sys.path:
+        _sys.path.insert(0, repo_root)
+    from src.policy.gnn.seq_decode import decode_masked_topo_placement
+
+    reports = json.load(open(report_path))
+    if not isinstance(reports, list):
+        reports = [reports]
+    by_corpus = {r["corpus"]: r for r in reports}
+    rep = by_corpus.get(corpus)
+    if rep is None:
+        fail(f"{corpus} not present in {report_path}")
+    if "per_dataset" not in rep:
+        fail(f"{report_path} lacks per_dataset rows — rerun scorer with "
+             "--include-per-dataset")
+    missing = [a for a in alpha_keys if a not in rep["per_dataset"]]
+    if missing:
+        fail(f"{report_path}: alpha keys {missing} not in the report "
+             f"(has {sorted(rep['per_dataset'])})")
+
+    ds_dirs = sorted(d for d in Path(corpus).glob("ds_*") if d.is_dir())
+    checked = 0
+    stuck = 0
+    for alpha_key in alpha_keys:
+        results = rep["per_dataset"][alpha_key]
+        alpha = float(alpha_key)
+        if len(results) != len(ds_dirs):
+            fail(f"{corpus} alpha={alpha_key}: {len(results)} scored rows vs "
+                 f"{len(ds_dirs)} datasets")
+        for ds, scored in zip(ds_dirs, results):
+            rows, ttypes, pid_map, task_db, dag_edges, net, _src = load(
+                ds, task_types_path)
+            peak = {}
+            for plan, _v in rows:
+                for t, p in plan.items():
+                    node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                    if node not in peak or d > peak[node]:
+                        peak[node] = d
+            caps = {n: alpha * m for n, m in peak.items()}
+
+            def feasible(plan):
+                load_ = {}
+                for t, p in plan.items():
+                    node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                    load_[node] = load_.get(node, 0.0) + d
+                return all(v <= caps.get(n, math.inf) + EPS
+                           for n, v in load_.items())
+
+            feas = [(plan, v) for plan, v in rows if feasible(plan)]
+            if not feas:
+                if not scored.get("no_feasible_rows"):
+                    fail(f"{ds} alpha={alpha_key}: verifier finds no feasible "
+                         "rows, scorer scored it")
+                continue
+            best = min(v for _p, v in feas)
+            marg = {}
+            for plan, v in rows:
+                for t, p in plan.items():
+                    cur = marg.setdefault(t, {})
+                    if p not in cur or v < cur[p]:
+                        cur[p] = v
+            n_tasks = len(ttypes)
+            topo = _kahn_order(n_tasks, dag_edges)
+            reference = _greedy_masked(topo, marg, caps, ttypes, pid_map, task_db)
+            historical = _greedy_masked(
+                sorted(marg, key=lambda t: (min(marg[t].values()), t)),
+                marg, caps, ttypes, pid_map, task_db)
+            if reference != historical:
+                fail(f"{ds} alpha={alpha_key}: topological-order greedy differs "
+                     f"from the frozen historical order — the §9c measured fact "
+                     f"does not hold here (topo={reference}, hist={historical})")
+
+            # subject: the production decoder fed the true min-marginals
+            parents = {}
+            for parent, child in dag_edges:
+                parents.setdefault(child, []).append(parent)
+            node_name_of_id = {}
+            for t in marg:
+                for (node_id, pid) in marg[t]:
+                    name = pid_map[pid][0]
+                    prev = node_name_of_id.setdefault(node_id, name)
+                    if prev != name:
+                        fail(f"{ds}: node_id {node_id} maps to both {prev} "
+                             f"and {name}")
+            candidates = {t: sorted(marg[t]) for t in marg}
+            logits = {t: [-marg[t][p] for p in candidates[t]] for t in marg}
+            demands = {
+                t: [demand_of(t, p, ttypes, pid_map, task_db)[1]
+                    for p in candidates[t]]
+                for t in marg}
+            id_caps = {nid: caps[name] for nid, name in node_name_of_id.items()
+                       if name in caps}
+            combo = decode_masked_topo_placement(
+                [logits[t] for t in range(n_tasks)],
+                {t: candidates[t] for t in range(n_tasks)},
+                n_tasks,
+                dag_parents=parents,
+                node_caps=id_caps,
+                demands=demands,
+            )
+
+            if reference is None:
+                stuck += 1
+                if combo is not None:
+                    fail(f"{ds} alpha={alpha_key}: reference greedy is stuck, "
+                         "decoder produced a plan")
+                if not scored.get("greedy_stuck"):
+                    fail(f"{ds} alpha={alpha_key}: verifier greedy stuck, frozen "
+                         "report not")
+                checked += 1
+                continue
+            if scored.get("greedy_stuck"):
+                fail(f"{ds} alpha={alpha_key}: frozen report greedy stuck, "
+                     "verifier reference is not")
+            if combo is None:
+                fail(f"{ds} alpha={alpha_key}: decoder returned None, reference "
+                     f"greedy found {reference}")
+            decoded = {t: (int(c[0]), int(c[1])) for t, c in enumerate(combo)}
+            if decoded != reference:
+                fail(f"{ds} alpha={alpha_key}: decoder plan {decoded} != "
+                     f"reference greedy {reference}")
+            lookup = {tuple(sorted(p.items())): v for p, v in rows}
+            key = tuple(sorted(decoded.items()))
+            if key not in lookup:
+                fail(f"{ds} alpha={alpha_key}: decoded plan {key} not in sweep")
+            regret = 100.0 * (lookup[key] - best) / best
+            if abs(scored["r_greedy_pct"] - regret) > 1e-9:
+                fail(f"{ds} alpha={alpha_key}: decoded-plan regret {regret!r} != "
+                     f"frozen r_greedy_pct {scored['r_greedy_pct']!r}")
+            checked += 1
+    print(f"OK: masked_topo decoder reproduces the topological-order masked greedy "
+          f"and the frozen r_greedy_pct on {checked} (dataset, alpha) cells "
+          f"({stuck} greedy-stuck cells matched) across {len(ds_dirs)} datasets, "
+          f"alphas {list(alpha_keys)}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--corpus", action="append", required=True)
@@ -826,6 +1026,12 @@ def main() -> int:
                          "krank repair fractions (and the linkrank block when the "
                          "report used --add-linkrank), tie bands included, in "
                          "route_b_coefficient_transfer.py's output")
+    ap.add_argument("--check-decoder", action="store_true",
+                    help="B1 acceptance (§4): the production masked_topo decoder, "
+                         "fed true min-marginals, must reproduce the topological-"
+                         "order masked greedy and the frozen r_greedy_pct in "
+                         "--report on every dataset x alpha (default alphas "
+                         "2.0 and 3.0; override with --alpha)")
     ap.add_argument("--check-repairs", action="store_true",
                     help="also independently recompute the 1int/kint repair fits "
                          "(slower: one small linear solve per dataset)")
@@ -834,9 +1040,18 @@ def main() -> int:
                          "in the report")
     args = ap.parse_args()
 
-    if args.check_blocks and args.check_krank:
-        fail("--check-blocks and --check-krank are separate passes; run one at "
-             "a time")
+    if sum(bool(x) for x in (args.check_blocks, args.check_krank,
+                             args.check_decoder)) > 1:
+        fail("--check-blocks / --check-krank / --check-decoder are separate "
+             "passes; run one at a time")
+    if args.check_decoder:
+        if len(args.corpus) != 1:
+            fail("--check-decoder takes exactly one --corpus")
+        if not args.report:
+            fail("--check-decoder needs --report (the frozen stage-1 scorer "
+                 "report carrying r_greedy_pct)")
+        return check_decoder(args.corpus[0], args.report, args.task_types,
+                             tuple(args.alpha) if args.alpha else ("2.0", "3.0"))
     if args.check_krank:
         if len(args.corpus) != 1:
             fail("--check-krank takes exactly one --corpus")
