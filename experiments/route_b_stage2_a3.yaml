@@ -1,0 +1,35 @@
+# route_b stage 2, arm A3 — MLP dim25cr, isolates the value of decoder-state
+# features (ROUTE_B_STAGE2_PREREGISTRATION.md §3).
+trainer: mlp
+lineage: route_b_v1
+description: >
+  Arm A3: PointwiseEdgeMLP trained on the plain dim25cr layout (T0 — static
+  per-candidate features only, no partial-assignment state), teacher-forced along the
+  SAME alpha=2.0 any-of-K tied-optimal plan set arms A1/A2 use (--tied-labels, W2's
+  label-parity repair — §3 requires "same labels, same alpha" across arms; the plain
+  dim25cr path labels from graph.y, the unconstrained sweep minimum, which is NOT
+  that set). Isolates what decoder-state features (A2's partial-state/krank/linkrank
+  block) are worth on top of static candidate features. Decodes through the same §4
+  shared masked_topo decoder as every other arm
+  (scripts_cosim/eval_route_b_stage2_arm.py).
+
+  Pinned to the B6 shared split artifact (same file as A1/A2) so a draw varies
+  initialisation and batch order only — --random-state is overridden per draw by
+  run_experiment.py --seed N.
+
+cache_dir: simulation_data/graphs_cache_route_b_pilot_s_dag
+
+path_args: [output, split-artifact]
+
+args:
+  output: models/tabular/route_b_stage2_a3_dim25cr.pt
+  split-artifact: experiments/route_b_stage2_split_v1.json
+  candidate-relative-queue: null
+  tied-labels: null
+  epochs: 100
+  patience: 10
+  random-state: 42
+
+wandb:
+  project: gnn-route-b-stage2
+  run_name: route-b-stage2-a3-t0-dim25cr
