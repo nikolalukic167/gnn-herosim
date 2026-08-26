@@ -72,6 +72,15 @@ def test_path_args_naming_absent_arg_raises(tmp_path):
         rx.resolve(rx.load_config(cfg), cfg)
 
 
+def test_path_args_naming_null_arg_raises(tmp_path):
+    cfg = write(
+        tmp_path,
+        BASE + "path_args: [partial-state]\nargs:\n  partial-state: null\n",
+    )
+    with pytest.raises(rx.ConfigError, match="null value"):
+        rx.resolve(rx.load_config(cfg), cfg)
+
+
 def test_mlp_rejects_wandb_tags(tmp_path):
     cfg = write(
         tmp_path,
@@ -79,6 +88,95 @@ def test_mlp_rejects_wandb_tags(tmp_path):
     )
     with pytest.raises(rx.ConfigError, match="no wandb tag support"):
         rx.resolve(rx.load_config(cfg), cfg)
+
+
+# --- bare flags --------------------------------------------------------------
+
+def test_bare_flag_null_value_emits_flag_alone(tmp_path):
+    cfg = write(
+        tmp_path,
+        BASE + "args:\n  partial-state: null\n  epochs: 5\n",
+    )
+    _trainer, _env, argv = rx.resolve(rx.load_config(cfg), cfg)
+    assert "--partial-state" in argv
+    idx = argv.index("--partial-state")
+    # bare flag: next token is the NEXT flag, never a rendered "None"
+    assert argv[idx + 1] == "--epochs"
+
+
+def test_non_null_arg_still_renders_value(tmp_path):
+    cfg = write(tmp_path, BASE + "args:\n  epochs: 5\n")
+    _trainer, _env, argv = rx.resolve(rx.load_config(cfg), cfg)
+    i = argv.index("--epochs")
+    assert argv[i + 1] == "5"
+
+
+# --- --seed --------------------------------------------------------------
+
+def test_no_seed_behaves_exactly_as_today(tmp_path):
+    cfg = write(
+        tmp_path,
+        BASE + "args:\n  epochs: 5\nwandb:\n  run_name: my-run\n",
+    )
+    loaded = rx.load_config(cfg)
+    _trainer, env_a, argv_a = rx.resolve(loaded, cfg)
+    _trainer, env_b, argv_b = rx.resolve(loaded, cfg, seed=None)
+    assert env_a == env_b
+    assert argv_a == argv_b
+    assert env_a["WANDB_RUN_NAME"] == "my-run"
+
+
+def test_seed_gnn_sets_env_and_suffixes_run_name(tmp_path):
+    cfg = write(
+        tmp_path,
+        BASE + "args:\n  epochs: 5\nwandb:\n  run_name: my-run\n",
+    )
+    _trainer, env, _argv = rx.resolve(rx.load_config(cfg), cfg, seed=3)
+    assert env["NEAR_RTT_TRAIN_SEED"] == "3"
+    assert env["WANDB_RUN_NAME"] == "my-run-seed3"
+
+
+def test_seed_gnn_no_run_name_configured_no_crash(tmp_path):
+    cfg = write(tmp_path, BASE + "args:\n  epochs: 5\n")
+    _trainer, env, _argv = rx.resolve(rx.load_config(cfg), cfg, seed=3)
+    assert env["NEAR_RTT_TRAIN_SEED"] == "3"
+    assert "WANDB_RUN_NAME" not in env
+
+
+def test_seed_mlp_overrides_random_state_and_output_stem(tmp_path):
+    cfg = write(
+        tmp_path,
+        "trainer: mlp\nlineage: l\ncache_dir: c\n"
+        "path_args: [output]\n"
+        "args:\n  output: models/tabular/foo.pt\n  random-state: 42\n"
+        "wandb:\n  run_name: mlp-run\n",
+    )
+    _trainer, env, argv = rx.resolve(rx.load_config(cfg), cfg, seed=7)
+    assert "NEAR_RTT_TRAIN_SEED" not in env
+    i = argv.index("--random-state")
+    assert argv[i + 1] == "7"
+    j = argv.index("--output")
+    assert argv[j + 1].endswith("models/tabular/foo_seed7.pt")
+    k = argv.index("--wandb-run-name")
+    assert argv[k + 1] == "mlp-run-seed7"
+
+
+def test_seed_mlp_without_output_raises(tmp_path):
+    cfg = write(tmp_path, "trainer: mlp\nlineage: l\ncache_dir: c\n")
+    with pytest.raises(rx.ConfigError, match="args.output"):
+        rx.resolve(rx.load_config(cfg), cfg, seed=1)
+
+
+def test_seed_mlp_random_state_argv_has_single_value(tmp_path):
+    """--random-state must appear once, not twice (config value then override)."""
+    cfg = write(
+        tmp_path,
+        "trainer: mlp\nlineage: l\ncache_dir: c\n"
+        "path_args: [output]\n"
+        "args:\n  output: models/tabular/foo.pt\n  random-state: 42\n",
+    )
+    _trainer, _env, argv = rx.resolve(rx.load_config(cfg), cfg, seed=7)
+    assert argv.count("--random-state") == 1
 
 
 # --- shipped configs -------------------------------------------------------
