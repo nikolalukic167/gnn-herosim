@@ -4573,6 +4573,32 @@ the 8-task contingency rung (grid `route_c_link_screen_8task`, 2 diamond4 instan
 independent clients, bw=25, input 150 MB, α ladder ×2), generated on datalab via the
 `route_b_8task_probe.sbatch` pattern.
 
+**8-task contingency rung outcome + SCREEN VERDICT (2026-08-26): INVALID —
+FAIL-BY-EXHAUSTION.** Corpus: 24/24 datasets on datalab
+(`gnn_datasets_route_c_link_screen_8task`, jobs 714729 gen + 714737 score; the first
+attempt, 714278, was destroyed by a home-quota exhaustion that poisoned every shard —
+Errno 122 in `placement_errors.log` even on shards that reported COMPLETED — and the
+corpus was wiped and regenerated clean: 24/24 `sweep_complete`, zero error logs, zero
+skips). Manipulation check: link-wait share of rtt **median 0.0129** (min 0.0054, max
+0.0198) vs the 0.10 bar (`route_c_screen_8task_manipulation.json`) — doubling
+concurrency moved the median only from 0.0104 (4-task R3). The bandwidth-free ceiling
+wait/(wait+transfer) (at 8 tasks: Σ link_wait vs Σ 8·link_transfer_avg,
+`route_c_screen_8task_ceiling.json`) is **median 0.0704, max 0.0999**: concurrency did
+raise it (4-task: median 4–6%, max 8.8%) but **no dataset reaches 0.10 even if link cost
+consumed ALL of rtt**, and concurrency was the ladder's last registered lever. Diagnostic
+(no verdict — rung invalid): unconstrained R_exact > 1% on 4/24 datasets (max 142%,
+`route_c_screen_8task_rtt.json`) is NOT attributable to the fabric — the 8-task Arm S
+control (bw=1000, input 150 KB) already shows 14/204 = 6.9% > 1% (max 46.4%,
+`route_b_8task_rtt.json` unconstrained row), and 4/24 against that base rate is within
+binomial noise (P(≥4) ≈ 0.085). Note this corrects the registration's anchor sentence,
+which cited the **4-task** Arm S 0.000: at 8 tasks a non-fabric co-batch coupling channel
+already fires occasionally without any link lever. **Verdict, per the registered gate:
+link contention cannot be made a material share of RTT in this simulator family at
+enumerable-sweep concurrency — the corpus (not the architecture) is the limit. The
+`route_c_link_transfer_v1` name is NOT granted. Proceed to Branch A** (stage-2
+re-registration on the current corpus; recipe in
+`handover-route-b-stage2-or-env-pivot.md` §2).
+
 ---
 
 ## RETIRED

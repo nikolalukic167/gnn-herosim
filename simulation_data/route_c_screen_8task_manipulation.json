@@ -1,0 +1,157 @@
+[
+ {
+  "corpus": "simulation_data/gnn_datasets_route_c_link_screen_8task",
+  "max_share": 0.01983545184305466,
+  "median_share": 0.012902446433292828,
+  "min_share": 0.0053596929693473854,
+  "n_datasets": 24,
+  "per_dataset": [
+   {
+    "dataset": "ds_00000",
+    "mean_link_transfer_avg": 18.71546052631579,
+    "n_rows": 175104,
+    "share": 0.013082697389664368
+   },
+   {
+    "dataset": "ds_00001",
+    "mean_link_transfer_avg": 18.0,
+    "n_rows": 181440,
+    "share": 0.006539427557262172
+   },
+   {
+    "dataset": "ds_00002",
+    "mean_link_transfer_avg": 15.916071428571428,
+    "n_rows": 161280,
+    "share": 0.018401526546831297
+   },
+   {
+    "dataset": "ds_00003",
+    "mean_link_transfer_avg": 18.59375,
+    "n_rows": 290304,
+    "share": 0.008795065342012767
+   },
+   {
+    "dataset": "ds_00004",
+    "mean_link_transfer_avg": 17.7,
+    "n_rows": 57600,
+    "share": 0.009787605676748969
+   },
+   {
+    "dataset": "ds_00005",
+    "mean_link_transfer_avg": 18.675986842105264,
+    "n_rows": 175104,
+    "share": 0.014470181775337071
+   },
+   {
+    "dataset": "ds_00006",
+    "mean_link_transfer_avg": 18.107142857142858,
+    "n_rows": 338688,
+    "share": 0.012941095636254087
+   },
+   {
+    "dataset": "ds_00007",
+    "mean_link_transfer_avg": 19.625,
+    "n_rows": 155520,
+    "share": 0.011874177795846281
+   },
+   {
+    "dataset": "ds_00008",
+    "mean_link_transfer_avg": 18.169642857142858,
+    "n_rows": 290304,
+    "share": 0.010780009391262136
+   },
+   {
+    "dataset": "ds_00009",
+    "mean_link_transfer_avg": 18.6,
+    "n_rows": 57600,
+    "share": 0.010050378083315381
+   },
+   {
+    "dataset": "ds_00010",
+    "mean_link_transfer_avg": 18.957236842105264,
+    "n_rows": 175104,
+    "share": 0.008885657122219602
+   },
+   {
+    "dataset": "ds_00011",
+    "mean_link_transfer_avg": 17.666666666666668,
+    "n_rows": 155520,
+    "share": 0.012781382030906481
+   },
+   {
+    "dataset": "ds_00012",
+    "mean_link_transfer_avg": 16.714285714285715,
+    "n_rows": 112896,
+    "share": 0.019774675018520118
+   },
+   {
+    "dataset": "ds_00013",
+    "mean_link_transfer_avg": 14.485714285714286,
+    "n_rows": 302400,
+    "share": 0.011240244502282129
+   },
+   {
+    "dataset": "ds_00014",
+    "mean_link_transfer_avg": 18.0,
+    "n_rows": 290304,
+    "share": 0.018890330427474015
+   },
+   {
+    "dataset": "ds_00015",
+    "mean_link_transfer_avg": 17.4375,
+    "n_rows": 147456,
+    "share": 0.012739366765883983
+   },
+   {
+    "dataset": "ds_00016",
+    "mean_link_transfer_avg": 18.102272727272727,
+    "n_rows": 202752,
+    "share": 0.0053596929693473854
+   },
+   {
+    "dataset": "ds_00017",
+    "mean_link_transfer_avg": 18.0,
+    "n_rows": 57600,
+    "share": 0.01773712011648322
+   },
+   {
+    "dataset": "ds_00018",
+    "mean_link_transfer_avg": 20.3203125,
+    "n_rows": 516096,
+    "share": 0.012902446433292828
+   },
+   {
+    "dataset": "ds_00019",
+    "mean_link_transfer_avg": 20.785714285714285,
+    "n_rows": 254016,
+    "share": 0.010435980247500238
+   },
+   {
+    "dataset": "ds_00020",
+    "mean_link_transfer_avg": 15.38076923076923,
+    "n_rows": 74880,
+    "share": 0.013784810172139686
+   },
+   {
+    "dataset": "ds_00021",
+    "mean_link_transfer_avg": 17.203846153846154,
+    "n_rows": 74880,
+    "share": 0.014713398782965991
+   },
+   {
+    "dataset": "ds_00022",
+    "mean_link_transfer_avg": 20.7,
+    "n_rows": 57600,
+    "share": 0.014884109320909417
+   },
+   {
+    "dataset": "ds_00023",
+    "mean_link_transfer_avg": 20.5375,
+    "n_rows": 69120,
+    "share": 0.01983545184305466
+   }
+  ],
+  "rung_valid": false,
+  "valid_threshold": 0.1
+ }
+]
