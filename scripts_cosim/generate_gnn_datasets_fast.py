@@ -1478,8 +1478,10 @@ def generate_single_dataset(
             duration = time.time() - start_time
             if placements_file.exists() and placements_file.stat().st_size == 0:
                 # Empty placements file = skipped scenario. The engine records WHY in
-                # skip_reason.json (infeasible_no_candidates vs too_many_combinations);
-                # keep that distinction in the log and in the dataset dir.
+                # skip_reason.json — infeasible_no_candidates / too_many_combinations /
+                # uniqueness_exhausted / unknown, plus diagnostics (see
+                # executecosimulation.classify_empty_combinations); keep that distinction
+                # in the log and in the dataset dir.
                 skip_reason_src = results_dir / "skip_reason.json"
                 if skip_reason_src.exists():
                     try:

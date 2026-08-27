@@ -36,7 +36,7 @@ may cite — cite the node.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**route_b_env_pivot_v1**](docs/lineages/route_b_env_pivot_v1.md) | `ACTIVE` | Current work. Screen registered 2026-08-27; **no ladder rung is readable yet** — H0/H1 VOID-INFEASIBLE, H2 VOID-GENERATION, defeated by configuration and decoder artifacts before their bars are consulted. |
+| [**route_b_env_pivot_v1**](docs/lineages/route_b_env_pivot_v1.md) | `ACTIVE` | Current work. Screen registered 2026-08-27; **no ladder rung is readable yet** — H0/H1 VOID-INFEASIBLE, H2 VOID-GENERATION. `greedy_stuck` is now measured as **decoder myopia on every rung** (backtracking rescues 458/458), not a configuration artifact; AMENDMENT 2 drafted and **awaiting sign-off**. |
 | [**route_b_v1**](docs/lineages/route_b_v1.md) | `ACTIVE` | **Stage 1 PASS** — contention + coupling produces the non-pointwise structure five mechanisms and route A could not. **Stage 2 NO-GO-PREPROBE** (2026-08-26): a GNN cannot beat pointwise-plus-prefix on this environment even at memorization. Forked to `route_b_env_pivot_v1`. |
 | [**route_c_link_transfer_v1**](docs/lineages/route_c_link_transfer_v1.md) | `REGISTERED` | Screen registered 2026-08-26 before generation; **name is reserved and is only claimed if the screen passes.** Asks whether an environment where link waiting is a material share of RTT resists a fairly-armed pointwise competitor. |
 | [**siv1_full_corpus**](docs/lineages/siv1_full_corpus.md) | `ACTIVE` | First real live-gate FAILED, then **SUPERSEDED the same day** — it measured an uncommitted code diff, not the model. The synced-code re-gate (job 709163) wins **5/5 on `workload-150-100` and `workload-175-100`**, 2W/1T/2L on `workload-125-225`. Corrected-cache retrain (job 709234) is ungated. |

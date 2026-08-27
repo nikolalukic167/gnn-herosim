@@ -1130,6 +1130,27 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
                 key = str(r.get("n_feasible"))
                 stuck_by_n_feasible[key] = stuck_by_n_feasible.get(key, 0) + 1
 
+        # Both censors, keyed on the arm rather than on a post-cap quantity (2026-08-27).
+        # `stuck_by_n_feasible` above cannot be reused for `no_feasible_rows`: n_feasible
+        # is 0 by construction on a censored dataset, so it collapses every arm into one
+        # bucket. `n_rows` — the UNCONSTRAINED sweep size — is the replica-config arm's
+        # signature (16 vs 64 on the 2x2x3x17 grid) and survives censoring.
+        #
+        # This exists because `no_feasible_rows` is the STRICTER censor: it removes a
+        # dataset from r_exact and every LS/repair statistic, not just from r_greedy, and
+        # it had no arm breakdown at all while greedy_stuck did. Measured on H1 at its
+        # registered primary alpha=2.0: all 70 censored datasets sit in the 64-row arm and
+        # none in the 16-row arm, so r_exact there is 102 of 102 on one arm and 32 of 102
+        # on the other — the same "over one arm only" defect as the greedy denominator,
+        # one counter over.
+        def _by_arm(pred) -> Dict[str, int]:
+            hist: Dict[str, int] = {}
+            for r in results:
+                if pred(r):
+                    key = str(r.get("n_rows"))
+                    hist[key] = hist.get(key, 0) + 1
+            return hist
+
         per_alpha[str(alpha)] = {
             "alpha": alpha,
             "n_datasets": len(results),
@@ -1200,6 +1221,18 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
             # greedy_stuck's confound with the design, made self-evident in every rung's
             # artifact instead of requiring a bespoke investigation to rediscover.
             "greedy_stuck_by_n_feasible": stuck_by_n_feasible,
+            # Both censors and the surviving denominator, per ARM (unconstrained sweep
+            # size). Read these before quoting any statistic: a denominator concentrated
+            # in one arm makes the statistic "over that arm only", whatever its name.
+            "censoring_by_arm": {
+                "key": "n_rows (unconstrained sweep size = replica-config arm)",
+                "n_datasets": _by_arm(lambda r: True),
+                "no_feasible_rows": _by_arm(lambda r: bool(r.get("no_feasible_rows"))),
+                "greedy_stuck": _by_arm(lambda r: bool(r.get("greedy_stuck"))),
+                "n_exact_scored": _by_arm(lambda r: not r.get("no_feasible_rows")),
+                "n_greedy_scored": _by_arm(
+                    lambda r: not r.get("no_feasible_rows") and not r.get("greedy_stuck")),
+            },
             # The PRE-FIX numbers, reproduced from this same run so a deviation can be
             # audited against one artifact rather than a commit message. This is the
             # greedy-censored denominator R_exact used to be summarized over.

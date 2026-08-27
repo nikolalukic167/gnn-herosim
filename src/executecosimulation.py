@@ -1435,6 +1435,59 @@ def capture_system_state_from_first_task(
         return None
 
 
+def classify_empty_combinations(
+        tasks: List[Dict],
+        skip_threshold: int,
+        allow_non_unique_replicas: bool) -> Dict[str, Any]:
+    """Attribute an empty combination list to its actual cause.
+
+    Every task reaching here has at least one feasible platform — the zero-candidate case
+    returns `infeasible_no_candidates` earlier — so the Cartesian product is non-empty and
+    an empty result has exactly two possible causes:
+
+    1. the over-limit skip, when the **pre-uniqueness** product exceeds
+       MAX_PLACEMENT_COMBINATIONS_SKIP (the threshold tests that product, not the sweep
+       size that survives uniqueness);
+    2. **uniqueness exhaustion** — no system of distinct representatives exists, so every
+       branch of the unique-replica search dead-ends.
+
+    Cause 2 only became reachable with `replica_overlap`, which lets several task types
+    share one platform set: 4 tasks over 2 distinct platforms has 16 combinations and 0
+    unique assignments. Before it, the code attributed *any* empty list to cause 1, so
+    102 H2 datasets recorded `too_many_combinations` with `skip_threshold: 2000000`
+    against a real product of 16. Anything the two causes cannot explain is reported as
+    `unknown` and logged loudly rather than given a cause it has not earned.
+    """
+    total_possible = 1
+    for task in tasks:
+        total_possible *= len(task['feasible_platforms'])
+    distinct_platforms = {
+        (p['node_id'], p['platform_id'])
+        for task in tasks for p in task['feasible_platforms']
+    }
+    diagnostics = {
+        "n_tasks": len(tasks),
+        "n_distinct_platforms": len(distinct_platforms),
+        "total_possible_pre_uniqueness": total_possible,
+        "skip_threshold": skip_threshold,
+    }
+
+    if skip_threshold > 0 and total_possible > skip_threshold:
+        return {"reason": "too_many_combinations", **diagnostics}
+
+    if not allow_non_unique_replicas:
+        # Pigeonhole is the sufficient condition, not the only one — a matching can fail
+        # Hall's condition with enough distinct platforms to go round — so it is recorded
+        # as a property of this case, never used to decide it.
+        return {
+            "reason": "uniqueness_exhausted",
+            "pigeonhole": len(distinct_platforms) < len(tasks),
+            **diagnostics,
+        }
+
+    return {"reason": "unknown", **diagnostics}
+
+
 def generate_brute_force_placement_combinations(
         workload_events: List[Dict],
         infrastructure_config: Dict[str, Any],
@@ -1891,15 +1944,29 @@ def generate_brute_force_placement_combinations(
         )
     
     if not combinations:
-        # The zero-candidate infeasible case returned earlier, so empty here can only be
-        # the over-limit skip. Record which, so the census can tell them apart — both
-        # used to surface as a generic "SKIPPED (infeasible)".
-        _LAST_SKIP_REASON = {
-            "reason": "too_many_combinations",
-            "skip_threshold": skip_threshold,
-        }
-        logger.warning("No placement combinations generated (dataset skipped due to size)")
-        print("⚠️  Dataset skipped: too many placement combinations")
+        # Compare the pre-uniqueness product against the threshold BEFORE attributing —
+        # under replica_overlap an empty list is far more often uniqueness exhaustion
+        # than an over-limit skip. See classify_empty_combinations.
+        _LAST_SKIP_REASON = classify_empty_combinations(
+            tasks, skip_threshold, allow_non_unique_replicas)
+        reason = _LAST_SKIP_REASON["reason"]
+        if reason == "too_many_combinations":
+            logger.warning("No placement combinations generated (dataset skipped due to size)")
+            print("⚠️  Dataset skipped: too many placement combinations "
+                  f"({_LAST_SKIP_REASON['total_possible_pre_uniqueness']:,} > {skip_threshold:,})")
+        elif reason == "uniqueness_exhausted":
+            logger.warning(
+                "No placement combinations generated: no unique-replica assignment exists "
+                f"for {_LAST_SKIP_REASON['n_tasks']} tasks over "
+                f"{_LAST_SKIP_REASON['n_distinct_platforms']} distinct platforms")
+            print(f"⚠️  Dataset skipped: uniqueness exhausted — {_LAST_SKIP_REASON['n_tasks']} "
+                  f"tasks, {_LAST_SKIP_REASON['n_distinct_platforms']} distinct platforms "
+                  f"(NOT a MAX_PLACEMENT_COMBINATIONS_SKIP problem)")
+        else:
+            logger.error(f"No placement combinations generated and neither the "
+                         f"over-limit skip nor uniqueness exhaustion explains it: "
+                         f"{_LAST_SKIP_REASON}")
+            print(f"❌ Dataset skipped for an UNEXPLAINED reason: {_LAST_SKIP_REASON}")
     
     logger.info(f"Generated {len(combinations)} valid placement combinations ({mode_label} replicas)")
     _log(f"Generated {len(combinations)} valid placement combinations ({mode_label} replicas)")

@@ -164,3 +164,77 @@ def test_band_is_summarized_over_the_exact_denominator(tmp_path):
     per_alpha = report(tmp_path)
     for member in ("registered", "optimistic", "pessimistic", "mean_tied"):
         assert per_alpha["r_exact_band"][member]["n"] == 2
+
+
+# --- the OTHER censor's arm confound (2026-08-27) --------------------------------------
+#
+# The fix above gave `greedy_stuck` an arm breakdown. `no_feasible_rows` — which censors
+# r_exact and every LS/repair statistic, not just r_greedy — still had none, and it is
+# confounded too: on H1 at its registered primary alpha=2.0 all 70 censored datasets sit
+# in the 64-row arm and none in the 16-row arm.
+#
+# `greedy_stuck_by_n_feasible` cannot be reused for it: n_feasible is 0 by construction on
+# a censored dataset, so every arm collapses into one bucket. The arm key is `n_rows`, the
+# UNCONSTRAINED sweep size, which survives censoring.
+
+CONFINED = {
+    "rigA": [
+        {"node_name": "n0", "platform_id": 401, "platform_type": "rigCpu"},
+        {"node_name": "n0", "platform_id": 402, "platform_type": "rigCpu"},
+        {"node_name": "n0", "platform_id": 403, "platform_type": "rigCpu"},
+    ],
+    "rigB": [
+        {"node_name": "n0", "platform_id": 411, "platform_type": "rigCpu"},
+    ],
+}
+
+
+def two_arm_corpus(tmp_path: Path) -> Path:
+    """Two arms distinguishable by sweep size, with the strict censor confined to one.
+
+    ds_00000/ds_00001 are the 2-row arm and stay feasible at alpha=1.0. ds_00002 is the
+    3-row arm: every task type lives on n0, so every plan co-locates both tasks and no
+    plan clears a cap of 1.0 x the max single demand -> no_feasible_rows, in that arm
+    only. This is H1 alpha=2.0's shape in miniature.
+    """
+    corpus = stuck_corpus(tmp_path)
+    write_ds(corpus, "ds_00002", CONFINED, [
+        ({0: (100, 401), 1: (100, 411)}, 10.0),
+        ({0: (100, 402), 1: (100, 411)}, 11.0),
+        ({0: (100, 403), 1: (100, 411)}, 12.0),
+    ])
+    return corpus
+
+
+def test_no_feasible_rows_gets_its_own_arm_breakdown(tmp_path):
+    """THE TEETH. KeyError before the fix — the counter had no arm breakdown at all."""
+    rep = score_corpus(two_arm_corpus(tmp_path), TASK_TYPES, "rtt", [1.0])
+    by_arm = rep["per_alpha"]["1.0"]["censoring_by_arm"]
+
+    assert by_arm["n_datasets"] == {"2": 2, "3": 1}
+    # The strict censor fires in ONE arm only — the confound, stated rather than inferred.
+    assert by_arm["no_feasible_rows"] == {"3": 1}
+    # ...so r_exact is "over the 2-row arm only", which this line makes unmissable.
+    assert by_arm["n_exact_scored"] == {"2": 2}
+
+
+def test_arm_key_is_the_unconstrained_sweep_size_not_n_feasible(tmp_path):
+    """n_feasible is 0 on a censored dataset, so it cannot separate the arms. Guard the
+    choice of key: the censored dataset must land in its own bucket, not in a '0' one."""
+    rep = score_corpus(two_arm_corpus(tmp_path), TASK_TYPES, "rtt", [1.0])
+    per_alpha = rep["per_alpha"]["1.0"]
+    assert "0" not in per_alpha["censoring_by_arm"]["no_feasible_rows"]
+    assert per_alpha["censoring_by_arm"]["key"].startswith("n_rows")
+
+
+def test_both_censors_share_one_arm_key_so_they_are_comparable(tmp_path):
+    rep = score_corpus(two_arm_corpus(tmp_path), TASK_TYPES, "rtt", [1.0])
+    by_arm = rep["per_alpha"]["1.0"]["censoring_by_arm"]
+    assert by_arm["greedy_stuck"] == {"2": 1}
+    assert by_arm["no_feasible_rows"] == {"3": 1}
+    # Totals must reconcile with the scalar counters they break down.
+    per_alpha = rep["per_alpha"]["1.0"]
+    assert sum(by_arm["greedy_stuck"].values()) == per_alpha["greedy_stuck"]
+    assert sum(by_arm["no_feasible_rows"].values()) == per_alpha["no_feasible_rows"]
+    assert sum(by_arm["n_exact_scored"].values()) == per_alpha["n_exact_scored"]
+    assert sum(by_arm["n_greedy_scored"].values()) == per_alpha["n_greedy_scored"]
