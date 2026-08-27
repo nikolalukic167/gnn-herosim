@@ -19,6 +19,7 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts_cosim"))
@@ -26,7 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts_cosim")
 from score_route_b_contention import (  # noqa: E402
     Dataset,
     additive_argmin_plan,
+    decode_regret_band,
     greedy_masked_plan,
+    marginal_sum,
     marginal_surrogate_regret,
     min_marginals,
     one_integer_cols,
@@ -256,6 +259,129 @@ def test_control2_greedy_also_fires(tmp_path):
 # ---------------------------------------------------------------------------
 # Fail-loud contract
 # ---------------------------------------------------------------------------
+
+def control3_tie_rig(tmp_path: Path) -> Dataset:
+    """NEAR-separable costs whose min-marginal sums TIE across plans of different cost.
+
+    Reproduces at rig scale what fired on the H0 separable control (2026-08-27). Control 1
+    uses distinct integer costs and never puts two feasible plans on the same surrogate
+    score, so the tie-break path in `decode_regret` was untested — and that is precisely
+    the path that produced 12 of 16 firing control datasets.
+
+    Costs are separable PLUS a small same-node coupling, exactly the shape the storage-tier
+    parent-locality branch gives the real corpus (AMENDMENT 1):
+
+      c_X: A=10, B=10, C=12     c_Y: A=10, B=10, C=10     +0.6 when both share a node
+
+      plans (X,Y):  AA=20.6  AB=20.0  AC=20.0
+                    BA=20.0  BB=20.6  BC=20.0
+                    CA=22.0  CB=22.0  CC=22.6
+
+      min-marginals over the FULL sweep: m_X = {A:20, B:20, C:22}, m_Y = {A:20, B:20, C:20}
+      so every plan with X on A or B scores msum = 40.0 — a SIX-member exact tie holding
+      both the optimum (20.0) and the coupled plans (20.6).
+
+    Platform ids are assigned so the WORSE member sorts first under
+    `tuple(sorted(plan.items()))`: task 0 on node A carries the lowest id, so the decode
+    lands on (A,A) = 20.6 against a tie-set optimum of 20.0.
+
+      registered  = 100*(20.6-20.0)/20.0 = 3.0%   on physics that is separable to 3%
+      optimistic  = 0.0 exactly
+      pessimistic = 3.0%
+      mean_tied   = 100*(mean(20.6,20,20,20,20.6,20) - 20)/20 = 1.0%
+    """
+    replicas = {
+        "rigA": [
+            {"node_name": "nA", "platform_id": 201, "platform_type": "rigCpu"},
+            {"node_name": "nB", "platform_id": 202, "platform_type": "rigCpu"},
+            {"node_name": "nC", "platform_id": 203, "platform_type": "rigCpu"},
+        ],
+        "rigB": [
+            {"node_name": "nA", "platform_id": 211, "platform_type": "rigCpu"},
+            {"node_name": "nB", "platform_id": 212, "platform_type": "rigCpu"},
+            {"node_name": "nC", "platform_id": 213, "platform_type": "rigCpu"},
+        ],
+    }
+    x = {"nA": (100, 201), "nB": (101, 202), "nC": (102, 203)}
+    y = {"nA": (100, 211), "nB": (101, 212), "nC": (102, 213)}
+    base_x = {"nA": 10.0, "nB": 10.0, "nC": 12.0}
+    base_y = {"nA": 10.0, "nB": 10.0, "nC": 10.0}
+    rows = []
+    for nx, px in x.items():
+        for ny, py in y.items():
+            cost = base_x[nx] + base_y[ny] + (0.6 if nx == ny else 0.0)
+            rows.append(({0: px, 1: py}, cost))
+    ds_dir = write_rig(tmp_path, replicas, rows)
+    return Dataset(ds_dir, RIG_TASK_TYPES, "rtt")
+
+
+def control3_band(tmp_path: Path) -> dict:
+    ds = control3_tie_rig(tmp_path)
+    # alpha=3.0: cap admits both tasks on one node, so every plan stays feasible and the
+    # tie is what decides the statistic — not the constraint.
+    return score_dataset(ds, alpha=3.0)
+
+
+def test_control3_registered_tiebreak_fires_on_near_separable_physics(tmp_path):
+    """The artifact itself: an arbitrary tie-break reads as 3% regret.
+
+    Passes before AND after the band was added — the registered statistic is deliberately
+    unchanged. It documents the defect rather than gating it.
+    """
+    out = control3_band(tmp_path)
+    assert out["r_exact_pct"] == pytest.approx(3.0, abs=1e-9)
+
+
+def test_control3_optimistic_band_is_exactly_zero(tmp_path):
+    """The teeth: the surrogate CAN reach the optimum, it just isn't credited with it."""
+    out = control3_band(tmp_path)
+    assert out["r_exact_band"]["optimistic"] == pytest.approx(0.0, abs=1e-12)
+
+
+def test_control3_band_brackets_the_registered_value(tmp_path):
+    out = control3_band(tmp_path)
+    band = out["r_exact_band"]
+    assert band["n_tied"] == 6
+    assert band["optimistic"] <= band["registered"] <= band["pessimistic"]
+    assert band["optimistic"] <= band["mean_tied"] <= band["pessimistic"]
+
+
+def test_control3_mean_tied_is_the_hand_computed_tie_group_mean(tmp_path):
+    """Pin the arithmetic so a tolerance change cannot silently move the fair reading."""
+    out = control3_band(tmp_path)
+    tied = [20.6, 20.0, 20.0, 20.0, 20.6, 20.0]
+    expected = 100.0 * (sum(tied) / len(tied) - 20.0) / 20.0
+    assert out["r_exact_band"]["mean_tied"] == pytest.approx(expected, abs=1e-9)
+    assert out["r_exact_band"]["pessimistic"] == pytest.approx(3.0, abs=1e-9)
+
+
+def test_control3_band_registered_member_reproduces_r_exact_pct(tmp_path):
+    """The band must reproduce the registered statistic EXACTLY, not approximate it —
+    every downstream consumer (firing_set, the verifier) keys off r_exact_pct."""
+    out = control3_band(tmp_path)
+    assert out["r_exact_band"]["registered"] == out["r_exact_pct"]
+
+
+def test_control3_scorer_band_matches_transfer_tie_band(tmp_path):
+    """One tie definition in the program.
+
+    The scorer's decode_regret_band and route_b_coefficient_transfer's Cell.tie_band must
+    agree; two tolerance rules would drift apart while both looked correct.
+    """
+    from route_b_coefficient_transfer import Cell  # noqa: E402
+
+    ds = control3_tie_rig(tmp_path)
+    cell = Cell(ds.ds_dir, RIG_TASK_TYPES, 3.0)
+    predicted = np.array([marginal_sum(cell.marginal, p) for p, _v in cell.feasible])
+
+    optimistic, pessimistic, mean_tied, n_tied = cell.tie_band(predicted)
+    band = decode_regret_band(cell.feasible, list(predicted), cell.best)
+
+    assert optimistic == pytest.approx(band["optimistic"], abs=1e-12)
+    assert pessimistic == pytest.approx(band["pessimistic"], abs=1e-12)
+    assert mean_tied == pytest.approx(band["mean_tied"], abs=1e-12)
+    assert n_tied == band["n_tied"]
+
 
 def test_missing_placements_jsonl_raises(tmp_path):
     ds_dir = tmp_path / "ds_broken"

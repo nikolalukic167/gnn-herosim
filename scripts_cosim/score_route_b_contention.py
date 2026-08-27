@@ -22,11 +22,20 @@ Statistics per dataset, per alpha, per objective:
             surrogate sum_t m_t(p_t), decoded by exhaustive search over the feasible
             sweep — the pointwise-scores-plus-PERFECT-decoder bound. On separable
             physics m_t(p) = c_t(p) + const, so sum_t m_t is the true cost up to a
-            constant and R_exact == 0 EXACTLY, under ANY feasibility restriction — the
-            theorem-predicted zero this scorer must reproduce on Arm B0. Unconstrained,
-            it reduces to route A's componentwise-argmin statistic (measured 0.000%).
-            Nonzero constrained R_exact can be neither a decoder artifact nor an LS
-            fitting artifact.
+            constant and `r_exact_band["optimistic"] == 0` EXACTLY, under ANY feasibility
+            restriction — the theorem-predicted zero this scorer must reproduce on Arm B0.
+            Unconstrained, it reduces to route A's componentwise-argmin statistic
+            (measured 0.000%).
+
+            UP TO TIES, and the qualifier is load-bearing. When the surrogate scores
+            several feasible plans EQUAL, `decode_regret` resolves them by sorted plan key
+            — platform id, unrelated to cost — so the registered `r_exact_pct` can be
+            nonzero on provably separable physics. Measured 2026-08-27 on the H0 separable
+            control: 12 of 16 firing datasets had the true optimum inside the argmin tie
+            set. This file previously claimed "nonzero constrained R_exact can be neither a
+            decoder artifact nor an LS fitting artifact"; that was FALSE and is why a
+            decoder tie-break was read as physics. Read `r_exact_band` (§4: mean_tied is
+            the fair reading, optimistic an upper bound only) — never `r_exact_pct` alone.
   repairs   R_exact recomputed with the surrogate y ~ a + b*sum_t m_t(p_t) + counts,
             where counts are (a) one-integer: node-occupancy excess sharing
             sum(count-1), the program's established collision column; (b) k-integer:
@@ -561,6 +570,54 @@ def decode_regret(feasible_rows: Sequence[Tuple[Plan, float]],
     return 100.0 * (float(feasible_rows[pick][1]) - best) / best
 
 
+def tie_set_indices(predicted: Sequence[float]) -> List[int]:
+    """Indices whose scores a surrogate cannot separate from its own minimum.
+
+    ONE definition of "tied" for the whole program. route_b_coefficient_transfer's
+    Cell.tie_band uses this, and so does decode_regret_band below — a second tolerance
+    rule here would make the scorer's band and the transfer's band incomparable while
+    both looked correct.
+    """
+    lo = float(min(predicted))
+    tol = 1e-9 * max(1.0, abs(lo))
+    return [i for i, p in enumerate(predicted) if float(p) - lo <= tol]
+
+
+def decode_regret_band(feasible_rows: Sequence[Tuple[Plan, float]],
+                       predicted: Sequence[float],
+                       best: float) -> dict:
+    """The registered decode plus the band its score ties leave open.
+
+    The registered statistic (`decode_regret`) breaks ties by sorted plan key — platform
+    id, a quantity with no relation to cost. On a degenerate feasible set the min-marginal
+    surrogate ties the true optimum against strictly worse plans, and that arbitrary rule
+    then decides the number. Measured 2026-08-27 on the H0 separable control: of 16 firing
+    datasets, 12 had the true optimum INSIDE the argmin tie set, i.e. `optimistic == 0`
+    exactly on physics that is provably separable.
+
+    So the docstring claim this module shipped with — "Nonzero constrained R_exact can be
+    neither a decoder artifact nor an LS fitting artifact" — was false, and is now
+    corrected at the top of this file. Reporting the band is what makes the artifact
+    visible instead of letting a tie-break decide a verdict.
+
+    Members follow ROUTE_B_ENV_PIVOT_SCREEN.md §4 and Cell.tie_band: `mean_tied` is the
+    fair reading (a real decoder must pick one tied plan and cannot pick the best by
+    oracle, so what it achieves under a fixed uninformative rule is the group MEAN);
+    `optimistic` credits the surrogate with plans it cannot distinguish and is an upper
+    bound only, never a verdict.
+    """
+    tied_idx = tie_set_indices(predicted)
+    tied = [float(feasible_rows[i][1]) for i in tied_idx]
+    pct = lambda v: 100.0 * (v - best) / best  # noqa: E731
+    return {
+        "registered": decode_regret(feasible_rows, predicted, best),
+        "optimistic": pct(min(tied)),
+        "pessimistic": pct(max(tied)),
+        "mean_tied": pct(sum(tied) / len(tied)),
+        "n_tied": len(tied),
+    }
+
+
 def marginal_surrogate_regret(ds: Dataset,
                               marginal: Dict[int, Dict[Tuple[int, int], float]],
                               feasible_rows: Sequence[Tuple[Plan, float]],
@@ -949,6 +1006,19 @@ def score_dataset(ds: Dataset, alpha: Optional[float],
     # the pointwise side, so the repaired regret is min(base, repaired).
     r_base = marginal_surrogate_regret(ds, marginal, feasible_rows)
     out["r_exact_pct"] = r_base
+    # The band the surrogate's own score ties leave open (AMENDMENT-era addition,
+    # 2026-08-27). Purely additive: `registered` is the same number `r_exact_pct` already
+    # carries — asserted below, and pinned by test_control3_* — so no consumer that keys
+    # off r_exact_pct changes. §4 already mandates a band for S2/S3 and eb6e93a added one
+    # for t1x; R_exact simply never got one, which is how a decoder tie-break came to be
+    # read as physics on the H0 control.
+    r_exact_predicted = [marginal_sum(marginal, p) for p, _v in feasible_rows]
+    out["r_exact_band"] = decode_regret_band(feasible_rows, r_exact_predicted, best)
+    if out["r_exact_band"]["registered"] != r_base:
+        raise RuntimeError(
+            f"{ds.ds_dir}: r_exact band 'registered' "
+            f"{out['r_exact_band']['registered']!r} != r_exact_pct {r_base!r}; the band "
+            "must reproduce the registered statistic exactly, not approximate it")
     repair_sets = [("1int", one_integer_cols(ds)), ("kint", k_integer_cols(ds))]
     # route-C screen arm (2026-08-26): ingress-route link co-use alone — the honest
     # pointwise competitor for a link-contention environment. Needs no caps (link
@@ -1035,8 +1105,31 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
         results = all_results[str(alpha)]
         no_feasible = sum(1 for r in results if r.get("no_feasible_rows"))
         stuck = sum(1 for r in results if r.get("greedy_stuck"))
-        scored = [r for r in results
-                  if not r.get("no_feasible_rows") and not r.get("greedy_stuck")]
+
+        # Three denominators, each named for what legitimately censors it (2026-08-27).
+        # `no_feasible_rows` censors everything: with no feasible plan there is no
+        # constrained optimum to be regretful against. `greedy_stuck` censors ONLY the
+        # greedy statistic — R_exact is a perfect-decoder quantity and the greedy decoder
+        # has nothing to do with it, so a greedy dead-end must not delete a valid R_exact.
+        #
+        # This was not a neutral censoring. On the H0 control the (n_feasible, stuck)
+        # histogram is exactly {(9, False): 102, (16, True): 101, (16, False): 1} — stuck
+        # is PERFECTLY confounded with the replica-config arm, so one whole cell of the
+        # 2x2x3x17 design was silently dropped from every r_exact statistic and the
+        # reported frac_gt_1pct was really "over the 9-feasible-row arm only".
+        feasible_scored = [r for r in results if not r.get("no_feasible_rows")]
+        greedy_scored = [r for r in feasible_scored if not r.get("greedy_stuck")]
+        exact_scored = feasible_scored
+        # Retained so the pre-fix number is recoverable from the SAME artifact rather than
+        # asserted from a commit message — see legacy_greedy_censored below.
+        scored = greedy_scored
+
+        stuck_by_n_feasible: Dict[str, int] = {}
+        for r in results:
+            if r.get("greedy_stuck"):
+                key = str(r.get("n_feasible"))
+                stuck_by_n_feasible[key] = stuck_by_n_feasible.get(key, 0) + 1
+
         per_alpha[str(alpha)] = {
             "alpha": alpha,
             "n_datasets": len(results),
@@ -1050,41 +1143,77 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
             "mean_feasible_rows": (
                 sum(r["n_feasible"] for r in results) / len(results)),
             "saturated_fit_frac": (
-                sum(1 for r in scored if r.get("fit", {}).get("saturated"))
-                / max(1, len(scored))),
-            "r_greedy": summarize([r["r_greedy_pct"] for r in scored
+                sum(1 for r in exact_scored if r.get("fit", {}).get("saturated"))
+                / max(1, len(exact_scored))),
+            "r_greedy": summarize([r["r_greedy_pct"] for r in greedy_scored
                                    if "r_greedy_pct" in r]),
-            "r_exact": summarize([r["r_exact_pct"] for r in scored]),
+            "r_exact": summarize([r["r_exact_pct"] for r in exact_scored]),
             "repair_1int_saturated": sum(
-                1 for r in scored if r.get("repair_1int_saturated")),
+                1 for r in exact_scored if r.get("repair_1int_saturated")),
             "repair_kint_saturated": sum(
-                1 for r in scored if r.get("repair_kint_saturated")),
+                1 for r in exact_scored if r.get("repair_kint_saturated")),
             "r_exact_repaired_1int": summarize(
-                [r["r_exact_repaired_1int_pct"] for r in scored
+                [r["r_exact_repaired_1int_pct"] for r in exact_scored
                  if r.get("r_exact_repaired_1int_pct") is not None]),
             "r_exact_repaired_kint": summarize(
-                [r["r_exact_repaired_kint_pct"] for r in scored
+                [r["r_exact_repaired_kint_pct"] for r in exact_scored
                  if r.get("r_exact_repaired_kint_pct") is not None]),
             "repair_t1_saturated": sum(
-                1 for r in scored if r.get("repair_t1_saturated")),
+                1 for r in exact_scored if r.get("repair_t1_saturated")),
             "r_exact_repaired_t1": summarize(
-                [r["r_exact_repaired_t1_pct"] for r in scored
+                [r["r_exact_repaired_t1_pct"] for r in exact_scored
                  if r.get("r_exact_repaired_t1_pct") is not None]),
             "repair_lnk_saturated": sum(
-                1 for r in scored if r.get("repair_lnk_saturated")),
+                1 for r in exact_scored if r.get("repair_lnk_saturated")),
             "r_exact_repaired_lnk": summarize(
-                [r["r_exact_repaired_lnk_pct"] for r in scored
+                [r["r_exact_repaired_lnk_pct"] for r in exact_scored
                  if r.get("r_exact_repaired_lnk_pct") is not None]),
             "repair_t1lnk_saturated": sum(
-                1 for r in scored if r.get("repair_t1lnk_saturated")),
+                1 for r in exact_scored if r.get("repair_t1lnk_saturated")),
             "r_exact_repaired_t1lnk": summarize(
-                [r["r_exact_repaired_t1lnk_pct"] for r in scored
+                [r["r_exact_repaired_t1lnk_pct"] for r in exact_scored
                  if r.get("r_exact_repaired_t1lnk_pct") is not None]),
             "r_exact_ls": summarize(
-                [r["r_exact_ls_pct"] for r in scored]),
+                [r["r_exact_ls_pct"] for r in exact_scored]),
             "r_exact_spread": summarize(
-                [r["r_exact_spread_pct"] for r in scored
+                [r["r_exact_spread_pct"] for r in exact_scored
                  if "r_exact_spread_pct" in r]),
+            # Denominators, stated rather than inferred.
+            "n_exact_scored": len(exact_scored),
+            "n_greedy_scored": len(greedy_scored),
+            # The band R_exact's score ties leave open, per band member.
+            # ROUTE_B_ENV_PIVOT_SCREEN.md §4: mean_tied is the fair reading; optimistic is
+            # an upper bound only, never a verdict.
+            "r_exact_band": {
+                member: summarize([r["r_exact_band"][member] for r in exact_scored
+                                   if "r_exact_band" in r])
+                for member in ("registered", "optimistic", "pessimistic", "mean_tied")
+            },
+            "r_exact_n_tied": {
+                "datasets_with_ties": sum(
+                    1 for r in exact_scored
+                    if r.get("r_exact_band", {}).get("n_tied", 1) > 1),
+                "max_tie_group": max(
+                    [r.get("r_exact_band", {}).get("n_tied", 0) for r in exact_scored],
+                    default=0),
+            },
+            # greedy_stuck's confound with the design, made self-evident in every rung's
+            # artifact instead of requiring a bespoke investigation to rediscover.
+            "greedy_stuck_by_n_feasible": stuck_by_n_feasible,
+            # The PRE-FIX numbers, reproduced from this same run so a deviation can be
+            # audited against one artifact rather than a commit message. This is the
+            # greedy-censored denominator R_exact used to be summarized over.
+            "legacy_greedy_censored": {
+                "note": "pre-2026-08-27 denominator: r_exact censored by greedy_stuck. "
+                        "Retained for audit; not a statistic to read.",
+                "n": len(greedy_scored),
+                "r_exact": summarize([r["r_exact_pct"] for r in greedy_scored]),
+                "r_exact_band": {
+                    member: summarize([r["r_exact_band"][member] for r in greedy_scored
+                                       if "r_exact_band" in r])
+                    for member in ("registered", "optimistic", "pessimistic", "mean_tied")
+                },
+            },
         }
     return {
         "corpus": str(corpus),

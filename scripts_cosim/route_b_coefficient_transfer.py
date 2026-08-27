@@ -53,6 +53,7 @@ from score_route_b_contention import (
     summarize,
     t1_cols,
     t1_column_names,
+    tie_set_indices,
 )
 
 # The T1 blocks that carry a dataset-independent meaning, hence the pooled column set.
@@ -163,10 +164,9 @@ class Cell:
         uninformative tie rule is the tie group's MEAN. `optimistic` credits the surrogate
         with plans it cannot distinguish and is an upper bound only, never a verdict.
         """
-        lo = float(predicted.min())
-        tol = 1e-9 * max(1.0, abs(lo))
-        tied = [v for i, (_p, v) in enumerate(self.feasible)
-                if predicted[i] - lo <= tol]
+        # Shared with the scorer's decode_regret_band — one tie definition in the program,
+        # so the scorer's R_exact band and this one stay comparable by construction.
+        tied = [float(self.feasible[i][1]) for i in tie_set_indices(predicted)]
         pct = lambda v: 100.0 * (v - self.best) / self.best  # noqa: E731
         return (pct(min(tied)), pct(max(tied)),
                 pct(float(np.mean(tied))), len(tied))
