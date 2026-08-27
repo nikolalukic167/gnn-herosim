@@ -883,6 +883,24 @@ def _diamond4_dag(task_types: Sequence[str]) -> Dict[str, List[str]]:
 DAG_SHAPES = {"diamond4": _diamond4_dag}
 
 
+def _draw_demand_scale(rng: random.Random, demand_spread: Optional[Dict[str, Any]]) -> float:
+    """One seeded per-instance demand_scale draw. Absent config (None) -> 1.0, so a
+    dataset generated without demand_spread is byte-identical to before this option
+    existed — no rng.* call happens at all, and downstream demand = 1.0 * table value.
+
+    dist='uniform': params [low, high]. Kept intentionally minimal (route_b env pivot
+    W2 rung H1 uses uniform [0.5, 2.0]); extend with more dists only when a rung needs
+    one, matching the rest of this file's grid-key conventions."""
+    if demand_spread is None:
+        return 1.0
+    dist = demand_spread["dist"]
+    params = demand_spread["params"]
+    if dist == "uniform":
+        low, high = params
+        return rng.uniform(low, high)
+    raise ValueError(f"unknown demand_spread dist {dist!r}; known: ['uniform']")
+
+
 def generate_workload_templates(
     base_workload_path: Path,
     output_dir: Path,
@@ -893,6 +911,7 @@ def generate_workload_templates(
     dag_shape: Optional[str] = None,
     dag_task_types: Optional[Sequence[str]] = None,
     dag_instances: int = 1,
+    demand_spread: Optional[Dict[str, Any]] = None,
 ) -> List[Path]:
     """
     Generate workload templates with varied task type ratios.
@@ -903,6 +922,13 @@ def generate_workload_templates(
     reproducible from their recorded seed, and matched A/B arms could not be built at all
     (any measured difference would be confounded by a different workload draw). A local
     Random keeps this independent of any other module's use of the global RNG.
+
+    `demand_spread` (route_b env pivot W2, label-side only): when set, draws a seeded
+    per-DAG-task-instance `demand_scale` from this same local rng, written into each
+    event's `application.demand_scale` dict ({task_type_name: scale}). Absent (default
+    None) -> no draw happens, no key is written, and generated datasets are byte-
+    identical to before this option existed. Only wired for the dag_shape path (the
+    non-DAG legacy path has no route_b consumer and is left untouched).
 
     Returns list of paths to generated template files.
     """
@@ -975,6 +1001,15 @@ def generate_workload_templates(
                 base_event['application']['name'] = f"nofs-{dag_shape}"
                 base_event['application']['dag'] = dag
                 base_event['node_name'] = f"client_node{client_nodes[inst % len(client_nodes)]}"
+                if demand_spread is not None:
+                    # Drawn per (template, instance, task type) from the SAME local rng
+                    # stream client_nodes already consumes — deterministic from
+                    # workload_seed, and drawn in a fixed order (types, sorted) so the
+                    # stream position is independent of dict iteration order.
+                    base_event['application']['demand_scale'] = {
+                        ttype: _draw_demand_scale(rng, demand_spread)
+                        for ttype in sorted(types)
+                    }
                 workload['events'].append(base_event)
         else:
             for idx in range(NUM_TASKS):
@@ -1690,6 +1725,7 @@ def main():
         dag_shape=dag_shape,
         dag_task_types=dag_task_types,
         dag_instances=grid_preset.get("dag_instances", 1),
+        demand_spread=grid_preset.get("demand_spread"),
     )
     log(f"Generated {len(templates)} workload templates "
         f"(workload_seed={args.workload_seed})", quiet)
