@@ -613,6 +613,12 @@ def ablation(cells: List[Cell]) -> dict:
         "parent-coupling (hop+coupling)": ("hop", "coupling"),
         "parent-coupling incl kint": ("kint", "hop", "coupling"),
         "full T1": ("kint", "quad", "cap", "hop", "coupling"),
+        # route_b_env_pivot_v1 screen, B1 (registered build item, §4): single-block
+        # arms for the new extended-competitor columns, so S4's attribution table can
+        # show whether hetdem/futureint alone carry a rung's closure — the same
+        # question the parent-coupling arm answers for hop+coupling.
+        "hetdem": ("hetdem",),
+        "futureint": ("futureint",),
     }
     out = {}
     for name, blocks in arms.items():
