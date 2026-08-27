@@ -224,13 +224,22 @@ def precreate_replicas(
     preinit_task_types = replica_plan['preinit_task_types']
     replicas_config = replica_plan['replicas_config']
     prewarm_config = replica_plan.get('prewarm_config', {})
+    # route_b env pivot (2026-08-27), W3: mirrors generate_infrastructure.py's
+    # preinit.replica_overlap. Default False -> assigned_platforms is checked exactly
+    # as before, so every existing replica_plan (no key, or key absent) materializes
+    # byte-identically. When True, a (node, platform) already claimed by one task type
+    # may ALSO be claimed by another -- this function's own dedup set exists only to
+    # stop ONE task type double-booking itself (mirrors the per-type check
+    # generate_infrastructure.py kept even under overlap), never to police cross-type
+    # sharing when overlap is the whole point.
+    replica_overlap = bool(replica_plan.get('replica_overlap', False))
     print("Using replica placement plan from executecosimulation.py (co-simulation mode)")
-    
+
     # Get all nodes and their platforms
     all_nodes = list(nodes.items)
     server_nodes = [node for node in all_nodes if not node.node_name.startswith('client_node')]
     client_nodes = [node for node in all_nodes if node.node_name.startswith('client_node')]
-    
+
     """
     print(f"Available nodes:")
     print(f"  Server nodes: {[n.node_name for n in server_nodes]}")
@@ -239,9 +248,22 @@ def precreate_replicas(
     print(f"  preinit_servers: {preinit_servers}")
     print(f"  preinit_clients: {preinit_clients}")
     """
-    
-    # Track which platforms have been assigned to avoid double-booking
+
+    # Track which platforms have been assigned to avoid double-booking. Under
+    # replica_overlap this tracks PER-TASK-TYPE assignment instead of a single global
+    # set, so one type still can't double-book itself but different types can share.
     assigned_platforms = set()
+    assigned_platforms_by_type: Dict[str, set] = {}
+
+    def _is_assigned(task_type_name: str, key) -> bool:
+        if replica_overlap:
+            return key in assigned_platforms_by_type.get(task_type_name, set())
+        return key in assigned_platforms
+
+    def _mark_assigned(task_type_name: str, key) -> None:
+        assigned_platforms.add(key)
+        if replica_overlap:
+            assigned_platforms_by_type.setdefault(task_type_name, set()).add(key)
     initial_replicas = {}
     
     # Use deterministic placements if provided
@@ -270,10 +292,10 @@ def precreate_replicas(
                         platform = p
                         break
                 
-                if platform and (node, platform) not in assigned_platforms:
+                if platform and not _is_assigned(task_type_name, (node, platform)):
                     replica = (node, platform)
                     initial_replicas[task_type_name].add(replica)
-                    assigned_platforms.add(replica)
+                    _mark_assigned(task_type_name, replica)
 
                     queue_length = 0
                     if env and simulation_policy and deterministic_queues:
@@ -290,7 +312,15 @@ def precreate_replicas(
 
                     # Cold replicas may defer platform.initialized until image pull completes.
                     # force_warm / busy queue ⇒ succeed initialized immediately.
-                    if not (defer_cold_init and queue_length == 0 and not force_warm):
+                    #
+                    # route_b env pivot W3: under replica_overlap the SAME Platform object
+                    # is legitimately claimed by more than one task type (a shared physical
+                    # slot), so this SimPy Event can already be triggered by an earlier task
+                    # type's pass through this loop -- succeed()ing it twice raises
+                    # RuntimeError. The physical platform only needs to be marked ready
+                    # once; a second type finding it already initialized is not an error.
+                    if (not (defer_cold_init and queue_length == 0 and not force_warm)
+                            and not platform.initialized.triggered):
                         platform.initialized.succeed()
 
                     # Use deterministic queue length if provided
@@ -376,20 +406,20 @@ def precreate_replicas(
                     # Find suitable unassigned platforms on this server
                     suitable_platforms = [
                         platform for platform in node.platforms.items
-                        if (platform.type["shortName"] in supported_platforms and 
-                            (node, platform) not in assigned_platforms)
+                        if (platform.type["shortName"] in supported_platforms and
+                            not _is_assigned(task_type_name, (node, platform)))
                     ]
-                    
+
                     # Create up to per_server replicas on this node
                     replicas_created = 0
                     for platform in suitable_platforms:
                         if replicas_created >= per_node_target:
                             break
-                        
+
                         # Create replica
                         replica = (node, platform)
                         initial_replicas[task_type_name].add(replica)
-                        assigned_platforms.add(replica)
+                        _mark_assigned(task_type_name, replica)
                         
                         # Mark platform as initialized (replica exists)
                         platform.initialized.succeed()
@@ -445,20 +475,20 @@ def precreate_replicas(
                     # Find suitable unassigned platforms on this client
                     suitable_platforms = [
                         platform for platform in node.platforms.items
-                        if (platform.type["shortName"] in supported_platforms and 
-                            (node, platform) not in assigned_platforms)
+                        if (platform.type["shortName"] in supported_platforms and
+                            not _is_assigned(task_type_name, (node, platform)))
                     ]
-                    
+
                     # Create up to per_client replicas on this node
                     replicas_created = 0
                     for platform in suitable_platforms:
                         if replicas_created >= per_node_target:
                             break
-                        
+
                         # Create replica
                         replica = (node, platform)
                         initial_replicas[task_type_name].add(replica)
-                        assigned_platforms.add(replica)
+                        _mark_assigned(task_type_name, replica)
                         
                         # Mark platform as initialized (replica exists)
                         platform.initialized.succeed()
