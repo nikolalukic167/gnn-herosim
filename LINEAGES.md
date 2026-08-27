@@ -4816,6 +4816,70 @@ not earn training by passing.
 
 ---
 
+#### route_b_env_pivot_v1 — LADDER PROGRESS (2026-08-27, IN FLIGHT — no rung readable yet)
+
+**Full detail: `ROUTE_B_PIVOT_LADDER_FINDINGS.md`.** Summary and status only here. **No bar,
+threshold, grid, α ladder or reading rule has been changed by any of this work.**
+
+**Rung status.** H0 **VOID-INFEASIBLE** (recorded in
+`simulation_data/route_b_pivot_h0_reading.json`, amended in place). H1 **VOID-INFEASIBLE**
+— same shape: no α on the registered ladder has clean counters. H2 **VOID-GENERATION** —
+102/204 SUCCESS, below §3's 204/204 requirement. H3 not attempted. S1–S4 have not been read
+on any rung, so **nothing is yet known about whether the pivot environment contains
+pointwise-irreducible structure.**
+
+**Why the rungs keep voiding — three distinct causes, all measured:**
+
+1. **No α is both clean and binding.** Fine sweep on H1: at α=3.9 the constraint binds on
+   204/204 with 80 stuck; at α=4.0 stuck is 0 and it binds on **0/204**, byte-identical to
+   the unconstrained anchor. Relaxing α is therefore not a route to a readable rung and
+   must not be attempted as one.
+2. **On H0/H1 `greedy_stuck` is a configuration artifact.** It is fully explained by
+   single-node confinement — no dataset with 0 confined tasks is ever stuck, and the 64-row
+   arm *always* has exactly 2, in both rungs. Root cause is FCFS allocation in
+   `generate_infrastructure.py:625-660`: early task types consume the platforms, and the
+   confined set is always exactly `('rf','cnn')`, the last two in iteration order.
+   **Raising `replica_server_percentage` does NOT fix this** — two full 204-dataset probes
+   give an identical confinement histogram `{0:102, 2:102}` at 2, 3 and 4 hosting nodes.
+   The knob changes how many nodes are *eligible*, not how the allocator spreads across
+   them.
+3. **On H2 `greedy_stuck` is decoder myopia instead.** `replica_overlap` (H2's own
+   registered lever) drives confinement to **zero** and produces the contested-slot shape
+   the pivot wanted. What remains is provably a decoder limitation: over identical
+   candidate sets, **backtracking rescues 66/66 (α=2.0) and 27/27 (α=2.4)** — 100% — and a
+   feasible plan exists in the enumerated sweep in every stuck case.
+
+**Why H2 cannot be read anyway:** `replica_overlap` and the `per_server=1` arm are
+incompatible under the no-replica-reuse mask. Four tasks need four distinct platforms;
+overlap collapses that arm onto two, so **zero** unique assignments exist (proven by
+enumeration: skipped datasets have 4 tasks / 2 distinct platforms; surviving ones have 4
+platforms and exactly 4! = 24 plans).
+
+**Gate-tool defects found and fixed en route** (details in GATE TOOLS): the `decode_regret`
+tie-break artifact and the `r_exact` greedy-censored denominator (both `2fa4b50`, both
+additive/auditable, byte-identity verified on the frozen pilot); the verifier's missing
+`demand_scale` (`90a3c1b`), which would have voided H1's S0 gate for a spurious reason and
+was caught only because Phase 4 was run before Phase 6. One defect is recorded **unfixed**:
+skip reasons are mislabelled `too_many_combinations` under `replica_overlap`.
+
+**AMENDMENT 1** (`ROUTE_B_ENV_PIVOT_SCREEN_AMENDMENT_1.md`, commit `3719aad`) is signed off
+and landed: the S0 control definition gains `HEROSIM_STORAGE_NEUTRAL=1`, because the
+registered ablation never produced separable physics — an always-on storage-tier
+parent-locality branch charges ~0.0156 s per task based on where a task's *parents* ran.
+The `node_disk_v2` cold-pull hypothesis is **FALSIFIED** (contingency `cold>=2 & genuine =
+0/31`; `averagePullTime = averageColdStartTime = 0.0`). H0 is not regenerated under it —
+that rung is void on feasibility regardless.
+
+**Open decision, with the user.** Five options are laid out in
+`ROUTE_B_PIVOT_LADDER_FINDINGS.md` §6, each needing its own amendment; the two that
+measurement has already **ruled out** are relaxing α and raising
+`replica_server_percentage`. The best-evidenced remaining option is a backtracking decoder
+(100% rescue), which would make `greedy_stuck` measure the environment rather than the
+decoder.
+
+
+---
+
 ## RETIRED
 
 | Lineage | Status | Archive | Files | Outcome |
@@ -4874,6 +4938,14 @@ find out what changed about the tool without reading a lineage's story to get th
 
 | 2026-08-23 | `generate_infrastructure.py` (`build_core_backbone`) + `verify_live_infra_parity.py` | The 2026-08-21 row above deferred the **root** rng coupling as out of scope ("would break bit-reproducibility of `gnn_datasets_4tasks_topo_transfer_v1`'s existing 3,744-dataset corpus from its seed"). That objection is answerable without giving up either property. Separately, a **second** finding class was being waived and had a different cause: under a backbone a genuine repair edge's latency is a **route sum**, not `base_latency`, so `_classify_corpus_only_edges` could not recognize it and reported real repair edges as "unexplained" — parity printed `repair=0/174` on a cell with 34 of them. | **Both fixed.** `network.backbone.rng_stream` selects the jitter stream: `independent_v1` derives it from `Random(f"{seed}:backbone_v1")`, independent of whatever consumed the shared stream earlier; `legacy_v0` remains the **default in `build_core_backbone`**, so every existing corpus still regenerates byte-identically from its seed, while `generate_gnn_datasets_fast.py` defaults **new** corpora to `independent_v1` (`--backbone-rng-stream`). `rng_stream` is stamped into `link_topology.params`. The classifier now takes the fabric and checks each corpus-only edge against **its own recorded route** — stricter than the `base_latency` signature, not a relaxation. Verified end-to-end on cell03 (34 repair edges, the worst offender): `legacy_v0` reproduces the recorded `infrastructure.json` links exactly and still diverges 140/140 shared edges live; `independent_v1` gives identical links, live routes a corpus subset with identical paths, and **PASSES with no waiver flag**, reporting `repair=34/174`. Control holds — legacy cell01/cell03 still FAIL without the waiver, cell02 (0 repair edges) still PASSes. 5 tests. The waiver flag stays for the existing legacy backbone cells, whose recorded arms must remain comparable. |
 | 2026-08-23 | `src/executesimulation.py` `load_gnn_model` (`INFERENCE_FEATURE_LAYOUT`) | **A `task_dim=3 / platform_dim=14` checkpoint was served under a silently guessed feature layout.** That shape is structurally valid under **both** `atomic21` and `dim22`, which assign different meanings to the same platform columns (`dim22` normalizes the queue features via `use_norm_queue`), so `load_state_dict` succeeds either way and the forward pass raises nothing. `load_gnn_model:614` defaulted an undeclared layout to `atomic21`. Consequence: the `prefixctl` (variance control) and `tempfix` (corrected-cache) gates served **atomic21** — their sidecars declare `inference_feature_layout: null` and `run_full_corpus_siv1_live_gate.sh` deliberately does not export the variable — while **every** deployed-checkpoint gate served **dim22** from its sidecar. Both gates' result JSONs record `INFERENCE_FEATURE_LAYOUT: None` against the deployed runs' `dim22`, and the loader banner ("Using atomic21 inference layout with task_dim=3 checkpoint") was the only signal. **This sits underneath the 2026-08-22 lottery table**, whose deployed-vs-prefixctl comparison was read as a pure training-draw effect. | **Fixed:** on that ambiguous shape, declaring neither a sidecar layout nor an env var now **raises** instead of picking one. Sidecar declaration still works (so the deployed checkpoint and the gate scripts that rely on it are unaffected) and an explicit env declaration still works. 3 tests in `tests/test_inference_layout_contract.py`; full suite 337 passed. Magnitude of the effect on live `total_rtt` is being measured separately (`important/run_layout_confound_probe.sh`) — until that lands, the lottery table should be read as *draw + serving layout*, not draw alone. |
+
+| 2026-08-27 | `scripts_cosim/score_route_b_contention.py` (`decode_regret`) | **A decoder tie-break was being read as physics.** Equal surrogate scores are resolved by `tuple(sorted(plan.items()))` — platform id, unrelated to cost. On a degenerate feasible set the min-marginal surrogate ties the true optimum against strictly worse plans, so `r_exact_pct` can be nonzero on provably separable physics. Measured on the route_b pivot H0 separable control: of 16 firing datasets, **12 had the true optimum inside the argmin tie set** (`optimistic == 0` exactly). The module docstring asserted the opposite — "Nonzero constrained R_exact can be neither a decoder artifact nor an LS fitting artifact" — which is FALSE and is why the control's 0.155 was initially read as a physics finding. | **Additive fix, no value changed.** `decode_regret` is byte-identical and `r_exact_pct` unchanged; a new `r_exact_band` reports `{registered, optimistic, pessimistic, mean_tied, n_tied}`, with `score_dataset` raising if `band["registered"] != r_exact_pct` so the two cannot drift. `tie_set_indices` is shared with `route_b_coefficient_transfer.Cell.tie_band` — one tie definition in the program. Per SCREEN §4, `mean_tied` is the fair reading and `optimistic` an upper bound only, never a verdict. Docstring corrected. Byte-identity verified on the frozen stage-1 pilot: **zero** pre-existing values moved. Commit `2fa4b50`. |
+
+| 2026-08-27 | `scripts_cosim/score_route_b_contention.py` (`score_corpus` denominator) | **A greedy-decoder failure silently censored the exact-decoder statistic, and not neutrally.** `r_exact` was summarized over `[not no_feasible_rows and not greedy_stuck]`, but R_exact is a perfect-decoder bound that has nothing to do with the greedy. On the H0 control the `(n_feasible, greedy_stuck)` histogram is exactly `{(9,False):102, (16,True):101, (16,False):1}` — `greedy_stuck` is **perfectly confounded with the replica-config arm**, so one entire cell of the 2×2×3×17 design was dropped from every `r_exact` statistic and the published `frac_gt_1pct = 0.1553` was really "over the 9-feasible-row arm only". | Three denominators, each named for what legitimately censors it: `no_feasible_rows` censors everything, `greedy_stuck` censors **only** `r_greedy`, and `r_exact` plus every LS/repair statistic read over all feasible datasets. `n_exact_scored` / `n_greedy_scored` are reported so the denominator is legible rather than inferred. A `legacy_greedy_censored` block reproduces the pre-fix numbers **from the same run**, so a deviation is audited against one artifact instead of a commit message; `greedy_stuck_by_n_feasible` makes the confound self-evident in every future rung. Direction on the control @2.0: 0.1553 → 0.0784, i.e. the fix moved the number DOWN. No threshold moved. Commit `2fa4b50`. |
+
+| 2026-08-27 | `scripts_cosim/verify_route_b_scorer_agreement.py` (`demand_of`) | **The independent verifier ignored `demand_scale` while the scorer applied it.** `demand_of` read `memoryRequirements[ptype]` with no per-instance factor; the scorer applies `scale * memReq`. Inert on H0 (all scales 1.0) but **live on H1**, whose corpus already carries values like `[1.6047, 1.5150, 1.8383, 0.8348]`, so caps, feasibility and every repair diverge. Measured pre-fix on the real H1 corpus: `!! DISAGREEMENT ds_00000 alpha=2.0: R_exact scorer=19.1128 verifier=0.0`. Since the 1e-9 agreement is an **S0 VOID gate**, H1 would have voided on a defect in the checking tool rather than on its physics. | `load()` derives per-task_id scales independently (no scorer import — this file is the independent recomputation); `demand_of`/`node_of` take `scales` with **no default**, so all ~35 call sites had to break loudly at edit time rather than silently inherit a wrong value. Post-fix: **338 (dataset, alpha) cells agree to 1e-9 on H1**, and H0 still agrees on 408 — the fix is inert at unit scale, so H0's recorded numbers are untouched. Two call sites escaped the mechanical sweep and were found by a **static AST arity+slot audit**, not by testing (a newline hid one from the regex; seven more sat in a ctx-dict path) — same lesson as the argv-vs-shell `pipenv` sweep: grep both spellings, then verify structurally. Commit `90a3c1b`. |
+
+| 2026-08-27 | `src/executecosimulation.py:1893-1899` (skip-reason attribution) | **Skip reasons are mislabelled under `replica_overlap`.** An empty combination list is attributed to `{"reason": "too_many_combinations"}` on the assumption that "the zero-candidate infeasible case returned earlier". Under `replica_overlap` that assumption breaks: **uniqueness exhaustion also yields empty**. Measured on the H2 corpus — 102 datasets carry `{"reason": "too_many_combinations", "skip_threshold": 2000000}` while their pre-uniqueness product is **16**. Anyone reading those files goes hunting for a `MAX_PLACEMENT_COMBINATIONS_SKIP` problem that does not exist; the real cause is 4 tasks needing 4 distinct platforms when overlap leaves only 2. | **NOT FIXED** — recorded here so the next reader is not misled. See `ROUTE_B_PIVOT_LADDER_FINDINGS.md` §5.1. The distinguishing check is cheap: compare `prod(len(feasible_platforms))` against the threshold before attributing, and report uniqueness exhaustion separately. |
 
 New tool from the same work: **`scripts_cosim/audit_cache_live_divergence.py`** — measures
 cache↔live disagreement across every collection from `optimal_result.json` (+ SSC where
