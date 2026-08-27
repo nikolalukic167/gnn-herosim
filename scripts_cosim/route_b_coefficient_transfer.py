@@ -571,6 +571,31 @@ def krank_cols(cell: Cell, n_ranks: Optional[int] = None):
     return fn
 
 
+def krank_demand_cols(cell: Cell, n_ranks: Optional[int] = None):
+    """route_b env pivot (2026-08-27), --extended-blocks: krank_cols's exact rank x type
+    structure, but summing each placement's REAL per-instance demand instead of a unit
+    count — the demand-weighted analog the W1 plan item 2 calls for, padded/pooled
+    identically to krank_cols so the two stay directly comparable (same rank order, same
+    pad width, same call signature)."""
+    ds = cell.ds
+    feats = node_features(cell)
+    order = sorted(feats, key=lambda n: (feats[n]["cap"], feats[n]["mean_hop"], n))
+    if n_ranks is not None and len(order) > n_ranks:
+        raise RuntimeError(f"{ds.ds_dir}: {len(order)} nodes exceeds pad width {n_ranks}")
+    width = n_ranks if n_ranks is not None else len(order)
+    rank = {n: i for i, n in enumerate(order)}
+    types = sorted(set(ds.task_type_names))
+
+    def fn(plan):
+        cols = [0.0] * (width * len(types))
+        for task_id, placement in plan.items():
+            r = rank[ds.node_of(placement)]
+            k = types.index(ds.task_type_names[task_id])
+            cols[r * len(types) + k] += ds.demand[(task_id, placement)]
+        return cols
+    return fn
+
+
 def ablation(cells: List[Cell]) -> dict:
     """§9a's block attribution, which no committed code could reproduce until now.
 
@@ -659,9 +684,21 @@ def main() -> int:
                     help="extend the exploratory krank arms with the linkrank block "
                          "(ingress-route link co-use; route-C screen competitor). "
                          "Registered §9b cells are never affected.")
+    ap.add_argument("--extended-blocks", action="store_true",
+                    help="route_b env pivot (2026-08-27), W1 item 2: extend the "
+                         "exploratory krank pooled/per-dataset arms with hetdem+"
+                         "futureint (score_route_b_contention.t1_cols) AND add a "
+                         "second krank-shaped block of demand-weighted rank x type "
+                         "occupancy (krank_demand_cols), padded/pooled exactly as "
+                         "krank_cols. Registered §9a/§9b cells (A/B/C) are hardcoded "
+                         "and never affected by this flag.")
     args = ap.parse_args()
-    krank_pool_blocks = (POOLED_BLOCKS + ("linkrank",) if args.add_linkrank
-                         else POOLED_BLOCKS)
+    extra_t1_blocks = ()
+    if args.add_linkrank:
+        extra_t1_blocks += ("linkrank",)
+    if args.extended_blocks:
+        extra_t1_blocks += ("hetdem", "futureint")
+    krank_pool_blocks = POOLED_BLOCKS + extra_t1_blocks
 
     out = run(args.corpus, args.report, args.task_types, args.alpha)
     task_types_db = load_task_types(args.task_types)
@@ -680,7 +717,11 @@ def main() -> int:
     for cell in cells:
         cols = krank_cols(cell)
         combined = t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks)
-        merged = (lambda p, a=cols, b=combined: a(p) + b(p))
+        if args.extended_blocks:
+            demand_cols = krank_demand_cols(cell)
+            merged = (lambda p, a=cols, b=combined, c=demand_cols: a(p) + b(p) + c(p))
+        else:
+            merged = (lambda p, a=cols, b=combined: a(p) + b(p))
         repaired, beta_k = marginal_surrogate_regret(
             cell.ds, cell.marginal, cell.feasible, merged, return_beta=True)
         if repaired is None:
@@ -713,15 +754,24 @@ def main() -> int:
         # with the same node count. This is the follow-up the §9b VOID named. Still
         # exploratory — no verdict is read from it.
         n_ranks = max(len(node_features(c)) for c in cells)
+
+        def _pooled_row_fn(cell):
+            kc = krank_cols(cell, n_ranks)
+            bc = t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks)
+            if not args.extended_blocks:
+                return lambda p: kc(p) + bc(p)
+            dc = krank_demand_cols(cell, n_ranks)
+            # order MUST match pooled_names below: krank, krank_demand, then t1 blocks.
+            return lambda p: kc(p) + dc(p) + bc(p)
+
         if True:
             pooled_kr, bands_kr = [], []
             n = len(cells)
             X_parts, y_parts, owner = [], [], []
             for i, cell in enumerate(cells):
-                kc, bc = (krank_cols(cell, n_ranks),
-                          t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks))
+                row_fn = _pooled_row_fn(cell)
                 X_parts.append(np.array(
-                    [[marginal_sum(cell.marginal, p)] + kc(p) + bc(p)
+                    [[marginal_sum(cell.marginal, p)] + row_fn(p)
                      for p, _v in cell.ds.rows]))
                 y_parts.append(np.array([v for _p, v in cell.ds.rows]))
                 owner.append(np.full(len(cell.ds.rows), i))
@@ -735,9 +785,8 @@ def main() -> int:
             sb = beta[n:]
             full_bands_kr = []
             for cell in cells:
-                kc, bc = (krank_cols(cell, n_ranks),
-                          t1_cols(cell.ds, cell.caps, blocks=krank_pool_blocks))
-                Xf = np.array([[marginal_sum(cell.marginal, p)] + kc(p) + bc(p)
+                row_fn = _pooled_row_fn(cell)
+                Xf = np.array([[marginal_sum(cell.marginal, p)] + row_fn(p)
                                for p, _v in cell.feasible])
                 pred = Xf @ sb
                 rep = min(cell.r_base, decode_regret(cell.feasible, pred, cell.best))
@@ -753,12 +802,16 @@ def main() -> int:
             types0 = sorted(set(cells[0].ds.task_type_names))
             krank_names = [f"krank[r{r}|{k}]"
                            for r in range(n_ranks) for k in types0]
-            pooled_names = (["marginal_sum"] + krank_names
-                            + t1_column_names(cells[0].ds, blocks=krank_pool_blocks))
+            pooled_names = ["marginal_sum"] + krank_names
+            if args.extended_blocks:
+                pooled_names += [f"krank_demand[r{r}|{k}]"
+                                 for r in range(n_ranks) for k in types0]
+            pooled_names += t1_column_names(cells[0].ds, blocks=krank_pool_blocks)
             out["krank_pooled_exploratory"] = {
                 "note": "ONE coefficient set over identity-free rank-indexed occupancy + "
                         "the dim36crk set — the follow-up the §9b VOID named. Exploratory.",
                 "blocks": list(krank_pool_blocks),
+                "extended_blocks": bool(args.extended_blocks),
                 "n_ranks": int(n_ranks),
                 "ds": [cell.ds_dir.name for cell in cells],
                 "fractions": pooled_kr,

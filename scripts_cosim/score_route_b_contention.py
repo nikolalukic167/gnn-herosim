@@ -53,7 +53,7 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -138,6 +138,31 @@ def load_task_type_names(ds_dir: Path) -> List[str]:
     return names
 
 
+def load_demand_scales(ds_dir: Path) -> List[float]:
+    """Per-task_id demand_scale (route_b env pivot W2), same id-assignment order as
+    load_task_type_names. An event's application.demand_scale is keyed by task TYPE
+    name (generate_gnn_datasets_fast.py's generate_workload_templates writes one key
+    per DAG task type per event, not per task_id, since task_id is a positional
+    derivative of static_order). Absent key -> scale 1.0, so a dataset generated
+    before this option existed (or without the demand_spread grid key) reads back
+    byte-identical demand = 1.0 * type-table value everywhere."""
+    from graphlib import TopologicalSorter
+    with open(ds_dir / "workload.json") as fh:
+        workload = json.load(fh)
+    scales: List[float] = []
+    for event in workload["events"]:
+        dag = event["application"]["dag"]
+        per_type = event["application"].get("demand_scale") or {}
+        if isinstance(dag, list):
+            names = dag
+        elif isinstance(dag, dict):
+            names = list(TopologicalSorter(dag).static_order())
+        else:
+            raise RuntimeError(f"{ds_dir}: unrecognised dag shape {type(dag)}")
+        scales.extend(float(per_type.get(name, 1.0)) for name in names)
+    return scales
+
+
 def load_task_sources(ds_dir: Path) -> List[str]:
     """Submitting client node per task_id, same id-assignment order as
     load_task_type_names. Every task of an event ingresses from that event's
@@ -216,10 +241,15 @@ class Dataset:
         self.task_types_db = task_types_db
         self.dag_edges = load_dag_edges(ds_dir)
         self.task_sources = load_task_sources(ds_dir)
+        self.demand_scales = load_demand_scales(ds_dir)
         self.routes, self.links, self.network_maps = load_network(ds_dir)
         self._route_cache: Dict[Tuple[str, str], Tuple[int, float, float]] = {}
         self._ingress_cache: Dict[Tuple[str, str], List[str]] = {}
-        # Per-task demand for every placement that appears in the sweep.
+        # Per-task demand for every placement that appears in the sweep. demand =
+        # demand_scale[task_id] * type-table value; demand_scale defaults to 1.0
+        # everywhere a dataset carries no application.demand_scale (route_b env pivot
+        # W2), so this is byte-identical to the pre-W2 formula on every existing
+        # corpus.
         self.demand: Dict[Tuple[int, Tuple[int, int]], float] = {}
         for plan, _v in self.rows:
             for task_id, placement in plan.items():
@@ -232,7 +262,8 @@ class Dataset:
                     raise RuntimeError(
                         f"{ds_dir}: no memoryRequirements[{ttype}][{ptype}] — refusing "
                         "to invent a demand")
-                self.demand[(task_id, placement)] = float(mem[ptype])
+                scale = self.demand_scales[task_id]
+                self.demand[(task_id, placement)] = scale * float(mem[ptype])
 
     def _resolve(self, placement: Tuple[int, int]) -> Tuple[str, str]:
         pid = placement[1]
@@ -245,16 +276,47 @@ class Dataset:
     def node_of(self, placement: Tuple[int, int]) -> str:
         return self._resolve(placement)[0]
 
-    def node_caps(self, alpha: Optional[float]) -> Optional[Dict[str, float]]:
-        """cap_node = alpha * max single demand among candidates on that node."""
+    def node_caps(self, alpha: Optional[float],
+                  cap_mode: Union[str, Dict[str, float]] = "alpha_max"
+                  ) -> Optional[Dict[str, float]]:
+        """cap_node(alpha_max) [DEFAULT, unchanged] = alpha * MAX single demand among
+        candidates on that node — the sweep's own max auto-scales the cap with
+        whatever demands happen to appear, which is exactly what lets per-instance
+        demand heterogeneity (W2) silently widen every cap and erase the scarcity a
+        rung was built to create (score_route_b_contention.py:248-257's own note).
+
+        Two independent-tightness alternatives (route_b env pivot W2), both requiring
+        `alpha` to be non-None like the default:
+          cap_mode="alpha_mean": alpha * MEAN single demand among candidates on that
+            node — a fixed reference that does not track the sweep's own extreme.
+          cap_mode={"absolute": x}: a flat per-node budget x, alpha ignored (still
+            required non-None so the caller's None=unconstrained convention is
+            unambiguous — an absolute cap under alpha=None would be a silent behavior
+            change for every existing None-alpha caller).
+
+        A node with zero candidates observed carries no entry in ANY mode, preserving
+        the existing "absent = uncapped" convention plan_feasible/greedy/t1_cols share.
+        """
         if alpha is None:
             return None
-        max_demand: Dict[str, float] = {}
+        by_node: Dict[str, List[float]] = {}
         for (task_id, placement), demand in self.demand.items():
             node = self.node_of(placement)
-            if demand > max_demand.get(node, 0.0):
-                max_demand[node] = demand
-        return {node: alpha * m for node, m in max_demand.items()}
+            by_node.setdefault(node, []).append(demand)
+        # A node whose demands are ALL zero gets no entry at all (uncapped), matching
+        # the original alpha_max convention exactly: `if demand > max_demand.get(node,
+        # 0.0)` never registers a 0.0-only node, so caps.get(n, inf) treats it as
+        # unbounded downstream (t1_cols, plan_feasible, the greedy). Preserved across
+        # every cap_mode so switching modes never flips which nodes are capped.
+        by_node = {node: ds for node, ds in by_node.items() if max(ds) > 0.0}
+        if cap_mode == "alpha_max":
+            return {node: alpha * max(ds) for node, ds in by_node.items()}
+        if cap_mode == "alpha_mean":
+            return {node: alpha * (sum(ds) / len(ds)) for node, ds in by_node.items()}
+        if isinstance(cap_mode, dict) and "absolute" in cap_mode:
+            budget = float(cap_mode["absolute"])
+            return {node: budget for node in by_node}
+        raise ValueError(f"{self.ds_dir}: unknown cap_mode {cap_mode!r}")
 
     def plan_feasible(self, plan: Plan, caps: Optional[Dict[str, float]]) -> bool:
         if caps is None:
@@ -597,14 +659,26 @@ def k_integer_cols(ds: Dataset):
 # order statistics of per-link co-use over the plan's ingress routes (client -> executing
 # node), i.e. the honest pointwise competitor for a link-contention environment. It is
 # identity-free by construction (counts, not link names), so it pools across datasets.
+#
+# `hetdem` and `futureint` (route_b env pivot, 2026-08-27) are opt-in extensions for the
+# per-instance-demand-heterogeneous environment (W1 of the pivot plan): `hetdem` renders
+# the existing count blocks' demand-weighted sufficient statistics (real per-instance
+# demand instead of unit counts) and `futureint` renders the (dataset, prefix)-expressible
+# future-interaction quantities under the fixed topological decode order. Neither is in
+# T1_REGISTERED_BLOCKS, T1_BLOCKS (unchanged — the frozen §9b/§9c "every known block"
+# superset stays exactly kint+quad+cap+hop+coupling+linkrank so `t1lnk` and the block-
+# partition fixture stay byte-identical) or the default of t1_cols/t1_column_names;
+# T1_EXTENDED_BLOCKS is the new pivot superset that adds them.
 T1_REGISTERED_BLOCKS: Tuple[str, ...] = ("kint", "quad", "cap", "hop", "coupling")
 T1_BLOCKS: Tuple[str, ...] = T1_REGISTERED_BLOCKS + ("linkrank",)
+T1_EXTENDED_BLOCKS: Tuple[str, ...] = T1_BLOCKS + ("hetdem", "futureint")
 
 
 def _check_blocks(blocks: Sequence[str]) -> None:
-    unknown = [b for b in blocks if b not in T1_BLOCKS]
+    unknown = [b for b in blocks if b not in T1_EXTENDED_BLOCKS]
     if unknown:
-        raise ValueError(f"unknown T1 block(s) {unknown}; known blocks {list(T1_BLOCKS)}")
+        raise ValueError(
+            f"unknown T1 block(s) {unknown}; known blocks {list(T1_EXTENDED_BLOCKS)}")
     if not blocks:
         raise ValueError("empty T1 block set — a repair with no columns is just the "
                          "unrepaired marginal surrogate; ask for that explicitly")
@@ -619,7 +693,7 @@ def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_REGISTERED_BLOCKS) -
     """
     _check_blocks(blocks)
     names: List[str] = []
-    for block in T1_BLOCKS:
+    for block in T1_EXTENDED_BLOCKS:
         if block not in blocks:
             continue
         if block == "kint":
@@ -636,6 +710,13 @@ def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_REGISTERED_BLOCKS) -
             names.extend(["link_couse_top1", "link_couse_top2", "link_couse_top3",
                           "link_couse_top4", "link_excess", "link_excess_core",
                           "link_shared_links", "link_shared_core_links"])
+        elif block == "hetdem":
+            names.extend(f"hd_quad[{k}]" for k in sorted(set(ds.task_type_names)))
+            names.extend(["hd_load_over_cap", "hd_overcap_load",
+                          "hd_excess_share", "hd_node_load_l2"])
+        elif block == "futureint":
+            names.extend(["future_demand_interaction", "future_count_interaction",
+                          "future_overcap_pressure", "future_max_single_interaction"])
     return names
 
 
@@ -655,16 +736,36 @@ def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_REGI
     pooled cross-dataset fit, which cannot carry the dataset-specific kint vocabulary.
     The opt-in `linkrank` block (ingress-route per-link co-use order statistics) is
     NOT in the default — asking for it is a deliberate act, so no registered statistic
-    silently changes meaning.
+    silently changes meaning. Also opt-in, from the route_b env pivot (2026-08-27):
+    `hetdem` (demand-weighted analogs of quad/cap/1int, real per-instance demand
+    instead of unit counts — see the fixture proving it is redundant with quad+cap
+    on a uniform-demand rig) and `futureint` (per-step candidate-node x not-yet-
+    committed-task-demand interaction under the fixed topological decode order — the
+    honest pointwise-expressible lookahead, never the future tasks' actual placement).
     """
     _check_blocks(blocks)
-    want = {block: (block in blocks) for block in T1_BLOCKS}
+    want = {block: (block in blocks) for block in T1_EXTENDED_BLOCKS}
     kint = k_integer_cols(ds) if want["kint"] else None
     type_order = sorted(set(ds.task_type_names))
     parents_of: Dict[int, List[int]] = {}
     for parent, child in ds.dag_edges:
         parents_of.setdefault(child, []).append(parent)
     need_parents = want["hop"] or want["coupling"]
+
+    # futureint precompute: per (task, node) the MINIMUM demand that task would carry
+    # if placed on that node, over its own candidate set only — a static per-task
+    # eligibility fact, independent of any plan. Node set is every node hosting ANY
+    # candidate in the sweep (ds.demand's own node vocabulary), so a task ineligible
+    # on a node simply has no entry (treated as demand 0 / not-eligible below).
+    if want["futureint"]:
+        decode_order = topological_task_order(ds)
+        step_of = {t: i for i, t in enumerate(decode_order)}
+        task_node_min_demand: Dict[int, Dict[str, float]] = {}
+        for (task_id, placement), d in ds.demand.items():
+            node = ds.node_of(placement)
+            slot = task_node_min_demand.setdefault(task_id, {})
+            if node not in slot or d < slot[node]:
+                slot[node] = d
 
     def fn(plan: Plan) -> List[float]:
         occ: Dict[str, Dict[str, int]] = {}
@@ -733,6 +834,67 @@ def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_REGI
                 float(sum(1 for lk, c in couse.items()
                           if c >= 2 and is_core_link(lk))),
             ]
+        if want["hetdem"]:
+            # Demand-weighted analogs of the quad/cap count columns, real per-instance
+            # demand in place of unit counts. Under UNIFORM demand d (every candidate
+            # placement demand == d, load[n] = d*tot[n]), every column here is a fixed
+            # multiple of an existing count-block column, hence gains NO new closure
+            # over quad+cap on a uniform-demand rig:
+            #   hd_quad[k]        = d * quad[k]
+            #   hd_load_over_cap  = d * load_over_cap      (load[n]^2/cap = d*tot[n]*load[n]/cap)
+            #   hd_overcap_load   = d * overcap_tasks       (indicator load[n]>cap[n] is
+            #                                                 identical to tot[n]-weighted; the
+            #                                                 indicator itself doesn't depend on
+            #                                                 which of load/tot triggered it)
+            #   hd_excess_share   = d * one_integer_cols     (sum(tot[n]-1) for co-resident nodes)
+            #   hd_node_load_l2   = d^2 * sum_k quad[k]      (sum_n tot[n]^2 = sum_k quad[k]
+            #                                                 identically, any plan)
+            # Verified exactly: test_route_b_env_pivot_fixtures.py.
+            cols += [float(sum(load[n] * occ[n].get(k, 0) for n in occ))
+                     for k in type_order]
+            cap_of = lambda n: caps.get(n, math.inf)  # noqa: E731
+            cols.append(sum(load[n] * load[n] / cap_of(n) for n in occ))
+            cols.append(float(sum(load[n] for n in occ if load[n] > cap_of(n) + EPS)))
+            excess_share = 0.0
+            for n in occ:
+                if tot[n] > 1:
+                    min_single = min(ds.demand[(t, p)] for t, p in plan.items()
+                                     if ds.node_of(p) == n)
+                    excess_share += load[n] - min_single
+            cols.append(excess_share)
+            cols.append(float(sum(load[n] * load[n] for n in occ)))
+        if want["futureint"]:
+            # Future-interaction columns: per decode step, the CHOSEN node's static
+            # interaction with the not-yet-committed tasks' eligibility+demand — never
+            # where those future tasks actually land (that would be leaking the label).
+            # Plain aggregate future demand alone is CONSTANT across the sweep (every
+            # plan commits the same task set in the same order) and is absorbed by the
+            # intercept; only the candidate-node x future-demand INTERACTION varies
+            # with the plan, which is what makes these columns non-vacuous.
+            fdi = fci = fop = fmax = 0.0
+            for step, task_id in enumerate(decode_order):
+                node = ds.node_of(plan[task_id])
+                future_tasks = decode_order[step + 1:]
+                future_demand_here = 0.0
+                future_count_here = 0
+                future_max_here = 0.0
+                for ft in future_tasks:
+                    d = task_node_min_demand.get(ft, {}).get(node)
+                    if d is None:
+                        continue
+                    future_demand_here += d
+                    future_count_here += 1
+                    if d > future_max_here:
+                        future_max_here = d
+                fdi += future_demand_here
+                fci += float(future_count_here)
+                fmax += future_max_here
+                cap = caps.get(node, math.inf)
+                load_so_far = sum(
+                    ds.demand[(t2, plan[t2])]
+                    for t2 in decode_order[:step + 1] if ds.node_of(plan[t2]) == node)
+                fop += max(0.0, load_so_far + future_demand_here - cap)
+            cols += [fdi, fci, fop, fmax]
         return cols
     return fn
 
@@ -741,8 +903,9 @@ def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_REGI
 # Per-dataset scoring
 # ---------------------------------------------------------------------------
 
-def score_dataset(ds: Dataset, alpha: Optional[float]) -> dict:
-    caps = ds.node_caps(alpha)
+def score_dataset(ds: Dataset, alpha: Optional[float],
+                  cap_mode: Union[str, Dict[str, float]] = "alpha_max") -> dict:
+    caps = ds.node_caps(alpha, cap_mode=cap_mode)
     feasible_rows = [(p, v) for p, v in ds.rows if ds.plan_feasible(p, caps)]
     out: Dict[str, Any] = {
         "alpha": alpha,
@@ -798,6 +961,14 @@ def score_dataset(ds: Dataset, alpha: Optional[float]) -> dict:
         # rungs only — the capacity-normalized columns are undefined at alpha=inf.
         repair_sets.append(("t1", t1_cols(ds, caps)))
         repair_sets.append(("t1lnk", t1_cols(ds, caps, blocks=T1_BLOCKS)))
+        # route_b env pivot (2026-08-27, W1): the extended honest pointwise
+        # competitor. t1hd = registered T1 + demand-weighted sufficient statistics;
+        # t1x = t1hd + futureint + linkrank, the full extended-T1 arm the pivot
+        # screen reads. Both opt-in additions to the existing arm set — no existing
+        # key's value changes.
+        repair_sets.append(("t1hd", t1_cols(
+            ds, caps, blocks=T1_REGISTERED_BLOCKS + ("hetdem",))))
+        repair_sets.append(("t1x", t1_cols(ds, caps, blocks=T1_EXTENDED_BLOCKS)))
     for name, cols in repair_sets:
         repaired = marginal_surrogate_regret(ds, marginal, feasible_rows, cols)
         if repaired is None:
@@ -840,7 +1011,8 @@ def summarize(values: List[float]) -> dict:
 
 
 def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
-                 alphas: List[Optional[float]], limit: Optional[int] = None) -> dict:
+                 alphas: List[Optional[float]], limit: Optional[int] = None,
+                 cap_mode: Union[str, Dict[str, float]] = "alpha_max") -> dict:
     ds_dirs = sorted(d for d in corpus.glob("ds_*") if d.is_dir())
     if limit:
         ds_dirs = ds_dirs[:limit]
@@ -857,7 +1029,7 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
             failures.append(f"{ds_dir.name}: {exc}")
             raise
         for alpha in alphas:
-            all_results[str(alpha)].append(score_dataset(ds, alpha))
+            all_results[str(alpha)].append(score_dataset(ds, alpha, cap_mode=cap_mode))
 
     for alpha in alphas:
         results = all_results[str(alpha)]
@@ -936,6 +1108,10 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="write the frozen report JSON here")
     ap.add_argument("--include-per-dataset", action="store_true",
                     help="keep per-dataset rows in the report (large)")
+    ap.add_argument("--cap-mode", default="alpha_max",
+                    help="route_b env pivot W2: 'alpha_max' (default, unchanged) | "
+                         "'alpha_mean' | an absolute per-node budget as a bare number "
+                         "(interpreted as {'absolute': x}). See Dataset.node_caps.")
     args = ap.parse_args()
 
     task_types_db = load_task_types(Path(args.task_types))
@@ -946,10 +1122,21 @@ def main() -> int:
     if None not in alphas:
         alphas.append(None)  # the unconstrained arm is always scored (sanity anchor)
 
+    cap_mode: Union[str, Dict[str, float]]
+    if args.cap_mode in ("alpha_max", "alpha_mean"):
+        cap_mode = args.cap_mode
+    else:
+        try:
+            cap_mode = {"absolute": float(args.cap_mode)}
+        except ValueError:
+            raise SystemExit(
+                f"--cap-mode: unrecognised value {args.cap_mode!r}; expected "
+                "'alpha_max', 'alpha_mean', or a number")
+
     reports = []
     for corpus in args.corpus:
         rep = score_corpus(Path(corpus), task_types_db, args.objective, alphas,
-                           args.limit)
+                           args.limit, cap_mode=cap_mode)
         reports.append(rep)
         print(f"\n=== {corpus}  ({rep['n_datasets']} datasets, {args.objective}) ===")
         header = (f"{'alpha':>6} {'feas_rows':>9} {'cw_infeas':>9} {'stuck':>5} "
