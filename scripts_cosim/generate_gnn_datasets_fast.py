@@ -489,6 +489,51 @@ ROUTE_B_PIVOT_H3_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h3",
 }
 
+# PROBES, NOT REGISTERED RUNGS (route_b_env_pivot_v1, 2026-08-27). Two 2-seed grids that
+# measure whether H3 can GENERATE at all, before any amendment names a replica_configs
+# value for it. Both keep the full 2 conn_probs x 2 replica_configs x 3 queue_dists shape
+# so every replica_config arm is covered -- a probe that reaches only one arm is the
+# --max-datasets trap (route-b-preflight §6).
+#
+# The arithmetic they exist to check: under replica_overlap every task type draws from ONE
+# pool of per_server x n_hosting_nodes slots (server_node_counts=[4] x
+# replica_server_percentage=0.5 => 2 hosting nodes), and
+# generate_brute_force_placement_combinations requires GLOBALLY distinct replicas across
+# tasks (executecosimulation.py, "unique replicas (no two tasks share the same replica)").
+# H3 is dag_instances=2, i.e. 8 tasks (two instances of the same 4 task types) drawing on
+# that same pool, so it needs a pool of >= 8:
+#
+#   per_server | pool | H2 (4 tasks) | H3 (8 tasks)
+#            1 |    2 | 0 exhausted  | 0
+#            2 |    4 | 24 = 4P4     | 0     <- H3's registered arms are BOTH here
+#            3 |    6 | 360 = 6P4    | 0
+#            4 |    8 | 1680 = 8P4   | 40320 = 8P8
+#
+# H2's measured 360/1680 sweeps confirm the pool law on the 4-task side. If it holds at 8
+# tasks then H3 as REGISTERED generates 0/204 -- a latent VOID-GENERATION nobody has
+# measured -- and the H2 wide-arm pair rescues only its second arm. Measure, do not assume.
+ROUTE_B_PIVOT_H3_GENPROBE_REGISTERED_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H3_GRID,
+    "seeds": [3301, 3302],
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h3_genprobe_registered",
+}
+
+# The wide candidate. (0,4) is the smallest per_server whose pool (8) can seat 8 tasks at
+# all; (0,5) is the next one up and is here to have its cost MEASURED rather than asserted
+# infeasible (pool 10 => 10P8 = 1,814,400 rows per dataset). Run with
+# MAX_PLACEMENT_COMBINATIONS_SKIP well above (2 x per_server)^8 so a skip means uniqueness
+# exhaustion, not the threshold -- the threshold tests the PRE-uniqueness product
+# (herosim-cosim-skip-threshold-is-pre-uniqueness).
+ROUTE_B_PIVOT_H3_GENPROBE_WIDE_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H3_GRID,
+    "replica_configs": [
+        (0, 4, 0.7, 0.5),
+        (0, 5, 0.7, 0.5),
+    ],
+    "seeds": [3301, 3302],
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h3_genprobe_wide",
+}
+
 # netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
 #
 # The first matched pilot ran link_contention_v1 on the stock shallow_v1 grid and all three
@@ -851,6 +896,8 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_b_pivot_h2_widearm_probe": ROUTE_B_PIVOT_H2_WIDEARM_PROBE_GRID,
     "route_b_pivot_h2": ROUTE_B_PIVOT_H2_GRID,
     "route_b_pivot_h3": ROUTE_B_PIVOT_H3_GRID,
+    "route_b_pivot_h3_genprobe_registered": ROUTE_B_PIVOT_H3_GENPROBE_REGISTERED_GRID,
+    "route_b_pivot_h3_genprobe_wide": ROUTE_B_PIVOT_H3_GENPROBE_WIDE_GRID,
 }
 
 
