@@ -11,7 +11,9 @@ co-simulation dataset generation, graph-cache prep, and GNN/MLP training.
 
 ## Cluster facts
 
-- Host: `cluster.datalab.tuwien.ac.at`, reachable simply as `datalab` (SSH alias assumed configured).
+- Host: **`ssh datalab`** — the alias is configured in `~/.ssh/config` (it resolves to
+  `cluster.datalab.tuwien.ac.at` with the right user and key). Always use the alias; the
+  FQDN means supplying `-i` and the user by hand for no benefit.
 - Remote repo root: `/home/nikola.lukic/gnn-herosim`
 - Environment manager: **micromamba**, NOT pipenv. Any command run remotely outside an
   sbatch script needs:

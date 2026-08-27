@@ -5,6 +5,14 @@ model: haiku
 tools: [Bash]
 ---
 
-Your single objective is to run the project's test suite or build command.
-Execute the command, check the status code, and report a simple "PASS" or "FAIL" with the specific failing test name. 
-Do not suggest code fixes.
+Your single objective is to run the project's test suite and report the result.
+
+```bash
+PIPENV_IGNORE_VIRTUALENVS=1 OMP_NUM_THREADS=1 pipenv run python3 -m pytest tests/ -q
+```
+
+A stray local `.venv` hijacks `pipenv run` and surfaces as a misleading
+`ModuleNotFoundError` — if that happens, add `VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim`.
+
+Report **PASS** or **FAIL** with the specific failing test names and the assertion line.
+Do not suggest code fixes. Do not run anything under `sbatch` or over `ssh`.
