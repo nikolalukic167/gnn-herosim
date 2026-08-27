@@ -62,13 +62,16 @@ def test_h0_is_config_only_and_carries_no_new_grid_keys():
 
 def test_h1_adds_demand_spread_only():
     """H1 = H0 + per-instance demand heterogeneity. Nothing else changes relative to
-    H0 (same scarcity substrate, same seeds, no overlap yet)."""
+    H0 (same scarcity substrate, no overlap yet) EXCEPT seeds: §3 registers a fresh,
+    previously-unused seed block per rung (H0: 3001-3017, H1: 3101-3117, ...), so seeds
+    are deliberately NOT shared across rungs."""
     assert ROUTE_B_PIVOT_H1_GRID["demand_spread"] == {
         "dist": "uniform", "params": [0.5, 2.0]}
     assert "replica_overlap" not in ROUTE_B_PIVOT_H1_GRID
     for key in ("server_node_counts", "replica_configs", "replica_server_percentage",
-               "seeds", "queue_distributions"):
+               "queue_distributions"):
         assert ROUTE_B_PIVOT_H1_GRID[key] == ROUTE_B_PIVOT_H0_GRID[key]
+    assert ROUTE_B_PIVOT_H1_GRID["seeds"] != ROUTE_B_PIVOT_H0_GRID["seeds"]
 
 
 def test_h2_adds_replica_overlap_on_top_of_h1():

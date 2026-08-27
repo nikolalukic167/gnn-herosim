@@ -389,6 +389,11 @@ ROUTE_B_PIVOT_H0_GRID: GridPreset = {
         (0, 2, 0.7, 0.5),
     ],
     "replica_server_percentage": 0.5,
+    # ROUTE_B_ENV_PIVOT_SCREEN.md §3: fresh seed block, none previously used. Without
+    # this override the preset silently inherited ROUTE_B_PILOT_V1_GRID's 901-917 (the
+    # frozen pilot's own seeds) via **ROUTE_B_PILOT_V1_GRID above -- caught in pre-flight
+    # 2026-08-27, before any rung was scored (see LINEAGES route_b_env_pivot_v1 outcome).
+    "seeds": list(range(3001, 3018)),
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h0",
 }
 # Paired separable control (B0-analog): HEROSIM_DATA_LOCALITY / HEROSIM_OUTPUT_SIZE_BYTES
@@ -407,6 +412,7 @@ ROUTE_B_PIVOT_H0_GRID: GridPreset = {
 ROUTE_B_PIVOT_H1_GRID: GridPreset = {
     **ROUTE_B_PIVOT_H0_GRID,
     "demand_spread": {"dist": "uniform", "params": [0.5, 2.0]},
+    "seeds": list(range(3101, 3118)),  # §3: fresh block, distinct from H0's 3001-3017
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h1",
 }
 # Registered scoring parameter for this rung and H2/H3 below: --cap-mode alpha_mean.
@@ -417,6 +423,7 @@ ROUTE_B_PIVOT_H1_GRID: GridPreset = {
 ROUTE_B_PIVOT_H2_GRID: GridPreset = {
     **ROUTE_B_PIVOT_H1_GRID,
     "replica_overlap": True,
+    "seeds": list(range(3201, 3218)),  # §3: fresh block, distinct from H0/H1
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h2",
 }
 
@@ -446,6 +453,7 @@ ROUTE_B_PIVOT_H2_GRID: GridPreset = {
 ROUTE_B_PIVOT_H3_GRID: GridPreset = {
     **ROUTE_B_PIVOT_H2_GRID,
     "dag_instances": 2,
+    "seeds": list(range(3301, 3318)),  # §3: fresh block, distinct from H0/H1/H2
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h3",
 }
 
