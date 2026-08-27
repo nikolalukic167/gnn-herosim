@@ -6,7 +6,7 @@
 > chat message. It becomes live only when the user signs it off **and** a LINEAGES entry
 > records it at this document's commit SHA. Until then the registered semantics are
 > exactly those of `screen-preregistration.md` @ `019bdcb` as amended by
-> `screen-amendment-1.md` @ `3719aad`.
+> `screen-amendment-1.md` @ `3719aad`. This draft was written at `f407f91`.
 
 **Proposed scope: the DECODER that produces `r_greedy` and `greedy_stuck`, only.** No bar
 value changes. No rung, α ladder, seed block, grid, corpus or reading rule changes. S0's

@@ -193,7 +193,7 @@ arm it was measured on.
    16-row arm, so `n_exact_scored = 134` is 102-of-102 on one arm and 32-of-102 on the
    other, and `n_greedy_scored = 34` is `{16: 31, 64: 3}`. Now reported as `censoring_by_arm`
    in every rung's artifact (additive; **0 pre-existing values moved**, byte-identity
-   verified against the frozen `route_b_pivot_h0_rtt.json`).
+   verified against the frozen `route_b_pivot_h0_rtt.json`; commit `f407f91`).
 4. **H1's paired separable control was never generated.** `gnn_datasets_route_b_pivot_h1_ctrl`
    is an **empty directory**. Moot while H1 is VOID-INFEASIBLE, but SCREEN §3 requires it and
    S0 reads a bar on it, so it must exist before H1 is ever read. Nothing in the record said
@@ -203,7 +203,8 @@ arm it was measured on.
 *unfixed* above is now fixed — `classify_empty_combinations` compares the pre-uniqueness
 product against the threshold before attributing, names `uniqueness_exhausted` separately,
 refuses to guess (`unknown`, logged loudly), and carries diagnostics so the census is
-legible. 9 tests, led by the `replica_overlap` arm the original assumption never saw. The
+legible (commit `f407f91`). 9 tests, led by the `replica_overlap` arm the original
+assumption never saw. The
 102 H2 `skip_reason.json` files already on disk are left as the old engine wrote them.
 
 **Recommendation, for sign-off — NOT taken.** `docs/lineages/route_b_env_pivot_v1/screen-amendment-2.md`
