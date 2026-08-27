@@ -2,7 +2,7 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md)
 
-**Outcome.** Current work. Screen registered 2026-08-27; **no ladder rung is readable yet** — H0/H1 VOID-INFEASIBLE, H2 VOID-GENERATION, defeated by configuration and decoder artifacts before their bars are consulted.
+**Outcome.** Current work. Screen registered 2026-08-27; **no ladder rung is readable yet** — H0/H1 VOID-INFEASIBLE, H2 VOID-GENERATION. Measured 2026-08-27: `greedy_stuck` is **decoder myopia on every rung** (backtracking rescues 458/458), not the configuration artifact §3 read it as. AMENDMENT 2 is drafted and **awaiting sign-off**.
 
 **Related:** [route_b_v1](route_b_v1.md) · [route_a_v1](route_a_v1.md)
 
@@ -10,7 +10,9 @@
 
 **Attachment:** [AMENDMENT 1 — the S0 separable-control definition](route_b_env_pivot_v1/screen-amendment-1.md)
 
-**Attachment:** [ladder feasibility findings (2026-08-27)](route_b_env_pivot_v1/ladder-findings.md)
+**Attachment:** [ladder feasibility findings (2026-08-27)](route_b_env_pivot_v1/ladder-findings.md) — **§9 supersedes §3 and §4.1**
+
+**Attachment:** [AMENDMENT 2 — the decoder behind `greedy_stuck`](route_b_env_pivot_v1/screen-amendment-2.md) — **DRAFT, NOT SIGNED OFF**
 
 > **Split note.** This node was carved out of a single 4,995-line `LINEAGES.md` on
 > 2026-08-27; the section bodies below are byte-for-byte as written. An *above* / *below*
@@ -138,7 +140,8 @@ tie-break artifact and the `r_exact` greedy-censored denominator (both `2fa4b50`
 additive/auditable, byte-identity verified on the frozen pilot); the verifier's missing
 `demand_scale` (`90a3c1b`), which would have voided H1's S0 gate for a spurious reason and
 was caught only because Phase 4 was run before Phase 6. One defect is recorded **unfixed**:
-skip reasons are mislabelled `too_many_combinations` under `replica_overlap`.
+skip reasons are mislabelled `too_many_combinations` under `replica_overlap`. *(Fixed later
+the same day — see the SECOND PASS entry below and GATE TOOLS.)*
 
 **AMENDMENT 1** (`docs/lineages/route_b_env_pivot_v1/screen-amendment-1.md`, commit `3719aad`) is signed off
 and landed: the S0 control definition gains `HEROSIM_STORAGE_NEUTRAL=1`, because the
@@ -154,6 +157,63 @@ measurement has already **ruled out** are relaxing α and raising
 `replica_server_percentage`. The best-evidenced remaining option is a backtracking decoder
 (100% rescue), which would make `greedy_stuck` measure the environment rather than the
 decoder.
+
+
+---
+
+#### route_b_env_pivot_v1 — SECOND PASS (2026-08-27, later session): three findings were arm-scoped
+
+**Full detail: `docs/lineages/route_b_env_pivot_v1/ladder-findings.md` §9.** **No bar,
+threshold, grid, α ladder or reading rule has been changed by any of this work either.**
+S1–S4 remain unread on every rung; no rung's status changes.
+
+**Preflight, all green.** Full suite 326 passing at `8acfac1` (338 after this session's
+tests). Independent verifier agrees to **1e-9 on every cell**: H0 612 cells / 1,326 repair
+values, H1 542 / 1,046 — re-run after every edit below and still green. H2 was **not**
+verified, deliberately: it is VOID-GENERATION and its half-corpus must not be read.
+
+**The session's rule, applied to this document's own findings:** every number states the
+arm it was measured on.
+
+1. **`greedy_stuck` is decoder myopia on EVERY rung — supersedes §3 and §4.1.** §4.1's
+   100% backtracking rescue was measured on H2 only, and within H2 on the 102 datasets that
+   generated — one arm. Extended over identical candidate sets, demands, caps and option
+   ordering: **H0 95/95 and 87/87, H1 100/100 and 83/83** — 365/365, on top of H2's 93/93,
+   for **458/458 across the ladder**. Every stranded dataset had a feasible plan in its own
+   enumerated sweep. So `greedy_stuck` has never measured the environment on any rung, and
+   it is **logically redundant** with `no_feasible_rows`.
+2. **§3's causal claim holds at α=3.0 and fails at H1's registered primary α=2.0.** "No
+   dataset with zero confined tasks is ever stuck" is true on H0 at both α and on H1 at
+   α=3.0, and false at H1 α=2.0, where **71 of 102 zero-confinement datasets are stuck** —
+   H1's `alpha_mean` caps stop tracking the sweep max, so the 16-row arm's caps bind with no
+   confinement at all. Same defect class on the α axis instead of the arm axis.
+3. **`no_feasible_rows` is confounded with the arm and had no breakdown reporting it** —
+   the stricter censor, one counter over from the greedy denominator fixed earlier the same
+   day. At H1 α=2.0 all **70/70** censored datasets are in the 64-row arm and **0** in the
+   16-row arm, so `n_exact_scored = 134` is 102-of-102 on one arm and 32-of-102 on the
+   other, and `n_greedy_scored = 34` is `{16: 31, 64: 3}`. Now reported as `censoring_by_arm`
+   in every rung's artifact (additive; **0 pre-existing values moved**, byte-identity
+   verified against the frozen `route_b_pivot_h0_rtt.json`).
+4. **H1's paired separable control was never generated.** `gnn_datasets_route_b_pivot_h1_ctrl`
+   is an **empty directory**. Moot while H1 is VOID-INFEASIBLE, but SCREEN §3 requires it and
+   S0 reads a bar on it, so it must exist before H1 is ever read. Nothing in the record said
+   it was missing.
+
+**Gate-tool defect fixed** (details in GATE TOOLS): the skip-reason mislabelling recorded
+*unfixed* above is now fixed — `classify_empty_combinations` compares the pre-uniqueness
+product against the threshold before attributing, names `uniqueness_exhausted` separately,
+refuses to guess (`unknown`, logged loudly), and carries diagnostics so the census is
+legible. 9 tests, led by the `replica_overlap` arm the original assumption never saw. The
+102 H2 `skip_reason.json` files already on disk are left as the old engine wrote them.
+
+**Recommendation, for sign-off — NOT taken.** `docs/lineages/route_b_env_pivot_v1/screen-amendment-2.md`
+is a **DRAFT, unsigned**: replace the decoder's dead end with a complete search over the
+same masked space, same ordering and tie-breaks. Stated in advance: under the registered
+fallback *as written*, that makes **H0 readable at its registered primary α=2.0** and **H1
+readable at α=3.0** (both nofeas 0, both binding 204/204); H2 stays VOID-GENERATION. §6
+option 2 (amend the fallback) reaches the same rungs by changing a reading rule instead of
+fixing a tool that is measurably wrong, and is not recommended. **Nothing executes until
+the user signs off and a LINEAGES entry records it at its commit SHA.**
 
 
 ---

@@ -9,6 +9,11 @@ This document records what was measured, so the next session does not re-derive 
 findings only: **no threshold, grid, or reading rule is changed here.** Every remedy in §6
 needs its own registered amendment.
 
+> **§9 is a second pass over this document's own findings (2026-08-27, later session).**
+> Three of them were arm- or α-scoped and read differently once extended: §3's causal
+> claim and §4.1's per-rung classification are **superseded** there. Read §9 before
+> citing §3 or §4.1.
+
 Companion documents: `docs/lineages/route_b_env_pivot_v1/screen-preregistration.md` (the registration),
 `docs/lineages/route_b_env_pivot_v1/screen-amendment-1.md` (the S0 control definition),
 `simulation_data/route_b_pivot_h0_reading.json` (H0's amended reading).
@@ -52,6 +57,12 @@ Verified on both cap modes and both rungs: α=4.0 and α=6.0 are clean-and-non-b
 H0 and H1 alike, under `alpha_max` and `alpha_mean`.
 
 ## 3. On H0/H1, `greedy_stuck` is a configuration artifact
+
+> **SUPERSEDED 2026-08-27 by §9. Read that first.** This section's causal claim was
+> measured at **α=3.0** and is false at H1's **registered primary α=2.0**, where 71 of the
+> 102 zero-confinement datasets are stuck. The correlation below is real; the *cause* is
+> not confinement. §9 shows `greedy_stuck` is decoder myopia on **every** rung, H0/H1
+> included — backtracking rescues 365/365 there, not just H2's 93.
 
 `greedy_stuck` is entirely explained by **single-node confinement** — task types whose
 candidate replicas all sit on one node. H1 at α=3.0:
@@ -151,6 +162,10 @@ So the classification changes by rung:
   forward pass (`scripts_cosim/score_route_b_contention.py:432-468`) fails to find plans
   that demonstrably exist.
 
+> **SUPERSEDED 2026-08-27 by §9.** The classification does **not** change by rung. The
+> H2-only measurement above was one arm; extended to H0/H1 it gives the same 100%. The
+> split above is an artifact of where the probe was pointed.
+
 The registered fallback voids a rung on a dirty counter *regardless of cause*, so H2 would
 still read VOID — now for a reason that has nothing to do with the environment under test.
 
@@ -222,6 +237,7 @@ Corpora (all gitignored):
 |---|---|
 | `simulation_data/gnn_datasets_route_b_pivot_h0` / `_ctrl` | H0 main + control, 204/204 |
 | `simulation_data/gnn_datasets_route_b_pivot_h1` | H1 main, 204/204 |
+| `simulation_data/gnn_datasets_route_b_pivot_h1_ctrl` | **empty directory — H1's paired separable control was never generated** (see §9.4) |
 | `simulation_data/gnn_datasets_dag4_route_b_pivot_h2` | H2, **102/204** — VOID-GENERATION |
 | `simulation_data/probefull_rsp_075` | probe, 3 hosting nodes, 204/204 |
 | `simulation_data/probefull_rsp_10` | probe, 4 hosting nodes, 204/204 |
@@ -239,3 +255,96 @@ Reports: `simulation_data/route_b_pivot_h0_rtt.json`,
 - No threshold, bar, grid, α ladder, or reading rule is modified by this document.
 - H2's §4 numbers are over the 102 datasets that generated. They are diagnostic only —
   the rung is VOID-GENERATION and its bars must not be read from this half-corpus.
+
+---
+
+## 9. Second pass (2026-08-27, later session) — three of the above were arm-scoped
+
+Same discipline, applied to this document's own findings: every number below states the
+arm it was measured on. **No threshold, bar, grid, α ladder or reading rule is changed
+here either.** Scripts are in the session scratchpad (`arm_contingency.py`,
+`confine_by_alpha.py`, `rescue_h0_h1.py`), all read-only over the existing corpora.
+
+### 9.1 `greedy_stuck` is decoder myopia on EVERY rung, not just H2 — supersedes §3, §4.1
+
+§4.1's 100% backtracking rescue was measured on H2 only, and within H2 only on the 102
+datasets that generated. Extended to the arm it was never measured on — over the identical
+candidate sets, demands and caps the production greedy saw, same option ordering, the only
+difference being that a dead end backtracks:
+
+| rung | α | stuck | feasible plan exists | **backtracking rescues** | stuck by sweep-row arm |
+|---|---|---|---|---|---|
+| H0 | 2.0 | 95 | 95/95 | **95/95 (100%)** | `{64: 95}` |
+| H0 | 3.0 | 87 | 87/87 | **87/87 (100%)** | `{64: 87}` |
+| H1 | 2.0 | 100 | 100/100 | **100/100 (100%)** | `{16: 71, 64: 29}` |
+| H1 | 3.0 | 83 | 83/83 | **83/83 (100%)** | `{64: 83}` |
+
+**365/365 on H0+H1**, on top of H2's 93/93 — **458/458 across the ladder.** Every dataset
+the greedy stranded had a feasible plan sitting in its own enumerated sweep.
+
+So `greedy_stuck` has never measured the environment on any rung. It is a property of
+`greedy_masked_plan`'s single non-backtracking forward pass, and it is **logically
+redundant** with `no_feasible_rows`: the two search the same masked space, so a complete
+search succeeds exactly when a feasible row exists. §3's confinement story survives only as
+a *correlation* — see 9.2 for where it breaks.
+
+### 9.2 §3's causal claim holds at α=3.0 and fails at the registered primary α=2.0
+
+§3's histogram was quoted at H1 α=3.0. Reproduced at every registered α:
+
+| rung | α | (stuck, confined_tasks) | stuck with ZERO confined tasks |
+|---|---|---|---|
+| H0 | 2.0 | `{(F,0):102, (F,2):7, (T,2):95}` | 0 |
+| H0 | 3.0 | `{(F,0):102, (F,2):15, (T,2):87}` | 0 |
+| H1 | 3.0 | `{(F,0):102, (F,2):19, (T,2):83}` | 0 |
+| **H1** | **2.0** | `{(F,0):31, (F,2):73, (T,0):71, (T,2):29}` | **71** |
+
+"No dataset with zero confined tasks is ever stuck" is true on three of the four cells and
+false on the fourth — which is H1's own **registered primary α**. Under H1's levers
+(`demand_spread` + `cap_mode: alpha_mean`) the caps stop tracking the sweep's own max, so
+the 16-row arm's caps genuinely bind and strand a decoder that has no confinement at all.
+Same defect class as everything else in this file, on the α axis rather than the arm axis.
+
+### 9.3 `no_feasible_rows` is confounded with the arm, and had no breakdown reporting it
+
+The greedy-denominator fix (GATE TOOLS, 2026-08-27) gave `greedy_stuck` an arm breakdown.
+The **stricter** censor — the one that removes a dataset from `r_exact` and every LS/repair
+statistic, not just from `r_greedy` — had none. Keyed on the unconstrained sweep size:
+
+| rung | α | `no_feasible_rows` by arm | `n_exact_scored` by arm | `n_greedy_scored` by arm |
+|---|---|---|---|---|
+| H0 | 2.0 | `{}` | `{16:102, 64:102}` | `{16:102, 64:7}` |
+| H0 | 3.0 | `{}` | `{16:102, 64:102}` | `{16:102, 64:15}` |
+| **H1** | **2.0** | **`{64: 70}`** | **`{16:102, 64:32}`** | **`{16:31, 64:3}`** |
+| H1 | 3.0 | `{}` | `{16:102, 64:102}` | `{16:102, 64:19}` |
+
+At H1's primary α the 64-row arm is 69% censored from `r_exact` and the 16-row arm 0%; the
+greedy denominator there is three datasets from one arm and 31 from the other. Now reported
+in every rung's artifact as `censoring_by_arm` (additive; 0 pre-existing values moved).
+
+### 9.4 H1's paired separable control was never generated
+
+`simulation_data/gnn_datasets_route_b_pivot_h1_ctrl` exists as an **empty directory**.
+SCREEN §3 requires a paired separable control per rung and §4's S0 reads
+`r_exact.frac_gt_1pct ≤ 0.02` on it. Moot while H1 is VOID-INFEASIBLE — a control cannot
+rescue a rung that cannot be read — but it must be generated before H1 is ever read, and
+nothing in the record said it was missing.
+
+### 9.5 What this changes about §6
+
+Nothing is taken; the options still need their own signed-off amendment. But the evidence
+under them has moved:
+
+- **Option 1 (backtracking decoder)** is no longer an H2-specific remedy. It removes the
+  blocker on **every** rung. Under it — and with the registered fallback untouched —
+  "clean counters" reduces to `no_feasible_rows == 0`, which makes **H0 readable at its
+  registered primary α=2.0** (nofeas 0, binds 204/204) and **H1 readable at α=3.0** (nofeas
+  0, binds 204/204) by the fallback exactly as written. No threshold moves.
+- **Option 2 (amend the fallback to distinguish decoder-stuck from environment-infeasible)**
+  reaches the same rungs by relabelling rather than by fixing the decoder, and leaves
+  `r_greedy` — a registered statistic — still produced by a decoder that demonstrably
+  fails to find plans that exist. §4.1's argument for it as "the more honest description"
+  is weaker now that the counter is known to describe the tool on every rung.
+
+The recommendation and a **draft, unsigned** amendment are in
+`docs/lineages/route_b_env_pivot_v1/screen-amendment-2.md`.
