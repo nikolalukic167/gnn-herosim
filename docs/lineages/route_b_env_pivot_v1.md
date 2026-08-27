@@ -2,7 +2,7 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md)
 
-**Outcome.** Current work. Screen registered 2026-08-27. `greedy_stuck` was measured as **decoder myopia on every rung** (backtracking rescues 458/458); **AMENDMENT 2** replaced the decoder and **H0/H1 counters went clean**; both paired controls were then generated under AMENDMENT 1 and **both PASS S0**. The bars were then read for the first time: **H0 is VOID-TIE-INDETERMINATE on S1** (`registered` 0.1667 fails, `pessimistic` 0.2549 passes) and **H1 FAILS S1** (all four band members below the 0.25 bar). **S2, the kill bar, is uncomputable on this grid** — its `t1x` competitor needs ≥82 sweep rows and the pivot's scarcity squeeze produces 16 and 64, so it is refused on 204/204 datasets in both arms. S3/S4 looked blocked the same way but were not: the transfer tool aborted the whole run on one arm's refusal, and with that **tool defect fixed** (refusals recorded per arm, pooled block de-nested; 0 pre-existing values moved, 12 tests with verified teeth) **S4 PASSES on both rungs** (`hop+coupling` closes 0.0000 on the full firing stratum) and **S3 lands on the bar** — H0 `mean_tied` 0.500000, H1 0.500835 against `≤ 0.5`. H2 stays VOID-GENERATION and H3 was never generated, so the ladder is **not** exhausted and no pivot-level verdict is licensed. Open for the user: whether unreachable S0 sub-gates make a rung VOID, how to re-register S2 against a competitor that fits these sweeps, and what to do about an S3 reading decided at the sixteenth decimal.
+**Outcome.** Current work. Screen registered 2026-08-27. `greedy_stuck` was measured as **decoder myopia on every rung** (backtracking rescues 458/458); **AMENDMENT 2** replaced the decoder and **H0/H1 counters went clean**; both paired controls were then generated under AMENDMENT 1 and **both PASS S0**. The bars were then read for the first time: **H0 is VOID-TIE-INDETERMINATE on S1** (`registered` 0.1667 fails, `pessimistic` 0.2549 passes) and **H1 FAILS S1** (all four band members below the 0.25 bar). **S2, the kill bar, is uncomputable on this grid** — its `t1x` competitor needs ≥82 sweep rows and the pivot's scarcity squeeze produces 16 and 64, so it is refused on 204/204 datasets in both arms. S3/S4 looked blocked the same way but were not: the transfer tool aborted the whole run on one arm's refusal, and with that **tool defect fixed** (refusals recorded per arm, pooled block de-nested; 0 pre-existing values moved, 12 tests with verified teeth) **S4 PASSES on both rungs** (`hop+coupling` closes 0.0000 on the full firing stratum) and **S3 lands on the bar** — H0 `mean_tied` 0.500000, H1 0.500835 against `≤ 0.5`. H2 stays VOID-GENERATION and H3 was never generated, so the ladder is **not** exhausted and no pivot-level verdict is licensed. **The S2 problem was then measured to be a grid problem, not a competitor problem** — a 204/204 wide-arm probe makes `t1x` fit on 41/41 firing datasets with **zero saturation in both arms**, while contention binds *harder* (`cw_infeas` 0.91) and the squeeze is untouched (2 hosting nodes on every dataset of every rung), and **H3 was measured to generate 0/204 as registered** (uniqueness exhaustion: 8 tasks over a pool of 2 or 4). Both are the subject of **AMENDMENT 3, drafted and awaiting sign-off**. Of the other two open questions, the S0 reading-rule one is **moot** (the sub-gates are reachable now and they pass) and S3's knife-edge is **left alone** — moving a bar after watching it land on the line is the post-hoc bar-moving the registration forbids.
 
 **Related:** [route_b_v1](route_b_v1.md) · [route_a_v1](route_a_v1.md)
 
@@ -14,6 +14,8 @@
 
 **Attachment:** [AMENDMENT 2 — the decoder behind `greedy_stuck`](route_b_env_pivot_v1/screen-amendment-2.md) — **signed off 2026-08-27**
 
+**Attachment:** [AMENDMENT 3 — the H2/H3 grid, so S2 becomes computable](route_b_env_pivot_v1/screen-amendment-3.md) — **DRAFT, not signed off**
+
 > **Split note.** This node was carved out of a single 4,995-line `LINEAGES.md` on
 > 2026-08-27; the section bodies below are byte-for-byte as written. An *above* / *below*
 > pointer inside one may refer to a section that now lives in another node — the
@@ -23,6 +25,7 @@
 
 Newest first; the sections themselves are in chronological order below.
 
+- [route_b_env_pivot_v1 — S2 is a grid problem, not a competitor problem; and H3 does not generate as registered (2026-08-27)](#route-b-env-pivot-v1-s2-is-a-grid-problem-not-a-competitor-problem-and-h3-does-not-generate-as-registered-2026-08-27)
 - [route_b_env_pivot_v1 — the transfer tool's abort-on-refusal fixed; S3 and S4 read on both rungs (2026-08-27)](#route-b-env-pivot-v1-the-transfer-tools-abort-on-refusal-fixed-s3-and-s4-read-on-both-rungs-2026-08-27)
 - [route_b_env_pivot_v1 — S1–S4 read on H0 and H1: H0 VOID-TIE-INDETERMINATE, H1 FAILS S1, and S2 is uncomputable on this grid (2026-08-27)](#route-b-env-pivot-v1-s1s4-read-on-h0-and-h1-h0-void-tie-indeterminate-h1-fails-s1-and-s2-is-uncomputable-on-this-grid-2026-08-27)
 - [route_b_env_pivot_v1 — H0 and H1 controls generated under AMENDMENT 1; both PASS S0 (2026-08-27)](#route-b-env-pivot-v1-h0-and-h1-controls-generated-under-amendment-1-both-pass-s0-2026-08-27)
@@ -434,6 +437,16 @@ untaken: re-register the kill bar against a competitor that fits a 64-row sweep,
 grid's `replica_configs` so sweeps clear 82 rows (which loosens the very squeeze H0 exists
 to create), or pool across datasets instead of fitting per-dataset.
 
+> **Superseded the same day, by measurement — see the 2026-08-27 entry "S2 is a grid
+> problem, not a competitor problem" below.** Two of the three sentences above are wrong.
+> The S0 reading-rule question is **moot**: the transfer-tool fix made every verifier
+> sub-gate reachable and they pass, so S0 is fully discharged on both rungs and no
+> amendment is needed for it. And widening `replica_configs` does **not** loosen the
+> squeeze — the squeeze is `server_node_counts=[4] × replica_server_percentage=0.5`,
+> i.e. exactly 2 hosting nodes, which `per_server` does not touch; measured `{2: 204}` on
+> every rung including the widened probe. The remaining live option is the grid one, and
+> it is **AMENDMENT 3**.
+
 
 ---
 
@@ -542,3 +555,81 @@ block S3 names is a registration matter, so the string is left alone.
 
 
 ---
+
+#### route_b_env_pivot_v1 — S2 is a grid problem, not a competitor problem; and H3 does not generate as registered (2026-08-27)
+
+**What was asked.** The previous entry left S2 uncomputable and named three options, two of
+which turn out to be wrong. This entry measures the third and adds a rung-level defect
+nobody had looked for. **No bar was moved and no corpus was registered** — the work here is
+a probe and a drafted amendment.
+
+**S2 becomes computable, and the fix is the grid.** Preset
+`route_b_pivot_h2_widearm_probe` (H2's shape with `replica_configs` `per_server` 1→3 and
+2→4) generated **204/204 SUCCESS**, `sweep_complete: true` on all 204, `num_placements`
+histogram exactly **`{360: 102, 1680: 102}`**, zero skips. Scored at the registered
+`--cap-mode alpha_mean`; the independent verifier agrees on **612 (dataset, α) cells to
+1e-9** across 2,448 repair values, 2 machine-precision ties accepted. `n_exact_scored` reads
+`{360: 102, 1680: 102}` — **zero censoring, so nothing below is arm-confounded.**
+
+| bar | registered | reading at α=2.0 | |
+|---|---|---|---|
+| S1 `r_exact.frac_gt_5pct` | ≥ 0.25 | 0.2010 reg / 0.2059 mean_tied / 0.2108 pess | **FAIL**, band agrees |
+| **S2 `t1x` per dataset** | **< 0.5** | **41/41 fitted, 0 saturated**, median 1.55e-15 | **PASS** |
+| S3 extended pooled | ≤ 0.5 | median 1.55e-15; 49,080 rows vs 89 params | **PASS** |
+| S4 `hop+coupling` | < 0.8 | median 0.0000, 41/41 fitted | **PASS** |
+
+S2's `by_arm` is `{360: {fitted 15, saturated 0}, 1680: {fitted 26, saturated 0}}`, against
+**refused 204/204** on the registered grid. Counters stay clean at the registered primary α
+(`greedy_stuck` 0, `no_feasible_rows` 0, `saturated_fit_frac` 0.00), the α cliff survives
+(α=1.5 is 204/204 infeasible), and contention binds **harder** than on the registered grid:
+`componentwise_infeasible_frac` **0.91**, 143.5 feasible rows of 1020.
+
+**The "widening loosens the squeeze" claim is FALSIFIED.** It was an assumption, written
+into this node and `ladder-findings.md` and never measured. The squeeze is
+`server_node_counts=[4] × replica_server_percentage=0.5` ⇒ exactly **2 hosting nodes**;
+`per_server` sets how many platform slots sit on those two nodes, not how many nodes exist.
+Hosting-node histogram is `{2: 204}` on H0, H1, H2 **and** the widened probe, while the
+candidate pool moves 8/12 · 2/4 · 6/8. The earlier claim is withdrawn.
+
+**H3 generates 0/204 as registered — a rung-level defect never previously measured.** Under
+`replica_overlap` all task types draw from one pool of `per_server × n_hosting_nodes` slots,
+and the combination generator requires **globally distinct** replicas across tasks. H3 is
+`dag_instances=2`, so 8 tasks draw on that one pool and it must hold ≥ 8:
+
+| grid | arm | pool | pre-uniqueness | result |
+|---|---|---|---|---|
+| H3 as registered | `per_server=1` | 2 | 256 | **0/12 `uniqueness_exhausted`** |
+| | `per_server=2` | 4 | 65,536 | **0/12 `uniqueness_exhausted`** |
+| candidate | `per_server=4` | 8 | 16,777,216 | 40,320 rows = 8P8 |
+| | `per_server=5` | **9** | 43,046,721 | 362,880 rows = 9P8 |
+
+Measured by `route_b_pivot_h3_genprobe_{registered,wide}` with
+`MAX_PLACEMENT_COMBINATIONS_SKIP` raised to 5e9 so a skip cannot be the threshold. The
+`per_server=5` pool is **9, not the 10 the arithmetic predicts** — one hosting node carries
+fewer suitable platforms. The skip reasons also re-confirm the `f407f91` attribution fix on
+a grid it had not been exercised on: `uniqueness_exhausted`, never `too_many_combinations`.
+**Without an amendment H3 is a structural VOID-GENERATION and the ladder cannot be
+exhausted.** §3's registered `MAX_PLACEMENT_COMBINATIONS_SKIP = 16,777,216` also needs
+re-deriving: the comparison is a strict `>`, so it admits `per_server=4` with zero headroom
+and skips `per_server=5` outright.
+
+**AMENDMENT 3 is drafted and NOT signed off.** It proposes `replica_configs`
+`[(0,4,0.7,0.5), (0,5,0.7,0.5)]` for H2 and H3 with a fresh seed block for H2, and moves
+nothing else — S2's threshold and its `t1x` competitor stay exactly as registered; only the
+corpus the bar is evaluated on changes. It states its own costs: H2/H3 stop being
+cell-for-cell comparable with H0/H1, and it **predicts no pass** — the probed neighbour grid
+failed S1 at 0.2010, and the amendment says so in advance so no later reading of it can be
+post-hoc. The selection hazard is named there too: the per-arm split (0.1471 at
+`per_server=3` vs 0.2549 at `per_server=4`) was visible before the pair was chosen, which is
+why H2 gets fresh seeds 3401–3417 and why the choice is argued from H3's generability and
+H2↔H3 comparability rather than from a firing rate.
+
+**The other two open questions are closed without action.** The S0 reading-rule question
+("do unreachable sub-gates make a rung VOID?") is **moot** — the transfer-tool fix made every
+sub-gate reachable and they pass. S3's knife-edge is **left alone**: both rungs are already
+decided by S1, so it changes nothing, and moving a threshold after watching it land on the
+line is exactly what §6's "thresholds immutable once signed off" forbids. Worth *noting* for
+H2/H3 that a bar both rungs land within 0.001 of may be low-information — noting, not moving.
+
+**Frozen artifacts:** `simulation_data/route_b_pivot_h2_widearm_probe_{rtt,transfer}.json`.
+Both are **probe** artifacts on an unregistered grid, not rung readings.
