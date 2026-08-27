@@ -27,6 +27,70 @@
       "r_exact_frac_gt_5pct": 0.0
     }
   },
+  "counters_by_alpha_control_CORRECTED": {
+    "1.5": {
+      "greedy_stuck": 0,
+      "greedy_stuck_by_n_feasible": {},
+      "n_exact_scored": 0,
+      "n_greedy_scored": 0,
+      "no_feasible_rows": 204
+    },
+    "2.0": {
+      "greedy_stuck": 101,
+      "greedy_stuck_by_n_feasible": {
+        "16": 101
+      },
+      "legacy_greedy_censored_frac_gt_1pct": 0.1553398058252427,
+      "legacy_greedy_censored_n": 103,
+      "n_exact_scored": 204,
+      "n_greedy_scored": 103,
+      "no_feasible_rows": 0,
+      "r_exact_mean_tied_frac_gt_1pct": 0.0392156862745098,
+      "r_exact_mean_tied_frac_gt_5pct": 0.0,
+      "r_exact_optimistic_frac_gt_1pct": 0.0196078431372549,
+      "r_exact_optimistic_frac_gt_5pct": 0.0,
+      "r_exact_pessimistic_frac_gt_1pct": 0.08333333333333333,
+      "r_exact_pessimistic_frac_gt_5pct": 0.0,
+      "r_exact_registered_frac_gt_1pct": 0.0784313725490196,
+      "r_exact_registered_frac_gt_5pct": 0.0
+    },
+    "3.0": {
+      "greedy_stuck": 99,
+      "greedy_stuck_by_n_feasible": {
+        "48": 99
+      },
+      "legacy_greedy_censored_frac_gt_1pct": 0.06666666666666667,
+      "legacy_greedy_censored_n": 105,
+      "n_exact_scored": 204,
+      "n_greedy_scored": 105,
+      "no_feasible_rows": 0,
+      "r_exact_mean_tied_frac_gt_1pct": 0.0392156862745098,
+      "r_exact_mean_tied_frac_gt_5pct": 0.0,
+      "r_exact_optimistic_frac_gt_1pct": 0.0196078431372549,
+      "r_exact_optimistic_frac_gt_5pct": 0.0,
+      "r_exact_pessimistic_frac_gt_1pct": 0.058823529411764705,
+      "r_exact_pessimistic_frac_gt_5pct": 0.0,
+      "r_exact_registered_frac_gt_1pct": 0.03431372549019608,
+      "r_exact_registered_frac_gt_5pct": 0.0
+    },
+    "unconstrained_anchor": {
+      "greedy_stuck": 0,
+      "greedy_stuck_by_n_feasible": {},
+      "legacy_greedy_censored_frac_gt_1pct": 0.0,
+      "legacy_greedy_censored_n": 204,
+      "n_exact_scored": 204,
+      "n_greedy_scored": 204,
+      "no_feasible_rows": 0,
+      "r_exact_mean_tied_frac_gt_1pct": 0.0,
+      "r_exact_mean_tied_frac_gt_5pct": 0.0,
+      "r_exact_optimistic_frac_gt_1pct": 0.0,
+      "r_exact_optimistic_frac_gt_5pct": 0.0,
+      "r_exact_pessimistic_frac_gt_1pct": 0.0,
+      "r_exact_pessimistic_frac_gt_5pct": 0.0,
+      "r_exact_registered_frac_gt_1pct": 0.0,
+      "r_exact_registered_frac_gt_5pct": 0.0
+    }
+  },
   "counters_by_alpha_main": {
     "1.5": {
       "greedy_stuck": 0,
@@ -55,10 +119,80 @@
       "r_exact_frac_gt_5pct": 0.0
     }
   },
+  "counters_by_alpha_main_CORRECTED": {
+    "1.5": {
+      "greedy_stuck": 0,
+      "greedy_stuck_by_n_feasible": {},
+      "n_exact_scored": 0,
+      "n_greedy_scored": 0,
+      "no_feasible_rows": 204
+    },
+    "2.0": {
+      "greedy_stuck": 95,
+      "greedy_stuck_by_n_feasible": {
+        "16": 95
+      },
+      "legacy_greedy_censored_frac_gt_1pct": 0.3944954128440367,
+      "legacy_greedy_censored_n": 109,
+      "n_exact_scored": 204,
+      "n_greedy_scored": 109,
+      "no_feasible_rows": 0,
+      "r_exact_mean_tied_frac_gt_1pct": 0.3284313725490196,
+      "r_exact_mean_tied_frac_gt_5pct": 0.24019607843137256,
+      "r_exact_optimistic_frac_gt_1pct": 0.18137254901960784,
+      "r_exact_optimistic_frac_gt_5pct": 0.07352941176470588,
+      "r_exact_pessimistic_frac_gt_1pct": 0.3284313725490196,
+      "r_exact_pessimistic_frac_gt_5pct": 0.2549019607843137,
+      "r_exact_registered_frac_gt_1pct": 0.2647058823529412,
+      "r_exact_registered_frac_gt_5pct": 0.16666666666666666
+    },
+    "3.0": {
+      "greedy_stuck": 87,
+      "greedy_stuck_by_n_feasible": {
+        "48": 87
+      },
+      "legacy_greedy_censored_frac_gt_1pct": 0.13675213675213677,
+      "legacy_greedy_censored_n": 117,
+      "n_exact_scored": 204,
+      "n_greedy_scored": 117,
+      "no_feasible_rows": 0,
+      "r_exact_mean_tied_frac_gt_1pct": 0.25,
+      "r_exact_mean_tied_frac_gt_5pct": 0.18137254901960784,
+      "r_exact_optimistic_frac_gt_1pct": 0.1568627450980392,
+      "r_exact_optimistic_frac_gt_5pct": 0.09803921568627451,
+      "r_exact_pessimistic_frac_gt_1pct": 0.2549019607843137,
+      "r_exact_pessimistic_frac_gt_5pct": 0.22058823529411764,
+      "r_exact_registered_frac_gt_1pct": 0.23039215686274508,
+      "r_exact_registered_frac_gt_5pct": 0.1568627450980392
+    },
+    "unconstrained_anchor": {
+      "greedy_stuck": 0,
+      "greedy_stuck_by_n_feasible": {},
+      "legacy_greedy_censored_frac_gt_1pct": 0.0,
+      "legacy_greedy_censored_n": 204,
+      "n_exact_scored": 204,
+      "n_greedy_scored": 204,
+      "no_feasible_rows": 0,
+      "r_exact_mean_tied_frac_gt_1pct": 0.0,
+      "r_exact_mean_tied_frac_gt_5pct": 0.0,
+      "r_exact_optimistic_frac_gt_1pct": 0.0,
+      "r_exact_optimistic_frac_gt_5pct": 0.0,
+      "r_exact_pessimistic_frac_gt_1pct": 0.0,
+      "r_exact_pessimistic_frac_gt_5pct": 0.0,
+      "r_exact_registered_frac_gt_1pct": 0.0,
+      "r_exact_registered_frac_gt_5pct": 0.0
+    }
+  },
   "deviation_log": [
-    "2026-08-27: pre-flight found ROUTE_B_PIVOT_H0..H3_GRID presets never overrode 'seeds', silently inheriting ROUTE_B_PILOT_V1_GRID's 901-917 instead of the registered fresh blocks (3001-3017/3101-3117/3201-3217/3301-3317). Caught before any rung was scored. Presets patched (commit 90fb6e0); the wrong-seed H0 corpus (generated under 901-917) was deleted and regenerated from scratch under the corrected seeds before any reading in this file was produced. No reading is contaminated by the wrong seeds."
+    "2026-08-27: pre-flight found ROUTE_B_PIVOT_H0..H3_GRID presets never overrode 'seeds', silently inheriting ROUTE_B_PILOT_V1_GRID's 901-917 instead of the registered fresh blocks (3001-3017/3101-3117/3201-3217/3301-3317). Caught before any rung was scored. Presets patched (commit 90fb6e0); the wrong-seed H0 corpus (generated under 901-917) was deleted and regenerated from scratch under the corrected seeds before any reading in this file was produced. No reading is contaminated by the wrong seeds.",
+    "2026-08-27b: SCORER DEFECT (decode_regret tie-break). decode_regret resolves equal surrogate scores by tuple(sorted(plan.items())) -- platform id, unrelated to cost. On a degenerate feasible set the min-marginal surrogate ties the true optimum against worse plans and that arbitrary rule decides the number. Of the control's 16 firing datasets at alpha=2.0, 12 had the true optimum INSIDE the argmin tie set (optimistic == 0 exactly). The scorer docstring's claim that nonzero constrained R_exact 'can be neither a decoder artifact nor an LS fitting artifact' was FALSE and is corrected. Fix is ADDITIVE: decode_regret is byte-identical and r_exact_pct unchanged; a new r_exact_band reports {registered, optimistic, pessimistic, mean_tied, n_tied}. Per SCREEN.md Section 4 mean_tied is the fair reading and optimistic is an upper bound only. NO THRESHOLD MOVED. Commit 2fa4b50.",
+    "2026-08-27c: SCORER DEFECT (r_exact denominator). score_corpus summarized r_exact over [not no_feasible_rows and not greedy_stuck]. R_exact is a perfect-decoder bound and the greedy decoder has nothing to do with it. The censoring was NOT neutral: greedy_stuck is perfectly confounded with the replica-config arm -- the control's (n_feasible, stuck) histogram is exactly {(9,False):102, (16,True):101, (16,False):1} -- so one whole cell of the 2x2x3x17 design was dropped from every r_exact statistic and the published 0.1553 was really 'over the 9-feasible-row arm only'. Now three denominators: no_feasible_rows censors everything, greedy_stuck censors ONLY r_greedy, r_exact reads over all feasible datasets. Direction of change on the control @2.0: frac_gt_1pct 0.1553 -> 0.0784 (registered member), i.e. the fix moved the control number DOWN. NO THRESHOLD MOVED. Commit 2fa4b50.",
+    "2026-08-27d: The corrected control reading FAILS S0. At alpha=2.0 over all 204 datasets: mean_tied (the registered fair reading) frac_gt_1pct = 0.0392 against the bar of <= 0.02 -- a genuine ~2x fail. registered 0.0784 and pessimistic 0.0833 also fail, so the direction-agreement rule is unanimous and this is NOT VOID-TIE-INDETERMINATE. optimistic (0.0196) would pass, but Section 4 and Cell.tie_band both name it an upper bound only, never a verdict; reading S0 at optimistic because it passes would be moving the bar and was explicitly refused. Root cause found (AMENDMENT 1): an always-on storage-tier parent-locality branch (infrastructure.py:1244-1252/:1265-1280) charges ~0.0156 s per task depending on where its PARENTS ran, which the Arm-S env-var ablation never touched. The node_disk_v2 cold-pull hypothesis is FALSIFIED (contingency cold>=2 & genuine = 0/31; averagePullTime = averageColdStartTime = 0.0).",
+    "2026-08-27e: H0 is NOT regenerated under AMENDMENT 1's storage-neutral control. The rung is VOID-INFEASIBLE on feasibility alone, independent of the control, so a regeneration would cost a full pass to change a verdict already settled. AMENDMENT 1 applies from H1 onward.",
+    "2026-08-27f: alpha=1.5's 204/204 no_feasible_rows is CORRECT ARITHMETIC, not a bug. server_node_counts=[4] with replica_server_percentage=0.5 yields exactly 2 hosting nodes on 204/204 datasets (verified histogram {2: 204} for H0, H0_ctrl and H1). Four tasks over two nodes at cap = 1.5 x max_single_demand is pigeonhole-infeasible. The preset comment reasoned as if 4 servers meant 4 hosting nodes. Comment corrected; the registered grid and alpha ladder are NOT touched."
   ],
   "fallback_result": "No alpha on the registered ladder {1.5, 2.0, 3.0} has clean counters (no_feasible_rows == 0 and greedy_stuck == 0) on the main corpus. alpha=1.5: no_feasible_rows=204/204 (all datasets infeasible under the cap). alpha=2.0 (primary): no_feasible_rows=0, greedy_stuck=95/204. alpha=3.0: no_feasible_rows=0, greedy_stuck=87/204. Per SCREEN.md Section 3's registered feasibility fallback, since none is clean the rung is VOID-INFEASIBLE; the ladder continues to H1.",
+  "fallback_result_CORRECTED": "UNCHANGED IN OUTCOME: VOID-INFEASIBLE. No alpha on the registered ladder {1.5, 2.0, 3.0} has clean counters. alpha=1.5: no_feasible_rows=204/204. alpha=2.0 (primary): greedy_stuck=95/204. alpha=3.0: greedy_stuck=87/204. IMPORTANT: the denominator fix (deviation 2026-08-27c) does NOT change this. It changes which datasets r_exact is COMPUTED OVER, not whether the counter is dirty; greedy_stuck still counts as a dirty counter under Section 3. The fix must not be read as having laundered a counter.",
   "feasibility_fallback_applied": true,
   "generation": {
     "control_corpus": "simulation_data/gnn_datasets_route_b_pivot_h0_ctrl",
@@ -71,8 +205,14 @@
   "preset": "route_b_pivot_h0",
   "primary_alpha": 2.0,
   "provenance": {
+    "amendment_commit": "3719aad",
     "head_commit_at_execution_start": "4614370",
     "registration_commit": "019bdcb",
+    "rescored_at_commit": "90a3c1b",
+    "scorer_fix_commits": [
+      "2fa4b50 (tie band + denominator)",
+      "90a3c1b (verifier demand_scale)"
+    ],
     "seed_fix_commit": "90fb6e0"
   },
   "registered_alpha_ladder": [
@@ -82,6 +222,8 @@
   ],
   "rung": "H0",
   "s0_note": "S0 (controls) was not fully evaluated: the paired separable control's r_exact.frac_gt_1pct <= 0.02 bar is only meaningful at a clean read alpha, and no alpha on either corpus' registered ladder is clean. Note for the record: at alpha=2.0 (dirty, greedy_stuck=101/204) the control's frac_gt_1pct=0.155, which would fail the S0 <=0.02 bar if it were being read at a clean counter -- consistent with H0 being void for structural (feasibility) reasons rather than close to passing. The positive-control test suite (tests/test_route_b_env_pivot_fixtures.py + test_route_b_positive_controls.py, 25 tests) was run once at the start of the ladder per the registration and passed 25/25 -- that part of S0 is satisfied for the whole ladder, not repeated per rung.",
+  "s0_note_CORRECTED": "S0 FAILS on the control, and now for a understood reason rather than an unread one. Corrected control at alpha=2.0 over all 204: mean_tied 0.0392 / registered 0.0784 / pessimistic 0.0833 / optimistic 0.0196, against the <= 0.02 bar. mean_tied is the fair reading per Section 4, so S0 fails ~2x, unanimously across registered and pessimistic. The pre-fix 0.1553 was inflated by BOTH scorer defects. Cause is the always-on storage-tier parent-locality coupling (AMENDMENT 1), not the pivot's own physics. Note frac_gt_5pct is 0.0000 at every alpha and every band member -- the control's coupling is real but small, and fires only where the constrained feasible set is degenerate enough that its spread is narrower than ~0.0156 s. Positive-control suite: 19/19 in test_route_b_positive_controls.py (now including Control 3, the tie rig) plus the env-pivot fixtures; full suite 324 passed.",
   "s1_s4": "Not evaluated -- no clean alpha exists to read S1-S4 at (transfer/verify were not run for this rung).",
+  "superseded_note": "counters_by_alpha_main / _control above are the PRE-FIX numbers, retained verbatim. They were produced by a scorer with two defects (see deviation_log 2026-08-27b/c). Read the *_CORRECTED blocks. The pre-fix values are reproduced inside the new reports' per_alpha.legacy_greedy_censored, so the two are checkable against each other from one artifact.",
   "transfer_and_verify_run": false
 }

@@ -374,10 +374,20 @@ ROUTE_C_LINK_SCREEN_8TASK_GRID: GridPreset = {
 #
 # H0: config-only scarcity squeeze on TODAY's machinery (no new grid keys at all) —
 # calibrates the screen: if S1 (structure exists) already fails here, the later rungs'
-# comparison point is known. server_node_counts drops from the pilot's [6] to [4] (four
-# servers for four task types, so individual favourites collide more directly) and
+# comparison point is known. server_node_counts drops from the pilot's [6] to [4] and
 # replica_server_percentage is pushed low (0.5, vs the pilot's default-derived ~0.6+)
-# to concentrate replicas onto fewer hosts. replica_configs keeps the pilot's TWO-arm
+# to concentrate replicas onto fewer hosts.
+#
+# CORRECTION 2026-08-27: this comment used to read "four servers for four task types, so
+# individual favourites collide more directly", reasoning as if 4 servers meant 4 HOSTING
+# nodes. It does not. server_node_counts=[4] x replica_server_percentage=0.5 puts replicas
+# on exactly **2** hosting nodes — measured histogram {2: 204} on H0, H0_ctrl AND H1. The
+# squeeze is twice as tight as the sentence implied, and that single fact drives three
+# observed effects: alpha=1.5 is pigeonhole-infeasible (4 tasks over 2 nodes at
+# cap = 1.5 x max_single_demand), the ~50% greedy_stuck rate (the 64-row arm always has
+# exactly 2 task types confined to one node, which strands a non-backtracking greedy), and
+# the marginal degeneracy behind the R_exact tie artifact. The GRID IS REGISTERED AND
+# UNCHANGED — this is a comment correction only. See tests/test_route_b_env_pivot_w4.py. replica_configs keeps the pilot's TWO-arm
 # shape (204 = 2x2x3x17, comparable cell-for-cell to the frozen pilot) but at TIGHTER
 # absolute counts (1-2 per server, vs the pilot's 2-3) -- fewer replicas per node is a
 # squeeze relative to the pilot at matched shape.

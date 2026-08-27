@@ -160,3 +160,43 @@ def test_topology_variants_construct_without_error_for_every_rung():
         for label, kwargs in variants:
             assert kwargs["topology_type"] == "erdos_renyi"
             assert "connection_prob" in kwargs
+
+
+def test_h0_h1_corpora_have_exactly_two_hosting_nodes():
+    """The registered grid concentrates replicas onto TWO nodes, not four.
+
+    server_node_counts=[4] x replica_server_percentage=0.5 was documented as "four servers
+    for four task types", which reads as four HOSTING nodes. It is two. That single fact
+    explains alpha=1.5's pigeonhole infeasibility (4 tasks over 2 nodes at
+    cap = 1.5 x max_single_demand), the ~50% greedy_stuck rate, and the marginal degeneracy
+    behind the R_exact tie artifact — so it is pinned here rather than left to be
+    rediscovered at the next rung. Skips when a corpus is absent (they are gitignored).
+    """
+    import json
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parent.parent
+    checked = 0
+    for corpus in ("gnn_datasets_route_b_pivot_h0",
+                   "gnn_datasets_route_b_pivot_h0_ctrl",
+                   "gnn_datasets_route_b_pivot_h1"):
+        base = repo / "simulation_data" / corpus
+        if not base.is_dir():
+            continue
+        for ds in sorted(base.glob("ds_*")):
+            infra = json.loads((ds / "infrastructure.json").read_text())
+            nodes = {p["node_name"]
+                     for placements in infra["replica_placements"].values()
+                     for p in placements}
+            assert len(nodes) == 2, f"{ds}: {len(nodes)} hosting nodes, expected 2"
+            checked += 1
+    if checked == 0:
+        pytest.skip("no pivot corpora on disk (gitignored)")
+
+
+def test_h0_grid_still_declares_four_servers_at_half_percentage():
+    """Pin the two inputs whose product is the surprise, so a future edit to either one
+    has to confront this test rather than silently changing the squeeze."""
+    grid = resolve_grid_preset("route_b_pivot_h0")
+    assert grid["server_node_counts"] == [4]
+    assert grid["replica_server_percentage"] == 0.5
