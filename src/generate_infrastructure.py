@@ -610,18 +610,27 @@ def generate_replica_placements_deterministic(
     # Generate replica placements
     replica_placements = {}
     task_types = sim_inputs.get('task_types', {})
-    
+
+    # route_b env pivot (2026-08-27), W3: relax the disjoint-assigned_platforms
+    # invariant so task types may SHARE replica hosts/platforms — the organic overlap
+    # recipe (CONTEXT: with the masked decoder's no-replica-reuse mask, a shared
+    # (node, platform) slot becomes an indivisible resource contested ACROSS task
+    # types, not just within one). Default False -> assigned_platforms is still
+    # checked and populated exactly as before, so every existing grid (no
+    # preinit.replica_overlap key) reproduces byte-identically.
+    replica_overlap = bool(preinit_config.get('replica_overlap', False))
+
     assigned_platforms = set()  # Set of (node_name, platform_id) tuples
-    
+
     for task_type_name, replica_config in replicas_config.items():
         if task_type_name not in task_types:
             continue
-        
+
         task_type = task_types[task_type_name]
         supported_platforms = task_type.get('platforms', [])
-        
+
         placements = []
-        
+
         # Create server replicas
         per_server = replica_config.get('per_server', 0)
         if per_server > 0:
@@ -631,14 +640,15 @@ def generate_replica_placements_deterministic(
                     suitable_platforms = [
                         p for p in node_platforms[node_name]
                         if p['platform_type'] in supported_platforms
-                        and (node_name, p['platform_id']) not in assigned_platforms
+                        and (replica_overlap
+                             or (node_name, p['platform_id']) not in assigned_platforms)
                     ]
-                    
+
                     replicas_created = 0
                     for platform_info in suitable_platforms:
                         if replicas_created >= per_server:
                             break
-                        
+
                         platform_key = (node_name, platform_info['platform_id'])
                         placements.append({
                             'node_name': node_name,
@@ -647,7 +657,7 @@ def generate_replica_placements_deterministic(
                         })
                         assigned_platforms.add(platform_key)  # Mark as assigned
                         replicas_created += 1
-        
+
         # Create client replicas
         per_client = replica_config.get('per_client', 0)
         if per_client > 0:
@@ -657,14 +667,15 @@ def generate_replica_placements_deterministic(
                     suitable_platforms = [
                         p for p in node_platforms[node_name]
                         if p['platform_type'] in supported_platforms
-                        and (node_name, p['platform_id']) not in assigned_platforms
+                        and (replica_overlap
+                             or (node_name, p['platform_id']) not in assigned_platforms)
                     ]
-                    
+
                     replicas_created = 0
                     for platform_info in suitable_platforms:
                         if replicas_created >= per_client:
                             break
-                        
+
                         platform_key = (node_name, platform_info['platform_id'])
                         placements.append({
                             'node_name': node_name,
@@ -673,28 +684,43 @@ def generate_replica_placements_deterministic(
                         })
                         assigned_platforms.add(platform_key)  # Mark as assigned
                         replicas_created += 1
-        
+
         replica_placements[task_type_name] = placements
-    
+
     print(f"\n[infra-gen] Replica placement summary:")
     for task_type, placements in replica_placements.items():
         print(f"  {task_type}: {len(placements)} replicas")
     print(f"  Total unique platforms assigned: {len(assigned_platforms)}")
-    
-    # verify no duplicates
-    all_platform_keys = []
-    for placements in replica_placements.values():
-        for p in placements:
-            platform_key = (p['node_name'], p['platform_id'])
-            all_platform_keys.append(platform_key)
-    
-    if len(all_platform_keys) != len(set(all_platform_keys)):
-        duplicates = [k for k in all_platform_keys if all_platform_keys.count(k) > 1]
-        raise RuntimeError(
-            f"CRITICAL: Found duplicate platform assignments: {duplicates}. "
-            f"This should not happen - each platform can only be assigned to one task type."
-        )
-    
+    if replica_overlap:
+        print(f"  replica_overlap=True: task types MAY share (node, platform) slots")
+
+    # verify no duplicates WITHIN a task type (a task type still can't double-book its
+    # own platform_id) — cross-type sharing is the point of replica_overlap and is
+    # exactly what this check must NOT flag when it's on.
+    for task_type_name, placements in replica_placements.items():
+        keys = [(p['node_name'], p['platform_id']) for p in placements]
+        if len(keys) != len(set(keys)):
+            dups = [k for k in keys if keys.count(k) > 1]
+            raise RuntimeError(
+                f"CRITICAL: task type {task_type_name!r} has duplicate platform "
+                f"assignments within itself: {dups}. This should not happen even "
+                f"under replica_overlap."
+            )
+    if not replica_overlap:
+        all_platform_keys = []
+        for placements in replica_placements.values():
+            for p in placements:
+                platform_key = (p['node_name'], p['platform_id'])
+                all_platform_keys.append(platform_key)
+
+        if len(all_platform_keys) != len(set(all_platform_keys)):
+            duplicates = [k for k in all_platform_keys if all_platform_keys.count(k) > 1]
+            raise RuntimeError(
+                f"CRITICAL: Found duplicate platform assignments: {duplicates}. "
+                f"This should not happen - each platform can only be assigned to one "
+                f"task type (preinit.replica_overlap is off)."
+            )
+
     return replica_placements
 
 

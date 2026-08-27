@@ -1058,6 +1058,7 @@ def create_config_for_iteration(
     replica_server_percentage: Optional[float] = None,
     server_node_count: Optional[int] = None,
     dag_task_types: Optional[Sequence[str]] = None,
+    replica_overlap: bool = False,
 ) -> Dict[str, Any]:
     """
     Create a modified config for a specific iteration.
@@ -1122,7 +1123,12 @@ def create_config_for_iteration(
     # rather than each owning a private favourite.
     if replica_server_percentage is not None:
         config['preinit']['replica_server_percentage'] = replica_server_percentage
-    
+    # route_b env pivot (2026-08-27), W3: task types may share replica hosts/platforms
+    # (generate_infrastructure.py's preinit.replica_overlap). Default False -> the key
+    # is never written, so every existing grid reproduces byte-identically.
+    if replica_overlap:
+        config['preinit']['replica_overlap'] = True
+
     # Replica configuration. Keyed by the grid's task types, not a hardcoded dnn1/dnn2 --
     # this dict REPLACES whatever main() synthesized, so hardcoding it left a grid with a
     # substituted pair holding replicas for task types its workload never asks for.
@@ -1841,6 +1847,7 @@ def main():
                             if args.replica_server_percentage is not None
                             else grid_preset.get("replica_server_percentage")
                         ),
+                        replica_overlap=bool(grid_preset.get("replica_overlap", False)),
                         **topo_kwargs,
                     )
                     

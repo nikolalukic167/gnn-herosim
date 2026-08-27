@@ -761,7 +761,13 @@ def determine_replica_placement(
         'preinit_servers': preinit_servers,
         'preinit_task_types': preinit_task_types,
         'replicas_config': replicas_config,
-        'prewarm_config': infrastructure.get('prewarm', {})
+        'prewarm_config': infrastructure.get('prewarm', {}),
+        # route_b env pivot (2026-08-27), W3: task types may legitimately share a
+        # (node, platform) slot (generate_infrastructure.py's preinit.replica_overlap).
+        # precreate_replicas needs this to know its own disjoint-platform dedup must be
+        # relaxed too, or it silently drops every task type but the first one that
+        # claims a shared platform — see simulation.py:184-461.
+        'replica_overlap': bool(preinit_config.get('replica_overlap', False)),
     }
     
     print(f"Replica placement plan created")

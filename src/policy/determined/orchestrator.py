@@ -104,20 +104,35 @@ class DeterminedOrchestrator(Orchestrator):
                 if task_type in replicas:
                     replicas[task_type] = replica_set.copy()
                     print(f"  {task_type}: {len(replica_set)} replicas")
-                    
-                    # Remove these platforms from available resources since they're now allocated
+
                     for node, platform in replica_set:
+                        # route_b env pivot (2026-08-27), W3: under replica_overlap a
+                        # (node, platform) may be a replica for MORE THAN ONE task
+                        # type, so the platform can already be absent from
+                        # available_resources[node] by the time a later task type's
+                        # replica_set is processed here (an earlier type removed it
+                        # first). Availability bookkeeping is legitimately per-
+                        # PLATFORM (a physical slot is "available" once, not once per
+                        # sharing type) and must only run the first time; contention
+                        # tracking is per (task_type, node, platform) and MUST be
+                        # seeded for every type regardless, or the second type's
+                        # KeyError surfaces later in monitor_process (orchestrator.py
+                        # :161-181) instead of here where the cause is legible.
                         if node in available_resources and platform in available_resources[node]:
+                            # Remove this platform from available resources since it's
+                            # now allocated (once, even if multiple types share it)
                             available_resources[node].remove(platform)
                             node.available_platforms -= 1
-                            # Allocate memory for this replica
+                            # Allocate memory for THIS type's replica
                             memory_required = self.data.task_types[task_type]["memoryRequirements"][platform.type["shortName"]]
                             node.available_memory -= memory_required
                             # print(f"    Allocated {node.node_name}:{platform.id} for {task_type} (memory: {memory_required}GB)")
-                            
-                            # Initialize average_contention for this replica to prevent KeyError
-                            scheduler_state.average_contention[task_type][(node.id, platform.id)] = 0.0
-                            # print(f"    Initialized contention tracking for {node.node_name}:{platform.id}")
+
+                        # Initialize average_contention for this replica to prevent
+                        # KeyError -- unconditional, so a shared platform is seeded
+                        # for EVERY task type that has a replica on it.
+                        scheduler_state.average_contention[task_type][(node.id, platform.id)] = 0.0
+                        # print(f"    Initialized contention tracking for {node.node_name}:{platform.id}")
             print("=== Initial replicas integrated ===\n")
         
         logger.info("DeterminedOrchestrator: Creating DeterminedSystemState")
