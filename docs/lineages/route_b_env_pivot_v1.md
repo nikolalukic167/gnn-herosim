@@ -2,7 +2,7 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md)
 
-**Outcome.** Current work. Screen registered 2026-08-27. `greedy_stuck` was measured as **decoder myopia on every rung** (backtracking rescues 458/458), not the configuration artifact §3 read it as; **AMENDMENT 2 (signed off 2026-08-27)** replaced the decoder, and **H0 and H1 now have clean counters** at α=2.0 and α=3.0. H2 stays VOID-GENERATION. **No S-bar has been read on any rung** — H1 still lacks its paired separable control.
+**Outcome.** Current work. Screen registered 2026-08-27. `greedy_stuck` was measured as **decoder myopia on every rung** (backtracking rescues 458/458); **AMENDMENT 2** replaced the decoder and **H0/H1 counters went clean**; both paired controls were then generated under AMENDMENT 1 and **both PASS S0**. The bars were then read for the first time: **H0 is VOID-TIE-INDETERMINATE on S1** (`registered` 0.1667 fails, `pessimistic` 0.2549 passes) and **H1 FAILS S1** (all four band members below the 0.25 bar). **S2, the kill bar, is uncomputable on this grid** — its `t1x` competitor needs ≥82 sweep rows and the pivot's scarcity squeeze produces 16 and 64, so it is refused on 204/204 datasets in both arms. S3/S4 looked blocked the same way but were not: the transfer tool aborted the whole run on one arm's refusal, and with that **tool defect fixed** (refusals recorded per arm, pooled block de-nested; 0 pre-existing values moved, 12 tests with verified teeth) **S4 PASSES on both rungs** (`hop+coupling` closes 0.0000 on the full firing stratum) and **S3 lands on the bar** — H0 `mean_tied` 0.500000, H1 0.500835 against `≤ 0.5`. H2 stays VOID-GENERATION and H3 was never generated, so the ladder is **not** exhausted and no pivot-level verdict is licensed. Open for the user: whether unreachable S0 sub-gates make a rung VOID, how to re-register S2 against a competitor that fits these sweeps, and what to do about an S3 reading decided at the sixteenth decimal.
 
 **Related:** [route_b_v1](route_b_v1.md) · [route_a_v1](route_a_v1.md)
 
@@ -23,6 +23,9 @@
 
 Newest first; the sections themselves are in chronological order below.
 
+- [route_b_env_pivot_v1 — the transfer tool's abort-on-refusal fixed; S3 and S4 read on both rungs (2026-08-27)](#route-b-env-pivot-v1-the-transfer-tools-abort-on-refusal-fixed-s3-and-s4-read-on-both-rungs-2026-08-27)
+- [route_b_env_pivot_v1 — S1–S4 read on H0 and H1: H0 VOID-TIE-INDETERMINATE, H1 FAILS S1, and S2 is uncomputable on this grid (2026-08-27)](#route-b-env-pivot-v1-s1s4-read-on-h0-and-h1-h0-void-tie-indeterminate-h1-fails-s1-and-s2-is-uncomputable-on-this-grid-2026-08-27)
+- [route_b_env_pivot_v1 — H0 and H1 controls generated under AMENDMENT 1; both PASS S0 (2026-08-27)](#route-b-env-pivot-v1-h0-and-h1-controls-generated-under-amendment-1-both-pass-s0-2026-08-27)
 - [route_b_env_pivot_v1 — SCREEN PRE-REGISTRATION (signed off 2026-08-27)](#route-b-env-pivot-v1-screen-pre-registration-signed-off-2026-08-27)
 
 ---
@@ -258,6 +261,284 @@ is an empty directory, so H1 cannot pass S0 until it is generated under AMENDMEN
 `HEROSIM_STORAGE_NEUTRAL=1` definition. H0's control was generated under the **old**
 definition, which AMENDMENT 1 established never produced separable physics. Reading either
 rung's S1–S4 is a separate decision and has not been taken.
+
+
+---
+
+#### route_b_env_pivot_v1 — H0 and H1 controls generated under AMENDMENT 1; both PASS S0 (2026-08-27)
+
+**Decision.** The user asked for all control groups to be generated, 2026-08-27. This
+**supersedes AMENDMENT 1 §5's** "H0 is not re-generated under the amended definition" —
+§5's reasoning was that H0 was VOID on feasibility regardless, and AMENDMENT 2 cleared
+H0's counters the same day, so the premise is gone. §5 is not standing guidance any more.
+
+Scope: **controls only.** No main (Arm S) corpus was regenerated, no threshold, bar, grid,
+α ladder or reading rule moved, and **S1–S4 were not read on any rung.**
+
+**Generated** (grid + seeds identical to each rung's main corpus, which is what "paired"
+means — H0 3001–3017, H1 3101–3117):
+
+| corpus | result |
+|---|---|
+| `gnn_datasets_route_b_pivot_h0_ctrl` | regenerated, 204/204 SUCCESS, 0 skips, 0 truncated sweeps |
+| `gnn_datasets_route_b_pivot_h1_ctrl` | generated for the first time, 204/204 SUCCESS, 0 skips, 0 truncated sweeps |
+
+Both carry `num_placements` `{16: 102, 64: 102}` — cell-for-cell paired with their mains.
+The old H0 control is retained as `gnn_datasets_route_b_pivot_h0_ctrl_OLDDEF`.
+
+H2's control was **not** generated: `replica_overlap` and the `per_server=1` arm are
+structurally incompatible (4 tasks need 4 distinct platforms, overlap leaves 2), which comes
+from the topology rather than the physics env vars, so an H2 control would be crippled
+102/204 identically. That needs `ladder-findings.md` §6 options 3/4 and its own amendment.
+H3 has never been generated at all.
+
+**S0 result — the bar is `r_exact.frac_gt_1pct ≤ 0.02`, whole band reported.** Denominators
+are `{16: 102, 64: 102}` at both reading α with zero censoring, so neither statistic is
+concentrated in one arm.
+
+| rung | α | `registered` | `mean_tied` | `optimistic` | `pessimistic` | S0 |
+|---|---|---|---|---|---|---|
+| H0 control | **2.0** (registered primary) | 0.0098 | 0.0000 | 0.0000 | 0.0098 | **PASS** |
+| H1 control | **3.0** (its reading α) | 0.0000 | 0.0000 | 0.0000 | 0.0000 | **PASS** |
+
+`registered` and `pessimistic` agree in direction on both, so neither is
+VOID-TIE-INDETERMINATE.
+
+**AMENDMENT 1 §3's falsifiable prediction is confirmed, not falsified.** Against the same
+H0 control grid under the *old* definition (`registered` 0.0784 / `mean_tied` 0.0392 /
+`optimistic` 0.0196 / `pessimistic` 0.0833), the storage-neutral lever cuts `registered`
+**8×** and takes `mean_tied` to exactly **0**. The lever does what §4 says it does.
+
+**Verification, all four steps.** Generation integrity above; independent verifier
+(`--check-repairs`, own solver, no scorer imports) **612 (dataset, α) cells agree to 1e-9**
+on the H0 control and **542** on H1's, 1,326 and 1,046 repair values, 0 machine-precision
+ties accepted; per-arm histogram read before quoting, above. `legacy_forward_only`
+reproduces the pre-AMENDMENT-2 decoder from the same run — 102 stuck (H0 ctrl α=2.0) and
+101 (H1 ctrl α=3.0), **all in the 64-row arm**, `rescued_by_completion` 102 and 101 — so
+the 458/458 rescue reproduces on the controls too. `legacy_greedy_censored` degenerates to
+the `r_exact` block, as expected post-AMENDMENT-2.
+
+**Two VOID-GENERATION corpora were produced and discarded first, and the cause is a
+generation-recipe trap worth knowing** (tool row in GATE TOOLS). The first pass omitted
+`HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_RETAIN_TASK_TIMES=1` — half the corpus recipe
+(`route_b_v1` Artifacts) which AMENDMENT 1 §3 carries forward implicitly as "everything
+else about the control is unchanged". At the default 30 s keep-alive the autoscaler evicts
+a forced replica mid-episode and the episode dies with `Invalid forced placement … not in
+replicas`. Both rungs still reported **204/204 SUCCESS**: the damage was 13 (H0) and 14 (H1)
+truncated sweeps plus one hard failure, visible only in `placement_metadata.json`
+(`sweep_complete: false`), and it scattered `num_placements` across 12–14 distinct values so
+the controls were no longer arm-comparable with their mains. **Attribution was measured, not
+assumed** — regenerating the whole H0 control grid at HEAD with *no* lever reproduced both
+symptoms (9 truncated, same scatter), and two no-keep-alive runs of the identical command
+disagreed with each other (9 vs 13 truncated, different histograms), which is the
+nondeterministic set-order tie-break `executecosimulation.py:89-99` documents.
+`HEROSIM_STORAGE_NEUTRAL` accounts for neither symptom; its only effect is the cost
+arithmetic (ds_00067 best RTT 2.385686 → 2.355926).
+
+**Frozen reports:** `simulation_data/route_b_pivot_h0_ctrl_amd1_rtt.json` and
+`route_b_pivot_h1_ctrl_amd1_rtt.json` (`--include-per-dataset`, cap modes `alpha_max` and
+`alpha_mean` respectively). The older `route_b_pivot_h0_ctrl_rtt.json` is left untouched as
+the OLDDEF reading.
+
+**What this does and does not unblock.** S0 is now clean on H0 and H1, so both rungs are
+readable for the first time. **Whether to read S1–S4 is a separate decision and has not been
+taken.** H2 remains VOID-GENERATION.
+
+
+---
+
+#### route_b_env_pivot_v1 — S1–S4 read on H0 and H1: H0 VOID-TIE-INDETERMINATE, H1 FAILS S1, and S2 is uncomputable on this grid (2026-08-27)
+
+**Decision.** The user authorised reading the bars, 2026-08-27, immediately after the
+controls landed. Read at each rung's reading α on the firing stratum, whole tie band,
+per-arm denominators checked first. **No threshold, bar, grid, α ladder or reading rule
+moved.** Frozen artifacts: `simulation_data/route_b_pivot_{h0,h1}_bars_rtt.json`.
+
+**S1 — `r_exact.frac_gt_5pct ≥ 0.25`.** Denominators `{16: 102, 64: 102}`, zero censoring
+on both rungs, so neither statistic is arm-confounded.
+
+| rung | α | `registered` | `mean_tied` | `optimistic` | `pessimistic` | reading |
+|---|---|---|---|---|---|---|
+| H0 | 2.0 | 0.1667 FAIL | 0.2402 FAIL | 0.0735 FAIL | **0.2549 PASS** | **VOID-TIE-INDETERMINATE** |
+| H1 | 3.0 | 0.1716 FAIL | 0.1961 FAIL | 0.1569 FAIL | 0.2059 FAIL | **FAIL** |
+
+H0's `registered` and `pessimistic` land on opposite sides of the bar, which §4 makes
+VOID-TIE-INDETERMINATE, never a pass. H1's four members agree, so its FAIL is clean.
+`mean_tied` 0.2402 against a 0.25 bar is a near-miss, and §4 is explicit that a near-miss is
+a FAIL. S1's statistic is **unchanged by AMENDMENT 2** — the pre-amendment frozen
+`route_b_pivot_h0_rtt.json` carries the same 0.1667, confirming "0 non-greedy keys moved".
+
+**S2 — the kill bar — cannot be computed on this grid at all.** S2 reads the per-dataset
+`t1x` repair fraction, and `t1x` is **refused by the saturation guard on 204/204 datasets in
+both rungs, in both arms**. The guard needs `n_rows ≥ 2 × n_params`; measured on this grid:
+
+| competitor | `n_params` | needs | 16-row arm | 64-row arm |
+|---|---|---|---|---|
+| `t1` (registered blocks) | 21 | ≥ 42 rows | refused | OK |
+| **`t1x` (the S2 competitor)** | **41** | **≥ 82 rows** | **refused** | **refused** |
+
+**Root cause: the pivot's own scarcity squeeze shrank the sweeps below the competitor's
+fittability threshold.** The bars were calibrated on the stage-1 pilot corpus, whose sweeps
+are **256–1248 rows** (`{256:9, 320:9, 432:8, 504:7, 576:28, 672:28, 756:34, 840:29,
+1024:15, 1152:25, 1248:12}`) — every one of them fits `t1x`. H0 drops
+`server_node_counts` 6→4 and `replica_configs` from 2–3/server to 1–2/server, which is what
+creates the contention the screen exists to test, and it takes the sweeps to **16 and 64**.
+Nothing could have caught this before a rung was generated: the grid and the bars were both
+registered, and their incompatibility only exists in the product.
+
+**S3 / S4 — initially reported as blocked for the same reason; that was only half right,
+and the other half was a tool defect, now fixed (see the next entry).**
+`route_b_coefficient_transfer.py` raised on the first firing dataset in the 16-row arm
+(`repair over blocks ['kint','quad','cap','hop','coupling'] hit the saturation guard —
+refusing to report an interpolated zero`), so no transfer report existed on either rung.
+But S4's own bar block `hop+coupling` is 7 parameters and fits in **both** arms, and S3's
+statistic is a **pooled** fit that cannot interpolate at all — neither was blocked by the
+grid; both were blocked by an unrelated arm's refusal aborting the run. **S3 and S4 are
+read in the next entry.** What survives the guard on the firing stratum, by arm:
+
+| arm | H0 α=2.0 (firing 34) | H1 α=3.0 (firing 35) |
+|---|---|---|
+| `1int` | 34/34 `{16:24, 64:10}` | 35/35 `{16:18, 64:17}` |
+| `kint` / `t1` / `t1hd` / `lnk` / `t1lnk` | 10/34 `{64:10}` | 17/35 `{64:17}` |
+| **`t1x`** | **0/34** | **0/35** |
+
+Any S3/S4 number from this corpus would be over the 64-row arm only, on 10 and 17 datasets.
+
+**Arm-scoped diagnostic, explicitly not a bar reading** (`registered` point values, 64-row
+arm, no tie band): on **H0** every computable competitor closes **0.000** of the regret on
+the median firing dataset — the structure survives all of them. On **H1** `t1`/`t1hd`/`lnk`/
+`t1lnk` close **1.000** at the median (mean 0.649) while `kint` alone closes ~0, so the
+closure is carried by the `quad`/`cap`/`hop`/`coupling` blocks. That is the S4 attribution
+worry in miniature, and it points the same way as H1's S1 FAIL. On n=10 and n=17 in one arm
+it is a hint, not a result.
+
+**S0 is clean on everything reachable and cannot be fully discharged.** Control bar PASS on
+both rungs (previous entry); counters clean; positive-control suite **48 passed**;
+independent verifier `--check-repairs` agrees to 1e-9 on all four corpora (H0 612, H0-ctrl
+612, H1 542, H1-ctrl 542). But S0 also names `--check-blocks` and `--check-krank` with
+`--extended-blocks`, and **both take the transfer report that cannot be produced** — so two
+of S0's three verifier passes are unreachable on this grid.
+
+**Reading.** H0 is **VOID-TIE-INDETERMINATE** on S1. H1 **FAILS** S1, which is terminal for
+the rung on its own, since the bars are a conjunction. **The ladder is not exhausted** —
+H2 is VOID-GENERATION and H3 has never been generated — so this is **not**
+FAIL-BY-EXHAUSTION, and no verdict on the pivot as a whole is licensed yet.
+
+**One open question that is the user's, not this entry's.** §4 says any S0 failure makes a
+rung VOID. Whether *unreachable* verifier sub-gates count as an S0 failure is a reading-rule
+question the registration does not answer: on the strict reading both rungs are VOID and
+H1's FAIL is not readable either; on the lenient reading H1's FAIL stands. **Deciding it
+here would be moving a reading rule, so it is not decided here** — it needs an amendment.
+The same amendment is the natural home for the S2 problem, whose options are visible but
+untaken: re-register the kill bar against a competitor that fits a 64-row sweep, widen the
+grid's `replica_configs` so sweeps clear 82 rows (which loosens the very squeeze H0 exists
+to create), or pool across datasets instead of fitting per-dataset.
+
+
+---
+
+#### route_b_env_pivot_v1 — the transfer tool's abort-on-refusal fixed; S3 and S4 read on both rungs (2026-08-27)
+
+**What was actually wrong.** The saturation guard is correct and stays: a fit with fewer
+than `2 x n_params` rows could interpolate the sweep, so its regret is refused rather than
+reported as a zero. What was wrong is what `route_b_coefficient_transfer.py` did with a
+refusal — **one refused arm raised and aborted the entire run.** The tool already had the
+right contract, but only on its `t1x` arm (try/except, record `saturated`, exclude from the
+median); every other per-dataset call site aborted.
+
+That cost the screen two bars it could have read all along:
+
+| bar | its column set | params | needs | 16-row arm | 64-row arm |
+|---|---|---|---|---|---|
+| **S4** | `hop+coupling` alone | 7 | 14 rows | **fits** | **fits** |
+| **S3** | pooled, one coefficient set | 82–83 | 1024–1376 rows available | **n/a — pooled** | **n/a — pooled** |
+| S2 | `t1x` per dataset | 41 | 82 rows | refused | refused |
+
+Only **S2** is genuinely blocked by the grid. S4's bar block fits in both arms, and S3's
+statistic is fit across the whole corpus at once (per-dataset intercepts, one shared
+coefficient set), so no single dataset's sweep width can make it interpolate — measured
+**1024 rows against 82 parameters** on H0 and **1376 against 83** on H1, both clearing the
+same 2x criterion comfortably. S3 was withheld only because it was nested inside a
+per-dataset "did every arm fit?" condition that does not apply to it.
+
+**The fix** (`scripts_cosim/route_b_coefficient_transfer.py`): a dedicated
+`SaturationRefusal(RuntimeError)` raised by `Cell.repair` / `Cell.repair_band`, with
+`try_repair` / `try_repair_band` tolerating **exactly** that and nothing else — `except
+RuntimeError` at a call site would also have swallowed "no feasible rows", "non-positive
+optimum" and the firing-set disagreement, all of which must stay fatal. Every per-dataset
+arm now reports `n_fitted` / `n_saturated` and a `by_arm` breakdown keyed on the
+unconstrained sweep size, and takes its median over the fitted subset; the pooled block is
+de-nested and reports its own rows-vs-parameters headroom. A cell with nothing fitted
+reports `median: null` and a named `VOID-CELL-B-UNFITTABLE`, never a zero.
+
+**No registered semantics moved.** Byte-identity verified where it claims to be inert: on
+the stage-1 pilot corpus (256–1248-row sweeps, nothing refuses) the post-fix artifact is
+diffed against a pre-fix baseline from the same commit — **0 pre-existing values moved**,
+every added key being one of the refusal-accounting fields. 12 new tests in
+`tests/test_route_b_transfer_saturation_refusal.py`, **all 12 verified to fail against the
+pre-fix code**, on a rig that is the same firing cell at two sweep widths (54 rows vs 36,
+identical `r_base` 7.2848) so "fits vs refused" cannot be confounded with a physics
+difference.
+
+**S4 — attribution guard. Bar: `hop+coupling` alone closes < 0.8 median on the firing
+stratum.** Read on the **full** stratum, no refusals, so no arm confounding:
+
+| rung | α | `hop+coupling` median | n | S4 |
+|---|---|---|---|---|
+| H0 | 2.0 | **0.0000** | 34/34 | **PASS** |
+| H1 | 3.0 | **0.0000** | 35/35 | **PASS** |
+
+The parent-coupling block closes *nothing* on either rung — the failure mode S4 exists to
+catch is absent. `pessimistic` is by construction ≤ `registered` and clipped at 0, so both
+band members sit far below 0.8 and agree in direction. (The `ablation()` arms report a
+point value, not a tie band — a pre-existing gap, harmless at 0.0 vs 0.8, but it means S4's
+band-agreement cannot be checked *in general* from this artifact.)
+
+Full table, with the denominators the fix now exposes. The arms that include `kint` or
+`hetdem` are **64-row-arm only** (10/34 and 17/35) and must be read as such:
+
+| arm | H0 median (n) | H1 median (n) |
+|---|---|---|
+| `quad` | 0.0000 (34) | 0.0172 (35) |
+| **`parent-coupling (hop+coupling)`** | **0.0000 (34)** | **0.0000 (35)** |
+| `futureint` | 0.4393 (34) | 0.5702 (35) |
+| `kint` | 0.0000 (10, 64-row only) | 0.0000 (17, 64-row only) |
+| `occupancy (kint+quad+cap)` | 0.0000 (10, 64-row only) | 1.0000 (17, 64-row only) |
+| `hetdem` | 0.0000 (10, 64-row only) | 1.0000 (17, 64-row only) |
+| `full T1` | 0.0000 (10, 64-row only) | 1.0000 (17, 64-row only) |
+
+**S3 — pooled closure. Bar: `median_mean_tied ≤ 0.5` on the firing stratum.**
+
+| rung | α | `registered` | `mean_tied` (fair reading) | `pessimistic` | S3 |
+|---|---|---|---|---|---|
+| H0 | 2.0 | 0.2322 | **0.500000** (0.49999999999999944) | 0.2322 | **PASS by equality** |
+| H1 | 3.0 | 0.1261 | **0.500835** | 0.1261 | **FAIL** |
+
+**Both land on the bar, and H0's pass is decided at the sixteenth decimal.** This is not a
+floating-point artifact of a degenerate statistic — checked: the surrogate fully separates
+on 26/34 (H0) and 23/35 (H1) datasets, where `mean_tied == registered` exactly, and only
+1/34 has the surrogate separating nothing. The median sits at 0.5 because the handful of
+*tied* datasets (`n_tied` 2–16) carry `mean_tied` values of exactly 0.50000 and land on the
+median position. So the reading is real, and it is genuinely a coin-toss at the threshold.
+§4's "a near-miss is a FAIL, there is no third option" plainly covers H1; H0 satisfies
+`≤ 0.5` by equality. **Flagged rather than adjudicated** — a bar this marginal is the
+user's call, and moving it is not mine.
+
+**S2 is unchanged and still uncomputable** — `t1x` needs 82 rows per dataset and the grid
+yields 64 at most. No tool fix reaches it; it needs the amendment described in the previous
+entry.
+
+**Rung verdicts do not change.** The bars are a conjunction and S1 already decided both
+rungs: **H0 VOID-TIE-INDETERMINATE**, **H1 FAIL**. What changed is that the screen is now
+*readable* instead of *broken* — and what it says where it can now speak (S4 clean on both,
+S3 on the knife-edge) is recorded above rather than lost to an abort.
+
+**Naming mismatch, flagged not edited:** the artifact block carrying S3's statistic is still
+called `krank_pooled_exploratory` and its own `note` says "Exploratory", wording from the
+route_b_v1 era. The pivot registration promoted this quantity to a registered bar. Which
+block S3 names is a registration matter, so the string is left alone.
+
+**Frozen artifacts:** `simulation_data/route_b_pivot_{h0,h1}_transfer.json`.
 
 
 ---

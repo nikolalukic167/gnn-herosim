@@ -242,9 +242,10 @@ Corpora (all gitignored):
 
 | path | what |
 |---|---|
-| `simulation_data/gnn_datasets_route_b_pivot_h0` / `_ctrl` | H0 main + control, 204/204 |
+| `simulation_data/gnn_datasets_route_b_pivot_h0` / `_ctrl` | H0 main + control, 204/204. The control was **regenerated 2026-08-27** under AMENDMENT 1 (`HEROSIM_STORAGE_NEUTRAL=1`) and **passes S0**. |
+| `simulation_data/gnn_datasets_route_b_pivot_h0_ctrl_OLDDEF` | the pre-AMENDMENT-1 H0 control, 204/204, retained as measured — it is the `registered` 0.0784 / `mean_tied` 0.0392 reading, **not** a current artifact |
 | `simulation_data/gnn_datasets_route_b_pivot_h1` | H1 main, 204/204 |
-| `simulation_data/gnn_datasets_route_b_pivot_h1_ctrl` | **empty directory — H1's paired separable control was never generated** (see §9.4) |
+| `simulation_data/gnn_datasets_route_b_pivot_h1_ctrl` | H1's paired separable control, **generated 2026-08-27** under AMENDMENT 1, 204/204, **passes S0** (all band members 0.0) — §9.4's gap is closed |
 | `simulation_data/gnn_datasets_dag4_route_b_pivot_h2` | H2, **102/204** — VOID-GENERATION |
 | `simulation_data/probefull_rsp_075` | probe, 3 hosting nodes, 204/204 |
 | `simulation_data/probefull_rsp_10` | probe, 4 hosting nodes, 204/204 |
@@ -253,7 +254,11 @@ The two `probefull_rsp_*` corpora exist only to support §3.2 and are not regist
 they may be deleted once this document is accepted.
 
 Reports: `simulation_data/route_b_pivot_h0_rtt.json`,
-`route_b_pivot_h0_ctrl_rtt.json`, `route_b_pivot_h0_reading.json` (all committed).
+`route_b_pivot_h0_ctrl_rtt.json` (the **OLDDEF** control — pre-AMENDMENT-1),
+`route_b_pivot_h0_reading.json`, and the two AMENDMENT-1 control readings
+`route_b_pivot_h0_ctrl_amd1_rtt.json` / `route_b_pivot_h1_ctrl_amd1_rtt.json` (all
+committed). The `_amd1_` pair are the S0 artifacts; the older `_ctrl_rtt.json` is kept as
+the measured old-definition reading and is not a current artifact.
 
 ## 8. What is NOT claimed here
 
