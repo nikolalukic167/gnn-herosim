@@ -114,10 +114,17 @@ def firing_set(report_path: Path, alpha_key: str) -> Tuple[List[int], List[float
 class Cell:
     """One firing dataset, loaded once and reused by every cell and every ablation arm."""
 
-    def __init__(self, ds_dir: Path, task_types_db: dict, alpha: float):
+    def __init__(self, ds_dir: Path, task_types_db: dict, alpha: float,
+                cap_mode="alpha_max"):
         self.ds_dir = ds_dir
         self.ds = Dataset(ds_dir, task_types_db, "rtt")
-        self.caps = self.ds.node_caps(alpha)
+        # route_b_env_pivot_v1 (2026-08-27): H1+ rungs score under cap_mode=alpha_mean
+        # (score_route_b_contention.py --cap-mode); the transfer step must use the SAME
+        # cap_mode or its caps (hence feasibility, r_base, every repair) silently
+        # diverge from what the frozen report scored. Default "alpha_max" is the
+        # pre-existing behavior, unchanged for every caller that doesn't pass this.
+        self.cap_mode = cap_mode
+        self.caps = self.ds.node_caps(alpha, cap_mode=cap_mode)
         self.marginal = min_marginals(self.ds.rows)
         self.feasible = [(p, v) for p, v in self.ds.rows
                          if self.ds.plan_feasible(p, self.caps)]
@@ -268,7 +275,8 @@ def pooled_fit(cells: List[Cell], blocks, equal_dataset_weight: bool
 # Reporting
 # ---------------------------------------------------------------------------
 
-def run(corpus: Path, report: Path, task_types: Path, alpha: float) -> dict:
+def run(corpus: Path, report: Path, task_types: Path, alpha: float,
+       cap_mode="alpha_max") -> dict:
     task_types_db = load_task_types(task_types)
     idx, reported_r = firing_set(report, str(alpha))
     ds_dirs = sorted(d for d in corpus.glob("ds_*") if d.is_dir())
@@ -277,16 +285,19 @@ def run(corpus: Path, report: Path, task_types: Path, alpha: float) -> dict:
 
     cells: List[Cell] = []
     for position, r_reported in zip(idx, reported_r):
-        cell = Cell(ds_dirs[position], task_types_db, alpha)
+        cell = Cell(ds_dirs[position], task_types_db, alpha, cap_mode=cap_mode)
         if abs(cell.r_base - r_reported) > 1e-9:
             raise RuntimeError(
                 f"{ds_dirs[position]}: R_exact {cell.r_base} != frozen report's "
-                f"{r_reported} — the corpus and the report disagree, refusing to fit")
+                f"{r_reported} — the corpus and the report disagree, refusing to fit "
+                f"(cap_mode={cap_mode!r} -- confirm this matches what --cap-mode the "
+                "report was scored with)")
         cells.append(cell)
     names = t1_column_names(cells[0].ds, blocks=POOLED_BLOCKS)
     shared_names = ["marginal_sum"] + names
 
     out: dict = {"corpus": str(corpus), "report": str(report), "alpha": alpha,
+                 "cap_mode": cap_mode,
                  "n_datasets": len(ds_dirs), "firing": len(cells),
                  "firing_indices": idx,
                  "pooled_blocks": list(POOLED_BLOCKS),
@@ -698,6 +709,12 @@ def main() -> int:
                          "occupancy (krank_demand_cols), padded/pooled exactly as "
                          "krank_cols. Registered §9a/§9b cells (A/B/C) are hardcoded "
                          "and never affected by this flag.")
+    ap.add_argument("--cap-mode", default="alpha_max",
+                    help="route_b_env_pivot_v1: must match whatever --cap-mode the "
+                         "--report was scored with (score_route_b_contention.py), or "
+                         "R_exact disagrees and Cell.__init__ refuses to fit. "
+                         "'alpha_max' (default, unchanged) | 'alpha_mean' | a bare "
+                         "number (interpreted as {'absolute': x}).")
     args = ap.parse_args()
     extra_t1_blocks = ()
     if args.add_linkrank:
@@ -706,10 +723,21 @@ def main() -> int:
         extra_t1_blocks += ("hetdem", "futureint")
     krank_pool_blocks = POOLED_BLOCKS + extra_t1_blocks
 
-    out = run(args.corpus, args.report, args.task_types, args.alpha)
+    if args.cap_mode in ("alpha_max", "alpha_mean"):
+        cap_mode = args.cap_mode
+    else:
+        try:
+            cap_mode = {"absolute": float(args.cap_mode)}
+        except ValueError:
+            raise SystemExit(
+                f"--cap-mode: unrecognised value {args.cap_mode!r}; expected "
+                "'alpha_max', 'alpha_mean', or a number")
+
+    out = run(args.corpus, args.report, args.task_types, args.alpha, cap_mode=cap_mode)
     task_types_db = load_task_types(args.task_types)
     ds_dirs = sorted(d for d in args.corpus.glob("ds_*") if d.is_dir())
-    cells = [Cell(ds_dirs[i], task_types_db, args.alpha) for i in out["firing_indices"]]
+    cells = [Cell(ds_dirs[i], task_types_db, args.alpha, cap_mode=cap_mode)
+            for i in out["firing_indices"]]
     out["ablation"] = ablation(cells)
     out["residual_characterization"] = characterize(cells, out["per_dataset"])
     out["identity_or_features"] = identity_or_features(cells)
