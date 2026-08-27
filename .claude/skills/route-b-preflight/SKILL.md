@@ -72,9 +72,16 @@ reported for exactly this reason. **Do not infer a denominator.**
 A denominator concentrated in one arm makes the statistic "over that arm only", whatever
 its name.
 
-**4. Cross-check against `legacy_greedy_censored`**, which reproduces the pre-fix numbers
-from the **same run**, so a deviation is audited against one artifact rather than a commit
-message.
+**4. Cross-check against the `legacy_*` blocks**, which reproduce pre-fix numbers from the
+**same run**, so a deviation is audited against one artifact rather than a commit message.
+`legacy_greedy_censored` is the 2026-08-27 denominator fix's audit trail (it degenerates to
+the r_exact block post-AMENDMENT-2, since `greedy_stuck` now reads 0 wherever a feasible
+plan exists). `legacy_forward_only` is AMENDMENT 2's: the pre-amendment forward-only
+decoder's `greedy_stuck`, `n_greedy_scored`, `r_greedy` and per-arm censoring.
+
+**A nonzero `greedy_stuck` is now a fail-loud condition**, not a rung property: the decoder
+is a complete search over the same space `no_feasible_rows` reports on, so the two can only
+disagree if the mask and the enumerated sweep disagree.
 
 ## What has already gone wrong
 
@@ -128,7 +135,8 @@ And the methodological instance, which no code review would have caught:
 
 `docs/lineages/route_b_env_pivot_v1.md` — the node. Its attachments:
 `screen-preregistration.md` (registration), `screen-amendment-1.md` (S0 control
-definition), `screen-amendment-2.md` (**draft**, the decoder), `ladder-findings.md`
-(**§9 supersedes §3 and §4.1**). Gate-tool corrections go in `docs/gates/gate-tools.md`,
+definition), `screen-amendment-2.md` (the decoder, **signed off 2026-08-27**),
+`ladder-findings.md` (**§9 supersedes §3 and §4.1**; its §1/§4 counter tables are
+pre-amendment forward-only numbers). Gate-tool corrections go in `docs/gates/gate-tools.md`,
 never in a lineage narrative. **Session handovers are ephemeral — scratchpad, never the
 repo.**

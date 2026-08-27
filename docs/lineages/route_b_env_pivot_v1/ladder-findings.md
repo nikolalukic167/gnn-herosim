@@ -1,9 +1,16 @@
 # route_b_env_pivot_v1 — ladder feasibility findings (2026-08-27)
 
-**Status: no rung is currently readable.** H0 and H1 are VOID-INFEASIBLE under the
+**Status when written: no rung is readable.** H0 and H1 are VOID-INFEASIBLE under the
 registered fallback; H2 as configured is VOID-GENERATION. None of this is a verdict on the
 pivot hypothesis — the ladder is being defeated by configuration and decoder artifacts
 before its bars are ever consulted.
+
+> **Superseded in part the same day.** AMENDMENT 2 (signed off 2026-08-27) replaced the
+> decoder behind `greedy_stuck`; **H0 and H1 now have clean counters** at α=2.0 and α=3.0
+> and are no longer VOID-INFEASIBLE. H2 is unchanged and still VOID-GENERATION. **No S-bar
+> has been read on any rung.** §1's and §4's counter tables remain correct as the
+> *pre-amendment* forward-only numbers, which every rung's artifact still carries as
+> `legacy_forward_only`.
 
 This document records what was measured, so the next session does not re-derive it. It is
 findings only: **no threshold, grid, or reading rule is changed here.** Every remedy in §6
@@ -346,5 +353,8 @@ under them has moved:
   fails to find plans that exist. §4.1's argument for it as "the more honest description"
   is weaker now that the counter is known to describe the tool on every rung.
 
-The recommendation and a **draft, unsigned** amendment are in
-`docs/lineages/route_b_env_pivot_v1/screen-amendment-2.md`.
+**Option 1 was recommended, signed off by the user the same day, and landed** —
+`docs/lineages/route_b_env_pivot_v1/screen-amendment-2.md`, whose §8 records the discharged
+obligations. H0 and H1 now have clean counters at α=2.0 and α=3.0 respectively; §6 options
+3, 4 and 5 remain open for H2, which is untouched and still VOID-GENERATION. **No S-bar has
+been read on any rung.**

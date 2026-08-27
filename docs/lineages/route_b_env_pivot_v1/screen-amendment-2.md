@@ -1,14 +1,14 @@
-# route_b_env_pivot_v1 — AMENDMENT 2 (DRAFT): the decoder behind `greedy_stuck`
+# route_b_env_pivot_v1 — AMENDMENT 2: the decoder behind `greedy_stuck`
 
-> **DRAFT — NOT SIGNED OFF. NOTHING IN THIS DOCUMENT EXECUTES.**
-> Written 2026-08-27 as the proposal `ladder-findings.md` §6 asks for. It is recorded here
-> so the recommendation and its measurement live in the research record rather than in a
-> chat message. It becomes live only when the user signs it off **and** a LINEAGES entry
-> records it at this document's commit SHA. Until then the registered semantics are
-> exactly those of `screen-preregistration.md` @ `019bdcb` as amended by
-> `screen-amendment-1.md` @ `3719aad`. This draft was written at `f407f91`.
+> **SIGNED OFF 2026-08-27 by the user.** Drafted at `f407f91`; signed off and implemented
+> in the same session. Amends `screen-preregistration.md` @ `019bdcb` as already amended by
+> `screen-amendment-1.md` @ `3719aad`. The LINEAGES registration entry records this
+> document at its commit SHA.
+>
+> §5's obligations are **discharged**, not merely promised — see §8 for what was measured
+> when it landed.
 
-**Proposed scope: the DECODER that produces `r_greedy` and `greedy_stuck`, only.** No bar
+**Scope: the DECODER that produces `r_greedy` and `greedy_stuck`, only.** No bar
 value changes. No rung, α ladder, seed block, grid, corpus or reading rule changes. S0's
 counter-cleanliness condition is quoted verbatim and left as written. S1, S2, S3, S4 are
 untouched.
@@ -99,10 +99,10 @@ Same treatment the scorer fixes received (GATE TOOLS, 2026-08-27) — the change
   extended to the backtracking decoder in its own recomputation (no scorer import), and
   must agree to 1e-9 on every (dataset, α) cell. Disagreement is an S0 VOID.
 
-## 6. The alternative, and why it is not recommended
+## 6. The alternative, and why it was not taken
 
 `ladder-findings.md` §6 option 2 — amend the fallback to distinguish decoder-stuck from
-environment-infeasible — reaches the same two rungs by relabelling. It is rejected here
+environment-infeasible — reaches the same two rungs by relabelling. It was rejected
 because it changes a **reading rule** (the thing the registration is most protective of)
 in order to avoid fixing a tool that is measurably wrong, and it leaves `r_greedy` — a
 registered statistic that S-bars do not read but the record does — produced by a decoder
@@ -117,8 +117,40 @@ either way.
 ## 7. Sign-off
 
 Amends `screen-preregistration.md` @ `019bdcb`, as already amended by
-`screen-amendment-1.md` @ `3719aad`. Requires: user sign-off, a LINEAGES registration
-entry at this document's commit SHA, and §5's byte-identity gate plus the extended
-independent verifier green — **before** any rung is re-read.
+`screen-amendment-1.md` @ `3719aad`. **Signed off by the user 2026-08-27**, with a LINEAGES
+registration entry at this document's commit SHA.
 
-**Status: DRAFT. Not signed off. No rung has been re-read.**
+## 8. §5's obligations, as discharged on landing
+
+- **Both numbers, from the same run.** `legacy_forward_only` is emitted per dataset and per
+  α, and reproduces the pre-amendment counters **exactly** on every cell of H0, H0-control
+  and H1 — asserted, not eyeballed.
+- **The deviation, logged.** `greedy_stuck` → 0 on every cell; `rescued_by_completion`
+  carries the count.
+
+  | rung | α | nofeas | stuck old → new | rescued | n_greedy_scored old → new |
+  |---|---|---|---|---|---|
+  | H0 | 1.5 | 204 | 0 → 0 | 0 | 0 → 0 |
+  | H0 | **2.0** | 0 | **95 → 0** | 95 | 109 → **204** |
+  | H0 | 3.0 | 0 | 87 → 0 | 87 | 117 → 204 |
+  | H1 | 1.5 | 204 | 0 → 0 | 0 | 0 → 0 |
+  | H1 | 2.0 | 70 | **100 → 0** | 100 | 34 → 134 |
+  | H1 | **3.0** | 0 | **83 → 0** | 83 | 121 → **204** |
+
+- **Byte-identity gate.** Enforced in `score_dataset` on **every** dataset rather than as a
+  one-off: if the complete decode moved a plan the forward-only decode had already found,
+  it raises. All three corpora re-scored with no raise. Diffed explicitly as well —
+  **0 non-greedy keys moved** on H0 or H1; `r_exact`, every repair, every LS statistic and
+  every band are untouched.
+- **Independent verifier.** Its own complete search, written from §2's text with no scorer
+  import. **1,766 (dataset, α) cells agree to 1e-9** — H0 612, H0-control 612, H1 542 —
+  with 3,398 repair values and 0 machine-precision ties accepted.
+- **B1 acceptance is unaffected and re-passes.** The production *serving* decoder
+  (`decode_masked_topo_placement`) is forward-only and out of this amendment's scope, so
+  `--check-decoder` now compares it against `legacy_forward_only`: 408 cells on H0, 182
+  forward-only stuck cells matched. Reports written before this amendment carry no such
+  block and are read as forward-only at the top level, announced once per run — so the
+  frozen stage-1 pilot artifacts stay checkable **without being re-scored**.
+- **No threshold moved.** S1–S4 are unread on every rung.
+
+**Status: SIGNED OFF and LANDED. Counters re-read; no S-bar has been read on any rung.**

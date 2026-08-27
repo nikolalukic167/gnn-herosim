@@ -583,11 +583,17 @@ def recompute(rows, ttypes, pid_map, task_db, scales, alpha, check_repairs=False
                 repairs[kind] = (min(r_exact, regret),
                                  {min(r_exact, t) for t in tied})
 
-    # R_greedy
+    # R_greedy — AMENDMENT 2 (signed off 2026-08-27): the masked decode is a COMPLETE
+    # search over the same option ordering, not a single forward pass. Written here from
+    # the amendment's text, independently of the scorer, like everything else in this
+    # file; the recursion below shares no code with score_route_b_contention.
     order = sorted(marg, key=lambda t: (min(marg[t].values()), t))
     used, load_, chosen_total = set(), {}, {}
-    for t in order:
-        pick = None
+
+    def _extend(i):
+        if i == len(order):
+            return True
+        t = order[i]
         for p, _mv in sorted(marg[t].items(), key=lambda kv: (kv[1], kv[0])):
             if p in used:
                 continue
@@ -595,14 +601,18 @@ def recompute(rows, ttypes, pid_map, task_db, scales, alpha, check_repairs=False
             cap = math.inf if caps is None else caps.get(node, math.inf)
             if load_.get(node, 0.0) + d > cap + EPS:
                 continue
-            pick = p
-            break
-        if pick is None:
-            return r_exact, "stuck", repairs
-        chosen_total[t] = pick
-        used.add(pick)
-        node, d = demand_of(t, pick, ttypes, pid_map, task_db, scales)
-        load_[node] = load_.get(node, 0.0) + d
+            chosen_total[t] = p
+            used.add(p)
+            load_[node] = load_.get(node, 0.0) + d
+            if _extend(i + 1):
+                return True
+            del chosen_total[t]
+            used.discard(p)
+            load_[node] -= d
+        return False
+
+    if not _extend(0):
+        return r_exact, "stuck", repairs
     lookup = {tuple(sorted(plan.items())): v for plan, v in rows}
     key = tuple(sorted(chosen_total.items()))
     if key not in lookup:
@@ -1197,6 +1207,7 @@ def check_decoder(corpus, report_path, task_types_path, alpha_keys):
     ds_dirs = sorted(d for d in Path(corpus).glob("ds_*") if d.is_dir())
     checked = 0
     stuck = 0
+    pre_amendment_report = False
     for alpha_key in alpha_keys:
         results = rep["per_dataset"][alpha_key]
         alpha = float(alpha_key)
@@ -1275,19 +1286,39 @@ def check_decoder(corpus, report_path, task_types_path, alpha_keys):
                 demands=demands,
             )
 
+            # The SUBJECT here is the production SERVING decoder, which is a single
+            # forward pass and is unchanged by AMENDMENT 2 (that amendment scoped itself
+            # to the scorer's offline decode). So this pass compares against the report's
+            # `legacy_forward_only` block — the forward-only numbers, from the same run —
+            # not against the amended live counters. Comparing it to the amended ones
+            # would report a disagreement that is really a difference of subject.
+            # A report written BEFORE the amendment has no such block, and does not need
+            # one: pre-amendment the top-level counters ARE the forward-only counters. So
+            # the frozen stage-1 artifacts stay checkable without being re-scored, which
+            # is the point — they belong to route_b_v1 and this amendment regenerates
+            # nothing. The choice is announced once per run, never silent.
+            fwd = scored.get("legacy_forward_only")
+            if fwd is None:
+                fwd = scored
+                if not pre_amendment_report:
+                    pre_amendment_report = True
+                    print(f"note: {report_path} predates AMENDMENT 2 (no "
+                          "legacy_forward_only block); its top-level greedy counters "
+                          "are the forward-only ones and are used as such")
+
             if reference is None:
                 stuck += 1
                 if combo is not None:
                     fail(f"{ds} alpha={alpha_key}: reference greedy is stuck, "
                          "decoder produced a plan")
-                if not scored.get("greedy_stuck"):
+                if not fwd.get("greedy_stuck"):
                     fail(f"{ds} alpha={alpha_key}: verifier greedy stuck, frozen "
-                         "report not")
+                         "report's forward-only decode not")
                 checked += 1
                 continue
-            if scored.get("greedy_stuck"):
-                fail(f"{ds} alpha={alpha_key}: frozen report greedy stuck, "
-                     "verifier reference is not")
+            if fwd.get("greedy_stuck"):
+                fail(f"{ds} alpha={alpha_key}: frozen report's forward-only decode "
+                     "greedy stuck, verifier reference is not")
             if combo is None:
                 fail(f"{ds} alpha={alpha_key}: decoder returned None, reference "
                      f"greedy found {reference}")
@@ -1300,12 +1331,12 @@ def check_decoder(corpus, report_path, task_types_path, alpha_keys):
             if key not in lookup:
                 fail(f"{ds} alpha={alpha_key}: decoded plan {key} not in sweep")
             regret = 100.0 * (lookup[key] - best) / best
-            if abs(scored["r_greedy_pct"] - regret) > 1e-9:
+            if abs(fwd["r_greedy_pct"] - regret) > 1e-9:
                 fail(f"{ds} alpha={alpha_key}: decoded-plan regret {regret!r} != "
-                     f"frozen r_greedy_pct {scored['r_greedy_pct']!r}")
+                     f"frozen forward-only r_greedy_pct {fwd['r_greedy_pct']!r}")
             checked += 1
     print(f"OK: masked_topo decoder reproduces the topological-order masked greedy "
-          f"and the frozen r_greedy_pct on {checked} (dataset, alpha) cells "
+          f"and the frozen forward-only r_greedy_pct on {checked} (dataset, alpha) cells "
           f"({stuck} greedy-stuck cells matched) across {len(ds_dirs)} datasets, "
           f"alphas {list(alpha_keys)}")
     return 0

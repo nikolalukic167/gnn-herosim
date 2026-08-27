@@ -2,7 +2,7 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md)
 
-**Outcome.** Current work. Screen registered 2026-08-27; **no ladder rung is readable yet** — H0/H1 VOID-INFEASIBLE, H2 VOID-GENERATION. Measured 2026-08-27: `greedy_stuck` is **decoder myopia on every rung** (backtracking rescues 458/458), not the configuration artifact §3 read it as. AMENDMENT 2 is drafted and **awaiting sign-off**.
+**Outcome.** Current work. Screen registered 2026-08-27. `greedy_stuck` was measured as **decoder myopia on every rung** (backtracking rescues 458/458), not the configuration artifact §3 read it as; **AMENDMENT 2 (signed off 2026-08-27)** replaced the decoder, and **H0 and H1 now have clean counters** at α=2.0 and α=3.0. H2 stays VOID-GENERATION. **No S-bar has been read on any rung** — H1 still lacks its paired separable control.
 
 **Related:** [route_b_v1](route_b_v1.md) · [route_a_v1](route_a_v1.md)
 
@@ -12,7 +12,7 @@
 
 **Attachment:** [ladder feasibility findings (2026-08-27)](route_b_env_pivot_v1/ladder-findings.md) — **§9 supersedes §3 and §4.1**
 
-**Attachment:** [AMENDMENT 2 — the decoder behind `greedy_stuck`](route_b_env_pivot_v1/screen-amendment-2.md) — **DRAFT, NOT SIGNED OFF**
+**Attachment:** [AMENDMENT 2 — the decoder behind `greedy_stuck`](route_b_env_pivot_v1/screen-amendment-2.md) — **signed off 2026-08-27**
 
 > **Split note.** This node was carved out of a single 4,995-line `LINEAGES.md` on
 > 2026-08-27; the section bodies below are byte-for-byte as written. An *above* / *below*
@@ -207,14 +207,57 @@ legible (commit `f407f91`). 9 tests, led by the `replica_overlap` arm the origin
 assumption never saw. The
 102 H2 `skip_reason.json` files already on disk are left as the old engine wrote them.
 
-**Recommendation, for sign-off — NOT taken.** `docs/lineages/route_b_env_pivot_v1/screen-amendment-2.md`
-is a **DRAFT, unsigned**: replace the decoder's dead end with a complete search over the
-same masked space, same ordering and tie-breaks. Stated in advance: under the registered
-fallback *as written*, that makes **H0 readable at its registered primary α=2.0** and **H1
-readable at α=3.0** (both nofeas 0, both binding 204/204); H2 stays VOID-GENERATION. §6
-option 2 (amend the fallback) reaches the same rungs by changing a reading rule instead of
-fixing a tool that is measurably wrong, and is not recommended. **Nothing executes until
-the user signs off and a LINEAGES entry records it at its commit SHA.**
+**Recommendation → AMENDMENT 2, signed off the same day.** See the next entry.
+
+
+---
+
+#### route_b_env_pivot_v1 — AMENDMENT 2 SIGNED OFF AND LANDED (2026-08-27); H0/H1 counters re-read
+
+**Registration:** `docs/lineages/route_b_env_pivot_v1/screen-amendment-2.md`, signed off by
+the user 2026-08-27, amending `screen-preregistration.md` @ `019bdcb` as already amended by
+`screen-amendment-1.md` @ `3719aad`. **Scope: the scorer's offline decoder only.** No bar,
+threshold, grid, α ladder, seed block, corpus or reading rule changed. §3's registered
+fallback keeps its exact wording — the `greedy_stuck > 0` disjunct simply stops firing,
+because the condition it tests stopped being true.
+
+**What changed.** `greedy_masked_plan`'s single forward pass is replaced by
+`complete_masked_plan`: same task order, same option ordering, same replica-reuse mask,
+same capacity test, same tie-breaks — a dead end backtracks instead of returning `None`.
+Justified by the 458/458 rescue measured before sign-off.
+
+**§5's obligations are discharged, not promised** (full table in the amendment §8):
+
+- `legacy_forward_only` reproduces the pre-amendment counters **exactly** on every cell of
+  H0, H0-control and H1 — the both-numbers rule, from the same run.
+- **Deviation logged:** `greedy_stuck` → 0 on every cell. H0 α=2.0 95→0 (n_greedy_scored
+  109→204), H0 α=3.0 87→0 (117→204), H1 α=2.0 100→0 (34→134), H1 α=3.0 83→0 (121→204).
+- **Byte-identity** enforced in `score_dataset` on every dataset, not as a one-off: moving
+  a plan the forward-only decode already found raises. Three corpora re-scored, no raise;
+  explicit diff shows **0 non-greedy keys moved** — `r_exact`, every repair, every LS
+  statistic and every band untouched.
+- **Independent verifier**, own complete search, no scorer import: **1,766 (dataset, α)
+  cells agree to 1e-9** (H0 612, H0-ctrl 612, H1 542), 3,398 repair values, 0 ties accepted.
+- **B1 acceptance re-passes.** The production *serving* decoder is forward-only and out of
+  scope, so `--check-decoder` compares it against `legacy_forward_only` (408 cells on H0,
+  182 stuck cells matched). Pre-amendment reports are read as forward-only at the top
+  level, announced once per run — the **frozen stage-1 pilot artifacts stay checkable
+  without being re-scored**.
+
+**Rung status — counters only. NO S-BAR HAS BEEN READ ON ANY RUNG.**
+
+| rung | reads at | `no_feasible_rows` | `greedy_stuck` | binds on | status |
+|---|---|---|---|---|---|
+| H0 | **α=2.0** (its registered primary) | 0 | 0 | 204/204 | counters CLEAN — no longer VOID-INFEASIBLE |
+| H1 | **α=3.0** (tightest clean α on its ladder; α=2.0 has nofeas 70) | 0 | 0 | 204/204 | counters CLEAN — no longer VOID-INFEASIBLE |
+| H2 | — | — | — | — | **still VOID-GENERATION** (102/204; untouched by this amendment) |
+
+**What still blocks a reading.** S0 is a VOID gate and includes the paired separable
+control. H0's control exists (204/204); **H1's does not** — `gnn_datasets_route_b_pivot_h1_ctrl`
+is an empty directory, so H1 cannot pass S0 until it is generated under AMENDMENT 1's
+`HEROSIM_STORAGE_NEUTRAL=1` definition. H0's control was generated under the **old**
+definition, which AMENDMENT 1 established never produced separable physics. Reading either
+rung's S1–S4 is a separate decision and has not been taken.
 
 
 ---
