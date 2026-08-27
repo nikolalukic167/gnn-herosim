@@ -554,18 +554,18 @@ def test_verifier_hetdem_matches_scorer_column_for_column(tmp_path):
     tt_path = tmp_path / "task_types.json"
     with open(tt_path, "w") as fh:
         json.dump(UNIFORM_TASK_TYPES, fh)
-    rows, ttypes, pid_map, task_db, dag_edges, net, sources = verifier.load(
+    rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = verifier.load(
         ds.ds_dir, tt_path)
     peak = {}
     for plan, _v in rows:
         for t, p in plan.items():
-            node, d = verifier.demand_of(t, p, ttypes, pid_map, task_db)
+            node, d = verifier.demand_of(t, p, ttypes, pid_map, task_db, scales)
             peak[node] = max(peak.get(node, 0.0), d)
     v_caps = {n: 1.0 * m for n, m in peak.items()}
     s_caps = ds.node_caps(1.0)
     s_fn = t1_cols(ds, s_caps, blocks=("hetdem",))
     for plan, _v in ds.rows:
-        v_cols = verifier.t1_columns(plan, ttypes, pid_map, task_db, None, v_caps,
+        v_cols = verifier.t1_columns(plan, ttypes, pid_map, task_db, scales, None, v_caps,
                                      dag_edges, net, blocks=("hetdem",))
         assert s_fn(plan) == pytest.approx(v_cols, abs=TOL)
 
@@ -575,15 +575,15 @@ def test_verifier_futureint_matches_scorer_column_for_column(tmp_path):
     tt_path = tmp_path / "task_types.json"
     with open(tt_path, "w") as fh:
         json.dump(FUTURE_TASK_TYPES, fh)
-    rows, ttypes, pid_map, task_db, dag_edges, net, sources = verifier.load(
+    rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = verifier.load(
         ds.ds_dir, tt_path)
     caps = {"n0": 100.0, "n1": 100.0}
     order = verifier._kahn_order(len(ttypes), dag_edges)
-    tnmd = verifier.task_node_min_demand_table(rows, ttypes, pid_map, task_db)
+    tnmd = verifier.task_node_min_demand_table(rows, ttypes, pid_map, task_db, scales)
     assert order == topological_task_order(ds)
     s_fn = t1_cols(ds, caps, blocks=("futureint",))
     for plan, _v in ds.rows:
-        v_cols = verifier.t1_columns(plan, ttypes, pid_map, task_db, None, caps,
+        v_cols = verifier.t1_columns(plan, ttypes, pid_map, task_db, scales, None, caps,
                                      dag_edges, net, blocks=("futureint",),
                                      decode_order=order, task_node_min_demand=tnmd)
         assert s_fn(plan) == pytest.approx(v_cols, abs=TOL)
@@ -599,10 +599,10 @@ def test_verifier_t1hd_t1x_agree_with_scorer_on_saturation_and_values(tmp_path):
     tt_path = tmp_path / "task_types.json"
     with open(tt_path, "w") as fh:
         json.dump(PACK_TASK_TYPES, fh)
-    rows, ttypes, pid_map, task_db, dag_edges, net, sources = verifier.load(
+    rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = verifier.load(
         ds.ds_dir, tt_path)
     r_exact, r_greedy, repairs = verifier.recompute(
-        rows, ttypes, pid_map, task_db, 1.0, check_repairs=True,
+        rows, ttypes, pid_map, task_db, scales, 1.0, check_repairs=True,
         dag_edges=dag_edges, net=net, sources=sources)
     assert r_exact == pytest.approx(out["r_exact_pct"], abs=TOL)
     for kind in ("t1hd", "t1x"):

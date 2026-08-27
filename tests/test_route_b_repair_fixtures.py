@@ -401,29 +401,29 @@ def test_scorer_and_verifier_agree_column_for_column(tmp_path):
     tt_path = tmp_path / "task_types.json"
     with open(tt_path, "w") as fh:
         json.dump(TOY_TASK_TYPES, fh)
-    rows, ttypes, pid_map, task_db, dag_edges, net, _sources = verifier.load(
+    rows, ttypes, pid_map, task_db, dag_edges, net, _sources, scales = verifier.load(
         ds_dir, tt_path)
 
     # the verifier's own capacity construction: peak demand per node, INCLUDING the 0.0
     peak = {}
     for plan, _v in rows:
         for t, p in plan.items():
-            node, d = verifier.demand_of(t, p, ttypes, pid_map, task_db)
+            node, d = verifier.demand_of(t, p, ttypes, pid_map, task_db, scales)
             peak[node] = max(peak.get(node, 0.0), d)
     v_caps = {n: 2.0 * m for n, m in peak.items()}
     assert v_caps["n3"] == 0.0  # the convention divergence, made explicit
 
-    kint_keys = sorted({(verifier.node_of(t, p, ttypes, pid_map, task_db), ttypes[t])
+    kint_keys = sorted({(verifier.node_of(t, p, ttypes, pid_map, task_db, scales), ttypes[t])
                         for plan, _v in rows for t, p in plan.items()})
     assert kint_keys == k_integer_keys(ds)
 
     s_caps = ds.node_caps(2.0)
     s_fn = t1_cols(ds, s_caps)
     for plan in (PLAN_P, PLAN_Q, PLAN_R, PLAN_S):
-        v_cols = verifier.t1_columns(plan, ttypes, pid_map, task_db, kint_keys,
+        v_cols = verifier.t1_columns(plan, ttypes, pid_map, task_db, scales, kint_keys,
                                      v_caps, dag_edges, net)
         assert s_fn(plan) == pytest.approx(v_cols, abs=TOL)
-        assert verifier.repair_columns("1int", plan, ttypes, pid_map, task_db) == \
+        assert verifier.repair_columns("1int", plan, ttypes, pid_map, task_db, scales) == \
             pytest.approx(one_integer_cols(ds)(plan), abs=TOL)
 
 

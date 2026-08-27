@@ -66,7 +66,7 @@ def fail(msg: str) -> None:
     sys.exit(1)
 
 
-def compute_caps(rows, ttypes, pid_map, task_db, demand_of_fn, alpha, cap_mode="alpha_max"):
+def compute_caps(rows, ttypes, pid_map, task_db, demand_of_fn, alpha, scales, cap_mode="alpha_max"):
     """route_b_env_pivot_v1: independent recomputation of Dataset.node_caps's cap_mode
     option (score_route_b_contention.py). alpha_max (default) is the original formula
     here, unchanged. A node whose demands are ALL zero gets no entry in ANY mode
@@ -86,7 +86,7 @@ def compute_caps(rows, ttypes, pid_map, task_db, demand_of_fn, alpha, cap_mode="
             key = (t, p)
             if key in demand_by_key:
                 continue
-            node, d = demand_of_fn(t, p, ttypes, pid_map, task_db)
+            node, d = demand_of_fn(t, p, ttypes, pid_map, task_db, scales)
             demand_by_key[key] = (node, d)
     by_node = {}
     for node, d in demand_by_key.values():
@@ -145,16 +145,40 @@ def load(ds, task_types_path):
     sources = []
     for ev in workload["events"]:
         sources.extend([ev.get("node_name")] * len(ev["application"]["dag"]))
-    return rows, ttypes, pid_map, task_db, dag_edges, net, sources
+    # Per-task_id demand_scale (route_b env pivot W2). An event's
+    # application.demand_scale is keyed by task TYPE name; task_id is a positional
+    # derivative of static_order, so expand it the same way ttypes is built above.
+    # Absent key -> 1.0, so any corpus generated before demand_spread existed reads back
+    # byte-identical. Derived independently of the scorer's load_demand_scales: this file
+    # is the independent recomputation and must not import from what it verifies.
+    scales = []
+    for ev in workload["events"]:
+        dag = ev["application"]["dag"]
+        per_type = ev["application"].get("demand_scale") or {}
+        names = list(dag) if isinstance(dag, list) else list(
+            TopologicalSorter(dag).static_order())
+        scales.extend(float(per_type.get(name, 1.0)) for name in names)
+    return rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales
 
 
-def demand_of(task_id, placement, ttypes, pid_map, task_db):
+def demand_of(task_id, placement, ttypes, pid_map, task_db, scales):
+    """Memory demand of (task_id, placement), INCLUDING its per-instance demand_scale.
+
+    `scales` deliberately has NO default. The scorer applies
+    `scale * memoryRequirements[ptype]` (score_route_b_contention.py Dataset.demand) and
+    this file omitted the factor entirely until 2026-08-27 — inert on H0 (all scales 1.0)
+    but live on H1, whose corpus carries values like [1.6047, 1.5150, 1.8383, 0.8348].
+    Caps, feasibility and every repair would have diverged, failing the registered 1e-9
+    agreement (an S0 VOID gate) for a spurious reason. A default here would let a missed
+    call site silently reintroduce exactly that, so every caller must pass it explicitly.
+    """
     node, ptype = pid_map[placement[1]]
-    return node, float(task_db[ttypes[task_id]]["memoryRequirements"][ptype])
+    return node, scales[task_id] * float(
+        task_db[ttypes[task_id]]["memoryRequirements"][ptype])
 
 
-def node_of(task_id, placement, ttypes, pid_map, task_db):
-    return demand_of(task_id, placement, ttypes, pid_map, task_db)[0]
+def node_of(task_id, placement, ttypes, pid_map, task_db, scales):
+    return demand_of(task_id, placement, ttypes, pid_map, task_db, scales)[0]
 
 
 def solve_least_squares(X, y):
@@ -230,7 +254,7 @@ def solve_least_squares(X, y):
     return beta
 
 
-def repair_columns(kind, plan, ttypes, pid_map, task_db, kint_keys=None):
+def repair_columns(kind, plan, ttypes, pid_map, task_db, scales, kint_keys=None):
     if kind == "1int":
         # SUM of excess occupants, matching the registration and
         # separability_diagnostic._excess_sharing. This was `max` until 2026-08-25 —
@@ -239,13 +263,13 @@ def repair_columns(kind, plan, ttypes, pid_map, task_db, kint_keys=None):
         # exposed it on ds_00019 (scorer 1.036 vs verifier-with-max 9.633).
         counts = {}
         for t, p in plan.items():
-            node = node_of(t, p, ttypes, pid_map, task_db)
+            node = node_of(t, p, ttypes, pid_map, task_db, scales)
             counts[node] = counts.get(node, 0) + 1
         return [float(sum(c - 1 for c in counts.values() if c > 1))]
     cols = [0.0] * len(kint_keys)
     idx = {k: i for i, k in enumerate(kint_keys)}
     for t, p in plan.items():
-        node = node_of(t, p, ttypes, pid_map, task_db)
+        node = node_of(t, p, ttypes, pid_map, task_db, scales)
         cols[idx[(node, ttypes[t])]] += 1.0
     return cols
 
@@ -283,12 +307,12 @@ T1_BLOCKS = ("kint", "quad", "cap", "hop", "coupling")
 T1_EXTENDED_BLOCKS = T1_BLOCKS + ("linkrank", "hetdem", "futureint")
 
 
-def hetdem_columns(plan, ttypes, pid_map, task_db, caps):
+def hetdem_columns(plan, ttypes, pid_map, task_db, scales, caps):
     """Independent recomputation of the scorer's hetdem block: demand-weighted analogs
     of quad/cap/1int (see score_route_b_contention.t1_cols's hetdem branch)."""
     per_node = {}
     for t, p in plan.items():
-        node, d = demand_of(t, p, ttypes, pid_map, task_db)
+        node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
         slot = per_node.setdefault(node, {"types": {}, "tot": 0, "load": 0.0})
         slot["types"][ttypes[t]] = slot["types"].get(ttypes[t], 0) + 1
         slot["tot"] += 1
@@ -308,16 +332,16 @@ def hetdem_columns(plan, ttypes, pid_map, task_db, caps):
     excess_share = 0.0
     for n, s in per_node.items():
         if s["tot"] > 1:
-            min_single = min(demand_of(t, p, ttypes, pid_map, task_db)[1]
+            min_single = min(demand_of(t, p, ttypes, pid_map, task_db, scales)[1]
                              for t, p in plan.items()
-                             if demand_of(t, p, ttypes, pid_map, task_db)[0] == n)
+                             if demand_of(t, p, ttypes, pid_map, task_db, scales)[0] == n)
             excess_share += s["load"] - min_single
     cols.append(excess_share)
     cols.append(float(sum(s["load"] * s["load"] for s in per_node.values())))
     return cols
 
 
-def task_node_min_demand_table(rows, ttypes, pid_map, task_db):
+def task_node_min_demand_table(rows, ttypes, pid_map, task_db, scales):
     """Per (task_id, node) -> the MINIMUM demand task_id would carry if placed on that
     node, over every candidate of task_id that appears anywhere in the sweep — a static
     per-task eligibility fact, independent of any one plan. Mirrors the scorer's
@@ -325,14 +349,14 @@ def task_node_min_demand_table(rows, ttypes, pid_map, task_db):
     table = {}
     for plan, _v in rows:
         for t, p in plan.items():
-            node, d = demand_of(t, p, ttypes, pid_map, task_db)
+            node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
             slot = table.setdefault(t, {})
             if node not in slot or d < slot[node]:
                 slot[node] = d
     return table
 
 
-def futureint_columns(plan, ttypes, pid_map, task_db, caps, order, task_node_min_demand):
+def futureint_columns(plan, ttypes, pid_map, task_db, scales, caps, order, task_node_min_demand):
     """Independent recomputation of the scorer's futureint block: per (fixed
     topological) decode step, the candidate node's static interaction with not-yet-
     committed tasks' eligibility + demand (see score_route_b_contention.t1_cols's
@@ -342,7 +366,7 @@ def futureint_columns(plan, ttypes, pid_map, task_db, caps, order, task_node_min
     per-dataset precompute, never recomputed per plan)."""
     fdi = fci = fop = fmax = 0.0
     for step, task_id in enumerate(order):
-        node = node_of(task_id, plan[task_id], ttypes, pid_map, task_db)
+        node = node_of(task_id, plan[task_id], ttypes, pid_map, task_db, scales)
         future_tasks = order[step + 1:]
         future_demand_here = 0.0
         future_count_here = 0
@@ -360,14 +384,14 @@ def futureint_columns(plan, ttypes, pid_map, task_db, caps, order, task_node_min
         fmax += future_max_here
         cap = caps.get(node, math.inf)
         load_so_far = sum(
-            demand_of(t2, plan[t2], ttypes, pid_map, task_db)[1]
+            demand_of(t2, plan[t2], ttypes, pid_map, task_db, scales)[1]
             for t2 in order[:step + 1]
-            if node_of(t2, plan[t2], ttypes, pid_map, task_db) == node)
+            if node_of(t2, plan[t2], ttypes, pid_map, task_db, scales) == node)
         fop += max(0.0, load_so_far + future_demand_here - cap)
     return [fdi, fci, fop, fmax]
 
 
-def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net,
+def t1_columns(plan, ttypes, pid_map, task_db, scales, kint_keys, caps, dag_edges, net,
                blocks=T1_BLOCKS, decode_order=None, task_node_min_demand=None,
                sources=None):
     """The §9a T1 column set, recomputed from scratch (see the scorer's t1_cols for the
@@ -383,11 +407,11 @@ def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net,
     unknown = [b for b in blocks if b not in T1_EXTENDED_BLOCKS]
     if unknown:
         fail(f"unknown T1 block(s) {unknown}")
-    cols = (repair_columns("kint", plan, ttypes, pid_map, task_db, kint_keys)
+    cols = (repair_columns("kint", plan, ttypes, pid_map, task_db, scales, kint_keys)
             if "kint" in blocks else [])
     per_node = {}
     for t, p in plan.items():
-        node, d = demand_of(t, p, ttypes, pid_map, task_db)
+        node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
         slot = per_node.setdefault(node, {"types": {}, "tot": 0, "load": 0.0})
         slot["types"][ttypes[t]] = slot["types"].get(ttypes[t], 0) + 1
         slot["tot"] += 1
@@ -413,10 +437,10 @@ def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net,
         for parent, child in dag_edges:
             children.setdefault(child, []).append(parent)
         for child, parents in children.items():
-            child_node = node_of(child, plan[child], ttypes, pid_map, task_db)
+            child_node = node_of(child, plan[child], ttypes, pid_map, task_db, scales)
             hop_list = []
             for parent in parents:
-                parent_node = node_of(parent, plan[parent], ttypes, pid_map, task_db)
+                parent_node = node_of(parent, plan[parent], ttypes, pid_map, task_db, scales)
                 hops, bneck, lat = route_hops_bneck_latency(net, parent_node, child_node)
                 hop_list.append(hops)
                 if hops == 0:
@@ -433,14 +457,14 @@ def t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps, dag_edges, net,
     if "linkrank" in blocks:
         if sources is None:
             fail("t1_columns: linkrank requested without sources")
-        cols += linkrank_columns(plan, ttypes, pid_map, task_db, net, sources)
+        cols += linkrank_columns(plan, ttypes, pid_map, task_db, scales, net, sources)
     if "hetdem" in blocks:
-        cols += hetdem_columns(plan, ttypes, pid_map, task_db, caps)
+        cols += hetdem_columns(plan, ttypes, pid_map, task_db, scales, caps)
     if "futureint" in blocks:
         if decode_order is None or task_node_min_demand is None:
             fail("t1_columns: futureint requested without decode_order/"
                  "task_node_min_demand")
-        cols += futureint_columns(plan, ttypes, pid_map, task_db, caps,
+        cols += futureint_columns(plan, ttypes, pid_map, task_db, scales, caps,
                                   decode_order, task_node_min_demand)
     return cols
 
@@ -453,12 +477,12 @@ T1HD_BLOCKS = ("kint", "quad", "cap", "hop", "coupling", "hetdem")
 T1X_BLOCKS = T1_EXTENDED_BLOCKS  # kint+quad+cap+hop+coupling+linkrank+hetdem+futureint
 
 
-def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, best,
+def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, scales, best,
                      caps=None, dag_edges=None, net=None, blocks=T1_BLOCKS,
                      sources=None):
     kint_keys = None
     if kind in ("kint", "t1", "t1hd", "t1x"):
-        kint_keys = sorted({(node_of(t, p, ttypes, pid_map, task_db), ttypes[t])
+        kint_keys = sorted({(node_of(t, p, ttypes, pid_map, task_db, scales), ttypes[t])
                             for plan, _v in rows for t, p in plan.items()})
     arm_blocks = blocks
     if kind == "t1hd":
@@ -473,16 +497,16 @@ def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, best,
     task_node_min_demand = None
     if "futureint" in arm_blocks:
         decode_order = _kahn_order(len(ttypes), dag_edges)
-        task_node_min_demand = task_node_min_demand_table(rows, ttypes, pid_map, task_db)
+        task_node_min_demand = task_node_min_demand_table(rows, ttypes, pid_map, task_db, scales)
 
     def columns(plan):
         if kind in ("t1", "t1hd", "t1x"):
-            return t1_columns(plan, ttypes, pid_map, task_db, kint_keys, caps,
+            return t1_columns(plan, ttypes, pid_map, task_db, scales, kint_keys, caps,
                               dag_edges, net, blocks=arm_blocks,
                               decode_order=decode_order,
                               task_node_min_demand=task_node_min_demand,
                               sources=sources)
-        return repair_columns(kind, plan, ttypes, pid_map, task_db, kint_keys)
+        return repair_columns(kind, plan, ttypes, pid_map, task_db, scales, kint_keys)
 
     n_params = 2 + len(columns(rows[0][0]))
     if len(rows) < 2 * n_params:
@@ -511,17 +535,17 @@ def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, best,
     return regret, tied_regrets
 
 
-def recompute(rows, ttypes, pid_map, task_db, alpha, check_repairs=False,
+def recompute(rows, ttypes, pid_map, task_db, scales, alpha, check_repairs=False,
               dag_edges=None, net=None, sources=None, cap_mode="alpha_max"):
     # capacities
-    caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
+    caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, scales, cap_mode)
 
     def feasible(plan):
         if caps is None:
             return True
         load_ = {}
         for t, p in plan.items():
-            node, d = demand_of(t, p, ttypes, pid_map, task_db)
+            node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
             load_[node] = load_.get(node, 0.0) + d
         return all(v <= caps.get(n, math.inf) + EPS for n, v in load_.items())
 
@@ -549,7 +573,7 @@ def recompute(rows, ttypes, pid_map, task_db, alpha, check_repairs=False,
         kinds = ["1int", "kint"] + (
             ["t1", "t1hd", "t1x"] if caps is not None else [])
         for kind in kinds:
-            r = repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db,
+            r = repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, scales,
                                  best, caps=caps, dag_edges=dag_edges, net=net,
                                  sources=sources)
             if r is None:
@@ -567,7 +591,7 @@ def recompute(rows, ttypes, pid_map, task_db, alpha, check_repairs=False,
         for p, _mv in sorted(marg[t].items(), key=lambda kv: (kv[1], kv[0])):
             if p in used:
                 continue
-            node, d = demand_of(t, p, ttypes, pid_map, task_db)
+            node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
             cap = math.inf if caps is None else caps.get(node, math.inf)
             if load_.get(node, 0.0) + d > cap + EPS:
                 continue
@@ -577,7 +601,7 @@ def recompute(rows, ttypes, pid_map, task_db, alpha, check_repairs=False,
             return r_exact, "stuck", repairs
         chosen_total[t] = pick
         used.add(pick)
-        node, d = demand_of(t, pick, ttypes, pid_map, task_db)
+        node, d = demand_of(t, pick, ttypes, pid_map, task_db, scales)
         load_[node] = load_.get(node, 0.0) + d
     lookup = {tuple(sorted(plan.items())): v for plan, v in rows}
     key = tuple(sorted(chosen_total.items()))
@@ -615,14 +639,14 @@ def check_blocks(corpus, transfer_report, task_types_path):
     t1x_bands_checked = 0
     checked = 0
     for ds in ds_dirs:
-        rows, ttypes, pid_map, task_db, dag_edges, net, sources = load(
+        rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = load(
             ds, task_types_path)
-        caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
+        caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, scales, cap_mode)
 
         def feasible(plan):
             load_ = {}
             for t, p in plan.items():
-                node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
                 load_[node] = load_.get(node, 0.0) + d
             return all(v <= caps.get(n, math.inf) + EPS for n, v in load_.items())
 
@@ -642,7 +666,7 @@ def check_blocks(corpus, transfer_report, task_types_path):
             fail(f"{ds}: R_exact §9b={row['r_exact_pct']!r} verifier={r_exact!r}")
 
         for name, blocks in arms.items():
-            got = repaired_r_exact(rows, feas, marg, "t1", ttypes, pid_map, task_db,
+            got = repaired_r_exact(rows, feas, marg, "t1", ttypes, pid_map, task_db, scales,
                                    best, caps=caps, dag_edges=dag_edges, net=net,
                                    blocks=blocks)
             if got is None:
@@ -672,7 +696,7 @@ def check_blocks(corpus, transfer_report, task_types_path):
             row = rows_by_ds[ds.name]
             band = row["t1x_band"]
             expect_saturated = row.get("t1x_saturated", band is None)
-            got = repaired_r_exact(rows, feas, marg, "t1", ttypes, pid_map, task_db,
+            got = repaired_r_exact(rows, feas, marg, "t1", ttypes, pid_map, task_db, scales,
                                    best, caps=caps, dag_edges=dag_edges, net=net,
                                    blocks=T1X_BLOCKS, sources=sources)
             if got is None:
@@ -708,13 +732,13 @@ def check_blocks(corpus, transfer_report, task_types_path):
                     # a real bug and still fails.
                     import numpy as _np
                     kint_keys_here = sorted({
-                        (node_of(t, p, ttypes, pid_map, task_db), ttypes[t])
+                        (node_of(t, p, ttypes, pid_map, task_db, scales), ttypes[t])
                         for plan, _v in rows for t, p in plan.items()})
                     dec_order = _kahn_order(len(ttypes), dag_edges)
-                    tnmd = task_node_min_demand_table(rows, ttypes, pid_map, task_db)
+                    tnmd = task_node_min_demand_table(rows, ttypes, pid_map, task_db, scales)
 
                     def _t1x_cols(plan):
-                        return t1_columns(plan, ttypes, pid_map, task_db, kint_keys_here,
+                        return t1_columns(plan, ttypes, pid_map, task_db, scales, kint_keys_here,
                                           caps, dag_edges, net, blocks=T1X_BLOCKS,
                                           decode_order=dec_order,
                                           task_node_min_demand=tnmd, sources=sources)
@@ -746,7 +770,7 @@ def check_blocks(corpus, transfer_report, task_types_path):
 # PP0' (corrected stage-2 registration §10): the krank arms + linkrank block
 # ---------------------------------------------------------------------------
 
-def krank_rank_map(rows, ttypes, pid_map, task_db, net, alpha, cap_mode="alpha_max"):
+def krank_rank_map(rows, ttypes, pid_map, task_db, scales, net, alpha, cap_mode="alpha_max"):
     """node -> rank under the canonical identity-free ordering ascending
     (cap at alpha [cap_mode-aware], mean hop from the other candidate-hosting nodes,
     node name), recomputed straight from the raw files. Mirrors the definition pinned
@@ -756,8 +780,8 @@ def krank_rank_map(rows, ttypes, pid_map, task_db, net, alpha, cap_mode="alpha_m
     omission read back as .get(node, 0.0)), and hops come from the dataset's own
     routes. cap_mode default "alpha_max" reproduces the pre-existing ordering exactly
     for every caller that does not pass it (§9c/PP0' reports, alpha_max always)."""
-    caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
-    nodes = sorted({demand_of(t, p, ttypes, pid_map, task_db)[0]
+    caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, scales, cap_mode)
+    nodes = sorted({demand_of(t, p, ttypes, pid_map, task_db, scales)[0]
                     for plan, _v in rows for t, p in plan.items()})
 
     def mean_hop(node):
@@ -769,7 +793,7 @@ def krank_rank_map(rows, ttypes, pid_map, task_db, net, alpha, cap_mode="alpha_m
     return {n: i for i, n in enumerate(order)}
 
 
-def krank_columns_fn(ttypes, pid_map, task_db, rank, width):
+def krank_columns_fn(ttypes, pid_map, task_db, scales, rank, width):
     """Per-plan krank block: occupancy count at (node rank, task type), rank-major,
     types in sorted order, padded to `width` ranks (top slots stay zero)."""
     types = sorted(set(ttypes))
@@ -779,13 +803,13 @@ def krank_columns_fn(ttypes, pid_map, task_db, rank, width):
     def fn(plan):
         cols = [0.0] * (width * len(types))
         for t, p in plan.items():
-            r = rank[node_of(t, p, ttypes, pid_map, task_db)]
+            r = rank[node_of(t, p, ttypes, pid_map, task_db, scales)]
             cols[r * len(types) + types.index(ttypes[t])] += 1.0
         return cols
     return fn
 
 
-def krank_demand_columns_fn(ttypes, pid_map, task_db, rank, width):
+def krank_demand_columns_fn(ttypes, pid_map, task_db, scales, rank, width):
     """route_b env pivot (2026-08-27), --extended-blocks: krank_columns_fn's exact
     rank x type structure, summing real per-instance demand instead of a unit count —
     independent recomputation of route_b_coefficient_transfer.krank_demand_cols."""
@@ -796,7 +820,7 @@ def krank_demand_columns_fn(ttypes, pid_map, task_db, rank, width):
     def fn(plan):
         cols = [0.0] * (width * len(types))
         for t, p in plan.items():
-            node, d = demand_of(t, p, ttypes, pid_map, task_db)
+            node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
             r = rank[node]
             cols[r * len(types) + types.index(ttypes[t])] += d
         return cols
@@ -818,7 +842,7 @@ def ingress_links_indep(net, src, dst):
     return ["|".join(sorted((path[i], path[i + 1]))) for i in range(len(path) - 1)]
 
 
-def linkrank_columns(plan, ttypes, pid_map, task_db, net, sources):
+def linkrank_columns(plan, ttypes, pid_map, task_db, scales, net, sources):
     """The 8 linkrank order-statistic columns (the scorer's t1_cols 'linkrank'
     branch, re-typed): per-link co-use over each task's ingress route, emitted as
     top-4 counts, excess sums, and >=2-co-use link counts, core-restricted twins
@@ -830,7 +854,7 @@ def linkrank_columns(plan, ttypes, pid_map, task_db, net, sources):
             fail("linkrank: workload event without node_name — cannot resolve "
                  "ingress routes")
         for lk in ingress_links_indep(
-                net, src, node_of(t, p, ttypes, pid_map, task_db)):
+                net, src, node_of(t, p, ttypes, pid_map, task_db, scales)):
             couse[lk] = couse.get(lk, 0) + 1
 
     def core(lk):
@@ -957,14 +981,14 @@ def check_krank(corpus, transfer_report, task_types_path):
         ds = Path(corpus) / name
         if not ds.is_dir():
             fail(f"{ds}: firing dataset missing from corpus")
-        rows, ttypes, pid_map, task_db, dag_edges, net, sources = load(
+        rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = load(
             ds, task_types_path)
-        caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
+        caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, scales, cap_mode)
 
         def feasible(plan):
             load_ = {}
             for t, p in plan.items():
-                node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
                 load_[node] = load_.get(node, 0.0) + d
             return all(v <= caps.get(n, math.inf) + EPS for n, v in load_.items())
 
@@ -990,21 +1014,21 @@ def check_krank(corpus, transfer_report, task_types_path):
         ctx.append({"name": name, "rows": rows, "feas": feas, "best": best,
                     "marg": marg, "r_exact": r_exact, "caps": caps,
                     "ttypes": ttypes, "pid_map": pid_map, "task_db": task_db,
-                    "dag_edges": dag_edges, "net": net, "sources": sources,
-                    "rank": krank_rank_map(rows, ttypes, pid_map, task_db, net,
+                    "scales": scales, "dag_edges": dag_edges, "net": net, "sources": sources,
+                    "rank": krank_rank_map(rows, ttypes, pid_map, task_db, scales, net,
                                            alpha, cap_mode=cap_mode),
                     "decode_order": _kahn_order(len(ttypes), dag_edges),
                     "task_node_min_demand": task_node_min_demand_table(
-                        rows, ttypes, pid_map, task_db)})
+                        rows, ttypes, pid_map, task_db, scales)})
     n_ranks = max(len(c["rank"]) for c in ctx)
     if n_ranks != int(kpe["n_ranks"]):
         fail(f"pad width: verifier {n_ranks} vs report n_ranks {kpe['n_ranks']}")
 
     def merged_fn(c, width):
         kfn = krank_columns_fn(c["ttypes"], c["pid_map"], c["task_db"],
-                               c["rank"], width)
+                               c["scales"], c["rank"], width)
         dfn = (krank_demand_columns_fn(c["ttypes"], c["pid_map"], c["task_db"],
-                                       c["rank"], width)
+                                       c["scales"], c["rank"], width)
                if want_extended else None)
 
         def fn(plan):
@@ -1012,16 +1036,18 @@ def check_krank(corpus, transfer_report, task_types_path):
             if dfn is not None:
                 cols = cols + dfn(plan)
             cols = cols + t1_columns(
-                plan, c["ttypes"], c["pid_map"], c["task_db"], None, c["caps"],
-                c["dag_edges"], c["net"], blocks=base_blocks)
+                plan, c["ttypes"], c["pid_map"], c["task_db"], c["scales"], None,
+                c["caps"], c["dag_edges"], c["net"], blocks=base_blocks)
             if want_linkrank:
                 cols += linkrank_columns(plan, c["ttypes"], c["pid_map"],
-                                         c["task_db"], c["net"], c["sources"])
+                                         c["task_db"], c["scales"], c["net"],
+                                         c["sources"])
             if want_extended:
                 cols += hetdem_columns(plan, c["ttypes"], c["pid_map"], c["task_db"],
-                                       c["caps"])
+                                       c["scales"], c["caps"])
                 cols += futureint_columns(plan, c["ttypes"], c["pid_map"], c["task_db"],
-                                          c["caps"], c["decode_order"],
+                                          c["scales"], c["caps"],
+                                          c["decode_order"],
                                           c["task_node_min_demand"])
             return cols
         return fn
@@ -1115,7 +1141,7 @@ def _kahn_order(n_tasks, dag_edges):
     return order
 
 
-def _greedy_masked(order, marg, caps, ttypes, pid_map, task_db):
+def _greedy_masked(order, marg, caps, ttypes, pid_map, task_db, scales):
     """Verifier-local masked greedy: for each task in `order`, the cheapest
     (marginal value, placement) not reusing a replica nor overflowing a node."""
     taken, load_, plan = set(), {}, {}
@@ -1124,7 +1150,7 @@ def _greedy_masked(order, marg, caps, ttypes, pid_map, task_db):
         for p, _v in sorted(marg[t].items(), key=lambda kv: (kv[1], kv[0])):
             if p in taken:
                 continue
-            node, d = demand_of(t, p, ttypes, pid_map, task_db)
+            node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
             if load_.get(node, 0.0) + d > caps.get(node, math.inf) + EPS:
                 continue
             choice = p
@@ -1133,7 +1159,7 @@ def _greedy_masked(order, marg, caps, ttypes, pid_map, task_db):
             return None
         plan[t] = choice
         taken.add(choice)
-        node, d = demand_of(t, choice, ttypes, pid_map, task_db)
+        node, d = demand_of(t, choice, ttypes, pid_map, task_db, scales)
         load_[node] = load_.get(node, 0.0) + d
     return plan
 
@@ -1178,12 +1204,12 @@ def check_decoder(corpus, report_path, task_types_path, alpha_keys):
             fail(f"{corpus} alpha={alpha_key}: {len(results)} scored rows vs "
                  f"{len(ds_dirs)} datasets")
         for ds, scored in zip(ds_dirs, results):
-            rows, ttypes, pid_map, task_db, dag_edges, net, _src = load(
+            rows, ttypes, pid_map, task_db, dag_edges, net, _src, scales = load(
                 ds, task_types_path)
             peak = {}
             for plan, _v in rows:
                 for t, p in plan.items():
-                    node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                    node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
                     if node not in peak or d > peak[node]:
                         peak[node] = d
             caps = {n: alpha * m for n, m in peak.items()}
@@ -1191,7 +1217,7 @@ def check_decoder(corpus, report_path, task_types_path, alpha_keys):
             def feasible(plan):
                 load_ = {}
                 for t, p in plan.items():
-                    node, d = demand_of(t, p, ttypes, pid_map, task_db)
+                    node, d = demand_of(t, p, ttypes, pid_map, task_db, scales)
                     load_[node] = load_.get(node, 0.0) + d
                 return all(v <= caps.get(n, math.inf) + EPS
                            for n, v in load_.items())
@@ -1211,10 +1237,10 @@ def check_decoder(corpus, report_path, task_types_path, alpha_keys):
                         cur[p] = v
             n_tasks = len(ttypes)
             topo = _kahn_order(n_tasks, dag_edges)
-            reference = _greedy_masked(topo, marg, caps, ttypes, pid_map, task_db)
+            reference = _greedy_masked(topo, marg, caps, ttypes, pid_map, task_db, scales)
             historical = _greedy_masked(
                 sorted(marg, key=lambda t: (min(marg[t].values()), t)),
-                marg, caps, ttypes, pid_map, task_db)
+                marg, caps, ttypes, pid_map, task_db, scales)
             if reference != historical:
                 fail(f"{ds} alpha={alpha_key}: topological-order greedy differs "
                      f"from the frozen historical order — the §9c measured fact "
@@ -1235,7 +1261,7 @@ def check_decoder(corpus, report_path, task_types_path, alpha_keys):
             candidates = {t: sorted(marg[t]) for t in marg}
             logits = {t: [-marg[t][p] for p in candidates[t]] for t in marg}
             demands = {
-                t: [demand_of(t, p, ttypes, pid_map, task_db)[1]
+                t: [demand_of(t, p, ttypes, pid_map, task_db, scales)[1]
                     for p in candidates[t]]
                 for t in marg}
             id_caps = {nid: caps[name] for nid, name in node_name_of_id.items()
@@ -1359,10 +1385,10 @@ def main() -> int:
                 fail(f"{corpus} alpha={alpha_key}: {len(results)} scored rows vs "
                      f"{len(ds_dirs)} datasets")
             for ds, scored in zip(ds_dirs, results):
-                rows, ttypes, pid_map, task_db, dag_edges, net, sources = load(
+                rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = load(
                     ds, args.task_types)
                 r_exact, r_greedy, repairs = recompute(
-                    rows, ttypes, pid_map, task_db, alpha,
+                    rows, ttypes, pid_map, task_db, scales, alpha,
                     check_repairs=args.check_repairs,
                     dag_edges=dag_edges, net=net, sources=sources, cap_mode=cap_mode)
                 if r_exact is None:
