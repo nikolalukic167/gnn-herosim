@@ -1,0 +1,87 @@
+{
+  "counters_by_alpha_control": {
+    "1.5": {
+      "greedy_stuck": 0,
+      "n_scored": 0,
+      "no_feasible_rows": 204
+    },
+    "2.0": {
+      "greedy_stuck": 101,
+      "n_scored": 103,
+      "no_feasible_rows": 0,
+      "r_exact_frac_gt_1pct": 0.1553398058252427,
+      "r_exact_frac_gt_5pct": 0.0
+    },
+    "3.0": {
+      "greedy_stuck": 99,
+      "n_scored": 105,
+      "no_feasible_rows": 0,
+      "r_exact_frac_gt_1pct": 0.06666666666666667,
+      "r_exact_frac_gt_5pct": 0.0
+    },
+    "unconstrained_anchor": {
+      "greedy_stuck": 0,
+      "n_scored": 204,
+      "no_feasible_rows": 0,
+      "r_exact_frac_gt_1pct": 0.0,
+      "r_exact_frac_gt_5pct": 0.0
+    }
+  },
+  "counters_by_alpha_main": {
+    "1.5": {
+      "greedy_stuck": 0,
+      "n_scored": 0,
+      "no_feasible_rows": 204
+    },
+    "2.0": {
+      "greedy_stuck": 95,
+      "n_scored": 109,
+      "no_feasible_rows": 0,
+      "r_exact_frac_gt_1pct": 0.3944954128440367,
+      "r_exact_frac_gt_5pct": 0.22018348623853212
+    },
+    "3.0": {
+      "greedy_stuck": 87,
+      "n_scored": 117,
+      "no_feasible_rows": 0,
+      "r_exact_frac_gt_1pct": 0.13675213675213677,
+      "r_exact_frac_gt_5pct": 0.1111111111111111
+    },
+    "unconstrained_anchor": {
+      "greedy_stuck": 0,
+      "n_scored": 204,
+      "no_feasible_rows": 0,
+      "r_exact_frac_gt_1pct": 0.0,
+      "r_exact_frac_gt_5pct": 0.0
+    }
+  },
+  "deviation_log": [
+    "2026-08-27: pre-flight found ROUTE_B_PIVOT_H0..H3_GRID presets never overrode 'seeds', silently inheriting ROUTE_B_PILOT_V1_GRID's 901-917 instead of the registered fresh blocks (3001-3017/3101-3117/3201-3217/3301-3317). Caught before any rung was scored. Presets patched (commit 90fb6e0); the wrong-seed H0 corpus (generated under 901-917) was deleted and regenerated from scratch under the corrected seeds before any reading in this file was produced. No reading is contaminated by the wrong seeds."
+  ],
+  "fallback_result": "No alpha on the registered ladder {1.5, 2.0, 3.0} has clean counters (no_feasible_rows == 0 and greedy_stuck == 0) on the main corpus. alpha=1.5: no_feasible_rows=204/204 (all datasets infeasible under the cap). alpha=2.0 (primary): no_feasible_rows=0, greedy_stuck=95/204. alpha=3.0: no_feasible_rows=0, greedy_stuck=87/204. Per SCREEN.md Section 3's registered feasibility fallback, since none is clean the rung is VOID-INFEASIBLE; the ladder continues to H1.",
+  "feasibility_fallback_applied": true,
+  "generation": {
+    "control_corpus": "simulation_data/gnn_datasets_route_b_pivot_h0_ctrl",
+    "control_result": "204/204 SUCCESS, 100%, sweep_complete true on all, placements.jsonl non-empty on all, zero skip-counter hits, zero retries needed, wall-clock 126.8s",
+    "main_corpus": "simulation_data/gnn_datasets_route_b_pivot_h0",
+    "main_result": "204/204 SUCCESS, 100%, sweep_complete true on all, placements.jsonl non-empty on all, zero skip-counter hits, zero retries needed, wall-clock 151.2s",
+    "main_seeds": "3001-3017 (registered fresh block, post seed-conformance fix)"
+  },
+  "outcome": "VOID-INFEASIBLE",
+  "preset": "route_b_pivot_h0",
+  "primary_alpha": 2.0,
+  "provenance": {
+    "head_commit_at_execution_start": "4614370",
+    "registration_commit": "019bdcb",
+    "seed_fix_commit": "90fb6e0"
+  },
+  "registered_alpha_ladder": [
+    1.5,
+    2.0,
+    3.0
+  ],
+  "rung": "H0",
+  "s0_note": "S0 (controls) was not fully evaluated: the paired separable control's r_exact.frac_gt_1pct <= 0.02 bar is only meaningful at a clean read alpha, and no alpha on either corpus' registered ladder is clean. Note for the record: at alpha=2.0 (dirty, greedy_stuck=101/204) the control's frac_gt_1pct=0.155, which would fail the S0 <=0.02 bar if it were being read at a clean counter -- consistent with H0 being void for structural (feasibility) reasons rather than close to passing. The positive-control test suite (tests/test_route_b_env_pivot_fixtures.py + test_route_b_positive_controls.py, 25 tests) was run once at the start of the ladder per the registration and passed 25/25 -- that part of S0 is satisfied for the whole ladder, not repeated per rung.",
+  "s1_s4": "Not evaluated -- no clean alpha exists to read S1-S4 at (transfer/verify were not run for this rung).",
+  "transfer_and_verify_run": false
+}
