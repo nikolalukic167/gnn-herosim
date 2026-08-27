@@ -424,13 +424,18 @@ def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, best,
     if kind in ("kint", "t1", "t1hd", "t1x"):
         kint_keys = sorted({(node_of(t, p, ttypes, pid_map, task_db), ttypes[t])
                             for plan, _v in rows for t, p in plan.items()})
-    decode_order = None
-    task_node_min_demand = None
     arm_blocks = blocks
     if kind == "t1hd":
         arm_blocks = T1HD_BLOCKS
     elif kind == "t1x":
         arm_blocks = T1X_BLOCKS
+    # decode_order/task_node_min_demand (futureint) and sources (linkrank) are needed
+    # whenever the ACTUAL block set requests them -- not just for kind=="t1x" -- so an
+    # arbitrary block subset passed via `blocks` (e.g. check_blocks's single-arm
+    # "hetdem"/"futureint" ablation recomputation, kind="t1") gets them too.
+    decode_order = None
+    task_node_min_demand = None
+    if "futureint" in arm_blocks:
         decode_order = _kahn_order(len(ttypes), dag_edges)
         task_node_min_demand = task_node_min_demand_table(rows, ttypes, pid_map, task_db)
 
