@@ -338,6 +338,7 @@ def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
             sim_inputs[key] = json.load(f)
 
     apply_state_size_override(sim_inputs)
+    apply_storage_neutral_override(sim_inputs)
 
     return sim_inputs
 
@@ -470,6 +471,103 @@ def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
             else:
                 app_entry["output"] = state_size
     return state_size
+
+
+def apply_storage_neutral_override(sim_inputs: Dict[str, Any]) -> bool:
+    """Make the remote storage tier's READ cost identical to the local one.
+
+    route_b_env_pivot AMENDMENT 1, build item A1. The screen's paired "separable control"
+    was defined as Arm S with `HEROSIM_DATA_LOCALITY`/`HEROSIM_OUTPUT_SIZE_BYTES` unset,
+    and that ablation does NOT produce separable physics. `infrastructure.py:1244-1252`
+    computes `local_dependencies = all(dep.storage["output"] in node.storage.items ...)`
+    and then prices the child's input read from `flashCard` (0.000743 s) when every parent
+    ran on this node and `someRemote` (0.016356 s) otherwise — 0.0156 s per task charged as
+    a function of where the task's PARENTS ran, i.e. exactly the pairwise parent->child
+    term the control exists to exclude. It is all-or-nothing: one remote parent prices the
+    same as all-remote.
+
+    This is NOT `_dependency_transfer_time` (route_a's data locality), which correctly
+    returns 0.0 when `HEROSIM_DATA_LOCALITY != 1`. It is the storage tier immediately
+    above it, whose own comment concedes the remote arm charges a constant `someRemote`
+    latency "blind to where the parent actually ran". Measured 2026-08-27: adding a single
+    per-task "all parents local" indicator to an exact additive fit cuts the residual 4-8x,
+    and the DAG root (task 0, no parents) has exactly zero duration spread.
+
+    Only the READ path moves. Write throughput/latency, capacity, iops, energy and the
+    `remote` flag are untouched, so warmth/disk semantics (`node_disk_v2`, the FilterStore
+    pull) are not perturbed — this lever removes a cost difference, not a code path:
+    `local_dependencies` still computes and still selects `someRemote`, the two arms simply
+    cost the same.
+
+    **Both tiers are clamped DOWN to a common read throughput, not raised to the local
+    tier's.** `infrastructure.py:1288-1294` prices the remote arm at
+    `min(throughput.read, node.network.bandwidth)` and the local arm at `throughput.read`
+    unclamped. Setting `someRemote`'s read equal to `flashCard`'s 235 MB/s therefore leaves
+    a residual gap wherever a node's bandwidth is below 235 — and every node in
+    `data/nofs-ids/infrastructure.json` is 100 Mbps, which left 0.00084 s of coupling
+    (an 18.7x reduction, but not zero). Pinning both tiers at
+    HEROSIM_STORAGE_NEUTRAL_READ_MBPS (default 100.0, at or below the fabric's bandwidth)
+    makes the `min()` a no-op and the two arms bit-identical. Verified 0.0 exactly.
+
+    Mutates `sim_inputs` in memory only. `data/nofs-ids/storage-types.json` is shared by
+    EVERY corpus and is never copied per dataset, so editing it would silently rewrite the
+    physics of every existing collection — the same reasoning as
+    `apply_state_size_override` above.
+
+    CONTROL ARM ONLY. Setting this on a main (Arm S) corpus removes a real coupling term
+    from the very physics the screen is testing and would fabricate a pass; AMENDMENT 1 §6
+    makes such a rung VOID-GENERATION.
+
+    Returns True when applied, False when the variable is unset.
+    """
+    if os.environ.get("HEROSIM_STORAGE_NEUTRAL", "0") != "1":
+        return False
+
+    storage_types = sim_inputs.get("storage_types") or {}
+    # Fail loud. A silent skip here would produce a control corpus that looks amended but
+    # still carries the coupling, which is the one failure mode this lever must not have.
+    for required in ("flashCard", "someRemote"):
+        if required not in storage_types:
+            raise RuntimeError(
+                f"HEROSIM_STORAGE_NEUTRAL=1 but storage_types has no {required!r} entry "
+                f"(present: {sorted(storage_types)}); refusing to produce a control corpus "
+                f"whose parent-locality coupling is still live"
+            )
+
+    raw_mbps = os.environ.get("HEROSIM_STORAGE_NEUTRAL_READ_MBPS", "").strip()
+    read_mbps = float(raw_mbps) if raw_mbps else 100.0
+    if read_mbps <= 0:
+        raise ValueError(
+            f"HEROSIM_STORAGE_NEUTRAL_READ_MBPS must be positive, got {read_mbps}")
+
+    # The clamp only vanishes when the pinned speed is <= EVERY node's bandwidth. Pinning
+    # above the fabric silently reintroduces the coupling on the remote arm alone, which
+    # would produce a control corpus that looks amended and is not — refuse instead.
+    # `node.network` is the single shared `infrastructure["network"]` block
+    # (simulation.py:142), so one bandwidth governs every node's remote-read clamp.
+    infrastructure = sim_inputs.get("infrastructure") or {}
+    network = infrastructure.get("network") if isinstance(infrastructure, dict) else None
+    fabric_mbps = (
+        float(network["bandwidth"])
+        if isinstance(network, dict) and network.get("bandwidth") is not None
+        else None
+    )
+    if fabric_mbps is not None and read_mbps > fabric_mbps:
+        raise RuntimeError(
+            f"HEROSIM_STORAGE_NEUTRAL_READ_MBPS={read_mbps} exceeds the node network "
+            f"bandwidth ({fabric_mbps} Mbps). infrastructure.py clamps the REMOTE read "
+            f"at min(throughput, bandwidth) and leaves the local read unclamped, so the "
+            f"parent-locality coupling this lever exists to remove would survive on every "
+            f"node below {read_mbps}. Pin it at or below the fabric bandwidth."
+        )
+
+    local = storage_types["flashCard"]
+    remote = storage_types["someRemote"]
+    read_latency = local["latency"]["read"]
+    for tier in (local, remote):
+        tier["throughput"]["read"] = read_mbps
+        tier["latency"]["read"] = read_latency
+    return True
 
 
 def generate_network_latencies(nodes: List[Dict], config: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
