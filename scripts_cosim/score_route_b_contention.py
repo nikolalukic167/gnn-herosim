@@ -477,6 +477,62 @@ def greedy_masked_plan(ds: Dataset,
     return plan
 
 
+def complete_masked_plan(ds: Dataset,
+                         marginal: Dict[int, Dict[Tuple[int, int], float]],
+                         caps: Optional[Dict[str, float]],
+                         order: Optional[List[int]] = None) -> Optional[Plan]:
+    """AMENDMENT 2 decoder: the same masked search as `greedy_masked_plan`, completed.
+
+    Identical task order, identical option ordering `(marginal, placement)`, identical
+    replica-reuse mask, identical capacity test, identical tie-breaks. The ONLY difference
+    is that a dead end backtracks instead of returning None, so this returns the first
+    complete assignment in that same deterministic order.
+
+    Consequence, which the caller enforces on every dataset: wherever the forward-only
+    decoder completed, this returns **the same plan** — it takes the same first choice at
+    every step and only ever revisits a step the forward-only pass would have abandoned.
+    So it can only ever ADD completions, never move an existing r_greedy_pct.
+
+    Why this replaced the forward-only pass (`screen-amendment-2.md`, signed off
+    2026-08-27): `greedy_stuck` was measuring the decoder, not the environment. Over
+    identical candidate sets, caps and ordering, this rescues **458/458** stranded
+    datasets across H0/H1/H2 — every one of them had a feasible plan sitting in its own
+    enumerated sweep. It therefore returns None only when no feasible plan exists at all,
+    which `no_feasible_rows` already reports; a nonzero `greedy_stuck` under this decoder
+    means the mask and the sweep disagree, and is worth failing loudly on.
+    """
+    if order is None:
+        order = sorted(marginal, key=lambda t: (min(marginal[t].values()), t))
+    plan: Plan = {}
+    taken: set = set()
+    load: Dict[str, float] = {}
+
+    def extend(i: int) -> bool:
+        if i == len(order):
+            return True
+        task_id = order[i]
+        for placement, _v in sorted(marginal[task_id].items(),
+                                    key=lambda kv: (kv[1], kv[0])):
+            if placement in taken:
+                continue
+            node = ds.node_of(placement)
+            demand = ds.demand[(task_id, placement)]
+            cap = math.inf if caps is None else caps.get(node, math.inf)
+            if load.get(node, 0.0) + demand > cap + EPS:
+                continue
+            plan[task_id] = placement
+            taken.add(placement)
+            load[node] = load.get(node, 0.0) + demand
+            if extend(i + 1):
+                return True
+            del plan[task_id]
+            taken.discard(placement)
+            load[node] -= demand
+        return False
+
+    return plan if extend(0) else None
+
+
 def additive_argmin_plan(marginal: Dict[int, Dict[Tuple[int, int], float]]) -> Plan:
     """The unconstrained componentwise argmin (free-choice plan)."""
     return {task_id: min(options.items(), key=lambda kv: (kv[1], kv[0]))[0]
@@ -988,18 +1044,48 @@ def score_dataset(ds: Dataset, alpha: Optional[float],
     out["componentwise_plan_feasible"] = (
         free_key in lookup and ds.plan_feasible(free_plan, caps))
 
-    # R_greedy
-    gplan = greedy_masked_plan(ds, marginal, caps)
-    if gplan is None:
-        out["greedy_stuck"] = True
-    else:
-        gkey = tuple(sorted(gplan.items()))
-        if gkey not in lookup:
+    # R_greedy — decoded by AMENDMENT 2's complete masked search (signed off 2026-08-27).
+    # The forward-only pass is still run, and its numbers are reported alongside as
+    # `legacy_forward_only`, so the pre-amendment value is recoverable from the SAME run
+    # rather than asserted from a commit message — the treatment the 2026-08-27 scorer
+    # fixes received.
+    def _regret_of(plan: Plan, which: str) -> float:
+        key = tuple(sorted(plan.items()))
+        if key not in lookup:
             raise RuntimeError(
-                f"{ds.ds_dir}: greedy plan {gkey} absent from the enumerated sweep — "
+                f"{ds.ds_dir}: {which} plan {key} absent from the enumerated sweep — "
                 "the sweep is not the full unique-replica enumeration or the mask "
                 "disagrees with the enumerator")
-        out["r_greedy_pct"] = 100.0 * (lookup[gkey] - best) / best
+        return 100.0 * (lookup[key] - best) / best
+
+    legacy_plan = greedy_masked_plan(ds, marginal, caps)
+    gplan = complete_masked_plan(ds, marginal, caps)
+
+    legacy: Dict[str, Any] = {}
+    if legacy_plan is None:
+        legacy["greedy_stuck"] = True
+    else:
+        legacy["r_greedy_pct"] = _regret_of(legacy_plan, "forward-only greedy")
+    out["legacy_forward_only"] = legacy
+
+    if gplan is None:
+        # Only reachable when no feasible plan exists at all — and that path returned
+        # above on `no_feasible_rows`. Reaching here means the mask and the enumerated
+        # sweep disagree, which must never pass silently.
+        raise RuntimeError(
+            f"{ds.ds_dir}: the complete masked decode found no plan while "
+            f"{len(feasible_rows)} feasible rows exist — the mask and the enumerator "
+            "disagree")
+    if legacy_plan is not None and gplan != legacy_plan:
+        # AMENDMENT 2 §5's byte-identity gate, enforced on every dataset rather than as a
+        # one-off check: the amendment may only ever ADD completions.
+        raise RuntimeError(
+            f"{ds.ds_dir}: the complete decode moved a plan the forward-only decode "
+            f"already found ({legacy_plan} -> {gplan}); AMENDMENT 2 permits added "
+            "completions only")
+    out["r_greedy_pct"] = _regret_of(gplan, "complete masked")
+    if legacy_plan is None:
+        out["greedy_rescued_by_completion"] = True
 
     # R_exact (primary: min-marginal-sum surrogate, perfect decode) + count repairs.
     # A repaired surrogate that scores WORSE than the base would simply not be used by
@@ -1105,6 +1191,12 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
         results = all_results[str(alpha)]
         no_feasible = sum(1 for r in results if r.get("no_feasible_rows"))
         stuck = sum(1 for r in results if r.get("greedy_stuck"))
+        # AMENDMENT 2: the pre-amendment forward-only decoder's counters, reproduced from
+        # THIS run so the deviation is audited against one artifact.
+        legacy_rows = [r.get("legacy_forward_only", {}) for r in results
+                       if not r.get("no_feasible_rows")]
+        legacy_stuck = sum(1 for r in legacy_rows if r.get("greedy_stuck"))
+        legacy_scored = [r for r in legacy_rows if "r_greedy_pct" in r]
 
         # Three denominators, each named for what legitimately censors it (2026-08-27).
         # `no_feasible_rows` censors everything: with no feasible plan there is no
@@ -1232,6 +1324,20 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
                 "n_exact_scored": _by_arm(lambda r: not r.get("no_feasible_rows")),
                 "n_greedy_scored": _by_arm(
                     lambda r: not r.get("no_feasible_rows") and not r.get("greedy_stuck")),
+            },
+            # AMENDMENT 2's both-numbers obligation: the forward-only decoder's counters
+            # and r_greedy, from this same run. `rescued` is the count this amendment
+            # converts from a dead end into a plan — the deviation, stated as a number.
+            "legacy_forward_only": {
+                "note": "pre-AMENDMENT-2 decoder: single non-backtracking forward pass. "
+                        "Retained for audit; not a statistic to read.",
+                "greedy_stuck": legacy_stuck,
+                "n_greedy_scored": len(legacy_scored),
+                "greedy_stuck_by_arm": _by_arm(
+                    lambda r: bool(r.get("legacy_forward_only", {}).get("greedy_stuck"))),
+                "r_greedy": summarize([r["r_greedy_pct"] for r in legacy_scored]),
+                "rescued_by_completion": sum(
+                    1 for r in results if r.get("greedy_rescued_by_completion")),
             },
             # The PRE-FIX numbers, reproduced from this same run so a deviation can be
             # audited against one artifact rather than a commit message. This is the

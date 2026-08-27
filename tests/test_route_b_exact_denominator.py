@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts_cosim")
 
 from score_route_b_contention import (  # noqa: E402
     Dataset,
+    complete_masked_plan,
     greedy_masked_plan,
     min_marginals,
     score_corpus,
@@ -102,18 +103,47 @@ def report(tmp_path: Path, alpha=1.0) -> dict:
     return rep["per_alpha"][str(alpha)]
 
 
-def test_the_rig_actually_strands_the_greedy(tmp_path):
-    """Guard the premise: if ds_00001 stops being stuck, every test below is vacuous."""
+def test_the_rig_actually_strands_the_FORWARD_ONLY_greedy(tmp_path):
+    """Guard the premise: ds_00001 must still strand the pre-AMENDMENT-2 decoder, or
+    every legacy assertion below is vacuous."""
     corpus = stuck_corpus(tmp_path)
     ds = Dataset(corpus / "ds_00001", TASK_TYPES, "rtt")
     caps = ds.node_caps(1.0, cap_mode="alpha_max")
     assert greedy_masked_plan(ds, min_marginals(ds.rows), caps) is None
 
     out = score_dataset(ds, alpha=1.0)
-    assert out.get("greedy_stuck") is True
+    assert out["legacy_forward_only"]["greedy_stuck"] is True
     # ...and it still has a perfectly well-defined exact statistic.
     assert "r_exact_pct" in out
     assert not out.get("no_feasible_rows")
+
+
+def test_amendment_2_rescues_the_stranded_dataset(tmp_path):
+    """AMENDMENT 2: the complete masked decode finds the plan the forward-only pass
+    walked past. (A, B) = (A1, B0) is feasible and enumerated; the forward pass commits
+    task 0 to n0 and strands task 1."""
+    corpus = stuck_corpus(tmp_path)
+    ds = Dataset(corpus / "ds_00001", TASK_TYPES, "rtt")
+    caps = ds.node_caps(1.0, cap_mode="alpha_max")
+    assert complete_masked_plan(ds, min_marginals(ds.rows), caps) == {0: A1, 1: B0}
+
+    out = score_dataset(ds, alpha=1.0)
+    assert not out.get("greedy_stuck")
+    assert out["greedy_rescued_by_completion"] is True
+    assert "r_greedy_pct" in out
+
+
+def test_the_completion_only_ADDS_never_moves_an_existing_plan(tmp_path):
+    """AMENDMENT 2 §5's byte-identity obligation, on the dataset the forward pass already
+    completed: same plan, same r_greedy_pct, from the same options in the same order."""
+    corpus = stuck_corpus(tmp_path)
+    ds = Dataset(corpus / "ds_00000", TASK_TYPES, "rtt")
+    caps = ds.node_caps(1.0, cap_mode="alpha_max")
+    marginal = min_marginals(ds.rows)
+    assert complete_masked_plan(ds, marginal, caps) == greedy_masked_plan(ds, marginal, caps)
+
+    out = score_dataset(ds, alpha=1.0)
+    assert out["r_greedy_pct"] == out["legacy_forward_only"]["r_greedy_pct"]
 
 
 def test_greedy_stuck_dataset_still_contributes_to_r_exact(tmp_path):
@@ -123,27 +153,51 @@ def test_greedy_stuck_dataset_still_contributes_to_r_exact(tmp_path):
     assert per_alpha["n_exact_scored"] == 2
 
 
-def test_greedy_stuck_dataset_is_excluded_from_r_greedy(tmp_path):
-    """The greedy statistic keeps its own, legitimate censoring."""
+def test_the_rescued_dataset_now_contributes_to_r_greedy(tmp_path):
+    """Post-AMENDMENT-2: `greedy_stuck` no longer censors anything here, because the
+    condition it tests has stopped being true — not because the rule was rewritten."""
     per_alpha = report(tmp_path)
-    assert per_alpha["r_greedy"]["n"] == 1
-    assert per_alpha["n_greedy_scored"] == 1
-    assert per_alpha["greedy_stuck"] == 1
+    assert per_alpha["r_greedy"]["n"] == 2
+    assert per_alpha["n_greedy_scored"] == 2
+    assert per_alpha["greedy_stuck"] == 0
+
+
+def test_the_forward_only_numbers_come_from_the_same_run(tmp_path):
+    """AMENDMENT 2's both-numbers obligation. Reading the deviation must not require a
+    second run or a commit message."""
+    per_alpha = report(tmp_path)
+    legacy = per_alpha["legacy_forward_only"]
+    assert legacy["greedy_stuck"] == 1
+    assert legacy["n_greedy_scored"] == 1
+    assert legacy["r_greedy"]["n"] == 1
+    assert legacy["rescued_by_completion"] == 1
+    # ...and the arm it censored is still legible, on the same key as the live counters.
+    assert legacy["greedy_stuck_by_arm"] == {"2": 1}
 
 
 def test_legacy_block_reproduces_the_prefix_denominator(tmp_path):
-    """The pre-fix number must be recoverable from the SAME artifact, so a deviation is
-    audited against one file rather than a commit message."""
+    """The 2026-08-27 denominator fix's audit block.
+
+    Note the interaction AMENDMENT 2 creates: `legacy_greedy_censored` reproduces the
+    denominator R_exact used to be summarized over — censored by `greedy_stuck` — and
+    `greedy_stuck` now reads 0 wherever a feasible plan exists, so this block DEGENERATES
+    to the r_exact block on any post-amendment run. It still earns its place: it is the
+    audit trail for the earlier fix, and it goes non-degenerate again the moment
+    `greedy_stuck` fires (which, post-amendment, means the mask and the sweep disagree).
+    """
     per_alpha = report(tmp_path)
     legacy = per_alpha["legacy_greedy_censored"]
-    assert legacy["n"] == 1
-    assert legacy["r_exact"]["n"] == 1
+    assert legacy["n"] == 2
+    assert legacy["r_exact"]["n"] == 2
+    assert legacy["n"] == per_alpha["n_exact_scored"]
 
 
 def test_stuck_confound_counter_is_reported(tmp_path):
-    """greedy_stuck's confound with the design is made visible in every rung's artifact."""
+    """greedy_stuck's confound with the design is made visible in every rung's artifact.
+    Empty post-AMENDMENT-2; the forward-only block carries the confound now."""
     per_alpha = report(tmp_path)
-    assert per_alpha["greedy_stuck_by_n_feasible"] == {"1": 1}
+    assert per_alpha["greedy_stuck_by_n_feasible"] == {}
+    assert per_alpha["legacy_forward_only"]["greedy_stuck_by_arm"] == {"2": 1}
 
 
 def test_no_feasible_rows_still_censors_both(tmp_path):
@@ -230,7 +284,7 @@ def test_arm_key_is_the_unconstrained_sweep_size_not_n_feasible(tmp_path):
 def test_both_censors_share_one_arm_key_so_they_are_comparable(tmp_path):
     rep = score_corpus(two_arm_corpus(tmp_path), TASK_TYPES, "rtt", [1.0])
     by_arm = rep["per_alpha"]["1.0"]["censoring_by_arm"]
-    assert by_arm["greedy_stuck"] == {"2": 1}
+    assert by_arm["greedy_stuck"] == {}
     assert by_arm["no_feasible_rows"] == {"3": 1}
     # Totals must reconcile with the scalar counters they break down.
     per_alpha = rep["per_alpha"]["1.0"]
