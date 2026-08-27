@@ -365,6 +365,90 @@ ROUTE_C_LINK_SCREEN_8TASK_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_route_c_link_screen_8task",
 }
 
+# route_b_pivot_h{0..3}: the route_b ENV PIVOT ladder (ROUTE_B_ENV_PIVOT_SCREEN.md,
+# W4 of the pivot plan; registered rung order H0 -> H1 -> H2 -> H3, fixed, no post-hoc
+# rungs). Each rung is the SAME 204-shape (2 conn_probs x 2 replica_configs x 3
+# queue_dists x 17 seeds) as ROUTE_B_PILOT_V1_GRID, so a rung's screen numbers are
+# comparable to the frozen pilot/stage-1 numbers cell-for-cell. Do NOT generate these
+# corpora as part of Phase A — presets only, sign-off (W5) gates any actual generation.
+#
+# H0: config-only scarcity squeeze on TODAY's machinery (no new grid keys at all) —
+# calibrates the screen: if S1 (structure exists) already fails here, the later rungs'
+# comparison point is known. server_node_counts drops from the pilot's [6] to [4] (four
+# servers for four task types, so individual favourites collide more directly) and
+# replica_server_percentage is pushed low (0.5, vs the pilot's default-derived ~0.6+)
+# to concentrate replicas onto fewer hosts. replica_configs keeps the pilot's TWO-arm
+# shape (204 = 2x2x3x17, comparable cell-for-cell to the frozen pilot) but at TIGHTER
+# absolute counts (1-2 per server, vs the pilot's 2-3) -- fewer replicas per node is a
+# squeeze relative to the pilot at matched shape.
+ROUTE_B_PIVOT_H0_GRID: GridPreset = {
+    **ROUTE_B_PILOT_V1_GRID,
+    "server_node_counts": [4],
+    "replica_configs": [
+        (0, 1, 0.7, 0.5),
+        (0, 2, 0.7, 0.5),
+    ],
+    "replica_server_percentage": 0.5,
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h0",
+}
+# Paired separable control (B0-analog): HEROSIM_DATA_LOCALITY / HEROSIM_OUTPUT_SIZE_BYTES
+# unset at generation time (same grid, config-identical) -- run as a SEPARATE generation
+# pass with those env vars absent; R_exact must be ~0 on it (S0 gate). Not a distinct
+# preset because the physics switch is an env var, not a grid key -- see W6's command
+# sequence and CLAUDE.md's Arm S / Arm B0 convention.
+
+# H1: H0 + per-instance demand heterogeneity (the packing hypothesis, minimal) +
+# cap_mode alpha_mean (an independent-tightness cap that does not auto-scale away the
+# scarcity heterogeneous demand would otherwise erase — score_route_b_contention.py's
+# node_caps cap_mode option). demand_spread starts at uniform [0.5, 2.0] per the plan;
+# cap_mode itself is a SCORING-time flag (--cap-mode on score_route_b_contention.py),
+# not a generator grid key, so it is not stored in this preset — recorded here as the
+# rung's registered scoring parameter.
+ROUTE_B_PIVOT_H1_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H0_GRID,
+    "demand_spread": {"dist": "uniform", "params": [0.5, 2.0]},
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h1",
+}
+# Registered scoring parameter for this rung and H2/H3 below: --cap-mode alpha_mean.
+
+# H2: H1 + overlapping eligibility (the assignment hypothesis) — task types share
+# contested replica hosts/platforms (generate_infrastructure.py's preinit.
+# replica_overlap, plumbed via the replica_overlap grid key).
+ROUTE_B_PIVOT_H2_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H1_GRID,
+    "replica_overlap": True,
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h2",
+}
+
+# H3: H2 + dag_instances=2 (8-task joint decision, the largest rung), alpha at the
+# registered doubling correspondence (see ROUTE_B_PILOT_V1_8TASK_GRID's own alpha
+# note — the 8-task probe's alpha ladder mirrors the 4-task one 1:1 rather than
+# doubling the cap, since cap_node is already per-node not per-task-count).
+#
+# MAX_PLACEMENT_COMBINATIONS_SKIP derivation (the 8-task lesson: 1M was not enough,
+# the 250k default silently skips the most-contended datasets) — DERIVED, not guessed:
+#   max candidates per task type here = max(per_server across replica_configs) *
+#   server_node_counts = max(1, 2) * 4 = 8 (H0-H3's replica_configs top out at
+#   per_server=2; replica_overlap in H2/H3 does not raise this per-type max, it only
+#   lets a SECOND type reuse the same up-to-8 slots -- overlap changes which
+#   platforms are shared, not how many candidates one type can have).
+#   4-task (H0-H2): max Pi n_t = 8^4 = 4,096 -- far under any default, unaffected.
+#   8-task (H3): two diamond4 instances, 8 tasks total, each with up to 8 candidates
+#     (replica_overlap means instance 2's tasks compete for the SAME <=8-per-type
+#     slots instance 1's tasks used, not a disjoint second set) ->
+#     max Pi n_t = 8^8 = 16,777,216. This is the PRODUCT the skip threshold must clear
+#     (herosim-cosim-skip-threshold-is-pre-uniqueness.md: the threshold tests the
+#     product BEFORE the unique-replica-per-plan reduction, which is smaller but not
+#     computed until the enumeration runs) -- so H3 generation must export
+#     MAX_PLACEMENT_COMBINATIONS_SKIP >= 16777216 (e.g. 20000000 for headroom), FAR
+#     above the 250k default (the ROUTE_B_PILOT_V1_8TASK_GRID lesson repeated: this
+#     rung needs datalab, not a local run, per W6's H3 note).
+ROUTE_B_PIVOT_H3_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H2_GRID,
+    "dag_instances": 2,
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h3",
+}
+
 # netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
 #
 # The first matched pilot ran link_contention_v1 on the stock shallow_v1 grid and all three
@@ -722,6 +806,10 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_b_pilot_v1_8task": ROUTE_B_PILOT_V1_8TASK_GRID,
     "route_c_link_screen": ROUTE_C_LINK_SCREEN_GRID,
     "route_c_link_screen_8task": ROUTE_C_LINK_SCREEN_8TASK_GRID,
+    "route_b_pivot_h0": ROUTE_B_PIVOT_H0_GRID,
+    "route_b_pivot_h1": ROUTE_B_PIVOT_H1_GRID,
+    "route_b_pivot_h2": ROUTE_B_PIVOT_H2_GRID,
+    "route_b_pivot_h3": ROUTE_B_PIVOT_H3_GRID,
 }
 
 
