@@ -227,6 +227,13 @@ the measurements say about them, not ranked.
    currently conflates.
 3. **Raise `per_server`** so overlap still leaves ≥4 distinct platforms, making H2
    generable at 204/204. Changes the rung's scarcity, which is part of what it tests.
+   > **The second sentence is FALSIFIED (2026-08-27, measured).** Raising `per_server` does
+   > **not** change the rung's scarcity. The squeeze is
+   > `server_node_counts=[4] × replica_server_percentage=0.5` ⇒ exactly **2 hosting
+   > nodes**; `per_server` sets how many platform slots sit on those two nodes, not how
+   > many nodes exist. Hosting-node histogram `{2: 204}` on H0, H1, H2 **and** a widened
+   > probe, while the candidate pool moves 2/4 → 6/8 and componentwise infeasibility goes
+   > *up* to 0.91. This option is the one AMENDMENT 3 takes.
 4. **Drop the sparse arm** from H2 only. Breaks the 204 = 2×2×3×17 shape the registration
    fixes for cell-for-cell comparability.
 5. **Fix the allocator** (round-robin / least-loaded instead of FCFS, or per-seed shuffle of
