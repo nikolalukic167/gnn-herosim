@@ -1089,6 +1089,7 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
     return {
         "corpus": str(corpus),
         "objective": objective,
+        "cap_mode": cap_mode,
         "n_datasets": len(ds_dirs),
         "failures": failures,
         "per_alpha": per_alpha,
