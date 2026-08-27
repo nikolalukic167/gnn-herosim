@@ -387,10 +387,11 @@ ROUTE_C_LINK_SCREEN_8TASK_GRID: GridPreset = {
 # cap = 1.5 x max_single_demand), the ~50% greedy_stuck rate (the 64-row arm always has
 # exactly 2 task types confined to one node, which strands a non-backtracking greedy), and
 # the marginal degeneracy behind the R_exact tie artifact. The GRID IS REGISTERED AND
-# UNCHANGED — this is a comment correction only. See tests/test_route_b_env_pivot_w4.py. replica_configs keeps the pilot's TWO-arm
-# shape (204 = 2x2x3x17, comparable cell-for-cell to the frozen pilot) but at TIGHTER
-# absolute counts (1-2 per server, vs the pilot's 2-3) -- fewer replicas per node is a
-# squeeze relative to the pilot at matched shape.
+# UNCHANGED — this is a comment correction only. See tests/test_route_b_env_pivot_w4.py.
+#
+# replica_configs keeps the pilot's TWO-arm shape (204 = 2x2x3x17, comparable cell-for-cell
+# to the frozen pilot) but at TIGHTER absolute counts (1-2 per server, vs the pilot's 2-3)
+# -- fewer replicas per node is a squeeze relative to the pilot at matched shape.
 ROUTE_B_PIVOT_H0_GRID: GridPreset = {
     **ROUTE_B_PILOT_V1_GRID,
     "server_node_counts": [4],
