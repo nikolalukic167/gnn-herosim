@@ -600,7 +600,7 @@ def decode_regret_band(feasible_rows: Sequence[Tuple[Plan, float]],
     corrected at the top of this file. Reporting the band is what makes the artifact
     visible instead of letting a tie-break decide a verdict.
 
-    Members follow ROUTE_B_ENV_PIVOT_SCREEN.md §4 and Cell.tie_band: `mean_tied` is the
+    Members follow docs/lineages/route_b_env_pivot_v1/screen-preregistration.md §4 and Cell.tie_band: `mean_tied` is the
     fair reading (a real decoder must pick one tied plan and cannot pick the best by
     oracle, so what it achieves under a fixed uninformative rule is the group MEAN);
     `optimistic` credits the surrogate with plans it cannot distinguish and is an upper
@@ -779,7 +779,7 @@ def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_REGISTERED_BLOCKS) -
 
 def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_REGISTERED_BLOCKS):
     """Plan-level sums of the stage-2 T1 (partial-state) per-edge features — the §9a
-    pre-probe-zero column set of ROUTE_B_STAGE2_PREREGISTRATION.md. T1 ⊇ kint, plus:
+    pre-probe-zero column set of docs/lineages/route_b_v1/stage2-preregistration.md. T1 ⊇ kint, plus:
     per-type quadratic co-residency Σ_t occ_{node(t)}[k]; Σ_t load/cap; over-cap task
     count; per-task min/max parent-hop sums; and the coupling-term columns
     Σ_edges hops/bottleneck, Σ_edges latency, same-node-parent count — computed from the
@@ -1182,7 +1182,7 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
             "n_exact_scored": len(exact_scored),
             "n_greedy_scored": len(greedy_scored),
             # The band R_exact's score ties leave open, per band member.
-            # ROUTE_B_ENV_PIVOT_SCREEN.md §4: mean_tied is the fair reading; optimistic is
+            # docs/lineages/route_b_env_pivot_v1/screen-preregistration.md §4: mean_tied is the fair reading; optimistic is
             # an upper bound only, never a verdict.
             "r_exact_band": {
                 member: summarize([r["r_exact_band"][member] for r in exact_scored

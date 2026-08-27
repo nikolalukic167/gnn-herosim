@@ -1,7 +1,7 @@
 # route_b_env_pivot_v1 — AMENDMENT 1: the S0 separable-control definition
 
 **Written 2026-08-27, BEFORE any H1 control corpus exists or is scored.** Amends
-`ROUTE_B_ENV_PIVOT_SCREEN.md` @ `019bdcb` (signed off; LINEAGES entry `6b7b915`).
+`docs/lineages/route_b_env_pivot_v1/screen-preregistration.md` @ `019bdcb` (signed off; LINEAGES entry `6b7b915`).
 Nothing in §4 executes until this document is signed off and a LINEAGES entry records it
 at its commit SHA.
 
@@ -192,6 +192,6 @@ main corpus was generated with it set is VOID-GENERATION.
 
 ## 7. Sign-off
 
-Amends `ROUTE_B_ENV_PIVOT_SCREEN.md` @ `019bdcb`. Requires: user sign-off, a LINEAGES
+Amends `docs/lineages/route_b_env_pivot_v1/screen-preregistration.md` @ `019bdcb`. Requires: user sign-off, a LINEAGES
 registration entry at this document's commit SHA, and build item A1 landed with its tests
 green, **before** any H1 control corpus is generated.

@@ -1,10 +1,10 @@
 ---
-description: Run or analyze normal-sim policy RTT comparisons. Read memory/compare.md first; ask user what to compare before executing.
+description: Run or analyze normal-sim policy RTT comparisons. Read docs/notes/compare.md first; ask user what to compare before executing.
 ---
 
 # Policy Comparison Protocol (`/compare`)
 
-You are running a **normal simulation policy comparison** (not co-sim). Read **`memory/compare.md`** first — it lists **fixed benchmarks** (Knative, HRC, dim14-ce GNN anchor, tabular Regime A), configs, existing result paths, run commands, and the latest snapshot table.
+You are running a **normal simulation policy comparison** (not co-sim). Read **`docs/notes/compare.md`** first — it lists **fixed benchmarks** (Knative, HRC, dim14-ce GNN anchor, tabular Regime A), configs, existing result paths, run commands, and the latest snapshot table.
 
 **Framing:** `dim14-ce` is a **fixed GNN anchor benchmark** — same class as Knative or HRC, not the global winner table. New dim14 GNN variants are **experiments** that must **beat dim14-ce** on the 5-config sum (and not regress on `default` >+2%) to ship.
 
@@ -69,7 +69,7 @@ Use when user picks **`mode=datalab`** or **`execution=datalab`**. Goal: same co
    - Override env if needed: `SSH_KEY`, `REMOTE=nikola.lukic@cluster.datalab.tuwien.ac.at`, `REPO=/home/nikola.lukic/gnn-herosim`
 4. **Emit instructions** for the datalab agent/user (copy-paste block below)
 5. **After jobs finish:** pull results — `bash scripts_cosim/transfer_reviewer_triangle_from_datalab.sh` (or rsync the sweep dir back)
-6. **Analyze** pulled JSONs per Step 2 analyze — note cross-host RTT may differ (SimPy trajectories, not wall clock; see `memory/memory.md` § `total_rtt`)
+6. **Analyze** pulled JSONs per Step 2 analyze — note cross-host RTT may differ (SimPy trajectories, not wall clock; see `LINEAGES.md`)
 
 #### Datalab run recipes (pick by policies)
 
@@ -87,10 +87,10 @@ Use when user picks **`mode=datalab`** or **`execution=datalab`**. Goal: same co
 
 #### Topology stress sweeps (125-225, GNN vs MLP)
 
-For **tiered-hub / phase-boundary** compares (not the standard 7-config anchor), read `memory/compare.md` § Tiered-Hub and use:
+For **tiered-hub / phase-boundary** compares (not the standard 7-config anchor), read `docs/notes/compare.md` § Tiered-Hub and use:
 
 - **Workload:** `data/nofs-ids/traces/workload-125-225.json` (562k tasks)
-- **Active sweep:** `simulation_data/normal_sim_sweeps/sweep_bipartite_coordination_v1/` — k∈{4,6,8} × seek∈{35,50,65}%, **5/30ms asymmetric latency**, **GNN batch size fixed at 4** — **9/9 GNN+MLP+Knative complete** (see `memory/compare.md` § Bipartite)
+- **Active sweep:** `simulation_data/normal_sim_sweeps/sweep_bipartite_coordination_v1/` — k∈{4,6,8} × seek∈{35,50,65}%, **5/30ms asymmetric latency**, **GNN batch size fixed at 4** — **9/9 GNN+MLP+Knative complete** (see `docs/notes/compare.md` § Bipartite)
 - **Policies:** `gnn_dim22` + `mlp_dim22` (Regime A, same batch loop) · Knative `--knative_network` is **Regime B** (per-arrival) — label separately, do not mix as batch-fair peers
 - **Prepare / compare:** `bash scripts_cosim/important/prepare_bipartite_coordination_sweep.sh` · `pipenv run python3 scripts_cosim/important/compare_bipartite_coordination_sweep.py --sweep-dir …`
 - **Datalab:** `transfer_bipartite_coordination_to_datalab.sh` · `submit_bipartite_coordination_partition.sh GPU-a40 gpu:a40:1 a40` (or keep `GPU-l40s`); if `GPU-l40s` is saturated, **GPU-a40** is fine — GNN inference is not FLOP-bound here
@@ -120,7 +120,7 @@ Pull back (mitrix): bash scripts_cosim/transfer_reviewer_triangle_from_datalab.s
 If user wants **you** to rsync from mitrix now, run the transfer script(s) and report what was sent + the handover block. Do not SSH-submit SLURM unless user explicitly asks you to operate the remote shell.
 
 ### Analyze existing results
-- Load `total_rtt` from result JSONs per `memory/compare.md`
+- Load `total_rtt` from result JSONs per `docs/notes/compare.md`
 - Build a table: configs × policies (fixed benchmarks + any new dim14 experiments)
 - For **new dim14 variants**: delta % vs **dim14-ce anchor** per config; flag BEAT/LOSE; sum 5-config gate
 - Also report delta % vs Knative (and HRC / tabular when those result dirs exist)
@@ -151,11 +151,11 @@ Skip this subsection when `mode=datalab` or `execution=datalab`.
 ## Constraints
 
 - Do **not** write new `.md` explanation docs unless user asks — report in chat
-- Do **not** edit `memory/memory.md` unless user runs `/update_memory`
+- Do **not** edit `LINEAGES.md` or any `docs/lineages/` node except to record a gate outcome
 - Prefer reusing configs from `simulation_data/normal_sim_sweeps/knative_network_20260606_192413/configs/`
 - Real sim path ignores preinit from config (cold autoscale) — same for all policies
-- **Default sweep size is 5 configs** (`standard5`); skip `00` and `04` unless user asks for `all7` — see `memory/compare.md` § GNN Regime Analysis for rationale
+- **Default sweep size is 5 configs** (`standard5`); skip `00` and `04` unless user asks for `all7` — see `docs/notes/compare.md` § GNN Regime Analysis for rationale
 - **dim14-ce is a fixed GNN anchor**, not the experiment under test — new dim14 checkpoints must beat it to ship
 - **Datalab:** code via git; binaries via rsync (`transfer_gnn_dim14_ce_to_datalab.sh`, tabular models, workload); micromamba `gnn` on cluster; co-locate triangle legs in one sweep dir for fair compare
 
-Proceed: read `@memory/compare.md`, ask the user what to compare, then run, send to datalab, or analyze.
+Proceed: read `@docs/notes/compare.md`, ask the user what to compare, then run, send to datalab, or analyze.

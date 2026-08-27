@@ -65,7 +65,7 @@ def load_plans(ds_dir: Path, limit: int) -> List[Dict[str, Any]]:
     if not jsonl.exists():
         raise FileNotFoundError(
             f"{ds_dir.name}: missing placements.jsonl. The full placement sweep is a hard "
-            f"requirement (memory/placements_jsonl_required.md); it is not optional here "
+            f"requirement (docs/notes/placements_jsonl_required.md); it is not optional here "
             f"either -- the pre-check needs real candidate plans, not synthetic ones."
         )
     with jsonl.open() as handle:

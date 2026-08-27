@@ -4,7 +4,7 @@
 #
 # REQUIRED OUTPUT per ds_*: placements/placements.jsonl (not optional — RTT-hash training).
 # --resume skips only best.json + non-empty JSONL. Repair does not recreate JSONL.
-# memory/placements_jsonl_required.md
+# docs/notes/placements_jsonl_required.md
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-/home/nikola.lukic/gnn-herosim}"

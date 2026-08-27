@@ -6,7 +6,7 @@ Pre-generate and cache SEQUENTIAL counterfactual graphs for GNN training (NON-UN
 
 REQUIRES placements/placements.jsonl per parent dataset for rtt_chunk_*.pkl (placement–RTT
 hash). Graphs can be built from optimal_result alone, but counterfactual RTT lookup fails
-without JSONL. repair + recache is NOT a substitute. memory/placements_jsonl_required.md
+without JSONL. repair + recache is NOT a substitute. docs/notes/placements_jsonl_required.md
 
 For each co-sim dataset with N tasks, emits N graphs:
   - Step s uses queue snapshot after placing optimal replicas for tasks 0..s-1
@@ -778,7 +778,7 @@ def build_and_save_rtt_hash_table_chunked(
 
     Source: placements/placements.jsonl only (full BF sweep). Missing JSONL => parent
     excluded from RTT hash — repair/recache cannot backfill this. See
-    memory/placements_jsonl_required.md.
+    docs/notes/placements_jsonl_required.md.
 
     Returns:
         (num_datasets_with_combos, total_entries, datasets_with_combos)

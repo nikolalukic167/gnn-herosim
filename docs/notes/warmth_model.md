@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-06-11 (v0.28.1 — B1 disk feature shipped)  
 **Audience:** External reviewers, paper co-authors, simulator maintainers  
-**Companion docs:** `memory/storage_contention.md` · `memory/cosim_warmth_gap.md` (1060 historical) · `memory/cosim_grid_and_regen.md` · `memory/gnn_v2_sparse_topology_and_features.md` · `memory/memory.md` · `memory/compare.md`
+**Companion docs:** `docs/notes/storage_contention.md` · `docs/notes/cosim_warmth_gap.md` (1060 historical) · `docs/notes/cosim_grid_and_regen.md` · `docs/notes/gnn_v2_sparse_topology_and_features.md` · `LINEAGES.md` · `docs/notes/compare.md`
 
 > **One-sentence summary:** Default `platform_reuse_v1` couples pull+sandbox on `previous_task` match. Opt-in `node_disk_v2` (`infrastructure.warmth_physics`, `src/placement/warmth.py`) decouples: **pull** skips on node `has_function` only; **sandbox** still uses `previous_task` only. Co-sim generator defaults to v2 + `defer_cold_replica_init=True`.
 
@@ -42,7 +42,7 @@
 | Scale-down clears `previous_task`? | No | No — resets `initialized` only (§8.2) |
 | Flag | `env.warmth_physics` / `HEROSIM_WARMTH_PHYSICS` | same |
 
-Central module: [`src/placement/warmth.py`](../src/placement/warmth.py). Autoscalers re-check disk after `FilterStore.get()` using `active_storage=` (checked-out flash still visible).
+Central module: [`src/placement/warmth.py`](../../src/placement/warmth.py). Autoscalers re-check disk after `FilterStore.get()` using `active_storage=` (checked-out flash still visible).
 
 ### What is *not* implemented (Tier 3 stubs in warmth.py)
 
@@ -55,7 +55,7 @@ Central module: [`src/placement/warmth.py`](../src/placement/warmth.py). Autosca
 
 ### Impact on contention experiments
 
-For N cold replicas of **the same function** on **one node**, the warmth model forces **N independent cold pulls** (~31 s each, serialized on one `flashCard`). A real Kubernetes node would typically **reuse a local image** after the first pull. See `memory/storage_contention.md` for verified N× numbers.
+For N cold replicas of **the same function** on **one node**, the warmth model forces **N independent cold pulls** (~31 s each, serialized on one `flashCard`). A real Kubernetes node would typically **reuse a local image** after the first pull. See `docs/notes/storage_contention.md` for verified N× numbers.
 
 ---
 
@@ -87,7 +87,7 @@ Warm counterfactual (pre-initialized replicas, same node): last-task elapsed **~
 
 ## 3. The warm predicate — full code map
 
-**Primary path (shipped 2026-06-11):** All Knative-family autoscalers gate pulls via `needs_image_pull()` in [`src/placement/warmth.py`](../src/placement/warmth.py). v2 (`node_disk_v2`) skips pull when `node_has_cached_image()`; sandbox still uses `sandbox_is_warm()` / `previous_task` in `platform_process()`. Sections below show legacy inline `warm_function` blocks — behavior is now routed through `warmth.py`.
+**Primary path (shipped 2026-06-11):** All Knative-family autoscalers gate pulls via `needs_image_pull()` in [`src/placement/warmth.py`](../../src/placement/warmth.py). v2 (`node_disk_v2`) skips pull when `node_has_cached_image()`; sandbox still uses `sandbox_is_warm()` / `previous_task` in `platform_process()`. Sections below show legacy inline `warm_function` blocks — behavior is now routed through `warmth.py`.
 
 ### 3.1 Core predicate (legacy inline blocks — same semantics as warmth.py v1)
 
@@ -307,7 +307,7 @@ No ring buffer, no timestamp on `previous_task`, no decay.
             )
 ```
 
-Note: `cache_hit` here means “platform already initialized when task dequeued,” **not** `warm_function` / disk cache hit. With `fast_forward_warmup=True`, `pullTime` is often **0** while pull wait appears in `queueTime`. See `memory/storage_contention.md`.
+Note: `cache_hit` here means “platform already initialized when task dequeued,” **not** `warm_function` / disk cache hit. With `fast_forward_warmup=True`, `pullTime` is often **0** while pull wait appears in `queueTime`. See `docs/notes/storage_contention.md`.
 
 ---
 
@@ -441,7 +441,7 @@ Under **v1**, after first pull `store_function` may succeed without extra bytes 
 
 Under **v2**, platform B still pays **sandbox cold** (~0.33s) if `previous_task` differs — disk hit does not skip sandbox unless types match.
 
-**Legacy 1060 corpus** was generated under v1-equivalent pull physics — see `memory/cosim_warmth_gap.md`. **warmth_v2 regen** uses v2 defaults; Gate B: N=4 contended last-task **125.57s → 31.65s** when disk warm eliminates redundant pulls.
+**Legacy 1060 corpus** was generated under v1-equivalent pull physics — see `docs/notes/cosim_warmth_gap.md`. **warmth_v2 regen** uses v2 defaults; Gate B: N=4 contended last-task **125.57s → 31.65s** when disk warm eliminates redundant pulls.
 
 ### 5.4 node.cache_hits statistic
 
@@ -699,7 +699,7 @@ PLATFORM_IS_COLD_DIM = 8
 
 ## 10. Measured metric split (co-sim vs live)
 
-From `memory/compare.md` / `scripts_cosim/audit_doc_claims.py`:
+From `docs/notes/compare.md` / `scripts_cosim/audit_doc_claims.py`:
 
 | Metric | Co-sim (1060 corpus) | Live normal sim (dim14-ce) | Interpretation |
 |--------|---------------------:|---------------------------:|----------------|
@@ -715,7 +715,7 @@ These are **different layers** of the warmth model — do not conflate task cold
 
 ## 10b. 1060 corpus gap (labels vs A/B physics)
 
-**Full audit:** `memory/cosim_warmth_gap.md` (2026-06-11, 1230 datasets).
+**Full audit:** `docs/notes/cosim_warmth_gap.md` (2026-06-11, 1230 datasets).
 
 | Finding | 1060 optimal labels | A/B scripts (`defer_cold=True`) |
 |---------|--------------------:|--------------------------------:|
@@ -758,7 +758,7 @@ Pre-v2 dim14-ce comparisons on old physics are **stale** for placement/warmth cl
 
 **Real K8s node:** second pod typically **no registry pull** — **v2 matches this**; v1 does not.
 
-N× **queueTime** steps still possible when multiple cold pulls serialize on first wave (FilterStore) — see `memory/storage_contention.md`. v2 removes **phantom re-pulls**, not necessarily all contention.
+N× **queueTime** steps still possible when multiple cold pulls serialize on first wave (FilterStore) — see `docs/notes/storage_contention.md`. v2 removes **phantom re-pulls**, not necessarily all contention.
 
 ### 11.2 A → B → A on same platform (ping-pong)
 
@@ -839,7 +839,7 @@ Warmth model **creates** N cold pulls; FilterStore **serializes** them. Both are
 - Fix warmth only (node disk hit) → same node may drop to ~1× T_pull
 - Fix FilterStore only (4× flashCard) → N parallel ~31s pulls but each platform still cold
 
-Verified: 4× flashCard → all tasks **31.65s** (`memory/storage_contention.md`).
+Verified: 4× flashCard → all tasks **31.65s** (`docs/notes/storage_contention.md`).
 
 ### 12.4 What the codebase authors knew
 
@@ -920,9 +920,9 @@ HeROcache implements half the TODO. Main path does not.
 | `scripts_cosim/pilot_warmth_regen_audit.py` | Pilot label-shift audit |
 | `scripts_cosim/run_warmth_full_regen_recache.sh` | Full 1060 regen + recache + retrain |
 | `scripts_cosim/generate_gnn_datasets_fast.py` | BF co-sim; **must** persist `placements/placements.jsonl` |
-| `memory/placements_jsonl_required.md` | Policy: JSONL mandatory; repair ≠ substitute |
+| `docs/notes/placements_jsonl_required.md` | Policy: JSONL mandatory; repair ≠ substitute |
 | `scripts_cosim/test_memory_contention_ab.py` | Warm vs cold counterfactual (~0.35s vs ~125s) |
-| `memory/storage_contention.md` | N× pull serialization (companion) |
+| `docs/notes/storage_contention.md` | N× pull serialization (companion) |
 | `data/nofs-ids/task-types.json` | `coldStartDuration`, `imageSize` priors |
 
 ---

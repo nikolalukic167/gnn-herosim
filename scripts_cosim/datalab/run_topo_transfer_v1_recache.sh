@@ -13,7 +13,7 @@
 # ds_* directories while this runs. That's expected: the repair pass here closes most of
 # the race, and --allow-missing-queue-data on prepare_graphs_cache.py loudly skips (not
 # silently drops) any straggler that finishes in the remaining window rather than crashing
-# the whole build. See memory/placements_jsonl_required.md for why placements.jsonl,
+# the whole build. See docs/notes/placements_jsonl_required.md for why placements.jsonl,
 # not best.json, is the completion signal prepare_graphs_cache.py itself already keys on.
 #
 # NETWORK_GRAPH_CONTRACT=core_v1 is load-bearing, not optional: it's what makes the cache

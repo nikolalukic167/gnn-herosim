@@ -2,7 +2,7 @@
 verify_route_b_scorer_agreement.py (recompute/--check-repairs, check_blocks/
 --check-blocks, check_krank/--check-krank, krank_rank_map's node ordering).
 
-H1-H3 score under --cap-mode alpha_mean (ROUTE_B_ENV_PIVOT_SCREEN.md §3); before this
+H1-H3 score under --cap-mode alpha_mean (docs/lineages/route_b_env_pivot_v1/screen-preregistration.md §3); before this
 fix the verifier hardcoded alpha_max-equivalent caps everywhere. These tests lock in
 that the verifier's compute_caps() reproduces the scorer's Dataset.node_caps(cap_mode=)
 exactly, end to end through --check-repairs.

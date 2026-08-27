@@ -3,7 +3,7 @@
 # Run only after pilot_warmth_regen_audit.py passes.
 #
 # Each ds_* MUST retain placements/placements.jsonl (placement–RTT sweep). Not optional.
-# memory/placements_jsonl_required.md
+# docs/notes/placements_jsonl_required.md
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

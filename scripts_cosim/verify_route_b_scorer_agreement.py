@@ -29,7 +29,7 @@ Definitions verified (must match the registration exactly):
                      argmin of the fitted surrogate, reported as min(base, repaired)
   repair(kint)     = same, with one column per (node, task_type) occupancy count
   repair(t1)       = same, with the stage-2 T1 (partial-state) column set of
-                     ROUTE_B_STAGE2_PREREGISTRATION.md §9a: kint + per-type quadratic
+                     docs/lineages/route_b_v1/stage2-preregistration.md §9a: kint + per-type quadratic
                      co-residency + load/cap + over-cap count + min/max parent-hop sums
                      + hops/bottleneck + latency + same-node-parent count, from the
                      dataset's own link_topology routes. Constrained alphas only.

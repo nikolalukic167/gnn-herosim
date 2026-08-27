@@ -33,7 +33,7 @@ Written to: `system_state_captured_unique.json` (SSC)
 ### Phase 2 — Brute-Force Enumeration
 Generate all feasible placement combinations (Cartesian product of per-task feasible replicas). Run each combination in `ProcessPoolExecutor` in parallel. Record `{placement_plan, rtt}` to `placements/placements.jsonl`.
 
-**This file is mandatory, not optional disk.** It is the sole source for `rtt_chunk_*.pkl` / near-RTT counterfactual lookup at train time. `refresh_optimal_full_stats.py --repair` replays only the optimal placement and **does not** create or replace JSONL. Never delete `.bf_scratch` until JSONL is copied to `placements/`. Never `--resume` on `best.json` alone. See `memory/placements_jsonl_required.md`.
+**This file is mandatory, not optional disk.** It is the sole source for `rtt_chunk_*.pkl` / near-RTT counterfactual lookup at train time. `refresh_optimal_full_stats.py --repair` replays only the optimal placement and **does not** create or replace JSONL. Never delete `.bf_scratch` until JSONL is copied to `placements/`. Never `--resume` on `best.json` alone. See `docs/notes/placements_jsonl_required.md`.
 
 ### Phase 3 — Artifacts
 - `best.json` — `{file, rtt}` for minimum-RTT placement
@@ -119,7 +119,7 @@ training corpus. Placement integrity and label integrity are separate gates.
 - **Count:** 1,230 datasets
 - **Graph cache:** `graphs_cache_gnn_datasets_4tasks_1060`
 - **Role:** Checkpoint `near-rtt-v2-dim14-ce-only.pt` — bipartite/skew/triangle sweeps to date
-- **Label caveat:** pre-v2 pull physics; pullTime **0%** in stored labels — see `memory/cosim_warmth_gap.md` (historical)
+- **Label caveat:** pre-v2 pull physics; pullTime **0%** in stored labels — see `docs/notes/cosim_warmth_gap.md` (historical)
 
 ---
 

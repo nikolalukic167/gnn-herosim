@@ -3,7 +3,7 @@
 #
 # Sanity: rtt_parent_dataset_ids.txt count vs datasets with placements/placements.jsonl.
 # Parents without JSONL get graphs but no counterfactual RTT rows — repair does not fix that.
-# memory/placements_jsonl_required.md
+# docs/notes/placements_jsonl_required.md
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-/home/nikola.lukic/gnn-herosim}"

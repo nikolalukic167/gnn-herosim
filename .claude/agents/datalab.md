@@ -66,7 +66,7 @@ co-simulation dataset generation, graph-cache prep, and GNN/MLP training.
   into the script, so pilot and full runs can share one file.
 - Every co-sim dataset must produce `placements/placements.jsonl` — never treat it as
   optional and never resume on `best.json` alone (see
-  `memory/placements_jsonl_required.md`). If writing a new co-sim launcher, wire this in.
+  `docs/notes/placements_jsonl_required.md`). If writing a new co-sim launcher, wire this in.
 - All training jobs must log to Weights & Biases — no exceptions. If a training sbatch/
   run script is missing wandb config, flag it rather than silently launching without it.
 - **Never fork `train_near_rtt.py` per experiment.** New experiments are a config under

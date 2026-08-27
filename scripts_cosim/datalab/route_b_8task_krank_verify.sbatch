@@ -9,7 +9,7 @@
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
 
-# PP0' (ROUTE_B_STAGE2_PREREGISTRATION.md §10) — step 2 of 2 on the 8-task corpus:
+# PP0' (docs/lineages/route_b_v1/stage2-preregistration.md §10) — step 2 of 2 on the 8-task corpus:
 # independent recomputation of the per-dataset and pooled krank repair fractions,
 # tie bands included, by verify_route_b_scorer_agreement.py --check-krank (pure
 # stdlib, own MGS QR, pooled intercepts projected out by within-dataset demeaning —

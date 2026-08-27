@@ -11,7 +11,7 @@ snapshots matching live GNN inference capture.
 DOES NOT write or replace placements/placements.jsonl.
 Repair + recache is NOT sufficient for near-RTT training: rtt_chunk_*.pkl needs
 the full (placement_plan, rtt) sweep from brute-force co-sim. See
-memory/placements_jsonl_required.md.
+docs/notes/placements_jsonl_required.md.
 
 Use --rewrite-ssc to rebuild SSC files from already-refreshed optimal_result.json
 without re-running simulation.

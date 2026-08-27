@@ -1,6 +1,6 @@
 """Unit tests for the §4 shared masked decoder (decode mode "masked_topo").
 
-ROUTE_B_STAGE2_PREREGISTRATION.md (corrected 2026-08-26) §4 registers: DAG
+docs/lineages/route_b_v1/stage2-preregistration.md (corrected 2026-08-26) §4 registers: DAG
 topological order with task_id tie-break, a mask forbidding replica reuse and
 node-capacity overflow, a placement-id tie rule on exact score ties, and — a
 registered prohibition — NO relax path: an infeasible completion is a counted

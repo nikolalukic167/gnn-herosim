@@ -5,7 +5,7 @@ from __future__ import annotations
 Pre-generate and cache graphs for GNN training (NON-UNIQUE VERSION).
 
 REQUIRES placements/placements.jsonl per dataset for rtt_chunk_*.pkl (placement–RTT hash).
-repair + recache does NOT replace JSONL. memory/placements_jsonl_required.md
+repair + recache does NOT replace JSONL. docs/notes/placements_jsonl_required.md
 
 This script builds all graphs and saves them to pickle files for faster training iterations.
 
@@ -237,7 +237,7 @@ def parse_args() -> Config:
         "--dag-partial-state",
         action="store_true",
         help=(
-            "route_b stage 2 (ROUTE_B_STAGE2_PREREGISTRATION.md §2/§5, build item "
+            "route_b stage 2 (docs/lineages/route_b_v1/stage2-preregistration.md §2/§5, build item "
             "B3): attach the DAG block to every graph — parent edges "
             "(dag_edge_index), a 4-type task one-hot (task_type_onehot4, a separate "
             "attr so the legacy 3-dim task block stays bit-identical), the capacity "

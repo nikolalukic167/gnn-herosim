@@ -119,7 +119,7 @@ def resolve(
     """Return (trainer_path, env_to_set, argv) without mutating os.environ.
 
     ``seed`` implements the "one templated config per arm with per-seed env" option
-    (ROUTE_B_STAGE2_PREREGISTRATION.md §3 / build item B6/W1): a draw must vary
+    (docs/lineages/route_b_v1/stage2-preregistration.md §3 / build item B6/W1): a draw must vary
     initialisation and batch order ONLY, so each trainer needs a distinct hook and a
     distinct output/run-name so draws never overwrite each other. ``seed=None`` (the
     CLI default) must resolve BIT-FOR-BIT identically to the pre-``--seed`` behavior.
@@ -215,7 +215,7 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true",
                     help="Print resolved env and argv, then exit without training.")
     ap.add_argument("--seed", type=int, default=None,
-                    help="Draw seed (ROUTE_B_STAGE2_PREREGISTRATION.md §3): gnn sets "
+                    help="Draw seed (docs/lineages/route_b_v1/stage2-preregistration.md §3): gnn sets "
                          "NEAR_RTT_TRAIN_SEED and suffixes the wandb run name with "
                          "-seed{N}; mlp overrides --random-state and suffixes the "
                          "--output stem with _seed{N}. Omit for today's behavior "

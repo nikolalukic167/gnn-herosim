@@ -5,7 +5,7 @@
 cross-dataset model gets one set. So §9a bounds what a T1-expressible surrogate can do
 PER DATASET, which is strictly more than a single model can do, and NO-GO-PREPROBE-T1 is
 only as strong as that gap is small. This measures the gap, under the reading registered
-in ROUTE_B_STAGE2_PREREGISTRATION.md §9b before the number existed.
+in docs/lineages/route_b_v1/stage2-preregistration.md §9b before the number existed.
 
 Three cells, so that "cost of dropping kint" is never confused with "cost of pooling":
 

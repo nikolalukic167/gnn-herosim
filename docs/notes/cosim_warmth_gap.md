@@ -1,9 +1,9 @@
 # Co-sim Warmth Gap — 1060 Corpus Audit & Regen Plan
 
 **Last Updated:** 2026-06-11  
-**Status:** **HISTORICAL** — documents **OLD** `gnn_datasets_4tasks_1060` corpus (1230 ds). Mechanisms below explain why pre-v2 labels lacked N× pull physics. **Active training:** warmth_v2 473–500 ds + sparse 351 ds → merged **824-graph** cache — see `memory/cosim_grid_and_regen.md`. **Live gate (skew3, v2 physics):** MLP still wins **2/3** without disk feature in cache.
+**Status:** **HISTORICAL** — documents **OLD** `gnn_datasets_4tasks_1060` corpus (1230 ds). Mechanisms below explain why pre-v2 labels lacked N× pull physics. **Active training:** warmth_v2 473–500 ds + sparse 351 ds → merged **824-graph** cache — see `docs/notes/cosim_grid_and_regen.md`. **Live gate (skew3, v2 physics):** MLP still wins **2/3** without disk feature in cache.
 
-**Companion docs:** `memory/cosim_grid_and_regen.md` · `memory/warmth_model.md` · `memory/storage_contention.md` · `memory/compare.md` · `memory/gnn_v2_sparse_topology_and_features.md`
+**Companion docs:** `docs/notes/cosim_grid_and_regen.md` · `docs/notes/warmth_model.md` · `docs/notes/storage_contention.md` · `docs/notes/compare.md` · `docs/notes/gnn_v2_sparse_topology_and_features.md`
 
 > **One-sentence summary (1060 audit):** Zero pullTime, queueTime max 18.4s, 100% cacheHit on 1060. warmth_v2 regen + merged 824 cache partially fix labels; skew3 live MLP **2/3** until disk feature + hub co-sim grid.
 
@@ -26,7 +26,7 @@
 | **Full warmth_v2 regen?** | **Partial** — warmth **473–500** ds · sparse **351/351** · merged cache **824 graphs** · see `cosim_grid_and_regen.md` |
 | **Retrain?** | warmth dim14-ce + sparse finetune **done**; **live skew3 gate failed** (MLP 2/3) |
 | **Fast-path enrichment** | **Verified** — `refresh_optimal_full_stats.py --repair --force` ≡ inline SSC on graph fields |
-| **`placements.jsonl` policy** | **Mandatory** — repair/recache ≠ substitute; ~346 warmth dirs lost JSONL via `--resume` on `best.json` alone. `memory/placements_jsonl_required.md` |
+| **`placements.jsonl` policy** | **Mandatory** — repair/recache ≠ substitute; ~346 warmth dirs lost JSONL via `--resume` on `best.json` alone. `docs/notes/placements_jsonl_required.md` |
 
 ---
 
@@ -148,7 +148,7 @@ Co-sim generator must also set:
 ### Tier 3 — Pull-remaining features
 
 - `estimated_pull_remaining_sec = pending × T_pull(priors)` + autoscaler counters
-- See `memory/storage_contention.md` § fair feature candidates
+- See `docs/notes/storage_contention.md` § fair feature candidates
 - Recache + retrain; schedule-time fair
 
 ---
@@ -197,7 +197,7 @@ Co-sim generator must also set:
 7. **[NEXT]** `--repair --force` disk backfill → recache → **`skew_warmth_v2` co-sim grid**
 7. **[NEXT]** Live gate: standard5 + skew3 with warmth dim14-full (not sparse finetune alone)
 
-**Grid note:** Merged **824** adds conn {0.25,0.30,0.35} but **not** hub topology — see `memory/gnn_v2_sparse_topology_and_features.md`.
+**Grid note:** Merged **824** adds conn {0.25,0.30,0.35} but **not** hub topology — see `docs/notes/gnn_v2_sparse_topology_and_features.md`.
 
 ---
 
@@ -225,8 +225,8 @@ pipenv run python3 scripts_cosim/test_memory_contention_ab.py
 
 | Path | Role |
 |------|------|
-| `memory/warmth_model.md` | Warm predicate, disk cache gap, policy diff |
-| `memory/storage_contention.md` | FilterStore N×, metric traps, feature candidates |
+| `docs/notes/warmth_model.md` | Warm predicate, disk cache gap, policy diff |
+| `docs/notes/storage_contention.md` | FilterStore N×, metric traps, feature candidates |
 | `scripts_cosim/test_cold_start_queue_last_task_ab.py` | A/B with defer_cold=True, counterfactuals |
 | `scripts_cosim/generate_gnn_datasets_fast.py` | Co-sim generator (FF default True) |
 | `scripts_cosim/backfill_initialized_snapshot.py` | Phase 1 SSC only — **not** label regen |

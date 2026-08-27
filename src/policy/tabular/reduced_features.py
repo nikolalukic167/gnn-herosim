@@ -216,7 +216,7 @@ def candidate_relative_queue_columns(queue_vals) -> np.ndarray:
     return out.astype(np.float32)
 
 
-# --- dim63crk: route_b stage 2 T1 layout (ROUTE_B_STAGE2_PREREGISTRATION.md §2) ---
+# --- dim63crk: route_b stage 2 T1 layout (docs/lineages/route_b_v1/stage2-preregistration.md §2) ---
 #
 # dim63crk = dim25cr (25) + 38 partial-state columns computed per (task, candidate)
 # edge GIVEN the partial assignment of the shared masked decoder (§4, masked_topo):

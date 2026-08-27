@@ -59,7 +59,7 @@ Upstream README models the classic split: **Autoscaler** (how many replicas, whe
 - Brute-force co-simulation: freeze state → enumerate feasible `(placement_plan → batch RTT)` → `placements/placements.jsonl`
 - Per-task CE label `y` = optimal platform index on feasible edges
 - RTT hash (`rtt_chunk_*.pkl`) for regret / near-RTT training
-- See `paper/cosimulation.md`, `memory/placements_jsonl_required.md`
+- See `paper/cosimulation.md`, `docs/notes/placements_jsonl_required.md`
 
 **Platform features (14-dim in `prepare_graphs_cache.py`):** 5 type + 2 replica + 1 queue + 1 shared-fate + 3 temporal + 2 consolidation.
 
@@ -780,8 +780,8 @@ All four policies (`least_loaded`, `first_available`, `round_robin`, `random`): 
 
 - `paper/cosimulation.md` — co-sim protocol, SSC contract
 - `paper/inference.md` — live GNN batching, decode modes
-- `memory/placements_jsonl_required.md` — JSONL mandatory for RTT hash
-- `memory/gnn_necessity_separability.md` — when GNN beats MLP
+- `docs/notes/placements_jsonl_required.md` — JSONL mandatory for RTT hash
+- `docs/notes/gnn_necessity_separability.md` — when GNN beats MLP
 
 ---
 

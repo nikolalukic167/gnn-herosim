@@ -1,5 +1,5 @@
 # route_b stage 2, arm A2 — MLP dim63crk, the registered strongest pointwise (T1)
-# baseline (ROUTE_B_STAGE2_PREREGISTRATION.md §3).
+# baseline (docs/lineages/route_b_v1/stage2-preregistration.md §3).
 trainer: mlp
 lineage: route_b_v1
 description: >

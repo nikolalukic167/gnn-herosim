@@ -12,7 +12,7 @@ MANDATORY OUTPUT: placements/placements.jsonl
 
   Never delete .bf_scratch until placements/placements.jsonl exists and is non-empty.
   --resume must not skip datasets that have best.json but lack placements.jsonl.
-  See memory/placements_jsonl_required.md
+  See docs/notes/placements_jsonl_required.md
 
 This Python script replaces generate_gnn_datasets.sh with significant performance improvements:
 1. Eliminates jq overhead (native Python JSON handling)
@@ -365,7 +365,7 @@ ROUTE_C_LINK_SCREEN_8TASK_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_route_c_link_screen_8task",
 }
 
-# route_b_pivot_h{0..3}: the route_b ENV PIVOT ladder (ROUTE_B_ENV_PIVOT_SCREEN.md,
+# route_b_pivot_h{0..3}: the route_b ENV PIVOT ladder (docs/lineages/route_b_env_pivot_v1/screen-preregistration.md,
 # W4 of the pivot plan; registered rung order H0 -> H1 -> H2 -> H3, fixed, no post-hoc
 # rungs). Each rung is the SAME 204-shape (2 conn_probs x 2 replica_configs x 3
 # queue_dists x 17 seeds) as ROUTE_B_PILOT_V1_GRID, so a rung's screen numbers are
@@ -400,7 +400,7 @@ ROUTE_B_PIVOT_H0_GRID: GridPreset = {
         (0, 2, 0.7, 0.5),
     ],
     "replica_server_percentage": 0.5,
-    # ROUTE_B_ENV_PIVOT_SCREEN.md §3: fresh seed block, none previously used. Without
+    # docs/lineages/route_b_env_pivot_v1/screen-preregistration.md §3: fresh seed block, none previously used. Without
     # this override the preset silently inherited ROUTE_B_PILOT_V1_GRID's 901-917 (the
     # frozen pilot's own seeds) via **ROUTE_B_PILOT_V1_GRID above -- caught in pre-flight
     # 2026-08-27, before any rung was scored (see LINEAGES route_b_env_pivot_v1 outcome).

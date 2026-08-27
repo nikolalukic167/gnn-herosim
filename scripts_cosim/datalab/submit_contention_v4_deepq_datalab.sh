@@ -6,7 +6,7 @@
 #   MODE=full  bash scripts_cosim/datalab/submit_contention_v4_deepq_datalab.sh
 #
 # placements/placements.jsonl is the training label source and is generated on datalab; it
-# must be rsynced back before any recache. See memory/placements_jsonl_required.md.
+# must be rsynced back before any recache. See docs/notes/placements_jsonl_required.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

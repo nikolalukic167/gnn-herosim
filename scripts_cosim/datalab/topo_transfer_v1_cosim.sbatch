@@ -38,7 +38,7 @@
 #   squeue -u nikola.lukic
 #   tail -f logs/topo-transfer-v1-<jobid>_*.out
 # After every array task finishes, certify before trusting the corpus (placements.jsonl
-# is mandatory, not optional -- see memory/placements_jsonl_required.md):
+# is mandatory, not optional -- see docs/notes/placements_jsonl_required.md):
 #   for d in simulation_data/gnn_datasets_4tasks_topo_transfer_v1/ds_*; do
 #     [[ -s "$d/placements/placements.jsonl" ]] || echo "MISSING: $d"
 #   done

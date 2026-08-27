@@ -24,10 +24,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Where things live — READ FIRST
 
-**`LINEAGES.md` is the map of what is current.** Consult it before starting work on any
-experiment. It gives every experiment lineage a status (`ACTIVE` / `SUPERSEDED` /
-`FALSIFIED` / `PAPER`) and an outcome — the code-side counterpart to
-`simulation_data/REGISTRY.json`, which does the same for datasets.
+**`LINEAGES.md` is the one entry point to the research record.** Consult it before starting
+work on any experiment. It is an **index only** — a status (`ACTIVE` / `REGISTERED` /
+`CLOSED` / `SUPERSEDED` / `FAILED` / `FALSIFIED` / `SYNTHESIS` / `PAPER`) and a one-line
+outcome per lineage, each linking to the node that holds the full record. It is the
+code-side counterpart to `simulation_data/REGISTRY.json`, which does the same for datasets.
+
+Everything it indexes:
+
+| Where | What |
+|---|---|
+| `docs/lineages/<name>.md` | One node per lineage: standing, entry points, datasets, and the full dated record. Attachments (pre-registrations, screens, findings) sit in `docs/lineages/<name>/`. |
+| `docs/lessons.md` | The transferable rules — what generalises past any one lineage. |
+| `docs/hard-stops.md` | Falsified directions, each with the measurement that closed it. Check before proposing one. |
+| `docs/gates/gate-tools.md` | Corrections to the gates themselves, kept out of the lineage narratives on purpose. |
+| `docs/notes/` | Design notes on physics and features that outlive any lineage. |
+| `docs/adr/` | Decision records for choices with two live answers. |
+| `CONTEXT.md` · `PARITY.md` · `CO_SIMULATION_GUIDE.md` | Vocabulary · cross-venue comparability · the co-sim pipeline. |
+
+**One fact, one home.** Before adding a paragraph, find the file that already owns that
+fact and edit it. `LINEAGES.md` reached 4,995 lines because five files each narrated the
+same experiments and drifted apart. **Session handovers are ephemeral and are not
+committed** — write them to the scratchpad, and promote anything still true a week later
+into a node, `docs/lessons.md`, or `docs/gates/gate-tools.md`.
 
 **`archive/` is retired code. Ignore it** unless the user names a specific lineage.
 Do not search it, import from it, or take it as an example of current practice. It exists
@@ -43,8 +62,9 @@ Rules that keep this true:
    per-experiment wrapper is what produced 40 near-identical files that differed only in
    cache dir and wandb name. New experiments get a config under `experiments/`, run via
    `run_experiment.py` — not a new `train_*.py`.
-3. **A lineage is not done until it has a `LINEAGES.md` row with an outcome.** A sweep
-   whose result was never written down gets re-run by someone months later.
+3. **A lineage is not done until it has a `LINEAGES.md` row and a node under
+   `docs/lineages/` with an outcome.** A sweep whose result was never written down gets
+   re-run by someone months later.
 
 ## Commands
 
@@ -286,7 +306,7 @@ Located in `scripts_cosim/` - generates GNN training datasets via brute-force pl
 - Replica placement across nodes
 - Queue distributions for initial workload state
 
-**Critical Requirement**: Every co-sim dataset **must** have `placements/placements.jsonl` - the full `(placement_plan, rtt)` sweep for RTT-hash / near-RTT training. Never treat the placement sweep as optional; never `--resume` on `best.json` alone without JSONL. See `memory/placements_jsonl_required.md`.
+**Critical Requirement**: Every co-sim dataset **must** have `placements/placements.jsonl` - the full `(placement_plan, rtt)` sweep for RTT-hash / near-RTT training. Never treat the placement sweep as optional; never `--resume` on `best.json` alone without JSONL. See `docs/notes/placements_jsonl_required.md`.
 
 **Output Structure**:
 ```
@@ -577,13 +597,36 @@ When asked for explanations or analysis, **answer in chat directly** - do not wr
 
 Always use `pipenv run python3` or activate the pipenv environment first. Never run Python commands directly outside the virtual environment.
 
-On datalab, use: `eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn`
+A local `.venv` hijacks `pipenv run` and the failure surfaces as a misleading
+`ModuleNotFoundError`. The invocation that always works:
+
+```bash
+PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
+  pipenv run python3 scripts_cosim/<script>.py ...
+# datalab: eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn
+# in an .sbatch: export HEROSIM_PY=python3 right after activation
+# pin OMP/MKL/OPENBLAS/TORCH_NUM_THREADS=4 for ML runs
+```
+
+Two more that cost a round-trip each time they are forgotten:
+
+- `executesimulation --policy` takes registry names (`knative_network_batch`), **not** the
+  `run_simulation.py` strategy strings (`kn_network_kn_network`).
+- Live-gate result JSONs are ~80 MB — read bounded prefixes
+  (`extract_gate_stats_summary.py` / `extract_platform_dispersal.py` are the patterns).
 
 ## Directory Structure
 
 ```
 .
-├── LINEAGES.md                   # WHAT IS CURRENT — read before starting work
+├── LINEAGES.md                   # THE INDEX — read before starting work
+├── docs/                         # The research record LINEAGES.md indexes
+│   ├── lineages/                 #   one node per lineage (+ per-lineage attachments)
+│   ├── lessons.md                #   transferable rules
+│   ├── hard-stops.md             #   falsified — do not revive
+│   ├── gates/gate-tools.md       #   corrections to the gates themselves
+│   ├── notes/                    #   design notes that outlive a lineage
+│   └── adr/                      #   decision records
 ├── src/                          # Core simulation engine
 │   ├── placement/                # Infrastructure, orchestrator, autoscaler, scheduler,
 │   │                             #   constants.py, queue_features.py, warmth.py
@@ -602,18 +645,18 @@ On datalab, use: `eval "$(micromamba shell hook --shell bash)" && micromamba act
 ├── simulation_data/              # Generated datasets + REGISTRY.json / METADATA.json
 ├── models/                       # Trained ML models (GNN, MLP)
 ├── logs/                         # Simulation logs
-├── memory/                       # Design notes and decision records
 └── paper/                        # Research paper content
 ```
 
 ## Important Files
 
-- `LINEAGES.md` - **Which experiment lineages are ACTIVE vs retired.** Read first.
+- `LINEAGES.md` - **The index of the whole research record.** Read first.
+- `docs/lessons.md` / `docs/hard-stops.md` - What generalises, and what is already closed.
 - `PARITY.md` - **When two numbers from different machines may be compared.** Read before any
   cross-venue claim, and before writing a `.sbatch`.
 - `archive/README.md` - Rules for the retired-code archive
 - `CO_SIMULATION_GUIDE.md` - Comprehensive co-simulation pipeline documentation
-- `memory/placements_jsonl_required.md` - Critical requirement for placement sweep
+- `docs/notes/placements_jsonl_required.md` - Critical requirement for placement sweep
 - `.cursor/rules/project-guidelines.mdc` - Project-specific guidelines
 - `Pipfile` - Python dependencies (SimPy, PyTorch, torch-geometric, etc.)
 

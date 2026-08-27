@@ -1,6 +1,6 @@
 """B6: the shared split artifact.
 
-§3 of ROUTE_B_STAGE2_PREREGISTRATION.md requires a "draw" to vary initialisation and
+§3 of docs/lineages/route_b_v1/stage2-preregistration.md requires a "draw" to vary initialisation and
 batch order ONLY. Before B6, the MLP drew its split from --random-state (so a seed
 sweep moved the split) and the GNN drew its own with a hardcoded 42 — two different
 splits, and a paired test confounded by both. These tests pin the artifact that

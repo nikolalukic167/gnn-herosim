@@ -100,7 +100,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-batch-tasks", type=int, default=2,
                         help="Skip batch graphs with fewer tasks (GNN/MLP deploy range)")
     parser.add_argument("--partial-state", action="store_true",
-                        help="route_b stage 2 (ROUTE_B_STAGE2_PREREGISTRATION.md §2): "
+                        help="route_b stage 2 (docs/lineages/route_b_v1/stage2-preregistration.md §2): "
                              "train on the dim63crk layout — dim25cr + the 38 "
                              "partial-state/krank/linkrank columns. Requires "
                              "--candidate-relative-queue and a stage-2 cache that "
@@ -110,7 +110,7 @@ def parse_args() -> argparse.Namespace:
                              "Gives the pointwise scorer the set-relative view a graph model "
                              "gets from message passing; see program_verdict_v1 in LINEAGES.md.")
     parser.add_argument("--tied-labels", action="store_true",
-                        help="route_b stage 2 arm A3 (ROUTE_B_STAGE2_PREREGISTRATION.md "
+                        help="route_b stage 2 arm A3 (docs/lineages/route_b_v1/stage2-preregistration.md "
                              "§3/§5, W2): train dim25cr on the SAME alpha=2.0 tied-optimal "
                              "any-of-K label set A1/A2 teacher-force along, instead of the "
                              "plain dim25cr path's graph.y (unconstrained sweep minimum). "
@@ -531,7 +531,7 @@ def main() -> None:
 
     # Label mode + alpha key, next to inference_feature_layout: dim63crk (partial_state)
     # and tied-dim25cr (tied_labels) both teacher-force along the alpha=2.0 any-of-K
-    # tied-optimal plan set (ROUTE_B_STAGE2_PREREGISTRATION.md §5); the plain dim22/
+    # tied-optimal plan set (docs/lineages/route_b_v1/stage2-preregistration.md §5); the plain dim22/
     # dim24/dim25cr path labels from graph.y (the unconstrained sweep minimum) instead.
     # An eval harness needs this to know which optimum a checkpoint's argmax should be
     # compared against.

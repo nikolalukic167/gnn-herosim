@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-06-11 (v0.28.1)  
 **Verified by:** `test_memory_contention_ab.py` + `test_cold_start_queue_last_task_ab.py` (both SWEEP PASSED)  
-**Related:** `memory/memory.md` · `memory/compare.md` · `memory/warmth_model.md` · `memory/cosim_warmth_gap.md` · `paper/cosimulation.md` · `paper/model.md`
+**Related:** `LINEAGES.md` · `docs/notes/compare.md` · `docs/notes/warmth_model.md` · `docs/notes/cosim_warmth_gap.md` · `paper/cosimulation.md` · `paper/model.md`
 
 > Maps N× RTT growth from co-located cold image pulls, cold-start / queueTime / last-task mechanics, metric naming traps, GNN/MLP feature gaps, and counterfactual proofs. Use **last-task RTT** for contention penalty — not `total_rtt` sum.
 
@@ -241,7 +241,7 @@ Captured in SSC via `state_capture._capture_scheduler_state()` → `scheduler_st
 | **MLP atomic21** | `is_cold` (dim 8, per plat) | No node aggregation — weaker intra-batch co-location |
 | **Both** | queue dim 7 | Always 0 at schedule for this failure mode |
 
-**Orthogonal to GNN vs MLP separation:** FilterStore blindness affects both equally. **GIN batch coupling** (hub routing under k>b) is a separate axis — see `memory/gnn_v2_sparse_topology_and_features.md` §4. **`node_disk_hit`** on dim13 would help both unless paired with batch-level pull observables.
+**Orthogonal to GNN vs MLP separation:** FilterStore blindness affects both equally. **GIN batch coupling** (hub routing under k>b) is a separate axis — see `docs/notes/gnn_v2_sparse_topology_and_features.md` §4. **`node_disk_hit`** on dim13 would help both unless paired with batch-level pull observables.
 
 ---
 
@@ -328,7 +328,7 @@ Actual last-task RTT: **~125s** vs heuristic expectation **~32s** → **~290% un
 | Graph disk feature | No | **B1 DONE** `node_disk_hit` dim 13 | Needs `--repair --force` backfill on 824 ds |
 | Hub topology in grid | Old ER mix | **824 ER only** — no `degree_skewed_core` | Bipartite wins need hub co-sim |
 
-See `memory/compare.md` § Verified claims audit · `scripts_cosim/audit_doc_claims.py`.
+See `docs/notes/compare.md` § Verified claims audit · `scripts_cosim/audit_doc_claims.py`.
 
 ---
 
@@ -342,7 +342,7 @@ Under **v2**, second cold platform on same node after first pull skips **pull br
 | N=4 cold, 1 node, 1 flashCard | Last ~**125s** | Same FilterStore serialization on first-wave pulls |
 | Optimal label bias | Spread (phantom re-pulls) | Stack on warm node after one pull |
 
-**GNN/MLP implication:** v2 labels reward consolidation; models still **cannot see disk cache** at schedule time without `node_disk_hit` feature. Adding the feature helps **both** models; GNN advantage still requires **batch coupling + hub topology** in training (see `memory/gnn_v2_sparse_topology_and_features.md` §4).
+**GNN/MLP implication:** v2 labels reward consolidation; models still **cannot see disk cache** at schedule time without `node_disk_hit` feature. Adding the feature helps **both** models; GNN advantage still requires **batch coupling + hub topology** in training (see `docs/notes/gnn_v2_sparse_topology_and_features.md` §4).
 
 ---
 
@@ -357,7 +357,7 @@ Under **v2**, second cold platform on same node after first pull skips **pull br
 | Can shared_fate distinguish N=2 vs N=4 all-cold? | **No** — both ≈1.0 |
 | Fair to add pull-remaining feature? | **Yes** if from schedule-time observables + static priors |
 | Retrain required for new feature? | **Yes** — new dim → recache + retrain |
-| Warmth / pull gate model | **`memory/warmth_model.md`** — last-task predicate, disk cache gap |
+| Warmth / pull gate model | **`docs/notes/warmth_model.md`** — last-task predicate, disk cache gap |
 | Do not use for contended runs | **`total_rtt` sum**, per-task elapsed (except last), **`pullTime`** with FF on |
 
 ---
