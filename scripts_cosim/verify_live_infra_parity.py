@@ -28,7 +28,7 @@ Usage:
     verify_live_infra_parity.py --collection simulation_data/<coll> --sample 20
     verify_live_infra_parity.py --dataset <ds> --config <other_space_config.json>
 
-Run with the repo root on PYTHONPATH (see HANDOVER.md §0):
+Run with the repo root on PYTHONPATH (see .claude/CLAUDE.md -> Python Environment):
     PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=$(pwd) \
       pipenv run python3 scripts_cosim/verify_live_infra_parity.py ...
 """

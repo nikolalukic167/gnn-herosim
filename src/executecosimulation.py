@@ -2640,7 +2640,7 @@ def execute_brute_force_optimized(
     
     # Open placements file for streaming writes (avoid memory accumulation).
     # MUST be copied to ds_*/placements/placements.jsonl — required for RTT-hash training.
-    # memory/placements_jsonl_required.md
+    # docs/notes/placements_jsonl_required.md
     placements_file = output_dir / "placements.jsonl"
     placements_fh = open(placements_file, 'w')
     elapsed_time = 0  # Initialize for finally block safety

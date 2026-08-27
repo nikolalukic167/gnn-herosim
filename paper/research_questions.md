@@ -146,7 +146,7 @@ separately and never in one table.
 - Strategic / weighted merge live gates: **rejected** (worse vs contention-only).
 - contention_v3 train+live: **rejected** (GNN sum +81% vs v2).
 - Hub / bipartite / skew grids: regime-dependent; with feature-parity batchcache MLP often wins —
-  see `memory/compare.md`. Not the sealed RQ3 answer.
+  see `docs/notes/compare.md`. Not the sealed RQ3 answer.
 
 ---
 

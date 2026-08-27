@@ -329,7 +329,7 @@ Seq-cache retrain (`batch_edge_mlp_warmth_sparse_skew_merged_dim22.pt`, val_acc 
 | sparse_p25_skew | **1.06M** | 1.14M | 2.75M | Kn |
 | **SUM** | 20.73M | **19.88M** | 25.35M | GNN sum |
 
-**Status: PARTIAL** — GNN wins 3-config sum (−4% vs Kn, −22% vs MLP) but per-config wins are **1/1/1**. Offline ablation showed GNN collision robustness; live transfer limited by train/serve gap + argmax decode. See `memory/gnn_necessity_separability.md` §8.
+**Status: PARTIAL** — GNN wins 3-config sum (−4% vs Kn, −22% vs MLP) but per-config wins are **1/1/1**. Offline ablation showed GNN collision robustness; live transfer limited by train/serve gap + argmax decode. See `docs/notes/gnn_necessity_separability.md` §8.
 
 **Offline ablation (same corpus, n=142 test):** gnn_base beats pointwise on top-1 (90.7% vs 89.1%), p90 regret (2.39% vs 2.81%), opt-recovery (69% vs 65%), and eliminates catastrophic tail (max 7% vs 3164%).
 

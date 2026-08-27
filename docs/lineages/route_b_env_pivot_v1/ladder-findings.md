@@ -9,15 +9,15 @@ This document records what was measured, so the next session does not re-derive 
 findings only: **no threshold, grid, or reading rule is changed here.** Every remedy in §6
 needs its own registered amendment.
 
-Companion documents: `ROUTE_B_ENV_PIVOT_SCREEN.md` (the registration),
-`ROUTE_B_ENV_PIVOT_SCREEN_AMENDMENT_1.md` (the S0 control definition),
+Companion documents: `docs/lineages/route_b_env_pivot_v1/screen-preregistration.md` (the registration),
+`docs/lineages/route_b_env_pivot_v1/screen-amendment-1.md` (the S0 control definition),
 `simulation_data/route_b_pivot_h0_reading.json` (H0's amended reading).
 
 ---
 
 ## 1. The registered fallback, and why it keeps firing
 
-`ROUTE_B_ENV_PIVOT_SCREEN.md` §3: a rung is read at the tightest α on its ladder with
+`docs/lineages/route_b_env_pivot_v1/screen-preregistration.md` §3: a rung is read at the tightest α on its ladder with
 **clean counters** (`no_feasible_rows == 0` *and* `greedy_stuck == 0`); if none is clean,
 the rung is VOID-INFEASIBLE.
 

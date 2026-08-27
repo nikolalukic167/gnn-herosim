@@ -1,6 +1,6 @@
 ---
 name: experiment-gate
-description: Record experiment outcomes to LINEAGES.md — gate results, update lineage status, and capture decisions to memory.
+description: Record experiment outcomes into the research record — write the dated outcome into the lineage's node under docs/lineages/, update its row in the LINEAGES.md index, and file any transferable rule or gate-tool correction in its own home.
 model: sonnet
 effort: medium
 tools: [Read, Write, Edit, Bash]
@@ -8,26 +8,42 @@ tools: [Read, Write, Edit, Bash]
 
 # Experiment Gate
 
-Capture an experiment's outcome and update LINEAGES.md with status, findings, and next steps.
-Bridges the gap between experimental runs (local or datalab) and the lineage map.
+Capture an experiment's outcome into the research record. Bridges the gap between
+experimental runs (local or datalab) and the knowledge graph `LINEAGES.md` indexes.
+
+## Where each fact goes — one fact, one home
+
+`LINEAGES.md` is an **index only**: a status and a one-line outcome per lineage. The record
+itself lives in nodes. Never write a narrative into the index.
+
+| Fact | Home |
+|---|---|
+| The dated outcome, its numbers, its method | `docs/lineages/<lineage>.md` — append a `### <lineage> — <verdict> (YYYY-MM-DD)` section at the end, and add it to that file's newest-first "Record" list at the top |
+| The lineage's status + one-line outcome | the row in `LINEAGES.md` |
+| A pre-registration, screen, or findings doc | `docs/lineages/<lineage>/<name>.md`, linked from the node header |
+| A rule that generalises past this lineage | `docs/lessons.md` (newest first) |
+| A direction now closed | `docs/hard-stops.md`, **with the measurement that closed it** |
+| A gate tool that was measuring the wrong thing | `docs/gates/gate-tools.md` — never inside the lineage that tripped over it |
+
+Statuses: `ACTIVE` · `REGISTERED` (signed off, not yet run) · `CLOSED` (answered) ·
+`SUPERSEDED` · `FAILED` / `FALSIFIED` · `SYNTHESIS` · `PAPER`.
 
 ## What you do
 
 1. **Identify the lineage** being tested (or suggest one if unclear)
-2. **Read LINEAGES.md** to find the current row and understand prior context
+2. **Read the lineage's node** under `docs/lineages/` (and its row in `LINEAGES.md`) for prior context
 3. **Collect outcome data**:
    - Did the gate PASS, FAIL, or get FALSIFIED?
    - What was the key finding or metric?
    - What does this mean for the research question?
    - Are there follow-up lineages blocked by this outcome?
-4. **Update LINEAGES.md** with:
-   - New status: ACTIVE (extend), SUPERSEDED (by what?), FALSIFIED (why?), or PAPER (frozen)
-   - Outcome block with findings, metrics, and implications
-   - Pointer to supporting data (datasets, models, comparison scripts)
-5. **Record to memory** if the finding is surprising or non-obvious:
-   - Why did this lineage succeed/fail?
-   - What does it teach us about the simulator or GNN?
-   - Any gotchas for future work?
+4. **Append the dated outcome section** to `docs/lineages/<lineage>.md` — findings,
+   metrics, implications, and pointers to supporting data (datasets, models, scripts) —
+   and add it to that node's newest-first Record list
+5. **Update the one-line row** in `LINEAGES.md`: status + what settles the question
+6. **File anything that outlives the lineage** per the table above: a transferable rule in
+   `docs/lessons.md`, a closed direction in `docs/hard-stops.md`, a gate-tool correction in
+   `docs/gates/gate-tools.md`
 
 ## When to use
 
@@ -49,8 +65,8 @@ Bridges the gap between experimental runs (local or datalab) and the lineage map
    - If a discovery: extract the key finding from chat history or code changes
    - Get supporting files/paths (dataset dir, model checkpoint, comparison plot)
 
-3. **Read current LINEAGES.md**:
-   - Find the existing row for this lineage (if it exists)
+3. **Read the current record**:
+   - Read `docs/lineages/<lineage>.md`, and the row in `LINEAGES.md` (if it exists)
    - Note prior status, outcomes, and any blockers
    - Understand what this lineage was meant to prove/disprove
 
@@ -61,16 +77,18 @@ Bridges the gap between experimental runs (local or datalab) and the lineage map
    - **Follow-up**: What lineage(s) does this unblock or block?
    - **Evidence**: Path to datasets, models, or gating script output
 
-5. **Update LINEAGES.md**:
-   - Edit the lineage row's "Notes" column with the outcome block
-   - Add a new subsection if the outcome is substantial (see `graph_structure_physics — outcomes` in existing file)
-   - Use `**FALSIFIED**` or `**ACTIVE**` in bold to make status clear
-   - Link to other lineages that depend on this result
+5. **Write it down**:
+   - Append the outcome section to `docs/lineages/<lineage>.md` (create the node from a
+     sibling's header if the lineage is new) and list it in that node's Record
+   - Edit the lineage's row in `LINEAGES.md`: status + one-line outcome, nothing longer
+   - Link to the nodes of lineages that depend on this result
 
-6. **Record to memory** (optional but recommended):
-   - If the finding changes your mental model (e.g., "additive R² monotonically increases with queue depth")
-   - If there's a gotcha for future work (e.g., "placements.jsonl can be truncated by in-flight dataset gen")
-   - Use `/update-memory` to add a new memory file if the finding is non-obvious
+6. **Promote what generalises**:
+   - A finding that changes the mental model ("additive R² increases with queue depth")
+     goes in `docs/lessons.md`
+   - A gotcha for future work ("placements.jsonl can be truncated by in-flight dataset gen")
+     goes in `docs/lessons.md`; if it is a gate that lied, `docs/gates/gate-tools.md`
+   - A direction now closed goes in `docs/hard-stops.md` with its measurement
 
 ## Key patterns
 
@@ -102,17 +120,17 @@ the real lever (shallow queues), and `shallow_longexec_v1` adds the execution-ti
 to amplify coupling. This lineage's results stand but should not be extended.
 ```
 
-## Memory integration
+## Promoting a finding
 
-If you discover something non-obvious (e.g., workload draws were unseeded, or ECT is not a ceiling),
-flag it for memory capture. Example:
+If you discover something non-obvious (e.g., workload draws were unseeded, or ECT is not a
+ceiling), it belongs in `docs/lessons.md` as well as the node. Example:
 
 ```
-User: "Gate the results and update memory — we discovered workload draws aren't reproducible"
+User: "Gate the results — we discovered workload draws aren't reproducible"
 
 Agent:
-1. Updates LINEAGES.md with FALSIFIED status for affected lineages
-2. Calls /update-memory to save: "Workload draws were unseeded — traces are not reproducible
+1. Appends the outcome to each affected node and sets FALSIFIED in the index
+2. Adds to `docs/lessons.md`: "Workload draws were unseeded — traces are not reproducible
    from seed alone. Fixed 2026-08-18, all traces now use same RNG state. Impacts all datasets
    generated before 2026-08-18."
 ```
@@ -131,10 +149,11 @@ Agent:
 - Point to the data/script that proves it
 - Say what comes next (or what's now ruled out)
 
-**"Should I update LINEAGES.md or write to memory?"**:
-- LINEAGES.md: the *status* of the lineage (ACTIVE/FALSIFIED/SUPERSEDED) and why
-- Memory: surprising findings that should inform *future* design (e.g., "deep queues reduce coupling")
-- Do both if the finding is important enough to remember in 6 months
+**"Node, index, or lessons?"**:
+- `docs/lineages/<lineage>.md`: the outcome itself — numbers, method, what settles it
+- `LINEAGES.md`: one line — the *status* and what it means. Never a narrative
+- `docs/lessons.md`: the part that would change a decision on a *different* lineage
+- Do all three when the finding is important enough to matter in 6 months
 
 ## Sample invocation
 
@@ -149,6 +168,8 @@ Agent:
    **`ACTIVE` — isolated root cause, unblocks `topology_transfer_v1`**
    Same-node edges are trained out but served in live inference. Fixed in 2026-08-19 by
    excluding same-node edges from training. See `test_train_serve_mp_parity.py` line 42.
-5. Updates LINEAGES.md under mp_parity entry
-6. Suggests capturing to memory: "GNN train/serve MP mismatch — same-node edges" (already exists)
+5. Updates the `mp_parity` row in `LINEAGES.md` to match
+6. Appends the section to `docs/lineages/mp_parity.md`, updates the index row, and adds
+   the transferable half ("a checkpoint's train-time graph and its serve-time graph must be
+   compared, not assumed") to `docs/lessons.md`
 ```

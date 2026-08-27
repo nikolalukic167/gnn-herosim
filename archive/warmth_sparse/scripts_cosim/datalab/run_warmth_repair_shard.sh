@@ -4,7 +4,7 @@
 # and scheduling-time SSC fields (B1 feature plumbing).
 #
 # Does NOT create placements/placements.jsonl. Datasets missing JSONL still need BF regen.
-# memory/placements_jsonl_required.md
+# docs/notes/placements_jsonl_required.md
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-/home/nikola.lukic/gnn-herosim}"

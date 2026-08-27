@@ -196,7 +196,7 @@ COLLECTION_INFO = {
 
     # route_b_v1 series — diamond4 DAG (4 tasks, parent-coupled dispatch) on the
     # ROUTE_B_PILOT_V1_GRID scarce-placement substrate. Registered in
-    # ROUTE_B_STAGE2_PREREGISTRATION.md and the route_b_v1 LINEAGES entries.
+    # docs/lineages/route_b_v1/stage2-preregistration.md and the route_b_v1 LINEAGES entries.
     # Generation env (needed verbatim by any replay, e.g. the ssc repair):
     # HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_RETAIN_TASK_TIMES=1, Arm S corpora
     # adding HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000.
@@ -234,7 +234,7 @@ COLLECTION_INFO = {
             "datasets, seeds 901-917. Stage-1 PASS: best pointwise surrogate wrong "
             ">5% on 17.2% of datasets at alpha=2.0. Stage 2 demotes this to the "
             "SECONDARY (statistics-known) replication set — never the primary gate "
-            "(ROUTE_B_STAGE2_PREREGISTRATION.md par.5). Replay env: "
+            "(docs/lineages/route_b_v1/stage2-preregistration.md par.5). Replay env: "
             "HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_DATA_LOCALITY=1"
         ),
         "hypothesis": (

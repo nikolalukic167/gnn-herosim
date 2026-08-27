@@ -1,11 +1,11 @@
 # Co-sim Grid & Warmth Regen — Session Takeaways (2026-06-11)
 
 **Last Updated:** 2026-06-11 (v0.28.1)  
-**Companion docs:** `memory/placements_jsonl_required.md` · `memory/cosim_warmth_gap.md` · `memory/warmth_model.md` · `memory/compare.md` · `memory/memory.md`
+**Companion docs:** `docs/notes/placements_jsonl_required.md` · `docs/notes/cosim_warmth_gap.md` · `docs/notes/warmth_model.md` · `docs/notes/compare.md` · `LINEAGES.md`
 
 > **One-sentence summary:** The warmth_v2 regen uses a **compressed 500-dataset grid** (not 1500), runs via **4 parallel shards** with **GNN_CAPTURE=0 + print suppression**, and **post-hoc SSC enrichment** (`refresh_optimal_full_stats.py --repair --force`) verified equivalent to inline capture on graph-relevant fields.
 
-> **CRITICAL — `placements/placements.jsonl`:** Mandatory for every dataset. Full `(placement_plan, rtt)` sweep → `rtt_chunk_*.pkl` / near-RTT training. **`--repair` + recache does NOT replace JSONL.** Fast path wrongly treated sweep as optional; `--resume` on `best.json` alone left ~346 warmth dirs without JSONL. Policy: `memory/placements_jsonl_required.md`.
+> **CRITICAL — `placements/placements.jsonl`:** Mandatory for every dataset. Full `(placement_plan, rtt)` sweep → `rtt_chunk_*.pkl` / near-RTT training. **`--repair` + recache does NOT replace JSONL.** Fast path wrongly treated sweep as optional; `--resume` on `best.json` alone left ~346 warmth dirs without JSONL. Policy: `docs/notes/placements_jsonl_required.md`.
 
 ---
 
@@ -47,7 +47,7 @@
 
 **Enrichment A/B (ds_00059):** `refresh_optimal_full_stats.py --repair --force` vs inline SSC — **RTT identical**; graph-relevant SSC fields match (`task_placements`, `scheduler_state`, `initialized_snapshot`, replica sets); replica **list order** may differ (harmless).
 
-**Repair does NOT write `placements/placements.jsonl`.** SSC + per-task queues on the optimal trajectory only. Counterfactual RTT requires the BF sweep file — see `memory/placements_jsonl_required.md`.
+**Repair does NOT write `placements/placements.jsonl`.** SSC + per-task queues on the optimal trajectory only. Counterfactual RTT requires the BF sweep file — see `docs/notes/placements_jsonl_required.md`.
 
 **Post-regen (mandatory before recache):**
 

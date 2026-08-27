@@ -4,7 +4,7 @@
 #
 # MANDATORY: each ds_* must keep placements/placements.jsonl (full placement–RTT sweep).
 # Repair/recache does NOT replace JSONL. --resume skips only when best.json AND JSONL exist.
-# See memory/placements_jsonl_required.md
+# See docs/notes/placements_jsonl_required.md
 #
 # Note: generate_gnn_datasets_fast.py has 500 combo grid (1×5×20×5); dir name keeps "1060" history.
 set -euo pipefail

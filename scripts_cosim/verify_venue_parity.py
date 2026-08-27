@@ -47,7 +47,7 @@ Usage
     # thereafter, in either venue
     verify_venue_parity.py --mode logits --assert
 
-Run with the repo root on PYTHONPATH (see HANDOVER.md §0):
+Run with the repo root on PYTHONPATH (see .claude/CLAUDE.md -> Python Environment):
     PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=$(pwd) \
       pipenv run python3 scripts_cosim/verify_venue_parity.py --mode logits
 """

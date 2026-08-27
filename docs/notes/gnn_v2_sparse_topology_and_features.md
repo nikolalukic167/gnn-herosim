@@ -1,7 +1,7 @@
 # GNN v2 Win Zones — Co-sim Grid, Feature Redundancy, Disk Warmth
 
 **Last Updated:** 2026-06-11 (v0.28.1 — B1 shipped)  
-**Companion docs:** `memory/placements_jsonl_required.md` · `memory/cosim_grid_and_regen.md` · `memory/cosim_warmth_gap.md` · `memory/warmth_model.md` · `memory/storage_contention.md` · `memory/compare.md`
+**Companion docs:** `docs/notes/placements_jsonl_required.md` · `docs/notes/cosim_grid_and_regen.md` · `docs/notes/cosim_warmth_gap.md` · `docs/notes/warmth_model.md` · `docs/notes/storage_contention.md` · `docs/notes/compare.md`
 
 > **One-sentence summary:** v2 retrain moves optimal policy from “spread to dodge phantom re-pulls” to “disk-warm consolidation + hub routing under real contention.” GNN wins concentrate on **skew/topology** (bipartite k>b) and **batch coupling via GIN** — not physical multi-hop graphs. Merged **824-cache** adds low conn {0.25–0.35} but **still no `degree_skewed_core`**. atomic21 **drops `src_norm`**, seq recache **`is_warm` degenerate**, **`has_function` absent**. Skew3 live: MLP **2/3** until features + hub grid land.
 
@@ -34,7 +34,7 @@ Each dataset is built by `scripts_cosim/generate_gnn_datasets_fast.py`:
 2. **Brute-force placement** via `execute_brute_force_optimized` — enumerates placement combos, scores RTT with the determined batch scheduler (`batch_size = num_tasks`, currently 4).
 3. **Labels** = optimal placement RTT from `best.json` / `placements.jsonl`.
 4. **v2 defaults**: `warmth_physics="node_disk_v2"`, `defer_cold_replica_init` from base config, fast-forward warmup optional.
-5. **Fast regen path**: `GNN_CAPTURE_DATASET_STATE=0` (no inline SSC), `COSIM_SUPPRESS_SIM_PRINTS=1`, then mandatory `refresh_optimal_full_stats.py --repair --force` before recache — **but repair never replaces `placements/placements.jsonl`**. JSONL = full placement–RTT sweep for `rtt_chunk_*.pkl`; always persist before deleting `.bf_scratch`. `memory/placements_jsonl_required.md`.
+5. **Fast regen path**: `GNN_CAPTURE_DATASET_STATE=0` (no inline SSC), `COSIM_SUPPRESS_SIM_PRINTS=1`, then mandatory `refresh_optimal_full_stats.py --repair --force` before recache — **but repair never replaces `placements/placements.jsonl`**. JSONL = full placement–RTT sweep for `rtt_chunk_*.pkl`; always persist before deleting `.bf_scratch`. `docs/notes/placements_jsonl_required.md`.
 
 ### Current v2 grid (500 datasets)
 

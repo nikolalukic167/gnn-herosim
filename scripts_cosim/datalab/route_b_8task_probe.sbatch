@@ -49,7 +49,7 @@
 #     ROUTE_B_PILOT_V1_GRID's original arm-S env exactly (see its comment block).
 #
 # ALLOW_NON_UNIQUE is deliberately left at the runner's default (0): route_b's decode mask
-# is "no replica reuse" (ROUTE_B_STAGE2_PREREGISTRATION.md §4), and route_b_pilot_v1 is not
+# is "no replica reuse" (docs/lineages/route_b_v1/stage2-preregistration.md §4), and route_b_pilot_v1 is not
 # among the grids marked "MUST --allow-non-unique-replicas" in this file's grid comments.
 
 set -euo pipefail

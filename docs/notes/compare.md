@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-08-13 (Regime B oracle_split_v1 CLOSED via Phase 3.1)
 
-> Reference for `/compare`. Project state: `memory/memory.md`. **GNN-necessity / separability:** `memory/gnn_necessity_separability.md`. **GNN vs MLP mechanism:** `memory/gnn_v2_sparse_topology_and_features.md` §4.
+> Reference for `/compare`. Project state: `LINEAGES.md`. **GNN-necessity / separability:** `docs/notes/gnn_necessity_separability.md`. **GNN vs MLP mechanism:** `docs/notes/gnn_v2_sparse_topology_and_features.md` §4.
 
 ---
 
@@ -108,7 +108,7 @@ pipenv run python3 scripts_cosim/run_phase3_ect_pull_distill_eval.py \
 | **Hub v2 batchcache** | **MLP-bc 8/9, 6.09M** beats GNN 10.02M when train cache = GNN batch cache + dim22 inference |
 | Phase boundary | v1: GNN 17.90M vs MLP 21.49M (8/9 GNN). **v2 batchcache: MLP 6.09M vs GNN 10.02M — MLP 8/9** (feature parity); ce_reduced MLP 939M was encoding bug; triangle MLP +0.4% |
 
-Full table: `memory/gnn_v2_sparse_topology_and_features.md` §4.
+Full table: `docs/notes/gnn_v2_sparse_topology_and_features.md` §4.
 
 **Sweep sizes:** **standard5** (`default`, `01`, `02`, `03`, `05`) for dev · **all7** (+ `00`, `04`) for paper · **skew-4** (+ degree-skew variants) · **skew3** (warmth gate) for topology stress.
 
@@ -116,7 +116,7 @@ Full table: `memory/gnn_v2_sparse_topology_and_features.md` §4.
 
 ## FilterStore storage contention (verified 2026-06-11)
 
-Full map: **`memory/storage_contention.md`**.
+Full map: **`docs/notes/storage_contention.md`**.
 
 | Item | Value |
 |------|-------|
@@ -148,7 +148,7 @@ pipenv run python3 scripts_cosim/test_cold_start_queue_last_task_ab.py
 
 ## Platform warmth model (expert reference 2026-06-11)
 
-Full map: **`memory/warmth_model.md`**. Send to external reviewers with `storage_contention.md`.
+Full map: **`docs/notes/warmth_model.md`**. Send to external reviewers with `storage_contention.md`.
 
 | Item | Value / finding |
 |------|-----------------|
@@ -164,7 +164,7 @@ Full map: **`memory/warmth_model.md`**. Send to external reviewers with `storage
 | GNN edge `is_warm` | Matches sandbox predicate via `previous_task_type_name` |
 | `node.cache_hits` stat | Hard-coded `+= 0` on determined path |
 
-**1060 label gap (historical):** pullTime **0%** · queueTime max **18.4s** — see **`memory/cosim_warmth_gap.md`**. **warmth_v2 regen** changes pull labels; graph features still lack disk hit.
+**1060 label gap (historical):** pullTime **0%** · queueTime max **18.4s** — see **`docs/notes/cosim_warmth_gap.md`**. **warmth_v2 regen** changes pull labels; graph features still lack disk hit.
 
 ---
 
@@ -187,7 +187,7 @@ Full map: **`memory/warmth_model.md`**. Send to external reviewers with `storage
 
 **Takeaway:** GNN beats Kn+MLP on **3-config sum** but per-config wins split 1/1/1. Offline ablation GNN advantage (collision robustness) does **not** uniformly transfer — MLP wins sparse_p25 live. Next: decode collision repair.
 
-**Offline ablation (same corpus):** `gnn_necessity_ablation.py` — gnn_base beats pointwise on top1/p90/opt-recov; see `memory/gnn_necessity_separability.md`.
+**Offline ablation (same corpus):** `gnn_necessity_ablation.py` — gnn_base beats pointwise on top1/p90/opt-recov; see `docs/notes/gnn_necessity_separability.md`.
 
 ---
 
@@ -291,7 +291,7 @@ Full map: **`memory/warmth_model.md`**. Send to external reviewers with `storage
 
 ## Co-sim warmth gap — 1060 corpus (historical)
 
-Full audit: **`memory/cosim_warmth_gap.md`**.
+Full audit: **`docs/notes/cosim_warmth_gap.md`**.
 
 | Item | Value |
 |------|-------|

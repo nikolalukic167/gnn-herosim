@@ -9,7 +9,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=24:00:00
 
-# PP0' (ROUTE_B_STAGE2_PREREGISTRATION.md §10, corrected registration) — step 1 of 2 on
+# PP0' (docs/lineages/route_b_v1/stage2-preregistration.md §10, corrected registration) — step 1 of 2 on
 # the 8-task corpus: re-run route_b_coefficient_transfer.py with the PP0' report
 # extension (per-dataset krank fractions + tie bands, additive fields only), then
 # assert BIT-IDENTITY of every pre-existing key against the frozen §9d artifact

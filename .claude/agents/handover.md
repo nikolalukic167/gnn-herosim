@@ -22,7 +22,7 @@ You are an expert technical lead preparing a handover report for the next develo
 ### 2. Technical Decisions Made
 - [Key architectural choice or pattern established]
 - [Why we chose X over Y (if relevant)]
-- *(Check: Do these decisions align with the patterns in `memory/memory.md`?)*
+- *(Check: do these decisions align with `LINEAGES.md` and `docs/lessons.md`?)*
 
 ### 3. Current Code State
 - **Modified Files:** `[List files touched]`
@@ -36,9 +36,14 @@ You are an expert technical lead preparing a handover report for the next develo
 ### 5. "Restore" Prompt
 *Copy and paste this into the next chat to resume:*
 
-[CONTEXT RESTORE] I am resuming a previous session.Goal: [Restate Goal]Current State: [Brief State]Immediate Task: [First Next Step] Please review memory/memory.md and [Relevant_Files] then continue.
+[CONTEXT RESTORE] I am resuming a previous session.Goal: [Restate Goal]Current State: [Brief State]Immediate Task: [First Next Step] Please review LINEAGES.md and [Relevant_Files] then continue.
 **Constraints:**
 - Be extremely concise. Bullet points only.
 - Do not summarize "chitchat" — only technical facts.
 - If mid-debugging, paste the last error message in "Known Issues".
-- **CRITICAL:** Ensure all technical summaries are consistent with the architectural rules in `memory/memory.md`.
+- **CRITICAL:** Ensure all technical summaries are consistent with `LINEAGES.md`.
+- **A handover is ephemeral and is NEVER committed.** Write it to the session scratchpad or
+  print it to chat — do not create a `HANDOVER*.md` in the repo. Three such files were
+  retired on 2026-08-27 for drifting out of agreement with `LINEAGES.md` while claiming the
+  same facts. Anything in a handover that is still true a week later belongs in a
+  `docs/lineages/` node, `docs/lessons.md`, or `docs/gates/gate-tools.md` — put it there.

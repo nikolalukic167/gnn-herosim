@@ -57,7 +57,7 @@ DIM25CR_FEATURE_DIM = 25
 # decoder's partial assignment. The bundle stays a dim22 bundle — the extra columns
 # exist only inside the sequential decode loop / training row assembly, computed by
 # THE single-source function reduced_features.partial_state_columns behind the
-# PARTIAL_STATE_CONTRACT version (see ROUTE_B_STAGE2_PREREGISTRATION.md §2).
+# PARTIAL_STATE_CONTRACT version (see docs/lineages/route_b_v1/stage2-preregistration.md §2).
 DIM63CRK_FEATURE_DIM = 63
 
 # CE-reduced ablation (archive/warmth_sparse/src/notebooks/train_near_rtt_ce_reduced_features.py on legacy 1060 cache).

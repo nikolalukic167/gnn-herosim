@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """D3b power computation for the route_b_v1 stage 2 pre-registration (§6).
 
-Every number cited in §6 of ROUTE_B_STAGE2_PREREGISTRATION.md comes out of this script:
+Every number cited in §6 of docs/lineages/route_b_v1/stage2-preregistration.md comes out of this script:
 the effect-size table, the compound PASS-condition power, and the f=0 null false-pass row.
 
 Effect model (assumptions registered in the doc):

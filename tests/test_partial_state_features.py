@@ -1,5 +1,5 @@
 """Unit tests for the dim63crk partial-state feature block (B2 of the corrected
-stage-2 registration, ROUTE_B_STAGE2_PREREGISTRATION.md §2).
+stage-2 registration, docs/lineages/route_b_v1/stage2-preregistration.md §2).
 
 partial_state_columns is THE single-source definition of the 38 columns; these
 tests pin each §2 column's semantics on hand-built fixtures, the krank one-hot
