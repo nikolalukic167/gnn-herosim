@@ -43,6 +43,7 @@ import numpy as np
 
 from score_route_b_contention import (
     Dataset,
+    T1_EXTENDED_BLOCKS,
     decode_regret,
     k_integer_keys,
     load_task_types,
@@ -308,6 +309,14 @@ def run(corpus: Path, report: Path, task_types: Path, alpha: float,
     per_ds = []
     frac_a, frac_b, betas_b, betas_a = [], [], [], []
     band_a, band_b = [], []
+    # route_b_env_pivot_v1 screen S2 (the kill bar): the per-dataset t1x tie band
+    # (T1_EXTENDED_BLOCKS = kint+quad+cap+hop+coupling+linkrank+hetdem+futureint), on
+    # the SAME firing-set cells this function already loaded -- no separate corpus
+    # pass. score_route_b_contention.py's t1x arm reports only a flat regret value
+    # (no tie band); this is the band the registration's "registered and pessimistic
+    # required to agree in direction" bar needs.
+    band_t1x = []
+    frac_t1x_saturated = []
     for cell in cells:
         ba = cell.repair_band(("kint",) + POOLED_BLOCKS)
         bb = cell.repair_band(POOLED_BLOCKS)
@@ -322,11 +331,22 @@ def run(corpus: Path, report: Path, task_types: Path, alpha: float,
         betas_b.append(beta_b[1:])           # drop the fitted intercept, keep [msum]+cols
         X, _y = cell.design(POOLED_BLOCKS)
         Xi = np.hstack([np.ones((len(X), 1)), X])
+        try:
+            bt = cell.repair_band(T1_EXTENDED_BLOCKS)
+            bt.pop("beta")
+            frac_t1x_saturated.append(False)
+        except RuntimeError:
+            # saturation guard refusal (repair_band raises rather than reporting an
+            # interpolated value) -- recorded, never silently a pass or a zero.
+            bt = None
+            frac_t1x_saturated.append(True)
+        band_t1x.append(bt)
         per_ds.append({
             "ds": cell.ds_dir.name,
             "r_exact_pct": cell.r_base,
             "cell_a_repaired_pct": rep_a, "cell_a_fraction": cell.fraction(rep_a),
             "cell_b_repaired_pct": rep_b, "cell_b_fraction": cell.fraction(rep_b),
+            "t1x_band": bt, "t1x_saturated": bt is None,
             "n_rows": len(cell.ds.rows), "n_feasible": len(cell.feasible),
             "kint_width": len(k_integer_keys(cell.ds)),
             "cond": float(np.linalg.cond(Xi)),
@@ -334,6 +354,20 @@ def run(corpus: Path, report: Path, task_types: Path, alpha: float,
             "coefficients": dict(zip(shared_names, [float(v) for v in beta_b[1:]])),
         })
     out["per_dataset"] = per_ds
+
+    valid_t1x_bands = [b for b in band_t1x if b is not None]
+    out["t1x_per_dataset"] = {
+        "n_cells": len(cells),
+        "n_saturated": sum(frac_t1x_saturated),
+        "median_registered": (registered_median([b["registered"] for b in valid_t1x_bands])
+                              if valid_t1x_bands else None),
+        "median_pessimistic": (registered_median([b["pessimistic"] for b in valid_t1x_bands])
+                               if valid_t1x_bands else None),
+        "median_mean_tied": (registered_median([b["mean_tied"] for b in valid_t1x_bands])
+                             if valid_t1x_bands else None),
+        "median_optimistic": (registered_median([b["optimistic"] for b in valid_t1x_bands])
+                              if valid_t1x_bands else None),
+    }
 
     # --- cell C, pooled --------------------------------------------------
     beta_c, frac_c, info_c = pooled_fit(cells, POOLED_BLOCKS, equal_dataset_weight=False)
