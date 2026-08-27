@@ -70,14 +70,27 @@ def compute_caps(rows, ttypes, pid_map, task_db, demand_of_fn, alpha, cap_mode="
     """route_b_env_pivot_v1: independent recomputation of Dataset.node_caps's cap_mode
     option (score_route_b_contention.py). alpha_max (default) is the original formula
     here, unchanged. A node whose demands are ALL zero gets no entry in ANY mode
-    (uncapped), matching the scorer's exact convention -- caps.get(n, inf) downstream."""
+    (uncapped), matching the scorer's exact convention -- caps.get(n, inf) downstream.
+
+    CRITICAL: demands are deduplicated per (task_id, placement) pair, exactly like
+    Dataset.demand -- alpha_max is invariant to how many sweep ROWS repeat a given
+    (task, placement), but alpha_mean is NOT, so counting the same demand once per row
+    it appears in (instead of once per unique candidate) silently changes the mean.
+    Caught by test_route_b_env_pivot_cap_mode_verifier.py: verifier alpha_mean
+    disagreed with the scorer (6.222 vs 6.5) on the toy rig before this fix."""
     if alpha is None:
         return None
-    by_node = {}
+    demand_by_key = {}
     for plan, _v in rows:
         for t, p in plan.items():
+            key = (t, p)
+            if key in demand_by_key:
+                continue
             node, d = demand_of_fn(t, p, ttypes, pid_map, task_db)
-            by_node.setdefault(node, []).append(d)
+            demand_by_key[key] = (node, d)
+    by_node = {}
+    for node, d in demand_by_key.values():
+        by_node.setdefault(node, []).append(d)
     by_node = {n: ds for n, ds in by_node.items() if max(ds) > 0.0}
     if cap_mode == "alpha_max":
         return {n: alpha * max(ds) for n, ds in by_node.items()}
