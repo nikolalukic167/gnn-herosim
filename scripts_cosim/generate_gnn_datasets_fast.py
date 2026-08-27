@@ -438,6 +438,27 @@ ROUTE_B_PIVOT_H2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h2",
 }
 
+# PROBE, NOT A REGISTERED RUNG (route_b_env_pivot_v1, 2026-08-27). H2's shape with the
+# `per_server=1` replica_configs arm widened. That one arm causes two separate, measured
+# failures:
+#   1. it generates 2 candidates per task type => 16-row sweeps, and a 16-row sweep cannot
+#      fit ANY credible per-dataset pointwise competitor (the S2 kill bar's `t1x` needs 82
+#      rows; even the registered `t1` needs 42), so half the corpus is unmeasurable;
+#   2. with replica_overlap it leaves only 2 distinct platforms for 4 tasks that need 4,
+#      so the arm has ZERO valid assignments and H2 generated 102/204 (VOID-GENERATION).
+# This probe measures whether widening it fixes both WITHOUT loosening the squeeze — the
+# squeeze is server_node_counts=[4] x replica_server_percentage=0.5, which puts replicas
+# on exactly 2 HOSTING NODES, and that is untouched here. Nothing is registered by this
+# preset; it exists to put a number under the amendment that would change H2/H3.
+ROUTE_B_PIVOT_H2_WIDEARM_PROBE_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H2_GRID,
+    "replica_configs": [
+        (0, 3, 0.7, 0.5),
+        (0, 4, 0.7, 0.5),
+    ],
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h2_widearm_probe",
+}
+
 # H3: H2 + dag_instances=2 (8-task joint decision, the largest rung), alpha at the
 # registered doubling correspondence (see ROUTE_B_PILOT_V1_8TASK_GRID's own alpha
 # note — the 8-task probe's alpha ladder mirrors the 4-task one 1:1 rather than
@@ -827,6 +848,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_c_link_screen_8task": ROUTE_C_LINK_SCREEN_8TASK_GRID,
     "route_b_pivot_h0": ROUTE_B_PIVOT_H0_GRID,
     "route_b_pivot_h1": ROUTE_B_PIVOT_H1_GRID,
+    "route_b_pivot_h2_widearm_probe": ROUTE_B_PIVOT_H2_WIDEARM_PROBE_GRID,
     "route_b_pivot_h2": ROUTE_B_PIVOT_H2_GRID,
     "route_b_pivot_h3": ROUTE_B_PIVOT_H3_GRID,
 }
