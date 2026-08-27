@@ -679,14 +679,26 @@ def check_blocks(corpus, transfer_report, task_types_path):
             got = repaired_r_exact(rows, feas, marg, "t1", ttypes, pid_map, task_db, scales,
                                    best, caps=caps, dag_edges=dag_edges, net=net,
                                    blocks=blocks)
-            if got is None:
-                fail(f"{ds}: verifier says arm {name} saturated, §9b reported a value")
-            regret, tied = got
-            fraction = 1.0 - min(r_exact, regret) / r_exact
             if name in ("cell_a", "cell_b"):
                 expected = row[f"{name}_fraction"]
             else:
                 expected = report["ablation"][name]["fractions"][order.index(ds.name)]
+            # The saturation DECISION is itself checked, in both directions, exactly as
+            # the t1x arm below already does (route_b_env_pivot_v1, 2026-08-27). A `null`
+            # in the artifact means the scorer refused this (dataset, arm); the verifier
+            # reaches its own verdict from its own guard, and the two must match. A
+            # one-sided check would let a scorer refuse an arm it could have fitted — or
+            # fit one it should have refused — and still pass S0.
+            if got is None:
+                if expected is not None:
+                    fail(f"{ds}: verifier says arm {name} saturated, "
+                         f"§9b reported {expected!r}")
+                checked += 1
+                continue
+            if expected is None:
+                fail(f"{ds}: §9b says arm {name} saturated, verifier fitted it")
+            regret, tied = got
+            fraction = 1.0 - min(r_exact, regret) / r_exact
             if abs(expected - fraction) > 1e-9:
                 # the same machine-precision tie escape --check-repairs grants
                 tied_fracs = [1.0 - min(r_exact, t) / r_exact for t in tied]
@@ -975,7 +987,23 @@ def check_krank(corpus, transfer_report, task_types_path):
     # fractions (upper-middle median, the registered gate convention).
     for label, block in (("krank_exploratory", kre),
                          ("krank_pooled_exploratory", kpe)):
-        fr = block["fractions"]
+        # `None` marks a (dataset, arm) the saturation guard refused; the aggregates are
+        # over the FITTED subset, so the consistency check must be too. The refusal count
+        # is checked against the artifact's own n_fitted/n_saturated where it carries them,
+        # so a block cannot quietly drop datasets out of its denominator either.
+        raw = block["fractions"]
+        fr = [f for f in raw if f is not None]
+        n_sat = len(raw) - len(fr)
+        if "n_saturated" in block and block["n_saturated"] != n_sat:
+            fail(f"{label}: n_saturated={block['n_saturated']} but {n_sat} null fractions")
+        if "n_fitted" in block and block["n_fitted"] != len(fr):
+            fail(f"{label}: n_fitted={block['n_fitted']} but {len(fr)} non-null fractions")
+        if not fr:
+            if block["median_fraction"] is not None or block["mean_fraction"] is not None:
+                fail(f"{label}: every fraction refused but an aggregate was reported")
+            if block["n_closed_ge_half"]:
+                fail(f"{label}: every fraction refused but n_closed_ge_half is nonzero")
+            continue
         if abs(sorted(fr)[len(fr) // 2] - block["median_fraction"]) > 1e-12:
             fail(f"{label}: median_fraction inconsistent with its own fractions")
         if abs(sum(fr) / len(fr) - block["mean_fraction"]) > 1e-9:
@@ -1071,9 +1099,19 @@ def check_krank(corpus, transfer_report, task_types_path):
     for i, c in enumerate(ctx):
         fn = merged_fn(c, len(c["rank"]))
         n_params = 2 + len(fn(c["rows"][0][0]))
-        if len(c["rows"]) < 2 * n_params:
-            fail(f"{c['name']}: verifier says the per-dataset krank fit is "
-                 "saturated, the report carries a value")
+        # Two-sided, like every other arm: the verifier reaches its own saturation
+        # verdict from its own guard and the two must agree. `None` in the report means
+        # refused; a disagreement in EITHER direction is an S0 VOID.
+        verifier_saturated = len(c["rows"]) < 2 * n_params
+        report_saturated = kre["fractions"][i] is None
+        if verifier_saturated != report_saturated:
+            fail(f"{c['name']}: per-dataset krank saturation disagrees — verifier "
+                 f"{'saturated' if verifier_saturated else 'fitted'}, report "
+                 f"{'saturated' if report_saturated else 'fitted'} "
+                 f"({len(c['rows'])} rows vs {2 * n_params} needed)")
+        if verifier_saturated:
+            counters["checked"] += 1
+            continue
         X = [[1.0, msum(c, plan)] + fn(plan) for plan, _v in c["rows"]]
         y = [v for _p, v in c["rows"]]
         beta = solve_least_squares(X, y)
