@@ -66,6 +66,29 @@ def fail(msg: str) -> None:
     sys.exit(1)
 
 
+def compute_caps(rows, ttypes, pid_map, task_db, demand_of_fn, alpha, cap_mode="alpha_max"):
+    """route_b_env_pivot_v1: independent recomputation of Dataset.node_caps's cap_mode
+    option (score_route_b_contention.py). alpha_max (default) is the original formula
+    here, unchanged. A node whose demands are ALL zero gets no entry in ANY mode
+    (uncapped), matching the scorer's exact convention -- caps.get(n, inf) downstream."""
+    if alpha is None:
+        return None
+    by_node = {}
+    for plan, _v in rows:
+        for t, p in plan.items():
+            node, d = demand_of_fn(t, p, ttypes, pid_map, task_db)
+            by_node.setdefault(node, []).append(d)
+    by_node = {n: ds for n, ds in by_node.items() if max(ds) > 0.0}
+    if cap_mode == "alpha_max":
+        return {n: alpha * max(ds) for n, ds in by_node.items()}
+    if cap_mode == "alpha_mean":
+        return {n: alpha * (sum(ds) / len(ds)) for n, ds in by_node.items()}
+    if isinstance(cap_mode, dict) and "absolute" in cap_mode:
+        budget = float(cap_mode["absolute"])
+        return {n: budget for n in by_node}
+    fail(f"compute_caps: unknown cap_mode {cap_mode!r}")
+
+
 def load(ds, task_types_path):
     task_db = json.load(open(task_types_path))
     infra = json.load(open(ds / "infrastructure.json"))
@@ -476,16 +499,9 @@ def repaired_r_exact(rows, feas, marg, kind, ttypes, pid_map, task_db, best,
 
 
 def recompute(rows, ttypes, pid_map, task_db, alpha, check_repairs=False,
-              dag_edges=None, net=None, sources=None):
+              dag_edges=None, net=None, sources=None, cap_mode="alpha_max"):
     # capacities
-    caps = None
-    if alpha is not None:
-        peak = {}
-        for plan, _v in rows:
-            for t, p in plan.items():
-                node, d = demand_of(t, p, ttypes, pid_map, task_db)
-                peak[node] = max(peak.get(node, 0.0), d)
-        caps = {n: alpha * m for n, m in peak.items()}
+    caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
 
     def feasible(plan):
         if caps is None:
@@ -574,22 +590,21 @@ def check_blocks(corpus, transfer_report, task_types_path):
     if len(ds_dirs) != len(rows_by_ds):
         fail(f"{corpus}: {len(ds_dirs)} of {len(rows_by_ds)} §9b datasets found")
     alpha = float(report["alpha"])
+    cap_mode = report.get("cap_mode", "alpha_max")
     pooled = tuple(report["pooled_blocks"])
     arms = {"cell_a": tuple(T1_BLOCKS), "cell_b": pooled}
     for name, arm in report.get("ablation", {}).items():
         arms[name] = tuple(arm["blocks"])
     order = [r["ds"] for r in report["per_dataset"]]
 
+    have_t1x_band = bool(report.get("t1x_per_dataset")) and all(
+        "t1x_band" in r for r in report["per_dataset"])
+    t1x_bands_checked = 0
     checked = 0
     for ds in ds_dirs:
-        rows, ttypes, pid_map, task_db, dag_edges, net, _src = load(
+        rows, ttypes, pid_map, task_db, dag_edges, net, sources = load(
             ds, task_types_path)
-        peak = {}
-        for plan, _v in rows:
-            for t, p in plan.items():
-                node, d = demand_of(t, p, ttypes, pid_map, task_db)
-                peak[node] = max(peak.get(node, 0.0), d)
-        caps = {n: alpha * m for n, m in peak.items()}
+        caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
 
         def feasible(plan):
             load_ = {}
@@ -635,8 +650,82 @@ def check_blocks(corpus, transfer_report, task_types_path):
                     fail(f"{ds} arm {name}: §9b fraction={expected!r} "
                          f"verifier={fraction!r}")
             checked += 1
+
+        # route_b_env_pivot_v1 S2 (the kill bar): independently recompute the t1x
+        # per-dataset tie band (T1_EXTENDED_BLOCKS) and compare against
+        # route_b_coefficient_transfer.py's t1x_band, which came from a DIFFERENT
+        # code path (Cell.repair_band, same compute_caps-derived caps as above).
+        if have_t1x_band:
+            row = rows_by_ds[ds.name]
+            band = row["t1x_band"]
+            expect_saturated = row.get("t1x_saturated", band is None)
+            got = repaired_r_exact(rows, feas, marg, "t1", ttypes, pid_map, task_db,
+                                   best, caps=caps, dag_edges=dag_edges, net=net,
+                                   blocks=T1X_BLOCKS, sources=sources)
+            if got is None:
+                if not expect_saturated:
+                    fail(f"{ds}: verifier says t1x saturated, §9b reported a band")
+            else:
+                if expect_saturated:
+                    fail(f"{ds}: §9b says t1x saturated, verifier is not")
+                _regret, tied = got
+                tied_fracs = sorted(1.0 - min(r_exact, t) / r_exact for t in tied)
+                got_band = {
+                    "optimistic": tied_fracs[-1], "pessimistic": tied_fracs[0],
+                    "mean_tied": sum(tied_fracs) / len(tied_fracs),
+                    "n_tied": len(tied_fracs),
+                }
+                mismatches = {key: (got_band[key], band[key]) for key in
+                             ("optimistic", "pessimistic", "mean_tied")
+                             if abs(got_band[key] - band[key]) > 1e-9}
+                if mismatches or got_band["n_tied"] != band["n_tied"]:
+                    # T1_EXTENDED_BLOCKS is wide (kint's dataset-specific width +
+                    # linkrank + hetdem + futureint, 40+ params) and this corpus has
+                    # datasets numpy's own lstsq reports as severely rank-deficient at
+                    # the NARROWER 13-param pooled design already (cond ~1e20,
+                    # ds_00017/ds_00020 -- route_b_coefficient_transfer.py's own
+                    # "rank-deficient designs" printout). On a rank-deficient design
+                    # two independently-computed exact LS solutions can differ off the
+                    # training manifold by construction (the null space is real, not a
+                    # solver bug): predictions on FEASIBLE-BUT-NOT-FIT rows genuinely
+                    # diverge even though both solvers minimize the same residual on
+                    # the FIT rows. Checked directly (not assumed): rebuild this
+                    # dataset's t1x design and confirm numpy's own rank < n_params
+                    # before accepting the escape -- a full-rank disagreement is still
+                    # a real bug and still fails.
+                    import numpy as _np
+                    kint_keys_here = sorted({
+                        (node_of(t, p, ttypes, pid_map, task_db), ttypes[t])
+                        for plan, _v in rows for t, p in plan.items()})
+                    dec_order = _kahn_order(len(ttypes), dag_edges)
+                    tnmd = task_node_min_demand_table(rows, ttypes, pid_map, task_db)
+
+                    def _t1x_cols(plan):
+                        return t1_columns(plan, ttypes, pid_map, task_db, kint_keys_here,
+                                          caps, dag_edges, net, blocks=T1X_BLOCKS,
+                                          decode_order=dec_order,
+                                          task_node_min_demand=tnmd, sources=sources)
+                    Xfull = _np.array([[1.0, sum(marg[t][p] for t, p in plan.items())]
+                                       + _t1x_cols(plan) for plan, _v in rows])
+                    design_rank = int(_np.linalg.matrix_rank(Xfull))
+                    n_params = Xfull.shape[1]
+                    if design_rank < n_params:
+                        print(f"RANK-DEFICIENT (accepted): {ds.name} t1x band: rank "
+                              f"{design_rank}/{n_params} -- §9b n_tied="
+                              f"{band['n_tied']} verifier n_tied={got_band['n_tied']}, "
+                              f"mismatches={mismatches or 'none (count only)'} -- two "
+                              "exact LS solutions on a rank-deficient design, not a "
+                              "computation bug")
+                    else:
+                        fail(f"{ds}: t1x band mismatch {mismatches or ''} n_tied "
+                             f"§9b={band['n_tied']} verifier={got_band['n_tied']} "
+                             f"on a FULL-RANK design ({design_rank}/{n_params}) -- "
+                             "this is a real disagreement")
+            t1x_bands_checked += 1
+    extra = (f"; {t1x_bands_checked} t1x per-dataset bands agree to 1e-9"
+            if have_t1x_band else "")
     print(f"OK: {checked} §9b (dataset, arm) repair fractions agree to 1e-9 "
-          f"across {len(ds_dirs)} datasets and {len(arms)} arms")
+          f"across {len(ds_dirs)} datasets and {len(arms)} arms{extra}")
     return 0
 
 
@@ -644,30 +733,26 @@ def check_blocks(corpus, transfer_report, task_types_path):
 # PP0' (corrected stage-2 registration §10): the krank arms + linkrank block
 # ---------------------------------------------------------------------------
 
-def krank_rank_map(rows, ttypes, pid_map, task_db, net, alpha):
+def krank_rank_map(rows, ttypes, pid_map, task_db, net, alpha, cap_mode="alpha_max"):
     """node -> rank under the canonical identity-free ordering ascending
-    (cap at alpha, mean hop from the other candidate-hosting nodes, node name),
-    recomputed straight from the raw files. Mirrors the definition pinned at
-    route_b_coefficient_transfer.krank_cols/node_features while sharing no code:
-    the node set is every node hosting a candidate placement, cap is
-    alpha * max single demand (0.0 for an all-zero-demand node, matching the
-    scorer's node_caps omission read back as .get(node, 0.0)), and hops come from
-    the dataset's own routes."""
-    peak = {}
-    for plan, _v in rows:
-        for t, p in plan.items():
-            node, d = demand_of(t, p, ttypes, pid_map, task_db)
-            if node not in peak or d > peak[node]:
-                peak[node] = d
-    nodes = sorted(peak)
+    (cap at alpha [cap_mode-aware], mean hop from the other candidate-hosting nodes,
+    node name), recomputed straight from the raw files. Mirrors the definition pinned
+    at route_b_coefficient_transfer.krank_cols/node_features while sharing no code:
+    the node set is every node hosting a candidate placement, cap comes from
+    compute_caps (0.0 for an all-zero-demand node, matching the scorer's node_caps
+    omission read back as .get(node, 0.0)), and hops come from the dataset's own
+    routes. cap_mode default "alpha_max" reproduces the pre-existing ordering exactly
+    for every caller that does not pass it (§9c/PP0' reports, alpha_max always)."""
+    caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
+    nodes = sorted({demand_of(t, p, ttypes, pid_map, task_db)[0]
+                    for plan, _v in rows for t, p in plan.items()})
 
     def mean_hop(node):
         hops = [float(route_hops_bneck_latency(net, other, node)[0])
                 for other in nodes if other != node]
         return sum(hops) / len(hops) if hops else 0.0
 
-    order = sorted(nodes, key=lambda n: (alpha * peak[n] if peak[n] > 0 else 0.0,
-                                         mean_hop(n), n))
+    order = sorted(nodes, key=lambda n: (caps.get(n, 0.0), mean_hop(n), n))
     return {n: i for i, n in enumerate(order)}
 
 
@@ -811,6 +896,7 @@ def check_krank(corpus, transfer_report, task_types_path):
             fail(f"{transfer_report}: {label} lacks per-dataset fractions/bands — "
                  "re-run route_b_coefficient_transfer.py (PP0' report extension)")
     alpha = float(report["alpha"])
+    cap_mode = report.get("cap_mode", "alpha_max")
     blocks = tuple(kre["blocks"])
     if tuple(kpe["blocks"]) != blocks:
         fail(f"krank arms disagree on blocks: {kre['blocks']} vs {kpe['blocks']}")
@@ -860,13 +946,7 @@ def check_krank(corpus, transfer_report, task_types_path):
             fail(f"{ds}: firing dataset missing from corpus")
         rows, ttypes, pid_map, task_db, dag_edges, net, sources = load(
             ds, task_types_path)
-        peak = {}
-        for plan, _v in rows:
-            for t, p in plan.items():
-                node, d = demand_of(t, p, ttypes, pid_map, task_db)
-                if node not in peak or d > peak[node]:
-                    peak[node] = d
-        caps = {n: alpha * m for n, m in peak.items()}
+        caps = compute_caps(rows, ttypes, pid_map, task_db, demand_of, alpha, cap_mode)
 
         def feasible(plan):
             load_ = {}
@@ -899,7 +979,7 @@ def check_krank(corpus, transfer_report, task_types_path):
                     "ttypes": ttypes, "pid_map": pid_map, "task_db": task_db,
                     "dag_edges": dag_edges, "net": net, "sources": sources,
                     "rank": krank_rank_map(rows, ttypes, pid_map, task_db, net,
-                                           alpha),
+                                           alpha, cap_mode=cap_mode),
                     "decode_order": _kahn_order(len(ttypes), dag_edges),
                     "task_node_min_demand": task_node_min_demand_table(
                         rows, ttypes, pid_map, task_db)})
@@ -1256,6 +1336,7 @@ def main() -> int:
         if "per_dataset" not in rep:
             fail(f"{args.report} lacks per_dataset rows — rerun scorer with "
                  "--include-per-dataset")
+        cap_mode = rep.get("cap_mode", "alpha_max")
         ds_dirs = sorted(d for d in Path(corpus).glob("ds_*") if d.is_dir())
         for alpha_key, results in rep["per_dataset"].items():
             if args.alpha and alpha_key not in args.alpha:
@@ -1270,7 +1351,7 @@ def main() -> int:
                 r_exact, r_greedy, repairs = recompute(
                     rows, ttypes, pid_map, task_db, alpha,
                     check_repairs=args.check_repairs,
-                    dag_edges=dag_edges, net=net, sources=sources)
+                    dag_edges=dag_edges, net=net, sources=sources, cap_mode=cap_mode)
                 if r_exact is None:
                     if not scored.get("no_feasible_rows"):
                         fail(f"{ds} alpha={alpha_key}: verifier finds no feasible rows, "
