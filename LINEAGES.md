@@ -4747,6 +4747,73 @@ not at more model work.
   (gitignored); wandb project `gnn-route-b-stage2`, 16 online runs (8 MLP + 4 void A1 +
   4 valid A1).
 
+### route_b_env_pivot_v1 — SCREEN PRE-REGISTRATION (signed off 2026-08-27)
+
+Stage 2's **NO-GO-PREPROBE** (immediately above) resolved to **CLAUDE.md option 2** —
+user decision 2026-08-27: change the environment so exploitable joint structure exists,
+rather than continue arguing the architecture claim on an environment where count
+statistics already close the structure. `ROUTE_B_ENV_PIVOT_SCREEN.md` at commit
+`019bdcb` is the registration: a **training-free screen** that decides whether a
+candidate environment actually contains pointwise-irreducible structure, for the price
+of a scorer run. Passing earns a v3 training registration (its own sign-off); it does
+not earn training by passing.
+
+- **Extended pointwise competitor, built and independently verified BEFORE
+  registration:** `t1x` = `t1` (kint/quad/cap/hop/coupling) + `hetdem` (8 cols,
+  demand-weighted sufficient statistics) + `futureint` (4 cols, candidate-node x
+  not-yet-committed-task-demand interaction under the fixed topological order) +
+  `linkrank`. Every new column has an independent 1e-9 recomputation in
+  `verify_route_b_scorer_agreement.py` (own MGS-QR solver, no scorer imports) and
+  closed-form fixtures with verified teeth (a heterogeneous rig `hetdem` provably
+  closes; a packing rig it provably cannot; a uniform-demand redundancy rig). **Measured
+  on the OLD pilot corpus before this registration, stated as context, never a bar:**
+  `t1x` closes 27/35 of the pilot's firing datasets at median 1.0, and the extended
+  pooled closure (krank + demand-krank + hetdem + futureint + linkrank, one coefficient
+  set) is **0.892** (up from the frozen 0.648) — the environment is pointwise-closed
+  against the extended competitor too, so the pivot must beat *this* floor, not the
+  weaker frozen one.
+- **The ladder** (order fixed, no post-hoc rungs): H0 config-only scarcity squeeze → H1
+  + per-instance `demand_spread` U[0.5, 2.0] (`cap_mode: alpha_mean`) → H2 +
+  `replica_overlap: true` → H3 + `dag_instances: 2` (8-task) at the doubled-α
+  correspondence. Fresh seed blocks per rung (H0 3001–3017, H1 3101–3117, H2 3201–3217,
+  H3 3301–3317), none previously used. Each rung carries a paired separable control
+  (same grid/seeds, `HEROSIM_DATA_LOCALITY`/`HEROSIM_OUTPUT_SIZE_BYTES` unset).
+- **Bars, fixed now:** S1 firing stratum `r_exact.frac_gt_5pct ≥ 0.25` (pilot baseline
+  0.172); S2 (kill bar) `t1x` per-dataset repair fraction median on the firing stratum
+  **< 0.5 on `mean_tied`**; S3 (pooled) extended pooled closure `median_mean_tied ≤ 0.5`
+  on the firing stratum; S4 (attribution guard, the §9d lesson) the parent-coupling
+  block alone (hop+coupling) must close **< 0.8 median**, full block-ablation table
+  (kint/quad/occupancy/parent-coupling/hetdem/futureint) reported — a rung that fires
+  loudly but whose closure is carried by one pointwise block is pointwise-reachable
+  regardless of R_exact, exactly the failure mode that would have passed the 8-task
+  corpus on R_exact alone. Tie-band direction agreement (`registered` vs `pessimistic`)
+  is binding across every bar; disagreement is VOID-TIE-INDETERMINATE, never a pass.
+- **Readings:** first rung passing S1–S4 with S0 clean ⇒ **PIVOT-CANDIDATE** — licenses
+  drafting a v3 stage-2-style training registration on that corpus, nothing more.
+  All rungs FAIL ⇒ **FAIL-BY-EXHAUSTION** — terminal for the static environment pivot;
+  the fork (dynamic/closed-loop environment vs closing route B's GNN argument for the
+  paper) returns to the user, each direction needing its own registration. A VOID rung
+  (tie-indeterminate / infeasible / generation) is neither pass nor fail; the ladder
+  continues past it.
+- **Registered supersessions:** the v2-era "8-task has no gate role" decision is
+  superseded for this pivot — H3 is in scope. Scarcity stays **label-side only** (same
+  claim shape as stage 2 — offline decode regret; physics enforcement is a stage-3
+  matter), per the user's 2026-08-27 decision.
+- **Build items landed before registration** (commits `ac2b162`, `f7aaae2`, `dcb8e12`,
+  `96abe6a`, all before `019bdcb`): `hetdem`/`futureint` T1 blocks + `t1hd`/`t1x` scorer
+  arms + independent verifier extension + fixtures; `demand_spread` generator grid key +
+  `cap_mode` scorer option (`alpha_max` default unchanged / `alpha_mean` /
+  `{"absolute": x}`); `replica_overlap` generator grid key, discovered live-path
+  crashes fixed (`precreate_replicas`'s own disjoint-platform dedup silently dropped
+  every task type but the first sharing a platform; a double `platform.initialized`
+  SimPy-Event trigger; `DeterminedOrchestrator`'s `average_contention` seeding skipped
+  for a second type sharing an already-claimed platform) — all three unrelated to the
+  co-sim brute-force sweep, which already handled overlap correctly; ladder presets
+  `route_b_pivot_h0`..`h3` (204-shape each, strictly nested). Every addition is opt-in;
+  every frozen artifact reproduces byte-identically without the new flags/keys.
+
+**Status: REGISTERED AND SIGNED OFF at `019bdcb`. Phase B (the ladder) may start.**
+
 ---
 
 ## RETIRED
