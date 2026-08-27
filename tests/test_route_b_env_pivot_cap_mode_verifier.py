@@ -43,10 +43,10 @@ def test_compute_caps_matches_dataset_node_caps(tmp_path, cap_mode):
     ds = Dataset(ds_dir, TOY_TASK_TYPES, "rtt")
     scorer_caps = ds.node_caps(2.0, cap_mode=cap_mode)
 
-    rows, ttypes, pid_map, task_db, dag_edges, net, sources = verifier.load(
+    rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = verifier.load(
         ds_dir, tt_path)
     verifier_caps = verifier.compute_caps(
-        rows, ttypes, pid_map, task_db, verifier.demand_of, 2.0, cap_mode)
+        rows, ttypes, pid_map, task_db, verifier.demand_of, 2.0, scales, cap_mode)
 
     assert set(scorer_caps) == set(verifier_caps)
     for node in scorer_caps:
@@ -59,10 +59,10 @@ def test_recompute_agrees_with_score_dataset_under_cap_mode(tmp_path, cap_mode):
     ds = Dataset(ds_dir, TOY_TASK_TYPES, "rtt")
     scored = score_dataset(ds, alpha=2.0, cap_mode=cap_mode)
 
-    rows, ttypes, pid_map, task_db, dag_edges, net, sources = verifier.load(
+    rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = verifier.load(
         ds_dir, tt_path)
     r_exact, r_greedy, repairs = verifier.recompute(
-        rows, ttypes, pid_map, task_db, 2.0, check_repairs=True,
+        rows, ttypes, pid_map, task_db, scales, 2.0, check_repairs=True,
         dag_edges=dag_edges, net=net, sources=sources, cap_mode=cap_mode)
 
     assert r_exact == pytest.approx(scored["r_exact_pct"], abs=TOL)
@@ -93,14 +93,14 @@ def test_krank_rank_map_cap_mode_changes_ordering_under_heterogeneous_caps(tmp_p
     cap_mode-aware, since route_b_coefficient_transfer.node_features's "cap" field
     reads from Cell.caps (cap_mode-aware)."""
     ds_dir, tt_path = toy_files(tmp_path)
-    rows, ttypes, pid_map, task_db, dag_edges, net, sources = verifier.load(
+    rows, ttypes, pid_map, task_db, dag_edges, net, sources, scales = verifier.load(
         ds_dir, tt_path)
-    rank_max = verifier.krank_rank_map(rows, ttypes, pid_map, task_db, net, 2.0,
+    rank_max = verifier.krank_rank_map(rows, ttypes, pid_map, task_db, scales, net, 2.0,
                                        cap_mode="alpha_max")
-    rank_mean = verifier.krank_rank_map(rows, ttypes, pid_map, task_db, net, 2.0,
+    rank_mean = verifier.krank_rank_map(rows, ttypes, pid_map, task_db, scales, net, 2.0,
                                         cap_mode="alpha_mean")
     # Same node set either way.
     assert set(rank_max) == set(rank_mean)
     # Default (no cap_mode passed) reproduces alpha_max exactly.
-    rank_default = verifier.krank_rank_map(rows, ttypes, pid_map, task_db, net, 2.0)
+    rank_default = verifier.krank_rank_map(rows, ttypes, pid_map, task_db, scales, net, 2.0)
     assert rank_default == rank_max
