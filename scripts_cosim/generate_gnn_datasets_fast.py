@@ -459,6 +459,22 @@ ROUTE_B_PIVOT_H2_WIDEARM_PROBE_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_route_b_pivot_h2_widearm_probe",
 }
 
+# PROBE, NOT A REGISTERED RUNG (route_b_env_pivot_v1, 2026-08-27). The pair AMENDMENT 3
+# proposes for H2/H3, measured at 4 tasks so the amendment carries a number instead of a
+# prediction. Pool 8 / 9 => 8P4 = 1680 and 9P4 = 3024 rows, both far past t1x's 82.
+#
+# DELIBERATELY on H2's CURRENT seeds 3201-3217, which the wide-arm probe already burned.
+# The amended H2 is registered on a FRESH block (3401-3417) precisely so that the bar
+# deciding it is read on datasets no probe has seen -- do not point this preset at those.
+ROUTE_B_PIVOT_H2_PROPOSED_PROBE_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H2_GRID,
+    "replica_configs": [
+        (0, 4, 0.7, 0.5),
+        (0, 5, 0.7, 0.5),
+    ],
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h2_proposed_probe",
+}
+
 # H3: H2 + dag_instances=2 (8-task joint decision, the largest rung), alpha at the
 # registered doubling correspondence (see ROUTE_B_PILOT_V1_8TASK_GRID's own alpha
 # note — the 8-task probe's alpha ladder mirrors the 4-task one 1:1 rather than
@@ -894,6 +910,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_b_pivot_h0": ROUTE_B_PIVOT_H0_GRID,
     "route_b_pivot_h1": ROUTE_B_PIVOT_H1_GRID,
     "route_b_pivot_h2_widearm_probe": ROUTE_B_PIVOT_H2_WIDEARM_PROBE_GRID,
+    "route_b_pivot_h2_proposed_probe": ROUTE_B_PIVOT_H2_PROPOSED_PROBE_GRID,
     "route_b_pivot_h2": ROUTE_B_PIVOT_H2_GRID,
     "route_b_pivot_h3": ROUTE_B_PIVOT_H3_GRID,
     "route_b_pivot_h3_genprobe_registered": ROUTE_B_PIVOT_H3_GENPROBE_REGISTERED_GRID,
