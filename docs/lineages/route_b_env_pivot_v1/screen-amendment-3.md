@@ -1,11 +1,13 @@
 # route_b_env_pivot_v1 — AMENDMENT 3: the H2/H3 grid, so S2 becomes computable
 
-> **DRAFT — NOT SIGNED OFF.** Drafted 2026-08-27 at `f9384db`; §2.4 and §6 revised
-> 2026-08-28 after the proposed pair was probed and **passed all four bars** (read §6 first). Amends
+> **SIGNED OFF 2026-08-28 by the user.** Drafted 2026-08-27 at `f9384db`, committed at
+> `44df151`; §2.4 and §6 revised 2026-08-28 at `71a3b42` after the proposed pair was probed
+> and **passed all four bars** — the user signed off with §6's selection hazard stated (read
+> §6 first). Amends
 > `screen-preregistration.md` @ `019bdcb` as already amended by `screen-amendment-1.md`
-> @ `3719aad` and `screen-amendment-2.md` (signed off 2026-08-27). Nothing in §3 executes
-> until the user signs §9 and a LINEAGES registration entry records this document at its
-> commit SHA.
+> @ `3719aad` and `screen-amendment-2.md` (signed off 2026-08-27). **§3 is now live:** the
+> amended H2 and H3 grids may be generated, under §7's reporting obligations. The LINEAGES
+> registration entry records this document at its commit SHA.
 
 **Scope: the `replica_configs` grid key and seed block on H2 and H3, plus H3's derived
 `MAX_PLACEMENT_COMBINATIONS_SKIP`. Nothing else.** No bar value, no competitor, no α
@@ -310,8 +312,14 @@ open question that way; that framing is superseded by this document.
 Amends `screen-preregistration.md` @ `019bdcb`, as already amended by
 `screen-amendment-1.md` @ `3719aad` and `screen-amendment-2.md`.
 
-**Signed off by the user: ☐ pending — not signed.**
+**Signed off by the user: ☑ 2026-08-28.** Given after §2.4's all-pass probe result and
+§6's selection hazard were put to the user explicitly, not before them.
 
-Until this line records a date and the LINEAGES registration entry carries this document's
-commit SHA, **no corpus is generated under it**: H2 is not regenerated and H3 is not
-generated.
+**What the sign-off licenses, and only this:** generating the amended H2 (fresh seeds
+3401–3417) and H3 (3301–3317) under §3's `replica_configs`, each with its paired separable
+control, and reading S0–S4 on them under §7's obligations. It does **not** license
+re-reading H0 or H1, moving any bar, or treating §2.4's probe as a rung verdict.
+
+**S0 is still the first gate.** The paired separable control for the amended grid does not
+exist yet; if it fails `r_exact.frac_gt_1pct ≤ 0.02` the rung is VOID no matter what §2.4
+measured. Generate the control before reading any S1–S4 number on the registered corpus.

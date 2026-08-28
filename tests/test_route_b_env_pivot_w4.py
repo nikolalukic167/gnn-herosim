@@ -108,21 +108,38 @@ def test_ladder_is_strictly_nested_h0_through_h3():
 def test_h3_max_candidates_per_task_type_and_skip_threshold_derivation():
     """Derive (not guess) the MAX_PLACEMENT_COMBINATIONS_SKIP bound for H3 from the
     grid's own replica_configs/server_node_counts, mirroring the comment above
-    ROUTE_B_PIVOT_H3_GRID. max(per_server)=2, server_node_counts=[4] -> at most 8
-    candidates per task type (replica_overlap does not raise this: it lets a SECOND
-    type reuse the same <=8 slots, it does not grant either type more of them)."""
-    per_server_max = max(cfg[1] for cfg in ROUTE_B_PIVOT_H0_GRID["replica_configs"])
-    n_servers = ROUTE_B_PIVOT_H0_GRID["server_node_counts"][0]
-    max_candidates_per_type = per_server_max * n_servers
-    assert max_candidates_per_type == 8
+    ROUTE_B_PIVOT_H3_GRID.
+
+    AMENDMENT 3 (2026-08-28) is why this derives from H3's OWN grid. It used to read
+    ROUTE_B_PIVOT_H0_GRID["replica_configs"] and assert 16,777,216 for H3 -- correct only
+    while every rung shared H0's replica_configs. When AMENDMENT 3 moved H2/H3 to
+    per_server 4/5 the test kept PASSING while describing a rung that no longer existed:
+    it derived H3's bound from H0's arms. Deriving each bound from the grid it names is
+    the fix, and it is the same one-arm failure class the route-b-preflight skill exists
+    for."""
+    h0_per_server_max = max(cfg[1] for cfg in ROUTE_B_PIVOT_H0_GRID["replica_configs"])
+    h0_candidates_per_type = h0_per_server_max * ROUTE_B_PIVOT_H0_GRID["server_node_counts"][0]
+    assert h0_candidates_per_type == 8
+    assert h0_candidates_per_type ** 4 == 4096  # H0/H1: far under any default
 
     n_task_types = 4  # diamond4
+    per_server_max = max(cfg[1] for cfg in ROUTE_B_PIVOT_H3_GRID["replica_configs"])
+    n_servers = ROUTE_B_PIVOT_H3_GRID["server_node_counts"][0]
+    max_candidates_per_type = per_server_max * n_servers
+    assert max_candidates_per_type == 20, "AMENDMENT 3: per_server tops out at 5, 4 servers"
+
     four_task_bound = max_candidates_per_type ** n_task_types
-    assert four_task_bound == 4096  # H0/H1/H2 (dag_instances=1): far under any default
+    assert four_task_bound == 160_000  # amended H2: still under the 250k default
 
     dag_instances = ROUTE_B_PIVOT_H3_GRID["dag_instances"]
     eight_task_bound = max_candidates_per_type ** (n_task_types * dag_instances)
-    assert eight_task_bound == 16_777_216
+    assert eight_task_bound == 25_600_000_000
+
+    # The pool that actually exists is per_server x 2 HOSTING nodes (measured 8 and 9,
+    # capped by platform-type suitability), so the real pre-uniqueness products are
+    # 16,777,216 and 43,046,721 -- both far below the conservative bound above, which is
+    # the direction that keeps datasets from being silently skipped.
+    assert 9 ** (n_task_types * dag_instances) < eight_task_bound
     # The registered floor for H3 generation: MAX_PLACEMENT_COMBINATIONS_SKIP must
     # clear this product (the pre-uniqueness product, per
     # herosim-cosim-skip-threshold-is-pre-uniqueness.md), not the 250k default, which
@@ -131,9 +148,40 @@ def test_h3_max_candidates_per_task_type_and_skip_threshold_derivation():
     default_skip = 250_000
     assert eight_task_bound > default_skip, (
         "H3 generation MUST export MAX_PLACEMENT_COMBINATIONS_SKIP explicitly "
-        "(>= 16777216) or the 250k default will silently skip the most-contended "
-        "8-task datasets — the exact 8-task lesson this derivation exists to avoid "
-        "repeating")
+        "(>= 30000000000 under AMENDMENT 3) or the 250k default will silently skip the "
+        "most-contended 8-task datasets — the exact 8-task lesson this derivation exists "
+        "to avoid repeating")
+
+
+def test_overlap_rungs_have_a_pool_big_enough_to_seat_every_task():
+    """The inequality that decides whether a rung produces data AT ALL.
+
+    Under replica_overlap every task type draws from ONE pool of
+    per_server x n_hosting_nodes slots, and the sweep requires GLOBALLY distinct replicas
+    across tasks (generate_brute_force_placement_combinations). So |pool| < |tasks| means
+    zero valid assignments -- not a sparse sweep, an empty one, reported as
+    `uniqueness_exhausted`.
+
+    H3 was registered, seeded, alpha-laddered and skip-threshold-derived while sitting on
+    a pool of 2 and 4 for 8 tasks: it generated 0/204 and nobody knew until it was probed
+    (AMENDMENT 3 section 2.3). Every other registered quantity looked fine. This is the
+    one line of arithmetic that catches it, and it must run per ARM -- the binding case is
+    the SMALLEST per_server, not the largest.
+    """
+    n_task_types = 4  # diamond4
+    for name, grid in (("route_b_pivot_h2", ROUTE_B_PIVOT_H2_GRID),
+                       ("route_b_pivot_h3", ROUTE_B_PIVOT_H3_GRID)):
+        if not grid.get("replica_overlap"):
+            continue
+        n_hosting = int(grid["server_node_counts"][0] * grid["replica_server_percentage"])
+        assert n_hosting == 2, f"{name}: the squeeze is 2 hosting nodes; check the grid"
+        n_tasks = n_task_types * grid.get("dag_instances", 1)
+        for cfg in grid["replica_configs"]:
+            pool = cfg[1] * n_hosting
+            assert pool >= n_tasks, (
+                f"{name} arm per_server={cfg[1]}: pool {pool} < {n_tasks} tasks -> "
+                f"uniqueness exhausted, this arm generates ZERO datasets"
+            )
 
 
 def test_paired_separable_control_is_env_not_a_grid_key():
