@@ -248,3 +248,74 @@ def test_h0_grid_still_declares_four_servers_at_half_percentage():
     grid = resolve_grid_preset("route_b_pivot_h0")
     assert grid["server_node_counts"] == [4]
     assert grid["replica_server_percentage"] == 0.5
+
+
+def test_nooverlap_probes_are_probes_not_rungs_and_use_a_fresh_seed_block():
+    """The overlap isolating run for the H2 S0 VOID (2026-08-28).
+
+    Three things this pins, each of which is a way the probe could silently stop being the
+    experiment it claims to be:
+
+    1. `replica_overlap` is actually OFF. The generator only writes
+       preinit.replica_overlap when the value is truthy, so False is the spelling that
+       reproduces H0/H1's no-key behaviour — a missing key would read the same, but an
+       accidental True would not, and nothing downstream would complain.
+    2. It inherits H2's AMENDED replica_configs (per_server 4/5) and H2's demand_spread.
+       If a future edit moves H2's grid without moving this, the "isolating" run stops
+       isolating anything.
+    3. Its seeds are disjoint from BOTH the registered amended H2's block (3401-3417) and
+       the probe-burned 3201-3217 — AMENDMENT 3 section 6's selection hazard.
+
+    The probe is deliberately NOT in RUNGS: it must never acquire a rung's 204-shape
+    assertions or be read as one.
+    """
+    from generate_gnn_datasets_fast import (
+        ROUTE_B_PIVOT_H2_NOOVERLAP_GENPROBE_GRID,
+        ROUTE_B_PIVOT_H2_NOOVERLAP_GRID,
+    )
+
+    registered_h2_seeds = set(ROUTE_B_PIVOT_H2_GRID["seeds"])
+    probe_burned = set(range(3201, 3218))
+
+    for name, preset in (
+        ("route_b_pivot_h2_nooverlap", ROUTE_B_PIVOT_H2_NOOVERLAP_GRID),
+        ("route_b_pivot_h2_nooverlap_genprobe", ROUTE_B_PIVOT_H2_NOOVERLAP_GENPROBE_GRID),
+    ):
+        assert GRID_PRESETS[name] is preset
+        assert preset["replica_overlap"] is False, f"{name}: overlap must be OFF"
+        assert preset["replica_configs"] == ROUTE_B_PIVOT_H2_GRID["replica_configs"], (
+            f"{name}: must inherit H2's amended per_server 4/5, else it isolates nothing"
+        )
+        assert preset["demand_spread"] == ROUTE_B_PIVOT_H2_GRID["demand_spread"]
+        assert preset.get("dag_instances", 1) == 1
+        seeds = set(preset["seeds"])
+        assert not (seeds & registered_h2_seeds), f"{name}: overlaps the registered H2 block"
+        assert not (seeds & probe_burned), f"{name}: overlaps the probe-burned 3201-3217"
+        assert name not in [n for n, _ in RUNGS]
+
+    # The gate covers both replica_config arms — 2 seeds x 2 conn_probs x 2 replica_configs
+    # x 3 queue_dists. A probe that reaches only one arm is preflight section 6's trap, and
+    # --max-datasets must never be used to truncate it.
+    assert grid_total_datasets(ROUTE_B_PIVOT_H2_NOOVERLAP_GENPROBE_GRID) == 24
+    assert grid_total_datasets(ROUTE_B_PIVOT_H2_NOOVERLAP_GRID) == 204
+
+
+def test_nooverlap_probe_skip_threshold_derives_from_its_own_grid():
+    """Lesson 7: derive every per-rung quantity from the grid it NAMES.
+
+    A test once derived H3's skip bound from H0's replica_configs and stayed green while
+    asserting a number for a rung that no longer existed. Here the bound is
+    max(per_server) x server_node_counts candidates per type, to the power of the task
+    count (4) — the PRE-uniqueness product the threshold actually tests
+    (herosim-cosim-skip-threshold-is-pre-uniqueness).
+    """
+    grid = resolve_grid_preset("route_b_pivot_h2_nooverlap")
+    max_per_server = max(cfg[1] for cfg in grid["replica_configs"])
+    max_candidates = max_per_server * max(grid["server_node_counts"])
+    assert max_candidates == 20
+    product = max_candidates ** 4
+    assert product == 160_000
+    # Clears the 250,000 default, but at only 1.56x headroom — the runs export
+    # MAX_PLACEMENT_COMBINATIONS_SKIP=1000000 explicitly rather than relying on it.
+    from generate_gnn_datasets_fast import MAX_PLACEMENT_COMBINATIONS_SKIP_DEFAULT
+    assert product < MAX_PLACEMENT_COMBINATIONS_SKIP_DEFAULT

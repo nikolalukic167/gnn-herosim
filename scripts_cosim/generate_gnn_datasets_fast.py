@@ -505,6 +505,55 @@ ROUTE_B_PIVOT_H2_PROPOSED_PROBE_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_route_b_pivot_h2_proposed_probe",
 }
 
+# PROBE, NOT A REGISTERED RUNG (route_b_env_pivot_v1, 2026-08-28). The isolating run for the
+# amended H2's S0 VOID (control r_exact.frac_gt_1pct 0.7696 mean_tied at alpha=2.0 against a
+# bar of 0.02). `replica_overlap` is the single structural difference between H2 and the
+# rungs whose controls PASSED S0 (H0, H1), so this turns it off and re-reads S0.
+#
+# IT IS NOT CONFIG-IDENTICAL TO H2 AND CANNOT BE. Measured off the corpora on disk:
+# node0 offers exactly 4 suitable platforms (rpiCpu 104-107) and node1 >= 8 (xavierCpu
+# 108-115). WITH overlap all four task types draw the SAME pool -- 8 (per_server 4) or 9
+# (per_server 5), every type seeing both hosting nodes. WITHOUT it the allocator walks task
+# types FCFS against a global assigned_platforms set (generate_infrastructure.py), so at
+# per_server=2 H1's control already reads (dnn1,dnn2,rf,cnn) = (4,4,2,2) with rf and cnn
+# CONFINED to node1 -- herosim-replica-allocator-starves-later-task-types. At per_server=4
+# dnn1 alone consumes all of node0 plus 4 of node1, and whether rf/cnn get a few node1-only
+# slots or ZERO (=> zero valid plans, the VOID-GENERATION that hit H3's registered grid) is
+# not derivable from anything on disk. Hence the paired GENPROBE below: measure the
+# allocation on 24 datasets before spending a 204-dataset corpus.
+#
+# Overlap-off therefore moves pool size, per-type pool asymmetry and node confinement
+# TOGETHER. A PASS here POINTS AT overlap; it does not isolate it, and the reading must say
+# so. Nothing is registered by this preset -- no bar, grid, alpha ladder or reading rule
+# moves, and its S0 number is a diagnostic, never a rung verdict.
+#
+# Fresh seed block 3501-3517: 3401-3417 belong to the registered amended H2 and 3201-3217
+# are probe-burned (AMENDMENT 3 section 6's selection hazard).
+ROUTE_B_PIVOT_H2_NOOVERLAP_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H2_GRID,
+    # False, not absent: line ~1372 only writes preinit.replica_overlap when truthy, so this
+    # reproduces H0/H1's byte-identical no-key behaviour.
+    "replica_overlap": False,
+    "seeds": list(range(3501, 3518)),
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h2_nooverlap_ctrl",
+}
+
+# The 2-seed GENERATION GATE for the preset above, mirroring ROUTE_B_PIVOT_H3_GENPROBE_*:
+# it keeps the full 2 conn_probs x 2 replica_configs x 3 queue_dists shape (= 24 datasets)
+# so BOTH replica_config arms are covered. Do NOT truncate this with --max-datasets -- a
+# probe that reaches only one arm is route-b-preflight section 6's documented trap.
+#
+# GO/NO-GO, fixed before the numbers are seen: GO only if all 24 datasets give every one of
+# the four task types a pool >= 1 AND report sweep_complete with zero skip files. Any cell
+# starving a task type to zero means the isolating run is impossible on this grid -- report
+# the histogram and stop; do not rescue it by lowering per_server, which substitutes a
+# different experiment for the one being reported.
+ROUTE_B_PIVOT_H2_NOOVERLAP_GENPROBE_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H2_NOOVERLAP_GRID,
+    "seeds": [3501, 3502],
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h2_nooverlap_genprobe",
+}
+
 # H3: H2 + dag_instances=2 (8-task joint decision, the largest rung), alpha at the
 # registered doubling correspondence (see ROUTE_B_PILOT_V1_8TASK_GRID's own alpha
 # note — the 8-task probe's alpha ladder mirrors the 4-task one 1:1 rather than
@@ -961,6 +1010,8 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_b_pivot_h1": ROUTE_B_PIVOT_H1_GRID,
     "route_b_pivot_h2_widearm_probe": ROUTE_B_PIVOT_H2_WIDEARM_PROBE_GRID,
     "route_b_pivot_h2_proposed_probe": ROUTE_B_PIVOT_H2_PROPOSED_PROBE_GRID,
+    "route_b_pivot_h2_nooverlap_genprobe": ROUTE_B_PIVOT_H2_NOOVERLAP_GENPROBE_GRID,
+    "route_b_pivot_h2_nooverlap": ROUTE_B_PIVOT_H2_NOOVERLAP_GRID,
     "route_b_pivot_h2": ROUTE_B_PIVOT_H2_GRID,
     "route_b_pivot_h3": ROUTE_B_PIVOT_H3_GRID,
     "route_b_pivot_h3_genprobe_registered": ROUTE_B_PIVOT_H3_GENPROBE_REGISTERED_GRID,
