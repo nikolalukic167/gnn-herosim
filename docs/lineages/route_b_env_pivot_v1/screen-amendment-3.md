@@ -1,6 +1,7 @@
 # route_b_env_pivot_v1 — AMENDMENT 3: the H2/H3 grid, so S2 becomes computable
 
-> **DRAFT — NOT SIGNED OFF.** Drafted 2026-08-27 at `f9384db`. Amends
+> **DRAFT — NOT SIGNED OFF.** Drafted 2026-08-27 at `f9384db`; §2.4 and §6 revised
+> 2026-08-28 after the proposed pair was probed and **passed all four bars** (read §6 first). Amends
 > `screen-preregistration.md` @ `019bdcb` as already amended by `screen-amendment-1.md`
 > @ `3719aad` and `screen-amendment-2.md` (signed off 2026-08-27). Nothing in §3 executes
 > until the user signs §9 and a LINEAGES registration entry records this document at its
@@ -115,6 +116,47 @@ Measured for the candidate arms by `route_b_pivot_h3_genprobe_wide`:
 The `per_server=5` pool is **9, not the 10 the arithmetic predicts** — one hosting node
 carries fewer platforms of a suitable type. Measured on all 12 datasets of that arm.
 
+### 2.4 The proposed pair, probed at 4 tasks — it passes all four bars
+
+`route_b_pivot_h2_proposed_probe` is H2's shape with **exactly the `replica_configs` §3
+proposes**, generated on H2's **currently registered** seeds 3201–3217 (already burned by
+§2.1's probe) precisely so the fresh block stays unseen. 204/204 SUCCESS in 50.1 min,
+`sweep_complete: true` on all 204, `num_placements` histogram exactly
+**`{1680: 102, 3024: 102}`** — the predicted 8P4 and 9P4, confirmed. Independent verifier:
+**612 (dataset, α) cells agree to 1e-9** over 2,448 repair values, **0** machine-precision
+ties. Denominators `{1680: 102, 3024: 102}`, zero censoring.
+
+| bar | registered | reading at α=2.0 | |
+|---|---|---|---|
+| S1 `r_exact.frac_gt_5pct` | ≥ 0.25 | 0.2843 reg / 0.2941 mean_tied / **0.3137 pess** / 0.2500 opt | **PASS**, band agrees |
+| S2 `t1x` per-dataset | < 0.5 | median 0.0000; **58/58 fitted, 0 saturated** | **PASS** |
+| S3 extended pooled | ≤ 0.5 | median 0.0000; 143,136 rows vs 106 params | **PASS** |
+| S4 `hop+coupling` | < 0.8 | median 0.0000; 58/58 fitted | **PASS** |
+
+Counters clean at the registered primary α (`greedy_stuck` 0, `no_feasible_rows` 0,
+`saturated_fit_frac` 0.00); α=1.5 remains 204/204 infeasible, so the cliff survives;
+`componentwise_infeasible_frac` **0.93**, the tightest of any corpus in this lineage.
+S2's `by_arm` is `{1680: {fitted 24, saturated 0}, 3024: {fitted 34, saturated 0}}`.
+
+**Per arm**, because a pooled number that one arm carries is the defect this lineage keeps
+producing:
+
+| arm | `per_server` | mean feasible rows | `cw_infeas` | S1 reg / mean_tied / pess |
+|---|---|---|---|---|
+| 1,680 | 4 | 232.9 | 0.90 | 0.2353 / 0.2549 / 0.2647 |
+| 3,024 | 5 | 381.2 | 0.90 | 0.3333 / 0.3333 / 0.3627 |
+
+Both arms fire and both clear the bar on `pessimistic`; the `per_server=4` arm's
+`registered` member sits just under it (0.2353) and the pooled pass is carried more by the
+`per_server=5` arm. Stated so the pooled number is not read as uniform.
+
+**Three things this probe is NOT.** It is not a rung reading — S0's **paired separable
+control has not been generated**, and S0 is a VOID gate that can still fail. It is not on
+the seeds the amended rung would use. And the transfer tool's own top-level `verdict` for
+this corpus is `VOID-KINT-CONFOUNDED`, inherited from the route_b_v1 §9b/§9c machinery —
+that is not one of S1–S4 and does not bear on them, but it is reported here rather than
+omitted.
+
 ## 3. What is proposed
 
 **One change, applied to H2 and H3 alike:**
@@ -130,7 +172,7 @@ with, per §3's fresh-seed-block-per-rung discipline:
 
 | rung | seeds | pool | rows / dataset | `MAX_PLACEMENT_COMBINATIONS_SKIP` |
 |---|---|---|---|---|
-| H2 (amended) | **3401–3417** (fresh) | 8 / 9 | 1,680 / 3,024 (predicted 8P4 / 9P4) | default suffices (products 4,096 / 6,561) |
+| H2 (amended) | **3401–3417** (fresh) | 8 / 9 | **1,680 / 3,024 (measured, §2.4)** | default suffices (products 4,096 / 6,561) |
 | H3 (amended) | 3301–3317 (unchanged, never generated) | 8 / 9 | 40,320 / 362,880 (measured) | **≥ 25,600,000,000** |
 
 **H3's skip threshold, re-derived in §3's own conservative style.** The registered
@@ -168,7 +210,7 @@ block, distinct from 3001–3017, 3101–3117, 3201–3217 and 3301–3317.
 - **H0 and H1 are untouched.** Not re-read, not regenerated, not re-scored. Their verdicts —
   H0 VOID-TIE-INDETERMINATE on S1, H1 FAIL on S1 — stand exactly as measured. Re-running
   them under a changed grid would be re-reading a rung after seeing its result.
-- **No claim that any rung will pass.** See §6.
+- **No verdict on any rung.** §2.4 measures a *probe* on an unregistered grid and unregistered-for-this-purpose seeds, with S0's control not yet generated. It is evidence about what the amended grid does, not a rung reading, and it is filed as such. See §6.
 
 ## 5. The cost, stated plainly
 
@@ -188,25 +230,42 @@ At the wide-arm probe's measured throughput this rung is a **datalab job**, not 
 
 ## 6. Consequence stated in advance, so no reading of it can be post-hoc
 
-**This amendment is not expected to produce a pass, and must not be signed off as if it
-were.** On the probed neighbour grid, S1 read **0.2010 pooled against a 0.25 bar** — a FAIL
-with the tie band in agreement. Split by arm, the `per_server=3` arm read 0.1471 and the
-`per_server=4` arm read 0.2549.
+**On the pair this amendment proposes, all four bars pass.** §2.4 measured it. Signing this
+amendment is therefore not a procedural tidy-up that unblocks a stalled bar — it is very
+likely to produce the ladder's **first rung passing S1–S4**, which under §5 of the
+registration means **PIVOT-CANDIDATE**: the ladder stops, and drafting a v3 training
+registration becomes licensed. **Sign it knowing that, or do not sign it.**
 
-**The selection hazard, named rather than hidden.** That per-arm split was visible before
-this grid was chosen, and the chosen pair is the one containing the higher-firing arm.
-Choosing a grid because it fires above a bar would be selection, and the registration exists
-to prevent it. Two things bound the hazard, and neither is a claim that it is absent:
+**The selection hazard, at its maximum, named rather than hidden.** This is the part that
+needs the user's judgement, not mine. The sequence was: S2 was uncomputable → a wide-arm
+probe fixed that but read S1 at 0.2010 (FAIL) → its per-arm split showed `per_server=3` at
+0.1471 and `per_server=4` at 0.2549 → the proposed pair moved *up* to `per_server` 4 and 5
+→ that pair passes S1 at 0.2843. **A grid was adjusted and the bar then passed.** That is
+the shape the registration exists to prevent, and no amount of good faith in the reasoning
+changes the shape.
 
-1. The choice has a **structural justification that does not reference S1** — H3 cannot
-   generate below a pool of 8, and one shared pair restores H2↔H3 comparability. That
-   argument would have selected `per_server ≥ 4` with the S1 numbers unseen.
-2. **The registered corpus is not the probed corpus.** H2's fresh seed block (§3) means the
-   S1 reading that decides the amended rung happens on datasets whose S1 nobody has seen.
+What bounds it, stated as bounds and not as absolution:
 
-The honest summary: the grid change is justified by S2's computability and H3's
-generability, both measured; the S1 outcome on the amended rungs is **unknown and may well
-be another FAIL**, and this amendment predicts nothing about it.
+1. **The choice has a structural justification that does not reference S1, and that
+   justification came first.** H3 cannot generate below a pool of 8, which forces
+   `per_server ≥ 4` there on pain of 0/204; using one pair for both rungs is what keeps H2
+   and H3 comparable to each other. That argument selects `per_server ≥ 4` with every S1
+   number unseen. It is recorded in §3 on its own terms.
+2. **The registered corpus is not the probed corpus.** H2's fresh block 3401–3417 means the
+   S1 that decides the amended rung is read on 204 datasets nobody has scored. Given §2.4,
+   **this clause is now load-bearing rather than hygienic** — it is the only thing standing
+   between a probed pass and a registered one, and it must not be relaxed for the
+   convenience of reusing an existing corpus.
+3. **S0 can still fail.** The paired separable control for the amended grid does not exist
+   yet. S0 is a VOID gate; if the control does not reach `r_exact.frac_gt_1pct ≤ 0.02` the
+   rung is VOID regardless of §2.4.
+4. **A probe is not a verdict, and this document does not record one.** §2.4's numbers are
+   filed as probe artifacts on an unregistered grid, and the node says so.
+
+**If the user judges the hazard too large, the honest alternatives are:** register a
+different fresh pair chosen without reference to §2.4 (any pool ≥ 8 pair generates); or
+accept §8's option and drop S2 ladder-wide. Both are worse on the measurements and better
+on the optics, and that trade is the user's to make, not this document's.
 
 ## 7. Reporting obligations if signed off
 
