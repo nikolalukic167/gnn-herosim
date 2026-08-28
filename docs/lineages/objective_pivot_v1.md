@@ -19,6 +19,7 @@ No phase's numbers exist yet.
 
 Newest first; the sections themselves are in chronological order below.
 
+- [objective_pivot_v1 — Phase 1 LAUNCHED: pinned chain submitted (2026-08-28)](#objective-pivot-v1-phase-1-launched-pinned-chain-submitted-2026-08-28)
 - [objective_pivot_v1 — PROGRAM REGISTRATION (2026-08-28)](#objective-pivot-v1-program-registration-2026-08-28)
 
 ---
