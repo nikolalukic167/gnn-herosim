@@ -25,6 +25,8 @@
 
 Newest first; the sections themselves are in chronological order below.
 
+- [route_b_env_pivot_v1 — MEASURED: the H2 separable control's cost is NOT additive (2026-08-28)](#route-b-env-pivot-v1-measured-the-h2-separable-controls-cost-is-not-additive-2026-08-28)
+- [route_b_env_pivot_v1 — the overlap isolating run is NOT RUNNABLE on H2's grid (2026-08-28)](#route-b-env-pivot-v1-the-overlap-isolating-run-is-not-runnable-on-h2s-grid-2026-08-28)
 - [route_b_env_pivot_v1 — the amended H2 is generated, and it is VOID: its paired separable control FAILS S0 (2026-08-28)](#route-b-env-pivot-v1-the-amended-h2-is-generated-and-it-is-void-its-paired-separable-control-fails-s0-2026-08-28)
 - [route_b_env_pivot_v1 — AMENDMENT 3 signed off; H2/H3 grids amended (2026-08-28)](#route-b-env-pivot-v1-amendment-3-signed-off-h2h3-grids-amended-2026-08-28)
 - [route_b_env_pivot_v1 — the pair AMENDMENT 3 proposes passes all four bars in probe (2026-08-28)](#route-b-env-pivot-v1-the-pair-amendment-3-proposes-passes-all-four-bars-in-probe-2026-08-28)
@@ -851,3 +853,131 @@ void run's skip label and every integrity check downstream reads it. H0–H3 now
 `gnn_datasets_route_b_pivot_h<N>` (+ `_ctrl`), which is where H0 and H1 already sat; the
 void corpus keeps the path `ladder-findings.md` documents. No physics, no grid key, no
 registered semantic touched.
+
+#### route_b_env_pivot_v1 — the overlap isolating run is NOT RUNNABLE on H2's grid (2026-08-28)
+
+**Scope.** A diagnosis for the S0 VOID above, not a rung and not a bar read. No threshold,
+bar, grid, α ladder or reading rule moved. Arm S's generation integrity was re-verified
+independently (below); no S1–S4 number was read on anything.
+
+**The question.** The entry above leaves two hypotheses unseparated and names
+`replica_overlap` as the one structural difference between H2 and the rungs whose controls
+PASSED S0. The obvious separator: generate the paired control at `per_server` 4/5 with
+`replica_overlap` **off**, everything else identical, and re-read S0. Pass ⇒ overlap
+implicated and S0 possibly ill-posed on overlap grids; fail ⇒ overlap exonerated.
+
+**It cannot be run, and the reason is the answer to a different question.** Overlap is what
+makes the FCFS allocator harmless. `generate_replica_placements`
+(`src/generate_infrastructure.py:625-688`) walks task types in dict order against a global
+`assigned_platforms` set; `replica_overlap` is exactly the flag that disables that
+exclusivity check. With it on, all four types draw the **same** pool — 8 (`per_server` 4) or
+9 (`per_server` 5), every type on both hosting nodes. With it off, early types consume the
+pool. Measured on a 24-dataset generation probe covering **both** arms
+(`route_b_pivot_h2_nooverlap_genprobe`, fresh seeds 3501–3502):
+
+| `per_server` | `(dnn1, dnn2, rf, cnn)` | hosting nodes/type | `n_rows` | status |
+|---|---|---|---|---|
+| 4 | (8, 4, **1**, **1**) | (2, 1, 1, 1) | 32 | 12/12 generate |
+| 5 | (9, 4, **0**, 1) | (2, 1, **0**, 1) | 0 | **12/12 FAILED** |
+
+At `per_server=5` **`rf` receives zero replicas**; warmup auto-resolve `{task_id: (-1,-1)}`
+finds no warm replica and the run dies as `System state capture FAILED`
+(`executecosimulation.py:2645`) — classed **FAILED, not SKIPPED**, with no
+`skip_reason.json`. That attribution gap is its own GATE TOOLS row.
+
+**Two conclusions, and the second is the one that generalises.** First, one flag moved
+**pool size, per-type asymmetry and node confinement together**, so "everything else
+identical" was never available — a PASS could not have implicated overlap even had it run.
+Second, and worse for the design: the arm that *does* generate produces **32-row sweeps**
+against H2's 1,680/3,024, which is the H0/H1 regime (16/64) — and H0/H1's controls already
+**PASS** S0. A pass at 32 rows would have re-measured the rungs that already work. The
+ablation is therefore not merely unrunnable on one arm; it is **uninformative on both**.
+
+Pre-registered GO/NO-GO (fixed before the numbers were seen: GO only if all 24 datasets give
+every task type a pool ≥ 1 and report `sweep_complete` with zero skips) returned **NO-GO on
+both conditions**. Per that registration the 204-dataset corpus was not generated and S0 was
+not read. The grid was **not** rescued by lowering `per_server`, which would have substituted
+a different experiment for the one being reported.
+
+**Arm S integrity, verified independently this session** (the entry above records it from the
+generation run; this is a separate read of the artifacts): `gnn_datasets_route_b_pivot_h2`
+**204/204 `sweep_complete: true`**, `num_placements` `{1680: 102, 3024: 102}`, 0 skip files,
+0 missing `placements.jsonl`, and `timed_out` / `worker_failed` / `worker_exception` /
+`early_terminated` all **0**. The paired control reads identically. AMENDMENT 3 §7's
+integrity obligation is met on both corpora.
+
+**What this leaves.** `replica_overlap` is not separable from the rest of H2's structure by
+ablation on this grid, so the mechanism behind the S0 VOID stays unresolved and the open
+question — *is S0 as registered readable on any overlap rung?* — is unchanged. The remaining
+diagnosis is **direct**: the sweep is exhaustive, so `placements/placements.jsonl` holds
+every plan with its true RTT, and additivity can be tested by regressing `rtt` on one-hot
+`(task, platform)` indicators with no decoder, cap or surrogate in the path. On separable
+physics that fit is exact. Not run here.
+
+**Artifacts.** `simulation_data/gnn_datasets_route_b_pivot_h2_nooverlap_genprobe` (24
+datasets, 12 FAILED by design — kept as the evidence for the NO-GO, not a usable corpus).
+Presets `route_b_pivot_h2_nooverlap` / `..._genprobe` are labelled PROBE, NOT A REGISTERED
+RUNG in `generate_gnn_datasets_fast.py`, on fresh seeds 3501–3517 disjoint from both the
+registered block 3401–3417 and the probe-burned 3201–3217.
+
+#### route_b_env_pivot_v1 — MEASURED: the H2 separable control's cost is NOT additive (2026-08-28)
+
+**Scope.** The direct diagnosis the two entries above defer to. Not a rung, not a bar, not a
+registered statistic — a measurement made with a standalone regression that imports nothing
+from the scorer. No threshold, bar, grid, α ladder or reading rule moved.
+
+**Method.** The sweep is exhaustive, so `placements/placements.jsonl` holds every plan with
+its true `rtt`. Regress `rtt` on one-hot `(task, platform)` indicators over the **full**
+sweep. If `cost(plan) = Σ_t c_t(p_t)` exactly, the fit is exact: R² = 1, residual 0. **No
+decoder, no cap, no surrogate is in this path** — which is what makes it independent of
+everything the S0 VOID entry had already eliminated.
+
+**Result — the control is non-additive, and H0/H1's controls are the positive control that
+proves the instrument works.** Whole corpora, split on the `replica_configs` arm:
+
+| control corpus | arm `n_rows` | R² median | R² min | residual (median, % of mean rtt) |
+|---|---|---|---|---|
+| H0 ctrl (S0 **PASS**) | 16 / 64 | 0.999991 / 0.999757 | 0.4577 / 0.9032 | **0.159% / 0.721%** |
+| H1 ctrl (S0 **PASS**) | 16 / 64 | 0.999975 / 0.999856 | 0.7204 / 0.8423 | **0.193% / 0.999%** |
+| **H2 ctrl (S0 FAIL)** | 1680 / 3024 | **0.7826 / 0.8161** | 0.5331 / 0.5310 | **12.822% / 13.814%** |
+
+**≈13× more unexplained cost, and flat across both arms** — the same non-confounding the S0
+entry established for `frac_gt_1pct`. The rungs whose controls pass S0 fit to within a
+fraction of a percent; the rung that fails does not fit at all. **The evidence in the S0
+entry — "`node_caps` is plan-independent, therefore the cost is not additive" — is now
+measured directly rather than inferred through the decoder.** This is the
+`separable-control-was-never-separable` family recurring in a regime AMENDMENT 1 never
+tested.
+
+**The residual is co-residency-shaped.** Pooled over each corpus, by the maximum number of
+tasks sharing one node, as % of each dataset's mean `rtt`:
+
+| max tasks/node | H0 ctrl mean | H1 ctrl mean | **H2 ctrl mean** | H2 ctrl RMS |
+|---|---|---|---|---|
+| 2 | −0.056% | −0.029% | +2.736% | 12.416% |
+| 3 | +0.028% | +0.033% | −0.968% | 13.619% |
+| **4 (fully co-located)** | **+0.006%** | **−0.037%** | **−21.706%** | **24.691%** |
+
+At full co-location the additive model **over-predicts** H2's true RTT by ~22% — co-locating
+is *cheaper* than any additive model can express — while H0/H1 show no co-residency structure
+at all (≈0.0%). So this is not a generic property of the physics or of the measurement; it
+appears on H2 and not on its predecessors.
+
+**The coupling is pairwise-plus-higher-order, not purely pairwise.** Adding one indicator per
+unordered task pair sharing a node lifts R² from 0.72→0.92, 0.76→0.93, 0.86→0.95 (residual
+~13%→~7%) but **does not reach 1**, so roughly half the coupling is genuinely higher-order.
+A same-`(node, platform)` pair term adds **exactly zero** — vacuous by construction, since
+the sweep requires globally distinct replicas and no two tasks ever share a slot.
+
+**What this settles and what it does not.** It closes the §3 alternative: the defect is
+**not** a decode bug, so there is nothing to hunt in the decoder. It puts the S0 VOID on the
+**control definition** — `HEROSIM_STORAGE_NEUTRAL` plus locality-off does not produce a
+separable environment at H2's co-location densities — which is amendment territory and is
+**not** licensed here. ⚠ **This is a finding about the CONTROL, not evidence for the pivot.**
+The control is the arm with locality deliberately off; joint structure showing up *there* is
+a defect in the control, not the exploitable structure Arm S is meant to carry. Nothing here
+says anything about Arm S, whose bars remain unread.
+
+**Artifacts.** Scratchpad only (`additivity_regression.py`, `additivity_sweep.py`,
+`additivity_pairwise.py`) — standalone, no scorer imports. Promote to
+`scripts_cosim/` if an amendment comes to depend on the number.
