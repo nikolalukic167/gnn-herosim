@@ -16,6 +16,8 @@
 
 **Attachment:** [AMENDMENT 3 — the H2/H3 grid, so S2 becomes computable](route_b_env_pivot_v1/screen-amendment-3.md) — **signed off 2026-08-28**
 
+**Attachment:** [AMENDMENT 4 — S0 measures additivity directly](route_b_env_pivot_v1/screen-amendment-4.md) — ⚠ **DRAFT, NOT SIGNED OFF.** Nothing in it is live; the amended H2 stays VOID either way. It changes only *how* S0 is measured, and changes **no verdict** on any rung (H0 pass, H1 pass, H2 fail, under both the old and the proposed statistic).
+
 > **Split note.** This node was carved out of a single 4,995-line `LINEAGES.md` on
 > 2026-08-27; the section bodies below are byte-for-byte as written. An *above* / *below*
 > pointer inside one may refer to a section that now lives in another node — the
