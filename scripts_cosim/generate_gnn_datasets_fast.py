@@ -455,7 +455,17 @@ ROUTE_B_PIVOT_H2_GRID: GridPreset = {
         (0, 5, 0.7, 0.5),
     ],
     "seeds": list(range(3401, 3418)),  # AMENDMENT 3: fresh block; 3201-3217 are probe-burned
-    "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h2",
+    # PATH CHANGE 2026-08-28, not a grid key and not a registered semantic (no physics, no
+    # amendment needed). This used to read `gnn_datasets_dag4_route_b_pivot_h2`, which is
+    # where the PRE-amendment H2 corpus already sits on disk: 204 ds_* dirs, 102 of them
+    # with no placements.jsonl, stale skip_reason.json throughout (the VOID-GENERATION run,
+    # per_server 1/2 on seeds 3201-3217, recorded in ladder-findings.md's corpus table).
+    # Generating the amended rung at the old default would have written ON TOP of it, and
+    # without --resume the generator rewrites in place WITHOUT clearing a stale
+    # skip_reason.json -- so a dataset that now succeeds would keep the void run's skip
+    # label and every integrity check downstream would read it. The void corpus keeps its
+    # documented path; the amended rung gets the name H0/H1 already use.
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h2",
 }
 
 # PROBE, NOT A REGISTERED RUNG (route_b_env_pivot_v1, 2026-08-27). H2's shape with the
