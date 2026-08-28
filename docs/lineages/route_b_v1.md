@@ -1,8 +1,8 @@
-# route_b_v1 — ACTIVE
+# route_b_v1 — PARKED
 
-> **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-08-26
+> **Status:** `PARKED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-08-28
 
-**Outcome.** **Stage 1 PASS** — contention + coupling produces the non-pointwise structure five mechanisms and route A could not. **Stage 2 NO-GO-PREPROBE** (2026-08-26): a GNN cannot beat pointwise-plus-prefix on this environment even at memorization. Forked to `route_b_env_pivot_v1`.
+**Outcome.** **Stage 1 PASS** — contention + coupling produces the non-pointwise structure five mechanisms and route A could not. **Stage 2 NO-GO-PREPROBE** (2026-08-26): a GNN cannot beat pointwise-plus-prefix on this environment even at memorization. Forked to `route_b_env_pivot_v1` — **that fork was PARKED 2026-08-28** (see its closing entry), so this lineage is PARKED with it: both measured results stand, and the program's effort moved to [objective_pivot_v1](objective_pivot_v1.md) (change the training objective, not the environment).
 
 **Related:** [route_b_env_pivot_v1](route_b_env_pivot_v1.md) · [route_a_v1](route_a_v1.md) · [route_c_link_transfer_v1](route_c_link_transfer_v1.md)
 
