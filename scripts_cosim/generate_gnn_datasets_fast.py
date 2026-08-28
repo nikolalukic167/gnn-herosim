@@ -649,6 +649,105 @@ ROUTE_B_PIVOT_H3_GENPROBE_WIDE_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_route_b_pivot_h3_genprobe_wide",
 }
 
+# image_cache_v1 — a NEW LINEAGE, not a route_b rung. It registers nothing of route_b's,
+# reads none of its bars (S0-S4), and shares no seed block with any of them. It borrows
+# H2's *shape* for one measured reason and one only, recorded below.
+#
+# THE MECHANISM. Node image cache pressure: the local disk holds container images, images
+# are evicted FIFO when one does not fit (`Storage.store_function`), and an evicted image
+# costs a full cold pull on the next task that needs it (~31 s at the shipped 3.057 GB /
+# 100 Mbps, against ~0.02 s of execution). The lever is two env vars applied at generation
+# time, both in `executecosimulation.apply_{image_size,disk_capacity}_override`:
+#
+#   HEROSIM_IMAGE_SIZE_MIN_GB / _MAX_GB  spread image size across each task type's
+#                                        platforms, individually-FASTEST platform LARGEST
+#   HEROSIM_DISK_CAPACITY_GB             bound every local tier's capacity
+#
+# WHY IT MIGHT ESCAPE THE EMPIRICAL RULE. Five mechanisms died because the contended object
+# was priced per node and the price was a COUNT of co-residents, which one occupancy integer
+# repairs. Here the disk is priced in BYTES and the bytes depend on WHICH platform each
+# co-resident took, so "does this set fit" is a knapsack over the assignment. Two tasks on a
+# node can be free (one took a small-image platform) or cost a 31 s eviction (both took
+# their favourite) — no count distinguishes those. THE HETEROGENEITY IS LOAD-BEARING: the
+# shipped sizes are near-uniform (3.057/2.990/2.987) and a uniform-weight knapsack IS a
+# count, which is why the size lever is mandatory rather than optional.
+#
+# AND WHY IT IS ANTI-ALIGNED, which route_a measured as the missing ingredient: the fastest
+# platform carries the largest image, so every task individually wants the assignment that
+# is jointly most expensive to co-locate. Someone must yield, and who should yield depends
+# on the whole co-resident set. Stated plainly: this is engineered, not emergent.
+#
+# WHY H2's SHAPE (per_server 4/5, replica_overlap, 1,680 / 3,024-row sweeps). Measured
+# 2026-08-28 on the Arm S corpora of H0/H1/H2 with `measure_route_b_additivity.py`: the
+# additive one-hot fit needs rows >> params to mean anything, and H0/H1's 16-row arm gives
+# 1.14 rows per parameter once same-node pair terms are added — at or below the scorer's own
+# `rows < 2 x params` saturation-refusal bar, i.e. interpolation, not closure. H2's arms give
+# 44-72. **H2's shape is the only 4-task regime in this repo where the additivity question is
+# answerable at all**, which is the whole reason it is borrowed. Nothing about route_b's
+# alpha ladder, caps, competitor or bars comes with it.
+#
+# NO DAG PAYLOAD LEVER. Generate WITHOUT HEROSIM_DATA_LOCALITY / HEROSIM_OUTPUT_SIZE_BYTES.
+# Two reasons: this environment is not supposed to need the 800 MB locality hack to have
+# joint structure (if it does, it has not escaped anything), and `store_data` evicts
+# FUNCTION IMAGES to make room for task OUTPUT, so a large output against a bounded disk
+# would thrash the cache and confound the mechanism with a different one. At the shipped
+# 8,000 B output the data side is ~1e-6 of a 6 GB disk and inert.
+#
+# SKIP THRESHOLD: derived, not guessed (herosim-cosim-skip-threshold-is-pre-uniqueness).
+# max candidates/type = max(per_server) x server_node_counts = 5 x 4 = 20, 4 tasks =>
+# pre-uniqueness product <= 20^4 = 160,000, under the 250,000 default. No export needed.
+# A 4-task rung only; an 8-task variant would need the H3 treatment and is not this preset.
+#
+# ARM COVERAGE (route-b-preflight step 3, and the lesson that `--max-datasets 24` read
+# "clean" on a grid whose second arm was the one that broke): 204 = 2 conn x 2
+# replica_configs x 3 queue x 17 seeds, and the two replica_configs arms are NOT
+# interchangeable — they are the 1,680-row and 3,024-row sweeps. Any probe must cover both
+# and every statistic must be split on `n_rows`.
+IMAGE_CACHE_V1_GRID: GridPreset = {
+    **ROUTE_B_PIVOT_H2_GRID,
+    # Fresh seed block. Burned elsewhere: 901-917 (pilot), 2001-2042 (stage-2 holdout),
+    # 3001-3017 (H0), 3101-3117 (H1), 3201-3217 (H2 probes), 3301-3317 (H3),
+    # 3401-3417 (amended H2), 3501-3517 (no-overlap probe).
+    "seeds": list(range(3601, 3618)),
+    "default_output_subdir": "gnn_datasets_image_cache_v1",
+}
+
+# PROBE, NOT A REGISTERED RUNG (image_cache_v1, 2026-08-28). The all-queues-zero arm.
+#
+# MEASURED on the preset above (102 datasets/arm, bounded 7.0 GB vs unbounded, both arms
+# covered, enumeration bit-matched): the disk lever is COMPLETELY INERT — 102/102 datasets
+# bit-identical, `averagePullTime` 0.0, `nodeCacheHitsProportion` 0.0, and
+# `disk_snapshot_by_task_type` 0.0 on every entry. No image is ever pulled or cached during
+# an enumerated placement, so image size and disk capacity are both off the sweep's cost
+# path and no capacity could have bound.
+#
+# Two independent causes, both measured:
+#   1. `precreate_replicas` (simulation.py:322) leaves a platform uninitialized only when
+#      `queue_length == 0 and not force_warm`. Under `replica_overlap` ONE Platform object
+#      is claimed by all four task types, so it is warm if ANY type draws a nonzero queue —
+#      at Poisson(2) that needs all four to draw 0, p ~ 3e-4 per platform. Measured: 8/8
+#      server replicas initialized in every dataset inspected, despite 63/640 individual
+#      (type, platform) queue draws being 0. An initialized platform never calls
+#      `initialize_replica`, which is the only caller of `store_function`.
+#   2. `--fast-forward-warmup` (default TRUE) skips the `yield initialized` block outright,
+#      which `scripts_cosim/test_pull_time_visibility_ab.py` already documents as M2:
+#      "pullTime always 0".
+#
+# This preset removes cause 1 by making EVERY replica cold; cause 2 needs
+# `--no-fast-forward-warmup` at the CLI. Together they are the only configuration in which
+# the image cache is on the path at all.
+#
+# THE COST, stated because it is a real change of environment and not a tuning detail: with
+# all queues zero this grid has NO queue contention left. It becomes a cold-start + disk
+# environment, which is a different experiment from the H2-shaped one above and must be
+# read as such. Headroom is the compensation — a pull is ~31 s at 3 GB / 100 Mbps against
+# ~0.02 s of execution, where link contention (route_c) died on a ceiling under 10%.
+IMAGE_CACHE_V1_COLD_PROBE_GRID: GridPreset = {
+    **IMAGE_CACHE_V1_GRID,
+    "queue_distributions": [("cold_all", "poisson", 0, 0, 0, 0, 1)],
+    "default_output_subdir": "gnn_datasets_image_cache_v1_cold_probe",
+}
+
 # netc_multihop_v1: shallow queues + NO client-local replicas, for link_contention_v1.
 #
 # The first matched pilot ran link_contention_v1 on the stock shallow_v1 grid and all three
@@ -1016,6 +1115,8 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_b_pivot_h3": ROUTE_B_PIVOT_H3_GRID,
     "route_b_pivot_h3_genprobe_registered": ROUTE_B_PIVOT_H3_GENPROBE_REGISTERED_GRID,
     "route_b_pivot_h3_genprobe_wide": ROUTE_B_PIVOT_H3_GENPROBE_WIDE_GRID,
+    "image_cache_v1": IMAGE_CACHE_V1_GRID,
+    "image_cache_v1_cold_probe": IMAGE_CACHE_V1_COLD_PROBE_GRID,
 }
 
 

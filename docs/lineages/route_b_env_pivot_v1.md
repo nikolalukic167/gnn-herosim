@@ -27,6 +27,7 @@
 
 Newest first; the sections themselves are in chronological order below.
 
+- [route_b_env_pivot_v1 — H3's control is non-additive too; the ladder has no readable overlap rung (2026-08-28)](#route-b-env-pivot-v1-h3s-control-is-non-additive-too-the-ladder-has-no-readable-overlap-rung-2026-08-28)
 - [route_b_env_pivot_v1 — MEASURED: the H2 separable control's cost is NOT additive (2026-08-28)](#route-b-env-pivot-v1-measured-the-h2-separable-controls-cost-is-not-additive-2026-08-28)
 - [route_b_env_pivot_v1 — the overlap isolating run is NOT RUNNABLE on H2's grid (2026-08-28)](#route-b-env-pivot-v1-the-overlap-isolating-run-is-not-runnable-on-h2s-grid-2026-08-28)
 - [route_b_env_pivot_v1 — the amended H2 is generated, and it is VOID: its paired separable control FAILS S0 (2026-08-28)](#route-b-env-pivot-v1-the-amended-h2-is-generated-and-it-is-void-its-paired-separable-control-fails-s0-2026-08-28)
@@ -983,3 +984,72 @@ says anything about Arm S, whose bars remain unread.
 **Artifacts.** Scratchpad only (`additivity_regression.py`, `additivity_sweep.py`,
 `additivity_pairwise.py`) — standalone, no scorer imports. Promote to
 `scripts_cosim/` if an amendment comes to depend on the number.
+
+#### route_b_env_pivot_v1 — H3's control is non-additive too; the ladder has no readable overlap rung (2026-08-28)
+
+**Scope.** The same direct measurement as the entry above, run on H3's paired separable
+control (datalab job **719077**, COMPLETED, 1h12m, 22.9 GB peak RSS). Not a bar read: S0 as
+registered was not computed, no S1–S4 number was touched, and AMENDMENT 4 — which would make
+this measurement the S0 statistic — is **drafted and not signed off**. No threshold, bar,
+grid, α ladder or reading rule moved.
+
+**H3's control generates cleanly, both arms — AMENDMENT 3's other half fully confirmed.**
+The entry above could only report the pool-8 arm, because the corpus was still generating:
+
+| | measured |
+|---|---|
+| datasets | 204 |
+| `num_placements` | **`{40320: 102, 362880: 102}`** — §3's predicted 8P8 **and** 9P8 |
+| `sweep_complete` | **204/204** |
+| skip files · missing `placements.jsonl` | 0 · 0 |
+| `timed_out` / `worker_failed` / `worker_exception` / `early_terminated` | all **0** |
+
+Where H3 as registered produced **0/204** (uniqueness-exhausted on pools of 2 and 4), the
+amended grid generates all 204 with the re-derived 3e10 threshold clearing. Provenance read
+from the job, not a banner: `/home/nikola.lukic/micromamba/envs/gnn/bin/python3`, numpy
+1.26.4 — the declared `gnn` stack, no `pipenv` leak.
+
+**The control is NOT additive, and by R² it is worse than H2's.**
+
+| control corpus | S0 | arm | R² median | R² min | residual median | +pairwise R² |
+|---|---|---|---|---|---|---|
+| H0 ctrl | **PASS** | 16 / 64 | 0.999991 / 0.999757 | 0.4577 / 0.9032 | 0.159% / 0.721% | 1.0000 / 0.99991 |
+| H1 ctrl | **PASS** | 16 / 64 | 0.999975 / 0.999856 | 0.7204 / 0.8423 | 0.193% / 0.999% | 1.0000 / 0.99989 |
+| H2 ctrl | **FAIL** | 1680 / 3024 | 0.7826 / 0.8161 | 0.5331 / 0.5310 | 12.822% / 13.814% | 0.897 / 0.903 |
+| **H3 ctrl** | — | 40320 / 362880 | **0.3568 / 0.5258** | 0.1087 / 0.3063 | **9.538% / 10.498%** | **0.655 / 0.756** |
+
+Under AMENDMENT 4's *draft* thresholds (median R² ≥ 0.99, median residual ≤ 2.0%) H3's
+control misses on **both bars on both arms**. It would fail the registered S0 as well. Note
+the two axes disagree in direction and both are real: H3's residual is *smaller* than H2's
+in percentage terms while its R² is far lower, because `rtt` varies less across H3's plans —
+the additive model explains about half of a ~15%-of-mean spread, against H2's ~27%.
+
+⚠ **The co-residency diagnostic is DEGENERATE on H3 and was not read there.** H3 seats 8
+tasks in a pool of 8 or 9 across 2 hosting nodes, so almost every plan has the same
+occupancy profile: only two levels occur (4 and 5 tasks on the fullest node) and both report
+mean residual **0.000%** — with co-residency near-constant the indicator is absorbed into the
+fit and the breakdown has no power. **H2's "co-location is cheap" shape is therefore NOT
+established on H3**; only the magnitude of non-additivity is. This is a limitation of the
+diagnostic whenever the pool is barely larger than the task count, and it is recorded in
+AMENDMENT 4 §2.2 as a stated limit on its S0-c reporting clause rather than left to be
+rediscovered.
+
+**Consequence — the ladder has no readable overlap rung.** H2 and H3 are the screen's only
+two `replica_overlap` rungs and both controls fail separability, so the ladder stands at
+**H0 VOID-TIE-INDETERMINATE / H1 FAIL / H2 VOID / H3 VOID — no PIVOT-CANDIDATE.** Two
+independent rungs failing the same way strengthens the reading that the defect is in the
+**control definition** rather than anything peculiar to H2.
+
+**Two conclusions that must not be collapsed**, per `route_b_v1`'s stage-2 precedent:
+
+- **"The screen could not measure it"** — this is what the S0 failures say, and it is
+  established.
+- **"There is no exploitable joint structure in the amended environment"** — **untested.**
+  Arm S's bars have never been read on either overlap rung, and the same grid shape passed
+  all four bars in probe. Nothing here licenses that claim.
+
+**Artifacts.** `simulation_data/route_b_pivot_h3_ctrl_additivity.json` (pulled back; the
+corpus stays on the cluster). Job script
+`scripts_cosim/datalab/route_b_pivot_h3_additivity.sbatch`, which asserts generation
+integrity first and dies loud rather than measuring an unclean corpus. H3 Arm S was still
+generating (178/204) and is untouched by this entry.

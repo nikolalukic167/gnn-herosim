@@ -63,6 +63,14 @@ Whole corpora, every dataset, split on the `replica_configs` arm (`n_rows`):
 | H0 ctrl | **PASS** | 16 / 64 | 0.999991 / 0.999757 | 0.4577 / 0.9032 | **0.159% / 0.721%** |
 | H1 ctrl | **PASS** | 16 / 64 | 0.999975 / 0.999856 | 0.7204 / 0.8423 | **0.193% / 0.999%** |
 | **H2 ctrl** | **FAIL** | 1680 / 3024 | **0.7826 / 0.8161** | 0.5331 / 0.5310 | **12.822% / 13.814%** |
+| **H3 ctrl** | — | 40320 / 362880 | **0.3568 / 0.5258** | 0.1087 / 0.3063 | **9.538% / 10.498%** |
+
+H3's control was measured after this document was first drafted (datalab job 719077) and is
+included because it is a second, independent instance of the same failure — not because the
+thresholds need it. §4's values are set from the *passing* rungs alone and would be
+identical had H3 never been measured. Note H2 and H3 disagree in direction on the two axes
+(H3 has the lower R² but the smaller residual, because `rtt` varies less across its plans),
+which is why §3 requires **both** bars rather than either one.
 
 This is the fact the amendment rests on: **the proposed statistic already separates the
 rungs that pass S0 from the one that fails, by a factor of ~13 in residual, on the existing
@@ -94,6 +102,21 @@ but "the cost is non-additive, the coupling is concentrated at co-location, and 
 purely pairwise." Every one of those is actionable; none of them is available from
 `frac_gt_1pct`.
 
+### 2.3 ⚠ The stated limit of S0-c: it is degenerate when the pool is barely larger than the task count
+
+The co-residency breakdown has power only if co-residency actually *varies* across the
+sweep. It does not on H3: 8 tasks in a pool of 8 or 9 over 2 hosting nodes means almost
+every plan has the same occupancy profile, only two levels occur (4 and 5 on the fullest
+node), and **both report mean residual 0.000%** — a near-constant indicator is absorbed
+into the fit. So on H3 the measurement yields the *magnitude* of non-additivity and says
+nothing about its *shape*, and **H2's co-location story is not established there.**
+
+This is a limit on S0-c, the reporting clause, not on S0-a/S0-b, the bars — those are
+unaffected and H3 fails both on both arms. **S0-c must be reported as `DEGENERATE` rather
+than as a zero whenever fewer than three co-residency levels occur**, so an uninformative
+breakdown is never mistaken for a measured absence of co-residency structure. That
+distinction is exactly the kind this lineage has been bitten by before.
+
 ## 3. What is proposed
 
 **S0 becomes a direct additivity test on the paired separable control**, replacing the
@@ -106,7 +129,8 @@ corpus, split on the `replica_configs` arm:
   `rtt`, must be **≤ 2.0%** on **every** arm.
 - **S0-c (reporting, not a bar):** the co-residency breakdown of §2.2 and the pairwise-model
   R² are reported on every rung, pass or fail, so a failure arrives with its diagnosis
-  attached.
+  attached. **Reported as `DEGENERATE`, never as a zero, when fewer than three co-residency
+  levels occur in the sweep** — see §2.3, which is why.
 
 Both bars must pass for S0 to pass. Failure is a **VOID** for the rung, exactly as now — the
 consequence of S0 is unchanged, only the measurement is.
@@ -138,8 +162,19 @@ worst median R² 0.999757 ≥ 0.99; worst median residual 0.999% ≤ 2.0%). Thei
 unchanged, so **their S1–S4 readings stand exactly as measured** and neither rung is
 regenerated or re-read. The amendment cannot rescue or damage any existing verdict.
 
-H2 fails the proposed S0 as it failed the registered one. **This amendment does not unVOID
-H2.** Anyone reading it as a route to reading H2's bars has misread it — see §6.
+H2 fails the proposed S0 as it failed the registered one, and **H3's control fails it too**
+(§2.1) — on both bars on both arms, and it would fail the registered S0 as well. **This
+amendment does not unVOID H2 or H3.** Anyone reading it as a route to reading either rung's
+bars has misread it — see §6.
+
+Consequence, stated plainly because it is the real state of the screen: H2 and H3 are the
+ladder's **only** `replica_overlap` rungs and both controls fail separability, so under
+either the registered or the proposed S0 the ladder stands at **H0
+VOID-TIE-INDETERMINATE / H1 FAIL / H2 VOID / H3 VOID — no PIVOT-CANDIDATE.** ⚠ That is
+"the screen could not measure it", **not** "there is no exploitable joint structure in the
+amended environment" — Arm S's bars have never been read on either overlap rung, and the
+same grid shape passed all four bars in probe. Signing this amendment does not change that
+and does not license the second claim.
 
 ## 6. What this amendment does NOT propose
 
@@ -222,7 +257,11 @@ Amends `screen-preregistration.md` @ `019bdcb`, as already amended by
 
 **Signed off by the user: ☐ — NOT SIGNED OFF.**
 
-**What sign-off would license, and only this:** reading S0 under §3's statistic and §4's
-thresholds on the existing frozen control corpora, and on H3's control when it finishes
-generating. It would **not** license unVOIDing H2, reading S1–S4 on any VOID rung,
-regenerating anything, or moving any other threshold.
+**What sign-off would license, and only this:** recording S0 under §3's statistic and §4's
+thresholds on the four control corpora already measured (H0, H1, H2, H3 — all four numbers
+exist and are frozen in `route_b_pivot_additivity_controls.json` and
+`route_b_pivot_h3_ctrl_additivity.json`). It would **not** license unVOIDing H2 or H3,
+reading S1–S4 on any VOID rung, regenerating anything, or moving any other threshold.
+
+**What rejecting it costs:** nothing already measured. The registered S0 gives the same four
+verdicts. The difference is only whether future failures arrive attributable or not.
