@@ -547,7 +547,12 @@ ROUTE_B_PIVOT_H3_GRID: GridPreset = {
     **ROUTE_B_PIVOT_H2_GRID,
     "dag_instances": 2,
     "seeds": list(range(3301, 3318)),  # fresh block; never generated, so never seen
-    "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h3",
+    # Renamed 2026-08-28 alongside H2's, for the same reason and with the same status: a
+    # path, not a grid key. Nothing has ever been generated at either name. H0-H3 now all
+    # read `gnn_datasets_route_b_pivot_h<N>` (+ `_ctrl`), which is what H0 and H1 already
+    # sit at on disk, and it is what scripts_cosim/datalab/route_b_pivot_h3_*.sbatch export
+    # as OUTPUT_SUBDIR -- keep the two in step.
+    "default_output_subdir": "gnn_datasets_route_b_pivot_h3",
 }
 
 # PROBES, NOT REGISTERED RUNGS (route_b_env_pivot_v1, 2026-08-27). Two 2-seed grids that
