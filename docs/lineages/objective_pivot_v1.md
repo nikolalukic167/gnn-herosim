@@ -124,3 +124,42 @@ Processing Clusters*, SIGCOMM 2019 (<https://web.mit.edu/decima/content/sigcomm-
 *Graph Neural Networks for Job Shop Scheduling Problems: A Survey*
 (<https://arxiv.org/html/2406.14096v1>); *A Review of Deep RL in Serverless Computing*
 (<https://arxiv.org/pdf/2311.12839>).
+
+---
+
+### objective_pivot_v1 — Phase 1 LAUNCHED: pinned chain submitted (2026-08-28)
+
+Phase 1 executes as registered. Tooling at commit `900fec3`:
+
+- **Pinned worktree** `~/gnn-herosim-pin-c08aa7e` created on datalab at
+  `c08aa7ee140fd…` (detached, CODE_PATHS clean, verified), with symlinks into the main
+  checkout for exactly the four data paths the runners touch (`models`, `logs`,
+  `simulation_data/normal_sim_sweeps`, `simulation_data/graphs_cache_full_corpus_siv1_dim14`,
+  `data/nofs-ids/traces`) — code from 2026-08-25, data shared with the frozen arms.
+- **Job chain, each step gated on the previous** (`--dependency=afterok`):
+  **719808** `objp1-determinism` (trainer determinism green *in the pinned tree*, the
+  registration's precondition) → **719809** `objp1-train` (seeds 9–16, array 0-7,
+  GPU-a40/l40s; refuses to overwrite an existing draw; same corpus/arch guards as the
+  seed 1–8 array) → **719810** `objp1-gate` (240 cells, array 0-239%60, CPU-amd; block
+  mapping byte-identical to job 712389's).
+- Every sbatch asserts the pin (exact commit + clean CODE_PATHS) before spending
+  compute; the gate results' `run_provenance.code` will therefore record `c08aa7e`,
+  clean — the identity the scorer's VOID gate requires.
+- `extract_gate_stats_summary.py` extended to arms `gnndraws1–16` and now carries
+  `code_commit`/`code_dirty` + the registered env axes into the summary.
+- **Scorer** `scripts_cosim/important/score_objective_pivot_phase1.py` (10 tests,
+  `scripts_cosim/test_score_objective_pivot_phase1.py`, all green): VOID-gates
+  provenance before computing anything (verified to refuse on the current summary,
+  where the new arms are absent); rank-sum primary at +50% (fixed-seed 200k-permutation,
+  midranks), must-hold at +100%, +30% and the dichotomy descriptive, sign-test
+  secondary (≥ 13/16 negative mean margins vs Knative). Constants are the registration;
+  the script takes no tuning arguments.
+- Sync hygiene: cluster fast-forward was blocked by its own untracked copy of
+  `route_b_pivot_h3_ctrl_additivity.json` (now git-tracked); md5-verified byte-identical
+  to the tracked blob before removing it (pitfall #3 discipline), then ff'd to `900fec3`.
+
+**Next session:** when 719810 completes — re-run
+`extract_gate_stats_summary.py --out simulation_data/gate_stats_summary.json` on the
+cluster, pull the summary back, run the scorer, and write the outcome here and in the
+index row. The verdict is whatever the scorer prints; no reading of partial results
+before the chain finishes.
