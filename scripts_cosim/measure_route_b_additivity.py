@@ -179,6 +179,14 @@ def measure_corpus(corpus: Path, want_cores: bool, want_pairs: bool) -> dict:
                      "resid_pct_mean": float(np.asarray(v).mean())}
             for c, v in sorted(cores_pool.items())
         }
+        # The breakdown has power only if co-residency actually VARIES. When the pool is
+        # barely larger than the task count almost every plan has the same occupancy
+        # profile, the near-constant indicator is absorbed into the fit, and every level
+        # reports ~0.000% — which reads exactly like "measured, no co-residency structure"
+        # while actually being "could not measure". Measured on H3 (8 tasks, pool 8-9, two
+        # hosting nodes): only levels 4 and 5 occur and both report 0.000%. Flagged, never
+        # silently reported as a zero.
+        out["coresidency_degenerate"] = len(cores_pool) < 3
     return out
 
 
@@ -201,6 +209,11 @@ def render(res: dict) -> None:
         for c, b in res["coresidency"].items():
             print(f"  {c:>10s} {b['n_plans']:>10d} {b['resid_pct_rms']:>8.3f}% "
                   f"{b['resid_pct_mean']:>8.3f}%")
+        if res.get("coresidency_degenerate"):
+            print("  ** DEGENERATE: fewer than 3 co-residency levels occur in this corpus,")
+            print("     so this breakdown has no power. The magnitude of non-additivity")
+            print("     above stands; its SHAPE is NOT measured here. Do not read these")
+            print("     means as an absence of co-residency structure.")
 
 
 def main() -> int:

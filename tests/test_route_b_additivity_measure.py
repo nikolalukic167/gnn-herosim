@@ -183,3 +183,42 @@ def test_empty_corpus_fails_loud(tmp_path):
     corpus.mkdir()
     with pytest.raises(RuntimeError, match="nothing to measure"):
         measure_corpus(corpus, want_cores=False, want_pairs=False)
+
+
+def test_coresidency_is_flagged_degenerate_when_it_barely_varies(tmp_path):
+    """H3's shape: 8 tasks in a pool of 8-9 over two nodes, so occupancy is near-constant.
+
+    Every level then reports ~0.000% mean residual — which reads exactly like "measured, no
+    co-residency structure" while actually being "could not measure". The flag is what keeps
+    those two apart, and this lineage has been bitten by that distinction before.
+    """
+    slots = [(0, 100), (0, 101), (1, 200), (1, 201)]
+    tasks = [0, 1, 2, 3]
+    base = {(t, s): 1.0 + 0.31 * t + 0.17 * i + 0.29 * t * i
+            for t in tasks for i, s in enumerate(slots)}
+    # Pool == task count => every plan uses every slot => occupancy is 2/2 on every plan,
+    # i.e. exactly ONE co-residency level.
+    plans = [dict(zip(tasks, p)) for p in itertools.permutations(slots, len(tasks))]
+    assert len({max_coresidency(p) for p in plans}) == 1
+
+    corpus = tmp_path / "corpus"
+    ds = corpus / "ds_00000" / "placements"
+    ds.mkdir(parents=True)
+    with open(ds / "placements.jsonl", "w") as fh:
+        for i, plan in enumerate(plans):
+            # Vary rtt so the fit is defined (a purely additive cost would be constant here).
+            rtt = sum(base[(t, s)] for t, s in plan.items()) + 0.01 * i
+            fh.write(json.dumps({"placement_plan": {str(t): list(s) for t, s in plan.items()},
+                                 "rtt": rtt}) + "\n")
+
+    res = measure_corpus(corpus, want_cores=True, want_pairs=False)
+    assert res["coresidency_degenerate"] is True
+    assert len(res["coresidency"]) < 3
+
+
+def test_coresidency_is_not_flagged_when_it_genuinely_varies(tmp_path):
+    """The control for the test above: the three-node fixture spans levels 2, 3 and 4."""
+    corpus = write_corpus(tmp_path, higher_order_cost)
+    res = measure_corpus(corpus, want_cores=True, want_pairs=False)
+    assert res["coresidency_degenerate"] is False
+    assert len(res["coresidency"]) >= 3

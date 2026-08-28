@@ -339,6 +339,8 @@ def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
 
     apply_state_size_override(sim_inputs)
     apply_storage_neutral_override(sim_inputs)
+    apply_image_size_override(sim_inputs)
+    apply_disk_capacity_override(sim_inputs)
 
     return sim_inputs
 
@@ -568,6 +570,218 @@ def apply_storage_neutral_override(sim_inputs: Dict[str, Any]) -> bool:
         tier["throughput"]["read"] = read_mbps
         tier["latency"]["read"] = read_latency
     return True
+
+
+# ---------------------------------------------------------------------------
+# image_cache_v1 — the bounded node image cache lever.
+#
+# WHY. Every co-location mechanism this repo has tried collapsed onto an occupancy
+# integer, because the contended object was priced per node and the price was a function
+# of HOW MANY tasks landed there. The node image cache is priced in BYTES, and the bytes
+# depend on WHICH platform each co-resident task took — so whether a set of tasks fits is
+# a knapsack over the chosen assignment, not a count of it. That is the one shape the
+# empirical rule ("every escape collapses to an occupancy integer") does not cover.
+#
+# The machinery already exists and has never once fired: `Storage.store_function`
+# (infrastructure.py) evicts FIFO when an image does not fit, but images are ~3 GB
+# (data/nofs-ids/task-types.json) and local disks are 32/64 GB
+# (data/nofs-ids/storage-types.json), so four task types x four platforms can never
+# exceed a disk. These two levers bind it.
+#
+# BOTH ARE REQUIRED TOGETHER, and the reason is measured, not stylistic. Shipped image
+# sizes are near-uniform (3.057 / 2.990 / 2.987, with only dnn1@pynqFpga at 0.004), and a
+# uniform-weight knapsack IS a count — "how many distinct images on my node" would be a
+# sufficient statistic and the throughline predicts one integer repairs it. Heterogeneous
+# sizes are the mechanism, not a garnish.
+#
+# Both mutate `sim_inputs` in memory only. `data/nofs-ids/` is shared by EVERY corpus and
+# is never copied per dataset, so editing those files would silently rewrite the physics
+# of every existing collection — the same reasoning as `apply_state_size_override`.
+# ---------------------------------------------------------------------------
+
+
+def _yield_cost(task_type: Dict[str, Any], type_name: str) -> float:
+    """How much this task type loses by giving up its favourite platform.
+
+    `(second-best - best)` total time, where total = coldStartDuration + executionTime.
+
+    Second-best rather than worst on purpose. The worst platform of a type is typically one
+    it will never be deployed on (rf@xavierGpu is 12.7 s against 0.05 s on xavierCpu), so a
+    max-min gap ranks types by an option nobody would take. On the grid this lever targets,
+    the two platform types actually deployed ARE each type's two fastest, so second-best is
+    the gap a plan really trades against — measured on data/nofs-ids/task-types.json:
+    cnn 3.408 > dnn2 0.684 > dnn1 0.261 > rf 0.018, which is exactly the rpiCpu-vs-xavierCpu
+    ordering, where a max-min ranking gives cnn > rf > dnn1 > dnn2 and puts the type that
+    cares least (rf, 0.018 s) second.
+    """
+    platforms = task_type.get("platforms") or []
+    cold = task_type.get("coldStartDuration") or {}
+    exec_t = task_type.get("executionTime") or {}
+    missing = [p for p in platforms if p not in cold or p not in exec_t]
+    if missing:
+        raise RuntimeError(
+            f"task type {type_name!r} lists platforms {missing} with no "
+            f"coldStartDuration/executionTime entry; cannot rank task types to assign "
+            f"image sizes. Refusing to guess — the ranking IS the anti-alignment."
+        )
+    if len(platforms) < 2:
+        raise RuntimeError(
+            f"task type {type_name!r} has fewer than 2 platforms; it has no favourite to "
+            f"give up and cannot be ranked by yield cost"
+        )
+    totals = sorted(float(cold[p]) + float(exec_t[p]) for p in platforms)
+    return totals[1] - totals[0]
+
+
+def _image_task_type_order(task_types: Dict[str, Any]) -> List[str]:
+    """Task types ranked by yield cost DESCENDING; ties break by name.
+
+    The name tie-break is not decoration: this repo's classic determinism leak is an
+    unordered tie-break over objects (herosim-pythonhashseed-tiebreak-nondeterminism), and
+    PYTHONHASHSEED does not pin it.
+    """
+    return sorted(
+        task_types,
+        key=lambda name: (-_yield_cost(task_types[name], name), name),
+    )
+
+
+def apply_image_size_override(sim_inputs: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    """Spread image size across TASK TYPES, the type that yields least willingly largest.
+
+    HEROSIM_IMAGE_SIZE_MIN_GB / HEROSIM_IMAGE_SIZE_MAX_GB (both required together, unset =>
+    no-op and byte-identical to before this lever existed).
+
+    Task types are ranked by `_yield_cost` descending and assigned sizes interpolated
+    GEOMETRICALLY from MAX (yields least willingly) down to MIN. Geometric so the ratio
+    between adjacent ranks is constant and the spread does not depend on the absolute anchor.
+    Each type's size is UNIFORM across its own platforms — see "why not per platform" below.
+
+    THE DIRECTION IS DELIBERATE ENGINEERING, not an emergent property, and is stated here so
+    no reader mistakes it for a discovery: the task that loses most by moving off the
+    contested fast node is the one whose image is most expensive to keep cached there.
+    Someone must yield, and which set of tasks can share a disk depends on their sizes, not
+    their number. Route A measured that coupling ALIGNED with the pointwise optimum leaves
+    the componentwise argmin intact — every task took its favourite and the coupling term
+    was minimised there too — so anti-alignment is built in rather than hoped for.
+
+    WHY NOT PER PLATFORM, which is what this function did in its first draft. On the grid
+    this lever targets, `generate_replica_placements` gives each hosting node platform
+    instances of a SINGLE type (measured on gnn_datasets_route_b_pivot_h2/ds_00000: node0 is
+    4x rpiCpu, node1 is 4x xavierCpu). Co-located tasks therefore always share a platform
+    type, so a per-platform spread makes every co-resident image the same size and "does this
+    set fit" collapses back to a COUNT of co-residents — the exact shape that one occupancy
+    integer repaired in five previous mechanisms. Spreading across task types is what makes
+    the disk a knapsack: {cnn, rf} and {dnn1, dnn2} are both two tasks and need different
+    amounts of disk.
+
+    A per-type-uniform size also keeps the additive part of the change a per-task constant.
+    Image size is the numerator of the cold-pull duration (`determined/autoscaler.py:213-222`:
+    size / (min(write_throughput, bandwidth)/1024)), so a per-platform spread would move each
+    task's platform preference as well; per-type, it does not. The ONLY new coupling is
+    co-residency disk pressure, which is what the corpus is meant to measure.
+
+    Pull time still changes in absolute terms, so the ISOLATING comparison for the eviction
+    coupling is (these sizes, bounded disk) vs (these sizes, UNBOUNDED disk) — never against
+    the shipped sizes.
+
+    Returns (min_gb, max_gb) when applied, None when unset.
+    """
+    raw_min = os.environ.get("HEROSIM_IMAGE_SIZE_MIN_GB", "").strip()
+    raw_max = os.environ.get("HEROSIM_IMAGE_SIZE_MAX_GB", "").strip()
+    if not raw_min and not raw_max:
+        return None
+    # Fail loud on a half-set lever. Silently defaulting the missing half would produce a
+    # corpus that looks spread and is not — the failure mode AMENDMENT 1 was written for.
+    if not raw_min or not raw_max:
+        raise RuntimeError(
+            "HEROSIM_IMAGE_SIZE_MIN_GB and HEROSIM_IMAGE_SIZE_MAX_GB must be set together "
+            f"(min={raw_min!r}, max={raw_max!r}); refusing to default the missing half"
+        )
+
+    min_gb = float(raw_min)
+    max_gb = float(raw_max)
+    if min_gb <= 0.0:
+        raise ValueError(f"HEROSIM_IMAGE_SIZE_MIN_GB must be positive, got {min_gb}")
+    if max_gb < min_gb:
+        raise ValueError(
+            f"HEROSIM_IMAGE_SIZE_MAX_GB ({max_gb}) must be >= "
+            f"HEROSIM_IMAGE_SIZE_MIN_GB ({min_gb})"
+        )
+
+    task_types = sim_inputs.get("task_types") or {}
+    if not task_types:
+        raise RuntimeError(
+            "HEROSIM_IMAGE_SIZE_*_GB is set but sim_inputs has no task_types; refusing to "
+            "produce a corpus whose image sizes are silently unchanged"
+        )
+
+    order = _image_task_type_order(task_types)
+    n = len(order)
+    for rank, type_name in enumerate(order):
+        task_type = task_types[type_name]
+        # rank 0 (yields least willingly) -> max_gb; rank n-1 -> min_gb.
+        frac = 0.0 if n == 1 else rank / (n - 1)
+        size = max_gb * ((min_gb / max_gb) ** frac)
+        image_size = task_type.setdefault("imageSize", {})
+        for platform in task_type.get("platforms") or []:
+            image_size[platform] = size
+    return (min_gb, max_gb)
+
+
+def apply_disk_capacity_override(sim_inputs: Dict[str, Any]) -> Optional[float]:
+    """Bound every LOCAL storage tier's capacity, from HEROSIM_DISK_CAPACITY_GB.
+
+    Local only (`remote` falsy). `warmth.node_has_cached_image` skips remote tiers
+    outright, so the image cache lives on the node's local disk and shrinking the remote
+    tier would bound something no image ever occupies.
+
+    Refuses a capacity that cannot hold the largest single image. `store_function` evicts
+    in a `while` loop and gives up with `logging.error` + `return False` when the cache is
+    already empty and the image still does not fit — a silent no-op that would make a
+    replica look cached when nothing was stored. Catching it here turns a config error into
+    a startup failure instead of a corpus-wide silent one. (`store_function` itself is also
+    fixed to raise; this guard is the earlier, more legible of the two.)
+
+    Returns the applied capacity in GB, or None when unset.
+    """
+    raw = os.environ.get("HEROSIM_DISK_CAPACITY_GB", "").strip()
+    if not raw:
+        return None
+    capacity_gb = float(raw)
+    if capacity_gb <= 0.0:
+        raise ValueError(f"HEROSIM_DISK_CAPACITY_GB must be positive, got {capacity_gb}")
+
+    storage_types = sim_inputs.get("storage_types") or {}
+    local_tiers = {
+        name: tier for name, tier in storage_types.items() if not tier.get("remote")
+    }
+    if not local_tiers:
+        raise RuntimeError(
+            f"HEROSIM_DISK_CAPACITY_GB={capacity_gb} is set but storage_types has no local "
+            f"(non-remote) tier (present: {sorted(storage_types)}); the image cache lives "
+            f"on local disk only, so this lever would bind nothing"
+        )
+
+    task_types = sim_inputs.get("task_types") or {}
+    largest: float = 0.0
+    largest_where = ""
+    for type_name, task_type in task_types.items():
+        for platform, size in (task_type.get("imageSize") or {}).items():
+            if float(size) > largest:
+                largest = float(size)
+                largest_where = f"{type_name}@{platform}"
+    if largest > capacity_gb:
+        raise RuntimeError(
+            f"HEROSIM_DISK_CAPACITY_GB={capacity_gb} is smaller than the largest single "
+            f"image ({largest} GB, {largest_where}). No eviction sequence can ever make "
+            f"room for it, so store_function would fail on every cold pull. Raise the "
+            f"capacity or lower HEROSIM_IMAGE_SIZE_MAX_GB."
+        )
+
+    for tier in local_tiers.values():
+        tier["capacity"] = capacity_gb
+    return capacity_gb
 
 
 def generate_network_latencies(nodes: List[Dict], config: Dict[str, Any]) -> Dict[str, Dict[str, float]]:

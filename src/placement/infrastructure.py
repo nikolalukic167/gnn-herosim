@@ -512,11 +512,20 @@ class Storage:
             while (self.used * 1e-9) + task_type["imageSize"][platform] > self.type[
                 "capacity"
             ]:
-                try:
-                    self.cache_eviction()
-                except CacheEvictionError as e:
-                    logging.error(f"[ {self.env.now} ] {e.message}")
-                    return False
+                # `cache_eviction` SWALLOWS CacheEvictionError and returns False, so the
+                # `except` this used to carry was dead code and an empty cache that still
+                # could not fit the image spun this loop forever. Unreachable while disks
+                # were 32/64 GB against ~3 GB images (image_cache_v1 is the first lever
+                # that binds capacity), so raising here is inert on every existing corpus
+                # — verified by byte-identity on a frozen dataset. Fail loud: a caller that
+                # read `False` would charge the pull and leave nothing cached.
+                if not self.cache_eviction():
+                    raise CacheEvictionError(
+                        f"{self} cannot cache {task_type['name']} ({platform}, "
+                        f"{task_type['imageSize'][platform]} GB): capacity is "
+                        f"{self.type['capacity']} GB and the function cache is already "
+                        f"empty. No eviction sequence can make room."
+                    )
 
             self.functions_cache.append((platform, task_type))
             self.used += int(task_type["imageSize"][platform] * 1e9)
@@ -558,11 +567,16 @@ class Storage:
         task_state = task.type["stateSize"][task.application.type["name"]]
         # Cache eviction if disk capacity is reached
         while (self.used + task_state["output"]) * 1e-9 > self.type["capacity"]:
-            try:
-                self.cache_eviction()
-            except CacheEvictionError as e:
-                logging.error(f"[ {self.env.now} ] {e.message}")
-                return False
+            # Same dead-`except` / infinite-loop defect as store_function above; same
+            # fail-loud fix. Note this path evicts FUNCTION IMAGES to make room for task
+            # OUTPUT data, so a bounded disk must not be combined with a large
+            # HEROSIM_OUTPUT_SIZE_BYTES — see apply_disk_capacity_override.
+            if not self.cache_eviction():
+                raise CacheEvictionError(
+                    f"{self} cannot store {task_state['output']} bytes of output for "
+                    f"{task}: capacity is {self.type['capacity']} GB and the function "
+                    f"cache is already empty. No eviction sequence can make room."
+                )
 
         # Store data
         self.data_store[task.id] = task_state["output"]
