@@ -45,7 +45,9 @@ DRAW_STUDY_ARMS = [
 ARMS += DRAW_STUDY_ARMS
 
 # gnn_draw_study_v1: 8 seeded draws of the deployed GNN config, same 30 cells.
-GNN_DRAW_ARMS = [f"gnndraws{seed}" for seed in range(1, 9)]
+# objective_pivot_v1 Phase 1 extends the family to seeds 9-16 (trained at the pinned
+# commit c08aa7e; see docs/lineages/objective_pivot_v1/phase1-registration-draft.md).
+GNN_DRAW_ARMS = [f"gnndraws{seed}" for seed in range(1, 17)]
 ARMS += GNN_DRAW_ARMS
 
 ARM_SUFFIX = {
@@ -141,12 +143,25 @@ def read_result(path: Path) -> dict:
     out["taskResponseTimeDistribution"] = extract_object(
         tail, "taskResponseTimeDistribution", "[", "]")
     env = prov.get("env", {}) or {}
+    code = prov.get("code", {}) or {}
     out["provenance"] = {
         "INFERENCE_FEATURE_LAYOUT": env.get("INFERENCE_FEATURE_LAYOUT"),
         "QUEUE_FEATURE_CONTRACT": env.get("QUEUE_FEATURE_CONTRACT"),
         "MLP_MODEL_PATH": env.get("MLP_MODEL_PATH"),
         "GNN_MODEL_PATH": env.get("GNN_MODEL_PATH"),
         "warmth_physics": prov.get("warmth_physics"),
+        # objective_pivot_v1 Phase 1: the scorer asserts venue/code identity on the new
+        # arms from the summary alone, so the identity axes must survive extraction.
+        "code_commit": code.get("commit"),
+        "code_dirty": code.get("dirty"),
+        "code_diff_sha256": code.get("diff_sha256"),
+        "GNN_DECODE_MODE": env.get("GNN_DECODE_MODE"),
+        "GNN_BATCH_SIZE": env.get("GNN_BATCH_SIZE"),
+        "GNN_BATCH_TIMEOUT": env.get("GNN_BATCH_TIMEOUT"),
+        "HEROSIM_GNN_DEVICE": env.get("HEROSIM_GNN_DEVICE"),
+        "TOPOLOGY_FEATURE_CONTRACT": env.get("TOPOLOGY_FEATURE_CONTRACT"),
+        "GNN_MP_NODE_EDGES": env.get("GNN_MP_NODE_EDGES"),
+        "GNN_DISABLE_MESSAGE_PASSING": env.get("GNN_DISABLE_MESSAGE_PASSING"),
     }
     ds = path.parent / path.name.replace(".json", ".decode_stats.json")
     if ds.is_file():
