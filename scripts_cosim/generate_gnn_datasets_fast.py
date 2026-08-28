@@ -431,10 +431,30 @@ ROUTE_B_PIVOT_H1_GRID: GridPreset = {
 # H2: H1 + overlapping eligibility (the assignment hypothesis) — task types share
 # contested replica hosts/platforms (generate_infrastructure.py's preinit.
 # replica_overlap, plumbed via the replica_overlap grid key).
+#
+# AMENDMENT 3 (signed off 2026-08-28, docs/lineages/route_b_env_pivot_v1/screen-amendment-3.md):
+# replica_configs moves to per_server 4 and 5, and the seed block to a FRESH 3401-3417.
+# Two measured reasons, neither of which is "the old grid was inconvenient":
+#   1. S2's t1x competitor needs >= 82 sweep rows per dataset; per_server 1/2 yields 16 and
+#      64, so the KILL BAR was refused on 204/204. per_server 4/5 gives pools of 8 and 9 =>
+#      8P4 = 1680 and 9P4 = 3024 rows. Measured, not predicted.
+#   2. per_server=1 under replica_overlap leaves 2 platforms for 4 tasks needing 4 => zero
+#      valid assignments => the old H2 generated 102/204 (VOID-GENERATION).
+# It does NOT loosen the squeeze: that is server_node_counts=[4] x
+# replica_server_percentage=0.5 => exactly 2 HOSTING NODES, which per_server cannot change.
+# Measured histogram {2: 204} on H0, H1, old H2 and every widened probe; componentwise
+# infeasibility went UP, 0.84 -> 0.91 -> 0.93.
+# The seed block is fresh because probes on 3201-3217 already read S1-S4 on this grid shape
+# (amendment section 2.4). The registered rung must be read on datasets nobody has scored --
+# see section 6, which states the selection hazard in full. DO NOT point this at 3201-3217.
 ROUTE_B_PIVOT_H2_GRID: GridPreset = {
     **ROUTE_B_PIVOT_H1_GRID,
     "replica_overlap": True,
-    "seeds": list(range(3201, 3218)),  # §3: fresh block, distinct from H0/H1
+    "replica_configs": [
+        (0, 4, 0.7, 0.5),
+        (0, 5, 0.7, 0.5),
+    ],
+    "seeds": list(range(3401, 3418)),  # AMENDMENT 3: fresh block; 3201-3217 are probe-burned
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h2",
 }
 
@@ -498,10 +518,25 @@ ROUTE_B_PIVOT_H2_PROPOSED_PROBE_GRID: GridPreset = {
 #     MAX_PLACEMENT_COMBINATIONS_SKIP >= 16777216 (e.g. 20000000 for headroom), FAR
 #     above the 250k default (the ROUTE_B_PILOT_V1_8TASK_GRID lesson repeated: this
 #     rung needs datalab, not a local run, per W6's H3 note).
+#
+# AMENDMENT 3 (2026-08-28) SUPERSEDES the derivation above. It was computed from
+# max(per_server)=2 and, worse, H3 could not generate AT ALL under it: replica_overlap puts
+# every task type on ONE pool of per_server x n_hosting_nodes slots and the sweep requires
+# GLOBALLY distinct replicas, so H3's 8 tasks over a pool of 2 or 4 are uniqueness-exhausted.
+# MEASURED 0/24 on both old arms, reason `uniqueness_exhausted` (route_b_pivot_h3_genprobe_*).
+# H3 inherits H2's amended replica_configs, giving pools of 8 and 9 => 8P8 = 40,320 and
+# 9P8 = 362,880 rows per dataset. Re-derived bound, conservative in section 3's own style:
+# max(per_server)=5 x server_node_counts=4 = 20 candidates/type => 20^8 = 25,600,000,000, so
+# H3 generation must export MAX_PLACEMENT_COMBINATIONS_SKIP >= 30000000000. (Measured
+# pre-uniqueness products are smaller, 16,777,216 and 43,046,721, but the threshold tests the
+# PRE-uniqueness product and sizing it from observed sweeps is the documented defect. Note
+# the comparison is a strict `>`, so the old 16,777,216 admitted per_server=4 with ZERO
+# headroom and skipped per_server=5 outright.) At 362,880 sims/dataset this rung is a
+# datalab job, as W6 already said.
 ROUTE_B_PIVOT_H3_GRID: GridPreset = {
     **ROUTE_B_PIVOT_H2_GRID,
     "dag_instances": 2,
-    "seeds": list(range(3301, 3318)),  # §3: fresh block, distinct from H0/H1/H2
+    "seeds": list(range(3301, 3318)),  # fresh block; never generated, so never seen
     "default_output_subdir": "gnn_datasets_dag4_route_b_pivot_h3",
 }
 
