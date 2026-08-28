@@ -13,22 +13,30 @@ of a task batch to produce brute-force-labelled GNN training data.
 at task placement? Knative is the industry-standard reactive baseline. The MLP exists to
 verify that a simple pointwise model *cannot* match the graph-aware one.
 
-Two ways to get there, and **which one is live has changed**:
+Three ways to get there, and **which one is live has changed again (2026-08-28)**:
 
 1. Generate co-sim data good enough to train a GNN that beats Knative and MLP on latency.
    **Closed by measurement** — see `program_verdict_v1`. The co-sim target is
    pointwise-separable, so the MLP is the *correctly specified* model class and no amount
    of training data changes that. Do not restart this without reading that node.
-2. **Change the environment** so exploitable joint structure exists. **This is the live
-   program** (`route_b_env_pivot_v1`), chosen 2026-08-27 after route B stage 2 returned
-   NO-GO-PREPROBE.
+2. **Change the environment** so exploitable joint structure exists
+   (`route_b_env_pivot_v1`, chosen 2026-08-27 after route B stage 2 returned
+   NO-GO-PREPROBE). **PARKED 2026-08-28** — the screen could not measure S0 on its
+   overlap rungs, and even a pass would feed the objective option 1 closed. Resuming
+   needs a signed amendment in its node.
+3. **Change the training objective, not the environment.** **This is the live program**
+   (`objective_pivot_v1`): establish the GNN's live reliability edge as a registered
+   draw-distribution claim, then P3, then P1 closed-loop training against the live
+   simulator — the one path `program_verdict_v1` left open to the latency claim. The
+   simulator is now the training environment, not a label factory.
 
-(Those numbers are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
+(Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
-What a GNN needs in order to have anything to learn: **multi-task placements under
-contention**. Single-task or homogeneous scenarios give it no structural signal. Route A
-proved that coupling alone is not enough either — breaking separability is necessary but
-not sufficient; you need contention.
+What a GNN needs in order to have anything to learn from a *supervised* target:
+**multi-task placements under contention**. Route A proved coupling alone is not enough —
+breaking separability is necessary but not sufficient; you need contention. And route B
+proved even that is not sufficient for the supervised path — which is why option 3
+changes the objective instead.
 
 ## Where knowledge lives — READ FIRST
 
