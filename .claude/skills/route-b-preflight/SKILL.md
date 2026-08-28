@@ -18,15 +18,32 @@ assumption on each — especially the arm that did not exist when the code was w
 The corpus is **2 conn-probs × 2 replica-configs × 3 queue-dists × 17 seeds = 204**. The
 arms that keep breaking things:
 
+> **AMENDMENT 3 (signed off 2026-08-28) moved H2 and H3.** They now run `replica_configs`
+> `per_server` **4 and 5** (pools 8 and 9) — H2 on **fresh seeds 3401–3417**, H3 on
+> 3301–3317 — giving sweeps of **1,680 / 3,024** (H2) and **40,320 / 362,880** (H3), and
+> H3 must export `MAX_PLACEMENT_COMBINATIONS_SKIP >= 30000000000`. H0 and H1 are unchanged
+> at `per_server` 1/2 and keep their 16/64-row sweeps and their read verdicts. **So the arm
+> signatures below differ by rung — check which rung a number came from before matching it
+> against a row.**
+
 | arm | why it breaks code | how to spot it |
 |---|---|---|
-| `replica_overlap` (H2) | several task types share one platform set — uniqueness can now be exhausted, confinement goes to zero | `n_rows` = 24 = 4!, `confined_tasks` = 0 |
+| `replica_overlap` (H2/H3) | several task types share ONE platform pool — uniqueness can be exhausted, confinement goes to zero | pre-amendment `n_rows` = 24 = 4!; post-amendment 1,680 = 8P4 / 3,024 = 9P4 |
 | `demand_scale != 1.0` (H1+) | every per-instance demand, cap and repair changes; anything defaulting to 1.0 is inert on H0 and wrong on H1 | `application.demand_scale` present in `workload.json` |
-| the **64-row** arm | the only arm that strands the greedy on H0/H1 — a probe that never reaches it reads clean | `n_rows == 64` (vs 16) |
-| `per_server = 1` | four tasks need four distinct platforms; overlap collapses it to two and the arm generates **zero** plans | 102 SKIPPED against 102 SUCCESS |
+| the **64-row** arm | the only arm that strands the greedy on H0/H1 — a probe that never reaches it reads clean | `n_rows == 64` (vs 16) — **H0/H1 only** |
+| `per_server = 1` | four tasks need four distinct platforms; overlap collapses it to two and the arm generates **zero** plans | 102 SKIPPED against 102 SUCCESS — **pre-AMENDMENT-3 H2 only; the arm no longer exists on H2/H3** |
+| **the wider arm now carries the signal** | on the amended H2 the two arms are not interchangeable: `per_server=4` reads S1 0.2353 registered and `per_server=5` reads 0.3333, so a pooled pass is carried by the wider one | split every statistic on `n_rows` and say which arm carries it |
 
 **The α axis counts as an arm too.** A claim measured at α=3.0 can be false at the rung's
 registered primary α=2.0 — that is exactly what happened to the confinement story.
+
+**The task count is an arm too, and it decides whether a rung exists at all.** Under
+`replica_overlap` the pool is `per_server × n_hosting_nodes` and the sweep requires
+**globally distinct** replicas, so `|pool| < |tasks|` yields **zero** valid assignments —
+not a sparse sweep, an empty one. H3 (`dag_instances=2`, 8 tasks) sat on pools of 2 and 4
+through registration, seeding, α-laddering and a derived skip threshold, and generated
+**0/204**; nobody knew until it was probed. `tests/test_route_b_env_pivot_w4.py::test_overlap_rungs_have_a_pool_big_enough_to_seat_every_task`
+now pins it **per arm** — the binding case is the *smallest* `per_server`, not the largest.
 
 ## The four steps
 
@@ -109,6 +126,15 @@ Five instances, one class. Each is real, each cost a session.
    #2, and confounded too: at H1's registered primary α all 70 censored datasets sat in the
    64-row arm and none in the 16-row arm.
 
+7. **A test kept passing while describing a rung that no longer existed.**
+   `test_h3_max_candidates_..._skip_threshold_derivation` derived **H3's** skip bound from
+   **`ROUTE_B_PIVOT_H0_GRID["replica_configs"]`** — correct only while every rung shared
+   H0's arms. AMENDMENT 3 moved H2/H3 to `per_server` 4/5 and the test stayed **green**
+   while asserting 16,777,216 for a rung whose bound is 25,600,000,000. ⇒ **Derive every
+   per-rung quantity from the grid it names**, and when you change one rung's grid, grep
+   the tests for the *other* rungs' constants. The checking code has the same one-arm
+   failure class as the code it checks.
+
 And the methodological instance, which no code review would have caught:
 
 6. **`--max-datasets 24` read "clean".** 24 datasets never reach the 64-row arm, which is
@@ -126,6 +152,19 @@ And the methodological instance, which no code review would have caught:
 - **A fix must be byte-identity-verified where it claims to be inert.** Diff every
   pre-existing key against the frozen artifact; do not assert inertness.
 - **Do not read S1–S4 on a VOID rung**, and do not read a rung's bars from a half-corpus.
+- **Signed-off amendments so far:** 1 (S0 control definition) · 2 (backtracking decoder) ·
+  **3 (2026-08-28, the H2/H3 grid — so S2 becomes computable).** Amendment 3 moved a grid
+  and nothing else: S2's threshold 0.5 and its `t1x` competitor are exactly as registered.
+  Read its §6 before quoting any amended-H2 number — a grid was adjusted after an S1 FAIL
+  and the bar then passed, and the fresh seed block is what keeps the registered reading
+  honest. **Do not point the amended H2 at seeds 3201–3217**; probes already read S1–S4 on
+  that grid shape there.
+- **No longer ruled out:** *widening `replica_configs`* was described in the node and
+  `ladder-findings.md` as loosening the squeeze. **Measured false** — the squeeze is
+  `server_node_counts=[4] × replica_server_percentage=0.5` ⇒ 2 hosting nodes, histogram
+  `{2: 204}` on every rung and every widened probe, with componentwise infeasibility rising
+  0.84 → 0.91 → 0.93. A claim about what a lever does to a scarcity is a histogram, not an
+  argument.
 - **Ruled out by measurement — do not re-propose:** relaxing α (it is a cliff — clean
   counters and "the constraint binds" are mutually exclusive on this grid; α=4.0 is
   byte-identical to the unconstrained anchor) and raising `replica_server_percentage`
@@ -136,6 +175,7 @@ And the methodological instance, which no code review would have caught:
 `docs/lineages/route_b_env_pivot_v1.md` — the node. Its attachments:
 `screen-preregistration.md` (registration), `screen-amendment-1.md` (S0 control
 definition), `screen-amendment-2.md` (the decoder, **signed off 2026-08-27**),
+`screen-amendment-3.md` (the H2/H3 grid, **signed off 2026-08-28**),
 `ladder-findings.md` (**§9 supersedes §3 and §4.1**; its §1/§4 counter tables are
 pre-amendment forward-only numbers). Gate-tool corrections go in `docs/gates/gate-tools.md`,
 never in a lineage narrative. **Session handovers are ephemeral — scratchpad, never the
