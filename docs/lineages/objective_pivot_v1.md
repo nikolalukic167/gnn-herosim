@@ -138,11 +138,27 @@ Phase 1 executes as registered. Tooling at commit `900fec3`:
   `simulation_data/normal_sim_sweeps`, `simulation_data/graphs_cache_full_corpus_siv1_dim14`,
   `data/nofs-ids/traces`) — code from 2026-08-25, data shared with the frozen arms.
 - **Job chain, each step gated on the previous** (`--dependency=afterok`):
-  **719808** `objp1-determinism` (trainer determinism green *in the pinned tree*, the
-  registration's precondition) → **719809** `objp1-train` (seeds 9–16, array 0-7,
+  `objp1-determinism` (trainer determinism green *in the pinned tree*, the
+  registration's precondition) → `objp1-train` (seeds 9–16, array 0-7,
   GPU-a40/l40s; refuses to overwrite an existing draw; same corpus/arch guards as the
-  seed 1–8 array) → **719810** `objp1-gate` (240 cells, array 0-239%60, CPU-amd; block
+  seed 1–8 array) → `objp1-gate` (240 cells, array 0-239%60, CPU-amd; block
   mapping byte-identical to job 712389's).
+- **First submission (719808→719809→719810) died at the precondition**: the cluster
+  `gnn` env had no `pytest`, so the determinism job failed after its pin check and the
+  dependents went `DependencyNeverSatisfied`. Fix per the datalab-pitfalls #10
+  discipline: `pip install pytest` (pure-Python; numpy/scipy/sklearn/torch verified
+  untouched), then the mandatory numerical-inertness proof —
+  `verify_venue_parity.py --mode logits --assert`: **max |Δ| = 0.0 exactly, 0/256
+  argmax flips**. Chain resubmitted: **719817** (determinism) → **719818** (train) →
+  **719819** (gate).
+- **Determinism precondition satisfied in full, not just formally.** 719817 passed
+  8/10 with the two *bit-identical* trainer tests skipped — their small regime_b test
+  caches existed only locally. Caches rsynced over (5.7 MB) and linked into the pinned
+  worktree; verification job **719838** then ran the suite complete in the pinned tree:
+  **10/10 PASSED**, including `test_gnn_training_is_bit_identical_at_a_fixed_seed` —
+  the tree the draws train from is proven bit-reproducible, while seeds 9–12 were
+  already training on L40S nodes (their per-checkpoint `deterministic_algorithms`
+  contract assertions in the sbatch remain the per-draw guarantee).
 - Every sbatch asserts the pin (exact commit + clean CODE_PATHS) before spending
   compute; the gate results' `run_provenance.code` will therefore record `c08aa7e`,
   clean — the identity the scorer's VOID gate requires.
