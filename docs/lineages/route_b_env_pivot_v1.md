@@ -1107,3 +1107,30 @@ the one path `program_verdict_v1` left open to the latency claim.
 **Not licensed from this parking:** any claim that overlap environments lack joint
 structure; any re-use of the H2/H3 VOID as evidence for or against the pivot hypothesis;
 any unregistered continuation of the ladder.
+
+### 2026-08-29 — corpora DELETED to free the cluster `/home` quota
+
+The three route_b co-sim dataset directories on datalab were deleted (user-authorised) to
+recover an exhausted per-account `/home` quota that had blocked `objective_pivot_v1`
+Phase 1 — see that node's 2026-08-29 incident entry for the diagnosis.
+
+Deleted (588 datasets, 55G total, `250G -> 196G`):
+
+| directory | datasets | size |
+|---|---|---|
+| `simulation_data/gnn_datasets_dag4_route_b_pilot_v1_8task` | 204 | 21G |
+| `simulation_data/gnn_datasets_route_b_pivot_h3_ctrl` | 204 | 19G |
+| `simulation_data/gnn_datasets_route_b_pivot_h3` | 180 | 15G |
+
+**None of the three appeared in `simulation_data/REGISTRY.json`**, so no registered dataset
+was lost, and every *measured* result of this screen stands as recorded — the numbers live
+in this node and in the scored artifacts, not in the raw corpora.
+
+**What this costs a future resumption.** This lineage is PARKED and resuming it needs a
+signed amendment; that amendment must now also budget **regeneration** of any rung it
+intends to read, because the H3 corpora and the dag4 pilot no longer exist on disk. The
+generation recipe is unchanged and recorded (`HEROSIM_COSIM_KEEP_ALIVE=1000000`
+`HEROSIM_RETAIN_TASK_TIMES=1`, plus Arm S's locality vars) — with the standing warning in
+`docs/gates/gate-tools.md` (2026-08-27) that a corpus generated without the full recipe
+reports `204/204 SUCCESS` and is silently unusable, so `sweep_complete` and the
+`num_placements` histogram must be checked before any regenerated rung is scored.
