@@ -175,8 +175,66 @@ Phase 1 executes as registered. Tooling at commit `900fec3`:
   `route_b_pivot_h3_ctrl_additivity.json` (now git-tracked); md5-verified byte-identical
   to the tracked blob before removing it (pitfall #3 discipline), then ff'd to `900fec3`.
 
-**Next session:** when 719810 completes — re-run
-`extract_gate_stats_summary.py --out simulation_data/gate_stats_summary.json` on the
-cluster, pull the summary back, run the scorer, and write the outcome here and in the
-index row. The verdict is whatever the scorer prints; no reading of partial results
-before the chain finishes.
+### 2026-08-29 — Phase 1 OUTCOME: **PASS**. The reliability claim is established.
+
+Chain as run: **719818** (train, seeds 9–16, 8/8 COMPLETED, ~16 min/draw on L40S) →
+**719819** (gate, 49/240 cells before the incident below) → **724238** (gate re-run,
+191/191 COMPLETED) → **724714** (summary extract, 1170 results over 6 blocks).
+All 240 new-arm results verified to parse **end-to-end** as JSON, not merely at the
+prefix the extractor reads. Scorer VOID gate passed: all 8 new arms recorded
+`c08aa7e`, clean tree, registered env axes.
+
+Verdict from `score_objective_pivot_phase1.py` (constants ARE the registration;
+`simulation_data/objective_pivot_phase1_verdict.json`):
+
+| threshold | role | GNN collapse counts (s1..s16) | MLP (frozen) | rank-sum p |
+|---|---|---|---|---|
+| +50% | **PRIMARY** | `0,1,0,0,3,0,0,0,0,0,0,0,0,0,0,0` | `0,0,8,10,5,3,0,11,0,0,21,16,26,0,0,7` | **0.00143** |
+| +100% | SENSITIVITY (must hold) | all zero | `0,0,6,8,3,2,0,8,0,0,18,12,23,0,0,6` | **0.00045** |
+| +30% | descriptive only | `0,8,0,0,10,2,0,0,0,0,0,0,0,0,0,0` | `0,1,8,10,6,5,0,12,0,0,22,17,26,0,0,7` | 0.00538 |
+
+**The registered claim, now writable:** across seeded draws, the GNN's severe-collapse
+burden (cells at `total_rtt` ≥ +50% vs same-cell Knative) is stochastically smaller
+than the MLP's. **Mandatory limitation (registered): the claim is scoped to severe
+collapse only.** At +30% the GNN is still clearly better but two draws (s2=8, s5=10)
+carry real burden — this is "a tight distribution with a tail versus a lottery", never
+"the GNN does not collapse", which `gnn_draw_study_v1` already falsified. At +100% the
+GNN is clean in 16/16 draws, which is where the separation is starkest.
+
+**SECONDARY (its own claim) also PASSES:** per-draw mean margin vs same-cell Knative is
+negative in **16/16** draws (bar ≥ 13/16), range −1.2% (s5) to −27.2% (s16),
+sign-test p = 1.5e−05.
+
+Dichotomy figures are descriptive as registered (clean 14/16 vs 7/16 at +50%,
+Fisher p = 0.0117) — its joint power at n=16 was computed as ~0.135 *before* sign-off,
+which is why it never carried the verdict.
+
+**Incident — the `/home` quota, and why it matters beyond tonight.** Gate 719819 lost
+191 of 240 tasks at 20:26 UTC; a blind resubmit (720349) lost all 191 again. Root cause
+was **not** cluster instability but an exhausted per-account `/home` quota (~250G):
+compute nodes could still allocate inodes but not write bytes (`Disk quota exceeded`),
+so SLURM created **0-byte** `.out`/`.err` files and every data-writing task died — some
+mid-simulation, later ones in under a second. `df` was actively misleading (6.3T free on
+the filesystem; the limit is per-user), and `sacct -a` returns only this account's jobs,
+so "no other users were affected" was an artifact, not evidence. What finally isolated
+it: a **single task, run alone**, failed instantly — ruling out both scale and code — and
+a direct compute-node write test returned the quota error. Space freed by deleting the
+three PARKED `route_b` dataset dirs (588 datasets, 55G;
+`gnn_datasets_dag4_route_b_pilot_v1_8task`, `..._route_b_pivot_h3_ctrl`,
+`..._route_b_pivot_h3` — none were in `REGISTRY.json`), 250G → 196G. Re-run then
+completed 191/191 with zero failures.
+
+**Two traps this incident exposes for any future gate re-run** (both now also in
+`docs/gates/gate-tools.md`):
+1. The runner's skip guard (`file exists` + nonzero `total_rtt`) treats a result written
+   by a task that later *failed* as complete. Six such files existed here; four were
+   92–97 MB with plausible RTTs and would have been silently adopted on resubmit. Delete
+   any result whose SLURM task did not reach `COMPLETED` before re-running.
+2. A quota/IO failure mid-write can truncate a result whose *prefix* still parses — and
+   both the skip guard and `extract_gate_stats_summary.py` read only the prefix. Verify
+   full-document JSON parse, not prefix validity. (Checked here: 240/240 clean.)
+
+**Phase 1 is CLOSED.** Next: Phase 2, the P3 horizon pilot pre-registered in
+`docs/lineages/program_verdict_v1.md` (co-primaries, n ≥ 300, in-harness h-calibration at
+h ∈ {2,5,10} first, h registered before the array). Its horizon labels double as Phase 3
+DAgger targets.
