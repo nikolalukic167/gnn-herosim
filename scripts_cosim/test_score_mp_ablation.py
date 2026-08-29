@@ -128,3 +128,25 @@ def test_void_short_circuits_before_any_statistic(capsys, tmp_path):
     assert S.main() == 2
     out = capsys.readouterr().out
     assert "VOID" in out and "PRIMARY" not in out
+
+
+# ---- Regression: the co-primary's direction was inverted once. ----------------------
+def test_co_primary_direction_is_not_inverted(capsys, tmp_path):
+    """MP-OFF strictly BETTER on collapse must report better=N, worse=0 -- not the reverse.
+
+    The first implementation zipped (voff, von) and tested `von > voff` while calling the
+    result `worse`, so an arm that collapsed LESS was reported as collapsing MORE, and the
+    one-sided p was computed against the wrong hypothesis.
+    """
+    s = _summary()
+    blk = sorted(S.BACKBONE_BLOCKS)[0]
+    cell = sorted(s[blk])[0]
+    # Make MP-ON collapse in this cell (>= +50% vs knative=100) and MP-OFF not.
+    s[blk][cell][S.MP_ON[1]]["total_rtt"] = 400.0
+    s[blk][cell][S.MP_OFF[1]]["total_rtt"] = 90.0
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps(s))
+    sys.argv = ["score_mp_ablation.py", "--summary", str(p)]
+    assert S.main() == 0
+    out = capsys.readouterr().out
+    assert "MP-OFF worse in 0, better in 1" in out, out

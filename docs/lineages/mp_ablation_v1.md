@@ -1,6 +1,6 @@
-# mp_ablation_v1 — REGISTERED
+# mp_ablation_v1 — CLOSED
 
-> **Status:** `REGISTERED` · **Index:** [LINEAGES.md](../../LINEAGES.md) · **Registered:** 2026-08-29, BEFORE any run
+> **Status:** `CLOSED` · **Index:** [LINEAGES.md](../../LINEAGES.md) · **Registered:** 2026-08-29 BEFORE any run · **Closed:** 2026-08-29
 
 **Question.** `objective_pivot_v1` Phase 1 established that the GNN's severe-collapse burden
 is stochastically smaller than the MLP's. That claim is currently worded as a statement about
@@ -70,3 +70,66 @@ Two-stage gate (seeds 1–8, then 9–16) with summary extraction between stages
 480 results × ~95 MB ≈ 45 GB against ~50 GB of quota headroom. The 2026-08-28 incident
 (exhausted `/home` quota → 0-byte SLURM logs → 191 lost tasks) is the reason this is staged
 rather than submitted as one 480-task array.
+
+## Record
+
+### 2026-08-29 — OUTCOME: **NO_DIFFERENCE_DETECTED**, and every line points the other way
+
+Chain: **724732** (train, 16 MP-OFF draws, 16/16 COMPLETED) → **725150** (gate seeds 1–8,
+240/240) → **725391** (gate seeds 9–16, 240/240) → **725636** (extract, 1650 results).
+Zero failures across all 496 tasks. All 480 MP-OFF results verified to parse **end-to-end**,
+not merely at the extractor's prefix. VOID gate passed: all 16 MP-OFF arms recorded
+`c08aa7e`, clean tree, and **`GNN_DISABLE_MESSAGE_PASSING=1`**. Lever confirmed effective
+before gating: all 16 MP-OFF checkpoints differ from their same-seed MP-ON pair.
+
+**Registered verdict: `NO_DIFFERENCE_DETECTED`.** Primary paired exact Wilcoxon on per-seed
+mean margin vs Knative: **p = 0.05066**, against α = 0.05. The bar was missed by 0.00066.
+
+**But the direction is unambiguous, and it is the opposite of the hypothesis.**
+
+| line | reading |
+|---|---|
+| primary, mean paired difference | **−5.63 pp** — MP-OFF *better*; 13 of 16 seeds negative |
+| co-primary, severe collapse (≥ +50%) | MP-OFF **better in 2, worse in 0**, tied in 14 |
+| descriptive +30% | MP-ON `[0,8,0,0,10,2,0…]` vs MP-OFF `[0,0,0,0,3,0,0…]` |
+| descriptive +100% | both clean, 0/16 |
+| backbone cells | MP-ON −25.1% vs MP-OFF **−34.4%** (Δ **−9.3 pp**) |
+| flat cells | MP-ON +2.5% vs MP-OFF +4.3% (Δ +1.8 pp) |
+
+Every secondary line agrees with the primary's direction: **message passing over the current
+graph is not contributing, and looks actively harmful** — most of all on the backbone cells,
+which is exactly where `objective_pivot_v1` measured the GNN's latency edge to live.
+
+**The registration governs, and it says `NO_DIFFERENCE_DETECTED`.** p = 0.05066 is not
+p ≤ 0.05, and the reading rules were fixed before the numbers existed. Reclassifying this as
+`MP_HARMFUL` post-hoc — on a 0.00066 margin, with a two-sided test, after seeing the
+direction — is exactly the move this program's discipline exists to prevent. The consequence
+registered for a null stands: **the Phase 1 claim must be reworded away from "graph-aware".**
+
+**What this does and does not license:**
+- It does **not** show message passing is useless in general. It shows that *this* message
+  passing — GIN over bipartite task↔platform edges plus same-node platform↔platform edges —
+  does not carry the reliability edge on these 30 cells.
+- It does **not** prove equivalence. A null here is a failure to detect; an equivalence claim
+  needs a registered TOST with a margin, which this screen did not run.
+- It **does** relocate the credit. With the GIN skipped, the model is a per-entity encoder
+  plus an `EdgeScorer` with masked softmax over candidate placements. That is what beat the
+  MLP in Phase 1. **The edge is attributable to the scoring/decode architecture, not to
+  graph reasoning.**
+
+**Consequence for the planned architecture work.** The prior recommendation was to add
+link/route structure so contention on shared bottleneck links becomes representable. That
+recommendation is now *ambiguous* rather than wrong, and the ablation cannot resolve it:
+either (a) message passing is unhelpful here in general, or (b) it is being run over the
+**wrong graph** — bipartite plus same-node edges cannot express shared-link contention, so it
+aggregates noise, and a link-aware graph might help where this one hurts. Distinguishing (a)
+from (b) requires building the link-aware graph and re-running this same ablation on it. That
+is now the decisive experiment, and it must be registered before it is run.
+
+**Tool correction found and fixed during scoring.** The co-primary's direction was inverted:
+`worse` was computed as `sum(... for a, b in zip(voff, von) if b > a)`, which tests
+`von > voff` — MP-**ON** collapsing more — while being labelled and reported as MP-OFF
+collapsing more, and the one-sided p was computed against the wrong hypothesis (reported
+p = 0.25 where the correct value is p = 1). The primary, and therefore the verdict, is
+unaffected. Fixed, with a regression test that fails against the old code
+(`test_co_primary_direction_is_not_inverted`); suite 14 → 15.
