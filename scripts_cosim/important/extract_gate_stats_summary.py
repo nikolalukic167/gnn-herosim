@@ -50,6 +50,12 @@ ARMS += DRAW_STUDY_ARMS
 GNN_DRAW_ARMS = [f"gnndraws{seed}" for seed in range(1, 17)]
 ARMS += GNN_DRAW_ARMS
 
+# mp_ablation_v1: the message-passing-OFF pair of each gnndraws arm, same seeds, same
+# pinned commit, same 30 cells. Same `gnn` policy, so ARM_SUFFIX defaults to "gnn"; only
+# the sweep dir separates them.
+MP_OFF_ARMS = [f"gnnmpoff{seed}" for seed in range(1, 17)]
+ARMS += MP_OFF_ARMS
+
 ARM_SUFFIX = {
     "knative": "knative",
     "mlp": "mlp_dim22",
