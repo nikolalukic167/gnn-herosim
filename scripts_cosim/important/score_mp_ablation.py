@@ -202,9 +202,11 @@ def main() -> int:
     c_off, _ = collapse_counts(summary, off_arms, SEVERE_PCT)
     von = [c_on[MP_ON[s]] for s in SEEDS]
     voff = [c_off[MP_OFF[s]] for s in SEEDS]
-    worse = sum(1 for a, b in zip(voff, von) if b > a)   # MP-OFF collapses more
-    better = sum(1 for a, b in zip(voff, von) if b < a)
-    ties = sum(1 for a, b in zip(voff, von) if a == b)
+    # Direction matters and is easy to invert: `worse` must mean MP-OFF collapsed MORE,
+    # i.e. its count exceeds its own MP-ON pair. Named explicitly rather than by zip order.
+    worse = sum(1 for on_i, off_i in zip(von, voff) if off_i > on_i)
+    better = sum(1 for on_i, off_i in zip(von, voff) if off_i < on_i)
+    ties = sum(1 for on_i, off_i in zip(von, voff) if off_i == on_i)
     n_eff = worse + better
     p_sign = sign_test_exact(worse, n_eff)
     print(f"\nCO-PRIMARY — paired sign test on severe collapse (>= +{SEVERE_PCT:.0f}%)")
