@@ -305,3 +305,23 @@ distribution" is the accurate summary, not "the graph model is faster".
   exists and the Phase 1 pin table already requires it unset, so the harness is ready.
   Recommend running it against these same 30 cells, pre-registered, **before** the Phase 3
   spend — if MP-off is equally reliable, the claim must be reworded away from "graph-aware".
+
+### 2026-08-29 — Phase 1 claim REWORDED (required by mp_ablation_v1's registered null)
+
+`mp_ablation_v1` returned `NO_DIFFERENCE_DETECTED` (primary p = 0.05066), and its
+registration fixed the consequence in advance: **the Phase 1 claim is reworded away from
+"graph-aware".** The statistic, the data and the PASS are untouched — only the causal
+attribution changes.
+
+- **Was (attribution unsupported):** "the *graph-aware* model's severe-collapse burden is
+  stochastically smaller than the pointwise MLP's."
+- **Now:** "across seeded draws, **the GNN model class** — a per-entity encoder plus a
+  masked-softmax `EdgeScorer` over candidate placements — has a severe-collapse burden
+  stochastically smaller than the pointwise MLP's (rank-sum p = 0.00143 at +50%; clean
+  16/16 at +100%). **The message-passing channel is not what produces this**: disabling it
+  leaves the edge intact and, directionally, improves it. The credit belongs to the scoring
+  and decode architecture."
+
+Any write-up of Phase 1 must report `mp_ablation_v1` alongside it. Reporting the reliability
+result without the control would assert exactly the attribution the control failed to find.
+
