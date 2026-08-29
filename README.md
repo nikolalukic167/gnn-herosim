@@ -1,159 +1,115 @@
-☁️ Heterogeneous Resources Orchestration Simulator for Serverless Cloud Computing
+# HeROsim — a testbed for graph-based placement in the edge–cloud continuum
 
-**HeROsim** is an open source simulation environment for the evaluation of serverless resources allocation and tasks scheduling policies. Its main goal is to relieve researchers from the implementation of discrete-event simulation boilerplate in the context of the dynamic process of cloud orchestration.
+HeROsim is a **discrete-event simulator** (SimPy) for serverless task placement across a
+heterogeneous edge–cloud cluster, plus the apparatus needed to turn it into **GNN training
+data** and to **evaluate learned schedulers against real baselines** under a reproducibility
+contract.
 
-We hope that by using HeROsim, researchers can focus their efforts on the core design of their allocation and scheduling policies. HeROsim provides the necessary environment for the evaluation of such policies against baselines and other state-of-the-art contributions, as well as the production of charts for inclusion in scientific papers.
+It exists to answer one question honestly: *does a graph-aware scheduler place tasks better
+than a pointwise one?* The repository is built so that a negative answer is as publishable
+as a positive one — every claim here is pre-registered, provenance-pinned, and scored by a
+script that takes no tuning arguments.
 
-## Overview
+## Two modes
 
-Serverless can be understood as both a programming model, sometimes called Function as a Service (FaaS), and a deployment model for the cloud. In such a model, developers design their applications as a composition of stateless functions which execution is event-driven. Serverless services free tenants from complex resource reservation as they are designed to handle on-demand scaling requirements. In the FaaS model, providers only bill customers according to their actual resources usage. They are fully responsible for deploying intelligent resource management and multiplexing at a finer granularity to optimize Quality of Service (QoS) metrics such as response time, energy consumption, etc.
+| mode | what it does |
+|---|---|
+| **live simulation** | Replays a workload trace (~300k events) against a cluster, with a pluggable placement policy. Produces per-task records and a scalar `total_rtt`. |
+| **co-simulation** | Captures cluster state after warmup, then **brute-forces every valid placement** of a small task batch and simulates each one. Yields exactly-labelled `(placement, rtt)` data — the supervised target for a GNN. |
 
-In a serverless architecture, developers design their applications as a composition of stateless functions. Stateless means that the outcome of the computation depends exclusively on the inputs. These functions take a payload and an invocation context as input, and produce a result that is stored in a persistent network-accessible storage tier. For any function, an **autoscaler** can deploy multiple *replicas* to absorb the load. Scaling a serverless application consists in growing or shrinking the pool of replicas for the functions following the load peaks: the goal of the autoscaler is to determine how to automatically and reactively scale hardware resources in a cloud in adequacy with the applications' load.
+## What is modelled
 
-Each replica is allocated on an execution platform (*e.g.* one CPU core, one GPU, etc.) and has a request queue of fixed length for incoming requests. The number of replicas for a given function at any moment determines its concurrency level. A **scheduler** places user requests in queue on function replicas. When a replica has no more requests to handle, it is deallocated. When a function is requested while no replica exists, it goes through a cold start. As functions are stateless, requests can be mapped to any available replica: the goal of the scheduler is to determine on which replica to queue user requests for a given function.
+- **Compute heterogeneity** — Raspberry Pi class SBCs, Nvidia Jetson/Xavier edge AI devices,
+  and servers, grouped into nodes with platforms, queues, warmth/cold-start physics and
+  image caching.
+- **Network** — an optional **backbone topology with finite link bandwidth**: core nodes,
+  access links, per-link latency and bandwidth, and routing. This is the axis on which the
+  graph model's advantage actually appears (see *Results*).
+- **Applications** — serverless functions with DAG dependencies, data sizes and storage tiers.
 
-## Features
+## Quickstart
 
-HeROsim replays an allocation and placement scenario under different orchestration policies. A simulator run requires the following inputs:
+```bash
+# 1. Generate co-simulation training data (brute-forced placement labels)
+pipenv run python3 scripts_cosim/generate_gnn_datasets_fast.py --max-datasets 5 --quiet
 
-* a **workload description** -- details on the **characteristics of the functions** that will be invoked during the scenario, *i.e.* their execution time, cold start time, memory requirements, energy consumption, etc.;
-* an **infrastructure description** -- the listing of the different **nodes available**, their different execution platforms (*i.e.* hardware resources), storage devices, network bandwidth, etc.;
-* an **execution trace** -- the arrival times for all **user requests**, associated with the requested application and desired Quality of Service (QoS) level.
+# 2. Build the graph cache the trainer consumes
+pipenv run python3 src/notebooks/prepare_graphs_cache.py
 
-The user chooses their desired orchestration policy for the run and execute the main program. The simulator will:
+# 3. Train via a config (never a bespoke train_*.py — see Conventions)
+pipenv run python3 run_experiment.py experiments/<config>.yaml
 
-* initialize the infrastructure as described: the scenario starts with all the nodes idle, waiting for new requests;
-* follow the arrival times of events from the execution trace, and pass the user requests to the orchestrator;
-* let the scheduler try to place these requests on function replicas;
-* let the autoscaler allocate and deallocate hardware resources that will execute user requests.
-
-The simulation advances when functions are invoked: it is a called a **task execution**. The simulator knows how long a function's response time is thanks to the metadata measured beforehand. These metadata concern the specific hardware and workloads the user is interested in scheduling. Details on the methodology we used to characterize various platforms and workloads can be found in our papers:
-
-* V. Lannurien et al., ["HeROfake: Heterogeneous Resources Orchestration in a Serverless Cloud – An Application to Deepfake Detection"](https://hal.science/hal-04165179), 2023 IEEE/ACM 23rd International Symposium on Cluster, Cloud and Internet Computing (CCGrid), Bangalore, India, 2023, pp. 154-165, doi: 10.1109/CCGrid57682.2023.00024.
-* V. Lannurien et al., "HeROcache: Storage-Aware Scheduling in Heterogeneous Serverless Edge -- The Case of IDS" (CCGrid 2024, accepted).
-
-During the simulation, logs are written under the `log` directory. When all the user requests have been processed, the simulation stops and returns results summarizing the simulation run in the `result` directory.
-
-To compare the outcomes of different policies, the user should call the `src.placement` module multiple times with different parameters -- once for each policy they want to evaluate. Each run will produces different results files in the output directory. These results allow comparing different orchestration policies according to various metrics, including (but not limited to) QoS violations, tasks consolidation across nodes, static and dynamic energy consumption, communication times, total makespan, etc. Finally, the user should call the `src.charts` module to generate the digest charts comparing the various results for the scenario.
-
-Various example `scenario-*.sh` scripts guide you through HeROsim's original usage. They,
-along with the `src.placement` / `src.charts` / `src.generator` modules and the rest of the
-proactive-autoscaling stack described above, now live in **`archive/pre_gnn_herosim/`** —
-the repository's active work has moved on to GNN co-simulation. To run them as they were,
-check out the tag `pre-cleanup-2026-08`, where all their imports still resolve. See
-[`LINEAGES.md`](LINEAGES.md) for what is current and [`archive/README.md`](archive/README.md)
-for the archive's rules.
-
-## Usage
-
-Two methods are proposed to run HeROsim:
-
-1. Using Python on your host OS (tested under Ubuntu 22.04);
-2. Using Docker and/or Docker Compose.
-
-### Method 1: Ubuntu 22.04 and Python
-
-#### Setup Python
-
-You will need Python 3.12 to run the program. Although not necessary, we recommend using the following tools:
-* `pyenv` to manage Python versions;
-* `pipenv` to manage the project's dependencies.
-
-Here are bootstrap instructions to setup `pyenv` and `pipenv` under Ubuntu 22.04:
-
-```shell
-# Install required library headers for pyenv
-sudo apt-get install build-essential zlib1g-dev libffi-dev libssl-dev libbz2-dev libreadline-dev libsqlite3-dev liblzma-dev
-
-# Install pip
-sudo apt-get install python3-pip
-
-# Install pyenv to manage Python versions
-curl https://pyenv.run | bash
-
-# Update PATH (append these to ~/.bashrc)
-export PYENV_ROOT="$HOME/.pyenv"
-command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-
-# If you used a previous version of Python, you might need to update setuptools
-pip install --upgrade setuptools
-
-# Install pipenv
-pip install --user pipenv
-
-# Update PATH (append these to ~/.bashrc)
-export PIPENV_BIN="$HOME/.local/bin"
-command -v pipenv >/dev/null || export PATH="$PIPENV_BIN:$PATH"
+# 4. Evaluate live against baselines
+pipenv run python3 src/executesimulation.py --policy <registry-name> <args>
 ```
 
-If you have already installed `pyenv` and/or `pipenv`, please check that you are running up-to-date versions:
+Every dataset carries `placements/placements.jsonl` — the **full** placement sweep, not just
+the optimum. Treat it as mandatory; a dataset without it cannot support most analyses here.
 
-* [Upgrading `pip`](https://pip.pypa.io/en/stable/installation/#upgrading-pip);
-* [Upgrading `pyenv`](https://github.com/pyenv/pyenv?tab=readme-ov-file#upgrading);
-* [Upgrading `pipenv`](https://pipenv.pypa.io/en/latest/installation.html#installing-pipenv).
+## Policies
 
-#### Setup HeROsim's virtual environment
+Implement three base classes to add one: `Orchestrator` (system state), `Autoscaler` (replica
+lifecycle), `Scheduler` (per-task replica choice). `src/policy/random/` is ~20 lines — copy it
+as a template, then register in `src/placement/simulation.py`.
 
-We assume that your current working directory is pointed at the root of the repository. The following instructions will install the necessary versions of Python 3.12 and the project's dependencies in a virtual environment using `pyenv` and `pipenv`:
+Shipped: `gnn/` (GIN over a bipartite task↔platform graph with a masked-softmax edge scorer),
+`tabular/` (pointwise MLP), `knative*/` (reactive industry baselines, several network/batch
+variants), plus assorted controls.
 
-```shell
-# Install required Python version and project dependencies
-pipenv install
+> **There is no `Replica` class.** A *replica* is a `(Node, Platform)` pair in
+> `system_state.replicas[task_type]` — an eligibility fact with no identity or lifecycle.
+> See `CONTEXT.md` for the full vocabulary.
 
-# Install development dependencies if you wish to contribute to the codebase
-pipenv install --dev
+## Reproducibility apparatus
 
-# Run virtual environment
-pipenv shell
+This is the part worth reusing even if you do not care about placement:
 
-# Generate workload characteristics and traces
-# e.g. 83 Requests per Second during 600 seconds for the CCGrid workloads
-# This step is not necessary for Artifacts Evaluation, as the execution trace used in the paper ships with the repository
-# python -m src.generator -d data/ids -t -r 83 -s 600
+- **Feature contracts.** A checkpoint without a `.contract.json` sidecar is not evidence.
+  `load_state_dict(strict=True)` is *not* a compatibility check — architecture flags invisible
+  in weight shapes must come from the contract.
+- **Warmth physics** and **queue feature** contracts are explicit and incompatible variants
+  raise rather than silently changing results by ~100×.
+- **Determinism gate.** `tests/test_trainer_determinism.py` requires two runs of *every*
+  trainer at one seed to give bit-identical weights.
+- **Venue parity.** `PARITY.md` + `verify_venue_parity.py` establish when two numbers from
+  different machines may be compared. Measured result: library versions contribute exactly
+  0.0 to GNN logits, so a cross-venue gap is a code bug, not the venue.
+- **Provenance.** Results record the commit, tree cleanliness and every registered env axis;
+  scorers VOID rather than compute over unverified arms.
 
-# Run the simulation scenario as shown in the paper
-# e.g. compare performances of HRC, HRO, Knative, BPFF and RP policies
-# NOTE: these scenarios are archived; check out tag pre-cleanup-2026-08 to run them
-git checkout pre-cleanup-2026-08
-./scenario-ids.sh
-```
+## Results established so far
 
-### Method 2: Docker
+Measured on 16 seeded training draws per model class × 30 live cells (~300–350k events each),
+against Knative as the reactive baseline:
 
-This repository comes with a `Dockerfile` to run the simulator in a sandboxed environment.
+- **Reliability (registered, PASS).** The GNN's severe-collapse burden — cells at
+  `total_rtt` ≥ +50% vs Knative — is stochastically smaller than the pointwise MLP's
+  (rank-sum *p* = 0.00143; at +100% the GNN is clean in 16/16 draws, the MLP is not).
+  **Scoped to severe collapse**: at +30% two GNN draws still carry real burden. The claim is
+  "a tight distribution with a tail versus a lottery", never "the GNN does not collapse".
+- **Latency is contention-dependent (exploratory).** The GNN averages **−25.1%** vs Knative on
+  cells with a finite-bandwidth backbone, but **+2.5%** (slightly worse) on flat cells.
+  Remove network contention and the advantage disappears.
+- **A supervised negative.** On single-batch co-simulation targets the objective is
+  pointwise-separable, so the MLP is the *correctly specified* model class and more data
+  cannot change that. The diagnostic that establishes this is reusable and is, in our view,
+  the more transferable contribution.
 
-```shell
-# Build the image
-docker build . -t ${USER}/herosim
+**Known open confound:** GNN and MLP differ in architecture, capacity and regularisation, not
+only in graph-awareness. A message-passing ablation has not yet been run, so "graph-aware" is
+not yet distinguished from "different architecture".
 
-# Run the image
-# Output data will be written to anonymous volumes
-docker run -it ${USER}/herosim
+## Where knowledge lives
 
-# Run the image
-# Output data will be written to host directories
-docker run -it -v ./chart:/home/app/chart -v ./log:/home/app/log -v ./result:/home/app/result ${USER}/herosim
-```
+`LINEAGES.md` indexes the research record; `docs/lineages/<name>.md` holds each full dated
+node. `docs/hard-stops.md` lists falsified directions and the measurement that closed each —
+**read it before proposing a direction**. `CONTEXT.md` (vocabulary), `PARITY.md`
+(cross-venue), `CO_SIMULATION_GUIDE.md` (pipeline) are the other entry points.
 
-A `docker-compose.yml` file is also distributed with the simulator for convenience.
+## Conventions
 
-```shell
-# Run the image
-# Output data will be written to named volumes specified in docker-compose.yml
-docker compose up -d
-```
-
-## Developer usage
-
-The simulator ships three base classes -- `Orchestrator`, `Autoscaler` and `Scheduler` -- that should be subclassed by users to implement their own policies.
-
-* **`Orchestrator`**. Provides abstract initialization methods that are to be overridden to manage different structures of system state. For example, a Round Robin scheduler will need to know how many times each function replica has been selected for task placement, while a Least Connected scheduler will need to know the average concurrency in each replica to balance the load. This class is the point of entry for users to define their own data structures that will best represent the system state that will be passed around the `Autoscaler` and `Scheduler` to manage;
-* **`Autoscaler`**. Provides the base behavior of the autoscaling platform, with creation and removal of function replicas. A number of abstract methods have to be overridden in each policy: resources selection for replica creation, replica initialization process, replica selection for removal, etc. These abstract methods operate at the granularity of a single function, all take the system state and the list of available hardware resources as input. The users are free to use whichever algorithms they wish to evaluate for resources management;
-* **`Scheduler`**. Provides the base behavior of tasks placement, with task selection in the queue. One abstract method has to be overridden in each policy: the selection of replica among the pool to place each user request in queue. This method operates at the granularity of one user request, *i.e.* an application invocation, and takes the system state and the list of available function replicas as input.
-
-The implementation overhead is minimal: the simplest couple of autoscaler and scheduler, namely the Random Placement policy, are implemented in less than 20 lines of code. This policy is a good starting point to create your own orchestrator: copy and rename the `src/policy/random` directory to start implementing your policy.
-
-## License
-
-HeROsim is released under the Apache License, Version 2.0. Feel free to modify, distribute, and use the software in accordance with the terms of the license. Contributions to the project are also welcome.
+- New experiments get a config under `experiments/`, run via `run_experiment.py`. Never fork
+  a training script per experiment.
+- Simulation is deterministic when seeded. Tie-breaks over *sets* are the classic leak —
+  `PYTHONHASHSEED` does not pin them.
+- Dependencies in `Pipfile`; one pinned spec for cross-venue work in `envs/herosim-lock.txt`.
