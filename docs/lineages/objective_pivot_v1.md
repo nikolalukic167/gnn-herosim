@@ -238,3 +238,70 @@ completed 191/191 with zero failures.
 `docs/lineages/program_verdict_v1.md` (co-primaries, n ≥ 300, in-harness h-calibration at
 h ∈ {2,5,10} first, h registered before the array). Its horizon labels double as Phase 3
 DAgger targets.
+
+### 2026-08-29 — EXPLORATORY (post-hoc, NOT part of the registered claim)
+
+Everything below was computed after the verdict, was not pre-registered, and may not be
+cited as a claim. It is recorded because it changes what Phases 2/3 should ask.
+
+**Pipeline, stated exactly** (the question "was this co-sim → train → big-workload test?"):
+
+| stage | what it actually was |
+|---|---|
+| data gen | co-simulation, **2,651 datasets**, each a **4-task** batch with every placement brute-forced (`4tasks_contention_v2/v3/v4_pilot`, `4tasks_1060_warmth_v2`, `4tasks_sparse_warmth_v2`, `4tasks_highq_safe_20260606`); 20 client / 20 server nodes, sparse, `p ∈ [0.15, 0.5]`, `node_disk_v2`. **`link_topology` is absent from these datasets.** |
+| train | `graphs_cache_full_corpus_siv1_dim14` → `near-rtt-v2-full-corpus-siv1-dim14-ce-only` config, 16 seeded draws, `dim22` / `scale_invariant_v1` |
+| test | live simulation, **301,352 events** (`workload-150-100`) and **351,767 events** (`workload-175-100`) — ~300–350k tasks, not 500k — over 30 cells |
+
+So yes, it is the co-sim → train → live-gate pipeline, but with a **large deliberate
+generalisation gap**: fitted on 4-task brute-forced batches carrying no link model, then
+judged on ~300k-event workloads, two thirds of whose cells carry a network backbone the
+training corpus never contained.
+
+**The 30 cells are not one environment.** 20 carry an explicit backbone
+(`n_core` 4 or 8, access link 20 ms, core link 4 ms, finite bandwidth 0.5 or 1.5 Mbps,
+44–48 links, 20 routes); 10 are flat (`link_topology: None`, i.e. the pre-network shape).
+
+**Mean margin vs same-cell Knative, split on that axis:**
+
+| block | kind | GNN mean | GNN worst | MLP mean | MLP worst |
+|---|---|---|---|---|---|
+| `bbrob/bb_core4_bw0p5` | backbone | **−26.3%** | +16.7% | +21.1% | +502.2% |
+| `bbrob/bb_core8_bw1p5` | backbone | **−22.8%** | +10.1% | +25.2% | +285.5% |
+| `drawgate/backbone` | backbone | **−24.8%** | +21.0% | +9.4% | +230.5% |
+| `promo175/backbone` | backbone | **−26.3%** | +13.7% | +9.3% | +349.7% |
+| `drawgate/nobackbone` | FLAT | **+2.6%** | +60.8% | +120.9% | +1686.1% |
+| `promo175/nobackbone` | FLAT | **+2.4%** | +63.2% | +96.9% | +1611.5% |
+| **backbone (20 cells)** | | **−25.1%** | | +16.3% | |
+| **FLAT (10 cells)** | | **+2.5%** | | +108.9% | |
+
+**Read this carefully, because it splits the two results apart:**
+
+1. **The GNN's *latency* advantage is a network-contention phenomenon.** On backbone
+   cells it averages −25.1% vs Knative; on flat cells it is **+2.5%, i.e. slightly
+   WORSE than Knative**. The headline per-draw figures (best draw −27.2%) are carried
+   almost entirely by the 20 backbone cells. Remove finite link bandwidth and the
+   latency edge disappears. This is the first direct evidence that the
+   `feat/network-contention-v1` environment change is what the graph model exploits —
+   consistent with route A's finding that coupling alone is insufficient and contention
+   is required.
+2. **The *reliability* result is NOT the same phenomenon and does not need the backbone.**
+   The MLP is at its most catastrophic on the FLAT cells (+108.9% mean, worst
+   **+1686%**), where the GNN sits near parity. So the registered severe-collapse claim
+   holds across both halves, while the latency margin does not.
+
+**Distribution shape** (16 draws each, mean margin over all 30 cells): GNN best −27.2%,
+median −18.1%, worst −1.2%, **16/16 below Knative**. MLP best −29.2%, median +19.2%,
+worst **+328.8%**, only **7/16** below Knative. The MLP's *best* draws edge out the GNN's
+best — its ceiling is not the problem, its floor is. "A lottery versus a tight
+distribution" is the accurate summary, not "the graph model is faster".
+
+**Consequences for Phases 2/3, and one new control:**
+- The latency question should be asked **on backbone cells**, where the effect lives;
+  a flat-cell latency comparison is measuring a regime with no edge to find.
+- **Untested confound, now the biggest threat to the headline:** GNN and MLP differ in
+  architecture, capacity and regularisation, not only in graph-awareness. No
+  message-passing ablation exists in the record (`gnn_necessity_ablation.py` burned a job
+  and never live-gated; `topology_transfer_v1` FAILED all arms). `GNN_DISABLE_MESSAGE_PASSING`
+  exists and the Phase 1 pin table already requires it unset, so the harness is ready.
+  Recommend running it against these same 30 cells, pre-registered, **before** the Phase 3
+  spend — if MP-off is equally reliable, the claim must be reworded away from "graph-aware".
