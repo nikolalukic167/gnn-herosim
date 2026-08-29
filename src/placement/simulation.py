@@ -48,26 +48,10 @@ from src.placement.scheduler import Scheduler
 from src.policy.gnn.autoscaler import KnativeAutoscaler as GNNAutoscaler
 from src.policy.gnn.orchestrator import GNNOrchestrator as GNNOrchestrator
 from src.policy.gnn.scheduler import GNNScheduler
-from src.policy.tabular.orchestrator import XGBoostBatchOrchestrator
-from src.policy.tabular.scheduler import XGBoostBatchScheduler
 from src.policy.tabular.mlp_orchestrator import MLPBatchOrchestrator
 from src.policy.tabular.mlp_scheduler import MLPBatchScheduler
-from src.policy.tabular.single_orchestrator import XGBoostSingleOrchestrator
-from src.policy.tabular.single_scheduler import XGBoostSingleScheduler
-from src.policy.gnn_hetero.autoscaler import KnativeAutoscaler as GNNHeteroAutoscaler
-from src.policy.gnn_hetero.orchestrator import GNNOrchestrator as GNNHeteroOrchestrator
-from src.policy.gnn_hetero.scheduler import GNNScheduler as GNNHeteroScheduler
 
 
-from src.policy.herocache.orchestrator import HRCOrchestrator
-from src.policy.herocache.autoscaler import HRCAutoscaler
-from src.policy.herocache.scheduler import HRCScheduler
-from src.policy.herocache_network.orchestrator import HRCOrchestrator as HRCNetworkOrchestrator
-from src.policy.herocache_network.autoscaler import HRCAutoscaler as HRCNetworkAutoscaler
-from src.policy.herocache_network.scheduler import HRCScheduler as HRCNetworkScheduler
-from src.policy.herocache_network_batch.orchestrator import HRCOrchestrator as HRCNetworkBatchOrchestrator
-from src.policy.herocache_network_batch.autoscaler import HRCAutoscaler as HRCNetworkBatchAutoscaler
-from src.policy.herocache_network_batch.scheduler import HRCScheduler as HRCNetworkBatchScheduler
 
 from src.policy.knative.orchestrator import KnativeOrchestrator
 from src.policy.knative.autoscaler import KnativeAutoscaler
@@ -76,26 +60,12 @@ from src.policy.knative.scheduler import KnativeScheduler
 from src.policy.random.scheduler import RandomScheduler, RandomNetworkScheduler
 
 
-from src.policy.determined.orchestrator import DeterminedOrchestrator
-from src.policy.determined.autoscaler import DeterminedAutoscaler
-from src.policy.determined.scheduler import DeterminedScheduler
-from src.policy.evaluator.orchestrator import EvaluatorOrchestrator
-from src.policy.evaluator.autoscaler import EvaluatorAutoscaler
-from src.policy.evaluator.scheduler import EvaluatorScheduler
 
 from src.policy.knative_network.orchestrator import KnativeOrchestrator as KnativeNetworkOrchestrator
 from src.policy.knative_network.autoscaler import KnativeAutoscaler as KnativeNetworkAutoscaler
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
-from src.policy.knative_network_ect.scheduler import KnativeECTScheduler as KnativeNetworkECTScheduler
-from src.policy.knative_network_ect_pull.scheduler import (
-    KnativeECTPullScheduler as KnativeNetworkECTPullScheduler,
-)
 from src.policy.knative_network_batch.scheduler import KnativeBatchScheduler as KnativeNetworkBatchScheduler
-from src.policy.offload_network.scheduler import OffloadNetworkScheduler
 
-from src.policy.roundrobin_network.orchestrator import RoundRobinNetworkOrchestrator
-from src.policy.roundrobin_network.autoscaler import RoundRobinNetworkAutoscaler
-from src.policy.roundrobin_network.scheduler import RoundRobinNetworkScheduler
 # knative_no_batch renamed to knative_network (no batching)
 # Imports are now above with knative_network
 
@@ -724,32 +694,11 @@ def start_simulation(
     policies: Dict[
         str, Tuple[Type[Orchestrator], Type[Autoscaler], Type[Scheduler]]
     ] = {
-        "hrc_hrc": (HRCOrchestrator, HRCAutoscaler, HRCScheduler),
-        "hrc_kn": (HRCOrchestrator, HRCAutoscaler, KnativeScheduler),
-        "hrc_rp": (HRCOrchestrator, HRCAutoscaler, RandomScheduler),
-        "kn_kn": (KnativeOrchestrator, KnativeAutoscaler, KnativeScheduler),
-        "kn_hrc": (KnativeOrchestrator, KnativeAutoscaler, HRCScheduler),
-        "kn_rp": (KnativeOrchestrator, KnativeAutoscaler, RandomScheduler),
         "gnn_gnn": (GNNOrchestrator, GNNAutoscaler, GNNScheduler),
-        "gnn_hetero_gnn_hetero": (GNNHeteroOrchestrator, GNNHeteroAutoscaler, GNNHeteroScheduler),
-        "xgb_batch_xgb_batch": (XGBoostBatchOrchestrator, GNNAutoscaler, XGBoostBatchScheduler),
         "mlp_batch_mlp_batch": (MLPBatchOrchestrator, GNNAutoscaler, MLPBatchScheduler),
-        "xgb_single_xgb_single": (XGBoostSingleOrchestrator, KnativeNetworkAutoscaler, XGBoostSingleScheduler),
-        "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
-        "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),
         "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkScheduler),
-        "kn_network_ect_kn_network_ect": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkECTScheduler),
-        "kn_network_ect_pull_kn_network_ect_pull": (
-            KnativeNetworkOrchestrator,
-            KnativeNetworkAutoscaler,
-            KnativeNetworkECTPullScheduler,
-        ),
         "kn_network_batch_kn_network_batch": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkBatchScheduler),
-        "rr_network_rr_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, RoundRobinNetworkScheduler),
-        "hrc_network_hrc_network": (HRCNetworkOrchestrator, HRCNetworkAutoscaler, HRCNetworkScheduler),
-        "hrc_network_batch_hrc_network_batch": (HRCNetworkBatchOrchestrator, HRCNetworkBatchAutoscaler, HRCNetworkBatchScheduler),
         "rp_network_rp_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, RandomNetworkScheduler),
-        "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
     }
 
     # Retrieve relevant Autoscaler and Scheduler classes

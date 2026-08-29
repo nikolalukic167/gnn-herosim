@@ -1053,21 +1053,15 @@ def run_simulation(
     logger.info(f"Running {policy} simulation")
 
     # Validate policy
+    # Artifact branch: the policy set is scoped to the network-contention GNN study.
+    # The variants removed here (gnn_hetero, herocache*, offload, ECT, xgboost,
+    # roundrobin, determined, evaluator) live on feat/network-contention-v1.
     valid_policies = [
         'knative',
         'gnn',
-        'gnn_hetero',
-        'roundrobin',
         'knative_network',
-        'knative_network_ect',
-        'knative_network_ect_pull',
         'knative_network_batch',
-        'herocache_network',
-        'herocache_network_batch',
         'random_network',
-        'offload_network',
-        'xgboost_batch',
-        'xgboost_single',
         'mlp_batch',
     ]
     if policy not in valid_policies:

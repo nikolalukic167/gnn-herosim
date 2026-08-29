@@ -183,23 +183,6 @@ def test_run_decode_with_timing_dispatches_masked_topo():
     assert combo == ((2, 21),)
 
 
-def test_hetero_static_guard_mode_name_absent():
-    """src/policy/gnn_hetero/ is a second decoder copy with no KNOWN_DECODE_MODES
-    registry and is out of scope for stage 2 (§4). If the mode name ever appears
-    there, someone wired the registered decoder into the unregistered copy."""
-    hetero = REPO_ROOT / "src" / "policy" / "gnn_hetero"
-    assert hetero.is_dir(), f"{hetero} missing — guard needs updating"
-    offenders = [
-        path
-        for path in hetero.rglob("*.py")
-        if "masked_topo" in path.read_text(encoding="utf-8", errors="replace")
-    ]
-    assert not offenders, (
-        f"'masked_topo' appears in {offenders} — the hetero decoder copy is out "
-        "of scope for stage 2 and must not grow the registered mode"
-    )
-
-
 # =======================================================================================
 # Per-step rescoring (score_fn) — the §2 information-tier hook.
 #
