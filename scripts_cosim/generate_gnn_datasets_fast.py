@@ -988,6 +988,60 @@ CONTENTION_V2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_4tasks_contention_v2",
 }
 
+# link_mp_v1: BINDING-backbone training corpus for the link-graph MP ablation
+# (docs/lineages/link_mp_v1.md). Three fabric variants, one per live-gate backbone family
+# (a1_backbone_bw1p5 = core4/bw1.5, bbrob = core8/bw1.5 and core4/bw0.5), so the trained
+# fabric distribution covers exactly the fabrics the 20 registered backbone gate cells
+# carry. This is deliberately NOT topo_transfer_v1's corpus: that one pinned bandwidth at
+# a non-binding 1000 MB/s ("uses topology *structure*"), which makes every link feature
+# label-irrelevant — a model trained there has no reason to read the fabric at all.
+# Here bandwidth binds (0.5/1.5 MB/s, the live-gate values), so route cost is a real term
+# in every label.
+#
+# Physics: contention_v2's scarce-warm regime (the deployed checkpoint's training regime)
+# PLUS netc_multihop_v1's per_client=0 rows — without those, tasks that can run on their
+# own source node make the network irrelevant to the optimum, which is exactly how the
+# first link_contention_v1 pilot failed.
+# MUST be generated with --allow-non-unique-replicas (contention-series rule).
+# Seeds 1101-1110: a fresh block, never used by any other grid (gate cells are 9001-9005).
+_LINK_MP_V1_BASE: GridPreset = {
+    "connection_probabilities": [0.15, 0.25, 0.35, 0.50],
+    "replica_configs": [
+        (0, 1, 0.7, 0.9),
+        (0, 2, 0.7, 0.9),
+        (1, 1, 0.7, 0.9),
+        (1, 2, 0.7, 0.9),
+        (2, 2, 0.5, 0.7),
+    ],
+    "queue_distributions": [
+        ("norm35", "normal", 35, 11, 0, 96, 1),
+        ("uniform20_80", "uniform", 20, 80, 0, 120, 1),
+        ("pois28", "poisson", 28, 0, 0, 72, 1),
+    ],
+    "seeds": list(range(1101, 1111)),
+}
+LINK_MP_V1_CORE4_BW0P5_GRID: GridPreset = {
+    **_LINK_MP_V1_BASE,
+    "backbone_defaults": {
+        "link_bandwidth_mbps": 0.5, "n_core": 4, "attach_degree": 1, "chord_count": 0,
+    },
+    "default_output_subdir": "gnn_datasets_4tasks_link_mp_v1_core4_bw0p5",
+}
+LINK_MP_V1_CORE4_BW1P5_GRID: GridPreset = {
+    **_LINK_MP_V1_BASE,
+    "backbone_defaults": {
+        "link_bandwidth_mbps": 1.5, "n_core": 4, "attach_degree": 1, "chord_count": 0,
+    },
+    "default_output_subdir": "gnn_datasets_4tasks_link_mp_v1_core4_bw1p5",
+}
+LINK_MP_V1_CORE8_BW1P5_GRID: GridPreset = {
+    **_LINK_MP_V1_BASE,
+    "backbone_defaults": {
+        "link_bandwidth_mbps": 1.5, "n_core": 8, "attach_degree": 1, "chord_count": 0,
+    },
+    "default_output_subdir": "gnn_datasets_4tasks_link_mp_v1_core8_bw1p5",
+}
+
 # contention_v4_deepq: MATCH THE LIVE QUEUE REGIME.
 # Measured 2026-08-13: the live failure of 873/v5.5 GNN/MLP is pure queueing, not pull
 # serialization — live GNN sparse_p35 s42 has averageQueueTime 503.4s out of 503.4s
@@ -1089,6 +1143,9 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "skew_warmth_v2": SKEW_WARMTH_V2_GRID,
     "contention_v1": CONTENTION_V1_GRID,
     "contention_v2": CONTENTION_V2_GRID,
+    "link_mp_v1_core4_bw0p5": LINK_MP_V1_CORE4_BW0P5_GRID,
+    "link_mp_v1_core4_bw1p5": LINK_MP_V1_CORE4_BW1P5_GRID,
+    "link_mp_v1_core8_bw1p5": LINK_MP_V1_CORE8_BW1P5_GRID,
     "shallow_v1": SHALLOW_V1_GRID,
     "netc_multihop_v1": NETC_MULTIHOP_V1_GRID,
     "topo_transfer_v1": TOPO_TRANSFER_V1_GRID,

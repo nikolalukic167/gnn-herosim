@@ -56,6 +56,16 @@ ARMS += GNN_DRAW_ARMS
 MP_OFF_ARMS = [f"gnnmpoff{seed}" for seed in range(1, 17)]
 ARMS += MP_OFF_ARMS
 
+# link_mp_v1: three arm families trained on the binding-backbone corpus, gated on the 20
+# BACKBONE cells only (a core_v1 checkpoint fails loud on a fabric-less graph, by design).
+#   lgon    core_v1 network entities in the message-passing graph
+#   lgctrl  plain MP-ON control, same corpus, no network entities
+#   lgmpoff MP-OFF control, same corpus (GNN_DISABLE_MESSAGE_PASSING=1 train+serve)
+LINK_MP_ARMS = [
+    f"{fam}{seed}" for fam in ("lgon", "lgctrl", "lgmpoff") for seed in range(1, 17)
+]
+ARMS += LINK_MP_ARMS
+
 ARM_SUFFIX = {
     "knative": "knative",
     "mlp": "mlp_dim22",
@@ -122,8 +132,22 @@ def extract_object(text: str, key: str, open_c: str = "{", close_c: str = "}"):
     return None  # did not close inside the prefix
 
 
+def _open_text(path: Path):
+    """Open a result document, transparently handling gzip-compacted evidence.
+
+    Closed-lineage sweeps are gzip-compacted in place to keep the per-account /home
+    quota alive (the 2026-08-28 quota exhaustion killed 191 gate tasks twice), so the
+    frozen baselines this summary is rebuilt from may be .json.gz. Same bytes, same
+    bounded-prefix read.
+    """
+    if path.suffix == ".gz":
+        import gzip
+        return gzip.open(path, "rt", encoding="utf-8", errors="replace")
+    return path.open("r", encoding="utf-8", errors="replace")
+
+
 def read_result(path: Path) -> dict:
-    with path.open("r", encoding="utf-8", errors="replace") as fh:
+    with _open_text(path) as fh:
         head = fh.read(PREFIX_BYTES)
     s = head.find('"stats"')
     if s < 0:
@@ -168,10 +192,17 @@ def read_result(path: Path) -> dict:
         "TOPOLOGY_FEATURE_CONTRACT": env.get("TOPOLOGY_FEATURE_CONTRACT"),
         "GNN_MP_NODE_EDGES": env.get("GNN_MP_NODE_EDGES"),
         "GNN_DISABLE_MESSAGE_PASSING": env.get("GNN_DISABLE_MESSAGE_PASSING"),
+        # link_mp_v1: which graph the served model message-passes over. The scorer VOIDs
+        # any lgon arm not recording core_v1 and any control arm recording it.
+        "NETWORK_GRAPH_CONTRACT": env.get("NETWORK_GRAPH_CONTRACT"),
     }
-    ds = path.parent / path.name.replace(".json", ".decode_stats.json")
-    if ds.is_file():
-        out["decode_stats"] = json.loads(ds.read_text())
+    base = path.name[:-3] if path.name.endswith(".gz") else path.name
+    stem = base.replace(".json", ".decode_stats.json")
+    for ds in (path.parent / stem, path.parent / (stem + ".gz")):
+        if ds.is_file():
+            with _open_text(ds) as fh:
+                out["decode_stats"] = json.load(fh)
+            break
     return out
 
 
@@ -193,8 +224,19 @@ def main() -> int:
                 missing.append(f"{prefix}/{cond}/{arm} (no results dir)")
                 continue
             suffix = ARM_SUFFIX.get(arm, "gnn")
-            for p in sorted(d.glob(f"*_s0_{suffix}.json")):
-                cell = p.name.replace(f"_s0_{suffix}.json", "")
+            # Raw first, then gzip-compacted; a cell present in both raises rather than
+            # letting one silently shadow the other.
+            by_cell = {}
+            for p in sorted(d.glob(f"*_s0_{suffix}.json")) + \
+                     sorted(d.glob(f"*_s0_{suffix}.json.gz")):
+                cell = p.name.replace(f"_s0_{suffix}.json.gz", "").replace(
+                    f"_s0_{suffix}.json", "")
+                if cell in by_cell:
+                    raise SystemExit(
+                        f"FAIL LOUD: {d} has BOTH raw and compacted results for "
+                        f"{cell!r}; delete one before extracting.")
+                by_cell[cell] = p
+            for cell, p in by_cell.items():
                 summary.setdefault(f"{prefix}/{cond}", {}).setdefault(cell, {})[arm] = \
                     read_result(p)
 
