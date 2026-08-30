@@ -141,6 +141,31 @@ arm behavior (the sbatch files are read from HEAD in the main checkout and only 
 the pinned worktree, the mp_ablation pattern). Pinned worktree on datalab:
 `~/gnn-herosim-pin-8aef27a`.
 
+## Amendment 2 — corpus frozen at 1,675 datasets (2026-08-31, before any arm existed)
+
+User instruction (verbatim): "can we run the full pipeline (without my intervention) with
+the data that we have here?" — recorded as the authorization for this amendment.
+
+**Corpus = the grid as generated at freeze time:** core4_bw0p5 556 / core4_bw1p5 561 /
+core8_bw1p5 558 = **1,675** complete datasets (93% of the 1,800 target; MIN floor 1,500
+holds). The three still-running tail shards (726506_9/_19/_29, covering grid indices
+540-599 per variant) were cancelled at freeze; any dataset they left mid-write has no
+`placements.jsonl` and is excluded by the cache builder's own completion signal.
+
+**Validity note.** Zero registered arms existed at freeze (verified: no `gnn-linkmp-lg*`
+checkpoints), so this changes no result and biases no comparison: all three families
+still train on the identical corpus and differ by exactly one factor. **Scope caveat,
+recorded up front:** the missing ~125 datasets are the tail of the grid enumeration —
+the slowest, most contention-heavy combos (~20-30 min each vs seconds for the median).
+The frozen corpus therefore under-represents the heaviest-contention training examples;
+if the verdict is a null, this caveat is part of its honest reading (and is exactly the
+`MAX_PLACEMENT_COMBINATIONS` skip-threshold failure mode, hit deliberately this time and
+written down rather than silently).
+
+**Pipeline change:** a final auto-score stage (`link_mp_v1_score.sbatch`) is appended
+after the gate — end-to-end parse verification of all 960 results, summary extraction at
+HEAD, then `score_link_mp_v1.py` — so the registered verdict lands with no manual step.
+
 ## Record
 
 *(empty — no runs yet)*
