@@ -59,7 +59,7 @@ BACKBONE_BLOCKS = ("drawgate/backbone", "promo175/backbone",
                    "bbrob/bb_core8_bw1p5", "bbrob/bb_core4_bw0p5")
 
 # Set by the registration amendment that pins the arms' commit; None refuses to score.
-PIN_COMMIT: "str | None" = None
+PIN_COMMIT = "8aef27a98fd636000008468d75a52d645f999969"
 
 _COMMON_PROVENANCE = {
     "code_dirty": False,

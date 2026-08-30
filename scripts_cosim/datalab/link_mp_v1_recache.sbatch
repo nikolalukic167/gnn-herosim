@@ -23,8 +23,8 @@
 
 set -euo pipefail
 
-PIN_DIR=/home/nikola.lukic/gnn-herosim-pin-__LINK_MP_V1_PIN_SHORT__
-PIN_COMMIT=__LINK_MP_V1_PIN__
+PIN_DIR=/home/nikola.lukic/gnn-herosim-pin-8aef27a
+PIN_COMMIT=8aef27a98fd636000008468d75a52d645f999969
 cd "$PIN_DIR"
 
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi

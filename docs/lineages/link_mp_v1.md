@@ -134,9 +134,12 @@ arm must run at. It is set — and this section updated — in the commit immedi
 the registration commit, because a commit cannot contain its own hash. Until then the
 scorer refuses to score (`PIN_COMMIT = None`), and that refusal has a test.
 
-**Not yet set.** The registration commit must exist first; the follow-up amendment commit
-writes the real hash here and into the scorer/sbatch constants (it changes only pin
-constants, this section, and the LINEAGES.md row — none of which alter arm behavior).
+**Set 2026-08-30:** pin = `8aef27a98fd636000008468d75a52d645f999969` — the registration
+commit itself. This amendment commit changes only the pin constants in
+`score_link_mp_v1.py` and the four sbatch files, plus this section; none of those alter
+arm behavior (the sbatch files are read from HEAD in the main checkout and only `cd` into
+the pinned worktree, the mp_ablation pattern). Pinned worktree on datalab:
+`~/gnn-herosim-pin-8aef27a`.
 
 ## Record
 
