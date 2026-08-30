@@ -31,6 +31,11 @@ set -euo pipefail
 PIN_DIR=/home/nikola.lukic/gnn-herosim-pin-8aef27a
 PIN_COMMIT=8aef27a98fd636000008468d75a52d645f999969
 cd "$PIN_DIR"
+# Bind the shared training wrapper to THIS worktree. Its PROJECT_ROOT default cd's to the
+# main checkout, silently escaping the pin — found 2026-08-30 when the preview trainings
+# could not see worktree-local caches; the same escape means a wrapper-based training's
+# venue is main HEAD unless this is set. See gate-tools.md.
+export PROJECT_ROOT="$PIN_DIR"
 
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
