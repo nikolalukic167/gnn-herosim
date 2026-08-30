@@ -54,7 +54,10 @@ MIN_GRAPHS=1500
 
 total_jsonl=0
 for d in "${CORPUS_DIRS[@]}"; do
-  n=$(find "$d" -path '*/placements/placements.jsonl' -size +0 2>/dev/null | wc -l)
+  # Trailing slash: $d is a SYMLINK in the pin worktree, and find does not descend a
+  # symlinked directory argument without it — measured 2026-08-31 as "0 datasets" against
+  # a corpus of 1,675 (job 727295).
+  n=$(find "$d/" -path '*/placements/placements.jsonl' -size +0 2>/dev/null | wc -l)
   echo "  ${d}: ${n} placements.jsonl"
   total_jsonl=$((total_jsonl + n))
 done
