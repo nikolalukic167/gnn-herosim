@@ -1,6 +1,6 @@
-# link_mp_v1 — REGISTERED
+# link_mp_v1 — CLOSED
 
-> **Status:** `REGISTERED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Registered:** 2026-08-30, before any arm was generated, trained, or gated
+> **Status:** `CLOSED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Registered:** 2026-08-30, before any arm existed &nbsp;·&nbsp; **Closed:** 2026-08-31
 
 **Question.** [mp_ablation_v1](mp_ablation_v1.md) closed with a null whose every
 descriptive line pointed at MP-OFF ≥ MP-ON, and explicitly could not distinguish
@@ -168,4 +168,50 @@ HEAD, then `score_link_mp_v1.py` — so the registered verdict lands with no man
 
 ## Record
 
-*(empty — no runs yet)*
+### Outcome — NO_DIFFERENCE_DETECTED on the primary, and the mechanism resolved by the secondaries (2026-08-31)
+
+Chain 727300 (recache, 1,675 graphs both caches, fabric on all core graphs) → 727301
+(48/48 trainings, venue-bound via `PROJECT_ROOT`) → 727302 (960/960 gate cells, zero
+failures) → 727303 (auto-score: 960/960 parse end-to-end, all 48 arms provenance-verified
+at pin `8aef27a`). Verdict JSON archived at `link_mp_v1/verdict.json`.
+
+| endpoint | result |
+|---|---|
+| **PRIMARY** lgon vs lgmpoff (one-sided Wilcoxon) | mean diff **+0.47 pp**, p = **0.372** → **NO_DIFFERENCE_DETECTED** |
+| **S1** lgon vs lgctrl (attribution) | mean diff **+4.98 pp**, p = **0.00459** — lgon significantly better |
+| **Context** lgmpoff vs lgctrl | mean diff **+4.50 pp**, p = **0.00107** — no-MP significantly better than old-graph MP |
+| **S2** severe collapse (≥+50%) | **all 48 arms, all 20 cells: zero collapses** (also at +30% and +100%); 16/16 ties, p = 1 |
+| family means vs Knative (20 backbone cells) | lgon **−38.5%** · lgmpoff **−38.0%** · lgctrl **−33.5%** (deployed fabric-blind model: −25.1%) |
+
+**Reading, in one sentence: message passing over the old graph is measurably harmful
+(−4.5 pp, p = .001); the link-aware graph repairs exactly that harm (+5.0 pp, p = .005);
+and repaired MP lands precisely at the no-MP level (+0.5 pp, n.s.).**
+
+Three consequences:
+
+1. **The mp_ablation_v1 ambiguity is resolved — both halves were true.** (b) The graph
+   WAS wrong: bipartite + same-node message passing actively hurts, now at p = .001 on a
+   corpus where the network matters. And (a) MP is still not a net win even over the
+   right graph — the supervised MP question is **closed on both graphs**. Per the
+   registered consequence: no re-runs with tweaks; the remaining MP question moves to the
+   closed-loop phase (`objective_pivot_v1` P1). This outcome is exactly what
+   `program_verdict_v1` predicts for a pointwise-separable supervised target: the
+   correctly specified pointwise scorer is the ceiling, and the best any graph
+   architecture can do is *reach* it — measured here as a tie to within half a point.
+2. **The corpus is the biggest lever ever measured in this program.** Every family
+   trained on the binding-backbone corpus beats the deployed model's −25.1% by ~8–13 pp,
+   and **not one of the 48 arms collapses on any cell at any threshold** — the first
+   all-clean reliability table this repo has produced. Architecture moved the needle
+   ≤5 pp; matching the training fabric to the serving fabric moved it ~13 pp.
+3. **The link graph still earns its keep** — as a *repair*, not a boost. If message
+   passing is retained for the closed-loop phase (where the objective finally rewards
+   joint reasoning), it must run over `core_v1`; running it over the old graph is now
+   known to cost ~4–5 pp. If MP is dropped instead, `lgmpoff`-on-this-corpus is the
+   strongest, tightest supervised baseline available (−38.0%, spread −34.3…−43.9, zero
+   collapses).
+
+**Scope caveats, as registered:** corpus frozen at 93% (Amendment 2 — the missing tail
+is the heaviest-contention combos); backbone cells only; margins are vs frozen same-cell
+Knative baselines. The preview's one bad lgon draw (pv seed 4, partial corpus) did not
+recur in the registered 16 — worst lgon seed is −27.2% with zero collapses.
+
