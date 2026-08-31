@@ -325,3 +325,19 @@ attribution changes.
 Any write-up of Phase 1 must report `mp_ablation_v1` alongside it. Reporting the reliability
 result without the control would assert exactly the attribution the control failed to find.
 
+### Training-venue audit — the pin escape changed nothing, proven bitwise (2026-08-31)
+
+Found while building `link_mp_v1`: the shared training wrapper's `PROJECT_ROOT` default
+`cd`'s to the main checkout, so the Phase 1 seeds 9-16 draws (job 719818) actually
+trained at main HEAD (~`2c49fc4`), not at the bannered pin `c08aa7e` — the sbatch's
+`[PIN]` assertion did not bind the venue (gate-tools 2026-08-30 row; gates were never
+affected, their runner self-anchors and their provenance always recorded the true pin).
+
+Settled empirically rather than by code reading: venuecheck job **728341** retrained
+seed 9 in the c08aa7e worktree with `PROJECT_ROOT` actually bound, on the same node
+class as the original (l40s), deterministic algorithms on. Result: **bitwise identical
+across all 31 tensors** vs the shipped `gnn-draw-s9.pt`. The ~5,000 route_b lines
+between c08aa7e and the training-day HEAD are flag-gated and inert at default flags —
+now measured, not assumed. **Phase 1's draws, its PASS, and the seeds 1-8/9-16
+exchangeability claim stand exactly as constructed.** The audit checkpoint
+(`gnn-draw-s9-venuecheck.pt`) is deleted after comparison; this entry is its record.
