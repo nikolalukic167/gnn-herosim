@@ -173,7 +173,9 @@ HEAD, then `score_link_mp_v1.py` — so the registered verdict lands with no man
 Chain 727300 (recache, 1,675 graphs both caches, fabric on all core graphs) → 727301
 (48/48 trainings, venue-bound via `PROJECT_ROOT`) → 727302 (960/960 gate cells, zero
 failures) → 727303 (auto-score: 960/960 parse end-to-end, all 48 arms provenance-verified
-at pin `8aef27a`). Verdict JSON archived at `link_mp_v1/verdict.json`.
+at pin `8aef27a`). Verdict JSON archived at `link_mp_v1/verdict.json`. Paper-grade
+write-up of the corpus-fabric finding: `link_mp_v1/writeup_corpus_fabric.md`
+(2026-09-01; numbers frozen to this node).
 
 | endpoint | result |
 |---|---|
