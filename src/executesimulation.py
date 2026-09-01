@@ -1290,6 +1290,24 @@ def run_simulation(
                     result_summary["decode_stats"] = summary
                     stats_path = output_file.with_suffix(".decode_stats.json")
                     write_run_decode_stats(stats_path, p1_margin=margin)
+                    # Phase 3: when the episode was sampled, its trajectory carries the
+                    # exploration rate — the fraction of decisions that differed from
+                    # argmax. A temperature that is cheap because it reproduces argmax
+                    # gives the policy gradient nothing to learn from, so this travels
+                    # with the result rather than being inferred from RTT alone.
+                    try:
+                        from src.policy.gnn.seq_decode import get_episode_trajectory
+                        traj = get_episode_trajectory()
+                    except ImportError:
+                        traj = None
+                    if traj is not None and traj.task_choices:
+                        result_summary["episode_trajectory"] = traj.to_dict()
+                        print(
+                            f"  [sample] T={traj.temperature} decisions={len(traj.task_choices):,} "
+                            f"explore_rate={traj.to_dict()['explore_rate']:.4f} "
+                            f"mean_logprob={traj.to_dict()['mean_logprob']:.4f}",
+                            flush=True,
+                        )
                     print("\n=== GNN decode stats ===", flush=True)
                     dt = summary.get("decode_time_ms", {})
                     col = summary.get("intra_batch_platform_collisions", {})
