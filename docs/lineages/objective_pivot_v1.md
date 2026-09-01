@@ -404,3 +404,48 @@ workers and was rerun at 256 G — peak 71 GB; h=2/h=5 completed in the first jo
 co-sims**, out to `simulation_data/snapshot_sweeps_p3_h10/`. Readout after completion:
 `separability_diagnostic.py` (M4 unmodified) + the registered co-primaries with the
 node-count and link repair controls.
+
+### 2026-09-01 — Phase 2 RESULT: the registered P3 co-primary FIRED — but read the chaos caveat below before acting on it
+
+Pilot job 732927: 10/10 tasks COMPLETED, **300/300 snapshots, 76,800 mini co-sims,
+zero failed combos**. Readout `simulation_data/p3_h10_readout.json` (M4 unmodified).
+
+**Registered verdict, by the 2026-08-24 rule (co-primaries are an OR):**
+
+| endpoint | measured | bar | result |
+|---|---|---|---|
+| (a) median `additive_choice_regret_rel` | **0.00842** | > 0.02 | not met |
+| (b) fraction of snapshots with regret > 2% | **21.67% (65/300)** | ≥ 15% | **MET** |
+| node-count repair, affected stratum | median 0.000, mean 0.009 | < 0.5 | passes |
+| link repair (best of k1/k2/excess), affected stratum | median 0.000, mean 0.016 | < 0.5 | passes |
+
+Binomial: P(X ≥ 65 | p = 0.033, the t=0 base rate) = **1.5e-33**; against the 15% bar
+itself, p = 0.0013; Wilson 95% CI on the rate [17.4%, 26.7%]. Regret distribution:
+mean 1.45%, p90 3.15%, p99 7.77%, max 37.9%. **Both repair controls are essentially
+zero** — whatever this is, it is neither node-occupancy-count nor link-load shaped,
+the first mechanism in this program to escape both.
+
+Per-cell, the firing mass is concentrated: the two `p50` cells and `core4/cell02_p35`
+carry 14/30, 13/30, 14/30 above the bar, while three cells fire 0/30.
+
+**Additive R² collapses to 0.0487 (median 0.0463)** — against ~0.988 for the t=0
+`contention_v2` target. Read literally, ~95% of the placement-driven variance in the
+horizon return is not pointwise-expressible.
+
+**⚠ EXPLORATORY CHAOS CONTROL (post-hoc, not registered, and it may overturn the
+reading above).** A deterministic discrete-event simulator can amplify a tiny placement
+difference into large, arbitrary RTT differences 10 s later — deterministic but
+encoding nothing about placement quality. That would present exactly as "regret" and as
+a collapsed R², while being unlearnable. The test is horizon rank-stability: a genuinely
+better placement should be better at every horizon. On the three calibration snapshots
+(h ∈ {2,5,10}, 256 shared plans each) the Spearman rank correlations are
+**+0.10/+0.03/−0.02, −0.02/−0.11/+0.06, +0.18/+0.09/+0.18** — i.e. near zero, and the
+h=10 optimum ranks as poorly as **206/256** at h=2. That is the chaos signature, not the
+structure signature.
+
+**But that control is not yet decisive**: all three calibration snapshots sit in
+`core4/cell01`, the *lowest*-signal cell in the pilot (0/30 above the bar), where every
+difference is tiny and near-zero correlation is expected regardless. Job 733075 re-runs
+the control at h = 2 and 5 on the `p50` cells that carry the firing mass. **Until it
+returns, the horizon labels must not be used as Phase 3 DAgger targets** — training on
+chaos would teach noise with a plausible-looking loss curve.
