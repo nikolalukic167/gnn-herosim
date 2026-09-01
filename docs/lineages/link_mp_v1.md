@@ -215,3 +215,32 @@ is the heaviest-contention combos); backbone cells only; margins are vs frozen s
 Knative baselines. The preview's one bad lgon draw (pv seed 4, partial corpus) did not
 recur in the registered 16 — worst lgon seed is −27.2% with zero collapses.
 
+
+## 2026-08-31 — Promotion: `gnn-linkmp-lgon-s8` is the reference checkpoint
+
+`models/gnn-linkmp-lgon-s8.pt` (+ `.contract.json`) replaces the fabric-blind full-corpus
+siv1 checkpoint as the default GNN baseline for future comparisons.
+
+**Selection rule, fixed before looking at file names:** family = the one whose serving
+configuration is *self-describing* among the statistically tied pair (primary p = 0.372) —
+that is `lgon`: its network encoders are weight-visible, so `load_gnn_model`
+(`src/executesimulation.py:772-794`) detects them from the state dict, adopts
+`network_graph_contract: core_v1` from the sidecar (setting `NETWORK_GRAPH_CONTRACT`
+itself when unset), and fails loud on any mismatch. `lgmpoff` was rejected for promotion
+*despite* its tighter spread because `GNN_DISABLE_MESSAGE_PASSING` is env-only
+(`gnn_model.py:295`) and absent from the sidecar whitelist — served without the env var it
+silently runs message passing over untrained GIN weights, exactly the mismatch class of
+2026-08-16. Seed = the median of the 16 by 20-cell mean margin, taking the middle seed
+closer to the family mean: seed 8, **−38.0% vs Knative** (family mean −38.5%). Median, not
+best, on purpose — best-of-16 is a draw-lottery pick that inflates expected live quality
+(`docs/lessons.md` 2026-08-24 seed entries).
+
+Provenance: trained in the pin worktree at `8aef27a…` on the frozen 1,675-dataset
+binding-backbone corpus; md5 verified identical local↔datalab
+(`c1021bf941b30612b0cee72f54c8215f` / sidecar `d53724c9b8cf709753b33e31e275fad8`); local
+smoke-load confirms `network_entities=True (core_v1)`, 52,801 params, env auto-set.
+
+**Caveat:** `objective_pivot_v1` Phase 1's reliability claim (severe-collapse burden
+< MLP's) was measured on the *old* deployed checkpoint and does **not** transfer to this
+one automatically. This checkpoint's own reliability evidence is the 48-arm zero-collapse
+table above (backbone cells, +30/50/100%).
