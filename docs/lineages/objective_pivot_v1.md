@@ -376,3 +376,31 @@ stride 31, cap 2000) with the new field; job 732888 (dependent) runs the registe
 calibration — 3 snapshots × h ∈ {2, 5, 10}, top-k 4 = 256 combos, worst-case fabric
 bb_core4_bw0p5. h is then fixed by the registered rule (largest affordable, ≥ 5 s for
 axis terminality) and signed before the array is queued.
+
+### 2026-09-01 — Phase 2: calibration COMPLETE, h REGISTERED at 10 s, pilot array queued
+
+Registered calibration (jobs 732888 + 732918; 732888's h=10 stage OOM'd at 48 G with 16
+workers and was rerun at 256 G — peak 71 GB; h=2/h=5 completed in the first job):
+
+| h | snapshot t | combos | horizon arrivals | wall ms/combo (16 workers) |
+|---|---|---|---|---|
+| 2 | 9.1 / 62.1 / 114.1 s | 256 each | 2,508 / 6,091 / 2,005 | 150 / 368 / 141 |
+| 5 | 9.1 / 62.1 / 114.1 s | 256 each | 7,266 / 15,373 / 2,849 | 453 / 884 / 168 |
+| 10 | 9.1 / 62.1 / 114.1 s | 256 each | 19,370 / 30,474 / 2,849 | 1,011 / 1,760 / 179 |
+
+- **(a) In-process: CONFIRMED.** Worst combo 1.76 s wall ≈ 28 CPU-s — far below the
+  5.1 s-per-combo startup scenario that would have forced a re-scope.
+- **(b) h = 10 s, by the registered rule.** ~16–28 CPU-s/combo ⇒ n=300 × 256 combos ≈
+  **340–600 CPU-h**, inside the 2026-08-24 anchor (~300 CPU-h × 1.5–2 fabric overhead);
+  the h ≥ 5 axis-terminality bound is satisfied with margin.
+- **Truncated windows near trace end are KEPT.** The t=114.1 s snapshot's h=5 and h=10
+  windows are identical (2,849 arrivals — trace ends at 118.7 s). The registration
+  contains no exclusion, and dropping snapshots post-hoc is exactly the sampling-bias
+  pattern the sweep docstring forbids; `n_horizon_events` per meta records the
+  truncation for the analysis to see.
+
+**Array queued:** `scripts_cosim/datalab/p3_horizon_pilot.sbatch` — 10 tasks
+(2 backbone fabrics × 5 bbrob cells) × 30 snapshots = **300 snapshots, 76,800 mini
+co-sims**, out to `simulation_data/snapshot_sweeps_p3_h10/`. Readout after completion:
+`separability_diagnostic.py` (M4 unmodified) + the registered co-primaries with the
+node-count and link repair controls.
