@@ -53,6 +53,8 @@ from scripts_cosim.live_snapshot_cosim_oracle import (  # noqa: E402
     CosimOracleContext,
     build_workload_from_snapshot,
     combo_to_placement_plan,
+    preflight_horizon_reachability,
+    slice_horizon_events,
     snapshot_tasks,
 )
 from src.placement.scheduling_cost import (  # noqa: E402
@@ -62,19 +64,24 @@ from src.placement.scheduling_cost import (  # noqa: E402
 _CTX: Optional[CosimOracleContext] = None
 _SNAPSHOT: Optional[Dict[str, Any]] = None
 _TASKS: Optional[List[Dict[str, Any]]] = None
+_HORIZON_EVENTS: Optional[List[Dict[str, Any]]] = None
 
 
 def _init_worker(config_path: str, sim_input: str, seed: int, snapshot_json: str) -> None:
-    global _CTX, _SNAPSHOT, _TASKS
+    global _CTX, _SNAPSHOT, _TASKS, _HORIZON_EVENTS
     _CTX = CosimOracleContext(Path(config_path), Path(sim_input), seed=seed)
     _SNAPSHOT = json.loads(snapshot_json)
     _TASKS = list(_SNAPSHOT["tasks"])
+    # P3 horizon continuation: pre-sliced, pre-shifted trace arrivals (or None = t=0).
+    _HORIZON_EVENTS = _SNAPSHOT.pop("p3_horizon_events", None)
 
 
 def _run_combo(plan_items: Sequence[Tuple[int, Tuple[int, int]]]) -> Tuple[Dict[int, Tuple[int, int]], float]:
     assert _CTX is not None and _SNAPSHOT is not None and _TASKS is not None
     plan = dict(plan_items)
-    rtt = _CTX.run_placement_plan(_SNAPSHOT, _TASKS, plan)
+    rtt = _CTX.run_placement_plan(
+        _SNAPSHOT, _TASKS, plan, horizon_events=_HORIZON_EVENTS
+    )
     return plan, rtt
 
 
@@ -107,6 +114,8 @@ def stratified_subsample(snapshots: List[Dict[str, Any]], n: int) -> List[Dict[s
     if len(snapshots) <= n:
         return snapshots
     ordered = sorted(snapshots, key=lambda s: float(s.get("time", 0.0)))
+    if n == 1:
+        return [ordered[len(ordered) // 2]]
     idx = [round(i * (len(ordered) - 1) / (n - 1)) for i in range(n)]
     return [ordered[i] for i in sorted(set(idx))]
 
@@ -115,10 +124,36 @@ def sweep_snapshot(
     snap: Dict[str, Any],
     args: argparse.Namespace,
     ds_dir: Path,
+    trace_events: Optional[List[Dict[str, Any]]] = None,
+    preflight_ctx: Optional[CosimOracleContext] = None,
 ) -> Dict[str, Any]:
     tasks = snapshot_tasks(snap, args.horizon)
     full_product = math.prod(len(t.get("candidates", [])) for t in tasks)
     tasks, prune_stats = prune_candidates(tasks, args.top_k)
+
+    horizon_events: Optional[List[Dict[str, Any]]] = None
+    if args.horizon_seconds > 0:
+        assert trace_events is not None  # enforced in main()
+        horizon_events = slice_horizon_events(
+            trace_events, float(snap["time"]), args.horizon_seconds
+        )
+        if not horizon_events:
+            raise RuntimeError(
+                f"FAIL LOUD: snapshot {snap.get('snapshot_id')} at t={snap.get('time')} "
+                f"has zero trace arrivals in its {args.horizon_seconds}s horizon — the "
+                "snapshot sits past the trace end and its 'horizon return' would "
+                "silently degrade to the t=0 label"
+            )
+        assert preflight_ctx is not None  # constructed once in main()
+        unplaceable = preflight_horizon_reachability(
+            preflight_ctx._base_infrastructure, snap, horizon_events
+        )
+        if unplaceable:
+            raise RuntimeError(
+                f"FAIL LOUD: snapshot {snap.get('snapshot_id')} has horizon arrivals "
+                f"with no reachable replica (an unplaceable task retries forever and "
+                f"hangs the mini co-sim): {unplaceable}"
+            )
     combos = list(
         itertools.product(*[
             [(int(c["node_id"]), int(c["platform_id"])) for c in t["candidates"]]
@@ -128,6 +163,8 @@ def sweep_snapshot(
     plans = [tuple(enumerate(combo)) for combo in combos]
 
     snap_for_worker = {**snap, "tasks": tasks}
+    if horizon_events is not None:
+        snap_for_worker["p3_horizon_events"] = horizon_events
     started = time.perf_counter()
     rows: List[Tuple[Dict[int, Tuple[int, int]], float]] = []
     failed = 0
@@ -159,7 +196,7 @@ def sweep_snapshot(
             }
             f.write(json.dumps(rec, separators=(",", ":")) + "\n")
 
-    workload = build_workload_from_snapshot(tasks)
+    workload = build_workload_from_snapshot(tasks, horizon_events=horizon_events)
     (ds_dir / "workload.json").write_text(json.dumps(workload, indent=1))
 
     # Link context for the diagnostic's link-repair controls (backbone cells only).
@@ -178,6 +215,9 @@ def sweep_snapshot(
         "top_k": args.top_k,
         "horizon": args.horizon,
         "full_candidate_product": full_product,
+        "horizon_seconds": args.horizon_seconds,
+        "trace": str(args.trace) if args.trace else None,
+        "n_horizon_events": len(horizon_events) if horizon_events is not None else 0,
         "swept_combos": len(plans),
         "rows_written": len(rows),
         "failed_combos": failed,
@@ -202,11 +242,35 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--top-k", type=int, default=6)
     ap.add_argument("--horizon", type=int, default=4)
+    ap.add_argument("--horizon-seconds", type=float, default=0.0,
+                    help="P3: continue the cell's trace arrivals for this many seconds "
+                         "past each snapshot; label becomes the horizon return "
+                         "(batch + arrivals). 0 = t=0 behaviour, unchanged.")
+    ap.add_argument("--trace", type=Path, default=None,
+                    help="The live trace the snapshots were captured from "
+                         "(e.g. data/nofs-ids/traces/workload-150-100.json); "
+                         "required when --horizon-seconds > 0")
     ap.add_argument("--max-snapshots", type=int, default=50)
     ap.add_argument("--workers", type=int, default=int(os.environ.get("SLURM_CPUS_PER_TASK", "8")))
     ap.add_argument("--calibrate", action="store_true",
                     help="Stop after the first snapshot and print timing")
     args = ap.parse_args()
+
+    trace_events: Optional[List[Dict[str, Any]]] = None
+    preflight_ctx: Optional[CosimOracleContext] = None
+    if args.horizon_seconds > 0:
+        if args.trace is None:
+            raise SystemExit("FAIL LOUD: --horizon-seconds > 0 requires --trace")
+        with open(args.trace) as f:
+            trace_events = json.load(f)["events"]
+        print(f"[sweep] P3 horizon mode: h={args.horizon_seconds}s over "
+              f"{len(trace_events)} trace events from {args.trace}", flush=True)
+        preflight_ctx = CosimOracleContext(
+            Path(args.config), Path(args.sim_input), seed=args.seed
+        )
+    elif args.trace is not None:
+        raise SystemExit("FAIL LOUD: --trace given but --horizon-seconds is 0 — "
+                         "say what you mean")
 
     snapshots: List[Dict[str, Any]] = []
     with open(args.snapshots) as f:
@@ -232,7 +296,8 @@ def main() -> int:
                 print(f"[sweep] SKIP (exists): {ds_dir.name} rows={meta['rows_written']}", flush=True)
                 summary.append(meta)
                 continue
-        meta = sweep_snapshot(snap, args, ds_dir)
+        meta = sweep_snapshot(snap, args, ds_dir, trace_events=trace_events,
+                              preflight_ctx=preflight_ctx)
         summary.append(meta)
         print(
             f"[sweep] {ds_dir.name}: t={meta['time']:.1f}s combos={meta['swept_combos']} "

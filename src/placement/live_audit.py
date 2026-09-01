@@ -108,6 +108,29 @@ def _batch_qualifies(
     return True
 
 
+def _replicas_by_type_payload(
+    system_state: "SystemState",
+) -> Dict[str, List[Dict[str, Any]]]:
+    """The full replica set per task type, as the live autoscaler has it right now."""
+    payload: Dict[str, List[Dict[str, Any]]] = {}
+    for task_type, replicas in system_state.replicas.items():
+        specs: List[Dict[str, Any]] = []
+        for node, platform in sorted(
+            replicas, key=lambda np: (np[0].node_name, np[1].id)
+        ):
+            specs.append(
+                {
+                    "node_name": str(node.node_name),
+                    "node_id": int(node.id),
+                    "platform_id": int(platform.id),
+                    "initialized": bool(platform.initialized.triggered),
+                    "queue_length": int(platform.queue_length()),
+                }
+            )
+        payload[str(task_type)] = specs
+    return payload
+
+
 def maybe_capture_batch_live_audit_snapshot(
     scheduler: Any,
     system_state: "SystemState",
@@ -145,6 +168,11 @@ def maybe_capture_batch_live_audit_snapshot(
         "chosen": None,
         "full_queue_snapshot": scheduler._capture_full_queue_snapshot(),
         "tasks": [_task_payload(scheduler, system_state, task) for task in batch_tasks],
+        # P3 horizon continuation needs the FULL per-type replica state, not just the
+        # batch tasks' candidate lists: a horizon arrival from any client node must find
+        # the replicas the live autoscaler had actually provisioned at capture time.
+        # Snapshots without this field predate it and only support t=0 sweeps.
+        "replicas_by_type": _replicas_by_type_payload(system_state),
     }
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)

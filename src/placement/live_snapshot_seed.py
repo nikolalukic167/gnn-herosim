@@ -32,7 +32,39 @@ def build_live_snapshot_seed(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
     """Convert an audit snapshot JSON object into simulation seed data."""
     full_queue = snapshot.get("full_queue_snapshot") or {}
     platform_info: Dict[str, Dict[str, Any]] = {}
-    replicas_by_type: Dict[str, Set[Tuple[str, int]]] = {"dnn1": set(), "dnn2": set()}
+
+    # Snapshots captured after the P3 extension carry the FULL per-type replica state
+    # (live_audit._replicas_by_type_payload); seed from it so horizon arrivals from any
+    # client node find the replicas the live autoscaler had provisioned. Older
+    # snapshots fall back to the batch tasks' candidate union — sufficient for t=0
+    # sweeps, structurally incomplete for horizon continuation.
+    captured = snapshot.get("replicas_by_type") or {}
+    replicas_by_type: Dict[str, Set[Tuple[str, int]]] = (
+        {str(t): set() for t in captured} if captured else {"dnn1": set(), "dnn2": set()}
+    )
+    for task_type, specs in captured.items():
+        for spec in specs:
+            node_name = str(spec.get("node_name", ""))
+            platform_id = int(spec.get("platform_id", -1))
+            if not node_name or platform_id < 0:
+                continue
+            replicas_by_type[str(task_type)].add((node_name, platform_id))
+            qkey = f"{node_name}:{platform_id}"
+            platform_info.setdefault(
+                qkey,
+                {
+                    "node_name": node_name,
+                    "platform_id": platform_id,
+                    "initialized": bool(spec.get("initialized", True)),
+                    "queue_length": int(
+                        full_queue.get(qkey, spec.get("queue_length", 0)) or 0
+                    ),
+                    "current_task_remaining": 0.0,
+                    "comm_remaining": 0.0,
+                    "cold_start_remaining": 0.0,
+                    "task_type_hint": str(task_type),
+                },
+            )
 
     for task in snapshot.get("tasks", []):
         task_type = str(task.get("task_type", ""))
