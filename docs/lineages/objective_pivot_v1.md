@@ -341,3 +341,38 @@ between c08aa7e and the training-day HEAD are flag-gated and inert at default fl
 now measured, not assumed. **Phase 1's draws, its PASS, and the seeds 1-8/9-16
 exchangeability claim stand exactly as constructed.** The audit checkpoint
 (`gnn-draw-s9-venuecheck.pt`) is deleted after comparison; this entry is its record.
+
+### 2026-09-01 — Phase 2 (P3 horizon pilot): build complete, implementation decisions fixed BEFORE any pilot data
+
+The registration (program_verdict_v1, thresholds fixed 2026-08-24) left the mechanics of
+"continue trace arrivals for a ~h-second horizon" unpinned. Fixed now, before the
+calibration or array produce a single number:
+
+- **Label = the horizon return**: total RTT over batch AND horizon tasks
+  (`rtt_from_stats` unmodified over the extended workload). A batch placement that
+  ignites queue runaway pays for it in the arrivals it damages. M4 unmodified, per
+  registration.
+- **Follow-on policy = the determined scheduler's `(-1,-1)` auto-resolve** (least-loaded
+  valid replica) — the same fixed shortest-queue-style rule in every combo, reacting to
+  the state the batch placement created. No ML policy inside the label.
+- **Replica set = frozen at capture state for the horizon** (no autoscaling inside the
+  mini co-sim). Defensible at h ≤ 10 s; stated as a scope limit of any conclusion.
+- **Horizon window = (t_snap, t_snap + h], timestamps shifted** so arrivals land 10 ms
+  after the batch at t=0 (`slice_horizon_events`; boundary semantics under test).
+- **Capture extension**: snapshots now record `replicas_by_type` — the full per-type
+  replica state — in BOTH capture copies (`live_audit.py` and the knative_network_batch
+  scheduler's own). Measured necessity, not taste: with batch-candidates-only seeding,
+  horizon arrivals from other client nodes found no valid replica and the mini co-sim
+  HUNG (retry loop, no crash). A reachability pre-flight in the sweep now refuses such
+  snapshots loudly. Pre-P3 bbrob snapshots preserved as `snapshots_pre_p3/` (they remain
+  the valid t=0 / WS3 record).
+- Guards: `scripts_cosim/test_p3_horizon_oracle.py` (15 tests: window boundaries, id
+  mapping, h=0 bit-identity, pre-flight); full suite 390 green. End-to-end smoke on a
+  fresh 30k-trace capture: 16/16 combos at h=2 s, 2,943 horizon arrivals, label spread
+  3.8% across batch placements.
+
+**In flight:** job 732878 re-captures the 10 bbrob backbone cells (WL150-100,
+stride 31, cap 2000) with the new field; job 732888 (dependent) runs the registered
+calibration — 3 snapshots × h ∈ {2, 5, 10}, top-k 4 = 256 combos, worst-case fabric
+bb_core4_bw0p5. h is then fixed by the registered rule (largest affordable, ≥ 5 s for
+axis terminality) and signed before the array is queued.
