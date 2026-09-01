@@ -449,3 +449,50 @@ difference is tiny and near-zero correlation is expected regardless. Job 733075 
 the control at h = 2 and 5 on the `p50` cells that carry the firing mass. **Until it
 returns, the horizon labels must not be used as Phase 3 DAgger targets** — training on
 chaos would teach noise with a plausible-looking loss curve.
+
+### 2026-09-01 — Phase 2 FINAL: P3 fired on the letter, but the signal is CHAOS — horizon labels are dead as supervised targets
+
+The chaos control (job 733075) re-ran h = 2 and h = 5 on `cell04_p50` in both fabrics —
+the cells carrying the firing mass — and compared each snapshot's full 256-plan **ranking**
+against h = 10. Logic: a genuinely better placement is better at every horizon, so
+structure ⇒ rank correlation near 1; chaotic amplification ⇒ rank correlation near 0.
+
+| stratum | n | median ρ(h2,h10) | median ρ(h5,h10) | median rank of the h10-optimum at h5 |
+|---|---|---|---|---|
+| all compared | 60 | **−0.027** | **+0.004** | **120 / 256** |
+| above the 2% bar | 27 | **−0.032** | **−0.009** | **140 / 256** |
+
+Random ranking would give ρ = 0 and rank 128/256. **The measurement is
+indistinguishable from random on both counts, and it is *worse* than random on the
+snapshots that fired.** The top-regret snapshot (37.9%) has ρ = −0.036 / −0.108.
+
+**Verdict: the registered co-primary (b) fired, and what it fired on is not learnable.**
+The horizon return is dominated by deterministic chaos — a placement difference reshuffles
+queue orderings seconds later and moves total RTT arbitrarily, encoding nothing about
+placement quality. This also explains the two results that looked most exciting:
+the collapsed additive R² (0.0487) is ~95% *unexplainable* rather than ~95% joint
+structure, and both repair controls read ~0 because noise has no node-count or link-load
+shape either. The pilot is sound; the label is not.
+
+**Decisive form of the argument (state it this way, not as "the horizons disagree"):** if
+the ranking at h = 10 does not survive a change of horizon length, the label is not a
+stable property of the (state, action) pair at all — so it cannot generalise to a
+different trace, seed, or horizon, and no model can fit it in a way that transfers.
+
+**Consequences, in order:**
+1. **Horizon labels must NOT be used as DAgger targets.** Training on them would fit
+   noise with healthy-looking curves — the failure mode this program has been burned by
+   before (offline regret −54% → live +9.9% *worse*).
+2. **Phase 3 goes straight to policy gradient**, exactly as the registration's null branch
+   specified. P3's upside is spent; no re-runs with tweaks.
+3. **This is not a blocker for Phase 3 — it is a calibration of it.** Policy gradient
+   estimates an *expected* return over many episodes; the chaos measured here is the
+   per-episode variance it must average through. The registered **paired-seed
+   common-random-numbers baseline is now load-bearing rather than a nicety**, and the
+   pilot budget must be sized against a per-episode noise level of ~1.5% mean / 3.2% p90
+   in total RTT. Recorded here so Phase 3 sizes its n from a measurement instead of a guess.
+4. The residency-hold scaling pilot (~0.5 d, both controls pre-registered) remains the
+   registered next step before P1 spend.
+
+Artifacts: `simulation_data/p3_h10_readout.json` (300 snapshots),
+`simulation_data/snapshot_sweeps_p3_h10/`, `simulation_data/snapshot_sweeps_p3_chaos/`.
