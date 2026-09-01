@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 from src.policy.gnn.seq_decode import (
     KNOWN_DECODE_MODES,
+    reset_episode_trajectory,
     PlacementCombo,
     get_run_decode_stats,
     record_queue_feature_discrimination,
@@ -137,6 +138,26 @@ class GNNScheduler(Scheduler):
             raise ValueError(
                 f"FAIL LOUD: GNN_DECODE_MODE={self._decode_mode!r} is not a known decode mode. "
                 f"Known: {sorted(KNOWN_DECODE_MODES)}"
+            )
+        # objective_pivot_v1 Phase 3: the sampled decode is the one stochastic mode, so
+        # it opens a seeded episode trajectory here. Seeding at scheduler construction
+        # (not per batch) makes the whole episode a deterministic function of
+        # GNN_SAMPLE_SEED, which is what lets an arm be paired against another under
+        # common random numbers.
+        if self._decode_mode in ("sample", "sampled"):
+            temp_env = os.environ.get("GNN_SAMPLE_TEMPERATURE", "").strip()
+            seed_env = os.environ.get("GNN_SAMPLE_SEED", "").strip()
+            if not temp_env or not seed_env:
+                raise ValueError(
+                    "FAIL LOUD: decode mode 'sample' requires GNN_SAMPLE_TEMPERATURE and "
+                    "GNN_SAMPLE_SEED. Defaults would fix an unregistered exploration "
+                    "level and an unreproducible episode into every run."
+                )
+            reset_episode_trajectory(float(temp_env), int(seed_env))
+            print(
+                f"[GNN] Decode mode: sample (T={temp_env}, episode seed={seed_env}) "
+                "-- STOCHASTIC policy, not a gate configuration",
+                flush=True,
             )
         self._decode_seqblend = self._decode_mode in ("seqblend", "seqblend_p1", "1")
         self._decode_queue_margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
