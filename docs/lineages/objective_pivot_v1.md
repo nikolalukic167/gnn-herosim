@@ -496,3 +496,36 @@ different trace, seed, or horizon, and no model can fit it in a way that transfe
 
 Artifacts: `simulation_data/p3_h10_readout.json` (300 snapshots),
 `simulation_data/snapshot_sweeps_p3_h10/`, `simulation_data/snapshot_sweeps_p3_chaos/`.
+
+### 2026-09-01 — Phase 2b: the residency-hold pilot is RETIRED on measurement (its mechanism cannot occur in co-sim)
+
+`program_verdict_v1`'s sequence put a ~0.5-day residency-hold scaling pilot before any P1
+spend: hold a node's compute slot across the whole residency (cold start + exec) instead
+of exec alone, on the argument that "cold start at 38 s vs 0.024 s exec is a ~1,500×
+longer hold, so mechanism #1's `nodeContentionTime ≡ 0.0` says nothing about it." The
+paper step ran first, as registered, and a feasibility check killed it before any build:
+
+**Cold start is exactly zero in the co-sim regime, everywhere.** Sampled across **all 16
+collections, 328 datasets: 8 with any cold start**, all inside one 8-task `route_c`
+collection, max total **0.206 s** over 8 tasks. `contention_v2/v3/v4/v5`, all three
+`link_mp_v1` fabrics, `topo_transfer_v1`, all three `*_warmth_v2` corpora — **0.000 s**.
+Including `regime_b_cold_burst_v1`, a corpus named for cold bursts.
+
+**Mechanism (why it is structural, not a grid accident):** `system_state.replicas` is
+keyed by task type, warmup runs each replica with its own type, and
+`sandbox_is_warm` (`warmth.py:197-202`) returns True exactly when the platform's previous
+task type equals this task's type. A dnn2 task can only be placed on a dnn2 replica, which
+was warmed by dnn2 ⇒ warm by construction ⇒ `cold_start_duration = 0` on every enumerated
+placement of every sweep.
+
+**So the 38 s figure is a table entry, not an event:** it is `cnn`'s `coldStartDuration`
+on `xavierDla` in `task-types-cnn.json`, never incurred in any co-sim dataset. Residency
+therefore equals exec (~0.001–3.1 s, typically 0.024 s), which means **the proposed
+residency hold IS the exec hold that already measured `nodeContentionTime ≡ 0.0`** — the
+lever is a no-op on this regime, and its 1,500× premise does not hold.
+
+**Making it fire would require a new corpus regime** in which a placement can land on a
+sandbox warmed for a *different* type — i.e. shared/overlapping replica pools — which is
+a physics-lever corpus design aimed at breaking additivity: the activity
+`objective_pivot_v1` explicitly stopped at registration. Retired rather than rebuilt.
+Cost: ~15 minutes of checking against the registered ~0.5 day.
