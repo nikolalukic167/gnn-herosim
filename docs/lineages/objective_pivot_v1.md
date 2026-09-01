@@ -529,3 +529,71 @@ sandbox warmed for a *different* type — i.e. shared/overlapping replica pools 
 a physics-lever corpus design aimed at breaking additivity: the activity
 `objective_pivot_v1` explicitly stopped at registration. Retired rather than rebuilt.
 Cost: ~15 minutes of checking against the registered ~0.5 day.
+
+## Phase 3 (P1 closed-loop) — REGISTRATION, signed 2026-09-01 before any arm exists
+
+Branch `feat/closed-loop-p1`. Registered under the Phase 3 entry above; the three
+deviations from that text are amendments, each with its measured reason.
+
+**AMENDMENT A — warm start is `models/gnn-linkmp-lgon-s8.pt`, not `tempfix`.** The
+Phase 3 text predates `link_mp_v1`. Its stated intent is "the floor is what we already
+have"; what we now have is −38.0% vs Knative with zero severe collapses in 48 arms,
+against the `tempfix`-era −25.1%. Warm-starting from the weaker checkpoint would build
+the whole phase on a floor we have already beaten.
+
+**AMENDMENT B — message passing runs over `core_v1`, not bipartite.** The Phase 3 text
+says "MP bipartite (hard-stop on same-node edges without new physics)". `link_mp_v1`
+measured old-graph MP as *harmful* (−4.50 pp, p = 0.00107) and `core_v1` as the repair
+(+4.98 pp, p = 0.00459). The same-node hard-stop is untouched; this changes which graph
+MP runs over, in the direction the evidence points. `lgon-s8` is already a `core_v1`
+checkpoint, so this and Amendment A are the same decision.
+
+**AMENDMENT C — the pilot is gated behind a sampling-feasibility probe (below) rather
+than proceeding straight to the ~500 CPU-h budget.** Reason: the supervised evidence is
+now uniformly negative (five mechanisms + P3 chaos), so RL's prior is lower than when
+Phase 3 was written, and the cheapest way to find that out is a probe that cannot be
+confused with a result.
+
+### Registered arms (fixed now, before training)
+
+| arm | what it is |
+|---|---|
+| **CL-GNN** | `lgon-s8` warm start, trained closed-loop on the live metric |
+| **CL-MLP** | the MLP baseline in the identical loop (same objective, budget, seeds) |
+| **Frozen-GNN** | `lgon-s8` served as-is — the floor Amendment A defines |
+| **Frozen-MLP** | the promoted MLP served as-is |
+| **Knative** | the reactive baseline, unchanged |
+
+Every arm is paired on workload seed (**common random numbers**); the primary statistic
+is the paired difference CL-GNN − Frozen-GNN, not either arm's absolute RTT.
+
+### Registered kill criterion (unchanged from the Phase 3 text)
+
+If, at the pilot budget, the paired-seed improvement over the frozen init is **≤ 0** at
+the registered n, P1 freezes as **measured-negative** — which closes the last open path
+and is itself an answer. No re-runs with tweaked hyperparameters.
+
+### Increment 1 — the sampling-feasibility probe (registered read, before it is run)
+
+A policy-gradient loop needs a *stochastic* policy; the served decode is pure argmax
+(`seq_decode.decode_sequential_placement`), so sampling is new machinery and its cost is
+unmeasured. The probe adds a temperature-sampled decode and measures, on the 30k-event
+inner-loop trace over ≥ 3 backbone cells:
+
+1. **Exploration cost** — sampled total RTT vs the same checkpoint's argmax RTT, per
+   temperature τ ∈ {0.1, 0.3, 1.0}.
+2. **Per-episode noise under CRN** — the paired standard deviation of sampled episodes at
+   fixed τ and fixed trace, which is the quantity the episode budget must be sized from
+   (the P3 chaos measurement, ~1.5% mean / 3.2% p90, is a *snapshot-horizon* number and
+   does not transfer to full episodes; it is the reason this must be measured, not assumed).
+
+**Registered reading, fixed before the probe runs.** Let `d(τ)` be sampled-vs-argmax
+relative RTT and `sd` the paired episode standard deviation at the best τ:
+- **GO** if some τ gives `d(τ) ≤ 0.10` **and** `sd ≤ 0.05` — exploration is affordable and
+  the signal is separable from noise at a feasible n; size the pilot as
+  `n ≥ (2 · sd · 2.8 / MDE)²` for a minimum detectable effect MDE = 0.03, and report that n.
+- **NO-GO** if every τ gives `d(τ) > 0.25`, or `sd > 0.15`. Then the loop would spend its
+  entire budget paying for exploration or averaging out its own noise, and P1 freezes as
+  **measured-infeasible** — reported as such, not as a negative result about graph models.
+- Anything between is **INDETERMINATE** and returns to the user with the numbers; it is
+  not resolved by picking a τ after seeing the outcome.
