@@ -619,9 +619,19 @@ pairing works far better on full episodes than the P3 snapshot chaos suggested i
 1. **A cheap temperature could have been cheap because it does nothing.** The registered
    read has no exploration term, so `d ≈ 0` is consistent with a policy that simply
    reproduces argmax and would teach a policy gradient nothing. Measured directly
-   (new `explore_rate` on the episode trajectory): at **T = 0.1, 17.3% of the 29,998
-   decisions differ from argmax** while costing +0.05% RTT. So the cheapest temperature
-   is genuinely exploring, and the verdict survives the objection. Recorded because the
+   (new `explore_rate` on the episode trajectory, one episode per T on `cell01`,
+   29,998 decisions each):
+
+   | T | explore_rate | mean log-prob | d |
+   |---|---|---|---|
+   | 0.1 | **0.173** | -0.368 | +0.05% |
+   | 0.3 | **0.240** | -0.539 | +1.01% |
+   | 1.0 | **0.356** | -0.864 | +6.24% |
+
+   All three explore substantially. Exploration rises smoothly with T while cost rises
+   ~120x faster across the same range, so **T = 0.1 buys 17.3% exploration at
+   essentially no RTT cost** and the cheapest temperature is not a degenerate argmax
+   clone. The verdict survives the objection. Recorded because the
    objection was real and the answer was not obvious — not because it changed the result.
 2. **On `cell02_p35`, sampling at T = 0.1 BEATS argmax by 0.75%** (all 5 seeds negative,
    −0.28% to −1.08%). A random perturbation of the served policy improving on it is
