@@ -894,11 +894,19 @@ class EpisodeTrajectory:
     task_choices: List[int] = field(default_factory=list)
     task_n_candidates: List[int] = field(default_factory=list)
     logprobs: List[float] = field(default_factory=list)
+    # How often the sample differed from what argmax would have taken. This is the
+    # exploration the gradient actually gets: a temperature whose episodes cost
+    # nothing because they reproduce argmax also teaches nothing.
+    n_explored: int = 0
 
-    def record(self, chosen_idx: int, n_candidates: int, logprob: float) -> None:
+    def record(
+        self, chosen_idx: int, n_candidates: int, logprob: float, argmax_idx: int = -1
+    ) -> None:
         self.task_choices.append(int(chosen_idx))
         self.task_n_candidates.append(int(n_candidates))
         self.logprobs.append(float(logprob))
+        if argmax_idx >= 0 and int(chosen_idx) != int(argmax_idx):
+            self.n_explored += 1
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -907,6 +915,9 @@ class EpisodeTrajectory:
             "sum_logprob": float(sum(self.logprobs)),
             "mean_logprob": (
                 float(sum(self.logprobs) / len(self.logprobs)) if self.logprobs else 0.0
+            ),
+            "explore_rate": (
+                self.n_explored / len(self.task_choices) if self.task_choices else 0.0
             ),
             "mean_n_candidates": (
                 float(sum(self.task_n_candidates) / len(self.task_n_candidates))
@@ -998,7 +1009,12 @@ def decode_sampled_placement(
         if chosen_idx >= len(candidates):
             return None
         if _RUN_TRAJECTORY is not None:
-            _RUN_TRAJECTORY.record(chosen_idx, len(candidates), logprob)
+            _RUN_TRAJECTORY.record(
+                chosen_idx,
+                len(candidates),
+                logprob,
+                argmax_idx=int(logits_t.detach().reshape(-1).argmax().item()),
+            )
         keys = _queue_keys_for_task(t_idx, candidates, keys_map)
         chosen_key = keys[chosen_idx]
         node_id, plat_id = candidates[chosen_idx]
