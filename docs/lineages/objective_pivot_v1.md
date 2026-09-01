@@ -597,3 +597,53 @@ relative RTT and `sd` the paired episode standard deviation at the best τ:
   **measured-infeasible** — reported as such, not as a negative result about graph models.
 - Anything between is **INDETERMINATE** and returns to the user with the numbers; it is
   not resolved by picking a τ after seeing the outcome.
+
+### 2026-09-01 — Phase 3 Increment 1 RESULT: **GO**, with one registration defect to fix before the pilot
+
+Job 733169 (branch `feat/closed-loop-p1`), 48 full episodes, 3 backbone cells ×
+(argmax + 3 temperatures × 5 seeds), 30k-event inner-loop trace, warm start
+`gnn-linkmp-lgon-s8`. Artifacts: `simulation_data/p3_sampling_probe/`.
+
+| T | exploration cost d (mean) | d (median) | within-cell paired sd | bars |
+|---|---|---|---|---|
+| 0.1 | **+0.05%** | +0.25% | **0.0029** | pass (≤10%, ≤5%) |
+| 0.3 | **+1.01%** | +1.14% | **0.0039** | pass |
+| 1.0 | **+6.24%** | +5.79% | **0.0053** | pass |
+
+**Verdict: GO.** All three temperatures clear the exploration bar with room, and the
+paired noise is an order of magnitude below the 5% bar — the common-random-numbers
+pairing works far better on full episodes than the P3 snapshot chaos suggested it might.
+
+**Two things the raw verdict does not say, both recorded before acting on them:**
+
+1. **A cheap temperature could have been cheap because it does nothing.** The registered
+   read has no exploration term, so `d ≈ 0` is consistent with a policy that simply
+   reproduces argmax and would teach a policy gradient nothing. Measured directly
+   (new `explore_rate` on the episode trajectory): at **T = 0.1, 17.3% of the 29,998
+   decisions differ from argmax** while costing +0.05% RTT. So the cheapest temperature
+   is genuinely exploring, and the verdict survives the objection. Recorded because the
+   objection was real and the answer was not obvious — not because it changed the result.
+2. **On `cell02_p35`, sampling at T = 0.1 BEATS argmax by 0.75%** (all 5 seeds negative,
+   −0.28% to −1.08%). A random perturbation of the served policy improving on it is
+   direct evidence that the frozen argmax policy is not at a local optimum — the
+   headroom P1 exists to capture.
+
+**⚠ REGISTRATION DEFECT — the pilot size must not be taken from this run as computed.**
+The registered formula `n ≥ (2·sd·2.8/MDE)²` with the measured sd returns **n ≥ 1**,
+which is arithmetically correct and operationally absurd. Two flaws, both mine, both in
+the *reading* rather than the measurement:
+   - it has **no floor**, so an unusually small sd collapses the pilot to a single
+     episode pair with no protection against a bad draw;
+   - the sd it consumes is the spread of the *frozen* policy's sampled episodes, which
+     is **not** the variance of the quantity the pilot actually tests (the paired
+     difference between a *trained* arm and the frozen one, whose variance grows as the
+     arms diverge).
+   The measurement stands; the sizing rule does not. **Fixing it is an amendment to be
+   signed before the pilot runs, not a number to pick now** — writing it down here, with
+   the flaw named, so the next step starts from an honest record rather than from
+   `n ≥ 1`.
+
+**Next:** sign the sizing amendment (with a floor and a divergence-aware variance), then
+build the two-pass REINFORCE loop (pass 1 samples under `no_grad`, pass 2 replays a
+uniform subsample of decisions with grad, rescaled by T/k — unbiased) against the
+registered arms and kill criterion.
