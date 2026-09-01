@@ -725,3 +725,16 @@ Two hold, and either is disqualifying: (1) neither
 platform features (`platform_encoder.net.0.weight` is `(64, 16)`) against the siv1 gate cells'
 **14** — before even reaching the `platform_reuse_v1` vs `node_disk_v2` physics mismatch.
 Do not spend time on A6 without first retraining that pair under a recorded contract.
+
+### 2026-09-01 — RETIRED: the remaining ~14 GPU-h partial gate is cancelled on evidence
+
+`link_mp_v1` (CLOSED 2026-08-31) settled the question this spend would have probed, and it
+did so *against* this lineage's corpus: on a corpus whose backbone bandwidth binds, the
+`core_v1` link graph repairs old-graph MP harm (+4.98 pp, p = .0046) and then ties no-MP
+(p = 0.372) — while this lineage's 1000 MB/s corpus makes link bandwidth non-binding, so
+its link features were **label-irrelevant**: the labels contained no fabric signal the
+features could explain, and no amount of training or gating on that corpus could reveal
+anything (`docs/lessons.md` 2026-08-31, "match the training fabric to the serving
+fabric"). Re-running arms here would spend 14 GPU-h measuring a corpus that provably
+cannot answer the question. The serving-port verification and checkpoint-contract
+machinery this lineage produced remain in force; only the pending gate is dead.
