@@ -183,14 +183,15 @@ class DeterminedOrchestrator(Orchestrator):
                 # Update contention rolling means
                 for function_name, function_replicas in replicas.items():
                     for node, platform in function_replicas:
-                        # Knative policy
-                        value = (
-                            state.average_contention[function_name][
-                                (node.id, platform.id)
-                            ]
-                            * (step - 1)
-                            + len(platform.queue.items)
-                        ) / step
+                        # Knative policy. A replica that appeared since the last
+                        # window-start tick has no accumulator yet — initialize its
+                        # rolling mean at the current queue length instead of crashing
+                        # the monitor.
+                        current_len = len(platform.queue.items)
+                        prev = state.average_contention[function_name].get(
+                            (node.id, platform.id), current_len
+                        )
+                        value = (prev * (step - 1) + current_len) / step
                         state.average_contention[function_name][
                             (node.id, platform.id)
                         ] = value
