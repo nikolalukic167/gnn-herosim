@@ -18,8 +18,10 @@ from src.placement.queue_features import (
 )
 
 try:
+    import torch
     from torch import Tensor
 except ImportError:  # pragma: no cover
+    torch = None  # type: ignore
     Tensor = object  # type: ignore
 
 PlacementCombo = Tuple[Tuple[int, int], ...]
@@ -48,6 +50,12 @@ KNOWN_DECODE_MODES = frozenset(
         "seq_reforward_pulls",
         "pulls_committed",
         "pull_ledger",
+        # objective_pivot_v1 Phase 3 (P1 closed-loop): temperature-sampled sequential
+        # decode. The ONLY stochastic mode in this set — every other mode is a
+        # deterministic function of the logits, which is why a policy-gradient loop
+        # needs this one. Off by default and never used by a gate.
+        "sample",
+        "sampled",
         # The §4 shared masked decoder of docs/lineages/route_b_v1/stage2-preregistration.md
         # (corrected 2026-08-26): DAG topological order, capacity + reuse mask,
         # placement-id tie rule, no relax path. Needs the masked-decoder inputs
@@ -867,6 +875,139 @@ def decode_masked_topo_placement(
     return tuple(chosen[t] for t in range(n_tasks))
 
 
+# ---------------------------------------------------------------------------
+# objective_pivot_v1 Phase 3: episode trajectory recording for policy gradient.
+#
+# A full episode is ~300k decisions (30k on the inner-loop trace), so the autograd
+# graph cannot be retained across an episode. The loop is therefore two-pass: pass 1
+# samples actions under no_grad and records what was chosen; pass 2 replays a
+# subsample of those decisions with grad to build the REINFORCE estimator. Uniform
+# subsampling of the per-decision log-prob sum, rescaled by T/k, is unbiased.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EpisodeTrajectory:
+    """Chosen action indices per decision, plus the sampling temperature."""
+
+    temperature: float
+    task_choices: List[int] = field(default_factory=list)
+    task_n_candidates: List[int] = field(default_factory=list)
+    logprobs: List[float] = field(default_factory=list)
+
+    def record(self, chosen_idx: int, n_candidates: int, logprob: float) -> None:
+        self.task_choices.append(int(chosen_idx))
+        self.task_n_candidates.append(int(n_candidates))
+        self.logprobs.append(float(logprob))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "temperature": self.temperature,
+            "n_decisions": len(self.task_choices),
+            "sum_logprob": float(sum(self.logprobs)),
+            "mean_logprob": (
+                float(sum(self.logprobs) / len(self.logprobs)) if self.logprobs else 0.0
+            ),
+            "mean_n_candidates": (
+                float(sum(self.task_n_candidates) / len(self.task_n_candidates))
+                if self.task_n_candidates
+                else 0.0
+            ),
+        }
+
+
+_RUN_TRAJECTORY: Optional[EpisodeTrajectory] = None
+_SAMPLE_RNG: Optional[torch.Generator] = None
+
+
+def reset_episode_trajectory(temperature: float, seed: int) -> EpisodeTrajectory:
+    """Start recording a fresh episode. The RNG is seeded so an episode is replayable."""
+    global _RUN_TRAJECTORY, _SAMPLE_RNG
+    if torch is None:  # pragma: no cover
+        raise RuntimeError("FAIL LOUD: sampled decode requires torch, which is not installed")
+    if temperature <= 0:
+        raise ValueError(f"FAIL LOUD: sampling temperature must be > 0, got {temperature}")
+    _RUN_TRAJECTORY = EpisodeTrajectory(temperature=float(temperature))
+    _SAMPLE_RNG = torch.Generator(device="cpu")
+    _SAMPLE_RNG.manual_seed(int(seed))
+    return _RUN_TRAJECTORY
+
+
+def get_episode_trajectory() -> Optional[EpisodeTrajectory]:
+    return _RUN_TRAJECTORY
+
+
+def clear_episode_trajectory() -> None:
+    global _RUN_TRAJECTORY, _SAMPLE_RNG
+    _RUN_TRAJECTORY = None
+    _SAMPLE_RNG = None
+
+
+def sampled_chosen_idx(logits_t: Tensor, temperature: float) -> Tuple[int, float]:
+    """Sample one candidate from softmax(logits / T); return (index, log-prob).
+
+    Computed in float64 over the candidate axis: episode returns are compared across
+    arms at the third decimal, and a float32 softmax over a long candidate list moves
+    the sampled index often enough to matter.
+    """
+    if _SAMPLE_RNG is None:
+        raise RuntimeError(
+            "FAIL LOUD: sampled decode called with no open episode — call "
+            "reset_episode_trajectory(temperature, seed) first. Sampling from an "
+            "unseeded RNG would make the episode unreproducible."
+        )
+    flat = logits_t.detach().to(torch.float64).reshape(-1)
+    logprobs = torch.log_softmax(flat / float(temperature), dim=0)
+    probs = logprobs.exp()
+    idx = int(torch.multinomial(probs, num_samples=1, generator=_SAMPLE_RNG).item())
+    return idx, float(logprobs[idx].item())
+
+
+def decode_sampled_placement(
+    logits_per_task: Sequence[Tensor],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    n_tasks: int,
+    queue_snapshot: Optional[Mapping[str, int]] = None,
+    task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]] = None,
+    *,
+    temperature: float,
+) -> Optional[PlacementCombo]:
+    """Sequential decode that SAMPLES each task's placement instead of taking argmax.
+
+    Identical to decode_sequential_placement in every other respect — same candidate
+    lists, same live-queue roll-forward — so the only difference between this and the
+    served policy is the action rule. Records each decision into the active episode
+    trajectory when one is open.
+    """
+    if len(logits_per_task) != n_tasks:
+        return None
+    live_queues: Dict[str, int] = {
+        str(k): int(v) for k, v in (queue_snapshot or {}).items()
+    }
+    keys_map = task_logit_to_queue_key or {}
+    combo_list: List[Tuple[int, int]] = []
+
+    for t_idx in range(n_tasks):
+        if t_idx not in task_logit_to_placement:
+            return None
+        logits_t = logits_per_task[t_idx]
+        if logits_t.numel() == 0:
+            return None
+        candidates = task_logit_to_placement[t_idx]
+        chosen_idx, logprob = sampled_chosen_idx(logits_t, temperature)
+        if chosen_idx >= len(candidates):
+            return None
+        if _RUN_TRAJECTORY is not None:
+            _RUN_TRAJECTORY.record(chosen_idx, len(candidates), logprob)
+        keys = _queue_keys_for_task(t_idx, candidates, keys_map)
+        chosen_key = keys[chosen_idx]
+        node_id, plat_id = candidates[chosen_idx]
+        combo_list.append((int(node_id), int(plat_id)))
+        live_queues[chosen_key] = live_queues.get(chosen_key, 0) + 1
+
+    return tuple(combo_list)
+
+
 def decode_sequential_placement(
     logits_per_task: Sequence[Tensor],
     task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
@@ -1413,6 +1554,22 @@ def run_decode_with_timing(
             demands=demands,
             stats=stats,
             score_fn=score_fn,
+        )
+    elif decode_mode in ("sample", "sampled"):
+        temp_env = os.environ.get("GNN_SAMPLE_TEMPERATURE", "").strip()
+        if not temp_env:
+            raise ValueError(
+                "FAIL LOUD: decode mode 'sample' requires GNN_SAMPLE_TEMPERATURE. "
+                "A default temperature would silently fix an unregistered "
+                "exploration level into every episode."
+            )
+        combo = decode_sampled_placement(
+            logits_per_task,
+            task_logit_to_placement,
+            n_tasks,
+            queue_snapshot,
+            task_logit_to_queue_key,
+            temperature=float(temp_env),
         )
     elif decode_mode in ("frozen", "frozen_argmax"):
         combo = decode_frozen_argmax_placement(
