@@ -733,3 +733,62 @@ covering the pilot and the test fails rather than nobody noticing.
 **Next:** the sizing amendment (unchanged, still needs signing), then the shakedown run to
 confirm the loop moves over 20 steps, then the pilot at the signed n and a live gate of
 the resulting checkpoint against Frozen-GNN / Frozen-MLP / Knative under CRN.
+
+### 2026-09-02 — AMENDMENT D to the Phase 3 registration (pilot sizing + tuning budget)
+
+**Signed by the user 2026-09-02**, in response to a recommendation stated in full *before*
+any arm was trained and before any pilot number existed. Authorising message: "do all 3
+please and use recommended values", following an explicit enumeration of the variance
+fix, the floor, and the tuning allowance. Nothing below was chosen after seeing a
+closed-loop result — no arm has produced one.
+
+This amendment changes **only** the three things named here. The kill criterion, the five
+registered arms, the 3% MDE and the paired primary statistic are untouched; an amendment
+is a tempting moment to soften them and it is deliberately not taken.
+
+**D1 — the sizing rule was sizing on the wrong random variable.** The registered rule
+`n >= (2·sd·2.8/MDE)²` took `sd` from Increment 1: the paired standard deviation of the
+**frozen** policy replaying one trace at different sampling seeds. That is *evaluation*
+noise, it is genuinely tiny (0.0029–0.0053), and it is not the variance that decides
+whether a result replicates. The replication unit for a training claim is the **training
+run** — same settings, different seed, different final policy — and that variance is, for
+this loop, **unmeasured**. Substituting evaluation noise for training-run noise is what
+produced `n >= 1`. The rule is therefore restated as: **`n` counts paired training seeds,
+and `sd` must be the across-training-run standard deviation of the gate statistic.**
+
+**D2 — floor of 16 paired training seeds per trained arm.** Rationale, in order of
+weight: (a) this program's own precedent — the Phase 1 draw study, `mp_ablation_v1` and
+`link_mp_v1` all ran 16 paired seeds, and the CL arms are compared against Frozen
+distributions characterised at that n, so a smaller CL arm would be an unpaired comparison
+wearing a paired test's clothes; (b) the deep-RL replication literature (Henderson et al.
+2018; Agarwal et al. 2021) puts 3–5 runs squarely in the range where identical algorithms
+split into apparently-significant groups; (c) it costs ~190 CPU-h against the registered
+~500 CPU-h anchor, so the floor is affordable and compute is not the binding constraint.
+The floor binds regardless of what D1's formula returns once the variance is measured; if
+the formula returns more than 16, the formula wins.
+
+**D3 — a pre-registered tuning budget, on cells disjoint from the gate.** The kill
+criterion is deliberately unforgiving: paired improvement ≤ 0 freezes P1 as
+measured-negative with no re-runs. Pointed at a loop whose learning rate is currently an
+unexamined guess, that converts a tuning failure into "closed-loop RL does not work here"
+and forbids the re-run that would catch it — a false negative closing the program's last
+open path. The method therefore gets one fair shot first, fixed now:
+
+| | cells | used for |
+|---|---|---|
+| **train** | `bbrob_bb_core4_bw0p5` cell01, cell02, cell04 | the loop's episodes |
+| **dev** | `bbrob_bb_core4_bw0p5` cell03, cell05 | hyperparameter selection ONLY — never reported as a gate |
+| **gate** | `bbrob_bb_core8_bw1p5`, all 5 cells | the registered verdict; unseen fabric and unseen cells |
+
+Tuning grid, fixed before it runs: `lr ∈ {1e-6, 1e-5, 1e-4} × T ∈ {0.1, 0.3}`, one seed
+each, 20 steps, `reservoir_k = 64`, `episodes_per_cell = 4`. Selection statistic: greedy
+total RTT on the two dev cells, lower is better. **The selected configuration is frozen
+before the pilot begins and is not revisited**; a second tuning pass after seeing pilot or
+gate numbers is exactly the fishing the kill criterion exists to prevent.
+
+**Unchanged and restated so the amendment cannot be read as loosening them:** the verdict
+comes from the held-out live gate, never the training curve (this program has already been
+caught once by a result that fired every registered bar and turned out to be chaos); the
+primary statistic remains the paired CL-minus-Frozen difference under common random
+numbers, tested by exact Wilcoxon signed-rank; and `≤ 0 at the registered n` still freezes
+P1 as measured-negative.
