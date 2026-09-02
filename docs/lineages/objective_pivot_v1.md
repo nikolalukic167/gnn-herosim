@@ -926,3 +926,74 @@ makes the difference between them attributable to the model class.
 
 **Pilot launched: job 733648**, 32 runs (16 paired seeds × 2 arms), `%8` concurrency,
 ~4 h. Hyperparameters frozen at the values above and not revisited.
+
+### 2026-09-02 — Phase 3 GATE: **NOT ESTABLISHED** on the primary; the kill criterion does not fire
+
+Job 734064, 13m21s. Held-out `bbrob_bb_core8_bw1p5`, all 5 cells — a different network
+fabric from the one the pilot trained on and different cells from the dev pair that
+selected the hyperparameters. 35 arms × 5 cells = 175 greedy episodes; every arm argmax,
+the configuration the live gates serve.
+
+**Absolute standings on the unseen fabric** (mean total RTT over the 5 cells):
+
+| arm | mean total RTT | vs Knative |
+|---|---|---|
+| Frozen-GNN (`lgon-s8`) | **4,945,399** | **−44.8%** |
+| Frozen-MLP (`fc_siv1_dim22_tempfix`) | 6,340,642 | −29.2% |
+| Knative | 8,953,094 | — |
+
+**PRIMARY — CL-GNN minus Frozen-GNN, paired over 16 training seeds:**
+
+| | |
+|---|---|
+| mean | **+0.819%** |
+| median | **+0.274%** |
+| seeds better than frozen | **8/16** |
+| exact Wilcoxon one-sided | **p = 0.3718** (α = 0.05) |
+| per-seed spread | −11.50% … +10.84%, **sd = 5.84 pp** |
+
+**Verdict: NOT ESTABLISHED.** The registered kill criterion fires on `improvement ≤ 0`;
+the median is **+0.27%**, so **it does not fire and P1 does not freeze.** Neither does
+anything get claimed. The registration's binary did not anticipate "positive but not
+significant", and this is that: an indeterminate outcome, recorded as one.
+
+**SECONDARY — CL-MLP minus Frozen-MLP:** mean **−0.053%**, median −0.059%, **1/16** better,
+p ≈ 1.0, **sd = 0.0325 pp**. Negative for that arm. It is *not* the primary statistic and
+no kill criterion attaches to it (see the tool correction below).
+
+**The one thing here that IS established, and it is not the thing we set out to test.**
+The same loop, objective, budget, grid and seeds moves the two model classes by amounts
+differing by a factor of **180 in standard deviation** — 5.84 pp for the GNN against
+0.033 pp for the MLP. The GNN result is under-powered; the *asymmetry* is not, because the
+MLP's variance is small enough to resolve at n = 16 with room to spare. **Closed-loop
+training can move the graph model and cannot move the pointwise one.** That is a
+well-powered finding about trainability, and it is emphatically **not** a latency claim:
+"can be moved" is not "is improved", and at lr = 1e-4 the GNN moves the wrong way in 8
+cases out of 16.
+
+**Achieved power, now that the variance Amendment D1 called unmeasured is measured.**
+Across-run sd = 5.84 pp, so detecting the registered 3% MDE needs **n ≥ 119 paired seeds**
+— roughly 7.4× the floor D2 set and ~700 CPU-h against the ~500 CPU-h anchor. The 16-seed
+gate could not have resolved a 3% effect at this instability even if one were there. D2's
+floor was right to exist and was still too small; sizing it required the measurement only
+the pilot could produce, which is the circularity D1 named and could not escape.
+
+**Two defects in our own instruments, both found by this run:**
+
+1. **`analyze_gate.py` printed the program-closing kill language for a secondary arm.**
+   The CL-MLP readout said "P1 freezes as measured-negative" because the script applied the
+   criterion to whatever arm it was pointed at. The registration defines the kill on the
+   paired CL-GNN difference *and nothing else*. Fixed: the kill now requires an explicit
+   `--primary`, and a negative secondary arm is reported as exactly that. Left unfixed,
+   a script's default would have entered the record as a verdict nobody signed.
+2. **Amendment D3's tuning stage used one seed per configuration** — which, at the sd this
+   run measured, cannot distinguish a configuration from a draw. `lr = 1e-4` won the grid
+   on seed 1's +10.6%, the third-best of the sixteen draws that seed later turned out to
+   sit among. The pilot then ran at a learning rate selected by noise. This is a defect in
+   an amendment **I drafted and recommended**, and it is named here rather than discovered
+   later: a tuning stage must be powered like the comparison it feeds.
+
+**Status: the last open path to the latency claim is neither closed nor confirmed.**
+Resolving it needs either n ≈ 119 at this instability (over the registered anchor), or a
+configuration stable enough to shrink the spread — and the second requires a re-tune,
+which is a new registration, not a re-run. **That choice is not taken here.**
