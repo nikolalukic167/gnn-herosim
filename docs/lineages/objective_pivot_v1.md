@@ -831,3 +831,53 @@ is the paired CL-minus-Frozen difference on the held-out `bb_core8_bw1p5` gate o
 training seeds. A +1.19% training-cell curve at one seed is consistent with a real effect
 and equally consistent with one lucky draw — this program has already been caught once by
 a measurement that fired every registered bar and turned out to be chaos.
+
+### 2026-09-02 — Phase 3 tuning (Amendment D3), GNN arm: **lr = 1e-4, T = 0.1 selected**
+
+Array 733566, six configurations, ~1h05–1h15 each, all COMPLETED. Trained on
+cell01/02/04 of `bbrob_bb_core4_bw0p5`; selected on the **dev** cells cell03/05, which no
+arm trained on and which the gate never sees.
+
+| lr | T | train-cell change (step 20) | **dev-cell vs frozen** |
+|---|---|---|---|
+| 1e-4 | **0.1** | +10.63% | **+8.50%** |
+| 1e-4 | 0.3 | +5.40% | +5.55% |
+| 1e-5 | 0.3 | +1.43% | +0.74% |
+| 1e-5 | 0.1 | +0.63% | +0.14% |
+| 1e-6 | 0.3 | +0.36% | +0.07% |
+| 1e-6 | 0.1 | +0.12% | −0.01% |
+
+**Selected: `lr = 1e-4, T = 0.1`. Frozen; not revisited.**
+
+**The selection is not a memorisation artefact, and that was the thing worth checking.**
+Dev tracks train closely at every rung (+10.6/+8.5, +5.4/+5.6, +1.4/+0.7), so the ordering
+on held-out cells is the ordering on training cells. The shakedown's open question —
+whether the loop was learning or merely sharpening its own argmax — resolves as *learning*
+at this configuration: sharpening does not transfer to cells the policy never trained on.
+
+**Two limitations, recorded now rather than after they become convenient:**
+
+1. **The optimum sits on the grid boundary.** lr = 1e-4 is the largest value tested and
+   won by an order of magnitude over the next rung. Standard practice would extend the
+   grid; Amendment D3 fixed it, and extending it now would be exactly the "second tuning
+   pass" the amendment forbids. Proceeding at 1e-4 therefore likely **understates** what
+   the loop can do, and a wider grid is a separate registered question, not a rescue.
+2. **The winner had not converged at step 20** (+8.6% at step 18, +10.4% at 19, +10.6% at
+   20 — still rising). The pilot nevertheless runs at 20 steps, because 20 steps is what
+   the dev evaluation validated; running longer would put a configuration into the pilot
+   that no held-out measurement has seen. The step budget, not the learning rate, is now
+   the binding constraint on this loop.
+
+**Why this stage was worth its hour.** At the shakedown's lr = 1e-5 the loop returns
++0.14% on dev — indistinguishable from nothing. Under the pre-Amendment-D plan the pilot
+would have run there, returned a null, and the kill criterion would have frozen P1 as
+measured-negative with no re-runs permitted. The registered verdict would have been a
+statement about a learning rate, recorded as a statement about closed-loop RL.
+
+**MLP arm tuning submitted (job 733631), same grid, same budget, same cells**, warm start
+`batch_edge_mlp_full_corpus_siv1_dim22_batchcache_tempfix.pt`. Tuning only the GNN and
+handing CL-MLP an inherited learning rate would bias the one comparison the program exists
+to make; the Phase 3 registration's "identical loop, same objective, budget and seeds"
+requires both arms get the same tuning treatment. (Caveat carried forward: that checkpoint
+predates 2026-08-24, so like every MLP checkpoint in the tree it is an unreproducible
+training draw — a property of the Frozen-MLP arm, not of this stage.)
