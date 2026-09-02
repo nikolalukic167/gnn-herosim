@@ -997,3 +997,59 @@ the pilot could produce, which is the circularity D1 named and could not escape.
 Resolving it needs either n ≈ 119 at this instability (over the registered anchor), or a
 configuration stable enough to shrink the spread — and the second requires a re-tune,
 which is a new registration, not a re-run. **That choice is not taken here.**
+
+### 2026-09-02 — AMENDMENT E to the Phase 3 registration, signed BEFORE the n=120 run
+
+**Signed by the user 2026-09-02** ("run 120 with new reg and all"), after the 16-seed gate
+returned NOT ESTABLISHED and after the achieved-power calculation was reported. Every
+clause below is fixed before a single seed of the new sample exists.
+
+**E1 — the primary sample is 120 FRESH seeds (17–136), and the existing 16 are excluded
+from it.** The decision to extend was made *after looking at* the 16-seed gate. That is an
+unplanned interim analysis, and pooling those seeds into the primary would inflate Type I
+error by exactly the amount the look was worth. A fresh, never-inspected sample removes
+the contamination rather than correcting for it. Primary: exact one-sided Wilcoxon over
+the 120 new seeds at α = 0.05. The pooled 136 is reported as a **secondary** figure and
+cannot change the verdict. n = 120 ≥ the 119 the measured sd (5.84 pp) requires for the
+registered 3% MDE.
+
+**E2 — the hyperparameters are NOT re-tuned. `lr = 1e-4, T = 0.1` carry over unchanged**,
+with the training cells, gate cells, 20 steps, `reservoir_k = 64` and 4 episodes/cell all
+identical to the pilot. Amendment D3's tuning was under-powered at one seed per
+configuration, and that defect is real — but re-selecting a learning rate *now* would be
+choosing it with knowledge of the outcome, which is precisely what the kill criterion
+exists to forbid. The under-powered selection is carried as a **stated limitation of this
+result**, not repaired opportunistically. A properly powered re-tune (≥ 5 seeds per
+configuration) is a **separate registration**, to be signed before its data exists, and is
+not authorised here.
+
+**E3 — CL-MLP is not re-run.** Its measured across-run sd is **0.0325 pp**, so the D1 rule
+returns n ≥ 1 for a 3% MDE; the existing 16 seeds are already sixteen times oversized.
+Spending 120 runs there would buy nothing and is declined.
+
+**E4 — the kill criterion, restated to close the gap the last gate fell into.** The
+original text branched only on `≤ 0`, and the 16-seed gate landed in the unhandled middle
+("positive but not significant"), which is why it returned an indeterminate. At n = 120
+the design *has* power against the registered 3% MDE, so the middle is no longer
+uninformative:
+
+| paired median | p | outcome |
+|---|---|---|
+| > 0 | < 0.05 | **POSITIVE** — the closed loop improves the served policy |
+| > 0 | ≥ 0.05 | **NO EFFECT OF THE REGISTERED SIZE.** P1 freezes. At adequate power a null is a result, not a call for more seeds. |
+| ≤ 0 | any | **MEASURED-NEGATIVE.** P1 freezes, as originally registered. |
+
+Two of the three outcomes freeze P1. **This amendment buys power, not another attempt**,
+and it is the last one that will be spent on this configuration.
+
+**E5 — the trainability asymmetry is pre-registered as a secondary claim, now, so it is
+not a post-hoc highlight later.** Statistic: the ratio of across-training-run standard
+deviations, CL-GNN to CL-MLP, on the gate's paired improvements. The 16-seed gate measured
+5.84 pp vs 0.0325 pp (≈180×). It is reported with the new sample's GNN sd against the
+existing MLP sd whatever the primary does, and it is a claim about **trainability, not
+latency** — "can be moved" is not "is improved", and the wording must say so.
+
+**Budget, stated because it exceeds the anchor.** 120 runs × ~6 CPU-h ≈ **720 CPU-h**,
+plus ~12 CPU-h for the gate. Phase 3's total spend reaches ~1,000 CPU-h against the
+`program_verdict_v1` anchor of ~500 CPU-h pilot / ~5K CPU-h gate scale. Inside the gate
+allowance, over the pilot one, and named rather than absorbed quietly.
