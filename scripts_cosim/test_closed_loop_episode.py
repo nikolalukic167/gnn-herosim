@@ -129,11 +129,21 @@ def test_sampled_episode_declares_everything_it_needs():
     assert ours["HEROSIM_EPISODE_REPLAY_OUT"] == "/tmp/r.pt"
 
 
-def test_arm_policy_names_are_registry_names():
-    """`--policy` takes registry names, not run_simulation.py strategy strings."""
-    sim = (REPO_ROOT / "src/placement/simulation.py").read_text()
+def test_arm_policy_names_are_accepted_by_the_runner():
+    """`--policy` takes the runner's registry names, not simulation.py strategy strings.
+
+    The authority is `valid_policies` in executesimulation.py — the list the runner
+    actually checks the flag against, and the one that rejects a wrong guess after a 5 s
+    startup round-trip. simulation.py's dict is keyed by strategy strings
+    (`mlp_batch_mlp_batch`, `kn_network_batch_kn_network_batch`) and is NOT what --policy
+    is matched on; checking it instead would pass for the wrong reason.
+    """
+    source = (REPO_ROOT / "src/executesimulation.py").read_text()
+    block = source.split("valid_policies = [", 1)[1].split("]", 1)[0]
+    valid = set(re.findall(r"'([a-z_0-9]+)'", block))
+    assert valid, "could not parse valid_policies; this test has gone blind"
     for arm, name in ARM_POLICY.items():
-        assert re.search(rf"['\"]{name}(_{name})?['\"]\s*:", sim) or f"'{name}_" in sim, (
-            f"arm {arm!r} maps to policy {name!r}, which is not registered in "
-            f"src/placement/simulation.py — every episode would die after a 5 s startup."
+        assert name in valid, (
+            f"arm {arm!r} maps to policy {name!r}, which executesimulation.py rejects. "
+            f"Known: {sorted(valid)}"
         )

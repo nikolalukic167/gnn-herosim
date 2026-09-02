@@ -36,12 +36,15 @@ PYTHON = os.environ.get("HEROSIM_PY", "python3")
 
 # Policy registry names (src/placement/simulation.py), not run_simulation.py strategy
 # strings. A wrong guess here costs a 5 s startup round-trip per episode.
-ARM_POLICY = {"gnn": "gnn", "mlp": "mlp_batch"}
+# `knative` is the reactive baseline arm: it carries no checkpoint and cannot be trained,
+# but it runs through this same function so the gate compares it on identical footing.
+ARM_POLICY = {"gnn": "gnn", "mlp": "mlp_batch", "knative": "knative_network_batch"}
+TRAINABLE_ARMS = ("gnn", "mlp")
 
 
 def episode_env(
     *,
-    model: Path,
+    model: Optional[Path],
     arm: str,
     temperature: Optional[float],
     seed: Optional[int],
@@ -60,7 +63,8 @@ def episode_env(
     env["HEROSIM_WARMTH_PHYSICS"] = "node_disk_v2"
     env["GNN_BATCH_SIZE"] = "4"
     env["GNN_BATCH_TIMEOUT"] = "0.002"
-    env["GNN_MODEL_PATH"] = str(model)
+    if model is not None:
+        env["GNN_MODEL_PATH"] = str(model)
     # INFERENCE_FEATURE_LAYOUT / NETWORK_GRAPH_CONTRACT / QUEUE_FEATURE_CONTRACT are
     # deliberately NOT exported: load_gnn_model adopts them from the checkpoint's
     # .contract.json and raises on a conflicting export.
@@ -107,7 +111,7 @@ def run_episode(
     *,
     config: Path,
     workload: Path,
-    model: Path,
+    model: Optional[Path],
     out_json: Path,
     cell: str,
     arm: str = "gnn",
@@ -120,6 +124,13 @@ def run_episode(
     """Run one full live episode and return its result. Raises on any failure."""
     if arm not in ARM_POLICY:
         raise ValueError(f"FAIL LOUD: unknown arm {arm!r}, expected one of {sorted(ARM_POLICY)}")
+    if arm == "knative" and temperature is not None:
+        raise ValueError(
+            "FAIL LOUD: the Knative baseline has no policy to sample from. Asking for a "
+            "temperature here means an arm was mislabelled somewhere upstream."
+        )
+    if arm in TRAINABLE_ARMS and model is None:
+        raise ValueError(f"FAIL LOUD: arm {arm!r} needs a checkpoint")
     if temperature is not None and seed is None:
         raise ValueError("FAIL LOUD: a sampled episode needs a seed, or it is unpairable")
     if temperature is None and (reservoir_k or replay_out):

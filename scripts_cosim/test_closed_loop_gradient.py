@@ -245,3 +245,49 @@ class TestRescaleIsUnbiased:
         assert abs(mean - truth) / truth < 0.02, (
             f"N/k rescale is biased: {mean:.1f} vs {truth:.1f}"
         )
+
+
+class TestGateStatistic:
+    """The exact test that produces the registered verdict.
+
+    A one-sided exact Wilcoxon is the same test this program used for Phase 1,
+    `mp_ablation_v1` and `link_mp_v1`, so the Phase 3 number has to be comparable to
+    those. An off-by-one in the tail enumeration would move a p-value across alpha with
+    nothing else in the pipeline noticing.
+    """
+
+    def test_matches_scipy_on_untied_samples(self):
+        scipy_stats = pytest.importorskip("scipy.stats")
+        from scripts_cosim.closed_loop.analyze_gate import exact_wilcoxon_greater
+
+        cases = [
+            [0.01, 0.02, -0.005, 0.03, 0.004, 0.011, -0.002, 0.008],
+            [-0.01, -0.02, 0.005, -0.03, -0.004],
+            [0.001 * (i + 1) for i in range(10)],
+        ]
+        for diffs in cases:
+            _, ours = exact_wilcoxon_greater(diffs)
+            ref = scipy_stats.wilcoxon(diffs, alternative="greater", mode="exact").pvalue
+            assert ours == pytest.approx(ref, abs=1e-12), f"{diffs}: {ours} vs {ref}"
+
+    def test_all_positive_hits_the_floor_p_value(self):
+        from scripts_cosim.closed_loop.analyze_gate import exact_wilcoxon_greater
+
+        # With every seed improving, p is 2^-n: the smallest the test can report, and the
+        # reason n = 5 could reach alpha at all while n = 4 could not.
+        for n in (5, 8, 16):
+            _, p = exact_wilcoxon_greater([0.001 * (i + 1) for i in range(n)])
+            assert p == pytest.approx(2.0 ** -n, rel=1e-9)
+
+    def test_zero_differences_are_dropped_not_counted(self):
+        from scripts_cosim.closed_loop.analyze_gate import exact_wilcoxon_greater
+
+        _, with_zeros = exact_wilcoxon_greater([0.01, 0.0, 0.02, 0.0, 0.03])
+        _, without = exact_wilcoxon_greater([0.01, 0.02, 0.03])
+        assert with_zeros == pytest.approx(without)
+
+    def test_a_null_sample_does_not_fire(self):
+        from scripts_cosim.closed_loop.analyze_gate import exact_wilcoxon_greater
+
+        _, p = exact_wilcoxon_greater([0.01, -0.011, 0.009, -0.012, 0.002, -0.003])
+        assert p > 0.05
