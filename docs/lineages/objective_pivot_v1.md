@@ -657,3 +657,79 @@ the *reading* rather than the measurement:
 build the two-pass REINFORCE loop (pass 1 samples under `no_grad`, pass 2 replays a
 uniform subsample of decisions with grad, rescaled by T/k — unbiased) against the
 registered arms and kill criterion.
+
+### 2026-09-02 — Phase 3 Increment 2: the closed-loop trainer is BUILT (no result yet)
+
+Branch `feat/closed-loop-p1`. This entry records the machinery and what building it
+measured. **No arm has been trained to a result and the pilot budget is still unsigned**
+— see the sizing defect above, which this increment does not resolve.
+
+**Files.** `scripts_cosim/closed_loop/{episode,adapters,train_closed_loop}.py`,
+`scripts_cosim/datalab/p3_closed_loop_pilot.sbatch`, and the guards in
+`scripts_cosim/test_closed_loop_{gradient,episode}.py`. Suite: 437 passing.
+
+**Estimator.** REINFORCE with a **self-critical baseline**: `A = (RTT_greedy − RTT_sampled)
+/ RTT_greedy`, where `RTT_greedy` is the current policy's own argmax episode on the same
+cell and trace. Argmax is deterministic given (weights, cell, trace), so one baseline
+episode serves all S sampled ones — the loop costs `1+S` episodes per cell per step, not
+`2S`. Advantages are **not** mean-centred, deliberately: the self-critical baseline
+already puts a meaningful zero at "sampling matched greedy", and subtracting the step
+mean would make a step in which *every* episode beat greedy teach nothing.
+
+**Two passes, because an episode is ~25k decode batches and the autograd graph does not
+fit.** Pass 1 runs the episode as a subprocess of `executesimulation.py` under `no_grad`
+and reservoir-samples k decode batches (inputs + chosen indices) to disk; pass 2 replays
+those k with grad and forms `(N/k)·Σ log π(a|s)`. Algorithm R gives every batch inclusion
+probability exactly `k/N`, which is what makes the rescale unbiased — measured over 3,000
+trials, not asserted.
+
+**Both arms share one loop.** `MLPBatchScheduler → XGBoostBatchScheduler → GNNScheduler`,
+so the sampled decode, the episode trajectory and the replay hook were already inherited;
+only the replay *payload* differs (a PyG `Data` for the GNN, the serving matrix plus its
+row spans for the MLP). CL-GNN and CL-MLP therefore run identical code, which the
+registration's "same loop, same objective, same budget" requires.
+
+**Four things this increment measured, all of which could have gone the other way:**
+
+1. **Pass 2 reproduces pass 1 exactly.** Max per-decision log-prob replay error on the
+   real `lgon-s8` checkpoint: **1.1e-16** — float64 machine epsilon, i.e. bit-exact.
+   Gradient reaches **40/40** parameters, all finite. The trainer re-checks this every
+   step and aborts on drift, because a stored payload that stops reconstructing its
+   decode would silently point the gradient at a distribution the simulator never
+   sampled from, and nothing downstream would notice.
+2. **Episodes are reproducible and concurrency-safe.** The same `--seed` gives
+   bit-identical episode returns across runs, and `--episode-workers 4` reproduces the
+   sequential numbers exactly. This is what the registered CRN pairing rests on.
+3. **The headroom the probe found is real and reproducible.** On `cell02_p35`, sampled
+   episodes beat the frozen greedy policy on **both** seeds (+0.27%, +1.02%) — the same
+   direction Increment 1 saw on that cell. `cell01_p25` goes the other way (−0.42%,
+   −0.72%). The policy is not at a local optimum, and the variation is across cells, not
+   noise within one.
+4. **Cost.** ~72 s per episode on the 30k-event inner-loop trace. 3 cells × (1+4) = 15
+   episodes/step ⇒ ~50 min wall for 20 steps at 8 workers. The pilot is cheap; the
+   binding constraint is the unsigned budget, not compute.
+
+**Two defects found and fixed while building, recorded because both would have produced a
+plausible-looking training curve rather than an error:**
+
+- The advantage clip was specified in raw relative-RTT units while standardisation
+  rescaled the advantages into z-units, so at small S *every* episode pinned to the clip
+  boundary and the step carried only the sign of the advantage, not its size.
+  Standardisation is now off by default and the trainer **raises** if all advantages clip.
+- `load_policy` demanded a `.contract.json` sidecar for both arms. **No MLP checkpoint in
+  the tree has one** — the MLP's contract lives inside the `.pt` (`input_dim`,
+  `inference_feature_layout`, `queue_feature_contract`), which is what
+  `MLPBatchScheduler.set_models` reads. The sidecar rule as written would have blocked
+  CL-MLP and Frozen-MLP outright. `require_contract` now enforces the *right* declaration
+  per arm; the principle is unchanged — a checkpoint that cannot state its own contract is
+  refused, never defaulted.
+
+**One deliberate non-reuse.** `run_sampling_probe.py` is the registered Increment-1
+instrument and stays frozen at the code that produced job 733169's GO verdict, so the
+trainer's episodes do not import from it. `scripts_cosim/test_closed_loop_episode.py`
+holds the two environments together instead: if either drifts, the GO verdict stops
+covering the pilot and the test fails rather than nobody noticing.
+
+**Next:** the sizing amendment (unchanged, still needs signing), then the shakedown run to
+confirm the loop moves over 20 steps, then the pilot at the signed n and a live gate of
+the resulting checkpoint against Frozen-GNN / Frozen-MLP / Knative under CRN.

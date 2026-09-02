@@ -12,11 +12,12 @@ Fallback to shortest-queue for:
 
 from __future__ import annotations
 
+import copy
 import logging
 import json
 import os
 from timeit import default_timer
-from typing import Generator, List, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
+from typing import Callable, Generator, List, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
 
 import torch
 import numpy as np
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
 from src.policy.gnn.seq_decode import (
     KNOWN_DECODE_MODES,
     reset_episode_trajectory,
+    get_episode_trajectory,
     PlacementCombo,
     get_run_decode_stats,
     record_queue_feature_discrimination,
@@ -40,6 +42,30 @@ from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
+
+def _detached_graph_copy(graph: Data) -> Data:
+    """A CPU, grad-free copy of an inference graph, for the Phase 3 replay reservoir.
+
+    The stored graph outlives the decode by an entire episode and is then pickled to
+    disk, so it must not hold device memory or reference the live `Data` the scheduler
+    keeps mutating (`queue_snapshot` and `task_logit_to_placement` are rewritten in
+    place every batch). Non-tensor attributes are copied by value for the same reason.
+    """
+    out = Data()
+    for key, value in graph:
+        if torch.is_tensor(value):
+            out[key] = value.detach().to("cpu").clone()
+        else:
+            out[key] = copy.deepcopy(value)
+    # `for key, value in graph` skips the underscore-prefixed private attrs that
+    # feature_builder attaches; the decode needs none of them, but the candidate map
+    # is what lets a replay assert its logit rows still line up with the same
+    # placements, so it travels explicitly.
+    tl2p = getattr(graph, "_task_logit_to_placement", None)
+    if tl2p is not None:
+        out.task_logit_to_placement = copy.deepcopy(tl2p)
+    return out
+
 
 def move_graph_tensors_(graph: Data, device: torch.device) -> Data:
     """Move a graph's tensor fields to `device`, in place.
@@ -153,10 +179,14 @@ class GNNScheduler(Scheduler):
                     "GNN_SAMPLE_SEED. Defaults would fix an unregistered exploration "
                     "level and an unreproducible episode into every run."
                 )
-            reset_episode_trajectory(float(temp_env), int(seed_env))
+            # k = 0 keeps the probe's exact behaviour (no replay, no payload cost);
+            # the closed-loop trainer sets it to the number of decode batches whose
+            # gradient it can afford to replay.
+            reservoir_k = int(os.environ.get("GNN_SAMPLE_RESERVOIR_K", "0"))
+            reset_episode_trajectory(float(temp_env), int(seed_env), reservoir_k)
             print(
-                f"[GNN] Decode mode: sample (T={temp_env}, episode seed={seed_env}) "
-                "-- STOCHASTIC policy, not a gate configuration",
+                f"[GNN] Decode mode: sample (T={temp_env}, episode seed={seed_env}, "
+                f"replay_k={reservoir_k}) -- STOCHASTIC policy, not a gate configuration",
                 flush=True,
             )
         self._decode_seqblend = self._decode_mode in ("seqblend", "seqblend_p1", "1")
@@ -524,6 +554,7 @@ class GNNScheduler(Scheduler):
                 len(batch_tasks),
                 queue_snapshot,
                 task_logit_to_queue_key,
+                replay_payload_factory=lambda g=graph: _detached_graph_copy(g),
             )
             if placements and self.decode_stats is not None:
                 missing = [i for i in range(len(batch_tasks)) if i not in placements]
@@ -621,6 +652,7 @@ class GNNScheduler(Scheduler):
         n_tasks: int,
         queue_snapshot: Optional[Dict[str, int]] = None,
         task_logit_to_queue_key: Optional[Dict[int, List[str]]] = None,
+        replay_payload_factory: Optional[Callable[[], Any]] = None,
     ) -> Dict[int, Tuple[int, int]]:
         """
         GNN decode modes (GNN_DECODE_MODE env):
@@ -657,6 +689,19 @@ class GNNScheduler(Scheduler):
             top_k=top_k,
             stats=self.decode_stats,
         )
+        # Phase 3 closed loop: close the sampled batch exactly once, either way. A
+        # decode that returned None recorded log-probs for placements the simulator
+        # never executed, so those records are dropped rather than credited with the
+        # episode's return.
+        if decode_mode in ("sample", "sampled"):
+            traj = get_episode_trajectory()
+            if traj is not None:
+                if combo is None:
+                    traj.abandon_open_batch()
+                elif replay_payload_factory is not None:
+                    traj.offer_replay(replay_payload_factory)
+                else:
+                    traj.offer_replay(lambda: None)
         if combo is None:
             return {}
         return {t_idx: combo[t_idx] for t_idx in range(len(combo))}

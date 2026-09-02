@@ -213,6 +213,47 @@ def test_every_gnn_trainer_pins_deterministic_algorithms(trainer):
     )
 
 
+def test_the_closed_loop_trainer_seeds_and_pins_determinism():
+    """objective_pivot_v1 Phase 3's trainer is a trainer, and this file covers every trainer.
+
+    It is not in either parametrized list above because it fits neither: it trains a GNN
+    *or* an MLP through one loop, and it has no cache to train on — its data is episodes
+    of the live simulator. The properties it has to have are the same ones, though, and
+    it is more exposed than the supervised trainers, not less: with no labels anywhere, a
+    trainer whose weight init came from OS entropy would produce a training curve nobody
+    could tell from a hard problem.
+    """
+    trainer = "scripts_cosim/closed_loop/train_closed_loop.py"
+    source = (REPO_ROOT / trainer).read_text()
+    assert "torch.manual_seed" in source, f"{trainer} never calls torch.manual_seed"
+    assert "torch.use_deterministic_algorithms" in source, (
+        f"{trainer} seeds but does not pin the nondeterministic autograd kernels"
+    )
+    assert '"torch_seeded"' in source, (
+        f"{trainer} does not stamp torch_seeded, so a seeded closed-loop checkpoint "
+        f"cannot be told from a drawn one after the fact"
+    )
+
+
+def test_the_closed_loop_episode_seed_is_derived_not_drawn():
+    """Two arms at the same --seed must see the same episode seeds.
+
+    That pairing IS the registered primary statistic (common random numbers). A seed
+    taken from the clock, the PID or an unseeded RNG would leave the arms comparable only
+    in expectation, at an n the pilot cannot afford.
+    """
+    source = (REPO_ROOT / "scripts_cosim/closed_loop/train_closed_loop.py").read_text()
+    assert "ep_seed = (args.seed" in source, (
+        "the episode seed is no longer derived from --seed and the step; CRN pairing "
+        "between CL-GNN and CL-MLP is silently gone"
+    )
+    for forbidden in ("time.time()", "os.getpid()", "random.randint", "uuid"):
+        assert forbidden not in source.split("def main")[-1], (
+            f"the closed-loop trainer draws from {forbidden}, so its episodes are not "
+            f"reproducible and cannot be paired across arms"
+        )
+
+
 @pytest.mark.skipif(not TINY_CACHE.is_dir(), reason=f"cache not present at {TINY_CACHE}")
 def test_gnn_training_is_bit_identical_at_a_fixed_seed():
     """In-process, via the ablation harness — the one GNN trainer that is importable.
