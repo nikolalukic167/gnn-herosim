@@ -363,6 +363,49 @@ def execute_simulation(
     }
 
 
+def _write_episode_replay(traj) -> None:
+    """Persist the pass-2 replay reservoir when the closed-loop trainer asked for one.
+
+    Episodes run as subprocesses of this script — the same path the gates and the
+    sampling probe run — so the trainer cannot reach into the scheduler's memory. The
+    reservoir travels as a file instead. Writing nothing when `HEROSIM_EPISODE_REPLAY_OUT`
+    is unset keeps every existing caller byte-identical.
+    """
+    out = os.environ.get("HEROSIM_EPISODE_REPLAY_OUT", "").strip()
+    if not out:
+        return
+    if traj.reservoir_k > 0 and not traj.reservoir:
+        raise RuntimeError(
+            f"FAIL LOUD: HEROSIM_EPISODE_REPLAY_OUT={out} with reservoir_k="
+            f"{traj.reservoir_k}, but no batch was ever offered. The episode would "
+            "train on an empty gradient and look like a converged run."
+        )
+    import torch as _torch
+
+    payload = {
+        "summary": traj.to_dict(),
+        "temperature": float(traj.temperature),
+        "n_batches": int(traj.n_batches),
+        "batches": [
+            {
+                "batch_index": b.batch_index,
+                "payload": b.payload,
+                "chosen": b.chosen,
+                "logprobs": b.logprobs,
+            }
+            for b in traj.reservoir
+        ],
+    }
+    path = Path(out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _torch.save(payload, path)
+    print(
+        f"  [sample] replay reservoir: {len(traj.reservoir)}/{traj.n_batches} batches "
+        f"-> {path}",
+        flush=True,
+    )
+
+
 def _adopt_queue_feature_contract(trained: str, model_label: str, source: str) -> None:
     declared = os.environ.get(QUEUE_FEATURE_CONTRACT_ENV, "").strip()
     if declared:
@@ -1308,6 +1351,7 @@ def run_simulation(
                             f"mean_logprob={traj.to_dict()['mean_logprob']:.4f}",
                             flush=True,
                         )
+                        _write_episode_replay(traj)
                     print("\n=== GNN decode stats ===", flush=True)
                     dt = summary.get("decode_time_ms", {})
                     col = summary.get("intra_batch_platform_collisions", {})

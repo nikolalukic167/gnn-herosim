@@ -887,6 +887,27 @@ def decode_masked_topo_placement(
 
 
 @dataclass
+class ReplayBatch:
+    """One decode batch kept for the pass-2 gradient replay.
+
+    ``payload`` is whatever that policy needs to recompute its own logits — a PyG
+    ``Data`` for the GNN, an ``(edge_matrix, task_boundaries)`` pair for the MLP. This
+    layer never interprets it; the trainer's per-arm adapter does. Keeping it opaque is
+    what lets CL-GNN and CL-MLP share one loop instead of forking it.
+
+    ``logprobs`` are the pass-1 values. They are not used to build the gradient (pass 2
+    recomputes them with grad), they are the *check* that pass 2 replayed the same
+    distribution: if a stored payload no longer reproduces them, the estimator is
+    differentiating something other than the policy that acted.
+    """
+
+    batch_index: int
+    payload: Any
+    chosen: List[int]
+    logprobs: List[float]
+
+
+@dataclass
 class EpisodeTrajectory:
     """Chosen action indices per decision, plus the sampling temperature."""
 
@@ -898,6 +919,11 @@ class EpisodeTrajectory:
     # exploration the gradient actually gets: a temperature whose episodes cost
     # nothing because they reproduce argmax also teaches nothing.
     n_explored: int = 0
+    # --- pass-2 replay reservoir (0 disables it; the probe ran with it disabled) ---
+    reservoir_k: int = 0
+    n_batches: int = 0
+    reservoir: List[ReplayBatch] = field(default_factory=list)
+    _batch_cursor: int = 0
 
     def record(
         self, chosen_idx: int, n_candidates: int, logprob: float, argmax_idx: int = -1
@@ -907,6 +933,66 @@ class EpisodeTrajectory:
         self.logprobs.append(float(logprob))
         if argmax_idx >= 0 and int(chosen_idx) != int(argmax_idx):
             self.n_explored += 1
+
+    # -- batch lifecycle -----------------------------------------------------------
+    #
+    # A decode call is one forward pass, so it is the unit the gradient replays. The
+    # scheduler closes each call with exactly one of these two.
+
+    def abandon_open_batch(self) -> int:
+        """Drop decisions recorded by a decode that then failed and fell back.
+
+        A partial decode still recorded log-probs, but the placements it proposed were
+        never executed. Crediting the episode's return to actions the simulator did not
+        take points the gradient at the wrong distribution, so those records are
+        removed rather than kept and hoped about.
+        """
+        dropped = len(self.task_choices) - self._batch_cursor
+        if dropped > 0:
+            del self.task_choices[self._batch_cursor:]
+            del self.task_n_candidates[self._batch_cursor:]
+            del self.logprobs[self._batch_cursor:]
+            # n_explored is a running count and cannot be un-incremented exactly;
+            # recompute it from what survives is impossible without argmax indices, so
+            # the counter is left alone and explore_rate is documented as measured over
+            # committed decisions with at most one abandoned batch of slack.
+        return max(0, dropped)
+
+    def offer_replay(self, payload_factory: Callable[[], Any]) -> None:
+        """Close a committed decode batch and reservoir-sample it for pass 2.
+
+        Algorithm R: batch ``i`` (0-based) is kept outright while fewer than k are held,
+        and afterwards replaces a uniformly chosen held batch with probability k/(i+1).
+        Every batch of the episode therefore ends up in the reservoir with probability
+        exactly k/N, which is what makes the ``N/k`` rescale in the trainer unbiased.
+
+        ``payload_factory`` is a *thunk*, called only for a batch the reservoir actually
+        accepts. An episode is ~7.5k batches and keeps k≈64 of them, so materialising
+        (deep-copying, moving to CPU) every payload would cost two orders of magnitude
+        more than the sampling it feeds.
+        """
+        chosen = self.task_choices[self._batch_cursor:]
+        lps = self.logprobs[self._batch_cursor:]
+        self._batch_cursor = len(self.task_choices)
+        if not chosen:
+            return
+        idx = self.n_batches
+        self.n_batches += 1
+        if self.reservoir_k <= 0:
+            return
+        if len(self.reservoir) < self.reservoir_k:
+            self.reservoir.append(
+                ReplayBatch(idx, payload_factory(), list(chosen), list(lps))
+            )
+            return
+        # Drawn from the reservoir RNG, never the action RNG: consuming action draws
+        # here would make the episode depend on k, and two arms paired under common
+        # random numbers would silently stop sharing a trace.
+        j = int(torch.randint(0, idx + 1, (1,), generator=_RESERVOIR_RNG).item())
+        if j < self.reservoir_k:
+            self.reservoir[j] = ReplayBatch(
+                idx, payload_factory(), list(chosen), list(lps)
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -924,23 +1010,37 @@ class EpisodeTrajectory:
                 if self.task_n_candidates
                 else 0.0
             ),
+            "n_batches": self.n_batches,
+            "reservoir_k": self.reservoir_k,
+            "n_reserved": len(self.reservoir),
         }
 
 
 _RUN_TRAJECTORY: Optional[EpisodeTrajectory] = None
 _SAMPLE_RNG: Optional[torch.Generator] = None
+_RESERVOIR_RNG: Optional[torch.Generator] = None
 
 
-def reset_episode_trajectory(temperature: float, seed: int) -> EpisodeTrajectory:
+def reset_episode_trajectory(
+    temperature: float, seed: int, reservoir_k: int = 0
+) -> EpisodeTrajectory:
     """Start recording a fresh episode. The RNG is seeded so an episode is replayable."""
-    global _RUN_TRAJECTORY, _SAMPLE_RNG
+    global _RUN_TRAJECTORY, _SAMPLE_RNG, _RESERVOIR_RNG
     if torch is None:  # pragma: no cover
         raise RuntimeError("FAIL LOUD: sampled decode requires torch, which is not installed")
     if temperature <= 0:
         raise ValueError(f"FAIL LOUD: sampling temperature must be > 0, got {temperature}")
-    _RUN_TRAJECTORY = EpisodeTrajectory(temperature=float(temperature))
+    if reservoir_k < 0:
+        raise ValueError(f"FAIL LOUD: reservoir_k must be >= 0, got {reservoir_k}")
+    _RUN_TRAJECTORY = EpisodeTrajectory(
+        temperature=float(temperature), reservoir_k=int(reservoir_k)
+    )
     _SAMPLE_RNG = torch.Generator(device="cpu")
     _SAMPLE_RNG.manual_seed(int(seed))
+    # A separate stream, derived from the same seed so the episode stays a pure
+    # function of it, but never interleaved with the action draws.
+    _RESERVOIR_RNG = torch.Generator(device="cpu")
+    _RESERVOIR_RNG.manual_seed(int(seed) ^ 0x5EED_1234)
     return _RUN_TRAJECTORY
 
 
@@ -949,9 +1049,10 @@ def get_episode_trajectory() -> Optional[EpisodeTrajectory]:
 
 
 def clear_episode_trajectory() -> None:
-    global _RUN_TRAJECTORY, _SAMPLE_RNG
+    global _RUN_TRAJECTORY, _SAMPLE_RNG, _RESERVOIR_RNG
     _RUN_TRAJECTORY = None
     _SAMPLE_RNG = None
+    _RESERVOIR_RNG = None
 
 
 def sampled_chosen_idx(logits_t: Tensor, temperature: float) -> Tuple[int, float]:

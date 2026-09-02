@@ -170,7 +170,8 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
                 logging.warning("[MLP Batch] Empty feature bundle (no feasible edges)")
                 return None
 
-            logits_per_task = self._mlp_logits_from_bundle(bundle)
+            feat_matrix, task_boundaries = self.build_feature_matrix(bundle)
+            logits_per_task = self._mlp_logits_from_matrix(feat_matrix, task_boundaries)
             task_logit_to_queue_key = bundle.task_logit_to_queue_key
 
             placements = self._decode_placements(
@@ -179,6 +180,13 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
                 bundle.n_tasks,
                 queue_snapshot,
                 task_logit_to_queue_key,
+                # The MLP's replay payload is its serving matrix plus the row spans
+                # that cut it back into per-task logits — the exact analogue of the
+                # GNN's graph, and the reason both arms share one training loop.
+                replay_payload_factory=lambda m=feat_matrix, b=task_boundaries: (
+                    torch.from_numpy(m.copy()),
+                    list(b),
+                ),
             )
             return placements
         except Exception as exc:
@@ -268,7 +276,19 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
         per-task score vectors.
         """
         feat_matrix, task_boundaries = self.build_feature_matrix(bundle)
+        return self._mlp_logits_from_matrix(feat_matrix, task_boundaries)
 
+    def _mlp_logits_from_matrix(
+        self,
+        feat_matrix: np.ndarray,
+        task_boundaries: List[Tuple[int, int]],
+    ) -> List[torch.Tensor]:
+        """The forward half of `_mlp_logits_from_bundle`, split out for replay.
+
+        The Phase 3 closed loop needs the serving matrix itself (to store and later
+        re-forward with grad), so the caller builds it once and hands it here rather
+        than the bundle rebuilding it a second time.
+        """
         expected_dim = int(self.mlp_model.input_dim)
         if feat_matrix.shape[1] != expected_dim:
             raise ValueError(
