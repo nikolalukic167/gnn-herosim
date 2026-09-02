@@ -792,3 +792,42 @@ caught once by a result that fired every registered bar and turned out to be cha
 primary statistic remains the paired CL-minus-Frozen difference under common random
 numbers, tested by exact Wilcoxon signed-rank; and `≤ 0 at the registered n` still freezes
 P1 as measured-negative.
+
+### 2026-09-02 — Phase 3 shakedown: **the loop moves** (non-inferential, by design)
+
+Job 733519, 59m26s, 20 steps × 3 train cells × (1 greedy + 4 sampled) = 300 episodes,
+`lgon-s8` warm start, T = 0.1, lr = 1e-5, `reservoir_k` = 64, seed 1.
+
+**This produces no claim and cannot.** It ran on the training cells with an untuned
+learning rate at n = 1 seed, which is below the Amendment D2 floor by fifteen. Its only
+question was whether the machinery learns at all, because if it does not, every sizing
+question above is moot.
+
+| | step 1 | step 10 | step 20 |
+|---|---|---|---|
+| greedy total RTT (mean over train cells) | 12,340,038 | 12,166,685 | 12,193,201 |
+| vs step 1 | — | **+1.41%** | **+1.19%** |
+
+**It learns, and then it wobbles.** The curve rises monotonically for ten steps, peaks at
++1.41%, then oscillates between +0.6% and +1.2% for the remaining ten. That is ordinary
+REINFORCE variance, and it is also the first evidence that lr = 1e-5 may be past the
+useful point for this problem — which is exactly what the Amendment D3 grid exists to
+settle, and is why the grid brackets it on both sides (1e-6, 1e-4).
+
+**The correspondence check held for every step.** Max per-decision log-prob replay error
+never exceeded **4.4e-16** across all 240 sampled episodes — pass 2 differentiates the
+distribution pass 1 sampled from, continuously, not just in the unit tests.
+
+**`frac_sampled_beat_greedy` falls from 0.33 to ~0.08 as training proceeds**, and mean
+advantage drifts more negative. This is the expected signature of a sharpening policy —
+as greedy improves, a temperature-perturbed version of it beats it less often — but it is
+also the signature of a loop that has stopped discovering and is only reducing entropy.
+The two are not distinguishable from this run, and the dev-cell selection in the tuning
+sweep is what separates them: a policy that merely sharpened on the training cells does
+not transfer, and a policy that learned something does.
+
+**Note for anyone reading the training curve as a result: do not.** The registered verdict
+is the paired CL-minus-Frozen difference on the held-out `bb_core8_bw1p5` gate over 16
+training seeds. A +1.19% training-cell curve at one seed is consistent with a real effect
+and equally consistent with one lucky draw — this program has already been caught once by
+a measurement that fired every registered bar and turned out to be chaos.
