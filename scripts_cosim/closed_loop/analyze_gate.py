@@ -80,6 +80,11 @@ def main() -> int:
     ap.add_argument("--knative-label", default="knative")
     ap.add_argument("--alpha", type=float, default=0.05)
     ap.add_argument("--min-seeds", type=int, default=MIN_SEEDS)
+    ap.add_argument("--primary", action="store_true",
+                    help="This comparison IS the registered primary statistic "
+                         "(CL-GNN minus Frozen-GNN). Only then can the kill criterion "
+                         "fire. Without it a negative result is reported as a negative "
+                         "result for that arm and nothing more.")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
@@ -119,11 +124,21 @@ def main() -> int:
     mean_d, median_d = st.mean(diffs), st.median(diffs)
     n_pos = sum(1 for d in diffs if d > 0)
 
+    # The kill criterion is defined on the registered PRIMARY statistic — the paired
+    # CL-GNN minus Frozen-GNN difference — and on nothing else. This script is pointed at
+    # secondary arms too (CL-MLP vs Frozen-MLP), and a negative result there is a fact
+    # about that arm, not a program-closing verdict. Printing the kill language for any
+    # arm that happens to come out negative is how a script's default becomes a claim
+    # nobody signed.
     fired = (median_d > 0) and (p < args.alpha)
-    verdict = "POSITIVE" if fired else (
-        "MEASURED-NEGATIVE (P1 frozen; kill criterion)" if median_d <= 0
-        else "NOT ESTABLISHED at the registered alpha"
-    )
+    if fired:
+        verdict = "POSITIVE"
+    elif median_d > 0:
+        verdict = "NOT ESTABLISHED at the registered alpha"
+    elif args.primary:
+        verdict = "MEASURED-NEGATIVE (P1 frozen; kill criterion)"
+    else:
+        verdict = "NEGATIVE for this arm (not the primary statistic; no kill criterion)"
 
     summary: Dict[str, Any] = {
         "gate_json": str(args.gate_json),
@@ -157,10 +172,24 @@ def main() -> int:
     print(f"  seeds better than frozen: {n_pos}/{len(seeds)}")
     print(f"  exact Wilcoxon one-sided p = {p:.6f}  (alpha {args.alpha})")
     print(f"  VERDICT: {verdict}")
-    if median_d <= 0:
+    if median_d <= 0 and args.primary:
         print("\n  The kill criterion applies as registered: P1 freezes as measured-negative.")
         print("  No re-runs with tweaked hyperparameters. This closes the last open path")
         print("  to the latency claim, and is itself an answer.")
+    elif median_d <= 0:
+        print("\n  This arm is negative, and it is NOT the registered primary statistic,")
+        print("  so no kill criterion applies to it. Pass --primary only for the")
+        print("  comparison the registration names as primary.")
+    # Achieved power, reported unconditionally: Amendment D1 restated the sizing rule in
+    # terms of the across-training-run sd, which was unmeasured when it was signed. It is
+    # measured now, by this very sample, and a null is only interpretable next to the n
+    # it would have taken.
+    n_needed = int((2 * st.stdev(diffs) * 2.8 / 0.03) ** 2 + 1) if len(diffs) > 1 else None
+    if n_needed:
+        summary["sd_across_training_runs"] = st.stdev(diffs)
+        summary["n_required_for_mde_3pct"] = n_needed
+        print(f"  across-run sd = {st.stdev(diffs):.4%}; detecting a 3% effect at this "
+              f"spread needs n >= {n_needed} (this run had {len(diffs)})")
 
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
