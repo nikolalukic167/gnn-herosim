@@ -19,6 +19,12 @@
 # GRID: lr in {1e-6, 1e-5, 1e-4} x T in {0.1, 0.3}, one seed each, 20 steps.
 # Selection statistic: greedy total RTT on the two dev cells, lower is better.
 #
+# BOTH TRAINED ARMS GET THIS, on the same grid and the same budget. Tuning only the GNN
+# and handing the MLP an inherited learning rate would bias the one comparison the whole
+# program exists to make; the original Phase 3 registration says the MLP runs in the
+# identical loop with the same objective, budget and seeds, and a tuned-vs-untuned pair
+# is not that. Select the arm with ARM=gnn|mlp and INIT=<checkpoint>.
+#
 #SBATCH --job-name=p3-tune
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/p3-tune-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/p3-tune-%A_%a.err
@@ -47,17 +53,25 @@ LRS=(1e-6 1e-6 1e-5 1e-5 1e-4 1e-4)
 TEMPS=(0.1 0.3 0.1 0.3 0.1 0.3)
 LR="${LRS[$SLURM_ARRAY_TASK_ID]}"
 T="${TEMPS[$SLURM_ARRAY_TASK_ID]}"
-TAG="lr${LR}_T${T}"
+
+ARM="${ARM:-gnn}"
+case "$ARM" in
+  gnn) INIT="${INIT:-models/gnn-linkmp-lgon-s8.pt}" ;;   # Amendment A
+  mlp) INIT="${INIT:-models/tabular/batch_edge_mlp_full_corpus_siv1_dim22_batchcache_tempfix.pt}" ;;
+  *)   echo "FAIL LOUD: ARM must be gnn or mlp, got $ARM" >&2; exit 1 ;;
+esac
+[[ -f "$INIT" ]] || { echo "FAIL LOUD: missing $INIT" >&2; exit 1; }
+
+TAG="${ARM}_lr${LR}_T${T}"
 OUT="simulation_data/p3_tuning/${TAG}"
 
 TRAIN_SWEEP=simulation_data/normal_sim_sweeps/live_audit_capture_bbrob_bb_core4_bw0p5
 WORKLOAD=data/nofs-ids/traces/workload-150-100-30k.json
-INIT=models/gnn-linkmp-lgon-s8.pt   # Amendment A
 
-echo "=== tuning arm $SLURM_ARRAY_TASK_ID: lr=$LR T=$T ==="
+echo "=== tuning arm $SLURM_ARRAY_TASK_ID: policy=$ARM lr=$LR T=$T ==="
 
 python3 scripts_cosim/closed_loop/train_closed_loop.py \
-  --arm gnn --init "$INIT" \
+  --arm "$ARM" --init "$INIT" \
   --sweep-dir "$TRAIN_SWEEP" \
   --cells cell01_p25_s9001 cell02_p35_s9002 cell04_p50_s9004 \
   --workload "$WORKLOAD" \
@@ -74,8 +88,8 @@ python3 scripts_cosim/closed_loop/evaluate_policy.py \
   --sweep-dir "$TRAIN_SWEEP" \
   --cells cell03_p15_s9003 cell05_p20_s9005 \
   --workload "$WORKLOAD" \
-  --arm "gnn:frozen=$INIT" \
-  --arm "gnn:tuned_${TAG}=${OUT}/checkpoints/cl_gnn_step020.pt" \
+  --arm "${ARM}:frozen=$INIT" \
+  --arm "${ARM}:tuned_${TAG}=${OUT}/checkpoints/cl_${ARM}_step020.pt" \
   --out "${OUT}/dev_eval.json" \
   --workers 4
 
