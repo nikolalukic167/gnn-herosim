@@ -881,3 +881,48 @@ to make; the Phase 3 registration's "identical loop, same objective, budget and 
 requires both arms get the same tuning treatment. (Caveat carried forward: that checkpoint
 predates 2026-08-24, so like every MLP checkpoint in the tree it is an unreproducible
 training draw — a property of the Frozen-MLP arm, not of this stage.)
+
+### 2026-09-02 — Phase 3 tuning, MLP arm: **the loop gives CL-MLP nothing**
+
+Array 733631, same grid, same budget, same train and dev cells as the GNN arm, warm start
+`batch_edge_mlp_full_corpus_siv1_dim22_batchcache_tempfix.pt`.
+
+| lr | T | dev vs frozen |
+|---|---|---|
+| 1e-6 | **0.1** | **+0.025%** |
+| 1e-6 | 0.3 | +0.010% |
+| 1e-5 | 0.1 | −0.023% |
+| 1e-5 | 0.3 | −0.130% |
+| 1e-4 | 0.1 | −0.203% |
+| 1e-4 | 0.3 | −0.346% |
+
+**Selected: `lr = 1e-6, T = 0.1`** — by the registered statistic (lowest dev RTT), which
+for this arm is the rung that barely moves the weights at all. Every configuration that
+actually trained the MLP made it **worse**, monotonically in the learning rate.
+
+**Against the GNN arm on the identical protocol: +8.50% vs +0.025%.** The same loop, the
+same objective, the same cells, the same episode budget, the same grid, each arm at its
+own dev optimum.
+
+**Read this as a lead, not a result.** It is n = 1 seed per configuration at the selection
+stage. The registered verdict is the 16-seed paired gate on the unseen `bb_core8_bw1p5`
+fabric, and this program has been caught once already by a measurement that fired every
+bar and turned out to be chaos.
+
+**The alternative explanation, checked rather than waved away.** A grid tuned for a
+52,801-parameter GNN need not reach a 22→64→1 MLP's useful range. But the MLP's response
+is *monotone decreasing in lr* and its optimum sits at the smallest rung, so the trend
+points toward lr → 0 — "do not train" — not toward a larger value the grid missed.
+Extending upward would make it worse; extending downward asymptotes to the frozen
+checkpoint. The grid range is not the constraint here. What cannot be excluded from n = 1
+is that this particular MLP draw is unrepresentative, which is exactly what the 16-seed
+pilot measures.
+
+**Each arm runs the pilot at its own dev optimum, not a shared learning rate.** The
+registration asks for the same loop, objective, budget and seeds — not the same
+hyperparameters — and handing CL-MLP a value selected for the GNN would make the headline
+comparison a statement about tuning transfer. Both arms get their best shot; that is what
+makes the difference between them attributable to the model class.
+
+**Pilot launched: job 733648**, 32 runs (16 paired seeds × 2 arms), `%8` concurrency,
+~4 h. Hyperparameters frozen at the values above and not revisited.
