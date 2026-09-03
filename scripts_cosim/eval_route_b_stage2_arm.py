@@ -63,6 +63,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pickle
 import statistics
 import sys
@@ -216,6 +217,24 @@ def load_arm(checkpoint_path: Path) -> Dict[str, Any]:
             "(herosim-checkpoint-contract-holes)."
         )
     sidecar = json.loads(sidecar_path.read_text())
+    # Whether the GIN forward is skipped is weight-invisible and lives in the environment,
+    # so a checkpoint trained MP-OFF and scored here with the flag unset silently
+    # message-passes through weights that were never fitted with it. Measured on the
+    # route_b DAG corpus 2026-09-03: train regret 12.67% (matched) vs 72.23% (mismatched)
+    # — an error large enough to read as a decisive ablation result. Sidecars written
+    # before that date carry no key; those checkpoints predate the fix and are only safe
+    # if the flag was unset at train time, which is the historical default.
+    declared_mp_off = sidecar.get("disable_message_passing")
+    serving_mp_off = os.environ.get(
+        "GNN_DISABLE_MESSAGE_PASSING", "").strip().lower() in ("1", "true", "yes")
+    if declared_mp_off is not None and bool(declared_mp_off) != serving_mp_off:
+        raise EvalError(
+            f"{checkpoint_path}: sidecar declares disable_message_passing="
+            f"{bool(declared_mp_off)} but this process has "
+            f"GNN_DISABLE_MESSAGE_PASSING {'set' if serving_mp_off else 'unset'}. "
+            "Scoring an MP-OFF checkpoint with message passing on (or the reverse) is a "
+            "train/serve mismatch, not an ablation — export the flag to match the sidecar."
+        )
     if not sidecar.get("partial_state_edge_features"):
         raise EvalError(
             f"{checkpoint_path}: sidecar does not declare "
