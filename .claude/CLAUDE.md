@@ -24,11 +24,20 @@ Three ways to get there, and **which one is live has changed again (2026-08-28)*
    NO-GO-PREPROBE). **PARKED 2026-08-28** — the screen could not measure S0 on its
    overlap rungs, and even a pass would feed the objective option 1 closed. Resuming
    needs a signed amendment in its node.
-3. **Change the training objective, not the environment.** **This is the live program**
-   (`objective_pivot_v1`): establish the GNN's live reliability edge as a registered
-   draw-distribution claim, then P3, then P1 closed-loop training against the live
-   simulator — the one path `program_verdict_v1` left open to the latency claim. The
-   simulator is now the training environment, not a label factory.
+3. **Change the training objective, not the environment** (`objective_pivot_v1`).
+   **CLOSED 2026-09-03 — and with it, all three routes are answered.** Phase 1 PASSED (the
+   GNN's reliability edge, scope-limited to severe collapse). Phase 2 CLOSED (horizon
+   labels fired every bar and turned out to be deterministic chaos). **Phase 3
+   MEASURED-NEGATIVE at n = 120**: closed-loop policy gradient against the live simulator
+   does not improve on the supervised checkpoint (paired median −0.85%, p = 0.928,
+   powered — 3% would have been visible). Do not restart it without reading that node.
+
+**Where that leaves the research question.** The GNN's *supervised* edges stand and are
+measured: −44.8% vs Knative on a held-out fabric, plus the Phase 1 reliability claim. What
+is now falsified is every attempt to *widen* them — by better labels, by a richer
+environment, or by training against the live metric. The surviving open finding is a
+**trainability asymmetry** (the closed loop moves the GNN 150× more than the MLP), which
+is a statement about optimisation, not latency, and must never be quoted as the latter.
 
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
