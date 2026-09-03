@@ -876,3 +876,64 @@ not at more model work.
   `route_b_stage2_preprobe_readings.json`; checkpoints + sidecars in `models/`
   (gitignored); wandb project `gnn-route-b-stage2`, 16 online runs (8 MLP + 4 void A1 +
   4 valid A1).
+
+## 2026-09-03 — Exploration probe: stage 2's abort statistic inverts once both arms are trained to their fit ceiling
+
+**Not a re-registration.** One seed per arm, no threshold, no verdict. It re-measures the
+quantity the stage-2 §9 abort condition was read on, and that quantity moves by an order
+of magnitude, so the abort's *premise* is the finding.
+
+**What the abort said.** §9's NO-GO-PREPROBE fired on `A1_median >= A2_median` in **train**
+decode regret — deliberately a memorization comparison: if the GNN cannot out-fit the
+pointwise competitor on data it has seen, generalization is not worth testing. Measured
+then: A1 (T2 GNN) **28.45%**, A2 (T1 MLP + prefix) **19.34%**, A3 (T0 MLP) 17.81%, median
+of 4 draws. A1 ran at `epochs: 40`, and the node recorded convergence as unverified.
+
+**It was not at its fit ceiling.** Same arm, same cache, same split artifact, same
+`masked_topo` decoder, same α=2.0 — only the epoch budget changes
+(`experiments/route_b_fit_a1_e300*.yaml`, `NEAR_RTT_SAVE_FINAL=1`):
+
+| arm | epochs | train regret mean | train median | train zero-regret | test regret mean |
+|---|---|---:|---:|---:|---:|
+| A1 GNN (val-selected) | 300 | **2.91%** | 0.00% | 87% | 22.56% |
+| A1 GNN (last epoch) | 300 | **2.54%** | 0.00% | 94% | 26.15% |
+| A1 GNN lr 2e-3 (val-selected) | 300 | 3.55% | 0.00% | 92% | **18.61%** |
+| A1 GNN lr 2e-3 (last epoch) | 300 | **1.99%** | 0.00% | 98% | 23.08% |
+| A1 MP-OFF (last epoch, flag matched) | 300 | 9.23% | 0.00% | 59% | 11.71% |
+| A1 MP-OFF (val-selected, flag matched) | 300 | 12.67% | 0.00% | 53% | **11.14%** |
+| A2 MLP + prefix | 600 (patience 600) | 10.41% | 0.00% | 71% | 15.38% |
+| — stage 2 reference (median of 4 draws) | 40 / 100 | A1 28.45 · A2 19.34 · A3 17.81 | | | |
+| — floors | | F2 greedy-on-true-marginals 8.86 · F3 random-feasible 89.73 | | | |
+
+**Reading, in three parts.**
+
+1. **The abort statistic inverts.** A1 goes 28.45% → 2.0–2.9%, from *worse* than the
+   pointwise competitor to **4–5× better**, and below the F2 greedy-on-true-marginals
+   floor of 8.86%. The gap is far outside this arm's own recorded draw spread (§6 pooled
+   per-dataset σ 13.57 pp; the four draws' means spanned 23.7–36.6%). So "a GNN cannot
+   beat pointwise-plus-prefix on this environment even at memorization" measured an
+   arm 40 epochs short of memorization. ⚠ One seed — this licenses re-registering the
+   pre-probe with a converged budget, not overturning its verdict.
+2. **Generalization still goes the other way, and that is the real result.** On held-out
+   parents the ordering is MP-OFF 11.1% < MLP-plus-prefix 15.4% < GNN 18.6–26.2%. The
+   GNN converts its extra capacity into overfitting on 142 training parents. The honest
+   sentence is **fit ceiling favours the GNN, held-out favours the pointwise arms** —
+   which is what stage 2 would have concluded from a *generalization* statistic, and it
+   never got to run one because the memorization gate aborted first.
+3. **Message passing is load-bearing on THIS graph, unlike every earlier corpus.**
+   MP-OFF fits 9.2–12.7% against MP-ON's 2.0–2.9% — a ~4× capacity gap from the GIN over
+   task↔task DAG edges. `mp_ablation_v1` and `link_mp_v1` both measured MP as neutral or
+   harmful, but neither had DAG edges in the graph. It buys capacity here and, at this
+   corpus size, spends it on overfitting.
+
+**Instrument defect found and fixed (see GATE TOOLS 2026-09-03).** The MP-OFF row was
+first scored at **72.23%** train regret because `GNN_DISABLE_MESSAGE_PASSING` is
+weight-invisible, was absent from the contract sidecar, and the offline evaluator neither
+set nor checked it — so MP-OFF weights were served *with* message passing. A 5.7× error
+that reads as a decisive ablation. The live-gate scorers were protected by a
+`run_provenance` assertion; the offline evaluator was not. Sidecars now record
+`disable_message_passing` and `eval_route_b_stage2_arm.py` refuses a mismatch.
+
+**Artifacts:** `simulation_data/explore_fit/eval_*.json`, checkpoints
+`models/route-b-fit-a1-e300{,-mpoff,-lr2e3}-seed1{,-final}.pt` (+ sidecars),
+`models/tabular/route_b_fit_a2_long_seed1.pt`, logs `logs/explore/`.

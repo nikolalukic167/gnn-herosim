@@ -246,3 +246,48 @@ smoke-load confirms `network_entities=True (core_v1)`, 52,801 params, env auto-s
 < MLP's) was measured on the *old* deployed checkpoint and does **not** transfer to this
 one automatically. This checkpoint's own reliability evidence is the 48-arm zero-collapse
 table above (backbone cells, +30/50/100%).
+
+## 2026-09-03 — Exploration pilot: the corpus-matched MLP control this lineage never trained
+
+**Not a registered gate.** Four seeds, no threshold, no verdict; recorded because it
+changes what the standing numbers may be quoted as.
+
+**The gap it closes.** All 48 arms here were `TaskPlacementGNN` variants. The MLP the
+promoted GNN is compared against on the bbrob cells (`fc_siv1_dim22_tempfix`, −29.2% vs
+Knative on `bb_core8_bw1p5`) was trained fabric-blind on `full_corpus_siv1`. The corpus is
+the largest lever ever measured in this repo (~13 pp on the GNN, above), so "GNN −44.8%
+vs MLP −29.2%" confounds model class with training corpus.
+
+**Arm.** `experiments/link_mp_v1_mlp.yaml` — the deployed MLP recipe (dim22, hidden 64,
+lr 1e-3, 100 epochs / patience 10) on `graphs_cache_link_mp_v1_core_v1_dim14`, the cache
+`gnn-linkmp-lgon-s8` trained on. Seeds 1–4 via `run_experiment.py --seed`. Evaluated
+with `scripts_cosim/closed_loop/evaluate_policy.py` (the Phase 3 gate evaluator), argmax,
+`workload-150-100-30k`. Jobs 734411 (train + core8) and 734414 (core4, with paired
+reference arms). Checkpoints `models/tabular/batch_edge_mlp_link_mp_v1_dim22_batchcache_seed{1..4}.pt`
+on datalab; eval JSONs under `simulation_data/link_mp_v1_mlp_pilot/`.
+
+| arm | `bb_core8_bw1p5` mean (5 cells) | vs Kn | `bb_core4_bw0p5` mean (5 cells) | vs Kn |
+|---|---:|---:|---:|---:|
+| Frozen-GNN `gnn-linkmp-lgon-s8` | 4,945,399 | −44.8% | 11,701,136 | −49.3% |
+| corpus-matched MLP s1 | 4,944,177 | −44.8% | 12,536,952 | −45.7% |
+| corpus-matched MLP s2 | 4,420,203 | −50.6% | 10,969,036 | −52.4% |
+| corpus-matched MLP s3 | 5,021,021 | −43.9% | 12,863,342 | −44.2% |
+| corpus-matched MLP s4 | 4,931,116 | −44.9% | 12,513,525 | −45.8% |
+| Frozen-MLP `fc_siv1_dim22_tempfix` (fabric-blind) | 6,340,642 | −29.2% | 16,969,263 | −26.4% |
+| Knative | 8,953,094 | — | 23,067,250 | — |
+
+**Reading.** On both fabrics the corpus-matched MLP seeds bracket the promoted GNN: three
+of four within 1.5% of it on core8 and one 10.6% better; on core4 the GNN sits a few pp
+ahead of the MLP median with one MLP seed 6% better. Zero collapse cells in all 40 MLP
+cells. The 15–23 pp "GNN vs MLP" latency gap on these cells was the corpus, which is the
+model-side twin of `program_verdict_v1`: on a pointwise-separable target the pointwise
+model is correctly specified and, given the same corpus, reaches the same ceiling.
+
+**Consequences.** (1) The bbrob standings must be quoted as "both corpus-matched model
+classes ≈ −45 to −50% vs Knative"; the fabric-blind MLP is a corpus control, not a
+model-class baseline. (2) The GNN's remaining measured edge is `objective_pivot_v1`
+Phase 1 reliability, which was measured against the *fabric-blind* MLP and is untested
+against this one — a 16-seed paired reliability gate on corpus-matched arms is the
+registration this pilot licenses drafting. (3) Venue parity held to the last digit for the
+paired arms re-run locally (`frozen_gnn` cell01 5,840,709.06 and `frozen_mlp` cell01
+7,076,053.5 on both machines).

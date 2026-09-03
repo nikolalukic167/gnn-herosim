@@ -1542,6 +1542,19 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "mp_residual": NEAR_CFG.mp_residual,
                 "mp_node_edges": NEAR_CFG.mp_node_edges,
                 "mp_node_edges_candidates_only": NEAR_CFG.mp_node_edges_candidates_only,
+                # Whether the GIN forward was SKIPPED during training. Weight-invisible
+                # (the module is still constructed and initialised), and it lived only in
+                # the environment until 2026-09-03 — so an MP-OFF checkpoint served
+                # without the flag silently message-passes through weights that were never
+                # fitted with it. Measured cost of that mismatch on the route_b DAG corpus:
+                # train regret 12.67% -> 72.23%, a 5.7x error that reads as a plausible
+                # ablation result. The live gates were protected by a run_provenance
+                # assertion (score_mp_ablation.py, score_link_mp_v1.py); the offline
+                # evaluators were not.
+                "disable_message_passing": bool(
+                    os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower()
+                    in ("1", "true", "yes")
+                ),
                 # Which network entities were in the training graph. The encoders show up
                 # in the weights; the contract that built their *features* does not.
                 "network_graph_contract": (
