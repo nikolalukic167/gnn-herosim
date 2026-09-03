@@ -1053,3 +1053,67 @@ latency** — "can be moved" is not "is improved", and the wording must say so.
 plus ~12 CPU-h for the gate. Phase 3's total spend reaches ~1,000 CPU-h against the
 `program_verdict_v1` anchor of ~500 CPU-h pilot / ~5K CPU-h gate scale. Inside the gate
 allowance, over the pilot one, and named rather than absorbed quietly.
+
+### 2026-09-03 — Phase 3 FINAL (Amendment E): **MEASURED-NEGATIVE. P1 freezes.**
+
+Gate job 734369 (615 greedy episodes, 28m04s) + the registered analysis. Held-out
+`bbrob_bb_core8_bw1p5`, all 5 cells — unseen fabric, unseen cells. 120 fresh training
+seeds (17–136); the pilot's original 16 are excluded from the primary by E1.
+
+| | |
+|---|---|
+| n | **120** (floor 120) |
+| paired mean improvement over frozen | **−0.849%** |
+| paired median | **−0.846%** |
+| seeds better than frozen | **53/120** |
+| one-sided Wilcoxon (200k sign-flip, seeded) | **p = 0.9283** |
+| across-run sd | **4.89 pp** |
+
+**VERDICT: MEASURED-NEGATIVE. The kill criterion fires as registered. P1 freezes. No
+re-runs with tweaked hyperparameters.** This closes the last open path to the latency
+claim, and is itself an answer.
+
+**It is adequately powered, which is what makes it an answer rather than a shrug.** At the
+observed sd = 4.89 pp, the registered 3% MDE needs n ≥ 84. We ran 120. A 3% improvement
+would have been visible; the point estimate is *negative*.
+
+**E1 was vindicated by the numbers it excluded.** The pilot's 16 seeds gave median
+**+0.27%**; the 120 fresh seeds give **−0.85%**. Had those 16 been pooled into the primary
+after the look that motivated the extension, they would have dragged a negative result
+toward zero on the strength of a draw. Pooled secondary (n = 136, **cannot** change the
+verdict): mean −0.653%, median −0.425%, 61/136 better.
+
+**E5 secondary, pre-registered before any of this ran — the trainability asymmetry
+stands.** CL-GNN across-run sd **4.89 pp** (n = 120) vs CL-MLP **0.0325 pp** (n = 16):
+a **150×** ratio, close to the 180× the 16-seed gate estimated. The same loop, objective,
+budget, grid and seeds moves the graph model by percent-scale amounts and the pointwise
+model by hundredths of a percent. **This is a claim about trainability, not latency.**
+"Can be moved" is not "is improved" — and the primary above settles that it is *not*
+improved. Anyone citing the asymmetry must carry that sentence with it.
+
+**Serving-path reproducibility: exact.** The three deterministic arms reproduce the
+16-seed gate to the last digit — `frozen_gnn` 4,945,398.718675, `frozen_mlp`
+6,340,642.331262, `knative` 8,953,094.238518, all Δ = 0.000000000. Nothing in the serving
+path moved between the two gates, so the comparison across them is sound.
+
+**Standing on the unseen fabric, unchanged by any of this:** Frozen-GNN is **−44.8% vs
+Knative**, Frozen-MLP −29.2%. The supervised GNN checkpoint's latency edge is real and
+transfers; closed-loop training does not add to it.
+
+**A third instrument defect, found by this run and named.** Amendment E1 registered
+n = 120 against an `analyze_gate.py` that refused above n = 22 — 2^120 sign patterns
+cannot be enumerated. The guard fired correctly and the gate FAILED at the analysis step
+with all 615 episodes already computed and intact. **The registration specified an n its
+own instrument could not execute, and nobody checked.** Fixed by sampling the same null
+instead of enumerating it (seeded 200k sign-flip, cross-checked against the tie-corrected
+normal approximation, failing the run if they disagree by > 0.01), verified against scipy
+at n = 30/60/120 and against the exact path at the n = 22 boundary — **written and tested
+before any per-seed number of this gate was looked at**, and costing no re-run of episodes.
+
+**What is now closed.** All three routes in `CLAUDE.md` are answered: option 1 by
+`program_verdict_v1` (the co-sim target is pointwise-separable), option 2 PARKED
+(`route_b_env_pivot_v1` could not measure S0), and option 3 here — the objective pivot's
+closed-loop path is measured-negative at power. The GNN's *reliability* edge (Phase 1) and
+its *supervised latency* edge over Knative (`link_mp_v1`, and −44.8% again here) both
+stand. What does not stand, and is now measured rather than assumed, is that training
+against the live simulator improves on them.
