@@ -15,6 +15,7 @@ limitations under the License.
 """
 
 import logging
+import os
 from typing import TYPE_CHECKING, Dict, Set, Tuple
 
 from src.policy.gnn.model import KnativeSchedulerState, KnativeSystemState
@@ -66,6 +67,20 @@ class GNNOrchestrator(Orchestrator):
                     flush=True,
                 )
             else:
+                # The cell config wins over the env var. That used to happen silently: an
+                # episode run with GNN_BATCH_SIZE=1 against a config carrying batch_size=4
+                # served 4-task batches and reproduced the batch_size=4 result to the last
+                # digit (measured 2026-09-03, bb_core8_bw1p5/cell01). An explicitly
+                # exported value that disagrees with the config is a misconfigured
+                # experiment, not a preference to be overridden.
+                env_raw = os.environ.get("GNN_BATCH_SIZE")
+                if env_raw is not None and int(env_raw) != cfg_bs:
+                    raise ValueError(
+                        f"FAIL LOUD: GNN_BATCH_SIZE={env_raw} was exported but the cell config "
+                        f"declares scheduler.batch_size={cfg_bs}, which takes precedence. "
+                        f"Edit the config (or unset the variable) so the served batch size "
+                        f"is the one the experiment names."
+                    )
                 self.scheduler.batch_size = cfg_bs
     
     def initialize_state(self) -> KnativeSystemState:

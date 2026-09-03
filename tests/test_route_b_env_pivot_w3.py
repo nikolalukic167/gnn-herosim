@@ -16,6 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.generate_infrastructure import (  # noqa: E402
+    ReplicaStarvationError,
     generate_replica_placements_deterministic,
 )
 
@@ -46,14 +47,38 @@ def _keys(placements):
     return {(p["node_name"], p["platform_id"]) for p in placements}
 
 
-def test_default_is_disjoint_and_unchanged():
-    """Absent replica_overlap key -> the exact original behavior: the second task
-    type gets whatever platforms the first left unassigned (here: none, since both
-    server cpu platforms are claimed by typeA first)."""
+def test_default_starves_the_second_type_and_now_says_so():
+    """Absent replica_overlap key -> the original FCFS behavior: typeA claims both
+    server cpu platforms and typeB gets none. Until 2026-09-03 that returned
+    `typeB: []` silently and the dataset died one stage later as an unlabelled
+    `System state capture FAILED`; it now raises at the point of cause, with counts."""
     rng = random.Random(1)
-    out = generate_replica_placements_deterministic(NODES, _config(), SIM_INPUTS, rng)
-    assert _keys(out["typeA"]) == {("server0", 0), ("server1", 2)}
-    assert out["typeB"] == []
+    with pytest.raises(ReplicaStarvationError) as exc:
+        generate_replica_placements_deterministic(NODES, _config(), SIM_INPUTS, rng)
+    msg = str(exc.value)
+    assert "['typeB']" in msg
+    assert "'typeA': 2" in msg and "'typeB': 0" in msg
+    assert "replica_overlap=False" in msg
+
+
+# A third server with TWO cpu platforms gives typeB something to claim after typeA's
+# FCFS pass (one per server), so the disjointness / byte-identity properties can be
+# asserted on a non-starving fixture. Platform ids: server0 {0 cpu, 1 gpu},
+# server1 {2 cpu}, server2 {3 cpu, 4 cpu}.
+NODES_3 = NODES + [{"node_name": "server2", "platforms": ["cpu", "cpu"]}]
+
+
+def _config3(overlap=None, per_server=1):
+    cfg = _config(overlap=overlap, per_server=per_server)
+    cfg["preinit"]["servers"] = ["server0", "server1", "server2"]
+    return cfg
+
+
+def test_default_is_disjoint_and_unchanged():
+    rng = random.Random(1)
+    out = generate_replica_placements_deterministic(NODES_3, _config3(), SIM_INPUTS, rng)
+    assert _keys(out["typeA"]) == {("server0", 0), ("server1", 2), ("server2", 3)}
+    assert _keys(out["typeB"]) == {("server2", 4)}
     assert _keys(out["typeA"]).isdisjoint(_keys(out["typeB"]))
 
 
@@ -61,10 +86,20 @@ def test_replica_overlap_false_is_byte_identical_to_absent():
     rng1 = random.Random(1)
     rng2 = random.Random(1)
     out_absent = generate_replica_placements_deterministic(
-        NODES, _config(overlap=None), SIM_INPUTS, rng1)
+        NODES_3, _config3(overlap=None), SIM_INPUTS, rng1)
     out_false = generate_replica_placements_deterministic(
-        NODES, _config(overlap=False), SIM_INPUTS, rng2)
+        NODES_3, _config3(overlap=False), SIM_INPUTS, rng2)
     assert out_absent == out_false
+
+
+def test_type_that_requested_nothing_is_not_starvation():
+    """A type present in `replicas` with per_server=0 and per_client=0 legitimately
+    gets no replicas; the guard must not fire on it."""
+    cfg = _config()
+    cfg["replicas"]["typeB"] = {"per_server": 0}
+    rng = random.Random(1)
+    out = generate_replica_placements_deterministic(NODES, cfg, SIM_INPUTS, rng)
+    assert out["typeB"] == []
 
 
 def test_replica_overlap_true_shares_platforms_across_task_types():

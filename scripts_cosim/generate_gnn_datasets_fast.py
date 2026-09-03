@@ -1625,6 +1625,81 @@ def create_config_for_iteration(
     return config
 
 
+GENERATION_PROVENANCE_FILE = "generation_provenance.json"
+
+
+def classify_generation_outcome(status: str, metadata: Optional[Dict[str, Any]]) -> str:
+    """Refine the engine's 'success' with what placement_metadata.json says about the sweep.
+
+    A dataset whose sweep was truncated (autoscaler evicted a forced replica
+    mid-episode, worker timeouts, an early termination) still has a best.json and a
+    non-empty placements.jsonl, so the engine reports it as SUCCESS. The damage lives
+    only in `sweep_complete: false`, and a corpus built that way scores as unusable
+    (route_b pivot controls: 13/204 and 14/204, docs/gates/gate-tools.md 2026-08-27).
+    Returns one of 'success' | 'truncated' | 'skipped' | 'failed'.
+    """
+    if status != 'success':
+        return status
+    if metadata is None:
+        # Pre-metadata engine output: nothing to refine with, and nothing to hide.
+        return 'success'
+    if metadata.get('sweep_complete') is False:
+        return 'truncated'
+    return 'success'
+
+
+def write_generation_provenance(
+    output_dir: Path,
+    *,
+    dataset_id: str,
+    seed: int,
+    grid_name: Optional[str],
+    num_tasks: int,
+    allow_non_unique_replicas: bool,
+    warmth_physics: str,
+    fast_forward_warmup: bool,
+    fast_forward_threshold: int,
+    argv: Sequence[str],
+    environ: Dict[str, str],
+) -> Path:
+    """Record how a dataset was generated, next to the dataset.
+
+    Until 2026-09-03 no corpus carried any record of the HEROSIM_* physics environment
+    it was generated under — `HEROSIM_DATA_LOCALITY`, `HEROSIM_COSIM_KEEP_ALIVE` and
+    `HEROSIM_STORAGE_NEUTRAL` in particular left no trace on disk, so a paired control
+    could not be checked against its main after the fact. Everything here is a plain
+    copy of the inputs; nothing is derived, so it cannot drift from the run.
+    """
+    from src.placement.env_fingerprint import describe_code_provenance
+
+    physics_env = {
+        k: v for k, v in sorted(environ.items())
+        if k.startswith("HEROSIM_") or k in (
+            "GNN_CAPTURE_DATASET_STATE", "COSIM_SUPPRESS_SIM_PRINTS",
+            "MAX_PLACEMENT_COMBINATIONS_SKIP", "PYTHONHASHSEED",
+        )
+    }
+    payload = {
+        "schema": 1,
+        "dataset_id": dataset_id,
+        "generated_at": datetime.now().isoformat(),
+        "seed": int(seed),
+        "grid": grid_name,
+        "num_tasks": int(num_tasks),
+        "allow_non_unique_replicas": bool(allow_non_unique_replicas),
+        "warmth_physics": warmth_physics,
+        "fast_forward_warmup": bool(fast_forward_warmup),
+        "fast_forward_threshold": int(fast_forward_threshold),
+        "argv": list(argv),
+        "physics_env": physics_env,
+        "code": describe_code_provenance(),
+    }
+    path = output_dir / GENERATION_PROVENANCE_FILE
+    with open(path, 'w') as fh:
+        json.dump(payload, fh, indent=2, sort_keys=True)
+    return path
+
+
 def generate_single_dataset(
     dataset_id: str,
     output_dir: Path,
@@ -1641,11 +1716,15 @@ def generate_single_dataset(
     fast_forward_threshold: int = 1,
     allow_non_unique_replicas: bool = True,
     warmth_physics: str = "node_disk_v2",
-) -> Tuple[bool, float, float]:
+    grid_name: Optional[str] = None,
+    num_tasks: Optional[int] = None,
+) -> Tuple[str, float, float]:
     """
     Generate a single GNN dataset.
-    
-    Returns (success, rtt, duration_seconds)
+
+    Returns (status, rtt, duration_seconds) with status in
+    'success' | 'truncated' | 'skipped' | 'failed'. 'truncated' is a success-shaped
+    dataset whose placement sweep is incomplete (see classify_generation_outcome).
     """
     start_time = time.time()
     
@@ -1805,19 +1884,54 @@ def generate_single_dataset(
             
             # Copy placement metadata if it exists (will be written by execute_brute_force_optimized)
             metadata_src = results_dir / "placement_metadata.json"
+            placement_metadata: Optional[Dict[str, Any]] = None
             if metadata_src.exists():
                 shutil.copy2(metadata_src, output_dir / "placement_metadata.json")
-            
+                try:
+                    with open(metadata_src, 'r') as mf:
+                        placement_metadata = json.load(mf)
+                except (json.JSONDecodeError, OSError) as meta_exc:
+                    raise RuntimeError(
+                        f"{dataset_id}: placement_metadata.json exists but is unreadable "
+                        f"({meta_exc}); the sweep's completeness cannot be established"
+                    ) from meta_exc
+
             # Copy placement progress if it exists
             progress_src = results_dir / "placement_progress.txt"
             if progress_src.exists():
                 shutil.copy2(progress_src, output_dir / "placement_progress.txt")
-            
+
+            write_generation_provenance(
+                output_dir,
+                dataset_id=dataset_id,
+                seed=seed,
+                grid_name=grid_name,
+                num_tasks=int(num_tasks if num_tasks is not None else NUM_TASKS),
+                allow_non_unique_replicas=allow_non_unique_replicas,
+                warmth_physics=warmth_physics,
+                fast_forward_warmup=fast_forward_warmup,
+                fast_forward_threshold=fast_forward_threshold,
+                argv=sys.argv,
+                environ=dict(os.environ),
+            )
+
             # Only remove scratch after public JSONL is verified (see placements_jsonl_required.md)
             shutil.rmtree(results_dir, ignore_errors=True)
 
             duration = time.time() - start_time
-            return 'success', optimal_rtt, duration
+            status = classify_generation_outcome('success', placement_metadata)
+            if status == 'truncated':
+                log(
+                    f"  TRUNCATED SWEEP: {placement_metadata.get('rows_written')}/"
+                    f"{placement_metadata.get('num_placements')} rows written "
+                    f"(timed_out={placement_metadata.get('timed_out')}, "
+                    f"worker_failed={placement_metadata.get('worker_failed')}, "
+                    f"worker_exception={placement_metadata.get('worker_exception')}, "
+                    f"early_terminated={placement_metadata.get('early_terminated')}) — "
+                    f"see {output_dir / 'placement_errors.log'}",
+                    quiet, force=True,
+                )
+            return status, optimal_rtt, duration
         else:
             # No results - check if this was an infeasible scenario (placements.jsonl empty or missing)
             duration = time.time() - start_time
@@ -2199,6 +2313,8 @@ def main():
     template_idx = 0
     total_time = 0
     successful = 0
+    truncated = 0
+    truncated_ids: List[str] = []
     skipped = 0
     failed = 0
     
@@ -2332,8 +2448,10 @@ def main():
                         fast_forward_threshold=args.fast_forward_threshold,
                         allow_non_unique_replicas=args.allow_non_unique_replicas,
                         warmth_physics=args.warmth_physics,
+                        grid_name=args.grid,
+                        num_tasks=NUM_TASKS,
                     )
-                    
+
                     total_time += duration
                     
                     # Match logs/non_unique_progress_* line shape: existing= new= best_rtt=
@@ -2355,6 +2473,20 @@ def main():
                         with open(progress_log, 'a') as f:
                             f.write(
                                 f"{dataset_id} SUCCESS {datetime.now().isoformat()} "
+                                f"{duration:.1f}s existing={num_existing} new={num_new} "
+                                f"best_rtt={rtt:.3f}s\n"
+                            )
+                    elif status == 'truncated':
+                        # Success-shaped on disk, unusable as a sweep. Counted apart from
+                        # SUCCESS so a corpus cannot report 204/204 while carrying
+                        # incomplete sweeps; the run exits non-zero at the end.
+                        truncated += 1
+                        truncated_ids.append(dataset_id)
+                        log(f"  TRUNCATED: RTT={rtt:.3f}s ({duration:.1f}s) — sweep incomplete",
+                            quiet, force=True)
+                        with open(progress_log, 'a') as f:
+                            f.write(
+                                f"{dataset_id} TRUNCATED {datetime.now().isoformat()} "
                                 f"{duration:.1f}s existing={num_existing} new={num_new} "
                                 f"best_rtt={rtt:.3f}s\n"
                             )
@@ -2400,14 +2532,29 @@ def main():
     log(f"\n=== Generation Complete ===", quiet, force=True)
     log(f"Total attempted: {dataset_idx}", quiet, force=True)
     log(f"Successful: {successful}", quiet, force=True)
+    log(f"Truncated sweeps (success-shaped, UNUSABLE): {truncated}", quiet, force=True)
     log(f"Skipped (infeasible): {skipped}", quiet, force=True)
     log(f"Failed: {failed}", quiet, force=True)
     if successful > 0:
-        log(f"Success rate: {100*successful/(successful+failed+skipped):.1f}%", quiet, force=True)
+        log(f"Success rate: {100*successful/(successful+truncated+failed+skipped):.1f}%", quiet, force=True)
     log(f"Total time: {total_elapsed:.1f}s ({total_elapsed/60:.1f} min)", quiet, force=True)
     log(f"Average time per dataset: {total_elapsed/max(1, dataset_idx):.1f}s", quiet, force=True)
     log(f"Output directory: {output_base}", quiet, force=True)
     log(f"Progress log: {progress_log}", quiet, force=True)
+    if truncated:
+        # Fail loud, but only after the grid has finished: the sweeps that did complete
+        # are kept, and the caller learns exactly which datasets cannot be scored.
+        log(
+            f"\nFAIL LOUD: {truncated} dataset(s) have INCOMPLETE placement sweeps "
+            f"(`sweep_complete: false` in placement_metadata.json): "
+            f"{', '.join(truncated_ids)}. A truncated sweep has a best.json and a "
+            f"non-empty placements.jsonl and used to count as SUCCESS. Do not cache or "
+            f"score this corpus until they are regenerated (usual cause: the default 30 s "
+            f"keep-alive evicting a forced replica mid-episode — pass "
+            f"HEROSIM_COSIM_KEEP_ALIVE=1000000; see placement_errors.log per dataset).",
+            quiet, force=True,
+        )
+        sys.exit(2)
 
 
 if __name__ == "__main__":

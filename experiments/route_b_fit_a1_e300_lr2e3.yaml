@@ -1,0 +1,27 @@
+# Exploration (2026-09-03): fit-ceiling test at 4x the default learning rate (2e-3 vs 5e-4).
+# Stage 2's A1 arm stopped at 40 epochs with train regret 24-37% against an 8.9% floor for
+# a perfect pointwise scorer under the same decoder; convergence was never verified. Same
+# arm, same cache, same split, same loss -- only the epoch budget changes.
+trainer: gnn
+lineage: route_b_v1
+cache_dir: simulation_data/graphs_cache_route_b_pilot_s_dag
+unset_env:
+  - TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: "1"
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/route_b_stage2_split_v1.json
+  NEAR_RTT_MP_DAG_EDGES: "1"
+  NEAR_RTT_TASK_TYPE_ONEHOT: "1"
+  NEAR_RTT_PARTIAL_STATE_EDGES: "1"
+  NEAR_RTT_DAG_ALPHA_KEY: "2.0"
+  NEAR_RTT_TIED_MAX_PLANS: "0"
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  learning-rate: 0.002
+wandb:
+  project: gnn-route-b-explore
+  run_name: route-b-fit-a1-e300-lr2e3
+  tags: [route-b, explore, fit-ceiling, a1, e300, lr2e-3]
