@@ -291,3 +291,67 @@ class TestGateStatistic:
 
         _, p = exact_wilcoxon_greater([0.01, -0.011, 0.009, -0.012, 0.002, -0.003])
         assert p > 0.05
+
+
+class TestLargeNGateStatistic:
+    """The n > 22 path, added because Amendment E registered n = 120 against a tool that
+    refused above n = 22. 2^120 sign patterns cannot be enumerated, so the same null is
+    sampled instead. These prove it is the SAME test, not a more convenient one."""
+
+    def test_matches_scipy_at_large_n(self):
+        scipy_stats = pytest.importorskip("scipy.stats")
+        import random
+
+        from scripts_cosim.closed_loop.analyze_gate import exact_wilcoxon_greater
+
+        for n, shift in ((30, 0.0), (60, 0.004), (120, 0.0), (120, 0.002)):
+            rng = random.Random(n * 7 + int(shift * 1000))
+            diffs = [rng.gauss(shift, 0.05) for _ in range(n)]
+            _, ours = exact_wilcoxon_greater(diffs)
+            ref = scipy_stats.wilcoxon(diffs, alternative="greater").pvalue
+            assert abs(ours - ref) < 0.01, f"n={n} shift={shift}: {ours} vs scipy {ref}"
+
+    def test_the_two_large_n_estimators_agree(self):
+        import random
+
+        from scripts_cosim.closed_loop.analyze_gate import (
+            _monte_carlo_signflip_p, _normal_approx_p, exact_wilcoxon_greater,
+        )
+
+        rng = random.Random(11)
+        diffs = [rng.gauss(0.001, 0.05) for _ in range(120)]
+        w, _ = exact_wilcoxon_greater(diffs)
+        # exact_wilcoxon_greater already raises if they disagree; assert it directly too,
+        # so a loosened tolerance cannot silently hide a divergence.
+        nz = [d for d in diffs if d != 0.0]
+        order = sorted(range(len(nz)), key=lambda i: abs(nz[i]))
+        ranks = [0.0] * len(nz)
+        for pos, idx in enumerate(order):
+            ranks[idx] = pos + 1.0
+        assert abs(_monte_carlo_signflip_p(ranks, w) - _normal_approx_p(ranks, w, len(nz))) < 0.01
+
+    def test_exact_and_sampled_paths_agree_at_the_boundary(self):
+        """At n = 22 both paths are available; they must give the same answer."""
+        import random
+
+        from scripts_cosim.closed_loop import analyze_gate as ag
+
+        rng = random.Random(5)
+        diffs = [rng.gauss(0.003, 0.02) for _ in range(22)]
+        _, exact_p = ag.exact_wilcoxon_greater(diffs)
+        saved = ag.EXACT_MAX_N
+        try:
+            ag.EXACT_MAX_N = 10          # force the sampled path on the same data
+            _, mc_p = ag.exact_wilcoxon_greater(diffs)
+        finally:
+            ag.EXACT_MAX_N = saved
+        assert abs(exact_p - mc_p) < 0.01, f"exact {exact_p} vs sampled {mc_p}"
+
+    def test_p_value_is_reproducible(self):
+        import random
+
+        from scripts_cosim.closed_loop.analyze_gate import exact_wilcoxon_greater
+
+        rng = random.Random(3)
+        diffs = [rng.gauss(0.0, 0.05) for _ in range(120)]
+        assert exact_wilcoxon_greater(diffs)[1] == exact_wilcoxon_greater(diffs)[1]

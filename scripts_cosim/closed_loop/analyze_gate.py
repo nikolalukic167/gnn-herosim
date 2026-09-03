@@ -30,7 +30,11 @@ from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-MIN_SEEDS = 16  # Amendment D2 floor
+MIN_SEEDS = 16          # Amendment D2 floor
+EXACT_MAX_N = 22        # above this, 2^n enumeration is not feasible
+MC_DRAWS = 200_000      # sign-flip resamples for the large-n path
+MC_SEED = 20260903      # fixed, so the reported p-value is reproducible
+MC_AGREEMENT_TOL = 0.01 # Monte-Carlo vs normal-approximation must agree within this
 
 
 def exact_wilcoxon_greater(diffs: List[float]) -> Tuple[float, float]:
@@ -56,16 +60,66 @@ def exact_wilcoxon_greater(diffs: List[float]) -> Tuple[float, float]:
             ranks[order[k]] = avg
         i = j + 1
     w_plus = sum(r for d, r in zip(nz, ranks) if d > 0)
-    # Enumerate all 2^n sign assignments of the observed ranks.
-    if n > 22:
-        raise SystemExit(f"FAIL LOUD: exact enumeration refused at n={n}; use a permutation test")
-    count = 0
-    total = 0
-    for signs in product((0, 1), repeat=n):
-        total += 1
-        if sum(r for s, r in zip(signs, ranks) if s) >= w_plus - 1e-12:
-            count += 1
-    return w_plus, count / total
+    if n <= EXACT_MAX_N:
+        # Enumerate all 2^n sign assignments of the observed ranks.
+        count = 0
+        total = 0
+        for signs in product((0, 1), repeat=n):
+            total += 1
+            if sum(r for s, r in zip(signs, ranks) if s) >= w_plus - 1e-12:
+                count += 1
+        return w_plus, count / total
+    # Large n: 2^n enumeration is impossible (2^120 sign patterns), so the same null is
+    # SAMPLED rather than enumerated. This is the same test evaluated by Monte Carlo, not
+    # a different one. Seeded, so the p-value is reproducible, and cross-checked against
+    # the tie-corrected normal approximation; if the two disagree the run fails rather
+    # than letting anyone pick whichever reads better.
+    #
+    # Registered at n = 120 (Amendment E1) against a tool that refused above n = 22 --
+    # the guard fired correctly and the registration never checked the instrument could
+    # execute it. Fixed here, and the fix was written before any per-seed number of this
+    # gate had been looked at.
+    mc_p = _monte_carlo_signflip_p(ranks, w_plus)
+    approx_p = _normal_approx_p(ranks, w_plus, n)
+    if abs(mc_p - approx_p) > MC_AGREEMENT_TOL:
+        raise SystemExit(
+            f"FAIL LOUD: Monte-Carlo p={mc_p:.6f} and normal-approximation p={approx_p:.6f} "
+            f"disagree by more than {MC_AGREEMENT_TOL}. One of them is wrong, and choosing "
+            "between them after seeing the data is not an option."
+        )
+    return w_plus, mc_p
+
+
+def _monte_carlo_signflip_p(ranks: List[float], w_plus: float) -> float:
+    """One-sided sign-flip permutation p for the signed-rank statistic. Seeded."""
+    import random as _random
+
+    rng = _random.Random(MC_SEED)
+    ge = 0
+    for _ in range(MC_DRAWS):
+        tot = 0.0
+        for r in ranks:
+            if rng.getrandbits(1):
+                tot += r
+        if tot >= w_plus - 1e-12:
+            ge += 1
+    # (ge + 1) / (B + 1): the observed assignment is itself a member of the null set, so
+    # the estimate is never exactly 0 and the test stays valid out at the tail.
+    return (ge + 1) / (MC_DRAWS + 1)
+
+
+def _normal_approx_p(ranks: List[float], w_plus: float, n: int) -> float:
+    """Tie-corrected normal approximation, as the independent cross-check."""
+    import math
+    from collections import Counter
+
+    mu = n * (n + 1) / 4.0
+    tie_term = sum(t ** 3 - t for t in Counter(ranks).values())
+    var = (n * (n + 1) * (2 * n + 1) - 0.5 * tie_term) / 24.0
+    if var <= 0:
+        return 1.0
+    z = (w_plus - mu - 0.5) / math.sqrt(var)  # continuity-corrected
+    return 0.5 * math.erfc(z / math.sqrt(2.0))
 
 
 def main() -> int:
