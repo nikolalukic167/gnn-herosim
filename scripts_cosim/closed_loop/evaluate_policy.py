@@ -89,7 +89,17 @@ def main() -> int:
             ))
 
     def run(job):
-        return run_episode(**job)
+        result = run_episode(**job)
+        # Delete the episode JSON as soon as its total_rtt has been read. These are
+        # ~140 MB each on a full trace, and the aggregation loop below used to be the
+        # only place they were removed — which meant peak disk was every episode of
+        # every arm at once. A 21-arm x 5-cell block is then ~15 GB, and four such
+        # blocks in an array exhausted the account quota mid-gate (job 735581,
+        # 2026-09-03: 0-byte logs, `df` showing 5.9 T free, 67-71 of 105 episodes per
+        # block). Freeing per episode caps the peak at roughly `--workers` files.
+        if not args.keep_episode_json:
+            Path(job["out_json"]).unlink(missing_ok=True)
+        return result
 
     with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
         results = list(pool.map(run, jobs))
@@ -108,6 +118,8 @@ def main() -> int:
             })
             print(f"[eval] {a['label']:<24} {ep.cell:<20} total_rtt={ep.total_rtt:,.1f} "
                   f"({ep.wall_s}s)", flush=True)
+            # (the file is already gone — freed in `run` as soon as it was read; this
+            # sweep stays as a no-op safety net for any path that skipped that)
             if not args.keep_episode_json:
                 (work / f"{a['label']}__{ep.cell}.json").unlink(missing_ok=True)
 
