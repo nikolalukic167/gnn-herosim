@@ -527,6 +527,14 @@ def build_core_backbone(
     }
 
 
+class ReplicaStarvationError(RuntimeError):
+    """A task type asked for replicas and the FCFS allocator gave it none.
+
+    Raised by `generate_replica_placements_deterministic` so the cause is named where it
+    happens instead of surfacing as an opaque warmup-capture failure one stage later.
+    """
+
+
 def generate_replica_placements_deterministic(
     nodes: List[Dict],
     config: Dict[str, Any],
@@ -693,6 +701,33 @@ def generate_replica_placements_deterministic(
     print(f"  Total unique platforms assigned: {len(assigned_platforms)}")
     if replica_overlap:
         print(f"  replica_overlap=True: task types MAY share (node, platform) slots")
+
+    # Fail at the point of cause, with the counts. The FCFS walk above lets early task
+    # types consume the pool, and a type that asked for replicas and got ZERO used to die
+    # much later as an unlabelled `System state capture FAILED` at warmup (co-sim) with
+    # nothing on disk naming the cause — measured 12/24 datasets on the route_b
+    # `per_server=5` no-overlap probe (docs/gates/gate-tools.md, 2026-08-28). A type that
+    # requested no replicas at all is not starved and is left alone.
+    starved = {
+        name: {
+            "requested_per_server": int(replicas_config[name].get('per_server', 0)),
+            "requested_per_client": int(replicas_config[name].get('per_client', 0)),
+        }
+        for name, placements in replica_placements.items()
+        if not placements
+        and (int(replicas_config[name].get('per_server', 0)) > 0
+             or int(replicas_config[name].get('per_client', 0)) > 0)
+    }
+    if starved:
+        counts = {name: len(p) for name, p in replica_placements.items()}
+        raise ReplicaStarvationError(
+            f"CRITICAL: task type(s) {sorted(starved)} requested replicas and were "
+            f"allocated ZERO. Per-type counts (FCFS order): {counts}; requested: {starved}; "
+            f"replica_overlap={replica_overlap}; hosting servers={len(preinit_servers)}, "
+            f"clients={len(preinit_clients)}. Earlier types consumed the pool — raise "
+            f"per_server for the LATER types, enable preinit.replica_overlap, or widen the "
+            f"hosting set. Raising replica_server_percentage does not help (measured)."
+        )
 
     # verify no duplicates WITHIN a task type (a task type still can't double-book its
     # own platform_id) — cross-type sharing is the point of replica_overlap and is

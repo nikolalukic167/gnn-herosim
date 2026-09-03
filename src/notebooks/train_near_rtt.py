@@ -1765,6 +1765,15 @@ for epoch in range(EPOCHS):
 if not checkpoint_saved:
     raise RuntimeError("No near-RTT checkpoint was saved.")
 
+# Opt-in: also keep the LAST-epoch weights, with their own sidecar. The served
+# checkpoint is always the val-selected one above; the final weights exist for
+# fit-ceiling questions ("can this arm memorise the training split at all?"), which
+# a val-selected checkpoint cannot answer once validation has plateaued.
+if os.environ.get("NEAR_RTT_SAVE_FINAL", "0") == "1":
+    final_path = model_path.with_name(f"{model_path.stem}-final.pt")
+    save_checkpoint(model.state_dict(), final_path)
+    print(f"[final] last-epoch weights saved to {final_path} (NEAR_RTT_SAVE_FINAL=1)")
+
 model.load_state_dict(torch.load(model_path, map_location=DEVICE))
 train_final = evaluate(model, train_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/train")
 val_final = evaluate(model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/val")
