@@ -1125,3 +1125,64 @@ claim.
 **Cost.** Corpus ~1 h local CPU; caches seconds; training 72 GPU tasks (Phase 1 ran
 13–37 min per GNN seed at 204 parents; rung 3 is ~5× the graphs per epoch) ≈ 85 GPU-h;
 evaluation ~8 s per checkpoint locally.
+
+### Phase 2 — physics and comparability audit (2026-09-06, before any rung-3 read)
+
+Three read-only audits (co-sim engine, live GNN scheduler path + feature parity, training/eval
+chain), key claims re-verified by hand. Recorded here because they bound what any Phase 2
+verdict can mean.
+
+**1. The Arm S target is dominated by pointwise cost, not by the coupling the corpus was built
+for.** `HEROSIM_OUTPUT_SIZE_BYTES=800000000` is applied to *every* `stateSize` entry
+(`src/executecosimulation.py:417-425`), so every warmup task ahead of a placed task also writes
+800 MB (≈7.65 s at the 100 MiB/s node clamp), and queue-0 platforms pay a ~39 s cold pull.
+Measured on `arm_s/ds_00000`, root task `dnn1` (execution time 1–3 ms) by platform:
+
+| platform | queue depth | root duration |
+|---|---:|---:|
+| node1:108 | 1 | 15.3 s |
+| node0:104 / node4:124 | 2 | 23.0 s |
+| node4:123 | 3 | 30.6 s |
+| node1:109 | 4 | 38.3 s |
+| node0:105 | 0 (cold) | 39.4 s |
+
+i.e. duration ≈ (queue+1) × 7.65 s, a 0–61 s per-platform term that depends only on where
+*that* task goes. The coupled terms are an order of magnitude smaller: 2 backbone hops of the
+800 MB parent output ≈ 1.5 s, and the always-on storage-tier branch (`infrastructure.py:1359-1395`,
+local vs remote store, output clamped to node bandwidth when the *input* store is remote)
+≈ 3.2 s — and the tier, not `_dependency_transfer_time`, carries most of the pairwise effect
+(`cnn` fan-in even depends on the grandparent's node). The cache's `partial_state_ctx` and the
+scorer's `route_metrics` model hops/bottleneck/payload only, not the tier. This is the
+mechanism behind the measured <10% contention ceiling
+(`herosim-link-contention-charges-input-ingress`): the pointwise arms are not "lucky", the
+target is ~90% pointwise by construction. Not previously recorded.
+
+**2. Offline route_b regret cannot be compared to a live eval — two independent reasons.**
+(a) *Serving is impossible today.* Live `GNNScheduler` only batches tasks whose parents have
+finished (`src/policy/gnn/scheduler.py:286-290`), so a diamond4 arrives as 1 / ≤2 / 1 tasks,
+batches of 1 bypass the model (`MIN_BATCH_SIZE_FOR_GNN=2`), the live graph never carries
+`dag_edge_index`/`task_type_onehot4`/partial-state edges/α caps, the live compatibility table
+knows only dnn1/dnn2 (`feature_builder.py:71-74` — cnn/rf get zero candidates), the loader
+double-counts the one-hot width (`executesimulation.py:710` + `:861`), and every resulting
+error is swallowed by `except Exception` in `_gnn_inference` (`scheduler.py:587-591`) into a
+shortest-queue fallback whose counter is never exported. (b) *Even with serving fixed the
+objects differ*: offline = a 4-task joint decision on one frozen snapshot under the α=2.0
+knapsack and replica-uniqueness mask, neither of which the live simulator enforces (memory
+only gates replica creation, `autoscaler.py:173-216`); live = ≤2 ready tasks per batch against
+evolving state. Also `HEROSIM_OUTPUT_SIZE_BYTES` exists only on the co-sim path — a live run
+charges 8,000 B per parent output, and neither variable lands in `run_provenance.env`.
+**Phase 2's verdict is therefore about the offline exam only**; a DATA-RESCUE would need the
+serving path built and its own registered live gate, exactly as the registration says.
+
+**3. Instrument findings** (filed in `docs/gates/gate-tools.md`, 2026-09-06): the trainer's
+val checkpoint-selection metric is ~66% censored on this corpus (unmapped decodes scored at a
+constant `worst_regret`) — affects val-selected `.pt` files and the 2026-09-03 "val-selected"
+rows only, never the `-final.pt` Phase 1/2 statistic; the MLP arm trains a per-(plan,task) CE
+mixture while the GNN arms train the any-of-K marginal CE (a registered-arms asymmetry to
+carry, not a bug in either); `torch.use_deterministic_algorithms(True, warn_only=True)` with
+warnings suppressed lets non-deterministic CUDA kernels run silently on GPU seeds.
+
+**4. Clean:** labels = evaluator optimum (α=2.0 constrained tie set, same EPS), identical
+decoder in trainer and evaluator, no test leakage (gradient touches train graphs' tied plans
+only), MP-OFF guarded on both loader and evaluator, `-final.pt` genuinely last-epoch, the new
+blocks' `generation_provenance.json` records the full Arm S env block.
