@@ -1,0 +1,27 @@
+# route_b fit-ceiling Phase 2 (2026-09-06), learning-curve rung 1: GNN with message
+# passing OFF, same lr as the MP-ON arm. Identical to Phase 1's
+# route_b_fit_p1_mpoff_lr2e3.yaml except the cache/split (rung-specific).
+trainer: gnn
+lineage: route_b_v1
+cache_dir: simulation_data/graphs_cache_route_b_fit_p2_r1
+unset_env:
+  - TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: "1"
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/route_b_fit_p2_split_r1.json
+  NEAR_RTT_MP_DAG_EDGES: "1"
+  NEAR_RTT_TASK_TYPE_ONEHOT: "1"
+  NEAR_RTT_PARTIAL_STATE_EDGES: "1"
+  NEAR_RTT_DAG_ALPHA_KEY: "2.0"
+  NEAR_RTT_TIED_MAX_PLANS: "0"
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  GNN_DISABLE_MESSAGE_PASSING: "1"
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  learning-rate: 0.002
+wandb:
+  project: gnn-route-b-explore
+  run_name: route-b-fit-p2-r1-mpoff
+  tags: [route-b, fit-ceiling, phase2, rung1, gnn, mp-off]

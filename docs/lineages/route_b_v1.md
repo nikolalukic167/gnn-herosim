@@ -1,6 +1,6 @@
-# route_b_v1 — PARKED
+# route_b_v1 — ACTIVE
 
-> **Status:** `PARKED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-08-28
+> **Status:** `ACTIVE` (reopened 2026-09-03 by the fit-ceiling probe; Phase 2 REGISTERED 2026-09-06) &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-09-06
 
 **Outcome.** **Stage 1 PASS** — contention + coupling produces the non-pointwise structure five mechanisms and route A could not. **Stage 2 NO-GO-PREPROBE** (2026-08-26): a GNN cannot beat pointwise-plus-prefix on this environment even at memorization. Forked to `route_b_env_pivot_v1` — **that fork was PARKED 2026-08-28** (see its closing entry), so this lineage is PARKED with it: both measured results stand, and the program's effort moved to [objective_pivot_v1](objective_pivot_v1.md) (change the training objective, not the environment).
 
@@ -1027,3 +1027,99 @@ statistic and an n up front rather than choosing post hoc.
 Reader: `scripts_cosim/analyze_route_b_fit_p1.py`; full numbers in
 `simulation_data/route_b_fit_p1_verdict.json` and per-checkpoint reports in
 `simulation_data/route_b_fit_p1/eval_{gnn,mpoff,mlp}_seed{1..8}.json`.
+
+## 2026-09-06 — Phase 2 REGISTERED: a learning curve on the DAG corpus (is 204 datasets the gap?)
+
+**Status: REGISTERED (draft written before any rung was trained; awaiting the user's
+sign-off — training may run, no verdict is read until signed).** Direction from the user,
+2026-09-06: *"200 datasets are for sure not enough. let's make more and test because this is
+the best way for a graph and message passing to be relevant."*
+
+**Question.** Phase 1 (8 seeds, 204 datasets) measured the GNN fitting the DAG training
+pipelines 4–10× tighter than pointwise and still losing held-out by a few points (median-paired
+MP-OFF−GNN −3.6 pp, p=0.031). Two readings are open: (a) a 204-dataset corpus is too small
+for the higher-capacity model to generalize and the gap closes with data; (b) the gap is the
+model class. A learning curve separates them; nothing else measured so far does.
+
+**Corpus (generated locally, 2026-09-06, ~1 h on 30 workers).** Three new Arm S blocks from
+`ROUTE_B_PILOT_V1_GRID`'s exact recipe — same grid, same env block
+(`HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000 HEROSIM_COSIM_KEEP_ALIVE=1000000
+HEROSIM_RETAIN_TASK_TIMES=1`, no replica reuse, `node_disk_v2`), differing only in the seed
+block and output dir (presets `route_b_pilot_v1_x_{holdout,train_a,train_b}`):
+
+| block | seeds | datasets | role |
+|---|---|---:|---|
+| `gnn_datasets_dag4_route_b_pilot_v1_x_holdout` | 5001–5021 | 252 | **fixed** held-out: 204 test (seeds 5001–5017) + 48 val (5018–5021) |
+| `gnn_datasets_dag4_route_b_pilot_v1_x_train_a` | 5101–5134 | 408 | rung 2 adds these to the original 204 |
+| `gnn_datasets_dag4_route_b_pilot_v1_x_train_b` | 5201–5234 | 408 | rung 3 adds these on top |
+
+Recipe identity was proven, not assumed, before generating: the recipe regenerates the frozen
+`arm_s` `ds_00000..2` byte-identical (`best.json`, `workload.json`, `placements.jsonl` as a
+set), and the cache flags (`--platform-feature-dim 14 --queue-feature-contract legacy_v0
+--dag-partial-state`) rebuild `graphs_cache_route_b_pilot_s_dag` with all 204 graphs
+tensor-identical and `optimal_rtt.pkl`/`rtt_chunk_0.pkl` byte-identical (`graphs.pkl` bytes
+differ — pickle serialization only). The trainer's val sidecar
+(`valid_combos_near_rtt_capped.pkl`) is reservoir-sampled through the unseeded `random`
+module; it is built once per rung by `route_b_fit_p2_build.sh` with the new `--seed 42`
+(`build_capped_near_rtt_sidecar.py`), never lazily by the 24 SLURM tasks sharing a cache.
+
+**Rungs.** Caches `graphs_cache_route_b_fit_p2_r{1,2,3}` (base-dir unions; split artifacts
+`experiments/route_b_fit_p2_split_r{1,2,3}.json`, assigned by block/seed with
+`scripts_cosim/make_split_artifact_by_block.py`, coverage-asserted with the trainers' own
+loader):
+
+| rung | train parents | val | test |
+|---|---:|---:|---:|
+| 1 | 204 (all of `arm_s`) | 48 | 204 |
+| 2 | 612 | 48 | 204 |
+| 3 | 1020 | 48 | 204 |
+
+The held-out set is the same 204 parents at every rung — the curve's x-axis is training-set
+size only. Rung 1 is *not* Phase 1 re-run: Phase 1 trained on 142 parents and tested on 31 of
+the same seed block; rung 1 trains on all 204 and tests on 204 fresh parents.
+
+**Arms (unchanged from Phase 1 except cache/split; configs
+`experiments/route_b_fit_p2_r{1,2,3}_{gnn,mpoff,mlp}.yaml`).** GNN MP-ON lr 2e-3, 300 epochs;
+GNN MP-OFF lr 2e-3, 300 epochs; MLP+prefix (A2 layout) 600 epochs/patience 600. Seeds 1–8 per
+arm per rung = 72 training runs (`scripts_cosim/datalab/route_b_fit_p2_train.sbatch`, one
+array). Epoch budgets are held fixed across rungs, so a bigger rung is also more gradient
+steps — that is "more data", not a confound to remove. GNN arms are scored at the **last
+epoch** (`-final.pt`), as Phase 1 was (fit-ceiling framing); the MLP trainer writes one
+best-val checkpoint. Evaluation: `scripts_cosim/route_b_fit_p2_eval.sh` →
+`eval_route_b_stage2_arm.py` (α=2.0 constrained-feasible optimum, `decode_regret_pct.registered`),
+reader `analyze_route_b_fit_p1.py` per rung.
+
+**Primary statistic — fixed here, before data.** Per seed *s* and arm, the **median** held-out
+decode regret over the 204 test parents (Phase 0 §2: the mean is carried by a handful of
+needle-in-a-haystack parents; the median-paired statistic is what Phase 1 said a
+registration should fix). Primary contrast: **D_s = median(GNN MP-ON) − median(GNN MP-OFF)
+at rung 3**, 8 paired seeds, exact Wilcoxon signed-rank (midranks), two-sided α = 0.05.
+
+- **DATA-RESCUE** — D < 0 at rung 3, p < 0.05: with enough DAG data message passing is
+  the better held-out model; the Phase 1 gap was corpus size.
+- **GAP-PERSISTS** — D > 0 at rung 3, p < 0.05: 5× the data does not close it; the
+  fit-ceiling/generalization split is the model class on this corpus (which then joins
+  `link_mp_v1`'s "no supervised MP win on any graph" line rather than reopening it).
+- **INDETERMINATE** otherwise. Registered follow-up for that case is *more seeds on rung 3*,
+  never a different statistic or a different checkpoint rule.
+
+Secondary, reported without verdict: the same contrast at rungs 1 and 2 (the curve's shape);
+GNN vs MLP+prefix and MP-OFF vs MLP+prefix at every rung; per-(seed, parent) win/tie/loss
+counts; train-split regret per arm per rung (does the fit-ceiling gap survive 5× data?); the
+mean-based versions of everything, labelled. **Power, honestly:** Phase 1's median-paired
+MP-OFF−GNN difference had sd 4.6 pp across seeds on a 31-parent test set; the 204-parent test
+set shrinks the per-seed median's noise substantially but no power calculation was run for
+it — n=8 is the paired-on-seeds design carried over, and an INDETERMINATE reads as
+"under-powered at n=8", not "no effect".
+
+**What this cannot show.** Offline decode regret against a brute-force table on 4-task DAG
+episodes; not a live gate, not a Knative comparison, and not evidence about the independent-task
+corpora that `program_verdict_v1` closed. `docs/hard-stops.md` checked: the closest stop is
+"pursue a supervised message-passing win on ANY graph" — this phase does not *pursue* one, it
+measures whether the DAG corpus's held-out gap is data-limited; a DATA-RESCUE would be the
+first supervised-MP held-out win in the record and would need its own live gate before any
+claim.
+
+**Cost.** Corpus ~1 h local CPU; caches seconds; training 72 GPU tasks (Phase 1 ran
+13–37 min per GNN seed at 204 parents; rung 3 is ~5× the graphs per epoch) ≈ 85 GPU-h;
+evaluation ~8 s per checkpoint locally.
