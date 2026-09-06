@@ -937,3 +937,49 @@ that reads as a decisive ablation. The live-gate scorers were protected by a
 **Artifacts:** `simulation_data/explore_fit/eval_*.json`, checkpoints
 `models/route-b-fit-a1-e300{,-mpoff,-lr2e3}-seed1{,-final}.pt` (+ sidecars),
 `models/tabular/route_b_fit_a2_long_seed1.pt`, logs `logs/explore/`.
+
+## 2026-09-06 — Phase 0: instrument audit of the fit-ceiling probe before adding seeds
+
+Decision (user, 2026-09-06): pursue the fit-ceiling split as the live thread, but audit
+the apparatus first. Six checks; two changed the reading, one found a bug elsewhere.
+
+1. **Live-loader MP-OFF hole (bug, fixed).** The 2026-09-03 sidecar fix covered the
+   offline evaluator only; `executesimulation.load_gnn_model` had the identical hole and
+   was never audited. GATE TOOLS 2026-09-06 has the record; it does not touch any number
+   in this node.
+2. **The regret statistic, not the model, makes the held-out table.** Per-dataset regret
+   is heavy-tailed by construction: in every parent sampled (hard and easy alike) only
+   **0.1–2.1%** of the 320–1,248 enumerated placements lie within 5% of the optimum and the
+   median placement is 2–3× the optimum, so a one-step miss costs 50–200%. On the 31 test
+   parents, three datasets carry **52–60%** of every arm's summed regret; in absolute
+   seconds the arms' *medians* are 0.03 s (MP-OFF), 0.9 s (MLP+prefix), 2.7–2.9 s (GNN)
+   against means of 6–12 s. **`ds_00019` and `ds_00078` are among the worst four for all
+   four arms** — a property of those parents, not of any model. The ordering survives a
+   robust read: per-dataset paired wins over the 31 test parents are MP-OFF 10.8, MLP 9.0,
+   GNN-lr2e-3 6.0, GNN-default 5.2 (21 multi-way ties, mostly at zero). So the 2026-09-03
+   direction stands, but its mean-based magnitudes do not; Phase 1 reads paired
+   per-seed medians and win counts as primary — the same correction GATE TOOLS 2026-08-19
+   made for `gnn_necessity_ablation.py`.
+3. **Val selection froze at epoch 140/300** (lr 2e-3 arm): the last "new best val" is at
+   epoch 140 and train CE keeps falling for the remaining 160 epochs. Independent
+   corroboration of "capacity spent on overfitting"; the last-epoch checkpoint's worse
+   test regret (23.08% vs 18.61%) is that overfitting, not noise.
+4. **Trainer-side val metric is a faithful proxy (suspected bug, cleared).** The trainer
+   validates against the capped near-RTT sidecar and charges an unmapped decode
+   `max(worst regret in the cap, 1.0 s)`; the cap's worst regret is **96.7%** of the true
+   full-sweep worst regret on the 31 val parents (min 77.6%), so selection is not
+   systematically lenient. The 32–45% "unmapped" rate in the training log and the 0
+   infeasible decodes at evaluation are the same decodes seen through two lookup tables.
+5. **Evaluator is deterministic** — two runs on the same checkpoint are bit-identical.
+6. **`partial-state: null` in the A2 yaml means the flag is ON** (`run_experiment.py:181`
+   emits the bare flag) — confirmed by `input_dim=63 layout=dim63crk` in the training log,
+   so the MLP+prefix arm was what its label says.
+
+**MLP capacity check (hidden 64 → 256)** is running locally (`route-b-fit-a2-wide-h256`);
+result appended below when it lands.
+
+**Phase 1 launched 2026-09-06, datalab job 740198** (22 tasks): GNN lr 2e-3 seeds 2–8,
+**MP-OFF at lr 2e-3** seeds 1–8 (`experiments/route_b_fit_p1_mpoff_lr2e3.yaml` — the
+probe's MP-OFF ran at 5e-4 against MP-ON at 2e-3, a learning-rate confound this removes),
+MLP+prefix seeds 2–8. Reader: `scripts_cosim/analyze_route_b_fit_p1.py`. Exploration, no
+threshold, no verdict.
