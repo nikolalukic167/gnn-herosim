@@ -32,12 +32,17 @@ Three ways to get there, and **which one is live has changed again (2026-08-28)*
    does not improve on the supervised checkpoint (paired median −0.85%, p = 0.928,
    powered — 3% would have been visible). Do not restart it without reading that node.
 
-**Where that leaves the research question.** The GNN's *supervised* edges stand and are
-measured: −44.8% vs Knative on a held-out fabric, plus the Phase 1 reliability claim. What
-is now falsified is every attempt to *widen* them — by better labels, by a richer
-environment, or by training against the live metric. The surviving open finding is a
-**trainability asymmetry** (the closed loop moves the GNN 150× more than the MLP), which
-is a statement about optimisation, not latency, and must never be quoted as the latter.
+**Where that leaves the research question (2026-09-04).** The GNN beats Knative (−44.8%
+on a held-out fabric) — but so does an MLP trained on the same corpus. Both model-class
+edges over the MLP fell to corpus matching: latency ties (`link_mp_v1`, 2026-09-03) and
+the Phase 1 reliability edge is not established (`reliability_matched_v1`, p = 0.113,
+87% of the MLP's collapse burden was the corpus). **There is currently no unconfounded
+GNN-vs-MLP claim; any such number must name both arms' training cache.** The corpus is
+the largest measured lever (~13 pp). Two narrow findings survive: a **trainability
+asymmetry** (the closed loop moves the GNN 150× more than the MLP — optimisation, never
+latency) and, on the route B DAG corpus, a **fit-ceiling split** (converged, the GNN fits
+4–5× better than pointwise and still loses held-out; `route_b_v1` 2026-09-03) — the live
+thread.
 
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
