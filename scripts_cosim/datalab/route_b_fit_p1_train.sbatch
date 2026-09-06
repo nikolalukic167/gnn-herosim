@@ -24,6 +24,11 @@
 #SBATCH --array=0-21
 
 set -euo pipefail
+# train_near_rtt.py's multi-worker DataLoader shares tensors over file descriptors; at the
+# node default of 1024 every GNN task dies in the first epochs with
+# `RuntimeError: received 0 items of ancdata` (job 740198, 15/15 GNN tasks, 2026-09-06).
+# Every other GPU training sbatch in this directory carries this line for that reason.
+ulimit -n 65536 2>/dev/null || true
 cd /home/nikola.lukic/gnn-herosim
 
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi

@@ -192,3 +192,25 @@ box that produces gate numbers must be followed by:
 python3 scripts_cosim/verify_venue_parity.py --mode logits --assert   # ~6 s, login-node safe
 # after the 2026-08-21 repair: max|delta| 0.0, argmax flips 0/256
 ```
+
+## 11. A GNN training sbatch without `ulimit -n 65536` dies with `received 0 items of ancdata`
+
+`train_near_rtt.py` runs a multi-worker `DataLoader`, and torch's default sharing strategy
+passes every tensor between workers over a file descriptor. The nodes' default is
+`ulimit -n` = **1024**, so each GNN task dies inside the first epochs with
+
+```
+RuntimeError: received 0 items of ancdata
+```
+
+deep in `torch/multiprocessing/reductions.py` — no mention of descriptors, no mention of
+the limit. MLP tasks in the same array are unaffected (no worker DataLoader), which makes
+the failure look arm-specific when it is not.
+
+**Check before submitting any sbatch that trains a GNN:** `grep -n "ulimit -n" your.sbatch`
+— every existing GPU training script in `scripts_cosim/datalab/` carries
+`ulimit -n 65536 2>/dev/null || true` right after `set -euo pipefail`, and a new one
+written from a CPU template will not.
+
+Cost: job 740198 (route_b fit-ceiling Phase 1, 2026-09-06) — 15/15 GNN tasks FAILED in
+0.5–3.5 min; the 7 MLP tasks completed and made the array look half-healthy.
