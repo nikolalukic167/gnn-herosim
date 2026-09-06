@@ -332,6 +332,35 @@ ROUTE_B_PILOT_V1_8TASK_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1_8task",
 }
 
+# route_b_v1 fit-ceiling Phase 2 (2026-09-06): a LEARNING CURVE on the Arm S DAG corpus.
+# Phase 1 (8 seeds, 204 datasets) measured the GNN fitting the training pipelines 4-10x
+# tighter than pointwise and still losing held-out by a few pp; the open question is
+# whether that is a 204-dataset artefact. Same grid, same Arm S env block, same physics as
+# ROUTE_B_PILOT_V1_GRID — verified 2026-09-06 to regenerate arm_s ds_00000..2 byte-identical
+# (best.json, workload.json, placements.jsonl as a set) — differing ONLY in the seed block
+# and the output dir. Three blocks so the learning-curve caches are plain --merge-datasets
+# base-dir unions (no allowlist semantics to verify):
+#   holdout: 21 seeds -> 252 datasets, FIXED across rungs (204 test + 48 val, split by seed)
+#   train_a: 34 seeds -> 408 datasets, rung 2 adds these to the original 204
+#   train_b: 34 seeds -> 408 datasets, rung 3 adds these on top of train_a
+# Rungs: train 204 / 612 / 1020 parents against one held-out set of 204.
+# Seed blocks 5001+ are fresh: the highest block in use before this was 3601-3617.
+ROUTE_B_PILOT_V1_X_HOLDOUT_GRID: GridPreset = {
+    **ROUTE_B_PILOT_V1_GRID,
+    "seeds": list(range(5001, 5022)),
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1_x_holdout",
+}
+ROUTE_B_PILOT_V1_X_TRAIN_A_GRID: GridPreset = {
+    **ROUTE_B_PILOT_V1_GRID,
+    "seeds": list(range(5101, 5135)),
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1_x_train_a",
+}
+ROUTE_B_PILOT_V1_X_TRAIN_B_GRID: GridPreset = {
+    **ROUTE_B_PILOT_V1_GRID,
+    "seeds": list(range(5201, 5235)),
+    "default_output_subdir": "gnn_datasets_dag4_route_b_pilot_v1_x_train_b",
+}
+
 # route_c_link_screen: the route_c_link_transfer_v1 SCREEN grid (registration in
 # LINEAGES.md, 2026-08-26). ROUTE_B_PILOT_V1_GRID physics with the backbone squeezed to
 # the measured link_contention_v1 coupling peak (n_core=4, attach=1, chords=0 — crossings
@@ -1160,6 +1189,9 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_a_pilot_v1": ROUTE_A_PILOT_V1_GRID,
     "route_b_pilot_v1": ROUTE_B_PILOT_V1_GRID,
     "route_b_pilot_v1_8task": ROUTE_B_PILOT_V1_8TASK_GRID,
+    "route_b_pilot_v1_x_holdout": ROUTE_B_PILOT_V1_X_HOLDOUT_GRID,
+    "route_b_pilot_v1_x_train_a": ROUTE_B_PILOT_V1_X_TRAIN_A_GRID,
+    "route_b_pilot_v1_x_train_b": ROUTE_B_PILOT_V1_X_TRAIN_B_GRID,
     "route_c_link_screen": ROUTE_C_LINK_SCREEN_GRID,
     "route_c_link_screen_8task": ROUTE_C_LINK_SCREEN_8TASK_GRID,
     "route_b_pivot_h0": ROUTE_B_PIVOT_H0_GRID,
