@@ -984,8 +984,46 @@ the apparatus first. Six checks; two changed the reading, one found a bug elsewh
    scorer cannot beat greedy-on-marginals even when it has memorised the marginals.
    Report `simulation_data/explore_fit/eval_a2_wide_h256.json`.
 
-**Phase 1 launched 2026-09-06, datalab job 740198** (22 tasks): GNN lr 2e-3 seeds 2–8,
-**MP-OFF at lr 2e-3** seeds 1–8 (`experiments/route_b_fit_p1_mpoff_lr2e3.yaml` — the
-probe's MP-OFF ran at 5e-4 against MP-ON at 2e-3, a learning-rate confound this removes),
-MLP+prefix seeds 2–8. Reader: `scripts_cosim/analyze_route_b_fit_p1.py`. Exploration, no
-threshold, no verdict.
+**Phase 1 launched 2026-09-06, datalab job 740198 → resubmitted 740232** (job 740198's 15
+GNN tasks all died in the first minutes on `RuntimeError: received 0 items of ancdata` —
+the sbatch was missing `ulimit -n 65536`, which every other GPU training sbatch in the
+directory carries for exactly this reason; the 7 MLP tasks in the same array were
+unaffected, since the MLP trainer has no multi-worker `DataLoader`. Fixed, filed as
+datalab-pitfalls #11, resubmitted clean). GNN lr 2e-3 seeds 1–8, **MP-OFF at lr 2e-3**
+seeds 1–8 (`experiments/route_b_fit_p1_mpoff_lr2e3.yaml` — the 2026-09-03 probe's MP-OFF
+ran at 5e-4 against MP-ON's 2e-3, a learning-rate confound this removes), MLP+prefix
+seeds 1–8. All 24 checkpoints evaluated on the shared 31-parent test split, 0 infeasible
+decodes anywhere.
+
+**Result: direction from the single-seed probe holds; magnitude does not.**
+
+| arm | train regret mean/median | test mean-of-seed-means | test median-of-seed-medians | sd across seeds |
+|---|---:|---:|---:|---:|
+| GNN (MP-ON) | 1.09% / 0.58% | 17.71% | 5.06% | 3.14pp |
+| MP-OFF | 3.99% / 3.71% | 15.97% | 3.82% | 3.20pp |
+| MLP+prefix | 10.69% / 11.38% | 15.13% | 2.90% | 2.46pp |
+
+The single-seed fit-capacity gap replicates cleanly (GNN fits ~3.7× tighter than MP-OFF,
+~9.8× tighter than MLP+prefix, every seed). The held-out gap that motivated Phase 1 —
+single-seed GNN 18.6–26.2% vs MP-OFF 11.1% vs MLP 15.4% — **shrinks by roughly half** at
+n=8: paired per-seed mean differences are MP-OFF−GNN −1.7pp, MLP−GNN −2.6pp, neither
+clearing an (unregistered, exploratory) Wilcoxon on the mean (p=0.46, 0.31). The
+**median**-based paired test — the statistic Phase 0 argued for, since three of 31 test
+parents carry over half the regret — does clear: MP-OFF−GNN p=0.031, MLP−GNN p=0.008 (MLP
+vs MP-OFF: not different, p=0.73). Per-(seed, dataset) win counts point the same way: GNN
+loses more often than it wins to both other arms (50/69, 49/93), MLP vs MP-OFF is
+even (47/66 either way, mostly ties). Seed 1 (the only seed the 2026-09-03 probe ran) was
+close to the worst draw for GNN and closest to the best for MP-OFF — the single seed
+overstated the gap in both directions.
+
+**Reading:** the DAG corpus's "fit ceiling favours GNN, held-out favours pointwise" split
+is real and directionally consistent across 8 seeds, not a one-seed artifact — but it is
+a **small, only-just-detectable generalization gap** (a few points, exploratory
+significance on the median statistic only), not the 2–3× swing a single seed suggested.
+Not registered — no threshold was fixed before this data, and n=8 with an exploratory
+statistic is not a gate. A registration, if one follows, should fix the median-paired
+statistic and an n up front rather than choosing post hoc.
+
+Reader: `scripts_cosim/analyze_route_b_fit_p1.py`; full numbers in
+`simulation_data/route_b_fit_p1_verdict.json` and per-checkpoint reports in
+`simulation_data/route_b_fit_p1/eval_{gnn,mpoff,mlp}_seed{1..8}.json`.
