@@ -29,6 +29,35 @@ for d in "$ARM_S:204" "$HOLD:252" "$TA:408" "$TB:408"; do
   [[ "$got" == "$want" ]] || { echo "FAIL LOUD: $dir has $got placements.jsonl, expected $want" >&2; exit 1; }
 done
 
+# The three new blocks were generated with GNN_CAPTURE_DATASET_STATE=0 (the datalab shard
+# convention), so they lack system_state_captured_unique.json, which prepare_graphs_cache
+# requires. The frozen arm_s corpus got it the same way — post-hoc enrichment with
+# refresh_optimal_full_stats.py --repair --force (its optimal_result.json.bak files are that
+# script's signature; docs/notes/cosim_grid_and_regen.md records the inline-vs-repair A/B).
+# Verified 2026-09-06 on arm_s ds_00000..2: stripping the file and repairing under the Arm S
+# env reproduces it key-for-key (list order aside). The repair re-runs ONE simulation per
+# dataset, so it must see the Arm S physics env; it is sequential, hence the shards.
+repair_ssc() {  # dir n_shards
+  local dir=$1 n=$2 total; total=$(ls -d "$dir"/ds_* | wc -l)
+  local missing; missing=$(for d in "$dir"/ds_*; do [[ -f "$d/system_state_captured_unique.json" ]] || echo x; done | wc -l)
+  if [[ "$missing" == 0 ]]; then echo "[skip] $dir: all $total have system_state_captured_unique.json"; return; fi
+  echo "[repair] $dir: $missing/$total missing SSC — $n shards"
+  local per=$(( (total + n - 1) / n )) pids=()
+  for ((i=0; i<n; i++)); do
+    HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000 HEROSIM_COSIM_KEEP_ALIVE=1000000 \
+    HEROSIM_RETAIN_TASK_TIMES=1 COSIM_SUPPRESS_SIM_PRINTS=1 \
+      $PY scripts_cosim/refresh_optimal_full_stats.py --base-dir "$dir" --repair --force \
+        --start-from $((i * per)) --max-datasets "$per" > "logs/ssc_repair_$(basename "$dir")_$i.log" 2>&1 &
+    pids+=($!)
+  done
+  for p in "${pids[@]}"; do wait "$p" || { echo "FAIL LOUD: a repair shard of $dir failed (logs/ssc_repair_*)" >&2; exit 1; }; done
+  missing=$(for d in "$dir"/ds_*; do [[ -f "$d/system_state_captured_unique.json" ]] || echo x; done | wc -l)
+  [[ "$missing" == 0 ]] || { echo "FAIL LOUD: $dir still has $missing datasets without SSC after repair" >&2; exit 1; }
+}
+repair_ssc "$HOLD" 8
+repair_ssc "$TA" 8
+repair_ssc "$TB" 8
+
 build() {  # rung base_dirs...
   local r=$1; shift
   local cache=$SD/graphs_cache_route_b_fit_p2_r$r
