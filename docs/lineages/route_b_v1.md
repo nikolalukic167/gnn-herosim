@@ -975,8 +975,14 @@ the apparatus first. Six checks; two changed the reading, one found a bug elsewh
    emits the bare flag) — confirmed by `input_dim=63 layout=dim63crk` in the training log,
    so the MLP+prefix arm was what its label says.
 
-**MLP capacity check (hidden 64 → 256)** is running locally (`route-b-fit-a2-wide-h256`);
-result appended below when it lands.
+7. **The pointwise floor is the decoder, not capacity (measured).** MLP+prefix at
+   hidden 256 (`route-b-fit-a2-wide-h256`, same seed 42, 600 epochs): train regret
+   **11.95%** vs 10.41% at hidden 64, test 14.31% vs 15.38%, zero-regret share 65% vs
+   70% — 4× the width moves nothing past noise, and both sit on the F2
+   greedy-on-true-marginals floor (8.86%). So the fit-ceiling table's "MP fits 4–5×
+   better" is MP versus a *decoder-bounded* pointwise arm: without message passing the
+   scorer cannot beat greedy-on-marginals even when it has memorised the marginals.
+   Report `simulation_data/explore_fit/eval_a2_wide_h256.json`.
 
 **Phase 1 launched 2026-09-06, datalab job 740198** (22 tasks): GNN lr 2e-3 seeds 2–8,
 **MP-OFF at lr 2e-3** seeds 1–8 (`experiments/route_b_fit_p1_mpoff_lr2e3.yaml` — the
