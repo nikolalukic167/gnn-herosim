@@ -1,0 +1,29 @@
+# route_b fit-ceiling Phase 1 (2026-09-06): the MP-OFF arm at the SAME learning rate as
+# the MP-ON arm it is paired with (route_b_fit_a1_e300_lr2e3.yaml). The 2026-09-03 probe
+# ran MP-OFF at the default 5e-4 against MP-ON at 2e-3, so its MP on/off reading carried
+# a learning-rate confound; this config removes it. Everything else is identical to
+# route_b_fit_a1_e300_mpoff.yaml.
+trainer: gnn
+lineage: route_b_v1
+cache_dir: simulation_data/graphs_cache_route_b_pilot_s_dag
+unset_env:
+  - TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: "1"
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/route_b_stage2_split_v1.json
+  NEAR_RTT_MP_DAG_EDGES: "1"
+  NEAR_RTT_TASK_TYPE_ONEHOT: "1"
+  NEAR_RTT_PARTIAL_STATE_EDGES: "1"
+  NEAR_RTT_DAG_ALPHA_KEY: "2.0"
+  NEAR_RTT_TIED_MAX_PLANS: "0"
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  GNN_DISABLE_MESSAGE_PASSING: "1"
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  learning-rate: 0.002
+wandb:
+  project: gnn-route-b-explore
+  run_name: route-b-fit-p1-mpoff-lr2e3
+  tags: [route-b, explore, fit-ceiling, phase1, mp-off, lr2e-3]
