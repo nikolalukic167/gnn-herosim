@@ -1120,6 +1120,8 @@ measures whether the DAG corpus's held-out gap is data-limited; a DATA-RESCUE wo
 first supervised-MP held-out win in the record and would need its own live gate before any
 claim.
 
+**Execution log.** Corpus generated 16:38–17:41 local, 1068/1068 SUCCESS, 0 skipped, 0 failed. The blocks were generated with `GNN_CAPTURE_DATASET_STATE=0` and needed the same post-hoc SSC enrichment the frozen `arm_s` corpus carries (`refresh_optimal_full_stats.py --repair --force`, verified key-identical on `arm_s` ds_00000..2 under the Arm S env; now a sharded step in `route_b_fit_p2_build.sh`). Caches r1/r2/r3 = 456/864/1272 graphs, splits 204/612/1020 train, 48 val, 204 test; 1-epoch GNN and MLP smokes on r1 passed end to end (split applied, sidecar stamps the split sha, evaluator scores all 456 graphs, 0 infeasible). Caches rsynced to datalab, 35/35 md5 verified. **Training: datalab job 740372** (72 tasks), submitted 2026-09-06 ~17:52.
+
 **Cost.** Corpus ~1 h local CPU; caches seconds; training 72 GPU tasks (Phase 1 ran
 13–37 min per GNN seed at 204 parents; rung 3 is ~5× the graphs per epoch) ≈ 85 GPU-h;
 evaluation ~8 s per checkpoint locally.
