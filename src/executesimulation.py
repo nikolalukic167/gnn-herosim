@@ -605,6 +605,15 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             # default, not an error.
             "mp_dag_edges",
             "partial_state_edge_features",
+            # Weight-invisible like the two above: the GIN module is always constructed,
+            # so a checkpoint whose GIN weights were never fitted (disable_message_passing
+            # =True at train time) looks identical on disk to one trained normally. Route_b
+            # 2026-09-03 measured a 5.7x train-regret error (12.67% -> 72.23%) from serving
+            # an MP-OFF checkpoint through GIN weights it never trained. That fix only
+            # covered the offline evaluator; this key was absent from this whitelist, so
+            # THIS loader's own mp_node_edges/mp_dag_edges-style guard had nothing to check
+            # against below.
+            "disable_message_passing",
         )
         if key in payload
     }
@@ -862,7 +871,28 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         model = model.to(device)
         model.eval()
         mp = os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower()
-        if mp in ("1", "true", "yes"):
+        if mp not in ("", "0", "false", "no", "1", "true", "yes"):
+            raise ValueError(
+                f"GNN_DISABLE_MESSAGE_PASSING={mp!r} is not a boolean (use 1/0/true/false/yes/no)"
+            )
+        serving_mp_off = mp in ("1", "true", "yes")
+        # mp_cfg is built by checkpoint_mp_config, which only emits a key when the
+        # sidecar actually has it — a sidecar that predates this key (every checkpoint
+        # before 2026-09-03) has no opinion and is not refused, matching how
+        # mp_node_edges/mp_dag_edges are read above.
+        if "disable_message_passing" in mp_cfg:
+            declared_mp_off = bool(mp_cfg["disable_message_passing"])
+            if declared_mp_off != serving_mp_off:
+                raise ValueError(
+                    f"{model_path.name}: sidecar declares disable_message_passing="
+                    f"{declared_mp_off} but serving has GNN_DISABLE_MESSAGE_PASSING="
+                    f"{'set' if serving_mp_off else 'unset'}. Unlike mp_node_edges/"
+                    "mp_dag_edges this mismatch corrupts inference in BOTH directions: "
+                    "serving MP-on weights with the flag set skips a trained GIN pass, "
+                    "and serving MP-off weights without it runs never-trained GIN "
+                    "weights (measured 5.7x train-regret error, route_b 2026-09-03)."
+                )
+        if serving_mp_off:
             print(
                 "[GNN] GNN_DISABLE_MESSAGE_PASSING=1 — GIN aggregation skipped; "
                 "encoder embeddings go straight to the edge scorer",
