@@ -1186,3 +1186,53 @@ warnings suppressed lets non-deterministic CUDA kernels run silently on GPU seed
 decoder in trainer and evaluator, no test leakage (gradient touches train graphs' tied plans
 only), MP-OFF guarded on both loader and evaluator, `-final.pt` genuinely last-epoch, the new
 blocks' `generation_provenance.json` records the full Arm S env block.
+
+## 2026-09-07 — Phase 2 RESULT: **GAP-PERSISTS** — 5× the DAG data does not rescue message passing; the no-MP GNN generalizes best
+
+**Job 740372: 72/72 tasks COMPLETED, 0 failures** (rung 3 GNN 2.5–3 h/seed). All 72
+checkpoints evaluated locally on the fixed 204-parent held-out block, 0 infeasible decodes
+anywhere. Reports `simulation_data/route_b_fit_p2/eval_r{1,2,3}_{gnn,mpoff,mlp}_seed{1..8}.json`,
+verdicts `simulation_data/route_b_fit_p2_r{1,2,3}_verdict.json`, reader
+`scripts_cosim/analyze_route_b_fit_p2_curve.py`.
+
+**Learning curve** (8 seeds per cell; train = train-split mean regret, held-out = mean of
+per-seed means / median of per-seed medians over the same 204 test parents):
+
+| rung | train parents | GNN MP-ON train / held-out | GNN MP-OFF train / held-out | MLP+prefix train / held-out |
+|---|---:|---|---|---|
+| 1 | 204 | 0.47% / 15.42% · 9.99% | 4.83% / 14.54% · 7.40% | 8.42% / 18.03% · 6.80% |
+| 2 | 612 | 0.93% / 13.29% · 3.33% | 7.12% / 13.49% · 0.28% | 9.65% / 15.14% · 4.15% |
+| 3 | 1020 | 1.02% / 13.95% · 2.41% | 7.46% / **11.89% · 0.08%** | 9.46% / 13.65% · 3.18% |
+
+**Registered primary (rung 3): D_s = median(GNN MP-ON) − median(GNN MP-OFF), 8 paired seeds.**
+Per-seed D = [−0.05, +0.64, +0.07, +3.07, +4.78, −0.04, +2.33, +0.08] pp; median +0.36,
+mean +1.36; exact Wilcoxon **p = 0.039**; D > 0 on both location statistics ⇒ **GAP-PERSISTS**.
+The mean-paired version agrees (MP-OFF better by 2.06 pp, p = 0.023, 7/8 seeds); per-(seed,
+parent) wins MP-OFF 479 / GNN 401 / ties 752.
+
+Secondary, no verdict read: the MP-ON−MP-OFF median gap is present at every rung (−1.74 /
+−2.04 / −1.36 pp) and only *reaches* significance at rung 3 because the seed spread shrinks
+with data — the curve is flat, not closing. GNN vs MLP+prefix: GNN ahead on the mean at rungs
+1–2 (p = 0.039, 0.055), a tie at rung 3 (−0.29 pp, p = 0.46; median +0.70, p = 0.84).
+MP-OFF vs MLP+prefix: MP-OFF better at rungs 2–3 (rung 3 median-paired p = 0.008, mean-paired
+p = 0.016). All three arms improve held-out with data (means 15.4→14.0, 14.5→11.9,
+18.0→13.7), so "204 was too small" is true in the plain sense — and it does not favour
+message passing. The fit-ceiling asymmetry survives 5× data unchanged: GNN train regret stays
+≈1% while MP-OFF/MLP loosen to 7–9%, i.e. the GNN's extra capacity buys memorization only.
+
+**Reading (registered rule, statistic drafted 2026-09-06 and pending the user's sign-off —
+the user can amend before this is treated as a gate).** On the Arm S DAG corpus, at 1020
+training pipelines against 204 held-out pipelines, the GNN **without** message passing is the
+best-generalizing of the three arms; adding message passing costs held-out regret at every
+rung and never converges toward the pointwise arms. This is the same shape as `link_mp_v1`
+on the independent-task corpora (MP harmful on the old graph, tie at best on the repaired
+one) and matches the 2026-09-06 physics audit: the target is ~90% pointwise cost by
+construction, so a scorer that cannot memorize per-graph joint structure regularizes toward
+the truth. **The "fit-ceiling split" is therefore not a data-scarcity artefact; it is the
+model class on this target.** Corpus size joins `docs/hard-stops.md` for this route.
+
+**Scope, restated.** Offline exam only: joint 4-task decode against a brute-force answer key
+under the α = 2.0 cap and replica uniqueness, on a frozen snapshot. No live number exists or
+can exist for these checkpoints (2026-09-06 audit: the live path cannot serve them and
+measures a different object). Nothing here bears on the closed-loop dispersal edge or on a
+"planner vs reactive Knative" framing, which is a separate registration.
