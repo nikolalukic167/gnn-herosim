@@ -1236,3 +1236,129 @@ under the α = 2.0 cap and replica uniqueness, on a frozen snapshot. No live num
 can exist for these checkpoints (2026-09-06 audit: the live path cannot serve them and
 measures a different object). Nothing here bears on the closed-loop dispersal edge or on a
 "planner vs reactive Knative" framing, which is a separate registration.
+
+## 2026-09-07 — Live replay gate (EXPLORATORY): reactive Knative vs the decoded plans on the same frozen substrate
+
+**Status: not pre-registered.** The user asked for a live gate after the Phase 2 read; this
+gate was designed, its scorer written, and the run made before any statistic was written into
+this node. It is therefore an exploration, and the reading below is a draft for sign-off, not
+a gate result. Scripts: `scripts_cosim/route_b_live_replay_gate.py`,
+`scripts_cosim/score_route_b_live_replay.py`; data
+`simulation_data/route_b_live_replay/r3_test{,_score}.json`.
+
+**What it measures — and why this is the one live comparison that shares the offline object's
+substrate.** Every dataset's `optimal_result.json` carries the complete simulator input the
+sweep ran (topology, fabric, `replica_plan`, deterministic warmup queues,
+`fast_forward_warmup`, the one-event diamond4 workload, and `sim_inputs` with the 800 MB
+output override baked in). The gate replays that input through `execute_simulation` with
+`kn_network_kn_network` / `kn_network_batch_kn_network_batch` / `rr_network_rr_network`
+instead of a forced plan — the reactive scheduler makes its own per-arrival decisions on the
+identical warm state the offline decode was scored on — and replays every Phase 2 rung-3
+checkpoint's decoded plan (all 8 seeds × 3 arms) as `forced_placements`. Two engine checks,
+both required to pass before anything is read: replaying the sweep argmin reproduces its
+recorded rtt to 1e-9 on 204/204 parents; and each reactive arm's chosen plan is replayed
+through the forced path (`@replay` arms) so the pairing is engine-identical — the
+`determined` scheduler charges a 0.1 s `batch_timeout` wait per task that the reactive
+schedulers do not (both holes are in `docs/gates/gate-tools.md`, 2026-09-07).
+
+What it does not share: the reactive arms are not bound by the α=2.0 memory cap or replica
+uniqueness (a strictly larger action space, and the live physics enforce neither), and they
+decide each task when it becomes ready rather than jointly. A Poisson stream of DAGs with
+autoscaling from zero — the "prod" object — is a different gate again (the serving path for
+DAG checkpoints does not exist; see the 2026-09-06 audit and below).
+
+**Result (204 held-out parents, regret vs the *unconstrained* sweep optimum; paired
+d = 100·ln(rtt_arm / rtt_Knative@replay), negative = faster than Knative):**
+
+| arm | mean regret % | median % | = optimum | median d (8 seeds) | mean d | seeds p<0.05 faster |
+|---|---:|---:|---:|---|---:|---:|
+| optimal (sweep argmin) | 0.0 | 0.0 | 204 | −21.6 | −22.3 | — |
+| Knative (kn_network, own plan replayed) | 26.6 | 24.1 | 20 | 0 | 0 | — |
+| Knative batch | 26.6 | 24.1 | 20 | 0.00 | +0.05 | — |
+| round-robin | 66.5 | 58.9 | 5 | +21.9 | +25.3 | 0/1 (slower) |
+| GNN MP-ON planner | 24.5–28.2 | 18.0–21.5 | 41–51 | −0.18 [−0.93, −0.01] | −1.39 | 2/8 |
+| GNN MP-OFF planner | 22.9–25.0 | 16.3–20.5 | 48–56 | **−1.15 [−2.83, −0.11]** | **−2.75** | **7/8** |
+| MLP+prefix planner | 24.3–28.3 | 18.0–23.2 | 41–49 | −0.18 [−1.27, −0.02] | −1.48 | 2/8 |
+
+Per-(seed, parent) wins vs Knative: MP-OFF 110–122 wins / 11–20 ties / 66–78 losses per seed.
+
+**Reading (draft).** On the frozen substrate, a planner that decodes the whole pipeline at
+arrival beats reactive least-connected Knative by a small, seed-consistent margin *only in the
+no-MP GNN arm* — the same arm that generalizes best offline. MP-ON and MLP tie Knative. The
+effect is small (median ≈ −1%, mean ≈ −3% of RTT) against a 22% headroom to the optimum that
+no arm captures; Knative's root task lands on the wrong node in 134/204 parents, MP-OFF's in
+89/204. Two facts frame this: (i) the planners carry the α=2.0 cap, which costs 11.1% mean
+(binding on 93/204, p90 38%) against the unconstrained optimum — a scoring-time constraint
+the live physics never charge for, so on this substrate it is pure handicap; (ii) Knative,
+unconstrained, still sits at 26.6%: the reactive rule's error is the same root-node error the
+planners make, not the cap. This is consistent with the Phase 2 mechanism (target ≈ pointwise,
+tail-dominated: at rung 3, 16–20% of decodes exceed 25% regret and set the mean; no arm ever
+places the root on a queue-0 platform though it is optimal in ~6% of the catastrophic cases;
+the queue-0 penalty is node-level write contention from warmup outputs — 8.8 s on an idle
+node vs 38.5 s when other platforms on the node are writing — not warmth).
+
+**Suggested primary if this is to be registered**: median-paired d of the MP-OFF planner vs
+Knative@replay per seed, 8 seeds, exact Wilcoxon on the 8 per-seed medians (here all 8 < 0;
+sign-test p = 0.0078). The user may amend before it counts.
+
+### 2026-09-07 — Correction to the Phase 2 physics audit, and the measured physics tweaks
+
+**Correction.** Item 1 of the 2026-09-06 audit ("the Arm S target is ~90% pointwise by
+construction") is true of the root task's *seconds* and false of the target's *structure*.
+Measured 2026-09-07 over the full enumerated sweeps (`scripts_cosim/measure_route_b_additivity.py`,
+204 arm_s datasets; LS-additive fit rtt(plan) = Σ_i f_i(platform_i) over every row):
+
+| | arm_s (204) | arm_b0 control (no locality / no override) |
+|---|---|---|
+| additive R² (median) | **0.737** (0.694–0.821) | 0.999 |
+| residual RMS, % of mean RTT | 8.8–10.3 | 0.5–4.0 |
+| + same-node-pair terms R² | 0.878 | — |
+
+On the first 20 datasets: 1−R² median **0.229**, the LS-additive argmin's regret vs the true
+optimum **15.8% median / 21.9% mean, nonzero on 15/20**. Per task: the root's duration is
+exactly pointwise (R² = 1.000, 40.8 s) — that is the 7.63 s × (queue+1) warmup-write term
+and the 39 s node-write-contention term the audit measured — while the three children are
+30–86% non-pointwise (R² on own platform 0.40 / 0.51 / 0.14 for dnn2 / rf / cnn): a child
+costs 4.78 s when its parent ran on the same node and 9.54 s otherwise (storage tier 3.17 s +
+one backbone hop 0.76 s + latency), and cnn's fan-in depends on both parents' nodes. The
+unconstrained min-marginal statistic `r_exact` is identically 0 by construction (the min over
+plans containing (t, s) is attained at the optimum's own slot); `r_exact_ls` is the
+informative unconstrained statistic (filed in gate-tools).
+
+**What this changes in the Phase 2 reading — nothing in the verdict, everything in the
+mechanism sentence.** The coupling that exists is *pairwise parent→child co-location*, and
+every Phase 2 arm already sees it: all three are prefix-conditioned (T2) scorers whose 38
+partial-state columns carry the committed parents' hop min/max and transfer term
+(`reduced_features.partial_state_columns`, cols 7–9). MP-OFF is not a pointwise model; it
+is the same prefix-conditioned scorer without GIN aggregation over the task–platform graph.
+So the Phase 2 result reads: the joint structure the target has is captured by the prefix
+features, message passing on top of them buys memorization only. That is a sharper
+statement than "the target is pointwise", and it is the one the hard-stop should cite.
+
+**Physics tweaks, measured (agent run, full sweeps re-simulated in memory from the stored
+`optimal_result.json` config, base reproduces every stored rtt to 1e-9 on 2,720/2,720
+plans).** (i) 800 MB on DAG tasks only, warmup at the shipped 8 kB (`dag_only`) or on DAG
+parents only (`parents_only`): the value-level joint share **halves** (1−R² 0.229 → 0.10 /
+0.09 median over 20 ds), the LS-additive argmin regret drops to 0.00% median, and the
+unconstrained optimum becomes "everything on one node" in 20/20 datasets — route A's regime.
+What it raises is the *cap-constrained* registered contention statistic
+(`score_route_b_contention.py` at α = 2.0: firing >5% 30% → 50% of datasets, median r_exact
+0 → 4–5%), at the cost of the queue axis of the grid becoming inert (the three queue
+siblings of a seed take near-identical values). (ii) backbone 1000 → 100 Mbps or node write
+25 MiB/s: degenerate — non-additivity rises only by collapsing the optimum onto one node.
+(iii) 8 tasks / 2 clients: joint share unchanged (R² 0.78 vs 0.77; §9d already measured no
+gain). (iv) memory cap inside the simulator: either equals the label-time mask or is the
+stopped residency hold (`docs/hard-stops.md`). Hook for (i), if ever registered:
+`src/executecosimulation.py` after `ensure_application_state_size` (:2810-2819), applying a
+new `HEROSIM_DAG_OUTPUT_SIZE_BYTES` only to `stateSize[<app>]` of multi-task workload
+applications (parents only), recorded in `generation_provenance.json` and the metadata
+physics block; leave `HEROSIM_OUTPUT_SIZE_BYTES` untouched. **None of (i)–(iv) is proposed**:
+each is a physics lever aimed at a supervised message-passing win, which
+`docs/hard-stops.md` stops twice over, and the measurement says physics is not the blocker.
+
+**The α = 2.0 cap.** On this substrate it costs the planners 11.1% mean against the
+unconstrained optimum (binding on 93/204 held-out parents, p90 38%) and the live physics
+never charge for memory, so in the replay gate it is pure handicap. It was registered
+(stage 2 §5) to *create* contention for the label, not as a deployment constraint; a
+planner meant to be served should be decoded unconstrained (or the physics should enforce
+memory), which is a registration change, not a tweak.
