@@ -42,8 +42,10 @@ the largest measured lever (~13 pp). Two narrow findings survive: a **trainabili
 asymmetry** (the closed loop moves the GNN 150× more than the MLP — optimisation, never
 latency) and, on the route B DAG corpus, a **fit-ceiling split** (converged, the GNN fits
 4–10× better than pointwise and still loses held-out; `route_b_v1`). **Measured to 5× the
-data 2026-09-07 (Phase 2, 1020 training DAGs, 204 held-out): GAP-PERSISTS — the no-MP GNN
-generalizes best, the MP gap is flat across the learning curve.** Corpus size is not the
+data 2026-09-07 (Phase 2, 1020 training DAGs, 204 held-out): GAP-PERSISTS — the MP gap is flat
+across the learning curve; "the no-MP GNN generalizes best" held only at the registered last-epoch
+checkpoints, where MP-ON is overfit — val-selected, MP-ON ties MP-OFF and beats the MLP
+(2026-09-07).** Corpus size is not the
 lever there either. Corrected 2026-09-07: the target has ~23% joint variance, all of it pairwise
 parent→child co-location that every arm already sees through the prefix columns, so message
 passing is redundant, not starved; the live path cannot serve DAG checkpoints, but a frozen-
