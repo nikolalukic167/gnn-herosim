@@ -182,6 +182,19 @@ class NearRttConfig:
     # one, so a "draw" varies initialisation and batch order ONLY (§3). Every arm of
     # a paired comparison must point at the same file.
     split_artifact: str = os.environ.get("NEAR_RTT_SPLIT_ARTIFACT", "").strip()
+    # route_b Phase 2 training audit (2026-09-07): `val/regret_masked_topo` scores any
+    # decoded combo absent from the CAPPED near-RTT sidecar at a constant per-dataset
+    # `worst_regret` floor. On the route_b DAG corpus ~66% of decodes are unmapped (the
+    # capped sidecar's far band saturates at a small reservoir), so the metric mostly
+    # measures "hit the exact optimum or one of ~195 random rows" rather than true
+    # regret -- and it is the ONLY checkpoint-selection signal for TEACHER_FORCED arms
+    # (`ranking_checkpoint_metric`). When set, an unmapped combo is looked up in the
+    # FULL enumerated sweep (`rtt_chunk_*.pkl`) instead of falling back to the floor;
+    # true regret when found there, the floor only for the residual (should be near 0
+    # on route_b, since masked_topo only ever proposes replica-unique candidate-edge
+    # combos, which is exactly the sweep's own search space). Off by default: this
+    # changes which epoch gets selected relative to every pre-2026-09-07 checkpoint.
+    val_exact_regret: bool = os.environ.get("NEAR_RTT_VAL_EXACT_REGRET", "0") == "1"
 
 
 _DEFAULT_NEAR_RTT_WANDB_PROJECT = "gnn-near-rtt-jun2026"
@@ -746,6 +759,37 @@ def build_worst_regret_by_dataset(rtt_by_dataset: RttByCombo) -> Dict[str, float
     return worst
 
 
+def build_full_sweep_rtt_by_dataset(cache_dir: Path) -> RttByCombo:
+    """Full (uncapped) sweep RTTs from `rtt_chunk_*.pkl`, every parent dataset the
+    cache has. Loaded once, not lazily per-graph: validation graphs from different
+    parents interleave, and `LazyChunkedRttLookup`'s one-parent-at-a-time cache would
+    reload every chunk file per val graph per epoch. The route_b rung-3 cache is
+    ~941k rows / ~40MB across 5 chunks -- small enough to hold in full.
+    """
+    import pickle
+
+    from src.notebooks.non_unique_lib.cache_io import _rtt_chunks_meta
+
+    num_chunks, total_entries = _rtt_chunks_meta(cache_dir)
+    out: RttByCombo = {}
+    n = 0
+    for i in range(num_chunks):
+        chunk_path = cache_dir / f"rtt_chunk_{i}.pkl"
+        with open(chunk_path, "rb") as f:
+            chunk = pickle.load(f)
+        for (ds_id, combo), rtt in chunk.items():
+            out.setdefault(ds_id, {})[combo] = float(rtt)
+            n += 1
+        chunk.clear()
+    if n != total_entries:
+        raise RuntimeError(
+            f"FAIL LOUD: build_full_sweep_rtt_by_dataset read {n} rows from "
+            f"{cache_dir}/rtt_chunk_*.pkl but rtt_chunks_meta.json declares "
+            f"{total_entries} -- the chunk files and their own metadata disagree."
+        )
+    return out
+
+
 def regret_for_combo(
     combo: Optional[PlacementCombo],
     rtt_map: Dict[PlacementCombo, float],
@@ -986,6 +1030,7 @@ def evaluate(
     rtt_by_dataset: RttByCombo,
     worst_regret_by_dataset: Dict[str, float],
     split_name: str,
+    full_sweep_rtt_by_dataset: Optional[RttByCombo] = None,
 ) -> Dict[str, float]:
     model.eval()
     ce_total = 0.0
@@ -1048,6 +1093,18 @@ def evaluate(
             dataset_id = lookup_dataset_id(data)
             opt_rtt = float(getattr(data, "opt_rtt", 0.0))
             rtt_map = rtt_by_dataset.get(dataset_id, {})
+            if full_sweep_rtt_by_dataset is not None:
+                # NEAR_RTT_VAL_EXACT_REGRET=1: union the capped sidecar with the full
+                # sweep so a decoded combo the capped reservoir happened not to keep is
+                # scored by its TRUE regret instead of falling through to the constant
+                # worst_regret floor below. Capped entries take precedence on overlap
+                # (they should agree with the sweep; this just avoids a redundant
+                # dict-copy in the common case where they do).
+                full_map = full_sweep_rtt_by_dataset.get(dataset_id)
+                if full_map:
+                    merged = dict(full_map)
+                    merged.update(rtt_map)
+                    rtt_map = merged
             worst_regret = worst_regret_by_dataset.get(
                 dataset_id,
                 NEAR_CFG.unmapped_penalty,
@@ -1279,6 +1336,18 @@ graphs, dataset_ids = load_graphs_from_cache(CACHE_CTX)
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
 PLACEMENT_TO_LOGIT_MAP, EXACT_RTT_MAP, RTT_BY_DATASET = load_or_build_valid_combos()
 WORST_REGRET_BY_DATASET = build_worst_regret_by_dataset(RTT_BY_DATASET)
+FULL_SWEEP_RTT_BY_DATASET: Optional[RttByCombo] = None
+if NEAR_CFG.val_exact_regret:
+    FULL_SWEEP_RTT_BY_DATASET = build_full_sweep_rtt_by_dataset(CACHE_CTX.cache_dir)
+    _n_full_rows = sum(len(v) for v in FULL_SWEEP_RTT_BY_DATASET.values())
+    print(
+        f"[NEAR_RTT_VAL_EXACT_REGRET] loaded {_n_full_rows:,} full-sweep rows for "
+        f"{len(FULL_SWEEP_RTT_BY_DATASET)} datasets from {CACHE_CTX.cache_dir}/"
+        "rtt_chunk_*.pkl -- decode regret metrics now fall back to the true sweep "
+        "RTT instead of a constant floor when a combo is absent from the capped "
+        "sidecar.",
+        flush=True,
+    )
 
 print(f"Loaded {len(graphs)} graphs")
 _task_feature_dim = int(graphs[0].task_features.size(-1))
@@ -1449,6 +1518,12 @@ wandb.init(
                 "NEAR_RTT_SEQ_VAL_QUEUE_NORM_MODE",
                 os.environ.get("GNN_QUEUE_NORM_MODE", "scheduler_adaptive"),
             )
+        ),
+        "val_exact_regret": bool(NEAR_CFG.val_exact_regret),
+        "num_full_sweep_rtt_rows": (
+            int(sum(len(v) for v in FULL_SWEEP_RTT_BY_DATASET.values()))
+            if FULL_SWEEP_RTT_BY_DATASET is not None
+            else 0
         ),
     },
     tags=[t for t in os.environ.get("WANDB_TAGS", "near-rtt").split(",") if t],
@@ -1686,7 +1761,10 @@ print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 for epoch in range(EPOCHS):
     start = time.perf_counter()
     train_metrics = train_epoch(model, train_loader, optimizer, criterion, epoch)
-    val_metrics = evaluate(model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "val")
+    val_metrics = evaluate(
+        model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "val",
+        full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
+    )
 
     log_dict: Dict[str, float] = {}
     log_dict.update(prefix(train_metrics, "train"))
@@ -1788,9 +1866,18 @@ if os.environ.get("NEAR_RTT_SAVE_FINAL", "0") == "1":
     print(f"[final] last-epoch weights saved to {final_path} (NEAR_RTT_SAVE_FINAL=1)")
 
 model.load_state_dict(torch.load(model_path, map_location=DEVICE))
-train_final = evaluate(model, train_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/train")
-val_final = evaluate(model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/val")
-test_final = evaluate(model, test_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/test")
+train_final = evaluate(
+    model, train_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/train",
+    full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
+)
+val_final = evaluate(
+    model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/val",
+    full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
+)
+test_final = evaluate(
+    model, test_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/test",
+    full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
+)
 
 final_log: Dict[str, float] = {}
 final_log.update(prefix(train_final, "final/train"))
