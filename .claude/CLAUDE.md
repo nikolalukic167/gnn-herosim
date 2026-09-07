@@ -41,8 +41,11 @@ GNN-vs-MLP claim; any such number must name both arms' training cache.** The cor
 the largest measured lever (~13 pp). Two narrow findings survive: a **trainability
 asymmetry** (the closed loop moves the GNN 150× more than the MLP — optimisation, never
 latency) and, on the route B DAG corpus, a **fit-ceiling split** (converged, the GNN fits
-4–5× better than pointwise and still loses held-out; `route_b_v1` 2026-09-03) — the live
-thread.
+4–10× better than pointwise and still loses held-out; `route_b_v1`). **Measured to 5× the
+data 2026-09-07 (Phase 2, 1020 training DAGs, 204 held-out): GAP-PERSISTS — the no-MP GNN
+generalizes best, the MP gap is flat across the learning curve.** Corpus size is not the
+lever there either; the 2026-09-06 audit shows the Arm S target is ~90% pointwise cost by
+construction and that the live path cannot serve DAG checkpoints at all (`route_b_v1`).
 
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
