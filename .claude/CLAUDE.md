@@ -42,11 +42,13 @@ the largest measured lever (~13 pp). Two narrow findings survive: a **trainabili
 asymmetry** (the closed loop moves the GNN 150× more than the MLP — optimisation, never
 latency) and, on the route B DAG corpus, a **fit-ceiling split** (converged, the GNN fits
 4–10× better than pointwise and still loses held-out; `route_b_v1`). **Measured to 5× the
-data 2026-09-07 (Phase 2, 1020 training DAGs, 204 held-out): GAP-PERSISTS — the MP gap is flat
-across the learning curve; "the no-MP GNN generalizes best" held only at the registered last-epoch
-checkpoints, where MP-ON is overfit — val-selected, MP-ON ties MP-OFF and beats the MLP
-(2026-09-07).** Corpus size is not the
-lever there either. Corrected 2026-09-07: the target has ~23% joint variance, all of it pairwise
+data 2026-09-07 (Phase 2, 1020 training DAGs, 204 held-out): the registered last-epoch read
+(GAP-PERSISTS, p=0.039, "no-MP generalizes best") was a checkpoint-selection artifact —
+MP-ON overfits from epoch ~60 and was compared against a val-selected MLP. Fixed the
+trainer's censored val metric and fully retrained both arms 8 seeds each: the honest-selector
+contrast is a TIE (median +0.04pp, p=0.25), confirming the earlier accidental finding was not
+a fluke. Both GNN arms now beat the MLP baseline.** Corpus size is not the
+lever there either. The target has ~23% joint variance, all of it pairwise
 parent→child co-location that every arm already sees through the prefix columns, so message
 passing is redundant, not starved; the live path cannot serve DAG checkpoints, but a frozen-
 substrate replay gate shows the no-MP planner beating reactive Knative by ~1–3% (`route_b_v1`).

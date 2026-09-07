@@ -1445,3 +1445,75 @@ being tested. (4) 1 GIN layer (the diamond is 2 hops). (5) Restore dims 14–15 
 `comm_time` from the dataset's own `stateSize`, for both arms. Rejected: label smoothing over
 the near band, self-conditioned training (exposure bias measured at 0.4 pp), platform
 permutation augmentation (the scorer is already permutation-equivariant).
+
+## 2026-09-07 — Retrain with the honest selector: the tie is confirmed, not a fluke
+
+**What changed.** `train_near_rtt.py` gained an opt-in checkpoint-selection fix
+(`NEAR_RTT_VAL_EXACT_REGRET=1`, commit `7f7fb2e`): a decoded validation combo absent from the
+capped near-RTT sidecar is now looked up in the FULL enumerated sweep instead of falling
+through to a constant per-dataset floor. Retrained rung-3 GNN MP-ON and MP-OFF from scratch,
+8 seeds each, identical cache/split/hyperparameters to the registration, only the selector
+differs (`experiments/route_b_fit_p2_r3_{gnn,mpoff}_valexact.yaml`, job 741601, 16/16 tasks
+completed, 0 errors). `sidecar_hit` on every validation epoch of every run: 100.0% (was
+31–38% on the original runs) — the fix does what it was built to do. The MLP arm needed no
+retrain (already val-selected on an uncensored metric).
+
+**Result — the registered contrast is now a tie, reproduced by design rather than by
+accident.** Scoring the val-selected checkpoint this retrain actually intends to produce
+(not `-final`), on the same 204 held-out test parents:
+
+| arm | mean-of-means | median-of-medians |
+|---|---:|---:|
+| GNN MP-ON (honest selector) | 12.79% | 0.08% |
+| GNN MP-OFF (honest selector) | 11.76% | 0.02% |
+| GNN MP-ON, registered `-final` (for reference) | 13.95% | 2.41% |
+| GNN MP-OFF, registered `-final` (for reference) | 11.89% | 0.08% |
+| MLP+prefix (unchanged) | 13.65% | 3.18% |
+
+Registered contrast D = median(MP-ON) − median(MP-OFF), 8 paired seeds, exact Wilcoxon:
+per-seed D = [+0.04, +2.86, −0.01, +0.04, −2.13, +2.43, +0.13, −0.03], median +0.04 pp, mean
++1.03 pp, **p = 0.25** (median-paired), p = 0.31 (mean-paired). Under the registered rule
+this is **INDETERMINATE at the tie point** — not GAP-PERSISTS, not DATA-RESCUE. This
+independently reproduces the 2026-09-07 training-audit finding that scored the on-disk
+accidentally-well-selected checkpoint (D median −0.05, p = 0.945) — that earlier finding
+was not a fluke of which epoch a broken selector happened to land on; a deliberately
+honest selector gives the same qualitative answer (a tie, this time slightly on the other
+side of zero, consistent with reading it as noise around zero rather than a real gap in
+either direction).
+
+**How much the fix moved each arm** (valexact vs the registered `-final`, paired by seed):
+MP-ON moved median −1.23 pp / mean −1.15 pp (p = 0.078, 7/8 seeds improve) — the arm that
+overfits is the one the fix visibly helps. MP-OFF barely moved (median −0.04 pp, p = 0.64) —
+consistent with its flat validation-CE curve; it had nothing to be rescued from.
+
+**New finding: both GNN arms now beat the MLP.** MP-OFF vs MLP: median −1.76 pp, **p =
+0.0156** (7/8 seeds), mean −1.89 pp, p = 0.023. MP-ON vs MLP: median −2.80 pp, p = 0.109
+(7/8 seeds win, one outlier seed at +2.93 keeps it short of significance), mean −0.86 pp,
+p = 0.195. Under the OLD censored selector the MLP had tied or beaten the GNN arms on this
+corpus (`docs/gates/gate-tools.md`, 2026-09-03/06 entries); with an honestly-selected GNN
+checkpoint that reverses — the graph encoder's extra capacity (with or without message
+passing) generalizes better than the pointwise MLP once it is not thrown away by a censored
+selection metric.
+
+**Live replay, rerun with the retrained checkpoints**
+(`simulation_data/route_b_live_replay/r3_test_v2{,_score}.json`): both arms now beat
+Knative's own replayed plan by a similar margin — MP-ON 5/8 seeds significant (median-of-
+medians −0.23%, mean −2.15%), MP-OFF 6/8 (−0.22%, −2.78%) — no longer the lopsided 2/8 vs
+7/8 split the registered `-final` checkpoints showed. The live gate's own reading changes
+in step with the offline one: the planner-beats-Knative effect is real and belongs to "a
+GNN planner" broadly, not specifically to "the no-MP variant."
+
+**Reading (draft, pending sign-off, supersedes the 2026-09-07 GAP-PERSISTS reading above
+if adopted).** At a checkpoint-selection rule that is not itself broken, message passing on
+this DAG corpus is neither harmful nor helpful for held-out generalization — the two GNN
+arms tie. This matches the architecture-level explanation already on record: the prefix
+conditioning that both arms share carries the joint structure the target has, and GIN
+message passing adds redundant static context. The one thing the corpus *does* reward,
+independent of message passing, is the graph encoder's relational features over the
+pointwise MLP baseline. The fit-ceiling split (GNN family reaches lower train regret than
+the MLP) is genuine; at honest selection it now partly converts to a held-out advantage
+over the MLP, though not (yet, at n=8) a significant one for the MP-ON arm specifically.
+Corpus size remains not the lever (this is a rung-3-only retrain; the flat learning curve
+finding is untouched). `docs/hard-stops.md`'s "grow the route_b DAG corpus to rescue message
+passing" entry should be read as: still true (more data does not rescue MP over MP-OFF),
+but the framing "MP is harmful" should retire in favor of "MP is redundant, not harmful."
