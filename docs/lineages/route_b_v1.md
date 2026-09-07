@@ -1362,3 +1362,86 @@ never charge for memory, so in the replay gate it is pure handicap. It was regis
 (stage 2 §5) to *create* contention for the label, not as a deployment constraint; a
 planner meant to be served should be decoded unconstrained (or the physics should enforce
 memory), which is a registration change, not a tweak.
+
+### 2026-09-07 — Training-chain audit: the registered `-final.pt` choice scored an overfit MP-ON checkpoint against a val-selected MLP
+
+**Finding.** The Phase 2 registration scored both GNN arms at the last epoch (the fit-ceiling
+framing) and the MLP at its best validation epoch (its trainer selects by construction). The
+wandb curves of the 16 rung-3 GNN runs (mean of 8 seeds) show why that asymmetry decides the
+verdict:
+
+| epoch | 0 | 25 | 50 | 100 | 200 | 299 |
+|---|---|---|---|---|---|---|
+| MP-ON train CE | 4.96 | 1.65 | 1.35 | 0.94 | 0.52 | 0.36 |
+| MP-ON **val CE** (teacher-forced any-of-K, not censored) | 4.31 | 1.22 | **1.17** | 1.36 | 2.10 | **2.40** |
+| MP-OFF train CE | 4.05 | 1.77 | 1.64 | 1.46 | 1.27 | 1.16 |
+| MP-OFF val CE | 2.92 | 1.19 | 1.19 | 1.15 | 1.23 | 1.24 |
+
+MP-ON's val CE bottoms at epochs 25–66 on every seed and ends 2.0–2.8× higher; MP-OFF is
+flat. Constant lr 2e-3 with no schedule, weight decay 1e-3, dropout 0.1; the GIN (24,960 of
+46,081 params, the only thing MP-ON adds) is what overfits. The MLP arm has 8,577 params, no
+dropout, no weight decay, best-val selection on an uncensored edge-accuracy metric.
+
+**Held-out, scoring the val-selected `.pt` files already on disk** (selected by the ~66%
+censored `val/regret_masked_topo`, epochs 31–218, no retraining; evaluator unchanged; reports
+`simulation_data/route_b_fit_p2/eval_r3_{gnn,mpoff}_valsel_seed{1..8}.json`; recomputed by
+hand from the reports):
+
+| arm | last epoch: mean / median | val-selected: mean / median |
+|---|---|---|
+| GNN MP-ON | 13.95 / 2.41 | **11.84 / 0.22** (7/8 seeds better) |
+| GNN MP-OFF | 11.89 / 0.08 | 11.63 / 0.03 |
+| MLP+prefix (val-selected by construction) | 13.65 / 3.18 | — |
+
+Registered contrast D_s = median(MP-ON) − median(MP-OFF): at the registered checkpoints
+[−0.05, +0.64, +0.07, +3.07, +4.78, −0.04, +2.33, +0.08], p = 0.039 (GAP-PERSISTS, as
+recorded). With MP-ON val-selected vs MP-OFF last-epoch: [−2.17, −0.05, −0.12, −0.05, +1.61,
+−0.80, +0.05, +2.61], median −0.05, **p = 0.945**; both val-selected: p = 0.64. Under the
+registered rule that is INDETERMINATE, i.e. a tie. MP-ON val-selected vs MLP: mean −1.81 pp
+(p = 0.039), median −2.32 pp (**p = 0.008**). The val-selected MP-ON's train regret is
+1.6–9.6%, so it is no longer the fit-ceiling object — the two framings need two checkpoints,
+and the registration conflated them.
+
+**The verdict stands as registered; the mechanism sentence does not.** Phase 2 measured
+exactly what it registered (last-epoch checkpoints), and the thing it was built to answer —
+does 5× data close the MP-on/off gap — is still answered: the gap is flat across the curve
+at *both* checkpoints, so corpus size is not the lever. What it does not license is "message
+passing costs held-out": that was the last epoch of a run that overfits from epoch ~60,
+compared against an arm that cannot overfit. **Amended reading (draft, pending sign-off):
+at matched checkpoint selection, MP-ON ties MP-OFF and beats the MLP+prefix arm; the
+fit-ceiling split is real (MP-ON alone reaches ≈1% train regret) and buys nothing at
+held-out because the target's joint structure is already in the prefix columns.** The
+replay gate agrees: the val-selected MP-ON planner is faster than Knative in 6/8 seeds
+(median-of-medians −0.59%, mean −2.79%) against MP-OFF's 7/8 (−1.15%, −2.75%);
+`simulation_data/route_b_live_replay/r3_test_score.json` (arms `gnnval_s*`, `mpoffval_s*`).
+
+**Why message passing cannot be "joint" in this model** (`src/policy/gnn/gnn_model.py`,
+`partial_state_edges.py`): `make_partial_state_score_fn` runs `model._encode` once per graph
+and caches it; each decode step only rewrites the 38 partial-state columns and re-runs the
+EdgeScorer. So task i's score depends on task j's chosen platform *only* through those 38
+columns — the same columns the MLP dim63crk arm consumes. The GIN pass (3 sum-aggregation
+layers, no edge features, bipartite + undirected DAG edges) supplies static context about
+siblings and their candidate sets, never a decision. MP-ON is a prefix-conditioned pointwise
+scorer with a richer encoder, which is exactly what the rung-3 numbers say.
+
+**Instrument holes, additional to the 2026-09-06 four** (filed in gate-tools): `edge_attr`
+col 4 `comm_time` is 0.0023 s on every edge — computed from `task-types.json` priors at
+100 MiB/s, blind to the 800 MB override in `sim_inputs`; `--platform-feature-dim 14` cuts the
+two declared pull observables (dims 14–15); the per-edge cost features sit two orders of
+magnitude below the label's write-queue (7.63 s/slot) and node-contention (39 s) terms, so
+every arm must infer those scales from a normalised queue scalar and two bits. Exact joint
+search over every feasible sweep plan under the trained scores (an upper bound on any beam)
+improves the mean by 0.4 pp (MP-ON) / 1.4 pp (MP-OFF): greedy decode is second-order.
+
+**Training tweaks, ranked by measured or expected held-out effect** (none run; each is a
+registration): (1) select GNN checkpoints on an uncensored val metric — `val/ce` is already
+logged (argmin 25–66) or replace the sidecar `worst_regret` path with an exact full-sweep
+lookup; ≥2.1 pp mean / 2.2 pp median measured with the censored selector, zero GPU for the
+on-disk version. (2) Regularise the GIN: weight decay 1e-2–5e-2, dropout 0.3, `mp_residual`,
+an lr schedule; expected 1–2 pp. (3) Give MP a joint mechanism: route the partial-state block
+into platform node features and re-encode per step (`cache_encode=False`), ≈4× training
+cost; the only change under which "graph reasoning over the partial assignment" is even
+being tested. (4) 1 GIN layer (the diamond is 2 hops). (5) Restore dims 14–15 and compute
+`comm_time` from the dataset's own `stateSize`, for both arms. Rejected: label smoothing over
+the near band, self-conditioned training (exposure bias measured at 0.4 pp), platform
+permutation augmentation (the scorer is already permutation-equivariant).
