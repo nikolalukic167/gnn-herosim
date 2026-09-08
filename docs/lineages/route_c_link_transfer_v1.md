@@ -1,8 +1,8 @@
-# route_c_link_transfer_v1 — REGISTERED
+# route_c_link_transfer_v1 — FALSIFIED
 
-> **Status:** `REGISTERED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-26 → 2026-08-26
+> **Status:** `FALSIFIED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-26 → 2026-08-26
 
-**Outcome.** Screen registered 2026-08-26 before generation; **name is reserved and is only claimed if the screen passes.** Asks whether an environment where link waiting is a material share of RTT resists a fairly-armed pointwise competitor.
+**Outcome.** Screen registered 2026-08-26 before generation, run to completion the same day: **INVALID — FAIL-BY-EXHAUSTION.** Asks whether an environment where link waiting is a material share of RTT resists a fairly-armed pointwise competitor; both the 4-task ladder and the 8-task concurrency contingency rung miss the manipulation bar on their bandwidth-free ceiling, so link waiting cannot be made material at enumerable-sweep concurrency in this simulator family. The name is **not granted**.
 
 **Related:** [link_contention_v1](link_contention_v1.md) · [route_b_v1](route_b_v1.md)
 

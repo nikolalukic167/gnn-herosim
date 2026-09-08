@@ -1,8 +1,8 @@
-# objective_pivot_v1 — ACTIVE
+# objective_pivot_v1 — CLOSED
 
-> **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-28 →
+> **Status:** `CLOSED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-28 → 2026-09-03
 
-**Outcome.** Current work. Program pivot registered 2026-08-28 (user decision): **stop
+**Outcome.** CLOSED 2026-09-03. Program pivot registered 2026-08-28 (user decision): **stop
 engineering the environment, change the training objective.** Phase 1 = a properly
 powered **draw-distribution** reliability gate (the P5b control already ran and is CLOSED
 — feature null, collapse draw-dominated; `gnn_draw_study_v1`'s own arithmetic says the
