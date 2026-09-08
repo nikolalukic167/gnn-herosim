@@ -197,3 +197,6 @@ scripts_cosim/simulation_data/
 
 # Editor backups
 *.bak-*
+
+# untracked scratch tool, not part of the herosim tree
+mcp-sci-bot/

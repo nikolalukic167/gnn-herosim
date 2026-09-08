@@ -1517,3 +1517,85 @@ Corpus size remains not the lever (this is a rung-3-only retrain; the flat learn
 finding is untouched). `docs/hard-stops.md`'s "grow the route_b DAG corpus to rescue message
 passing" entry should be read as: still true (more data does not rescue MP over MP-OFF),
 but the framing "MP is harmful" should retire in favor of "MP is redundant, not harmful."
+
+## 2026-09-08 — DRAFT REGISTRATION: GNN (encoder, MP-OFF) vs MLP+prefix, held-out decode
+regret at honest selection — **awaiting the user's sign-off; no new episodes run yet**
+
+**Why this is the next step, not another MP question.** MP-on/off is closed on this corpus
+(tie, redundant-not-harmful, above). What survives unregistered is a different, narrower
+claim: the 2026-09-07 retrain's new finding that GNN MP-OFF beats MLP+prefix at honest
+selection (median −1.76 pp, exploratory p = 0.0156, 7/8 seeds) — that number was a
+by-product of the checkpoint-selector audit, not a pre-registered contrast, and per
+`docs/lessons.md` ("inheriting a statistic does not inherit its power") it needs its own
+statistic and its own n before anyone cites it.
+
+**What this is not re-litigating.** Two adjacent objections are already closed by
+standing measurements, cited here so this registration doesn't re-ask them:
+- *"Is this just more MLP capacity?"* No — Phase 0 §7 (this node, 2026-09-06) already
+  measured MLP+prefix at hidden=256 vs hidden=64 (4× width): train regret 11.95% vs
+  10.41%, test 14.31% vs 15.38%, both sitting on the greedy-on-true-marginals floor
+  (8.86%). Width does not move the MLP past noise, so the GNN's edge is not raw parameter
+  count.
+- *"Is this a feature mismatch (does the GNN see something the MLP doesn't)?"* No — the
+  2026-09-07 physics-audit correction (above) established both arms are T2, prefix-
+  conditioned on the same 38 partial-state columns (`reduced_features.partial_state_columns`,
+  cols 7–9). The remaining architectural difference is the shared task/platform encoder
+  and the masked-softmax `EdgeScorer` doing the decode, not extra input. This is the same
+  credit-assignment finding `objective_pivot_v1` Phase 1 already made on the independent-task
+  corpus ("credit belongs to the scoring/decode architecture... not graph reasoning") —
+  this registration is the DAG-corpus replication of that finding, not a new mechanism.
+
+**Recomputed pilot statistic (2026-09-08, from the existing eval artifacts,
+`simulation_data/route_b_fit_p2/eval_r3_{mpoff_valexact,mlp}_seed{1..8}.json`, 204 test
+parents each, exact reproduction of the node's reported numbers).** Per-seed paired
+median-regret difference (MP-OFF honest-selector − MLP+prefix):
+
+| seed | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Δ (pp) | −3.60 | +0.06 | −0.36 | −2.78 | −0.73 | −5.30 | −0.48 | −5.55 |
+
+Median Δ = **−1.76 pp**, mean Δ = **−2.34 pp**, **across-seed sd = 2.29 pp**, 7/8 seeds
+favor MP-OFF. This sd (not the Phase 3 closed-loop sd of 4.89 pp, a different arm and a
+different loop) is the number a confirmatory n must be derived from.
+
+**Proposed primary (draft, needs the user's signature before it counts).** D = per-seed
+median held-out decode regret, GNN MP-OFF (honest selector, `NEAR_RTT_VAL_EXACT_REGRET=1`)
+minus MLP+prefix (unchanged — already val-selected on an uncensored metric), on the fixed
+204-parent rung-3 test split. Exact Wilcoxon signed-rank, two-sided α = 0.05. Fresh seeds
+only — the 8 already run were an audit byproduct, not pre-registered, and per E1's
+precedent (`objective_pivot_v1` Phase 3) pooling them into a confirmatory primary after
+looking at the result would be the same defect that run was built to avoid. Report them as
+a labelled pilot, never as part of the confirmatory n.
+
+**Power, computed from the pilot sd (normal approximation, α = 0.05 two-sided, 80% power,
+n = ((1.96+0.84)·sd/δ)²):**
+
+| target MDE δ | required n (fresh seeds) |
+|---|---:|
+| 1.76 pp (full pilot magnitude) | ~14 |
+| 1.0 pp | ~41 |
+| 0.88 pp (half pilot magnitude) | ~53 |
+
+Recommended floor: **n = 16 fresh seeds**, matching this program's own precedent
+(`objective_pivot_v1` Phase 1, `mp_ablation_v1`, `link_mp_v1` all used 16) and powered for
+anything at or above the full pilot magnitude; if the read at n = 16 is positive-but-not-
+significant, the registered next step is more seeds at this same statistic, never a
+different one chosen post hoc (same rule Phase 2's registration used).
+
+**Instrument check before running (per the lesson that closed Amendment E1's near-miss):**
+confirm `analyze_route_b_fit_p1.py` (or whatever reader scores this) can execute an exact
+Wilcoxon at the registered n before any seed is trained — n = 16 is inside the exact
+enumeration range that already failed once at n = 120.
+
+**What this can and cannot show.** A confirmatory version of "the GNN encoder beats
+MLP+prefix on offline held-out decode regret, on the route_b DAG corpus, independent of
+message passing." It is still offline decode regret on 4-task DAG episodes against a
+brute-force table — not a live gate, not a Knative comparison. The live serving path for
+these checkpoints does not exist (2026-09-06 audit, restated 2026-09-07): the live GNN
+scheduler batches only parent-finished tasks, never decodes a diamond4 jointly, and the
+loader has no DAG block. A live version of this claim needs that serving path built first
+(forced-placement replay under an unconstrained decode, not the α = 2.0 handicap the
+2026-09-07 replay gate carries) — a separate piece of work, not a rerun of this offline
+gate at a bigger n.
+
+**Status: DRAFT. Nothing above is signed. No training has been queued.**
