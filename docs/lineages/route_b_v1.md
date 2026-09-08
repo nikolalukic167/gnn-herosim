@@ -1503,8 +1503,8 @@ medians −0.23%, mean −2.15%), MP-OFF 6/8 (−0.22%, −2.78%) — no longer 
 in step with the offline one: the planner-beats-Knative effect is real and belongs to "a
 GNN planner" broadly, not specifically to "the no-MP variant."
 
-**Reading (draft, pending sign-off, supersedes the 2026-09-07 GAP-PERSISTS reading above
-if adopted).** At a checkpoint-selection rule that is not itself broken, message passing on
+**Reading — SIGNED OFF 2026-09-08, supersedes the 2026-09-07 GAP-PERSISTS reading above.**
+At a checkpoint-selection rule that is not itself broken, message passing on
 this DAG corpus is neither harmful nor helpful for held-out generalization — the two GNN
 arms tie. This matches the architecture-level explanation already on record: the prefix
 conditioning that both arms share carries the joint structure the target has, and GIN
