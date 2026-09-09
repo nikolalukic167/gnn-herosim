@@ -22,6 +22,7 @@ paper datasets in the on-disk format for the cross-check under
 ## Record
 
 - [peer_affinity_v1 — PHASE 0 REGISTRATION (2026-09-09)](#peer-affinity-v1-phase-0-registration-2026-09-09)
+- [Amendment A1 — base-cost rule (2026-09-09, before the screen ran)](#amendment-a1-base-cost-rule-2026-09-09-before-the-screen-ran)
 
 ---
 
@@ -47,11 +48,11 @@ the avoid-or-count shape of `dag_fabric_contention_v1` would otherwise reappear.
 - Source: `simulation_data/gnn_datasets_dag4_route_b_pilot_v1_arm_b0`, every 6th dataset
   in sorted order (34 sources), one paper dataset each per cell.
 - Base cost c_i(p): the stored per-task duration (`task_times` end − start) of the real task
-  the paper task copies, on placement p. The sweep total equals the sum of those durations on
-  `arm_b0` (checked on ds_00000: 2.4068 = 0.1615 + 0.2075 + 0.1873 + 1.8506), and the
-  duration of a task must not vary with the other tasks' placements — the probe **fails loud**
-  if the within-(task, placement) relative spread exceeds 1e-6 (the S0 substrate is then not
-  pointwise and the source is wrong).
+  the paper task copies, on placement p, **at that placement's earliest dispatch time in the
+  sweep** (Amendment A1 below). The sweep total equals the sum of those durations on `arm_b0`
+  (checked on ds_00000: 2.4068 = 0.1615 + 0.2075 + 0.1873 + 1.8506). The probe **fails loud**
+  if a root task's duration varies at all, or any task's duration varies by more than 5 % at
+  a fixed dispatch time (the S0 substrate is then not pointwise and the source is wrong).
 - Paper tasks i = 0..k−1 resample the dataset's 4 real tasks with replacement (type, source
   client, candidate placements). Duplicates are intentional: interchangeable co-residents
   are the count-shaped base. Candidates: n_cand placements of the copied task, distinct
@@ -123,3 +124,29 @@ Disagreement is a probe bug, not a finding.
 the same bars on a simulated sweep (§A2). Training is a separate registration, and its
 registered prediction is already fixed: `gnn` ≥ +1 pp over `mlp_t1` and over `mpoff`; if
 `mlp_t1x` (peer-mass columns) closes the gap the result is "hand lookahead suffices".
+
+---
+
+### Amendment A1 — base-cost rule (2026-09-09, before the screen ran)
+
+The registered guard ("a task's duration must not vary with the other tasks' placements,
+1e-6") fired on the first source dataset: on `arm_b0/ds_00000` task 1's duration on one
+placement varies by 15.7 % across the sweep, task 2's by 17.9 %, task 3's by 128 %. Measured
+before any screen statistic was computed:
+
+| task | relative spread over the sweep | distinct dispatch times on the modal placement | spread at a **fixed** dispatch time | corr(duration, dispatch time) |
+|---|---|---|---|---|
+| 0 (root) | 0.000 | 1 | 0.000 | — |
+| 1 | 0.157 | 4 | 0.000 | +0.32 |
+| 2 | 0.179 | 4 | 9.3e-4 | +0.32 |
+| 3 (sink) | 1.276 | 20 | 1.65e-2 | −0.92 |
+
+So a child's duration is a function of its **dispatch time** (the platform's warm queue
+drains while the parent runs) and of nothing else — the DAG timing effect, present with data
+locality off and unrelated to the pairwise structure under test. A parallel batch of
+single-task events is dispatched at t = 0, so the paper cost of (task, placement) is the
+duration observed at that placement's **earliest** dispatch time in the sweep (mean over
+ties). Guards now: a root task's spread must be < 1e-6, any task's spread at the chosen
+dispatch time < 5 %; the sum-of-durations = rtt identity is still checked to 1e-6. Both
+spreads are written into the report for every source. Nothing else in the registration
+changes; no bar moved.
