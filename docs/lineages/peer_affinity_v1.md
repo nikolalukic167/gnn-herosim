@@ -23,6 +23,7 @@ paper datasets in the on-disk format for the cross-check under
 
 - [peer_affinity_v1 — PHASE 0 REGISTRATION (2026-09-09)](#peer-affinity-v1-phase-0-registration-2026-09-09)
 - [Amendment A1 — base-cost rule (2026-09-09, before the screen ran)](#amendment-a1-base-cost-rule-2026-09-09-before-the-screen-ran)
+- [Amendment A2 — equal-tightness α, shared candidates, readability (2026-09-09, before the screen ran)](#amendment-a2-equal-tightness-α-shared-candidates-readability-2026-09-09-before-the-screen-ran)
 
 ---
 
@@ -160,3 +161,43 @@ paper model's sharing term stands in for it. Final rule: **c_i(p) = the minimum 
 the rows at that placement's earliest dispatch time** (the uncontended value; a co-resident
 only ever adds time). Guard kept: a root task (dispatched at t = 0, alone) must not vary at
 all; the residual spreads are reported per source. Still no bar moved.
+
+---
+
+### Amendment A2 — equal-tightness α, shared candidates, readability (2026-09-09, before the screen ran)
+
+A 3-source development run of one k = 8 cell (not the registered 34 sources; no bar is read
+from it) showed two defects in the registration, both of the "instrument cannot fire" kind
+that `route_b_env_pivot_v1` warns about:
+
+1. **The registered α ∈ {1.5, 2.0} is a cliff at k ≥ 8.** The `alpha_max` cap is α × the
+   largest single demand on a node, the source topologies host candidates on only 2–5 server
+   nodes, and k tasks must fit under Σ caps. Feasibility calibration over the 34 registered
+   sources (x = 200 MB, partners 2; **feasibility counts only, no bar was computed**):
+
+   | (k, n_cand) | α = 1.5 | 2.0 | 2.5 | 3.0 | 4.0 | 5.0 | 6.0 | 8.0 |
+   |---|---|---|---|---|---|---|---|---|
+   | (8, 3) — sources with any feasible plan / of those, cap binds | 15 / 12 | 26 / 19 | 30 / 20 | **34 / 23** | **34 / 22** | 34 / 19 | 34 / 3 | 34 / 0 |
+   | (8, 4) | 18 / 13 | 31 / 21 | 33 / 23 | **34 / 24** | **34 / 23** | 34 / 14 | 34 / 2 | 34 / 0 |
+   | (10, 3) | 13 / 11 | 21 / 19 | 30 / 24 | 30 / 22 | **34 / 22** | **34 / 22** | 34 / 16 | 34 / 1 |
+   | (12, 3) | 12 / 9 | 16 / 13 | 21 / 16 | 27 / 21 | 32 / 23 | **34 / 22** | **34 / 20** | 34 / 8 |
+
+   Rule adopted: the cap for k tasks is **α_k = α₄ × k / 4** with the registered
+   α₄ ∈ {1.5, 2.0} — the equal-tightness scaling `route_b` s9d and
+   `dag_fabric_contention_v1` already used (α₈ = 4.0 for two 4-task instances at α₄ = 2.0).
+   Every rung is then readable (32–34 of 34) and the cap binds in 59–72 % of datasets, so B0
+   is a live bar, not a foregone one. Cell names keep α₄; the report records α_k. This is
+   *not* the hard-stopped "relax α to get a readable rung": α₄ is unchanged, the scaling is
+   the fixed per-task-count rule, and it was fixed before the screen ran.
+2. **Copies of a real task drew independent candidate subsets**, so co-residents of one type
+   were *not* interchangeable and the count-oracle strata had a median of 2 plans — C1 would
+   have measured candidate-set identity, not the pairwise term. Candidates are now drawn
+   **once per real task** and shared by all its paper copies, which is what the registration's
+   "duplicates are intentional" sentence meant.
+3. **Readability.** A cell in which fewer than 17 of the 34 sources have a feasible plan is
+   **UNREADABLE**: reported, never a pass. (`route_b_env_pivot_v1`: "could not measure" is not
+   "nothing there", and not a pass either.)
+
+No bar value moved. Cross-check of the 3-source development run: `separability_diagnostic`
+and `score_route_b_contention` agreed with the probe on 3/3 datasets (additive R², argmin
+regret, one-integer repair to 1e-6; caps and feasible-row counts exactly).
