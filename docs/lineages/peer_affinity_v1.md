@@ -24,6 +24,7 @@ paper datasets in the on-disk format for the cross-check under
 - [peer_affinity_v1 — PHASE 0 REGISTRATION (2026-09-09)](#peer-affinity-v1-phase-0-registration-2026-09-09)
 - [Amendment A1 — base-cost rule (2026-09-09, before the screen ran)](#amendment-a1-base-cost-rule-2026-09-09-before-the-screen-ran)
 - [Amendment A2 — equal-tightness α, shared candidates, readability (2026-09-09, before the screen ran)](#amendment-a2-equal-tightness-α-shared-candidates-readability-2026-09-09-before-the-screen-ran)
+- [Amendment A3 — tool: fit-argmin regrets read the tie band (2026-09-09, before the screen ran)](#amendment-a3-tool-fit-argmin-regrets-read-the-tie-band-2026-09-09-before-the-screen-ran)
 
 ---
 
@@ -201,3 +202,20 @@ that `route_b_env_pivot_v1` warns about:
 No bar value moved. Cross-check of the 3-source development run: `separability_diagnostic`
 and `score_route_b_contention` agreed with the probe on 3/3 datasets (additive R², argmin
 regret, one-integer repair to 1e-6; caps and feasible-row counts exactly).
+
+---
+
+### Amendment A3 — tool: fit-argmin regrets read the tie band (2026-09-09, before the screen ran)
+
+The 6-source development cross-check disagreed on 1 of 6 datasets: both tools fit the same
+model (R² equal to all printed digits) but read different argmin regrets (probe 1.46 %,
+diagnostic 0.00 %). Cause: an indicator fit predicts the *same* value for plans that swap two
+interchangeable copies of a real task (A2 made copies share candidates on purpose), so the
+argmin is a tie set and a single argmin is a tie-break artifact — the exact defect
+`score_route_b_contention.py`'s `r_exact_band` was written for (2026-08-27: "read
+`mean_tied`, never `r_exact_pct` alone"). Every fit-argmin regret in the probe (S0a, S0b, B1,
+B2, B4 and the cross-check) now reads the **mean true cost over the tie set** (predictions
+within 1e-9 of the minimum), with the optimistic / pessimistic ends recorded alongside. The
+cross-check accepts the diagnostic's single-argmin regret if it lies inside the probe's tie
+band. Greedy bars (B3, B5) are unaffected: they break exact score ties by the lowest
+(node, platform), as `decode_masked_topo_placement` does. No bar value moved.
