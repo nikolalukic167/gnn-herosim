@@ -519,13 +519,18 @@ def screen_dataset(paper: Paper, x_mb: float, alpha4: float, rng_orders: random.
         out[f"{tag}_stuck"] = plan is None
         if plan is not None:
             out[f"{tag}_regret_pct"] = regret_pct(float(y[paper.plan_index(plan)]), opt_val)
-        alts = []
-        for order in [big_first] + rand_orders:
+        # ordering split (reported, no bar): the deterministic hand rule "largest exchange
+        # mass first" is a decoder choice any arm could make; best-of-8 random orders is an
+        # ORACLE over orderings (needs the true plan cost to pick) -- a search, not a scorer.
+        pb = greedy(paper, x, cap, big_first, look)
+        out[f"{tag}_bigfirst_regret_pct"] = None if pb is None else regret_pct(float(y[paper.plan_index(pb)]), opt_val)
+        rr = []
+        for order in rand_orders:
             p2 = greedy(paper, x, cap, order, look)
             if p2 is not None:
-                alts.append(regret_pct(float(y[paper.plan_index(p2)]), opt_val))
-        if plan is not None:
-            alts.append(out[f"{tag}_regret_pct"])
+                rr.append(regret_pct(float(y[paper.plan_index(p2)]), opt_val))
+        out[f"{tag}_best_random8_regret_pct"] = min(rr) if rr else None
+        alts = rr + [v for v in (out[f"{tag}_bigfirst_regret_pct"], out.get(f"{tag}_regret_pct")) if v is not None]
         out[f"{tag}_best_order_regret_pct"] = min(alts) if alts else None
     # C1 -- count oracle: random feasible plan inside the optimum's (platform, type) stratum
     same = feas[(paper.KEY[feas] == paper.KEY[opt]).all(1)]
@@ -561,6 +566,10 @@ def aggregate(cell: str, per: List[dict]) -> dict:
         "B3_median_pct": median([d.get("B3_regret_pct") for d in ok]),
         "B3_stuck_frac": sum(d["B3_stuck"] for d in ok) / n,
         "B3_best_order_median_pct": median([d.get("B3_best_order_regret_pct") for d in ok]),
+        "B3_bigfirst_median_pct": median([d.get("B3_bigfirst_regret_pct") for d in ok]),
+        "B3_best_random8_median_pct": median([d.get("B3_best_random8_regret_pct") for d in ok]),
+        "B5_bigfirst_median_pct": median([d.get("B5_bigfirst_regret_pct") for d in ok]),
+        "B5_best_random8_median_pct": median([d.get("B5_best_random8_regret_pct") for d in ok]),
         "B4_median_pct": median([d["B4_regret_pct"] for d in ok]),
         "B4_median_closure": median([d["B4_closure"] for d in ok]),
         "B5_median_pct": median([d.get("B5_regret_pct") for d in ok]),
