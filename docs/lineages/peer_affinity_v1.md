@@ -150,3 +150,13 @@ ties). Guards now: a root task's spread must be < 1e-6, any task's spread at the
 dispatch time < 5 %; the sum-of-durations = rtt identity is still checked to 1e-6. Both
 spreads are written into the report for every source. Nothing else in the registration
 changes; no bar moved.
+
+**A1 addendum (same day, still before the screen ran).** The 5 % guard fired too: task 1 on
+platforms 125/126 varies by 17 % *at* its earliest dispatch time. Grouped by co-residency
+on that node: with no sibling on the node the duration is always 0.1688 s; with sibling task 2
+on the same node it is 0.1688 s or 0.1989 s. That is the node-level storage serialisation of
+`node_disk_v2` — node-indexed, count-shaped, the one-integer channel of the record — and the
+paper model's sharing term stands in for it. Final rule: **c_i(p) = the minimum duration over
+the rows at that placement's earliest dispatch time** (the uncontended value; a co-resident
+only ever adds time). Guard kept: a root task (dispatched at t = 0, alone) must not vary at
+all; the residual spreads are reported per source. Still no bar moved.
