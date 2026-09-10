@@ -17,3 +17,4 @@ args:
   lr: 0.001
   random-state: 42
   wandb-project: gnn-peer-affinity-v1
+  wandb-run-name: peer-affinity-v1-t1-mlp-t1-lr1e3

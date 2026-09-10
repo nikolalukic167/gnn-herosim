@@ -16,3 +16,4 @@ args:
   patience: 5
   random-state: 42
   wandb-project: gnn-peer-affinity-v1
+  wandb-run-name: peer-affinity-v1-smoke-mlp-t1
