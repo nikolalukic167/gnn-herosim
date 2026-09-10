@@ -68,6 +68,7 @@ SOURCE_COUNT = 34
 MIN_SCORED = 17  # a cell with fewer scored datasets is UNREADABLE, never a pass (Amendment A2)
 CHUNK = 100_000
 FIT_GUARD = 2  # rows >= FIT_GUARD * n_params or the fit is refused (docs/lessons.md 2026-08-27)
+COUNT_COMPETITOR = "v1"  # "v1" = the registered paper-screen block; "v2" adds per-(platform, type) counts + squares
 
 # Registered bars -- docs/lineages/peer_affinity_v1.md. Keep in sync with the node.
 BARS = {
@@ -343,6 +344,18 @@ class Paper:
         ms = np.where(np.isfinite(self.min_single[sel]), self.min_single[sel], 0.0)
         cols.append(np.where(nodecnt >= 2, load - ms, 0.0).sum(1, keepdims=True))
         cols.append((load * load).sum(1, keepdims=True))
+        if COUNT_COMPETITOR == "v2":
+            # Count competitor v2 (2026-09-10, simulated screens): per-(platform, type) counts,
+            # their squares and the platform occupancy square -- the sufficient statistics of
+            # any symmetric function of a platform's co-resident multiset up to second order.
+            # The simulator's serialisation on a shared platform is such a function; v1's
+            # node x type + platform-pair columns left the CONTROL arm at R^2 0.9989.
+            pt = np.zeros((len(sel), self.n_plat * self.n_types))
+            for i in range(self.k):
+                np.add.at(pt, (np.arange(len(sel)), self.PLAT[sel, i].astype(int) * self.n_types + self.type_idx[i]), 1.0)
+            cols.append(pt)
+            cols.append(pt * pt)
+            cols.append(cnt * cnt)
         return np.concatenate(cols, axis=1)
 
     def peer_mass_col(self, sel: np.ndarray, x_bytes: float) -> np.ndarray:
@@ -350,7 +363,8 @@ class Paper:
         return pm[np.arange(self.k), self.P[sel]].sum(1, keepdims=True)
 
     def n_count_cols(self) -> int:
-        return 1 + self.n_nodes * self.n_types + self.n_plat + self.n_types + 4
+        base = 1 + self.n_nodes * self.n_types + self.n_plat + self.n_types + 4
+        return base + (2 * self.n_plat * self.n_types + self.n_plat if COUNT_COMPETITOR == "v2" else 0)
 
 
 # ------------------------------------------------------------------------------------ fitting
@@ -912,6 +926,7 @@ def run_simulated(treated: Path, control: Optional[Path], alphas: Sequence[float
     if not dirs:
         raise RuntimeError(f"{treated}: no datasets")
     report = {"treated": str(treated), "control": str(control) if control else None, "bars": BARS,
+              "count_competitor": COUNT_COMPETITOR,
               "cells": {}, "per_dataset": {}, "skipped": []}
     per = {a: [] for a in alphas}
     t0 = time.time()
@@ -1059,8 +1074,12 @@ def main() -> int:
                     help="treated corpus dir (HEROSIM_PEER_EXCHANGE=1); reads the registered bars on the simulated sweep")
     ap.add_argument("--control", type=Path, default=None, help="paired control corpus (flag unset, same seeds)")
     ap.add_argument("--alphas", default="1.5,2.0", help="alpha_4 values for --from-simulated")
+    ap.add_argument("--count-competitor", choices=["v1", "v2"], default=None,
+                    help="count column block; default v1 for the paper screen, v2 for --from-simulated")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
+    global COUNT_COMPETITOR
+    COUNT_COMPETITOR = args.count_competitor or ("v2" if args.from_simulated is not None else "v1")
     if args.from_simulated is not None:
         run_simulated(args.from_simulated, args.control, [float(a) for a in args.alphas.split(",")],
                       args.out, args.limit_sources)

@@ -1215,6 +1215,14 @@ PEER_AFFINITY_SCREEN_C3_X200_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200",
 }
 
+# R2 (Amendment A6, 2026-09-10): FRESH seeds for the blind read at the tighter cap ladder
+# chosen after an exploratory look at R1b (seeds 7001-7017 are excluded from R2's primary).
+PEER_AFFINITY_SCREEN_C3_X200_R2_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_X200_GRID,
+    "seeds": list(range(7018, 7035)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_r2",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
@@ -1258,6 +1266,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "peer_affinity_screen": PEER_AFFINITY_SCREEN_GRID,
     "peer_affinity_screen_c3": PEER_AFFINITY_SCREEN_C3_GRID,
     "peer_affinity_screen_c3_x200": PEER_AFFINITY_SCREEN_C3_X200_GRID,
+    "peer_affinity_screen_c3_x200_r2": PEER_AFFINITY_SCREEN_C3_X200_R2_GRID,
 }
 
 
