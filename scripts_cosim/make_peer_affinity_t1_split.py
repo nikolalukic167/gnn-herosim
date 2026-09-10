@@ -27,7 +27,13 @@ for p in (str(REPO_ROOT), str(NOTEBOOKS)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from non_unique_lib.training_contract import load_split_artifact, write_split_artifact  # noqa: E402
+from non_unique_lib.training_contract import (  # noqa: E402
+    SPLIT_ARTIFACT_SCHEMA,
+    canonical_parent_id,
+    load_split_artifact,
+)
+import hashlib
+import json
 
 
 def main() -> None:
@@ -40,8 +46,12 @@ def main() -> None:
     args = ap.parse_args()
     if args.output.exists():
         raise SystemExit(f"Refusing to overwrite {args.output} — a split artifact is frozen once runs depend on it.")
-    ids = pickle.load(open(args.cache_dir / "dataset_ids.pkl", "rb"))
-    ids = sorted({str(i) for i in ids})
+    raw_ids = pickle.load(open(args.cache_dir / "dataset_ids.pkl", "rb"))
+    meta = json.loads((args.cache_dir / "metadata.json").read_text())
+    parent_ids = meta.get("parent_dataset_ids")
+    if parent_ids is not None and len(parent_ids) != len(raw_ids):
+        raise SystemExit("metadata parent_dataset_ids and dataset_ids.pkl disagree in length")
+    ids = sorted({canonical_parent_id(parent_ids[i] if parent_ids is not None else d) for i, d in enumerate(raw_ids)})
     test = [i for i in ids if i.startswith(args.heldout_corpus + "/")]
     rest = [i for i in ids if i not in set(test)]
     if not test or not rest:
@@ -51,7 +61,20 @@ def main() -> None:
     rng.shuffle(shuffled)
     n_val = max(1, int(round(args.val_fraction * len(rest))))
     val = sorted(shuffled[:n_val]); train = sorted(shuffled[n_val:])
-    write_split_artifact(args.output, {"train": train, "val": val, "test": sorted(test)})
+    payload = {
+        "schema": SPLIT_ARTIFACT_SCHEMA,
+        "cache_dir": str(args.cache_dir),
+        "n_parents": len(ids),
+        "random_state": int(args.random_state),
+        "heldout_corpus": args.heldout_corpus,
+        "val_fraction": float(args.val_fraction),
+        "train": train,
+        "val": val,
+        "test": sorted(test),
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_bytes(raw)
     payload, sha = load_split_artifact(args.output)
     print(f"[split] wrote {args.output}: train={len(payload['train'])} val={len(payload['val'])} test={len(payload['test'])} sha256={sha}")
 
