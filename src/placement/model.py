@@ -25,6 +25,7 @@ from typing import (
     Dict,
     List,
     Literal,
+    Optional,
     Set,
     Tuple,
     TypedDict,
@@ -35,7 +36,7 @@ from typing import (
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform
 
-from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json
+from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json, config
 
 from simpy.core import SimTime
 
@@ -321,6 +322,14 @@ class TimeSeries(DataClassJsonMixin):
     rps: int
     duration: int
     events: List[WorkloadEvent]
+    # peer_affinity_v1: optional [task_id_i, task_id_j, bytes] triples over GLOBAL task ids
+    # (the ids Orchestrator.create_application assigns, contiguous across events). Read only
+    # under HEROSIM_PEER_EXCHANGE=1 (Platform._peer_exchange_time); absent -> None, and every
+    # existing trace loads exactly as before. The JSON key stays snake_case on purpose: the
+    # co-sim generator, the paper probe and the scorer all spell it `peer_exchange`.
+    peer_exchange: Optional[List[List[float]]] = dataclasses.field(
+        default=None, metadata=config(field_name="peer_exchange")
+    )
 
 
 @final

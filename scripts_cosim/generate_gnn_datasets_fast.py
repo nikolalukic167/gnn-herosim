@@ -1166,6 +1166,36 @@ REGIME_B_COLD_BURST_V1_GRID: GridPreset = {
     "required_warmth_physics": "platform_reuse_v1",
 }
 
+# peer_affinity_v1 (2026-09-10) -- the simulated screen (plan §A2) for the Phase 0 paper GO
+# cell `x50_a1.5_k10c3_p2` (docs/lineages/peer_affinity_v1.md): k = 10 single-task events
+# cycling four types, ~3 candidate replicas per type on distinct hosts (per_server 1 on half
+# the server nodes, types may share hosts), 2 exchange partners per task at 50 MB x 10^U(-1,1),
+# per-instance demand U(0.5, 2.0), the SAME topology/queue grid and 1000-Mbps backbone as the
+# paper sources (route_b_pilot_v1 arm_b0), contention pipes OFF. Run with --num-tasks 10
+# --allow-non-unique-replicas; treated arm HEROSIM_PEER_EXCHANGE=1, control arm unset.
+# Seeds 7001+ overlap no existing range.
+PEER_AFFINITY_SCREEN_GRID: GridPreset = {
+    "connection_probabilities": [0.25, 0.35],
+    "server_node_counts": [6],
+    "replica_configs": [
+        (0, 1, 0.7, 0.9),
+    ],
+    "replica_server_percentage": 0.5,
+    "replica_overlap": True,
+    "queue_distributions": [
+        ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
+        ("deepvar_uniform0_12", "uniform", 0, 12, 0, 16, 1),
+        ("deepvar_pois4", "poisson", 4, 0, 0, 16, 1),
+    ],
+    "seeds": list(range(7001, 7018)),
+    "batch_task_types": ("dnn1", "dnn2", "rf", "cnn"),
+    "demand_spread": {"dist": "uniform", "params": [0.5, 2.0]},
+    "peer_exchange": {"partners": 2, "x_scale_bytes": 50e6, "log10_spread": 1.0},
+    "server_mesh": True,
+    "backbone_defaults": {"link_bandwidth_mbps": 1000.0},
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
@@ -1206,6 +1236,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "route_b_pivot_h3_genprobe_wide": ROUTE_B_PIVOT_H3_GENPROBE_WIDE_GRID,
     "image_cache_v1": IMAGE_CACHE_V1_GRID,
     "image_cache_v1_cold_probe": IMAGE_CACHE_V1_COLD_PROBE_GRID,
+    "peer_affinity_screen": PEER_AFFINITY_SCREEN_GRID,
 }
 
 
@@ -1396,6 +1427,9 @@ def generate_workload_templates(
     dag_task_types: Optional[Sequence[str]] = None,
     dag_instances: int = 1,
     demand_spread: Optional[Dict[str, Any]] = None,
+    batch_task_types: Optional[Sequence[str]] = None,
+    app_order: Optional[Sequence[str]] = None,
+    peer_exchange: Optional[Dict[str, Any]] = None,
 ) -> List[Path]:
     """
     Generate workload templates with varied task type ratios.
@@ -1414,6 +1448,18 @@ def generate_workload_templates(
     identical to before this option existed. Only wired for the dag_shape path (the
     non-DAG legacy path has no route_b consumer and is left untouched).
 
+    peer_affinity_v1 (2026-09-10), the BATCH path: `batch_task_types` cycles the given types
+    over NUM_TASKS independent single-task events (a k-task batch is k events -- a `dag` is
+    keyed by type, so one application cannot hold two tasks of one type). Events are emitted
+    grouped by application in `app_order` (the config's wsc key order), because co-sim
+    regroups events per application before task ids are assigned and the peer table below
+    is keyed by those ids (executecosimulation.flatten_workloads checks the invariant).
+    `demand_spread` then draws a per-EVENT demand_scale (= per instance); `peer_exchange`
+    ({"partners": p, "x_scale_bytes": x, "log10_spread": s}) draws p distinct peers per task
+    and x * 10^U(-s, s) bytes per unordered pair (first draw wins), written as the workload's
+    top-level `peer_exchange` list of [i, j, bytes]. All three keys absent -> no draw, no
+    key, byte-identical templates.
+
     Returns list of paths to generated template files.
     """
     rng = random.Random(workload_seed)
@@ -1429,6 +1475,11 @@ def generate_workload_templates(
         # shape, and varying their mix would change the dag rather than the workload.
         if dag_shape:
             task_types = list(dag_task_types or ())
+            num_first = num_second = 0
+            first_name = second_name = ""
+        elif batch_task_types:
+            types = list(batch_task_types)
+            task_types = [types[i % len(types)] for i in range(NUM_TASKS)]
             num_first = num_second = 0
             first_name = second_name = ""
         else:
@@ -1496,7 +1547,16 @@ def generate_workload_templates(
                     }
                 workload['events'].append(base_event)
         else:
-            for idx in range(NUM_TASKS):
+            order = list(range(NUM_TASKS))
+            if batch_task_types:
+                if not app_order:
+                    raise ValueError("batch_task_types requires app_order (the config's wsc key order)")
+                rank = {name: i for i, name in enumerate(app_order)}
+                missing = sorted({f"nofs-{t}" for t in task_types} - set(rank))
+                if missing:
+                    raise ValueError(f"batch task types without a wsc application entry: {missing}")
+                order = sorted(order, key=lambda i: rank[f"nofs-{task_types[i]}"])  # stable: keeps draw order within a type
+            for idx in order:
                 base_event = deepcopy(base_events[idx % len(base_events)])
                 task_type = task_types[idx]
                 client_node = client_nodes[idx]
@@ -1504,8 +1564,26 @@ def generate_workload_templates(
                 base_event['application']['name'] = f"nofs-{task_type}"
                 base_event['application']['dag'] = {task_type: []}
                 base_event['node_name'] = f"client_node{client_node}"
+                if demand_spread is not None and batch_task_types:
+                    base_event['application']['demand_scale'] = {
+                        task_type: _draw_demand_scale(rng, demand_spread)
+                    }
 
                 workload['events'].append(base_event)
+            if peer_exchange:
+                k = len(workload['events'])
+                partners = int(peer_exchange["partners"])
+                x_scale = float(peer_exchange["x_scale_bytes"])
+                spread = float(peer_exchange.get("log10_spread", 1.0))
+                if not (1 <= partners < k):
+                    raise ValueError(f"peer_exchange.partners must be in [1, {k - 1}], got {partners}")
+                pairs: Dict[Tuple[int, int], float] = {}
+                for i in range(k):
+                    for j in rng.sample([j for j in range(k) if j != i], partners):
+                        key = (min(i, j), max(i, j))
+                        if key not in pairs:
+                            pairs[key] = x_scale * (10.0 ** rng.uniform(-spread, spread))
+                workload['peer_exchange'] = [[i, j, b] for (i, j), b in sorted(pairs.items())]
         
         # Save template
         template_path = output_dir / f"workload_template_{template_idx}.json"
@@ -2093,8 +2171,8 @@ def main():
                              f'{DEFAULT_WORKLOAD_SEED}). Fixed so a grid regenerates '
                              f'identically and matched A/B arms differ only in the '
                              f'variable under test.')
-    parser.add_argument('--num-tasks', type=int, choices=[1, 2, 3, 4, 5], default=4,
-                        help='Number of tasks per workload (1-5). Sets batch_size accordingly.')
+    parser.add_argument('--num-tasks', type=int, choices=list(range(1, 13)), default=4,
+                        help='Number of tasks per workload (1-12; >5 is the peer_affinity_v1 batch path). Sets batch_size accordingly.')
     parser.add_argument(
         '--grid',
         type=str,
@@ -2286,7 +2364,12 @@ def main():
     # A DAG names 4 types, all of which need wsc/prewarm/replicas entries — but
     # `task_type_pair` stays a PAIR, because the ratio arithmetic in
     # generate_workload_templates unpacks exactly two names.
-    types_needing_entries = dag_task_types if dag_shape else task_type_pair
+    # peer_affinity_v1: a batch grid names its own types the same way a DAG does (every
+    # one needs wsc/prewarm/replicas entries) but keeps the flat, single-task event path.
+    batch_task_types = tuple(grid_preset.get("batch_task_types", ()) or ())
+    if batch_task_types and dag_shape:
+        raise ValueError("a grid cannot set both dag_shape and batch_task_types")
+    types_needing_entries = dag_task_types if dag_shape else (batch_task_types or task_type_pair)
     template_prewarm = next(iter(base_config['prewarm'].values()))
     template_replicas = next(iter(base_config['replicas'].values()))
     for task_type_name in types_needing_entries:
@@ -2332,6 +2415,9 @@ def main():
         dag_task_types=dag_task_types,
         dag_instances=grid_preset.get("dag_instances", 1),
         demand_spread=grid_preset.get("demand_spread"),
+        batch_task_types=grid_preset.get("batch_task_types"),
+        app_order=list(base_config['wsc'].keys()),
+        peer_exchange=grid_preset.get("peer_exchange"),
     )
     log(f"Generated {len(templates)} workload templates "
         f"(workload_seed={args.workload_seed})", quiet)
@@ -2443,7 +2529,8 @@ def main():
                         queue_dist,
                         batch_size=batch_size,
                         task_type_pair=task_type_pair,
-                        dag_task_types=dag_task_types or None,
+                        # a batch grid's types need replicas/prewarm exactly like a DAG's
+                        dag_task_types=(dag_task_types or batch_task_types) or None,
                         replica_server_percentage=(
                             args.replica_server_percentage
                             if args.replica_server_percentage is not None

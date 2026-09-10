@@ -200,6 +200,16 @@ class Task:
         self.link_transfer_time: DurationSecond = 0.0
         self.link_wait_time: DurationSecond = 0.0
         self.link_hops: int = 0
+        # peer_affinity_v1: time charged at the input stage for exchanging state with the
+        # task's peers (HEROSIM_PEER_EXCHANGE=1; Platform._peer_exchange_time). Pairwise over
+        # two jointly-decided placements, so it is neither node-indexed nor route-indexed.
+        self.peer_exchange_time: DurationSecond = 0.0
+        # Where a batch scheduler has DECIDED to run this task before it is enqueued. The
+        # determined scheduler enqueues each task right after assigning it, so a later batch
+        # member has no `platform` yet when an earlier one reaches its input stage; the
+        # peer-exchange term reads this instead (set by the scheduler's pre-pass under the
+        # flag, None otherwise).
+        self.planned_node_name: Optional[str] = None
         self.source_node: str = node_name
         self.execution_node: str = ""
         self.execution_platform: str = ""
@@ -398,6 +408,7 @@ class Task:
             "linkTransferTime": self.link_transfer_time,
             "linkWaitTime": self.link_wait_time,
             "linkHops": self.link_hops,
+            "peerExchangeTime": self.peer_exchange_time,
             "sourceNode": self.node_name,
             "executionNode": self.execution_node,
             "executionPlatform": self.execution_platform,
@@ -1029,6 +1040,70 @@ class Platform:
 
         return total
 
+    def _peer_exchange_time(self, task: "Task") -> SimTime:
+        """peer_affinity_v1: cost of exchanging state with this task's peers.
+
+        The workload may carry `peer_exchange`: [i, j, bytes] triples over global task ids
+        (TimeSeries.peer_exchange, symmetrised by the orchestrator into
+        `orchestrator.peer_exchange[i][j]`). At task i's input stage every peer j on another
+        node costs `_payload_transfer_time(node(j), bytes) + network_map latency` -- exactly
+        what `_dependency_transfer_time` charges per remote parent -- and a co-located peer
+        costs nothing. Unlike the parent->child term there is no commit order: i and j are
+        decided jointly, and the term is indexed by the PAIR of instances, not by a node.
+
+        Where a peer runs comes from `peer.platform` when it is already scheduled, else from
+        `peer.planned_node_name` (set by the batch scheduler's pre-pass). A peer with neither
+        is a contract violation and fails loud: charging 0.0 would make a bad plan look free.
+
+        Returns 0.0 unless HEROSIM_PEER_EXCHANGE=1, and 0.0 for a task with no peers, so
+        every existing corpus (no `peer_exchange` in its workload) is bit-identical either way.
+        """
+        if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
+            return 0.0
+        orchestrator = getattr(self.node, "orchestrator_ref", None)
+        if orchestrator is None:
+            raise RuntimeError(
+                f"HEROSIM_PEER_EXCHANGE=1 but {self.node.node_name} has no orchestrator_ref; "
+                "the peer table lives on the orchestrator"
+            )
+        peers = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id)
+        if not peers:
+            return 0.0
+
+        network_map = getattr(self.node, "network_map", None) or {}
+        total: SimTime = 0.0
+        for peer_id in sorted(peers):
+            payload = float(peers[peer_id])
+            peer = orchestrator.task_by_id.get(peer_id)
+            if peer is None:
+                raise RuntimeError(
+                    f"HEROSIM_PEER_EXCHANGE=1: task {task.id} lists peer {peer_id}, which "
+                    "is not a task of this workload"
+                )
+            peer_platform = getattr(peer, "platform", None)
+            if peer_platform is not None:
+                peer_node_name = peer_platform.node.node_name
+            else:
+                peer_node_name = getattr(peer, "planned_node_name", None)
+            if peer_node_name is None:
+                raise RuntimeError(
+                    f"HEROSIM_PEER_EXCHANGE=1 but peer {peer_id} of task {task.id} has "
+                    "neither a platform nor a planned node; a batch scheduler must plan the "
+                    "whole batch before any member starts (planned_node_name pre-pass)"
+                )
+            if peer_node_name == self.node.node_name:
+                continue
+            entry = network_map.get(peer_node_name)
+            if entry is None:
+                raise RuntimeError(
+                    f"HEROSIM_PEER_EXCHANGE=1 but {self.node.node_name} has no network_map "
+                    f"entry for {peer_node_name} (peer {peer_id} of task {task.id}); server "
+                    "mesh reachability is required -- see generate_infrastructure.build_server_mesh"
+                )
+            latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+            total += self._payload_transfer_time(peer_node_name, payload) + latency
+        return total
+
     def platform_process(self):
         """
         Platform process that executes tasks from the queue.
@@ -1325,6 +1400,14 @@ class Platform:
             # existing corpus — all of which are single-task applications — is unaffected
             # whether it is set or not.
             input_duration += self._dependency_transfer_time(task)
+
+            # peer_affinity_v1: pairwise-instance exchange with the task's peers, charged at
+            # the same stage. Opt-in (HEROSIM_PEER_EXCHANGE=1) and inert without a
+            # `peer_exchange` table, so every existing corpus is unaffected either way.
+            peer_exchange_time = self._peer_exchange_time(task)
+            if peer_exchange_time:
+                task.peer_exchange_time = peer_exchange_time
+                input_duration += peer_exchange_time
 
             # Start the task
             yield task.started.succeed()

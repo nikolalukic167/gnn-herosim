@@ -1396,8 +1396,17 @@ def calculate_workload_stats(events: List[Dict]) -> Dict[str, float]:
     }
 
 
-def flatten_workloads(workloads: Dict[str, Dict]) -> Dict[str, Any]:
-    """Flatten multiple workload events into a single sorted list with statistics."""
+def flatten_workloads(workloads: Dict[str, Dict],
+                      base_workload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Flatten multiple workload events into a single sorted list with statistics.
+
+    peer_affinity_v1: when the base workload carries a top-level `peer_exchange` table
+    (global task ids = event order), it is carried through -- and because the per-app split
+    above regroups events by application before the simulator assigns task ids, the
+    flattened order MUST equal the base order or every peer id would silently point at a
+    different task. Checked here, fail loud. Legacy grids (no `peer_exchange`) keep the
+    regrouped order exactly as before: changing it would re-id every existing corpus.
+    """
     # Collect all events
     all_events = []
     for app_name, workload in workloads.items():
@@ -1410,11 +1419,28 @@ def flatten_workloads(workloads: Dict[str, Dict]) -> Dict[str, Any]:
     # Calculate statistics
     stats = calculate_workload_stats(sorted_events)
 
-    return {
+    flattened: Dict[str, Any] = {
         "rps": stats['rps'],
         "duration": stats['duration'],
         "events": sorted_events
     }
+    peer_exchange = (base_workload or {}).get("peer_exchange")
+    if peer_exchange:
+        def _sig(ev: Dict[str, Any]) -> Tuple[Any, ...]:
+            app = ev.get("application") or {}
+            return (app.get("name"), ev.get("node_name"), json.dumps(app.get("dag"), sort_keys=True),
+                    json.dumps(app.get("demand_scale"), sort_keys=True))
+        base_sigs = [_sig(ev) for ev in (base_workload or {}).get("events", [])]
+        flat_sigs = [_sig(ev) for ev in sorted_events]
+        if base_sigs != flat_sigs:
+            raise RuntimeError(
+                "peer_exchange present but the flattened event order differs from the "
+                "workload's event order -- task ids would not match the peer table. The "
+                "generator must emit batch events grouped by application in wsc order "
+                f"(base={[b[:2] for b in base_sigs]}, flattened={[f[:2] for f in flat_sigs]})"
+            )
+        flattened["peer_exchange"] = [list(t) for t in peer_exchange]
+    return flattened
 
 
 def capture_system_state_from_first_task(
@@ -2661,6 +2687,18 @@ def process_placement_fast(
                 "fabric_link_wait_total": float(stats["fabricLinkWaitTotal"]),
             }
 
+        # peer_affinity_v1: opt-in per-plan peer-exchange retention, same fail-loud
+        # contract as the two blocks above. Folded into `link_stats` so the row writer
+        # needs no new branch.
+        if os.environ.get("HEROSIM_RETAIN_PEER_STATS", "0") == "1":
+            if "totalPeerExchangeTime" not in stats:
+                raise RuntimeError(
+                    "HEROSIM_RETAIN_PEER_STATS=1 but stats has no totalPeerExchangeTime; "
+                    "cannot retain per-plan peer-exchange time"
+                )
+            link_stats = dict(link_stats or {})
+            link_stats["peer_exchange_total"] = float(stats["totalPeerExchangeTime"])
+
         # OPTIMIZATION: Only write file if this is better than current best RTT
         # Use lock-free read first to minimize contention, then lock only if needed
         should_write = False
@@ -2800,7 +2838,7 @@ def execute_brute_force_optimized(
     
     # Prepare workloads
     workloads = prepare_workloads(sample, mapping, workload_base, apps)
-    flattened_workloads = flatten_workloads(workloads)
+    flattened_workloads = flatten_workloads(workloads, base_workload=workload_base)
     _log(f"Prepared {len(flattened_workloads['events'])} workload events")
 
     # A DAG application exists only in the trace — the simulator reads each event's
@@ -3352,7 +3390,7 @@ def execute_brute_force_placement_optimization(
         # Prepare workloads
         logger.info("Preparing workloads...")
         workloads = prepare_workloads(sample, mapping, workload_base, apps)
-        flattened_workloads = flatten_workloads(workloads)
+        flattened_workloads = flatten_workloads(workloads, base_workload=workload_base)
         logger.info(f"Prepared {len(flattened_workloads['events'])} workload events")
         
         # Prepare infrastructure configuration
