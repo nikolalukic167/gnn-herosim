@@ -108,6 +108,9 @@ class GnnDecodeRunStats:
     # path §4 forbids, so it is counted and re-raised, never absorbed.
     masked_topo_rescored_steps: int = 0
     masked_topo_score_fn_failures: int = 0
+    masked_topo_backtracks: int = 0
+    masked_topo_relaxed_steps: int = 0
+    masked_topo_relaxed_decodes: int = 0
 
     # Seqblend-specific (argmax + seqblend mode only)
     total_tasks: int = 0
@@ -169,6 +172,9 @@ class GnnDecodeRunStats:
         self.masked_topo_failed_decodes += other.masked_topo_failed_decodes
         self.masked_topo_rescored_steps += other.masked_topo_rescored_steps
         self.masked_topo_score_fn_failures += other.masked_topo_score_fn_failures
+        self.masked_topo_backtracks += other.masked_topo_backtracks
+        self.masked_topo_relaxed_steps += other.masked_topo_relaxed_steps
+        self.masked_topo_relaxed_decodes += other.masked_topo_relaxed_decodes
         self.total_tasks += other.total_tasks
         self.p1_override_count += other.p1_override_count
         self.classic_would_override_count += other.classic_would_override_count
@@ -255,6 +261,9 @@ class GnnDecodeRunStats:
                 "failed_decodes": self.masked_topo_failed_decodes,
                 "rescored_steps": self.masked_topo_rescored_steps,
                 "score_fn_failures": self.masked_topo_score_fn_failures,
+                "backtracks": self.masked_topo_backtracks,
+                "relaxed_steps": self.masked_topo_relaxed_steps,
+                "relaxed_decodes": self.masked_topo_relaxed_decodes,
             },
             "p1_margin": int(p1_margin),
             "total_decode_tasks": self.total_tasks,
@@ -773,6 +782,8 @@ def decode_masked_topo_placement(
     score_fn: Optional[
         "Callable[[int, Mapping[int, Tuple[int, int]]], Sequence[float]]"
     ] = None,
+    allow_replica_reuse: bool = False,
+    relax_on_stuck: bool = False,
 ) -> Optional[PlacementCombo]:
     """The §4 shared masked decoder (docs/lineages/route_b_v1/stage2-preregistration.md, corrected
     2026-08-26) — decode mode "masked_topo".
@@ -823,55 +834,114 @@ def decode_masked_topo_placement(
     used: set = set()
     load: Dict[int, float] = {}
     chosen: Dict[int, Tuple[int, int]] = {}
-    for t_idx in order:
-        if t_idx not in task_logit_to_placement:
-            raise RuntimeError(f"masked_topo: task {t_idx} has no candidate mapping")
-        candidates = task_logit_to_placement[t_idx]
-        if score_fn is None:
-            logits_t = logits_per_task[t_idx]
+    # peer_affinity_v1 (T1): `allow_replica_reuse` lifts the no-reuse mask (that sweep is
+    # the full Cartesian product); `relax_on_stuck` backtracks one committed step at a
+    # time (at most n_tasks undo operations in total) and, when that fails too, takes the
+    # least-over-cap candidate and COUNTS it -- never silently. Both default False, so
+    # every registered route_b reading is bit-identical to before.
+    alternatives: List[List[Tuple[Tuple[float, Tuple[int, int]], Tuple[int, int], int]]] = []
+    step = 0
+    backtracks = 0
+    relaxed_any = False
+    while step < len(order):
+        t = order[step]
+        if t not in task_logit_to_placement:
+            raise RuntimeError(f"masked_topo: task {t} has no candidate mapping")
+        candidates = task_logit_to_placement[t]
+        if len(alternatives) > step:
+            ranked = alternatives[step]
         else:
-            try:
-                # A COPY: the callback is arbitrary arm code, and handing it the live
-                # `chosen` would let a careless one corrupt decoder state mid-plan.
-                logits_t = score_fn(t_idx, dict(chosen))
-                if len(logits_t) != len(candidates):
-                    raise RuntimeError(
-                        f"masked_topo: score_fn returned {len(logits_t)} scores for "
-                        f"task {t_idx}, which has {len(candidates)} candidates"
-                    )
-            except Exception:
+            if score_fn is None:
+                logits_t = logits_per_task[t]
+            else:
+                try:
+                    # A COPY: the callback is arbitrary arm code, and handing it the live
+                    # `chosen` would let a careless one corrupt decoder state mid-plan.
+                    logits_t = score_fn(t, dict(chosen))
+                    if len(logits_t) != len(candidates):
+                        raise RuntimeError(
+                            f"masked_topo: score_fn returned {len(logits_t)} scores for "
+                            f"task {t}, which has {len(candidates)} candidates"
+                        )
+                except Exception:
+                    if stats is not None:
+                        stats.masked_topo_score_fn_failures += 1
+                        stats.masked_topo_failed_decodes += 1
+                    raise
                 if stats is not None:
-                    stats.masked_topo_score_fn_failures += 1
-                    stats.masked_topo_failed_decodes += 1
-                raise
-            if stats is not None:
-                stats.masked_topo_rescored_steps += 1
-        dem = demands.get(t_idx) if hasattr(demands, "get") else None
+                    stats.masked_topo_rescored_steps += 1
+        dem = demands.get(t) if hasattr(demands, "get") else None
         if dem is None or len(dem) != len(candidates):
             raise RuntimeError(
-                f"masked_topo: task {t_idx} demand vector does not align with its "
+                f"masked_topo: task {t} demand vector does not align with its "
                 f"{len(candidates)} candidates"
             )
-        best: Optional[Tuple[Tuple[float, Tuple[int, int]], Tuple[int, int], int]] = None
-        for i, cand in enumerate(candidates):
-            placement = (int(cand[0]), int(cand[1]))
-            if placement in used:
+        if len(alternatives) <= step:
+            ranked = []
+            for i, cand in enumerate(candidates):
+                placement = (int(cand[0]), int(cand[1]))
+                ranked.append(((-float(logits_t[i]), placement), placement, i))
+            ranked.sort(key=lambda r: r[0])
+            alternatives.append(ranked)
+        best = None
+        while ranked:
+            key, placement, i = ranked[0]
+            if not allow_replica_reuse and placement in used:
+                ranked.pop(0)
                 continue
             cap = node_caps.get(placement[0], math.inf)
             if load.get(placement[0], 0.0) + float(dem[i]) > cap + _MASKED_TOPO_EPS:
+                ranked.pop(0)
                 continue
-            key = (-float(logits_t[i]), placement)
-            if best is None or key < best[0]:
-                best = (key, placement, i)
+            best = (key, placement, i)
+            break
         if best is None:
-            if stats is not None:
-                stats.masked_topo_infeasible_tasks += 1
-                stats.masked_topo_failed_decodes += 1
-            return None
+            if relax_on_stuck and step > 0 and backtracks < n_tasks:
+                # undo the previous step and continue from its next-best alternative;
+                # that step's ranking was scored on an unchanged prefix, so it is reused
+                prev_t = order[step - 1]
+                prev_placement = chosen.pop(prev_t)
+                prev_cands = [(int(c[0]), int(c[1])) for c in task_logit_to_placement[prev_t]]
+                load[prev_placement[0]] -= float(demands[prev_t][prev_cands.index(prev_placement)])
+                used.discard(prev_placement)
+                alternatives.pop()
+                if alternatives[step - 1]:
+                    alternatives[step - 1].pop(0)
+                backtracks += 1
+                if stats is not None:
+                    stats.masked_topo_backtracks += 1
+                step -= 1
+                continue
+            if relax_on_stuck:
+                candidates_all = [(int(c[0]), int(c[1])) for c in candidates]
+                over = [
+                    (load.get(pl[0], 0.0) + float(dem[i]) - node_caps.get(pl[0], math.inf), pl, i)
+                    for i, pl in enumerate(candidates_all)
+                    if allow_replica_reuse or pl not in used
+                ]
+                if not over:
+                    if stats is not None:
+                        stats.masked_topo_infeasible_tasks += 1
+                        stats.masked_topo_failed_decodes += 1
+                    return None
+                over.sort(key=lambda r: (r[0], r[1]))
+                _o, placement, i = over[0]
+                relaxed_any = True
+                if stats is not None:
+                    stats.masked_topo_relaxed_steps += 1
+                best = ((0.0, placement), placement, i)
+            else:
+                if stats is not None:
+                    stats.masked_topo_infeasible_tasks += 1
+                    stats.masked_topo_failed_decodes += 1
+                return None
         _key, placement, i = best
-        chosen[t_idx] = placement
+        chosen[t] = placement
         used.add(placement)
         load[placement[0]] = load.get(placement[0], 0.0) + float(dem[i])
+        step += 1
+    if stats is not None and relaxed_any:
+        stats.masked_topo_relaxed_decodes += 1
     return tuple(chosen[t] for t in range(n_tasks))
 
 

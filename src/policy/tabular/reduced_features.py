@@ -265,7 +265,19 @@ _PARTIAL_STATE_EPS = 1e-12  # the scorer's feasibility EPS, kept in agreement
 # mismatch instead of silently changing what the 38 columns mean. Only v1 exists;
 # the machinery exists so a future change is a new contract, never an in-place edit.
 PARTIAL_STATE_CONTRACT_V1 = "partial_state_v1"
-VALID_PARTIAL_STATE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1})
+# peer_affinity_v1 (2026-09-10): same 38-column width, but columns 7-9 -- the parent-hop
+# block, identically zero on a corpus without DAG edges -- carry [committed-peer exchange,
+# peer-mass lookahead, 0] normalised by the dataset's peer_norm. A v2 cache with DAG edges
+# is refused (the two meanings cannot share a column). $PARTIAL_STATE_PEER_MASS=0 zeroes
+# column 8 (the mlp_t1 arm); recorded by every trainer that consumes the block.
+PARTIAL_STATE_CONTRACT_V2 = "partial_state_v2"
+VALID_PARTIAL_STATE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2})
+PARTIAL_STATE_PEER_MASS_ENV = "PARTIAL_STATE_PEER_MASS"
+
+
+def peer_mass_enabled() -> bool:
+    import os as _os
+    return _os.environ.get(PARTIAL_STATE_PEER_MASS_ENV, "1").strip() != "0"
 DEFAULT_PARTIAL_STATE_CONTRACT = PARTIAL_STATE_CONTRACT_V1
 PARTIAL_STATE_CONTRACT_ENV = "PARTIAL_STATE_CONTRACT"
 
@@ -379,7 +391,26 @@ class PartialStateContext:
         node_rank: Mapping[Any, int],
         ingress_links: Mapping[Tuple[int, Any], Sequence[str]],
         core_links: frozenset,
+        peer_pairs: Optional[Mapping[Tuple[int, int], float]] = None,
+        node_exchange: Optional[Mapping[Tuple[Any, Any], Tuple[float, float]]] = None,
+        peer_norm: float = 0.0,
+        cand_nodes: Optional[Mapping[int, Sequence[Any]]] = None,
+        contract: Optional[str] = None,
     ) -> None:
+        self.peer_pairs = dict(peer_pairs or {})
+        self.node_exchange = dict(node_exchange or {})
+        self.peer_norm = float(peer_norm)
+        self.cand_nodes = dict(cand_nodes or {})
+        self.contract = resolve_partial_state_contract(contract)
+        self.peer_mass = peer_mass_enabled()
+        if self.contract == PARTIAL_STATE_CONTRACT_V2:
+            if not self.peer_pairs or self.peer_norm <= 0.0:
+                raise ValueError(
+                    "partial_state_v2 requires a peer_exchange corpus (peer_pairs, peer_norm > 0)"
+                )
+            if any(parents.get(t) for t in parents):
+                raise ValueError("partial_state_v2 cannot be used on a corpus with DAG edges: "
+                                 "columns 7-9 carry the peer block there")
         self.node_caps = node_caps
         self.demand = demand
         self.node_of = node_of
@@ -462,7 +493,31 @@ def partial_state_columns(
             out[i, 5] = 1.0
             out[i, 6] = 0.0
 
-        if parent_ids:
+        if ctx.contract == PARTIAL_STATE_CONTRACT_V2:
+            committed_x = 0.0
+            mass = 0.0
+            for j, cand_j in committed.items():
+                b = ctx.peer_pairs.get((task_id, j))
+                if b is None:
+                    continue
+                pb, lat = ctx.node_exchange[(node, ctx.node_of[cand_j])]
+                committed_x += b * pb + (lat if pb > 0.0 else 0.0)
+            if ctx.peer_mass:
+                for (i_, j), b in ctx.peer_pairs.items():
+                    if i_ != task_id or j in committed or j == task_id:
+                        continue
+                    nodes_j = ctx.cand_nodes.get(j) or ()
+                    if not nodes_j:
+                        continue
+                    acc = 0.0
+                    for nj in nodes_j:
+                        pb, lat = ctx.node_exchange[(node, nj)]
+                        acc += b * pb + (lat if pb > 0.0 else 0.0)
+                    mass += acc / len(nodes_j)
+            out[i, 7] = committed_x / ctx.peer_norm
+            out[i, 8] = mass / ctx.peer_norm
+            out[i, 9] = 0.0
+        elif parent_ids:
             hops: List[float] = []
             transfer = 0.0
             for p in parent_ids:
@@ -741,6 +796,10 @@ def build_partial_state_context_from_graph(graph: Any) -> "PartialStateContext":
         node_rank=psc["node_rank"],
         ingress_links=psc["ingress_links"],
         core_links=frozenset(psc["core_links"]),
+        peer_pairs=psc.get("peer_pairs"),
+        node_exchange=psc.get("node_exchange"),
+        peer_norm=float(psc.get("peer_norm", 0.0) or 0.0),
+        cand_nodes=psc.get("cand_nodes"),
     )
 
 

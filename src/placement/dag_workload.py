@@ -28,19 +28,27 @@ def load_workload_dag(dataset_dir: Path) -> Dict[str, Any]:
       task_sources     task_id -> submitting client node name (list; entries may
                        be None on pre-fabric workloads — consumers that need one
                        must fail loudly, not default)
+      demand_scales    task_id -> per-instance demand multiplier from the event's
+                       application.demand_scale (keyed by type; absent -> 1.0), the
+                       same rule score_route_b_contention.load_demand_scales applies
+      peer_exchange    the workload's top-level [i, j, bytes] triples (global task
+                       ids), or [] (peer_affinity_v1)
     """
     with open(Path(dataset_dir) / "workload.json") as fh:
         workload = json.load(fh)
     names: List[str] = []
     sources: List[Optional[str]] = []
+    scales: List[float] = []
     edges: List[Tuple[int, int]] = []
     offset = 0
     for event in workload["events"]:
         dag = event["application"]["dag"]
         node_name = event.get("node_name")
+        per_type = event["application"].get("demand_scale") or {}
         if isinstance(dag, list):
             names.extend(dag)
             sources.extend([node_name] * len(dag))
+            scales.extend(float(per_type.get(name, 1.0)) for name in dag)
             offset += len(dag)
             continue
         if not isinstance(dag, dict):
@@ -54,8 +62,18 @@ def load_workload_dag(dataset_dir: Path) -> Dict[str, Any]:
                 edges.append((local[parent], local[child]))
         names.extend(order)
         sources.extend([node_name] * len(order))
+        scales.extend(float(per_type.get(name, 1.0)) for name in order)
         offset += len(order)
-    return {"task_type_names": names, "dag_edges": edges, "task_sources": sources}
+    peers = [[int(t[0]), int(t[1]), float(t[2])] for t in (workload.get("peer_exchange") or [])]
+    return {"task_type_names": names, "dag_edges": edges, "task_sources": sources,
+            "demand_scales": scales, "peer_exchange": peers}
+
+
+def load_network_maps(dataset_dir: Path) -> Dict[str, Any]:
+    """infrastructure.json's network_maps: {node_name: {peer_node_name: latency | {"latency": ..}}}."""
+    with open(Path(dataset_dir) / "infrastructure.json") as fh:
+        infra = json.load(fh)
+    return infra.get("network_maps") or {}
 
 
 def parents_map(n_tasks: int, dag_edges: Sequence[Tuple[int, int]]) -> Dict[int, List[int]]:

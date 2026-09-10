@@ -78,6 +78,7 @@ from src.placement.topology_features import (
 )
 from src.placement.dag_workload import (
     load_link_topology,
+    load_network_maps,
     load_workload_dag,
     parents_map,
     route_hops_and_bottleneck,
@@ -1472,8 +1473,12 @@ def build_graph(
 # dataset so the one-hot means the same thing in every graph of the cache.
 DAG_TASK_TYPE_VOCAB: Tuple[str, ...] = ("cnn", "dnn1", "dnn2", "rf")
 # alpha ladder frozen by the registration (§5): unconstrained + the two binding rungs.
-DAG_ALPHA_LADDER: Tuple[Optional[float], ...] = (None, 3.0, 2.0)
-DAG_PRIMARY_ALPHA_KEY = "2.0"
+# peer_affinity_v1 (2026-09-10): rungs 2.5 and 3.125 are the equal-tightness caps for a
+# 10-task batch at alpha_4 = 1.0 / 1.25 (Amendment A6). Adding keys changes no existing
+# key; the primary rung is overridable per cache via $DAG_PRIMARY_ALPHA_KEY and recorded
+# in metadata.json.
+DAG_ALPHA_LADDER: Tuple[Optional[float], ...] = (None, 3.125, 3.0, 2.5, 2.0)
+DAG_PRIMARY_ALPHA_KEY = os.environ.get("DAG_PRIMARY_ALPHA_KEY", "2.0").strip() or "2.0"
 _DAG_EPS = 1e-12  # the scorer's feasibility EPS
 
 
@@ -1481,6 +1486,13 @@ def _dag_alpha_key(alpha: Optional[float]) -> str:
     # str(float) so the keys match the scorer reports' per_dataset alpha keys
     # ("2.0", "3.0"), not "%g"'s "2"/"3".
     return "inf" if alpha is None else str(float(alpha))
+
+
+if DAG_PRIMARY_ALPHA_KEY not in {_dag_alpha_key(a) for a in DAG_ALPHA_LADDER}:
+    raise ValueError(
+        f"DAG_PRIMARY_ALPHA_KEY={DAG_PRIMARY_ALPHA_KEY!r} is not a rung of the ladder "
+        f"{[_dag_alpha_key(a) for a in DAG_ALPHA_LADDER]}"
+    )
 
 
 def attach_dag_partial_state_block(
@@ -1587,7 +1599,10 @@ def attach_dag_partial_state_block(
             if ptype not in mem:
                 raise RuntimeError(f"{ds.name}: no memoryRequirements[{ttype}]"
                                    f"[{ptype}] — refusing to invent a demand")
-            demand[(t, placement)] = float(mem[ptype])
+            # peer_affinity_v1 / route_b env pivot: the per-instance demand_scale the
+            # scorer applies (score_route_b_contention.Dataset) -- absent -> 1.0, so every
+            # corpus without the key is unchanged.
+            demand[(t, placement)] = float(mem[ptype]) * float(dag["demand_scales"][t])
 
     peak: Dict[int, float] = {}
     for (t, placement), d in demand.items():
@@ -1674,10 +1689,14 @@ def attach_dag_partial_state_block(
         for entry in (tt.get("stateSize") or {}).values()
         if isinstance(entry, dict) and "output" in entry
     }
-    if len(outputs) != 1:
-        raise RuntimeError(f"{ds.name}: non-uniform stateSize.output set {outputs} "
-                           "— §2 col 34 assumes a uniform payload")
-    payload_bytes = outputs.pop()
+    if dag["dag_edges"]:
+        if len(outputs) != 1:
+            raise RuntimeError(f"{ds.name}: non-uniform stateSize.output set {outputs} "
+                               "— §2 col 34 assumes a uniform payload")
+        payload_bytes = outputs.pop()
+    else:
+        # no parent->child transfer exists without DAG edges; the payload is unused
+        payload_bytes = 0.0
 
     transfer_norm = max(
         (h * payload_bytes / bneck)
@@ -1700,13 +1719,62 @@ def attach_dag_partial_state_block(
     ingress: Dict[Tuple[int, int], Tuple[str, ...]] = {}
     for t in range(n_tasks):
         src = str(dag["task_sources"][t])
+        own_nodes = {int(c[0]) for c in graph.task_logit_to_placement[t]}
         for nid in cand_node_ids:
             dst = name_by_node_id[nid]
-            ingress[(t, nid)] = (
-                () if src == dst else tuple(route_links(routes, src, dst))
-            )
+            if src == dst:
+                ingress[(t, nid)] = ()
+                continue
+            try:
+                ingress[(t, nid)] = tuple(route_links(routes, src, dst))
+            except KeyError:
+                # peer_affinity_v1 corpora: a client has routes only to the servers it is
+                # logically connected to. A node this task can never be placed on needs
+                # no ingress route (partial_state_columns reads (t, node) for the task's
+                # own candidates only); a CANDIDATE without a route is a real defect.
+                if nid in own_nodes:
+                    raise
     core = frozenset(lk for lk in links if is_core_link(lk))
 
+    # --- peer_affinity_v1: task<->task exchange edges + the partial_state_v2 ingredients
+    peer_triples = dag["peer_exchange"]
+    peer_pairs: Dict[Tuple[int, int], float] = {}
+    for i, j, b in peer_triples:
+        if not (0 <= i < n_tasks and 0 <= j < n_tasks) or i == j:
+            raise RuntimeError(f"{ds.name}: peer_exchange names ({i}, {j}) outside the "
+                               f"{n_tasks}-task batch or a self-pair")
+        peer_pairs[(i, j)] = float(b)
+        peer_pairs[(j, i)] = float(b)
+    if peer_pairs:
+        keys = sorted(peer_pairs)
+        peer_edge_index = torch.tensor([[i for i, _j in keys], [j for _i, j in keys]], dtype=torch.long)
+        peer_edge_attr = torch.tensor([[math.log1p(peer_pairs[k] / 1e6)] for k in keys], dtype=torch.float32)
+        network_maps = load_network_maps(ds)
+        node_exchange: Dict[Tuple[int, int], Tuple[float, float]] = {}
+        for a in cand_node_ids:
+            for b in cand_node_ids:
+                if a == b:
+                    node_exchange[(a, b)] = (0.0, 0.0)
+                    continue
+                h, bneck = route_hb[(a, b)]
+                entry = (network_maps.get(name_by_node_id[a]) or {}).get(name_by_node_id[b])
+                if entry is None:
+                    raise RuntimeError(f"{ds.name}: no network_maps[{name_by_node_id[a]}]"
+                                       f"[{name_by_node_id[b]}] — the exchange latency is undefined")
+                lat = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+                node_exchange[(a, b)] = (float(h) / (float(bneck) * 1024 * 1024), lat)
+        peer_norm = (max(peer_pairs.values()) * max(pb for pb, _l in node_exchange.values())
+                     + max(l for _pb, l in node_exchange.values()))
+        cand_nodes = {t: [int(c[0]) for c in graph.task_logit_to_placement[t]] for t in range(n_tasks)}
+    else:
+        peer_edge_index = torch.empty((2, 0), dtype=torch.long)
+        peer_edge_attr = torch.empty((0, 1), dtype=torch.float32)
+        node_exchange = {}
+        peer_norm = 0.0
+        cand_nodes = {}
+
+    graph.peer_edge_index = peer_edge_index
+    graph.peer_edge_attr = peer_edge_attr
     graph.dag_edge_index = dag_edge_index
     graph.dag_parents = parents
     graph.task_type_onehot4 = onehot4
@@ -1727,6 +1795,11 @@ def attach_dag_partial_state_block(
         "node_rank": dict(node_rank),
         "ingress_links": ingress,
         "core_links": sorted(core),
+        # peer_affinity_v1 (partial_state_v2 ingredients; empty on corpora without peers)
+        "peer_pairs": peer_pairs,
+        "node_exchange": node_exchange,
+        "peer_norm": float(peer_norm),
+        "cand_nodes": cand_nodes,
     }
 
 
@@ -1954,6 +2027,9 @@ def main():
         'dag_task_type_vocab': (
             list(DAG_TASK_TYPE_VOCAB) if config.dag_partial_state else None
         ),
+        "dag_primary_alpha_key": DAG_PRIMARY_ALPHA_KEY if config.dag_partial_state else None,
+        "peer_exchange_block": bool(config.dag_partial_state and any(
+            int(getattr(g, "peer_edge_index", torch.empty((2, 0))).numel()) > 0 for g in graphs)),
         'dag_alpha_ladder': (
             [_dag_alpha_key(a) for a in DAG_ALPHA_LADDER]
             if config.dag_partial_state else None

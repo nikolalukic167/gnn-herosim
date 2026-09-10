@@ -604,6 +604,7 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             # invisible to serving until it is added here — omitting one is a silent
             # default, not an error.
             "mp_dag_edges",
+            "mp_peer_edges",
             "partial_state_edge_features",
             # Weight-invisible like the two above: the GIN module is always constructed,
             # so a checkpoint whose GIN weights were never fitted (disable_message_passing

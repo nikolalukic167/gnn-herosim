@@ -170,6 +170,11 @@ class NearRttConfig:
     #                        of mp_dag_edges
     #   partial_state_edges  per-step prefix conditioning + teacher-forced any-of-K CE
     mp_dag_edges: bool = os.environ.get("NEAR_RTT_MP_DAG_EDGES", "0") == "1"
+    # peer_affinity_v1 (T1): task<->task peer edges with a continuous attribute; the
+    # decoder options the registration fixes (replica reuse allowed, counted relaxation).
+    mp_peer_edges: bool = os.environ.get("NEAR_RTT_MP_PEER_EDGES", "0") == "1"
+    decode_replica_reuse: bool = os.environ.get("NEAR_RTT_DECODE_REPLICA_REUSE", "0") == "1"
+    decode_relax_on_stuck: bool = os.environ.get("NEAR_RTT_DECODE_RELAX", "0") == "1"
     task_type_onehot: bool = os.environ.get("NEAR_RTT_TASK_TYPE_ONEHOT", "0") == "1"
     partial_state_edges: bool = os.environ.get("NEAR_RTT_PARTIAL_STATE_EDGES", "0") == "1"
     dag_alpha_key: str = os.environ.get("NEAR_RTT_DAG_ALPHA_KEY", "2.0")
@@ -230,7 +235,7 @@ if TEACHER_FORCED and TRAIN_OBJECTIVE != "ce_only":
         f"TRAIN_OBJECTIVE resolves to {TRAIN_OBJECTIVE!r}. The teacher-forced any-of-K "
         "CE is the registered objective; a ranking/regret term is not part of it."
     )
-if TEACHER_FORCED and not NEAR_CFG.mp_dag_edges:
+if TEACHER_FORCED and not (NEAR_CFG.mp_dag_edges or NEAR_CFG.mp_peer_edges):
     raise ValueError(
         "NEAR_RTT_PARTIAL_STATE_EDGES=1 without NEAR_RTT_MP_DAG_EDGES=1 is arm A3 "
         "(pointwise scoring under a masked decoder) wearing A1's name — the model would "
@@ -345,7 +350,8 @@ from src.policy.gnn.seq_decode import (  # noqa: E402
     decode_masked_topo_placement,
     topological_task_order,
 )
-from src.policy.tabular.reduced_features import (  # noqa: E402
+from src.policy.tabular.reduced_features import (
+    peer_mass_enabled,  # noqa: E402
     PARTIAL_STATE_FEATURE_DIM,
     build_partial_state_context_from_graph,
     resolve_partial_state_contract,
@@ -421,6 +427,8 @@ def _masked_topo_regret_for_graph(
         node_caps=ctx.node_caps,
         demands=demands,
         score_fn=make_partial_state_score_fn(model, data, ctx),
+        allow_replica_reuse=NEAR_CFG.decode_replica_reuse,
+        relax_on_stuck=NEAR_CFG.decode_relax_on_stuck,
     )
 
 
@@ -1545,6 +1553,7 @@ model = TaskPlacementGNN(
     # _task_feature_dim stays the cache-derived width; the model adds the one-hot
     # itself, so the printed provenance above stays honest about the cache.
     mp_dag_edges=NEAR_CFG.mp_dag_edges,
+    mp_peer_edges=NEAR_CFG.mp_peer_edges,
     task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
     partial_state_edge_dim=(
         PARTIAL_STATE_FEATURE_DIM if NEAR_CFG.partial_state_edges else 0
@@ -1665,6 +1674,14 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # the types — hence dag_task_type_vocab.
                 "mp_dag_edges": NEAR_CFG.mp_dag_edges,
                 "mp_dag_edges_undirected": True if NEAR_CFG.mp_dag_edges else None,
+                # peer_affinity_v1: weight-visible (PeerConv exists only when on) but
+                # recorded like every graph option; the decoder options change what the
+                # reported regret means, so they are recorded too, as is the peer-mass
+                # switch that distinguishes mlp_t1 from mlp_t1x.
+                "mp_peer_edges": NEAR_CFG.mp_peer_edges,
+                "decode_replica_reuse": NEAR_CFG.decode_replica_reuse,
+                "decode_relax_on_stuck": NEAR_CFG.decode_relax_on_stuck,
+                "peer_mass": peer_mass_enabled() if NEAR_CFG.partial_state_edges else None,
                 "task_type_onehot_dim": (
                     DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0
                 ),

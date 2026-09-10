@@ -158,6 +158,16 @@ def load_arm(checkpoint_path: Path) -> Dict[str, Any]:
         model.eval()
 
         include_partial_state = layout == "dim63crk"
+        # peer_affinity_v1: the peer-mass column is a training-time switch recorded in
+        # the payload; scoring with the other setting is a train/eval mismatch.
+        trained_peer_mass = payload.get("peer_mass")
+        if trained_peer_mass is not None:
+            from src.policy.tabular.reduced_features import peer_mass_enabled
+            if bool(trained_peer_mass) != peer_mass_enabled():
+                raise EvalError(
+                    f"{checkpoint_path}: trained with peer_mass={bool(trained_peer_mass)} but "
+                    f"PARTIAL_STATE_PEER_MASS resolves to {peer_mass_enabled()}; export it to match"
+                )
         if include_partial_state:
             trained_contract = payload.get("partial_state_contract")
             require_matching_partial_state_contract(
@@ -258,6 +268,14 @@ def load_arm(checkpoint_path: Path) -> Dict[str, Any]:
             f"{list(DAG_TASK_TYPE_VOCAB)!r} — a vocab reorder would silently "
             "permute task types"
         )
+    trained_peer_mass = sidecar.get("peer_mass")
+    if trained_peer_mass is not None:
+        from src.policy.tabular.reduced_features import peer_mass_enabled
+        if bool(trained_peer_mass) != peer_mass_enabled():
+            raise EvalError(
+                f"{checkpoint_path}: sidecar peer_mass={bool(trained_peer_mass)} but "
+                f"PARTIAL_STATE_PEER_MASS resolves to {peer_mass_enabled()}; export it to match"
+            )
     partial_state_dim = int(sidecar.get("partial_state_feature_dim") or 0)
     if partial_state_dim != PARTIAL_STATE_FEATURE_DIM:
         raise EvalError(
@@ -299,6 +317,7 @@ def load_arm(checkpoint_path: Path) -> Dict[str, Any]:
             ),
             mp_network_entities=bool(sidecar.get("mp_network_entities", False)),
             mp_dag_edges=bool(sidecar.get("mp_dag_edges", False)),
+            mp_peer_edges=bool(sidecar.get("mp_peer_edges", False)),
             task_type_onehot_dim=onehot_dim,
             partial_state_edge_dim=partial_state_dim,
             normalize_platform_inputs=sidecar.get("feature_dim") == 21,
@@ -366,6 +385,13 @@ def evaluate_dataset(
     tl = graph.task_logit_to_placement
 
     score_fn = arm["score_fn_factory"](graph, ctx)
+    # peer_affinity_v1 (T1): the decoder options are part of the registered decoder and
+    # are read from the environment so every arm is decoded identically; recorded per
+    # dataset so a report cannot be read without them.
+    allow_reuse = os.environ.get("EVAL_DECODE_REPLICA_REUSE", "0") == "1"
+    relax = os.environ.get("EVAL_DECODE_RELAX", "0") == "1"
+    from src.policy.gnn.seq_decode import GnnDecodeRunStats
+    dstats = GnnDecodeRunStats()
     combo = decode_masked_topo_placement(
         [None] * n_tasks,
         tl,
@@ -374,6 +400,9 @@ def evaluate_dataset(
         node_caps=ctx.node_caps,
         demands=demands,
         score_fn=score_fn,
+        stats=dstats,
+        allow_replica_reuse=allow_reuse,
+        relax_on_stuck=relax,
     )
 
     ds = _load_sweep(simulation_data_root, dataset_id, task_types_db)
@@ -395,6 +424,10 @@ def evaluate_dataset(
         "alpha_key": alpha_key,
         "constrained_optimum": opt_band,
         "infeasible": combo is None,
+        "decoder": {"allow_replica_reuse": allow_reuse, "relax_on_stuck": relax,
+                    "backtracks": dstats.masked_topo_backtracks,
+                    "relaxed_steps": dstats.masked_topo_relaxed_steps,
+                    "relaxed": bool(dstats.masked_topo_relaxed_decodes)},
     }
     if combo is None:
         result["decode_regret_pct"] = None
@@ -411,10 +444,14 @@ def evaluate_dataset(
         )
     decoded_value = lookup[key]
     if not ds.plan_feasible(decoded_plan, caps):
-        raise EvalError(
-            f"{dataset_id}: decoder returned an INFEASIBLE plan {decoded_plan} — "
-            "the mask should have made this impossible (fail loud, never relaxed)"
-        )
+        if not (relax and dstats.masked_topo_relaxed_decodes):
+            raise EvalError(
+                f"{dataset_id}: decoder returned an INFEASIBLE plan {decoded_plan} — "
+                "the mask should have made this impossible (fail loud, never relaxed)"
+            )
+        # a COUNTED relaxation: the plan is scored at its true cost against the
+        # feasible optimum, and the dataset is flagged; the report aggregates the rate
+        result["cap_violated"] = True
     decoded_tie_group = [
         v for p, v in feasible_rows if abs(v - decoded_value) <= 1e-9
     ]
