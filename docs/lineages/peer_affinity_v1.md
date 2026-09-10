@@ -38,6 +38,7 @@ paper datasets in the on-disk format for the cross-check under
 - [Rung R1b — the simulated screen, first readable read (2026-09-10)](#rung-r1b-the-simulated-screen-first-readable-read-2026-09-10)
 - [Amendment A6 — count competitor v2, the cap ladder on the simulated substrate, R2 registered blind (2026-09-10)](#amendment-a6-count-competitor-v2-the-cap-ladder-on-the-simulated-substrate-r2-registered-blind-2026-09-10)
 - [Rung R2 — the blind read: PIVOT-CANDIDATE (2026-09-10)](#rung-r2-the-blind-read-pivot-candidate-2026-09-10)
+- [Training registration T1 (2026-09-10, signed off before any cache or checkpoint exists)](#training-registration-t1-2026-09-10-signed-off-before-any-cache-or-checkpoint-exists)
 
 ---
 
@@ -583,3 +584,65 @@ checkpoint selection and a convergence check (plan §"On PIVOT-CANDIDATE"; readi
 GNN-NEEDED / TIE / POINTWISE-BETTER / INDETERMINATE). The registered prediction stands:
 `gnn` ≥ +1 pp over `mlp_t1` and `mpoff`; if `mlp_t1x` closes it, "hand lookahead
 suffices". No live-serving claim is implied (`MAX_BATCH_SIZE_FOR_GNN = 4`; separate work).
+
+---
+
+### Training registration T1 (2026-09-10, signed off before any cache or checkpoint exists)
+
+**Question.** On the R2 environment, does a graph model with message passing over
+task↔task peer edges place better than a pointwise scorer given every count and prefix
+column it can compute — with both trained on one cache, decoded by one decoder in one
+order, selected by one honest rule?
+
+**Corpus.** Training: grid `peer_affinity_screen_c3_x200_train`, **136 fresh seeds
+7035–7170**, treated arm only (`HEROSIM_PEER_EXCHANGE=1`), same physics and knobs as R2.
+Held-out: **R2's 34 datasets** (seeds 7018–7034; no model has seen them; their use in the
+environment decision is not model selection). Validation: a fixed split artifact over the
+136 training datasets (≈ 20 %), written once and shared by every arm and seed.
+One cache (`prepare_graphs_cache.py`) for all arms; contracts recorded in `metadata.json`.
+
+**Graph.** Bipartite task↔candidate-replica edges (existing) plus undirected
+`peer_edge_index` over task nodes with `peer_edge_attr = log1p(x_ij / 1 MB)`. Partial-state
+columns (`partial_state_columns`, single source for every arm) gain a `peer` block:
+committed-peer exchange (Σ over committed partners j of x_ij · X(cand node, node(j)),
+normalised by the dataset's max) and the peer-mass lookahead (the B4 column); contract
+`partial_state_v2`. The label is the near-RTT plan set from the full sweep, replica reuse
+allowed (the environment's sweep is the full Cartesian product).
+
+**Arms** (one trainer per model class, configs under `experiments/peer_affinity_v1_*.yaml`,
+never a new `train_*.py`):
+- `gnn`: message passing over bipartite + peer edges (`PeerConv`, edge_dim 1, recorded in
+  the sidecar as `mp_peer_edges`), EdgeScorer with the v2 partial-state block.
+- `mpoff`: the same network with message passing disabled — a two-tower pointwise scorer
+  (say so in every table).
+- `mlp_t1`: tabular MLP on the pointwise columns + per-node counts + capacity + the
+  committed-peer exchange column (everything a prefix-conditioned pointwise model can see).
+- `mlp_t1x`: `mlp_t1` + the peer-mass lookahead column.
+
+**Decoder** (shared): masked sequential decode in task-id order with the capacity mask,
+replica reuse **allowed**, per-step re-scoring with the partial-state columns; on a stuck
+state (no cap-feasible candidate — 23.5 % of R2 datasets under B3′) the decoder backtracks
+one step (at most k steps), then falls back to the least-loaded cap-violating candidate and
+**counts** the relaxation. The same code path serves every arm.
+
+**Protocol.** Honest checkpoint selector (`NEAR_RTT_VAL_EXACT_REGRET=1` with the full sweep
+as the lookup) **and** the final checkpoint, both read; per-arm learning-rate sweep
+{5e-4, 1e-3, 2e-3} selected on validation only; convergence check (validation-tail slope
+within noise of flat) before any read; **8 seeds per arm**; determinism gate
+(`tests/test_trainer_determinism.py`) before the first gated run; every run logs to W&B.
+
+**Statistic.** Per seed, median over the 34 held-out datasets of decode regret vs the
+enumerated cap-feasible optimum (%). Primary contrast **`gnn` vs `mlp_t1`**; secondary
+`gnn` vs `mpoff`, `gnn` vs `mlp_t1x`. Exact Wilcoxon paired by seed, α = 0.05, effect bar
+1 pp. Readings: GNN-NEEDED (p < 0.05 and median Δ ≥ 1 pp in the GNN's favour);
+POINTWISE-BETTER (p < 0.05, Δ ≤ −1 pp); TIE (p ≥ 0.05, |Δ| < 1 pp); INDETERMINATE otherwise.
+Also reported: train-split regret per arm (fit ceiling), relaxation rate of the decoder per
+arm, and the ten-order search competitor from A6 as a non-learned reference line.
+
+**Registered prediction.** `gnn` ≥ +1 pp over `mlp_t1` and over `mpoff`; the effect size
+expected ≈ 2 pp. If `mlp_t1x` closes the gap, the result is written as "hand lookahead
+suffices". If `mpoff` ties `gnn`, the edge (if any) belongs to the two-tower parametrisation,
+not to graph reasoning, and is written that way.
+
+**Out of scope.** Live serving (`MAX_BATCH_SIZE_FOR_GNN = 4`, no batch-of-independents
+live path exists for k = 10) — a separate registration.

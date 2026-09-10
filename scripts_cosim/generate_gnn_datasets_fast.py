@@ -1223,6 +1223,14 @@ PEER_AFFINITY_SCREEN_C3_X200_R2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_r2",
 }
 
+# Training corpus for the peer_affinity_v1 training registration (2026-09-10): the R2
+# environment on 136 fresh seeds (8 x 17); R2 itself (seeds 7018-7034) is the held-out block.
+PEER_AFFINITY_SCREEN_C3_X200_TRAIN_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_X200_GRID,
+    "seeds": list(range(7035, 7171)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_train",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
@@ -1267,6 +1275,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "peer_affinity_screen_c3": PEER_AFFINITY_SCREEN_C3_GRID,
     "peer_affinity_screen_c3_x200": PEER_AFFINITY_SCREEN_C3_X200_GRID,
     "peer_affinity_screen_c3_x200_r2": PEER_AFFINITY_SCREEN_C3_X200_R2_GRID,
+    "peer_affinity_screen_c3_x200_train": PEER_AFFINITY_SCREEN_C3_X200_TRAIN_GRID,
 }
 
 
