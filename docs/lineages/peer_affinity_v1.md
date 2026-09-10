@@ -2,18 +2,23 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-09 → (open)
 
-**Outcome.** **PIVOT-CANDIDATE for training (2026-09-10) — the first environment in this
-program whose joint structure survives a correctly specified count competitor, on paper
-and in the simulator.** Phase 0 paper screen GO (14 of 60 cells). Physics built
-(`HEROSIM_PEER_EXCHANGE=1`, bit-identical off). Simulated screen, rung **R2, read blind on
-fresh seeds 7018–7034** (34 datasets per arm, 200 MB exchange, k = 10, α₁₀ = 2.5): every
-registered bar passes, controls included — cap binds in 34/34, control arm count-repairable
-(R² 1.0000 median, 0 of 34 above 1 % regret), pointwise-only regret **28.5 %**, count repair
-**0.27** (count-repaired residual **23.4 %**), prefix-greedy analogue 32.9 %, hand-lookahead
-analogue 19.5 % (17.3 % under the best deterministic order), count oracle 18.9 %; the
-peer-mass column adds nothing beyond counts. The 50 MB cell failed on the simulator and is
-dropped; α₄ = 1.25 fails S0b by two control datasets. Full record and every amendment
-below. **Next: the training registration (plan §"On PIVOT-CANDIDATE"), a separate sign-off.**
+**Outcome.** **T1 read (2026-09-10): GNN-NEEDED over a peer-blind pointwise scorer
+(+13.4 pp, p = 0.0078, 8/8 seeds) — but message passing is not the lever, and one hand-built
+lookahead column closes most of the gap.** This is the first environment in the program whose
+joint structure defeats a trained pointwise model: `mlp_t1`, which sees the exact exchange cost
+to already-committed peers, loses 11–13 pp to every arm that also sees the uncommitted-peer
+lookahead. It is *not* graph reasoning that recovers it — `mpoff` (message passing disabled,
+`PeerConv` never runs) ties the full GNN (+0.77 pp, p = 0.31), and a pointwise MLP with the
+single lookahead scalar lands within 2.7 pp (p = 0.31). Both secondary contrasts are
+**INDETERMINATE, not ties**: the point estimates sit at the registered ≈ 2 pp effect and n = 8
+cannot resolve them (≈ 31 and ≈ 16 seeds needed for 80 % power). A powered rerun of those two
+contrasts is the one open question. Fit ceiling: the GNN memorises the training split exactly
+(train regret 0.00 %) and still reads 24.96 % held-out. Phase 0 paper screen GO (14 of 60 cells);
+physics built (`HEROSIM_PEER_EXCHANGE=1`, bit-identical off); simulated rung **R2 blind on fresh
+seeds 7018–7034** passed every bar (cap binds 34/34, control count-repairable, pointwise-only
+regret 28.5 %, count repair 0.27, residual 23.4 %, hand-lookahead analogue 19.5 %, count oracle
+18.9 %). The 50 MB cell failed on the simulator and is dropped; α₄ = 1.25 fails S0b by two control
+datasets. Full record and every amendment below.
 
 **Related:** [throughline](throughline.md) (2026-09-09 section — the argument this lineage is
 the one untried exception to) · [dag_fabric_contention_v1](dag_fabric_contention_v1.md) (the
@@ -646,3 +651,118 @@ not to graph reasoning, and is written that way.
 
 **Out of scope.** Live serving (`MAX_BATCH_SIZE_FOR_GNN = 4`, no batch-of-independents
 live path exists for k = 10) — a separate registration.
+
+### Training registration T1 — the read: GNN-NEEDED over peer-blind pointwise, INDETERMINATE over peer-aware pointwise (2026-09-10)
+
+192 training runs, all completed, none failed: 4 arms × 3 learning rates × 8 seeds. The GNN
+arms saved both the honest-selector checkpoint and the final-epoch checkpoint (96 GNN
+checkpoints, 48 MLP), each scored on the **34 held-out R2 datasets** (seeds 7018–7034, seen
+by no arm) with the shared masked decoder and the tie-band regret. Reports:
+`simulation_data/peer_affinity_t1_reports/` (144 files), reading
+`simulation_data/peer_affinity_t1_read.json`, script `scripts_cosim/peer_affinity_t1_read.py`.
+
+**Venue (amendment on the day, no registered quantity touched).** Every non-draining GPU node
+on datalab was fully allocated and the GPU array sat at priority 1 for two hours, so the GNN
+arms ran on `CPU-amd` (`scripts_cosim/datalab/peer_affinity_v1_t1_gnn_train_cpu.sbatch`, commit
+`761130e`; same configs, seeds, checkpoint names and sidecar asserts as the GPU script). This is
+not a compromise on this corpus: the per-epoch cost is dominated by the exact-regret validation
+pass, which is CPU-bound. Measured on the real `gnn` config, 109 training graphs:
+
+| venue | s / epoch |
+|---|---|
+| local Tesla T4, 8 threads | 11.0 |
+| local CPU, 16 threads | 7.5 |
+| datalab `CPU-amd`, 16 threads | 5.1 |
+
+All 48 tasks started within 20 s, ran the declared `gnn` env (`torch 2.5.1+cu121`), completed
+300/300 epochs, and passed the sidecar assert (arm flag, `mp_peer_edges`, `partial_state_v2`,
+`dag_alpha_key`, replica reuse, relaxation, `peer_mass`, split sha256). Checkpoints rsynced back
+md5-identical. Arms trained in one venue and compared only against each other; no cross-venue
+number is quoted.
+
+**Learning rate, selected on validation only** (mean over seeds of the per-seed validation median):
+
+| arm | lr 5e-4 | lr 1e-3 | lr 2e-3 | chosen |
+|---|---|---|---|---|
+| `gnn` | 30.87 | 30.45 | **26.05** | 2e-3 |
+| `mpoff` | 33.20 | 28.93 | **25.81** | 2e-3 |
+| `mlp_t1` | 39.20 | 40.49 | **37.57** | 2e-3 |
+| `mlp_t1x` | 32.84 | **32.54** | 35.57 | 1e-3 |
+
+**Held-out decode regret** (%, median over the 34 test datasets per seed, then mean over 8 seeds;
+train-split median at the same checkpoint for the fit ceiling):
+
+| arm | peer columns | test (honest selector) | test (final) | train (honest / final) |
+|---|---|---|---|---|
+| `gnn` (MP + PeerConv) | committed + lookahead | **23.87** | 24.96 | 5.12 / **0.00** |
+| `mpoff` (two-tower, no MP) | committed + lookahead | 25.84 | 26.69 | 9.08 / 0.29 |
+| `mlp_t1x` (pointwise) | committed + lookahead | 25.78 | — | 19.96 |
+| `mlp_t1` (pointwise) | committed only | **37.23** | — | 28.02 |
+
+**Registered contrasts** (exact Wilcoxon paired by seed, α = 0.05, bar 1 pp; Δ > 0 favours the
+first arm; "wins" = seeds favouring it):
+
+| contrast | Δ median | p | wins | reading |
+|---|---|---|---|---|
+| `gnn` vs `mlp_t1` @val | **+13.38 pp** | **0.0078** | 8/8 | **GNN-NEEDED** |
+| `gnn` vs `mlp_t1` @final | **+11.89 pp** | **0.0078** | 8/8 | **GNN-NEEDED** |
+| `gnn` vs `mpoff` @val | +2.08 pp | 0.148 | 5/8 | INDETERMINATE |
+| `gnn` vs `mpoff` @final | +0.77 pp | 0.313 | 5/8 | TIE |
+| `gnn` vs `mlp_t1x` @val | +2.68 pp | 0.313 | 5/8 | INDETERMINATE |
+| `gnn` vs `mlp_t1x` @final | +2.93 pp | 0.461 | 6/8 | INDETERMINATE |
+| `mpoff` vs `mlp_t1` @val | +11.22 pp | **0.0078** | 8/8 | significant |
+| `mlp_t1x` vs `mlp_t1` @val | +10.62 pp | **0.0078** | 8/8 | significant |
+
+**The reading.** The registered prediction was `gnn` ≥ +1 pp over `mlp_t1` **and** over `mpoff`.
+Half of it holds, and the half that fails is the informative one.
+
+1. **The environment is the first in this program to break a pointwise scorer at training time.**
+   `mlp_t1` — a pointwise MLP with the full partial state including the *exact* exchange cost to
+   already-committed peers — loses by 11–13 pp to every arm that also sees the lookahead column,
+   8/8 seeds, at the floor of the exact test's p-value. R2's paper bars said the count competitor
+   could not repair this structure; T1 confirms it survives contact with a trained model. This is
+   not the count theorem's shape and no previously registered stop covers it.
+2. **Message passing is not the lever.** `mpoff` disables the encoder entirely — verified in
+   `gnn_model.py:_encode`, where the `PeerConv` call sits inside the branch `_disable_mp` skips,
+   so that arm does no task↔task mixing at all — and it ties the full GNN (+0.77 pp, p = 0.313 at
+   the final checkpoint). Registration's own contingency applies: the edge, if any, belongs to the
+   two-tower parametrisation, not to graph reasoning.
+3. **Hand lookahead suffices, within what 8 seeds can resolve.** The whole 10.6 pp gap between
+   `mlp_t1x` and `mlp_t1` is **one hand-built scalar column**: the expected exchange cost to peers
+   not yet committed, averaged over each peer's candidate nodes (`reduced_features.py:505`,
+   `$PARTIAL_STATE_PEER_MASS`). Both arms see the committed-peer column; only `mlp_t1x` sees the
+   lookahead. A pointwise model with that one feature lands within 2.7 pp of the GNN, p = 0.31.
+4. **The fit-ceiling split reappears, sharper than in `route_b_v1`.** At the final checkpoint the
+   GNN drives train regret to **0.00 %** — exact memorisation of 109 sweeps — and still reads
+   24.96 % held-out, while `mlp_t1` cannot get train regret below 28 %. Capacity to fit the joint
+   target is not the same as generalising it; this corpus separates the two cleanly.
+
+**What this read does NOT establish.** `gnn` vs `mlp_t1x` and `gnn` vs `mpoff` are
+**INDETERMINATE, not ties**: the point estimates (+2.7 pp, +2.1 pp) sit right at the registered
+expected effect size (≈ 2 pp) and n = 8 cannot resolve them. Observed per-seed sd is 3.8 pp and
+2.9 pp, so 80 % power needs ≈ 31 and ≈ 16 seeds at the observed effect, and ≈ 115 and ≈ 64 seeds
+at the 1 pp bar. **A powered rerun of exactly these two contrasts is the one open question this
+node leaves**, and it is cheap: ~25 min per seed on `CPU-amd`, 48 idle-node slots.
+
+**Decoder health** (chosen lr, 8 seeds × 34 datasets = 272 decodes per arm-variant): **zero
+infeasible plans in all 2 176 held-out decodes**. Counted relaxations 8–15 per arm-variant for
+the GNN arms, 13 (`mlp_t1`) and 27 (`mlp_t1x`) for the pointwise arms — 3–10 %, and every relaxed
+plan is scored against the whole sweep, never a censored tie group.
+
+**Convergence check — the registered bar is below its own metric's noise floor, and is reported,
+not claimed passed.** All 48 GNN runs completed 300/300 epochs. The bar (validation-tail slope
+< 2 % of level over the last 20 epochs) passes for **16 of 48** seeds. But the epoch-to-epoch
+absolute change of that same validation metric is **4.5–8.0 % of level** (measured on tasks 0, 2,
+14), so the bar sits under the noise floor and cannot be met reliably by a converged run; the
+failing tails are mixed in sign (−0.11 to +0.12 relative), i.e. noise, not drift. The registered
+mitigation is what protects the read: **both** the honest-selector and the final checkpoint are
+reported for every GNN arm, and the two agree on every verdict above. Tool correction filed in
+`docs/gates/gate-tools.md`.
+
+**Provenance.** Cache `simulation_data/graphs_cache_peer_affinity_v1_t1` (170 graphs,
+`partial_state_v2`, `dag_primary_alpha_key` 2.5, `peer_exchange_block`, `platform_feature_dim` 14);
+split `experiments/peer_affinity_v1_t1_split.json` (train 109 / val 27 / test 34, sha256
+`c7d98b21…`, asserted in every sidecar); α key 2.5; W&B project `gnn-peer-affinity-v1`. The
+`pa-t1-preflight` job (753453) FAILED at its last step only — it trained a smoke GNN on a cluster
+GPU and synced to W&B, then tried to score it against raw sweeps that exist only on the local box;
+all scoring is local by design.
