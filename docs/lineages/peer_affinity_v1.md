@@ -33,6 +33,7 @@ paper datasets in the on-disk format for the cross-check under
 - [Amendment A3 — tool: fit-argmin regrets read the tie band (2026-09-09, before the screen ran)](#amendment-a3-tool-fit-argmin-regrets-read-the-tie-band-2026-09-09-before-the-screen-ran)
 - [peer_affinity_v1 — PHASE 0 PAPER SCREEN, GO (2026-09-10)](#peer-affinity-v1-phase-0-paper-screen-go-2026-09-10)
 - [Amendment A4 — the simulated screen: physics, grid and table analogues of B3/B5 (2026-09-10, before any rung was read)](#amendment-a4-the-simulated-screen-physics-grid-and-table-analogues-of-b3b5-2026-09-10-before-any-rung-was-read)
+- [Amendment A5 — R1 did not instantiate the GO cell; reachability raised, C1 void on simulated sweeps (2026-09-10)](#amendment-a5-r1-did-not-instantiate-the-go-cell-reachability-raised-c1-void-on-simulated-sweeps-2026-09-10)
 
 ---
 
@@ -436,3 +437,33 @@ with these definitions fixed now:
   dataset (`MAX_PLACEMENT_COMBINATIONS_SKIP`) is reported with its attribution, never dropped
   silently — the skip threshold tests the pre-uniqueness product (memory), so it is set from
   the measured candidate counts, not from sweep sizes.
+
+---
+
+### Amendment A5 — R1 did not instantiate the GO cell; reachability raised, C1 void on simulated sweeps (2026-09-10)
+
+**R1 (12 datasets per arm, `peer_affinity_screen`, local; below the 17-dataset readability
+rule by design — an instantiation check, not a read).** Every sweep complete, physics
+agreement max relative gap 4.8e-16, exchange share of `rtt_treated − rtt_control` 0.46.
+But the instance is not the registered GO cell: with 4 hosting nodes and client
+connectivity 0.25/0.35 the source client of a task reaches a **median of 2** hosts
+(sweeps 1 024–3 456 rows), and the exchange is **12 %** of the optimum's cost (paper cell
+29 %). On that smaller instance the pointwise-only fit lands within 6.4 % (α₄ = 1.5) /
+3.8 % (α₄ = 2.0) of the optimum with 5 of 12 datasets already at 0 %, count repair is
+bimodal (0 or 1 per dataset; medians 0.26 / 0.98), B3′ 5.0 / 3.5 %, B5′ 5.5 / 0.1 %, and
+**C1 is void**: the optimum's (platform, type) stratum has size 1 in every dataset, because
+copies of a type have *different* reachable candidate sets and are therefore not
+interchangeable — the count oracle then names the plan and measures nothing. On a
+simulated sweep C1 is reported but is not a bar; the count **fit** (B2) is the operative
+count control. S0b on the control arm: R² 0.992–0.9999, argmin regret ≤ 1 % in 12/12.
+
+**Correction, before the readable rung.** Two grid variants that keep every other key:
+`peer_affinity_screen_c3` (connectivity 0.6, replicas on 0.9 of the server nodes) gives a
+median of 3 candidates per task (range 2–5 on a 4-dataset probe; sweeps 7.8k–31k rows), i.e.
+the GO cell's shape; `peer_affinity_screen_c3_x200` is the same with 200 MB, the registered
+backup cell (`x200_a1.5_k10c3_p2` also passed on paper, count repair 0.49) — read because
+the simulator's base costs (deep warm queues, 12–40 s per batch) are larger than the paper
+sources' uncontended durations, so 50 MB carries a smaller share here. **Rung R1b: 34
+datasets per arm** (control, 50 MB, 200 MB), α₄ ∈ {1.5, 2.0}, read with A4's definitions.
+The decision rule for training is unchanged: the treated cell must pass B2 (< 0.5) with S0b
+on its control, or the simulated screen is a NO-GO for training.
