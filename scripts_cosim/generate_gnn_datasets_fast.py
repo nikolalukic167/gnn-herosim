@@ -1231,6 +1231,15 @@ PEER_AFFINITY_SCREEN_C3_X200_TRAIN_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_train",
 }
 
+# peer_affinity_v1 T1b: corpus expansion. Same cell as the T1 training corpus (c3, 200 MB,
+# k = 10) on FRESH seeds 7200-7699, written to its own directory so the 136-dataset T1 corpus
+# stays exactly as the registered T1 read consumed it. Merged with it for the powered rerun.
+PEER_AFFINITY_SCREEN_C3_X200_TRAIN2_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_X200_GRID,
+    "seeds": list(range(7200, 7700)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_train2",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
@@ -1276,6 +1285,7 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "peer_affinity_screen_c3_x200": PEER_AFFINITY_SCREEN_C3_X200_GRID,
     "peer_affinity_screen_c3_x200_r2": PEER_AFFINITY_SCREEN_C3_X200_R2_GRID,
     "peer_affinity_screen_c3_x200_train": PEER_AFFINITY_SCREEN_C3_X200_TRAIN_GRID,
+    "peer_affinity_screen_c3_x200_train2": PEER_AFFINITY_SCREEN_C3_X200_TRAIN2_GRID,
 }
 
 
