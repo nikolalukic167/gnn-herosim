@@ -151,7 +151,20 @@ def main() -> int:
     ap.add_argument("--reports-dir", type=Path, default=ROOT / "simulation_data/peer_affinity_t1_reports")
     ap.add_argument("--out", type=Path, default=ROOT / "simulation_data/peer_affinity_t1_read.json")
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--tag", default="t1",
+                    help="checkpoint/report family: t1 (8 seeds, 136-dataset corpus) or t1b (16 seeds, merged corpus).")
+    ap.add_argument("--seeds", type=int, default=8, help="seeds per (arm, lr); the sbatch array stride must match.")
     args = ap.parse_args()
+    if args.tag != "t1" and not args.smoke:
+        # only swap defaults the caller did not set explicitly
+        if args.cache_dir == ROOT / "simulation_data/graphs_cache_peer_affinity_v1_t1":
+            args.cache_dir = ROOT / f"simulation_data/graphs_cache_peer_affinity_v1_{args.tag}"
+        if args.split == ROOT / "experiments/peer_affinity_v1_t1_split.json":
+            args.split = ROOT / f"experiments/peer_affinity_v1_{args.tag}_split.json"
+        if args.reports_dir == ROOT / "simulation_data/peer_affinity_t1_reports":
+            args.reports_dir = ROOT / f"simulation_data/peer_affinity_{args.tag}_reports"
+        if args.out == ROOT / "simulation_data/peer_affinity_t1_read.json":
+            args.out = ROOT / f"simulation_data/peer_affinity_{args.tag}_read.json"
     if args.smoke:
         args.cache_dir = ROOT / "simulation_data/graphs_cache_peer_affinity_v1_r2_smoke"
         args.split = ROOT / "experiments/peer_affinity_v1_smoke_split.json"
@@ -174,17 +187,17 @@ def main() -> int:
     else:
         for arm in ("gnn", "mpoff"):
             for lr in LRS:
-                for seed in range(1, 9):
-                    p = args.models_dir / f"peer-affinity-v1-t1-{arm}-{lr}-seed{seed}.pt"
+                for seed in range(1, args.seeds + 1):
+                    p = args.models_dir / f"peer-affinity-v1-{args.tag}-{arm}-{lr}-seed{seed}.pt"
                     if p.exists():
                         found[(arm, lr, seed, "val")] = p
-                    pf = args.models_dir / f"peer-affinity-v1-t1-{arm}-{lr}-seed{seed}-final.pt"
+                    pf = args.models_dir / f"peer-affinity-v1-{args.tag}-{arm}-{lr}-seed{seed}-final.pt"
                     if pf.exists():
                         found[(arm, lr, seed, "final")] = pf
         for arm in ("mlp_t1", "mlp_t1x"):
             for lr in LRS:
-                for seed in range(1, 9):
-                    p = args.models_dir / "tabular" / f"peer-affinity-v1-t1-{arm}-{lr}_seed{seed}.pt"
+                for seed in range(1, args.seeds + 1):
+                    p = args.models_dir / "tabular" / f"peer-affinity-v1-{args.tag}-{arm}-{lr}_seed{seed}.pt"
                     if p.exists():
                         found[(arm, lr, seed, "val")] = p
     print(f"[read] {len(found)} checkpoints found", flush=True)
@@ -198,7 +211,7 @@ def main() -> int:
         if args.logs_dir is not None and arm in ("gnn", "mpoff"):
             cfg_index = {("gnn", "lr5e4"): 0, ("gnn", "lr1e3"): 1, ("gnn", "lr2e3"): 2,
                          ("mpoff", "lr5e4"): 3, ("mpoff", "lr1e3"): 4, ("mpoff", "lr2e3"): 5}[(arm, lr)]
-            task = cfg_index * 8 + (seed - 1)
+            task = cfg_index * args.seeds + (seed - 1)
             logs = sorted(glob.glob(str(args.logs_dir / f"pa-t1-gnn-*_{task}.out")))
             conv = convergence_from_log(Path(logs[-1])) if logs else None
         per["|".join(map(str, key))] = {"arm": arm, "lr": lr, "seed": seed, "variant": variant,
