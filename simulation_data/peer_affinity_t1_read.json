@@ -1,0 +1,2912 @@
+{
+ "registration": "docs/lineages/peer_affinity_v1.md#T1",
+ "alpha_key": "2.5",
+ "bar_pp": 1.0,
+ "alpha": 0.05,
+ "chosen_lr": {
+  "gnn": "lr2e3",
+  "mpoff": "lr2e3",
+  "mlp_t1": "lr2e3",
+  "mlp_t1x": "lr1e3"
+ },
+ "lr_table": {
+  "gnn": {
+   "lr5e4": {
+    "mean_val_median": 30.872262463827646,
+    "n_seeds": 8
+   },
+   "lr1e3": {
+    "mean_val_median": 30.44532497408155,
+    "n_seeds": 8
+   },
+   "lr2e3": {
+    "mean_val_median": 26.050892911638645,
+    "n_seeds": 8
+   }
+  },
+  "mpoff": {
+   "lr5e4": {
+    "mean_val_median": 33.19711626457037,
+    "n_seeds": 8
+   },
+   "lr1e3": {
+    "mean_val_median": 28.932431290201574,
+    "n_seeds": 8
+   },
+   "lr2e3": {
+    "mean_val_median": 25.81061789734447,
+    "n_seeds": 8
+   }
+  },
+  "mlp_t1": {
+   "lr5e4": {
+    "mean_val_median": 39.20075711377096,
+    "n_seeds": 8
+   },
+   "lr1e3": {
+    "mean_val_median": 40.494132897695934,
+    "n_seeds": 8
+   },
+   "lr2e3": {
+    "mean_val_median": 37.56926206328214,
+    "n_seeds": 8
+   }
+  },
+  "mlp_t1x": {
+   "lr5e4": {
+    "mean_val_median": 32.84356167966365,
+    "n_seeds": 8
+   },
+   "lr1e3": {
+    "mean_val_median": 32.53993121202894,
+    "n_seeds": 8
+   },
+   "lr2e3": {
+    "mean_val_median": 35.5709884207895,
+    "n_seeds": 8
+   }
+  }
+ },
+ "per_checkpoint": {
+  "gnn|lr1e3|1|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 1,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed1-final.pt",
+   "train": 0.0,
+   "val": 39.72430778543292,
+   "test": 32.564389428979794,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.08529887218045133,
+    "tail_change_rel": 0.015423900858348055,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|1|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed1.pt",
+   "train": 22.668487956500005,
+   "val": 33.04103479576012,
+   "test": 26.479234367668532,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.08529887218045133,
+    "tail_change_rel": 0.015423900858348055,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|2|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 2,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed2-final.pt",
+   "train": 0.0,
+   "val": 33.901687882329554,
+   "test": 20.812849254423547,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.12651571428571437,
+    "tail_change_rel": -0.024103413526425206,
+    "flat": false
+   }
+  },
+  "gnn|lr1e3|2|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed2.pt",
+   "train": 12.868424935983686,
+   "val": 33.38008018939415,
+   "test": 24.793221274861068,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.12651571428571437,
+    "tail_change_rel": -0.024103413526425206,
+    "flat": false
+   }
+  },
+  "gnn|lr1e3|3|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 3,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed3-final.pt",
+   "train": 0.0,
+   "val": 34.97310958535571,
+   "test": 22.89983452836073,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.19604067669172912,
+    "tail_change_rel": 0.04272229859550255,
+    "flat": false
+   }
+  },
+  "gnn|lr1e3|3|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed3.pt",
+   "train": 17.74631854478039,
+   "val": 28.64203593933268,
+   "test": 25.433956473395433,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.19604067669172912,
+    "tail_change_rel": 0.04272229859550255,
+    "flat": false
+   }
+  },
+  "gnn|lr1e3|4|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 4,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed4-final.pt",
+   "train": 0.0,
+   "val": 38.484542912026086,
+   "test": 25.16091501581422,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.014141203007518572,
+    "tail_change_rel": 0.002934877923411925,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|4|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed4.pt",
+   "train": 19.118233964382163,
+   "val": 24.06891381960577,
+   "test": 24.6555507140944,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.014141203007518572,
+    "tail_change_rel": 0.002934877923411925,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|5|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 5,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed5-final.pt",
+   "train": 0.0,
+   "val": 33.901687882329554,
+   "test": 22.606918671841292,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.08463684210526308,
+    "tail_change_rel": 0.016046097491502317,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|5|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed5.pt",
+   "train": 0.0,
+   "val": 33.70379878544228,
+   "test": 19.136437793614235,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.08463684210526308,
+    "tail_change_rel": 0.016046097491502317,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|6|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 6,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed6-final.pt",
+   "train": 0.0,
+   "val": 31.82082750876744,
+   "test": 21.868177870572126,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.02809360902255647,
+    "tail_change_rel": -0.006110020287284449,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|6|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed6.pt",
+   "train": 14.25483006971972,
+   "val": 29.10186682204144,
+   "test": 25.17629252844433,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.02809360902255647,
+    "tail_change_rel": -0.006110020287284449,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|7|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 7,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed7-final.pt",
+   "train": 0.0,
+   "val": 42.2616083993942,
+   "test": 22.870722505590074,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.5623475187969927,
+    "tail_change_rel": 0.11640701769576486,
+    "flat": false
+   }
+  },
+  "gnn|lr1e3|7|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed7.pt",
+   "train": 5.4698347492387365,
+   "val": 31.213272892408707,
+   "test": 27.04780859828454,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.5623475187969927,
+    "tail_change_rel": 0.11640701769576486,
+    "flat": false
+   }
+  },
+  "gnn|lr1e3|8|final": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 8,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed8-final.pt",
+   "train": 0.0,
+   "val": 36.30599021946582,
+   "test": 22.524669713570145,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.03558488721804513,
+    "tail_change_rel": 0.007735030767260019,
+    "flat": true
+   }
+  },
+  "gnn|lr1e3|8|val": {
+   "arm": "gnn",
+   "lr": "lr1e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr1e3-seed8.pt",
+   "train": 11.140212354740568,
+   "val": 30.411596548667262,
+   "test": 23.865175062600137,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.03558488721804513,
+    "tail_change_rel": 0.007735030767260019,
+    "flat": true
+   }
+  },
+  "gnn|lr2e3|1|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 1,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed1-final.pt",
+   "train": 0.0,
+   "val": 33.901687882329554,
+   "test": 26.44132464975987,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.08442518796992483,
+    "tail_change_rel": -0.01906148672603237,
+    "flat": true
+   }
+  },
+  "gnn|lr2e3|1|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed1.pt",
+   "train": 0.0,
+   "val": 22.80843532353139,
+   "test": 23.772813508730096,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.08442518796992483,
+    "tail_change_rel": -0.01906148672603237,
+    "flat": true
+   }
+  },
+  "gnn|lr2e3|2|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 2,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed2-final.pt",
+   "train": 0.0,
+   "val": 33.901687882329554,
+   "test": 23.276090183283838,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.04906488721804478,
+    "tail_change_rel": -0.009688712440031225,
+    "flat": true
+   }
+  },
+  "gnn|lr2e3|2|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed2.pt",
+   "train": 0.0,
+   "val": 25.730486803558097,
+   "test": 24.238356873535025,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.04906488721804478,
+    "tail_change_rel": -0.009688712440031225,
+    "flat": true
+   }
+  },
+  "gnn|lr2e3|3|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 3,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed3-final.pt",
+   "train": 0.0,
+   "val": 33.901687882329554,
+   "test": 26.284776059352613,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.5951092481203005,
+    "tail_change_rel": -0.10773609992061135,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|3|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed3.pt",
+   "train": 9.04881459695898,
+   "val": 30.58143710231253,
+   "test": 22.97794939420706,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.5951092481203005,
+    "tail_change_rel": -0.10773609992061135,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|4|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 4,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed4-final.pt",
+   "train": 0.0,
+   "val": 33.27742585198799,
+   "test": 22.391136579332674,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.14260992481203016,
+    "tail_change_rel": 0.031716615706111555,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|4|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed4.pt",
+   "train": 0.0,
+   "val": 28.133989733600146,
+   "test": 24.931744172128795,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.14260992481203016,
+    "tail_change_rel": 0.031716615706111555,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|5|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 5,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed5-final.pt",
+   "train": 0.0,
+   "val": 35.9723255711919,
+   "test": 23.569233386881706,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.06981315789473706,
+    "tail_change_rel": -0.015800381003653843,
+    "flat": true
+   }
+  },
+  "gnn|lr2e3|5|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed5.pt",
+   "train": 0.0,
+   "val": 26.508259904787906,
+   "test": 24.959529889751856,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.06981315789473706,
+    "tail_change_rel": -0.015800381003653843,
+    "flat": true
+   }
+  },
+  "gnn|lr2e3|6|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 6,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed6-final.pt",
+   "train": 0.0,
+   "val": 36.59854338101855,
+   "test": 25.11075110704366,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.3349692481203007,
+    "tail_change_rel": -0.06743715110873094,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|6|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed6.pt",
+   "train": 15.07782605543307,
+   "val": 23.102825924398864,
+   "test": 25.267616680389885,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.3349692481203007,
+    "tail_change_rel": -0.06743715110873094,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|7|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 7,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed7-final.pt",
+   "train": 0.0,
+   "val": 30.58143710231253,
+   "test": 24.181168463854902,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.17377345864661645,
+    "tail_change_rel": 0.034990265440917545,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|7|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed7.pt",
+   "train": 16.79819004215363,
+   "val": 26.996192330197683,
+   "test": 21.467067658769494,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.17377345864661645,
+    "tail_change_rel": 0.034990265440917545,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|8|final": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 8,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed8-final.pt",
+   "train": 0.0,
+   "val": 32.55561620373497,
+   "test": 28.434919393353493,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.2074947368421054,
+    "tail_change_rel": 0.047781233506042214,
+    "flat": false
+   }
+  },
+  "gnn|lr2e3|8|val": {
+   "arm": "gnn",
+   "lr": "lr2e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr2e3-seed8.pt",
+   "train": 0.0,
+   "val": 24.545516170722546,
+   "test": 23.324539434186406,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.2074947368421054,
+    "tail_change_rel": 0.047781233506042214,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|1|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 1,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed1-final.pt",
+   "train": 6.07779829016086,
+   "val": 35.15788171131338,
+   "test": 26.187975458609188,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.1882462406015036,
+    "tail_change_rel": -0.03643452647287407,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|1|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed1.pt",
+   "train": 15.693770594918174,
+   "val": 25.730486803558097,
+   "test": 24.81853125692015,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.1882462406015036,
+    "tail_change_rel": -0.03643452647287407,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|2|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 2,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed2-final.pt",
+   "train": 1.1913280142057499,
+   "val": 33.901687882329554,
+   "test": 22.92414855920442,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.14451691729323307,
+    "tail_change_rel": -0.03216392943642274,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|2|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed2.pt",
+   "train": 0.0,
+   "val": 28.583594145362948,
+   "test": 28.02110640132674,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.14451691729323307,
+    "tail_change_rel": -0.03216392943642274,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|3|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 3,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed3-final.pt",
+   "train": 1.1896938479069492,
+   "val": 42.29384489719911,
+   "test": 29.914128682241213,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.5145337593984962,
+    "tail_change_rel": -0.10956235254404524,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|3|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed3.pt",
+   "train": 20.156339151952064,
+   "val": 31.82082750876744,
+   "test": 34.01041882282641,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.5145337593984962,
+    "tail_change_rel": -0.10956235254404524,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|4|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 4,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed4-final.pt",
+   "train": 0.0,
+   "val": 39.72430778543292,
+   "test": 30.60544346641641,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.2759833082706766,
+    "tail_change_rel": -0.06719341412872665,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|4|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed4.pt",
+   "train": 19.58786873790926,
+   "val": 28.536751336002187,
+   "test": 28.20962704318562,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.2759833082706766,
+    "tail_change_rel": -0.06719341412872665,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|5|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 5,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed5-final.pt",
+   "train": 0.0,
+   "val": 30.464864972376066,
+   "test": 23.31085306034928,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.17543518796992508,
+    "tail_change_rel": -0.038275234491314224,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|5|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed5.pt",
+   "train": 9.588712023330816,
+   "val": 31.362169237479243,
+   "test": 25.029986092561096,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.17543518796992508,
+    "tail_change_rel": -0.038275234491314224,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|6|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 6,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed6-final.pt",
+   "train": 0.3926003659238271,
+   "val": 34.60864874689476,
+   "test": 30.37512787992665,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.14465601503759398,
+    "tail_change_rel": -0.033085540987591255,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|6|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed6.pt",
+   "train": 18.4851874328377,
+   "val": 29.921328232681134,
+   "test": 27.839861561006195,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.14465601503759398,
+    "tail_change_rel": -0.033085540987591255,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|7|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 7,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed7-final.pt",
+   "train": 4.613921190367678,
+   "val": 33.901687882329554,
+   "test": 24.12334058344996,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.054665112781955114,
+    "tail_change_rel": 0.011232832471470815,
+    "flat": true
+   }
+  },
+  "gnn|lr5e4|7|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed7.pt",
+   "train": 15.437041629263277,
+   "val": 37.31914366132784,
+   "test": 26.28436715920997,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.054665112781955114,
+    "tail_change_rel": 0.011232832471470815,
+    "flat": true
+   }
+  },
+  "gnn|lr5e4|8|final": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 8,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed8-final.pt",
+   "train": 0.5714617325082739,
+   "val": 35.05114226228166,
+   "test": 29.814142722636973,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.24739714285714293,
+    "tail_change_rel": -0.04826737681865985,
+    "flat": false
+   }
+  },
+  "gnn|lr5e4|8|val": {
+   "arm": "gnn",
+   "lr": "lr5e4",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-gnn-lr5e4-seed8.pt",
+   "train": 8.723153223969247,
+   "val": 33.70379878544228,
+   "test": 29.129242471299946,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.24739714285714293,
+    "tail_change_rel": -0.04826737681865985,
+    "flat": false
+   }
+  },
+  "mlp_t1|lr1e3|1|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed1.pt",
+   "train": 36.51847751060899,
+   "val": 38.0198971781265,
+   "test": 30.674633157653595,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr1e3|2|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed2.pt",
+   "train": 34.471803157934986,
+   "val": 41.38744852676687,
+   "test": 39.0286222627976,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr1e3|3|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed3.pt",
+   "train": 18.692693850737665,
+   "val": 41.38744852676687,
+   "test": 33.769660170399874,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr1e3|4|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed4.pt",
+   "train": 31.65083541192184,
+   "val": 40.525206445388775,
+   "test": 41.10686788512838,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr1e3|5|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed5.pt",
+   "train": 31.982777369855338,
+   "val": 43.91574980683549,
+   "test": 37.82453408833813,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr1e3|6|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed6.pt",
+   "train": 33.99372659605898,
+   "val": 30.58143710231253,
+   "test": 33.1248702917276,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr1e3|7|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed7.pt",
+   "train": 25.965238249299603,
+   "val": 46.74842706860359,
+   "test": 36.68995519092331,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr1e3|8|val": {
+   "arm": "mlp_t1",
+   "lr": "lr1e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr1e3_seed8.pt",
+   "train": 30.43344444269195,
+   "val": 41.38744852676687,
+   "test": 29.43169677973257,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|1|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed1.pt",
+   "train": 32.54128795144736,
+   "val": 41.38744852676687,
+   "test": 37.12849673383264,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|2|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed2.pt",
+   "train": 30.393254103015575,
+   "val": 41.38744852676687,
+   "test": 41.65604175098671,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|3|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed3.pt",
+   "train": 5.409047961217583,
+   "val": 42.83217061527554,
+   "test": 45.186598465641595,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|4|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed4.pt",
+   "train": 31.65083541192184,
+   "val": 31.62847985747419,
+   "test": 31.947248627231076,
+   "n_test": 34,
+   "relaxed": 0,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|5|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed5.pt",
+   "train": 28.748103263049828,
+   "val": 33.70379878544228,
+   "test": 36.17368141334585,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|6|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed6.pt",
+   "train": 36.45561481869448,
+   "val": 35.15788171131338,
+   "test": 38.66367647765979,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|7|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed7.pt",
+   "train": 27.895429301558018,
+   "val": 38.484542912026086,
+   "test": 35.35492252824879,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr2e3|8|val": {
+   "arm": "mlp_t1",
+   "lr": "lr2e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr2e3_seed8.pt",
+   "train": 31.07339745897385,
+   "val": 35.9723255711919,
+   "test": 31.763037564062564,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|1|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed1.pt",
+   "train": 28.506428158247065,
+   "val": 43.470488860421916,
+   "test": 34.141994018041,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|2|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed2.pt",
+   "train": 32.02280103632981,
+   "val": 29.76397828813229,
+   "test": 38.58253706860121,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|3|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed3.pt",
+   "train": 31.982777369855338,
+   "val": 35.605506674265925,
+   "test": 38.36633351681351,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|4|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed4.pt",
+   "train": 30.49374606160754,
+   "val": 41.001470660128774,
+   "test": 35.993917836417815,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|5|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed5.pt",
+   "train": 34.465640417968366,
+   "val": 41.44683236566107,
+   "test": 34.16167259955408,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|6|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed6.pt",
+   "train": 34.33826190978614,
+   "val": 38.0198971781265,
+   "test": 36.17368141334585,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|7|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed7.pt",
+   "train": 34.39686539218463,
+   "val": 41.44683236566107,
+   "test": 29.652164014922292,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1|lr5e4|8|val": {
+   "arm": "mlp_t1",
+   "lr": "lr5e4",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1-lr5e4_seed8.pt",
+   "train": 32.89785627558593,
+   "val": 42.85105051777012,
+   "test": 39.0286222627976,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|1|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed1.pt",
+   "train": 22.37906679697384,
+   "val": 30.20973762161364,
+   "test": 28.355513347693517,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|2|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed2.pt",
+   "train": 22.78328705589258,
+   "val": 31.69788330796516,
+   "test": 27.214897836422775,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|3|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed3.pt",
+   "train": 22.78328705589258,
+   "val": 30.719945970895697,
+   "test": 22.321701284264932,
+   "n_test": 34,
+   "relaxed": 5,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|4|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed4.pt",
+   "train": 26.051752771869854,
+   "val": 33.412379554284165,
+   "test": 27.30962870971178,
+   "n_test": 34,
+   "relaxed": 5,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|5|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed5.pt",
+   "train": 18.33934565963088,
+   "val": 39.44350449874167,
+   "test": 24.025682913818628,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|6|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed6.pt",
+   "train": 1.132613335308197,
+   "val": 39.421507167174774,
+   "test": 29.568025076358566,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|7|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed7.pt",
+   "train": 20.12176909191725,
+   "val": 26.90132351807543,
+   "test": 28.82340230782671,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr1e3|8|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr1e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr1e3_seed8.pt",
+   "train": 26.051752771869854,
+   "val": 28.51316805748096,
+   "test": 18.64840352407611,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|1|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed1.pt",
+   "train": 23.94596961851041,
+   "val": 36.59854338101855,
+   "test": 24.527652801947482,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|2|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed2.pt",
+   "train": 16.09045727900117,
+   "val": 33.901687882329554,
+   "test": 21.899642016041067,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|3|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed3.pt",
+   "train": 15.610812513502697,
+   "val": 39.676140641055774,
+   "test": 27.474075832289216,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|4|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed4.pt",
+   "train": 0.0,
+   "val": 42.47531513179,
+   "test": 29.961743736416715,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|5|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed5.pt",
+   "train": 12.598595148153974,
+   "val": 33.901687882329554,
+   "test": 24.169025421687653,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|6|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed6.pt",
+   "train": 17.611986964834415,
+   "val": 37.40941014427485,
+   "test": 27.019057776630795,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|7|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed7.pt",
+   "train": 12.540647017090254,
+   "val": 33.70379878544228,
+   "test": 29.805481001022017,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr2e3|8|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr2e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr2e3_seed8.pt",
+   "train": 22.898095370587153,
+   "val": 26.90132351807543,
+   "test": 27.376888232242454,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|1|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed1.pt",
+   "train": 17.278362775828697,
+   "val": 34.265356812788134,
+   "test": 21.83202936858836,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|2|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed2.pt",
+   "train": 16.404043300900955,
+   "val": 36.267648023770455,
+   "test": 25.22910612057543,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|3|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed3.pt",
+   "train": 21.244933356648165,
+   "val": 31.69788330796516,
+   "test": 21.83202936858836,
+   "n_test": 34,
+   "relaxed": 6,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|4|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed4.pt",
+   "train": 19.499003224465774,
+   "val": 30.719945970895697,
+   "test": 29.595356601859294,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|5|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed5.pt",
+   "train": 22.255465480146785,
+   "val": 33.412379554284165,
+   "test": 28.82340230782671,
+   "n_test": 34,
+   "relaxed": 6,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|6|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed6.pt",
+   "train": 7.408118490958098,
+   "val": 40.14497069395235,
+   "test": 25.800171586983506,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|7|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed7.pt",
+   "train": 22.446276789213922,
+   "val": 29.921328232681134,
+   "test": 23.991761987073964,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mlp_t1x|lr5e4|8|val": {
+   "arm": "mlp_t1x",
+   "lr": "lr5e4",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/tabular/peer-affinity-v1-t1-mlp_t1x-lr5e4_seed8.pt",
+   "train": 21.570999029364373,
+   "val": 26.31898084097211,
+   "test": 25.03766756332311,
+   "n_test": 34,
+   "relaxed": 6,
+   "infeasible": 0,
+   "convergence": null
+  },
+  "mpoff|lr1e3|1|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 1,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed1-final.pt",
+   "train": 16.404043300900955,
+   "val": 28.536751336002187,
+   "test": 24.532271364964846,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.13551631578947354,
+    "tail_change_rel": 0.025000236973614972,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|1|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed1.pt",
+   "train": 18.62467543465035,
+   "val": 26.25668440153127,
+   "test": 25.200448322206945,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.13551631578947354,
+    "tail_change_rel": 0.025000236973614972,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|2|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 2,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed2-final.pt",
+   "train": 14.82029955485636,
+   "val": 28.50079318407419,
+   "test": 28.431783433175564,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.23996240601503757,
+    "tail_change_rel": -0.043367063016076624,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|2|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed2.pt",
+   "train": 17.6286145999517,
+   "val": 30.719945970895697,
+   "test": 28.431783433175564,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.23996240601503757,
+    "tail_change_rel": -0.043367063016076624,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|3|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 3,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed3-final.pt",
+   "train": 12.540647017090254,
+   "val": 33.29677675034237,
+   "test": 24.26180845729979,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.08401330827067652,
+    "tail_change_rel": 0.01598490964285361,
+    "flat": true
+   }
+  },
+  "mpoff|lr1e3|3|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed3.pt",
+   "train": 17.748389992924807,
+   "val": 28.252812702973642,
+   "test": 26.789884172822106,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.08401330827067652,
+    "tail_change_rel": 0.01598490964285361,
+    "flat": true
+   }
+  },
+  "mpoff|lr1e3|4|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 4,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed4-final.pt",
+   "train": 16.404043300900955,
+   "val": 33.377014788352795,
+   "test": 24.197257531469106,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.15101390977443593,
+    "tail_change_rel": 0.030190435576258275,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|4|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed4.pt",
+   "train": 16.959368762105157,
+   "val": 28.51316805748096,
+   "test": 24.197257531469106,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.15101390977443593,
+    "tail_change_rel": 0.030190435576258275,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|5|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 5,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed5-final.pt",
+   "train": 16.959368762105157,
+   "val": 30.719945970895697,
+   "test": 24.197257531469106,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.20291827067669205,
+    "tail_change_rel": -0.03808436215618448,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|5|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed5.pt",
+   "train": 16.404043300900955,
+   "val": 26.25668440153127,
+   "test": 23.534423208803215,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.20291827067669205,
+    "tail_change_rel": -0.03808436215618448,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|6|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 6,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed6-final.pt",
+   "train": 17.226940603040152,
+   "val": 30.719945970895697,
+   "test": 21.825217932589062,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.09725872180451134,
+    "tail_change_rel": 0.019153672043510355,
+    "flat": true
+   }
+  },
+  "mpoff|lr1e3|6|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed6.pt",
+   "train": 17.748389992924807,
+   "val": 27.35213591017286,
+   "test": 20.459219439323135,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.09725872180451134,
+    "tail_change_rel": 0.019153672043510355,
+    "flat": true
+   }
+  },
+  "mpoff|lr1e3|7|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 7,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed7-final.pt",
+   "train": 13.212097246756114,
+   "val": 32.55561620373497,
+   "test": 25.020244247683515,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.14543699248120284,
+    "tail_change_rel": -0.031169222003046018,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|7|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed7.pt",
+   "train": 16.404043300900955,
+   "val": 33.04103479576012,
+   "test": 24.187827141331717,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.14543699248120284,
+    "tail_change_rel": -0.031169222003046018,
+    "flat": false
+   }
+  },
+  "mpoff|lr1e3|8|final": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 8,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed8-final.pt",
+   "train": 13.212097246756114,
+   "val": 33.377014788352795,
+   "test": 23.689232967775524,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.040448571428571514,
+    "tail_change_rel": -0.008065806428878462,
+    "flat": true
+   }
+  },
+  "mpoff|lr1e3|8|val": {
+   "arm": "mpoff",
+   "lr": "lr1e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr1e3-seed8.pt",
+   "train": 17.625463079174374,
+   "val": 31.06698408126678,
+   "test": 25.020244247683515,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.040448571428571514,
+    "tail_change_rel": -0.008065806428878462,
+    "flat": true
+   }
+  },
+  "mpoff|lr2e3|1|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 1,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed1-final.pt",
+   "train": 0.9801972642031571,
+   "val": 34.10853682843944,
+   "test": 31.190457908274915,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.20130180451127802,
+    "tail_change_rel": 0.03777403252971405,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|1|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed1.pt",
+   "train": 17.6286145999517,
+   "val": 23.074781012251563,
+   "test": 23.534423208803215,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.20130180451127802,
+    "tail_change_rel": 0.03777403252971405,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|2|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 2,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed2-final.pt",
+   "train": 0.3926003659238271,
+   "val": 26.84047920561769,
+   "test": 30.15800593252774,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.01116225563909771,
+    "tail_change_rel": 0.0022732190380478925,
+    "flat": true
+   }
+  },
+  "mpoff|lr2e3|2|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed2.pt",
+   "train": 15.632036231550893,
+   "val": 28.536751336002187,
+   "test": 26.789884172822106,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.01116225563909771,
+    "tail_change_rel": 0.0022732190380478925,
+    "flat": true
+   }
+  },
+  "mpoff|lr2e3|3|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 3,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed3-final.pt",
+   "train": 0.0,
+   "val": 33.70379878544228,
+   "test": 26.48466578923617,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.20512684210526302,
+    "tail_change_rel": 0.04172791843335995,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|3|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed3.pt",
+   "train": 17.682297227042675,
+   "val": 30.719945970895697,
+   "test": 24.57893024033661,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.20512684210526302,
+    "tail_change_rel": 0.04172791843335995,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|4|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 4,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed4-final.pt",
+   "train": 0.0,
+   "val": 40.705819141380836,
+   "test": 21.089474000182996,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.4049090225563907,
+    "tail_change_rel": 0.07314579761671601,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|4|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed4.pt",
+   "train": 0.0,
+   "val": 25.51379499049037,
+   "test": 23.10914821380034,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.4049090225563907,
+    "tail_change_rel": 0.07314579761671601,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|5|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 5,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed5-final.pt",
+   "train": 0.0,
+   "val": 27.436791749245767,
+   "test": 28.000117655748536,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.4665287218045114,
+    "tail_change_rel": -0.0913421261384535,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|5|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed5.pt",
+   "train": 12.540647017090254,
+   "val": 21.934908705051857,
+   "test": 29.307819222425287,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.4665287218045114,
+    "tail_change_rel": -0.0913421261384535,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|6|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 6,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed6-final.pt",
+   "train": 0.0,
+   "val": 30.640285787755793,
+   "test": 23.695198045980504,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.2062387969924809,
+    "tail_change_rel": 0.03955699076502311,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|6|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed6.pt",
+   "train": 0.0,
+   "val": 21.934908705051857,
+   "test": 24.018848404549807,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.2062387969924809,
+    "tail_change_rel": 0.03955699076502311,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|7|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 7,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed7-final.pt",
+   "train": 0.0,
+   "val": 28.51316805748096,
+   "test": 25.53110277959091,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.22040082706766906,
+    "tail_change_rel": 0.044223495975164125,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|7|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed7.pt",
+   "train": 8.205495285328206,
+   "val": 28.51316805748096,
+   "test": 26.789884172822106,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.22040082706766906,
+    "tail_change_rel": 0.044223495975164125,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|8|final": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 8,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed8-final.pt",
+   "train": 0.9801972642031571,
+   "val": 34.10853682843944,
+   "test": 27.37221626175748,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.2435997744360905,
+    "tail_change_rel": -0.04524571094011388,
+    "flat": false
+   }
+  },
+  "mpoff|lr2e3|8|val": {
+   "arm": "mpoff",
+   "lr": "lr2e3",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr2e3-seed8.pt",
+   "train": 0.9801972642031571,
+   "val": 26.25668440153127,
+   "test": 28.582449744683906,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.2435997744360905,
+    "tail_change_rel": -0.04524571094011388,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|1|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 1,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed1-final.pt",
+   "train": 18.62467543465035,
+   "val": 33.377014788352795,
+   "test": 25.952770254373952,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.5348397744360902,
+    "tail_change_rel": -0.11170834894338773,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|1|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 1,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed1.pt",
+   "train": 18.513528432738283,
+   "val": 32.55561620373497,
+   "test": 27.2194070484664,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.5348397744360902,
+    "tail_change_rel": -0.11170834894338773,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|2|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 2,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed2-final.pt",
+   "train": 18.480610769179115,
+   "val": 33.377014788352795,
+   "test": 24.901133457594177,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.01639285714285717,
+    "tail_change_rel": 0.003318205233249194,
+    "flat": true
+   }
+  },
+  "mpoff|lr5e4|2|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 2,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed2.pt",
+   "train": 19.48326530891238,
+   "val": 33.04103479576012,
+   "test": 26.156066504174333,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.01639285714285717,
+    "tail_change_rel": 0.003318205233249194,
+    "flat": true
+   }
+  },
+  "mpoff|lr5e4|3|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 3,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed3-final.pt",
+   "train": 18.14672774578679,
+   "val": 35.15788171131338,
+   "test": 24.342636900304026,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.23695947368421064,
+    "tail_change_rel": -0.04760984546791743,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|3|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 3,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed3.pt",
+   "train": 17.968817353721036,
+   "val": 33.901687882329554,
+   "test": 22.34005393228194,
+   "n_test": 34,
+   "relaxed": 4,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": -0.23695947368421064,
+    "tail_change_rel": -0.04760984546791743,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|4|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 4,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed4-final.pt",
+   "train": 18.513528432738283,
+   "val": 33.70379878544228,
+   "test": 28.79845234287995,
+   "n_test": 34,
+   "relaxed": 1,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.21783067669172942,
+    "tail_change_rel": 0.04873180948002885,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|4|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 4,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed4.pt",
+   "train": 19.11795642961803,
+   "val": 33.70379878544228,
+   "test": 26.86284938221214,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.21783067669172942,
+    "tail_change_rel": 0.04873180948002885,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|5|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 5,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed5-final.pt",
+   "train": 18.186659689236997,
+   "val": 30.719945970895697,
+   "test": 27.956876108946215,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.2949503759398497,
+    "tail_change_rel": 0.05934175221411646,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|5|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 5,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed5.pt",
+   "train": 21.78547677082647,
+   "val": 32.55561620373497,
+   "test": 30.41216306293422,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.2949503759398497,
+    "tail_change_rel": 0.05934175221411646,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|6|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 6,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed6-final.pt",
+   "train": 18.513528432738283,
+   "val": 33.70379878544228,
+   "test": 20.56928026423789,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.12908714285714304,
+    "tail_change_rel": 0.027620221119033783,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|6|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 6,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed6.pt",
+   "train": 17.968817353721036,
+   "val": 33.886545253473315,
+   "test": 24.901133457594177,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.12908714285714304,
+    "tail_change_rel": 0.027620221119033783,
+    "flat": false
+   }
+  },
+  "mpoff|lr5e4|7|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 7,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed7-final.pt",
+   "train": 17.42720905813858,
+   "val": 34.53795663800586,
+   "test": 24.171358509943694,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.029866917293233403,
+    "tail_change_rel": 0.006136362800071459,
+    "flat": true
+   }
+  },
+  "mpoff|lr5e4|7|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 7,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed7.pt",
+   "train": 18.186659689236997,
+   "val": 32.55561620373497,
+   "test": 24.180788900081083,
+   "n_test": 34,
+   "relaxed": 3,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.029866917293233403,
+    "tail_change_rel": 0.006136362800071459,
+    "flat": true
+   }
+  },
+  "mpoff|lr5e4|8|final": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 8,
+   "variant": "final",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed8-final.pt",
+   "train": 19.48326530891238,
+   "val": 34.673719092766135,
+   "test": 25.020244247683515,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.013676766917293116,
+    "tail_change_rel": 0.0027048567992611536,
+    "flat": true
+   }
+  },
+  "mpoff|lr5e4|8|val": {
+   "arm": "mpoff",
+   "lr": "lr5e4",
+   "seed": 8,
+   "variant": "val",
+   "checkpoint": "/root/projects/my-herosim/models/peer-affinity-v1-t1-mpoff-lr5e4-seed8.pt",
+   "train": 22.165125696967678,
+   "val": 33.377014788352795,
+   "test": 23.689232967775524,
+   "n_test": 34,
+   "relaxed": 2,
+   "infeasible": 0,
+   "convergence": {
+    "epochs": 300,
+    "tail_slope_per_epoch": 0.013676766917293116,
+    "tail_change_rel": 0.0027048567992611536,
+    "flat": true
+   }
+  }
+ },
+ "contrasts": {
+  "gnn_vs_mlp_t1@val": {
+   "n_seeds": 8,
+   "median_delta_pp": 13.375871511186226,
+   "mean_delta_pp": 13.3667607436638,
+   "p_exact_wilcoxon": 0.0078125,
+   "reading": "GNN-NEEDED",
+   "a_medians": {
+    "1": 23.772813508730096,
+    "2": 24.238356873535025,
+    "3": 22.97794939420706,
+    "4": 24.931744172128795,
+    "5": 24.959529889751856,
+    "6": 25.267616680389885,
+    "7": 21.467067658769494,
+    "8": 23.324539434186406
+   },
+   "b_medians": {
+    "1": 37.12849673383264,
+    "2": 41.65604175098671,
+    "3": 45.186598465641595,
+    "4": 31.947248627231076,
+    "5": 36.17368141334585,
+    "6": 38.66367647765979,
+    "7": 35.35492252824879,
+    "8": 31.763037564062564
+   }
+  },
+  "gnn_vs_mlp_t1@final": {
+   "n_seeds": 8,
+   "median_delta_pp": 11.889101045429015,
+   "mean_delta_pp": 12.273037967268282,
+   "p_exact_wilcoxon": 0.0078125,
+   "reading": "GNN-NEEDED",
+   "a_medians": {
+    "1": 26.44132464975987,
+    "2": 23.276090183283838,
+    "3": 26.284776059352613,
+    "4": 22.391136579332674,
+    "5": 23.569233386881706,
+    "6": 25.11075110704366,
+    "7": 24.181168463854902,
+    "8": 28.434919393353493
+   },
+   "b_medians": {
+    "1": 37.12849673383264,
+    "2": 41.65604175098671,
+    "3": 45.186598465641595,
+    "4": 31.947248627231076,
+    "5": 36.17368141334585,
+    "6": 38.66367647765979,
+    "7": 35.35492252824879,
+    "8": 31.763037564062564
+   }
+  },
+  "gnn_vs_mpoff@val": {
+   "n_seeds": 8,
+   "median_delta_pp": 2.0762540727083163,
+   "mean_delta_pp": 1.9714712210680951,
+   "p_exact_wilcoxon": 0.1484375,
+   "reading": "INDETERMINATE",
+   "a_medians": {
+    "1": 23.772813508730096,
+    "2": 24.238356873535025,
+    "3": 22.97794939420706,
+    "4": 24.931744172128795,
+    "5": 24.959529889751856,
+    "6": 25.267616680389885,
+    "7": 21.467067658769494,
+    "8": 23.324539434186406
+   },
+   "b_medians": {
+    "1": 23.534423208803215,
+    "2": 26.789884172822106,
+    "3": 24.57893024033661,
+    "4": 23.10914821380034,
+    "5": 29.307819222425287,
+    "6": 24.018848404549807,
+    "7": 26.789884172822106,
+    "8": 28.582449744683906
+   }
+  },
+  "gnn_vs_mpoff@final": {
+   "n_seeds": 8,
+   "median_delta_pp": 0.774912022809783,
+   "mean_delta_pp": 1.7289798188045618,
+   "p_exact_wilcoxon": 0.3125,
+   "reading": "TIE",
+   "a_medians": {
+    "1": 26.44132464975987,
+    "2": 23.276090183283838,
+    "3": 26.284776059352613,
+    "4": 22.391136579332674,
+    "5": 23.569233386881706,
+    "6": 25.11075110704366,
+    "7": 24.181168463854902,
+    "8": 28.434919393353493
+   },
+   "b_medians": {
+    "1": 31.190457908274915,
+    "2": 30.15800593252774,
+    "3": 26.48466578923617,
+    "4": 21.089474000182996,
+    "5": 28.000117655748536,
+    "6": 23.695198045980504,
+    "7": 25.53110277959091,
+    "8": 27.37221626175748
+   }
+  },
+  "gnn_vs_mlp_t1x@val": {
+   "n_seeds": 8,
+   "median_delta_pp": 2.677212750235368,
+   "mean_delta_pp": 1.9159546735593005,
+   "p_exact_wilcoxon": 0.3125,
+   "reading": "INDETERMINATE",
+   "a_medians": {
+    "1": 23.772813508730096,
+    "2": 24.238356873535025,
+    "3": 22.97794939420706,
+    "4": 24.931744172128795,
+    "5": 24.959529889751856,
+    "6": 25.267616680389885,
+    "7": 21.467067658769494,
+    "8": 23.324539434186406
+   },
+   "b_medians": {
+    "1": 28.355513347693517,
+    "2": 27.214897836422775,
+    "3": 22.321701284264932,
+    "4": 27.30962870971178,
+    "5": 24.025682913818628,
+    "6": 29.568025076358566,
+    "7": 28.82340230782671,
+    "8": 18.64840352407611
+   }
+  },
+  "gnn_vs_mlp_t1x@final": {
+   "n_seeds": 8,
+   "median_delta_pp": 2.9264981755362918,
+   "mean_delta_pp": 0.8222318971637828,
+   "p_exact_wilcoxon": 0.4609375,
+   "reading": "INDETERMINATE",
+   "a_medians": {
+    "1": 26.44132464975987,
+    "2": 23.276090183283838,
+    "3": 26.284776059352613,
+    "4": 22.391136579332674,
+    "5": 23.569233386881706,
+    "6": 25.11075110704366,
+    "7": 24.181168463854902,
+    "8": 28.434919393353493
+   },
+   "b_medians": {
+    "1": 28.355513347693517,
+    "2": 27.214897836422775,
+    "3": 22.321701284264932,
+    "4": 27.30962870971178,
+    "5": 24.025682913818628,
+    "6": 29.568025076358566,
+    "7": 28.82340230782671,
+    "8": 18.64840352407611
+   }
+  },
+  "mpoff_vs_mlp_t1@val": {
+   "n_seeds": 8,
+   "median_delta_pp": 11.216086969230082,
+   "mean_delta_pp": 11.395289522595705,
+   "p_exact_wilcoxon": 0.0078125,
+   "reading": "GNN-NEEDED",
+   "a_medians": {
+    "1": 23.534423208803215,
+    "2": 26.789884172822106,
+    "3": 24.57893024033661,
+    "4": 23.10914821380034,
+    "5": 29.307819222425287,
+    "6": 24.018848404549807,
+    "7": 26.789884172822106,
+    "8": 28.582449744683906
+   },
+   "b_medians": {
+    "1": 37.12849673383264,
+    "2": 41.65604175098671,
+    "3": 45.186598465641595,
+    "4": 31.947248627231076,
+    "5": 36.17368141334585,
+    "6": 38.66367647765979,
+    "7": 35.35492252824879,
+    "8": 31.763037564062564
+   }
+  },
+  "mpoff_vs_mlp_t1@final": {
+   "n_seeds": 8,
+   "median_delta_pp": 10.340797187852981,
+   "mean_delta_pp": 10.544058148463721,
+   "p_exact_wilcoxon": 0.0078125,
+   "reading": "GNN-NEEDED",
+   "a_medians": {
+    "1": 31.190457908274915,
+    "2": 30.15800593252774,
+    "3": 26.48466578923617,
+    "4": 21.089474000182996,
+    "5": 28.000117655748536,
+    "6": 23.695198045980504,
+    "7": 25.53110277959091,
+    "8": 27.37221626175748
+   },
+   "b_medians": {
+    "1": 37.12849673383264,
+    "2": 41.65604175098671,
+    "3": 45.186598465641595,
+    "4": 31.947248627231076,
+    "5": 36.17368141334585,
+    "6": 38.66367647765979,
+    "7": 35.35492252824879,
+    "8": 31.763037564062564
+   }
+  },
+  "mlp_t1x_vs_mlp_t1@val": {
+   "n_seeds": 8,
+   "median_delta_pp": 10.621824950414222,
+   "mean_delta_pp": 11.4508060701045,
+   "p_exact_wilcoxon": 0.0078125,
+   "reading": "GNN-NEEDED",
+   "a_medians": {
+    "1": 28.355513347693517,
+    "2": 27.214897836422775,
+    "3": 22.321701284264932,
+    "4": 27.30962870971178,
+    "5": 24.025682913818628,
+    "6": 29.568025076358566,
+    "7": 28.82340230782671,
+    "8": 18.64840352407611
+   },
+   "b_medians": {
+    "1": 37.12849673383264,
+    "2": 41.65604175098671,
+    "3": 45.186598465641595,
+    "4": 31.947248627231076,
+    "5": 36.17368141334585,
+    "6": 38.66367647765979,
+    "7": 35.35492252824879,
+    "8": 31.763037564062564
+   }
+  },
+  "mlp_t1x_vs_mlp_t1@final": {
+   "n_seeds": 8,
+   "median_delta_pp": 10.621824950414222,
+   "mean_delta_pp": 11.4508060701045,
+   "p_exact_wilcoxon": 0.0078125,
+   "reading": "GNN-NEEDED",
+   "a_medians": {
+    "1": 28.355513347693517,
+    "2": 27.214897836422775,
+    "3": 22.321701284264932,
+    "4": 27.30962870971178,
+    "5": 24.025682913818628,
+    "6": 29.568025076358566,
+    "7": 28.82340230782671,
+    "8": 18.64840352407611
+   },
+   "b_medians": {
+    "1": 37.12849673383264,
+    "2": 41.65604175098671,
+    "3": 45.186598465641595,
+    "4": 31.947248627231076,
+    "5": 36.17368141334585,
+    "6": 38.66367647765979,
+    "7": 35.35492252824879,
+    "8": 31.763037564062564
+   }
+  }
+ },
+ "arm_test_medians": {
+  "gnn": {
+   "val": {
+    "1": 23.772813508730096,
+    "2": 24.238356873535025,
+    "3": 22.97794939420706,
+    "4": 24.931744172128795,
+    "5": 24.959529889751856,
+    "6": 25.267616680389885,
+    "7": 21.467067658769494,
+    "8": 23.324539434186406
+   },
+   "final": {
+    "1": 26.44132464975987,
+    "2": 23.276090183283838,
+    "3": 26.284776059352613,
+    "4": 22.391136579332674,
+    "5": 23.569233386881706,
+    "6": 25.11075110704366,
+    "7": 24.181168463854902,
+    "8": 28.434919393353493
+   }
+  },
+  "mpoff": {
+   "val": {
+    "1": 23.534423208803215,
+    "2": 26.789884172822106,
+    "3": 24.57893024033661,
+    "4": 23.10914821380034,
+    "5": 29.307819222425287,
+    "6": 24.018848404549807,
+    "7": 26.789884172822106,
+    "8": 28.582449744683906
+   },
+   "final": {
+    "1": 31.190457908274915,
+    "2": 30.15800593252774,
+    "3": 26.48466578923617,
+    "4": 21.089474000182996,
+    "5": 28.000117655748536,
+    "6": 23.695198045980504,
+    "7": 25.53110277959091,
+    "8": 27.37221626175748
+   }
+  },
+  "mlp_t1": {
+   "val": {
+    "1": 37.12849673383264,
+    "2": 41.65604175098671,
+    "3": 45.186598465641595,
+    "4": 31.947248627231076,
+    "5": 36.17368141334585,
+    "6": 38.66367647765979,
+    "7": 35.35492252824879,
+    "8": 31.763037564062564
+   },
+   "final": {}
+  },
+  "mlp_t1x": {
+   "val": {
+    "1": 28.355513347693517,
+    "2": 27.214897836422775,
+    "3": 22.321701284264932,
+    "4": 27.30962870971178,
+    "5": 24.025682913818628,
+    "6": 29.568025076358566,
+    "7": 28.82340230782671,
+    "8": 18.64840352407611
+   },
+   "final": {}
+  }
+ }
+}
