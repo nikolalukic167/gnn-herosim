@@ -45,6 +45,7 @@ from src.placement.queue_features import (
 )
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
 from src.policy.tabular.reduced_features import (
+    peer_mass_enabled,
     CANDIDATE_RELATIVE_COLUMN_SPEC,
     CANDIDATE_RELATIVE_FEATURE_DIM,
     DIM22_FEATURE_DIM,
@@ -557,6 +558,9 @@ def main() -> None:
         "partial_state": partial_state,
         "partial_state_contract": partial_state_contract,
         "tied_labels": tied_labels,
+        # peer_affinity_v1: whether column 8 of a partial_state_v2 block (the peer-mass
+        # lookahead) was live during training -- mlp_t1 (off) vs mlp_t1x (on).
+        "peer_mass": peer_mass_enabled() if partial_state else None,
     }
     if candidate_relative:
         checkpoint["candidate_relative_columns"] = CANDIDATE_RELATIVE_COLUMN_SPEC

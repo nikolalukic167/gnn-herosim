@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.data import Data
+from torch_geometric.nn import MessagePassing
 from torch_geometric.nn.models import GIN
 
 
@@ -200,6 +201,37 @@ class EdgeScorer(nn.Module):
         return x.squeeze(-1)
 
 
+class PeerConv(MessagePassing):
+    """peer_affinity_v1: edge-attribute-aware message passing over task<->task PEER edges.
+
+    The only shared structure this program has found that per-machine counts do not
+    repair is a cost indexed by PAIRS of task instances (docs/lineages/peer_affinity_v1.md);
+    `GIN` takes (x, edge_index) only, so a continuous per-pair attribute (log1p exchange
+    bytes) needs its own conv. Applied to the TASK block before the bipartite GIN, so the
+    peer signal reaches every downstream embedding; skipped entirely under
+    GNN_DISABLE_MESSAGE_PASSING (the mpoff arm stays a two-tower pointwise scorer).
+    Pattern: src/policy/gnn_hetero/gnn_model.py BipartiteEdgeConv.
+    """
+
+    def __init__(self, embedding_dim: int, hidden_dim: int, edge_dim: int = 1, dropout_p: float = 0.1) -> None:
+        super().__init__(aggr="mean")
+        self.message_mlp = nn.Sequential(
+            nn.Linear(embedding_dim + edge_dim, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout_p),
+            nn.Linear(hidden_dim, embedding_dim),
+        )
+        self.update_mlp = nn.Sequential(
+            nn.Linear(2 * embedding_dim, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout_p),
+            nn.Linear(hidden_dim, embedding_dim),
+        )
+
+    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
+        out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=(x.size(0), x.size(0)))
+        return x + self.update_mlp(torch.cat([x, out], dim=-1))
+
+    def message(self, x_j: Tensor, edge_attr: Tensor) -> Tensor:
+        return self.message_mlp(torch.cat([x_j, edge_attr], dim=-1))
+
+
 class TaskPlacementGNN(nn.Module):
     """
     1. Encode task and platform features separately
@@ -245,6 +277,8 @@ class TaskPlacementGNN(nn.Module):
         mp_dag_edges: Optional[bool] = None,
         task_type_onehot_dim: int = 0,
         partial_state_edge_dim: int = 0,
+        mp_peer_edges: Optional[bool] = None,
+        peer_edge_dim: int = 1,
     ) -> None:
         super().__init__()
 
@@ -344,6 +378,19 @@ class TaskPlacementGNN(nn.Module):
             _env_flag("GNN_MP_DAG_EDGES") if mp_dag_edges is None else bool(mp_dag_edges)
         )
         self.mp_dag_edges_undirected = True
+        # peer_affinity_v1: task<->task peer edges with a continuous attribute. Weight-
+        # VISIBLE (the PeerConv module exists only when on) but recorded in the sidecar as
+        # `mp_peer_edges` like every other graph option, and fails loud when the graph
+        # carries no peer_edge_index. Requires the 4-way one-hot for the same reason as
+        # mp_dag_edges (types must stay distinguishable under task<->task mixing).
+        self.mp_peer_edges = (
+            _env_flag("GNN_MP_PEER_EDGES") if mp_peer_edges is None else bool(mp_peer_edges)
+        )
+        self.peer_edge_dim = int(peer_edge_dim)
+        if self.mp_peer_edges:
+            if self.task_type_onehot_dim <= 0:
+                raise ValueError("FAIL LOUD: mp_peer_edges=True requires task_type_onehot_dim > 0")
+            self.peer_conv = PeerConv(embedding_dim, hidden_dim, edge_dim=self.peer_edge_dim, dropout_p=dropout)
         if self.mp_dag_edges and self.task_type_onehot_dim <= 0:
             # Not a style preference: undirected DAG edges make a 4-task block fully
             # connected within 2 hops, and a 3-layer GIN then mixes all four task
@@ -428,6 +475,25 @@ class TaskPlacementGNN(nn.Module):
             task_emb = task_embeddings
             platform_emb = platform_embeddings
         else:
+            if self.mp_peer_edges:
+                peer_ei = getattr(data, "peer_edge_index", None)
+                peer_ea = getattr(data, "peer_edge_attr", None)
+                if peer_ei is None or peer_ea is None:
+                    raise ValueError(
+                        "FAIL LOUD: mp_peer_edges is on but the graph has no "
+                        "peer_edge_index/peer_edge_attr. Build the cache with "
+                        "--dag-partial-state on a peer_exchange corpus."
+                    )
+                if peer_ei.numel() > 0:
+                    peer_ei = peer_ei.to(task_embeddings.device)
+                    peer_ea = peer_ea.to(task_embeddings.device)
+                    if int(peer_ei.max()) >= n_tasks or int(peer_ei.min()) < 0:
+                        raise ValueError("FAIL LOUD: peer_edge_index indexes outside the task block")
+                    if peer_ea.dim() != 2 or int(peer_ea.shape[1]) != self.peer_edge_dim:
+                        raise ValueError(
+                            f"FAIL LOUD: peer_edge_attr width {tuple(peer_ea.shape)} != peer_edge_dim {self.peer_edge_dim}"
+                        )
+                    task_embeddings = self.peer_conv(task_embeddings, peer_ei, peer_ea)
             blocks = [task_embeddings, platform_embeddings]
             extra_edges: List[Tensor] = []
 
