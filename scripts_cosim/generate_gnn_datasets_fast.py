@@ -1199,6 +1199,22 @@ PEER_AFFINITY_SCREEN_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_peer_affinity_v1",
 }
 
+# R1 (2026-09-10, 12 datasets, not a read): at conn 0.25/0.35 with 4 hosting nodes a task's
+# source client reaches a median of 2 hosts, so the GO cell's 3 candidates per task were not
+# instantiated. These variants hold every other key and raise client reachability; the x200
+# variant is the registered backup cell (x200_a1.5_k10c3_p2 also passed on paper).
+PEER_AFFINITY_SCREEN_C3_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_GRID,
+    "connection_probabilities": [0.6],
+    "replica_server_percentage": 0.9,
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3",
+}
+PEER_AFFINITY_SCREEN_C3_X200_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_GRID,
+    "peer_exchange": {"partners": 2, "x_scale_bytes": 200e6, "log10_spread": 1.0},
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
@@ -1240,6 +1256,8 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "image_cache_v1": IMAGE_CACHE_V1_GRID,
     "image_cache_v1_cold_probe": IMAGE_CACHE_V1_COLD_PROBE_GRID,
     "peer_affinity_screen": PEER_AFFINITY_SCREEN_GRID,
+    "peer_affinity_screen_c3": PEER_AFFINITY_SCREEN_C3_GRID,
+    "peer_affinity_screen_c3_x200": PEER_AFFINITY_SCREEN_C3_X200_GRID,
 }
 
 
