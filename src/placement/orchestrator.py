@@ -23,7 +23,7 @@ import statistics
 from abc import abstractmethod
 from collections import defaultdict
 from graphlib import TopologicalSorter
-from typing import Dict, Generator, List, Set, Tuple, Type
+from typing import Dict, Generator, List, Optional, Set, Tuple, Type
 
 from simpy.core import Environment, SimTime
 from simpy.events import Event, Process
@@ -65,6 +65,37 @@ def check_serializable(obj, path=""):
 
 
 # todo: add network latency statistics
+
+def build_peer_exchange_table(
+    triples: Optional[List[List[float]]],
+) -> Dict[int, Dict[int, float]]:
+    """peer_affinity_v1: symmetrise `[i, j, bytes]` triples into {i: {j: bytes}} both ways.
+
+    Fail loud on a self-pair, a negative or non-finite payload, or the same unordered pair
+    listed twice with different payloads: each of those would silently mis-charge a plan.
+    """
+    table: Dict[int, Dict[int, float]] = {}
+    if not triples:
+        return table
+    for triple in triples:
+        if len(triple) != 3:
+            raise ValueError(f"peer_exchange entry must be [i, j, bytes], got {triple!r}")
+        i, j, payload = int(triple[0]), int(triple[1]), float(triple[2])
+        if i == j:
+            raise ValueError(f"peer_exchange lists task {i} as its own peer")
+        if not (payload >= 0.0) or payload == float("inf"):
+            raise ValueError(f"peer_exchange payload for ({i}, {j}) must be finite and >= 0, got {payload!r}")
+        existing = table.get(i, {}).get(j)
+        if existing is not None and existing != payload:
+            raise ValueError(
+                f"peer_exchange lists pair ({i}, {j}) twice with different payloads "
+                f"({existing!r} vs {payload!r})"
+            )
+        table.setdefault(i, {})[j] = payload
+        table.setdefault(j, {})[i] = payload
+    return table
+
+
 class Orchestrator:
     def __init__(
             self,
@@ -109,6 +140,13 @@ class Orchestrator:
 
         self.application_archive: List[Application] = []
         self.task_archive: List[Task] = []
+        # peer_affinity_v1: global task id -> Task (filled as the gateway creates them) and
+        # the symmetrised peer-exchange table from the trace (HEROSIM_PEER_EXCHANGE=1 reads
+        # it in Platform._peer_exchange_time). Empty for every trace without `peer_exchange`.
+        self.task_by_id: Dict[int, Task] = {}
+        self.peer_exchange: Dict[int, Dict[int, float]] = build_peer_exchange_table(
+            getattr(time_series, "peer_exchange", None)
+        )
         self.trace_file = trace_file
         self.initial_event_count = len(time_series.events)
         self.system_state_results: List[SystemStateResult] = []  # Store system state snapshots
@@ -155,6 +193,7 @@ class Orchestrator:
         sum_network = 0.0
         sum_link_wait = sum_link_transfer = 0.0
         sum_ingress_wait = sum_node_contention = 0.0
+        sum_peer_exchange = 0.0
         sum_local_deps = sum_local_comms = 0.0
         sum_cold_started = sum_cache_hit = 0.0
         sum_task_energy = 0.0
@@ -189,6 +228,7 @@ class Orchestrator:
             sum_link_transfer += float(getattr(task, "link_transfer_time", 0.0) or 0.0)
             sum_ingress_wait += float(getattr(task, "ingress_wait_time", 0.0) or 0.0)
             sum_node_contention += float(getattr(task, "node_contention_time", 0.0) or 0.0)
+            sum_peer_exchange += float(getattr(task, "peer_exchange_time", 0.0) or 0.0)
             sum_local_deps += float(getattr(task, "local_dependencies", 0.0) or 0.0)
             sum_local_comms += float(getattr(task, "local_communications", 0.0) or 0.0)
             sum_cold_started += float(getattr(task, "cold_started", False) or False)
@@ -334,6 +374,8 @@ class Orchestrator:
             "averageLinkTransferTime": sum_link_transfer / n_tasks,
             "averageIngressWaitTime": sum_ingress_wait / n_tasks,
             "averageNodeContentionTime": sum_node_contention / n_tasks,
+            "totalPeerExchangeTime": sum_peer_exchange,
+            "averagePeerExchangeTime": sum_peer_exchange / n_tasks,
             "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
@@ -568,6 +610,10 @@ class Orchestrator:
             float(task_result.get("ingressWaitTime", 0.0) or 0.0)
             for task_result in task_results
         ) / len(task_results)
+        sum_peer_exchange = sum(
+            float(task_result.get("peerExchangeTime", 0.0) or 0.0)
+            for task_result in task_results
+        )
         average_node_contention_time = sum(
             float(task_result.get("nodeContentionTime", 0.0) or 0.0)
             for task_result in task_results
@@ -647,6 +693,8 @@ class Orchestrator:
             "averageLinkTransferTime": average_link_transfer_time,
             "averageIngressWaitTime": average_ingress_wait_time,
             "averageNodeContentionTime": average_node_contention_time,
+            "totalPeerExchangeTime": sum_peer_exchange,
+            "averagePeerExchangeTime": sum_peer_exchange / num_tasks,
             "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
@@ -870,6 +918,8 @@ class Orchestrator:
             # Tasks are stored in an archive for further analysis
             self.application_archive.append(app)
             self.task_archive.extend(app.tasks)
+            for created in app.tasks:
+                self.task_by_id[created.id] = created
 
             # Start counting first task time from here
             first_task: Task = app.tasks[0]

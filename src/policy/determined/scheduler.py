@@ -123,6 +123,26 @@ class DeterminedScheduler(Scheduler):
         self._debug_info(f"DeterminedScheduler: Batch collection complete, returning {len(batch)} tasks")
         return batch
 
+    def _plan_batch_nodes(self, batch_tasks: List[Task]) -> None:
+        """Set `planned_node_name` for every batch task with a concrete forced placement.
+
+        Auto-resolve markers (-1, -1) are left unplanned: their node is only known once the
+        placement runs, and a peer that depends on one fails loud in the physics -- the
+        registered contract is that a peer-exchange batch is fully forced.
+        """
+        node_by_id = {node.id: node for node in self.nodes.items}
+        for task in batch_tasks:
+            forced = self.forced_placements.get(task.id)
+            if not forced or tuple(forced) == (-1, -1):
+                continue
+            node = node_by_id.get(forced[0])
+            if node is None:
+                raise RuntimeError(
+                    f"HEROSIM_PEER_EXCHANGE=1: forced placement of task {task.id} names "
+                    f"node id {forced[0]}, which is not a node of this run"
+                )
+            task.planned_node_name = node.node_name
+
     def _process_task_batch(self, batch_tasks: List[Task]) -> Generator:
         """Process multiple tasks simultaneously in a single operation"""
         self._debug(f"[ {self.env.now} ] DEBUG: Processing {len(batch_tasks)} tasks in batch")
@@ -139,7 +159,16 @@ class DeterminedScheduler(Scheduler):
             self._scheduling_state_capture = self.state_capture.get_captured_state(
                 system_state, total_rtt=0.0
             )
-        
+
+        # peer_affinity_v1: plan the WHOLE batch before enqueueing any member. The loop
+        # below enqueues each task right after assigning it, and the platform process can
+        # start that task's input stage before the next member is assigned -- so a peer's
+        # `platform` may still be None when Platform._peer_exchange_time needs its node.
+        # Under the flag, resolve every forced placement's node up front into
+        # `task.planned_node_name`; flag off -> nothing changes, bit-identical.
+        if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") == "1" and self.forced_placements:
+            self._plan_batch_nodes(batch_tasks)
+
         # Process all tasks in the batch
         for task in batch_tasks:
             task_replicas = replicas[task.type["name"]]
