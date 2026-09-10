@@ -2,17 +2,18 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-09 → (open)
 
-**Outcome.** **Phase 0 paper screen: GO (2026-09-10).** 14 of 60 cells pass every registered
-bar, on 34 of 34 sources each. The pairwise-instance exchange term is the first joint structure
-in this program that per-machine count columns do **not** repair: in the passing cells the
-count competitor with an *exhaustive* decode still carries 18–50 % regret, a sequential greedy on
-the true marginals with an exact prefix 32–208 %, and the same greedy with a hand peer-mass
-lookahead 20–107 % (9–17 % under the best deterministic task ordering). Both controls read
-additive (S0b R² = 1.0000 in all 60 cells). GO cell carried to A2: **`x50_a1.5_k10c3_p2`**
-(x = 50 MB, α₄ = 1.5 ⇒ α₁₀ = 3.75, k = 10, 3 candidates, 2 partners; count repair 0.31, residual
-17.6 %). The bar that decides is count repair, and it is near its 0.5 threshold in most cells
-(range 0.24–0.97; passes cluster at α₄ = 1.5, 2 partners, 4 candidates) — the simulated screen
-(§A2 of the plan) must reproduce it before anything is trained. No physics has been built yet.
+**Outcome.** **PIVOT-CANDIDATE for training (2026-09-10) — the first environment in this
+program whose joint structure survives a correctly specified count competitor, on paper
+and in the simulator.** Phase 0 paper screen GO (14 of 60 cells). Physics built
+(`HEROSIM_PEER_EXCHANGE=1`, bit-identical off). Simulated screen, rung **R2, read blind on
+fresh seeds 7018–7034** (34 datasets per arm, 200 MB exchange, k = 10, α₁₀ = 2.5): every
+registered bar passes, controls included — cap binds in 34/34, control arm count-repairable
+(R² 1.0000 median, 0 of 34 above 1 % regret), pointwise-only regret **28.5 %**, count repair
+**0.27** (count-repaired residual **23.4 %**), prefix-greedy analogue 32.9 %, hand-lookahead
+analogue 19.5 % (17.3 % under the best deterministic order), count oracle 18.9 %; the
+peer-mass column adds nothing beyond counts. The 50 MB cell failed on the simulator and is
+dropped; α₄ = 1.25 fails S0b by two control datasets. Full record and every amendment
+below. **Next: the training registration (plan §"On PIVOT-CANDIDATE"), a separate sign-off.**
 
 **Related:** [throughline](throughline.md) (2026-09-09 section — the argument this lineage is
 the one untried exception to) · [dag_fabric_contention_v1](dag_fabric_contention_v1.md) (the
@@ -36,6 +37,7 @@ paper datasets in the on-disk format for the cross-check under
 - [Amendment A5 — R1 did not instantiate the GO cell; reachability raised, C1 void on simulated sweeps (2026-09-10)](#amendment-a5-r1-did-not-instantiate-the-go-cell-reachability-raised-c1-void-on-simulated-sweeps-2026-09-10)
 - [Rung R1b — the simulated screen, first readable read (2026-09-10)](#rung-r1b-the-simulated-screen-first-readable-read-2026-09-10)
 - [Amendment A6 — count competitor v2, the cap ladder on the simulated substrate, R2 registered blind (2026-09-10)](#amendment-a6-count-competitor-v2-the-cap-ladder-on-the-simulated-substrate-r2-registered-blind-2026-09-10)
+- [Rung R2 — the blind read: PIVOT-CANDIDATE (2026-09-10)](#rung-r2-the-blind-read-pivot-candidate-2026-09-10)
 
 ---
 
@@ -534,3 +536,50 @@ deterministic order), C1 6.0 / 17.1 %. Reports in the session scratchpad only.
    (S0a and the spread control are structurally VOID here and are reported as such);
    otherwise the simulated screen is a NO-GO for training and the node closes with R1b's
    table as the outcome. The 50 MB cell is **dropped**: it fails B1 at every cap.
+
+---
+
+### Rung R2 — the blind read: PIVOT-CANDIDATE (2026-09-10)
+
+Grid `peer_affinity_screen_c3_x200_r2`, **fresh seeds 7018–7034**, 34 datasets per arm
+(control 53.5 min, treated 69.7 min locally, 28 workers), every sweep complete, median
+27 648 rows, 3 candidates per task median, physics agreement max relative gap 6.8e-16,
+exchange share of `rtt_treated − rtt_control` 0.53, exchange 30–31 % of the optimum's cost.
+Read once, with A4/A6's definitions (`--count-competitor v2 --alphas 1.0,1.25`).
+Report: `simulation_data/peer_affinity_r2_read.json`.
+
+| bar | α₄ = 1.0 (α₁₀ = 2.5) | α₄ = 1.25 (α₁₀ = 3.125) |
+|---|---|---|
+| S0a (collision-free additive) | VOID (no collision-free plan) | VOID |
+| S0b control: R² median / min; datasets > 1 % regret | **1.0000 / 0.9964; 0 of 34** | 1.0000 / 0.9964; **2 of 34 (fail)** |
+| B0 cap binds | **1.00** | **0.79** |
+| B1 pointwise-only regret (median; frac > 5 %) | **28.5 % (0.88)** | **31.2 % (0.97)** |
+| B2 count repair (median; frac < 0.5); residual | **0.27 (0.65); 23.4 %** | **0.32 (0.71); 22.8 %** |
+| B4 peer-mass closure | 0.27 (= B2) | 0.32 (= B2) |
+| B3′ prefix greedy (id / largest-first / best of 8) | **32.9 / 27.5 / 10.3 %** (stuck 23.5 %) | **37.2 / 24.0 / 11.4 %** (stuck 2.9 %) |
+| B5′ expected-completion greedy (id / largest-first / best of 8) | **19.5 / 17.3 / 4.2 %** (stuck 11.8 %) | **17.5 / 9.7 / 3.9 %** (stuck 2.9 %) |
+| C1 count oracle (stratum size median) | **18.9 % (2)** | **28.5 % (3)** |
+| verdict (A6 rule) | **PASS — PIVOT-CANDIDATE** | fails S0b |
+
+**Reading.** The α₄ = 1.0 cell passes every registered bar on seeds never looked at, with
+margins: the pointwise fit is 28.5 % off the optimum, the strongest count competitor the
+record has (v2: node × type, platform × type and their squares, demand-weighted loads)
+repairs only 27 % of that gap and leaves 23 % on the table, a plan-level hand lookahead
+adds nothing beyond counts, the sequential decoders on the true cost table lose 17–33 %
+under any deterministic order, and even a ten-order search keeps 4 %. On the control arm
+the same competitor is exact. This is the shape every previous lineage failed to produce:
+joint structure that is neither node-indexed nor routable-around. Caveats carried: the
+greedy analogue is stuck (no cap-feasible candidate at some step) in 23.5 % of datasets
+at the tight cap — a decoder with a capacity mask needs backtracking or a relaxation there,
+which the training registration must specify; C1 strata are small (median 2) because
+copies differ by reachable candidates, so C1 is a weak oracle here and the count *fit* is
+the operative control; α₄ = 1.25 fails S0b by two datasets and is not carried.
+
+**What this does and does not say.** It says a correctly specified pointwise-plus-counts
+scorer *cannot express* this environment's label, which was the precondition every earlier
+route lacked. It does not say a graph model will learn it: that is the training question,
+registered separately with both arms on one cache, one decoder, one ordering, honest
+checkpoint selection and a convergence check (plan §"On PIVOT-CANDIDATE"; readings
+GNN-NEEDED / TIE / POINTWISE-BETTER / INDETERMINATE). The registered prediction stands:
+`gnn` ≥ +1 pp over `mlp_t1` and `mpoff`; if `mlp_t1x` closes it, "hand lookahead
+suffices". No live-serving claim is implied (`MAX_BATCH_SIZE_FOR_GNN = 4`; separate work).

@@ -954,8 +954,12 @@ def run_simulated(treated: Path, control: Optional[Path], alphas: Sequence[float
         agg["physics_agreement_max_rel_gap"] = max(pa) if pa else None
         agg["exchange_share_of_diff_median"] = median([d["physics_agreement"].get("exchange_share_of_treated_minus_control_median") for d in per[a]])
         agg["cands_per_task_median"] = median([float(np.median(d["cands_per_task"])) for d in per[a]])
+        # Amendment A6 rule for simulated sweeps: S0a and the spread control are structurally
+        # VOID (no collision-free plan; k > hosting nodes) and are reported, not required.
+        checks = agg.get("checks", {})
+        agg["pass_simulated_rule"] = bool(agg.get("readable") and all(v for k, v in checks.items() if k != "S0a"))
         report["cells"][cell] = agg
-        print(f"[probe] {cell}: pass={agg.get('pass')} " + " ".join(f"{kk}={'Y' if v else 'n'}" for kk, v in agg.get("checks", {}).items())
+        print(f"[probe] {cell}: pass(A6 rule)={agg.get('pass_simulated_rule')} " + " ".join(f"{kk}={'Y' if v else 'n'}" for kk, v in checks.items())
               + f" B1={agg.get('B1_median_pct', float('nan')):.2f} B2rep={agg.get('B2_median_repair', float('nan')):.2f} "
                 f"B3={agg.get('B3_median_pct', float('nan')):.2f} B5={agg.get('B5_median_pct', float('nan')):.2f} C1={agg.get('C1_median_pct', float('nan')):.2f} "
                 f"phys_gap={agg['physics_agreement_max_rel_gap']} scored={agg['n_scored']}", flush=True)
