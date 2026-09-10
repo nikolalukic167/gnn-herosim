@@ -34,6 +34,8 @@ paper datasets in the on-disk format for the cross-check under
 - [peer_affinity_v1 — PHASE 0 PAPER SCREEN, GO (2026-09-10)](#peer-affinity-v1-phase-0-paper-screen-go-2026-09-10)
 - [Amendment A4 — the simulated screen: physics, grid and table analogues of B3/B5 (2026-09-10, before any rung was read)](#amendment-a4-the-simulated-screen-physics-grid-and-table-analogues-of-b3b5-2026-09-10-before-any-rung-was-read)
 - [Amendment A5 — R1 did not instantiate the GO cell; reachability raised, C1 void on simulated sweeps (2026-09-10)](#amendment-a5-r1-did-not-instantiate-the-go-cell-reachability-raised-c1-void-on-simulated-sweeps-2026-09-10)
+- [Rung R1b — the simulated screen, first readable read (2026-09-10)](#rung-r1b-the-simulated-screen-first-readable-read-2026-09-10)
+- [Amendment A6 — count competitor v2, the cap ladder on the simulated substrate, R2 registered blind (2026-09-10)](#amendment-a6-count-competitor-v2-the-cap-ladder-on-the-simulated-substrate-r2-registered-blind-2026-09-10)
 
 ---
 
@@ -467,3 +469,68 @@ sources' uncontended durations, so 50 MB carries a smaller share here. **Rung R1
 datasets per arm** (control, 50 MB, 200 MB), α₄ ∈ {1.5, 2.0}, read with A4's definitions.
 The decision rule for training is unchanged: the treated cell must pass B2 (< 0.5) with S0b
 on its control, or the simulated screen is a NO-GO for training.
+
+---
+
+### Rung R1b — the simulated screen, first readable read (2026-09-10)
+
+34 datasets per arm (`peer_affinity_screen_c3` control and 50 MB; `_c3_x200` 200 MB), seeds
+7001–7017, every sweep complete (median 10 944 rows, 2.5 candidates per task median, 2–5
+range), physics agreement max relative gap 6e-16, exchange share of `rtt_treated −
+rtt_control` 0.53. Reports: `simulation_data/peer_affinity_r1b_{x50,x200}_read.json`
+(registered v1 count columns) and `..._read_v2.json` (A6's v2 columns).
+
+| cell (α₄) | B0 binds | B1 % | B2 rep (resid %) v1 → v2 | B3′ % | B5′ % (big-first) | C1 % | S0b R² / >1 % (v1 → v2) | pass |
+|---|---|---|---|---|---|---|---|---|
+| 50 MB (1.5) | 0.41 | 3.3 | 0.01 (2.8) → 0.40 (0.4) | 11.1 | 1.3 (0.4) | 1.0 | 0.9989 / 5 of 34 → 1.0000 / 1 of 34 | no: B0, B1, B5, C1 |
+| 50 MB (2.0) | 0.15 | 2.5 | 0.01 (3.4) → 0.01 (3.8) | 9.6 | 0.4 (0.1) | 0.0 | same | no: B0, B1, B5, C1 |
+| 200 MB (1.5) | 0.32 | **14.5** | **0.16 (17.3) → 0.11 (16.5)** | **38.8** | **15.8 (5.8)** | **15.9** | 0.9989 / 5 of 34 → 1.0000 / 1 of 34 | no: **B0, S0b (by one dataset)** |
+| 200 MB (2.0) | 0.18 | **17.1** | **0.24 (17.4) → 0.20 (13.7)** | **33.0** | **6.4 (5.2)** | **14.9** | same | no: B0, S0b (by one) |
+
+**Reading.** (i) The **primary cell (50 MB) does not reproduce**: on the simulated substrate
+the exchange is 15–16 % of the optimum (paper 29 %) because the simulator's base costs
+(deep warm queues, 12–40 s per batch) dwarf the paper sources' uncontended durations, and
+the pointwise fit already lands within 3 %. (ii) The **registered backup cell (200 MB)
+passes every treated bar**: B1 14–17 %, count repair 0.11–0.24 with a count-repaired
+residual of 14–17 %, B4 = B2 (peer mass adds nothing), B3′ 33–39 %, B5′ 6–16 % (5–6 % under
+the largest-exchange-first order), C1 15–16 % with strata of median size 2. (iii) It fails
+two **controls**: the cap binds in 18–32 % of datasets (bar 50 %) — the equal-tightness
+scaling reproduced the *paper* binding fraction, not this substrate's demand geometry —
+and S0b misses by **one dataset** (2.35 % regret on the control arm; the bar allows 0 of 34
+above 1 %). (iv) With the registered v1 count columns the control arm read R² 0.9875–0.9999,
+which is a **column-set** shortfall, not non-count structure: the simulator's serialisation
+on a shared platform is a symmetric function of that platform's co-resident multiset, which
+v1's node × type + platform-pair columns do not span. Adding per-(platform, type) counts
+and their squares (v2, A6) takes the control to R² 1.0000 median (min 0.9973) and moves the
+treated count repair at 200 MB from 0.16 to 0.11 — the pairwise term survives the stronger
+competitor. (v) Ordering: at 200 MB / α₄ 1.5 the deterministic hand rule with lookahead
+keeps 5.8 %; the oracle over ten orders reaches 0.0 % (a plan-cost search, as on paper).
+
+**Exploratory look (not a read; seeds 7001–7017 are therefore excluded from R2):** at
+α₄ ∈ {1.0, 1.25} (α₁₀ = 2.5 / 3.125) the 200 MB rung passes **every** bar including both
+controls — B0 0.88 / 0.65, S0b 0 of 34 above 1 %, B1 15.1 / 20.0 %, count repair 0.15 / 0.11
+(residual 10.3 / 13.4 %), B3′ 40 / 39 %, B5′ 13.5 / 16.5 % (11.4 / 11.7 % under the best
+deterministic order), C1 6.0 / 17.1 %. Reports in the session scratchpad only.
+
+---
+
+### Amendment A6 — count competitor v2, the cap ladder on the simulated substrate, R2 registered blind (2026-09-10)
+
+1. **Count competitor v2** is the registered competitor for simulated screens: v1's block
+   plus per-(platform, type) counts, their squares, and the platform occupancy square (the
+   second-order sufficient statistics of any symmetric function of a platform's co-resident
+   multiset — what the simulator's serialisation is). Adequacy is judged on the control arm
+   (S0b), exactly as registered; v1 failed it by column set, v2 passes it. Every treated
+   bar is read against v2. (`--count-competitor v2`, default for `--from-simulated`.)
+2. **Cap ladder.** A2's equal-tightness rule preserved the paper substrate's binding
+   fraction; on the simulated substrate α₄ ∈ {1.5, 2.0} binds in 18–41 % of datasets (bar
+   50 %). The ladder for the simulated screen is **α₄ ∈ {1.0, 1.25}** (α₁₀ = 2.5 / 3.125),
+   which binds in 65–88 % on R1b. Chosen after an exploratory look at R1b's treated bars,
+   so **R1b's seeds are excluded from the registered read**.
+3. **R2, registered before it exists:** grid `peer_affinity_screen_c3_x200_r2` — identical
+   to `_c3_x200` with **fresh seeds 7018–7034** (34 datasets per arm: control and 200 MB),
+   read with A4's definitions, v2 columns, α₄ ∈ {1.0, 1.25}. Decision rule unchanged: R2
+   is a PIVOT-CANDIDATE for training iff a cell passes S0b, B0, B1, B2, B3′, B4, B5′ and C1
+   (S0a and the spread control are structurally VOID here and are reported as such);
+   otherwise the simulated screen is a NO-GO for training and the node closes with R1b's
+   table as the outcome. The 50 MB cell is **dropped**: it fails B1 at every cap.
