@@ -32,6 +32,7 @@ paper datasets in the on-disk format for the cross-check under
 - [Amendment A2 — equal-tightness α, shared candidates, readability (2026-09-09, before the screen ran)](#amendment-a2-equal-tightness-α-shared-candidates-readability-2026-09-09-before-the-screen-ran)
 - [Amendment A3 — tool: fit-argmin regrets read the tie band (2026-09-09, before the screen ran)](#amendment-a3-tool-fit-argmin-regrets-read-the-tie-band-2026-09-09-before-the-screen-ran)
 - [peer_affinity_v1 — PHASE 0 PAPER SCREEN, GO (2026-09-10)](#peer-affinity-v1-phase-0-paper-screen-go-2026-09-10)
+- [Amendment A4 — the simulated screen: physics, grid and table analogues of B3/B5 (2026-09-10, before any rung was read)](#amendment-a4-the-simulated-screen-physics-grid-and-table-analogues-of-b3b5-2026-09-10-before-any-rung-was-read)
 
 ---
 
@@ -379,3 +380,59 @@ serialisation as well as the platform sharing term — both count-shaped, both i
 repair set. (iv) Nothing here says a learned scorer *will* exploit the structure; it says a
 correctly-specified pointwise-plus-counts scorer cannot express it, which is the precondition
 every earlier lineage failed.
+
+---
+
+### Amendment A4 — the simulated screen: physics, grid and table analogues of B3/B5 (2026-09-10, before any rung was read)
+
+**Physics built** (commit `6d52571`, plan §A1): `HEROSIM_PEER_EXCHANGE=1` charges, at task i's
+input stage, `Σ_j hops × x_ij / (bottleneck × 1024²) + network_map latency` for every peer j on
+another node (`Platform._peer_exchange_time`, next to `_dependency_transfer_time`); co-located
+peers are free; a peer that is neither placed nor planned fails loud. The trace carries a
+top-level `peer_exchange` list of `[i, j, bytes]` over global task ids; the orchestrator
+symmetrises it. Because the determined scheduler enqueues each batch member right after
+assigning it, a pre-pass sets `task.planned_node_name` for the whole forced batch under the
+flag. Flag off or no table ⇒ bit-identical: the stored `arm_b0` optimum replays to 1e-9 with
+the flag unset and set (`tests/test_peer_exchange_replay.py`), and the whole test directory
+passes. The per-row `peer_exchange_total` is retained with `HEROSIM_RETAIN_PEER_STATS=1`.
+
+**Grid** `peer_affinity_screen` (`generate_gnn_datasets_fast.py`): the paper sources' own
+topology/queue grid (conn 0.25/0.35, 6 server nodes, the three queue distributions, 1000-Mbps
+backbone, server mesh), k = 10 single-task events cycling `dnn1, dnn2, rf, cnn` (a `dag` is
+keyed by type, so a batch is k events; events are emitted grouped by application because
+co-sim regroups them before assigning ids — `flatten_workloads` now fails loud if the order
+would change), per-event `demand_scale ~ U(0.5, 2)`, 2 partners per task at
+`50 MB × 10^U(−1, 1)`, one replica per type per hosting node with types sharing hosts
+(`replica_overlap`), seeds 7001–7017, contention pipes OFF. Run with `--num-tasks 10
+--allow-non-unique-replicas`; the sweep is the full Cartesian product of the tasks' candidate
+replicas. Treated arm `HEROSIM_PEER_EXCHANGE=1`, control arm unset, same seeds.
+Hosting fraction **0.67 (4 nodes)**: at 0.5 the 3-dataset pilot gave 3 hosts of which one
+offers only `pynqFpga`, so three of the four types had 2 candidates and all ten tasks queued
+on the same two platforms (sweeps 2 304–3 456 rows). No bar was read on that pilot.
+
+**Reading a rung** — `peer_affinity_probe.py --from-simulated TREATED --control CONTROL`,
+datasets paired by name. Same bars, same thresholds, same tie-band and readability rules,
+with these definitions fixed now:
+- *Physics agreement (a gate, not a bar):* the exchange term recomputed offline from the
+  stored workload and infrastructure must equal the retained `peer_exchange_total` on every
+  row (pilot: max relative gap 4e-16). Also reported: the exchange's share of
+  `rtt_treated − rtt_control` (pilot ≈ 0.4; the rest is the queue knock-on of longer input
+  stages on shared platforms — count-shaped, inside S0b's repair set).
+- *S0a / S0b* are read on the **control arm's** rtt (the x ≡ 0 physics is a separate corpus
+  here, not a switch). S0a is VOID where no collision-free plan exists.
+- *B0, B1, B2, B4, C1* exactly as registered, on the treated rtt; the peer-mass column uses
+  the actual bytes.
+- *B3′ and B5′* (the greedy bars have no analytic marginal on a simulated sweep): sequential
+  greedy on the **true table** with an exact prefix and the capacity mask. B3′ scores
+  candidate c for task i by the row in which the prefix and (i, c) are fixed and every
+  uncommitted task sits on its lowest-id candidate (committed peers' exchange and sharing
+  charged exactly; the future is a fixed default). B5′ scores by the **mean over all
+  completions** of the uncommitted tasks (the table's own lookahead). Bars unchanged
+  (B3′ ≥ 5 %, B5′ ≥ 2 %); the ordering split is reported as before. These are decoders on
+  the true cost, i.e. upper bounds on what a sequential pointwise scorer with the same
+  information could do; they are not learned models.
+- *Rung R1*: 12 datasets per arm locally (seeds 7001–7017 × the first grid cells), read at
+  α₄ ∈ {1.5, 2.0}; the full 102-dataset grid follows on datalab only if R1 reads. A skipped
+  dataset (`MAX_PLACEMENT_COMBINATIONS_SKIP`) is reported with its attribution, never dropped
+  silently — the skip threshold tests the pre-uniqueness product (memory), so it is set from
+  the measured candidate counts, not from sweep sizes.

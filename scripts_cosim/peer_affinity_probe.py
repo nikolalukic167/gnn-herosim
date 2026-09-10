@@ -313,10 +313,14 @@ class Paper:
 
     # --- design columns ---------------------------------------------------------------
     def indicator_cols(self, sel: np.ndarray) -> np.ndarray:
-        X = np.zeros((len(sel), self.k * self.n_cand), dtype=np.float64)
+        offsets = getattr(self, "cand_offsets", None)
+        if offsets is None:
+            offsets = [i * self.n_cand for i in range(self.k)]
+        width = offsets[-1] + (len(self.cands[-1]) if hasattr(self, "cands") else self.n_cand)
+        X = np.zeros((len(sel), width), dtype=np.float64)
         rows = np.arange(len(sel))
         for i in range(self.k):
-            X[rows, i * self.n_cand + self.P[sel, i]] = 1.0
+            X[rows, offsets[i] + self.P[sel, i]] = 1.0
         return X
 
     def count_cols(self, sel: np.ndarray, cap: np.ndarray) -> np.ndarray:
@@ -601,6 +605,350 @@ def aggregate(cell: str, per: List[dict]) -> dict:
     return agg
 
 
+# ---------------------------------------------------------------------------- simulated sweep
+class Simulated(Paper):
+    """The same instance object built from a SIMULATED dataset written by
+    generate_gnn_datasets_fast.py --grid peer_affinity_screen (plan §A2): k single-task events,
+    per-event demand_scale, a top-level peer_exchange table, and a placements.jsonl that is the
+    FULL Cartesian product of the tasks' candidate replicas (--allow-non-unique-replicas).
+
+    `total(x)` is a table lookup: x > 0 -> the treated corpus's rtt, x == 0 -> the paired
+    control corpus's rtt (same seed, HEROSIM_PEER_EXCHANGE unset). The exchange term is
+    recomputed from the stored files with the physics' own formula and must agree with the
+    retained `peer_exchange_total` on every row (Amendment A4's physics-agreement check).
+    """
+
+    def __init__(self, treated_dir: Path, control_dir: Optional[Path]):
+        self.treated_dir, self.control_dir = treated_dir, control_dir
+        self.ds = S.Dataset(treated_dir, TT, "rtt")
+        ds = self.ds
+        w = json.load(open(treated_dir / "workload.json"))
+        self.k = len(ds.task_type_names)
+        if any(len(ev["application"]["dag"]) != 1 for ev in w["events"]):
+            raise RuntimeError(f"{treated_dir}: the simulated screen expects single-task events")
+        self.types = list(ds.task_type_names)
+        self.type_vocab = sorted(set(self.types))
+        self.type_idx = np.array([self.type_vocab.index(tp) for tp in self.types])
+        self.sources = list(ds.task_sources)
+        self.scale = list(ds.demand_scales)
+        # candidates per task = the placements the sweep actually enumerated for it
+        cand_sets: Dict[int, set] = {}
+        for plan, _v in ds.rows:
+            for t, pl in plan.items():
+                cand_sets.setdefault(t, set()).add(pl)
+        self.cands = [sorted(cand_sets[i]) for i in range(self.k)]
+        self.cand_offsets = list(np.cumsum([0] + [len(c) for c in self.cands[:-1]]))
+        self.n_cand = max(len(c) for c in self.cands)
+        expected_rows = int(np.prod([len(c) for c in self.cands]))
+        if len(ds.rows) != expected_rows:
+            raise RuntimeError(f"{treated_dir}: {len(ds.rows)} rows but the candidate product is "
+                               f"{expected_rows} -- not a full sweep; refusing")
+        # nodes / platforms / exchange matrices from the stored infrastructure
+        self.src = self  # the exchange matrices live here (Paper reads src.per_byte / src.latency)
+        self.nodes = sorted({ds.node_of(pl) for cs in self.cands for pl in cs})
+        self.node_index = {n: i for i, n in enumerate(self.nodes)}
+        n = len(self.nodes)
+        self.per_byte = np.zeros((n, n)); self.latency = np.zeros((n, n)); self.max_asymmetry = 0.0
+        for a in range(n):
+            for b in range(n):
+                if a != b:
+                    hops, bneck, lat = ds.route_metrics(self.nodes[a], self.nodes[b])
+                    self.per_byte[a, b] = hops / (bneck * 1024 * 1024); self.latency[a, b] = lat
+        for a in range(n):
+            for b in range(a + 1, n):
+                for M in (self.per_byte, self.latency):
+                    self.max_asymmetry = max(self.max_asymmetry, abs(M[a, b] - M[b, a]) / max(M[a, b], M[b, a], 1e-12))
+                    M[a, b] = M[b, a] = 0.5 * (M[a, b] + M[b, a])
+        self.plats = sorted({pl for cs in self.cands for pl in cs})
+        self.plat_index = {pl: i for i, pl in enumerate(self.plats)}
+        # peer table in bytes (multiplier convention of Paper: mult * x with x == 1 byte)
+        triples = w.get("peer_exchange") or []
+        if not triples:
+            raise RuntimeError(f"{treated_dir}: workload has no peer_exchange table")
+        pairs: Dict[Tuple[int, int], float] = {}
+        for i, j, b in triples:
+            pairs[(min(int(i), int(j)), max(int(i), int(j)))] = float(b)
+        self.pairs = sorted(pairs.items())
+        self.partners = None
+        self.seed = None
+        pad = self.n_cand
+        def padded(fn, fill):
+            arr = np.full((self.k, pad), fill, dtype=float)
+            for i, cs in enumerate(self.cands):
+                for c, pl in enumerate(cs):
+                    arr[i, c] = fn(i, pl)
+            return arr
+        self.node = padded(lambda i, pl: self.node_index[ds.node_of(pl)], -1).astype(int)
+        self.plat = padded(lambda i, pl: self.plat_index[pl], -1).astype(int)
+        self.demand = padded(lambda i, pl: ds.demand[(i, pl)], 0.0)
+        self.cost = np.zeros((self.k, pad))  # unused for a table instance
+        self.q = np.zeros(len(self.plats))
+        self.n_nodes, self.n_plat, self.n_types = n, len(self.plats), len(self.type_vocab)
+        # table
+        self.N = expected_rows
+        radix = [len(c) for c in self.cands]
+        self._radix = radix
+        def index_of(plan):
+            idx = 0
+            for i in range(self.k):
+                idx = idx * radix[i] + self.cands[i].index(plan[i])
+            return idx
+        self.Y = np.full(self.N, np.nan)
+        self.EX_RET = np.full(self.N, np.nan)
+        with open(treated_dir / "placements/placements.jsonl") as fh:
+            for line in fh:
+                r = json.loads(line)
+                plan = {int(t): (int(v[0]), int(v[1])) for t, v in r["placement_plan"].items()}
+                idx = index_of(plan)
+                self.Y[idx] = float(r["rtt"])
+                if "peer_exchange_total" in r:
+                    self.EX_RET[idx] = float(r["peer_exchange_total"])
+        if np.isnan(self.Y).any():
+            raise RuntimeError(f"{treated_dir}: sweep does not cover the full product")
+        self.Y0 = None
+        if control_dir is not None:
+            cds = S.Dataset(control_dir, TT, "rtt")
+            self.Y0 = np.full(self.N, np.nan)
+            for plan, v in cds.rows:
+                self.Y0[index_of(plan)] = v
+            if np.isnan(self.Y0).any():
+                raise RuntimeError(f"{control_dir}: control sweep does not cover the treated product")
+        # pm columns with the ACTUAL bytes (x == 1 -> pm_b carries bytes already)
+        self.pm_b = np.zeros((self.k, pad)); self.pm_l = np.zeros((self.k, pad))
+        for (i, j), mult in self.pairs:
+            for a, b in ((i, j), (j, i)):
+                na = self.node[a, :len(self.cands[a])]; nb = self.node[b, :len(self.cands[b])]
+                self.pm_b[a, :len(na)] += mult * self.per_byte[na[:, None], nb[None, :]].mean(1)
+                self.pm_l[a, :len(na)] += self.latency[na[:, None], nb[None, :]].mean(1)
+
+    def enumerate(self) -> None:
+        k = self.k
+        N = self.N
+        idx = np.arange(N, dtype=np.int64)
+        P = np.empty((N, k), dtype=np.int8)
+        rem = idx.copy()
+        for i in reversed(range(k)):
+            P[:, i] = rem % self._radix[i]
+            rem //= self._radix[i]
+        self.P = P
+        ar = np.arange(k)
+        self.NODE = self.node[ar, P].astype(np.int8)
+        self.PLAT = self.plat[ar, P].astype(np.int16)
+        DEM = self.demand[ar, P]
+        self.cnt = np.zeros((N, self.n_plat), dtype=np.int8)
+        for p in range(self.n_plat):
+            self.cnt[:, p] = (self.PLAT == p).sum(1)
+        self.load = np.zeros((N, self.n_nodes)); self.nodecnt = np.zeros((N, self.n_nodes), dtype=np.int8)
+        self.min_single = np.full((N, self.n_nodes), np.inf)
+        for n in range(self.n_nodes):
+            mask = self.NODE == n
+            self.load[:, n] = (DEM * mask).sum(1); self.nodecnt[:, n] = mask.sum(1)
+            self.min_single[:, n] = np.where(mask, DEM, np.inf).min(1)
+        self.max_demand_on_node = np.array([self.demand[self.node == n].max() if (self.node == n).any() else 0.0
+                                            for n in range(self.n_nodes)])
+        # exchange recomputed with the physics' formula, charged on BOTH ends of every pair
+        self.EX = np.zeros(N)
+        for (i, j), mult in self.pairs:
+            self.EX += 2.0 * (mult * self.per_byte[self.NODE[:, i], self.NODE[:, j]] + self.latency[self.NODE[:, i], self.NODE[:, j]])
+        self.KEY = np.sort(self.PLAT.astype(np.int32) * self.n_types + self.type_idx[None, :], axis=1)
+        self.collision_free = (self.cnt.max(1) == 1)
+        self.BASE = self.Y - self.EX; self.SHARE = np.zeros(N); self.QB = np.zeros(N); self.QL = np.zeros(N)
+
+    def plan_index(self, plan: Sequence[int]) -> int:
+        idx = 0
+        for i, c in enumerate(plan):
+            idx = idx * self._radix[i] + int(c)
+        return idx
+
+    def total(self, x_bytes: float) -> np.ndarray:
+        if x_bytes == 0.0:
+            if self.Y0 is None:
+                raise RuntimeError("no control corpus paired; S0 cannot be read")
+            return self.Y0
+        return self.Y
+
+    def exchange(self, x_bytes: float) -> np.ndarray:
+        return self.EX
+
+    def peer_mass_col(self, sel: np.ndarray, x_bytes: float) -> np.ndarray:
+        pm = self.pm_b + self.pm_l
+        return pm[np.arange(self.k), self.P[sel]].sum(1, keepdims=True)
+
+    def physics_agreement(self) -> dict:
+        ok = ~np.isnan(self.EX_RET)
+        if not ok.any():
+            return {"rows_with_retained_total": 0, "max_rel_gap": None}
+        gap = np.abs(self.EX[ok] - self.EX_RET[ok]) / np.maximum(1.0, np.abs(self.EX_RET[ok]))
+        diff = self.Y - self.Y0 if self.Y0 is not None else None
+        return {"rows_with_retained_total": int(ok.sum()), "max_rel_gap": float(gap.max()),
+                "exchange_share_of_treated_minus_control_median": (
+                    float(np.median(self.EX[diff > 0] / diff[diff > 0])) if diff is not None and (diff > 0).any() else None)}
+
+
+def greedy_table(inst: Simulated, y: np.ndarray, cap: np.ndarray, order: Sequence[int], mode: str
+                 ) -> Optional[List[int]]:
+    """Sequential greedy on the TRUE TABLE with an exact prefix (Amendment A4's analogues of
+    B3/B5 for a simulated sweep, where no analytic marginal exists):
+      mode == "reference": score candidate c for task i by the row where the prefix and
+        (i, c) are fixed and every uncommitted task sits on its lowest-id candidate -- the
+        committed peers' exchange and sharing are charged exactly, the future is a fixed
+        default (B3').
+      mode == "expected": score by the MEAN over all completions of the uncommitted tasks
+        (B5', the table's own peer-mass lookahead).
+    Capacity-masked on the committed load; None when no feasible candidate remains."""
+    k = inst.k
+    plan = [-1] * k
+    load = np.zeros(inst.n_nodes)
+    for i in order:
+        best, best_c = np.inf, -1
+        committed = [t for t in range(k) if plan[t] >= 0]
+        for c in range(len(inst.cands[i])):
+            n = int(inst.node[i, c])
+            if load[n] + inst.demand[i, c] > cap[n] + EPS:
+                continue
+            mask = np.ones(inst.N, dtype=bool)
+            for t in committed:
+                mask &= inst.P[:, t] == plan[t]
+            mask &= inst.P[:, i] == c
+            if mode == "reference":
+                for t in range(k):
+                    if plan[t] < 0 and t != i:
+                        mask &= inst.P[:, t] == 0
+                vals = y[mask]
+                m = float(vals[0]) if len(vals) else np.inf
+            else:
+                m = float(y[mask].mean()) if mask.any() else np.inf
+            if m < best - 1e-12 or (abs(m - best) <= 1e-12 and (n, int(inst.plat[i, c])) < (int(inst.node[i, best_c]), int(inst.plat[i, best_c]))):
+                best, best_c = m, c
+        if best_c < 0:
+            return None
+        plan[i] = best_c
+        load[int(inst.node[i, best_c])] += inst.demand[i, best_c]
+    return plan
+
+
+def screen_simulated(inst: Simulated, alpha4: float, rng_orders: random.Random) -> dict:
+    """Same statistics as screen_dataset on a simulated pair; B3/B5 are greedy_table analogues."""
+    alpha = alpha_k(alpha4, inst.k)
+    cap = inst.caps(alpha)
+    y = inst.Y
+    feas_mask = (inst.load <= cap[None, :] + EPS).all(1)
+    feas = np.nonzero(feas_mask)[0]
+    all_rows = np.arange(inst.N)
+    out: dict = {"ds": inst.treated_dir.name, "seed": None, "n_rows": int(inst.N), "alpha_k": alpha,
+                 "n_feasible": int(len(feas)), "n_nodes": inst.n_nodes, "n_plat": inst.n_plat,
+                 "n_pairs": len(inst.pairs), "cands_per_task": [len(c) for c in inst.cands],
+                 "physics_agreement": inst.physics_agreement()}
+    if len(feas) == 0:
+        out["no_feasible_rows"] = True
+        return out
+    opt = int(feas[np.argmin(y[feas])]); opt_val = float(y[opt])
+    out["opt_val"] = opt_val
+    out["qap_share_at_opt"] = float(inst.EX[opt] / opt_val)
+    out["B0_cap_binds"] = bool(not feas_mask[int(np.argmin(y))])
+    if inst.Y0 is not None:
+        y0 = inst.Y0
+        cf = np.nonzero(feas_mask & inst.collision_free)[0]
+        out["n_collision_free"] = int(len(cf))
+        fit = fit_argmin(inst, y0, cf, cf, ("ind",)) if len(cf) else None
+        if fit is not None:
+            o0 = float(y0[cf].min())
+            out["S0a_r2"] = fit[1]; out["S0a_regret_pct"] = tie_regret(y0[cf], fit[0], o0)["mean_tied"]
+        fit = fit_argmin(inst, y0, all_rows, feas, ("ind", "count"), cap)
+        if fit is not None:
+            o0 = float(y0[feas].min())
+            out["S0b_r2"] = fit[1]; out["S0b_regret_pct"] = tie_regret(y0[feas], fit[0], o0)["mean_tied"]
+            out["S0b_n_params"] = fit[2]
+    fit = fit_argmin(inst, y, all_rows, feas, ("ind",))
+    if fit is None:
+        out["fit_refused"] = True
+        return out
+    band = tie_regret(y[feas], fit[0], opt_val)
+    out["B1_regret_pct"] = band["mean_tied"]; out["B1_band"] = band; out["additive_r2"] = fit[1]
+    fit = fit_argmin(inst, y, all_rows, feas, ("ind", "count"), cap)
+    band = tie_regret(y[feas], fit[0], opt_val)
+    out["B2_regret_pct"] = band["mean_tied"]; out["B2_band"] = band; out["count_r2"] = fit[1]; out["B2_n_params"] = fit[2]
+    out["B2_repair"] = (max(0.0, (out["B1_regret_pct"] - out["B2_regret_pct"]) / out["B1_regret_pct"])
+                        if out["B1_regret_pct"] > 0 else None)
+    fit = fit_argmin(inst, y, all_rows, feas, ("ind", "count", "peer"), cap, 1.0)
+    band = tie_regret(y[feas], fit[0], opt_val)
+    out["B4_regret_pct"] = band["mean_tied"]; out["B4_band"] = band; out["peer_r2"] = fit[1]
+    out["B4_closure"] = (max(0.0, (out["B1_regret_pct"] - out["B4_regret_pct"]) / out["B1_regret_pct"])
+                         if out["B1_regret_pct"] > 0 else None)
+    id_order = list(range(inst.k))
+    strength = {i: 0.0 for i in range(inst.k)}
+    for (i, j), mult in inst.pairs:
+        strength[i] += mult; strength[j] += mult
+    big_first = sorted(range(inst.k), key=lambda i: -strength[i])
+    rand_orders = [rng_orders.sample(range(inst.k), inst.k) for _ in range(8)]
+    for tag, mode in (("B3", "reference"), ("B5", "expected")):
+        plan = greedy_table(inst, y, cap, id_order, mode)
+        out[f"{tag}_stuck"] = plan is None
+        if plan is not None:
+            out[f"{tag}_regret_pct"] = regret_pct(float(y[inst.plan_index(plan)]), opt_val)
+        pb = greedy_table(inst, y, cap, big_first, mode)
+        out[f"{tag}_bigfirst_regret_pct"] = None if pb is None else regret_pct(float(y[inst.plan_index(pb)]), opt_val)
+        rr = []
+        for order in rand_orders:
+            p2 = greedy_table(inst, y, cap, order, mode)
+            if p2 is not None:
+                rr.append(regret_pct(float(y[inst.plan_index(p2)]), opt_val))
+        out[f"{tag}_best_random8_regret_pct"] = min(rr) if rr else None
+        alts = rr + [v for v in (out[f"{tag}_bigfirst_regret_pct"], out.get(f"{tag}_regret_pct")) if v is not None]
+        out[f"{tag}_best_order_regret_pct"] = min(alts) if alts else None
+    same = feas[(inst.KEY[feas] == inst.KEY[opt]).all(1)]
+    out["C1_stratum_size"] = int(len(same))
+    out["C1_regret_pct"] = regret_pct(float(y[same].mean()), opt_val)
+    out["C1_max_regret_pct"] = regret_pct(float(y[same].max()), opt_val)
+    out["spread"] = "VOID (k > n_server_nodes)" if inst.k > inst.n_nodes else "n/a"
+    return out
+
+
+def run_simulated(treated: Path, control: Optional[Path], alphas: Sequence[float], out_path: Path,
+                  limit: Optional[int] = None) -> dict:
+    dirs = sorted(p for p in treated.glob("ds_*") if (p / "placements/placements.jsonl").exists())
+    if limit:
+        dirs = dirs[:limit]
+    if not dirs:
+        raise RuntimeError(f"{treated}: no datasets")
+    report = {"treated": str(treated), "control": str(control) if control else None, "bars": BARS,
+              "cells": {}, "per_dataset": {}, "skipped": []}
+    per = {a: [] for a in alphas}
+    t0 = time.time()
+    for d in dirs:
+        cdir = (control / d.name) if control else None
+        if cdir is not None and not (cdir / "placements/placements.jsonl").exists():
+            report["skipped"].append({"ds": d.name, "reason": "no control dataset"})
+            continue
+        try:
+            inst = Simulated(d, cdir)
+        except RuntimeError as exc:
+            report["skipped"].append({"ds": d.name, "reason": str(exc)})
+            continue
+        inst.enumerate()
+        for a in alphas:
+            per[a].append(screen_simulated(inst, a, random.Random(hash((d.name, a)) & 0xFFFF if False else (int(d.name.split("_")[-1]) * 7919 + int(a * 10)))))
+        del inst
+    print(f"[probe] simulated: {len(dirs) - len(report['skipped'])} datasets x {len(alphas)} alphas in {time.time() - t0:.0f}s; "
+          f"skipped {len(report['skipped'])}", flush=True)
+    for a in alphas:
+        cell = f"sim_a{a}_{treated.name}"
+        report["per_dataset"][cell] = per[a]
+        agg = aggregate(cell, per[a])
+        pa = [d["physics_agreement"]["max_rel_gap"] for d in per[a] if d.get("physics_agreement", {}).get("max_rel_gap") is not None]
+        agg["physics_agreement_max_rel_gap"] = max(pa) if pa else None
+        agg["exchange_share_of_diff_median"] = median([d["physics_agreement"].get("exchange_share_of_treated_minus_control_median") for d in per[a]])
+        agg["cands_per_task_median"] = median([float(np.median(d["cands_per_task"])) for d in per[a]])
+        report["cells"][cell] = agg
+        print(f"[probe] {cell}: pass={agg.get('pass')} " + " ".join(f"{kk}={'Y' if v else 'n'}" for kk, v in agg.get("checks", {}).items())
+              + f" B1={agg.get('B1_median_pct', float('nan')):.2f} B2rep={agg.get('B2_median_repair', float('nan')):.2f} "
+                f"B3={agg.get('B3_median_pct', float('nan')):.2f} B5={agg.get('B5_median_pct', float('nan')):.2f} C1={agg.get('C1_median_pct', float('nan')):.2f} "
+                f"phys_gap={agg['physics_agreement_max_rel_gap']} scored={agg['n_scored']}", flush=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(report, indent=1, default=str))
+    return report
+
+
 # --------------------------------------------------------------------------------------- emit
 def emit_dataset(paper: Paper, x_mb: float, alpha: float, out_dir: Path) -> None:
     """Write the paper dataset in the on-disk co-sim format so the existing instruments
@@ -707,8 +1055,16 @@ def main() -> int:
     ap.add_argument("--stages", nargs="+", default=["screen"], choices=["screen", "emit", "crosscheck"])
     ap.add_argument("--emit-dir", type=Path, default=ROOT / "simulation_data/peer_affinity_paper_k8")
     ap.add_argument("--emit-cells", default="x200_a2.0_k8c3_p2,x200_a2.0_k8c4_p2")
+    ap.add_argument("--from-simulated", type=Path, default=None,
+                    help="treated corpus dir (HEROSIM_PEER_EXCHANGE=1); reads the registered bars on the simulated sweep")
+    ap.add_argument("--control", type=Path, default=None, help="paired control corpus (flag unset, same seeds)")
+    ap.add_argument("--alphas", default="1.5,2.0", help="alpha_4 values for --from-simulated")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
+    if args.from_simulated is not None:
+        run_simulated(args.from_simulated, args.control, [float(a) for a in args.alphas.split(",")],
+                      args.out, args.limit_sources)
+        return 0
     filters = [f for f in args.cells.split(",") if f]
     emit_cells = set(args.emit_cells.split(","))
     sources = select_sources(args.corpus, args.limit_sources)
