@@ -1180,7 +1180,10 @@ PEER_AFFINITY_SCREEN_GRID: GridPreset = {
     "replica_configs": [
         (0, 1, 0.7, 0.9),
     ],
-    "replica_server_percentage": 0.5,
+    # 0.67 of 6 server nodes -> 4 hosting nodes. Measured on the 3-dataset pilot at 0.5
+    # (3 hosts): a host whose only platform is pynqFpga serves dnn1 alone, so three of the
+    # four types had 2 candidates and every task queued on the same two platforms.
+    "replica_server_percentage": 0.67,
     "replica_overlap": True,
     "queue_distributions": [
         ("shallow_pois2", "poisson", 2, 0, 0, 8, 1),
