@@ -455,6 +455,10 @@ def evaluate_dataset(
     decoded_tie_group = [
         v for p, v in feasible_rows if abs(v - decoded_value) <= 1e-9
     ]
+    if not decoded_tie_group:
+        # a COUNTED relaxation landed outside the feasible set: its tie group is read
+        # over the whole sweep (the plan is always a sweep row)
+        decoded_tie_group = [v for p, v in ds.rows if abs(v - decoded_value) <= 1e-9]
 
     def regret_pct(value: float) -> float:
         return 100.0 * (value - opt_value) / opt_value
