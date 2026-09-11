@@ -1,0 +1,20 @@
+# peer_affinity_v1 x800 p3 rung (denser peer graph, docs/lineages/peer_affinity_v1.md Stage 3) -- mlp_t1x: pointwise + counts + committed-peer exchange + peer-mass lookahead, lr 0.0005.
+# Registration: docs/lineages/peer_affinity_v1.md, "Training registration T1b" verbatim. Seeds via --seed 1..16.
+trainer: mlp
+lineage: peer_affinity_v1
+cache_dir: simulation_data/graphs_cache_peer_affinity_v1_x800_p3
+env:
+  PARTIAL_STATE_CONTRACT: partial_state_v2
+  PARTIAL_STATE_PEER_MASS: "1"
+path_args: [output, split-artifact]
+args:
+  output: models/tabular/peer-affinity-v1-x800p3-mlp_t1x-lr5e4.pt
+  split-artifact: experiments/peer_affinity_v1_x800_p3_split.json
+  partial-state: null
+  candidate-relative-queue: null
+  epochs: 600
+  patience: 40
+  lr: 0.0005
+  random-state: 42
+  wandb-project: gnn-peer-affinity-v1
+  wandb-run-name: peer-affinity-v1-x800p3-mlp-t1x-lr5e4

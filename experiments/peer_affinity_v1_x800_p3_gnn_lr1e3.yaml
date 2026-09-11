@@ -1,0 +1,30 @@
+# peer_affinity_v1 x800 p3 rung (denser peer graph, docs/lineages/peer_affinity_v1.md Stage 3) -- gnn: message passing over bipartite + peer edges (PeerConv), lr 0.001.
+# Registration: docs/lineages/peer_affinity_v1.md, "Training registration T1b" verbatim. Seeds via --seed 1..16.
+trainer: gnn
+lineage: peer_affinity_v1
+cache_dir: simulation_data/graphs_cache_peer_affinity_v1_x800_p3
+unset_env:
+  - TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: "1"
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_affinity_v1_x800_p3_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: "1"
+  NEAR_RTT_PARTIAL_STATE_EDGES: "1"
+  NEAR_RTT_DAG_ALPHA_KEY: "2.5"
+  NEAR_RTT_TIED_MAX_PLANS: "0"
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: "1"
+  NEAR_RTT_DECODE_REPLICA_REUSE: "1"
+  NEAR_RTT_DECODE_RELAX: "1"
+  PARTIAL_STATE_CONTRACT: partial_state_v2
+  PARTIAL_STATE_PEER_MASS: "1"
+  NEAR_RTT_MP_PEER_EDGES: "1"
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  learning-rate: 0.001
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: peer-affinity-v1-x800p3-gnn-lr1e3
+  tags: [peer-affinity, x800p3, gnn, lr1e3]
