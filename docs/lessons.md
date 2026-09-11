@@ -391,3 +391,29 @@
 - **tabular `__init__.py`:** no scheduler imports — avoids `gnn.scheduler` ↔ `tabular.scheduler` circular import when loading `feature_builder`
 
 ---
+
+## An INDETERMINATE model-class contrast on a small corpus is not evidence of redundancy
+
+**Measured twice, most sharply 2026-09-11 (`peer_affinity_v1` T1 → T1b).** The same contrast, same
+code, same held-out block, differing only in training-corpus size and seed count:
+
+| training datasets | seeds | `gnn` vs `mpoff` (only `PeerConv` differs) |
+|---|---|---|
+| 136 | 8 | +2.08 pp, p = 0.15 — INDETERMINATE, written up as "message passing is not the lever" |
+| 482 | 16 | **+5.14 pp, p = 0.001, 13/16 seeds — GNN-NEEDED** |
+
+The first read was measuring the corpus, not the architecture. The tell is the **per-arm gain from
+more data**: the higher-capacity arm gained −5.09 pp where its ablated twin gained −2.43 pp and a
+pointwise arm −3.24 pp. A model class whose extra capacity is genuinely redundant does not improve
+faster than its ablation when you feed it more.
+
+**The rule.** Before writing "architecture X is redundant" off a null or indeterminate contrast:
+(a) vary the corpus size and report each arm's delta, not just the contrast; (b) check the power —
+at n = 8 with a 3 pp per-seed sd, a 2 pp effect is invisible, and "we could not resolve it" is the
+honest reading; (c) state which checkpoint every arm was read at, because an arm with more capacity
+overfits harder and a last-epoch read will flatter its ablation (`route_b_v1` Phase 2, and again in
+`peer_affinity_v1` T1b where the two arms **tie** at last epoch and separate at the selected one).
+
+Related: corpus was also the dominant lever in `link_mp_v1` and `reliability_matched_v1` — but there
+it erased an apparent GNN edge, and here it revealed one. The lesson is the same either way: **name
+both arms' corpus before naming the model class.**
