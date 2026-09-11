@@ -2,23 +2,32 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-09 → (open)
 
-**Outcome.** **T1 read (2026-09-10): GNN-NEEDED over a peer-blind pointwise scorer
-(+13.4 pp, p = 0.0078, 8/8 seeds) — but message passing is not the lever, and one hand-built
-lookahead column closes most of the gap.** This is the first environment in the program whose
-joint structure defeats a trained pointwise model: `mlp_t1`, which sees the exact exchange cost
-to already-committed peers, loses 11–13 pp to every arm that also sees the uncommitted-peer
-lookahead. It is *not* graph reasoning that recovers it — `mpoff` (message passing disabled,
-`PeerConv` never runs) ties the full GNN (+0.77 pp, p = 0.31), and a pointwise MLP with the
-single lookahead scalar lands within 2.7 pp (p = 0.31). Both secondary contrasts are
-**INDETERMINATE, not ties**: the point estimates sit at the registered ≈ 2 pp effect and n = 8
-cannot resolve them (≈ 31 and ≈ 16 seeds needed for 80 % power). A powered rerun of those two
-contrasts is the one open question. Fit ceiling: the GNN memorises the training split exactly
-(train regret 0.00 %) and still reads 24.96 % held-out. Phase 0 paper screen GO (14 of 60 cells);
-physics built (`HEROSIM_PEER_EXCHANGE=1`, bit-identical off); simulated rung **R2 blind on fresh
-seeds 7018–7034** passed every bar (cap binds 34/34, control count-repairable, pointwise-only
-regret 28.5 %, count repair 0.27, residual 23.4 %, hand-lookahead analogue 19.5 %, count oracle
-18.9 %). The 50 MB cell failed on the simulator and is dropped; α₄ = 1.25 fails S0b by two control
-datasets. Full record and every amendment below.
+**Outcome.** **T1b (2026-09-11) supersedes T1's reading: message passing DOES help on this
+environment once the GNN is not data-starved — and corpus size, not architecture, was what T1 was
+actually measuring.** At 482 training datasets and 16 seeds, the cleanest contrast in the lineage
+(`gnn` vs `mpoff`: same architecture, features, decoder, selector and seeds; the only difference is
+whether `PeerConv` runs) is **+5.14 pp, p = 0.001, 13/16 seeds** — up from +2.08 pp, p = 0.15 at T1's
+136 datasets. 3.5× data buys `gnn` −5.09 pp but `mpoff` only −2.43 pp. Held-out regret at the honest
+selector: `gnn` **18.78 %**, `mlp_t1x` 22.54 %, `mpoff` 23.41 %, `mlp_t1` 29.80 %; every learned arm
+beats reactive Knative (116.8 % excess) on the live gate. The environment itself remains the first in
+this program whose joint structure defeats a *trained* pointwise scorer: `mlp_t1`, which sees the
+exact exchange cost to already-committed peers but not the uncommitted-peer lookahead, loses 11.8 pp
+to `gnn` on 16/16 seeds.
+
+**Three qualifications carried with every quote.** (1) The advantage is at the **selected**
+checkpoint: MP-ON memorises the training split exactly (train regret 0.00 %) and the two GNN arms
+**tie** when both are read at the last epoch (−0.80 pp, p = 0.252). (2) The **live gate agrees in
+direction but not in significance** (`gnn` vs `mpoff` +3.78 pp, p = 0.130) — an unconfounded
+GNN-over-pointwise claim is established offline and NOT on the live gate. (3) `gnn` vs the MLP arms
+carries a **selector asymmetry** favouring the GNN (GNN selects on exact val decode regret, MLP on val
+edge accuracy), so those deltas are upper bounds; `gnn` vs `mpoff` carries none.
+
+Upstream: Phase 0 paper screen GO (14 of 60 cells); physics built (`HEROSIM_PEER_EXCHANGE=1`,
+bit-identical off); simulated rung **R2 blind on fresh seeds 7018–7034** passed every bar (cap binds
+34/34, control count-repairable, pointwise-only regret 28.5 %, count repair 0.27, residual 23.4 %,
+hand-lookahead analogue 19.5 %, count oracle 18.9 %). The 50 MB cell failed on the simulator and is
+dropped; α₄ = 1.25 fails S0b by two control datasets. T1's own entry is kept below unchanged as the
+n = 8 reading it was.
 
 **Related:** [throughline](throughline.md) (2026-09-09 section — the argument this lineage is
 the one untried exception to) · [dag_fabric_contention_v1](dag_fabric_contention_v1.md) (the
@@ -766,3 +775,93 @@ split `experiments/peer_affinity_v1_t1_split.json` (train 109 / val 27 / test 34
 `pa-t1-preflight` job (753453) FAILED at its last step only — it trained a smoke GNN on a cluster
 GPU and synced to W&B, then tried to score it against raw sweeps that exist only on the local box;
 all scoring is local by design.
+
+### Training registration T1b — corpus + power: message passing DOES help once the GNN is not data-starved (2026-09-11)
+
+T1's two secondary contrasts were INDETERMINATE at n = 8, with point estimates sitting exactly on
+the registered ≈ 2 pp effect. T1b changes **only** corpus size and seed count and re-reads the same
+bars on the **same held-out block**: test is byte-identical to T1's 34 R2 datasets (seeds
+7018–7034), disjoint from T1b train and val, so T1 and T1b are directly comparable.
+
+| | T1 | T1b |
+|---|---|---|
+| training datasets (train + val) | 136 | **482** |
+| seeds per (arm, lr) | 8 | **16** |
+| held-out block | 34 (R2) | 34 (R2), identical |
+| cache | `graphs_cache_peer_affinity_v1_t1` (170) | `graphs_cache_peer_affinity_v1_t1b` (516) |
+| split sha256 | `c7d98b21…` | `0d66d1c0…` |
+
+Corpus: 500 fresh seeds (7200–7699) generated on `CPU-amd` (job 754230, 60/60 COMPLETED, 0 failures,
+8.9 GB). **346 of them entered T1b** — 350 pulled back (local disk holds no more alongside the cache),
+of which 4 (`train2` ds_00003/00009/00157/00333) failed the cache build's training-contract check with
+no feasible sweep rows at the α = 2.0 rung and were set aside rather than dropping the rung, which
+would have changed the cache contract away from T1's. The T1 corpus had zero such failures in 170.
+The exclusion is 1.1 % of the new seeds and mildly favours looser instances; the remaining 150
+datasets stay on datalab. MLP arms got real early stopping (`patience` 40, was 600 = disabled); this
+is a compute fix, **not** a correction to T1 — both trainers already restore best-val weights
+(`train_mlp_dim22_from_batch.py:497`), so no T1 number was read at an overfit end state.
+
+**Held-out decode regret** (%, median over the 34 test datasets per seed, then mean over 16 seeds):
+
+| arm | T1 @val | **T1b @val** | T1b @final | T1b train @val / @final |
+|---|---|---|---|---|
+| `gnn` | 23.87 | **18.78** | 25.05 | 17.15 / **0.00** |
+| `mpoff` | 25.84 | **23.41** | 23.76 | 18.01 / 10.86 |
+| `mlp_t1x` | 25.78 | **22.54** | — | 20.18 |
+| `mlp_t1` | 37.23 | **29.80** | — | 29.73 |
+
+**The registered contrasts, at the honest selector** (every arm read at the checkpoint its trainer
+selected on validation — the only like-for-like comparison):
+
+| contrast | T1 (n = 8) | **T1b (n = 16)** | wins |
+|---|---|---|---|
+| `gnn` vs `mlp_t1` | +13.38 pp, p = 0.0078 | **+11.80 pp, p = 0.00003** | 16/16 |
+| **`gnn` vs `mpoff`** | +2.08 pp, p = 0.148 (INDETERMINATE) | **+5.14 pp, p = 0.00101 — GNN-NEEDED** | 13/16 |
+| **`gnn` vs `mlp_t1x`** | +2.68 pp, p = 0.313 (INDETERMINATE) | **+3.30 pp, p = 0.00214 — GNN-NEEDED** | 13/16 |
+| `mpoff` vs `mlp_t1` | +11.22 pp, p = 0.0078 | +5.26 pp, p = 0.00015 | — |
+| `mlp_t1x` vs `mlp_t1` | +10.62 pp, p = 0.0078 | +7.79 pp, p = 0.00003 | 16/16 |
+| `mpoff` vs `mlp_t1x` | — | −1.02 pp, p = 0.229 (tie) | 7/16 |
+
+**Reading: T1's "message passing is not the lever" is SUPERSEDED. The lever was corpus size.**
+The cleanest contrast in the whole lineage is `gnn` vs `mpoff` — same architecture, same features,
+same decoder, same selector, same 16 seeds; **the only difference is whether `PeerConv` runs**. It
+moves from +2.08 pp (p = 0.15) at 136 training datasets to **+5.14 pp (p = 0.001, 13/16 seeds)** at
+482. The mechanism is visible in the per-arm deltas: 3.5× data buys `gnn` **−5.09 pp** but `mpoff`
+only −2.43 pp and `mlp_t1x` −3.24 pp. The extra capacity of message passing was real but
+unexpressible at T1's corpus size — the same "corpus is the largest measured lever" finding that
+`link_mp_v1` and `reliability_matched_v1` reported, here running in the GNN's favour for the first
+time in this program.
+
+**Three qualifications, all load-bearing.**
+
+1. **The advantage lives at the selected checkpoint, not at convergence.** MP-ON overfits harder:
+   at the last epoch its train regret is **0.00 %** (exact memorisation of 482 sweeps) against
+   `mpoff`'s 10.86 %, and its held-out regret degrades 18.78 → 25.05. Read at the final epoch the
+   two arms **tie** (−0.80 pp, p = 0.252). So the claim is "with the registered honest selector",
+   which is the protocol T1/T1b registered — not "at convergence".
+2. **The live gate agrees in direction but does not confirm significance.** Same 16 seeds, real
+   engine, peer physics charged: `gnn` 70.89 %, `mlp_t1x` 71.79 %, `mpoff` 74.43 %, `mlp_t1`
+   88.08 %, reactive Knative 116.76 % excess over the unconstrained sweep argmin. `gnn` vs `mpoff`
+   is +3.78 pp, p = 0.130, 11/16; `gnn` vs `mlp_t1x` +3.14 pp, p = 0.553, 10/16; `gnn` vs `mlp_t1`
+   +12.22 pp, p = 0.00003, 16/16. The per-seed spread on that statistic is far wider (59–86 % vs
+   14.5–24.5 % offline), which costs the power. **An unconfounded GNN-over-pointwise claim is
+   established offline and NOT established on the live gate.** Report:
+   `simulation_data/peer_affinity_t1b_live_replay.json`.
+3. **Do not quote the `@final` row against an MLP arm.** `gnn_vs_mlp_t1x@final` reads −1.59 pp
+   "POINTWISE-BETTER" (p = 0.044) — but the MLP trainer has no final variant (it restores best-val
+   weights before saving), so that row compares an **overfit GNN against a selected MLP**. It is the
+   `route_b_v1` Phase 2 artifact in mirror image (`docs/gates/gate-tools.md`, 2026-09-07: a
+   registration comparing model classes must name one selection rule for every arm). The `gnn` vs
+   `mpoff` `@final` row IS fair (both arms have both variants) and is the tie quoted in (1).
+
+**A selector asymmetry that favours the GNN, stated rather than buried.** The GNN arms select on
+exact val decode regret (`NEAR_RTT_VAL_EXACT_REGRET=1`) — the statistic the read reports — while the
+MLP arms select on val **edge accuracy**, a proxy. So `gnn` vs `mlp_t1x` is not selector-symmetric
+and its +3.30 pp should be read as an upper bound. **`gnn` vs `mpoff` carries no such asymmetry**,
+which is why it is the contrast this entry leads with.
+
+**Provenance.** 192 runs (4 arms × 3 lrs × 16 seeds), 0 failures, all sidecar asserts passed; GNN on
+`CPU-amd` (job 754846, 96/96 COMPLETED), MLP (job 754640, 96/96, early stop at epochs 62–78). 288
+checkpoints scored on the held-out block, 0 eval failures. Chosen lrs: `gnn`/`mpoff` 2e-3,
+`mlp_t1`/`mlp_t1x` 5e-4. Reading `simulation_data/peer_affinity_t1b_read.json`, reports
+`simulation_data/peer_affinity_t1b_reports/` (288). Full suite 588 passed.
