@@ -1240,6 +1240,35 @@ PEER_AFFINITY_SCREEN_C3_X200_TRAIN2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_train2",
 }
 
+# peer_affinity_v1 denser-graph rung (2026-09-11, docs/lineages/peer_affinity_v1.md): the
+# same topology cell and batch width (c3, k = 10) with THREE exchange partners per task at
+# 800 MB. `x800_a1.5_k10c3_p3` is a paper-screen GO cell; `x200_a1.5_k10c3_p3` is not, so
+# the partner count cannot be moved alone at 200 MB — the matched p2 corpus at 800 MB is
+# generated alongside so the read can separate "more partners" from "heavier payload".
+# Fresh seeds: 7700-8199 train, 8200-8233 held-out (disjoint from every earlier corpus).
+PEER_AFFINITY_SCREEN_C3_X800_P3_TRAIN_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_GRID,
+    "peer_exchange": {"partners": 3, "x_scale_bytes": 800e6, "log10_spread": 1.0},
+    "seeds": list(range(7700, 8200)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x800_p3_train",
+}
+PEER_AFFINITY_SCREEN_C3_X800_P3_R2_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_X800_P3_TRAIN_GRID,
+    "seeds": list(range(8200, 8234)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x800_p3_r2",
+}
+PEER_AFFINITY_SCREEN_C3_X800_P2_TRAIN_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_GRID,
+    "peer_exchange": {"partners": 2, "x_scale_bytes": 800e6, "log10_spread": 1.0},
+    "seeds": list(range(7700, 8200)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x800_p2_train",
+}
+PEER_AFFINITY_SCREEN_C3_X800_P2_R2_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_X800_P2_TRAIN_GRID,
+    "seeds": list(range(8200, 8234)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x800_p2_r2",
+}
+
 GRID_PRESETS: Dict[str, GridPreset] = {
     "warmth_v2": WARMTH_V2_GRID,
     "sparse_warmth_v2": SPARSE_WARMTH_V2_GRID,
@@ -1286,6 +1315,10 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "peer_affinity_screen_c3_x200_r2": PEER_AFFINITY_SCREEN_C3_X200_R2_GRID,
     "peer_affinity_screen_c3_x200_train": PEER_AFFINITY_SCREEN_C3_X200_TRAIN_GRID,
     "peer_affinity_screen_c3_x200_train2": PEER_AFFINITY_SCREEN_C3_X200_TRAIN2_GRID,
+    "peer_affinity_screen_c3_x800_p3_train": PEER_AFFINITY_SCREEN_C3_X800_P3_TRAIN_GRID,
+    "peer_affinity_screen_c3_x800_p3_r2": PEER_AFFINITY_SCREEN_C3_X800_P3_R2_GRID,
+    "peer_affinity_screen_c3_x800_p2_train": PEER_AFFINITY_SCREEN_C3_X800_P2_TRAIN_GRID,
+    "peer_affinity_screen_c3_x800_p2_r2": PEER_AFFINITY_SCREEN_C3_X800_P2_R2_GRID,
 }
 
 

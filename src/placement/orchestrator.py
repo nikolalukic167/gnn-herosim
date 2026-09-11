@@ -23,7 +23,7 @@ import statistics
 from abc import abstractmethod
 from collections import defaultdict
 from graphlib import TopologicalSorter
-from typing import Dict, Generator, List, Optional, Set, Tuple, Type
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Type
 
 from simpy.core import Environment, SimTime
 from simpy.events import Event, Process
@@ -147,6 +147,9 @@ class Orchestrator:
         self.peer_exchange: Dict[int, Dict[int, float]] = build_peer_exchange_table(
             getattr(time_series, "peer_exchange", None)
         )
+        # stage 3 live serving: rendezvous events for peers that do not exist yet
+        # (Platform._peer_rendezvous_events waits on them; peer_ready_event below).
+        self._peer_ready_events: Dict[int, Any] = {}
         self.trace_file = trace_file
         self.initial_event_count = len(time_series.events)
         self.system_state_results: List[SystemStateResult] = []  # Store system state snapshots
@@ -154,6 +157,20 @@ class Orchestrator:
         # Set orchestrator reference on all nodes for system state capture
         for node in self.nodes.items:
             node.orchestrator_ref = self
+
+    def peer_ready_event(self, task_id: int):
+        """An event that fires when the task with this global id is scheduled (its
+        platform set). For a task the gateway has not created yet the event is minted
+        here and chained to `task.scheduled` at creation; for an existing task it IS
+        `task.scheduled`, which SimPy resumes immediately if already processed."""
+        task = self.task_by_id.get(int(task_id))
+        if task is not None:
+            return task.scheduled
+        event = self._peer_ready_events.get(int(task_id))
+        if event is None:
+            event = self.env.event()
+            self._peer_ready_events[int(task_id)] = event
+        return event
 
     def _use_low_memory_stats(self) -> bool:
         if os.getenv("SIM_FORCE_FULL_STATS", "0") == "1":
@@ -178,6 +195,23 @@ class Orchestrator:
             "averageGNNDecisionTime": avg,
         }
 
+    def _scheduler_counters(self) -> Dict[str, Any]:
+        """Policy-side counters a gate report needs alongside the totals (stage 3: how
+        many batches the prefix decoder served, tasks it deferred to the autoscaler,
+        peer pairs it saw and peers it could not, incomplete peer groups). Empty for
+        schedulers that keep none."""
+        names = (
+            "prefix_batches", "prefix_tasks_decoded", "prefix_tasks_deferred",
+            "prefix_pairs_in_batch", "prefix_peers_outside_batch",
+            "peer_group_incomplete_batches", "gnn_pure_decisions", "fallback_decisions",
+        )
+        out: Dict[str, Any] = {}
+        for name in names:
+            value = getattr(self.scheduler, name, None)
+            if isinstance(value, (int, float)):
+                out[name] = value
+        return out
+
     def _stats_low_memory(self) -> SimulationStats:
         """Single-pass aggregates without materializing full TaskResult dicts."""
         logger = logging.getLogger('simulation')
@@ -194,6 +228,7 @@ class Orchestrator:
         sum_link_wait = sum_link_transfer = 0.0
         sum_ingress_wait = sum_node_contention = 0.0
         sum_peer_exchange = 0.0
+        sum_peer_rendezvous = 0.0
         sum_local_deps = sum_local_comms = 0.0
         sum_cold_started = sum_cache_hit = 0.0
         sum_task_energy = 0.0
@@ -229,6 +264,7 @@ class Orchestrator:
             sum_ingress_wait += float(getattr(task, "ingress_wait_time", 0.0) or 0.0)
             sum_node_contention += float(getattr(task, "node_contention_time", 0.0) or 0.0)
             sum_peer_exchange += float(getattr(task, "peer_exchange_time", 0.0) or 0.0)
+            sum_peer_rendezvous += float(getattr(task, "peer_rendezvous_wait", 0.0) or 0.0)
             sum_local_deps += float(getattr(task, "local_dependencies", 0.0) or 0.0)
             sum_local_comms += float(getattr(task, "local_communications", 0.0) or 0.0)
             sum_cold_started += float(getattr(task, "cold_started", False) or False)
@@ -361,6 +397,7 @@ class Orchestrator:
             "taskResults": [],
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
+            "schedulerCounters": self._scheduler_counters(),
             "num_tasks": n_tasks,
             **inference_agg,
             "statsSchemaVersion": "v2_streaming",
@@ -376,6 +413,7 @@ class Orchestrator:
             "averageNodeContentionTime": sum_node_contention / n_tasks,
             "totalPeerExchangeTime": sum_peer_exchange,
             "averagePeerExchangeTime": sum_peer_exchange / n_tasks,
+            "totalPeerRendezvousWait": sum_peer_rendezvous,
             "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
@@ -614,6 +652,10 @@ class Orchestrator:
             float(task_result.get("peerExchangeTime", 0.0) or 0.0)
             for task_result in task_results
         )
+        sum_peer_rendezvous = sum(
+            float(task_result.get("peerRendezvousWait", 0.0) or 0.0)
+            for task_result in task_results
+        )
         average_node_contention_time = sum(
             float(task_result.get("nodeContentionTime", 0.0) or 0.0)
             for task_result in task_results
@@ -679,6 +721,7 @@ class Orchestrator:
             "taskResults": task_results if task_results_included else [],
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
+            "schedulerCounters": self._scheduler_counters(),
             "num_tasks": num_tasks,
             "statsSchemaVersion": "v2_task_metrics",
             "taskResultsIncluded": task_results_included,
@@ -695,6 +738,7 @@ class Orchestrator:
             "averageNodeContentionTime": average_node_contention_time,
             "totalPeerExchangeTime": sum_peer_exchange,
             "averagePeerExchangeTime": sum_peer_exchange / num_tasks,
+            "totalPeerRendezvousWait": sum_peer_rendezvous,
             "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
@@ -920,6 +964,9 @@ class Orchestrator:
             self.task_archive.extend(app.tasks)
             for created in app.tasks:
                 self.task_by_id[created.id] = created
+                pending = self._peer_ready_events.pop(created.id, None)
+                if pending is not None:
+                    created.scheduled.callbacks.append(lambda _ev, _p=pending: _p.succeed())
 
             # Start counting first task time from here
             first_task: Task = app.tasks[0]

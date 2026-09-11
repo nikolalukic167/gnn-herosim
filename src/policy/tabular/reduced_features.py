@@ -404,9 +404,15 @@ class PartialStateContext:
         self.contract = resolve_partial_state_contract(contract)
         self.peer_mass = peer_mass_enabled()
         if self.contract == PARTIAL_STATE_CONTRACT_V2:
-            if not self.peer_pairs or self.peer_norm <= 0.0:
+            # The cache records peer_norm=0.0 for a dataset without peers, so a v2 cache
+            # on a peer-less corpus is still refused here. A LIVE batch may legitimately
+            # carry no in-batch pair (a lone task) and passes a positive norm with an
+            # empty table: columns 7-9 are then identically zero whatever the norm
+            # (src/policy/gnn/prefix_serving.py).
+            if self.peer_norm <= 0.0:
                 raise ValueError(
-                    "partial_state_v2 requires a peer_exchange corpus (peer_pairs, peer_norm > 0)"
+                    "partial_state_v2 requires a peer_exchange corpus (peer_norm > 0; "
+                    "the cache writes 0.0 when a dataset has no peer table)"
                 )
             if any(parents.get(t) for t in parents):
                 raise ValueError("partial_state_v2 cannot be used on a corpus with DAG edges: "

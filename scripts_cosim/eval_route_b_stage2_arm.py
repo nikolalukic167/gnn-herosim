@@ -226,107 +226,18 @@ def load_arm(checkpoint_path: Path) -> Dict[str, Any]:
             "cannot be inferred from a successful load_state_dict "
             "(herosim-checkpoint-contract-holes)."
         )
-    sidecar = json.loads(sidecar_path.read_text())
-    # Whether the GIN forward is skipped is weight-invisible and lives in the environment,
-    # so a checkpoint trained MP-OFF and scored here with the flag unset silently
-    # message-passes through weights that were never fitted with it. Measured on the
-    # route_b DAG corpus 2026-09-03: train regret 12.67% (matched) vs 72.23% (mismatched)
-    # — an error large enough to read as a decisive ablation result. Sidecars written
-    # before that date carry no key; those checkpoints predate the fix and are only safe
-    # if the flag was unset at train time, which is the historical default.
-    declared_mp_off = sidecar.get("disable_message_passing")
-    serving_mp_off = os.environ.get(
-        "GNN_DISABLE_MESSAGE_PASSING", "").strip().lower() in ("1", "true", "yes")
-    if declared_mp_off is not None and bool(declared_mp_off) != serving_mp_off:
-        raise EvalError(
-            f"{checkpoint_path}: sidecar declares disable_message_passing="
-            f"{bool(declared_mp_off)} but this process has "
-            f"GNN_DISABLE_MESSAGE_PASSING {'set' if serving_mp_off else 'unset'}. "
-            "Scoring an MP-OFF checkpoint with message passing on (or the reverse) is a "
-            "train/serve mismatch, not an ablation — export the flag to match the sidecar."
-        )
-    if not sidecar.get("partial_state_edge_features"):
-        raise EvalError(
-            f"{checkpoint_path}: sidecar does not declare "
-            "partial_state_edge_features=true — this is not a stage-2 T2 (A1) "
-            "checkpoint (masked_topo eval here assumes prefix conditioning)."
-        )
-    trained_contract = sidecar.get("partial_state_contract")
-    require_matching_partial_state_contract(
-        trained_contract, resolve_partial_state_contract(), model_label=str(checkpoint_path)
-    )
-    from src.notebooks.prepare_graphs_cache import DAG_TASK_TYPE_VOCAB
-    from src.policy.gnn.gnn_model import TaskPlacementGNN
+    # peer_affinity_v1 stage 3 (2026-09-11): ONE construction for the offline read and
+    # the live scheduler. Sidecar validation (contracts, vocab, peer_mass, MP flag), dims
+    # read off the weights, decode options -- all in src/policy/gnn/prefix_serving.py.
+    # The registered offline protocol exports every flag explicitly; the shared loader
+    # verifies an exported flag and adopts an unset one, so a report produced here is
+    # bit-identical to the pre-refactor evaluator (regression-checked on T1b seed 1).
+    from src.policy.gnn.prefix_serving import PrefixServingError, load_prefix_conditioned_gnn
 
-    onehot_dim = int(sidecar.get("task_type_onehot_dim") or 0)
-    if onehot_dim and list(sidecar.get("dag_task_type_vocab") or []) != list(
-        DAG_TASK_TYPE_VOCAB
-    ):
-        raise EvalError(
-            f"{checkpoint_path}: sidecar dag_task_type_vocab "
-            f"{sidecar.get('dag_task_type_vocab')!r} != the live vocab "
-            f"{list(DAG_TASK_TYPE_VOCAB)!r} — a vocab reorder would silently "
-            "permute task types"
-        )
-    trained_peer_mass = sidecar.get("peer_mass")
-    if trained_peer_mass is not None:
-        from src.policy.tabular.reduced_features import peer_mass_enabled
-        if bool(trained_peer_mass) != peer_mass_enabled():
-            raise EvalError(
-                f"{checkpoint_path}: sidecar peer_mass={bool(trained_peer_mass)} but "
-                f"PARTIAL_STATE_PEER_MASS resolves to {peer_mass_enabled()}; export it to match"
-            )
-    partial_state_dim = int(sidecar.get("partial_state_feature_dim") or 0)
-    if partial_state_dim != PARTIAL_STATE_FEATURE_DIM:
-        raise EvalError(
-            f"{checkpoint_path}: sidecar partial_state_feature_dim="
-            f"{partial_state_dim} != live PARTIAL_STATE_FEATURE_DIM="
-            f"{PARTIAL_STATE_FEATURE_DIM}"
-        )
-
-    state_dict = payload
-    task_w = state_dict["task_encoder.net.0.weight"]
-    plat_w = state_dict["platform_encoder.net.0.weight"]
-    task_feature_dim_total = int(task_w.shape[1])
-    platform_feature_dim = int(plat_w.shape[1])
-    task_feature_dim = task_feature_dim_total - onehot_dim
-    # hidden_dim/embedding_dim ARE weight-visible (they set every Linear's shape), so —
-    # unlike mp_dag_edges/task_type_onehot_dim, which are not — they are read off the
-    # state_dict rather than guessed from the constructor defaults (128/64), which would
-    # otherwise silently mismatch any checkpoint trained with different widths (e.g. the
-    # A1 smoke, hidden_dim=64) and fail loudly via a shape-mismatch load_state_dict.
-    hidden_dim = int(task_w.shape[0])
-    embedding_dim = int(state_dict["task_encoder.net.4.weight"].shape[0])
-    num_layers = sum(
-        1 for k in state_dict if k.startswith("gin.convs.") and k.endswith(".nn.lins.0.weight")
-    )
-    if num_layers <= 0:
-        raise EvalError(f"{checkpoint_path}: could not infer num_layers from gin.convs.* keys")
-
-    def build_model(task_input_dim: int, platform_input_dim: int) -> "TaskPlacementGNN":
-        m = TaskPlacementGNN(
-            task_feature_dim=task_input_dim,
-            platform_feature_dim=platform_input_dim,
-            embedding_dim=embedding_dim,
-            hidden_dim=hidden_dim,
-            num_layers=num_layers,
-            mp_residual=bool(sidecar.get("mp_residual", False)),
-            mp_node_edges=bool(sidecar.get("mp_node_edges", False)),
-            mp_node_edges_candidates_only=bool(
-                sidecar.get("mp_node_edges_candidates_only", True)
-            ),
-            mp_network_entities=bool(sidecar.get("mp_network_entities", False)),
-            mp_dag_edges=bool(sidecar.get("mp_dag_edges", False)),
-            mp_peer_edges=bool(sidecar.get("mp_peer_edges", False)),
-            task_type_onehot_dim=onehot_dim,
-            partial_state_edge_dim=partial_state_dim,
-            normalize_platform_inputs=sidecar.get("feature_dim") == 21,
-        )
-        m.load_state_dict(state_dict)
-        m.eval()
-        return m
-
-    model = build_model(task_feature_dim, platform_feature_dim)
+    try:
+        model, _options, sidecar = load_prefix_conditioned_gnn(checkpoint_path, adopt_env=False)
+    except PrefixServingError as exc:
+        raise EvalError(str(exc)) from exc
 
     def make_gnn_score_fn(graph, ctx):
         return make_partial_state_score_fn(model, graph, ctx)

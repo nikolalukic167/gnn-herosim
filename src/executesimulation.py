@@ -804,13 +804,32 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         # would otherwise rebuild at edge_dim=43 and die inside fc1 on a 5-wide edge_attr:
         # loud, but cryptic, and only by luck. Say what is actually wrong instead.
         if mp_cfg.get("partial_state_edge_features"):
-            raise ValueError(
-                f"{model_path.name} is a route_b stage-2 T2 checkpoint (partial-state "
-                "edge features + teacher-forced prefix conditioning). Live serving of "
-                "the masked_topo prefix is stage 3 and does not exist; serving it here "
-                "would score every candidate against an all-zero prefix block. Use the "
-                "offline stage-2 harness."
+            # peer_affinity_v1 stage 3 (2026-09-11): prefix-conditioned checkpoints serve
+            # through src/policy/gnn/prefix_serving.py — the same construction the
+            # offline evaluator uses — and ONLY under the masked_topo decode, which is
+            # the one decoder that builds the prefix the scores are conditioned on.
+            # Any other decode mode would score every candidate against an all-zero
+            # prefix block, so it is refused rather than defaulted.
+            from src.policy.gnn.prefix_serving import load_prefix_conditioned_gnn
+
+            decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+            if decode_mode != "masked_topo":
+                raise ValueError(
+                    f"{model_path.name} is prefix-conditioned (partial_state_edge_features) "
+                    f"and can only be served with GNN_DECODE_MODE=masked_topo; got "
+                    f"{decode_mode!r}. Any other decode would score against an all-zero "
+                    "prefix block."
+                )
+            model, options, _sidecar = load_prefix_conditioned_gnn(model_path, device=device)
+            model.prefix_serving_options = options
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
+            print(
+                f"GNN model loaded successfully (prefix-conditioned, "
+                f"{sum(p.numel() for p in model.parameters()):,} parameters)",
+                flush=True,
             )
+            return model, device
         # mp_dag_edges is weight-invisible, exactly like mp_node_edges: refuse to let a
         # stale env var silently add DAG message passing a checkpoint never trained on.
         mp_dag_edges = mp_cfg.get("mp_dag_edges", False)
@@ -1037,6 +1056,12 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_SEQBLEND_QUEUE_MARGIN",
             "HEROSIM_GNN_DEVICE",
             "HEROSIM_PEER_EXCHANGE",
+            # peer_affinity_v1 stage 3: what the prefix-conditioned arm was served with
+            "GNN_BATCH_BY_PEER_GROUP",
+            "GNN_PREFIX_ALPHA_KEY",
+            "HEROSIM_SERVER_ONLY_REPLICAS",
+            "PARTIAL_STATE_CONTRACT",
+            "PARTIAL_STATE_PEER_MASS",
             "INFERENCE_FEATURE_LAYOUT",
             "KNATIVE_BATCH_SIZE",
             "KNATIVE_BATCH_TIMEOUT",

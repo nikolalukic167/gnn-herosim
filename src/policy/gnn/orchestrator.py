@@ -57,12 +57,14 @@ class GNNOrchestrator(Orchestrator):
             self.scheduler.batch_timeout = float(self.scheduler_config["batch_timeout"])
         if self.scheduler_config and "batch_size" in self.scheduler_config:
             cfg_bs = int(self.scheduler_config["batch_size"])
-            from src.policy.gnn.scheduler import MAX_BATCH_SIZE_FOR_GNN, MIN_BATCH_SIZE_FOR_GNN
-
-            if cfg_bs > MAX_BATCH_SIZE_FOR_GNN or cfg_bs < MIN_BATCH_SIZE_FOR_GNN:
+            # The range is the scheduler's own: [2,4] for the argmax family, [1,16] for
+            # the prefix-conditioned masked_topo decoder (peer_affinity_v1 stage 3).
+            lo = getattr(self.scheduler, "batch_min", 2)
+            hi = getattr(self.scheduler, "batch_max", 4)
+            if cfg_bs > hi or cfg_bs < lo:
                 print(
                     f"[GNN Orchestrator] Ignoring infrastructure scheduler.batch_size={cfg_bs} "
-                    f"(outside GNN range [{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}]); "
+                    f"(outside GNN range [{lo},{hi}]); "
                     f"keeping GNN_BATCH_SIZE={self.scheduler.batch_size}",
                     flush=True,
                 )

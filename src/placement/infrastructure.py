@@ -204,6 +204,10 @@ class Task:
         # task's peers (HEROSIM_PEER_EXCHANGE=1; Platform._peer_exchange_time). Pairwise over
         # two jointly-decided placements, so it is neither node-indexed nor route-indexed.
         self.peer_exchange_time: DurationSecond = 0.0
+        # peer_affinity_v1 stage 3: clock time this task's input stage spent waiting for a
+        # peer that was neither placed nor planned yet (Platform._peer_rendezvous_events).
+        # 0.0 for every fully-planned batch, which is every co-sim batch.
+        self.peer_rendezvous_wait: DurationSecond = 0.0
         # Where a batch scheduler has DECIDED to run this task before it is enqueued. The
         # determined scheduler enqueues each task right after assigning it, so a later batch
         # member has no `platform` yet when an earlier one reaches its input stage; the
@@ -409,6 +413,7 @@ class Task:
             "linkWaitTime": self.link_wait_time,
             "linkHops": self.link_hops,
             "peerExchangeTime": self.peer_exchange_time,
+            "peerRendezvousWait": self.peer_rendezvous_wait,
             "sourceNode": self.node_name,
             "executionNode": self.execution_node,
             "executionPlatform": self.execution_platform,
@@ -1040,6 +1045,34 @@ class Platform:
 
         return total
 
+    def _peer_rendezvous_events(self, task: "Task") -> List[Any]:
+        """Events to wait on before charging this task's peer exchange: one per peer that
+        is neither placed nor planned (stage 3 live serving). Empty under the flag's
+        default and for every fully-planned batch. A peer the orchestrator cannot wait
+        for (no `peer_ready_event`, e.g. the unit-test fakes) is left to
+        `_peer_exchange_time`, which fails loud on it."""
+        if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
+            return []
+        orchestrator = getattr(self.node, "orchestrator_ref", None)
+        if orchestrator is None:
+            return []
+        peers = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id)
+        if not peers:
+            return []
+        ready = getattr(orchestrator, "peer_ready_event", None)
+        if ready is None:
+            return []
+        events = []
+        for peer_id in sorted(peers):
+            peer = getattr(orchestrator, "task_by_id", {}).get(peer_id)
+            if peer is not None and (
+                getattr(peer, "platform", None) is not None
+                or getattr(peer, "planned_node_name", None) is not None
+            ):
+                continue
+            events.append(ready(peer_id))
+        return events
+
     def _peer_exchange_time(self, task: "Task") -> SimTime:
         """peer_affinity_v1: cost of exchanging state with this task's peers.
 
@@ -1404,6 +1437,19 @@ class Platform:
             # peer_affinity_v1: pairwise-instance exchange with the task's peers, charged at
             # the same stage. Opt-in (HEROSIM_PEER_EXCHANGE=1) and inert without a
             # `peer_exchange` table, so every existing corpus is unaffected either way.
+            # peer_affinity_v1 stage 3 (2026-09-11): live, a peer can be neither placed
+            # nor planned when this input stage starts (it arrived later, or the batch
+            # scheduler deferred it for a replica). That is a rendezvous, not an error:
+            # wait for the peer to be scheduled, then charge the exchange against where
+            # it actually runs. The wait elapses on the simulation clock and is recorded
+            # on the task. A fully-planned batch (every co-sim run, every forced replay)
+            # yields nothing here, so those stay bit-identical.
+            rendezvous_started = self.env.now
+            for peer_ready in self._peer_rendezvous_events(task):
+                yield peer_ready
+            if self.env.now > rendezvous_started:
+                task.peer_rendezvous_wait = self.env.now - rendezvous_started
+
             peer_exchange_time = self._peer_exchange_time(task)
             if peer_exchange_time:
                 task.peer_exchange_time = peer_exchange_time

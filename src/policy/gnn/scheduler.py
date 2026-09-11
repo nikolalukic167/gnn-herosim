@@ -101,6 +101,22 @@ QUEUE_NORM_FACTOR = 50.0
 # Use fallback (shortest queue) for batches outside this range
 MIN_BATCH_SIZE_FOR_GNN = 2
 MAX_BATCH_SIZE_FOR_GNN = 4
+# peer_affinity_v1 stage 3 (2026-09-11): the prefix-conditioned decoder
+# (GNN_DECODE_MODE=masked_topo) was trained on 10-task batches and its MASK — not the
+# batch width — is what makes a plan valid, so it decodes any size >= 1 (a lone task is
+# a one-step decode with an all-zero prefix). The ceiling is the corpus's own batch
+# width with headroom for the denser-graph rungs; it is a guard against a misconfigured
+# env, not a model limit.
+MIN_BATCH_SIZE_FOR_PREFIX_GNN = 1
+MAX_BATCH_SIZE_FOR_PREFIX_GNN = 16
+PREFIX_DECODE_MODE = "masked_topo"
+
+
+def _gnn_batch_range() -> Tuple[int, int]:
+    mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+    if mode == PREFIX_DECODE_MODE:
+        return MIN_BATCH_SIZE_FOR_PREFIX_GNN, MAX_BATCH_SIZE_FOR_PREFIX_GNN
+    return MIN_BATCH_SIZE_FOR_GNN, MAX_BATCH_SIZE_FOR_GNN
 
 
 def _read_gnn_batch_size() -> int:
@@ -111,13 +127,33 @@ def _read_gnn_batch_size() -> int:
         raise ValueError(f"GNN_BATCH_SIZE must be an integer, got {raw!r}") from exc
     if size < 1:
         raise ValueError(f"GNN_BATCH_SIZE must be >= 1, got {size}")
-    if size > MAX_BATCH_SIZE_FOR_GNN:
+    lo, hi = _gnn_batch_range()
+    if size > hi:
         raise ValueError(
-            f"GNN_BATCH_SIZE={size} exceeds MAX_BATCH_SIZE_FOR_GNN={MAX_BATCH_SIZE_FOR_GNN}; "
-            f"batches outside [{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}] use "
+            f"GNN_BATCH_SIZE={size} exceeds the GNN batch ceiling {hi} for decode mode "
+            f"{os.environ.get('GNN_DECODE_MODE', 'argmax')!r}; batches outside [{lo},{hi}] use "
             "shortest-queue fallback and corrupt GNN/MLP comparisons"
         )
     return size
+
+
+def _read_batch_by_peer_group() -> bool:
+    """GNN_BATCH_BY_PEER_GROUP=1: collect the first task's whole peer group (transitive
+    closure of the trace's peer_exchange table) into one batch, waiting up to
+    GNN_BATCH_TIMEOUT for members that have not arrived yet; tasks of other groups stay
+    queued. This is the live analogue of the co-sim batch (= the peer group). The
+    reactive baselines keep placing per arrival, peer-blind, and are charged the same
+    exchange physics. Requires masked_topo."""
+    raw = os.environ.get("GNN_BATCH_BY_PEER_GROUP", "0").strip().lower()
+    if raw not in ("", "0", "false", "no", "1", "true", "yes"):
+        raise ValueError(f"GNN_BATCH_BY_PEER_GROUP must be a boolean, got {raw!r}")
+    on = raw in ("1", "true", "yes")
+    if on and os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower() != PREFIX_DECODE_MODE:
+        raise ValueError(
+            "FAIL LOUD: GNN_BATCH_BY_PEER_GROUP=1 needs GNN_DECODE_MODE=masked_topo — only the "
+            "prefix-conditioned decoder scores a batch against its peer edges"
+        )
+    return on
 
 
 def _read_gnn_batch_timeout() -> float:
@@ -141,7 +177,20 @@ class GNNScheduler(Scheduler):
         # MLP/XGB batch schedulers inherit these settings via GNNScheduler.
         self.batch_size = _read_gnn_batch_size()
         self.batch_timeout = _read_gnn_batch_timeout()
-        
+        self.batch_min, self.batch_max = _gnn_batch_range()
+        # peer_affinity_v1 stage 3: prefix-conditioned serving state. The decode options
+        # come off the checkpoint sidecar (set_models); the counters make a gate report
+        # say how many batches were peer-complete and how many peers the decoder could
+        # not see, instead of leaving that to be inferred.
+        self.batch_by_peer_group = _read_batch_by_peer_group()
+        self._prefix_options = None
+        self.prefix_batches = 0
+        self.prefix_tasks_decoded = 0
+        self.prefix_tasks_deferred = 0
+        self.prefix_pairs_in_batch = 0
+        self.prefix_peers_outside_batch = 0
+        self.peer_group_incomplete_batches = 0
+
         # GNN model will be set via models dict from orchestrator
         self.gnn_model = None
         self.device = None
@@ -227,6 +276,21 @@ class GNNScheduler(Scheduler):
         if 'gnn_model' in models:
             self.gnn_model = models['gnn_model']
             print(f"[GNN Scheduler] Model loaded: {type(self.gnn_model).__name__}", flush=True)
+            # peer_affinity_v1 stage 3: load_gnn_model pins the sidecar's decode options
+            # on the module; masked_topo cannot run without them.
+            self._prefix_options = getattr(self.gnn_model, "prefix_serving_options", None)
+            if self._decode_mode == PREFIX_DECODE_MODE and self._prefix_options is None:
+                raise ValueError(
+                    "FAIL LOUD: GNN_DECODE_MODE=masked_topo but the loaded model carries no "
+                    "prefix_serving_options — it is not a prefix-conditioned checkpoint "
+                    "(src/policy/gnn/prefix_serving.py)"
+                )
+            if self._prefix_options is not None and self._decode_mode != PREFIX_DECODE_MODE:
+                raise ValueError(
+                    f"FAIL LOUD: {type(self.gnn_model).__name__} is prefix-conditioned "
+                    f"(partial_state_edge_features) but GNN_DECODE_MODE={self._decode_mode!r}; "
+                    "only masked_topo builds the prefix it scores against"
+                )
         else:
             print("[GNN Scheduler] WARNING: 'gnn_model' not found in models dict", flush=True)
         
@@ -257,7 +321,7 @@ class GNNScheduler(Scheduler):
 
         logging.info(
             f"[ {self.env.now} ] GNN Scheduler started with policy {self.policy}"
-            f" (batch_size={self.batch_size}, gnn_range=[{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}])"
+            f" (batch_size={self.batch_size}, gnn_range=[{self.batch_min},{self.batch_max}])"
         )
 
         while True:
@@ -289,12 +353,38 @@ class GNNScheduler(Scheduler):
         # First task: wait indefinitely (blocking is expected)
         task: Task = yield self.tasks.get(task_filter)
         batch.append(task)
-        
+
         # Wait for batch_timeout to collect more tasks
         # Use small increments to be responsive while still batching
         timeout_remaining = self.batch_timeout
         poll_interval = 0.001  # 1ms polling interval
-        
+
+        if self.batch_by_peer_group:
+            # peer_affinity_v1 stage 3: the batch IS the first task's peer group. Members
+            # already placed by an earlier (incomplete) batch are not waited for; members
+            # that have not arrived yet are, up to the batch timeout, which is a real
+            # queueing cost this arm pays and the reactive arms do not.
+            orch = self._orchestrator()
+            remaining = {
+                j for j in self._peer_group(task)
+                if j != task.id and not self._peer_already_scheduled(orch, j)
+            }
+            while remaining and len(batch) < self.batch_size and timeout_remaining > 0:
+                ready = [t for t in self.tasks.items if t.id in remaining and task_filter(t)]
+                if ready:
+                    member: Task = yield self.tasks.get(
+                        lambda queued, _r=remaining: queued.id in _r and task_filter(queued)
+                    )
+                    batch.append(member)
+                    remaining.discard(member.id)
+                else:
+                    wait_time = min(poll_interval, timeout_remaining)
+                    yield self.env.timeout(wait_time)
+                    timeout_remaining -= wait_time
+            if remaining:
+                self.peer_group_incomplete_batches += 1
+            return batch
+
         while len(batch) < self.batch_size and timeout_remaining > 0:
             # Check if there are any ready tasks in the queue
             ready_tasks = [t for t in self.tasks.items if task_filter(t)]
@@ -337,7 +427,14 @@ class GNNScheduler(Scheduler):
         """
         batch_start = default_timer()
         batch_size = len(batch_tasks)
-        
+
+        # peer_affinity_v1 stage 3: the prefix-conditioned decoder has its own batch
+        # path — joint decode first, node pre-pass for the peer physics, then enqueue;
+        # no shortest-queue fallback anywhere in it.
+        if self._decode_mode == PREFIX_DECODE_MODE:
+            yield from self._process_task_batch_prefix(batch_tasks)
+            return
+
         # Get system state once for the entire batch
         system_state: SystemState = yield self.mutex.get()
 
@@ -352,10 +449,10 @@ class GNNScheduler(Scheduler):
         temporal_state = self._capture_temporal_state_snapshot()
         
         # Skip GNN for batches outside training range [2, 3]
-        if batch_size < MIN_BATCH_SIZE_FOR_GNN or batch_size > MAX_BATCH_SIZE_FOR_GNN:
+        if batch_size < self.batch_min or batch_size > self.batch_max:
             placements = None  # Will trigger fallback to shortest queue
             inference_time = 0.0
-            logging.info(f"[ {self.env.now} ] GNN: Batch size {batch_size} outside GNN range [{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}], using fallback")
+            logging.info(f"[ {self.env.now} ] GNN: Batch size {batch_size} outside GNN range [{self.batch_min},{self.batch_max}], using fallback")
         else:
             # Build graph and run GNN inference
             inference_start = default_timer()
@@ -458,6 +555,210 @@ class GNNScheduler(Scheduler):
             yield node.platforms.put(platform)
             yield self.nodes.put(node)
             
+            yield self.mutex.put(current_system_state)
+
+    # ------------------------------------------------------------------
+    # peer_affinity_v1 stage 3: prefix-conditioned serving (GNN_DECODE_MODE=masked_topo)
+    # ------------------------------------------------------------------
+
+    def _orchestrator(self):
+        for node in self.nodes.items:
+            orch = getattr(node, "orchestrator_ref", None)
+            if orch is not None:
+                return orch
+        raise RuntimeError("GNN scheduler: no node carries an orchestrator_ref yet")
+
+    def _peer_group(self, task: Task) -> Set[int]:
+        """Transitive closure of the peer table from `task` (global task ids, incl. its own)."""
+        table = getattr(self._orchestrator(), "peer_exchange", None) or {}
+        seen = {int(task.id)}
+        stack = [int(task.id)]
+        while stack:
+            i = stack.pop()
+            for j in table.get(i, {}):
+                if j not in seen:
+                    seen.add(int(j))
+                    stack.append(int(j))
+        return seen
+
+    @staticmethod
+    def _peer_already_scheduled(orch, task_id: int) -> bool:
+        peer = getattr(orch, "task_by_id", {}).get(int(task_id))
+        return peer is not None and bool(peer.scheduled.triggered)
+
+    def _prefix_inference(
+        self,
+        batch_tasks: List[Task],
+        system_state: SystemState,
+        queue_snapshot: Dict[str, int],
+        temporal_state: Optional[Dict[str, Dict[str, float]]],
+    ) -> Dict[int, Tuple[int, int]]:
+        """Build the live graph, attach the prefix block, run the registered decoder.
+
+        Strict by construction: every exception propagates. A prefix-conditioned gate
+        that silently served shortest-queue for a batch would report a number that is
+        not the model's, so there is no try/except here at all.
+        """
+        from src.policy.gnn.prefix_serving import (
+            attach_live_prefix_block,
+            decode_prefix_conditioned,
+        )
+
+        if self.gnn_model is None or self._prefix_options is None:
+            raise RuntimeError("masked_topo: model / prefix options not set (set_models)")
+        graph, task_logit_to_placement = self._build_inference_graph(
+            batch_tasks, system_state, queue_snapshot, temporal_state
+        )
+        if graph is None:
+            raise RuntimeError("masked_topo: the live graph builder returned no feasible edges")
+        for idx, task in enumerate(batch_tasks):
+            if not task_logit_to_placement.get(idx):
+                raise RuntimeError(
+                    f"masked_topo: task {task.id} ({task.type['name']}) has no candidate edge "
+                    "in the live graph although it has network-accessible replicas"
+                )
+        graph.queue_snapshot = dict(queue_snapshot)
+        graph.task_logit_to_placement = task_logit_to_placement
+        graph._task_logit_to_placement = task_logit_to_placement
+        diag = attach_live_prefix_block(
+            graph,
+            batch_tasks,
+            nodes=list(self.nodes.items),
+            peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
+            options=self._prefix_options,
+        )
+        self.prefix_pairs_in_batch += int(diag["n_pairs_in_batch"])
+        self.prefix_peers_outside_batch += int(diag["peers_outside_batch"])
+        graph = move_graph_tensors_(graph, self.device)
+        with torch.no_grad():
+            combo = decode_prefix_conditioned(
+                self.gnn_model, graph, self._prefix_options, stats=self.decode_stats
+            )
+        self.last_prefix_graph = graph  # parity checks read the served graph
+        trace_path = os.environ.get("GNN_PREFIX_TRACE_PATH", "").strip()
+        if trace_path:
+            # One pickled record per served batch: the served graph (CPU tensors + the
+            # prefix context) and the decoded plan, so a parity check can hold the live
+            # graph up against the cache graph attribute by attribute.
+            import pickle
+
+            record = {
+                "sim_time": float(self.env.now),
+                "task_ids": [int(t.id) for t in batch_tasks],
+                "task_types": [str(t.type["name"]) for t in batch_tasks],
+                "combo": [list(c) for c in combo],
+                "graph": _detached_graph_copy(graph),
+                "diag": dict(diag),
+            }
+            with open(trace_path, "ab") as fh:
+                pickle.dump(record, fh)
+        return {idx: combo[idx] for idx in range(len(combo))}
+
+    def _process_task_batch_prefix(self, batch_tasks: List[Task]) -> Generator:
+        """masked_topo batch path.
+
+        1. Under one mutex hold: snapshot the state, split the batch into tasks WITH a
+           network-accessible replica (decodable) and tasks without (deferred), decode
+           the decodable ones jointly, and set every decodable task's
+           `planned_node_name` BEFORE anything is enqueued — the peer physics reads it
+           the moment a peer's input stage starts (the same pre-pass the determined
+           scheduler performs for forced batches).
+        2. Deferred tasks go back to the queue behind an autoscaler request, exactly as
+           the reactive path does. Their peers do not wait on them here: the input-stage
+           rendezvous in Platform.platform_process waits for them.
+        3. Decodable tasks are enqueued at their decoded placement. A placement that is
+           no longer a replica when its turn comes is an error, not a fallback.
+        """
+        system_state: SystemState = yield self.mutex.get()
+        maybe_capture_batch_live_audit_snapshot(
+            self, system_state, batch_tasks, self._live_audit_policy_name
+        )
+        queue_snapshot = self._capture_full_queue_snapshot()
+        temporal_state = self._capture_temporal_state_snapshot()
+
+        decodable: List[Task] = []
+        deferred: List[Task] = []
+        for task in batch_tasks:
+            task_replicas = system_state.replicas.get(task.type["name"], set())
+            if self._get_valid_replicas(task_replicas, task):
+                decodable.append(task)
+            else:
+                deferred.append(task)
+
+        placements: Dict[int, Tuple[int, int]] = {}
+        inference_time = 0.0
+        if decodable:
+            inference_start = default_timer()
+            placements = self._prefix_inference(
+                decodable, system_state, queue_snapshot, temporal_state
+            )
+            inference_time = default_timer() - inference_start
+            node_by_id = {node.id: node for node in self.nodes.items}
+            for idx, task in enumerate(decodable):
+                task.planned_node_name = node_by_id[placements[idx][0]].node_name
+            self.prefix_batches += 1
+            self.prefix_tasks_decoded += len(decodable)
+            logging.info(
+                f"[ {self.env.now} ] GNN masked_topo: batch of {len(batch_tasks)} "
+                f"({len(decodable)} decoded, {len(deferred)} deferred) in {inference_time*1000:.2f}ms"
+            )
+        self.prefix_tasks_deferred += len(deferred)
+        yield self.mutex.put(system_state)
+
+        for task in deferred:
+            current_system_state: SystemState = yield self.mutex.get()
+            logging.warning(
+                f"[ {self.env.now} ] GNN masked_topo: no network-accessible replica for {task}"
+            )
+            task.postponed_count += 1
+            yield self.tasks.put(task)
+            yield self.env.process(
+                self.autoscaler.create_first_replica(
+                    current_system_state, task.type, source_node_name=task.node_name
+                )
+            )
+            yield self.mutex.put(current_system_state)
+
+        for idx, task in enumerate(decodable):
+            task_start = default_timer()
+            current_system_state = yield self.mutex.get()
+            target_node_id, target_plat_id = placements[idx]
+            task_replicas = current_system_state.replicas.get(task.type["name"], set())
+            match = [
+                (node, plat) for node, plat in task_replicas
+                if node.id == target_node_id and plat.id == target_plat_id
+            ]
+            if not match:
+                raise RuntimeError(
+                    f"masked_topo: decoded placement ({target_node_id}, {target_plat_id}) for "
+                    f"task {task.id} is no longer a replica of {task.type['name']} — refusing "
+                    "to substitute a fallback"
+                )
+            target_node, target_platform = match[0]
+            self.gnn_pure_decisions += 1
+
+            from src.placement.replica_seeding import start_deferred_cold_init
+
+            start_deferred_cold_init(
+                self.env, self.autoscaler, target_node, target_platform,
+                task_replicas, task.type, current_system_state,
+            )
+            task.execution_node = target_node.node_name
+            task.execution_platform = str(target_platform.id)
+            task.gnn_decision_time = inference_time / max(1, len(decodable))
+
+            node: Node = yield self.nodes.get(lambda n, _id=target_node.id: n.id == _id)
+            task.node = node
+            node.unused = False
+            platform: Platform = yield node.platforms.get(
+                lambda p, _id=target_platform.id: p.id == _id
+            )
+            task.platform = platform
+            node.wall_clock_scheduling_time += default_timer() - task_start
+            yield platform.queue.put(task)
+            yield task.scheduled.succeed()
+            yield node.platforms.put(platform)
+            yield self.nodes.put(node)
             yield self.mutex.put(current_system_state)
 
     def _gnn_inference(
@@ -765,69 +1066,21 @@ class GNNScheduler(Scheduler):
         return valid_replicas
 
     def _capture_temporal_state_snapshot(self) -> Dict[str, Dict[str, float]]:
+        """Temporal state (remaining times) for all platforms — THE capture the cache
+        was built from.
+
+        Until 2026-09-11 this method carried its own copy of the formula, and the copy
+        drifted: it read `comm_remaining` off the node's real local-storage throughput
+        and latency, while `StateCaptureHelper.capture_temporal_state_for_replicas` —
+        the function that writes `full_temporal_state_at_scheduling` into every
+        system_state_captured_unique.json, i.e. what every cache and every checkpoint
+        saw — uses fixed defaults (100 MB/s, 1 ms). On a flashCard node the two differ
+        by ~4e4x on platform column 11 whenever a task is mid-execution there. Found by
+        scripts_cosim/peer_affinity_live_serve_check.py (4/34 held-out batches served a
+        column the model was never trained on). One definition now; the helper's extra
+        `previous_task_type_name` key is ignored by the feature builder.
         """
-        Capture temporal state (remaining times) for all platforms.
-        
-        Returns: Dict mapping "node_name:platform_id" -> {
-            "current_task_remaining": float,
-            "cold_start_remaining": float,
-            "comm_remaining": float
-        }
-        """
-        temporal_state = {}
-        
-        for node in self.nodes.items:
-            # Get node storage for communication time calculation
-            node_storage = None
-            for storage in node.storage.items:
-                if not storage.type.get("remote", False):
-                    node_storage = storage
-                    break
-            
-            for platform in node.platforms.items:
-                key = f"{node.node_name}:{platform.id}"
-                
-                # Initialize with zeros
-                current_task_remaining = 0.0
-                cold_start_remaining = 0.0
-                comm_remaining = 0.0
-                
-                if platform.current_task is not None:
-                    current_task = platform.current_task
-                    now = self.env.now
-                    
-                    # Current task cold start remaining
-                    if current_task.cold_started and not hasattr(current_task, "started_time"):
-                        # Task is still in cold start
-                        cold_start_duration = current_task.type["coldStartDuration"][platform.type["shortName"]]
-                        elapsed_cold_start = now - current_task.arrived_time
-                        cold_start_remaining = max(0.0, cold_start_duration - elapsed_cold_start)
-                    
-                    # Current task execution remaining
-                    if hasattr(current_task, "started_time") and current_task.started_time is not None:
-                        # Task has started executing
-                        exec_duration = current_task.type["executionTime"][platform.type["shortName"]]
-                        elapsed_exec = now - current_task.started_time
-                        current_task_remaining = max(0.0, exec_duration - elapsed_exec)
-                        
-                        # Communications remaining (estimate based on output state size)
-                        if node_storage and current_task.application:
-                            state_size_map = current_task.type.get("stateSize", {})
-                            app_name = current_task.application.type.get("name", "")
-                            if isinstance(state_size_map, dict) and app_name in state_size_map:
-                                output_size = state_size_map[app_name].get("output", 0)
-                                if isinstance(output_size, (int, float)) and output_size > 0:
-                                    throughput = node_storage.type.get("throughput", {}).get("write", 100.0 * 1024 * 1024)  # bytes/s
-                                    latency = node_storage.type.get("latency", {}).get("write", 0.001)  # seconds
-                                    comm_remaining = (output_size / throughput) + latency
-                
-                temporal_state[key] = {
-                    "current_task_remaining": current_task_remaining,
-                    "cold_start_remaining": cold_start_remaining,
-                    "comm_remaining": comm_remaining,
-                }
-        
-        return temporal_state
+        return self.state_capture.capture_full_temporal_state()
 
     def _select_placement_pure_gnn(
         self,
