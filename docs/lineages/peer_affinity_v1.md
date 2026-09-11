@@ -1006,6 +1006,47 @@ past the 20 ms batch window drops pairs visible inside the batch from 4,234 to 4
 so any live number must report `prefix_pairs_in_batch` against `prefix_peers_outside_batch`. On the
 production trace visibility is 99.5 %.
 
+### Serving fix — the platform cap turns the production gate into a win (2026-09-11)
+
+The registered gate tied because both learned arms halved per-task service and gave it all back to
+concurrency. Two node-level serving knobs were tried first and BOTH made it worse
+(`results/serving_knob_probe/`): seeding the decoder's per-node load with the standing queue
+(`GNN_PREFIX_LOAD_SEED`, three scales) cost −181 to −184 % of baseline total RTT and pushed
+`averageCommunicationsTime` from 2.82 s back to ~5.4 s — it scattered peer groups across NODES, which is
+exactly what the peer term charges for — while concurrency did not move (5.37 → 4.96–5.81). A soft
+per-candidate queue penalty (`GNN_PREFIX_CONCURRENCY_PENALTY`) cost −30 % for the same reason, smaller.
+
+**What the decode trace showed.** `node_caps` bound a node's memory; nothing bound a PLATFORM, and a
+platform is one FIFO queue. On the 3k smoke a median batch of 7 tasks landed on 3 distinct platforms with
+3 stacked on one, and **12.4 % of batches placed their entire plan on a single platform**. Peer exchange is
+charged per node PAIR and is zero within a node, so spreading a group across platforms of the same node is
+nearly free in peer terms — which is why the node-level knobs could not win and this one can.
+
+`GNN_PREFIX_PLATFORM_CAP=k` forbids a (node, platform) already holding k of the batch's tasks. Soft: the cap
+is dropped for any step where it would empty the candidate set, so a feasible decode can never become a
+failure. Default 0 (off), so every registered reading above is byte-identical and the live-serve check is
+still 34/34.
+
+| production trace, 450,729 tasks | median total_rtt | vs Knative | seeds better |
+|---|---|---|---|
+| `knative_network` | 2.0131e10 | — | — |
+| `gnn`, cap off (the registered gate) | 2.0441e10 | −1.54 % | 8/16 |
+| **`gnn`, cap 1** | **1.5727e10** | **+21.87 %** | **16/16, p = 3.1e-05** |
+| `mpoff`, cap 1 | 1.6067e10 | +20.19 % | 14/16, p = 0.002 |
+
+Paired by seed, cap 1 against cap off: `gnn` +22.44 % (16/16, p = 3.1e-05), `mpoff` +21.64 % (15/16).
+Effective parallel channels ~9.0, against 5.4 measured in the cap-off diagnostic and 15.3 for Knative.
+Seed spread also collapses: `gnn` 1.50–1.78e10 where the uncapped arm ran 1.66–2.54e10. Jobs 757145
+(knobs, 9 arms), 758227/758228 (16 seeds x 2 arms).
+
+**Read it as a serving fix, not as evidence for message passing.** Both arms gain about equally, and the
+primary `gnn` vs `mpoff` contrast under the cap is +2.37 %, p = 0.23, 10/16 — still a live TIE, exactly as
+the uncapped gate read. What changed is that both learned planners now beat the reactive baseline on a real
+production workload, which no arm of this lineage had done live before. Only cap 1 is decisive: cap 2 gives
++4.7 % over Knative and cap 3 is −4.1 % (single seed each, `results/serving_knob_probe/`). The 3k smoke
+under-predicted the effect badly (+3.2 % at cap 1 there against +24 % on the full trace), so a serving knob
+must be sized on the production trace, not on a smoke.
+
 ### Denser peer graph — x800 p3 / p2 (2026-09-11): the third partner is what makes MP survive the honest selector
 
 Registration: T1b's verbatim (4 arms x 3 lr x 16 seeds, honest selector, `gnn` vs `mpoff` primary), not
