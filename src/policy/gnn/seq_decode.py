@@ -785,6 +785,7 @@ def decode_masked_topo_placement(
     allow_replica_reuse: bool = False,
     relax_on_stuck: bool = False,
     initial_load: Optional[Mapping[int, float]] = None,
+    platform_cap: int = 0,
 ) -> Optional[PlacementCombo]:
     """The §4 shared masked decoder (docs/lineages/route_b_v1/stage2-preregistration.md, corrected
     2026-08-26) — decode mode "masked_topo".
@@ -838,6 +839,13 @@ def decode_masked_topo_placement(
     # exactly as every registered read has used it. Backtracking only ever subtracts what
     # this decode added, so a seeded floor is never undone.
     load: Dict[int, float] = {int(k): float(v) for k, v in (initial_load or {}).items()}
+    # peer_affinity_v1 stage 3: `platform_cap` > 0 forbids a (node, platform) that already
+    # holds that many of THIS batch's tasks. node_caps limit a node; nothing limited a
+    # platform, and a platform is one FIFO queue, so a batch could legally serialise itself
+    # on one replica (measured: 12.4 % of live batches placed their whole plan on a single
+    # platform). Soft by construction -- if the cap empties a task's candidate set the cap
+    # is ignored for that step -- so it can never turn a feasible decode into a failure.
+    per_platform: Dict[Tuple[int, int], int] = {}
     chosen: Dict[int, Tuple[int, int]] = {}
     # peer_affinity_v1 (T1): `allow_replica_reuse` lifts the no-reuse mask (that sweep is
     # the full Cartesian product); `relax_on_stuck` backtracks one committed step at a
@@ -888,10 +896,24 @@ def decode_masked_topo_placement(
                 ranked.append(((-float(logits_t[i]), placement), placement, i))
             ranked.sort(key=lambda r: r[0])
             alternatives.append(ranked)
+        # `platform_cap` is applied only when some candidate can satisfy it together with
+        # every mask that was already there. Deciding that BEFORE the loop keeps this a
+        # single in-place pass over `ranked`, which the backtrack path depends on (it reuses
+        # `alternatives[step]` and pops its head to take the next-best).
+        cap_active = platform_cap > 0 and any(
+            (allow_replica_reuse or (int(c[0]), int(c[1])) not in used)
+            and per_platform.get((int(c[0]), int(c[1])), 0) < platform_cap
+            and load.get(int(c[0]), 0.0) + float(dem[i])
+            <= node_caps.get(int(c[0]), math.inf) + _MASKED_TOPO_EPS
+            for i, c in enumerate(candidates)
+        )
         best = None
         while ranked:
             key, placement, i = ranked[0]
             if not allow_replica_reuse and placement in used:
+                ranked.pop(0)
+                continue
+            if cap_active and per_platform.get(placement, 0) >= platform_cap:
                 ranked.pop(0)
                 continue
             cap = node_caps.get(placement[0], math.inf)
@@ -909,6 +931,8 @@ def decode_masked_topo_placement(
                 prev_cands = [(int(c[0]), int(c[1])) for c in task_logit_to_placement[prev_t]]
                 load[prev_placement[0]] -= float(demands[prev_t][prev_cands.index(prev_placement)])
                 used.discard(prev_placement)
+                if per_platform.get(prev_placement):
+                    per_platform[prev_placement] -= 1
                 alternatives.pop()
                 if alternatives[step - 1]:
                     alternatives[step - 1].pop(0)
@@ -943,6 +967,7 @@ def decode_masked_topo_placement(
         _key, placement, i = best
         chosen[t] = placement
         used.add(placement)
+        per_platform[placement] = per_platform.get(placement, 0) + 1
         load[placement[0]] = load.get(placement[0], 0.0) + float(dem[i])
         step += 1
     if stats is not None and relaxed_any:
