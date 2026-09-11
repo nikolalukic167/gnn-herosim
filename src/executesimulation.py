@@ -1059,6 +1059,8 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # peer_affinity_v1 stage 3: what the prefix-conditioned arm was served with
             "GNN_BATCH_BY_PEER_GROUP",
             "GNN_PREFIX_ALPHA_KEY",
+            "GNN_PREFIX_LOAD_SEED",
+            "GNN_PREFIX_CONCURRENCY_PENALTY",
             "HEROSIM_SERVER_ONLY_REPLICAS",
             "PARTIAL_STATE_CONTRACT",
             "PARTIAL_STATE_PEER_MASS",
