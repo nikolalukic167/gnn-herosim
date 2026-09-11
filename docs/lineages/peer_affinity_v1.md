@@ -1006,6 +1006,38 @@ past the 20 ms batch window drops pairs visible inside the batch from 4,234 to 4
 so any live number must report `prefix_pairs_in_batch` against `prefix_peers_outside_batch`. On the
 production trace visibility is 99.5 %.
 
+### Denser peer graph — x800 p3 / p2 (2026-09-11): the third partner is what makes MP survive the honest selector
+
+Registration: T1b's verbatim (4 arms x 3 lr x 16 seeds, honest selector, `gnn` vs `mpoff` primary), not
+re-signed. Two corpora on fresh seeds 7700-8199 (train) / 8200-8233 (held-out), same cell, same k, same
+alpha ladder, same generation env as T1b; the ONLY difference between them is the partner count.
+`p3` = 3 partners at 800 MB (the paper-screen GO cell), `p2` = 2 partners at 800 MB, the matched control
+that moves the payload without the partner. Jobs: generation 756696-756699, caches 756801/756802, training
+756856-756859 (384 GNN + 192 pointwise checkpoints, zero failures), scoring 757282/757491, reads
+757283/757492. The alpha pre-scan (`scripts_cosim/peer_affinity_alpha_prescan.py`, new) set aside 0 of 534
+datasets in p3 and 5 of 534 in p2 — datasets whose full sweep carries no cap-feasible plan at the tightest
+rung, which the cache builder would otherwise have died on (T1b lost 4 of 350 this way and set them aside
+by hand). Splits frozen and committed before any checkpoint was scored: p3 400/100/34, p2 397/99/33.
+
+| `gnn` vs `mpoff` | val-selected | last epoch |
+|---|---|---|
+| T1b (x200, 2 partners, 482 datasets) | +5.14 pp, p = 0.001 | −0.80 pp, p = 0.25 (TIE) |
+| x800 **p2** (2 partners, payload x4) | +6.53 pp, p = 0.013 | −4.06 pp, p = 0.13 (INDETERMINATE) |
+| x800 **p3** (3 partners, payload x4) | **+9.61 pp, p = 0.0003** | **+4.23 pp, p = 0.021 (GNN-NEEDED)** |
+
+**The result.** Caveat 1 of T1b — "the edge is at the SELECTED checkpoint, and the arms tie at the last
+epoch" — is removed on the p3 rung, and the control says why. Quadrupling the payload alone (p2) moves the
+val-selected contrast by about 1.4 pp and leaves the last-epoch read negative; adding the third partner
+flips it to a significant positive. Selector-robustness is bought by graph density, not by making the same
+edges heavier. Held-out median regret at the val selector: `gnn` 20.95 %, `mlp_t1x` 28.70 %, `mpoff`
+31.76 %, `mlp_t1` 34.97 % (p3); at the last epoch `gnn` 26.00 % against `mpoff` 29.46 %.
+
+Every other contrast reads GNN-NEEDED at both selectors except `gnn` vs `mlp_t1x` at the last epoch
+(+1.96 pp, p = 0.093, INDETERMINATE on p3; +1.62 pp, p = 0.60 on p2) — the hand-lookahead pointwise arm
+remains the hardest baseline, and the selector asymmetry that favours the GNN against the MLP arms (T1b
+caveat 3) still applies to those rows. It does NOT apply to `gnn` vs `mpoff`, which is the row that moved.
+Artifacts: `simulation_data/peer_affinity_x800p3_read.json`, `..._x800p2_read.json`.
+
 **Serving viability on the denser graph, measured before any x800 checkpoint exists** (3,000-event smoke,
 `smoke-150-150-3k-peer_p3_x800.json`, served by the *x200 p2* checkpoint `gnn-lr2e3-seed1` — a mechanical
 check of the path, not of the model): 3,000/3,000 tasks decoded, zero fallbacks, 4 deferred. The batching
