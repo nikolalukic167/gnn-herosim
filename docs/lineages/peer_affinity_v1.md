@@ -956,6 +956,36 @@ same rule and seed as the T1b one (`workload-150-150-peer_p3_x800.json`, 1,127,2
 `workload-150-150-peer_p2_x800.json`, 801,643 pairs), and the gate sbatch now takes `CKPREFIX`/`GATE_LR`
 (defaults reproduce the T1b gate byte-for-byte).
 
+**Why the production gate loses to reactive Knative — measured, 2026-09-11** (three arms re-run with the
+RTT decomposition retained, `results/diag_decomp/`; the gate's own summaries had dropped it). A task's
+`queueTime` is `arrived - scheduled`: it is not an independent cost but the accumulation of the service
+other tasks take on the platform it was sent to, and that service is ~99 % the peer exchange
+(`averageCommunicationsTime` 5.35 s of a 5.39 s service for Knative; `averageExecutionTime` 0.04 s). So the
+peer term is 0.01 % of a task's own RTT and nearly all of everyone else's queue.
+
+| 450,729 tasks | Knative | gnn_s1 | mpoff_s1 |
+|---|---|---|---|
+| total_rtt | 2.0131e10 | 2.1661e10 | 1.9221e10 |
+| service per task (comms + exec) | 5.391 s | 2.850 s | 2.901 s |
+| makespan | 159,215 s | 239,150 s | 244,364 s |
+| throughput | 2.83 tasks/s | 1.89 | 1.84 |
+| effective parallel channels (throughput x service) | **15.3** | **5.4** | **5.4** |
+
+The learned arms do exactly what they were trained to do — they halve the peer-exchange service — and lose
+anyway, because co-locating a peer group onto one node serialises it: they run at roughly a third of
+Knative's concurrency. **Co-location is the objective and parallelism is the constraint, and the only thing
+in the model that limits concentration is the decode capacity cap.** In the co-sim label a batch of 10 is
+placed into a near-idle cluster where serialising to save a transfer is nearly free; live, with 2,650
+arrivals/s streaming into 6 servers, concurrency is the binding resource. The α rung is therefore the dial
+between the two contrasts, and the T1b cache already carries labels at every rung of the ladder
+(`inf`, 3.125, 3.0, 2.5, 2.0), so a tighter-cap arm is a config change, not a new corpus.
+
+A second measured caveat on the live read: peer-group visibility at decode time is what produces the
+service saving at all. Stretching the same trace's arrivals (`scripts_cosim/rescale_workload_arrivals.py`)
+past the 20 ms batch window drops pairs visible inside the batch from 4,234 to 47 and the saving to zero,
+so any live number must report `prefix_pairs_in_batch` against `prefix_peers_outside_batch`. On the
+production trace visibility is 99.5 %.
+
 **Serving viability on the denser graph, measured before any x800 checkpoint exists** (3,000-event smoke,
 `smoke-150-150-3k-peer_p3_x800.json`, served by the *x200 p2* checkpoint `gnn-lr2e3-seed1` — a mechanical
 check of the path, not of the model): 3,000/3,000 tasks decoded, zero fallbacks, 4 deferred. The batching
