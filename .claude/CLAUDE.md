@@ -23,7 +23,17 @@ Three ways to get there, and **which one is live has changed again (2026-08-28)*
    (`route_b_env_pivot_v1`, chosen 2026-08-27 after route B stage 2 returned
    NO-GO-PREPROBE). **PARKED 2026-08-28** — the screen could not measure S0 on its
    overlap rungs, and even a pass would feed the objective option 1 closed. Resuming
-   needs a signed amendment in its node.
+   needs a signed amendment in its node. **Reopened on paper 2026-09-08 and killed the same
+   day** — `dag_fabric_contention_v1` (the one untried non-node-indexed lever: DAG *output*
+   payloads over the contended link fabric) is NO-GO before any code: the α=2.0 optimum carries
+   zero link wait in 98–100% of 204 datasets, so the label never sees the mechanism. Read that
+   node before proposing any contention physics; node-indexed CPU/memory contention is closed
+   by the count theorem it cites.
+   **Reopened 2026-09-10 via `peer_affinity_v1` (paper screen GO):** a cost indexed by *pairs of task
+   instances* (continuous exchange volumes, no commit order) under a binding cap is neither node-indexed
+   (the count theorem does not apply — measured: count repair 0.31 in the GO cell) nor routable-around,
+   uses no solver labels and no bandwidth/core tuning, so it violates none of the neighbouring stops.
+   Read that node before touching the environment again.
 3. **Change the training objective, not the environment** (`objective_pivot_v1`).
    **CLOSED 2026-09-03 — and with it, all three routes are answered.** Phase 1 PASSED (the
    GNN's reliability edge, scope-limited to severe collapse). Phase 2 CLOSED (horizon
@@ -36,8 +46,9 @@ Three ways to get there, and **which one is live has changed again (2026-08-28)*
 on a held-out fabric) — but so does an MLP trained on the same corpus. Both model-class
 edges over the MLP fell to corpus matching: latency ties (`link_mp_v1`, 2026-09-03) and
 the Phase 1 reliability edge is not established (`reliability_matched_v1`, p = 0.113,
-87% of the MLP's collapse burden was the corpus). **There is currently no unconfounded
-GNN-vs-MLP claim; any such number must name both arms' training cache.** The corpus is
+87% of the MLP's collapse burden was the corpus). **No unconfounded GNN-vs-MLP claim existed
+on the option-1/route-B corpora; any such number must name both arms' training cache.** (Superseded
+for `peer_affinity_v1` only, 2026-09-11 — see the 2026-09-11 paragraph below.) The corpus is
 the largest measured lever (~13 pp). Two narrow findings survive: a **trainability
 asymmetry** (the closed loop moves the GNN 150× more than the MLP — optimisation, never
 latency) and, on the route B DAG corpus, a **fit-ceiling split** (converged, the GNN fits
@@ -52,6 +63,25 @@ lever there either. The target has ~23% joint variance, all of it pairwise
 parent→child co-location that every arm already sees through the prefix columns, so message
 passing is redundant, not starved; the live path cannot serve DAG checkpoints, but a frozen-
 substrate replay gate shows the no-MP planner beating reactive Knative by ~1–3% (`route_b_v1`).
+
+**2026-09-09 — the question was declared answered. 2026-09-11 — it is REOPENED, with a measured
+positive.** `docs/lineages/throughline.md` (last section) states why a graph-reasoning win looked
+unavailable on this simulator's supervised targets by construction, that the MP-OFF "GNN" is itself
+a two-tower pointwise scorer, and the three things that would change the answer. **One of them
+happened.** On `peer_affinity_v1` — an environment purpose-built so the cost is indexed by *pairs of
+task instances* rather than by machines — message passing beats its own MP-OFF twin by **+5.14 pp
+(p = 0.001, 13/16 seeds)** at 482 training datasets. Same architecture, features, decoder, selector
+and seeds; the only difference is whether `PeerConv` runs. At 136 datasets the same contrast read
++2.08 pp, p = 0.15, and was written up as "message passing is not the lever" — **that was corpus
+size, not architecture** (3.5× data buys the MP arm −5.09 pp against the MP-OFF arm's −2.43 pp).
+
+**Carry these three caveats with any quote of it**, all in `peer_affinity_v1`'s node: the edge is at
+the **selected** checkpoint, and the two arms **tie** when both are read at the last epoch (MP-ON
+memorises the training split to 0.00 % regret); the **live replay gate agrees in direction but not in
+significance** (+3.78 pp, p = 0.13), so the claim is established offline and NOT live; and
+`gnn`-vs-MLP carries a selector asymmetry favouring the GNN, while `gnn`-vs-`mpoff` carries none.
+Read `docs/lineages/peer_affinity_v1.md` (entries T1 and T1b) before proposing any new GNN-vs-MLP
+work — and before quoting the 2026-09-04 sentence above, which predates this.
 
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
