@@ -13,6 +13,7 @@
 #   0 baseline (both off -- reproduces the gate arm)   1 load seed 1.0
 #   2 load seed 1.0 + penalty 1.0                      3 penalty 1.0 alone
 #   4 load seed 4.0                                    5 load seed 0.25
+#   6 platform cap 1        7 platform cap 2        8 platform cap 3
 # Reference: knative_network on the same trace is 2.0131e10 with 15.3 channels.
 #
 #SBATCH --job-name=pa-s3-knob
@@ -24,7 +25,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
 #SBATCH --time=12:00:00
-#SBATCH --array=0-5
+#SBATCH --array=0-8
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -59,6 +60,15 @@ case ${SLURM_ARRAY_TASK_ID} in
   3) ARM=pen1;     export GNN_PREFIX_CONCURRENCY_PENALTY=1.0 ;;
   4) ARM=seed4;    export GNN_PREFIX_LOAD_SEED=4.0 ;;
   5) ARM=seed025;  export GNN_PREFIX_LOAD_SEED=0.25 ;;
+  # Round 2 (2026-09-11): rounds 1's node-level knobs both made it worse -- they scattered
+  # peer groups ACROSS nodes (comms/task 2.82 -> 5.4, back to Knative's level) and bought no
+  # concurrency at all (5.37 -> 4.96-5.81). The decoder's only unconstrained axis was the
+  # platform: a batch may legally stack on one replica, and 12.4 % of live batches placed
+  # their whole plan on a single platform. GNN_PREFIX_PLATFORM_CAP caps that. On the 3k smoke
+  # it is the first knob to help (+3.5 % at cap 2, channels 3.67 -> 4.04).
+  6) ARM=platcap1; export GNN_PREFIX_PLATFORM_CAP=1 ;;
+  7) ARM=platcap2; export GNN_PREFIX_PLATFORM_CAP=2 ;;
+  8) ARM=platcap3; export GNN_PREFIX_PLATFORM_CAP=3 ;;
   *) echo "FAIL LOUD: unknown task ${SLURM_ARRAY_TASK_ID}" >&2; exit 1 ;;
 esac
 SUMMARY="$OUT_DIR/${ARM}.summary.json"

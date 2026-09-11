@@ -97,6 +97,13 @@ class PrefixServingOptions:
     #                         forbids, so no decode can fail because of it.
     load_seed_scale: float = 0.0
     concurrency_penalty: float = 0.0
+    #   platform_cap          >0 forbids a (node, platform) that already holds that many of
+    #                         the batch's tasks. Peer exchange is charged per NODE PAIR and is
+    #                         zero within a node, so spreading a peer group across platforms
+    #                         of the SAME node costs nothing in peer terms and buys back the
+    #                         parallelism the node-level knobs could not. Soft: the cap is
+    #                         dropped for any step where it would empty the candidate set.
+    platform_cap: int = 0
 
 
 def _serving_knob(name: str) -> float:
@@ -265,13 +272,15 @@ def load_prefix_conditioned_gnn(
         partial_state_contract=str(trained_contract),
         load_seed_scale=_serving_knob("GNN_PREFIX_LOAD_SEED") if adopt_env else 0.0,
         concurrency_penalty=_serving_knob("GNN_PREFIX_CONCURRENCY_PENALTY") if adopt_env else 0.0,
+        platform_cap=int(_serving_knob("GNN_PREFIX_PLATFORM_CAP")) if adopt_env else 0,
     )
     print(
         f"[PREFIX SERVING] {label}: task_dim={task_feature_dim}+{onehot_dim} platform_dim="
         f"{platform_feature_dim} hidden={hidden_dim} emb={embedding_dim} layers={num_layers} "
         f"mp_peer_edges={options.mp_peer_edges} mp_off={declared_mp_off} "
         f"alpha={alpha_key or '(none)'} reuse={options.allow_replica_reuse} relax={options.relax_on_stuck} "
-        f"load_seed={options.load_seed_scale} conc_penalty={options.concurrency_penalty}",
+        f"load_seed={options.load_seed_scale} conc_penalty={options.concurrency_penalty} "
+        f"platform_cap={options.platform_cap}",
         flush=True,
     )
     return model, options, sidecar
@@ -585,6 +594,7 @@ def decode_prefix_conditioned(
         allow_replica_reuse=options.allow_replica_reuse,
         relax_on_stuck=options.relax_on_stuck,
         initial_load=ctx.base_load or None,
+        platform_cap=options.platform_cap,
     )
     if combo is None:
         raise PrefixServingError(
