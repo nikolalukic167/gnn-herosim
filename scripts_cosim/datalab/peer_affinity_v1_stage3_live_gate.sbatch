@@ -38,7 +38,10 @@ GATE=simulation_data/peer_affinity_live_gate
 WORKLOAD="${WORKLOAD:-$GATE/workloads/workload-150-150-peer_p2_x200.json}"
 CFG="${CFG:-$GATE/configs/cell_s7901.json}"
 TAG="$(basename "$WORKLOAD" .json)__$(basename "$CFG" .json)"
-OUT_DIR="$GATE/results/$TAG"
+# OUT_DIR override: re-run a couple of arms into a side directory (e.g. to recover the RTT
+# decomposition for arms whose raw result was already summarised and deleted) without the
+# "summary exists, not re-running" guard skipping them.
+OUT_DIR="${OUT_DIR:-$GATE/results/$TAG}"
 mkdir -p "$OUT_DIR" logs
 
 [[ -f "$WORKLOAD" ]] || { echo "FAIL LOUD: workload missing: $WORKLOAD (rsync it)" >&2; exit 1; }
