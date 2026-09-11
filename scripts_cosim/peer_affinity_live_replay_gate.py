@@ -177,6 +177,8 @@ def main() -> int:
     ap.add_argument("--read", type=Path, default=REPO_ROOT / "simulation_data/peer_affinity_t1_read.json",
                     help="T1 reading, for the per-arm chosen learning rate")
     ap.add_argument("--seeds", type=int, default=8)
+    ap.add_argument("--tag", default="t1",
+                    help="checkpoint/report family the eval reports were written under (t1, t1b).")
     ap.add_argument("--reactive", nargs="*", default=sorted(REACTIVE_STRATEGIES))
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--workers", type=int, default=max(1, min(20, (os.cpu_count() or 2) - 2)))
@@ -193,8 +195,8 @@ def main() -> int:
     decoded: Dict[str, Dict[str, List[List[int]]]] = {i: {} for i in ids}
     for arm, lr in chosen_lr.items():
         for seed in range(1, args.seeds + 1):
-            stem = (f"peer-affinity-v1-t1-{arm}-{lr}-seed{seed}" if arm in ("gnn", "mpoff")
-                    else f"peer-affinity-v1-t1-{arm}-{lr}_seed{seed}")
+            stem = (f"peer-affinity-v1-{args.tag}-{arm}-{lr}-seed{seed}" if arm in ("gnn", "mpoff")
+                    else f"peer-affinity-v1-{args.tag}-{arm}-{lr}_seed{seed}")
             path = args.reports_dir / f"{stem}.json"
             if not path.exists():
                 raise SystemExit(f"missing eval report {path}")
@@ -248,7 +250,7 @@ def main() -> int:
             continue
         print(f"{a:28s} {agg[a]['median_excess_pct']:25.2f}% {agg[a]['total_rtt_s']:10.0f}")
     for b, v in fam.items():
-        print(f"{b + ' (8 seeds)':28s} {v['mean_of_seed_medians_pct']:25.2f}% "
+        print(f"{b + ' (' + str(v['seeds']) + ' seeds)':28s} {v['mean_of_seed_medians_pct']:25.2f}% "
               f"[{v['min']:.1f}..{v['max']:.1f}]")
     return 0
 
