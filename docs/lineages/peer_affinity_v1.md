@@ -956,7 +956,27 @@ same rule and seed as the T1b one (`workload-150-150-peer_p3_x800.json`, 1,127,2
 `workload-150-150-peer_p2_x800.json`, 801,643 pairs), and the gate sbatch now takes `CKPREFIX`/`GATE_LR`
 (defaults reproduce the T1b gate byte-for-byte).
 
-**Why the production gate loses to reactive Knative — measured, 2026-09-11** (three arms re-run with the
+**Result — the registered read (2026-09-11, `simulation_data/peer_affinity_live_gate/peer_affinity_stage3_read.json`).**
+34 arms, 450,729 tasks each, none missing, jobs 756538 + 756656.
+
+| arm | n | median total_rtt | quartiles (1e9) | peer exchange | makespan |
+|---|---|---|---|---|---|
+| `gnn` | 16 | 2.0441e10 | 18.33 / 20.44 / 22.88 | 1.293e6 | 241,231 s |
+| `mpoff` | 16 | 2.0118e10 | 18.82 / 20.12 / 25.59 | 1.304e6 | 266,991 s |
+| `knative_network` | 1 | 2.0131e10 | — | 2.405e6 | 159,215 s |
+| `knative_network_batch` | 1 | 2.0129e10 | — | 2.403e6 | 158,923 s |
+
+**Primary `gnn` vs `mpoff`: +6.42 %, p = 0.323, 9/16 → INDETERMINATE.** Secondary: `gnn` vs
+`knative_network` −1.54 % (8/16, p = 0.63) and `mpoff` vs `knative_network` +0.07 % (8/16, p = 0.43) — both
+TIES, neither arm's seeds separate from the reactive baseline. **Everything ties on the production trace.**
+The offline T1b edge (+5.14 pp, p = 0.001) does not reproduce here, in the same direction and at the same
+significance as T1b's own replay gate (+3.78 pp, p = 0.13): the live claim remains unestablished, now at
+n = 16 on a real workload rather than a replay. The one asymmetry worth keeping is spread, not location:
+`mpoff` ranges 1.49e10–4.60e10 against `gnn`'s 1.66e10–2.54e10, so message passing buys reliability on this
+trace even where it does not buy median latency. Both learned arms cut peer-exchange time ~46 % below
+Knative and neither converts it, for the reason measured below.
+
+**Why the production gate does not beat reactive Knative — measured, 2026-09-11** (three arms re-run with the
 RTT decomposition retained, `results/diag_decomp/`; the gate's own summaries had dropped it). A task's
 `queueTime` is `arrived - scheduled`: it is not an independent cost but the accumulation of the service
 other tasks take on the platform it was sent to, and that service is ~99 % the peer exchange
@@ -971,8 +991,8 @@ peer term is 0.01 % of a task's own RTT and nearly all of everyone else's queue.
 | throughput | 2.83 tasks/s | 1.89 | 1.84 |
 | effective parallel channels (throughput x service) | **15.3** | **5.4** | **5.4** |
 
-The learned arms do exactly what they were trained to do — they halve the peer-exchange service — and lose
-anyway, because co-locating a peer group onto one node serialises it: they run at roughly a third of
+The learned arms do exactly what they were trained to do — they halve the peer-exchange service — and do not
+convert it, because co-locating a peer group onto one node serialises it: they run at roughly a third of
 Knative's concurrency. **Co-location is the objective and parallelism is the constraint, and the only thing
 in the model that limits concentration is the decode capacity cap.** In the co-sim label a batch of 10 is
 placed into a near-idle cluster where serialising to save a transfer is nearly free; live, with 2,650
