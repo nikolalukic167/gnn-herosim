@@ -87,9 +87,19 @@ python3 - "$OUT.partial" "$SUMMARY" "$ARM" "$POLICY" <<'PY'
 import json, sys
 raw, summary, arm, policy = sys.argv[1:5]
 d = json.load(open(raw)); st = d.get("stats") or d
+# The decomposition keys are what diagnose a live loss: on this cell queue time is ~99 % of
+# elapsed and the peer term ~0.5 %, so a gate read without them cannot say whether an arm lost
+# on placement, on cold-start warmth (nodeCacheHitsProportion) or on autoscaler churn
+# (scaleEvents). The raw result is deleted right after, so anything missing here is gone.
 s = {k: st.get(k) for k in (
     "policy", "num_tasks", "total_rtt", "averageElapsedTime", "totalPeerExchangeTime",
-    "totalPeerRendezvousWait", "endTime", "schedulerCounters")}
+    "totalPeerRendezvousWait", "endTime", "schedulerCounters",
+    "averageQueueTime", "averageWaitTime", "averageExecutionTime", "averageCommunicationsTime",
+    "averageColdStartTime", "averagePullTime", "averageInitializationTime", "averageOccupation",
+    "coldStartProportion", "nodeCacheHitsProportion", "taskCacheHitsProportion",
+    "localCommunicationsProportion", "penaltyProportion", "unusedNodes", "unusedPlatforms")}
+_se = st.get("scaleEvents")
+s["scaleEventCount"] = len(_se) if isinstance(_se, list) else _se
 s["env"] = {k: v for k, v in (d.get("run_provenance") or {}).get("env", {}).items() if v}
 s["code"] = (d.get("run_provenance") or {}).get("code")
 s["arm"] = arm; s["policy_name"] = policy; s["source"] = "raw json (deleted after summary)"
