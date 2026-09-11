@@ -62,7 +62,9 @@ else
   POLICY=gnn
   if [[ $T -le 17 ]]; then ARMNAME=gnn; SEED=$(( T - 1 )); else ARMNAME=mpoff; SEED=$(( T - 17 )); fi
   ARM="${ARMNAME}_s${SEED}"
-  CK="models/peer-affinity-v1-t1b-${ARMNAME}-lr2e3-seed${SEED}.pt"
+  # Defaults reproduce the T1b gate exactly; the x800 (denser peer graph) rung passes
+  # CKPREFIX=models/peer-affinity-v1-x800p3 and GATE_LR=<the lr its read selects>.
+  CK="${CKPREFIX:-models/peer-affinity-v1-t1b}-${ARMNAME}-${GATE_LR:-lr2e3}-seed${SEED}.pt"
   [[ -f "$CK" ]] || { echo "FAIL LOUD: checkpoint missing: $CK" >&2; exit 1; }
   [[ -f "${CK%.pt}.contract.json" ]] || { echo "FAIL LOUD: sidecar missing for $CK" >&2; exit 1; }
   export GNN_MODEL_PATH="$CK"
