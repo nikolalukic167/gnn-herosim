@@ -951,3 +951,18 @@ is committed and waits on the corpora: `peer_affinity_v1_x800_cache.sbatch` (SSC
 cache → near-RTT sidecar → split with the `_r2` corpus held out, one cache per rung `p3`/`p2`), then
 `peer_affinity_v1_x800_{gnn,mlp}_train.sbatch` with `experiments/peer_affinity_v1_x800_<rung>_*.yaml`
 (T1b's configs with only the cache, split and names changed), read with `peer_affinity_t1_read.py`.
+The rung's live gate reuses cell `cell_s7901` and two new peer-augmented production traces built with the
+same rule and seed as the T1b one (`workload-150-150-peer_p3_x800.json`, 1,127,256 pairs;
+`workload-150-150-peer_p2_x800.json`, 801,643 pairs), and the gate sbatch now takes `CKPREFIX`/`GATE_LR`
+(defaults reproduce the T1b gate byte-for-byte).
+
+**Serving viability on the denser graph, measured before any x800 checkpoint exists** (3,000-event smoke,
+`smoke-150-150-3k-peer_p3_x800.json`, served by the *x200 p2* checkpoint `gnn-lr2e3-seed1` — a mechanical
+check of the path, not of the model): 3,000/3,000 tasks decoded, zero fallbacks, 4 deferred. The batching
+structure is identical to the p2/x200 smoke (467 batches, 167 with an incomplete peer group, same 4
+deferrals) — peer density changes the pair count and the payload, not the batch assembly, which is driven
+by the trace's arrival spans (group span median 3 ms but max 110 ms against a 20 ms batch timeout; 36 % of
+batches therefore see a partial group, and the peers outside the batch are counted, not dropped). Against
+reactive `knative_network` on the same trace the mismatched checkpoint still lands at **56.1 % of its
+total RTT** with 30 % less peer-exchange time, so the denser rung's live gate is not at risk of a serving
+failure.
