@@ -38,9 +38,14 @@ EFFECT_BAR = 0.01  # 1 % of the reference arm's median total_rtt
 
 
 def _stats(path: Path) -> dict:
+    """Reads either a `<arm>.summary.json` (what the sbatch writes: totals, counters,
+    provenance env) or a raw result JSON."""
     d = json.loads(path.read_text())
-    st_ = d.get("stats") or d
-    prov = d.get("run_provenance") or {}
+    if "env" in d and "total_rtt" in d:
+        st_, env = d, d.get("env") or {}
+    else:
+        st_ = d.get("stats") or d
+        env = {k: v for k, v in (d.get("run_provenance") or {}).get("env", {}).items() if v}
     return {
         "total_rtt": float(st_["total_rtt"]),
         "num_tasks": int(st_.get("num_tasks") or 0),
@@ -49,7 +54,7 @@ def _stats(path: Path) -> dict:
         "avg_elapsed": float(st_.get("averageElapsedTime") or 0.0),
         "end_time": float(st_.get("endTime") or 0.0),
         "counters": st_.get("schedulerCounters") or {},
-        "env": {k: v for k, v in (prov.get("env") or {}).items() if v},
+        "env": env,
         "policy": st_.get("policy"),
     }
 
@@ -78,7 +83,9 @@ def main() -> int:
     for name in ["knative_network", "knative_network_batch"] + [
         f"{a}_s{s}" for a in ("gnn", "mpoff") for s in range(1, args.seeds + 1)
     ]:
-        p = args.results_dir / f"{name}.json"
+        p = args.results_dir / f"{name}.summary.json"
+        if not p.is_file():
+            p = args.results_dir / f"{name}.json"
         if p.is_file():
             arms[name] = _stats(p)
         else:

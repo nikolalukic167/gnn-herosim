@@ -71,17 +71,29 @@ else
   if [[ $ARMNAME == mpoff ]]; then export GNN_DISABLE_MESSAGE_PASSING=1; fi
 fi
 OUT="$OUT_DIR/${ARM}.json"
-echo "[TASK $T] policy=$POLICY arm=$ARM -> $OUT"
-if [[ -f "$OUT" ]]; then echo "[TASK $T] result exists, not re-running: $OUT"; exit 0; fi
+SUMMARY="$OUT_DIR/${ARM}.summary.json"
+echo "[TASK $T] policy=$POLICY arm=$ARM -> $SUMMARY"
+if [[ -f "$SUMMARY" ]]; then echo "[TASK $T] summary exists, not re-running: $SUMMARY"; exit 0; fi
 
+# A full result on this trace is ~400 MB (systemEvents + nodeResults for 450k tasks); 34 of
+# them at once exhausted the /home quota on the first submission (2026-09-11) and 23 arms
+# died at the write. The gate reads totals + counters only, so the raw JSON is reduced to a
+# summary the moment it lands and deleted. Submit with --array=...%4 to bound the transient.
 ${HEROSIM_PY:-pipenv run python3} src/executesimulation.py \
   --config "$CFG" --workload "$WORKLOAD" --policy "$POLICY" --output "$OUT.partial"
-mv "$OUT.partial" "$OUT"
-python3 - "$OUT" <<'PY'
+python3 - "$OUT.partial" "$SUMMARY" "$ARM" "$POLICY" <<'PY'
 import json, sys
-d = json.load(open(sys.argv[1])); st = d.get("stats") or d
-print("[RESULT]", json.dumps({k: st.get(k) for k in (
+raw, summary, arm, policy = sys.argv[1:5]
+d = json.load(open(raw)); st = d.get("stats") or d
+s = {k: st.get(k) for k in (
     "policy", "num_tasks", "total_rtt", "averageElapsedTime", "totalPeerExchangeTime",
-    "totalPeerRendezvousWait", "endTime", "schedulerCounters")}))
-print("[PROVENANCE env]", json.dumps({k: v for k, v in (d.get("run_provenance") or {}).get("env", {}).items() if v}))
+    "totalPeerRendezvousWait", "endTime", "schedulerCounters")}
+s["env"] = {k: v for k, v in (d.get("run_provenance") or {}).get("env", {}).items() if v}
+s["code"] = (d.get("run_provenance") or {}).get("code")
+s["arm"] = arm; s["policy_name"] = policy; s["source"] = "raw json (deleted after summary)"
+json.dump(s, open(summary + ".partial", "w"))
+print("[RESULT]", json.dumps({k: s[k] for k in s if k not in ("env", "code")}))
+print("[PROVENANCE env]", json.dumps(s["env"]))
 PY
+mv "$SUMMARY.partial" "$SUMMARY"
+rm -f "$OUT.partial"
