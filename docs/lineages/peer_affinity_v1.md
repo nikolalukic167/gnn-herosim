@@ -1039,6 +1039,27 @@ Effective parallel channels ~9.0, against 5.4 measured in the cap-off diagnostic
 Seed spread also collapses: `gnn` 1.50–1.78e10 where the uncapped arm ran 1.66–2.54e10. Jobs 757145
 (knobs, 9 arms), 758227/758228 (16 seeds x 2 arms).
 
+**The registered read, re-run in full under the cap** (34 arms, `results/platcap1_gate/`, job 758510 for
+the two reactive arms; artifact `peer_affinity_live_gate/peer_affinity_stage3_read_platcap1.json`). The
+reactive arms never enter the prefix decoder, and re-running them with `GNN_PREFIX_PLATFORM_CAP=1` in the
+environment reproduces their uncapped `total_rtt` to the last digit (2.0130899866179844e10), which is the
+control that the flag is inert outside the GNN path; the flag is recorded in their `run_provenance.env` all
+the same.
+
+| capped gate, same statistic and bars as the registered read | value |
+|---|---|
+| `gnn` median | 1.5727e10 (range 1.5012–1.7760e10) |
+| `mpoff` median | 1.6067e10 (range 1.5243–2.4291e10) |
+| `knative_network` / `_batch` | 2.0131e10 / 2.0129e10 |
+| PRIMARY `gnn` vs `mpoff` | +2.37 %, p = 0.23, 10/16 → **INDETERMINATE** |
+| `gnn` vs `knative_network` | **+21.87 %, 16/16, p = 3.1e-05** |
+| `mpoff` vs `knative_network` | +20.19 %, 14/16, p = 0.002 |
+
+Both readings that matter are unchanged in kind from the uncapped gate: the primary contrast is still a live
+TIE, and the secondary contrast flips from "neither learned arm separates from reactive" to "both beat it
+decisively". Peer-exchange totals rise under the cap (`gnn` 1.293e6 → 1.540e6) — the cap buys concurrency by
+spending some co-location, and on this trace that trade is worth ~22 %.
+
 **Read it as a serving fix, not as evidence for message passing.** Both arms gain about equally, and the
 primary `gnn` vs `mpoff` contrast under the cap is +2.37 %, p = 0.23, 10/16 — still a live TIE, exactly as
 the uncapped gate read. What changed is that both learned planners now beat the reactive baseline on a real
