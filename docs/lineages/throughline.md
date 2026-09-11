@@ -96,3 +96,33 @@ the `--gate-coupled-fraction` episode was a gate nobody had exercised:
 - **`--spread-plans-only`** — the isolation control described above. Reusable for any future
   mechanism: it answers "is there coupling here that is not the collision term?", which the
   headline gate cannot, because the collision term dominates every corpus in this repo.
+
+## 2026-09-11 — the throughline has a measured exception
+
+The section above argues that on this simulator's supervised targets a graph-reasoning win over a
+pointwise-plus-counts scorer is unavailable by construction, and names three things that would
+change the answer. **One of them has now happened, and it was the environment change.**
+
+`peer_affinity_v1` puts the cost on **pairs of task instances** (continuous exchange volumes, no
+commit order) under a binding capacity cap — not on machines, so the count theorem this document
+leans on does not reach it. On that environment, at 482 training datasets and 16 seeds, message
+passing beats its own MP-OFF twin by **+5.14 pp (p = 0.001, 13/16 seeds)** on held-out decode regret.
+That contrast is the cleanest in the program: same architecture, features, decoder, checkpoint
+selector and seeds, differing only in whether `PeerConv` runs.
+
+**The correction this forces on the document's method, not just its conclusion.** The same contrast,
+on the same code, read **+2.08 pp, p = 0.15 at 136 training datasets** and was written up as
+"message passing is not the lever". It was not measuring the architecture; it was measuring the
+corpus. The per-arm gain from 3.5× data separates cleanly — MP-ON −5.09 pp, MP-OFF −2.43 pp,
+pointwise-plus-lookahead −3.24 pp. **An INDETERMINATE model-class contrast at n = 8 on a small
+corpus is not evidence of redundancy**, and this record has now made that mistake twice
+(`route_b_v1` Phase 2's checkpoint-selection artifact was its cousin). Before concluding that an
+architecture is redundant, vary the corpus and read the per-arm delta.
+
+What does **not** change: the argument still holds for every **node-indexed** target in this
+program, which is every option-1 and route-B corpus. The exception is specific to a cost indexed by
+instance pairs, and it comes with three caveats that must travel with it — the edge is at the
+selected checkpoint (the arms tie at last epoch, MP-ON having memorised the training split to
+0.00 % regret), the live replay gate agrees in direction but not significance (+3.78 pp, p = 0.13),
+and the GNN-vs-MLP comparisons carry a selector asymmetry favouring the GNN while GNN-vs-MP-OFF
+carries none. Full record: `docs/lineages/peer_affinity_v1.md`, entries T1 and T1b.
