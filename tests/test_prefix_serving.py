@@ -60,7 +60,7 @@ def _clean_env(monkeypatch):
                  "PARTIAL_STATE_CONTRACT", "PARTIAL_STATE_PEER_MASS", "GNN_DISABLE_MESSAGE_PASSING",
                  "INFERENCE_FEATURE_LAYOUT", "GNN_MP_NODE_EDGES", "GNN_MP_DAG_EDGES",
                  "QUEUE_FEATURE_CONTRACT", "TOPOLOGY_FEATURE_CONTRACT", "NETWORK_GRAPH_CONTRACT",
-                 "HEROSIM_WARMTH_PHYSICS"):
+                 "HEROSIM_WARMTH_PHYSICS", "GNN_PREFIX_LOAD_SEED", "GNN_PREFIX_CONCURRENCY_PENALTY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("HEROSIM_GNN_DEVICE", "cpu")
 
@@ -255,3 +255,85 @@ def test_live_serving_reproduces_the_offline_read(monkeypatch):
         })
         assert result["mismatches"] == [], result["mismatches"]
         assert result["n_batches"] == 1
+
+
+# 7. serving knobs (peer_affinity_v1 stage 3, 2026-09-11) -------------------------------
+#
+# Both default OFF, because the registered production gate was run without them and must
+# stay reproducible. What is pinned: the defaults really are off, a bad value is fatal
+# rather than silently off, the seeded load reaches BOTH the decoder's mask and the
+# capacity feature columns, and the concurrency penalty only ever reorders candidates.
+
+@needs_ckpt
+def test_serving_knobs_default_off_and_refuse_garbage(monkeypatch):
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("GNN_DECODE_MODE", "masked_topo")
+    from src.policy.gnn.prefix_serving import PrefixServingError, load_prefix_conditioned_gnn
+    _model, options, _sc = load_prefix_conditioned_gnn(CKPT)
+    assert options.load_seed_scale == 0.0 and options.concurrency_penalty == 0.0
+    monkeypatch.setenv("GNN_PREFIX_LOAD_SEED", "not-a-number")
+    with pytest.raises(PrefixServingError, match="not a number"):
+        load_prefix_conditioned_gnn(CKPT)
+    monkeypatch.setenv("GNN_PREFIX_LOAD_SEED", "-1")
+    with pytest.raises(PrefixServingError, match=">= 0"):
+        load_prefix_conditioned_gnn(CKPT)
+
+
+def test_seeded_load_consumes_cap_in_mask_and_features():
+    """A node carrying standing load must lose that much of its cap in the decoder's mask
+    and read as that much fuller in the capacity columns — one number, both places."""
+    import numpy as np
+    from src.policy.gnn.seq_decode import decode_masked_topo_placement
+    from src.policy.tabular.reduced_features import PartialStateContext, partial_state_columns
+
+    tl = {0: [(0, 10), (1, 11)]}
+    demands = {0: [1.0, 1.0]}
+    caps = {0: 1.5, 1: 1.5}
+    # node 0 scores higher, so without a seed it wins
+    combo = decode_masked_topo_placement(
+        [[2.0, 1.0]], tl, 1, dag_parents={0: []}, node_caps=caps, demands=demands)
+    assert combo == ((0, 10),)
+    # seed node 0 past its remaining headroom and the mask must move the task to node 1
+    seeded = decode_masked_topo_placement(
+        [[2.0, 1.0]], tl, 1, dag_parents={0: []}, node_caps=caps, demands=demands,
+        initial_load={0: 1.0})
+    assert seeded == ((1, 11),)
+
+    ctx_kwargs = dict(
+        node_caps=caps, demand={(0, (0, 10)): 1.0, (0, (1, 11)): 1.0},
+        node_of={(0, 10): 0, (1, 11): 1}, task_type_index={0: 0}, parents={0: []},
+        route_hops_bneck={(0, 0): (0.0, float("inf")), (1, 1): (0.0, float("inf")),
+                          (0, 1): (1.0, 100.0), (1, 0): (1.0, 100.0)},
+        payload_bytes=0.0, transfer_norm=0.0, node_rank={0: 0, 1: 1},
+        ingress_links={}, core_links=frozenset(), peer_pairs={}, node_exchange={},
+        peer_norm=1.0, cand_nodes={0: [0, 1]}, contract="partial_state_v2",
+    )
+    plain = partial_state_columns(PartialStateContext(**ctx_kwargs), 0, tl[0], {})
+    loaded = partial_state_columns(
+        PartialStateContext(base_load={0: 1.0}, **ctx_kwargs), 0, tl[0], {})
+    # col 4 = load/cap, col 5 = remaining/cap, col 6 = would_violate, candidate 0 = node 0
+    assert plain[0, 4] == 0.0 and loaded[0, 4] == pytest.approx(1.0 / 1.5)
+    assert loaded[0, 5] < plain[0, 5]
+    assert loaded[0, 6] == 1.0 and plain[0, 6] == 0.0
+    # the unseeded node is untouched
+    assert np.allclose(plain[1], loaded[1])
+
+
+def test_concurrency_penalty_reorders_but_never_removes():
+    """The penalty is a soft mask: it can flip which candidate wins, and when every
+    candidate is equally loaded it changes nothing and no decode fails."""
+    from src.policy.gnn.prefix_serving import _with_concurrency_penalty
+
+    class _G:
+        task_logit_to_placement = {0: [(0, 10), (1, 11)]}
+        partial_state_ctx = {"queue_depth_by_node": {0: 100, 1: 0}}
+
+    base = lambda _t, _c: [2.0, 1.0]
+    assert base(0, {}) == [2.0, 1.0]
+    penalised = _with_concurrency_penalty(base, _G(), 2.0)(0, {})
+    assert len(penalised) == 2
+    assert penalised[1] > penalised[0]      # the deep-queue node now loses
+    flat = _G()
+    flat.partial_state_ctx = {"queue_depth_by_node": {0: 7, 1: 7}}
+    same = _with_concurrency_penalty(base, flat, 2.0)(0, {})
+    assert same[0] > same[1]                # equal load -> the model's order stands

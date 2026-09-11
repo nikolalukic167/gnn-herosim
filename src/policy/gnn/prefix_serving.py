@@ -83,6 +83,35 @@ class PrefixServingOptions:
     peer_mass: bool
     mp_peer_edges: bool
     partial_state_contract: str
+    # peer_affinity_v1 stage 3 (2026-09-11), both SERVING knobs, both default OFF so the
+    # registered gate stays byte-identical. Measured motivation in the node: the decoder's
+    # per-node load resets every batch, so the cap is intra-batch and blind to the queue
+    # already standing on a node; across 45,375 batches the same preferred node keeps
+    # clearing it and concurrency collapses (15.3 -> 5.4 tasks in service).
+    #   load_seed_scale       >0 seeds the decode's per-node load with the node's queue
+    #                         IMBALANCE (depth above the least-loaded candidate node),
+    #                         converted into demand units, x this scale. The least-loaded
+    #                         node always keeps its full cap, so the mask can never empty.
+    #   concurrency_penalty   >0 subtracts penalty x normalised candidate queue depth from
+    #                         each candidate's score. A soft mask: it reorders, never
+    #                         forbids, so no decode can fail because of it.
+    load_seed_scale: float = 0.0
+    concurrency_penalty: float = 0.0
+
+
+def _serving_knob(name: str) -> float:
+    """A live-only serving knob: absent or empty is 0.0 (off). Anything unparseable is
+    fatal rather than silently off — a mistyped gate env must not look like the baseline."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return 0.0
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise PrefixServingError(f"{name}={raw!r} is not a number") from exc
+    if value < 0.0:
+        raise PrefixServingError(f"{name}={value} must be >= 0")
+    return value
 
 
 def _adopt_or_verify_env(
@@ -234,12 +263,15 @@ def load_prefix_conditioned_gnn(
         peer_mass=bool(trained_peer_mass),
         mp_peer_edges=bool(sidecar.get("mp_peer_edges", False)),
         partial_state_contract=str(trained_contract),
+        load_seed_scale=_serving_knob("GNN_PREFIX_LOAD_SEED") if adopt_env else 0.0,
+        concurrency_penalty=_serving_knob("GNN_PREFIX_CONCURRENCY_PENALTY") if adopt_env else 0.0,
     )
     print(
         f"[PREFIX SERVING] {label}: task_dim={task_feature_dim}+{onehot_dim} platform_dim="
         f"{platform_feature_dim} hidden={hidden_dim} emb={embedding_dim} layers={num_layers} "
         f"mp_peer_edges={options.mp_peer_edges} mp_off={declared_mp_off} "
-        f"alpha={alpha_key or '(none)'} reuse={options.allow_replica_reuse} relax={options.relax_on_stuck}",
+        f"alpha={alpha_key or '(none)'} reuse={options.allow_replica_reuse} relax={options.relax_on_stuck} "
+        f"load_seed={options.load_seed_scale} conc_penalty={options.concurrency_penalty}",
         flush=True,
     )
     return model, options, sidecar
@@ -424,6 +456,32 @@ def attach_live_prefix_block(
         peer_norm = 1.0
     cand_nodes = {t: [int(c[0]) for c in tl.get(t, [])] for t in range(n_tasks)}
 
+    # Standing load per candidate node, in the cap's own units. `graph.queue_snapshot` is
+    # the same queue depth the platform features are built from (feature_builder), keyed by
+    # queue_key, and `queue_key_to_platform_meta` maps that to a node. We charge the
+    # IMBALANCE (depth above the least-loaded candidate node) so the least-loaded node keeps
+    # its whole cap and the mask can never empty, and convert a task count into demand units
+    # with that node's mean candidate demand.
+    base_load: Dict[int, float] = {}
+    queue_depth_by_node: Dict[int, int] = {}
+    if options.load_seed_scale > 0.0 or options.concurrency_penalty > 0.0:
+        snapshot = getattr(graph, "queue_snapshot", None) or {}
+        for qk, meta in meta_by_key.items():
+            nid = int(meta["node_id"])
+            if nid not in peak:
+                continue
+            queue_depth_by_node[nid] = queue_depth_by_node.get(nid, 0) + int(snapshot.get(qk, 0) or 0)
+    if options.load_seed_scale > 0.0 and queue_depth_by_node:
+        mean_demand: Dict[int, float] = {}
+        for (_t, placement), d in demand.items():
+            mean_demand.setdefault(int(placement[0]), []).append(float(d))
+        mean_demand = {nid: (sum(v) / len(v)) for nid, v in mean_demand.items()}
+        floor = min(queue_depth_by_node.get(nid, 0) for nid in cand_node_ids)
+        for nid in cand_node_ids:
+            excess = queue_depth_by_node.get(nid, 0) - floor
+            if excess > 0 and mean_demand.get(nid, 0.0) > 0.0:
+                base_load[nid] = options.load_seed_scale * excess * mean_demand[nid]
+
     graph.peer_edge_index = peer_edge_index
     graph.peer_edge_attr = peer_edge_attr
     graph.dag_edge_index = torch.empty((2, 0), dtype=torch.long)
@@ -448,8 +506,43 @@ def attach_live_prefix_block(
         "node_exchange": node_exchange,
         "peer_norm": float(peer_norm),
         "cand_nodes": cand_nodes,
+        "base_load": base_load,
+        "queue_depth_by_node": queue_depth_by_node,
     }
-    return {"n_pairs_in_batch": len(peer_pairs) // 2, "peers_outside_batch": outside}
+    return {
+        "n_pairs_in_batch": len(peer_pairs) // 2,
+        "peers_outside_batch": outside,
+        "seeded_nodes": len(base_load),
+        "seeded_load_total": float(sum(base_load.values())),
+    }
+
+
+def _with_concurrency_penalty(score_fn: Any, graph: Any, penalty: float) -> Any:
+    """Wrap a per-step score function so a candidate on a node already holding a deep
+    queue scores lower, in proportion to its share of the batch's worst candidate queue.
+
+    Soft on purpose: it reorders candidates and never removes one, so no decode can fail
+    because of it and the relaxation counters keep meaning what they meant. The scale is
+    the spread of the model's own scores at that step, so one penalty value behaves the
+    same across checkpoints whose logits live on different scales."""
+    depth = (getattr(graph, "partial_state_ctx", {}) or {}).get("queue_depth_by_node") or {}
+    tl = graph.task_logit_to_placement
+    worst = max(depth.values()) if depth else 0
+
+    def wrapped(task_idx: int, committed: Mapping[int, Tuple[int, int]]) -> Sequence[float]:
+        scores = [float(v) for v in score_fn(task_idx, committed)]
+        if worst <= 0 or not scores:
+            return scores
+        spread = max(scores) - min(scores)
+        if spread <= 0.0:
+            spread = 1.0
+        out = []
+        for i, cand in enumerate(tl[task_idx]):
+            share = depth.get(int(cand[0]), 0) / worst
+            out.append(scores[i] - penalty * spread * share)
+        return out
+
+    return wrapped
 
 
 def decode_prefix_conditioned(
@@ -477,6 +570,9 @@ def decode_prefix_conditioned(
         t: [float(ctx.demand[(t, (int(c[0]), int(c[1])))]) for c in tl[t]]
         for t in range(n_tasks)
     }
+    score_fn = make_partial_state_score_fn(model, graph, ctx)
+    if options.concurrency_penalty > 0.0:
+        score_fn = _with_concurrency_penalty(score_fn, graph, options.concurrency_penalty)
     combo = decode_masked_topo_placement(
         [None] * n_tasks,
         tl,
@@ -484,10 +580,11 @@ def decode_prefix_conditioned(
         dag_parents=graph.dag_parents,
         node_caps=ctx.node_caps,
         demands=demands,
-        score_fn=make_partial_state_score_fn(model, graph, ctx),
+        score_fn=score_fn,
         stats=stats,
         allow_replica_reuse=options.allow_replica_reuse,
         relax_on_stuck=options.relax_on_stuck,
+        initial_load=ctx.base_load or None,
     )
     if combo is None:
         raise PrefixServingError(

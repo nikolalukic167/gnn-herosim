@@ -203,7 +203,8 @@ class Orchestrator:
         names = (
             "prefix_batches", "prefix_tasks_decoded", "prefix_tasks_deferred",
             "prefix_pairs_in_batch", "prefix_peers_outside_batch",
-            "peer_group_incomplete_batches", "gnn_pure_decisions", "fallback_decisions",
+            "peer_group_incomplete_batches", "prefix_batches_load_seeded",
+            "gnn_pure_decisions", "fallback_decisions",
         )
         out: Dict[str, Any] = {}
         for name in names:

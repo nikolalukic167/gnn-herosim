@@ -190,6 +190,9 @@ class GNNScheduler(Scheduler):
         self.prefix_pairs_in_batch = 0
         self.prefix_peers_outside_batch = 0
         self.peer_group_incomplete_batches = 0
+        # serving knobs (default off): how often a batch actually had standing load to
+        # charge, so a gate arm cannot claim the seed was active when it never fired
+        self.prefix_batches_load_seeded = 0
 
         # GNN model will be set via models dict from orchestrator
         self.gnn_model = None
@@ -629,6 +632,8 @@ class GNNScheduler(Scheduler):
         )
         self.prefix_pairs_in_batch += int(diag["n_pairs_in_batch"])
         self.prefix_peers_outside_batch += int(diag["peers_outside_batch"])
+        if int(diag.get("seeded_nodes", 0)):
+            self.prefix_batches_load_seeded += 1
         graph = move_graph_tensors_(graph, self.device)
         with torch.no_grad():
             combo = decode_prefix_conditioned(

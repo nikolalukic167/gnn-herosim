@@ -362,6 +362,8 @@ class PartialStateContext:
     and candidate keys are opaque to this module; the caller uses them consistently.
 
       node_caps        node -> cap_node(alpha); a node absent is uncapped
+      base_load        node -> load already standing there when the decode starts
+                       (empty offline; live seeding is opt-in)
       demand           (task_id, candidate) -> memory demand of that task there
       node_of          candidate -> node
       task_type_index  task_id -> type index k in the sorted-type order (0..3)
@@ -396,6 +398,7 @@ class PartialStateContext:
         peer_norm: float = 0.0,
         cand_nodes: Optional[Mapping[int, Sequence[Any]]] = None,
         contract: Optional[str] = None,
+        base_load: Optional[Mapping[Any, float]] = None,
     ) -> None:
         self.peer_pairs = dict(peer_pairs or {})
         self.node_exchange = dict(node_exchange or {})
@@ -417,6 +420,12 @@ class PartialStateContext:
             if any(parents.get(t) for t in parents):
                 raise ValueError("partial_state_v2 cannot be used on a corpus with DAG edges: "
                                  "columns 7-9 carry the peer block there")
+        # peer_affinity_v1 stage 3 (2026-09-11): standing load already on a node when the
+        # decode starts. The cache builder and every offline read leave this empty, so the
+        # committed prefix is the only load -- byte-identical to before. A LIVE decode may
+        # seed it (src/policy/gnn/prefix_serving.py, GNN_PREFIX_LOAD_SEED) so the cap binds
+        # against the queue the batch is landing on, not only against the batch itself.
+        self.base_load = dict(base_load or {})
         self.node_caps = node_caps
         self.demand = demand
         self.node_of = node_of
@@ -455,7 +464,7 @@ def partial_state_columns(
     out = np.zeros((n, PARTIAL_STATE_FEATURE_DIM), dtype=np.float64)
 
     occ: Dict[Any, List[float]] = {}
-    load: Dict[Any, float] = {}
+    load: Dict[Any, float] = dict(ctx.base_load)
     for t, cand in committed.items():
         node = ctx.node_of[cand]
         k = int(ctx.task_type_index[t])
@@ -806,6 +815,7 @@ def build_partial_state_context_from_graph(graph: Any) -> "PartialStateContext":
         node_exchange=psc.get("node_exchange"),
         peer_norm=float(psc.get("peer_norm", 0.0) or 0.0),
         cand_nodes=psc.get("cand_nodes"),
+        base_load=psc.get("base_load"),
     )
 
 

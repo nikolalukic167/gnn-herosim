@@ -784,6 +784,7 @@ def decode_masked_topo_placement(
     ] = None,
     allow_replica_reuse: bool = False,
     relax_on_stuck: bool = False,
+    initial_load: Optional[Mapping[int, float]] = None,
 ) -> Optional[PlacementCombo]:
     """The §4 shared masked decoder (docs/lineages/route_b_v1/stage2-preregistration.md, corrected
     2026-08-26) — decode mode "masked_topo".
@@ -832,7 +833,11 @@ def decode_masked_topo_placement(
         return None
     order = topological_task_order(n_tasks, dag_parents)
     used: set = set()
-    load: Dict[int, float] = {}
+    # peer_affinity_v1 stage 3: `initial_load` is the load already standing on each node
+    # when this batch starts decoding. Default None -> empty -> the cap is intra-batch
+    # exactly as every registered read has used it. Backtracking only ever subtracts what
+    # this decode added, so a seeded floor is never undone.
+    load: Dict[int, float] = {int(k): float(v) for k, v in (initial_load or {}).items()}
     chosen: Dict[int, Tuple[int, int]] = {}
     # peer_affinity_v1 (T1): `allow_replica_reuse` lifts the no-reuse mask (that sweep is
     # the full Cartesian product); `relax_on_stuck` backtracks one committed step at a
