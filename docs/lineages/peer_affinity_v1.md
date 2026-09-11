@@ -865,3 +865,81 @@ which is why it is the contrast this entry leads with.
 checkpoints scored on the held-out block, 0 eval failures. Chosen lrs: `gnn`/`mpoff` 2e-3,
 `mlp_t1`/`mlp_t1x` 5e-4. Reading `simulation_data/peer_affinity_t1b_read.json`, reports
 `simulation_data/peer_affinity_t1b_reports/` (288). Full suite 588 passed.
+
+### Stage 3 — the live serving path exists, is bit-identical to the offline read, and a production-trace gate is registered (2026-09-11)
+
+**Why.** Every number above the T1b live gate came from decoded plans replayed as `forced_placements`;
+no prefix-conditioned checkpoint had ever *served* — `load_gnn_model` refused them, the live graph
+builder emitted no one-hot / peer edges / partial-state context, batches were capped at 4, and an
+inference error fell back to shortest-queue silently. The "co-sim → model → eval" path was three
+quarters of a path. This entry builds the last quarter and proves it before using it.
+
+**Built** (`src/policy/gnn/prefix_serving.py` is the one home; the offline evaluator was refactored
+onto it and re-scored 516/516 T1b datasets bit-identically):
+* `load_prefix_conditioned_gnn` — sidecar-validated construction (dims off the weights; peer edges,
+  one-hot width, partial-state contract, peer-mass flag, MP flag, cap rung, decode options off the
+  sidecar; contracts adopted into the environment when silent, verified when set). `load_gnn_model`
+  serves such a checkpoint only under `GNN_DECODE_MODE=masked_topo`.
+* `attach_live_prefix_block` — the live twin of the cache's `attach_dag_partial_state_block`, from live
+  objects (tasks, nodes, the fabric's routes, the orchestrator's peer table): demands from
+  `memoryRequirements` × the event's `demand_scale`, caps by the `alpha_max` rule over the batch's
+  candidates, `krank_node_order`, ingress links, `node_exchange`, peer edges and norm.
+* `GNNScheduler._process_task_batch_prefix` — joint masked decode, `planned_node_name` pre-pass before
+  any enqueue (the determined scheduler's rule), tasks without a reachable replica deferred to the
+  autoscaler, **no fallback path**: every failure raises. Batch range [1, 16] in masked_topo mode.
+  `GNN_BATCH_BY_PEER_GROUP=1` collects the first task's peer group (waits up to the batch timeout for
+  late members; other groups stay queued). `GNN_PREFIX_TRACE_PATH` records every served graph + plan.
+* Physics: a peer that is neither placed nor planned at a task's input stage is a **rendezvous** (wait
+  for it to be scheduled, recorded as `peerRendezvousWait`), where it used to raise. Fully-planned
+  batches never wait — every co-sim run and forced replay is bit-identical (`tests/test_peer_exchange_replay.py`).
+* `HEROSIM_SERVER_ONLY_REPLICAS=1` (shared autoscaler): no replica on a client node. The corpora host on
+  servers only; a live episode with no replica plan otherwise falls back to the source client within a
+  second at 2,650 arrivals/s, and the exchange physics has no client↔server map for the peer.
+* Result stats carry `schedulerCounters` (prefix batches, tasks decoded/deferred, in-batch pairs, peers
+  outside the batch, incomplete groups) and `totalPeerRendezvousWait`.
+
+**Proof** — `scripts_cosim/peer_affinity_live_serve_check.py` runs the live `gnn_gnn` policy on the 34
+held-out datasets (no forced placements) and holds it against the cache and the T1b read. **34/34
+bit-identical for `gnn_s1` and 34/34 for `mpoff_s1`**: the served graph equals the cache graph on every
+attribute (id-keyed), the decoded plan equals the offline report's `decoded_combo`, and the engine's
+`total_rtt` equals the sweep row and the replay gate's number. It did not pass first time — three
+serving defects, all in `docs/gates/gate-tools.md` (2026-09-11): rf/cnn had zero live candidates; the
+live temporal capture had drifted from the SSC helper (platform column 11 off by ~4×10⁴ on flashCard
+nodes; 4/34 batches, 3 plans changed); and the peer norm was 0 when every candidate sat on one node.
+Tests: `tests/test_prefix_serving.py` (loader, ranges, v2 context, rendezvous, a reactive peer episode,
+and the parity pin on two held-out datasets).
+
+**Registered production gate (before any run).** Cell `cell_s7901`: the corpus space config verbatim
+(20 clients / 6 servers / sparse / conn 0.6 / server mesh / backbone 1 Gbps) at an unseen topology
+seed, live-regeneration parity PASS (`scripts_cosim/make_peer_affinity_gate_cell.py`). Workload:
+`workload-150-150.json` — the real 450,729-event production trace (rps 150, 20 clients, dnn1/dnn2 only)
+with the corpus's peer structure put on it by `scripts_cosim/make_peer_affinity_production_workload.py`
+(seed 7300): consecutive arrivals in groups of 10, 2 partners per task, payload 200 MB × 10^U(−1, 1),
+per-event `demand_scale` U(0.5, 2) — 45,073 groups, 801,643 pairs, group span median 3.0 ms. Arms (34):
+`knative_network`, `knative_network_batch` (10-task / 20 ms window), `gnn` × 16 seeds and `mpoff` × 16
+seeds (T1b lr 2e-3 checkpoints, honest selector, masked_topo, peer-group batching, 20 ms window).
+Physics for all: `HEROSIM_PEER_EXCHANGE=1`, server-only replicas, `node_disk_v2`, keep-alive default
+(production, not the co-sim 10⁶). **Statistic:** `total_rtt` over all 450,729 tasks per arm. **Primary
+contrast:** `gnn` vs `mpoff`, paired by training seed (16 pairs), exact Wilcoxon, α 0.05, effect bar 1 %
+of `mpoff`'s total; readings GNN-NEEDED / TIE / POINTWISE-BETTER / INDETERMINATE as T1. **Secondary:**
+each learned arm vs the two reactive arms (16 seeds vs one number). Also reported: `totalPeerExchangeTime`,
+`totalPeerRendezvousWait`, the scheduler counters (incomplete groups and peers outside the batch are the
+two the peer-group design can be judged by).
+
+**Stated before the numbers.** (a) The trace is 2,650 arrivals/s onto 6 servers: a saturation regime
+(the 3k-event smoke ends with mean task elapsed ≈ 800–1,300 s), so queueing dominates and the peer term
+is a small fraction of every arm's total. That is the production condition the user asked for, not a
+regime the corpus sampled. (b) The trace carries dnn1/dnn2 only; the corpus cycles four types. (c) The
+cap rung α = 2.5 is decode-side only — the reactive arms are unbounded, as in the T1b live gate. (d)
+Peer-group batching is a real queueing cost the GNN arms pay and the reactive arms do not; the
+`knative_network_batch` arm pays a comparable window. (e) MLP arms are out of scope live: the MLP batch
+scheduler has no dim63crk path.
+
+**Denser peer graph — registered, generation launched.** The Phase 0 screen's p3 cells at k = 10 pass
+only at 800 MB (`x800_a1.5_k10c3_p3`) or with 4 candidates; `x200_…_p3` does not, so the partner count
+cannot be moved alone at 200 MB. Two corpora on fresh seeds 7700–8199 (train) / 8200–8233 (held-out):
+`c3_x800_p3` (3 partners, 800 MB) and the matched control `c3_x800_p2` (2 partners, 800 MB), same cell,
+same k, same α ladder, same generation env as T1b (`scripts_cosim/datalab/peer_affinity_v1_x800_generate.sbatch`).
+The training registration for this rung is T1b's verbatim (4 arms × 3 lr × 16 seeds, honest selector,
+gnn-vs-mpoff primary) and is not re-signed here; the prediction is that the `gnn`−`mpoff` gap grows with
+partners and the `mlp_t1x`−`gnn` gap grows too (the hand lookahead averages over more candidates).

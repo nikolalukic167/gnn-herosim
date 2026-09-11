@@ -470,7 +470,23 @@ def build_inference_feature_bundle(
     for t_idx, task in enumerate(batch_tasks):
         task_type = str(task.type["name"])
         source_node = str(task.node_name)
-        compatible_types = TASK_PLATFORM_COMPATIBILITY.get(task_type, [])
+        compatible_types = TASK_PLATFORM_COMPATIBILITY.get(task_type)
+        other_type_replicas: Optional[set] = None
+        if compatible_types is None:
+            # Same rule as prepare_graphs_cache.build_graph for every task type other
+            # than dnn1/dnn2 (rf, cnn on the route_b / peer_affinity corpora): the
+            # memoryRequirements keys ARE the platform types the simulator can run the
+            # type on, and a platform is a candidate only if it currently holds a replica
+            # of that type. Until 2026-09-11 such a task got ZERO live candidates — the
+            # cache had been fixed, the live builder had not (found by
+            # scripts_cosim/peer_affinity_live_serve_check.py). The dnn1/dnn2 branches
+            # stay verbatim so every existing gate is bit-identical.
+            mem = dict(task.type.get("memoryRequirements") or {})
+            compatible_types = sorted(mem.keys())
+            other_type_replicas = {
+                (int(node.id), int(plat.id))
+                for node, plat in system_state.replicas.get(task_type, set())
+            }
         task_logit_to_placement[t_idx] = []
         task_logit_to_queue_key[t_idx] = []
 
@@ -491,6 +507,10 @@ def build_inference_feature_bundle(
             if task_type == "dnn1" and (info.node_id, info.platform_id) not in dnn1_replicas:
                 continue
             if task_type == "dnn2" and (info.node_id, info.platform_id) not in dnn2_replicas:
+                continue
+            if other_type_replicas is not None and (
+                (info.node_id, info.platform_id) not in other_type_replicas
+            ):
                 continue
 
             exec_time = 0.0

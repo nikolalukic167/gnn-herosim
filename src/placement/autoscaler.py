@@ -17,6 +17,7 @@ limitations under the License.
 from __future__ import annotations
 
 import logging
+import os
 import math
 from abc import abstractmethod
 from collections import defaultdict
@@ -158,7 +159,18 @@ class Autoscaler:
             available_resources: Dict[Node, Set[Platform]] = (
                 system_state.available_resources
             )
+            # peer_affinity_v1 stage 3 (2026-09-11): HEROSIM_SERVER_ONLY_REPLICAS=1 keeps
+            # every replica on a server node. The peer_affinity corpora host replicas on
+            # servers only (replicas.per_client = 0; the exchange physics needs a network
+            # map between the two execution nodes, which clients do not have to every
+            # server), and a live episode with no replica plan would otherwise fall back
+            # to the source client the moment the reachable servers are full — which is
+            # what a 2,650-arrival/s production trace does within its first second.
+            # Off by default; every other run is bit-identical.
+            server_only = os.environ.get("HEROSIM_SERVER_ONLY_REPLICAS", "0") == "1"
             for node, platforms in available_resources.items():
+                if server_only and str(node.node_name).startswith("client_node"):
+                    continue
                 for platform in platforms:
                     if (
                             hardware_target != "any"
