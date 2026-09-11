@@ -943,3 +943,11 @@ same k, same α ladder, same generation env as T1b (`scripts_cosim/datalab/peer_
 The training registration for this rung is T1b's verbatim (4 arms × 3 lr × 16 seeds, honest selector,
 gnn-vs-mpoff primary) and is not re-signed here; the prediction is that the `gnn`−`mpoff` gap grows with
 partners and the `mlp_t1x`−`gnn` gap grows too (the hand lookahead averages over more candidates).
+The first submission (jobs 756580–756583) died on the /home quota (`normal_sim_sweeps`, 173 GB of scored
+gate results, archived to `/share/nikola.lukic/herosim_archive/` by job 756682 and symlinked back);
+job 756685 scrubs the quota-truncated dataset dirs and resubmits with `--resume`. The rest of the chain
+is committed and waits on the corpora: `peer_affinity_v1_x800_cache.sbatch` (SSC rewrite → alpha pre-scan
+`peer_affinity_alpha_prescan.py`, which set aside the same 4/350 T1b datasets when re-run on them →
+cache → near-RTT sidecar → split with the `_r2` corpus held out, one cache per rung `p3`/`p2`), then
+`peer_affinity_v1_x800_{gnn,mlp}_train.sbatch` with `experiments/peer_affinity_v1_x800_<rung>_*.yaml`
+(T1b's configs with only the cache, split and names changed), read with `peer_affinity_t1_read.py`.
