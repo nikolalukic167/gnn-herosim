@@ -1,9 +1,12 @@
-# serving_gap_v2 — REGISTERED
+# serving_gap_v2 — CLOSED (NO-GO)
 
-> **Status:** `REGISTERED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-12 → (open)
+> **Status:** `CLOSED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-12 → 2026-09-12
 
-**Outcome.** Pending. Registered 2026-09-12, before any statistic of it exists, on artifacts that already
-exist (the 192 live production traces of `serving_gap_v1`). Nothing here trains, relabels or changes physics.
+**Outcome.** **NO-GO on the registered kill bar.** H3 fires on **one** corpus of the three and the bar
+required two, so the lineage closes and H4 is not read. What the measurement does show, and what is worth
+carrying: the co-location shortfall is **monotone in peer-graph density and orders exactly like the live
+performance gap**, but only clears significance on the densest corpus. The bar was fixed in advance and is
+not moved after seeing that.
 
 **The question.** `serving_gap_v1` closed NO-GO by refuting both its hypotheses **backwards**: the
 graph-aware arm is not herded and not load-blind — it spreads its node choices *more* than its pointwise
@@ -28,7 +31,39 @@ already in `simulation_data/serving_gap_v1/h2/`.
 
 ## Record
 
+- [H3 — NO-GO on one corpus of two required (2026-09-12)](#h3-no-go-on-one-corpus-of-two-required-2026-09-12)
 - [Registration (2026-09-12)](#registration-2026-09-12)
+
+---
+
+### H3 — NO-GO on one corpus of two required (2026-09-12)
+
+96 live production runs (3 corpora x 2 arms x 16 seeds, the `serving_gap_v1` traces; job 760475 computes
+the statistics). Co-location rate = the fraction of a batch's peer pairs whose two tasks landed on the same
+node, averaged over all 45,375 batches of a run, paired by seed.
+
+| corpus | `gnn` | `mpoff` | gnn − mpoff | p | fires | live gap (`peer_affinity_v1`) |
+|---|---|---|---|---|---|---|
+| x200 p2 | 0.362 | 0.355 | +0.002 | 0.78 | no | +2.37 % |
+| x800 p2 | 0.359 | 0.369 | −0.024 | 0.13 | no | −4.42 % |
+| x800 p3 | **0.334** | **0.416** | **−0.093** | **0.006** | **yes** | **−10.67 %** |
+
+**Verdict: H3-DOES-NOT-FIRE** (1 of the 2 required corpora). Per the registered kill bar the lineage closes
+and **H4 is not computed**: it was registered as meaningful only if H3 fired, and reading it now would be
+choosing a statistic after seeing the one that failed.
+
+**The two facts worth carrying.**
+
+1. **The shortfall orders exactly like the live gap.** Across the three corpora the co-location difference
+   goes +0.002 / −0.024 / −0.093 while the live contrast goes +2.37 / −4.42 / −10.67 %. Same ordering, same
+   sign change between the first and second rung. On the densest corpus the graph arm co-locates 20 %
+   fewer peer pairs than its twin *relative* (0.334 against 0.416) and uses more distinct nodes per batch
+   (+0.033, p = 0.025). That is consistent with the scattering reading and does not establish it.
+2. **Both arms co-locate only about a third of their peer pairs live** (0.33–0.42 on every corpus and every
+   arm). Whatever separates the arms is a small difference on top of a regime where most pairs are already
+   split — which is itself a fact about serving this environment on a stream, not about either model.
+
+**Closed.** No stage 2. Artifact: `simulation_data/serving_gap_v2_h3.json` (per-seed values included).
 
 ---
 
