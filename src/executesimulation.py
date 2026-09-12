@@ -502,6 +502,34 @@ def apply_checkpoint_inference_feature_layout(model_path: Path, model_label: str
     print(f"[FEATURE LAYOUT] {model_label} trained under {trained}", flush=True)
 
 
+def apply_checkpoint_queue_norm_mode(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the queue-depth NORMALIZER a checkpoint's cache was built with.
+
+    `queue_feature_contract` fixes the dim7/dim13 formulas; `queue_norm_mode` fixes the
+    divisor those formulas take (`scheduler_adaptive` = p90 over every platform,
+    `adaptive_nonzero` = p90 over the busy ones, `fixed`). The two are independent, and
+    only the contract was ever enforced: the live builder read GNN_QUEUE_NORM_MODE with a
+    hard-coded `adaptive` default, so a checkpoint cached under any other mode served under
+    a divisor it was never fitted on, silently. (`adaptive` and `scheduler_adaptive` are
+    the same arithmetic today, which is why nothing has failed yet — that is luck, not a
+    guarantee.) Audited 2026-09-12; see docs/gates/gate-tools.md.
+    """
+    trained = _read_checkpoint_sidecar(model_path).get("queue_norm_mode")
+    if not trained:
+        return
+    trained = str(trained).strip().lower()
+    declared = os.environ.get("GNN_QUEUE_NORM_MODE", "").strip().lower()
+    if declared and declared != trained:
+        raise ValueError(
+            f"{model_label} was cached under queue_norm_mode={trained!r} but this run "
+            f"declares GNN_QUEUE_NORM_MODE={declared!r}. The modes divide dim7 by different "
+            "statistics of the same snapshot, so the served queue column is not the trained "
+            "queue column."
+        )
+    os.environ["GNN_QUEUE_NORM_MODE"] = trained
+    print(f"[QUEUE NORM] {model_label} cached under queue_norm_mode={trained}", flush=True)
+
+
 def check_checkpoint_corpus_compatibility(
     model_path: Path, model_label: str, space_config: Optional[Dict[str, Any]]
 ) -> None:
@@ -707,6 +735,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         apply_checkpoint_queue_feature_contract(model_path, _label)
         apply_checkpoint_topology_feature_contract(model_path, _label)
         apply_checkpoint_inference_feature_layout(model_path, _label)
+        apply_checkpoint_queue_norm_mode(model_path, _label)
         check_checkpoint_corpus_compatibility(model_path, _label, space_config)
         task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
         platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])

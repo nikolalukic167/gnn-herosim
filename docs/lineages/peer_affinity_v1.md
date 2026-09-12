@@ -1142,6 +1142,36 @@ production workload, which no arm of this lineage had done live before. Only cap
 under-predicted the effect badly (+3.2 % at cap 1 there against +24 % on the full trace), so a serving knob
 must be sized on the production trace, not on a smoke.
 
+### The cap's win is a MEAN-LATENCY win; makespan goes the other way on the corpus it was sized on (2026-09-12)
+
+Audit finding, not a new run: every number above is `total_rtt`, which on this gate is exactly
+`num_tasks x averageElapsedTime` — the sum of per-task response times. `endTime` (makespan) was captured in
+the same summaries and had never been read. Medians over the same 16 seeds, against the same
+`knative_network` arm, positive = the learned arm is better:
+
+| corpus | cap | arm | total_rtt vs Knative | makespan vs Knative | seeds with a SHORTER makespan |
+|---|---|---|---|---|---|
+| x200 p2 | 1 | `gnn` | **+21.87 %** | **−12.25 %** | **1/16** |
+| x200 p2 | 1 | `mpoff` | +20.19 % | −14.06 % | 1/16 |
+| x200 p2 | off | `gnn` | −1.54 % | −51.51 % | 0/16 |
+| x200 p2 | off | `mpoff` | +0.07 % | −67.69 % | 0/16 |
+| x800 p2 | 1 | `gnn` | +20.58 % | −1.71 % | 7/16 |
+| x800 p2 | 1 | `mpoff` | +25.62 % | −3.15 % | 5/16 |
+| x800 p3 | 1 | `gnn` | +12.89 % | +1.02 % | 9/16 |
+| x800 p3 | 1 | `mpoff` | +23.39 % | +0.25 % | 8/16 |
+
+**What this does and does not change.** It does not touch the registered statistic: `total_rtt` was named in
+the registration before any arm ran and stays the read. It does say what the cap actually buys — each task
+finishes sooner on average because its peer exchange is cheaper, while the last task finishes **later**
+because the plan is more concentrated than Knative's. That effect is largest exactly where the cap was sized
+(x200 p2, the lightest peer payload: 15 of 16 seeds finish later than reactive) and washes out on the two
+800 MB corpora, where the peer saving is big enough to pay for the lost parallelism. Without the cap it is
+not close on any corpus: makespan is 1.5–1.7× Knative's, on every seed.
+
+**Consequence for how the one deployable result is quoted.** "+21.9 % over reactive Knative, 16/16 seeds"
+is true and is a *mean-latency* claim. Any quote of it that a reader could take as a throughput or
+completion-time claim must carry the makespan column, and the corpus-by-corpus pattern above, with it.
+
 ### Denser peer graph — x800 p3 / p2 (2026-09-11): the third partner is what makes MP survive the honest selector
 
 Registration: T1b's verbatim (4 arms x 3 lr x 16 seeds, honest selector, `gnn` vs `mpoff` primary), not
