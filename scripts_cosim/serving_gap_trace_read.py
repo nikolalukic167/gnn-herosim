@@ -15,6 +15,13 @@ Stages, exactly as registered:
       from the stored per-checkpoint reports reproduces the registered value and SIGN.
       A harness that cannot reproduce the offline sign is measuring its own bug.
 
+  h2  Queue insensitivity. Per sampled live graph, score task 0's candidates on an empty
+      prefix, then add one standard deviation of the graph's own live queue-depth column to
+      every platform's queue feature and re-score. The statistic is the mean absolute score
+      change divided by the score spread at that step, i.e. how much the arm's preference
+      moves when every candidate is told it is busier. Paired by seed, exact Wilcoxon.
+      FIRES when gnn's normalised sensitivity is BELOW mpoff's on >= 2 of 3 corpora, p < 0.05.
+
   h1  Herding. Per arm, over every served batch of a live run: the entropy of the
       chosen-node distribution (normalised by log of the number of distinct candidate
       nodes the arm ever saw), the fraction of consecutive batch pairs sharing a modal
@@ -216,6 +223,92 @@ def stage_h1(args: argparse.Namespace) -> dict:
             "verdict": "H1-FIRES" if len(fired) >= 2 else "H1-DOES-NOT-FIRE"}
 
 
+# --------------------------------------------------------------------------- h2
+
+# plat_row = platform-type one-hot (5) + [has_dnn1, has_dnn2, queue_len] + ... so the live
+# queue depth is column 7 of a dim-14 platform feature row (feature_builder.py).
+QUEUE_COL = 7
+PLATFORM_FEATURE_DIM = 14
+
+
+def stage_h2_one(args: argparse.Namespace) -> dict:
+    """Queue sensitivity for ONE (corpus, arm, seed). Run under the arm's environment: the
+    caller sets GNN_DISABLE_MESSAGE_PASSING for mpoff, exactly as the offline evaluator does."""
+    import torch
+    from src.policy.gnn.prefix_serving import load_prefix_conditioned_gnn
+    from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
+    from src.policy.tabular.reduced_features import build_partial_state_context_from_graph
+
+    model, options, _sc = load_prefix_conditioned_gnn(Path(args.checkpoint))
+    sens: List[float] = []
+    skipped = 0
+    for rec in _iter_records(Path(args.trace)):
+        graph = rec.get("graph")
+        if graph is None:
+            skipped += 1
+            continue
+        pf = getattr(graph, "platform_features", None)
+        if pf is None or int(pf.shape[1]) != PLATFORM_FEATURE_DIM:
+            raise RuntimeError(f"{args.trace}: platform_features is {None if pf is None else tuple(pf.shape)}, "
+                               f"expected (*, {PLATFORM_FEATURE_DIM}) — the queue column index is layout-specific")
+        ctx = build_partial_state_context_from_graph(graph)
+        caps = graph.partial_state_ctx["node_caps_by_alpha"]
+        if options.alpha_key not in caps:
+            skipped += 1
+            continue
+        ctx.node_caps = caps[options.alpha_key]
+        with torch.no_grad():
+            base = [float(v) for v in make_partial_state_score_fn(model, graph, ctx)(0, {})]
+            spread = max(base) - min(base)
+            if spread <= 0 or len(base) < 2:
+                skipped += 1
+                continue
+            col = pf[:, QUEUE_COL]
+            sd = float(col.std()) if int(col.numel()) > 1 else 0.0
+            if sd <= 0:
+                skipped += 1
+                continue
+            original = col.clone()
+            pf[:, QUEUE_COL] = original + sd
+            pert = [float(v) for v in make_partial_state_score_fn(model, graph, ctx)(0, {})]
+            pf[:, QUEUE_COL] = original
+        sens.append(sum(abs(a - b) for a, b in zip(pert, base)) / len(base) / spread)
+    if not sens:
+        raise RuntimeError(f"{args.trace}: no usable graphs ({skipped} skipped)")
+    return {"stage": "h2-one", "corpus": args.corpus, "arm": args.arm, "seed": args.seed,
+            "checkpoint": args.checkpoint, "n_graphs": len(sens), "n_skipped": skipped,
+            "median_queue_sensitivity": st.median(sens), "mean_queue_sensitivity": st.mean(sens)}
+
+
+def stage_h2(args: argparse.Namespace) -> dict:
+    root = Path(args.results_root)
+    per_corpus: Dict[str, dict] = {}
+    for corpus in CORPORA:
+        vals: Dict[str, Dict[int, float]] = {a: {} for a in ARMS}
+        for arm in ARMS:
+            for seed in range(1, 17):
+                f = root / corpus / f"{arm}_s{seed}.json"
+                if f.is_file():
+                    vals[arm][seed] = float(json.loads(f.read_text())["median_queue_sensitivity"])
+        seeds = sorted(set(vals["gnn"]) & set(vals["mpoff"]))
+        if not seeds:
+            per_corpus[corpus] = {"status": "no paired sensitivities"}
+            continue
+        diffs = [vals["gnn"][s] - vals["mpoff"][s] for s in seeds]
+        p = wilcoxon_exact(diffs)
+        fires = st.median(diffs) < 0 and p is not None and p < ALPHA
+        per_corpus[corpus] = {
+            "n_pairs": len(seeds),
+            "median_sensitivity_gnn": st.median([vals["gnn"][s] for s in seeds]),
+            "median_sensitivity_mpoff": st.median([vals["mpoff"][s] for s in seeds]),
+            "median_gnn_minus_mpoff": st.median(diffs), "p_exact": p, "fires": bool(fires),
+        }
+    fired = [c for c, v in per_corpus.items() if v.get("fires")]
+    return {"stage": "h2", "bar": {"alpha": ALPHA, "corpora_required": 2, "direction": "gnn below mpoff"},
+            "per_corpus": per_corpus, "corpora_fired": fired,
+            "verdict": "H2-FIRES" if len(fired) >= 2 else "H2-DOES-NOT-FIRE"}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="stage", required=True)
@@ -225,8 +318,16 @@ def main() -> int:
     p1 = sub.add_parser("h1")
     p1.add_argument("--traces-root", required=True)
     p1.add_argument("--output", type=Path, required=True)
+    p2 = sub.add_parser("h2-one")
+    for flag in ("--corpus", "--arm", "--checkpoint", "--trace"):
+        p2.add_argument(flag, required=True)
+    p2.add_argument("--seed", type=int, required=True)
+    p2.add_argument("--output", type=Path, required=True)
+    p3 = sub.add_parser("h2")
+    p3.add_argument("--results-root", required=True)
+    p3.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
-    result = stage_s0(args) if args.stage == "s0" else stage_h1(args)
+    result = {"s0": stage_s0, "h1": stage_h1, "h2-one": stage_h2_one, "h2": stage_h2}[args.stage](args)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2)[:4000])
