@@ -75,13 +75,29 @@ and seeds; the only difference is whether `PeerConv` runs. At 136 datasets the s
 +2.08 pp, p = 0.15, and was written up as "message passing is not the lever" — **that was corpus
 size, not architecture** (3.5× data buys the MP arm −5.09 pp against the MP-OFF arm's −2.43 pp).
 
-**Carry these three caveats with any quote of it**, all in `peer_affinity_v1`'s node: the edge is at
-the **selected** checkpoint, and the two arms **tie** when both are read at the last epoch (MP-ON
-memorises the training split to 0.00 % regret); the **live replay gate agrees in direction but not in
-significance** (+3.78 pp, p = 0.13), so the claim is established offline and NOT live; and
-`gnn`-vs-MLP carries a selector asymmetry favouring the GNN, while `gnn`-vs-`mpoff` carries none.
-Read `docs/lineages/peer_affinity_v1.md` (entries T1 and T1b) before proposing any new GNN-vs-MLP
-work — and before quoting the 2026-09-04 sentence above, which predates this.
+**2026-09-12 — that win is OFFLINE ONLY, and it REVERSES live.** Do not quote it as a claim about a
+served scheduler. On matched 450,729-task production traces, 16 seeds per arm, with a live path proven
+bit-identical to the offline evaluator on 34/34 held-out datasets, `gnn` − `mpoff` reads **+5.14 / +6.53 /
++9.61 pp offline** and **+2.37 / −4.42 / −10.67 % live** across the three corpora ordered by peer-graph
+density. The two venues are **anti-correlated and monotone**: every increment that makes message passing
+look better on the supervised target makes it worse on the stream, and the live column crosses zero between
+rung 1 and rung 2 (so the old "direction but not significance" caveat was the last point before a sign
+flip). The live peer term inverts too — the MP-OFF twin carries *less* peer-exchange time on the stream,
+i.e. the graph arm is worse at its own objective when served. Three explanations were registered in advance
+and all failed (`serving_gap_v1`, `serving_gap_v2`, both CLOSED NO-GO): it is not herding (it spreads
+*more*), not queue blindness (it is **3–7× more** load-responsive, p < 1e-4), and group splitting fires on
+only 1 of the 2 corpora required. **The reversal is measured and unexplained, and no measurement in this
+program has a graph arm beating both its pointwise twin and reactive Knative.** The one deployable result
+of the arc is a **serving** fix: a per-platform cap in the masked decoder (`GNN_PREFIX_PLATFORM_CAP=1`,
+default off) takes the graph arm from −1.5 % to **+21.9 % vs reactive Knative, 16/16 seeds, p = 3.1e-05**,
+and helps the pointwise twin about as much.
+
+**Carry these caveats with any quote of the offline edge**, all in `peer_affinity_v1`'s node: it is at the
+**selected** checkpoint on the x200/x800-p2 rungs (the arms tie at last epoch there; the x800 **p3** rung is
+the one that wins at both selectors, +4.23 pp, p = 0.021); and `gnn`-vs-MLP carries a selector asymmetry
+favouring the GNN, while `gnn`-vs-`mpoff` carries none. Read `docs/lineages/peer_affinity_v1.md` and
+`docs/lineages/throughline.md` (last section) before proposing any new GNN-vs-MLP work — and before quoting
+the 2026-09-04 sentence above, which predates all of this.
 
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
