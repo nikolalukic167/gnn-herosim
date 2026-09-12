@@ -1142,6 +1142,64 @@ production workload, which no arm of this lineage had done live before. Only cap
 under-predicted the effect badly (+3.2 % at cap 1 there against +24 % on the full trace), so a serving knob
 must be sized on the production trace, not on a smoke.
 
+### The offline edge survives only at the TRAINING queue scale — it flips by 10x, and live is ~300x (2026-09-12)
+
+**This is a candidate mechanism for the offline/live reversal, and it is measured offline, with no
+simulator in the loop.** Audit finding; full defect write-up in `docs/gates/gate-tools.md` (2026-09-12).
+
+The defect. `legacy_v0`'s platform dim-7 divisor is `min(max(1, p90 over ALL platforms), 100)`. In
+`graphs_cache_peer_affinity_v1_t1b` that p90 is **0 in 516 of 516 datasets** — only 5 of the 134 platforms
+ever hold a queue, because replicas are server-only — so the divisor is **1.0 in 100 % of training data** and
+the "normalized" queue column is the **raw depth, range 0–42**. Live it begins the same way and then
+inverts: traced every 20th batch on a 3,000-event smoke of the gate cell, the divisor stays 1.0 for 15
+batches while dim7 climbs to **574**, then the busy fraction crosses 10 %, p90 becomes non-zero, and dim7
+**falls 574 → 124 → 60 → 40 → 19.6 over the next 9 batches while the deepest real queue keeps rising,
+620 → 804**. On the production trace the depth behind a chosen platform is ~1.3 × 10⁴ (36,499 s mean elapsed
+÷ 2.85 s service), i.e. **k ≈ 300** times the largest value any training dataset contains. dim13 likewise:
+live max 32.2 against a training max of 0.44.
+
+The probe. `scripts_cosim/queue_scale_probe.py` presents the **same** held-out datasets with the two queue
+columns multiplied by k and re-measures each arm's decode regret against the **same** brute-force optimum —
+the label never moves, only what the model is shown. Multiplying is exactly what the live venue does to that
+column, since the divisor is 1.0 in both venues until the crossover. x200 p2 (T1b), lr2e3, 16 seeds per arm,
+34 held-out datasets, `alpha_key` 2.5, replica reuse + counted relaxation — the registered offline read's
+environment verbatim:
+
+| k | `gnn` median regret | `mpoff` median regret | `mpoff` − `gnn` | p (exact Wilcoxon) | `gnn` better | reading |
+|---|---|---|---|---|---|---|
+| **1** | 18.00 % | 23.96 % | **+5.14 pp** | **0.0010** | 13/16 | **GNN-NEEDED** |
+| 3 | 23.17 % | 28.88 % | +4.29 pp | 0.0034 | 13/16 | GNN-NEEDED |
+| 10 | 32.04 % | 29.81 % | **−2.56 pp** | 0.13 | 5/16 | INDETERMINATE |
+| 30 | 33.98 % | 30.09 % | **−3.46 pp** | **0.025** | 5/16 | **POINTWISE-BETTER** |
+| 100 | 34.05 % | 30.51 % | −2.18 pp | 0.051 | 4/16 | INDETERMINATE |
+| 300 | 34.27 % | 30.26 % | −3.00 pp | 0.051 | 5/16 | INDETERMINATE |
+
+**k = 1 reproduces the registered T1b contrast to the decimal** (+5.14 pp, p = 0.001, 13/16 — the number in
+the T1b section above), which is what calibrates the probe. Then the sign flips between k = 3 and k = 10, and
+at k = 30 the reading is POINTWISE-BETTER at the same α and the same bar the registration fixed. Per-arm
+degradation from k = 1: **`gnn` +16.3 pp against `mpoff` +6.6 pp**, and `mpoff` saturates by k = 10 while
+`gnn` keeps falling to k = 30.
+
+**Why the asymmetry is structural, not statistical.** With `GNN_DISABLE_MESSAGE_PASSING=1` a task embedding
+is `task_encoder(task features + one-hot)` and **never touches a platform feature at all**; the only place
+the pointwise twin meets the queue column is `platform_emb[pj]` for its own candidate, at the EdgeScorer —
+one row. With MP on, the GIN mixes every reachable platform embedding into every task embedding and
+`PeerConv` then mixes task embeddings across peer edges, so the same corrupted column reaches **both** sides
+of every edge score through O(platforms) paths. That predicts the damage grows with peer-edge count, i.e.
+with graph density — the ordering the offline/live table shows.
+
+**What this does and does not establish.** It establishes that the registered offline edge is **not robust to
+the queue regime**: it exists at the training queue scale and inverts by a factor of ten, and the live venue
+runs at ~300. It does **not** yet establish that this is the whole reversal: the probe is on x200 p2, whose
+live contrast (+2.37 %) is the one rung that did not reverse, and offline regret and live `total_rtt` are
+different statistics whose magnitudes are not comparable. The test of the mechanism is the crossover k on
+the two x800 corpora, whose live contrasts did reverse — job 760650 (4 tasks, same probe, same bars).
+Prediction recorded before reading it: **the crossover k is lower on the denser graph.**
+
+Artifacts: `simulation_data/peer_affinity_queue_scale_probe_t1b_{gnn,mpoff}.json` (per-seed values included).
+The probe serves a `legacy_v0` checkpoint under a rescaled column, so it is a **diagnostic, never a policy** —
+ADR 0002 is unchanged: such a checkpoint can only be corrected by retraining.
+
 ### The cap's win is a MEAN-LATENCY win; makespan goes the other way on the corpus it was sized on (2026-09-12)
 
 Audit finding, not a new run: every number above is `total_rtt`, which on this gate is exactly
