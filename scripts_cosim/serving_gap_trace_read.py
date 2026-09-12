@@ -309,6 +309,159 @@ def stage_h2(args: argparse.Namespace) -> dict:
             "verdict": "H2-FIRES" if len(fired) >= 2 else "H2-DOES-NOT-FIRE"}
 
 
+# --------------------------------------------------------------------------- h3 / h4
+# serving_gap_v2. The slim traces carry each batch's global task ids and its decoded plan;
+# the peer pairs come from the workload file the run was served (one table, global task ids),
+# so no rerun is needed to know which pairs a batch contained.
+
+WORKLOAD = {
+    "x200p2": "simulation_data/peer_affinity_live_gate/workloads/workload-150-150-peer_p2_x200.json",
+    "x800p2": "simulation_data/peer_affinity_live_gate/workloads/workload-150-150-peer_p2_x800.json",
+    "x800p3": "simulation_data/peer_affinity_live_gate/workloads/workload-150-150-peer_p3_x800.json",
+}
+
+
+def _peer_pairs(workload: Path) -> set:
+    d = json.loads(workload.read_text())
+    table = d.get("peer_exchange") or []
+    if not table:
+        raise RuntimeError(f"{workload}: no peer_exchange table")
+    return {(int(a), int(b)) if int(a) < int(b) else (int(b), int(a)) for a, b, _x in table}
+
+
+def splitting_statistics(trace: Path, pairs: set) -> Optional[dict]:
+    frac_nodes: List[float] = []
+    coloc: List[float] = []
+    biggest: List[float] = []
+    for rec in _iter_records(trace):
+        combo, ids = rec.get("combo"), rec.get("task_ids")
+        if not combo or not ids or len(combo) != len(ids):
+            continue
+        node_of = {int(t): int(p[0]) for t, p in zip(ids, combo)}
+        counts = Counter(node_of.values())
+        k = len(combo)
+        frac_nodes.append(len(counts) / k)
+        biggest.append(max(counts.values()) / k)
+        in_batch = [(a, b) for a, b in ((min(x, y), max(x, y))
+                    for x in node_of for y in node_of if x < y) if (a, b) in pairs]
+        if in_batch:
+            coloc.append(sum(1 for a, b in in_batch if node_of[a] == node_of[b]) / len(in_batch))
+    if not frac_nodes or not coloc:
+        return None
+    return {"batches": len(frac_nodes), "distinct_nodes_frac": st.mean(frac_nodes),
+            "coloc_rate": st.mean(coloc), "largest_group_frac": st.mean(biggest),
+            "batches_with_pairs": len(coloc)}
+
+
+def _ranks(xs: Sequence[float]) -> List[float]:
+    order = sorted(range(len(xs)), key=lambda i: xs[i])
+    r = [0.0] * len(xs)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and xs[order[j + 1]] == xs[order[i]]:
+            j += 1
+        avg = (i + j) / 2 + 1
+        for k in range(i, j + 1):
+            r[order[k]] = avg
+        i = j + 1
+    return r
+
+
+def _spearman_perm(x: Sequence[float], y: Sequence[float], iters: int = 20000, seed: int = 7) -> Tuple[float, float]:
+    """Rank correlation with a seeded two-sided permutation p-value (no scipy dependency)."""
+    import random
+    rx, ry = _ranks(x), _ranks(y)
+    n = len(rx)
+    mx, my = st.mean(rx), st.mean(ry)
+    def corr(a, b):
+        num = sum((p - mx) * (q - my) for p, q in zip(a, b))
+        da = math.sqrt(sum((p - mx) ** 2 for p in a)); db = math.sqrt(sum((q - my) ** 2 for q in b))
+        return num / (da * db) if da > 0 and db > 0 else 0.0
+    rho = corr(rx, ry)
+    rng = random.Random(seed)
+    shuffled = list(ry)
+    hits = 0
+    for _ in range(iters):
+        rng.shuffle(shuffled)
+        if abs(corr(rx, shuffled)) >= abs(rho) - 1e-12:
+            hits += 1
+    return rho, (hits + 1) / (iters + 1)
+
+
+def stage_h3(args: argparse.Namespace) -> dict:
+    root = Path(args.traces_root)
+    per_corpus: Dict[str, dict] = {}
+    raw: Dict[str, Dict[str, Dict[int, dict]]] = {}
+    for corpus in CORPORA:
+        pairs = _peer_pairs(REPO_ROOT / WORKLOAD[corpus])
+        stats: Dict[str, Dict[int, dict]] = {a: {} for a in ARMS}
+        for arm in ARMS:
+            for seed in range(1, 17):
+                t = root / corpus / f"{arm}_s{seed}.pkl"
+                if t.is_file():
+                    v = splitting_statistics(t, pairs)
+                    if v:
+                        stats[arm][seed] = v
+        raw[corpus] = stats
+        seeds = sorted(set(stats["gnn"]) & set(stats["mpoff"]))
+        if not seeds:
+            per_corpus[corpus] = {"status": "no paired traces"}
+            continue
+        d_col = [stats["gnn"][s]["coloc_rate"] - stats["mpoff"][s]["coloc_rate"] for s in seeds]
+        d_nod = [stats["gnn"][s]["distinct_nodes_frac"] - stats["mpoff"][s]["distinct_nodes_frac"] for s in seeds]
+        p_col = wilcoxon_exact(d_col)
+        per_corpus[corpus] = {
+            "n_pairs": len(seeds),
+            "coloc_gnn": st.median([stats["gnn"][s]["coloc_rate"] for s in seeds]),
+            "coloc_mpoff": st.median([stats["mpoff"][s]["coloc_rate"] for s in seeds]),
+            "median_coloc_gnn_minus_mpoff": st.median(d_col), "p_coloc": p_col,
+            "median_distinct_nodes_gnn_minus_mpoff": st.median(d_nod), "p_distinct_nodes": wilcoxon_exact(d_nod),
+            "fires": bool(st.median(d_col) < 0 and p_col is not None and p_col < ALPHA),
+        }
+    fired = [c for c, v in per_corpus.items() if v.get("fires")]
+    out = {"stage": "h3", "bar": {"alpha": ALPHA, "corpora_required": 2, "direction": "gnn co-locates less"},
+           "per_corpus": per_corpus, "corpora_fired": fired,
+           "verdict": "H3-FIRES" if len(fired) >= 2 else "H3-DOES-NOT-FIRE",
+           "per_seed": {c: {a: {str(s): v for s, v in raw[c][a].items()} for a in ARMS} for c in raw}}
+    return out
+
+
+def stage_h4(args: argparse.Namespace) -> dict:
+    h3 = json.loads(Path(args.h3).read_text())["per_seed"]
+    sens_root = Path(args.sensitivity_root)
+    per_corpus: Dict[str, dict] = {}
+    for corpus in CORPORA:
+        xs: List[float] = []; ys: List[float] = []
+        gx: List[float] = []; gy: List[float] = []
+        for arm in ARMS:
+            for seed in range(1, 17):
+                f = sens_root / corpus / f"{arm}_s{seed}.json"
+                key = str(seed)
+                if not f.is_file() or key not in (h3.get(corpus, {}).get(arm) or {}):
+                    continue
+                sens = float(json.loads(f.read_text())["median_queue_sensitivity"])
+                col = float(h3[corpus][arm][key]["coloc_rate"])
+                xs.append(sens); ys.append(col)
+                if arm == "gnn":
+                    gx.append(sens); gy.append(col)
+        if len(xs) < 8:
+            per_corpus[corpus] = {"status": "too few points", "n": len(xs)}
+            continue
+        rho, p = _spearman_perm(xs, ys)
+        g_rho, g_p = _spearman_perm(gx, gy) if len(gx) >= 8 else (float("nan"), float("nan"))
+        per_corpus[corpus] = {"n_pooled": len(xs), "rho_pooled": rho, "p_pooled": p,
+                              "n_gnn": len(gx), "rho_gnn_only": g_rho, "p_gnn_only": g_p,
+                              "fires_pooled": bool(rho < 0 and p < ALPHA),
+                              "gnn_only_negative": bool(g_rho < 0)}
+    fired = [c for c, v in per_corpus.items() if v.get("fires_pooled")]
+    within = [c for c, v in per_corpus.items() if v.get("gnn_only_negative")]
+    return {"stage": "h4", "bar": {"alpha": ALPHA, "corpora_required": 2,
+                                   "within_arm_required": "gnn-only negative on >= 1 corpus"},
+            "per_corpus": per_corpus, "corpora_fired": fired, "gnn_only_negative_on": within,
+            "verdict": "H4-FIRES" if (len(fired) >= 2 and within) else "H4-DOES-NOT-FIRE"}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="stage", required=True)
@@ -326,8 +479,16 @@ def main() -> int:
     p3 = sub.add_parser("h2")
     p3.add_argument("--results-root", required=True)
     p3.add_argument("--output", type=Path, required=True)
+    p4 = sub.add_parser("h3")
+    p4.add_argument("--traces-root", required=True)
+    p4.add_argument("--output", type=Path, required=True)
+    p5 = sub.add_parser("h4")
+    p5.add_argument("--h3", required=True)
+    p5.add_argument("--sensitivity-root", required=True)
+    p5.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
-    result = {"s0": stage_s0, "h1": stage_h1, "h2-one": stage_h2_one, "h2": stage_h2}[args.stage](args)
+    result = {"s0": stage_s0, "h1": stage_h1, "h2-one": stage_h2_one, "h2": stage_h2,
+              "h3": stage_h3, "h4": stage_h4}[args.stage](args)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2)[:4000])
