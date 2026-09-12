@@ -1006,6 +1006,48 @@ past the 20 ms batch window drops pairs visible inside the batch from 4,234 to 4
 so any live number must report `prefix_pairs_in_batch` against `prefix_peers_outside_batch`. On the
 production trace visibility is 99.5 %.
 
+### Denser graph, LIVE (2026-09-12) — the offline edge does NOT survive; the pointwise twin wins
+
+The x800 p3 checkpoints (the rung that reads GNN-NEEDED at **both** selectors offline) had never faced a
+live workload. 66 arms on the matched 3-partner 800 MB production trace
+(`workload-150-150-peer_p3_x800.json`, 1,127,256 pairs, cell `cell_s7901`, lr2e3 for both arms as the read
+selected): 34 with `GNN_PREFIX_PLATFORM_CAP=1` (job 759074) and the same 32 learned arms with the cap off
+(job 759075) as the control. Results dirs `results/x800p3_{capped,uncapped}_gate/`.
+
+| | `gnn` median | `mpoff` median | `gnn` vs `mpoff` | `gnn` vs Knative | `mpoff` vs Knative |
+|---|---|---|---|---|---|
+| cap off | 1.0509e11 | 8.2639e10 | −28.82 %, p = 0.10, 4/16 | +3.73 %, 9/16 | +24.30 %, 12/16 |
+| cap 1 | 9.5088e10 | 8.3629e10 | **−10.67 %, p = 0.018, 2/16 → POINTWISE-BETTER** | +12.89 %, 16/16 | +23.39 %, 16/16 |
+
+(Knative 1.0916e11, `knative_network_batch` 1.0911e11.)
+
+**The finding: offline and live disagree in SIGN on the same corpus.** Offline this rung reads `gnn` over
+`mpoff` at +9.61 pp (p = 0.0003) val-selected and +4.23 pp (p = 0.021) at the last epoch. Live, with the
+same checkpoints and the serving path proven bit-identical to that offline read, `mpoff` wins by 10.67 %
+(p = 0.018, `gnn` ahead on 2 of 16 seeds) under the cap and by 28.82 % (p = 0.10) without it. This is not
+the familiar "agrees in direction, not in significance" caveat of T1b — the direction itself is reversed,
+and significantly so.
+
+**The mechanism is visible in the peer term, and it is the opposite of what training predicts.** `mpoff`
+carries LESS peer-exchange time than `gnn` live in both conditions (6.77e6 vs 8.08e6 uncapped; 8.58e6 vs
+9.65e6 capped). The arm with message passing produces *worse* peer locality on a live stream than the arm
+without it, while producing better locality offline on single 10-task batches from the same generator. The
+difference between the two settings is cross-batch state: offline every batch is scored into the captured
+state it was labelled in, live 45,375 batches land on each other's queues.
+
+**The platform cap is arm-specific and corpus-specific, not a universal win.** Paired by seed it gives
+`gnn` **+14.89 %** (p = 0.0003, 14/16) and `mpoff` **−0.80 %** (p = 0.56, 8/16) — the pointwise arm was
+already spreading and had nothing to gain. On the x200 p2 corpus the same cap gave both arms ~+22 %.
+Effective parallel channels rise for both (uncapped 7.36/6.95, capped 11.24/9.94). What survives across
+both corpora: **under the cap every learned arm beats reactive Knative on a real production trace, 16/16
+seeds** (+12.89 % and +23.39 % here, +21.87 % and +20.19 % on x200 p2).
+
+**What this costs the lineage's headline.** `gnn` vs `mpoff` now reads: offline GNN-NEEDED at both selectors
+(x800 p3), live POINTWISE-BETTER on the same corpus. No unconfounded claim that message passing helps
+survives an end-to-end reading on this rung; the honest statement is that it helps on the supervised target
+and hurts when that target is served in a stream. Artifacts:
+`peer_affinity_x800p3_live_{capped,uncapped}_read.json`.
+
 ### Serving fix — the platform cap turns the production gate into a win (2026-09-11)
 
 The registered gate tied because both learned arms halved per-task service and gave it all back to
