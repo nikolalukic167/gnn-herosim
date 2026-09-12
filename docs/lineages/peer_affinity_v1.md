@@ -1006,6 +1006,38 @@ past the 20 ms batch window drops pairs visible inside the batch from 4,234 to 4
 so any live number must report `prefix_pairs_in_batch` against `prefix_peers_outside_batch`. On the
 production trace visibility is 99.5 %.
 
+### The offline edge and the live edge move in OPPOSITE directions with graph density (2026-09-12)
+
+The x800 p2 rung — the last trained rung that had never been served — closes the question "is there one
+result where `gnn` beats both `mpoff` and Knative?" **There is not, on any of the three corpora.** 66 arms
+on the matched 2-partner 800 MB trace (jobs 759377 capped / 759378 uncapped): capped `gnn` 6.1812e10,
+`mpoff` 5.7890e10, Knative 7.7829e10 — `gnn` vs `mpoff` −4.42 % (p = 0.074, 5/16, INDETERMINATE), `gnn` vs
+Knative +20.58 % (16/16), `mpoff` vs Knative +25.62 % (16/16). Uncapped: `gnn` vs `mpoff` −3.18 %
+(p = 0.74, 7/16).
+
+Lining the three corpora up by peer-graph density, at the same statistic and the same 16 seeds:
+
+| corpus | pairs per task | OFFLINE `gnn` − `mpoff` (val) | LIVE `gnn` − `mpoff` (capped) |
+|---|---|---|---|
+| x200 p2 (T1b) | 2 partners, 200 MB | **+5.14 pp** (p = 0.001) | **+2.37 %** (p = 0.23, 10/16) |
+| x800 p2 | 2 partners, 800 MB | **+6.53 pp** (p = 0.013) | **−4.42 %** (p = 0.074, 5/16) |
+| x800 p3 | 3 partners, 800 MB | **+9.61 pp** (p = 0.0003) | **−10.67 %** (p = 0.018, 2/16) |
+
+**The two readings are monotone in density and anti-correlated with each other.** Every increment that makes
+message passing look better on the supervised target makes it do worse on the live stream, and the ordering
+is perfect across all three rungs. The live column crosses zero between the first and second rung, so the
+"agrees in direction, not in significance" caveat T1b carried was the last point before the sign flipped,
+not an under-powered version of the offline result.
+
+**What holds everywhere.** Under the platform cap every learned arm beats reactive Knative on every seed of
+every corpus: `gnn` +21.87 / +20.58 / +12.89 %, `mpoff` +20.19 / +25.62 / +23.39 %, all 16/16, all
+p = 3.1e-05. The pointwise twin is the better live scheduler on two of the three corpora and ties on the
+third.
+
+**Standing answer to "does message passing help?" on this lineage: offline yes and increasingly so;
+live no and increasingly not.** No single measurement has it beating both its twin and the reactive
+baseline. Artifacts: `peer_affinity_x800p2_live_{capped,uncapped}_read.json`.
+
 ### Denser graph, LIVE (2026-09-12) — the offline edge does NOT survive; the pointwise twin wins
 
 The x800 p3 checkpoints (the rung that reads GNN-NEEDED at **both** selectors offline) had never faced a
