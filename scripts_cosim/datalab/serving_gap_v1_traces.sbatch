@@ -41,7 +41,11 @@ case $CORPUS in
   x800p3) CKPREFIX=models/peer-affinity-v1-x800p3; WL=$G/workloads/workload-150-150-peer_p3_x800.json ;;
 esac
 CK="${CKPREFIX}-${ARM}-lr2e3-seed${SEED}.pt"
-OUT_DIR=simulation_data/serving_gap_v1/traces/$CORPUS
+# H1 wants every batch and no graph (SLIM); H2 wants ~500 graph-carrying records, i.e.
+# TRACE_EVERY=90 over 45,375 batches with the graph kept. Both are the same 96 runs.
+TRACE_SET="${TRACE_SET:-h1}"
+OUT_DIR=simulation_data/serving_gap_v1/traces_${TRACE_SET}/$CORPUS
+if [[ $TRACE_SET == h1 ]]; then export GNN_PREFIX_TRACE_SLIM=1; else export GNN_PREFIX_TRACE_EVERY="${TRACE_EVERY:-90}"; fi
 TRACE=$OUT_DIR/${ARM}_s${SEED}.pkl
 mkdir -p "$OUT_DIR" logs
 echo "[TASK $T] corpus=$CORPUS arm=$ARM seed=$SEED ck=$CK -> $TRACE"
@@ -53,7 +57,7 @@ if [[ -s "$TRACE" ]]; then echo "[skip] trace exists"; exit 0; fi
 export HEROSIM_PEER_EXCHANGE=1 HEROSIM_SERVER_ONLY_REPLICAS=1 HEROSIM_WARMTH_PHYSICS=node_disk_v2
 export PYTHONHASHSEED=0 HEROSIM_GNN_DEVICE=cpu
 export GNN_MODEL_PATH="$CK" GNN_DECODE_MODE=masked_topo GNN_BATCH_BY_PEER_GROUP=1
-export GNN_PREFIX_TRACE_PATH="$TRACE.partial" GNN_PREFIX_TRACE_SLIM=1
+export GNN_PREFIX_TRACE_PATH="$TRACE.partial"
 if [[ $ARM == mpoff ]]; then export GNN_DISABLE_MESSAGE_PASSING=1; fi
 
 RAW=$OUT_DIR/${ARM}_s${SEED}.result.json
