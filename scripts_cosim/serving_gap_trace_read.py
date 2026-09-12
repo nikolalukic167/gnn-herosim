@@ -389,7 +389,53 @@ def _spearman_perm(x: Sequence[float], y: Sequence[float], iters: int = 20000, s
     return rho, (hits + 1) / (iters + 1)
 
 
+def stage_h3_one(args: argparse.Namespace) -> dict:
+    """Splitting statistics for ONE (corpus, arm, seed). The pair scan is O(k^2) per batch
+    over 45,375 batches, so this runs as an array task, never on the login node."""
+    pairs = _peer_pairs(REPO_ROOT / WORKLOAD[args.corpus])
+    v = splitting_statistics(Path(args.trace), pairs)
+    if v is None:
+        raise RuntimeError(f"{args.trace}: no usable batches")
+    v.update({"stage": "h3-one", "corpus": args.corpus, "arm": args.arm, "seed": args.seed})
+    return v
+
+
 def stage_h3(args: argparse.Namespace) -> dict:
+    """Aggregate the per-(corpus, arm, seed) files written by stage_h3_one."""
+    root = Path(args.results_root)
+    per_corpus: Dict[str, dict] = {}
+    raw: Dict[str, Dict[str, Dict[int, dict]]] = {}
+    for corpus in CORPORA:
+        stats: Dict[str, Dict[int, dict]] = {a: {} for a in ARMS}
+        for arm in ARMS:
+            for seed in range(1, 17):
+                f = root / corpus / f"{arm}_s{seed}.json"
+                if f.is_file():
+                    stats[arm][seed] = json.loads(f.read_text())
+        raw[corpus] = stats
+        seeds = sorted(set(stats["gnn"]) & set(stats["mpoff"]))
+        if not seeds:
+            per_corpus[corpus] = {"status": "no paired results"}
+            continue
+        d_col = [stats["gnn"][s]["coloc_rate"] - stats["mpoff"][s]["coloc_rate"] for s in seeds]
+        d_nod = [stats["gnn"][s]["distinct_nodes_frac"] - stats["mpoff"][s]["distinct_nodes_frac"] for s in seeds]
+        p_col = wilcoxon_exact(d_col)
+        per_corpus[corpus] = {
+            "n_pairs": len(seeds),
+            "coloc_gnn": st.median([stats["gnn"][s]["coloc_rate"] for s in seeds]),
+            "coloc_mpoff": st.median([stats["mpoff"][s]["coloc_rate"] for s in seeds]),
+            "median_coloc_gnn_minus_mpoff": st.median(d_col), "p_coloc": p_col,
+            "median_distinct_nodes_gnn_minus_mpoff": st.median(d_nod), "p_distinct_nodes": wilcoxon_exact(d_nod),
+            "fires": bool(st.median(d_col) < 0 and p_col is not None and p_col < ALPHA),
+        }
+    fired = [c for c, v in per_corpus.items() if v.get("fires")]
+    return {"stage": "h3", "bar": {"alpha": ALPHA, "corpora_required": 2, "direction": "gnn co-locates less"},
+            "per_corpus": per_corpus, "corpora_fired": fired,
+            "verdict": "H3-FIRES" if len(fired) >= 2 else "H3-DOES-NOT-FIRE",
+            "per_seed": {c: {a: {str(s): v for s, v in raw[c][a].items()} for a in ARMS} for c in raw}}
+
+
+def _stage_h3_unused(args: argparse.Namespace) -> dict:
     root = Path(args.traces_root)
     per_corpus: Dict[str, dict] = {}
     raw: Dict[str, Dict[str, Dict[int, dict]]] = {}
@@ -480,15 +526,20 @@ def main() -> int:
     p3.add_argument("--results-root", required=True)
     p3.add_argument("--output", type=Path, required=True)
     p4 = sub.add_parser("h3")
-    p4.add_argument("--traces-root", required=True)
+    p4.add_argument("--results-root", required=True)
     p4.add_argument("--output", type=Path, required=True)
+    p4b = sub.add_parser("h3-one")
+    for flag in ("--corpus", "--arm", "--trace"):
+        p4b.add_argument(flag, required=True)
+    p4b.add_argument("--seed", type=int, required=True)
+    p4b.add_argument("--output", type=Path, required=True)
     p5 = sub.add_parser("h4")
     p5.add_argument("--h3", required=True)
     p5.add_argument("--sensitivity-root", required=True)
     p5.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
     result = {"s0": stage_s0, "h1": stage_h1, "h2-one": stage_h2_one, "h2": stage_h2,
-              "h3": stage_h3, "h4": stage_h4}[args.stage](args)
+              "h3": stage_h3, "h3-one": stage_h3_one, "h4": stage_h4}[args.stage](args)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2)[:4000])
