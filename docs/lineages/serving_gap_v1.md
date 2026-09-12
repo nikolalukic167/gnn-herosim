@@ -1,8 +1,13 @@
-# serving_gap_v1 — REGISTERED
+# serving_gap_v1 — CLOSED (NO-GO)
 
-> **Status:** `REGISTERED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-12 → (open)
+> **Status:** `CLOSED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-12 → 2026-09-12
 
-**Outcome.** Pending. Registered 2026-09-12, before any statistic of it exists.
+**Outcome.** **NO-GO on the registered kill bar, same day.** S0 passed; **neither H1 nor H2 fired, and
+both were refuted in the direction OPPOSITE to the one registered**, significantly. The graph-aware arm is
+not herded and not load-blind: on every corpus it spreads its choices *more* evenly than its pointwise twin
+and reacts to queue depth *3-7x more strongly*. No serving constraint follows, so stage 2 is not
+authorised and the lineage closes. The refutations are themselves a measured fact and are recorded below,
+because they invert the intuition the whole search rested on.
 
 **The question.** `peer_affinity_v1` measured, on three corpora and 16 paired seeds each, that
 `gnn` − `mpoff` reads **+5.14 / +6.53 / +9.61 pp offline** and **+2.37 / −4.42 / −10.67 % live**,
@@ -45,7 +50,63 @@ batch) and emits the H1/H2 statistics below · the live gate is the existing
 
 ## Record
 
+- [Stage 1 — NO-GO, both hypotheses refuted backwards (2026-09-12)](#stage-1-no-go-both-hypotheses-refuted-backwards-2026-09-12)
 - [Registration (2026-09-12)](#registration-2026-09-12)
+
+---
+
+### Stage 1 — NO-GO, both hypotheses refuted backwards (2026-09-12)
+
+**S0 (control) PASSED.** The harness recomputed the registered offline `gnn` − `mpoff` contrast from the
+stored per-checkpoint reports, restricted to each rung's frozen held-out block: **+5.142 / +6.532 /
++9.606 pp** against the registered **+5.14 / +6.53 / +9.61**, signs matching on all three corpora
+(`simulation_data/serving_gap_v1_s0.json`). The diagnostics below are therefore reading the artifacts the
+registered read was computed from.
+
+**Substrate.** 96 live production runs (3 corpora x 2 arms x 16 seeds, job 759571) writing slim decode
+traces for H1, and 96 more (job 759842) writing graph-carrying traces subsampled to ~500 decision points
+for H2 (job 760166 scores them). **Uncapped**, stated in the sbatch: the platform cap is itself an
+anti-concentration constraint and would mask the pathology under test. Two default-off serving flags were
+added for this and change nothing otherwise: `GNN_PREFIX_TRACE_SLIM`, `GNN_PREFIX_TRACE_EVERY`.
+
+**H1 — herding. DOES NOT FIRE; refuted backwards.** Registered direction: `gnn` more herded (higher modal
+repeat rate, lower node entropy). Measured, paired over 16 seeds:
+
+| corpus | modal repeat rate, gnn − mpoff | p | node entropy, gnn − mpoff | p |
+|---|---|---|---|---|
+| x200 p2 | +0.001 | 0.50 | −0.017 | 0.50 |
+| x800 p2 | −0.067 | 0.19 | +0.016 | 0.90 |
+| x800 p3 | **−0.083** | **0.009** | **+0.062** | **0.018** |
+
+Zero of three fire. On the corpus where the live gap is worst the *pointwise twin* is the herded arm, and
+significantly so. Median normalised node entropy over 45,375 batches, x800 p3: `gnn` 0.835, `mpoff` 0.786.
+
+**H2 — queue insensitivity. DOES NOT FIRE; refuted backwards, and by a wide margin.** Registered direction:
+`gnn` less sensitive. Measured (mean |Δ score| per candidate, normalised by the step's score spread, when
+every platform is told it is one standard deviation busier):
+
+| corpus | `gnn` | `mpoff` | difference | p |
+|---|---|---|---|---|
+| x200 p2 | 0.582 | 0.169 | **+0.252** | 6.1e-05 |
+| x800 p2 | 0.424 | 0.113 | **+0.241** | 9.2e-05 |
+| x800 p3 | 0.770 | 0.111 | **+0.637** | 3.1e-05 |
+
+The graph-aware arm is **3 to 7 times more** responsive to load than its twin, on every corpus, at
+p < 1e-4. It is the opposite of blind.
+
+**What the two refutations say together.** Every registered explanation assumed the graph arm is too rigid
+— stuck on a favourite node, deaf to load. The measurements say it is the *most* responsive arm in the
+program: it spreads more, and its scores move several times further when load changes. Put beside
+`peer_affinity_v1`'s finding that it carries **more** live peer-exchange time than its twin, the coherent
+reading is over-responsiveness — an arm that chases queue signal and scatters the peer groups it was
+trained to keep together, while a sluggish pointwise scorer keeps them. **That reading is post hoc and is
+recorded as a hypothesis, not a result.** Testing it needs its own registration with its own bars; it is
+explicitly NOT folded into this one, and neither is the within-batch group-splitting statistic that the
+same traces would support.
+
+**Closed.** No constraint follows from a refuted hypothesis, so stage 2 is not authorised. Artifacts:
+`simulation_data/serving_gap_v1_{s0,h1,h2}.json`, traces under
+`simulation_data/serving_gap_v1/` on datalab.
 
 ---
 
