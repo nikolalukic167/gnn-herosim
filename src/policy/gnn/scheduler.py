@@ -652,9 +652,15 @@ class GNNScheduler(Scheduler):
                 "task_ids": [int(t.id) for t in batch_tasks],
                 "task_types": [str(t.type["name"]) for t in batch_tasks],
                 "combo": [list(c) for c in combo],
-                "graph": _detached_graph_copy(graph),
                 "diag": dict(diag),
             }
+            # serving_gap_v1: the served graph is ~50 kB, so a full production trace
+            # (45,375 batches) is ~2.3 GB and 96 of them do not fit the /home quota.
+            # GNN_PREFIX_TRACE_SLIM=1 drops it; the plan, the ids and the diagnostics are
+            # what the herding statistics need. Default keeps the graph, so the parity
+            # check (peer_affinity_live_serve_check.py) is unaffected.
+            if os.environ.get("GNN_PREFIX_TRACE_SLIM", "").strip() != "1":
+                record["graph"] = _detached_graph_copy(graph)
             with open(trace_path, "ab") as fh:
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
