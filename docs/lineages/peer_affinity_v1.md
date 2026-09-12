@@ -1142,10 +1142,14 @@ production workload, which no arm of this lineage had done live before. Only cap
 under-predicted the effect badly (+3.2 % at cap 1 there against +24 % on the full trace), so a serving knob
 must be sized on the production trace, not on a smoke.
 
-### The offline edge survives only at the TRAINING queue scale — it flips by 10x, and live is ~300x (2026-09-12)
+### The offline edge holds only at the TRAINING queue scale — but the defect does NOT explain the live reversal (2026-09-12/13)
 
-**This is a candidate mechanism for the offline/live reversal, and it is measured offline, with no
-simulator in the loop.** Audit finding; full defect write-up in `docs/gates/gate-tools.md` (2026-09-12).
+**Two findings, and they must not be merged.** (1) The queue feature the live path serves is broken, and at
+live magnitudes the registered offline MP edge is **not significant on any corpus** — so "message passing
+helps here" holds only in a queue regime serving never occupies. (2) The defect was registered as a candidate
+mechanism for the offline/live reversal and **the discriminating test refuted it**: the crossover ordering is
+the inverse of the live ordering. Audit finding; full defect write-up in `docs/gates/gate-tools.md`
+(2026-09-12).
 
 The defect. `legacy_v0`'s platform dim-7 divisor is `min(max(1, p90 over ALL platforms), 100)`. In
 `graphs_cache_peer_affinity_v1_t1b` that p90 is **0 in 516 of 516 datasets** — only 5 of the 134 platforms
@@ -1188,15 +1192,38 @@ one row. With MP on, the GIN mixes every reachable platform embedding into every
 of every edge score through O(platforms) paths. That predicts the damage grows with peer-edge count, i.e.
 with graph density — the ordering the offline/live table shows.
 
-**What this does and does not establish.** It establishes that the registered offline edge is **not robust to
-the queue regime**: it exists at the training queue scale and inverts by a factor of ten, and the live venue
-runs at ~300. It does **not** yet establish that this is the whole reversal: the probe is on x200 p2, whose
-live contrast (+2.37 %) is the one rung that did not reverse, and offline regret and live `total_rtt` are
-different statistics whose magnitudes are not comparable. The test of the mechanism is the crossover k on
-the two x800 corpora, whose live contrasts did reverse — job 760650 (4 tasks, same probe, same bars).
-Prediction recorded before reading it: **the crossover k is lower on the denser graph.**
+**The discriminating test REFUTES the mechanism (job 760650, read 2026-09-13).** The prediction recorded
+above — crossover k lower on the denser graph — is **wrong, and wrong in the opposite direction.** Same probe,
+same bars, same 16 seeds, the two corpora whose live contrasts actually reversed:
 
-Artifacts: `simulation_data/peer_affinity_queue_scale_probe_t1b_{gnn,mpoff}.json` (per-seed values included).
+| corpus | offline k=1 | k=3 | k=10 | k=30 | k=100 | k=300 | first NEGATIVE k | LIVE `gnn` − `mpoff` |
+|---|---|---|---|---|---|---|---|---|
+| x200 p2 | **+5.14** | +4.29 | −2.56 | **−3.46** (p=0.025) | −2.18 | −3.00 | **10** | **+2.37 %** |
+| x800 p2 | **+6.53** | +3.81 | +1.82 | +4.60 | +5.00 | +4.84 | **never** | **−4.42 %** |
+| x800 p3 | **+9.61** | +5.11 | **+6.13** (p=0.016) | +5.29 | +2.12 | +2.47 | **never** | **−10.67 %** |
+
+The one corpus whose offline sign the queue scale flips is the one corpus that **did not reverse live**. The
+two that did reverse live keep a *positive* offline contrast at every k up to 300. Per-arm degradation from
+k=1 to k=300 is `gnn` +16.27 / +5.48 / +6.30 pp against `mpoff` +6.30 / +4.98 / **−0.74** pp, so the 2.5×
+asymmetry is an x200-p2 fact, not a general one. **The crossover ordering is the exact inverse of the live
+ordering: the queue-feature defect does not explain the offline/live reversal.** That is a fourth registered
+explanation refuted (after herding and queue-blindness in `serving_gap_v1` and group splitting in
+`serving_gap_v2`), and the most parsimonious reading of the x200 p2 flip is the mundane one — it carries the
+*smallest* offline edge, so a common degradation erases it first.
+
+**What DOES survive, and it is not small.** At the live queue scale the registered offline reading is gone on
+every corpus: no contrast reaches p < 0.05 in either direction at k ≥ 100 (−3.00 p=0.051, +4.84 p=0.12,
++2.47 p=0.46). GNN-NEEDED survives to k=3 on x200 p2, k=10 on x800 p3, and nowhere past k=30. So
+**"message passing helps here" is a claim that holds in a queue regime the serving venue never occupies** —
+the defect erases the offline evidence for MP without producing the live reversal. Both halves of that
+sentence matter and they are independent findings.
+
+**And the reversal stays unexplained.** Nothing measured so far accounts for it: not herding, not queue
+blindness, not group splitting, not the queue-feature scale. What the audit adds is that the offline half of
+the comparison is regime-dependent, so "offline yes, live no" is better stated as "offline yes at a queue
+depth of ~30 tasks, nothing either way at a queue depth of ~10⁴, and live no".
+
+Artifacts: `simulation_data/peer_affinity_queue_scale_probe_{t1b,x800p2,x800p3}_{gnn,mpoff}.json` (per-seed values included).
 The probe serves a `legacy_v0` checkpoint under a rescaled column, so it is a **diagnostic, never a policy** —
 ADR 0002 is unchanged: such a checkpoint can only be corrected by retraining.
 
