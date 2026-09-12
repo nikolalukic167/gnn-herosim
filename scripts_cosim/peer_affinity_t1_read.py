@@ -239,7 +239,14 @@ def main() -> int:
     contrasts = {}
     for a, b in (("gnn", "mlp_t1"), ("gnn", "mpoff"), ("gnn", "mlp_t1x"), ("mpoff", "mlp_t1"), ("mlp_t1x", "mlp_t1")):
         for variant in ("val", "final"):
-            ta, tb = seed_test(a, variant if a in ("gnn", "mpoff") else "val"), seed_test(b, variant if b in ("gnn", "mpoff") else "val")
+            # Only the GNN arms save a -final checkpoint (NEAR_RTT_SAVE_FINAL); the MLP
+            # trainer does not, so an MLP side of an "@final" contrast is its VAL-selected
+            # checkpoint. That asymmetry is real and is why every such contrast now records
+            # the selector it actually used per side -- an "@final" key alone reads as if
+            # both arms were at last epoch, and they are not (audit 2026-09-12).
+            sel_a = variant if a in ("gnn", "mpoff") else "val"
+            sel_b = variant if b in ("gnn", "mpoff") else "val"
+            ta, tb = seed_test(a, sel_a), seed_test(b, sel_b)
             seeds = sorted(set(ta) & set(tb))
             if not seeds:
                 continue
@@ -247,7 +254,9 @@ def main() -> int:
             p = wilcoxon_exact(diffs) if len(seeds) <= 20 else None
             contrasts[f"{a}_vs_{b}@{variant}"] = {"n_seeds": len(seeds), "median_delta_pp": st.median(diffs),
                                                   "mean_delta_pp": sum(diffs) / len(diffs), "p_exact_wilcoxon": p,
-                                                  "reading": reading(diffs, p), "a_medians": ta, "b_medians": tb}
+                                                  "reading": reading(diffs, p), "a_medians": ta, "b_medians": tb,
+                                                  "selector": {a: sel_a, b: sel_b},
+                                                  "selector_matched": sel_a == sel_b}
     out = {"registration": "docs/lineages/peer_affinity_v1.md#T1", "alpha_key": ALPHA_KEY, "bar_pp": BAR_PP, "alpha": ALPHA,
            "chosen_lr": chosen, "lr_table": lr_table, "per_checkpoint": per, "contrasts": contrasts,
            "arm_test_medians": {arm: {v: seed_test(arm, v) for v in ("val", "final")} for arm in ARMS}}
