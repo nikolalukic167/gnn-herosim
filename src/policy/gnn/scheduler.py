@@ -641,6 +641,25 @@ class GNNScheduler(Scheduler):
             )
         self.last_prefix_graph = graph  # parity checks read the served graph
         trace_path = os.environ.get("GNN_PREFIX_TRACE_PATH", "").strip()
+        # serving_gap_v1: GNN_PREFIX_TRACE_EVERY=N traces only every Nth served batch, so a
+        # production run can hand back ~500 graph-carrying records instead of 45,375 (a full
+        # graph trace of one production run is ~2.3 GB). Default 1 = every batch, so the
+        # parity check and every earlier trace are unaffected.
+        if trace_path:
+            every = os.environ.get("GNN_PREFIX_TRACE_EVERY", "").strip()
+            if every:
+                try:
+                    n = int(every)
+                except ValueError as exc:
+                    raise RuntimeError(f"GNN_PREFIX_TRACE_EVERY={every!r} is not an integer") from exc
+                if n < 1:
+                    raise RuntimeError(f"GNN_PREFIX_TRACE_EVERY={n} must be >= 1")
+                # own counter: prefix_batches is incremented later in this method, so
+                # keying off it would depend on statement order
+                seen = getattr(self, "_trace_batches_seen", 0)
+                self._trace_batches_seen = seen + 1
+                if seen % n != 0:
+                    trace_path = ""
         if trace_path:
             # One pickled record per served batch: the served graph (CPU tensors + the
             # prefix context) and the decoded plan, so a parity check can hold the live
