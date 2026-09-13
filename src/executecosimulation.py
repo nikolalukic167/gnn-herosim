@@ -1346,9 +1346,31 @@ def execute_simulation(
         task_priority='fifo',
         keep_alive=30,
         queue_length=100,
-        reconcile_interval=1
+        reconcile_interval: Optional[float] = None
 ) -> Dict[str, Any]:
-    """Execute simulation with full configuration and simulation inputs."""
+    """Execute simulation with full configuration and simulation inputs.
+
+    ``reconcile_interval`` defaults to the autoscaler's 1 s tick. On a warm-snapshot
+    dataset (peer_affinity_warm_v1, 2026-09-13) the label horizon is the queue drain --
+    up to ~6e5 simulated seconds -- and every tick runs the determined autoscaler's
+    scaling pass and appends one ``systemEvents`` row per task type, so a single plan
+    cost ~20 s and ~30 MB and 31 workers blew a 64 GB allocation. The tick is a
+    reactive-serving artefact with no effect on a co-sim label (proven bit-identical on
+    the prototype sweeps, see the lineage node), so ``COSIM_AUTOSCALER_RECONCILE_INTERVAL``
+    stretches it; unset, nothing changes.
+    """
+    if reconcile_interval is None:
+        raw = os.environ.get("COSIM_AUTOSCALER_RECONCILE_INTERVAL", "1")
+        try:
+            reconcile_interval = float(raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"COSIM_AUTOSCALER_RECONCILE_INTERVAL={raw!r} is not a number"
+            ) from exc
+        if not reconcile_interval > 0:
+            raise ValueError(
+                f"COSIM_AUTOSCALER_RECONCILE_INTERVAL must be > 0, got {reconcile_interval}"
+            )
 
     simulation_data = SimulationData(
         platform_types=sim_inputs['platform_types'],

@@ -37,6 +37,10 @@ export HEROSIM_RETAIN_PEER_STATS=1
 export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000
 export GNN_CAPTURE_DATASET_STATE=0
 export COSIM_SUPPRESS_SIM_PRINTS=1
+# The autoscaler's 1 s tick is a serving artefact; on a 6e5 s drain horizon it made one
+# plan cost ~20 s / ~30 MB and OOM-killed every 64 GB task of the first W0 arrays
+# (761329/761343). Label-invariant (bit-identical on the prototype sweeps).
+export COSIM_AUTOSCALER_RECONCILE_INTERVAL=1e12
 
 SOURCE="${SOURCE:?set SOURCE=knb or SOURCE=gnn}"
 PER="${PER:-5}"

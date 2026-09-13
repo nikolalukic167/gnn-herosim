@@ -461,6 +461,17 @@ def main() -> int:
                       f"{record['num_combos']} combos): {status} rtt={rtt:.1f} in {secs:.0f}s", flush=True)
         with open(manifest_path, "a") as fh:
             fh.write(json.dumps(entry) + "\n")
+        if entry["status"] not in ("success", "dry-run"):
+            # Fail loud (CLAUDE.md rule 4). generate_single_dataset already refines the
+            # engine's 'success' into 'truncated' when placement_metadata.json says the
+            # sweep lost rows (2026-09-13: 81 of 95 W0 datasets came back with 3-30 % of
+            # their plans after the worker pool was OOM-killed, and the manifest said
+            # done). A truncated sweep's best.json is not a label; stop here so the
+            # array task fails instead of the read discovering it.
+            raise RuntimeError(
+                f"{dataset_id} (snapshot {sid}): generation status {entry['status']!r} "
+                f"-- see {out_dir / 'placement_metadata.json'}"
+            )
         idx += 1
         made += 1
     print(f"[warm] done: {made} dataset(s) in {time.time() - t0:.0f}s -> {args.output_dir}", flush=True)
