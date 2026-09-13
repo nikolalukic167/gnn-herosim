@@ -7,7 +7,7 @@
 # node, one such candidate raises a node's cap ~8x and the capacity mask stops binding there
 # for the whole batch -- the decoder's only concentration control before the platform cap.
 #
-# This array measures it on the REAL production decode traces (serving_gap_v1/traces_h1:
+# This array measures it on the REAL production decode traces (serving_gap_v1/traces_h2:
 # 3 corpora x 2 arms x 16 seeds, every sampled batch's graph and decoded plan), and reports
 # the statistic that decides whether it is an ARM asymmetry or a shared handicap: the share
 # of decoded placements landing on a platform type outside the checkpoint's own corpus.
@@ -43,7 +43,7 @@ case ${SLURM_ARRAY_TASK_ID} in
   2) CORPUS=x800p3; CACHE=simulation_data/graphs_cache_peer_affinity_v1_x800_p3 ;;
   *) echo "FAIL LOUD: unknown task ${SLURM_ARRAY_TASK_ID}" >&2; exit 1 ;;
 esac
-TRACES=simulation_data/serving_gap_v1/traces_h1/$CORPUS
+TRACES=simulation_data/serving_gap_v1/traces_h2/$CORPUS  # h1 is SLIM (no graph); h2 carries the served graph
 OUT=simulation_data/peer_affinity_candidate_support_${CORPUS}.json
 [[ -d "$CACHE" ]] || { echo "FAIL LOUD: cache missing: $CACHE" >&2; exit 1; }
 [[ -d "$TRACES" ]] || { echo "FAIL LOUD: traces missing: $TRACES" >&2; exit 1; }
