@@ -224,22 +224,28 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
         if not self._audit_batch_qualifies(system_state, batch_tasks):
             return
 
-        snapshot = {
-            "snapshot_id": self._audit_snapshots_written,
-            "time": float(self.env.now),
-            "policy": "knative_network_batch",
-            "horizon": len(batch_tasks),
-            "trigger_task_id": int(batch_tasks[0].id),
-            "chosen": None,
-            "full_queue_snapshot": self._capture_full_queue_snapshot(),
-            "tasks": [
-                self._audit_task_payload(system_state, task)
-                for task in batch_tasks
-            ],
-            # Shared schema with src/placement/live_audit.py — the P3 horizon sweep
-            # needs the full per-type replica state, not just batch candidates.
-            "replicas_by_type": _replicas_by_type_payload(system_state, orchestrator_of(self)),
-        }
+        self._drain_memo = {}  # one queue walk per platform per snapshot
+        try:
+            snapshot = {
+                "snapshot_id": self._audit_snapshots_written,
+                "time": float(self.env.now),
+                "policy": "knative_network_batch",
+                "horizon": len(batch_tasks),
+                "trigger_task_id": int(batch_tasks[0].id),
+                "chosen": None,
+                "full_queue_snapshot": self._capture_full_queue_snapshot(),
+                "tasks": [
+                    self._audit_task_payload(system_state, task)
+                    for task in batch_tasks
+                ],
+                # Shared schema with src/placement/live_audit.py — the P3 horizon sweep
+                # needs the full per-type replica state, not just batch candidates.
+                "replicas_by_type": _replicas_by_type_payload(
+                    system_state, orchestrator_of(self), self._drain_memo
+                ),
+            }
+        finally:
+            self._drain_memo = None
 
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         with open(output_path, "a") as f:

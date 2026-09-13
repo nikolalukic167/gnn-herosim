@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.scheduling_cost import network_latency_between
@@ -42,8 +42,14 @@ def orchestrator_of(scheduler: Any) -> Any:
     return None
 
 
-def platform_queue_drain_seconds(platform: "Platform", orchestrator: Any) -> float:
+def platform_queue_drain_seconds(
+    platform: "Platform", orchestrator: Any, memo: Optional[Dict[str, float]] = None
+) -> float:
     """Seconds until `platform`'s backlog as it stands now has been served.
+
+    `memo` (queue_key -> seconds) makes one snapshot walk each busy queue once: a batch
+    snapshot asks for every candidate of every task AND every replica, and a 16k-deep
+    queue walked 100 times per snapshot stalled the capture run (measured 2026-09-13).
 
     peer_affinity_warm_v1 (2026-09-13): a live snapshot replayed through
     `live_snapshot_seed` compresses a queue into a virtual backlog with one total time.
@@ -58,6 +64,9 @@ def platform_queue_drain_seconds(platform: "Platform", orchestrator: Any) -> flo
     planned; an unknown peer contributes 0 here and is a live rendezvous, not a transfer).
     Any virtual backlog already seeded is carried through unchanged.
     """
+    memo_key = f"{platform.node.node_name}:{platform.id}"
+    if memo is not None and memo_key in memo:
+        return memo[memo_key]
     total = float(getattr(platform, "virtual_warmup_total_time", 0.0) or 0.0)
     node = platform.node
     plat_type = platform.type["shortName"]
@@ -65,12 +74,20 @@ def platform_queue_drain_seconds(platform: "Platform", orchestrator: Any) -> flo
     peer_on = os.environ.get("HEROSIM_PEER_EXCHANGE", "0") == "1"
     peer_table = (getattr(orchestrator, "peer_exchange", None) or {}) if orchestrator is not None else {}
     task_by_id = (getattr(orchestrator, "task_by_id", None) or {}) if orchestrator is not None else {}
+    # Platform._payload_transfer_time is linear in the payload for a fixed route
+    # (hops x bytes / bottleneck, or bytes / node bandwidth), so price each peer node once.
+    per_byte: Dict[str, float] = {}
 
     def _latency_to(other_node_name: str) -> float:
         entry = network_map.get(other_node_name)
         if entry is None:
             return 0.0
         return float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+
+    def _transfer(other_node_name: str, payload: float) -> float:
+        if other_node_name not in per_byte:
+            per_byte[other_node_name] = float(platform._payload_transfer_time(other_node_name, 1.0))
+        return per_byte[other_node_name] * payload
 
     for task in platform.queue.items:
         task_type = task.type
@@ -92,9 +109,9 @@ def platform_queue_drain_seconds(platform: "Platform", orchestrator: Any) -> flo
             )
             if peer_node_name is None or peer_node_name == node.node_name:
                 continue
-            total += platform._payload_transfer_time(peer_node_name, float(payload)) + _latency_to(
-                peer_node_name
-            )
+            total += _transfer(peer_node_name, float(payload)) + _latency_to(peer_node_name)
+    if memo is not None:
+        memo[memo_key] = float(total)
     return float(total)
 
 
@@ -139,7 +156,9 @@ def _candidate_payload(
         ),
         "communications_time": (input_size / _STORAGE_THROUGHPUT + _STORAGE_LATENCY)
         + (output_size / _STORAGE_THROUGHPUT + _STORAGE_LATENCY),
-        "queue_drain_seconds": platform_queue_drain_seconds(platform, orchestrator_of(scheduler)),
+        "queue_drain_seconds": platform_queue_drain_seconds(
+            platform, orchestrator_of(scheduler), getattr(scheduler, "_drain_memo", None)
+        ),
     }
 
 
@@ -179,6 +198,7 @@ def _batch_qualifies(
 def _replicas_by_type_payload(
     system_state: "SystemState",
     orchestrator: Any = None,
+    memo: Optional[Dict[str, float]] = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """The full replica set per task type, as the live autoscaler has it right now.
 
@@ -200,7 +220,7 @@ def _replicas_by_type_payload(
             }
             if orchestrator is not None:
                 spec["platform_type"] = str(platform.type["shortName"])
-                spec["queue_drain_seconds"] = platform_queue_drain_seconds(platform, orchestrator)
+                spec["queue_drain_seconds"] = platform_queue_drain_seconds(platform, orchestrator, memo)
             specs.append(spec)
         payload[str(task_type)] = specs
     return payload
@@ -234,21 +254,27 @@ def maybe_capture_batch_live_audit_snapshot(
     if not _batch_qualifies(scheduler, system_state, batch_tasks):
         return
 
-    snapshot = {
-        "snapshot_id": written,
-        "time": float(scheduler.env.now),
-        "policy": policy_name,
-        "horizon": len(batch_tasks),
-        "trigger_task_id": int(batch_tasks[0].id),
-        "chosen": None,
-        "full_queue_snapshot": scheduler._capture_full_queue_snapshot(),
-        "tasks": [_task_payload(scheduler, system_state, task) for task in batch_tasks],
-        # P3 horizon continuation needs the FULL per-type replica state, not just the
-        # batch tasks' candidate lists: a horizon arrival from any client node must find
-        # the replicas the live autoscaler had actually provisioned at capture time.
-        # Snapshots without this field predate it and only support t=0 sweeps.
-        "replicas_by_type": _replicas_by_type_payload(system_state, orchestrator_of(scheduler)),
-    }
+    scheduler._drain_memo = {}  # one queue walk per platform per snapshot
+    try:
+        snapshot = {
+            "snapshot_id": written,
+            "time": float(scheduler.env.now),
+            "policy": policy_name,
+            "horizon": len(batch_tasks),
+            "trigger_task_id": int(batch_tasks[0].id),
+            "chosen": None,
+            "full_queue_snapshot": scheduler._capture_full_queue_snapshot(),
+            "tasks": [_task_payload(scheduler, system_state, task) for task in batch_tasks],
+            # P3 horizon continuation needs the FULL per-type replica state, not just the
+            # batch tasks' candidate lists: a horizon arrival from any client node must find
+            # the replicas the live autoscaler had actually provisioned at capture time.
+            # Snapshots without this field predate it and only support t=0 sweeps.
+            "replicas_by_type": _replicas_by_type_payload(
+                system_state, orchestrator_of(scheduler), scheduler._drain_memo
+            ),
+        }
+    finally:
+        scheduler._drain_memo = None
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "a") as f:
