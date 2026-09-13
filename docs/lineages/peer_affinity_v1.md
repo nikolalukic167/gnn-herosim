@@ -1211,6 +1211,15 @@ Knative, which no reading in this program has produced.
 
 **Cost.** 102 arms of ~2–3 h on CPU-amd, throttled; no GPU, no new corpus, no retraining.
 
+**Launched 2026-09-13:** jobs 760830 (x200 p2), 760831 (x800 p2), 760832 (x800 p3), `--array=0-33%8`,
+results under `results/h5_allowlist_<corpus>/`. The allow-list is exported in the submitting shell, never
+through `sbatch --export`, which splits its own argument on commas and would truncate the list to `rpiCpu`
+— a different cluster, not a failed submission (caught and cancelled within 12 s as jobs 760802-760804; the
+gate now echoes `[ALLOW-LIST]` in its first seconds so the log says what arrived). Note on the provenance
+banner: these runs print `working tree dirty (9 file(s))` with `diff_sha256=e3b0c44298fc`, the SHA-256 of the
+empty string — the nine are **untracked** `literature_reeval_l2d_*.sbatch` from another lineage and no
+tracked source differs, so the gate is comparable to the landed ones.
+
 ### The offline edge holds only at the TRAINING queue scale — but the defect does NOT explain the live reversal (2026-09-12/13)
 
 **Two findings, and they must not be merged.** (1) The queue feature the live path serves is broken, and at
