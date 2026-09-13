@@ -1220,6 +1220,70 @@ banner: these runs print `working tree dirty (9 file(s))` with `diff_sha256=e3b0
 empty string — the nine are **untracked** `literature_reeval_l2d_*.sbatch` from another lineage and no
 tracked source differs, so the gate is comparable to the landed ones.
 
+### H5 — CONFOUNDED by its own registered control; and BOTH headline live results turn out to be contingent on the cluster's platform mix (2026-09-13)
+
+102 arms, all COMPLETED, 34/34 per corpus (jobs 760939 / 760940 / 760941; reads
+`peer_affinity_h5_allowlist_<corpus>_read.json`). `HEROSIM_REPLICA_PLATFORM_TYPES=rpiCpu,xavierCpu,pynqFpga`
+on **every** arm including both reactive baselines; `GNN_PREFIX_PLATFORM_CAP=1`; otherwise the registered
+capped gate verbatim. The allow-list reached every compute node (`[ALLOW-LIST]` banner) and was validated on
+a smoke beforehand: candidates outside the training support 7.2 % → **0.0 %**, roomiest node 32.5 → **3.6**
+tasks.
+
+| corpus | landed capped `gnn` − `mpoff` | under the allow-list | move | p | `gnn` ahead | reading |
+|---|---|---|---|---|---|---|
+| x200 p2 (**registered control**) | +2.37 % (p = 0.23) | **+3.94 %** | **+1.57 pp** | **0.0076** | 13/16 | **GNN-NEEDED** |
+| x800 p2 | −4.42 % (p = 0.074) | **+2.58 %** | **+7.00 pp** | 0.27 | 11/16 | INDETERMINATE |
+| x800 p3 | −10.67 % (p = 0.018, POINTWISE-BETTER) | **−0.28 %** | **+10.39 pp** | 0.71 | 8/16 | **TIE** |
+
+**Verdict: H5 CONFOUNDED — it is not recorded as fired.** Both registered bars pass on both x800 corpora
+(move ≥ +3 pp; neither still reads POINTWISE-BETTER). The registered discriminating control fails: x200 p2,
+where the graph arm uses the untrained platform type *more* than its twin (+1.6 pp), had to move **down** or
+stay flat if the mechanism were differential capacity use. It moved **up**, and all three corpora moved the
+same way — which is exactly the pattern the registration named in advance as CONFOUNDED, pointing at the
+*shared* consequence instead: restoring the capacity mask helps the graph arm on every corpus. The control's
+move is small (+1.57 pp) and the move itself was never given a significance test, but **the bar was fixed
+before the run and is not reinterpreted after seeing it.**
+
+**Finding 1 — the live reversal is not a property of the two policies. It is contingent on the serving
+cluster's platform mix.** Remove one platform type that the training corpus never contained and the
+offline/live sign reversal disappears: x800 p3 goes from POINTWISE-BETTER (−10.67 %, p = 0.018, `gnn` ahead
+on 2/16) to a **TIE** (−0.28 %, 8/16), x800 p2 turns positive, and x200 p2 becomes the first **GNN-NEEDED**
+live reading in this lineage (+3.94 %, p = 0.0076, 13/16). The "offline yes, live no, and increasingly not"
+table must therefore be quoted with the cluster it was measured on; it is not a robust fact about message
+passing under serving.
+
+**Finding 2 — and the platform cap's win over reactive Knative is contingent on the same thing.**
+
+| corpus | `gnn` vs Knative (landed) | `gnn` vs Knative (allow-list) | `mpoff` vs Knative | seeds better |
+|---|---|---|---|---|
+| x200 p2 | **+21.87 %**, 16/16 | **−13.99 %** | −18.81 % | **0/16** |
+| x800 p2 | +20.58 %, 16/16 | **−10.86 %** | −13.51 % | **0/16** |
+| x800 p3 | +12.89 %, 16/16 | **−15.94 %** | −14.62 % | **0/16** |
+
+Removing the platform type costs Knative ~6 % (x200 p2: 2.0131e10 → 2.1429e10) and costs the graph arm
+**55 %** (1.5727e10 → 2.4428e10). Both learned arms lose to the reactive baseline on every seed of every
+corpus. That asymmetry is the co-location/parallelism trade measured from the other side: a policy that
+concentrates is far more sensitive to losing a platform than one that spreads per arrival. **So the one
+deployable result of this arc — +21.9 % over reactive Knative under the platform cap — holds on the cluster
+it was measured on and reverses on a cluster with one fewer platform type.** It is not a defect in that
+measurement; it is a limit on how far it generalises, and it was not previously known.
+
+**Still no measurement where `gnn` beats both `mpoff` and Knative.** Under the allow-list x200 p2 gives the
+first significant live win over `mpoff` (+3.94 %, p = 0.0076) and loses to Knative by 14.0 % on every seed.
+
+**What is NOT claimed.** The allow-list is a diagnostic, not a proposed configuration: it removes real
+serving capacity, so it is not "serve what you trained on" for free. Which of the two consequences moved the
+contrast — the restored capacity mask, or the lost capacity itself — is not resolved here, and the registered
+control says it is not the differential use. A clean separation needs a cluster where the GPU platform is
+present but its *demand* is in the corpus's range (so the cap is not inflated while capacity is unchanged);
+that is a new registration, not an extension of this one.
+
+**The defect itself stands and is independent of the verdict:** 7.60 % of live candidates and 46.4 % of live
+node caps are outside anything the training corpus contains, on every arm and seed of all three corpora, and
+the capacity mask cannot bind in 17 of 23 live batches against 5 of 23 restricted. A corpus whose captured
+state is taken before the autoscaler has built the cluster the model will be served on does not describe that
+cluster's action space.
+
 ### The offline edge holds only at the TRAINING queue scale — but the defect does NOT explain the live reversal (2026-09-12/13)
 
 **Two findings, and they must not be merged.** (1) The queue feature the live path serves is broken, and at
