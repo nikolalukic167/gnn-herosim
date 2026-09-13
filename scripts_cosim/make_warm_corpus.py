@@ -367,7 +367,11 @@ def cell_base_infrastructure(cell_config: Path, sim_input: Path, seed: int, scra
                 "generation_time": time.strftime("%Y-%m-%dT%H:%M:%S"), "warmth_physics": None,
             },
         }
-        out.write_text(json.dumps(base))
+        # Atomic: two array tasks (one per behaviour source) generate into the same corpus
+        # dir for the same cell and both reach here; a reader must never see a half file.
+        tmp = out.with_name(f"{out.name}.tmp.{os.getpid()}")
+        tmp.write_text(json.dumps(base))
+        os.replace(tmp, out)
     with open(out) as fh:
         return json.load(fh)
 
