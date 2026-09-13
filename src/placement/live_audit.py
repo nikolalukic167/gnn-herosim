@@ -21,6 +21,7 @@ import json
 import os
 from typing import Any, Dict, List, TYPE_CHECKING
 
+from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.scheduling_cost import network_latency_between
 
 if TYPE_CHECKING:
@@ -29,6 +30,72 @@ if TYPE_CHECKING:
 
 _STORAGE_THROUGHPUT = 100.0 * 1024.0 * 1024.0
 _STORAGE_LATENCY = 0.001
+
+
+def orchestrator_of(scheduler: Any) -> Any:
+    """The orchestrator behind a scheduler, via the `orchestrator_ref` every node carries
+    once the orchestrator has started (Orchestrator.__init__). None before that."""
+    for node in getattr(scheduler, "nodes", None).items if getattr(scheduler, "nodes", None) else []:
+        orch = getattr(node, "orchestrator_ref", None)
+        if orch is not None:
+            return orch
+    return None
+
+
+def platform_queue_drain_seconds(platform: "Platform", orchestrator: Any) -> float:
+    """Seconds until `platform`'s backlog as it stands now has been served.
+
+    peer_affinity_warm_v1 (2026-09-13): a live snapshot replayed through
+    `live_snapshot_seed` compresses a queue into a virtual backlog with one total time.
+    The seed's own formula is `queue_length x (execution + storage I/O)`, which is what a
+    queued task costs when nothing else is charged -- but under HEROSIM_PEER_EXCHANGE=1
+    every queued task also pays its peer transfers (seconds each at 200 MB), so a 16k-deep
+    live queue would drain in the co-sim ~100x faster than it drains live and the label
+    would rank queues on the wrong clock. This walks the real queue and charges each
+    queued task what `Platform.platform_process` will charge it: execution on this
+    platform, the same storage I/O approximation, the source->platform network latency,
+    and the peer-exchange transfer for every peer whose node is already known (placed or
+    planned; an unknown peer contributes 0 here and is a live rendezvous, not a transfer).
+    Any virtual backlog already seeded is carried through unchanged.
+    """
+    total = float(getattr(platform, "virtual_warmup_total_time", 0.0) or 0.0)
+    node = platform.node
+    plat_type = platform.type["shortName"]
+    network_map = getattr(node, "network_map", None) or {}
+    peer_on = os.environ.get("HEROSIM_PEER_EXCHANGE", "0") == "1"
+    peer_table = (getattr(orchestrator, "peer_exchange", None) or {}) if orchestrator is not None else {}
+    task_by_id = (getattr(orchestrator, "task_by_id", None) or {}) if orchestrator is not None else {}
+
+    def _latency_to(other_node_name: str) -> float:
+        entry = network_map.get(other_node_name)
+        if entry is None:
+            return 0.0
+        return float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+
+    for task in platform.queue.items:
+        task_type = task.type
+        total += float(task_type.get("executionTime", {}).get(plat_type, 0.0) or 0.0)
+        total += _approx_comm(task_type)
+        if getattr(task, "node_name", None) and task.node_name != node.node_name:
+            total += _latency_to(task.node_name)
+        if not peer_on:
+            continue
+        for peer_id, payload in (peer_table.get(int(task.id)) or {}).items():
+            peer = task_by_id.get(peer_id)
+            if peer is None:
+                continue
+            peer_platform = getattr(peer, "platform", None)
+            peer_node_name = (
+                peer_platform.node.node_name
+                if peer_platform is not None
+                else getattr(peer, "planned_node_name", None)
+            )
+            if peer_node_name is None or peer_node_name == node.node_name:
+                continue
+            total += platform._payload_transfer_time(peer_node_name, float(payload)) + _latency_to(
+                peer_node_name
+            )
+    return float(total)
 
 
 def _candidate_payload(
@@ -72,6 +139,7 @@ def _candidate_payload(
         ),
         "communications_time": (input_size / _STORAGE_THROUGHPUT + _STORAGE_LATENCY)
         + (output_size / _STORAGE_THROUGHPUT + _STORAGE_LATENCY),
+        "queue_drain_seconds": platform_queue_drain_seconds(platform, orchestrator_of(scheduler)),
     }
 
 
@@ -110,23 +178,30 @@ def _batch_qualifies(
 
 def _replicas_by_type_payload(
     system_state: "SystemState",
+    orchestrator: Any = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """The full replica set per task type, as the live autoscaler has it right now."""
+    """The full replica set per task type, as the live autoscaler has it right now.
+
+    With an orchestrator, every spec also carries `platform_type` and
+    `queue_drain_seconds` (see platform_queue_drain_seconds) so a snapshot can be replayed
+    as a warm co-sim state; without one the payload is the pre-2026-09-13 shape."""
     payload: Dict[str, List[Dict[str, Any]]] = {}
     for task_type, replicas in system_state.replicas.items():
         specs: List[Dict[str, Any]] = []
         for node, platform in sorted(
             replicas, key=lambda np: (np[0].node_name, np[1].id)
         ):
-            specs.append(
-                {
-                    "node_name": str(node.node_name),
-                    "node_id": int(node.id),
-                    "platform_id": int(platform.id),
-                    "initialized": bool(platform.initialized.triggered),
-                    "queue_length": int(platform.queue_length()),
-                }
-            )
+            spec = {
+                "node_name": str(node.node_name),
+                "node_id": int(node.id),
+                "platform_id": int(platform.id),
+                "initialized": bool(platform.initialized.triggered),
+                "queue_length": int(platform.queue_length()),
+            }
+            if orchestrator is not None:
+                spec["platform_type"] = str(platform.type["shortName"])
+                spec["queue_drain_seconds"] = platform_queue_drain_seconds(platform, orchestrator)
+            specs.append(spec)
         payload[str(task_type)] = specs
     return payload
 
@@ -172,7 +247,7 @@ def maybe_capture_batch_live_audit_snapshot(
         # batch tasks' candidate lists: a horizon arrival from any client node must find
         # the replicas the live autoscaler had actually provisioned at capture time.
         # Snapshots without this field predate it and only support t=0 sweeps.
-        "replicas_by_type": _replicas_by_type_payload(system_state),
+        "replicas_by_type": _replicas_by_type_payload(system_state, orchestrator_of(scheduler)),
     }
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)

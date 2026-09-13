@@ -1853,6 +1853,7 @@ def write_generation_provenance(
     fast_forward_threshold: int,
     argv: Sequence[str],
     environ: Dict[str, str],
+    extra: Optional[Dict[str, Any]] = None,
 ) -> Path:
     """Record how a dataset was generated, next to the dataset.
 
@@ -1886,6 +1887,8 @@ def write_generation_provenance(
         "physics_env": physics_env,
         "code": describe_code_provenance(),
     }
+    if extra:
+        payload.update(extra)
     path = output_dir / GENERATION_PROVENANCE_FILE
     with open(path, 'w') as fh:
         json.dump(payload, fh, indent=2, sort_keys=True)
@@ -1910,9 +1913,15 @@ def generate_single_dataset(
     warmth_physics: str = "node_disk_v2",
     grid_name: Optional[str] = None,
     num_tasks: Optional[int] = None,
+    infrastructure_override: Optional[Path] = None,
 ) -> Tuple[str, float, float]:
     """
     Generate a single GNN dataset.
+
+    `infrastructure_override` (peer_affinity_warm_v1, 2026-09-13): a ready-made
+    infrastructure.json to copy in instead of generating one from the config -- how a
+    dataset cut from a live snapshot (scripts_cosim/make_warm_corpus.py) carries the
+    cluster state the snapshot saw. Recorded in generation_provenance.json.
 
     Returns (status, rtt, duration_seconds) with status in
     'success' | 'truncated' | 'skipped' | 'failed'. 'truncated' is a success-shaped
@@ -1949,13 +1958,19 @@ def generate_single_dataset(
         
         # Generate infrastructure
         infra_file = output_dir / "infrastructure.json"
-        log(f"  Generating infrastructure...", quiet)
-        generate_deterministic_infrastructure(
-            str(config_path),
-            sim_input_path,
-            str(infra_file),
-            seed
-        )
+        if infrastructure_override is not None:
+            log(f"  Using infrastructure override: {infrastructure_override}", quiet)
+            if not Path(infrastructure_override).is_file():
+                raise FileNotFoundError(f"infrastructure_override missing: {infrastructure_override}")
+            shutil.copy2(infrastructure_override, infra_file)
+        else:
+            log(f"  Generating infrastructure...", quiet)
+            generate_deterministic_infrastructure(
+                str(config_path),
+                sim_input_path,
+                str(infra_file),
+                seed
+            )
         
         # Load one scenario sample (JSON preferred, .npy/.pkl fallback)
         sample, mapping, sample_source = load_primary_sample_and_mapping(
@@ -2105,6 +2120,10 @@ def generate_single_dataset(
                 fast_forward_threshold=fast_forward_threshold,
                 argv=sys.argv,
                 environ=dict(os.environ),
+                extra=(
+                    {"infrastructure_override": str(infrastructure_override)}
+                    if infrastructure_override is not None else None
+                ),
             )
 
             # Only remove scratch after public JSONL is verified (see placements_jsonl_required.md)

@@ -1167,6 +1167,10 @@ def load_deterministic_infrastructure_data(
         # link_contention_v1: the routes and per-link capacities the backbone overlay
         # emitted. Absent (every pre-existing corpus) this is None and no fabric is built.
         "link_topology": infra_data.get("link_topology"),
+        # peer_affinity_warm_v1: a dataset cut from a live snapshot carries the cluster
+        # state (replicas, backlogs, drains) as a seed instead of replica/queue tables.
+        # Absent on every generated corpus, so nothing changes for them.
+        "live_snapshot_seed": infra_data.get("live_snapshot_seed"),
         "metadata": metadata,
     }
 
@@ -1246,6 +1250,10 @@ def prepare_simulation_config(
         infrastructure_config['link_topology'] = deepcopy(
             deterministic_data.get('link_topology')
         )
+        if deterministic_data.get('live_snapshot_seed'):
+            infrastructure_config['live_snapshot_seed'] = deepcopy(
+                deterministic_data['live_snapshot_seed']
+            )
     elif base_nodes is not None and len(base_nodes) > 0:
         # Reuse provided nodes (and their network maps) to keep topology consistent
         print(f"[executecosim] Reusing {len(base_nodes)} base nodes (from previous placement)")

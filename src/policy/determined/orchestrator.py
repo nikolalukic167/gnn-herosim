@@ -89,6 +89,14 @@ class DeterminedOrchestrator(Orchestrator):
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
         }
+        # peer_affinity_warm_v1: a snapshot-seeded platform that is busy live but was not
+        # drawn as a sweep candidate (live_snapshot_seed, `candidate: false`) is occupied,
+        # not free -- the autoscaler must not scale onto a slot the label never offered.
+        for node, plats in available_resources.items():
+            reserved = [p for p in plats if getattr(p, "snapshot_reserved", False)]
+            for plat in reserved:
+                plats.discard(plat)
+                node.available_platforms -= 1
         # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
