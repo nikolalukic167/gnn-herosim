@@ -641,7 +641,15 @@ def start_simulation(
         trace_file: str,
         models = None
 ) -> SimulationStats | None:
-    # Logger
+    # Logger. `force=True` is load-bearing, not tidying (2026-09-13): `basicConfig` is a
+    # NO-OP once the root logger has any handler, and `src/notebooks/prepare_graphs_cache.py`
+    # calls `basicConfig(level=INFO)` at MODULE IMPORT -- which a prefix-conditioned
+    # checkpoint triggers on load (`prefix_serving._task_type_vocab`). Without force the
+    # intended stdout/ERROR handler was silently discarded and every per-event
+    # `logging.info` in the simulator went to stderr at INFO instead: ~390 MB of log per
+    # 450,729-task arm. 102 such arms exhausted the 250 GiB /home quota on datalab and
+    # killed 128 of them with exit 1 and no traceback -- the traceback could not be
+    # written either. See docs/gates/gate-tools.md 2026-09-13.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.ERROR)
 
@@ -649,6 +657,7 @@ def start_simulation(
         level=logging.DEBUG,
         format="%(levelname)s [%(funcName)18s() ] %(message)s",
         handlers=[console_handler],
+        force=True,
     )
 
     logger = logging.getLogger('simulation')
