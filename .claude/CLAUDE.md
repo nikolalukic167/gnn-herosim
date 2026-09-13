@@ -127,7 +127,9 @@ gate cell). The warm cache does carry the served regime the cold corpora never h
 in 67 % of datasets, queue column max 590 against a cold max of 42), and on it the pointwise-recoverable
 regret of the one-step label is **0.0 % median, 0/100 datasets above 2 %**: the label is the platform's
 queue drain plus per-pair transfers, a sum over (task, placement) terms. No supervised corpus of warm
-states can give message passing an edge, so the warm corpus and its gate were not run. The reversal-era
+states can give message passing an edge by that statistic. **Reopened the same day (Amendment 1): the
+W1 warm corpus, training and live gate run anyway** — rule 6 below; the W0.b NO-GO stands as a
+measurement, the registered W1 bars are unchanged. The reversal-era
 checkpoints sit ~40 % above the sweep optimum on the states they were served on (W0.c). Read that node
 before proposing any corpus built from served states.
 
@@ -180,6 +182,10 @@ it, import from it, or treat it as current practice. Moved with `git mv` (so
 4. **Fail loudly.** No silent failures, no skipping a failure for convenience. Fix the
    cause.
 5. **Every training run logs to Weights & Biases.** No exceptions.
+6. **A lineage ends with a live gate, never with an offline read** (Nikola, 2026-09-13, after
+   `peer_affinity_warm_v1` closed on its offline W0 screen). An offline screen may *order* the
+   work; it does not *close* it. A NO-GO on an offline bar is recorded and the registered live
+   gate still runs. Put the live gate in every plan and its cost.
 
 ## Commands
 
