@@ -251,3 +251,26 @@ locally**: early snapshot (t = 5.9 s, 384 plans) and late snapshot (t = 109 s, 2
 25.9 → 0.39 MB. `make_warm_corpus.py` now raises on any non-`success` status (rule 4), and the W0 read
 sbatch counts a dataset complete only when `placement_metadata.json` says `sweep_complete` and
 rows == plans. Attempt 2 uses the same shards, seeds and budget with the knob set to 1e12.
+
+### 2026-09-13 — W0 attempt 2 VOID at the cache (46/100 cap-infeasible), draw fixed, attempt 3 launched
+
+Arrays 761515/761516: all 20 tasks COMPLETED, 100/100 sweeps complete (`sweep_complete: true`,
+rows == plans), 411 sim/s on the early snapshot vs 28 before the tick fix, no OOM. The read job
+(761763) died in `prepare_graphs_cache`: **46 of 100 datasets have no sweep row feasible at
+alpha = 2.0** (23 per source, spread evenly over snapshot time 11–109 s and draw size R 3–7), and a
+dataset without a feasible row cannot carry a label set (training-contract 5.5). The prototype had
+none. Cause: the candidate draw chose the most *balanced* subset of live replicas and never asked
+whether a plan over it fits the per-node caps (α × max single candidate demand on the node) — with
+10 tasks it packs a type's candidates onto too few nodes. **Not a regime finding:** with the full
+live slate every one of the 224 aligned snapshots per source is cap-feasible at α = 2.0, and a
+feasible draw inside the 20k budget exists for 224/224 of each with the same R distribution
+(knb R 3/4/5/6/7 = 4/60/98/52/10; gnn 5/61/91/48/15/4 incl. R 8).
+
+**Fix (this commit).** `make_warm_corpus.batch_demands` + `cap_feasible` apply the scorer's exact
+rule (demand = demand_scale × memoryRequirements[type][platform]; caps `alpha_max`; a zero-demand
+node uncapped) to a draw by exhaustive search with pruning; `choose_candidates` skips draws that
+fail it and rejects the snapshot if none exists. Verified against `score_route_b_contention.Dataset`
+on three real sweeps (caps equal, demand multisets equal, verdicts agree). Attempt 3 uses the same
+shards, seeds and budget; a draw that was already feasible is unchanged (same key order), so the 54
+feasible datasets regenerate bit-identically and only the 46 get a different slate. Attempt-2
+corpora set aside as `..._w0_{knb,gnn}.capinfeasible_<jobid>`.
