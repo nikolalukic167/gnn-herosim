@@ -438,6 +438,15 @@ def topological_task_order(ds: Dataset) -> List[int]:
     return order
 
 
+# peer_affinity_warm_v1 (2026-09-13): the warm-snapshot datasets carry TWO task types with
+# five tasks each over ~3 candidate replicas per type, so a plan that never reuses a replica
+# does not exist while the sweep (--allow-non-unique-replicas, like every peer_affinity
+# corpus) and the serving decoder (NEAR_RTT_DECODE_REPLICA_REUSE=1) both allow reuse. With
+# --allow-replica-reuse the two masked decoders drop the reuse mask and score the same
+# plan space the sweep enumerated. Default False: every earlier report is byte-identical.
+ALLOW_REPLICA_REUSE = False
+
+
 def greedy_masked_plan(ds: Dataset,
                        marginal: Dict[int, Dict[Tuple[int, int], float]],
                        caps: Optional[Dict[str, float]],
@@ -459,7 +468,7 @@ def greedy_masked_plan(ds: Dataset,
         options = sorted(marginal[task_id].items(), key=lambda kv: (kv[1], kv[0]))
         choice = None
         for placement, _v in options:
-            if placement in taken:
+            if placement in taken and not ALLOW_REPLICA_REUSE:
                 continue
             node = ds.node_of(placement)
             demand = ds.demand[(task_id, placement)]
@@ -513,7 +522,7 @@ def complete_masked_plan(ds: Dataset,
         task_id = order[i]
         for placement, _v in sorted(marginal[task_id].items(),
                                     key=lambda kv: (kv[1], kv[0])):
-            if placement in taken:
+            if placement in taken and not ALLOW_REPLICA_REUSE:
                 continue
             node = ds.node_of(placement)
             demand = ds.demand[(task_id, placement)]
@@ -1377,11 +1386,15 @@ def main() -> int:
     ap.add_argument("--out", default=None, help="write the frozen report JSON here")
     ap.add_argument("--include-per-dataset", action="store_true",
                     help="keep per-dataset rows in the report (large)")
+    ap.add_argument("--allow-replica-reuse", action="store_true",
+                    help="drop the no-reuse mask in the greedy/complete decoders (warm-snapshot datasets)")
     ap.add_argument("--cap-mode", default="alpha_max",
                     help="route_b env pivot W2: 'alpha_max' (default, unchanged) | "
                          "'alpha_mean' | an absolute per-node budget as a bare number "
                          "(interpreted as {'absolute': x}). See Dataset.node_caps.")
     args = ap.parse_args()
+    global ALLOW_REPLICA_REUSE
+    ALLOW_REPLICA_REUSE = bool(args.allow_replica_reuse)
 
     task_types_db = load_task_types(Path(args.task_types))
     alphas: List[Optional[float]] = []
