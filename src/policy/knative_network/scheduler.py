@@ -25,6 +25,10 @@ from typing import Generator, Set, Tuple, List, Dict, Any, Optional, TYPE_CHECKI
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.placement.live_audit import (
+    orchestrator_of as _orchestrator_of,
+    platform_queue_drain_seconds as _platform_queue_drain_seconds,
+)
 from src.placement.model import SystemState
 
 from src.placement.scheduler import Scheduler
@@ -328,6 +332,9 @@ class KnativeScheduler(Scheduler):
             "network_latency": float(self._network_latency(task.node_name, node) or 0.0),
             "communications_time": (input_size / storage_throughput + storage_latency)
             + (output_size / storage_throughput + storage_latency),
+            # peer_affinity_warm_v1: same field the shared live_audit payload carries, so a
+            # Knative-captured snapshot replays through live_snapshot_seed identically.
+            "queue_drain_seconds": _platform_queue_drain_seconds(platform, _orchestrator_of(self)),
         }
 
     def _network_latency(self, source_node_name: str, target_node: 'Node') -> float:
