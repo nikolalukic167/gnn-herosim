@@ -92,6 +92,28 @@ of the arc is a **serving** fix: a per-platform cap in the masked decoder (`GNN_
 default off) takes the graph arm from −1.5 % to **+21.9 % vs reactive Knative, 16/16 seeds, p = 3.1e-05**,
 and helps the pointwise twin about as much.
 
+**2026-09-13 — BOTH of those live headlines are CONTINGENT ON THE CLUSTER'S PLATFORM MIX; do not quote either
+without naming it.** Audit finding: the live candidate set contains `xavierGpu`, a platform type that is a
+candidate in **0 of 516** training datasets — the corpus *has* the platform rows, the autoscaler just never
+makes one a replica before the co-sim state is captured. Identical for every arm and seed on all three
+corpora: **7.60 %** of live candidates and **46.4 %** of live node caps lie outside anything the corpus
+contains, because `node_caps = α × max candidate demand on the node` and the GPU demand is 1.739 against a
+corpus maximum of 0.213 — one such candidate inflates a node's cap ~8× and the capacity mask, the decoder's
+only concentration control, **cannot bind in 17 of 23 live batches** (5/23 restricted). Re-running the capped
+gate with that type removed from every arm (102 arms, all completed): **the offline/live reversal
+disappears** — x800 p3 goes from POINTWISE-BETTER (−10.67 %, p = 0.018) to a **TIE** (−0.28 %), x800 p2 from
+−4.42 % to +2.58 %, and x200 p2 becomes the first **GNN-NEEDED live** reading in the program (+3.94 %,
+p = 0.0076, 13/16) — **and the +21.9 % over Knative reverses with it**: `gnn` vs Knative goes
++21.9 / +20.6 / +12.9 % to **−14.0 / −10.9 / −15.9 %, 0/16 seeds**, because removing the type costs Knative
+~6 % and the concentrating graph arm ~55 %. The registered hypothesis that this *is* the reversal's mechanism
+is recorded **CONFOUNDED, not fired** — its own control moved the wrong way. Two separate things are true:
+the reversal and the cap's win are both real on the cluster they were measured on, and **neither survives a
+cluster with one fewer platform type.** Still no measurement where a graph arm beats both its twin and
+Knative. Also qualified by this audit: the live queue column is ~300× out of its trained range and
+non-monotone (`legacy_v0`; the offline MP edge is not significant at live queue magnitudes on any corpus),
+and the cap's +21.9 % is a **mean-latency** win — makespan is −12.25 % vs Knative on x200 p2 with 1/16 seeds
+finishing sooner.
+
 **Carry these caveats with any quote of the offline edge**, all in `peer_affinity_v1`'s node: it is at the
 **selected** checkpoint on the x200/x800-p2 rungs (the arms tie at last epoch there; the x800 **p3** rung is
 the one that wins at both selectors, +4.23 pp, p = 0.021); and `gnn`-vs-MLP carries a selector asymmetry
