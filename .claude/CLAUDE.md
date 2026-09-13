@@ -121,6 +121,16 @@ favouring the GNN, while `gnn`-vs-`mpoff` carries none. Read `docs/lineages/peer
 `docs/lineages/throughline.md` (last section) before proposing any new GNN-vs-MLP work — and before quoting
 the 2026-09-04 sentence above, which predates all of this.
 
+**2026-09-13 (later) — the "train on the cluster the model is served on" lever is CLOSED as a supervised
+route** (`peer_affinity_warm_v1`, W0 screen, 100 brute-force-labelled datasets cut from live snapshots of the
+gate cell). The warm cache does carry the served regime the cold corpora never had (`xavierGpu` a candidate
+in 67 % of datasets, queue column max 590 against a cold max of 42), and on it the pointwise-recoverable
+regret of the one-step label is **0.0 % median, 0/100 datasets above 2 %**: the label is the platform's
+queue drain plus per-pair transfers, a sum over (task, placement) terms. No supervised corpus of warm
+states can give message passing an edge, so the warm corpus and its gate were not run. The reversal-era
+checkpoints sit ~40 % above the sweep optimum on the states they were served on (W0.c). Read that node
+before proposing any corpus built from served states.
+
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
 What a GNN needs in order to have anything to learn from a *supervised* target:

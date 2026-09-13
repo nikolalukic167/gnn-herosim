@@ -427,3 +427,18 @@ overfits harder and a last-epoch read will flatter its ablation (`route_b_v1` Ph
 Related: corpus was also the dominant lever in `link_mp_v1` and `reliability_matched_v1` — but there
 it erased an apparent GNN edge, and here it revealed one. The lesson is the same either way: **name
 both arms' corpus before naming the model class.**
+
+## Screen the label's regime before building the corpus (`peer_affinity_warm_v1`, 2026-09-13)
+
+A corpus is a week of cluster time; the question "can a pointwise scorer recover this label?" is one
+statistic on 100 datasets. `peer_affinity_warm_v1` registered that screen (W0.b, `mean_tied` regret
+at the training rung) with its NO-GO bar *before* any corpus, and the served regime answered it in
+a day: 0.0 % median, 0/100 above 2 %. The W1 corpus, 32 training seeds and a live gate never ran.
+Two corollaries from the same day: (a) a co-sim label whose horizon is a long queue drain has a
+per-plan cost set by the simulator's periodic processes, not by the physics — stretch the
+autoscaler tick (`COSIM_AUTOSCALER_RECONCILE_INTERVAL`, label-invariant) or the sweep OOMs; and
+(b) any candidate subsampling for a capped rung must check cap feasibility of the *draw* with the
+scorer's own rule (`cap_feasible`), or the cache refuses the dataset after the sweep is paid for.
+And never trust a non-empty `placements.jsonl`: `placement_metadata.json.sweep_complete` is the
+completeness fact, and a driver that records `truncated` and continues is a silent failure.
+
