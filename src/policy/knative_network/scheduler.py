@@ -334,7 +334,9 @@ class KnativeScheduler(Scheduler):
             + (output_size / storage_throughput + storage_latency),
             # peer_affinity_warm_v1: same field the shared live_audit payload carries, so a
             # Knative-captured snapshot replays through live_snapshot_seed identically.
-            "queue_drain_seconds": _platform_queue_drain_seconds(platform, _orchestrator_of(self)),
+            "queue_drain_seconds": _platform_queue_drain_seconds(
+                platform, _orchestrator_of(self), getattr(self, "_drain_memo", None)
+            ),
         }
 
     def _network_latency(self, source_node_name: str, target_node: 'Node') -> float:

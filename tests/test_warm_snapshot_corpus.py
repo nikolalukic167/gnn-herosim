@@ -127,7 +127,8 @@ def test_drain_charges_execution_latency_and_known_peer_transfers(peer_env):
     # two tasks x (0.5 exec + 0.002 storage I/O + 0.01 source latency) + one known peer:
     # 1.0 transfer + 0.05 latency
     assert drain == pytest.approx(2 * (0.5 + 0.002 + 0.01) + 1.0 + 0.05)
-    assert plat.transfer_calls == [("node1", 1e8)]     # the unplaced peer is not charged
+    # priced once per peer node (per byte), and the unplaced peer is not charged
+    assert plat.transfer_calls == [("node1", 1.0)]
 
 
 def test_drain_ignores_peers_when_exchange_physics_is_off(monkeypatch):
@@ -138,6 +139,16 @@ def test_drain_ignores_peers_when_exchange_physics_is_off(monkeypatch):
     plat.queue.items = [t1]
     orch = SimpleNamespace(peer_exchange={1: {7: 1e8}}, task_by_id={1: t1, 7: _task(7, platform=_Platform(2, _Node("node1")))})
     assert live_audit.platform_queue_drain_seconds(plat, orch) == pytest.approx(0.5 + 0.002)
+
+
+def test_drain_memo_walks_each_queue_once(peer_env):
+    plat = _Platform(1, _Node("node0"))
+    plat.queue.items = [_task(1, source="node0"), _task(2, source="node0")]
+    memo = {}
+    first = live_audit.platform_queue_drain_seconds(plat, None, memo)
+    plat.queue.items.append(_task(3, source="node0"))   # a later change is NOT re-walked
+    assert live_audit.platform_queue_drain_seconds(plat, None, memo) == first
+    assert live_audit.platform_queue_drain_seconds(plat, None, None) == pytest.approx(3 * 0.502)
 
 
 def test_drain_carries_an_existing_virtual_backlog(peer_env):
