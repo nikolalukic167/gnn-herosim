@@ -171,12 +171,86 @@ def _qkey(spec: Dict[str, Any]) -> str:
     return f"{spec['node_name']}:{int(spec['platform_id'])}"
 
 
+CAP_ALPHA_TIGHTEST = 2.0  # tightest rung of DAG_ALPHA_LADDER; monotone, so it implies every rung
+
+
+def batch_demands(
+    snapshot: Dict[str, Any],
+    ids: Sequence[int],
+    trace: Dict[str, Any],
+    task_types_db: Dict[str, dict],
+) -> List[Tuple[str, Dict[str, Tuple[str, float]]]]:
+    """Per batch task: (type, {queue_key: (node_name, demand)}) over its LIVE candidates,
+    with demand = demand_scale x memoryRequirements[type][platform_type] -- the scorer's
+    and the cache's formula (score_route_b_contention.Dataset), so a draw judged feasible
+    here is feasible under training-contract 5.5. Fails loud on a missing table entry."""
+    events = trace["events"]
+    out: List[Tuple[str, Dict[str, Tuple[str, float]]]] = []
+    for k, gid in enumerate(ids):
+        task = snapshot["tasks"][k]
+        ttype = str(task["task_type"])
+        app = events[gid]["application"]
+        scales = app.get("demand_scale") or {}
+        scale = float(scales.get(ttype, 1.0))
+        mem = task_types_db[ttype].get("memoryRequirements", {})
+        cands: Dict[str, Tuple[str, float]] = {}
+        for c in task.get("candidates", []):
+            ptype = c.get("platform_type")
+            if ptype not in mem:
+                raise RuntimeError(
+                    f"task {gid}: no memoryRequirements[{ttype}][{ptype}] -- refusing to invent a demand"
+                )
+            cands[str(c["queue_key"])] = (str(c["node_name"]), scale * float(mem[ptype]))
+        out.append((ttype, cands))
+    return out
+
+
+def cap_feasible(
+    demands: Sequence[Tuple[str, Dict[str, Tuple[str, float]]]],
+    subset: Optional[Dict[str, Set[str]]],
+    alpha: float = CAP_ALPHA_TIGHTEST,
+) -> bool:
+    """True iff some plan over the slate keeps every node's load <= alpha x the largest
+    single candidate demand on that node (Dataset.node_caps 'alpha_max' + plan_feasible;
+    a node whose candidate demands are all zero is uncapped). Exhaustive with pruning --
+    10 tasks x <= 9 candidates."""
+    slate: List[List[Tuple[str, float]]] = []
+    for ttype, cands in demands:
+        keep = [v for k, v in cands.items() if subset is None or k in subset.get(ttype, set())]
+        if not keep:
+            return False
+        slate.append(keep)
+    peak: Dict[str, float] = {}
+    for options in slate:
+        for node, d in options:
+            peak[node] = max(peak.get(node, 0.0), d)
+    caps = {node: alpha * d for node, d in peak.items() if d > 0.0}
+    order = sorted(range(len(slate)), key=lambda i: len(slate[i]))
+    load: Dict[str, float] = {}
+    eps = 1e-9
+
+    def rec(pos: int) -> bool:
+        if pos == len(order):
+            return True
+        for node, d in slate[order[pos]]:
+            new = load.get(node, 0.0) + d
+            if new <= caps.get(node, math.inf) + eps:
+                load[node] = new
+                if rec(pos + 1):
+                    return True
+                load[node] = new - d
+        return False
+
+    return rec(0)
+
+
 def choose_candidates(
     snapshot: Dict[str, Any],
     rng: random.Random,
     target_combos: int,
     max_combos: int,
     attempts: int = 200,
+    demands: Optional[Sequence[Tuple[str, Dict[str, Tuple[str, float]]]]] = None,
 ) -> Tuple[Dict[str, Set[str]], Dict[str, Any]]:
     """Per task type, the subset of live replicas offered to the sweep.
 
@@ -184,7 +258,11 @@ def choose_candidates(
     candidate lists, computed live by the scheduler's reachability rule). R is searched
     from the largest pool size down; the first draw whose per-task product
     prod_t |subset ∩ reach(t)| is <= target_combos with every task keeping >= 1 candidate
-    and at least half keeping >= 2 is taken. Returns (subset by type, record)."""
+    and at least half keeping >= 2 is taken. With `demands`, a draw must also admit a plan
+    under the alpha=2.0 node caps (`cap_feasible`): W0 attempt 2 (2026-09-13) lost 46/100
+    datasets at the cache because the balanced draw packed a type's candidates onto too
+    few nodes for any plan to fit, and a dataset without a feasible row carries no label.
+    Returns (subset by type, record)."""
     tasks = snapshot["tasks"]
     reach: List[Tuple[str, Set[str]]] = [
         (str(t["task_type"]), {c["queue_key"] for c in t.get("candidates", [])}) for t in tasks
@@ -204,6 +282,7 @@ def choose_candidates(
     # first feasible draw at the largest R gave slates like [1, 6, 1, 1, 6, 6, 3, 6, 1, 4]
     # -- half the tasks forced -- because reachability from the sources is uneven.
     best: Optional[Tuple[Tuple[int, int, int], int, Dict[str, Set[str]], List[int]]] = None
+    cap_rejected = 0
     for r in range(r_max, 0, -1):
         for _ in range(attempts):
             subset = {t: set(rng.sample(pool, min(r, len(pool)))) for t, pool in pools.items()}
@@ -214,12 +293,19 @@ def choose_candidates(
             if product > target_combos:
                 continue
             key = (min(counts), sum(1 for c in counts if c >= 2), product)
-            if best is None or key > best[0]:
-                best = (key, r, subset, counts)
+            if best is not None and key <= best[0]:
+                continue
+            if demands is not None and not cap_feasible(demands, subset):
+                cap_rejected += 1
+                continue
+            best = (key, r, subset, counts)
     if best is None or best[0][1] * 2 < len(reach):
+        full_ok = None if demands is None else cap_feasible(demands, None)
         raise SnapshotRejected(
             f"no candidate subset fits target_combos={target_combos} with at least half the "
-            f"tasks keeping >= 2 candidates (live product {full_product})"
+            f"tasks keeping >= 2 candidates (live product {full_product}; "
+            f"{cap_rejected} draws failed the alpha={CAP_ALPHA_TIGHTEST} cap, full live slate "
+            f"feasible={full_ok})"
         )
     _key, r, subset, counts = best
     record = {
@@ -229,6 +315,8 @@ def choose_candidates(
         "full_live_product": full_product,
         "pool_sizes": {t: len(p) for t, p in pools.items()},
         "subset": {t: sorted(s) for t, s in subset.items()},
+        "cap_feasible_alpha": None if demands is None else CAP_ALPHA_TIGHTEST,
+        "cap_rejected_draws": cap_rejected,
     }
     return subset, record
 
@@ -371,6 +459,7 @@ def main() -> int:
     cell = json.loads(args.cell_config.read_text())
     cell_seed = int(cell["network"]["topology"]["seed"])
     trace = json.loads(args.trace.read_text())
+    task_types_db = json.loads((args.sim_input / "task-types.json").read_text())
     snapshots = load_snapshots(args.snapshots)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     scratch = args.output_dir / ".warm_scratch"
@@ -400,7 +489,10 @@ def main() -> int:
             ids = check_aligned_peer_group(snap, args.group_size)
             workload = build_batch_workload(snap, trace, ids, list(cell["wsc"].keys()))
             rng = random.Random(args.seed * 1_000_003 + sid)
-            subset, record = choose_candidates(snap, rng, args.target_combos, args.max_combos)
+            demands = batch_demands(snap, ids, trace, task_types_db)
+            subset, record = choose_candidates(
+                snap, rng, args.target_combos, args.max_combos, demands=demands
+            )
             flagged = flag_candidates(snap, subset)
             provenance = {
                 "source_tag": args.source_tag, "snapshot_id": sid, "snapshot_time": float(snap.get("time", 0.0)),

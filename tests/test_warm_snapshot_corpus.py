@@ -342,3 +342,74 @@ def test_cosim_autoscaler_reconcile_interval_env_fails_loud(monkeypatch):
         monkeypatch.setenv("COSIM_AUTOSCALER_RECONCILE_INTERVAL", bad)
         with pytest.raises(ValueError, match="COSIM_AUTOSCALER_RECONCILE_INTERVAL"):
             execute_simulation({}, {}, "determined")
+
+
+def _cap_snapshot(nodes_per_task):
+    """Five dnn1 tasks at demand 1.0 each; candidates on the given nodes (same platform type)."""
+    tasks = []
+    for k, nodes in enumerate(nodes_per_task):
+        tasks.append({
+            "task_id": 10 + k, "task_type": "dnn1", "source_node": "client_node0",
+            "candidates": [{"queue_key": f"{n}:{100 + i}", "node_name": n, "platform_type": "cpu"}
+                           for i, n in enumerate(nodes)],
+        })
+    return {"tasks": tasks}
+
+
+def test_cap_feasible_matches_alpha_max_rule():
+    from scripts_cosim.make_warm_corpus import batch_demands, cap_feasible
+
+    db = {"dnn1": {"memoryRequirements": {"cpu": 1.0}}}
+    trace = {"events": [{"application": {"name": "a", "dag": {"dnn1": []}, "demand_scale": {"dnn1": 1.0}}}] * 20}
+    # 3 tasks, one node: load 3 > 2.0 x 1.0 -> infeasible at alpha 2, feasible at alpha 3
+    snap = _cap_snapshot([["n0"], ["n0"], ["n0"]])
+    dem = batch_demands(snap, [10, 11, 12], trace, db)
+    assert cap_feasible(dem, None, 2.0) is False
+    assert cap_feasible(dem, None, 3.0) is True
+    # a second node reachable by one task rescues it: loads (2, 1)
+    snap = _cap_snapshot([["n0"], ["n0"], ["n0", "n1"]])
+    dem = batch_demands(snap, [10, 11, 12], trace, db)
+    assert cap_feasible(dem, None, 2.0) is True
+    # ...unless the subset drops that node again
+    assert cap_feasible(dem, {"dnn1": {"n0:100"}}, 2.0) is False
+    # a heavier candidate on the node raises the node's cap (alpha x MAX single demand)
+    db2 = {"dnn1": {"memoryRequirements": {"cpu": 1.0, "gpu": 1.5}}}
+    snap = _cap_snapshot([["n0"], ["n0"], ["n0"]])
+    snap["tasks"][0]["candidates"].append({"queue_key": "n0:9", "node_name": "n0", "platform_type": "gpu"})
+    dem = batch_demands(snap, [10, 11, 12], trace, db2)
+    assert cap_feasible(dem, None, 2.0) is True  # cap 3.0 >= 1.0 + 1.0 + 1.0
+    # a missing table entry is a hard error, never an invented demand
+    with pytest.raises(RuntimeError, match="memoryRequirements"):
+        batch_demands(_cap_snapshot([["n0"]]), [10], trace, {"dnn1": {"memoryRequirements": {}}})
+
+
+def test_choose_candidates_rejects_cap_infeasible_draws():
+    from scripts_cosim.make_warm_corpus import (
+        SnapshotRejected, batch_demands, cap_feasible, choose_candidates,
+    )
+
+    db = {"dnn1": {"memoryRequirements": {"cpu": 1.0}}}
+    trace = {"events": [{"application": {"name": "a", "dag": {"dnn1": []}, "demand_scale": {"dnn1": 1.0}}}] * 20}
+    # 4 tasks; n0 hosts 3 platforms, n1 hosts 1. Any slate keeping n1 is feasible (2+2);
+    # a slate of n0 only is not. Every draw the chooser returns must be feasible.
+    nodes = ["n0", "n0", "n0", "n1"]
+    snap = _cap_snapshot([nodes] * 4)
+    for t in snap["tasks"]:  # identical candidate keys across tasks (shared platforms)
+        t["candidates"] = [{"queue_key": f"{n}:{100 + i}", "node_name": n, "platform_type": "cpu"}
+                           for i, n in enumerate(nodes)]
+    dem = batch_demands(snap, [10, 11, 12, 13], trace, db)
+    for seed in range(20):
+        subset, rec = choose_candidates(snap, random.Random(seed), target_combos=16, max_combos=1000, demands=dem)
+        assert cap_feasible(dem, subset, 2.0), (seed, subset)
+        assert rec["cap_feasible_alpha"] == 2.0
+    # without the check, small slates on n0 alone slip through for some seeds
+    slipped = 0
+    for seed in range(20):
+        subset, _ = choose_candidates(snap, random.Random(seed), target_combos=16, max_combos=1000)
+        slipped += not cap_feasible(dem, subset, 2.0)
+    assert slipped > 0
+    # nothing feasible at all -> rejected, naming the cap
+    snap = _cap_snapshot([["n0"], ["n0"], ["n0"]])
+    dem = batch_demands(snap, [10, 11, 12], trace, db)
+    with pytest.raises(SnapshotRejected, match="alpha=2.0 cap"):
+        choose_candidates(snap, random.Random(0), target_combos=16, max_combos=1000, demands=dem)
