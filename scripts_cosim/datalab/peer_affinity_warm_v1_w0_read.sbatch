@@ -32,10 +32,26 @@ GNN=simulation_data/gnn_datasets_peer_affinity_warm_v1_w0_gnn
 CACHE=simulation_data/graphs_cache_peer_affinity_warm_v1_w0
 mkdir -p "$W0" logs
 for d in "$KNB" "$GNN"; do
-  n=$(find "$d" -mindepth 3 -maxdepth 3 -path '*/placements/placements.jsonl' -size +0 | wc -l)
-  echo "[corpus] $d: $n complete sweeps"
+  # Complete means placement_metadata.json says sweep_complete and rows == plans; a
+  # non-empty placements.jsonl is not evidence (2026-09-13: 81/95 truncated sweeps had one).
+  read -r n bad <<< "$(python3 - "$d" <<'PY'
+import json, os, sys
+d = sys.argv[1]; ok = 0; bad = []
+for ds in sorted(x for x in os.listdir(d) if x.startswith("ds_")):
+    mp = os.path.join(d, ds, "placement_metadata.json"); bp = os.path.join(d, ds, "best.json")
+    pp = os.path.join(d, ds, "placements", "placements.jsonl")
+    try:
+        m = json.load(open(mp))
+        rows = sum(1 for _ in open(pp))
+        good = m.get("sweep_complete") is True and rows == m["num_placements"] and os.path.getsize(bp) > 0
+    except Exception:
+        good = False
+    (ok := ok + 1) if good else bad.append(ds)
+print(ok, len(bad)); print("incomplete:", " ".join(bad) or "none", file=sys.stderr)
+PY
+)"
+  echo "[corpus] $d: $n complete sweeps, $bad incomplete"
   [[ "$n" -ge 40 ]] || { echo "FAIL LOUD: fewer than 40 complete sweeps under $d"; exit 1; }
-  bad=$(find "$d" -mindepth 1 -maxdepth 1 -type d -name 'ds_*' | while read -r ds; do [[ -s "$ds/placements/placements.jsonl" && -s "$ds/best.json" ]] || echo "$ds"; done | wc -l)
   [[ "$bad" == "0" ]] || { echo "FAIL LOUD: $bad dataset dirs under $d are incomplete"; exit 1; }
 done
 

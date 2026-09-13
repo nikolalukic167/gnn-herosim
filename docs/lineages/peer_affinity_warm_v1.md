@@ -220,3 +220,34 @@ throttled). About two cluster-days end to end.
   p90 10, max 14; log10(product) ≈ 8.2 per batch; dim-7 over busy platforms p50 52 /
   p90 189 / max 702.
 - Prototype dataset as described above; the cache carries the live regime.
+
+### 2026-09-13 — W0 attempt 1 VOID (truncated sweeps), engine fix, attempt 2 launched
+
+Snapshots: 226 per source from local peer-group-batched runs on cell_s7901 (`knative_network_batch`
+with `KNATIVE_BATCH_BY_PEER_GROUP=1`; `gnn` T1b seed 1, capped masked decode with
+`GNN_BATCH_BY_PEER_GROUP=1`); 224 aligned each, 50 chosen per source (every 3rd, t = 5.9–109.1 s),
+10 shards × 5. Datalab arrays 761329 (knb) and 761343 (gnn), CPU-amd, 32 CPUs / 64 GB, 20k-plan budget.
+
+**What happened.** Every one of the 20 tasks reached the 64 GB cgroup limit (MaxRSS 67.1 GB) and
+was OOM-killed at least once; only **14 of 95** datasets have `sweep_complete: true`. The other 81
+carry 3–30 % of their plans (`worker_exception` 7k–18k rows: the worker pool broke and every pending
+future raised) — yet each has a `best.json`, a manifest line and the array printed "done: 5 dataset(s)".
+`generate_single_dataset` already refines that outcome to `truncated`; the driver recorded the status
+and continued. **Nothing from attempt 1 is a number**; the two corpora are set aside on datalab as
+`gnn_datasets_peer_affinity_warm_v1_w0_{knb,gnn}.truncated_<jobid>` (not deleted).
+
+**Cause.** The label horizon on a warm snapshot is the queue drain (best RTT 590 s at t = 5.9 s,
+5.9e5 s at t = 109 s — the regime the registration predicted). The autoscaler ticks every simulated
+second (`reconcile_interval=1`), and each tick runs the determined autoscaler's per-type scaling pass
+and appends one `systemEvents` row per task type: at a 1.4e5 s horizon one plan's result carried
+15.5 MB of `systemEvents` and a plan cost ~20 s (0.8 sim/s on 31 workers vs 27.7 sim/s at t = 5.9 s).
+Sweep rate and result size both track snapshot time monotonically across all 95 datasets.
+
+**Fix (this commit).** `COSIM_AUTOSCALER_RECONCILE_INTERVAL` stretches the tick in
+`execute_simulation` (unset → 1, unchanged; non-numeric or ≤ 0 raises). **Label-invariant, measured
+locally**: early snapshot (t = 5.9 s, 384 plans) and late snapshot (t = 109 s, 288 plans), 1 s tick vs
+1e12 — **0 of 672 rows differ** in `rtt`, `task_times` or `makespan`, best RTT bit-identical
+(15,583.50 s and 409,425.36 s); sweep time 32 → 12 s and 327 → 20 s, result file 1.66 → 0.39 MB and
+25.9 → 0.39 MB. `make_warm_corpus.py` now raises on any non-`success` status (rule 4), and the W0 read
+sbatch counts a dataset complete only when `placement_metadata.json` says `sweep_complete` and
+rows == plans. Attempt 2 uses the same shards, seeds and budget with the knob set to 1e12.

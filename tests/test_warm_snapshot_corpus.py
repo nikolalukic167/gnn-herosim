@@ -331,3 +331,14 @@ def test_infrastructure_carries_the_seed_and_empty_tables(tmp_path):
            "pci": {"xavier": {"specs": {"platforms": ["xavierCpu"], "storage": [], "memory": 8}}}}
     loaded = load_deterministic_infrastructure_data(cfg, path)
     assert loaded["live_snapshot_seed"] == infra["live_snapshot_seed"]
+
+
+def test_cosim_autoscaler_reconcile_interval_env_fails_loud(monkeypatch):
+    """COSIM_AUTOSCALER_RECONCILE_INTERVAL is validated before any simulation is built."""
+    import pytest
+    from src.executecosimulation import execute_simulation
+
+    for bad in ("abc", "0", "-3"):
+        monkeypatch.setenv("COSIM_AUTOSCALER_RECONCILE_INTERVAL", bad)
+        with pytest.raises(ValueError, match="COSIM_AUTOSCALER_RECONCILE_INTERVAL"):
+            execute_simulation({}, {}, "determined")
