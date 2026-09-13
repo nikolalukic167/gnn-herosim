@@ -18,7 +18,7 @@ when the co-sim dataset captured its state. Nothing has ever compared the two. A
      concentration control before `GNN_PREFIX_PLATFORM_CAP` existed -- stops binding on
      that node for the whole batch.
 
-This probe measures both on the real production decode traces (`serving_gap_v1/traces_h1`,
+This probe measures both on the real production decode traces (`serving_gap_v1/traces_h2`,
 every arm and seed of all three corpora), and reports the one statistic that can make it an
 ARM asymmetry rather than a shared handicap: the share of decoded placements that land on a
 platform type absent from the checkpoint's own training corpus.
@@ -132,6 +132,8 @@ def main() -> int:
     support, max_demand, max_cap = cache_support(args.cache_dir)
     print(f"[support] {args.corpus}: candidate platform types {sorted(support)} "
           f"max_demand={max_demand:.4f} max_node_cap={max_cap:.4f}", flush=True)
+    if not support:
+        raise SystemExit("FAIL LOUD: the cache yielded no candidate platform types")
 
     per: Dict[str, Any] = {}
     for arm in ARMS:
@@ -142,10 +144,17 @@ def main() -> int:
             row = scan_trace(f, support, max_cap)
             row["arm"], row["seed"] = arm, seed
             per[f"{arm}_s{seed}"] = row
+            # A trace written with GNN_PREFIX_TRACE_SLIM=1 carries no graph, so every
+            # candidate-side statistic is None. Say so instead of dying on a format string
+            # (traces_h1 is slim; traces_h2 is the graph-carrying set).
+            def _f(key: str) -> str:
+                v = row[key]
+                return "n/a" if v is None else f"{v:.4f}"
             print(f"[scan] {arm}_s{seed}: batches={row['n_batches']} "
-                  f"oos_cand={row['frac_candidates_oos']:.4f} "
-                  f"oos_placed={row['frac_placements_oos']:.4f} "
-                  f"caps_over={row['frac_node_caps_above_cache_max']:.4f}", flush=True)
+                  f"graphless={row['n_graphless_records']} "
+                  f"oos_cand={_f('frac_candidates_oos')} "
+                  f"oos_placed={_f('frac_placements_oos')} "
+                  f"caps_over={_f('frac_node_caps_above_cache_max')}", flush=True)
 
     summary: Dict[str, Any] = {}
     for key in ("frac_candidates_oos", "frac_placements_oos", "frac_node_caps_above_cache_max"):
