@@ -36,7 +36,7 @@ from src.placement.model import (
     TaskType, TimeSeries,
 )
 
-from src.placement.autoscaler import Autoscaler
+from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
     image_pull_disk_hit,
@@ -140,6 +140,8 @@ class KnativeAutoscaler(Autoscaler):
                     platform.type["shortName"]
                     in task_type["platforms"]
                 ):
+                    if not replica_platform_type_allowed(platform.type["shortName"]):
+                        continue
                     available_hardware.add(platform.type["shortName"])
 
         stop = None

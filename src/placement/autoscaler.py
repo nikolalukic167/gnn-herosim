@@ -43,6 +43,47 @@ from src.placement.model import (
 logger = logging.getLogger(__name__)
 
 
+
+def replica_platform_types_allowed() -> Optional[frozenset]:
+    """`HEROSIM_REPLICA_PLATFORM_TYPES`: the platform `shortName`s the autoscaler may host a
+    replica on. Unset (the default) means no restriction, so every run recorded before
+    2026-09-13 is bit-identical.
+
+    Why this exists (audit 2026-09-13). The `peer_affinity_v1` co-sim corpora contain
+    `xavierGpu` and `xavierDla` platform ROWS -- 9 and 9 per dataset -- but in 516 of 516
+    datasets neither is ever a replica, so neither is ever a candidate the model ranks. Live,
+    the same cell running 450,729 tasks scales up long enough that `xavierGpu` becomes a
+    replica and **7.6 % of live candidates are of a platform type the checkpoint never saw as
+    a candidate**. That is not only an unseen one-hot column: `node_caps[n] = alpha x max
+    single candidate demand on n`, and the GPU demand is 1.739 against a corpus maximum of
+    0.213, so ONE such candidate inflates that node's cap ~8x. Measured on the production
+    traces: **46.4 % of live node caps exceed the largest cap any training dataset contains**,
+    and on a smoke the roomiest node goes from holding 5.2 tasks (cache) to 32.5 (live, as
+    served) and back to 3.2 once these candidates are removed -- i.e. the capacity mask, the
+    decoder's only concentration control before `GNN_PREFIX_PLATFORM_CAP`, stops binding in
+    17 of 23 batches.
+
+    Restricting the autoscaler is the intervention that restores the corpus's action space
+    for EVERY arm at once (the reactive baselines included), which is what makes a gate run
+    under it a like-for-like comparison rather than a handicap on one policy.
+    """
+    raw = os.environ.get("HEROSIM_REPLICA_PLATFORM_TYPES", "").strip()
+    if not raw:
+        return None
+    types = frozenset(t.strip() for t in raw.split(",") if t.strip())
+    if not types:
+        raise ValueError(
+            "HEROSIM_REPLICA_PLATFORM_TYPES is set but lists no platform type; unset it to "
+            "allow every type rather than declaring an empty allow-list"
+        )
+    return types
+
+
+def replica_platform_type_allowed(short_name: str) -> bool:
+    allowed = replica_platform_types_allowed()
+    return True if allowed is None else str(short_name) in allowed
+
+
 class Autoscaler:
     def __init__(
             self,
@@ -172,6 +213,8 @@ class Autoscaler:
                 if server_only and str(node.node_name).startswith("client_node"):
                     continue
                 for platform in platforms:
+                    if not replica_platform_type_allowed(platform.type["shortName"]):
+                        continue
                     if (
                             hardware_target != "any"
                             and platform.type["shortName"] != hardware_target
