@@ -6,8 +6,10 @@ placements.jsonl is the only label/RTT ground truth. Graph instance IDs may carr
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import pickle
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -169,6 +171,260 @@ def split_ids_by_canonical_parent(
     train_graphs, train_ids = _flatten(train_parents)
     val_graphs, val_ids = _flatten(val_parents)
     test_graphs, test_ids = _flatten(test_parents)
+    assert_zero_parent_overlap(train_ids, val_ids, test_ids)
+    return train_graphs, train_ids, val_graphs, val_ids, test_graphs, test_ids
+
+
+SPLIT_ARTIFACT_SCHEMA = "split_artifact_v1"
+SPLIT_NAMES = ("train", "val", "test")
+
+
+def write_split_artifact(
+    cache_dir: Path,
+    out_path: Path,
+    *,
+    test_size: float = 0.3,
+    val_fraction_of_holdout: float = 0.5,
+    random_state: int = 42,
+) -> Tuple[Dict[str, Any], str]:
+    """B6: generate the shared train/val/test split artifact from a batch cache.
+
+    Every arm of a paired comparison must load the SAME parent-level split, or a
+    "draw" varies the split as well as the initialisation and the paired test is
+    confounded. This partitions the cache's canonical parents with the same nested
+    sklearn calls as `split_ids_by_canonical_parent` and freezes the result as
+    canonical JSON. Canonical parent ids are the unit — the only identity the GNN
+    (one graph per instance) and the MLP (one row per task decision) share.
+
+    Returns ``(payload, sha256)`` where the sha is over the bytes written to disk.
+    """
+    from sklearn.model_selection import train_test_split
+
+    cache_dir = Path(cache_dir)
+    ids_path = cache_dir / "dataset_ids.pkl"
+    if not ids_path.is_file():
+        raise FileNotFoundError(f"Missing {ids_path}")
+    with ids_path.open("rb") as f:
+        dataset_ids = pickle.load(f)
+    parent_ids: Optional[Sequence[str]] = None
+    meta_path = cache_dir / "metadata.json"
+    if meta_path.is_file():
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        parent_ids = metadata.get("parent_dataset_ids")
+        if parent_ids is not None and len(parent_ids) != len(dataset_ids):
+            raise RuntimeError(
+                f"{meta_path}: parent_dataset_ids ({len(parent_ids)}) != "
+                f"dataset_ids.pkl ({len(dataset_ids)})"
+            )
+
+    parents_in_order: List[str] = []
+    seen: set = set()
+    for idx, dsid in enumerate(dataset_ids):
+        parent = canonical_parent_id(
+            parent_ids[idx] if parent_ids is not None else dsid
+        )
+        if parent not in seen:
+            seen.add(parent)
+            parents_in_order.append(parent)
+    if len(parents_in_order) < 3:
+        raise RuntimeError(
+            f"Need >=3 canonical parents for train/val/test; got {len(parents_in_order)}"
+        )
+
+    train_parents, temp_parents = train_test_split(
+        parents_in_order, test_size=test_size, random_state=random_state
+    )
+    val_parents, test_parents = train_test_split(
+        temp_parents, test_size=val_fraction_of_holdout, random_state=random_state
+    )
+
+    payload: Dict[str, Any] = {
+        "schema": SPLIT_ARTIFACT_SCHEMA,
+        "cache_dir": str(cache_dir),
+        "n_parents": len(parents_in_order),
+        "random_state": int(random_state),
+        "test_size": float(test_size),
+        "val_fraction_of_holdout": float(val_fraction_of_holdout),
+        # Sorted for set semantics and diffability; consumers filter by membership,
+        # so list order carries no meaning.
+        "train": sorted(train_parents),
+        "val": sorted(val_parents),
+        "test": sorted(test_parents),
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(raw)
+    return payload, hashlib.sha256(raw).hexdigest()
+
+
+def load_split_artifact(path: Path) -> Tuple[Dict[str, Any], str]:
+    """Read, hash, and validate a split artifact. Returns ``(payload, sha256)``."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing split artifact: {path}")
+    raw = path.read_bytes()
+    sha256 = hashlib.sha256(raw).hexdigest()
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema") != SPLIT_ARTIFACT_SCHEMA:
+        got = payload.get("schema") if isinstance(payload, dict) else type(payload).__name__
+        raise RuntimeError(
+            f"{path}: not a {SPLIT_ARTIFACT_SCHEMA} artifact (schema={got!r})"
+        )
+    for name in SPLIT_NAMES:
+        parents = payload.get(name)
+        if (
+            not isinstance(parents, list)
+            or not parents
+            or not all(isinstance(p, str) and p for p in parents)
+        ):
+            raise RuntimeError(
+                f"{path}: split {name!r} must be a non-empty list of parent-id strings"
+            )
+        if len(set(parents)) != len(parents):
+            raise RuntimeError(f"{path}: split {name!r} contains duplicate parents")
+    train_p, val_p, test_p = (set(payload[name]) for name in SPLIT_NAMES)
+    leaks = (train_p & val_p) | (train_p & test_p) | (val_p & test_p)
+    if leaks:
+        raise RuntimeError(
+            f"{path}: parent overlap across splits ({len(leaks)}); "
+            f"examples={sorted(leaks)[:5]}"
+        )
+    return payload, sha256
+
+
+def assert_split_artifact_covers(
+    payload: Mapping[str, Any],
+    parents_present: Iterable[Any],
+    *,
+    artifact_path: str = "",
+) -> None:
+    """Fail loud unless the artifact's parents equal EXACTLY the parents present.
+
+    A subset match would silently drop data; a superset would mean the artifact was
+    generated from a different cache. Either way the pinned split is not the split
+    of THIS corpus, so refuse.
+    """
+    artifact_parents: set = set()
+    for name in SPLIT_NAMES:
+        artifact_parents.update(payload[name])
+    present = {canonical_parent_id(p) for p in parents_present}
+    missing = sorted(present - artifact_parents)
+    stale = sorted(artifact_parents - present)
+    if missing or stale:
+        raise RuntimeError(
+            f"Split artifact {artifact_path or '<unknown>'} does not match this corpus: "
+            f"{len(missing)} parents in data but not artifact (examples={missing[:5]}), "
+            f"{len(stale)} parents in artifact but not data (examples={stale[:5]})"
+        )
+
+
+def topology_size_of_dataset(dataset_id: Any, corpus_root: Path) -> int:
+    """Server-node count for one dataset, read from its `infrastructure.json`.
+
+    Not stored as a graph/cache attribute -- `generate_infrastructure.py` never wrote
+    `server_node_count` into a dataset's metadata, so this reads it back from the same
+    place `topology_transfer_v1`'s size axis actually lives: the node names in
+    `network_maps`. A server is any node that is not a client (see `CLIENT_NODE_PREFIX`
+    in `src.placement.topology_features`, the single source of truth for that split).
+    """
+    from src.placement.topology_features import CLIENT_NODE_PREFIX
+
+    infra_path = Path(corpus_root) / str(canonical_parent_id(dataset_id)) / "infrastructure.json"
+    with open(infra_path) as f:
+        infra = json.load(f)
+    node_names = infra["network_maps"].keys()
+    return sum(1 for n in node_names if not str(n).startswith(CLIENT_NODE_PREFIX))
+
+
+def topology_sizes_by_parent(
+    dataset_ids: Sequence[str], corpus_root: Path
+) -> Dict[str, int]:
+    """`{canonical_parent_id: server_node_count}` for every unique parent in `dataset_ids`."""
+    sizes: Dict[str, int] = {}
+    for dsid in dataset_ids:
+        parent = canonical_parent_id(dsid)
+        if parent not in sizes:
+            sizes[parent] = topology_size_of_dataset(parent, corpus_root)
+    return sizes
+
+
+def split_ids_by_topology_size(
+    graphs: Sequence[Any],
+    dataset_ids: Sequence[str],
+    sizes_by_parent: Mapping[str, int],
+    *,
+    train_sizes: Sequence[int] = (20, 28, 40),
+    held_out_sizes: Sequence[int] = (60, 80),
+    val_fraction_of_train: float = 0.15,
+    random_state: int = 42,
+) -> Tuple[List[Any], List[str], List[Any], List[str], List[Any], List[str]]:
+    """Split graphs by topology size: train on `train_sizes`, hold out `held_out_sizes`.
+
+    This is topology_transfer_v1's inductive-generalization split, not a random one:
+    "does the model transfer to LARGER topologies it never trained on" is unanswerable
+    if train/test mix sizes. `val` is drawn from a held-out slice of `train_sizes`
+    parents only -- never from `held_out_sizes` -- so model selection cannot peek at
+    the transfer question the test split exists to answer.
+
+    Uses a plain stdlib shuffle rather than sklearn's `train_test_split`, deliberately:
+    this keeps the split usable on environments with a broken/mismatched scipy install
+    (hit on datalab 2026-08-20 -- sklearn imports scipy transitively, `canonical_parent`
+    split does not get this treatment since existing frozen reports depend on its exact
+    sklearn shuffling for reproducibility, but nothing has been reported under
+    `topology_size` yet).
+    """
+    import random as _random
+
+    if len(graphs) != len(dataset_ids):
+        raise RuntimeError(f"graphs ({len(graphs)}) != dataset_ids ({len(dataset_ids)})")
+
+    train_size_set = set(train_sizes)
+    held_out_size_set = set(held_out_sizes)
+    registered = train_size_set | held_out_size_set
+
+    by_parent: Dict[str, List[Tuple[Any, str]]] = {}
+    for graph, graph_id in zip(graphs, dataset_ids):
+        parent = canonical_parent_id(graph_id)
+        by_parent.setdefault(parent, []).append((graph, graph_id))
+
+    unknown = sorted(set(by_parent) - set(sizes_by_parent))
+    if unknown:
+        raise KeyError(f"no topology size recorded for {len(unknown)} parents, e.g. {unknown[:3]}")
+    off_ladder = {
+        parent: sizes_by_parent[parent] for parent in by_parent if sizes_by_parent[parent] not in registered
+    }
+    if off_ladder:
+        raise RuntimeError(
+            f"{len(off_ladder)} parents have a topology size outside the registered ladder "
+            f"train={sorted(train_size_set)} held_out={sorted(held_out_size_set)}: "
+            f"{dict(list(off_ladder.items())[:3])}"
+        )
+
+    train_pool_parents = [p for p in by_parent if sizes_by_parent[p] in train_size_set]
+    held_out_parents = [p for p in by_parent if sizes_by_parent[p] in held_out_size_set]
+    if not train_pool_parents:
+        raise RuntimeError(f"no parents at the train sizes {sorted(train_size_set)}")
+    if not held_out_parents:
+        raise RuntimeError(f"no parents at the held-out sizes {sorted(held_out_size_set)}")
+
+    shuffled = sorted(train_pool_parents)  # sort first: dict/set order is not guaranteed
+    _random.Random(random_state).shuffle(shuffled)
+    n_val = math.ceil(len(shuffled) * val_fraction_of_train)
+    val_parents, train_parents = shuffled[:n_val], shuffled[n_val:]
+
+    def _flatten(parents: Iterable[str]) -> Tuple[List[Any], List[str]]:
+        out_g: List[Any] = []
+        out_ids: List[str] = []
+        for parent in parents:
+            for graph, graph_id in by_parent[parent]:
+                out_g.append(graph)
+                out_ids.append(graph_id)
+        return out_g, out_ids
+
+    train_graphs, train_ids = _flatten(train_parents)
+    val_graphs, val_ids = _flatten(val_parents)
+    test_graphs, test_ids = _flatten(held_out_parents)
     assert_zero_parent_overlap(train_ids, val_ids, test_ids)
     return train_graphs, train_ids, val_graphs, val_ids, test_graphs, test_ids
 

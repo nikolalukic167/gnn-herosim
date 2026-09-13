@@ -39,7 +39,7 @@ from src.placement.model import (
     TaskType, TimeSeries,
 )
 
-from src.placement.autoscaler import Autoscaler
+from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
     image_pull_disk_hit,
@@ -161,6 +161,8 @@ class KnativeAutoscaler(Autoscaler):
             for _, platforms in resources_to_check.items():
                 for platform in platforms:
                     if platform.type["shortName"] in task_type["platforms"]:
+                        if not replica_platform_type_allowed(platform.type["shortName"]):
+                            continue
                         available_hardware.add(platform.type["shortName"])
 
             if not available_hardware:
@@ -173,8 +175,10 @@ class KnativeAutoscaler(Autoscaler):
                 )
 
             stop = None
-            # Try each available hardware type
-            for platform_name in available_hardware:
+            # Try each available hardware type. `available_hardware` is a set, so its
+            # iteration order is not reproducible across processes (PYTHONHASHSEED) —
+            # sort so which hardware type gets scaled up first is deterministic.
+            for platform_name in sorted(available_hardware):
                 stop = yield self.env.process(
                     self.scale_up(
                         1,
@@ -220,10 +224,12 @@ class KnativeAutoscaler(Autoscaler):
         ]
         candidates = server_couples if server_couples else client_couples
 
-        # Select a replica on the most available node
+        # Select a replica on the most available node. `couples_suitable` is a set, so
+        # `candidates`' order is not reproducible across processes (PYTHONHASHSEED) —
+        # tie-break deterministically on replica identity.
         available_couple = max(
             candidates,
-            key=lambda couple: couple[0].available_platforms,
+            key=lambda couple: (couple[0].available_platforms, -couple[0].id, -couple[1].id),
         )
 
         return available_couple
@@ -324,7 +330,11 @@ class KnativeAutoscaler(Autoscaler):
 
         # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
-            function_replicas, key=lambda couple: len(couple[1].queue.items)
+            function_replicas,
+            # Total key: the queue length alone ties for every eligible candidate
+            # (scale-down only removes empty queues), so stable sort would fall back
+            # to Set iteration order, which PYTHONHASHSEED does not pin.
+            key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id),
         )
 
         # Mark replica for removal if its task queue is empty

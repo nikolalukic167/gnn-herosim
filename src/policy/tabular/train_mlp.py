@@ -108,6 +108,14 @@ def grouped_ce_loss(
 def main() -> None:
     args = parse_args()
 
+    # --random-state seeds the parent split and the batch order; without these two lines
+    # the model's weight INIT comes from torch's unseeded global RNG, so two identical
+    # invocations produce different weights. That is what made every MLP checkpoint
+    # before 2026-08-24 an unreproducible draw (see train_mlp_dim22_from_batch.py, which
+    # was fixed first). Checkpoints record `torch_seeded` so a seeded one can be told
+    # from a drawn one.
+    torch.manual_seed(args.random_state)
+    np.random.seed(args.random_state)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[MLP train] device={device}", flush=True)
 
@@ -212,6 +220,7 @@ def main() -> None:
         "patience": args.patience,
         "lr": args.lr,
         "random_state": args.random_state,
+        "torch_seeded": True,
         "test_size": args.test_size,
         "cache_provenance": parquet_meta,
     }

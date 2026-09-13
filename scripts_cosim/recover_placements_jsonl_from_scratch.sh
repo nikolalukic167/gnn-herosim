@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copy ds_*/.bf_scratch/placements.jsonl → placements/placements.jsonl when scratch
 # survived a crashed BF run. Does not recreate missing scratch — re-run BF for those.
-# See memory/placements_jsonl_required.md
+# See docs/notes/placements_jsonl_required.md
 set -euo pipefail
 
 BASE_DIR="${1:-simulation_data/gnn_datasets_4tasks_1060_warmth_v2}"

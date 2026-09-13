@@ -36,7 +36,7 @@ from src.placement.model import (
     TaskType, TimeSeries,
 )
 
-from src.placement.autoscaler import Autoscaler
+from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
     image_pull_disk_hit,
@@ -140,11 +140,15 @@ class KnativeAutoscaler(Autoscaler):
                     platform.type["shortName"]
                     in task_type["platforms"]
                 ):
+                    if not replica_platform_type_allowed(platform.type["shortName"]):
+                        continue
                     available_hardware.add(platform.type["shortName"])
 
         stop = None
         # FIXME: What if no available hardware?
-        for platform_name in available_hardware:
+        # `available_hardware` is a set, so its iteration order is not reproducible
+        # across processes (PYTHONHASHSEED) — sort for a deterministic tie-break.
+        for platform_name in sorted(available_hardware):
             stop = yield self.env.process(
                 self.scale_up(
                     1,
@@ -176,11 +180,13 @@ class KnativeAutoscaler(Autoscaler):
         ))
         """
 
-        # Knative selects a replica on the most available node (cf. ENSURE)
+        # Knative selects a replica on the most available node (cf. ENSURE). `couples_suitable`
+        # is a set, so its iteration order is not reproducible across processes
+        # (PYTHONHASHSEED) — tie-break deterministically on replica identity.
         available_couple = max(
             # filtered_couples, key=lambda couple: couple[0].available_platforms
             couples_suitable,
-            key=lambda couple: couple[0].available_platforms,
+            key=lambda couple: (couple[0].available_platforms, -couple[0].id, -couple[1].id),
         )
 
         return available_couple
@@ -281,7 +287,11 @@ class KnativeAutoscaler(Autoscaler):
 
         # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
-            function_replicas, key=lambda couple: len(couple[1].queue.items)
+            function_replicas,
+            # Total key: the queue length alone ties for every eligible candidate
+            # (scale-down only removes empty queues), so stable sort would fall back
+            # to Set iteration order, which PYTHONHASHSEED does not pin.
+            key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id),
         )
 
         # Mark replica for removal if its task queue is empty

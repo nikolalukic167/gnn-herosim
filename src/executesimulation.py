@@ -29,11 +29,31 @@ from typing import Dict, List, Any, Optional
 
 from src.generate_infrastructure import (
     apply_degree_skew_core_server_device_types,
+    build_core_backbone,
     generate_network_topology_deterministic,
 )
-from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
+from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
+from src.placement.network_graph import (
+    NETWORK_GRAPH_CONTRACT_ENV,
+    NETWORK_GRAPH_CONTRACT_OFF,
+    require_matching_network_graph_contract,
+    resolve_network_graph_contract,
+)
+from src.placement.queue_features import (
+    QUEUE_FEATURE_CONTRACT_ENV,
+    require_matching_queue_feature_contract,
+    resolve_queue_feature_contract,
+    validate_queue_feature_contract,
+)
+from src.placement.topology_features import (
+    CLIENT_NODE_PREFIX,
+    TOPOLOGY_FEATURE_CONTRACT_ENV,
+    require_matching_topology_feature_contract,
+    resolve_topology_feature_contract,
+    validate_topology_feature_contract,
+)
 from src.policy.tabular.constants import PLATFORM_FEATURE_DIM, TASK_FEATURE_DIM
 
 REQUIRED_SIM_FILES = [
@@ -165,7 +185,18 @@ def prepare_infrastructure_for_real_simulation(
 
     # Generate network topology deterministically
     network_maps = generate_network_topology_deterministic(nodes, space_config, rng, task_types_data=task_types_data)
-    
+
+    # link_contention_v1: overlay the core backbone on the live path too. Without this the
+    # live gate would run different physics from the corpus the model trained on — the
+    # exact class of train/serve mismatch that cost the mp_parity lineage a headline.
+    _apply_link_backbone_env_default(space_config)
+    link_topology = build_core_backbone(network_maps, nodes, space_config, rng, seed=seed)
+    if link_topology is not None:
+        print(
+            f"Core backbone: {len(link_topology['links'])} links, "
+            f"{sum(len(v) for v in link_topology['routes'].values())} routes"
+        )
+
     # Assign network maps to nodes
     for node in nodes:
         node['network_map'] = network_maps.get(node['node_name'], {})
@@ -180,12 +211,48 @@ def prepare_infrastructure_for_real_simulation(
             "bandwidth": float(network_bandwidth)
         },
         "nodes": nodes,
+        "link_topology": link_topology,
     }
     infrastructure_config.update(
         _regime_b_infrastructure_overrides(space_config)
     )
-    
+
     return infrastructure_config
+
+
+# Pilot defaults, chosen by the P0 overlap pre-check
+# (scripts_cosim/link_overlap_precheck.py): a pure ring with single attachment forces
+# traffic across multiple shared segments — 30.3% of task pairs contend on a core link and
+# 91.3% of that contention is between tasks on DIFFERENT destination nodes, which is the
+# part no node-occupancy repair column can express. Chords and a second attachment both
+# let paths diverge and collapse the overlap (5.2% at n_core=6, attach_degree=2).
+_BACKBONE_ENV_DEFAULTS = {
+    "n_core": 12,
+    "attach_degree": 1,
+    "chord_count": 0,
+    "core_link_latency_ms": 4.0,
+    "access_link_latency_ms": 20.0,
+}
+
+
+def _apply_link_backbone_env_default(space_config: Dict[str, Any]) -> None:
+    """Let HEROSIM_LINK_BANDWIDTH_MBPS switch the backbone on, mirroring the ingress knob.
+
+    An explicit network.backbone block always wins; the env var only synthesizes one when
+    the config is silent, so a sweep can A/B the physics without editing every config.
+    """
+    network = space_config.setdefault("network", {})
+    if network.get("backbone"):
+        return
+    raw = os.environ.get("HEROSIM_LINK_BANDWIDTH_MBPS")
+    if not raw:
+        return
+    bandwidth = float(raw)
+    if bandwidth <= 0:
+        raise ValueError(
+            f"HEROSIM_LINK_BANDWIDTH_MBPS must be > 0 when set, got {raw}"
+        )
+    network["backbone"] = {**_BACKBONE_ENV_DEFAULTS, "bandwidth_mbps": bandwidth}
 
 
 def _env_bool(name: str) -> Optional[bool]:
@@ -227,6 +294,24 @@ def _regime_b_infrastructure_overrides(space_config: Dict[str, Any]) -> Dict[str
     scheduler = space_config.get("scheduler")
     if scheduler:
         overrides["scheduler"] = scheduler
+
+    # Contention physics. These were previously unreachable from the live-simulation
+    # path: node_contention_v3 shipped without a pass-through here, so a live gate could
+    # not exercise it at all. Both are opt-in and stay None unless configured, which is
+    # node_disk_v2 physics.
+    compute_slots = space_config.get("nodes", {}).get("compute_slots_per_node")
+    if compute_slots is None:
+        raw = os.environ.get("HEROSIM_COMPUTE_SLOTS_PER_NODE")
+        compute_slots = int(raw) if raw else None
+    if compute_slots is not None:
+        overrides["compute_slots_per_node"] = int(compute_slots)
+
+    ingress_bw = space_config.get("nodes", {}).get("ingress_bandwidth_mbps")
+    if ingress_bw is None:
+        raw = os.environ.get("HEROSIM_INGRESS_BANDWIDTH_MBPS")
+        ingress_bw = float(raw) if raw else None
+    if ingress_bw is not None:
+        overrides["ingress_bandwidth_mbps"] = float(ingress_bw)
 
     return overrides
 
@@ -278,16 +363,380 @@ def execute_simulation(
     }
 
 
-def load_gnn_model(model_path: Path):
-    """Load the trained GNN model."""
+def _write_episode_replay(traj) -> None:
+    """Persist the pass-2 replay reservoir when the closed-loop trainer asked for one.
+
+    Episodes run as subprocesses of this script — the same path the gates and the
+    sampling probe run — so the trainer cannot reach into the scheduler's memory. The
+    reservoir travels as a file instead. Writing nothing when `HEROSIM_EPISODE_REPLAY_OUT`
+    is unset keeps every existing caller byte-identical.
+    """
+    out = os.environ.get("HEROSIM_EPISODE_REPLAY_OUT", "").strip()
+    if not out:
+        return
+    if traj.reservoir_k > 0 and not traj.reservoir:
+        raise RuntimeError(
+            f"FAIL LOUD: HEROSIM_EPISODE_REPLAY_OUT={out} with reservoir_k="
+            f"{traj.reservoir_k}, but no batch was ever offered. The episode would "
+            "train on an empty gradient and look like a converged run."
+        )
+    import torch as _torch
+
+    payload = {
+        "summary": traj.to_dict(),
+        "temperature": float(traj.temperature),
+        "n_batches": int(traj.n_batches),
+        "batches": [
+            {
+                "batch_index": b.batch_index,
+                "payload": b.payload,
+                "chosen": b.chosen,
+                "logprobs": b.logprobs,
+            }
+            for b in traj.reservoir
+        ],
+    }
+    path = Path(out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _torch.save(payload, path)
+    print(
+        f"  [sample] replay reservoir: {len(traj.reservoir)}/{traj.n_batches} batches "
+        f"-> {path}",
+        flush=True,
+    )
+
+
+def _adopt_queue_feature_contract(trained: str, model_label: str, source: str) -> None:
+    declared = os.environ.get(QUEUE_FEATURE_CONTRACT_ENV, "").strip()
+    if declared:
+        require_matching_queue_feature_contract(trained, declared, model_label=model_label)
+    else:
+        os.environ[QUEUE_FEATURE_CONTRACT_ENV] = validate_queue_feature_contract(trained)
+    print(
+        f"[QUEUE FEATURES] {model_label} trained under "
+        f"{os.environ[QUEUE_FEATURE_CONTRACT_ENV]} (source={source})",
+        flush=True,
+    )
+
+
+def apply_checkpoint_queue_feature_contract(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the queue feature contract a checkpoint was trained under.
+
+    GNN checkpoints are bare state dicts, so the dim7/dim13 scaling cannot be recovered
+    from weight shapes; trainers write a `<model>.contract.json` sidecar instead. Absent a
+    sidecar the checkpoint predates the split and is legacy_v0 by construction.
+    """
+    sidecar = model_path.with_suffix(".contract.json")
+    if not sidecar.is_file():
+        return
+    try:
+        trained = json.loads(sidecar.read_text()).get("queue_feature_contract")
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{sidecar} is not valid JSON: {exc}") from exc
+    if not trained:
+        raise ValueError(f"{sidecar} has no queue_feature_contract field")
+    _adopt_queue_feature_contract(trained, model_label, sidecar.name)
+
+
+def _read_checkpoint_sidecar(model_path: Path) -> dict:
+    """The `<model>.contract.json` payload, or {} when the checkpoint predates sidecars."""
+    sidecar = model_path.with_suffix(".contract.json")
+    if not sidecar.is_file():
+        return {}
+    try:
+        return json.loads(sidecar.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{sidecar} is not valid JSON: {exc}") from exc
+
+
+def apply_checkpoint_topology_feature_contract(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the topology feature contract a checkpoint was trained under.
+
+    Task feature dim 2 is `index(src)/n_nodes` under `src_index_v0` and reachable-server
+    fraction under `size_invariant_v1` — different quantities on different scales. Nothing
+    in the weights distinguishes them, so serving the wrong one silently corrupts every
+    placement decision rather than failing. Sidecar-less checkpoints predate the split and
+    are `src_index_v0` by construction, matching the resolver's default.
+    """
+    trained = _read_checkpoint_sidecar(model_path).get("topology_feature_contract")
+    if not trained:
+        return
+    trained = validate_topology_feature_contract(trained)
+    declared = os.environ.get(TOPOLOGY_FEATURE_CONTRACT_ENV, "").strip()
+    if declared:
+        require_matching_topology_feature_contract(
+            trained, resolve_topology_feature_contract(), model_label=model_label
+        )
+    else:
+        os.environ[TOPOLOGY_FEATURE_CONTRACT_ENV] = trained
+    print(
+        f"[TOPOLOGY FEATURES] {model_label} trained under "
+        f"{os.environ[TOPOLOGY_FEATURE_CONTRACT_ENV]}",
+        flush=True,
+    )
+
+
+def apply_checkpoint_inference_feature_layout(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the platform-feature layout a checkpoint was trained under.
+
+    Weight shapes pin the feature *dimension* but not its *meaning*: a task_dim=3 /
+    platform_dim=14 checkpoint is served as `atomic21` by this loader's default, yet every
+    live-gate script in `scripts_cosim/important/` exports `INFERENCE_FEATURE_LAYOUT=dim22`
+    for exactly these checkpoints. Whichever is right, it must not depend on whether a
+    caller remembered to export the variable — so a checkpoint that declares its layout
+    wins, and a conflicting declaration is an error rather than a silent override.
+    """
+    trained = _read_checkpoint_sidecar(model_path).get("inference_feature_layout")
+    if not trained:
+        return
+    trained = str(trained).strip().lower()
+    declared = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+    if declared and declared != trained:
+        raise ValueError(
+            f"{model_label} was trained with inference feature layout {trained!r} but this "
+            f"run declares INFERENCE_FEATURE_LAYOUT={declared!r}. The layouts assign "
+            "different meanings to the same platform feature columns; serving the wrong "
+            "one corrupts every score without changing any tensor shape."
+        )
+    os.environ["INFERENCE_FEATURE_LAYOUT"] = trained
+    print(f"[FEATURE LAYOUT] {model_label} trained under {trained}", flush=True)
+
+
+def apply_checkpoint_queue_norm_mode(model_path: Path, model_label: str) -> None:
+    """Adopt (or verify) the queue-depth NORMALIZER a checkpoint's cache was built with.
+
+    `queue_feature_contract` fixes the dim7/dim13 formulas; `queue_norm_mode` fixes the
+    divisor those formulas take (`scheduler_adaptive` = p90 over every platform,
+    `adaptive_nonzero` = p90 over the busy ones, `fixed`). The two are independent, and
+    only the contract was ever enforced: the live builder read GNN_QUEUE_NORM_MODE with a
+    hard-coded `adaptive` default, so a checkpoint cached under any other mode served under
+    a divisor it was never fitted on, silently. (`adaptive` and `scheduler_adaptive` are
+    the same arithmetic today, which is why nothing has failed yet — that is luck, not a
+    guarantee.) Audited 2026-09-12; see docs/gates/gate-tools.md.
+    """
+    trained = _read_checkpoint_sidecar(model_path).get("queue_norm_mode")
+    if not trained:
+        return
+    trained = str(trained).strip().lower()
+    declared = os.environ.get("GNN_QUEUE_NORM_MODE", "").strip().lower()
+    if declared and declared != trained:
+        raise ValueError(
+            f"{model_label} was cached under queue_norm_mode={trained!r} but this run "
+            f"declares GNN_QUEUE_NORM_MODE={declared!r}. The modes divide dim7 by different "
+            "statistics of the same snapshot, so the served queue column is not the trained "
+            "queue column."
+        )
+    os.environ["GNN_QUEUE_NORM_MODE"] = trained
+    print(f"[QUEUE NORM] {model_label} cached under queue_norm_mode={trained}", flush=True)
+
+
+def check_checkpoint_corpus_compatibility(
+    model_path: Path, model_label: str, space_config: Optional[Dict[str, Any]]
+) -> None:
+    """Compare the live infrastructure against the corpus the checkpoint trained on.
+
+    Two different severities, on purpose:
+
+    * **Raises** on `warmth_physics`. It changes the simulated cost model, so a mismatch
+      makes the live number incomparable to the corpus in a way no amount of care at
+      analysis time can repair.
+    * **Warns loudly** on cluster size and topology density. Both the GNN's
+      `build_inference_graph` and `PointwiseEdgeMLP` are candidate-pair based, so a model
+      genuinely *can* run at another size — that is the `topology_transfer_v1` question,
+      not an error. But it must never happen by accident, unnoticed: the existing
+      sealed-holdout gate ran 40/40 p50 against a 20/20 p25 corpus and nothing said so.
+
+    Only fields the sidecar actually declares are checked, so older checkpoints keep
+    loading unchanged.
+    """
+    payload = _read_checkpoint_sidecar(model_path)
+    corpus = payload.get("corpus")
+    if not corpus or not space_config:
+        return
+
+    trained_warmth = corpus.get("warmth_physics")
+    if trained_warmth:
+        serving_warmth = os.environ.get("HEROSIM_WARMTH_PHYSICS", "").strip()
+        if serving_warmth and serving_warmth != trained_warmth:
+            raise ValueError(
+                f"{model_label} was trained under warmth physics {trained_warmth!r} but "
+                f"this run declares HEROSIM_WARMTH_PHYSICS={serving_warmth!r}. The cost "
+                "model differs; the resulting RTT is not comparable to the training corpus."
+            )
+        if not serving_warmth:
+            os.environ["HEROSIM_WARMTH_PHYSICS"] = trained_warmth
+
+    warnings: List[str] = []
+    live_topology = space_config.get("network", {}).get("topology", {})
+    live_shape = {
+        "client_node_count": space_config.get("nodes", {}).get("client_nodes", {}).get("count"),
+        "server_node_count": space_config.get("nodes", {}).get("server_nodes", {}).get("count"),
+        "topology_type": live_topology.get("type"),
+        "connection_probability": live_topology.get("connection_probability"),
+    }
+    for key, live_value in live_shape.items():
+        if live_value is None:
+            continue
+        # A corpus may span several values of an axis (the full siv1 corpus mixes six
+        # connection probabilities). Then "in distribution" means membership, not equality.
+        allowed = corpus.get(f"{key}_values")
+        if allowed is not None:
+            if live_value not in allowed:
+                warnings.append(f"{key}: live={live_value} not in trained set {sorted(allowed)}")
+            continue
+        trained_value = corpus.get(key)
+        if trained_value is None:
+            continue
+        if trained_value != live_value:
+            warnings.append(f"{key}: trained={trained_value} live={live_value}")
+
+    if warnings:
+        print(
+            f"\n!! INFRA MISMATCH: {model_label} is being served on infrastructure that "
+            f"differs from its training corpus:\n"
+            + "".join(f"     - {w}\n" for w in warnings)
+            + "   The model will still run (both model classes are candidate-pair based), "
+            "but this is\n   an out-of-distribution evaluation. Verify with "
+            "scripts_cosim/verify_live_infra_parity.py.\n",
+            flush=True,
+        )
+    else:
+        print(
+            f"[CORPUS] {model_label} infrastructure matches its training corpus "
+            f"({live_shape['client_node_count']}c/{live_shape['server_node_count']}s "
+            f"{live_shape['topology_type']} p={live_shape['connection_probability']})",
+            flush=True,
+        )
+
+
+def checkpoint_mp_config(model_path: Path) -> dict:
+    """Message-passing options a GNN checkpoint was trained with, from its sidecar.
+
+    Serving the wrong message-passing graph is not a soft degradation: it cost 12.4x live
+    RTT on 2026-08-16. `mp_node_edges` cannot be recovered from weight shapes, so a
+    checkpoint trained with same-node edges MUST carry a sidecar declaring them.
+    Sidecar-less checkpoints predate the flag and are bipartite-only by construction.
+    """
+    payload = _read_checkpoint_sidecar(model_path)
+    if not payload:
+        return {}
+    config = {
+        key: bool(payload[key])
+        for key in (
+            "mp_residual",
+            "mp_node_edges",
+            "mp_node_edges_candidates_only",
+            # route_b stage 2. mp_dag_edges is weight-invisible, exactly like
+            # mp_node_edges; partial_state_edge_features is what makes a stage-2 T2
+            # checkpoint refuse to serve. This whitelist is why a new sidecar key is
+            # invisible to serving until it is added here — omitting one is a silent
+            # default, not an error.
+            "mp_dag_edges",
+            "mp_peer_edges",
+            "partial_state_edge_features",
+            # Weight-invisible like the two above: the GIN module is always constructed,
+            # so a checkpoint whose GIN weights were never fitted (disable_message_passing
+            # =True at train time) looks identical on disk to one trained normally. Route_b
+            # 2026-09-03 measured a 5.7x train-regret error (12.67% -> 72.23%) from serving
+            # an MP-OFF checkpoint through GIN weights it never trained. That fix only
+            # covered the offline evaluator; this key was absent from this whitelist, so
+            # THIS loader's own mp_node_edges/mp_dag_edges-style guard had nothing to check
+            # against below.
+            "disable_message_passing",
+        )
+        if key in payload
+    }
+    # Not bools: the one-hot width, and the contract that defines what the 38
+    # partial-state columns mean.
+    if "task_type_onehot_dim" in payload:
+        config["task_type_onehot_dim"] = int(payload["task_type_onehot_dim"] or 0)
+    if payload.get("partial_state_contract"):
+        config["partial_state_contract"] = str(payload["partial_state_contract"])
+    if payload.get("dag_task_type_vocab"):
+        config["dag_task_type_vocab"] = list(payload["dag_task_type_vocab"])
+    # Not a bool: which network entities the training graph contained. Recoverable from
+    # weights only as "some encoder exists", never as *which* contract built the features,
+    # so it has to come from here.
+    if "network_graph_contract" in payload:
+        config["network_graph_contract"] = str(payload["network_graph_contract"])
+    return config
+
+
+def apply_mlp_checkpoint_queue_feature_contract(model_path: Path, model_label: str) -> None:
+    """Same as the GNN sidecar path, but for MLP checkpoints, which are dicts.
+
+    `MLPBatchScheduler.set_models` also adopts the contract, but it runs *after*
+    `build_run_provenance`, so provenance would otherwise record the pre-load default
+    rather than what actually served. Adopting here keeps the record truthful; the later
+    call then sees a matching declaration and is a no-op.
+    """
+    import torch
+
+    checkpoint = torch.load(str(model_path), map_location="cpu", weights_only=False)
+    if not isinstance(checkpoint, dict):
+        return
+    trained = checkpoint.get("queue_feature_contract")
+    if not trained:
+        return
+    _adopt_queue_feature_contract(trained, model_label, model_path.name)
+
+
+def resolve_serving_device():
+    """Resolve the torch device used for GNN serving.
+
+    Controlled by HEROSIM_GNN_DEVICE: 'cpu' (default), 'cuda' (require CUDA, fail
+    loud if absent), or 'auto' (cuda-if-available, the pre-2026-08-25 behavior).
+
+    Default is cpu for PARITY, not for speed. Measured 2026-08-25 on a 30k-event episode
+    (cell01, workload-150-100-30k): cuda 72 s vs cpu 86 s — cuda is the FASTER device
+    here, so this default costs ~19% on a GPU box. What it buys is that a local run and a
+    datalab CPU-amd gate run resolve to the same device: cuda is the only axis PARITY.md
+    finds that moves GNN logits at all (1.9e-5), and it is visible end-to-end — the same
+    cell's total_rtt differs by 4.6e-6 relative between the two devices here.
+
+    The episode speedup the profiling predicted from "serve on CPU" did NOT come from the
+    device. It came from not calling `Data.to()` — see move_graph_tensors_ in
+    policy/gnn/scheduler.py, worth 93 s -> 72 s on the same episode, on cuda.
+    """
+    import torch
+
+    requested = os.environ.get("HEROSIM_GNN_DEVICE", "cpu").strip().lower()
+    if requested == "cpu":
+        return torch.device("cpu")
+    if requested == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "HEROSIM_GNN_DEVICE=cuda but torch.cuda.is_available() is False"
+            )
+        return torch.device("cuda")
+    if requested == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    raise ValueError(
+        f"HEROSIM_GNN_DEVICE={requested!r} — expected 'cpu', 'cuda' or 'auto'"
+    )
+
+
+def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = None):
+    """Load the trained GNN model.
+
+    `space_config` is optional so existing callers keep working, but passing it enables
+    the corpus-compatibility check — without it a size/density mismatch between the live
+    infrastructure and the training corpus goes unreported.
+    """
     import torch
     from src.policy.gnn.gnn_model import TaskPlacementGNN
     
     try:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = resolve_serving_device()
         print(f"Loading GNN model from {model_path} on {device}...", flush=True)
 
         state_dict = torch.load(model_path, map_location='cpu')
+        _label = f"GNN checkpoint {model_path.name}"
+        apply_checkpoint_queue_feature_contract(model_path, _label)
+        apply_checkpoint_topology_feature_contract(model_path, _label)
+        apply_checkpoint_inference_feature_layout(model_path, _label)
+        apply_checkpoint_queue_norm_mode(model_path, _label)
+        check_checkpoint_corpus_compatibility(model_path, _label, space_config)
         task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
         platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])
         embedding_dim = 64
@@ -298,7 +747,26 @@ def load_gnn_model(model_path: Path):
                 f"Cannot infer edge_dim from edge_scorer.fc1 in_dim={edge_fc1_in}"
             )
 
-        layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21").strip().lower()
+        # A task_dim=3 / platform_dim=14 checkpoint is structurally valid under BOTH
+        # atomic21 and dim22 — the layouts assign different meanings to the same platform
+        # columns (dim22 normalizes the queue features, atomic21 does not), so the weight
+        # shapes cannot disambiguate them and neither load nor forward raises. Defaulting
+        # silently to atomic21 is how the prefixctl and tempfix gates came to serve a
+        # different layout than every deployed-checkpoint gate (which served dim22 from a
+        # sidecar), with nothing in the result but an easily-missed banner line. For that
+        # ambiguous shape, refuse to guess.
+        declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip()
+        if not declared_layout and task_feature_dim == 3 and platform_feature_dim == 14:
+            raise ValueError(
+                f"{model_path.name}: task_dim=3 / platform_dim=14 is served under either "
+                f"'atomic21' or 'dim22', and this run declares neither — the checkpoint has "
+                f"no inference_feature_layout in its .contract.json and "
+                f"INFERENCE_FEATURE_LAYOUT is unset. The two layouts give the same tensor "
+                f"shapes different meanings (dim22 normalizes the platform queue features), "
+                f"so guessing silently changes every score. Declare one explicitly, or "
+                f"retrain with a trainer that records it in the sidecar."
+            )
+        layout = (declared_layout or "atomic21").lower()
         if task_feature_dim == 3 and platform_feature_dim == 6:
             os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
             print(
@@ -337,6 +805,95 @@ def load_gnn_model(model_path: Path):
                 flush=True,
             )
 
+        # Reconstruct the architecture the weights were actually fitted with.
+        # `mp_gate` is present iff the checkpoint was trained with the GIN residual, so it
+        # is authoritative; the sidecar supplies what weights cannot encode (node edges).
+        mp_cfg = checkpoint_mp_config(model_path)
+        mp_residual = "mp_gate" in state_dict
+        if mp_cfg.get("mp_residual", mp_residual) != mp_residual:
+            raise ValueError(
+                f"{model_path.name}: sidecar says mp_residual={mp_cfg['mp_residual']} but "
+                f"the state dict {'has' if mp_residual else 'lacks'} an 'mp_gate' weight"
+            )
+        mp_node_edges = mp_cfg.get("mp_node_edges", False)
+        # The sidecar is authoritative here; refuse to let a stale env var be silently
+        # ignored (it used to be the only control, so it WILL still be set in old scripts).
+        _env_node_edges = os.environ.get("GNN_MP_NODE_EDGES", "").strip().lower()
+        if _env_node_edges not in ("", "0", "false", "no") and not mp_node_edges:
+            raise ValueError(
+                f"GNN_MP_NODE_EDGES={_env_node_edges!r} but {model_path.name} was not "
+                f"trained with same-node edges (per {model_path.stem}.contract.json). "
+                "Serving them is the 12.4x-RTT regression; retrain with "
+                "NEAR_RTT_MP_NODE_EDGES=1 instead of forcing it at serve time."
+            )
+
+        # route_b stage-2 T2 checkpoints refuse to serve. Their scores are a function of
+        # the committed decode prefix, and live prefix construction is stage 3 — it does
+        # not exist. edge_dim is back-inferred from edge_scorer.fc1, so such a checkpoint
+        # would otherwise rebuild at edge_dim=43 and die inside fc1 on a 5-wide edge_attr:
+        # loud, but cryptic, and only by luck. Say what is actually wrong instead.
+        if mp_cfg.get("partial_state_edge_features"):
+            # peer_affinity_v1 stage 3 (2026-09-11): prefix-conditioned checkpoints serve
+            # through src/policy/gnn/prefix_serving.py — the same construction the
+            # offline evaluator uses — and ONLY under the masked_topo decode, which is
+            # the one decoder that builds the prefix the scores are conditioned on.
+            # Any other decode mode would score every candidate against an all-zero
+            # prefix block, so it is refused rather than defaulted.
+            from src.policy.gnn.prefix_serving import load_prefix_conditioned_gnn
+
+            decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
+            if decode_mode != "masked_topo":
+                raise ValueError(
+                    f"{model_path.name} is prefix-conditioned (partial_state_edge_features) "
+                    f"and can only be served with GNN_DECODE_MODE=masked_topo; got "
+                    f"{decode_mode!r}. Any other decode would score against an all-zero "
+                    "prefix block."
+                )
+            model, options, _sidecar = load_prefix_conditioned_gnn(model_path, device=device)
+            model.prefix_serving_options = options
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
+            print(
+                f"GNN model loaded successfully (prefix-conditioned, "
+                f"{sum(p.numel() for p in model.parameters()):,} parameters)",
+                flush=True,
+            )
+            return model, device
+        # mp_dag_edges is weight-invisible, exactly like mp_node_edges: refuse to let a
+        # stale env var silently add DAG message passing a checkpoint never trained on.
+        mp_dag_edges = mp_cfg.get("mp_dag_edges", False)
+        _env_dag_edges = os.environ.get("GNN_MP_DAG_EDGES", "").strip().lower()
+        if _env_dag_edges not in ("", "0", "false", "no") and not mp_dag_edges:
+            raise ValueError(
+                f"GNN_MP_DAG_EDGES={_env_dag_edges!r} but {model_path.name} was not "
+                f"trained with workload-DAG edges (per {model_path.stem}.contract.json). "
+                "Retrain with NEAR_RTT_MP_DAG_EDGES=1 instead of forcing it at serve time."
+            )
+
+        # Network entities. Unlike mp_node_edges these ARE visible in the weights (two
+        # extra encoders), so the state dict is authoritative for *whether* and the
+        # sidecar for *which contract* built the features. Both must line up with the
+        # contract this run resolves, or the served graph is not the trained graph.
+        mp_network_entities = any(
+            key.startswith("net_node_encoder.") for key in state_dict
+        )
+        trained_net_contract = mp_cfg.get("network_graph_contract")
+        if mp_network_entities and trained_net_contract is None:
+            raise ValueError(
+                f"{model_path.name} has network-entity encoders but its sidecar declares "
+                f"no network_graph_contract, so there is no way to know which graph it was "
+                f"fitted on. Retrain with a trainer that records it."
+            )
+        declared_net_contract = os.environ.get(NETWORK_GRAPH_CONTRACT_ENV, "").strip()
+        if declared_net_contract:
+            require_matching_network_graph_contract(
+                trained_net_contract if mp_network_entities else NETWORK_GRAPH_CONTRACT_OFF,
+                resolve_network_graph_contract(),
+                model_label=model_path.name,
+            )
+        elif mp_network_entities:
+            os.environ[NETWORK_GRAPH_CONTRACT_ENV] = trained_net_contract
+
         model = TaskPlacementGNN(
             task_feature_dim=task_feature_dim,
             platform_feature_dim=platform_feature_dim,
@@ -344,10 +901,52 @@ def load_gnn_model(model_path: Path):
             hidden_dim=64,
             num_layers=3,
             edge_dim=edge_dim,
+            normalize_platform_inputs="platform_input_norm.weight" in state_dict,
+            mp_residual=mp_residual,
+            mp_node_edges=mp_node_edges,
+            mp_node_edges_candidates_only=mp_cfg.get("mp_node_edges_candidates_only", True),
+            mp_network_entities=mp_network_entities,
+            mp_dag_edges=mp_dag_edges,
+            task_type_onehot_dim=int(mp_cfg.get("task_type_onehot_dim", 0)),
+        )
+        print(
+            f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "
+            f"candidates_only={mp_cfg.get('mp_node_edges_candidates_only', True)} "
+            f"network_entities={mp_network_entities}"
+            + (f" ({trained_net_contract})" if mp_network_entities else ""),
+            flush=True,
         )
         model.load_state_dict(state_dict)
         model = model.to(device)
         model.eval()
+        mp = os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower()
+        if mp not in ("", "0", "false", "no", "1", "true", "yes"):
+            raise ValueError(
+                f"GNN_DISABLE_MESSAGE_PASSING={mp!r} is not a boolean (use 1/0/true/false/yes/no)"
+            )
+        serving_mp_off = mp in ("1", "true", "yes")
+        # mp_cfg is built by checkpoint_mp_config, which only emits a key when the
+        # sidecar actually has it — a sidecar that predates this key (every checkpoint
+        # before 2026-09-03) has no opinion and is not refused, matching how
+        # mp_node_edges/mp_dag_edges are read above.
+        if "disable_message_passing" in mp_cfg:
+            declared_mp_off = bool(mp_cfg["disable_message_passing"])
+            if declared_mp_off != serving_mp_off:
+                raise ValueError(
+                    f"{model_path.name}: sidecar declares disable_message_passing="
+                    f"{declared_mp_off} but serving has GNN_DISABLE_MESSAGE_PASSING="
+                    f"{'set' if serving_mp_off else 'unset'}. Unlike mp_node_edges/"
+                    "mp_dag_edges this mismatch corrupts inference in BOTH directions: "
+                    "serving MP-on weights with the flag set skips a trained GIN pass, "
+                    "and serving MP-off weights without it runs never-trained GIN "
+                    "weights (measured 5.7x train-regret error, route_b 2026-09-03)."
+                )
+        if serving_mp_off:
+            print(
+                "[GNN] GNN_DISABLE_MESSAGE_PASSING=1 — GIN aggregation skipped; "
+                "encoder embeddings go straight to the edge scorer",
+                flush=True,
+            )
         
         # Clear CUDA cache to avoid memory issues
         if device.type == 'cuda':
@@ -368,7 +967,7 @@ def load_gnn_hetero_model(model_path: Path):
     from src.policy.gnn_hetero.gnn_model import TaskPlacementGNN
 
     try:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = resolve_serving_device()
         print(f"Loading hetero GNN model from {model_path} on {device}...", flush=True)
 
         model = TaskPlacementGNN(
@@ -446,6 +1045,102 @@ def build_rtt_overview(
             "total_inference_time_s includes graph build + forward + decode."
         )
     return overview
+
+
+def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str, Any]:
+    """
+    Capture the run knobs that silently change results across sweeps.
+
+    warmth_physics alone moves live total RTT by ~100x, and batch window / decode
+    mode / feature layout are env-driven, so results must carry them.
+    """
+    from src.placement.env_fingerprint import (
+        describe_code_provenance,
+        describe_python_env,
+        env_fingerprint,
+        format_code_banner,
+        format_env_banner,
+    )
+    from src.placement.warmth import describe_warmth_physics, require_explicit_warmth_physics
+
+    descriptor = describe_warmth_physics(space_config.get("warmth_physics"))
+    require_explicit_warmth_physics(descriptor)
+
+    provenance: Dict[str, Any] = dict(descriptor)
+    provenance["defer_cold_replica_init"] = space_config.get(
+        "defer_cold_replica_init", _env_bool("HEROSIM_DEFER_COLD_REPLICA_INIT")
+    )
+    provenance["env"] = {
+        name: os.environ.get(name)
+        for name in (
+            "GNN_BATCH_SIZE",
+            "GNN_BATCH_TIMEOUT",
+            "GNN_DECODE_MODE",
+            "GNN_DECODE_TOP_K",
+            "GNN_QUEUE_NORM_MODE",
+            "GNN_DISABLE_MESSAGE_PASSING",
+            "GNN_MP_NODE_EDGES",
+            "GNN_LQB_LAMBDA",
+            "GNN_QUEUE_FILTER_MAX_DELTA",
+            "GNN_SEQBLEND_QUEUE_MARGIN",
+            "HEROSIM_GNN_DEVICE",
+            "HEROSIM_PEER_EXCHANGE",
+            # peer_affinity_v1 stage 3: what the prefix-conditioned arm was served with
+            "GNN_BATCH_BY_PEER_GROUP",
+            "GNN_PREFIX_ALPHA_KEY",
+            "GNN_PREFIX_LOAD_SEED",
+            "GNN_PREFIX_CONCURRENCY_PENALTY",
+            "GNN_PREFIX_PLATFORM_CAP",
+            "GNN_PREFIX_TRACE_SLIM",
+            "HEROSIM_SERVER_ONLY_REPLICAS",
+            "HEROSIM_REPLICA_PLATFORM_TYPES",
+            "PARTIAL_STATE_CONTRACT",
+            "PARTIAL_STATE_PEER_MASS",
+            "INFERENCE_FEATURE_LAYOUT",
+            "KNATIVE_BATCH_SIZE",
+            "KNATIVE_BATCH_TIMEOUT",
+            "GNN_MODEL_PATH",
+            "MLP_MODEL_PATH",
+            "TOPOLOGY_FEATURE_CONTRACT",
+            "NETWORK_GRAPH_CONTRACT",
+            QUEUE_FEATURE_CONTRACT_ENV,
+        )
+    }
+    provenance["slurm"] = {
+        name: os.environ.get(name)
+        for name in (
+            "SLURM_JOB_ID",
+            "SLURM_ARRAY_JOB_ID",
+            "SLURM_ARRAY_TASK_ID",
+        )
+        if os.environ.get(name) is not None
+    }
+    provenance["policy"] = policy
+    # dim7/dim13 scaling changes queue ranking, so it belongs next to warmth_physics.
+    provenance["queue_feature_contract"] = resolve_queue_feature_contract()
+
+    # Which code, and which interpreter, actually produced this number. Both axes have
+    # silently invalidated a gate: an uncommitted feature fix (23.3% of total_rtt, job
+    # 708549) and an undeclared venv. See src/placement/env_fingerprint.py.
+    provenance["code"] = describe_code_provenance()
+    python_env = describe_python_env()
+    provenance["python_env"] = python_env
+    provenance["env_fingerprint"] = env_fingerprint(python_env)
+    print(format_code_banner(provenance["code"]), flush=True)
+    print(format_env_banner(python_env), flush=True)
+
+    banner = (
+        f"[PHYSICS] warmth_physics={provenance['warmth_physics']} "
+        f"(source={provenance['warmth_physics_source']})"
+    )
+    print(banner, flush=True)
+    if provenance["warmth_physics_source"] == "default":
+        print(
+            "[PHYSICS] WARNING: physics not declared by config or env — "
+            "this run is NOT comparable to sweeps that declared node_disk_v2.",
+            flush=True,
+        )
+    return provenance
 
 
 def _resolve_queue_length(explicit: Optional[int] = None) -> int:
@@ -551,6 +1246,19 @@ def run_simulation(
         # Load space config
         with open(config_file, 'r') as f:
             space_config = json.load(f)
+
+        # Adopt the MLP's contract before provenance so the record matches what serves.
+        if policy == 'mlp_batch' and mlp_model_path is not None:
+            _mlp_label = f"MLP checkpoint {mlp_model_path.name}"
+            apply_mlp_checkpoint_queue_feature_contract(mlp_model_path, _mlp_label)
+            # Same protections the GNN path gets (no-ops on sidecar-less checkpoints):
+            # topology contract and warmth/corpus compatibility must not depend on which
+            # model class is being served.
+            apply_checkpoint_topology_feature_contract(mlp_model_path, _mlp_label)
+            check_checkpoint_corpus_compatibility(mlp_model_path, _mlp_label, space_config)
+
+        # Before any simulation work: declared physics decides comparability.
+        run_provenance = build_run_provenance(space_config, policy)
 
         placement_seed = seed
         if placement_seed is None:
@@ -690,9 +1398,13 @@ def run_simulation(
             "config_file": str(config_file),
             "workload_file": str(workload_file),
             "seed": seed,
+            # The seed actually used: the CLI value defaults to the topology seed (or 42)
+            # at placement_seed resolution above. "seed": null does NOT mean unseeded.
+            "placement_seed": placement_seed,
             "queue_length": resolved_queue_length,
             "total_rtt": total_rtt,
             "num_tasks": num_tasks,
+            "run_provenance": run_provenance,
             "stats": stats,
         }
 
@@ -712,6 +1424,25 @@ def run_simulation(
                     result_summary["decode_stats"] = summary
                     stats_path = output_file.with_suffix(".decode_stats.json")
                     write_run_decode_stats(stats_path, p1_margin=margin)
+                    # Phase 3: when the episode was sampled, its trajectory carries the
+                    # exploration rate — the fraction of decisions that differed from
+                    # argmax. A temperature that is cheap because it reproduces argmax
+                    # gives the policy gradient nothing to learn from, so this travels
+                    # with the result rather than being inferred from RTT alone.
+                    try:
+                        from src.policy.gnn.seq_decode import get_episode_trajectory
+                        traj = get_episode_trajectory()
+                    except ImportError:
+                        traj = None
+                    if traj is not None and traj.task_choices:
+                        result_summary["episode_trajectory"] = traj.to_dict()
+                        print(
+                            f"  [sample] T={traj.temperature} decisions={len(traj.task_choices):,} "
+                            f"explore_rate={traj.to_dict()['explore_rate']:.4f} "
+                            f"mean_logprob={traj.to_dict()['mean_logprob']:.4f}",
+                            flush=True,
+                        )
+                        _write_episode_replay(traj)
                     print("\n=== GNN decode stats ===", flush=True)
                     dt = summary.get("decode_time_ms", {})
                     col = summary.get("intra_batch_platform_collisions", {})
@@ -961,8 +1692,14 @@ def main():
         if not gnn_model_path.exists():
             print(f"ERROR: GNN model not found at {gnn_model_path}")
             sys.exit(1)
-        
-        gnn_model, gnn_device = load_gnn_model(gnn_model_path)
+
+        # `run_simulation` loads this again for the sim itself; the checkpoint's
+        # corpus-compatibility check needs it before the model is constructed.
+        with open(config_file, 'r') as _f:
+            space_config_for_checkpoint = json.load(_f)
+        gnn_model, gnn_device = load_gnn_model(
+            gnn_model_path, space_config=space_config_for_checkpoint
+        )
         task_types_data = load_task_types_data(sim_input_path)
     elif policy == 'gnn_hetero':
         if not gnn_hetero_model_path.exists():

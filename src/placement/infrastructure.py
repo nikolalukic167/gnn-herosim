@@ -24,6 +24,17 @@ from typing import Callable, Dict, List, Tuple, Optional, TypedDict, Any
 
 from src.placement.warmth import NODE_DISK_V2, sandbox_is_warm
 
+# network_contention_v1: the transfer-time formula is shared with the ECT cost model so
+# the two cannot drift apart, which is what produced the train/serve MP mismatch.
+# scheduling_cost imports this module only under TYPE_CHECKING, so there is no cycle.
+from src.placement.scheduling_cost import (
+    transfer_time as _transfer_time,
+)
+from src.placement.network_fabric import NetworkFabric
+
+# network_contention_v1 spelling, kept where the ingress pipe is charged.
+_ingress_transfer_time = _transfer_time
+
 # Set GNN_CAPTURE_DATASET_STATE=1 when generating GNN training datasets (co-sim).
 DATASET_STATE_CAPTURE = os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1"
 
@@ -38,6 +49,7 @@ def slim_completed_task(task: "Task") -> None:
         task.system_state_snapshot = None
 
 from simpy.core import Environment, SimTime
+from simpy.resources.resource import Resource
 from simpy.resources.store import FilterStore, Store
 
 from src.placement.model import (
@@ -79,6 +91,11 @@ class Application:
         self.type = application_type
         self.qos = qos_type
         self.tasks = tasks
+
+        # function name -> child Tasks, built once by Orchestrator.create_application.
+        # Empty for a single-node dag, which is every application in the corpora as of
+        # 2026-08-25; workflow_process falls back to the dag itself when it is unset.
+        self.children_by_function: Dict[str, List["Task"]] = {}
 
         self.finished = False
 
@@ -172,6 +189,31 @@ class Task:
         self.construction_time: DurationSecond = 0.0
 
         self.network_latency: DurationSecond = 0.0
+        self.node_contention_time: DurationSecond = 0.0
+        # network_contention_v1: transfer is the (task, node)-additive transmission cost;
+        # wait is the queueing for the shared pipe, i.e. the non-additive part.
+        self.ingress_transfer_time: DurationSecond = 0.0
+        self.ingress_wait_time: DurationSecond = 0.0
+        # link_contention_v1: the same split, one level down. Transfer is summed over the
+        # route's hops and stays a function of (task, source, destination); wait is the
+        # queueing on shared segments and is the non-additive part.
+        self.link_transfer_time: DurationSecond = 0.0
+        self.link_wait_time: DurationSecond = 0.0
+        self.link_hops: int = 0
+        # peer_affinity_v1: time charged at the input stage for exchanging state with the
+        # task's peers (HEROSIM_PEER_EXCHANGE=1; Platform._peer_exchange_time). Pairwise over
+        # two jointly-decided placements, so it is neither node-indexed nor route-indexed.
+        self.peer_exchange_time: DurationSecond = 0.0
+        # peer_affinity_v1 stage 3: clock time this task's input stage spent waiting for a
+        # peer that was neither placed nor planned yet (Platform._peer_rendezvous_events).
+        # 0.0 for every fully-planned batch, which is every co-sim batch.
+        self.peer_rendezvous_wait: DurationSecond = 0.0
+        # Where a batch scheduler has DECIDED to run this task before it is enqueued. The
+        # determined scheduler enqueues each task right after assigning it, so a later batch
+        # member has no `platform` yet when an earlier one reaches its input stage; the
+        # peer-exchange term reads this instead (set by the scheduler's pre-pass under the
+        # flag, None otherwise).
+        self.planned_node_name: Optional[str] = None
         self.source_node: str = node_name
         self.execution_node: str = ""
         self.execution_platform: str = ""
@@ -364,6 +406,14 @@ class Task:
             "localCommunications": self.local_communications,
             "energy": self.energy,
             "networkLatency": self.network_latency,
+            "nodeContentionTime": self.node_contention_time,
+            "ingressTransferTime": self.ingress_transfer_time,
+            "ingressWaitTime": self.ingress_wait_time,
+            "linkTransferTime": self.link_transfer_time,
+            "linkWaitTime": self.link_wait_time,
+            "linkHops": self.link_hops,
+            "peerExchangeTime": self.peer_exchange_time,
+            "peerRendezvousWait": self.peer_rendezvous_wait,
             "sourceNode": self.node_name,
             "executionNode": self.execution_node,
             "executionPlatform": self.execution_platform,
@@ -478,11 +528,20 @@ class Storage:
             while (self.used * 1e-9) + task_type["imageSize"][platform] > self.type[
                 "capacity"
             ]:
-                try:
-                    self.cache_eviction()
-                except CacheEvictionError as e:
-                    logging.error(f"[ {self.env.now} ] {e.message}")
-                    return False
+                # `cache_eviction` SWALLOWS CacheEvictionError and returns False, so the
+                # `except` this used to carry was dead code and an empty cache that still
+                # could not fit the image spun this loop forever. Unreachable while disks
+                # were 32/64 GB against ~3 GB images (image_cache_v1 is the first lever
+                # that binds capacity), so raising here is inert on every existing corpus
+                # — verified by byte-identity on a frozen dataset. Fail loud: a caller that
+                # read `False` would charge the pull and leave nothing cached.
+                if not self.cache_eviction():
+                    raise CacheEvictionError(
+                        f"{self} cannot cache {task_type['name']} ({platform}, "
+                        f"{task_type['imageSize'][platform]} GB): capacity is "
+                        f"{self.type['capacity']} GB and the function cache is already "
+                        f"empty. No eviction sequence can make room."
+                    )
 
             self.functions_cache.append((platform, task_type))
             self.used += int(task_type["imageSize"][platform] * 1e9)
@@ -524,11 +583,16 @@ class Storage:
         task_state = task.type["stateSize"][task.application.type["name"]]
         # Cache eviction if disk capacity is reached
         while (self.used + task_state["output"]) * 1e-9 > self.type["capacity"]:
-            try:
-                self.cache_eviction()
-            except CacheEvictionError as e:
-                logging.error(f"[ {self.env.now} ] {e.message}")
-                return False
+            # Same dead-`except` / infinite-loop defect as store_function above; same
+            # fail-loud fix. Note this path evicts FUNCTION IMAGES to make room for task
+            # OUTPUT data, so a bounded disk must not be combined with a large
+            # HEROSIM_OUTPUT_SIZE_BYTES — see apply_disk_capacity_override.
+            if not self.cache_eviction():
+                raise CacheEvictionError(
+                    f"{self} cannot store {task_state['output']} bytes of output for "
+                    f"{task}: capacity is {self.type['capacity']} GB and the function "
+                    f"cache is already empty. No eviction sequence can make room."
+                )
 
         # Store data
         self.data_store[task.id] = task_state["output"]
@@ -733,7 +797,16 @@ class Platform:
         if task.node_name != self.node.node_name and task.node and task.node.network_map:
             if task.node_name in self.node.network_map:
                 network = self.node.network_map[task.node_name]
-        
+
+        # network_contention_v1 deliberately charges NO ingress transfer here, unlike
+        # node_contention_v3 which had to account for this backlog. The seeded queue
+        # depth is work that already arrived before t=0; the compressed drain is a
+        # fast-forward of the past, so billing it for a transfer now would both
+        # double-count the arrival and — because it is a per-(task, platform) constant —
+        # inflate the additive term and dilute the coupling, which is the exact mistake
+        # the deep-queue series made. Only tasks that traverse the network during the
+        # run pay ingress. See platform_process.
+
         # Communication time (I/O) - mirror platform_process assumptions:
         # input from remote storage, output to local storage, and output path
         # is network-bounded when input storage is remote.
@@ -869,6 +942,201 @@ class Platform:
         
         return total_time
 
+    def _payload_transfer_time(self, parent_node_name: str, payload_bytes: float) -> SimTime:
+        """Time to move `payload_bytes` from the parent's node to this one.
+
+        This is the whole difference between route_a testing its hypothesis and not testing
+        it. Dividing the payload by the child's own NIC — the first implementation — makes
+        the magnitude-carrying half of the transfer a function of the child ALONE, i.e.
+        separable by construction and exactly what a pointwise model already fits. The
+        2026-08-25 scaling probe measured that: additive-argmin regret stayed at 0.000%
+        across a 100,000x payload range, even once the term reached ~95% of episode cost,
+        because only the (unscaled, 0.03-0.15 s) latency was ever pairwise.
+
+        With a fabric this is **store-and-forward over the route**, the same model the
+        ingress path already uses (see the `fabric.hops` loop in platform_process): each
+        link on the parent->child path carries the whole payload in turn, so the cost is
+        `n_hops * payload / bottleneck_bandwidth`. Hop count is what makes DISTANCE carry
+        magnitude — a min-bandwidth-only model is constant when the backbone's links are
+        uniform, which is precisely the degenerate case that produced the first null.
+
+        Falls back to the child's node bandwidth (one hop) when no fabric is configured, so
+        a corpus without a backbone behaves as before rather than failing.
+        """
+        seconds_per_hop_divisor = 1024 * 1024
+        fabric = getattr(self.node, "fabric", None)
+        if fabric is not None:
+            try:
+                hops = fabric.hops(parent_node_name, self.node.node_name)
+            except Exception:
+                hops = []
+            if hops:
+                bottleneck = min(bandwidth for _key, bandwidth in hops)
+                if bottleneck > 0:
+                    return len(hops) * payload_bytes / (bottleneck * seconds_per_hop_divisor)
+
+        bandwidth_mbps = float(self.node.network.get("bandwidth", 0.0) or 0.0)
+        if bandwidth_mbps <= 0.0:
+            raise RuntimeError(
+                f"HEROSIM_DATA_LOCALITY=1 but {self.node.node_name} has non-positive "
+                f"network bandwidth ({bandwidth_mbps}); refusing to charge 0.0"
+            )
+        return payload_bytes / (bandwidth_mbps * seconds_per_hop_divisor)
+
+    def _dependency_transfer_time(self, task: "Task") -> SimTime:
+        """Cost of pulling each remote parent's output to this node.
+
+        `stateSize[app]["output"]` bytes per parent, over the slower of this node's link
+        bandwidth and the storage read throughput, plus the network latency between the
+        parent's node and this one. Parents that ran on this node cost nothing extra —
+        their output is already local, and the storage branch above has priced that read.
+
+        Why this exists (route_a). Every other distance-aware term in the simulator is
+        indexed by (source client -> execution node): `network_latency`, the ingress pipe,
+        and the link fabric all price getting the REQUEST to the node. None of them can see
+        where a *sibling task* went, so with per-task costs separable and placements freely
+        chosen the componentwise minimiser is optimal under any monotone aggregation and no
+        objective change can create structure. A parent->child transfer is a pairwise term
+        over two jointly-decided placements, which is what breaks that.
+
+        Reads ALL parents, not `dependencies[-1]`. The storage branch above picks one
+        arbitrary parent (the `FIXME: Support more complex application DAGs`); for a fan-in
+        that silently drops every other parent's read.
+
+        Returns 0.0 unless HEROSIM_DATA_LOCALITY=1, and 0.0 for a task with no
+        dependencies — so single-task corpora are bit-identical either way.
+        """
+        if not task.dependencies:
+            return 0.0
+        if os.environ.get("HEROSIM_DATA_LOCALITY", "0") != "1":
+            return 0.0
+
+        app_name = task.application.type["name"]
+        network_map = getattr(self.node, "network_map", None) or {}
+        total: SimTime = 0.0
+
+        for dependency in task.dependencies:
+            # Where the parent actually RAN, which is the whole point — not where its
+            # request came from. `task.platform` is set when the task is scheduled.
+            parent_platform = getattr(dependency, "platform", None)
+            if parent_platform is None:
+                raise RuntimeError(
+                    f"HEROSIM_DATA_LOCALITY=1 but parent {dependency} of {task} has no "
+                    f"platform; a child must not be dispatched before its parents finish"
+                )
+            parent_node_name = parent_platform.node.node_name
+            if parent_node_name == self.node.node_name:
+                continue
+
+            entry = network_map.get(parent_node_name)
+            if entry is None:
+                # Fail loud. Charging 0.0 for an unreachable parent would make a bad
+                # placement look free, which is exactly the signal this term supplies.
+                raise RuntimeError(
+                    f"HEROSIM_DATA_LOCALITY=1 but {self.node.node_name} has no network_map "
+                    f"entry for {parent_node_name} (parent of {task}). Server-to-server "
+                    f"reachability must be generated for DAG workloads — see "
+                    f"generate_infrastructure.build_server_mesh."
+                )
+            latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+
+            payload = float(dependency.type["stateSize"][app_name]["output"])
+            total += self._payload_transfer_time(parent_node_name, payload) + latency
+
+        return total
+
+    def _peer_rendezvous_events(self, task: "Task") -> List[Any]:
+        """Events to wait on before charging this task's peer exchange: one per peer that
+        is neither placed nor planned (stage 3 live serving). Empty under the flag's
+        default and for every fully-planned batch. A peer the orchestrator cannot wait
+        for (no `peer_ready_event`, e.g. the unit-test fakes) is left to
+        `_peer_exchange_time`, which fails loud on it."""
+        if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
+            return []
+        orchestrator = getattr(self.node, "orchestrator_ref", None)
+        if orchestrator is None:
+            return []
+        peers = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id)
+        if not peers:
+            return []
+        ready = getattr(orchestrator, "peer_ready_event", None)
+        if ready is None:
+            return []
+        events = []
+        for peer_id in sorted(peers):
+            peer = getattr(orchestrator, "task_by_id", {}).get(peer_id)
+            if peer is not None and (
+                getattr(peer, "platform", None) is not None
+                or getattr(peer, "planned_node_name", None) is not None
+            ):
+                continue
+            events.append(ready(peer_id))
+        return events
+
+    def _peer_exchange_time(self, task: "Task") -> SimTime:
+        """peer_affinity_v1: cost of exchanging state with this task's peers.
+
+        The workload may carry `peer_exchange`: [i, j, bytes] triples over global task ids
+        (TimeSeries.peer_exchange, symmetrised by the orchestrator into
+        `orchestrator.peer_exchange[i][j]`). At task i's input stage every peer j on another
+        node costs `_payload_transfer_time(node(j), bytes) + network_map latency` -- exactly
+        what `_dependency_transfer_time` charges per remote parent -- and a co-located peer
+        costs nothing. Unlike the parent->child term there is no commit order: i and j are
+        decided jointly, and the term is indexed by the PAIR of instances, not by a node.
+
+        Where a peer runs comes from `peer.platform` when it is already scheduled, else from
+        `peer.planned_node_name` (set by the batch scheduler's pre-pass). A peer with neither
+        is a contract violation and fails loud: charging 0.0 would make a bad plan look free.
+
+        Returns 0.0 unless HEROSIM_PEER_EXCHANGE=1, and 0.0 for a task with no peers, so
+        every existing corpus (no `peer_exchange` in its workload) is bit-identical either way.
+        """
+        if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
+            return 0.0
+        orchestrator = getattr(self.node, "orchestrator_ref", None)
+        if orchestrator is None:
+            raise RuntimeError(
+                f"HEROSIM_PEER_EXCHANGE=1 but {self.node.node_name} has no orchestrator_ref; "
+                "the peer table lives on the orchestrator"
+            )
+        peers = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id)
+        if not peers:
+            return 0.0
+
+        network_map = getattr(self.node, "network_map", None) or {}
+        total: SimTime = 0.0
+        for peer_id in sorted(peers):
+            payload = float(peers[peer_id])
+            peer = orchestrator.task_by_id.get(peer_id)
+            if peer is None:
+                raise RuntimeError(
+                    f"HEROSIM_PEER_EXCHANGE=1: task {task.id} lists peer {peer_id}, which "
+                    "is not a task of this workload"
+                )
+            peer_platform = getattr(peer, "platform", None)
+            if peer_platform is not None:
+                peer_node_name = peer_platform.node.node_name
+            else:
+                peer_node_name = getattr(peer, "planned_node_name", None)
+            if peer_node_name is None:
+                raise RuntimeError(
+                    f"HEROSIM_PEER_EXCHANGE=1 but peer {peer_id} of task {task.id} has "
+                    "neither a platform nor a planned node; a batch scheduler must plan the "
+                    "whole batch before any member starts (planned_node_name pre-pass)"
+                )
+            if peer_node_name == self.node.node_name:
+                continue
+            entry = network_map.get(peer_node_name)
+            if entry is None:
+                raise RuntimeError(
+                    f"HEROSIM_PEER_EXCHANGE=1 but {self.node.node_name} has no network_map "
+                    f"entry for {peer_node_name} (peer {peer_id} of task {task.id}); server "
+                    "mesh reachability is required -- see generate_infrastructure.build_server_mesh"
+                )
+            latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+            total += self._payload_transfer_time(peer_node_name, payload) + latency
+        return total
+
     def platform_process(self):
         """
         Platform process that executes tasks from the queue.
@@ -949,7 +1217,18 @@ class Platform:
         # Doing this on first real queue pop shifts warmup delay to request time and
         # does not match the non-fast-forward timeline.
         if self.virtual_warmup_count > 0 and self.virtual_warmup_total_time > 0:
-            yield self.env.timeout(self.virtual_warmup_total_time)
+            # Under node_contention_v3 the seeded backlog is real work on the node's
+            # shared slots, so draining it blocks co-located platforms. Without this the
+            # backlog -- which is ~95% of RTT -- would bypass contention entirely and the
+            # target would stay additive.
+            if self.node.compute_slots is not None:
+                backlog_start = self.env.now
+                with self.node.compute_slots.request() as slot:
+                    yield slot
+                    self.node.contention_time += self.env.now - backlog_start
+                    yield self.env.timeout(self.virtual_warmup_total_time)
+            else:
+                yield self.env.timeout(self.virtual_warmup_total_time)
             if self.virtual_warmup_task_type:
                 self.previous_task = type(
                     'Task', (), {'type': {'name': self.virtual_warmup_task_type}}
@@ -991,6 +1270,47 @@ class Platform:
                         network_time = self.node.network_map[task.node_name]
                         task.network_latency = network_time
                         yield self.env.timeout(network_time)
+                        # network_contention_v1: propagation above is un-serialized and
+                        # stays additive; the input transmission below is served through
+                        # the destination node's single shared pipe, so concurrent
+                        # inbound transfers queue behind each other. That wait is the
+                        # only term whose cost depends on where the *other* tasks went.
+                        if self.node.ingress_pipe is not None:
+                            transfer_time = _ingress_transfer_time(
+                                task, self.node.ingress_bandwidth_mbps
+                            )
+                            if transfer_time > 0:
+                                wait_start = self.env.now
+                                with self.node.ingress_pipe.request() as pipe:
+                                    yield pipe
+                                    ingress_wait = self.env.now - wait_start
+                                    task.ingress_wait_time = ingress_wait
+                                    task.ingress_transfer_time = transfer_time
+                                    self.node.ingress_wait_total += ingress_wait
+                                    yield self.env.timeout(transfer_time)
+                        # link_contention_v1: the same transmission, but served hop by hop
+                        # along the task's actual route instead of at one endpoint. Each
+                        # link is a capacity-1 pipe shared by every path that crosses it,
+                        # so the wait depends on which *links* the rest of the plan loaded
+                        # — a fact about the path structure, not about any one node's
+                        # occupancy. Store-and-forward: hold each hop for the full
+                        # transmission before moving to the next.
+                        if self.node.fabric is not None:
+                            for link_key_, bandwidth in self.node.fabric.hops(
+                                task.node_name, self.node.node_name
+                            ):
+                                hold = _transfer_time(task, bandwidth)
+                                if hold <= 0:
+                                    continue
+                                wait_start = self.env.now
+                                with self.node.fabric.pipe(link_key_).request() as hop:
+                                    yield hop
+                                    link_wait = self.env.now - wait_start
+                                    task.link_wait_time += link_wait
+                                    task.link_transfer_time += hold
+                                    task.link_hops += 1
+                                    self.node.fabric.link_wait_total += link_wait
+                                    yield self.env.timeout(hold)
                     else:
                         # No network connectivity - this should not happen if scheduler filters correctly
                         logging.error(f"No network connectivity from {self.node.node_name} to {task.node_name}")
@@ -1102,6 +1422,39 @@ class Platform:
                 + input_storage.type["latency"]["read"]
             )
 
+            # route_a: data locality. A child reads its parents' output, and if a parent ran
+            # somewhere else that read crosses the network. The branch above prices the
+            # STORAGE tier only — its remote arm charges a constant `someRemote` latency,
+            # blind to where the parent actually ran — so without this term a child's cost
+            # is a function of its own placement alone, and the whole plan is separable.
+            # This is the one term that makes f_child depend on p_parent.
+            #
+            # Opt-in (`HEROSIM_DATA_LOCALITY=1`) and inert without dependencies, so every
+            # existing corpus — all of which are single-task applications — is unaffected
+            # whether it is set or not.
+            input_duration += self._dependency_transfer_time(task)
+
+            # peer_affinity_v1: pairwise-instance exchange with the task's peers, charged at
+            # the same stage. Opt-in (HEROSIM_PEER_EXCHANGE=1) and inert without a
+            # `peer_exchange` table, so every existing corpus is unaffected either way.
+            # peer_affinity_v1 stage 3 (2026-09-11): live, a peer can be neither placed
+            # nor planned when this input stage starts (it arrived later, or the batch
+            # scheduler deferred it for a replica). That is a rendezvous, not an error:
+            # wait for the peer to be scheduled, then charge the exchange against where
+            # it actually runs. The wait elapses on the simulation clock and is recorded
+            # on the task. A fully-planned batch (every co-sim run, every forced replay)
+            # yields nothing here, so those stay bit-identical.
+            rendezvous_started = self.env.now
+            for peer_ready in self._peer_rendezvous_events(task):
+                yield peer_ready
+            if self.env.now > rendezvous_started:
+                task.peer_rendezvous_wait = self.env.now - rendezvous_started
+
+            peer_exchange_time = self._peer_exchange_time(task)
+            if peer_exchange_time:
+                task.peer_exchange_time = peer_exchange_time
+                input_duration += peer_exchange_time
+
             # Start the task
             yield task.started.succeed()
 
@@ -1114,8 +1467,20 @@ class Platform:
 
             logging.info(f"[ {self.env.now} ] {self} started {task} execution")
 
-            # Run the task to completion
-            yield self.env.timeout(task_duration)
+            # Run the task to completion. Under node_contention_v3 the platform must first
+            # acquire one of the node's shared execution slots, so co-located platforms
+            # serialize against each other; task.node_contention_time records that wait
+            # separately from execution so RTT stays decomposable for analysis.
+            if self.node.compute_slots is not None:
+                contention_start = self.env.now
+                with self.node.compute_slots.request() as slot:
+                    yield slot
+                    contention_wait = self.env.now - contention_start
+                    task.node_contention_time = contention_wait
+                    self.node.contention_time += contention_wait
+                    yield self.env.timeout(task_duration)
+            else:
+                yield self.env.timeout(task_duration)
             task.execution_time = task_duration
 
             # Store output data
@@ -1219,7 +1584,10 @@ class Node:
         policy: SimulationPolicy,
         data: SimulationData,
         node_type: str,
-        node_name: str
+        node_name: str,
+        compute_slots: Optional[int] = None,
+        ingress_bandwidth_mbps: Optional[float] = None,
+        fabric: Optional["NetworkFabric"] = None,
     ):
         self.id = node_id
         self.memory = memory
@@ -1234,6 +1602,46 @@ class Node:
         self.orchestrator_ref = None
 
         self.env = env
+
+        # node_contention_v3 physics: co-located platforms contend for a shared pool of
+        # node execution slots. Left as None the node has no shared resource at all and
+        # platforms run fully independently, which is node_disk_v2 physics — so existing
+        # corpora reproduce bit-identically unless a slot count is supplied.
+        if compute_slots is not None and compute_slots < 1:
+            raise ValueError(
+                f"compute_slots must be >= 1 when set, got {compute_slots} "
+                f"for node {node_name}"
+            )
+        self.compute_slots_capacity: Optional[int] = compute_slots
+        self.compute_slots: Optional[Resource] = (
+            Resource(env, capacity=compute_slots) if compute_slots is not None else None
+        )
+        self.contention_time: SimTime = 0.0
+
+        # network_contention_v1 physics: inbound task inputs share this node's ingress
+        # pipe, so two batch-mates placed anywhere on the same node serialize their
+        # transfers and the cost of a placement depends on what else was placed here.
+        # Left as None the node has no pipe and pays no transmission time at all, which
+        # is node_disk_v2 physics — existing corpora reproduce bit-identically.
+        if ingress_bandwidth_mbps is not None and ingress_bandwidth_mbps <= 0:
+            raise ValueError(
+                f"ingress_bandwidth_mbps must be > 0 when set, got "
+                f"{ingress_bandwidth_mbps} for node {node_name}"
+            )
+        self.ingress_bandwidth_mbps: Optional[float] = (
+            float(ingress_bandwidth_mbps) if ingress_bandwidth_mbps is not None else None
+        )
+        self.ingress_pipe: Optional[Resource] = (
+            Resource(env, capacity=1) if ingress_bandwidth_mbps is not None else None
+        )
+        self.ingress_wait_total: SimTime = 0.0
+
+        # link_contention_v1 physics: the shared NetworkFabric, owned by the simulation
+        # and handed to every node, holds one pipe per network link. Unlike the ingress
+        # pipe this is NOT indexed by destination node — two tasks bound for different
+        # nodes still queue behind each other on a shared core segment, which is the
+        # coupling no node-occupancy count can express. None ⇒ no fabric, nothing charged.
+        self.fabric: Optional["NetworkFabric"] = fabric
 
         self.available_platforms = 0
         self.available_memory = memory

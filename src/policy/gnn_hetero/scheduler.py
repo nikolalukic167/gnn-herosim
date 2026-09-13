@@ -34,6 +34,7 @@ from src.policy.gnn_hetero.seq_decode import (
 )
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
+from src.placement.topology_features import build_source_feature_context
 from src.policy.state_capture import StateCaptureHelper
 
 # Task-platform compatibility (same as training)
@@ -481,13 +482,23 @@ class GNNScheduler(Scheduler):
         
         # Task features: [task_type_onehot(2), source_node_normalized(1)]
         task_types_vocab = ['dnn1', 'dnn2']
+        # node_name_to_id maps to node.id, not an enumeration index — passed verbatim so
+        # src_index_v0 keeps this scheduler's historical formula exactly.
+        source_ctx = build_source_feature_context(
+            [str(node.node_name) for node in all_nodes],
+            {
+                str(node.node_name): node.network_map
+                for node in all_nodes
+                if hasattr(node, "network_map")
+            },
+            first_idx_by_name=node_name_to_id,
+            node_count=len(all_nodes),
+        )
         task_features = []
         for task in batch_tasks:
             task_type = task.type["name"]
             onehot = [1.0 if task_type == t else 0.0 for t in task_types_vocab]
-            src_node_idx = node_name_to_id.get(task.node_name, 0)
-            src_norm = src_node_idx / max(len(all_nodes), 1)
-            task_features.append(onehot + [src_norm])
+            task_features.append(onehot + [source_ctx.feature(str(task.node_name))])
         
         task_features_tensor = torch.tensor(task_features, dtype=torch.float32)
         

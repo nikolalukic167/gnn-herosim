@@ -1,0 +1,348 @@
+# CLAUDE.md
+
+Guidance for Claude Code working in this repository.
+
+## What this is
+
+**HeROsim** — a SimPy discrete-event simulator for serverless task placement in
+heterogeneous clusters, plus the experimental apparatus around it. Two modes: live
+simulation of a workload trace, and **co-simulation**, which brute-forces every placement
+of a task batch to produce brute-force-labelled GNN training data.
+
+**The research question:** does a graph-aware scheduler (GNN) beat a pointwise one (MLP)
+at task placement? Knative is the industry-standard reactive baseline. The MLP exists to
+verify that a simple pointwise model *cannot* match the graph-aware one.
+
+Three ways to get there, and **which one is live has changed again (2026-08-28)**:
+
+1. Generate co-sim data good enough to train a GNN that beats Knative and MLP on latency.
+   **Closed by measurement** — see `program_verdict_v1`. The co-sim target is
+   pointwise-separable, so the MLP is the *correctly specified* model class and no amount
+   of training data changes that. Do not restart this without reading that node.
+2. **Change the environment** so exploitable joint structure exists
+   (`route_b_env_pivot_v1`, chosen 2026-08-27 after route B stage 2 returned
+   NO-GO-PREPROBE). **PARKED 2026-08-28** — the screen could not measure S0 on its
+   overlap rungs, and even a pass would feed the objective option 1 closed. Resuming
+   needs a signed amendment in its node. **Reopened on paper 2026-09-08 and killed the same
+   day** — `dag_fabric_contention_v1` (the one untried non-node-indexed lever: DAG *output*
+   payloads over the contended link fabric) is NO-GO before any code: the α=2.0 optimum carries
+   zero link wait in 98–100% of 204 datasets, so the label never sees the mechanism. Read that
+   node before proposing any contention physics; node-indexed CPU/memory contention is closed
+   by the count theorem it cites.
+   **Reopened 2026-09-10 via `peer_affinity_v1` (paper screen GO):** a cost indexed by *pairs of task
+   instances* (continuous exchange volumes, no commit order) under a binding cap is neither node-indexed
+   (the count theorem does not apply — measured: count repair 0.31 in the GO cell) nor routable-around,
+   uses no solver labels and no bandwidth/core tuning, so it violates none of the neighbouring stops.
+   Read that node before touching the environment again.
+3. **Change the training objective, not the environment** (`objective_pivot_v1`).
+   **CLOSED 2026-09-03 — and with it, all three routes are answered.** Phase 1 PASSED (the
+   GNN's reliability edge, scope-limited to severe collapse). Phase 2 CLOSED (horizon
+   labels fired every bar and turned out to be deterministic chaos). **Phase 3
+   MEASURED-NEGATIVE at n = 120**: closed-loop policy gradient against the live simulator
+   does not improve on the supervised checkpoint (paired median −0.85%, p = 0.928,
+   powered — 3% would have been visible). Do not restart it without reading that node.
+
+**Where that leaves the research question (2026-09-04).** The GNN beats Knative (−44.8%
+on a held-out fabric) — but so does an MLP trained on the same corpus. Both model-class
+edges over the MLP fell to corpus matching: latency ties (`link_mp_v1`, 2026-09-03) and
+the Phase 1 reliability edge is not established (`reliability_matched_v1`, p = 0.113,
+87% of the MLP's collapse burden was the corpus). **No unconfounded GNN-vs-MLP claim existed
+on the option-1/route-B corpora; any such number must name both arms' training cache.** (Superseded
+for `peer_affinity_v1` only, 2026-09-11 — see the 2026-09-11 paragraph below.) The corpus is
+the largest measured lever (~13 pp). Two narrow findings survive: a **trainability
+asymmetry** (the closed loop moves the GNN 150× more than the MLP — optimisation, never
+latency) and, on the route B DAG corpus, a **fit-ceiling split** (converged, the GNN fits
+4–10× better than pointwise and still loses held-out; `route_b_v1`). **Measured to 5× the
+data 2026-09-07 (Phase 2, 1020 training DAGs, 204 held-out): the registered last-epoch read
+(GAP-PERSISTS, p=0.039, "no-MP generalizes best") was a checkpoint-selection artifact —
+MP-ON overfits from epoch ~60 and was compared against a val-selected MLP. Fixed the
+trainer's censored val metric and fully retrained both arms 8 seeds each: the honest-selector
+contrast is a TIE (median +0.04pp, p=0.25), confirming the earlier accidental finding was not
+a fluke. Both GNN arms now beat the MLP baseline.** Corpus size is not the
+lever there either. The target has ~23% joint variance, all of it pairwise
+parent→child co-location that every arm already sees through the prefix columns, so message
+passing is redundant, not starved; the live path cannot serve DAG checkpoints, but a frozen-
+substrate replay gate shows the no-MP planner beating reactive Knative by ~1–3% (`route_b_v1`).
+
+**2026-09-09 — the question was declared answered. 2026-09-11 — it is REOPENED, with a measured
+positive.** `docs/lineages/throughline.md` (last section) states why a graph-reasoning win looked
+unavailable on this simulator's supervised targets by construction, that the MP-OFF "GNN" is itself
+a two-tower pointwise scorer, and the three things that would change the answer. **One of them
+happened.** On `peer_affinity_v1` — an environment purpose-built so the cost is indexed by *pairs of
+task instances* rather than by machines — message passing beats its own MP-OFF twin by **+5.14 pp
+(p = 0.001, 13/16 seeds)** at 482 training datasets. Same architecture, features, decoder, selector
+and seeds; the only difference is whether `PeerConv` runs. At 136 datasets the same contrast read
++2.08 pp, p = 0.15, and was written up as "message passing is not the lever" — **that was corpus
+size, not architecture** (3.5× data buys the MP arm −5.09 pp against the MP-OFF arm's −2.43 pp).
+
+**2026-09-12 — that win is OFFLINE ONLY, and it REVERSES live.** Do not quote it as a claim about a
+served scheduler. On matched 450,729-task production traces, 16 seeds per arm, with a live path proven
+bit-identical to the offline evaluator on 34/34 held-out datasets, `gnn` − `mpoff` reads **+5.14 / +6.53 /
++9.61 pp offline** and **+2.37 / −4.42 / −10.67 % live** across the three corpora ordered by peer-graph
+density. The two venues are **anti-correlated and monotone**: every increment that makes message passing
+look better on the supervised target makes it worse on the stream, and the live column crosses zero between
+rung 1 and rung 2 (so the old "direction but not significance" caveat was the last point before a sign
+flip). The live peer term inverts too — the MP-OFF twin carries *less* peer-exchange time on the stream,
+i.e. the graph arm is worse at its own objective when served. Three explanations were registered in advance
+and all failed (`serving_gap_v1`, `serving_gap_v2`, both CLOSED NO-GO): it is not herding (it spreads
+*more*), not queue blindness (it is **3–7× more** load-responsive, p < 1e-4), and group splitting fires on
+only 1 of the 2 corpora required. **The reversal is measured and unexplained, and no measurement in this
+program has a graph arm beating both its pointwise twin and reactive Knative.** The one deployable result
+of the arc is a **serving** fix: a per-platform cap in the masked decoder (`GNN_PREFIX_PLATFORM_CAP=1`,
+default off) takes the graph arm from −1.5 % to **+21.9 % vs reactive Knative, 16/16 seeds, p = 3.1e-05**,
+and helps the pointwise twin about as much.
+
+**2026-09-13 — BOTH of those live headlines are CONTINGENT ON THE CLUSTER'S PLATFORM MIX; do not quote either
+without naming it.** Audit finding: the live candidate set contains `xavierGpu`, a platform type that is a
+candidate in **0 of 516** training datasets — the corpus *has* the platform rows, the autoscaler just never
+makes one a replica before the co-sim state is captured. Identical for every arm and seed on all three
+corpora: **7.60 %** of live candidates and **46.4 %** of live node caps lie outside anything the corpus
+contains, because `node_caps = α × max candidate demand on the node` and the GPU demand is 1.739 against a
+corpus maximum of 0.213 — one such candidate inflates a node's cap ~8× and the capacity mask, the decoder's
+only concentration control, **cannot bind in 17 of 23 live batches** (5/23 restricted). Re-running the capped
+gate with that type removed from every arm (102 arms, all completed): **the offline/live reversal
+disappears** — x800 p3 goes from POINTWISE-BETTER (−10.67 %, p = 0.018) to a **TIE** (−0.28 %), x800 p2 from
+−4.42 % to +2.58 %, and x200 p2 becomes the first **GNN-NEEDED live** reading in the program (+3.94 %,
+p = 0.0076, 13/16) — **and the +21.9 % over Knative reverses with it**: `gnn` vs Knative goes
++21.9 / +20.6 / +12.9 % to **−14.0 / −10.9 / −15.9 %, 0/16 seeds**, because removing the type costs Knative
+~6 % and the concentrating graph arm ~55 %. The registered hypothesis that this *is* the reversal's mechanism
+is recorded **CONFOUNDED, not fired** — its own control moved the wrong way. Two separate things are true:
+the reversal and the cap's win are both real on the cluster they were measured on, and **neither survives a
+cluster with one fewer platform type.** Still no measurement where a graph arm beats both its twin and
+Knative. Also qualified by this audit: the live queue column is ~300× out of its trained range and
+non-monotone (`legacy_v0`; the offline MP edge is not significant at live queue magnitudes on any corpus),
+and the cap's +21.9 % is a **mean-latency** win — makespan is −12.25 % vs Knative on x200 p2 with 1/16 seeds
+finishing sooner.
+
+**Carry these caveats with any quote of the offline edge**, all in `peer_affinity_v1`'s node: it is at the
+**selected** checkpoint on the x200/x800-p2 rungs (the arms tie at last epoch there; the x800 **p3** rung is
+the one that wins at both selectors, +4.23 pp, p = 0.021); and `gnn`-vs-MLP carries a selector asymmetry
+favouring the GNN, while `gnn`-vs-`mpoff` carries none. Read `docs/lineages/peer_affinity_v1.md` and
+`docs/lineages/throughline.md` (last section) before proposing any new GNN-vs-MLP work — and before quoting
+the 2026-09-04 sentence above, which predates all of this.
+
+(Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
+
+What a GNN needs in order to have anything to learn from a *supervised* target:
+**multi-task placements under contention**. Route A proved coupling alone is not enough —
+breaking separability is necessary but not sufficient; you need contention. And route B
+proved even that is not sufficient for the supervised path — which is why option 3
+changes the objective instead.
+
+## Where knowledge lives — READ FIRST
+
+**`LINEAGES.md` is the one entry point to the research record**, and an **index only**: a
+status and a one-line outcome per lineage, each linking to the node with the full record.
+`simulation_data/REGISTRY.json` does the same for datasets.
+
+| Where | What |
+|---|---|
+| `docs/lineages/<name>.md` | One node per lineage — standing, entry points, datasets, full dated record. Attachments in `docs/lineages/<name>/`. |
+| `docs/lessons.md` | Transferable rules — what generalises past any one lineage. |
+| `docs/hard-stops.md` | Falsified directions + the measurement that closed each. **Check before proposing one.** |
+| `docs/gates/gate-tools.md` | Corrections to the gates themselves, kept out of lineage narratives on purpose. |
+| `docs/notes/` | Design notes on physics/features that outlive a lineage. |
+| `docs/adr/` | Decisions with two live answers (warmth physics, queue contracts, mandatory sweep). |
+| `CONTEXT.md` · `PARITY.md` · `CO_SIMULATION_GUIDE.md` | Vocabulary · cross-venue comparability · co-sim pipeline. |
+
+Statuses: `ACTIVE` · `REGISTERED` (signed off, not run) · `CLOSED` (answered) ·
+`SUPERSEDED` · `FAILED`/`FALSIFIED` · `SYNTHESIS` · `PAPER`.
+
+**One fact, one home.** Before adding a paragraph, find the file that already owns that
+fact and edit it. `LINEAGES.md` reached 4,995 lines because five files narrated the same
+experiments and drifted apart. **Session handovers are ephemeral and never committed** —
+write them to the scratchpad; promote anything still true a week later into a node,
+`docs/lessons.md`, or `docs/gates/gate-tools.md`.
+
+**`archive/` is retired code. Ignore it** unless the user names a lineage. Do not search
+it, import from it, or treat it as current practice. Moved with `git mv` (so
+`git log --follow` works); restore point is tag `pre-cleanup-2026-08`.
+
+## The five rules that exist because they were broken
+
+1. **Never import from `archive/`.** The live tree is verified closed against it;
+   `LINEAGES.md` → Conventions carries the re-runnable gate.
+2. **Never fork a training script per experiment.** That habit produced 40 near-identical
+   `train_near_rtt_v2_*.py` differing only in cache dir and wandb name. New experiments get
+   a config under `experiments/`, run via `run_experiment.py`.
+3. **A lineage is not done until it has a `LINEAGES.md` row and a `docs/lineages/` node
+   with an outcome.** A result never written down gets re-run months later.
+4. **Fail loudly.** No silent failures, no skipping a failure for convenience. Fix the
+   cause.
+5. **Every training run logs to Weights & Biases.** No exceptions.
+
+## Commands
+
+All Python goes through pipenv. A stray local `.venv` hijacks `pipenv run` and surfaces as
+a misleading `ModuleNotFoundError`, so when anything looks wrong, use the full form:
+
+```bash
+PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=/root/projects/my-herosim \
+  pipenv run python3 <script> ...
+```
+
+```bash
+# Live simulation / sweep runner used by the gates
+pipenv run python3 src/executesimulation.py --policy <policy> <args>
+pipenv run python3 scripts_cosim/run_simulation.py <args>
+
+# Co-simulation: generate GNN training datasets
+pipenv run python3 scripts_cosim/generate_gnn_datasets_fast.py --max-datasets 5 --quiet
+
+# Recache, then train via an experiments/ config (never a new train_*.py)
+pipenv run python3 src/notebooks/prepare_graphs_cache.py
+pipenv run python3 run_experiment.py experiments/<config>.yaml
+
+# Tests
+pipenv run python3 -m pytest tests/ -q
+```
+
+`--policy` takes **registry names** (`knative_network_batch`), not `run_simulation.py`
+strategy strings (`kn_network_kn_network`) — a wrong guess costs a 5 s startup round-trip.
+Live-gate result JSONs are ~80 MB: read bounded prefixes
+(`extract_gate_stats_summary.py`, `extract_platform_dispersal.py` are the patterns).
+
+**Run this before training anything you intend to gate** (~12 s, no GPU). There is no CI;
+running it is manual:
+
+```bash
+PIPENV_IGNORE_VIRTUALENVS=1 OMP_NUM_THREADS=1 pipenv run python3 -m pytest tests/test_trainer_determinism.py -q
+```
+
+Two runs of a trainer at one seed must give bit-identical weights. It covers **every**
+trainer, not just the one that broke — see `docs/lineages/trainer_determinism_v1.md`.
+
+## Datalab (TU Wien SLURM cluster)
+
+**`ssh datalab` — that alias is configured and is the spelling to use.** It resolves to
+`cluster.datalab.tuwien.ac.at` with the right user and key; writing the FQDN means
+supplying `-i` and the user by hand for no benefit.
+
+- Repo on the cluster: `/home/nikola.lukic/gnn-herosim`
+- Environment: micromamba `gnn` (**not** pipenv) —
+  `eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn`
+  (`--shell bash`, never the old `--bash`: it passes on login nodes and kills every
+  compute-node job)
+- Resources: GPU-a40, GPU-l40s, and CPU-only nodes
+- Sync: **source by git push/pull, binaries by rsync** — then md5 both sides. `models/` is
+  gitignored, so a checkpoint's `.contract.json` sidecar must travel with the `.pt`.
+
+```bash
+ssh datalab 'cd ~/gnn-herosim && sbatch scripts_cosim/datalab/<script>.sbatch'
+ssh datalab 'squeue -u nikola.lukic'
+```
+
+**Never write `pipenv run python3` in anything that may run under `sbatch`.** `pipenv run`
+resolves its own venv and shells straight past `micromamba activate gnn`; on the cluster
+this silently created a third, undeclared environment that every gate actually used. Write
+`${HEROSIM_PY:-pipenv run python3}` and `export HEROSIM_PY=python3` after activation. When
+auditing, grep **both** spellings — the shell form and Python `["pipenv", "run", ...]` argv
+lists — and read `run_provenance.python_env` from a result JSON rather than trusting an
+sbatch banner.
+
+Before writing an `.sbatch` or submitting, load the `datalab-pitfalls` skill. Before
+comparing two numbers from different machines, read **`PARITY.md`** and run its checks in
+order (`verify_code_identity.py` → `verify_live_infra_parity.py` →
+`verify_venue_parity.py`). **Unknown is not a pass**, and a one-directional cross-venue gap
+is a feature-code bug, not the venue — measured: library versions contribute exactly 0.0 to
+GNN logits.
+
+## Architecture — the parts you can't infer from the tree
+
+Three extensible base classes; a policy implements all three:
+
+- **`Orchestrator`** (`src/placement/orchestrator.py`) — system state, coordinates the other two
+- **`Autoscaler`** (`src/placement/autoscaler.py`) — replica lifecycle, resource selection
+- **`Scheduler`** (`src/placement/scheduler.py`) — picks a replica per incoming task
+
+Runtime is `src/placement/simulation.py`. Infrastructure models (`Node`, `Platform`,
+`Task`, `Application`, `Storage`) are in `src/placement/infrastructure.py`.
+
+**There is no `Replica` class** — do not go looking for one. A *replica* is a
+`(Node, Platform)` pair in `system_state.replicas[task_type_name]`: an eligibility fact
+with no identity, lifecycle or state. The autoscaler "creates" one by adding a tuple to
+that set; `_get_valid_replicas` is a filter, not a lookup. Full vocabulary in `CONTEXT.md`.
+
+Policies live in `src/policy/` (18 of them). The ones that matter: `gnn/` (main approach;
+`seq_decode.py` holds the sequential decode), `tabular/` (MLP baseline + `feature_builder.py`),
+`knative*/` (baselines, several network/batch/ECT variants), `random/` (~20 lines — copy
+this as a template for a new policy, then register it in `src/placement/simulation.py`).
+
+**Feature contracts** are the thing that silently breaks a checkpoint:
+
+- `src/placement/queue_features.py` — `legacy_v0` (existing caches/checkpoints) vs
+  `scale_invariant_v1` (new training; invariant to uniform queue scaling). Selected by
+  `QUEUE_FEATURE_CONTRACT`; enforce with `require_matching_queue_feature_contract()` in
+  inference paths. See `docs/adr/0002-two-queue-feature-contracts.md`.
+- `src/placement/warmth.py` — warmth/coldness physics. `node_disk_v2` vs
+  `platform_reuse_v1` are **incompatible**; a mismatch changes live RTT ~100×, so it raises.
+- A **checkpoint without a `.contract.json` sidecar is not evidence.**
+  `_read_checkpoint_sidecar` returns `{}` and every check downstream silently adopts its
+  default. `load_state_dict(strict=True)` is *not* a compatibility check — architecture
+  flags invisible in weight shapes (e.g. `mp_residual`) must come from the contract.
+
+### Co-simulation
+
+`scripts_cosim/generate_gnn_datasets_fast.py` grid-searches the config space; the engine is
+`src/executecosimulation.py` (capture state after warmup → enumerate valid placements →
+simulate in parallel → write results). Topologies come from `src/generate_infrastructure.py`,
+deterministic and seeded, with connectivity guaranteed by post-processing.
+
+Every dataset **must** carry `placements/placements.jsonl` — the full `(placement_plan, rtt)`
+sweep. Never treat it as optional; never `--resume` on `best.json` alone. See
+`docs/notes/placements_jsonl_required.md` and `CO_SIMULATION_GUIDE.md`.
+
+```
+simulation_data/gnn_datasets/ds_XXXXX/
+├── infrastructure.json    # topology, replicas, queues
+├── workload.json          # task sequences
+├── space_with_network.json
+├── best.json              # optimal RTT + file reference
+├── optimal_result.json    # full result for the best placement
+└── placements/placements.jsonl   # MANDATORY: every plan with its RTT
+```
+
+Generation status codes: `SUCCESS` · `SKIPPED` (infeasible config) · `FAILED` (error).
+
+## Running an experiment
+
+1. Check `LINEAGES.md` — new lineage, or an extension of an ACTIVE one? Check
+   `docs/hard-stops.md` before proposing a direction.
+2. Add a grid preset to `generate_gnn_datasets_fast.py`, generate datasets.
+3. Recache with `prepare_graphs_cache.py`.
+4. Train via a config under `experiments/` — **this is what produces a checkpoint.**
+5. Gate it with a live-gate / sealed-holdout comparison in `scripts_cosim/important/`.
+6. Write the outcome into the node **and** the index row. Not done until you do.
+
+**An ablation harness is not a substitute for step 5.** A comparison script that trains
+in-process to compute an eval statistic has no reason to persist checkpoints and typically
+doesn't — `topology_transfer_v1` ran a full pre-registered gate that way and ended with zero
+deployable weights and no live-gate at all. If a result should ever face a real workload, its
+training must go through step 4 at some point. If you run the ablation harness anyway, pass
+`--save-checkpoints DIR` so each arm gets weights plus a `.contract.json`.
+
+**Keep it simple, change small, test fast.** Small focused changes; quick test (5 datasets,
+1–2 configs); verify; only then scale up.
+
+## Dataset validation
+
+Before training on a collection, check compatibility — collections mix only if they share
+`warmth_physics`, `queue_feature_contract`, and task structure, and both are active.
+
+```bash
+pipenv run python3 scripts_cosim/extract_dataset_metadata.py --all      # METADATA.json + REGISTRY.json
+pipenv run python3 scripts_cosim/validate_dataset_collection.py --active-only  # VALIDATION_REPORT.json
+pipenv run python3 scripts_cosim/compute_compatibility_matrix.py        # COMPATIBILITY_MATRIX.json
+```
+
+Read `.results` / `.physics` from `METADATA.json`, `.status` from the validation report, and
+`.training_groups` from the compatibility matrix. Structural completeness ≥97% is healthy —
+some training subsets intentionally exclude datasets. The `dataset-validator` agent does this
+end to end.
+
+## Conventions
+
+- **Answer analysis questions in chat.** Do not write a markdown document unless asked.
+- **Simulation is deterministic when seeded properly.** Tie-breaks over sets of objects are
+  the classic leak — `PYTHONHASHSEED` does not pin them (it randomizes str/bytes only).
+- Dependencies: `Pipfile`. One env spec for cross-venue work: `envs/herosim-lock.txt`.

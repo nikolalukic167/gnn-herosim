@@ -18,6 +18,12 @@ import torch
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.placement.queue_features import (
+    QUEUE_FEATURE_CONTRACT_ENV,
+    require_matching_queue_feature_contract,
+    resolve_queue_feature_contract,
+    validate_queue_feature_contract,
+)
 from src.policy.tabular.constants import FEATURE_DIM
 from src.policy.tabular.feature_builder import (
     build_inference_feature_bundle,
@@ -26,13 +32,20 @@ from src.policy.tabular.feature_builder import (
     CE_REDUCED_PLATFORM_INDICES,
     CE_REDUCED_TASK_FEATURE_DIM,
     _inference_feature_layout,
+    _uses_candidate_relative_layout,
 )
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
+from src.policy.tabular.reduced_features import (
+    FULL_PLATFORM_QUEUE_DIM,
+    candidate_relative_queue_columns,
+)
 from src.policy.tabular.scheduler import XGBoostBatchScheduler
 
 
 class MLPBatchScheduler(XGBoostBatchScheduler):
     """Batch MLP scheduler: GNNScheduler loop with PointwiseEdgeMLP edge scoring."""
+
+    _live_audit_policy_name = "mlp_batch"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -61,24 +74,61 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             self.mlp_model.to(self.device)
             layout = checkpoint.get("inference_feature_layout")
             if layout:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = str(layout)
-            elif int(input_dim) == 24:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim24"
-            elif int(input_dim) == 22:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
-            elif int(input_dim) == FEATURE_DIM:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "atomic21"
-            elif checkpoint.get("reduced_features") or int(input_dim) == 11:
-                os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
+                # Mirror the GNN loader: a declared-but-different layout is a hard error,
+                # never a silent override — the columns change meaning, not shape.
+                trained_layout = str(layout).strip().lower()
+                declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+                if declared_layout and declared_layout != trained_layout:
+                    raise ValueError(
+                        f"[MLP Batch] checkpoint {path} was trained with "
+                        f"inference_feature_layout={trained_layout!r} but this run declares "
+                        f"INFERENCE_FEATURE_LAYOUT={declared_layout!r}. Serving the wrong "
+                        f"layout corrupts every score without changing any tensor shape."
+                    )
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = trained_layout
             else:
-                raise RuntimeError(
-                    f"[MLP Batch] FAIL LOUD: cannot infer inference_feature_layout "
-                    f"from input_dim={input_dim} (checkpoint missing inference_feature_layout)"
+                if int(input_dim) == 25:
+                    inferred_layout = "dim25cr"
+                elif int(input_dim) == 24:
+                    inferred_layout = "dim24"
+                elif int(input_dim) == 22:
+                    inferred_layout = "dim22"
+                elif int(input_dim) == FEATURE_DIM:
+                    inferred_layout = "atomic21"
+                elif checkpoint.get("reduced_features") or int(input_dim) == 11:
+                    inferred_layout = "ce_reduced"
+                else:
+                    raise RuntimeError(
+                        f"[MLP Batch] FAIL LOUD: cannot infer inference_feature_layout "
+                        f"from input_dim={input_dim} (checkpoint missing inference_feature_layout)"
+                    )
+                declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+                if declared_layout and declared_layout != inferred_layout:
+                    raise ValueError(
+                        f"[MLP Batch] checkpoint {path} has no inference_feature_layout; its "
+                        f"input_dim={input_dim} implies {inferred_layout!r}, but this run "
+                        f"declares INFERENCE_FEATURE_LAYOUT={declared_layout!r}. Refusing to "
+                        f"silently override the declaration."
+                    )
+                os.environ["INFERENCE_FEATURE_LAYOUT"] = inferred_layout
+            # Checkpoints without the field predate the contract split (legacy_v0). A
+            # declared-but-different contract is a hard error: dim7/dim13 would silently
+            # change meaning under the model.
+            trained_contract = checkpoint.get("queue_feature_contract")
+            declared = os.environ.get(QUEUE_FEATURE_CONTRACT_ENV, "").strip()
+            if trained_contract and declared:
+                require_matching_queue_feature_contract(
+                    trained_contract, declared, model_label=f"MLP checkpoint {path}"
+                )
+            elif trained_contract:
+                os.environ[QUEUE_FEATURE_CONTRACT_ENV] = validate_queue_feature_contract(
+                    trained_contract
                 )
             logging.info(
-                "[MLP Batch] Loaded MLP model from %s (input_dim=%s)",
+                "[MLP Batch] Loaded MLP model from %s (input_dim=%s, queue_feature_contract=%s)",
                 path,
                 input_dim,
+                resolve_queue_feature_contract(),
             )
         else:
             raise RuntimeError(
@@ -120,7 +170,8 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
                 logging.warning("[MLP Batch] Empty feature bundle (no feasible edges)")
                 return None
 
-            logits_per_task = self._mlp_logits_from_bundle(bundle)
+            feat_matrix, task_boundaries = self.build_feature_matrix(bundle)
+            logits_per_task = self._mlp_logits_from_matrix(feat_matrix, task_boundaries)
             task_logit_to_queue_key = bundle.task_logit_to_queue_key
 
             placements = self._decode_placements(
@@ -129,21 +180,28 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
                 bundle.n_tasks,
                 queue_snapshot,
                 task_logit_to_queue_key,
+                # The MLP's replay payload is its serving matrix plus the row spans
+                # that cut it back into per-task logits — the exact analogue of the
+                # GNN's graph, and the reason both arms share one training loop.
+                replay_payload_factory=lambda m=feat_matrix, b=task_boundaries: (
+                    torch.from_numpy(m.copy()),
+                    list(b),
+                ),
             )
             return placements
         except Exception as exc:
             logging.exception("[MLP Batch] Inference error: %s", exc)
             return None
 
-    def _mlp_logits_from_bundle(
-        self,
+    @staticmethod
+    def build_feature_matrix(
         bundle: InferenceFeatureBundle,
-    ) -> List[torch.Tensor]:
-        """Vectorised [N_total_edges, 22] → [N_total_edges] forward pass.
+    ) -> Tuple[np.ndarray, List[Tuple[int, int]]]:
+        """Assemble the [N_total_edges, D] serving matrix and its per-task row spans.
 
-        Builds the full feature matrix via numpy fancy indexing (no per-row allocation),
-        then runs one torch.from_numpy + one model forward on GPU/CPU.
-        Returns a List[Tensor] of per-task score vectors.
+        Split out of `_mlp_logits_from_bundle` so the serving-side feature layout can be
+        asserted directly (scripts_cosim/test_mlp_serving_layout.py) instead of only
+        through a model forward. Static and side-effect free for the same reason.
         """
         n_tasks = bundle.n_tasks
         total_edges = int(bundle.edge_attr_directed.shape[0])
@@ -189,18 +247,53 @@ class MLPBatchScheduler(XGBoostBatchScheduler):
             plat_feats = plat_feats[:, CE_REDUCED_PLATFORM_INDICES]
             edge_feats = edge_feats[:, CE_REDUCED_EDGE_INDICES]
 
-        feat_matrix = np.concatenate(
-            [task_feats, plat_feats, edge_feats],
-            axis=1,
-        ).astype(np.float32)
+        parts = [task_feats, plat_feats, edge_feats]
+        if _uses_candidate_relative_layout(layout):
+            # Set-relative columns, computed per task's candidate group over the SAME
+            # normalized queue column the training extractor reads. task_boundaries
+            # already delimits the groups. Shared formula — see
+            # reduced_features.candidate_relative_queue_columns.
+            cand_rel = np.zeros((total_edges, 3), dtype=np.float32)
+            for start, end in task_boundaries:
+                if end > start:
+                    cand_rel[start:end] = candidate_relative_queue_columns(
+                        plat_feats[start:end, FULL_PLATFORM_QUEUE_DIM]
+                    )
+            parts.append(cand_rel)
 
+        feat_matrix = np.concatenate(parts, axis=1).astype(np.float32)
+        if not np.isfinite(feat_matrix).all():
+            raise ValueError("[MLP Batch] Non-finite values in feature matrix")
+        return feat_matrix, task_boundaries
+
+    def _mlp_logits_from_bundle(
+        self,
+        bundle: InferenceFeatureBundle,
+    ) -> List[torch.Tensor]:
+        """Vectorised [N_total_edges, D] → [N_total_edges] forward pass.
+
+        One torch.from_numpy + one model forward on GPU/CPU; returns a List[Tensor] of
+        per-task score vectors.
+        """
+        feat_matrix, task_boundaries = self.build_feature_matrix(bundle)
+        return self._mlp_logits_from_matrix(feat_matrix, task_boundaries)
+
+    def _mlp_logits_from_matrix(
+        self,
+        feat_matrix: np.ndarray,
+        task_boundaries: List[Tuple[int, int]],
+    ) -> List[torch.Tensor]:
+        """The forward half of `_mlp_logits_from_bundle`, split out for replay.
+
+        The Phase 3 closed loop needs the serving matrix itself (to store and later
+        re-forward with grad), so the caller builds it once and hands it here rather
+        than the bundle rebuilding it a second time.
+        """
         expected_dim = int(self.mlp_model.input_dim)
         if feat_matrix.shape[1] != expected_dim:
             raise ValueError(
                 f"[MLP Batch] Feature dim mismatch: {feat_matrix.shape[1]} != {expected_dim}"
             )
-        if not np.isfinite(feat_matrix).all():
-            raise ValueError("[MLP Batch] Non-finite values in feature matrix")
 
         x = torch.from_numpy(feat_matrix).to(self.device)
         with torch.no_grad():

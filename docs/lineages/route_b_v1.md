@@ -1,0 +1,1601 @@
+# route_b_v1 — ACTIVE
+
+> **Status:** `ACTIVE` (reopened 2026-09-03 by the fit-ceiling probe; Phase 2 REGISTERED 2026-09-06) &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-09-06
+
+**Outcome.** **Stage 1 PASS** — contention + coupling produces the non-pointwise structure five mechanisms and route A could not. **Stage 2 NO-GO-PREPROBE** (2026-08-26): a GNN cannot beat pointwise-plus-prefix on this environment even at memorization. Forked to `route_b_env_pivot_v1` — **that fork was PARKED 2026-08-28** (see its closing entry), so this lineage is PARKED with it: both measured results stand, and the program's effort moved to [objective_pivot_v1](objective_pivot_v1.md) (change the training objective, not the environment).
+
+**Related:** [route_b_env_pivot_v1](route_b_env_pivot_v1.md) · [route_a_v1](route_a_v1.md) · [route_c_link_transfer_v1](route_c_link_transfer_v1.md)
+
+**Attachment:** [STAGE 2 PRE-REGISTRATION (v2, corrected)](route_b_v1/stage2-preregistration.md)
+
+> **Split note.** This node was carved out of a single 4,995-line `LINEAGES.md` on
+> 2026-08-27; the section bodies below are byte-for-byte as written. An *above* / *below*
+> pointer inside one may refer to a section that now lives in another node — the
+> **Related** links say which.
+
+## Record
+
+Newest first; the sections themselves are in chronological order below.
+
+- [route_b_v1 — stage 2 §9 pre-probe: **NO-GO-PREPROBE** (2026-08-26)](#route-b-v1-stage-2-9-pre-probe-no-go-preprobe-2026-08-26)
+- [route_b_v1 — stage 2 build queue: A1 is genuinely T2, B6 closed, pilot cache built (2026-08-26)](#route-b-v1-stage-2-build-queue-a1-is-genuinely-t2-b6-closed-pilot-cache-built-2026-08-26)
+- [route_b_v1 — STAGE 2 CORRECTED PRE-REGISTRATION (v2, signed off 2026-08-26)](#route-b-v1-stage-2-corrected-pre-registration-v2-signed-off-2026-08-26)
+- [route_b_v1 — §9d: 8-task probe — pooled `krank` closure SURVIVES the doubling, attenuated (2026-08-26)](#route-b-v1-9d-8-task-probe-pooled-krank-closure-survives-the-doubling-attenuated-2026-08-26)
+- [route_b_v1 — §9c: `kint` is not a T1 feature — **NO-GO-PREPROBE-T1 RETRACTED AS MEASURED** (2026-08-25)](#route-b-v1-9c-kint-is-not-a-t1-feature-no-go-preprobe-t1-retracted-as-measured-2026-08-25)
+- [route_b_v1 — §9b coefficient transfer: **VOID-KINT-CONFOUNDED**, and the §9a bound is confirmed tie-robust (2026-08-25)](#route-b-v1-9b-coefficient-transfer-void-kint-confounded-and-the-9a-bound-is-confirmed-tie-robust-2026-08-25)
+- [route_b_v1 — STAGE 2 PRE-REGISTRATION (recorded retroactively 2026-08-25)](#route-b-v1-stage-2-pre-registration-recorded-retroactively-2026-08-25)
+- [route_b_v1 — stage 2 pre-probe zero: **NO-GO-PREPROBE-T1** (2026-08-25)](#route-b-v1-stage-2-pre-probe-zero-no-go-preprobe-t1-2026-08-25)
+- [route_b_v1 — OUTCOME: **PASS (stage 1).** Contention + coupling produces the non-pointwise structure five mechanisms and route A could not (2026-08-25)](#route-b-v1-outcome-pass-stage-1-contention-coupling-produces-the-non-pointwise-structure-five-mechanisms-and-route-a-could-not-2026-08-25)
+- [route_b_v1 — calibration freeze + three registration amendments (2026-08-25, before any gated corpus exists)](#route-b-v1-calibration-freeze-three-registration-amendments-2026-08-25-before-any-gated-corpus-exists)
+- [route_b_v1 — PRE-REGISTRATION (written 2026-08-25, before any route B corpus exists)](#route-b-v1-pre-registration-written-2026-08-25-before-any-route-b-corpus-exists)
+
+---
+
+### route_b_v1 — PRE-REGISTRATION (written 2026-08-25, before any route B corpus exists)
+
+**The hypothesis.** Route A violated the composition theorem's *separability* hypothesis
+and its conclusion still held: coupling without competition leaves every task free to take
+its individual favourite. This lineage attacks the other hypothesis, **free choice**:
+contention for a scarce resource, so that some task must yield. Mechanism: **node-memory
+knapsack** — a plan is feasible iff every node's co-resident demand
+`Σ memReq[task_type][platform_type] ≤ cap_node(α)`, with
+`cap_node(α) = α × max single candidate demand on that node`. Demands are the welded
+`task-types.json` values (type-asymmetric on GPU: dnn1/dnn2 0.9, rf 1.5, cnn 1.3);
+**the file is not edited** — the scarcity knob is per-node capacity. Memory occupancy does
+not change episode physics, so the constraint is applied to the full enumerated sweep **at
+scoring time**; one corpus serves the whole tightness ladder, and stage-1 zero-diff is
+structural. Stacked design, two arms differing in exactly one flag: **Arm S** (primary) =
+diamond4 DAG, distinct types, server mesh + backbone, `HEROSIM_DATA_LOCALITY=1`, payload
+800 MB (the point where route A measured the pairwise term at 10–30% of episode cost);
+**Arm B0** = identical, locality OFF. Rationale: under competition with *separable* costs
+any regret is decoder myopia and a perfect decoder erases it — only competition **plus**
+coupling forces the score itself to be joint. B0's predicted-zero is the built-in
+instrumentation control.
+
+**Statistics** (`scripts_cosim/score_route_b_contention.py`, per dataset / α / objective):
+`R_greedy` = feasibility-masked sequential greedy over min-marginals (deployable pointwise
+scheduler) vs constrained sweep optimum. **`R_exact` (primary)** = feasible-set exhaustive
+argmin of the min-marginal-sum surrogate `Σ_t m_t(p_t)` — on separable physics
+`m_t(p) = c_t(p) + const`, so `R_exact ≡ 0` under ANY feasibility restriction; nonzero
+constrained `R_exact` can be neither a decoder nor an LS-fitting artifact. Repairs =
+`y ~ a + b·Σm + counts` (one-integer: node-occupancy excess sharing, the program's
+established collision column; k-integer: per-node×type counts, the constraint's own
+sufficient statistic), fit on the full sweep, **refused as `saturated` when rows < 2×params**
+— never silently reported. Views: memory-feasible (primary), memory-feasible ∩ spread
+(secondary). A full indicator-LS surrogate is a sensitivity row only: measured on the m3
+pilot it fires ~12% even *unconstrained* (collision channel + argmin tie noise) where the
+registered statistic measures the established 0.000% — it is not the gate.
+
+**Deviation from the phase-1 plan text, recorded honestly and made before any route B
+corpus existed:** the plan named the LS surrogate as `R_exact`'s fit; measurement on the
+m3 pilot showed that statistic broken as a gate (12% unconstrained false-fire), and it was
+replaced by the min-marginal-sum form, which is *stronger for the pointwise side* (exactly
+optimal wherever physics is separable). Control 1's expectation was also re-derived from
+395.45% to 450% when the rig arithmetic was corrected to min-over-totals marginals.
+
+**Positive controls, frozen (`tests/test_route_b_positive_controls.py`, 12 tests, all
+passing before this entry):** Control 1 (separable, hot-node cap, wrong-task yield):
+`R_greedy = 450.000000%` exactly, `R_exact = 0`; cap removed → both 0. Control 2 (pairwise
+matching-shaped costs, 3×3): `R_exact = R_greedy = 150.000000%` exactly, 1int repair
+**cannot** clean it (150% in every LS branch), kint repair **refused as saturated** at rig
+scale; cap removed → 0. The guard exists because the 4-row rig caught the scorer's first
+version reporting interpolated repairs as 0.0 — kept as a regression test. **Any control
+failure makes route B runs VOID, not NO-GO**, and controls re-run after any scorer edit.
+Still owed before corpus scoring: the end-to-end rigged dataset through the real
+generation→sweep→scorer path (predicted `R_greedy ≥ 50%`, cross-checked by an independent
+reader of the produced placements.jsonl).
+
+**Pre-probe — run 2026-08-25, route B SURVIVES.** Registered kill condition (at the
+tightest non-degenerate α on the existing m3 pilot n=200: `R_greedy>1%` on <5% of datasets
+AND max < 17.25%): does **not** fire — measured 7% firing with max **92.10%** (rtt) /
+**157.81%** (makespan) at α=1.0; `R_exact` stays ≈0 (≤1.46% max, 1% firing), as the
+theorem predicts on separable physics. The M3 matching hint amplifies 5×. Calibration
+finding: α=1.0 leaves the free-choice plan infeasible in only 10% of datasets — the corpus
+grid needs scarcer candidates (`per_client=0`, fewer server hosts) to reach the 30–70%
+band. Frozen: `simulation_data/route_b_preprobe_{rtt,makespan}.json`.
+
+**THE GATE — Arm S, registered tightness, n=200, both objectives scored, rtt primary:**
+- **PASS** iff ALL of: (1) fraction of datasets with `R_exact > 5%` is ≥ 10% with the 95%
+  binomial CI excluding 10% from below; (2) repair fraction < 0.5 for BOTH count repairs
+  (medians over firing datasets, saturated repairs excluded and counted); (3) the firing
+  fraction rises monotonically along ∞ → loose → tight; (4) the spread-view firing
+  fraction is nonzero.
+- **FAIL** iff the CI excludes 10% from above, or condition (2) fails (count-shaped ⇒
+  sixth confirmation of the empirical rule; route B closed as a GNN argument).
+- **VOID** iff any positive control fails, or Arm B0 fires materially
+  (`R_exact > 1%` on > 2% of datasets — theorem says ~0, so that is instrumentation), or
+  the CI straddles 10% → escalate n = 200 → 400 → 800; ladder exhausted →
+  **VOID-UNDERPOWERED**, never FAIL. Arm-vs-arm comparisons go through
+  `gate_statistics.paired_regret_comparison` / `pooled_phase4_verdict`.
+- **Tightness two-step:** three α values chosen from the smoke corpus so "tight" makes the
+  free-choice plan infeasible in 30–70% of datasets, then **frozen here before the n=200
+  corpus is scored**. Zero-feasible datasets are counted (`no_feasible_rows`), never
+  dropped.
+
+**The thresholds above may not be revised after data exists. A near-miss is a FAIL or a
+VOID per the rules; there is no third option.**
+
+**Stage 2 (conditional on PASS), binding constraints registered now:** any "GNN beats MLP
+under constraints" claim requires (a) ONE shared constraint-aware sequential
+feasibility-masked decoder used by both models (scarcity-pressure order, single
+implementation both models plug scores into); (b) the MLP arm at its strongest (dim25cr +
+the k-integer features); (c) an exact-assignment decode arm on the MLP's scores. Labels
+become any-of-K tied-optimal sets; `audit_label_provenance` gains a tie-tolerant mode; the
+cache carries the feasibility mask + capacity map (one contract, sidecar rule). Grouped
+argmax is not an arm. Scope exclusions: no edits to `task-types.json`, no episode-physics
+changes beyond route A's landed term, no training/checkpoints/live gates/datalab in stage
+1, no new `train_*.py` ever.
+
+**Status: PRE-REGISTERED.** Outcome row to follow.
+
+---
+
+### route_b_v1 — calibration freeze + three registration amendments (2026-08-25, before any gated corpus exists)
+
+**What the smoke (12 matched datasets per arm, designated calibration data in the
+registered two-step) established, and two harness defects it caught first:**
+
+1. **Mid-episode replica scale-down corrupted DAG sweeps and their substrate.**
+   `KEEP_ALIVE = 30 s` evicts idle replicas; under Arm S physics parents run past 30 s,
+   so children's *forced* replicas were scaled down before dispatch — 66–72/240 rows
+   lost per dataset, nondeterministically (the unstable scale-down victim sort), with
+   `sweep_complete: false` recorded and nothing reading it. Worse: the same eviction ran
+   during the *warmup capture*, so the enumerator's candidate substrate itself varied
+   with physics speed — Arm B0 and Arm S got different enumerations (270 vs 576 plans on
+   the same seed) until fixed. Fixes: `cosim_keep_alive()` env override
+   (`HEROSIM_COSIM_KEEP_ALIVE`, unset = bit-identical); workers now append tracebacks to
+   `placement_errors.log` (preserved next to `placement_metadata.json` — a truncated
+   sweep without its error log is undebuggable); the route B scorer **refuses** truncated
+   or metadata-less sweeps. Both corpus arms generate with the override set; enumeration
+   counts verified identical across arms on all 12 smoke seeds.
+2. **The smoke result itself, matched arms:** Arm B0 `R_exact` max 2.07% (the known
+   collision/link residue; `R_greedy` up to 3578% — greedy myopia under scarcity is
+   catastrophic but decoder-shaped). Arm S `R_exact` max **42.0%**, firing 25–33% at the
+   >5% level, count repairs closing **nothing** — the joint signature the lineage
+   predicts, 20× the B0 residue. Makespan channel fires too (max 19.6%).
+
+**Amendments, each disclosed with what had been seen when it was made.** No gated
+(n=200) data exists; the smoke's 12 datasets/arm had been scored. The PASS fraction
+(≥10% at `R_exact > 5%`), the magnitude bar, the repair threshold (<0.5), α ladder
+values, and the power ladder are all UNTOUCHED from the blind registration.
+
+- **(A1) Arm B0 VOID trigger, was: `R_exact > 1%` on > 2% of datasets.** Premise error,
+  visible in the registration's own text ("separable costs ⇒ surrogate = truth"): a
+  backbone corpus is NOT separable — the collision channel and the link channel are
+  real, known, count-shaped-or-thin couplings that produce exactly the 1–2% B0 residue
+  measured. As registered, VOID would trip on real physics, not instrumentation.
+  **Now: VOID iff B0 shows `R_exact > 5%` (the material bar) on > 2% of datasets.**
+  Direction: loosens a validity check, does not touch the claim gate.
+- **(A2) Tightness calibration, was: "tight" = free-choice plan infeasible in 30–70% of
+  datasets.** Unsatisfiable: the α response is cliff-shaped (0.92 → 0.00 between α 3.2
+  and 3.4 on the smoke) because CPU demands are near-equal; no α lands in the band.
+  The band was a proxy for "binding but not degenerate" — replaced by the direct
+  criteria: `no_feasible_rows = 0`, `greedy_stuck = 0`, mean feasible rows ≥ 50, and
+  cw-infeasible ≥ 30%. **Frozen ladder: α ∈ {∞, 3.0 (loose), 2.0 (tight)}, tight = 2.0
+  primary.** On the smoke: cw-infeasible 0.75–1.00, feasible rows 388–584, zero stuck,
+  zero empty at both binding rungs.
+- **(A3) PASS condition 3, was: firing fraction rises monotonically ∞ → loose → tight.**
+  Two defects: (i) transplanted from route A, where the lever scaled a physics term —
+  here the lever restricts a feasible set and the within-binding-regime gradient is
+  flat/noisy (smoke: 0.33 at loose vs 0.25 at tight — one dataset's difference at
+  n=12); (ii) as registered, "conditions 1,2,4 hold but 3 fails" lands in NONE of
+  PASS/FAIL/VOID — an undefined outcome cell. **Now: (3′) the unconstrained rung fires
+  `R_exact > 5%` on < 2% of datasets AND each binding rung fires above the unconstrained
+  rung** — the free-choice attribution the condition was always meant to capture.
+  Disclosed plainly: this amendment was made after seeing the 12-dataset smoke values;
+  a reader may discount condition 3′ accordingly. Conditions 1, 2, 4 stand as
+  registered blind. Outcome-cell closure, fixed before any corpus scoring: if the CI
+  clears the PASS bar but condition 3′ or 4 fails, the verdict is **FAIL** with the
+  failed condition named — the effect exists but is not attributable as registered;
+  there is no fourth outcome. `score_route_b_gate.py` implements exactly this mapping
+  and takes no threshold arguments.
+
+**End-to-end control, form finalized:** the registered "rigged dataset" is superseded by
+something stronger — `verify_route_b_scorer_agreement.py`, an independent from-scratch
+recomputation of `R_greedy` and `R_exact` from `placements.jsonl` (no imports from the
+scorer), which must agree within 1e-9 on **every** corpus dataset; plus the measured fact
+that the real generation → sweep → scorer path fires at rig-scale magnitudes on the smoke
+(`R_exact` 42%, `R_greedy` 151% on Arm S) — the "predicted ≥ 50% end-to-end fire" is
+satisfied by measurement. Any verifier disagreement ⇒ VOID.
+
+**Status: CALIBRATION FROZEN.** Next: zero-diff proof, corpus generation (2 arms ×
+n≈200, same seeds, env-matched keep-alive), verifier, gate.
+
+---
+
+### route_b_v1 — OUTCOME: **PASS (stage 1).** Contention + coupling produces the non-pointwise structure five mechanisms and route A could not (2026-08-25)
+
+**The registered row** (`score_route_b_gate.py`, no threshold arguments; Arm S, tight
+α=2.0, rtt, n=204, zero truncated sweeps, enumerations bit-matched across arms):
+
+> **35/204 = 17.2%** of datasets with `R_exact > 5%`, Wilson 95% CI **[0.126, 0.229]**
+> — excludes 0.10 from below (condition 1 ✓). Median repair fraction **0.000** for BOTH
+> the one-integer excess-sharing column and the k-integer per-node×type count vector,
+> over all 35 firing datasets, none saturated (condition 2 ✓). Attribution:
+> **0/204 fire unconstrained**; both binding rungs fire at 0.172 (condition 3′ ✓).
+> Spread view: 14/109 firing — not collision-channel-only (condition 4 ✓). Arm B0
+> validity: **0/204** above the material bar (max 2.49%) ✓. Independent verifier:
+> 612 + 612 (dataset, α) cells agree to 1e-9 ✓. Positive controls 13/13 ✓.
+> **VERDICT: PASS.**
+
+**Full cell table** (`frac(R_exact > 5%)` / max `R_exact`):
+
+| arm | objective | α=2.0 (tight) | α=3.0 (loose) | ∞ |
+|---|---|---|---|---|
+| **S** (coupling+competition) | rtt | **0.172** / 53.5% | 0.172 / 48.7% | 0.000 / 0 |
+| **S** | makespan | 0.162 / 32.1% | 0.118 / 27.4% | 0.000 / 0 |
+| **B0** (competition only) | rtt | 0.000 / 2.5% | 0.000 / 2.0% | 0.000 / 0 |
+| **B0** | makespan | 0.000 / 1.6% | 0.000 / 1.7% | 0.000 / 0 |
+
+**What this establishes.**
+1. **The composition theorem's free-choice hypothesis is the load-bearing one, and
+   violating BOTH hypotheses at once is what creates structure.** Under the memory
+   knapsack + the 800 MB pairwise transfer, the best additive surrogate *with a perfect
+   decoder* is suboptimal by up to 53% on 17% of datasets — a target no pointwise
+   scorer can express regardless of decode.
+2. **The effect is not LINEARLY count-shaped.** *(Amended in place 2026-08-25 by the §9b
+   block ablation — see the correction paragraph below. The original text read "The
+   effect is not count-shaped … does NOT extend here", which is wrong as written.)* The
+   empirical rule that killed five co-location mechanisms ("every escape collapses to an
+   occupancy integer") does not extend here **in its linear form**: the constraint's own
+   sufficient statistic (per-node×type counts), entered linearly, repairs a median of
+   exactly nothing. (Honest detail: the k-integer repair does pull ~1/3 of firing
+   datasets under the 5% bar — 0.172 → 0.118 — but the median closure is 0.000 and the
+   registered condition is decisive.)
+
+   **The correction.** kint is *linear* in the counts. Adding the per-type quadratic
+   co-residency sums Σ_t occ_{node(t)}[k] — the SAME statistic, entered nonlinearly, with
+   no parent-placement or network columns at all — takes the median closure from 0.000 to
+   **0.843**, and adding load/cap and the over-cap count takes it to **0.892**. So the
+   occupancy rule DOES extend; a linear repair simply could not see it, and reporting
+   "not count-shaped" on the strength of a linear fit was an overreach. What the stage-1
+   PASS actually established is narrower and still stands: *the linear* count repair
+   closes nothing, which is what registered condition 2 tested and what the 17.2% firing
+   rate is measured against. Neither the PASS nor any of its four gate conditions moves —
+   condition 2 was registered with the 1int/kint linear repairs and both still close a
+   median of 0.000. Reproduced by `route_b_coefficient_transfer.py` (arms `kint`,
+   `kint+quad`, `occupancy`), independently recomputed by
+   `verify_route_b_scorer_agreement.py --check-blocks`, 315/315 arm-values to 1e-9.
+3. **Competition alone is not sufficient either — the stacking argument was right.**
+   Arm B0's score-side structure never crosses 2.5%, while its *greedy* regret reaches
+   3578%: scarcity without coupling produces only decoder-shaped error, which a better
+   decoder erases. Coupling decides *who should yield*; that is the graph question.
+4. Both objectives fire; makespan is slightly weaker (0.162/0.118) but the same shape.
+
+**What is NOT established, stated before anyone asks.** No model has been trained;
+nothing here says a GNN can *learn* this structure, and nothing compares GNN to MLP —
+that is stage 2, valid only with the registered decoder discipline (one shared
+constraint-aware sequential masked decoder, dim25cr+k-integer MLP arm, exact-assignment
+decode arm). Nothing about live serving. One topology family (6 servers, per_client=0,
+diamond4 over dnn1/dnn2/rf/cnn), one demand table (the welded task-types.json), one
+frozen α ladder. The 17.2% firing fraction is a property of this grid, not a universal
+rate.
+
+**Falsified along the way:** the B0-as-separable premise in the original registration
+(a backbone corpus carries the collision + link channels; amendment A1); the 30–70%
+tightness band (cliff-shaped α response; A2); the monotone-in-α firing condition (A3);
+and the first scorer's LS-surrogate `R_exact` (12% false-fire unconstrained) plus its
+unguarded repair fits (Control 2 caught interpolation at rig scale).
+
+**Artifacts.** Corpora (local, gitignored): `gnn_datasets_dag4_route_b_pilot_v1_arm_{s,b0}`
+(204 each; regenerable from `ROUTE_B_PILOT_V1_GRID` seeds 901–917 with
+`HEROSIM_COSIM_KEEP_ALIVE=1000000 HEROSIM_RETAIN_TASK_TIMES=1`, Arm S adding
+`HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000`). Frozen reports:
+`simulation_data/route_b_pilot_v1_arm_{s,b0}_{rtt,makespan}.json`,
+`route_b_preprobe_{rtt,makespan}.json`. Tools: `score_route_b_contention.py`,
+`score_route_b_gate.py`, `verify_route_b_scorer_agreement.py`,
+`tests/test_route_b_positive_controls.py` (13 tests).
+
+**Post-PASS scrutiny (2026-08-25, same day, before anyone else read the result): a
+clean confirmation gets the same suspicion a clean zero got all session.** Four checks,
+run against the standing worry that a result matching the hypothesis this precisely is
+exactly the one nobody feels the urge to re-check.
+
+1. **Gate condition 2 (repairs close nothing) independently reconfirmed, with an
+   honest caveat found along the way.** Extended `verify_route_b_scorer_agreement.py`
+   with `--check-repairs`: a from-scratch LS fit (pure Python, no numpy — a hand-rolled
+   Gaussian-elimination normal-equations solve) recomputing both repairs directly from
+   each dataset's files. First run disagreed with the scorer on one dataset (10.6% vs
+   42.0%) — traced to normal equations squaring the design matrix's condition number
+   across columns of wildly different scale (intercept, RTT-magnitude sums, 0/1 counts);
+   fixed by standardizing columns before solving (confirmed against numpy/SVD:
+   coefficients now agree to 1e-13). One dataset (`ds_00008`, Arm S, α=2.0) still
+   disagrees even after the fix — traced *at the time* to a "genuine near-tie": 4+
+   feasible plans with materially different true costs (78.1s, 60.8s, 58.2s) predicted
+   equal to ~13 significant figures by the fitted surrogate.
+
+   > **RETRACTED 2026-08-25 (same day, later session).** This was **not** a genuine tie
+   > and was not real: it was an artifact of *two* verifier bugs compounding — the
+   > standardized-normal-equations solver still not reaching the true LS optimum on the
+   > wider t1 matrix, and the verifier's 1int column computing `max` node-occupancy
+   > excess where the registration says `sum`. Each masked the other. With the MGS-QR
+   > solver and the correct column, scorer and verifier agree outright on `ds_00008` and
+   > **all 612 repair values agree with zero tie-acceptances**. The original sentence
+   > below — "This is real, not an artifact" — was wrong, and is struck rather than
+   > silently deleted, because it was recorded here as an established finding and read
+   > that way. Detail in the stage-2 pre-probe entry's defect 2. (Prediction ties DO
+   > occur in this machinery and are real where they occur — see §9b's tie bands, where
+   > 22/35 firing datasets tie at the full-T1 argmin — but `ds_00008` under the registered
+   > columns was not one of them.)
+
+   ~~**This is real, not an artifact — reported, not hidden.**~~
+   Independently recomputing repair_fraction for **all 35 firing datasets from scratch**
+   (ignoring the scorer's numbers entirely): **median 0.000 for 1int, median 0.000 for
+   kint** (kint mean 0.357, max 1.0 — a few datasets ARE fully repaired by kint, but the
+   *median*, the registered statistic, is exactly what the scorer reported). **Gate
+   condition 2 holds under independent, from-scratch recomputation.**
+2. **The amendment to condition 3 is disclosed with its own counterfactual, not just
+   its rationale.** Route A's own precedent for "rising" (`score_route_a_scaling_probe.py`
+   `rising = means[-1] > means[0] + 1e-9`, endpoints only) would read the observed
+   sequence 0.000 (∞) → 0.172 (loose) → 0.172 (tight) as rising (0.172 > 0.000) — **the
+   original wording, read consistently with the one existing precedent in this
+   codebase, would ALSO pass.** Read literally step-wise (every adjacent pair strictly
+   increasing), the flat loose→tight step (0.172 = 0.172) would **fail** it. Both
+   readings are stated because the wording is genuinely ambiguous and the amendment was
+   made after seeing this exact number — a reader is free to prefer either. What is not
+   ambiguous: no reading of the original condition, applied honestly, changes the
+   PASS verdict, because it was never the swing condition — condition 1 (the CI) and
+   condition 2 (repairs) carry the result.
+3. **Firing rate reported above the B0 noise floor, not just against the 5% bar.**
+   B0's own residue tops out at 2.49% (α=2.0) — a floor under every Arm S number. Arm S
+   firing fraction at `R_exact >` 5.0% / 7.5% / 10.0%: **0.172 / 0.157 / 0.123.** The
+   effect does not thin out approaching a threshold four times the B0 floor; at >10% it
+   still clears the registered 10% PASS bar on its own. Not floor-sensitive.
+4. **Alpha provenance.** The frozen ladder (α ∈ {∞, 3.0, 2.0}) was calibrated on route
+   B's own smoke corpus (`gnn_datasets_dag4_route_b_smoke_{s,b0}`, 12 datasets/arm on
+   `ROUTE_B_PILOT_V1_GRID`, matching the gated corpus's topology and physics exactly),
+   not on the unrelated m3 pilot — see amendment A2 above. The freeze commit
+   (`2c3ebbc`… through the calibration-freeze entry) predates the n=204 generation run.
+   Realised componentwise-plan-infeasible fraction at the frozen tight rung: 0.44–0.50
+   across the corpus (table above) — comfortably binding, not degenerate.
+
+**Route A cross-reference.** Arm S's unconstrained cell (α=∞: locality on, 800 MB
+payload, DAG dispatch, on the keep-alive-fixed harness) is physics-adjacent to route
+A's own condition but **not a re-run of route A's grid** (route B's grid uses 6 servers /
+`per_client=0`; route A's used a different server count and replica config) — it should
+be read as corroborating evidence at n=204, not as route A's own probe repeated. The
+literal re-verification of route A's condition is the 6-dataset retro-check recorded in
+`route_a_v1` above, which is the one that actually reused route A's grid.
+
+**Status: PASS — stage 1 CLOSED, and re-checked. Stage 2 (can a GNN learn it and beat the
+constraint-aware pointwise baseline?) requires its own pre-registration before any
+training run.**
+
+### route_b_v1 — stage 2 pre-probe zero: **NO-GO-PREPROBE-T1** (2026-08-25)
+
+Stage 2's pre-registration was drafted (`docs/lineages/route_b_v1/stage2-preregistration.md`, this commit)
+and, on review, the user identified its load-bearing hole before sign-off: the registered
+strongest-MLP arm (T1 = dim25cr + k-integer + partial-assignment state, including
+parent-placement/hop/transfer columns) is **not a pointwise baseline** — its plan-level
+score is non-separable, and stage 1's `R_exact` (a *separable* surrogate) and its
+median-0.000 count-repair result say nothing about it. The doc's §9a registered an offline
+kill test with the reading fixed **before** the number existed: recompute `R_exact` on the
+stage-1 204 (Arm S, α=2.0, rtt) with the surrogate augmented by the full T1 plan-level
+column set — kint + per-type quadratic co-residency + load/cap + over-cap count + min/max
+parent-hop sums + `Σ_edges hops/bottleneck` + `Σ_edges latency` + same-node-parent count,
+the last three computed from each dataset's own `link_topology.routes`, i.e. exactly what
+`_dependency_transfer_time` charges (uniform 800 MB payload absorbed by the LS
+coefficient, so the columns **span the charged coupling term exactly**). Registered
+reading: median repair fraction ≥ 0.5 over the stage-1 firing datasets ⇒ the architecture
+claim is pre-falsified and stage 2 does not run as registered.
+
+**Result: median T1 repair fraction 1.000** (mean 0.730; 26/35 firing datasets closed
+≥ 0.5; kint comparison: median 0.000, mean 0.357, matching the stage-1 scrutiny to the
+digit). `frac(R_exact > 5%)` falls 0.172 → **0.054** (11/204 residual, max 22.2%).
+Attribution ablation over the firing 35: the parent-coupling block alone closes at median
+1.000, the occupancy block alone at median 0.892 — two largely redundant routes to the
+same closure.
+
+> **AMENDED 2026-08-25 by §9b, which put this ablation in code for the first time.** Both
+> numbers reproduce exactly (1.000 and 0.892), but "two largely redundant routes" is
+> wrong: **both blocks contained `kint`**, and `kint` is the shared ingredient. Membership,
+> now unambiguous — occupancy = `kint+quad+cap`, parent-coupling *as originally run* =
+> `kint+hop+coupling` (PREREG:406's parenthetical "kint + cols 33–35 analogues" was
+> literal). Stripped of `kint`, the parent block alone closes only **0.392**, and `quad`
+> alone closes **0.000**. The honest decomposition is that neither block is a route on its
+> own: `kint` alone closes 0.000, and it is `kint` *combined with* either the quadratics
+> (0.843) or the parent columns (1.000) that closes the effect. When this prose was
+> written, no committed code computed it — the fitted coefficients were discarded at every
+> solver call site — so it could not be checked. It can now:
+> `route_b_coefficient_transfer.py`, verified 315/315 arm-values to 1e-9.
+
+Scorer: `score_route_b_contention.py` (`t1` repair, constrained rungs only);
+report frozen at `simulation_data/route_b_stage2_preprobe_t1_rtt.json`. Verification:
+`verify_route_b_scorer_agreement.py --check-repairs` agrees on **all 204 cells and all
+612 repair values (1int, kint, t1), zero tie-acceptances**.
+
+**Two verifier defects found and fixed en route — both matter to the stage-1 record:**
+
+1. **The pure-Python solver did not reach the true LS optimum on the wider t1 matrix.**
+   Standardized normal equations (the stage-1 scrutiny's own fix) produced fitted values
+   diverging from the unique LS projection on ds_00008 (fitted values on fit rows are
+   solver-independent, so this is a numerical failure, not a tie). Replaced with
+   hand-rolled MGS QR (one re-orthogonalization pass, dependent-column dropping) — still
+   no numpy, still zero scorer imports; verified against numpy to 1.6e-13.
+2. **The verifier's 1int column was `max` node-occupancy excess where the registration
+   (and `separability_diagnostic._excess_sharing`) says `sum`.** A real bug, masked by
+   defect 1: the imprecise fits happened to argmin onto the same plans on every dataset
+   previously checked. The QR solver exposed it (ds_00019: scorer 1.036 vs
+   verifier-with-max 9.633). With both fixes, **ds_00008's recorded "genuine
+   floating-point-level tie" dissolves** — scorer and verifier now agree outright there;
+   that scrutiny interpretation is superseded (the disagreement was the verifier's wrong
+   column plus solver imprecision, not an inherent tie). Stage 1's gate verdict is
+   untouched (the gate consumed the scorer's statistics, which were correct and are now
+   re-verified under the fixed verifier), but the stage-1 claim "1int independently
+   confirmed" was, until today, confirmed against a different column definition. It is
+   now actually confirmed: 612/612 repair values agree.
+
+**What this establishes:** on this grid, a pointwise score given partial-assignment state
+(exactly what a sequential masked decoder exposes for free) is sufficient at the
+surrogate-expressiveness level to close the median stage-1 firing dataset completely. The
+"GNN beats strongest-MLP under constraints" claim is pre-falsified before any cache,
+decoder, model, or corpus was built — for the price of one scorer run. **What is NOT
+established:** the T1 repair is a per-dataset LS fit on the dataset's own sweep — an
+expressiveness upper bound, not a trained cross-dataset model; whether a *trained*
+pointwise-plus-state model realizes this bound is the reduced V5-shaped question
+("decoder-state features suffice — no graph needed"), which needs no GNN and its own
+registration if pursued. The 11-dataset residual stratum (5.4%, below stage 1's 10% bar,
+max 22.2%) is real but does not clear the program's own materiality standard. The α=∞
+rung's 0/204 remains corroborating evidence for route A's conclusion at n=204 (not a
+literal grid re-run — see the stage-1 outcome entry's caveat).
+
+**Status: PROVISIONAL — NO-GO-PREPROBE-T1 was RETRACTED AS MEASURED on 2026-08-25 by §9c
+(entry below). Do not read this entry as settled.** The T1 column set used here includes
+`kint`, one free coefficient per `(node, task_type)` — an identity-indexed per-dataset
+lookup table with **no corresponding column in the registration's own §2 `dim36crk`
+table**. So the kill test was run with a surrogate strictly more expressive than the T1 arm
+it stands in for. Stripped of that block, the closure of the actually-registered feature set
+is 0.392–0.648 depending on a tie rule §4 never specified, and §9c(a) measured the block's
+coefficients to be unrecoverable from node features (held-out R² 0.014). **Stage 2's
+architecture question is reopened and requires re-registration with a corrected T1
+definition before anything is built.** The one thing this entry establishes unconditionally
+is the reverse-direction result: whatever closes the effect, it is *not* message passing
+that is needed — see §9c's exploratory pooled `krank` (0.790 under one coefficient set).
+
+---
+
+### route_b_v1 — STAGE 2 PRE-REGISTRATION (recorded retroactively 2026-08-25)
+
+`docs/lineages/route_b_v1/stage2-preregistration.md` at commit `df9971e` is the registration under which
+the §9a pre-probe's reading was fixed before its number existed. Its own header (line 6)
+required this row and it was never written — recorded now, late, rather than left absent.
+§9b was added to that file 2026-08-25 (this commit) and is disclosed as a post-outcome
+deviation in its §11.
+
+---
+
+### route_b_v1 — §9b coefficient transfer: **VOID-KINT-CONFOUNDED**, and the §9a bound is confirmed tie-robust (2026-08-25)
+
+**The question.** §9a's T1 repair fits fresh coefficients on *every dataset's own sweep*;
+a trained cross-dataset model gets **one** set. So NO-GO-PREPROBE-T1 rests on a bound that
+may not transfer. Registered in `docs/lineages/route_b_v1/stage2-preregistration.md` §9b before the number
+existed, with three cells so that "cost of dropping kint" could never be confused with
+"cost of pooling", and with the VOID condition written in advance.
+
+**The obstruction, found while designing and stated before measuring:** `kint` **cannot be
+pooled at all.** Its columns are one per `(node, task_type)` pair *in that dataset's own
+demand*, so vocabulary and width both vary (K ∈ 8…13, X widths 21–26 over this corpus).
+There is no cross-dataset coefficient vector to fit.
+
+| cell | fit | median | tie-band | ≥0.5 |
+|---|---|---|---|---|
+| A | per-dataset, full T1 | **1.0000** | **[1.0000, 1.0000]** | 26/35 |
+| B | per-dataset, T1 − kint | 0.3922 | [0.3922, 1.0000] | 17/35 |
+| C | **pooled**, T1 − kint | 0.0000 | [0.0000, 1.0000] | 16/35 |
+| C′ | pooled, equal dataset weight (sensitivity) | 0.0000 | [0.0000, 1.0000] | 15/35 |
+
+**VERDICT: VOID-KINT-CONFOUNDED**, the registered branch — cell B is already below 0.5, so
+cell C cannot be read as a test of *pooling*: the drop is attributable to dropping `kint`,
+which no single coefficient set can carry anyway. **§9b does not weaken NO-GO-PREPROBE-T1
+and does not strengthen it. The V5 question stays open and stays empirical.**
+
+**What §9b did establish, and it is the more useful half:**
+
+1. **The §9a statistic is tie-robust, which nobody had checked.** Cell A's median is 1.0000
+   whether prediction ties at the argmin are resolved optimistically, pessimistically, or
+   by the registered plan-key tie-break — even though **22/35 firing datasets do tie**
+   (max group 8). A NO-GO resting on a tie-break would have been worth exactly as much as
+   `ds_00008`'s retracted "genuine tie". It does not.
+2. **Cell B, by contrast, is genuinely indeterminate** — band [0.392, 1.000] straddles the
+   0.5 threshold, with ties up to 16 plans wide. This is not float noise: stripped of
+   `kint`, the 9 node-agnostic columns **cannot separate up to 16 feasible plans at all**.
+   That is the finding, not a nuisance. The independent verifier surfaced it first, as
+   three "TIE (accepted)" lines on cell B where scorer and verifier picked different plans
+   from the same tied group (0.000 vs 1.000) — a disagreement that is real and that the
+   band now reports as first-class output rather than a footnote.
+3. **The block attribution now exists in code** and both prose numbers reproduce — but
+   their interpretation was wrong; see the amendment in the §9a entry above and the
+   in-place correction of stage-1 finding #2.
+
+| arm | blocks | median | ≥0.5 | residual >5% |
+|---|---|---|---|---|
+| kint | linear counts | 0.0000 | 13/35 | 24 |
+| quad | quadratic counts only | 0.0000 | 7/35 | 32 |
+| **kint+quad** | **counts, nonlinearly** | **0.8429** | 23/35 | 15 |
+| occupancy | kint+quad+cap | 0.8924 | 24/35 | 14 |
+| parent-coupling | hop+coupling | 0.3922 | 17/35 | 22 |
+| parent-coupling incl kint | kint+hop+coupling | 1.0000 | 27/35 | 10 |
+| full T1 | all five | 1.0000 | 26/35 | 11 |
+
+**Coefficients (descriptive, as registered — the repair fraction is the decisive statistic
+and this is not).** The pooled `transfer` coefficient is 330.96 against the registered
+physical prediction of 762.939453125 (`800e6 / 1024²`), and pooled `latency_sum` is −38.4
+against a predicted 1.0. Per-dataset dispersion is enormous (transfer mean −277, sd 8106).
+**None of this is evidence about the physics**, and the registration said so in advance:
+the cell-B/C fits are mis-specified by construction (they omit the block that does the
+work), 9/35 per-dataset designs are rank-deficient, and `same_node_edges = 4 −
+remote_edge_count` is collinear with the hop block on `diamond4`. Recorded because it was
+registered, and because a *correctly specified* pooled fit would be the place to test the
+762.94 prediction properly.
+
+**Re-derived 2026-08-25 for the 8-task probe.** The "4" here is `diamond4`'s total edge
+count (4 parent-child pairs), not a hardcoded constant in the scorer — `score_route_b_contention.py`'s
+`same_node_edges`/`transfer` loop (`fn`, around line 596) sums over `parents_of` for
+whatever edges the plan's DAG actually has, so no code change is needed. For two diamond4
+instances co-decided in one episode (8 tasks, 8 edges total, 4 per instance), the identity
+becomes `same_node_edges = 8 − remote_edge_count` and the collinearity with the hop block
+persists at the new constant — the mechanism (total edge count is fixed per dataset, so
+same-node and remote edge counts are complementary) is unchanged by doubling, only the
+number is.
+
+**Verification.** `verify_route_b_scorer_agreement.py --check-blocks` — an independent
+pure-Python/QR recomputation from each dataset's raw files — agrees on **315/315 (dataset,
+arm) repair fractions to 1e-9** across 35 datasets and 9 arms, with the three cell-B tie
+acceptances described above. Cell A reproduces §9a exactly (median 1.0000, mean 0.7302,
+26/35, 11 residual). The verifier itself is, as of this commit, backstopped by
+`tests/test_route_b_repair_fixtures.py`: 16 closed-form fixtures (29 with the positive
+controls) covering `solve_least_squares` against textbook OLS, the `sum`-vs-`max` 1int
+distinction that survived three rounds of checking, the t1 columns hand-computed on a
+4-node toy, the scorer/verifier cap-convention divergence on an uncapped node, and the
+saturation guard. Refactor safety: `t1_cols`'s new block registry is proven **byte-identical**
+on the frozen §9a report (204 datasets × 3 α).
+
+**Residual stratum (11 datasets, DESCRIPTIVE — 5.4% is below the program's 10% materiality
+bar and this is not a claim).** No separating structure found. Medians, residual vs closed:
+feasible fraction 0.643/0.643, distinct nodes in the optimum 2/2, same-node edges 2/2,
+max load/cap 0.921/0.921, kint width 11/11. The only gaps are small and in the direction
+you would expect from their larger regret: R_exact 16.8 vs 14.7, transfer in the optimum
+0.0140 vs 0.0100, hop sum 11 vs 10, RTT spread CV 0.197 vs 0.175. **There is no "a graph is
+needed when X" sentence here** — at n=11 with no separating feature, the residual reads as
+the tail of the same distribution, not a distinct stratum. The edge closes cleanly.
+
+**Artifacts:** `simulation_data/route_b_coefficient_transfer.json`;
+`scripts_cosim/route_b_coefficient_transfer.py`; `--check-blocks` in the verifier;
+`tests/test_route_b_repair_fixtures.py`.
+
+**Status: §9b returned VOID on its own question — whether the bound survives one coefficient
+set is NOT answered by this method, because the block carrying the closure is not poolable.
+Superseded in part by §9c below, which asked why that block was in the column set at all.**
+
+---
+
+### route_b_v1 — §9c: `kint` is not a T1 feature — **NO-GO-PREPROBE-T1 RETRACTED AS MEASURED** (2026-08-25)
+
+**The objection, against §9a itself.** §9a's T1 set includes `kint`: one free coefficient per
+`(node, task_type)`, a per-dataset lookup table over node **identities**. **No column of the
+registration's own §2 `dim36crk` table is identity-indexed** — cols 25–28 are per-type
+occupancy on *the candidate's own node*: anonymous, fixed width, four columns. §2's verbatim
+rule cuts both ways, and a feature the MLP cannot have must not be credited to it. So §9a's
+kill test may have been run with a surrogate strictly more expressive than the arm it stands
+in for. Registered in `docs/lineages/route_b_v1/stage2-preregistration.md` §9c before either number existed.
+
+**The load-bearing observation, and it needed no new code.** The scorer's `quad` block is
+*exactly* the plan-level rendering of cols 25–28:
+`quad[k] = Σ_n tot[n]·occ[n][k] = Σ_t occ_{node(t)}[k]`. Likewise `load_over_cap` = col 29,
+`overcap_tasks` = col 31, `min/max_hop_sum` = 33–34, `transfer` = 35. **T1 − kint is
+precisely the dim36crk-expressible set — so §9b's cell B already WAS the anonymous closure
+measurement**, at 0.392. `kint` is the only T1 block with no §2 column.
+
+| measurement | result | registered reading |
+|---|---|---|
+| **(a)** kint coefficients regressed on node features, held out by dataset | **R² = 0.0138** (in-sample 0.0974) | < 0.5 ⇒ **identity-memorized; §9a does not bound the T1 arm** |
+| **(b)** anonymous (dim36crk) closure | `mean_tied` **0.648** vs `registered`/`pessimistic` **0.392** | directions disagree ⇒ **VOID-TIE-INDETERMINATE** |
+
+**(a) is decisive and (b) is a specification gap.** On (a), the in-sample R² is the telling
+figure: node features barely explain these coefficients even without a generalization gap,
+so it is not a small-sample artifact — the block is genuinely a per-dataset identity lookup.
+On (b), the readings disagree because tie groups run up to **16 plans wide** and the
+sorted-plan-key rule lands *worse than an average tie-break* on this corpus. **§4's decoder
+never specified what to do with tied scores, and the anonymous verdict flips on that choice.**
+That is a real hole in the registration, not a numerical nuisance.
+
+**A second registration defect, found the same way (recorded 2026-08-25):** §4 pinned
+"scarcity-pressure order" to `greedy_masked_plan`'s ascending `(best available marginal,
+task_id)`. On this corpus that order does not exist: in **all 204 datasets the four
+min-marginal minima are exactly tied** — every task's best placement lies in the globally
+best plan, so `min_p m_t(p)` equals the global minimum RTT for every task — and the tie-break
+collapses the order to `task_id`, which is the DAG's topological order. Measured
+consequences: **0 of 816 DAG edges decode child-before-parent** (§2's hedge that "parents are
+not guaranteed to precede children" never fires) and **0 of 816 steps** have a task's best
+choice already taken by an earlier task; only capacity ever blocks the top choice, on
+167/816 = 20.5% of steps. The registered order therefore carries no scarcity information
+whatsoever. This is the same class of hole as the unspecified tie rule: a registration naming
+a discriminator that is constant on its own corpus. **A corrected stage 2 must fix both**, or
+it repeats the error under a new name.
+
+Also measured: **T1 ≡ T0 at decode step 0** (all eleven partial-state columns are zero when
+nothing is placed), and the prefix-oracle curve (7.78 → 9.84 → 1.98 → 0.31) puts essentially
+all decoder myopia in the first two of four steps. **Write-up rule, binding: wherever the
+four-task limit is doing the work, the sentence is "the corpus is too small to test the
+architecture claim", never "the architecture claim is false."** These two measurements
+support the first reading, not the second.
+
+**Consequence: NO-GO-PREPROBE-T1 is retracted as measured, and stage 2's architecture
+question is reopened.** Per §9c this is explicitly **not** a licence to start the build queue:
+the corrected T1 definition — including a tie rule — gets re-registered first. §9a's purpose
+was to kill cheaply; a corrected §9a that fails to kill changes the registration, not the
+discipline.
+
+**Exploratory (NOT registered, NOT independently verified, no verdict read from it) — and
+it is why the reopening may be short.** Replacing `kint` with `krank`, occupancy indexed by
+identity-free node **rank** (ascending capacity, then mean hop, padded to a common width):
+
+| arm | median | ≥0.5 |
+|---|---|---|
+| krank + dim36crk, per dataset | **1.000** | 26/35 |
+| **krank + dim36crk, ONE pooled coefficient set** | **0.790** (mean_tied 0.824) | 20/35 |
+
+So the closure never needed node *identity* — it needed per-node occupancy **resolution**,
+which dim36crk's four candidate-local columns do not supply. And unlike `kint`, `krank`
+pools: a single coefficient set over identity-free columns closes the median firing dataset
+at 0.79, with no message passing. **That is the follow-up the §9b VOID named, and it points
+where §9a did: the structure looks reachable by a pointwise scorer, just not by the one
+stage 2 registered.** A hypothesis for the corrected registration, not a result.
+
+**Verification.** Cells and all ablation arms: `--check-blocks`, 315/315 to 1e-9. **The §9c(a)
+regression and both `krank` arms are single implementations and are NOT independently
+verified** — stated rather than implied. Gauge note: within a dataset the `kint` columns for
+a given type sum to exactly 1 (each type has one task in `diamond4`), so the fit is
+rank-deficient by one dimension per type and the coefficients are defined only up to a
+per-type shift; `lstsq` returns the minimum-norm representative, a convention. (a) therefore
+scores coefficients **centered within (dataset, task_type)**, the gauge-invariant content.
+
+**Status: NO-GO-PREPROBE-T1 retracted as measured. Stage 2 REOPENED, pending re-registration
+with (i) a T1 definition that either justifies identity-indexed columns or replaces them with
+an anonymous per-node-resolution block, and (ii) a decoder tie rule. Nothing is built until
+that registration exists. The 8-task probe of the exploratory pooled result is §9d below.**
+
+### route_b_v1 — §9d: 8-task probe — pooled `krank` closure SURVIVES the doubling, attenuated (2026-08-26)
+
+**The question.** §9c's exploratory pooled result — ONE identity-free coefficient set
+(`krank` + dim36crk) closing the median firing dataset at 0.790 — was measured on 4-task
+episodes, where the joint decision is small enough that a lookup-table-shaped fit is cheap.
+Does it survive doubling the joint decision to 8 tasks (2 `diamond4` DAG instances per
+episode, independently drawn client nodes, byte-identical infrastructure per index)?
+
+**Corpus.** `gnn_datasets_dag4_route_b_pilot_v1_8task`, 204 datasets, generated on datalab
+(job 713673): 204/204 complete, 0 silent skips, 0 truncated sweeps, 0 worker failures; sweep
+sizes 27,648–516,096 (~41M sims, ~23 GB). Venue measured not to be a variable twice over:
+the 4-task identity gate (job 713654, 16/16 artifact hashes match the frozen local corpus)
+plus an 8-task spot check (cluster `ds_00002` vs the validated local smoke run —
+`best.json`/`workload.json` byte-identical, 161,280-row `placements.jsonl` identical as a
+set, `infrastructure.json` differing only in `metadata.{generation_time,config_file}`).
+Generation recipe is the full Arm S env block — job 713615 failed for lack of
+`HEROSIM_COSIM_KEEP_ALIVE`/`HEROSIM_RETAIN_TASK_TIMES`, and the skip threshold had to be
+raised to 2,000,000 against the *pre*-uniqueness `total_possible` (hard bound 1,248² =
+1,557,504) after 1,000,000 silently dropped `ds_00026`; both are documented in
+`route_b_8task_probe.sbatch`.
+
+**Alpha correspondence — registered a priori, not searched.** `cap_node = alpha ·
+max_single_demand` has no task-count term, so 8 tasks against the same cap is ~2× tighter;
+the equal-tightness match to `TIGHT_ALPHA = 2.0` is its double, **4.0** (ladder
+3.0/4.0/5.0/6.0 covers both doubled rungs plus the response curve). At the primary 4.0 the
+silent-bias counters are clean: `greedy_stuck = 0`, `no_feasible_rows = 0` (at 3.0: 76
+stuck, 2 no-feasible — the tight end is real, and it is not the primary).
+
+**Firing: 33/204 = 16.2%** at `r_exact_pct > 5.0`, vs the 4-task 35/204 = 17.2% — the
+a-priori doubling landed on matched power (pooled statistic rests on 19 closed cells vs 20),
+so the two closures are directly comparable. Firing `r_exact_pct` spans 5.3–63.7%, median
+14.3%.
+
+| arm (exploratory, NOT registered, no verdict read from it) | 4-task (§9c) | 8-task |
+|---|---|---|
+| krank + dim36crk, per dataset | 1.000 (26/35) | **0.988** (20/33) |
+| **krank + dim36crk, ONE pooled coefficient set** | 0.790 (mean_tied 0.824, 20/35) | **0.617** (mean_tied 0.617, 19/33) |
+
+**Reading: the layout hypothesis survives the doubling, attenuated.** A single pooled,
+identity-free coefficient set still closes the median firing dataset above half
+(0.790 → 0.617); per-dataset closure is essentially unchanged (1.000 → 0.988). Per §9c's
+own framing this remains **evidence about the corrected-registration hypothesis (per-node
+occupancy *resolution*, no identity, no message passing), not a gate** — it feeds the
+stage-2 re-registration and changes no verdict.
+
+**Registered readings of §9c(a)/(b), applied to this corpus — both land opposite their
+4-task values:**
+
+- **(a)** `kint` coefficients regressed on node features, held out by dataset:
+  **R² = 0.607** (in-sample 0.644; 390 coefficients, 33 datasets) — ≥ 0.5 reads
+  *feature-representable*, where the 4-task corpus measured 0.0138 (*identity-memorized*).
+  With 2 tasks of each type per dataset the per-type gauge degeneracy §9c's verification
+  note describes is also broken, so the fit is better-posed here, not just luckier.
+- **(b)** anonymous (dim36crk-expressible) closure: **all three tie readings agree at
+  0.988** (optimistic upper bound 0.997) — the 4-task VOID-TIE-INDETERMINATE does not recur
+  at 8 tasks; the script's registered rule prints `NO-GO-PREPROBE-T1-STANDS`, and the
+  transfer's top-level verdict is `BOUND-TRANSFERS`.
+- Decomposition against the registered physical predictions: the closure is carried by the
+  **parent-coupling block** (hop+coupling pooled median 0.997, 23/33); the occupancy blocks
+  (`kint`/`quad`/cap) pool to median **0.000**. At 8 tasks the pooled structure is
+  parent-coupling-shaped, not occupancy-shaped.
+
+**Provenance.** Corpus job 713673, scorer job 713793, transfer job 713794 (41 min), all
+CPU-amd, repo at `72d75e7` both venues. Artifacts (both venues):
+`simulation_data/route_b_8task_rtt.json` (frozen report, `--include-per-dataset`),
+`simulation_data/route_b_8task_coefficient_transfer.json`. Harnesses:
+`scripts_cosim/datalab/route_b_8task_{probe,score,transfer}.sbatch`,
+`route_b_venue_identity_gate.sbatch`.
+
+**Status: route_b_v1 item 4 CLOSED — probe complete, outcome recorded. The anonymous
+per-node-resolution layout hypothesis survives the 4→8 task doubling at matched firing
+power (0.790 → 0.617 pooled, per-dataset ~1.0 both). Exploratory throughout; the stage-2
+re-registration required by §9c remains the gating step.**
+
+### route_b_v1 — STAGE 2 CORRECTED PRE-REGISTRATION (v2, signed off 2026-08-26)
+
+The §9c-mandated re-registration exists and is signed off:
+`docs/lineages/route_b_v1/stage2-preregistration.md` **at commit `b7553cf`** is the registration under
+which stage 2 now runs (in-place v2 rewrite; the retracted 2026-08-25 text remains
+readable at `df9971e`/`597e7ab`, and the file's §11 logs every replacement with its
+evidence). What it fixes, in one line each:
+
+- **T1 layout `dim63crk`** (was `dim36crk`): + 24-col `krank` one-hot — the anonymous
+  per-node-resolution block §9c named and §9d validated, pinned to `krank_cols`
+  (`route_b_coefficient_transfer.py`), whose per-edge sum reproduces the pooled surrogate
+  exactly; + 4 `linkrank` edge cols (registered **no-op** expectation per the route_c
+  FAIL-BY-EXHAUSTION, included for feature parity; user decision 2026-08-26); − old col 32
+  (constant ≡ 1 under the corrected order).
+- **Decode order = DAG topological, ties by `task_id`** (mode `masked_topo`) — registers
+  what §9c measured the retracted "scarcity-pressure order" to already collapse to; the
+  frozen stage-1 greedy plans stay the 1e-9 acceptance target.
+- **Tie rule registered**: [pessimistic, mean_tied, optimistic] band mandatory on every
+  gate statistic, `mean_tied` the fair reading, direction disagreement =
+  VOID-TIE-INDETERMINATE (§8 V1 trigger) — the §9c(b) hole, closed.
+- **Power refloored**: §9a t1 residual floor (the frozen conservative substitute — the
+  artifacts carry no per-dataset pooled-krank residual); provisional HOLDOUT-P
+  **n = 504** (seeds 2001–2042), ladder 504 → 804. The two stale defaults the old §13
+  recorded (`route_b_stage2_power.py`, `score_route_b_gate.py`) are fixed in `b7553cf`;
+  the gate script's cond-2 kill set is unchanged and its verdict on the frozen reports is
+  unchanged (29 tests pass).
+- **8-task corpus: no gate role** (user decision 2026-08-26) — §9d's pooled-krank
+  0.790/0.617 numbers stand in §2 as the honest claim-to-beat, context only.
+- **PP0′**: the single-implementation krank arms get independent verification
+  (`verify_route_b_scorer_agreement.py` extension, 1e-9) before any training — a
+  verification VOID-gate, explicitly not a re-registered kill test for a number §9d
+  already saw. **MLP-first training order** registered (the cheap falsifier runs first).
+
+**Status: REGISTERED AND SIGNED OFF. The §9c gating condition is discharged; the §10
+build queue (B0–B8, PP0′ first) may start. Nothing was built before this row existed.**
+
+### route_b_v1 — stage 2 build queue: A1 is genuinely T2, B6 closed, pilot cache built (2026-08-26)
+
+Build progress under the v2 registration. **No GNN-vs-MLP performance was measured** —
+the registered comparison is now *runnable*, not run.
+
+- **A1 implementation** (commit `28fbe35`). Before this, the "GNN" arm was structurally
+  identical to A3: message passing saw only the bipartite task↔platform graph, and
+  `masked_topo` decode read one static logit vector computed before any placement was
+  committed. Now, behind default-off flags (`NEAR_RTT_MP_DAG_EDGES` /
+  `NEAR_RTT_TASK_TYPE_ONEHOT` / `NEAR_RTT_PARTIAL_STATE_EDGES`): undirected workload-DAG
+  edges plus the mandatory 4-way task-type one-hot (a fairness repair — the T1 MLP
+  already sees task type via krank) enter message passing; the 38 prefix columns enter
+  at the EdgeScorer only, in a separate `partial_state_edge_attr` (`edge_attr` stays
+  5-wide, load-bearing for the A2/A3 extractors); the decoder re-scores each task
+  against the committed prefix via `score_fn`. Serving refuses a
+  `partial_state_edge_features` checkpoint (live prefix construction is stage 3) — a
+  refusal that initially did NOT fire because `checkpoint_mp_config`'s key whitelist
+  silently dropped the sidecar field (memory
+  `herosim-sidecar-keys-need-serving-whitelist`). Verified: frozen decoder acceptance
+  unchanged at 408 cells; T1/T2 column parity bit-identical keyed on `logit_idx`.
+- **B6 closed** (commit `0ac184c`): one shared split artifact,
+  `experiments/route_b_stage2_split_v1.json` — 142/31/31 over the 204 pilot parents,
+  seed 42, sha256 `0171ef14…`. The GNN loads it via `NEAR_RTT_SPLIT_ARTIFACT`, the MLP
+  via `--split-artifact`; both fail loud on any artifact/corpus parent-set mismatch, the
+  GNN additionally on the `train_all` / <10-graph bypasses (the sidecar would otherwise
+  claim a split the run did not use), and the MLP refuses `--val-size`/`--test-size`
+  alongside an artifact. A "draw" therefore varies initialisation and batch order ONLY —
+  §3's definition. Sidecar/meta stamp `{path, sha256}`, verified byte-identical across
+  an A1 2-epoch smoke and an MLP 1-epoch smoke on the real cache. 18 tests in
+  `tests/test_split_artifact.py`, including the cross-trainer parity of the two
+  duplicated parent-derivation implementations the scheme keys on.
+- **Real DAG cache built**: `graphs_cache_route_b_pilot_s_dag` — 204 graphs from
+  `gnn_datasets_dag4_route_b_pilot_v1_arm_s`, built locally in 7.65 s (no datalab job;
+  the 8-hour recache precedent was a 2,816-dataset merged corpus). All 204 datasets
+  passed every alpha-ladder feasibility gate (`inf`/`3.0`/`2.0`).
+  `--platform-feature-dim 14` was passed explicitly — the CLI default is 16 and the
+  trainer only *warns* on a mismatch — plus `--queue-feature-contract legacy_v0`. The
+  12-graph smoke cache stays: two tests hardcode its path.
+- `experiments/route_b_stage2_a1.yaml` repointed to the real cache and pinned to the
+  artifact; its B6 do-not-run warning removed as discharged.
+
+**Next, per registered order: write `experiments/route_b_stage2_a{2,3}.yaml` (they do
+not exist) and run the MLP arms first, then A1 — multi-seed, all arms on the same split
+artifact.** The honest risk stands (`HANDOVER_route_b_stage2_a1.md` §6): the measured
+contention ceiling (<10%, `herosim-link-contention-charges-input-ingress`) may be too
+low for a GNN win; that outcome would point at the environment (CLAUDE.md option 2),
+not at more model work.
+
+### route_b_v1 — stage 2 §9 pre-probe: **NO-GO-PREPROBE** (2026-08-26)
+
+- **Registered deviations, per user decision 2026-08-26:** the §9 pre-probe ran on the
+  **pilot-204 corpus** (`gnn_datasets_dag4_route_b_pilot_v1_arm_s` — the stage-1 corpus
+  carrying the 35 firing datasets) instead of the registered 12-graph smoke corpus;
+  "train-set eval" = the shared split artifact's 142-parent train split (full-204 view
+  reported alongside, labelled); 4 draws/arm (seeds 1–4), all arms on split artifact
+  sha256 `0171ef14…` — a draw varies init + batch order only (§3). MLP arms trained and
+  their aggregate was written to disk **before** any A1 training (§3 registered order;
+  `route_b_stage2_preprobe_mlp_aggregate.json`).
+- **Build items landed to make the arms runnable:** `run_experiment.py` bare-flag args +
+  `--seed` (per-seed env/argv, B6's templated-config option); A3 tied-label dim25cr
+  extraction — a label-parity repair mandated by §3's "same labels, same α" (the plain
+  dim25cr path labels from `graph.y`, the unconstrained sweep argmin, not the α=2.0
+  tied-optimal set); `scripts_cosim/eval_route_b_stage2_arm.py` computing the §6
+  registered statistic (decode regret vs the α=2.0 constrained-feasible optimum),
+  self-check reproducing the frozen greedy plans to 1e-9 on all 408 stage-1 cells. Note
+  recorded: the trainer's internal `regret_masked_topo` divides by the **unconstrained**
+  sweep minimum and is a checkpoint-selection convenience, not the registered statistic —
+  the two disagree by construction (e.g. `ds_00000`: 19.4% vs 57.3% for the same decoded
+  plan).
+- **VOID first A1 sweep, cause found and fixed:** the four initial A1 "draws" were one
+  draw repeated — `src/notebooks/prepare_graphs_cache.py` seeded random/numpy/torch with
+  a hardcoded 42 at **module import**, and `train_near_rtt.py`'s
+  `from ...prepare_graphs_cache import DAG_TASK_TYPE_VOCAB` executed that after the
+  trainer's own `NEAR_RTT_TRAIN_SEED` seeding, so every draw's weight init and batch
+  order came from 42 (sidecars stamped the right `train_seed`; weights bitwise
+  identical; wandb curves identical to full precision). **Third seeding-defect class in
+  this repo** (see `herosim-pythonhashseed-tiebreak-nondeterminism` and the MLP
+  `torch.manual_seed` gap for the first two). Fix: seeding moved into that script's
+  `main()`; regression tests go through the real `run_experiment --seed` subprocess
+  path (same seed ⇒ bit-identical, different seeds ⇒ diverge — the existing in-process
+  determinism tests could not see the import chain). MLP draws were never affected.
+- **Results** (mean decode regret vs α=2.0 constrained optimum; train-split = median
+  over 4 draws, per-draw in parentheses): A1 GNN(T2) **28.45%** (24.43/32.46/23.67/36.55);
+  A2 dim63crk(T1) **19.34%** (19.93/18.74/21.08/13.06); A3 dim25cr(T0) **17.81%**
+  (15.76/18.88/16.97/18.65). Full-204 view alongside (labelled): A1 29.38%, A2 20.10%,
+  A3 17.29%. Floors: F3 uniform-feasible exact expectation **89.73%** train mean — no
+  arm above it, so §8 V1's instrumentation check does not fire; F2 greedy-on-true-
+  marginals 8.86% mean / 0.00% median. 0 infeasible completions in all 12 valid draws;
+  every tie band collapsed to a point.
+- **Reading, applied as registered (§9): A1 train-set regret ≥ A2's ⇒ NO-GO-PREPROBE.**
+  A model that cannot beat pointwise-plus-state when both are allowed to memorize will
+  not generalize past it. Stage 2 stops here: the B4 fresh-corpus generation and the §8
+  gate do not run under this registration. Facts recorded without advocacy: A1 trained
+  under its config's `epochs: 40` (convergence not separately verified); the four-task-
+  limit sentence of §4 stands ("the corpus is too small to test the architecture claim",
+  never "the architecture claim is false").
+- **σ calibration (§6), recorded for any future re-registration:** pooled per-dataset
+  paired-difference σ (A2−A1) = 18.36%; per-arm seed-to-seed σ A1 13.57% / A2 6.77% /
+  A3 7.60% — far above the registered 3.75% trigger, so the provisional n=504 ladder
+  start was insufficient regardless.
+- **Context observations, no verdict read:** A3(T0) ≤ A2(T1) at 4 draws — the corrected
+  T1 layout did not help a trained model here; the cheap-falsifier scenario (T1 decodes
+  near-optimally ⇒ V5 on paper) did NOT occur (T1 sits ~19% train regret). Consistent
+  with the handover §6 honest risk: the open decision — environment pivot (CLAUDE.md
+  option 2) vs closing route B's GNN argument — belongs to the user and needs its own
+  registration either way.
+- **Artifacts:** `simulation_data/route_b_stage2_{a1,a2,a3}_eval_seed{1..4}.json`,
+  per-arm aggregates, `route_b_stage2_preprobe_mlp_aggregate.json`,
+  `route_b_stage2_preprobe_readings.json`; checkpoints + sidecars in `models/`
+  (gitignored); wandb project `gnn-route-b-stage2`, 16 online runs (8 MLP + 4 void A1 +
+  4 valid A1).
+
+## 2026-09-03 — Exploration probe: stage 2's abort statistic inverts once both arms are trained to their fit ceiling
+
+**Not a re-registration.** One seed per arm, no threshold, no verdict. It re-measures the
+quantity the stage-2 §9 abort condition was read on, and that quantity moves by an order
+of magnitude, so the abort's *premise* is the finding.
+
+**What the abort said.** §9's NO-GO-PREPROBE fired on `A1_median >= A2_median` in **train**
+decode regret — deliberately a memorization comparison: if the GNN cannot out-fit the
+pointwise competitor on data it has seen, generalization is not worth testing. Measured
+then: A1 (T2 GNN) **28.45%**, A2 (T1 MLP + prefix) **19.34%**, A3 (T0 MLP) 17.81%, median
+of 4 draws. A1 ran at `epochs: 40`, and the node recorded convergence as unverified.
+
+**It was not at its fit ceiling.** Same arm, same cache, same split artifact, same
+`masked_topo` decoder, same α=2.0 — only the epoch budget changes
+(`experiments/route_b_fit_a1_e300*.yaml`, `NEAR_RTT_SAVE_FINAL=1`):
+
+| arm | epochs | train regret mean | train median | train zero-regret | test regret mean |
+|---|---|---:|---:|---:|---:|
+| A1 GNN (val-selected) | 300 | **2.91%** | 0.00% | 87% | 22.56% |
+| A1 GNN (last epoch) | 300 | **2.54%** | 0.00% | 94% | 26.15% |
+| A1 GNN lr 2e-3 (val-selected) | 300 | 3.55% | 0.00% | 92% | **18.61%** |
+| A1 GNN lr 2e-3 (last epoch) | 300 | **1.99%** | 0.00% | 98% | 23.08% |
+| A1 MP-OFF (last epoch, flag matched) | 300 | 9.23% | 0.00% | 59% | 11.71% |
+| A1 MP-OFF (val-selected, flag matched) | 300 | 12.67% | 0.00% | 53% | **11.14%** |
+| A2 MLP + prefix | 600 (patience 600) | 10.41% | 0.00% | 71% | 15.38% |
+| — stage 2 reference (median of 4 draws) | 40 / 100 | A1 28.45 · A2 19.34 · A3 17.81 | | | |
+| — floors | | F2 greedy-on-true-marginals 8.86 · F3 random-feasible 89.73 | | | |
+
+**Reading, in three parts.**
+
+1. **The abort statistic inverts.** A1 goes 28.45% → 2.0–2.9%, from *worse* than the
+   pointwise competitor to **4–5× better**, and below the F2 greedy-on-true-marginals
+   floor of 8.86%. The gap is far outside this arm's own recorded draw spread (§6 pooled
+   per-dataset σ 13.57 pp; the four draws' means spanned 23.7–36.6%). So "a GNN cannot
+   beat pointwise-plus-prefix on this environment even at memorization" measured an
+   arm 40 epochs short of memorization. ⚠ One seed — this licenses re-registering the
+   pre-probe with a converged budget, not overturning its verdict.
+2. **Generalization still goes the other way, and that is the real result.** On held-out
+   parents the ordering is MP-OFF 11.1% < MLP-plus-prefix 15.4% < GNN 18.6–26.2%. The
+   GNN converts its extra capacity into overfitting on 142 training parents. The honest
+   sentence is **fit ceiling favours the GNN, held-out favours the pointwise arms** —
+   which is what stage 2 would have concluded from a *generalization* statistic, and it
+   never got to run one because the memorization gate aborted first.
+3. **Message passing is load-bearing on THIS graph, unlike every earlier corpus.**
+   MP-OFF fits 9.2–12.7% against MP-ON's 2.0–2.9% — a ~4× capacity gap from the GIN over
+   task↔task DAG edges. `mp_ablation_v1` and `link_mp_v1` both measured MP as neutral or
+   harmful, but neither had DAG edges in the graph. It buys capacity here and, at this
+   corpus size, spends it on overfitting.
+
+**Instrument defect found and fixed (see GATE TOOLS 2026-09-03).** The MP-OFF row was
+first scored at **72.23%** train regret because `GNN_DISABLE_MESSAGE_PASSING` is
+weight-invisible, was absent from the contract sidecar, and the offline evaluator neither
+set nor checked it — so MP-OFF weights were served *with* message passing. A 5.7× error
+that reads as a decisive ablation. The live-gate scorers were protected by a
+`run_provenance` assertion; the offline evaluator was not. Sidecars now record
+`disable_message_passing` and `eval_route_b_stage2_arm.py` refuses a mismatch.
+
+**Artifacts:** `simulation_data/explore_fit/eval_*.json`, checkpoints
+`models/route-b-fit-a1-e300{,-mpoff,-lr2e3}-seed1{,-final}.pt` (+ sidecars),
+`models/tabular/route_b_fit_a2_long_seed1.pt`, logs `logs/explore/`.
+
+## 2026-09-06 — Phase 0: instrument audit of the fit-ceiling probe before adding seeds
+
+Decision (user, 2026-09-06): pursue the fit-ceiling split as the live thread, but audit
+the apparatus first. Six checks; two changed the reading, one found a bug elsewhere.
+
+1. **Live-loader MP-OFF hole (bug, fixed).** The 2026-09-03 sidecar fix covered the
+   offline evaluator only; `executesimulation.load_gnn_model` had the identical hole and
+   was never audited. GATE TOOLS 2026-09-06 has the record; it does not touch any number
+   in this node.
+2. **The regret statistic, not the model, makes the held-out table.** Per-dataset regret
+   is heavy-tailed by construction: in every parent sampled (hard and easy alike) only
+   **0.1–2.1%** of the 320–1,248 enumerated placements lie within 5% of the optimum and the
+   median placement is 2–3× the optimum, so a one-step miss costs 50–200%. On the 31 test
+   parents, three datasets carry **52–60%** of every arm's summed regret; in absolute
+   seconds the arms' *medians* are 0.03 s (MP-OFF), 0.9 s (MLP+prefix), 2.7–2.9 s (GNN)
+   against means of 6–12 s. **`ds_00019` and `ds_00078` are among the worst four for all
+   four arms** — a property of those parents, not of any model. The ordering survives a
+   robust read: per-dataset paired wins over the 31 test parents are MP-OFF 10.8, MLP 9.0,
+   GNN-lr2e-3 6.0, GNN-default 5.2 (21 multi-way ties, mostly at zero). So the 2026-09-03
+   direction stands, but its mean-based magnitudes do not; Phase 1 reads paired
+   per-seed medians and win counts as primary — the same correction GATE TOOLS 2026-08-19
+   made for `gnn_necessity_ablation.py`.
+3. **Val selection froze at epoch 140/300** (lr 2e-3 arm): the last "new best val" is at
+   epoch 140 and train CE keeps falling for the remaining 160 epochs. Independent
+   corroboration of "capacity spent on overfitting"; the last-epoch checkpoint's worse
+   test regret (23.08% vs 18.61%) is that overfitting, not noise.
+4. **Trainer-side val metric is a faithful proxy (suspected bug, cleared).** The trainer
+   validates against the capped near-RTT sidecar and charges an unmapped decode
+   `max(worst regret in the cap, 1.0 s)`; the cap's worst regret is **96.7%** of the true
+   full-sweep worst regret on the 31 val parents (min 77.6%), so selection is not
+   systematically lenient. The 32–45% "unmapped" rate in the training log and the 0
+   infeasible decodes at evaluation are the same decodes seen through two lookup tables.
+5. **Evaluator is deterministic** — two runs on the same checkpoint are bit-identical.
+6. **`partial-state: null` in the A2 yaml means the flag is ON** (`run_experiment.py:181`
+   emits the bare flag) — confirmed by `input_dim=63 layout=dim63crk` in the training log,
+   so the MLP+prefix arm was what its label says.
+
+7. **The pointwise floor is the decoder, not capacity (measured).** MLP+prefix at
+   hidden 256 (`route-b-fit-a2-wide-h256`, same seed 42, 600 epochs): train regret
+   **11.95%** vs 10.41% at hidden 64, test 14.31% vs 15.38%, zero-regret share 65% vs
+   70% — 4× the width moves nothing past noise, and both sit on the F2
+   greedy-on-true-marginals floor (8.86%). So the fit-ceiling table's "MP fits 4–5×
+   better" is MP versus a *decoder-bounded* pointwise arm: without message passing the
+   scorer cannot beat greedy-on-marginals even when it has memorised the marginals.
+   Report `simulation_data/explore_fit/eval_a2_wide_h256.json`.
+
+**Phase 1 launched 2026-09-06, datalab job 740198 → resubmitted 740232** (job 740198's 15
+GNN tasks all died in the first minutes on `RuntimeError: received 0 items of ancdata` —
+the sbatch was missing `ulimit -n 65536`, which every other GPU training sbatch in the
+directory carries for exactly this reason; the 7 MLP tasks in the same array were
+unaffected, since the MLP trainer has no multi-worker `DataLoader`. Fixed, filed as
+datalab-pitfalls #11, resubmitted clean). GNN lr 2e-3 seeds 1–8, **MP-OFF at lr 2e-3**
+seeds 1–8 (`experiments/route_b_fit_p1_mpoff_lr2e3.yaml` — the 2026-09-03 probe's MP-OFF
+ran at 5e-4 against MP-ON's 2e-3, a learning-rate confound this removes), MLP+prefix
+seeds 1–8. All 24 checkpoints evaluated on the shared 31-parent test split, 0 infeasible
+decodes anywhere.
+
+**Result: direction from the single-seed probe holds; magnitude does not.**
+
+| arm | train regret mean/median | test mean-of-seed-means | test median-of-seed-medians | sd across seeds |
+|---|---:|---:|---:|---:|
+| GNN (MP-ON) | 1.09% / 0.58% | 17.71% | 5.06% | 3.14pp |
+| MP-OFF | 3.99% / 3.71% | 15.97% | 3.82% | 3.20pp |
+| MLP+prefix | 10.69% / 11.38% | 15.13% | 2.90% | 2.46pp |
+
+The single-seed fit-capacity gap replicates cleanly (GNN fits ~3.7× tighter than MP-OFF,
+~9.8× tighter than MLP+prefix, every seed). The held-out gap that motivated Phase 1 —
+single-seed GNN 18.6–26.2% vs MP-OFF 11.1% vs MLP 15.4% — **shrinks by roughly half** at
+n=8: paired per-seed mean differences are MP-OFF−GNN −1.7pp, MLP−GNN −2.6pp, neither
+clearing an (unregistered, exploratory) Wilcoxon on the mean (p=0.46, 0.31). The
+**median**-based paired test — the statistic Phase 0 argued for, since three of 31 test
+parents carry over half the regret — does clear: MP-OFF−GNN p=0.031, MLP−GNN p=0.008 (MLP
+vs MP-OFF: not different, p=0.73). Per-(seed, dataset) win counts point the same way: GNN
+loses more often than it wins to both other arms (50/69, 49/93), MLP vs MP-OFF is
+even (47/66 either way, mostly ties). Seed 1 (the only seed the 2026-09-03 probe ran) was
+close to the worst draw for GNN and closest to the best for MP-OFF — the single seed
+overstated the gap in both directions.
+
+**Reading:** the DAG corpus's "fit ceiling favours GNN, held-out favours pointwise" split
+is real and directionally consistent across 8 seeds, not a one-seed artifact — but it is
+a **small, only-just-detectable generalization gap** (a few points, exploratory
+significance on the median statistic only), not the 2–3× swing a single seed suggested.
+Not registered — no threshold was fixed before this data, and n=8 with an exploratory
+statistic is not a gate. A registration, if one follows, should fix the median-paired
+statistic and an n up front rather than choosing post hoc.
+
+Reader: `scripts_cosim/analyze_route_b_fit_p1.py`; full numbers in
+`simulation_data/route_b_fit_p1_verdict.json` and per-checkpoint reports in
+`simulation_data/route_b_fit_p1/eval_{gnn,mpoff,mlp}_seed{1..8}.json`.
+
+## 2026-09-06 — Phase 2 REGISTERED: a learning curve on the DAG corpus (is 204 datasets the gap?)
+
+**Status: REGISTERED (draft written before any rung was trained; awaiting the user's
+sign-off — training may run, no verdict is read until signed).** Direction from the user,
+2026-09-06: *"200 datasets are for sure not enough. let's make more and test because this is
+the best way for a graph and message passing to be relevant."*
+
+**Question.** Phase 1 (8 seeds, 204 datasets) measured the GNN fitting the DAG training
+pipelines 4–10× tighter than pointwise and still losing held-out by a few points (median-paired
+MP-OFF−GNN −3.6 pp, p=0.031). Two readings are open: (a) a 204-dataset corpus is too small
+for the higher-capacity model to generalize and the gap closes with data; (b) the gap is the
+model class. A learning curve separates them; nothing else measured so far does.
+
+**Corpus (generated locally, 2026-09-06, ~1 h on 30 workers).** Three new Arm S blocks from
+`ROUTE_B_PILOT_V1_GRID`'s exact recipe — same grid, same env block
+(`HEROSIM_DATA_LOCALITY=1 HEROSIM_OUTPUT_SIZE_BYTES=800000000 HEROSIM_COSIM_KEEP_ALIVE=1000000
+HEROSIM_RETAIN_TASK_TIMES=1`, no replica reuse, `node_disk_v2`), differing only in the seed
+block and output dir (presets `route_b_pilot_v1_x_{holdout,train_a,train_b}`):
+
+| block | seeds | datasets | role |
+|---|---|---:|---|
+| `gnn_datasets_dag4_route_b_pilot_v1_x_holdout` | 5001–5021 | 252 | **fixed** held-out: 204 test (seeds 5001–5017) + 48 val (5018–5021) |
+| `gnn_datasets_dag4_route_b_pilot_v1_x_train_a` | 5101–5134 | 408 | rung 2 adds these to the original 204 |
+| `gnn_datasets_dag4_route_b_pilot_v1_x_train_b` | 5201–5234 | 408 | rung 3 adds these on top |
+
+Recipe identity was proven, not assumed, before generating: the recipe regenerates the frozen
+`arm_s` `ds_00000..2` byte-identical (`best.json`, `workload.json`, `placements.jsonl` as a
+set), and the cache flags (`--platform-feature-dim 14 --queue-feature-contract legacy_v0
+--dag-partial-state`) rebuild `graphs_cache_route_b_pilot_s_dag` with all 204 graphs
+tensor-identical and `optimal_rtt.pkl`/`rtt_chunk_0.pkl` byte-identical (`graphs.pkl` bytes
+differ — pickle serialization only). The trainer's val sidecar
+(`valid_combos_near_rtt_capped.pkl`) is reservoir-sampled through the unseeded `random`
+module; it is built once per rung by `route_b_fit_p2_build.sh` with the new `--seed 42`
+(`build_capped_near_rtt_sidecar.py`), never lazily by the 24 SLURM tasks sharing a cache.
+
+**Rungs.** Caches `graphs_cache_route_b_fit_p2_r{1,2,3}` (base-dir unions; split artifacts
+`experiments/route_b_fit_p2_split_r{1,2,3}.json`, assigned by block/seed with
+`scripts_cosim/make_split_artifact_by_block.py`, coverage-asserted with the trainers' own
+loader):
+
+| rung | train parents | val | test |
+|---|---:|---:|---:|
+| 1 | 204 (all of `arm_s`) | 48 | 204 |
+| 2 | 612 | 48 | 204 |
+| 3 | 1020 | 48 | 204 |
+
+The held-out set is the same 204 parents at every rung — the curve's x-axis is training-set
+size only. Rung 1 is *not* Phase 1 re-run: Phase 1 trained on 142 parents and tested on 31 of
+the same seed block; rung 1 trains on all 204 and tests on 204 fresh parents.
+
+**Arms (unchanged from Phase 1 except cache/split; configs
+`experiments/route_b_fit_p2_r{1,2,3}_{gnn,mpoff,mlp}.yaml`).** GNN MP-ON lr 2e-3, 300 epochs;
+GNN MP-OFF lr 2e-3, 300 epochs; MLP+prefix (A2 layout) 600 epochs/patience 600. Seeds 1–8 per
+arm per rung = 72 training runs (`scripts_cosim/datalab/route_b_fit_p2_train.sbatch`, one
+array). Epoch budgets are held fixed across rungs, so a bigger rung is also more gradient
+steps — that is "more data", not a confound to remove. GNN arms are scored at the **last
+epoch** (`-final.pt`), as Phase 1 was (fit-ceiling framing); the MLP trainer writes one
+best-val checkpoint. Evaluation: `scripts_cosim/route_b_fit_p2_eval.sh` →
+`eval_route_b_stage2_arm.py` (α=2.0 constrained-feasible optimum, `decode_regret_pct.registered`),
+reader `analyze_route_b_fit_p1.py` per rung.
+
+**Primary statistic — fixed here, before data.** Per seed *s* and arm, the **median** held-out
+decode regret over the 204 test parents (Phase 0 §2: the mean is carried by a handful of
+needle-in-a-haystack parents; the median-paired statistic is what Phase 1 said a
+registration should fix). Primary contrast: **D_s = median(GNN MP-ON) − median(GNN MP-OFF)
+at rung 3**, 8 paired seeds, exact Wilcoxon signed-rank (midranks), two-sided α = 0.05.
+
+- **DATA-RESCUE** — D < 0 at rung 3, p < 0.05: with enough DAG data message passing is
+  the better held-out model; the Phase 1 gap was corpus size.
+- **GAP-PERSISTS** — D > 0 at rung 3, p < 0.05: 5× the data does not close it; the
+  fit-ceiling/generalization split is the model class on this corpus (which then joins
+  `link_mp_v1`'s "no supervised MP win on any graph" line rather than reopening it).
+- **INDETERMINATE** otherwise. Registered follow-up for that case is *more seeds on rung 3*,
+  never a different statistic or a different checkpoint rule.
+
+Secondary, reported without verdict: the same contrast at rungs 1 and 2 (the curve's shape);
+GNN vs MLP+prefix and MP-OFF vs MLP+prefix at every rung; per-(seed, parent) win/tie/loss
+counts; train-split regret per arm per rung (does the fit-ceiling gap survive 5× data?); the
+mean-based versions of everything, labelled. **Power, honestly:** Phase 1's median-paired
+MP-OFF−GNN difference had sd 4.6 pp across seeds on a 31-parent test set; the 204-parent test
+set shrinks the per-seed median's noise substantially but no power calculation was run for
+it — n=8 is the paired-on-seeds design carried over, and an INDETERMINATE reads as
+"under-powered at n=8", not "no effect".
+
+**What this cannot show.** Offline decode regret against a brute-force table on 4-task DAG
+episodes; not a live gate, not a Knative comparison, and not evidence about the independent-task
+corpora that `program_verdict_v1` closed. `docs/hard-stops.md` checked: the closest stop is
+"pursue a supervised message-passing win on ANY graph" — this phase does not *pursue* one, it
+measures whether the DAG corpus's held-out gap is data-limited; a DATA-RESCUE would be the
+first supervised-MP held-out win in the record and would need its own live gate before any
+claim.
+
+**Execution log.** Corpus generated 16:38–17:41 local, 1068/1068 SUCCESS, 0 skipped, 0 failed. The blocks were generated with `GNN_CAPTURE_DATASET_STATE=0` and needed the same post-hoc SSC enrichment the frozen `arm_s` corpus carries (`refresh_optimal_full_stats.py --repair --force`, verified key-identical on `arm_s` ds_00000..2 under the Arm S env; now a sharded step in `route_b_fit_p2_build.sh`). Caches r1/r2/r3 = 456/864/1272 graphs, splits 204/612/1020 train, 48 val, 204 test; 1-epoch GNN and MLP smokes on r1 passed end to end (split applied, sidecar stamps the split sha, evaluator scores all 456 graphs, 0 infeasible). Caches rsynced to datalab, 35/35 md5 verified. **Training: datalab job 740372** (72 tasks), submitted 2026-09-06 ~17:52.
+
+**Cost.** Corpus ~1 h local CPU; caches seconds; training 72 GPU tasks (Phase 1 ran
+13–37 min per GNN seed at 204 parents; rung 3 is ~5× the graphs per epoch) ≈ 85 GPU-h;
+evaluation ~8 s per checkpoint locally.
+
+### Phase 2 — physics and comparability audit (2026-09-06, before any rung-3 read)
+
+Three read-only audits (co-sim engine, live GNN scheduler path + feature parity, training/eval
+chain), key claims re-verified by hand. Recorded here because they bound what any Phase 2
+verdict can mean.
+
+**1. The Arm S target is dominated by pointwise cost, not by the coupling the corpus was built
+for.** `HEROSIM_OUTPUT_SIZE_BYTES=800000000` is applied to *every* `stateSize` entry
+(`src/executecosimulation.py:417-425`), so every warmup task ahead of a placed task also writes
+800 MB (≈7.65 s at the 100 MiB/s node clamp), and queue-0 platforms pay a ~39 s cold pull.
+Measured on `arm_s/ds_00000`, root task `dnn1` (execution time 1–3 ms) by platform:
+
+| platform | queue depth | root duration |
+|---|---:|---:|
+| node1:108 | 1 | 15.3 s |
+| node0:104 / node4:124 | 2 | 23.0 s |
+| node4:123 | 3 | 30.6 s |
+| node1:109 | 4 | 38.3 s |
+| node0:105 | 0 (cold) | 39.4 s |
+
+i.e. duration ≈ (queue+1) × 7.65 s, a 0–61 s per-platform term that depends only on where
+*that* task goes. The coupled terms are an order of magnitude smaller: 2 backbone hops of the
+800 MB parent output ≈ 1.5 s, and the always-on storage-tier branch (`infrastructure.py:1359-1395`,
+local vs remote store, output clamped to node bandwidth when the *input* store is remote)
+≈ 3.2 s — and the tier, not `_dependency_transfer_time`, carries most of the pairwise effect
+(`cnn` fan-in even depends on the grandparent's node). The cache's `partial_state_ctx` and the
+scorer's `route_metrics` model hops/bottleneck/payload only, not the tier. This is the
+mechanism behind the measured <10% contention ceiling
+(`herosim-link-contention-charges-input-ingress`): the pointwise arms are not "lucky", the
+target is ~90% pointwise by construction. Not previously recorded.
+
+**2. Offline route_b regret cannot be compared to a live eval — two independent reasons.**
+(a) *Serving is impossible today.* Live `GNNScheduler` only batches tasks whose parents have
+finished (`src/policy/gnn/scheduler.py:286-290`), so a diamond4 arrives as 1 / ≤2 / 1 tasks,
+batches of 1 bypass the model (`MIN_BATCH_SIZE_FOR_GNN=2`), the live graph never carries
+`dag_edge_index`/`task_type_onehot4`/partial-state edges/α caps, the live compatibility table
+knows only dnn1/dnn2 (`feature_builder.py:71-74` — cnn/rf get zero candidates), the loader
+double-counts the one-hot width (`executesimulation.py:710` + `:861`), and every resulting
+error is swallowed by `except Exception` in `_gnn_inference` (`scheduler.py:587-591`) into a
+shortest-queue fallback whose counter is never exported. (b) *Even with serving fixed the
+objects differ*: offline = a 4-task joint decision on one frozen snapshot under the α=2.0
+knapsack and replica-uniqueness mask, neither of which the live simulator enforces (memory
+only gates replica creation, `autoscaler.py:173-216`); live = ≤2 ready tasks per batch against
+evolving state. Also `HEROSIM_OUTPUT_SIZE_BYTES` exists only on the co-sim path — a live run
+charges 8,000 B per parent output, and neither variable lands in `run_provenance.env`.
+**Phase 2's verdict is therefore about the offline exam only**; a DATA-RESCUE would need the
+serving path built and its own registered live gate, exactly as the registration says.
+
+**3. Instrument findings** (filed in `docs/gates/gate-tools.md`, 2026-09-06): the trainer's
+val checkpoint-selection metric is ~66% censored on this corpus (unmapped decodes scored at a
+constant `worst_regret`) — affects val-selected `.pt` files and the 2026-09-03 "val-selected"
+rows only, never the `-final.pt` Phase 1/2 statistic; the MLP arm trains a per-(plan,task) CE
+mixture while the GNN arms train the any-of-K marginal CE (a registered-arms asymmetry to
+carry, not a bug in either); `torch.use_deterministic_algorithms(True, warn_only=True)` with
+warnings suppressed lets non-deterministic CUDA kernels run silently on GPU seeds.
+
+**4. Clean:** labels = evaluator optimum (α=2.0 constrained tie set, same EPS), identical
+decoder in trainer and evaluator, no test leakage (gradient touches train graphs' tied plans
+only), MP-OFF guarded on both loader and evaluator, `-final.pt` genuinely last-epoch, the new
+blocks' `generation_provenance.json` records the full Arm S env block.
+
+## 2026-09-07 — Phase 2 RESULT: **GAP-PERSISTS** — 5× the DAG data does not rescue message passing; the no-MP GNN generalizes best
+
+**Job 740372: 72/72 tasks COMPLETED, 0 failures** (rung 3 GNN 2.5–3 h/seed). All 72
+checkpoints evaluated locally on the fixed 204-parent held-out block, 0 infeasible decodes
+anywhere. Reports `simulation_data/route_b_fit_p2/eval_r{1,2,3}_{gnn,mpoff,mlp}_seed{1..8}.json`,
+verdicts `simulation_data/route_b_fit_p2_r{1,2,3}_verdict.json`, reader
+`scripts_cosim/analyze_route_b_fit_p2_curve.py`.
+
+**Learning curve** (8 seeds per cell; train = train-split mean regret, held-out = mean of
+per-seed means / median of per-seed medians over the same 204 test parents):
+
+| rung | train parents | GNN MP-ON train / held-out | GNN MP-OFF train / held-out | MLP+prefix train / held-out |
+|---|---:|---|---|---|
+| 1 | 204 | 0.47% / 15.42% · 9.99% | 4.83% / 14.54% · 7.40% | 8.42% / 18.03% · 6.80% |
+| 2 | 612 | 0.93% / 13.29% · 3.33% | 7.12% / 13.49% · 0.28% | 9.65% / 15.14% · 4.15% |
+| 3 | 1020 | 1.02% / 13.95% · 2.41% | 7.46% / **11.89% · 0.08%** | 9.46% / 13.65% · 3.18% |
+
+**Registered primary (rung 3): D_s = median(GNN MP-ON) − median(GNN MP-OFF), 8 paired seeds.**
+Per-seed D = [−0.05, +0.64, +0.07, +3.07, +4.78, −0.04, +2.33, +0.08] pp; median +0.36,
+mean +1.36; exact Wilcoxon **p = 0.039**; D > 0 on both location statistics ⇒ **GAP-PERSISTS**.
+The mean-paired version agrees (MP-OFF better by 2.06 pp, p = 0.023, 7/8 seeds); per-(seed,
+parent) wins MP-OFF 479 / GNN 401 / ties 752.
+
+Secondary, no verdict read: the MP-ON−MP-OFF median gap is present at every rung (−1.74 /
+−2.04 / −1.36 pp) and only *reaches* significance at rung 3 because the seed spread shrinks
+with data — the curve is flat, not closing. GNN vs MLP+prefix: GNN ahead on the mean at rungs
+1–2 (p = 0.039, 0.055), a tie at rung 3 (−0.29 pp, p = 0.46; median +0.70, p = 0.84).
+MP-OFF vs MLP+prefix: MP-OFF better at rungs 2–3 (rung 3 median-paired p = 0.008, mean-paired
+p = 0.016). All three arms improve held-out with data (means 15.4→14.0, 14.5→11.9,
+18.0→13.7), so "204 was too small" is true in the plain sense — and it does not favour
+message passing. The fit-ceiling asymmetry survives 5× data unchanged: GNN train regret stays
+≈1% while MP-OFF/MLP loosen to 7–9%, i.e. the GNN's extra capacity buys memorization only.
+
+**Reading (registered rule, statistic drafted 2026-09-06 and pending the user's sign-off —
+the user can amend before this is treated as a gate).** On the Arm S DAG corpus, at 1020
+training pipelines against 204 held-out pipelines, the GNN **without** message passing is the
+best-generalizing of the three arms; adding message passing costs held-out regret at every
+rung and never converges toward the pointwise arms. This is the same shape as `link_mp_v1`
+on the independent-task corpora (MP harmful on the old graph, tie at best on the repaired
+one) and matches the 2026-09-06 physics audit: the target is ~90% pointwise cost by
+construction, so a scorer that cannot memorize per-graph joint structure regularizes toward
+the truth. **The "fit-ceiling split" is therefore not a data-scarcity artefact; it is the
+model class on this target.** Corpus size joins `docs/hard-stops.md` for this route.
+
+**Scope, restated.** Offline exam only: joint 4-task decode against a brute-force answer key
+under the α = 2.0 cap and replica uniqueness, on a frozen snapshot. No live number exists or
+can exist for these checkpoints (2026-09-06 audit: the live path cannot serve them and
+measures a different object). Nothing here bears on the closed-loop dispersal edge or on a
+"planner vs reactive Knative" framing, which is a separate registration.
+
+## 2026-09-07 — Live replay gate (EXPLORATORY): reactive Knative vs the decoded plans on the same frozen substrate
+
+**Status: not pre-registered.** The user asked for a live gate after the Phase 2 read; this
+gate was designed, its scorer written, and the run made before any statistic was written into
+this node. It is therefore an exploration, and the reading below is a draft for sign-off, not
+a gate result. Scripts: `scripts_cosim/route_b_live_replay_gate.py`,
+`scripts_cosim/score_route_b_live_replay.py`; data
+`simulation_data/route_b_live_replay/r3_test{,_score}.json`.
+
+**What it measures — and why this is the one live comparison that shares the offline object's
+substrate.** Every dataset's `optimal_result.json` carries the complete simulator input the
+sweep ran (topology, fabric, `replica_plan`, deterministic warmup queues,
+`fast_forward_warmup`, the one-event diamond4 workload, and `sim_inputs` with the 800 MB
+output override baked in). The gate replays that input through `execute_simulation` with
+`kn_network_kn_network` / `kn_network_batch_kn_network_batch` / `rr_network_rr_network`
+instead of a forced plan — the reactive scheduler makes its own per-arrival decisions on the
+identical warm state the offline decode was scored on — and replays every Phase 2 rung-3
+checkpoint's decoded plan (all 8 seeds × 3 arms) as `forced_placements`. Two engine checks,
+both required to pass before anything is read: replaying the sweep argmin reproduces its
+recorded rtt to 1e-9 on 204/204 parents; and each reactive arm's chosen plan is replayed
+through the forced path (`@replay` arms) so the pairing is engine-identical — the
+`determined` scheduler charges a 0.1 s `batch_timeout` wait per task that the reactive
+schedulers do not (both holes are in `docs/gates/gate-tools.md`, 2026-09-07).
+
+What it does not share: the reactive arms are not bound by the α=2.0 memory cap or replica
+uniqueness (a strictly larger action space, and the live physics enforce neither), and they
+decide each task when it becomes ready rather than jointly. A Poisson stream of DAGs with
+autoscaling from zero — the "prod" object — is a different gate again (the serving path for
+DAG checkpoints does not exist; see the 2026-09-06 audit and below).
+
+**Result (204 held-out parents, regret vs the *unconstrained* sweep optimum; paired
+d = 100·ln(rtt_arm / rtt_Knative@replay), negative = faster than Knative):**
+
+| arm | mean regret % | median % | = optimum | median d (8 seeds) | mean d | seeds p<0.05 faster |
+|---|---:|---:|---:|---|---:|---:|
+| optimal (sweep argmin) | 0.0 | 0.0 | 204 | −21.6 | −22.3 | — |
+| Knative (kn_network, own plan replayed) | 26.6 | 24.1 | 20 | 0 | 0 | — |
+| Knative batch | 26.6 | 24.1 | 20 | 0.00 | +0.05 | — |
+| round-robin | 66.5 | 58.9 | 5 | +21.9 | +25.3 | 0/1 (slower) |
+| GNN MP-ON planner | 24.5–28.2 | 18.0–21.5 | 41–51 | −0.18 [−0.93, −0.01] | −1.39 | 2/8 |
+| GNN MP-OFF planner | 22.9–25.0 | 16.3–20.5 | 48–56 | **−1.15 [−2.83, −0.11]** | **−2.75** | **7/8** |
+| MLP+prefix planner | 24.3–28.3 | 18.0–23.2 | 41–49 | −0.18 [−1.27, −0.02] | −1.48 | 2/8 |
+
+Per-(seed, parent) wins vs Knative: MP-OFF 110–122 wins / 11–20 ties / 66–78 losses per seed.
+
+**Reading (draft).** On the frozen substrate, a planner that decodes the whole pipeline at
+arrival beats reactive least-connected Knative by a small, seed-consistent margin *only in the
+no-MP GNN arm* — the same arm that generalizes best offline. MP-ON and MLP tie Knative. The
+effect is small (median ≈ −1%, mean ≈ −3% of RTT) against a 22% headroom to the optimum that
+no arm captures; Knative's root task lands on the wrong node in 134/204 parents, MP-OFF's in
+89/204. Two facts frame this: (i) the planners carry the α=2.0 cap, which costs 11.1% mean
+(binding on 93/204, p90 38%) against the unconstrained optimum — a scoring-time constraint
+the live physics never charge for, so on this substrate it is pure handicap; (ii) Knative,
+unconstrained, still sits at 26.6%: the reactive rule's error is the same root-node error the
+planners make, not the cap. This is consistent with the Phase 2 mechanism (target ≈ pointwise,
+tail-dominated: at rung 3, 16–20% of decodes exceed 25% regret and set the mean; no arm ever
+places the root on a queue-0 platform though it is optimal in ~6% of the catastrophic cases;
+the queue-0 penalty is node-level write contention from warmup outputs — 8.8 s on an idle
+node vs 38.5 s when other platforms on the node are writing — not warmth).
+
+**Suggested primary if this is to be registered**: median-paired d of the MP-OFF planner vs
+Knative@replay per seed, 8 seeds, exact Wilcoxon on the 8 per-seed medians (here all 8 < 0;
+sign-test p = 0.0078). The user may amend before it counts.
+
+### 2026-09-07 — Correction to the Phase 2 physics audit, and the measured physics tweaks
+
+**Correction.** Item 1 of the 2026-09-06 audit ("the Arm S target is ~90% pointwise by
+construction") is true of the root task's *seconds* and false of the target's *structure*.
+Measured 2026-09-07 over the full enumerated sweeps (`scripts_cosim/measure_route_b_additivity.py`,
+204 arm_s datasets; LS-additive fit rtt(plan) = Σ_i f_i(platform_i) over every row):
+
+| | arm_s (204) | arm_b0 control (no locality / no override) |
+|---|---|---|
+| additive R² (median) | **0.737** (0.694–0.821) | 0.999 |
+| residual RMS, % of mean RTT | 8.8–10.3 | 0.5–4.0 |
+| + same-node-pair terms R² | 0.878 | — |
+
+On the first 20 datasets: 1−R² median **0.229**, the LS-additive argmin's regret vs the true
+optimum **15.8% median / 21.9% mean, nonzero on 15/20**. Per task: the root's duration is
+exactly pointwise (R² = 1.000, 40.8 s) — that is the 7.63 s × (queue+1) warmup-write term
+and the 39 s node-write-contention term the audit measured — while the three children are
+30–86% non-pointwise (R² on own platform 0.40 / 0.51 / 0.14 for dnn2 / rf / cnn): a child
+costs 4.78 s when its parent ran on the same node and 9.54 s otherwise (storage tier 3.17 s +
+one backbone hop 0.76 s + latency), and cnn's fan-in depends on both parents' nodes. The
+unconstrained min-marginal statistic `r_exact` is identically 0 by construction (the min over
+plans containing (t, s) is attained at the optimum's own slot); `r_exact_ls` is the
+informative unconstrained statistic (filed in gate-tools).
+
+**What this changes in the Phase 2 reading — nothing in the verdict, everything in the
+mechanism sentence.** The coupling that exists is *pairwise parent→child co-location*, and
+every Phase 2 arm already sees it: all three are prefix-conditioned (T2) scorers whose 38
+partial-state columns carry the committed parents' hop min/max and transfer term
+(`reduced_features.partial_state_columns`, cols 7–9). MP-OFF is not a pointwise model; it
+is the same prefix-conditioned scorer without GIN aggregation over the task–platform graph.
+So the Phase 2 result reads: the joint structure the target has is captured by the prefix
+features, message passing on top of them buys memorization only. That is a sharper
+statement than "the target is pointwise", and it is the one the hard-stop should cite.
+
+**Physics tweaks, measured (agent run, full sweeps re-simulated in memory from the stored
+`optimal_result.json` config, base reproduces every stored rtt to 1e-9 on 2,720/2,720
+plans).** (i) 800 MB on DAG tasks only, warmup at the shipped 8 kB (`dag_only`) or on DAG
+parents only (`parents_only`): the value-level joint share **halves** (1−R² 0.229 → 0.10 /
+0.09 median over 20 ds), the LS-additive argmin regret drops to 0.00% median, and the
+unconstrained optimum becomes "everything on one node" in 20/20 datasets — route A's regime.
+What it raises is the *cap-constrained* registered contention statistic
+(`score_route_b_contention.py` at α = 2.0: firing >5% 30% → 50% of datasets, median r_exact
+0 → 4–5%), at the cost of the queue axis of the grid becoming inert (the three queue
+siblings of a seed take near-identical values). (ii) backbone 1000 → 100 Mbps or node write
+25 MiB/s: degenerate — non-additivity rises only by collapsing the optimum onto one node.
+(iii) 8 tasks / 2 clients: joint share unchanged (R² 0.78 vs 0.77; §9d already measured no
+gain). (iv) memory cap inside the simulator: either equals the label-time mask or is the
+stopped residency hold (`docs/hard-stops.md`). Hook for (i), if ever registered:
+`src/executecosimulation.py` after `ensure_application_state_size` (:2810-2819), applying a
+new `HEROSIM_DAG_OUTPUT_SIZE_BYTES` only to `stateSize[<app>]` of multi-task workload
+applications (parents only), recorded in `generation_provenance.json` and the metadata
+physics block; leave `HEROSIM_OUTPUT_SIZE_BYTES` untouched. **None of (i)–(iv) is proposed**:
+each is a physics lever aimed at a supervised message-passing win, which
+`docs/hard-stops.md` stops twice over, and the measurement says physics is not the blocker.
+
+**The α = 2.0 cap.** On this substrate it costs the planners 11.1% mean against the
+unconstrained optimum (binding on 93/204 held-out parents, p90 38%) and the live physics
+never charge for memory, so in the replay gate it is pure handicap. It was registered
+(stage 2 §5) to *create* contention for the label, not as a deployment constraint; a
+planner meant to be served should be decoded unconstrained (or the physics should enforce
+memory), which is a registration change, not a tweak.
+
+### 2026-09-07 — Training-chain audit: the registered `-final.pt` choice scored an overfit MP-ON checkpoint against a val-selected MLP
+
+**Finding.** The Phase 2 registration scored both GNN arms at the last epoch (the fit-ceiling
+framing) and the MLP at its best validation epoch (its trainer selects by construction). The
+wandb curves of the 16 rung-3 GNN runs (mean of 8 seeds) show why that asymmetry decides the
+verdict:
+
+| epoch | 0 | 25 | 50 | 100 | 200 | 299 |
+|---|---|---|---|---|---|---|
+| MP-ON train CE | 4.96 | 1.65 | 1.35 | 0.94 | 0.52 | 0.36 |
+| MP-ON **val CE** (teacher-forced any-of-K, not censored) | 4.31 | 1.22 | **1.17** | 1.36 | 2.10 | **2.40** |
+| MP-OFF train CE | 4.05 | 1.77 | 1.64 | 1.46 | 1.27 | 1.16 |
+| MP-OFF val CE | 2.92 | 1.19 | 1.19 | 1.15 | 1.23 | 1.24 |
+
+MP-ON's val CE bottoms at epochs 25–66 on every seed and ends 2.0–2.8× higher; MP-OFF is
+flat. Constant lr 2e-3 with no schedule, weight decay 1e-3, dropout 0.1; the GIN (24,960 of
+46,081 params, the only thing MP-ON adds) is what overfits. The MLP arm has 8,577 params, no
+dropout, no weight decay, best-val selection on an uncensored edge-accuracy metric.
+
+**Held-out, scoring the val-selected `.pt` files already on disk** (selected by the ~66%
+censored `val/regret_masked_topo`, epochs 31–218, no retraining; evaluator unchanged; reports
+`simulation_data/route_b_fit_p2/eval_r3_{gnn,mpoff}_valsel_seed{1..8}.json`; recomputed by
+hand from the reports):
+
+| arm | last epoch: mean / median | val-selected: mean / median |
+|---|---|---|
+| GNN MP-ON | 13.95 / 2.41 | **11.84 / 0.22** (7/8 seeds better) |
+| GNN MP-OFF | 11.89 / 0.08 | 11.63 / 0.03 |
+| MLP+prefix (val-selected by construction) | 13.65 / 3.18 | — |
+
+Registered contrast D_s = median(MP-ON) − median(MP-OFF): at the registered checkpoints
+[−0.05, +0.64, +0.07, +3.07, +4.78, −0.04, +2.33, +0.08], p = 0.039 (GAP-PERSISTS, as
+recorded). With MP-ON val-selected vs MP-OFF last-epoch: [−2.17, −0.05, −0.12, −0.05, +1.61,
+−0.80, +0.05, +2.61], median −0.05, **p = 0.945**; both val-selected: p = 0.64. Under the
+registered rule that is INDETERMINATE, i.e. a tie. MP-ON val-selected vs MLP: mean −1.81 pp
+(p = 0.039), median −2.32 pp (**p = 0.008**). The val-selected MP-ON's train regret is
+1.6–9.6%, so it is no longer the fit-ceiling object — the two framings need two checkpoints,
+and the registration conflated them.
+
+**The verdict stands as registered; the mechanism sentence does not.** Phase 2 measured
+exactly what it registered (last-epoch checkpoints), and the thing it was built to answer —
+does 5× data close the MP-on/off gap — is still answered: the gap is flat across the curve
+at *both* checkpoints, so corpus size is not the lever. What it does not license is "message
+passing costs held-out": that was the last epoch of a run that overfits from epoch ~60,
+compared against an arm that cannot overfit. **Amended reading (draft, pending sign-off):
+at matched checkpoint selection, MP-ON ties MP-OFF and beats the MLP+prefix arm; the
+fit-ceiling split is real (MP-ON alone reaches ≈1% train regret) and buys nothing at
+held-out because the target's joint structure is already in the prefix columns.** The
+replay gate agrees: the val-selected MP-ON planner is faster than Knative in 6/8 seeds
+(median-of-medians −0.59%, mean −2.79%) against MP-OFF's 7/8 (−1.15%, −2.75%);
+`simulation_data/route_b_live_replay/r3_test_score.json` (arms `gnnval_s*`, `mpoffval_s*`).
+
+**Why message passing cannot be "joint" in this model** (`src/policy/gnn/gnn_model.py`,
+`partial_state_edges.py`): `make_partial_state_score_fn` runs `model._encode` once per graph
+and caches it; each decode step only rewrites the 38 partial-state columns and re-runs the
+EdgeScorer. So task i's score depends on task j's chosen platform *only* through those 38
+columns — the same columns the MLP dim63crk arm consumes. The GIN pass (3 sum-aggregation
+layers, no edge features, bipartite + undirected DAG edges) supplies static context about
+siblings and their candidate sets, never a decision. MP-ON is a prefix-conditioned pointwise
+scorer with a richer encoder, which is exactly what the rung-3 numbers say.
+
+**Instrument holes, additional to the 2026-09-06 four** (filed in gate-tools): `edge_attr`
+col 4 `comm_time` is 0.0023 s on every edge — computed from `task-types.json` priors at
+100 MiB/s, blind to the 800 MB override in `sim_inputs`; `--platform-feature-dim 14` cuts the
+two declared pull observables (dims 14–15); the per-edge cost features sit two orders of
+magnitude below the label's write-queue (7.63 s/slot) and node-contention (39 s) terms, so
+every arm must infer those scales from a normalised queue scalar and two bits. Exact joint
+search over every feasible sweep plan under the trained scores (an upper bound on any beam)
+improves the mean by 0.4 pp (MP-ON) / 1.4 pp (MP-OFF): greedy decode is second-order.
+
+**Training tweaks, ranked by measured or expected held-out effect** (none run; each is a
+registration): (1) select GNN checkpoints on an uncensored val metric — `val/ce` is already
+logged (argmin 25–66) or replace the sidecar `worst_regret` path with an exact full-sweep
+lookup; ≥2.1 pp mean / 2.2 pp median measured with the censored selector, zero GPU for the
+on-disk version. (2) Regularise the GIN: weight decay 1e-2–5e-2, dropout 0.3, `mp_residual`,
+an lr schedule; expected 1–2 pp. (3) Give MP a joint mechanism: route the partial-state block
+into platform node features and re-encode per step (`cache_encode=False`), ≈4× training
+cost; the only change under which "graph reasoning over the partial assignment" is even
+being tested. (4) 1 GIN layer (the diamond is 2 hops). (5) Restore dims 14–15 and compute
+`comm_time` from the dataset's own `stateSize`, for both arms. Rejected: label smoothing over
+the near band, self-conditioned training (exposure bias measured at 0.4 pp), platform
+permutation augmentation (the scorer is already permutation-equivariant).
+
+## 2026-09-07 — Retrain with the honest selector: the tie is confirmed, not a fluke
+
+**What changed.** `train_near_rtt.py` gained an opt-in checkpoint-selection fix
+(`NEAR_RTT_VAL_EXACT_REGRET=1`, commit `7f7fb2e`): a decoded validation combo absent from the
+capped near-RTT sidecar is now looked up in the FULL enumerated sweep instead of falling
+through to a constant per-dataset floor. Retrained rung-3 GNN MP-ON and MP-OFF from scratch,
+8 seeds each, identical cache/split/hyperparameters to the registration, only the selector
+differs (`experiments/route_b_fit_p2_r3_{gnn,mpoff}_valexact.yaml`, job 741601, 16/16 tasks
+completed, 0 errors). `sidecar_hit` on every validation epoch of every run: 100.0% (was
+31–38% on the original runs) — the fix does what it was built to do. The MLP arm needed no
+retrain (already val-selected on an uncensored metric).
+
+**Result — the registered contrast is now a tie, reproduced by design rather than by
+accident.** Scoring the val-selected checkpoint this retrain actually intends to produce
+(not `-final`), on the same 204 held-out test parents:
+
+| arm | mean-of-means | median-of-medians |
+|---|---:|---:|
+| GNN MP-ON (honest selector) | 12.79% | 0.08% |
+| GNN MP-OFF (honest selector) | 11.76% | 0.02% |
+| GNN MP-ON, registered `-final` (for reference) | 13.95% | 2.41% |
+| GNN MP-OFF, registered `-final` (for reference) | 11.89% | 0.08% |
+| MLP+prefix (unchanged) | 13.65% | 3.18% |
+
+Registered contrast D = median(MP-ON) − median(MP-OFF), 8 paired seeds, exact Wilcoxon:
+per-seed D = [+0.04, +2.86, −0.01, +0.04, −2.13, +2.43, +0.13, −0.03], median +0.04 pp, mean
++1.03 pp, **p = 0.25** (median-paired), p = 0.31 (mean-paired). Under the registered rule
+this is **INDETERMINATE at the tie point** — not GAP-PERSISTS, not DATA-RESCUE. This
+independently reproduces the 2026-09-07 training-audit finding that scored the on-disk
+accidentally-well-selected checkpoint (D median −0.05, p = 0.945) — that earlier finding
+was not a fluke of which epoch a broken selector happened to land on; a deliberately
+honest selector gives the same qualitative answer (a tie, this time slightly on the other
+side of zero, consistent with reading it as noise around zero rather than a real gap in
+either direction).
+
+**How much the fix moved each arm** (valexact vs the registered `-final`, paired by seed):
+MP-ON moved median −1.23 pp / mean −1.15 pp (p = 0.078, 7/8 seeds improve) — the arm that
+overfits is the one the fix visibly helps. MP-OFF barely moved (median −0.04 pp, p = 0.64) —
+consistent with its flat validation-CE curve; it had nothing to be rescued from.
+
+**New finding: both GNN arms now beat the MLP.** MP-OFF vs MLP: median −1.76 pp, **p =
+0.0156** (7/8 seeds), mean −1.89 pp, p = 0.023. MP-ON vs MLP: median −2.80 pp, p = 0.109
+(7/8 seeds win, one outlier seed at +2.93 keeps it short of significance), mean −0.86 pp,
+p = 0.195. Under the OLD censored selector the MLP had tied or beaten the GNN arms on this
+corpus (`docs/gates/gate-tools.md`, 2026-09-03/06 entries); with an honestly-selected GNN
+checkpoint that reverses — the graph encoder's extra capacity (with or without message
+passing) generalizes better than the pointwise MLP once it is not thrown away by a censored
+selection metric.
+
+**Live replay, rerun with the retrained checkpoints**
+(`simulation_data/route_b_live_replay/r3_test_v2{,_score}.json`): both arms now beat
+Knative's own replayed plan by a similar margin — MP-ON 5/8 seeds significant (median-of-
+medians −0.23%, mean −2.15%), MP-OFF 6/8 (−0.22%, −2.78%) — no longer the lopsided 2/8 vs
+7/8 split the registered `-final` checkpoints showed. The live gate's own reading changes
+in step with the offline one: the planner-beats-Knative effect is real and belongs to "a
+GNN planner" broadly, not specifically to "the no-MP variant."
+
+**Reading — SIGNED OFF 2026-09-08, supersedes the 2026-09-07 GAP-PERSISTS reading above.**
+At a checkpoint-selection rule that is not itself broken, message passing on
+this DAG corpus is neither harmful nor helpful for held-out generalization — the two GNN
+arms tie. This matches the architecture-level explanation already on record: the prefix
+conditioning that both arms share carries the joint structure the target has, and GIN
+message passing adds redundant static context. The one thing the corpus *does* reward,
+independent of message passing, is the graph encoder's relational features over the
+pointwise MLP baseline. The fit-ceiling split (GNN family reaches lower train regret than
+the MLP) is genuine; at honest selection it now partly converts to a held-out advantage
+over the MLP, though not (yet, at n=8) a significant one for the MP-ON arm specifically.
+Corpus size remains not the lever (this is a rung-3-only retrain; the flat learning curve
+finding is untouched). `docs/hard-stops.md`'s "grow the route_b DAG corpus to rescue message
+passing" entry should be read as: still true (more data does not rescue MP over MP-OFF),
+but the framing "MP is harmful" should retire in favor of "MP is redundant, not harmful."
+
+## 2026-09-08 — DRAFT REGISTRATION: GNN (encoder, MP-OFF) vs MLP+prefix, held-out decode
+regret at honest selection — **awaiting the user's sign-off; no new episodes run yet**
+
+**Why this is the next step, not another MP question.** MP-on/off is closed on this corpus
+(tie, redundant-not-harmful, above). What survives unregistered is a different, narrower
+claim: the 2026-09-07 retrain's new finding that GNN MP-OFF beats MLP+prefix at honest
+selection (median −1.76 pp, exploratory p = 0.0156, 7/8 seeds) — that number was a
+by-product of the checkpoint-selector audit, not a pre-registered contrast, and per
+`docs/lessons.md` ("inheriting a statistic does not inherit its power") it needs its own
+statistic and its own n before anyone cites it.
+
+**What this is not re-litigating.** Two adjacent objections are already closed by
+standing measurements, cited here so this registration doesn't re-ask them:
+- *"Is this just more MLP capacity?"* No — Phase 0 §7 (this node, 2026-09-06) already
+  measured MLP+prefix at hidden=256 vs hidden=64 (4× width): train regret 11.95% vs
+  10.41%, test 14.31% vs 15.38%, both sitting on the greedy-on-true-marginals floor
+  (8.86%). Width does not move the MLP past noise, so the GNN's edge is not raw parameter
+  count.
+- *"Is this a feature mismatch (does the GNN see something the MLP doesn't)?"* No — the
+  2026-09-07 physics-audit correction (above) established both arms are T2, prefix-
+  conditioned on the same 38 partial-state columns (`reduced_features.partial_state_columns`,
+  cols 7–9). The remaining architectural difference is the shared task/platform encoder
+  and the masked-softmax `EdgeScorer` doing the decode, not extra input. This is the same
+  credit-assignment finding `objective_pivot_v1` Phase 1 already made on the independent-task
+  corpus ("credit belongs to the scoring/decode architecture... not graph reasoning") —
+  this registration is the DAG-corpus replication of that finding, not a new mechanism.
+
+**Recomputed pilot statistic (2026-09-08, from the existing eval artifacts,
+`simulation_data/route_b_fit_p2/eval_r3_{mpoff_valexact,mlp}_seed{1..8}.json`, 204 test
+parents each, exact reproduction of the node's reported numbers).** Per-seed paired
+median-regret difference (MP-OFF honest-selector − MLP+prefix):
+
+| seed | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Δ (pp) | −3.60 | +0.06 | −0.36 | −2.78 | −0.73 | −5.30 | −0.48 | −5.55 |
+
+Median Δ = **−1.76 pp**, mean Δ = **−2.34 pp**, **across-seed sd = 2.29 pp**, 7/8 seeds
+favor MP-OFF. This sd (not the Phase 3 closed-loop sd of 4.89 pp, a different arm and a
+different loop) is the number a confirmatory n must be derived from.
+
+**Proposed primary (draft, needs the user's signature before it counts).** D = per-seed
+median held-out decode regret, GNN MP-OFF (honest selector, `NEAR_RTT_VAL_EXACT_REGRET=1`)
+minus MLP+prefix (unchanged — already val-selected on an uncensored metric), on the fixed
+204-parent rung-3 test split. Exact Wilcoxon signed-rank, two-sided α = 0.05. Fresh seeds
+only — the 8 already run were an audit byproduct, not pre-registered, and per E1's
+precedent (`objective_pivot_v1` Phase 3) pooling them into a confirmatory primary after
+looking at the result would be the same defect that run was built to avoid. Report them as
+a labelled pilot, never as part of the confirmatory n.
+
+**Power, computed from the pilot sd (normal approximation, α = 0.05 two-sided, 80% power,
+n = ((1.96+0.84)·sd/δ)²):**
+
+| target MDE δ | required n (fresh seeds) |
+|---|---:|
+| 1.76 pp (full pilot magnitude) | ~14 |
+| 1.0 pp | ~41 |
+| 0.88 pp (half pilot magnitude) | ~53 |
+
+Recommended floor: **n = 16 fresh seeds**, matching this program's own precedent
+(`objective_pivot_v1` Phase 1, `mp_ablation_v1`, `link_mp_v1` all used 16) and powered for
+anything at or above the full pilot magnitude; if the read at n = 16 is positive-but-not-
+significant, the registered next step is more seeds at this same statistic, never a
+different one chosen post hoc (same rule Phase 2's registration used).
+
+**Instrument check before running (per the lesson that closed Amendment E1's near-miss):**
+confirm `analyze_route_b_fit_p1.py` (or whatever reader scores this) can execute an exact
+Wilcoxon at the registered n before any seed is trained — n = 16 is inside the exact
+enumeration range that already failed once at n = 120.
+
+**What this can and cannot show.** A confirmatory version of "the GNN encoder beats
+MLP+prefix on offline held-out decode regret, on the route_b DAG corpus, independent of
+message passing." It is still offline decode regret on 4-task DAG episodes against a
+brute-force table — not a live gate, not a Knative comparison. The live serving path for
+these checkpoints does not exist (2026-09-06 audit, restated 2026-09-07): the live GNN
+scheduler batches only parent-finished tasks, never decodes a diamond4 jointly, and the
+loader has no DAG block. A live version of this claim needs that serving path built first
+(forced-placement replay under an unconstrained decode, not the α = 2.0 handicap the
+2026-09-07 replay gate carries) — a separate piece of work, not a rerun of this offline
+gate at a bigger n.
+
+**Status: DRAFT. Nothing above is signed. No training has been queued.**

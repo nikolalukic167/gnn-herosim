@@ -36,7 +36,13 @@ During the simulation, logs are written under the `log` directory. When all the 
 
 To compare the outcomes of different policies, the user should call the `src.placement` module multiple times with different parameters -- once for each policy they want to evaluate. Each run will produces different results files in the output directory. These results allow comparing different orchestration policies according to various metrics, including (but not limited to) QoS violations, tasks consolidation across nodes, static and dynamic energy consumption, communication times, total makespan, etc. Finally, the user should call the `src.charts` module to generate the digest charts comparing the various results for the scenario.
 
-Various example `scenario-*.sh` scripts are given at the root of the repository to guide you through HeROsim's usage.
+Various example `scenario-*.sh` scripts guide you through HeROsim's original usage. They,
+along with the `src.placement` / `src.charts` / `src.generator` modules and the rest of the
+proactive-autoscaling stack described above, now live in **`archive/pre_gnn_herosim/`** —
+the repository's active work has moved on to GNN co-simulation. To run them as they were,
+check out the tag `pre-cleanup-2026-08`, where all their imports still resolve. See
+[`LINEAGES.md`](LINEAGES.md) for what is current and [`archive/README.md`](archive/README.md)
+for the archive's rules.
 
 ## Usage
 
@@ -108,6 +114,8 @@ pipenv shell
 
 # Run the simulation scenario as shown in the paper
 # e.g. compare performances of HRC, HRO, Knative, BPFF and RP policies
+# NOTE: these scenarios are archived; check out tag pre-cleanup-2026-08 to run them
+git checkout pre-cleanup-2026-08
 ./scenario-ids.sh
 ```
 

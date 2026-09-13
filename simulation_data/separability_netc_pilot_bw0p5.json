@@ -1,0 +1,465 @@
+{
+  "corpora": {
+    "netc_pilot_bw0p5": {
+      "datasets": [
+        {
+          "dataset_id": "ds_00000",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.033814620177895285,
+            "additive_r2": 0.9998771333996203,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.2761904761904762,
+            "interaction_r2_gain_node_collision": 0.00011510604484155085,
+            "interaction_r2_gain_platform_collision": 0.00011510604484155085,
+            "node_only_r2": 0.9998771333996203,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9998771333996203
+          },
+          "n_combos": 630,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 1.8091650683318061,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00001",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.007250895072744322,
+            "additive_r2": 0.9999563164662533,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.09523809523809523,
+            "interaction_r2_gain_node_collision": 2.8384542415382796e-05,
+            "interaction_r2_gain_platform_collision": 3.6487351964265e-05,
+            "node_only_r2": 0.9999563164662533,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9999563164662533
+          },
+          "n_combos": 420,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 1.4917254438970606,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00002",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.031121615453764344,
+            "additive_r2": 0.9650505012758773,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.18231292517006803,
+            "interaction_r2_gain_node_collision": 0.033623227653774124,
+            "interaction_r2_gain_platform_collision": 0.033623227653774124,
+            "node_only_r2": 0.9650505012758773,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9650505012758773
+          },
+          "n_combos": 735,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 0.6288197900390625,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00003",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": true,
+            "additive_choice_regret_rel": 0.0,
+            "additive_r2": 0.9999545735464234,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.2222222222222222,
+            "interaction_r2_gain_node_collision": 4.542109923555415e-05,
+            "interaction_r2_gain_platform_collision": 4.542109923555415e-05,
+            "node_only_r2": 0.9999545735464234,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9999545735464234
+          },
+          "n_combos": 90,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 1.636891678493342,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00004",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.14691118922717428,
+            "additive_r2": 0.9999428786805244,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.16666666666666666,
+            "interaction_r2_gain_node_collision": 3.5062211595326964e-05,
+            "interaction_r2_gain_platform_collision": 4.830985326376158e-05,
+            "node_only_r2": 0.9999428786805244,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9999428786805244
+          },
+          "n_combos": 108,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 1.9888660441945047,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00005",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.02091443122217925,
+            "additive_r2": 0.8360203719390205,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.15,
+            "interaction_r2_gain_node_collision": 0.15769836738219922,
+            "interaction_r2_gain_platform_collision": 0.15769836738219922,
+            "node_only_r2": 0.8360203719390205,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.8360203719390205
+          },
+          "n_combos": 540,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 0.6398226823265972,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00006",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.00725473103633399,
+            "additive_r2": 0.7476290560009258,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.48,
+            "interaction_r2_gain_node_collision": 0.2241496007367263,
+            "interaction_r2_gain_platform_collision": 0.2241496007367263,
+            "node_only_r2": 0.7476290560009258,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.7476290560009258
+          },
+          "n_combos": 600,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 2.3003574939650893,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00007",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": true,
+            "additive_choice_regret_rel": 0.0,
+            "additive_r2": 0.9414327803933951,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.103,
+            "interaction_r2_gain_node_collision": 0.017091409915577116,
+            "interaction_r2_gain_platform_collision": 2.9109705741436898e-05,
+            "node_only_r2": 0.9414327803933951,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9414327803933951
+          },
+          "n_combos": 1000,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 1.1085474730128,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00008",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": true,
+            "additive_choice_regret_rel": 0.0,
+            "additive_r2": 0.8898664388852108,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.1523809523809524,
+            "interaction_r2_gain_node_collision": 0.10978323883276375,
+            "interaction_r2_gain_platform_collision": 0.10978323883276375,
+            "node_only_r2": 0.8898664388852108,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.8898664388852108
+          },
+          "n_combos": 840,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 0.24522104003906248,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00009",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": true,
+            "additive_choice_regret_rel": 0.0,
+            "additive_r2": 0.9997914129506916,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.4222222222222222,
+            "interaction_r2_gain_node_collision": 0.00020584153880975897,
+            "interaction_r2_gain_platform_collision": 0.00020584153880975897,
+            "node_only_r2": 0.9997914129506916,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9997914129506916
+          },
+          "n_combos": 90,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 2.4787068702666852,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00010",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.024837583131115754,
+            "additive_r2": 0.9999537717972867,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.15,
+            "interaction_r2_gain_node_collision": 4.5687520639159374e-05,
+            "interaction_r2_gain_platform_collision": 4.5687520639159374e-05,
+            "node_only_r2": 0.9999537717972867,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.9999537717972867
+          },
+          "n_combos": 120,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 2.5070024809823046,
+          "opt_unique_plats": 4
+        },
+        {
+          "dataset_id": "ds_00011",
+          "greedy_in_sweep": true,
+          "m1_greedy_eq_opt": true,
+          "m1_regret_rel": 0.0,
+          "m2": {
+            "colocate_regret_rel": null,
+            "has_identical": false,
+            "max_group_size": 0,
+            "n_identical_groups": 0,
+            "opt_spreads_identical": null
+          },
+          "m4": {
+            "additive_choice_is_optimal": false,
+            "additive_choice_regret_rel": 0.018073386155828614,
+            "additive_r2": 0.994537450641826,
+            "degenerate": false,
+            "frac_plans_with_platform_collision": 0.0,
+            "interaction_r2_gain_node_collision": 0.005462549358174029,
+            "interaction_r2_gain_platform_collision": 0.0,
+            "node_only_r2": 0.994537450641826,
+            "node_share_of_additive": 1.0,
+            "platform_only_r2": 0.994537450641826
+          },
+          "n_combos": 300,
+          "n_tasks": 4,
+          "opt_has_collision": false,
+          "opt_rtt": 1.6075767458803127,
+          "opt_unique_plats": 4
+        }
+      ],
+      "excluded_datasets": [],
+      "path": "simulation_data/netc_pilot_bw0p5",
+      "summary": {
+        "datasets_analyzed": 12,
+        "m1_marginal_greedy": {
+          "coupled_gt_10pct_count": 0,
+          "coupled_gt_10pct_fraction": 0.0,
+          "coupled_gt_1pct_count": 0,
+          "coupled_gt_1pct_fraction": 0.0,
+          "coupled_gt_5pct_count": 0,
+          "coupled_gt_5pct_fraction": 0.0,
+          "greedy_exact_optimum_count": 12,
+          "greedy_exact_optimum_fraction": 1.0,
+          "greedy_in_sweep_count": 12,
+          "greedy_in_sweep_fraction": 1.0,
+          "regret_relative": {
+            "count": 12,
+            "max": 0.0,
+            "mean": 0.0,
+            "median": 0.0,
+            "p90": 0.0,
+            "p99": 0.0
+          }
+        },
+        "m2_identical_tasks": {
+          "forced_colocation_regret_relative": {
+            "count": 0,
+            "max": null,
+            "mean": null,
+            "median": null,
+            "p90": null,
+            "p99": null
+          },
+          "has_identical_count": 0,
+          "has_identical_fraction": 0.0,
+          "optimum_spreads_identical_count": 0,
+          "optimum_spreads_identical_fraction": null
+        },
+        "m3_optimum_collision": {
+          "avg_tasks_multitask": 4.0,
+          "avg_unique_platforms_multitask": 4.0,
+          "collision_count": 0,
+          "collision_fraction": 0.0
+        },
+        "m4_variance_decomposition": {
+          "additive_choice_optimal_fraction": 0.3333333333333333,
+          "additive_choice_regret_rel": {
+            "count": 12,
+            "max": 0.14691118922717428,
+            "mean": 0.02418153762308632,
+            "median": 0.018073386155828614,
+            "p90": 0.033814620177895285,
+            "p99": 0.14691118922717428
+          },
+          "additive_r2": {
+            "count": 12,
+            "max": 0.9999563164662533,
+            "mean": 0.9478343904980879,
+            "median": 0.9997914129506916,
+            "p90": 0.9999545735464234,
+            "p99": 0.9999563164662533
+          },
+          "degenerate_datasets": 0,
+          "fitted_datasets": 12,
+          "interaction_r2_gain_node_collision": {
+            "count": 12,
+            "max": 0.2241496007367263,
+            "mean": 0.04569032473639594,
+            "median": 0.005462549358174029,
+            "p90": 0.15769836738219922,
+            "p99": 0.2241496007367263
+          },
+          "interaction_r2_gain_platform_collision": {
+            "count": 12,
+            "max": 0.2241496007367263,
+            "mean": 0.04381503314332991,
+            "median": 0.00011510604484155085,
+            "p90": 0.15769836738219922,
+            "p99": 0.2241496007367263
+          },
+          "mean_frac_plans_with_platform_collision": 0.2000194633408919,
+          "node_share_of_additive": {
+            "count": 12,
+            "max": 1.0,
+            "mean": 1.0,
+            "median": 1.0,
+            "p90": 1.0,
+            "p99": 1.0
+          }
+        },
+        "mean_n_combos": 456.0833333333333,
+        "multitask_datasets": 12
+      }
+    }
+  },
+  "generated_at": "2026-08-18T11:57:25+00:00",
+  "integrity_manifest": null,
+  "integrity_manifest_sha256": null,
+  "schema_version": 1
+}

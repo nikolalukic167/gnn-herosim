@@ -33,6 +33,7 @@ Files used:
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -72,6 +73,12 @@ POLICY_CONFIG: Dict[str, Dict[str, str]] = {
         "policy_name": "knative network ECT",
         "scheduling_strategy": "kn_network_ect_kn_network_ect",
         "output_file": OUTPUT_DIR / "simulation_result_knative_network_ect.json",
+    },
+    "knative_network_ect_pull": {
+        "progress_log": BASE_DIR / "logs/knative_network_ect_pull_simulation_progress.txt",
+        "policy_name": "knative network ECT pull (FilterStore teacher)",
+        "scheduling_strategy": "kn_network_ect_pull_kn_network_ect_pull",
+        "output_file": OUTPUT_DIR / "simulation_result_knative_network_ect_pull.json",
     },
     "herocache_network": {
         "progress_log": BASE_DIR / "logs/herocache_network_simulation_progress.txt",
@@ -144,6 +151,13 @@ def parse_arguments() -> argparse.Namespace:
         const="knative_network_ect",
         dest="policy",
         help="Run with knative network ECT baseline (Regime B greedy physics-aware)",
+    )
+    policy_group.add_argument(
+        "--knative_network_ect_pull",
+        action="store_const",
+        const="knative_network_ect_pull",
+        dest="policy",
+        help="Run with knative ECT + FilterStore pull cost (ect_pull teacher)",
     )
     policy_group.add_argument("--herocache_network", action="store_const", const="herocache_network", dest="policy",
                              help="Run with herocache network policy")
@@ -271,9 +285,19 @@ def run_simulation(
     # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
-    # Build command
-    cmd = [
-        "pipenv", "run", "python", "-u", "-m", "src.executesimulation",
+    # Build command.
+    #
+    # HEROSIM_PY exists because `micromamba activate gnn` followed by `pipenv run` does NOT
+    # run in the activated env — pipenv resolves its own venv and shells past it (see
+    # PARITY.md / datalab-pitfalls #8). The 2026-08-21 sweep converted 52 shell call sites
+    # to ${HEROSIM_PY:-pipenv run python3} but missed this one and the sibling in
+    # important/run_normal_sim_config_sweep.py, because both are Python argv LISTS rather
+    # than the shell string the sweep grepped for. The shell guard therefore only ever
+    # controlled the wrapper process, which then re-spawned the actual simulation under
+    # pipenv anyway: every datalab live gate routed through here ran the simulator in the
+    # rogue venv (torch 2.12.0+cu130), which its own run_provenance.python_env records.
+    cmd = shlex.split(os.environ.get("HEROSIM_PY") or "pipenv run python") + [
+        "-u", "-m", "src.executesimulation",
         "--config", str(config_file),
         "--workload", str(workload_file),
         "--policy", policy,

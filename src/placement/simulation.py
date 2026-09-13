@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Dict, Tuple, Type, Set, Any, List, Optional
 
 from src.placement.infrastructure import Node, Platform, Storage, Application, Task
+from src.placement.network_fabric import build_fabric
 
 from simpy.core import Environment  # type: ignore[import-not-found]
 from simpy.resources.store import FilterStore  # type: ignore[import-not-found]
@@ -57,9 +58,6 @@ from src.policy.gnn_hetero.autoscaler import KnativeAutoscaler as GNNHeteroAutos
 from src.policy.gnn_hetero.orchestrator import GNNOrchestrator as GNNHeteroOrchestrator
 from src.policy.gnn_hetero.scheduler import GNNScheduler as GNNHeteroScheduler
 
-from src.policy.herofake.orchestrator import HROOrchestrator
-from src.policy.herofake.autoscaler import HROAutoscaler
-from src.policy.herofake.scheduler import HROScheduler
 
 from src.policy.herocache.orchestrator import HRCOrchestrator
 from src.policy.herocache.autoscaler import HRCAutoscaler
@@ -70,24 +68,14 @@ from src.policy.herocache_network.scheduler import HRCScheduler as HRCNetworkSch
 from src.policy.herocache_network_batch.orchestrator import HRCOrchestrator as HRCNetworkBatchOrchestrator
 from src.policy.herocache_network_batch.autoscaler import HRCAutoscaler as HRCNetworkBatchAutoscaler
 from src.policy.herocache_network_batch.scheduler import HRCScheduler as HRCNetworkBatchScheduler
-from src.policy.heteroproactiveknative.autoscaler import HeteroProactiveKnativeAutoscaler
-from src.policy.heteroproactiveknative.orchestrator import HeteroProactiveKnativeOrchestrator
-from src.policy.heteroproactiveknative.scheduler import HeteroProactiveKnativeScheduler
 
 from src.policy.knative.orchestrator import KnativeOrchestrator
 from src.policy.knative.autoscaler import KnativeAutoscaler
 from src.policy.knative.scheduler import KnativeScheduler
-from src.policy.proactiveknative.autoscaler import ProactiveKnativeAutoscaler
-from src.policy.proactiveknative.orchestrator import ProactiveKnativeOrchestrator
-from src.policy.proactiveknative.scheduler import ProactiveKnativeScheduler
 
 from src.policy.random.scheduler import RandomScheduler, RandomNetworkScheduler
 
-from src.policy.bpff.scheduler import BPFFScheduler
 
-from src.policy.multiloop.orchestrator import MultiLoopOrchestrator
-from src.policy.multiloop.autoscaler import MultiLoopAutoscaler
-from src.policy.multiloop.scheduler import MultiLoopScheduler
 from src.policy.determined.orchestrator import DeterminedOrchestrator
 from src.policy.determined.autoscaler import DeterminedAutoscaler
 from src.policy.determined.scheduler import DeterminedScheduler
@@ -126,6 +114,19 @@ def create_nodes(
 
     nodes_store = FilterStore(env)
 
+    # node_contention_v3: a node-level pool of execution slots that co-located platforms
+    # contend for. Absent from the infrastructure (the node_disk_v2 default) it stays None
+    # and platforms run independently, so existing corpora reproduce unchanged.
+    default_compute_slots = infrastructure.get("compute_slots_per_node")
+
+    # network_contention_v1: shared inbound bandwidth per node, same opt-in shape.
+    default_ingress_bandwidth = infrastructure.get("ingress_bandwidth_mbps")
+
+    # link_contention_v1: one fabric for the whole run, because a link belongs to no
+    # single node — this is the only place that owns cross-node state. Absent a
+    # link_topology this is None and no pipes exist, so the default path is unchanged.
+    fabric = build_fabric(env, infrastructure.get("link_topology"))
+
     for node in infrastructure["nodes"]:
         platforms_store = FilterStore(env)
         storage_store = FilterStore(env)
@@ -142,7 +143,12 @@ def create_nodes(
             policy=simulation_policy,
             data=simulation_data,
             node_type=node["type"],
-            node_name=node["node_name"]
+            node_name=node["node_name"],
+            compute_slots=node.get("compute_slots", default_compute_slots),
+            ingress_bandwidth_mbps=node.get(
+                "ingress_bandwidth_mbps", default_ingress_bandwidth
+            ),
+            fabric=fabric,
         )
         nodes_store.put(current_node)
 
@@ -218,13 +224,22 @@ def precreate_replicas(
     preinit_task_types = replica_plan['preinit_task_types']
     replicas_config = replica_plan['replicas_config']
     prewarm_config = replica_plan.get('prewarm_config', {})
+    # route_b env pivot (2026-08-27), W3: mirrors generate_infrastructure.py's
+    # preinit.replica_overlap. Default False -> assigned_platforms is checked exactly
+    # as before, so every existing replica_plan (no key, or key absent) materializes
+    # byte-identically. When True, a (node, platform) already claimed by one task type
+    # may ALSO be claimed by another -- this function's own dedup set exists only to
+    # stop ONE task type double-booking itself (mirrors the per-type check
+    # generate_infrastructure.py kept even under overlap), never to police cross-type
+    # sharing when overlap is the whole point.
+    replica_overlap = bool(replica_plan.get('replica_overlap', False))
     print("Using replica placement plan from executecosimulation.py (co-simulation mode)")
-    
+
     # Get all nodes and their platforms
     all_nodes = list(nodes.items)
     server_nodes = [node for node in all_nodes if not node.node_name.startswith('client_node')]
     client_nodes = [node for node in all_nodes if node.node_name.startswith('client_node')]
-    
+
     """
     print(f"Available nodes:")
     print(f"  Server nodes: {[n.node_name for n in server_nodes]}")
@@ -233,9 +248,22 @@ def precreate_replicas(
     print(f"  preinit_servers: {preinit_servers}")
     print(f"  preinit_clients: {preinit_clients}")
     """
-    
-    # Track which platforms have been assigned to avoid double-booking
+
+    # Track which platforms have been assigned to avoid double-booking. Under
+    # replica_overlap this tracks PER-TASK-TYPE assignment instead of a single global
+    # set, so one type still can't double-book itself but different types can share.
     assigned_platforms = set()
+    assigned_platforms_by_type: Dict[str, set] = {}
+
+    def _is_assigned(task_type_name: str, key) -> bool:
+        if replica_overlap:
+            return key in assigned_platforms_by_type.get(task_type_name, set())
+        return key in assigned_platforms
+
+    def _mark_assigned(task_type_name: str, key) -> None:
+        assigned_platforms.add(key)
+        if replica_overlap:
+            assigned_platforms_by_type.setdefault(task_type_name, set()).add(key)
     initial_replicas = {}
     
     # Use deterministic placements if provided
@@ -264,10 +292,10 @@ def precreate_replicas(
                         platform = p
                         break
                 
-                if platform and (node, platform) not in assigned_platforms:
+                if platform and not _is_assigned(task_type_name, (node, platform)):
                     replica = (node, platform)
                     initial_replicas[task_type_name].add(replica)
-                    assigned_platforms.add(replica)
+                    _mark_assigned(task_type_name, replica)
 
                     queue_length = 0
                     if env and simulation_policy and deterministic_queues:
@@ -284,7 +312,15 @@ def precreate_replicas(
 
                     # Cold replicas may defer platform.initialized until image pull completes.
                     # force_warm / busy queue ⇒ succeed initialized immediately.
-                    if not (defer_cold_init and queue_length == 0 and not force_warm):
+                    #
+                    # route_b env pivot W3: under replica_overlap the SAME Platform object
+                    # is legitimately claimed by more than one task type (a shared physical
+                    # slot), so this SimPy Event can already be triggered by an earlier task
+                    # type's pass through this loop -- succeed()ing it twice raises
+                    # RuntimeError. The physical platform only needs to be marked ready
+                    # once; a second type finding it already initialized is not an error.
+                    if (not (defer_cold_init and queue_length == 0 and not force_warm)
+                            and not platform.initialized.triggered):
                         platform.initialized.succeed()
 
                     # Use deterministic queue length if provided
@@ -370,20 +406,20 @@ def precreate_replicas(
                     # Find suitable unassigned platforms on this server
                     suitable_platforms = [
                         platform for platform in node.platforms.items
-                        if (platform.type["shortName"] in supported_platforms and 
-                            (node, platform) not in assigned_platforms)
+                        if (platform.type["shortName"] in supported_platforms and
+                            not _is_assigned(task_type_name, (node, platform)))
                     ]
-                    
+
                     # Create up to per_server replicas on this node
                     replicas_created = 0
                     for platform in suitable_platforms:
                         if replicas_created >= per_node_target:
                             break
-                        
+
                         # Create replica
                         replica = (node, platform)
                         initial_replicas[task_type_name].add(replica)
-                        assigned_platforms.add(replica)
+                        _mark_assigned(task_type_name, replica)
                         
                         # Mark platform as initialized (replica exists)
                         platform.initialized.succeed()
@@ -439,20 +475,20 @@ def precreate_replicas(
                     # Find suitable unassigned platforms on this client
                     suitable_platforms = [
                         platform for platform in node.platforms.items
-                        if (platform.type["shortName"] in supported_platforms and 
-                            (node, platform) not in assigned_platforms)
+                        if (platform.type["shortName"] in supported_platforms and
+                            not _is_assigned(task_type_name, (node, platform)))
                     ]
-                    
+
                     # Create up to per_client replicas on this node
                     replicas_created = 0
                     for platform in suitable_platforms:
                         if replicas_created >= per_node_target:
                             break
-                        
+
                         # Create replica
                         replica = (node, platform)
                         initial_replicas[task_type_name].add(replica)
-                        assigned_platforms.add(replica)
+                        _mark_assigned(task_type_name, replica)
                         
                         # Mark platform as initialized (replica exists)
                         platform.initialized.succeed()
@@ -605,7 +641,15 @@ def start_simulation(
         trace_file: str,
         models = None
 ) -> SimulationStats | None:
-    # Logger
+    # Logger. `force=True` is load-bearing, not tidying (2026-09-13): `basicConfig` is a
+    # NO-OP once the root logger has any handler, and `src/notebooks/prepare_graphs_cache.py`
+    # calls `basicConfig(level=INFO)` at MODULE IMPORT -- which a prefix-conditioned
+    # checkpoint triggers on load (`prefix_serving._task_type_vocab`). Without force the
+    # intended stdout/ERROR handler was silently discarded and every per-event
+    # `logging.info` in the simulator went to stderr at INFO instead: ~390 MB of log per
+    # 450,729-task arm. 102 such arms exhausted the 250 GiB /home quota on datalab and
+    # killed 128 of them with exit 1 and no traceback -- the traceback could not be
+    # written either. See docs/gates/gate-tools.md 2026-09-13.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.ERROR)
 
@@ -613,6 +657,7 @@ def start_simulation(
         level=logging.DEBUG,
         format="%(levelname)s [%(funcName)18s() ] %(message)s",
         handlers=[console_handler],
+        force=True,
     )
 
     logger = logging.getLogger('simulation')
@@ -688,29 +733,17 @@ def start_simulation(
     policies: Dict[
         str, Tuple[Type[Orchestrator], Type[Autoscaler], Type[Scheduler]]
     ] = {
-        "hro_hro": (HROOrchestrator, HROAutoscaler, HROScheduler),
-        "hro_hrc": (HROOrchestrator, HROAutoscaler, HRCScheduler),
-        "hro_kn": (HROOrchestrator, HROAutoscaler, KnativeScheduler),
-        "hro_rp": (HROOrchestrator, HROAutoscaler, RandomScheduler),
-        "hro_bpff": (HROOrchestrator, HROAutoscaler, BPFFScheduler),
         "hrc_hrc": (HRCOrchestrator, HRCAutoscaler, HRCScheduler),
-        "hrc_hro": (HRCOrchestrator, HRCAutoscaler, HROScheduler),
         "hrc_kn": (HRCOrchestrator, HRCAutoscaler, KnativeScheduler),
         "hrc_rp": (HRCOrchestrator, HRCAutoscaler, RandomScheduler),
-        "hrc_bpff": (HRCOrchestrator, HRCAutoscaler, BPFFScheduler),
         "kn_kn": (KnativeOrchestrator, KnativeAutoscaler, KnativeScheduler),
-        "kn_hro": (KnativeOrchestrator, KnativeAutoscaler, HROScheduler),
         "kn_hrc": (KnativeOrchestrator, KnativeAutoscaler, HRCScheduler),
         "kn_rp": (KnativeOrchestrator, KnativeAutoscaler, RandomScheduler),
-        "kn_bpff": (KnativeOrchestrator, KnativeAutoscaler, BPFFScheduler),
-        "prokn_prokn": (ProactiveKnativeOrchestrator, ProactiveKnativeAutoscaler, ProactiveKnativeScheduler),
-        "prohetkn_prohetkn": (HeteroProactiveKnativeOrchestrator, HeteroProactiveKnativeAutoscaler, HeteroProactiveKnativeScheduler),
         "gnn_gnn": (GNNOrchestrator, GNNAutoscaler, GNNScheduler),
         "gnn_hetero_gnn_hetero": (GNNHeteroOrchestrator, GNNHeteroAutoscaler, GNNHeteroScheduler),
         "xgb_batch_xgb_batch": (XGBoostBatchOrchestrator, GNNAutoscaler, XGBoostBatchScheduler),
         "mlp_batch_mlp_batch": (MLPBatchOrchestrator, GNNAutoscaler, MLPBatchScheduler),
         "xgb_single_xgb_single": (XGBoostSingleOrchestrator, KnativeNetworkAutoscaler, XGBoostSingleScheduler),
-        "multiloop_multiloop": (MultiLoopOrchestrator, MultiLoopAutoscaler, MultiLoopScheduler),
         "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
         "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),
         "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkScheduler),

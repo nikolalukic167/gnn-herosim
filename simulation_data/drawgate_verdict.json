@@ -1,0 +1,276 @@
+{
+  "conditions": {
+    "backbone": {
+      "cells": {
+        "cell01_p25_s9001": {
+          "deployed": {
+            "total_rtt": 192382730.20978534,
+            "vs_knative_pct": -31.802324299563743
+          },
+          "knative": 282095728.6797308,
+          "mlp": {
+            "total_rtt": 201004956.8064101,
+            "vs_knative_pct": -28.74583470400033
+          },
+          "mlptempfix": {
+            "total_rtt": 197912831.93996087,
+            "vs_knative_pct": -29.841960788901034
+          },
+          "prefixctl": {
+            "total_rtt": 213165845.12173408,
+            "vs_knative_pct": -24.434926356596574
+          },
+          "tempfix": {
+            "total_rtt": 189255795.5423627,
+            "vs_knative_pct": -32.91079009663816
+          }
+        },
+        "cell02_p35_s9002": {
+          "deployed": {
+            "total_rtt": 170022239.76958928,
+            "vs_knative_pct": -24.357697065147217
+          },
+          "knative": 224771368.89396608,
+          "mlp": {
+            "total_rtt": 133583056.46753114,
+            "vs_knative_pct": -40.569362937613384
+          },
+          "mlptempfix": {
+            "total_rtt": 156406062.0014557,
+            "vs_knative_pct": -30.41548718100352
+          },
+          "prefixctl": {
+            "total_rtt": 201961001.6200938,
+            "vs_knative_pct": -10.148253038683443
+          },
+          "tempfix": {
+            "total_rtt": 137965568.00483948,
+            "vs_knative_pct": -38.619598802228445
+          }
+        },
+        "cell03_p15_s9003": {
+          "deployed": {
+            "total_rtt": 165529821.2494319,
+            "vs_knative_pct": -26.655804217909413
+          },
+          "knative": 225689053.48860815,
+          "mlp": {
+            "total_rtt": 168865532.2235729,
+            "vs_knative_pct": -25.17779235930176
+          },
+          "mlptempfix": {
+            "total_rtt": 173228759.15430456,
+            "vs_knative_pct": -23.24450101739275
+          },
+          "prefixctl": {
+            "total_rtt": 171037549.36553124,
+            "vs_knative_pct": -24.21539869935938
+          },
+          "tempfix": {
+            "total_rtt": 158055083.61653918,
+            "vs_knative_pct": -29.96776707891278
+          }
+        },
+        "cell04_p50_s9004": {
+          "deployed": {
+            "total_rtt": 260705995.69625443,
+            "vs_knative_pct": -8.860366377306764
+          },
+          "knative": 286051178.1027614,
+          "mlp": {
+            "total_rtt": 169975134.3451989,
+            "vs_knative_pct": -40.57876794196009
+          },
+          "mlptempfix": {
+            "total_rtt": 224509521.43562055,
+            "vs_knative_pct": -21.514211923655335
+          },
+          "prefixctl": {
+            "total_rtt": 387339686.7968668,
+            "vs_knative_pct": 35.40922619718013
+          },
+          "tempfix": {
+            "total_rtt": 179179413.76238108,
+            "vs_knative_pct": -37.36106421557459
+          }
+        },
+        "cell05_p20_s9005": {
+          "deployed": {
+            "total_rtt": 141396784.28149968,
+            "vs_knative_pct": -28.16210456777995
+          },
+          "knative": 196827570.50547132,
+          "mlp": {
+            "total_rtt": 487017477.3326429,
+            "vs_knative_pct": 147.43356638601855
+          },
+          "mlptempfix": {
+            "total_rtt": 529180193.63513774,
+            "vs_knative_pct": 168.85470987430995
+          },
+          "prefixctl": {
+            "total_rtt": 157950118.41050503,
+            "vs_knative_pct": -19.752035751457694
+          },
+          "tempfix": {
+            "total_rtt": 134265209.0629757,
+            "vs_knative_pct": -31.785364866227688
+          }
+        }
+      },
+      "mean_margin_pct": {
+        "deployed": -23.967659305541417,
+        "mlp": 2.472361688628599,
+        "mlptempfix": 12.767709792671463,
+        "prefixctl": -8.628277529783393,
+        "tempfix": -34.12891701191633
+      },
+      "n_cells": 5,
+      "wins_vs_knative": {
+        "deployed": 5,
+        "mlp": 4,
+        "mlptempfix": 4,
+        "prefixctl": 4,
+        "tempfix": 5
+      }
+    },
+    "nobackbone": {
+      "cells": {
+        "cell01_p25_s9001": {
+          "deployed": {
+            "total_rtt": 24166251.191374697,
+            "vs_knative_pct": -1.247514515910075
+          },
+          "knative": 24471537.169834714,
+          "mlp": {
+            "total_rtt": 22204301.36226622,
+            "vs_knative_pct": -9.264787053766462
+          },
+          "mlptempfix": {
+            "total_rtt": 20742522.93220655,
+            "vs_knative_pct": -15.23816919120554
+          },
+          "prefixctl": {
+            "total_rtt": 25338264.49689053,
+            "vs_knative_pct": 3.5417772126068274
+          },
+          "tempfix": {
+            "total_rtt": 23188553.335822023,
+            "vs_knative_pct": -5.2427594764834975
+          }
+        },
+        "cell02_p35_s9002": {
+          "deployed": {
+            "total_rtt": 21151604.02904756,
+            "vs_knative_pct": -12.959579636318503
+          },
+          "knative": 24300898.29606715,
+          "mlp": {
+            "total_rtt": 16637375.195876965,
+            "vs_knative_pct": -31.535966312119605
+          },
+          "mlptempfix": {
+            "total_rtt": 16604608.236171428,
+            "vs_knative_pct": -31.67080478313547
+          },
+          "prefixctl": {
+            "total_rtt": 23769864.218968377,
+            "vs_knative_pct": -2.1852446384038173
+          },
+          "tempfix": {
+            "total_rtt": 19382364.395816457,
+            "vs_knative_pct": -20.2401320326776
+          }
+        },
+        "cell03_p15_s9003": {
+          "deployed": {
+            "total_rtt": 23270968.286212683,
+            "vs_knative_pct": -14.655824832853284
+          },
+          "knative": 27267201.58773162,
+          "mlp": {
+            "total_rtt": 20592297.503038414,
+            "vs_knative_pct": -24.479608085988758
+          },
+          "mlptempfix": {
+            "total_rtt": 78429314.21772239,
+            "vs_knative_pct": 187.6324288921905
+          },
+          "prefixctl": {
+            "total_rtt": 24952535.15345427,
+            "vs_knative_pct": -8.48883016773819
+          },
+          "tempfix": {
+            "total_rtt": 22676188.8109189,
+            "vs_knative_pct": -16.83712485874737
+          }
+        },
+        "cell04_p50_s9004": {
+          "deployed": {
+            "total_rtt": 19328569.709747836,
+            "vs_knative_pct": -5.3752736317201695
+          },
+          "knative": 20426552.81720019,
+          "mlp": {
+            "total_rtt": 16520825.54366054,
+            "vs_knative_pct": -19.12083408538141
+          },
+          "mlptempfix": {
+            "total_rtt": 16656601.178242292,
+            "vs_knative_pct": -18.456132430643947
+          },
+          "prefixctl": {
+            "total_rtt": 25439171.972859874,
+            "vs_knative_pct": 24.539721413193146
+          },
+          "tempfix": {
+            "total_rtt": 17525921.787844293,
+            "vs_knative_pct": -14.200296326619636
+          }
+        },
+        "cell05_p20_s9005": {
+          "deployed": {
+            "total_rtt": 23020758.90305437,
+            "vs_knative_pct": -12.981546746162609
+          },
+          "knative": 26455031.136788435,
+          "mlp": {
+            "total_rtt": 161323506.19022268,
+            "vs_knative_pct": 509.8027454818823
+          },
+          "mlptempfix": {
+            "total_rtt": 170555066.47206712,
+            "vs_knative_pct": 544.6980371718134
+          },
+          "prefixctl": {
+            "total_rtt": 24867227.80201629,
+            "vs_knative_pct": -6.0018955432796295
+          },
+          "tempfix": {
+            "total_rtt": 22920287.98265431,
+            "vs_knative_pct": -13.361326758064939
+          }
+        }
+      },
+      "mean_margin_pct": {
+        "deployed": -9.443947872592927,
+        "mlp": 85.08030998892522,
+        "mlptempfix": 133.3930719318038,
+        "prefixctl": 2.2811056552756677,
+        "tempfix": -13.97632789051861
+      },
+      "n_cells": 5,
+      "wins_vs_knative": {
+        "deployed": 5,
+        "mlp": 4,
+        "mlptempfix": 3,
+        "prefixctl": 3,
+        "tempfix": 5
+      }
+    }
+  },
+  "inference_feature_layout": "dim22",
+  "noise_floor_pct": 0.4,
+  "prefix": "drawgate",
+  "warmth_physics": "node_disk_v2"
+}

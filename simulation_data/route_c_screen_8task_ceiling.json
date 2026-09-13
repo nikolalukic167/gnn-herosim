@@ -1,0 +1,104 @@
+{
+ "definition": "sum(link_wait_total) / (sum(link_wait_total) + sum(8*link_transfer_avg)) per dataset; 8-task rung",
+ "max": 0.09992118409015968,
+ "median": 0.07038233292913303,
+ "min": 0.03445714432138223,
+ "per_dataset": [
+  {
+   "ceiling": 0.0644035625488609,
+   "dataset": "ds_00000"
+  },
+  {
+   "ceiling": 0.038541588272717815,
+   "dataset": "ds_00001"
+  },
+  {
+   "ceiling": 0.09992118409015968,
+   "dataset": "ds_00002"
+  },
+  {
+   "ceiling": 0.048619121081066016,
+   "dataset": "ds_00003"
+  },
+  {
+   "ceiling": 0.05159903854330748,
+   "dataset": "ds_00004"
+  },
+  {
+   "ceiling": 0.07312519013331324,
+   "dataset": "ds_00005"
+  },
+  {
+   "ceiling": 0.06638862226384167,
+   "dataset": "ds_00006"
+  },
+  {
+   "ceiling": 0.062392699419187285,
+   "dataset": "ds_00007"
+  },
+  {
+   "ceiling": 0.05591472696629047,
+   "dataset": "ds_00008"
+  },
+  {
+   "ceiling": 0.052911141365700444,
+   "dataset": "ds_00009"
+  },
+  {
+   "ceiling": 0.05259968529299269,
+   "dataset": "ds_00010"
+  },
+  {
+   "ceiling": 0.07226876349451053,
+   "dataset": "ds_00011"
+  },
+  {
+   "ceiling": 0.09015551470553206,
+   "dataset": "ds_00012"
+  },
+  {
+   "ceiling": 0.07473206157053751,
+   "dataset": "ds_00013"
+  },
+  {
+   "ceiling": 0.09619060932047115,
+   "dataset": "ds_00014"
+  },
+  {
+   "ceiling": 0.07092832340718874,
+   "dataset": "ds_00015"
+  },
+  {
+   "ceiling": 0.03445714432138223,
+   "dataset": "ds_00016"
+  },
+  {
+   "ceiling": 0.09268958601688693,
+   "dataset": "ds_00017"
+  },
+  {
+   "ceiling": 0.061211157069247096,
+   "dataset": "ds_00018"
+  },
+  {
+   "ceiling": 0.05155312112844022,
+   "dataset": "ds_00019"
+  },
+  {
+   "ceiling": 0.07444887805550457,
+   "dataset": "ds_00020"
+  },
+  {
+   "ceiling": 0.07829264373163312,
+   "dataset": "ds_00021"
+  },
+  {
+   "ceiling": 0.07038233292913303,
+   "dataset": "ds_00022"
+  },
+  {
+   "ceiling": 0.08532107925550075,
+   "dataset": "ds_00023"
+  }
+ ]
+}

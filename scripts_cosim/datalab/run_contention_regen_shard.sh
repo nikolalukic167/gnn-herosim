@@ -15,6 +15,15 @@ NUM_SHARDS="${NUM_SHARDS:-10}"
 WORKERS="${WORKERS:-}"
 ONLY_MISSING_JSONL="${ONLY_MISSING_JSONL:-0}"
 ALLOW_NON_UNIQUE="${ALLOW_NON_UNIQUE:-1}"
+# network_contention_v1: shared per-node inbound bandwidth (MB/s). Unset keeps
+# node_disk_v2 physics, so every existing grid submits exactly as before.
+INGRESS_BANDWIDTH_MBPS="${INGRESS_BANDWIDTH_MBPS:-}"
+# link_contention_v1 / route_c screen: per-link backbone capacity (MB/s). Unset keeps
+# the grid preset's backbone_defaults (or no backbone at all) — same convention as
+# the ingress knob above.
+LINK_BANDWIDTH_MBPS="${LINK_BANDWIDTH_MBPS:-}"
+# Fixed workload draw, so matched arms differ only in the variable under test.
+WORKLOAD_SEED="${WORKLOAD_SEED:-}"
 
 export PYTHONUNBUFFERED=1
 export GNN_CAPTURE_DATASET_STATE="${GNN_CAPTURE_DATASET_STATE:-0}"
@@ -64,6 +73,7 @@ echo "=== Contention regen shard (array ${SLURM_ARRAY_TASK_ID}/${NUM_SHARDS}) ==
 echo "Output: simulation_data/${OUTPUT_SUBDIR} · Grid: ${GRID}"
 echo "Range: ds_$(printf '%05d' "${start}") .. ds_$(printf '%05d' "$((start + count - 1))") (${count} indices)"
 echo "Workers: ${WORKERS} · only_missing_jsonl=${ONLY_MISSING_JSONL} · allow_non_unique=${ALLOW_NON_UNIQUE}"
+echo "Ingress bandwidth: ${INGRESS_BANDWIDTH_MBPS:-unset (node_disk_v2)} · link bandwidth: ${LINK_BANDWIDTH_MBPS:-unset (grid default)} · workload_seed=${WORKLOAD_SEED:-default}"
 echo "Log: ${LOG}"
 
 extra_args=()
@@ -72,6 +82,15 @@ if [[ "${ONLY_MISSING_JSONL}" == "1" ]]; then
 fi
 if [[ "${ALLOW_NON_UNIQUE}" == "1" ]]; then
   extra_args+=(--allow-non-unique-replicas)
+fi
+if [[ -n "${INGRESS_BANDWIDTH_MBPS}" ]]; then
+  extra_args+=(--ingress-bandwidth-mbps "${INGRESS_BANDWIDTH_MBPS}")
+fi
+if [[ -n "${LINK_BANDWIDTH_MBPS}" ]]; then
+  extra_args+=(--link-bandwidth-mbps "${LINK_BANDWIDTH_MBPS}")
+fi
+if [[ -n "${WORKLOAD_SEED}" ]]; then
+  extra_args+=(--workload-seed "${WORKLOAD_SEED}")
 fi
 
 python3 -u scripts_cosim/generate_gnn_datasets_fast.py \

@@ -23,7 +23,7 @@ import statistics
 from abc import abstractmethod
 from collections import defaultdict
 from graphlib import TopologicalSorter
-from typing import Dict, Generator, List, Tuple, Type
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Type
 
 from simpy.core import Environment, SimTime
 from simpy.events import Event, Process
@@ -65,6 +65,37 @@ def check_serializable(obj, path=""):
 
 
 # todo: add network latency statistics
+
+def build_peer_exchange_table(
+    triples: Optional[List[List[float]]],
+) -> Dict[int, Dict[int, float]]:
+    """peer_affinity_v1: symmetrise `[i, j, bytes]` triples into {i: {j: bytes}} both ways.
+
+    Fail loud on a self-pair, a negative or non-finite payload, or the same unordered pair
+    listed twice with different payloads: each of those would silently mis-charge a plan.
+    """
+    table: Dict[int, Dict[int, float]] = {}
+    if not triples:
+        return table
+    for triple in triples:
+        if len(triple) != 3:
+            raise ValueError(f"peer_exchange entry must be [i, j, bytes], got {triple!r}")
+        i, j, payload = int(triple[0]), int(triple[1]), float(triple[2])
+        if i == j:
+            raise ValueError(f"peer_exchange lists task {i} as its own peer")
+        if not (payload >= 0.0) or payload == float("inf"):
+            raise ValueError(f"peer_exchange payload for ({i}, {j}) must be finite and >= 0, got {payload!r}")
+        existing = table.get(i, {}).get(j)
+        if existing is not None and existing != payload:
+            raise ValueError(
+                f"peer_exchange lists pair ({i}, {j}) twice with different payloads "
+                f"({existing!r} vs {payload!r})"
+            )
+        table.setdefault(i, {})[j] = payload
+        table.setdefault(j, {})[i] = payload
+    return table
+
+
 class Orchestrator:
     def __init__(
             self,
@@ -109,6 +140,16 @@ class Orchestrator:
 
         self.application_archive: List[Application] = []
         self.task_archive: List[Task] = []
+        # peer_affinity_v1: global task id -> Task (filled as the gateway creates them) and
+        # the symmetrised peer-exchange table from the trace (HEROSIM_PEER_EXCHANGE=1 reads
+        # it in Platform._peer_exchange_time). Empty for every trace without `peer_exchange`.
+        self.task_by_id: Dict[int, Task] = {}
+        self.peer_exchange: Dict[int, Dict[int, float]] = build_peer_exchange_table(
+            getattr(time_series, "peer_exchange", None)
+        )
+        # stage 3 live serving: rendezvous events for peers that do not exist yet
+        # (Platform._peer_rendezvous_events waits on them; peer_ready_event below).
+        self._peer_ready_events: Dict[int, Any] = {}
         self.trace_file = trace_file
         self.initial_event_count = len(time_series.events)
         self.system_state_results: List[SystemStateResult] = []  # Store system state snapshots
@@ -116,6 +157,20 @@ class Orchestrator:
         # Set orchestrator reference on all nodes for system state capture
         for node in self.nodes.items:
             node.orchestrator_ref = self
+
+    def peer_ready_event(self, task_id: int):
+        """An event that fires when the task with this global id is scheduled (its
+        platform set). For a task the gateway has not created yet the event is minted
+        here and chained to `task.scheduled` at creation; for an existing task it IS
+        `task.scheduled`, which SimPy resumes immediately if already processed."""
+        task = self.task_by_id.get(int(task_id))
+        if task is not None:
+            return task.scheduled
+        event = self._peer_ready_events.get(int(task_id))
+        if event is None:
+            event = self.env.event()
+            self._peer_ready_events[int(task_id)] = event
+        return event
 
     def _use_low_memory_stats(self) -> bool:
         if os.getenv("SIM_FORCE_FULL_STATS", "0") == "1":
@@ -140,6 +195,24 @@ class Orchestrator:
             "averageGNNDecisionTime": avg,
         }
 
+    def _scheduler_counters(self) -> Dict[str, Any]:
+        """Policy-side counters a gate report needs alongside the totals (stage 3: how
+        many batches the prefix decoder served, tasks it deferred to the autoscaler,
+        peer pairs it saw and peers it could not, incomplete peer groups). Empty for
+        schedulers that keep none."""
+        names = (
+            "prefix_batches", "prefix_tasks_decoded", "prefix_tasks_deferred",
+            "prefix_pairs_in_batch", "prefix_peers_outside_batch",
+            "peer_group_incomplete_batches", "prefix_batches_load_seeded",
+            "gnn_pure_decisions", "fallback_decisions",
+        )
+        out: Dict[str, Any] = {}
+        for name in names:
+            value = getattr(self.scheduler, name, None)
+            if isinstance(value, (int, float)):
+                out[name] = value
+        return out
+
     def _stats_low_memory(self) -> SimulationStats:
         """Single-pass aggregates without materializing full TaskResult dicts."""
         logger = logging.getLogger('simulation')
@@ -153,6 +226,10 @@ class Orchestrator:
         sum_pull = sum_cold = sum_exec = sum_wait = sum_queue = 0.0
         sum_init = sum_compute = sum_comm = 0.0
         sum_network = 0.0
+        sum_link_wait = sum_link_transfer = 0.0
+        sum_ingress_wait = sum_node_contention = 0.0
+        sum_peer_exchange = 0.0
+        sum_peer_rendezvous = 0.0
         sum_local_deps = sum_local_comms = 0.0
         sum_cold_started = sum_cache_hit = 0.0
         sum_task_energy = 0.0
@@ -183,6 +260,12 @@ class Orchestrator:
             sum_compute += float(getattr(task, "compute_time", 0.0) or 0.0)
             sum_comm += float(getattr(task, "communications_time", 0.0) or 0.0)
             sum_network += float(getattr(task, "network_latency", 0.0) or 0.0)
+            sum_link_wait += float(getattr(task, "link_wait_time", 0.0) or 0.0)
+            sum_link_transfer += float(getattr(task, "link_transfer_time", 0.0) or 0.0)
+            sum_ingress_wait += float(getattr(task, "ingress_wait_time", 0.0) or 0.0)
+            sum_node_contention += float(getattr(task, "node_contention_time", 0.0) or 0.0)
+            sum_peer_exchange += float(getattr(task, "peer_exchange_time", 0.0) or 0.0)
+            sum_peer_rendezvous += float(getattr(task, "peer_rendezvous_wait", 0.0) or 0.0)
             sum_local_deps += float(getattr(task, "local_dependencies", 0.0) or 0.0)
             sum_local_comms += float(getattr(task, "local_communications", 0.0) or 0.0)
             sum_cold_started += float(getattr(task, "cold_started", False) or False)
@@ -315,6 +398,7 @@ class Orchestrator:
             "taskResults": [],
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
+            "schedulerCounters": self._scheduler_counters(),
             "num_tasks": n_tasks,
             **inference_agg,
             "statsSchemaVersion": "v2_streaming",
@@ -323,6 +407,15 @@ class Orchestrator:
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
             "averageNetworkLatency": sum_network / n_tasks,
+            "averageLinkWaitTime": sum_link_wait / n_tasks,
+            "totalLinkWaitTime": sum_link_wait,
+            "averageLinkTransferTime": sum_link_transfer / n_tasks,
+            "averageIngressWaitTime": sum_ingress_wait / n_tasks,
+            "averageNodeContentionTime": sum_node_contention / n_tasks,
+            "totalPeerExchangeTime": sum_peer_exchange,
+            "averagePeerExchangeTime": sum_peer_exchange / n_tasks,
+            "totalPeerRendezvousWait": sum_peer_rendezvous,
+            "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
             "offloadingRate": offloaded / n_tasks * 100,
@@ -330,6 +423,14 @@ class Orchestrator:
         }
         check_serializable(result, "stats")
         return result
+
+    def _fabric_link_wait_total(self) -> float:
+        """Total wait accumulated on shared backbone links, all tasks (incl. internal)."""
+        for node in self.nodes.items:
+            fabric = getattr(node, "fabric", None)
+            if fabric is not None:
+                return float(getattr(fabric, "link_wait_total", 0.0) or 0.0)
+        return 0.0
 
     def stats(self) -> SimulationStats:
         logger = logging.getLogger('simulation')
@@ -536,6 +637,30 @@ class Orchestrator:
         average_network_latency = sum(
             task_result["networkLatency"] for task_result in task_results
         ) / len(task_results)
+        sum_link_wait = sum(
+            float(task_result.get("linkWaitTime", 0.0) or 0.0)
+            for task_result in task_results
+        )
+        average_link_transfer_time = sum(
+            float(task_result.get("linkTransferTime", 0.0) or 0.0)
+            for task_result in task_results
+        ) / len(task_results)
+        average_ingress_wait_time = sum(
+            float(task_result.get("ingressWaitTime", 0.0) or 0.0)
+            for task_result in task_results
+        ) / len(task_results)
+        sum_peer_exchange = sum(
+            float(task_result.get("peerExchangeTime", 0.0) or 0.0)
+            for task_result in task_results
+        )
+        sum_peer_rendezvous = sum(
+            float(task_result.get("peerRendezvousWait", 0.0) or 0.0)
+            for task_result in task_results
+        )
+        average_node_contention_time = sum(
+            float(task_result.get("nodeContentionTime", 0.0) or 0.0)
+            for task_result in task_results
+        ) / len(task_results)
 
         # Calculate per-node-pair latencies
         node_pair_latencies = defaultdict(list)
@@ -597,6 +722,7 @@ class Orchestrator:
             "taskResults": task_results if task_results_included else [],
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
+            "schedulerCounters": self._scheduler_counters(),
             "num_tasks": num_tasks,
             "statsSchemaVersion": "v2_task_metrics",
             "taskResultsIncluded": task_results_included,
@@ -606,6 +732,15 @@ class Orchestrator:
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
             "averageNetworkLatency": average_network_latency,
+            "averageLinkWaitTime": sum_link_wait / num_tasks,
+            "totalLinkWaitTime": sum_link_wait,
+            "averageLinkTransferTime": average_link_transfer_time,
+            "averageIngressWaitTime": average_ingress_wait_time,
+            "averageNodeContentionTime": average_node_contention_time,
+            "totalPeerExchangeTime": sum_peer_exchange,
+            "averagePeerExchangeTime": sum_peer_exchange / num_tasks,
+            "totalPeerRendezvousWait": sum_peer_rendezvous,
+            "fabricLinkWaitTotal": self._fabric_link_wait_total(),
             "nodePairLatencies": average_node_pair_latencies,
             "networkTopology": network_topology,
             "offloadingRate": offloading_rate,
@@ -669,6 +804,14 @@ class Orchestrator:
             for predecessor_name in predecessors:
                 dependencies[function_name].append(function_tasks[predecessor_name])
 
+        # Invert the dag once, here, instead of rebuilding a TopologicalSorter on every task
+        # completion. `workflow_process` needs children; the dag stores parents.
+        children: Dict[str, List[Task]] = {name: [] for name in ordered}
+        for function_name in ordered:
+            for predecessor_name in application_type["dag"][function_name]:
+                children[predecessor_name].append(function_tasks[function_name])
+        application.children_by_function = children
+
         return application
 
     @abstractmethod
@@ -715,46 +858,64 @@ class Orchestrator:
         pass
 
     def workflow_process(self, task: Task) -> Generator:
-        # Find next task in the application
-        task_dag = task.application.type["dag"]
-        sorter = TopologicalSorter(task_dag)
-        ordered = tuple(sorter.static_order())
-        current_index = ordered.index(task.type["name"])
+        """Dispatch a task's children once it finishes.
 
-        # If current task is the last task of the application, clear application data
-        # FIXME
-        # first_task = task.application.tasks[0]
-        # first_task.storage["input"].remove_data(first_task)
-        if current_index == len(ordered) - 1:
-            for application_task in task.application.tasks:
-                application_task.storage["input"]
+        Was: take `TopologicalSorter(dag).static_order()` and dispatch `ordered[i + 1]` —
+        the single successor in a *linearization*, regardless of whether that node is
+        actually a child of this task. For `A -> {B, C, D}` that runs a width-3 fan-out as
+        a depth-3 chain: siblings never overlap in time and are never co-decidable. Every
+        application in the corpora is a single-node dag, so the bug never had anything to
+        act on.
+        """
+        application = task.application
+        children = application.children_by_function.get(task.type["name"])
+        if children is None:
+            # Application built by something other than create_application (tests, older
+            # pickles). Derive children from the dag rather than guessing at an order.
+            dag = application.type["dag"]
+            name_to_task = {t.type["name"]: t for t in application.tasks}
+            children = [
+                name_to_task[child_name]
+                for child_name, parents in dag.items()
+                if task.type["name"] in parents and child_name in name_to_task
+            ]
+
+        # Wait for this task's execution before doing anything else.
+        yield task.done
+
+        if children:
+            # `Task.task_process` sets `.finished` one line AFTER succeeding `.done`, and
+            # both processes wake from the same event, so `task.finished` is not reliably
+            # True here. A zero-delay timeout re-queues us behind that callback at the same
+            # simulation time, which keeps `.finished` — the flag the scheduler's own
+            # readiness filter uses — the single source of truth. Skipped entirely when
+            # there are no children, so single-node applications (every corpus as of
+            # 2026-08-25) keep their exact previous callback ordering.
+            yield self.env.timeout(0)
+
+        for child in children:
+            # Fan-in: with {A: [], B: [A], C: [A], D: [B, C]} both B's and C's process see
+            # D. Dispatch it when the LAST parent lands, and only once — Task.dispatched is
+            # a bare env.event() and a second .succeed() raises RuntimeError.
+            if child.dispatched.triggered:
+                continue
+            if not all(dependency.finished for dependency in child.dependencies):
+                continue
+
+            child.dispatched.succeed()
+            yield self.scheduler.tasks.put(child)
+            self.env.process(self.workflow_process(child))
+
+        # Application storage is freed only when the whole application is done, not when
+        # one branch reaches its end. The old test was "last in the linearization", which
+        # under a real fan-out would free output a sibling still has to read.
+        # `done.triggered` rather than `.finished` for the same ordering reason as above.
+        if all(application_task.done.triggered for application_task in application.tasks):
+            for application_task in application.tasks:
                 output_storage = application_task.storage["output"]
 
                 if output_storage:
                     output_storage.remove_data(application_task)
-
-            return
-
-        # Else, schedule next task to be run after current task finishes its execution
-        next_task_name = ordered[current_index + 1]
-        next_task = next(
-            filter(
-                lambda app_task: app_task.type["name"] == next_task_name,
-                task.application.tasks,
-            )
-        )
-
-        # Wait for current task execution
-        yield task.done
-
-        # Dispatch next task
-        yield next_task.dispatched.succeed()
-
-        # Put next task in scheduler queue
-        yield self.scheduler.tasks.put(next_task)
-
-        # Monitor workflow execution
-        self.env.process(self.workflow_process(next_task))
 
     def gateway_process(self) -> Generator:
         print(f"[ {self.env.now} ] API Gateway started with {len(self.time_series.events)} events")
@@ -802,6 +963,11 @@ class Orchestrator:
             # Tasks are stored in an archive for further analysis
             self.application_archive.append(app)
             self.task_archive.extend(app.tasks)
+            for created in app.tasks:
+                self.task_by_id[created.id] = created
+                pending = self._peer_ready_events.pop(created.id, None)
+                if pending is not None:
+                    created.scheduled.callbacks.append(lambda _ev, _p=pending: _p.succeed())
 
             # Start counting first task time from here
             first_task: Task = app.tasks[0]
@@ -841,9 +1007,44 @@ class Orchestrator:
         # Simulation ends when:
         #  - all platforms are released
         #  - all dispatched real tasks are done (internal and undispatched tasks excluded)
-        if real_tasks:
-            yield self.env.all_of([task.done for task in real_tasks])
-        else:
+        #
+        # `real_tasks` is a SNAPSHOT of what is dispatched right now, and for a DAG that is
+        # only the roots: children are dispatched as their parents finish. Waiting on the
+        # snapshot alone ends the simulation the moment the roots complete, leaving every
+        # child with `done_time is None` — which surfaces much later and much less clearly
+        # as "Task 1 has not completed or is missing required attributes".
+        #
+        # So wait to a FIXED POINT: after the current wave completes, let the dispatch
+        # callbacks run (workflow_process defers by one zero-delay timeout) and pick up any
+        # task that became dispatched in the meantime. Terminates because each pass either
+        # finds new dispatched tasks or stops; a task that never dispatches is still
+        # excluded, exactly as before.
+        waited_for: Set[int] = set()
+        while True:
+            pending = [
+                task for task in real_tasks
+                if task.id not in waited_for and not task.done.triggered
+            ]
+            if pending:
+                yield self.env.all_of([task.done for task in pending])
+            waited_for.update(task.id for task in real_tasks)
+
+            # Let the finishing tasks' workflow_process dispatch their children before
+            # deciding there is nothing left.
+            yield self.env.timeout(0)
+
+            real_tasks = [
+                task for task in self.task_archive
+                if not getattr(task, 'is_internal', False) and task.dispatched_time is not None
+            ]
+            if all(task.id in waited_for for task in real_tasks):
+                break
+            print(
+                f"[ {self.env.now} ] Gateway: {len([t for t in real_tasks if t.id not in waited_for])} "
+                f"newly dispatched task(s) (DAG children); continuing to wait"
+            )
+
+        if not real_tasks:
             print(f"[ {self.env.now} ] Gateway: No dispatched tasks to wait for")
         
         # Debug logging: final task status after all tasks complete

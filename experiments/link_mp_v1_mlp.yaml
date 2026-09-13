@@ -1,0 +1,27 @@
+# Exploration (2026-09-03): the corpus-matched MLP control that link_mp_v1 never trained.
+#
+# link_mp_v1's 48 arms were all TaskPlacementGNN variants on the binding-backbone corpus
+# (1,675 datasets). The MLP the GNN is compared against on the bbrob cells
+# (fc_siv1 dim22 tempfix, -29.2% vs Knative on bb_core8_bw1p5) was trained fabric-blind
+# on the full_corpus_siv1 cache. The corpus is the largest measured lever in the repo
+# (~13 pp for the GNN), so the standing -44.8% vs -29.2% comparison confounds model class
+# with training corpus. This arm removes the confound: same cache the promoted GNN
+# (gnn-linkmp-lgon-s8) trained on, the deployed MLP recipe otherwise unchanged.
+#
+# Pilot, not a gate: a few seeds via `run_experiment.py --seed N`, evaluated on the same
+# five held-out bb_core8_bw1p5 cells the GNN's number comes from.
+trainer: mlp
+lineage: link_mp_v1
+cache_dir: simulation_data/graphs_cache_link_mp_v1_core_v1_dim14
+path_args: [output]
+args:
+  output: models/tabular/batch_edge_mlp_link_mp_v1_dim22_batchcache.pt
+  epochs: 100
+  patience: 10
+  hidden-dim: 64
+  lr: 1e-3
+  random-state: 42
+  test-size: 0.2
+wandb:
+  project: gnn-link-mp-v1
+  run_name: mlp-link-mp-v1-core-v1-dim22-batchcache

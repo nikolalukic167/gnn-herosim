@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "report": "phase4_seed_calibration",
+  "date": "2026-08-19",
+  "purpose": "Re-derive the Phase 4 seed count AFTER the determinism fix. Before it, a 'seed' measured initialization variance PLUS run-to-run GIN autograd noise, and the noise term was the larger of the two. This run measures the post-fix quantity.",
+  "command": "gnn_necessity_ablation.py --cache simulation_data/graphs_cache_shallow_v1_temporalfix --epochs 120 --seed {42..46}  (deterministic mode, the default)",
+  "cache": "simulation_data/graphs_cache_shallow_v1_temporalfix",
+  "epochs": 120,
+  "n_paired_per_seed": 30,
+  "seeds": [
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "determinism_control": {
+    "seed": 42,
+    "runs": 2,
+    "bit_identical": true,
+    "note": "The two runs straddle a harness edit (schema 4 -> 5), so this also confirms the escalation-rule wiring perturbs no computed statistic.",
+    "regret_mean": {
+      "pointwise": 0.03011045726084617,
+      "gnn_base": 0.01102278647921697,
+      "gnn_node": 0.017257722545905775
+    },
+    "regret_mean_replicate": {
+      "pointwise": 0.03011045726084617,
+      "gnn_base": 0.01102278647921697,
+      "gnn_node": 0.017257722545905775
+    }
+  },
+  "per_seed": {
+    "42": {
+      "regret_mean": {
+        "pointwise": 0.03011045726084617,
+        "gnn_base": 0.01102278647921697,
+        "gnn_node": 0.017257722545905775
+      },
+      "regret_max": {
+        "pointwise": 0.5343121014571396,
+        "gnn_base": 0.09956615735951871,
+        "gnn_node": 0.2420596998733699
+      },
+      "regret_p90": {
+        "pointwise": 0.07946934317419779,
+        "gnn_base": 0.05988433317629861,
+        "gnn_node": 0.06757979462966818
+      },
+      "paired_gnn_base_vs_pointwise": {
+        "losses": 3,
+        "min_detectable_gap": 0.03478349523350182,
+        "n_paired": 30,
+        "regret_gap_mean": -0.019087670781629207,
+        "regret_gap_se": 0.01739174761675091,
+        "regret_ratio_mean": 0.9873619091806769,
+        "regret_ratio_median": 1.0,
+        "sign_test_p": 1.0,
+        "ties": 24,
+        "win_rate": 0.5,
+        "win_rate_ci95": [
+          0.4166666666666667,
+          0.5833333333333334
+        ],
+        "wins": 3
+      }
+    },
+    "43": {
+      "regret_mean": {
+        "pointwise": 0.028044608089834406,
+        "gnn_base": 0.032387148780856606,
+        "gnn_node": 0.9645283304591223
+      },
+      "regret_max": {
+        "pointwise": 0.242787438813748,
+        "gnn_base": 0.1896639417305154,
+        "gnn_node": 28.40538945249422
+      },
+      "regret_p90": {
+        "pointwise": 0.1244477696117224,
+        "gnn_base": 0.14099008107200844,
+        "gnn_node": 0.07043902041744345
+      },
+      "paired_gnn_base_vs_pointwise": {
+        "losses": 5,
+        "min_detectable_gap": 0.022705955120287922,
+        "n_paired": 30,
+        "regret_gap_mean": 0.004342540691022197,
+        "regret_gap_se": 0.011352977560143961,
+        "regret_ratio_mean": 1.00606284164805,
+        "regret_ratio_median": 1.0,
+        "sign_test_p": 0.453125,
+        "ties": 23,
+        "win_rate": 0.45,
+        "win_rate_ci95": [
+          0.36666666666666664,
+          0.5333333333333333
+        ],
+        "wins": 2
+      }
+    },
+    "44": {
+      "regret_mean": {
+        "pointwise": 0.041313585723786156,
+        "gnn_base": 1.0360509753807632,
+        "gnn_node": 1.035932032809817
+      },
+      "regret_max": {
+        "pointwise": 0.3435138862991038,
+        "gnn_base": 30.421931203979174,
+        "gnn_node": 30.44171822504249
+      },
+      "regret_p90": {
+        "pointwise": 0.15566787688381126,
+        "gnn_base": 0.08556131830158978,
+        "gnn_node": 0.13461542752019018
+      },
+      "paired_gnn_base_vs_pointwise": {
+        "losses": 2,
+        "min_detectable_gap": 1.9447775371150378,
+        "n_paired": 30,
+        "regret_gap_mean": 0.994737389656977,
+        "regret_gap_se": 0.9723887685575189,
+        "regret_ratio_mean": 1.9992620771492942,
+        "regret_ratio_median": 1.0,
+        "sign_test_p": 0.6875,
+        "ties": 24,
+        "win_rate": 0.5333333333333333,
+        "win_rate_ci95": [
+          0.4666666666666667,
+          0.6166666666666667
+        ],
+        "wins": 4
+      }
+    },
+    "45": {
+      "regret_mean": {
+        "pointwise": 0.05438071351006015,
+        "gnn_base": 0.04303197877270797,
+        "gnn_node": 0.040697653240604495
+      },
+      "regret_max": {
+        "pointwise": 0.34109662296087456,
+        "gnn_base": 0.35946310839563483,
+        "gnn_node": 0.25965846361058836
+      },
+      "regret_p90": {
+        "pointwise": 0.1966633939185228,
+        "gnn_base": 0.1690053823984328,
+        "gnn_node": 0.1690053823984328
+      },
+      "paired_gnn_base_vs_pointwise": {
+        "losses": 3,
+        "min_detectable_gap": 0.026087001467756457,
+        "n_paired": 30,
+        "regret_gap_mean": -0.011348734737352185,
+        "regret_gap_se": 0.013043500733878229,
+        "regret_ratio_mean": 0.9913878559979231,
+        "regret_ratio_median": 1.0,
+        "sign_test_p": 0.5078125,
+        "ties": 21,
+        "win_rate": 0.55,
+        "win_rate_ci95": [
+          0.45,
+          0.65
+        ],
+        "wins": 6
+      }
+    },
+    "46": {
+      "regret_mean": {
+        "pointwise": 0.04303237566537293,
+        "gnn_base": 0.011131733243448268,
+        "gnn_node": 1.030650511206944
+      },
+      "regret_max": {
+        "pointwise": 0.34109662296087456,
+        "gnn_base": 0.13315752056122246,
+        "gnn_node": 30.421931203979174
+      },
+      "regret_p90": {
+        "pointwise": 0.14412051238647516,
+        "gnn_base": 0.04452577204700322,
+        "gnn_node": 0.11741125316934731
+      },
+      "paired_gnn_base_vs_pointwise": {
+        "losses": 2,
+        "min_detectable_gap": 0.03047025881336373,
+        "n_paired": 30,
+        "regret_gap_mean": -0.031900642421924655,
+        "regret_gap_se": 0.015235129406681865,
+        "regret_ratio_mean": 0.9747050125465091,
+        "regret_ratio_median": 1.0,
+        "sign_test_p": 0.1796875,
+        "ties": 21,
+        "win_rate": 0.5833333333333334,
+        "win_rate_ci95": [
+          0.48333333333333334,
+          0.6833333333333333
+        ],
+        "wins": 7
+      }
+    }
+  },
+  "aggregate_gnn_base_win_rate": {
+    "values": [
+      0.5,
+      0.45,
+      0.5333333333333333,
+      0.55,
+      0.5833333333333334
+    ],
+    "mean": 0.5233333333333333,
+    "sd": 0.050826502273256365,
+    "sem": 0.022730302828309762,
+    "ci95_on_mean": [
+      0.4787819397898462,
+      0.5678847268768205
+    ],
+    "every_per_seed_ci_straddles_half": true
+  },
+  "allocation_finding": {
+    "split_resampling_sd_at_n30": 0.09128709291752768,
+    "observed_across_seed_sd": 0.050826502273256365,
+    "ratio": 0.5567764362830023,
+    "conclusion": "Across-seed sd (0.051) is BELOW the sd a win_rate would show from test-split resampling alone at n=30 (0.091). Seed-to-seed variation is dominated by the test split, not initialization, so additional seeds buy little; datasets per held-out size is the binding constraint. Resolving the mean effect at THIS split size would need ~19 seeds.",
+    "seeds_to_resolve_mean_effect_at_current_split": 19
+  }
+}

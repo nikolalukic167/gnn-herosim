@@ -1,0 +1,18 @@
+# Exploration (2026-09-03): fit-ceiling test for the pointwise-plus-prefix MLP (stage 2 A2),
+# with early stopping effectively disabled so the arm is judged at its fit ceiling rather
+# than at the patience=10 stop stage 2 used.
+trainer: mlp
+lineage: route_b_v1
+cache_dir: simulation_data/graphs_cache_route_b_pilot_s_dag
+path_args: [output, split-artifact]
+args:
+  output: models/tabular/route_b_fit_a2_long.pt
+  split-artifact: experiments/route_b_stage2_split_v1.json
+  partial-state: null
+  candidate-relative-queue: null
+  epochs: 600
+  patience: 600
+  random-state: 42
+wandb:
+  project: gnn-route-b-explore
+  run_name: route-b-fit-a2-long

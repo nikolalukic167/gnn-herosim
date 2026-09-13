@@ -1,0 +1,72 @@
+{
+ "alpha": 0.05,
+ "clean_draw_definition": "a draw with zero collapsed cells out of 30",
+ "criterion": "total_rtt >= +50.0% vs same-cell knative",
+ "gnn_clean": 6,
+ "gnn_counts": {
+  "s1": 0,
+  "s2": 1,
+  "s3": 0,
+  "s4": 0,
+  "s5": 3,
+  "s6": 0,
+  "s7": 0,
+  "s8": 0
+ },
+ "gnn_range": 3,
+ "mlp_clean": 7,
+ "mlp_counts": {
+  "dsdim14dim22s1": 0,
+  "dsdim14dim22s2": 0,
+  "dsdim14dim22s3": 8,
+  "dsdim14dim22s4": 10,
+  "dsdim14dim25crs1": 5,
+  "dsdim14dim25crs2": 3,
+  "dsdim14dim25crs3": 0,
+  "dsdim14dim25crs4": 11,
+  "dstempfixdim22s1": 0,
+  "dstempfixdim22s2": 0,
+  "dstempfixdim22s3": 21,
+  "dstempfixdim22s4": 16,
+  "dstempfixdim25crs1": 26,
+  "dstempfixdim25crs2": 0,
+  "dstempfixdim25crs3": 0,
+  "dstempfixdim25crs4": 7
+ },
+ "n_gnn": 8,
+ "n_mlp": 16,
+ "p_value": 0.15574101494144568,
+ "q1": "INDETERMINATE",
+ "q1_threshold_stable": false,
+ "q2": "INDETERMINATE",
+ "q2_threshold_stable": false,
+ "sensitivity": [
+  {
+   "gnn_clean": 5,
+   "mlp_clean": 6,
+   "p_value": 0.23471081796563018,
+   "q1": "LOTTERY",
+   "q2": "NOT-ESTABLISHED",
+   "range": 10,
+   "threshold": 30.0
+  },
+  {
+   "gnn_clean": 6,
+   "mlp_clean": 7,
+   "p_value": 0.15574101494144568,
+   "q1": "PARTIAL",
+   "q2": "NOT-ESTABLISHED",
+   "range": 3,
+   "threshold": 50.0
+  },
+  {
+   "gnn_clean": 8,
+   "mlp_clean": 7,
+   "p_value": 0.008749495221429532,
+   "q1": "STABLE",
+   "q2": "GNN-MORE-RELIABLE",
+   "range": 0,
+   "threshold": 100.0
+  }
+ ]
+}

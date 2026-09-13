@@ -1,0 +1,19 @@
+# peer_affinity_v1 T1 -- mlp_t1x: pointwise + counts + committed-peer exchange + the peer-mass lookahead column.
+# Registration: docs/lineages/peer_affinity_v1.md, "Training registration T1".
+trainer: mlp
+lineage: peer_affinity_v1
+cache_dir: simulation_data/graphs_cache_peer_affinity_v1_r2_smoke
+env:
+  PARTIAL_STATE_CONTRACT: partial_state_v2
+  PARTIAL_STATE_PEER_MASS: "1"
+path_args: [output, split-artifact]
+args:
+  output: models/tabular/peer-affinity-v1-smoke-mlp-t1x.pt
+  split-artifact: experiments/peer_affinity_v1_smoke_split.json
+  partial-state: null
+  candidate-relative-queue: null
+  epochs: 5
+  patience: 5
+  random-state: 42
+  wandb-project: gnn-peer-affinity-v1
+  wandb-run-name: peer-affinity-v1-smoke-mlp-t1x

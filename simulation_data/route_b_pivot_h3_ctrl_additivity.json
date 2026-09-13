@@ -1,0 +1,40 @@
+[
+  {
+    "corpus": "simulation_data/gnn_datasets_route_b_pivot_h3_ctrl",
+    "by_arm": {
+      "40320": {
+        "n_datasets": 102,
+        "r2_median": 0.35678969614794537,
+        "r2_min": 0.10870264271313579,
+        "r2_max": 0.892965269277703,
+        "resid_pct_median": 9.538011537159491,
+        "resid_pct_max": 18.376685170298703,
+        "pair_node_r2_median": 0.6552397440966179,
+        "pair_slot_r2_median": 0.6552397440966179
+      },
+      "362880": {
+        "n_datasets": 102,
+        "r2_median": 0.5257643589388601,
+        "r2_min": 0.30628244596882614,
+        "r2_max": 0.9091795433420025,
+        "resid_pct_median": 10.498477331459366,
+        "resid_pct_max": 17.17515819682039,
+        "pair_node_r2_median": 0.7560805320516109,
+        "pair_slot_r2_median": 0.7560805320516109
+      }
+    },
+    "n_datasets": 204,
+    "coresidency": {
+      "4": {
+        "n_plans": 24675840,
+        "resid_pct_rms": 10.938763140543324,
+        "resid_pct_mean": 6.827100123716843e-14
+      },
+      "5": {
+        "n_plans": 16450560,
+        "resid_pct_rms": 10.58603110590761,
+        "resid_pct_mean": 7.514901658731846e-14
+      }
+    }
+  }
+]

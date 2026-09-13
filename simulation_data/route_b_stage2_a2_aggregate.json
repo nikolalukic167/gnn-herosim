@@ -1,0 +1,20 @@
+{
+  "arm_type": "mlp_dim63crk",
+  "num_draws": 4,
+  "reports": [
+    "simulation_data/route_b_stage2_a2_eval_seed1.json",
+    "simulation_data/route_b_stage2_a2_eval_seed2.json",
+    "simulation_data/route_b_stage2_a2_eval_seed3.json",
+    "simulation_data/route_b_stage2_a2_eval_seed4.json"
+  ],
+  "per_draw_train_regret_pct": [
+    19.934359146296124,
+    18.744663543369647,
+    21.079595018002042,
+    13.05586252408176
+  ],
+  "mean_train_regret_pct": 18.203620057937393,
+  "median_train_regret_pct": 19.339511344832886,
+  "pooled_per_dataset_paired_diff_sigma": 6.768927466968489,
+  "num_datasets_common_to_all_draws": 204
+}

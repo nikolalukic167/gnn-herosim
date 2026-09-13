@@ -5,7 +5,7 @@ from __future__ import annotations
 Pre-generate and cache graphs for GNN training (NON-UNIQUE VERSION).
 
 REQUIRES placements/placements.jsonl per dataset for rtt_chunk_*.pkl (placement–RTT hash).
-repair + recache does NOT replace JSONL. memory/placements_jsonl_required.md
+repair + recache does NOT replace JSONL. docs/notes/placements_jsonl_required.md
 
 This script builds all graphs and saves them to pickle files for faster training iterations.
 
@@ -50,10 +50,43 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from non_unique_lib.training_contract import load_sweep_minimum
+from src.placement.queue_features import (
+    DEFAULT_QUEUE_FEATURE_CONTRACT,
+    VALID_QUEUE_FEATURE_CONTRACTS,
+    queue_depth_norm,
+    usage_ratio_feature,
+    validate_queue_feature_contract,
+)
 from src.placement.warmth import (
     estimated_pull_remaining_sec,
     normalize_estimated_pull_remaining_sec,
     unit_pull_sec_from_task_priors,
+)
+from src.placement.network_graph import (
+    NETWORK_GRAPH_CONTRACT_OFF,
+    attach_network_graph_block,
+    build_network_graph_block,
+    resolve_network_graph_contract,
+)
+from src.placement.temporal_features import temporal_remainders
+# resolve_topology_feature_contract has been cited by the metadata block since
+# d88278c (2026-08-23) but was never imported — a latent NameError that crashed
+# the FIRST full cache build attempted after that commit (this one, 2026-08-26).
+from src.placement.topology_features import (
+    build_source_feature_context,
+    resolve_topology_feature_contract,
+)
+from src.placement.dag_workload import (
+    load_link_topology,
+    load_network_maps,
+    load_workload_dag,
+    parents_map,
+    route_hops_and_bottleneck,
+)
+from src.placement.network_fabric import is_core_link, route_links
+from src.policy.tabular.reduced_features import (
+    krank_node_order,
+    resolve_partial_state_contract,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -113,11 +146,6 @@ def _finite_positive_exec_values(exec_map: Mapping[str, Any]) -> List[float]:
     return out
 
 
-# Set seeds for reproducibility
-random.seed(42)
-np.random.seed(42)
-torch.manual_seed(42)
-
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -129,8 +157,11 @@ class Config:
     merge_datasets: bool = False
     queue_norm_factor: float = 50.0
     queue_norm_mode: str = "scheduler_adaptive"
+    queue_feature_contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT
+    platform_feature_dim: int = 16
     require_queue_data: bool = True
     oversample_manifest: Optional[Path] = None
+    dag_partial_state: bool = False
 
 
 def load_oversample_weights(manifest_path: Path) -> Dict[str, int]:
@@ -179,7 +210,44 @@ def parse_args() -> Config:
             "'fixed' uses --queue-norm-factor."
         ),
     )
+    parser.add_argument(
+        "--queue-feature-contract",
+        choices=sorted(VALID_QUEUE_FEATURE_CONTRACTS),
+        default=DEFAULT_QUEUE_FEATURE_CONTRACT,
+        help=(
+            "Scaling contract for platform dim7/dim13. 'legacy_v0' reproduces every "
+            "pre-2026-08-13 cache bit-exactly; 'scale_invariant_v1' uncaps the dim7 divisor "
+            "and log1p-compresses dim13 so live queue depths ~400x deeper than training stay "
+            "on the training manifold. Checkpoints must be served under the contract they "
+            "were trained on."
+        ),
+    )
+    parser.add_argument(
+        "--platform-feature-dim",
+        type=int,
+        choices=[14, 16],
+        default=16,
+        help=(
+            "16 (dim24 layout) keeps the pull observables added in CACHE 5.6; 14 (dim22) drops "
+            "them, matching pre-5.6 caches such as the 873/v5.5 deploy cache. Use 14 when a "
+            "retrain must be comparable to a dim22 checkpoint."
+        ),
+    )
     parser.add_argument("--allow-missing-queue-data", action="store_true")
+    parser.add_argument(
+        "--dag-partial-state",
+        action="store_true",
+        help=(
+            "route_b stage 2 (docs/lineages/route_b_v1/stage2-preregistration.md §2/§5, build item "
+            "B3): attach the DAG block to every graph — parent edges "
+            "(dag_edge_index), a 4-type task one-hot (task_type_onehot4, a separate "
+            "attr so the legacy 3-dim task block stays bit-identical), the capacity "
+            "map for the alpha ladder {inf, 3.0, 2.0}, tied-optimal label sets per "
+            "alpha (any-of-K CE), and the partial_state_ctx ingredients the "
+            "single-source dim63crk extractor consumes. Requires DAG workloads "
+            "with ingress endpoints and a link fabric; fails loud otherwise."
+        ),
+    )
     parser.add_argument(
         "--oversample-manifest",
         type=Path,
@@ -209,8 +277,11 @@ def parse_args() -> Config:
         merge_datasets=args.merge_datasets,
         queue_norm_factor=args.queue_norm_factor,
         queue_norm_mode=args.queue_norm_mode,
+        queue_feature_contract=validate_queue_feature_contract(args.queue_feature_contract),
+        platform_feature_dim=int(args.platform_feature_dim),
         require_queue_data=not args.allow_missing_queue_data,
         oversample_manifest=args.oversample_manifest,
+        dag_partial_state=bool(args.dag_partial_state),
     )
 
 
@@ -221,7 +292,7 @@ def time_block(description: str):
     logger.info(f"{description} completed in {time.perf_counter() - start:.2f}s")
 
 # Version for cache invalidation (increment when graph construction logic changes)
-CACHE_VERSION = "5.6"  # + node_cold_count / estimated_pull_remaining_sec (plat dim 14→16)
+CACHE_VERSION = "5.7"  # + queue_feature_contract in metadata (dim7 divisor / dim13 scaling)
 # - Labels y / opt_rtt from placements.jsonl sweep minima (not optimal_result.sample.placement_plan)
 # - previous_task_type_name preserved for is_warm; replicas from SSC scheduling-time state
 # - graph.parent_dataset_id attached for parent-safe splits / @os RTT identity
@@ -230,6 +301,8 @@ CACHE_VERSION = "5.6"  # + node_cold_count / estimated_pull_remaining_sec (plat 
 # - Removed QoS features (qos_deviation, deadline) since co-simulation doesn't capture QoS violations as ground truth
 # - Supports datasets where 2+ tasks can be placed on the same (node_id, platform_id)
 # - Platform dims 14–15: absolute node_cold_count + estimated_pull_remaining_sec/100 (FilterStore depth)
+# - metadata.queue_feature_contract records the dim7/dim13 scaling a cache was built under;
+#   'legacy_v0' is bit-identical to 5.6, 'scale_invariant_v1' is not servable by 5.6 checkpoints
 STRICT_TASK_RESULTS = True
 REQUIRED_TASK_FIELDS = (
     "taskId",
@@ -379,24 +452,32 @@ def extract_dataset_to_dataframes(
             
             has_dnn1_replica = False
             has_dnn2_replica = False
-            
+            # Which task types actually have a replica here, for ANY task type. The two
+            # booleans above stay exactly as they were because they are also platform
+            # FEATURES (dims 5-6 under dim22/dim24) and the layout is contract-governed;
+            # this set is used only for candidate filtering, which must work for the other
+            # task types too — see the filter in build_graph.
+            replica_task_types = set()
+
             for task_type, replica_list in replicas_by_task.items():
                 if isinstance(replica_list, list):
                     for replica in replica_list:
                         if isinstance(replica, list) and len(replica) >= 2:
                             if replica[0] == node_name and replica[1] == plat_id:
+                                replica_task_types.add(str(task_type))
                                 if task_type == "dnn1":
                                     has_dnn1_replica = True
                                 elif task_type == "dnn2":
                                     has_dnn2_replica = True
-            
+
             platforms_data.append({
                 'platform_id': plat_id,
                 'node_id': node_id,
                 'node_name': node_name,
                 'platform_type': plat_type,
                 'has_dnn1_replica': has_dnn1_replica,
-                'has_dnn2_replica': has_dnn2_replica
+                'has_dnn2_replica': has_dnn2_replica,
+                'replica_task_types': frozenset(replica_task_types),
             })
     
     df_platforms = pd.DataFrame(platforms_data)
@@ -406,7 +487,11 @@ def extract_dataset_to_dataframes(
         'nodes': df_nodes,
         'tasks': df_tasks,
         'platforms': df_platforms,
-        'metrics': df_metrics
+        'metrics': df_metrics,
+        # link_contention_v1 routes + per-link capacities. None for every corpus generated
+        # without a network.backbone block, which is most of them; build_graph then emits
+        # no network entities and the cached graph is unchanged.
+        'link_topology': result.get("config", {}).get("infrastructure", {}).get("link_topology"),
     }
 
 
@@ -810,36 +895,29 @@ TASK_PLATFORM_COMPATIBILITY = {
 }
 
 
-def _scheduler_adaptive_queue_norm(queue_values: np.ndarray) -> float:
+def _scheduler_adaptive_queue_norm(
+    queue_values: np.ndarray, contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT
+) -> float:
+    """p90 of ALL platforms (idle zeros included), min 1.0; capped only under legacy_v0.
+
+    NOTE: p90-of-all collapses when >=90% of platforms are idle. legacy_v0 keeps the
+    historical collapse-to-1.0 behaviour; scale_invariant_v1 falls back to the busy-platform
+    p90 (see src/placement/queue_features.py).
     """
-    Match GNNScheduler adaptive queue normalization:
-    - 90th percentile of ALL platforms (including idle zeros)
-    - min 1.0, cap 100.0
-    NOTE: collapses to 1.0 when most platforms are idle (p90 of zeros = 0).
-    Use _scheduler_adaptive_queue_norm_nonzero for sparse-heavy-tailed distributions.
-    """
-    if queue_values.size == 0:
-        return 50.0
-    q = np.sort(queue_values.astype(np.float64))
-    idx = int(len(q) * 0.9)
-    percentile_90 = q[idx] if idx < len(q) else q[-1]
-    return float(min(max(1.0, percentile_90), 100.0))
+    return queue_depth_norm(queue_values.tolist(), "scheduler_adaptive", contract)
 
 
-def _scheduler_adaptive_queue_norm_nonzero(queue_values: np.ndarray) -> float:
+def _scheduler_adaptive_queue_norm_nonzero(
+    queue_values: np.ndarray, contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT
+) -> float:
     """
     Robust adaptive queue normalization: p90 of non-zero queues only.
     Fixes the collapse-to-1.0 failure when most platforms are idle.
     Training and inference must use the same mode to preserve the feature contract.
     queue_norm_mode='adaptive_nonzero' selects this path.
     """
-    non_zero = queue_values[queue_values > 0]
-    if non_zero.size == 0:
-        return 1.0
-    nz_sorted = np.sort(non_zero.astype(np.float64))
-    idx = int(len(nz_sorted) * 0.9)
-    p90 = nz_sorted[min(idx, len(nz_sorted) - 1)]
-    return float(min(max(1.0, p90), 100.0))
+    return queue_depth_norm(queue_values.tolist(), "adaptive_nonzero", contract)
+
 
 def build_graph(
     df_nodes: pd.DataFrame,
@@ -851,6 +929,9 @@ def build_graph(
     queue_snapshot: Optional[Mapping[str, int]] = None,
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     initialized_snapshot: Optional[Mapping[str, bool]] = None,
+    queue_feature_contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT,
+    link_topology: Optional[Mapping[str, Any]] = None,
+    network_graph_contract: Optional[str] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -897,11 +978,15 @@ def build_graph(
     task_onehot = (task_type_arr[:, None] == task_types_vocab[None, :]).astype(float)
     
     src_names = df_tasks['source_node'].to_numpy()
-    src_idx = np.fromiter((first_idx_per_name.get(n, 0) for n in src_names),
-                          dtype=np.float64, count=n_tasks)
-    src_norm = (src_idx / max(len(df_nodes), 1)).reshape(-1, 1)
-    
-    task_features = np.concatenate([task_onehot, src_norm], axis=1)
+    source_ctx = build_source_feature_context(
+        df_nodes['node_name'].tolist(),
+        network_map_by_node,
+        first_idx_by_name=first_idx_per_name,
+    )
+    src_feat = np.fromiter((source_ctx.feature(n) for n in src_names),
+                           dtype=np.float64, count=n_tasks).reshape(-1, 1)
+
+    task_features = np.concatenate([task_onehot, src_feat], axis=1)
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
     
@@ -913,6 +998,13 @@ def build_graph(
     
     has_dnn1_arr = df_platforms['has_dnn1_replica'].to_numpy(dtype=bool)
     has_dnn2_arr = df_platforms['has_dnn2_replica'].to_numpy(dtype=bool)
+    # Generic replica presence, for task types other than dnn1/dnn2. Older extractions have
+    # no such column; an empty frozenset then yields no candidates, which is exactly the
+    # previous behaviour for those task types.
+    if 'replica_task_types' in df_platforms.columns:
+        replica_types_arr = df_platforms['replica_task_types'].to_numpy()
+    else:
+        replica_types_arr = np.array([frozenset()] * len(df_platforms), dtype=object)
     
     has_dnn1 = has_dnn1_arr.astype(float).reshape(-1, 1)
     has_dnn2 = has_dnn2_arr.astype(float).reshape(-1, 1)
@@ -927,10 +1019,13 @@ def build_graph(
             queue_lengths[pos] = float(_queue_length_int(queue_snapshot.get(key, 0)))
     
     # Normalize queue lengths with scheduler-aligned adaptive mode or fixed mode.
+    queue_feature_contract = validate_queue_feature_contract(queue_feature_contract)
     if queue_norm_mode == "scheduler_adaptive":
-        active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths)
+        active_queue_norm = _scheduler_adaptive_queue_norm(queue_lengths, queue_feature_contract)
     elif queue_norm_mode == "adaptive_nonzero":
-        active_queue_norm = _scheduler_adaptive_queue_norm_nonzero(queue_lengths)
+        active_queue_norm = _scheduler_adaptive_queue_norm_nonzero(
+            queue_lengths, queue_feature_contract
+        )
     else:
         active_queue_norm = _safe_positive(float(queue_norm_factor))
     queue_lengths_norm = (queue_lengths / active_queue_norm).reshape(-1, 1)
@@ -986,38 +1081,25 @@ def build_graph(
     cold_start_remaining = np.zeros(n_platforms, dtype=np.float64)
     comm_remaining = np.zeros(n_platforms, dtype=np.float64)
     
-    if temporal_state:
-        for pos in range(n_platforms):
-            node_name = str(plat_node_by_pos[pos])
-            plat_id = int(plat_ids_arr[pos])
-            key = f"{node_name}:{plat_id}"
-            temp_state = temporal_state.get(key, {})
-            current_task_remaining[pos] = _safe_float(temp_state.get('current_task_remaining', 0.0), 0.0)
-            cold_start_remaining[pos] = _safe_float(temp_state.get('cold_start_remaining', 0.0), 0.0)
-            comm_remaining[pos] = _safe_float(temp_state.get('comm_remaining', 0.0), 0.0)
-    else:
-        # Approximate: if queue > 0, estimate some remaining time
-        for pos in range(n_platforms):
-            if queue_lengths[pos] > 0:
-                # Estimate: average execution time for platform type
-                plat_type = str(plat_types_by_pos[pos])
-                # Get average exec time across task types for this platform
-                avg_exec = 0.0
-                count = 0
-                for task_type in task_types_vocab:
-                    task_type_priors = task_priors.get(str(task_type), {})
-                    exec_map = task_type_priors.get("executionTime", {})
-                    if isinstance(exec_map, dict):
-                        exec_time = _safe_float(exec_map.get(plat_type, 0.0), 0.0)
-                        if exec_time > 0:
-                            avg_exec += exec_time
-                            count += 1
-                if count > 0:
-                    current_task_remaining[pos] = avg_exec / count
-                    # Cold start typically much shorter than execution for warm platforms
-                    cold_start_remaining[pos] = current_task_remaining[pos] * 0.1
-                    comm_remaining[pos] = current_task_remaining[pos] * 0.05
-    
+    # Shared with live inference and the other two cache builders — see
+    # src/placement/temporal_features.py for the two bugs this replaced (a snapshot-level
+    # estimate gate, and an average over task types no corpus dispatches).
+    for pos in range(n_platforms):
+        node_name = str(plat_node_by_pos[pos])
+        plat_id = int(plat_ids_arr[pos])
+        key = f"{node_name}:{plat_id}"
+        (
+            current_task_remaining[pos],
+            cold_start_remaining[pos],
+            comm_remaining[pos],
+        ) = temporal_remainders(
+            queue_depth=queue_lengths[pos],
+            recorded=(temporal_state or {}).get(key),
+            platform_type=str(plat_types_by_pos[pos]),
+            task_types_data=task_priors,
+            task_types_vocab=task_types_vocab,
+        )
+
     # Normalize temporal features (assume max ~10s)
     current_task_remaining_norm = (current_task_remaining / 10.0).reshape(-1, 1)
     cold_start_remaining_norm = (cold_start_remaining / 10.0).reshape(-1, 1)
@@ -1074,16 +1156,14 @@ def build_graph(
         else:
             target_concurrencies[pos] = baseline_concurrency
         
-        # Usage ratio: queue_length / target_concurrency
-        tc = float(target_concurrencies[pos])
-        if math.isfinite(tc) and tc > 0:
-            usage_ratios[pos] = queue_lengths[pos] / tc
-        else:
-            usage_ratios[pos] = 0.0
+        # Usage ratio: queue_length vs target_concurrency, scaled per the active contract.
+        usage_ratios[pos] = usage_ratio_feature(
+            queue_lengths[pos], target_concurrencies[pos], queue_feature_contract
+        )
     
     # Normalize consolidation metrics
     target_concurrency_norm = (target_concurrencies / _safe_positive(20.0)).reshape(-1, 1)
-    usage_ratio_norm = (usage_ratios / _safe_positive(5.0)).reshape(-1, 1)
+    usage_ratio_norm = usage_ratios.reshape(-1, 1)
     
     # Concatenate all platform features
     platform_features = np.concatenate([
@@ -1146,14 +1226,25 @@ def build_graph(
         """Filter platforms by compatibility rules."""
         if network_feasible_plats.size == 0:
             return network_feasible_plats
-        
+
         if task_type == 'dnn1':
             type_mask = plat_type_compat_dnn1
         elif task_type == 'dnn2':
             type_mask = plat_type_compat_dnn2
         else:
-            return np.empty(0, dtype=np.int64)
-        
+            # Same shape as the replica-filter fix further down: every task type
+            # other than dnn1/dnn2 used to get ZERO candidates here, which was
+            # harmless while every corpus was a dnn1/dnn2 pair and fatal for a
+            # 4-type DAG. Compatibility for the other types comes from the run's
+            # own task-types: the memoryRequirements keys ARE the platforms the
+            # simulator can run the type on (the frozen two-type table above is
+            # exactly the dnn1/dnn2 slice of it, kept verbatim so existing caches
+            # stay bit-identical).
+            mem = (task_priors.get(task_type) or {}).get('memoryRequirements') or {}
+            if not mem:
+                return np.empty(0, dtype=np.int64)
+            type_mask = np.isin(plat_type_arr, np.array(sorted(mem.keys())))
+
         compatible_mask = type_mask[network_feasible_plats]
         return network_feasible_plats[compatible_mask]
     
@@ -1185,7 +1276,19 @@ def build_graph(
             elif task_type == 'dnn2':
                 compat_plats = compat_plats[has_dnn2_arr[compat_plats]]
             else:
-                compat_plats = np.empty(0, dtype=np.int64)
+                # Was `np.empty(0)` — every task type other than dnn1/dnn2 got ZERO
+                # candidates, so its label could not be a candidate index and came out -1,
+                # failing the contract-5.5 assertion for the whole cache. Harmless while
+                # every corpus was a dnn1/dnn2 pair; fatal for a 4-type DAG. The dnn1/dnn2
+                # branches above are kept verbatim rather than folded into this one so
+                # existing caches stay bit-identical.
+                compat_plats = compat_plats[
+                    np.fromiter(
+                        (task_type in replica_types_arr[p] for p in compat_plats),
+                        dtype=bool,
+                        count=compat_plats.size,
+                    )
+                ]
         
         if compat_plats.size:
             # Sort compatible platforms so their order matches the per-task
@@ -1326,6 +1429,30 @@ def build_graph(
         data.node_edge_index = torch.tensor([node_edge_src, node_edge_dst], dtype=torch.long)
     else:
         data.node_edge_index = torch.empty((2, 0), dtype=torch.long)
+    # Network entities (physical nodes + core links + route edges), built by the SAME
+    # shared code path live inference uses — see src/placement/network_graph.py. Default
+    # OFF, so this is a no-op for every existing cache.
+    net_contract = resolve_network_graph_contract(network_graph_contract)
+    if net_contract != NETWORK_GRAPH_CONTRACT_OFF:
+        attach_network_graph_block(
+            data,
+            build_network_graph_block(
+                node_names=df_nodes['node_name'].tolist(),
+                platform_node_names=[str(name) for name in plat_node_by_pos],
+                task_source_names=[str(name) for name in src_names],
+                task_candidate_node_names=[
+                    [
+                        str(queue_key_to_platform_meta[key]["node_name"])
+                        for key in task_logit_to_queue_key.get(t_pos, [])
+                    ]
+                    for t_pos in range(n_tasks)
+                ],
+                link_topology=link_topology,
+                n_tasks=n_tasks,
+                n_platforms=n_platforms,
+                contract=net_contract,
+            ),
+        )
     # Per-task mapping from logit index -> (node_id, platform_id) for regret loss and decoding.
     # Use non-underscore attr so DataLoader worker IPC preserves it.
     data.task_logit_to_placement = task_logit_to_placement
@@ -1339,10 +1466,361 @@ def build_graph(
 
 
 # ============================================================================
+# route_b stage 2: the DAG / partial-state block (build item B3)
+# ============================================================================
+
+# The route_b grids' task-type vocabulary, sorted. Fixed rather than inferred per
+# dataset so the one-hot means the same thing in every graph of the cache.
+DAG_TASK_TYPE_VOCAB: Tuple[str, ...] = ("cnn", "dnn1", "dnn2", "rf")
+# alpha ladder frozen by the registration (§5): unconstrained + the two binding rungs.
+# peer_affinity_v1 (2026-09-10): rungs 2.5 and 3.125 are the equal-tightness caps for a
+# 10-task batch at alpha_4 = 1.0 / 1.25 (Amendment A6). Adding keys changes no existing
+# key; the primary rung is overridable per cache via $DAG_PRIMARY_ALPHA_KEY and recorded
+# in metadata.json.
+DAG_ALPHA_LADDER: Tuple[Optional[float], ...] = (None, 3.125, 3.0, 2.5, 2.0)
+DAG_PRIMARY_ALPHA_KEY = os.environ.get("DAG_PRIMARY_ALPHA_KEY", "2.0").strip() or "2.0"
+_DAG_EPS = 1e-12  # the scorer's feasibility EPS
+
+
+def _dag_alpha_key(alpha: Optional[float]) -> str:
+    # str(float) so the keys match the scorer reports' per_dataset alpha keys
+    # ("2.0", "3.0"), not "%g"'s "2"/"3".
+    return "inf" if alpha is None else str(float(alpha))
+
+
+if DAG_PRIMARY_ALPHA_KEY not in {_dag_alpha_key(a) for a in DAG_ALPHA_LADDER}:
+    raise ValueError(
+        f"DAG_PRIMARY_ALPHA_KEY={DAG_PRIMARY_ALPHA_KEY!r} is not a rung of the ladder "
+        f"{[_dag_alpha_key(a) for a in DAG_ALPHA_LADDER]}"
+    )
+
+
+def attach_dag_partial_state_block(
+    graph: Data,
+    dataset_dir: Path,
+    task_priors: Mapping[str, Any],
+    task_types_from_results: List[str],
+) -> None:
+    """Attach the §2/§5 DAG block to one built graph, from the dataset's own files.
+
+    Adds (all loud on any inconsistency; nothing existing is modified, so a cache
+    built without --dag-partial-state stays bit-identical):
+
+      dag_edge_index          [2, E] parent->child task edges (task node indices)
+      dag_parents             {task_id: [parent ids]}
+      task_type_onehot4       [n_tasks, 4] one-hot over DAG_TASK_TYPE_VOCAB — a
+                              SEPARATE attr: the legacy 3-dim task block is part of
+                              the dim22/dim25cr contract and must not change width.
+                              (T1 parity: this-task's 4-way type is pointwise-
+                              recoverable from the krank one-hot block.)
+      node_caps_by_alpha      {alpha_key: {node_id: cap}} — cap_node(alpha) =
+                              alpha * max single sweep-candidate demand on the node
+      tied_optimal_logit_plans {alpha_key: [[logit_idx per task], ...]} — the
+                              any-of-K label sets: feasible sweep plans within the
+                              relative 1e-9 tie tolerance of that alpha's
+                              constrained optimum (§5); every member must lie on
+                              the candidate edges (contract 5.5, extended to K)
+      tied_optimal_rtts       {alpha_key: [rtt, ...]} aligned with the plans
+      partial_state_ctx       the PartialStateContext ingredients for the
+                              single-source dim63crk extractor (demands, caps at
+                              the primary alpha, routes' hops/bottlenecks, payload,
+                              transfer_norm, canonical node ranks, ingress links,
+                              core links)
+    """
+    ds = Path(dataset_dir)
+    n_tasks = int(graph.n_tasks)
+    dag = load_workload_dag(ds)
+    if len(dag["task_type_names"]) != n_tasks:
+        raise RuntimeError(
+            f"{ds.name}: workload has {len(dag['task_type_names'])} tasks, graph "
+            f"has {n_tasks}"
+        )
+    if list(dag["task_type_names"]) != [str(t) for t in task_types_from_results]:
+        raise RuntimeError(
+            f"{ds.name}: workload task-type order {dag['task_type_names']} != "
+            f"taskResults order {list(task_types_from_results)} — the static_order "
+            "id assignment is broken somewhere"
+        )
+    unknown_types = set(dag["task_type_names"]) - set(DAG_TASK_TYPE_VOCAB)
+    if unknown_types:
+        raise RuntimeError(f"{ds.name}: task types {unknown_types} not in "
+                           f"{DAG_TASK_TYPE_VOCAB}")
+    if any(src is None for src in dag["task_sources"]):
+        raise RuntimeError(f"{ds.name}: workload event without node_name — the "
+                           "linkrank ingress endpoints are mandatory for a DAG cache")
+
+    parents = parents_map(n_tasks, dag["dag_edges"])
+    if dag["dag_edges"]:
+        dag_edge_index = torch.tensor(
+            [[p for p, _c in dag["dag_edges"]], [c for _p, c in dag["dag_edges"]]],
+            dtype=torch.long,
+        )
+    else:
+        dag_edge_index = torch.empty((2, 0), dtype=torch.long)
+
+    onehot4 = torch.zeros((n_tasks, len(DAG_TASK_TYPE_VOCAB)), dtype=torch.float32)
+    type_index = {name: k for k, name in enumerate(DAG_TASK_TYPE_VOCAB)}
+    task_type_idx = {}
+    for t, name in enumerate(dag["task_type_names"]):
+        onehot4[t, type_index[name]] = 1.0
+        task_type_idx[t] = type_index[name]
+
+    # --- sweep, demands, capacities -------------------------------------
+    jsonl = ds / "placements" / "placements.jsonl"
+    _ds_id, sweep = _placement_combos_from_jsonl(jsonl)
+    if not sweep:
+        raise RuntimeError(f"{ds.name}: empty placement sweep at {jsonl}")
+
+    meta_by_key = graph.queue_key_to_platform_meta
+    ptype_by_pid: Dict[int, str] = {}
+    name_by_node_id: Dict[int, str] = {}
+    for meta in meta_by_key.values():
+        ptype_by_pid[int(meta["platform_id"])] = str(meta["platform_type"])
+        nid, nname = int(meta["node_id"]), str(meta["node_name"])
+        if name_by_node_id.get(nid, nname) != nname:
+            raise RuntimeError(f"{ds.name}: node_id {nid} maps to two names")
+        name_by_node_id[nid] = nname
+
+    demand: Dict[Tuple[int, Tuple[int, int]], float] = {}
+    for combo, _rtt in sweep:
+        if len(combo) != n_tasks:
+            raise RuntimeError(f"{ds.name}: sweep row has {len(combo)} tasks, "
+                               f"expected {n_tasks}")
+        for t, placement in enumerate(combo):
+            if (t, placement) in demand:
+                continue
+            pid = int(placement[1])
+            if pid not in ptype_by_pid:
+                raise RuntimeError(f"{ds.name}: sweep references platform_id {pid} "
+                                   "absent from the graph's platform meta")
+            ttype = dag["task_type_names"][t]
+            mem = (task_priors.get(ttype) or {}).get("memoryRequirements") or {}
+            ptype = ptype_by_pid[pid]
+            if ptype not in mem:
+                raise RuntimeError(f"{ds.name}: no memoryRequirements[{ttype}]"
+                                   f"[{ptype}] — refusing to invent a demand")
+            # peer_affinity_v1 / route_b env pivot: the per-instance demand_scale the
+            # scorer applies (score_route_b_contention.Dataset) -- absent -> 1.0, so every
+            # corpus without the key is unchanged.
+            demand[(t, placement)] = float(mem[ptype]) * float(dag["demand_scales"][t])
+
+    peak: Dict[int, float] = {}
+    for (t, placement), d in demand.items():
+        nid = int(placement[0])
+        if nid not in peak or d > peak[nid]:
+            peak[nid] = d
+    node_caps_by_alpha: Dict[str, Dict[int, float]] = {}
+    for alpha in DAG_ALPHA_LADDER:
+        if alpha is None:
+            node_caps_by_alpha[_dag_alpha_key(alpha)] = {}
+            continue
+        node_caps_by_alpha[_dag_alpha_key(alpha)] = {
+            nid: alpha * m for nid, m in peak.items() if m > 0
+        }
+
+    # --- tied-optimal label sets per alpha ------------------------------
+    logit_index: Dict[int, Dict[Tuple[int, int], int]] = {
+        t: {tuple(p): i for i, p in enumerate(graph.task_logit_to_placement[t])}
+        for t in range(n_tasks)
+    }
+    tied_plans: Dict[str, List[List[int]]] = {}
+    tied_rtts: Dict[str, List[float]] = {}
+    for alpha in DAG_ALPHA_LADDER:
+        key = _dag_alpha_key(alpha)
+        caps = node_caps_by_alpha[key]
+
+        def _feasible(combo) -> bool:
+            if not caps:
+                return True
+            load: Dict[int, float] = {}
+            for t, placement in enumerate(combo):
+                nid = int(placement[0])
+                load[nid] = load.get(nid, 0.0) + demand[(t, placement)]
+            return all(v <= caps.get(nid, math.inf) + _DAG_EPS
+                       for nid, v in load.items())
+
+        feas = [(combo, rtt) for combo, rtt in sweep if _feasible(combo)]
+        if not feas:
+            raise RuntimeError(f"{ds.name}: no feasible sweep rows at alpha={key} "
+                               "— the dataset cannot carry a label set for this "
+                               "rung")
+        best = min(rtt for _c, rtt in feas)
+        tol = 1e-9 * max(1.0, abs(best))
+        plans: List[List[int]] = []
+        rtts: List[float] = []
+        for combo, rtt in feas:
+            if rtt - best > tol:
+                continue
+            idxs: List[int] = []
+            for t, placement in enumerate(combo):
+                logit = logit_index[t].get(tuple(placement))
+                if logit is None:
+                    raise RuntimeError(
+                        f"{ds.name}: tied-optimal plan at alpha={key} places task "
+                        f"{t} on {placement}, which is not a candidate edge — "
+                        "contract 5.5 extended to the label SET is violated"
+                    )
+                idxs.append(int(logit))
+            plans.append(idxs)
+            rtts.append(float(rtt))
+        tied_plans[key] = plans
+        tied_rtts[key] = rtts
+
+    # --- partial-state context ingredients ------------------------------
+    routes, links = load_link_topology(ds)
+    if not routes or not links:
+        raise RuntimeError(f"{ds.name}: no link_topology — the DAG cache requires "
+                           "the fabric (routes + links)")
+    cand_node_ids = sorted(peak)
+    route_hb: Dict[Tuple[int, int], Tuple[float, float]] = {}
+    for a in cand_node_ids:
+        for b in cand_node_ids:
+            h, bneck = (0, math.inf) if a == b else route_hops_and_bottleneck(
+                routes, links, name_by_node_id[a], name_by_node_id[b])
+            route_hb[(a, b)] = (float(h), float(bneck))
+
+    # payload: the uniform parent->child output size, from the dataset's own
+    # sim_inputs (embedded in optimal_result.json) — asserted uniform, never guessed
+    with open(ds / "optimal_result.json") as fh:
+        sim_inputs = json.load(fh).get("sim_inputs") or {}
+    outputs = {
+        float(entry["output"])
+        for tt in (sim_inputs.get("task_types") or {}).values()
+        for entry in (tt.get("stateSize") or {}).values()
+        if isinstance(entry, dict) and "output" in entry
+    }
+    if dag["dag_edges"]:
+        if len(outputs) != 1:
+            raise RuntimeError(f"{ds.name}: non-uniform stateSize.output set {outputs} "
+                               "— §2 col 34 assumes a uniform payload")
+        payload_bytes = outputs.pop()
+    else:
+        # no parent->child transfer exists without DAG edges; the payload is unused
+        payload_bytes = 0.0
+
+    transfer_norm = max(
+        (h * payload_bytes / bneck)
+        for (a, b), (h, bneck) in route_hb.items()
+        if h > 0
+    ) if any(h > 0 for (h, _bn) in route_hb.values()) else 0.0
+
+    mean_hop = {
+        a: (
+            sum(route_hb[(b, a)][0] for b in cand_node_ids if b != a)
+            / max(1, len(cand_node_ids) - 1)
+        )
+        for a in cand_node_ids
+    }
+    primary_caps = node_caps_by_alpha[DAG_PRIMARY_ALPHA_KEY]
+    node_rank = krank_node_order(
+        {nid: primary_caps.get(nid, 0.0) for nid in cand_node_ids}, mean_hop
+    )
+
+    ingress: Dict[Tuple[int, int], Tuple[str, ...]] = {}
+    for t in range(n_tasks):
+        src = str(dag["task_sources"][t])
+        own_nodes = {int(c[0]) for c in graph.task_logit_to_placement[t]}
+        for nid in cand_node_ids:
+            dst = name_by_node_id[nid]
+            if src == dst:
+                ingress[(t, nid)] = ()
+                continue
+            try:
+                ingress[(t, nid)] = tuple(route_links(routes, src, dst))
+            except KeyError:
+                # peer_affinity_v1 corpora: a client has routes only to the servers it is
+                # logically connected to. A node this task can never be placed on needs
+                # no ingress route (partial_state_columns reads (t, node) for the task's
+                # own candidates only); a CANDIDATE without a route is a real defect.
+                if nid in own_nodes:
+                    raise
+    core = frozenset(lk for lk in links if is_core_link(lk))
+
+    # --- peer_affinity_v1: task<->task exchange edges + the partial_state_v2 ingredients
+    peer_triples = dag["peer_exchange"]
+    peer_pairs: Dict[Tuple[int, int], float] = {}
+    for i, j, b in peer_triples:
+        if not (0 <= i < n_tasks and 0 <= j < n_tasks) or i == j:
+            raise RuntimeError(f"{ds.name}: peer_exchange names ({i}, {j}) outside the "
+                               f"{n_tasks}-task batch or a self-pair")
+        peer_pairs[(i, j)] = float(b)
+        peer_pairs[(j, i)] = float(b)
+    if peer_pairs:
+        keys = sorted(peer_pairs)
+        peer_edge_index = torch.tensor([[i for i, _j in keys], [j for _i, j in keys]], dtype=torch.long)
+        peer_edge_attr = torch.tensor([[math.log1p(peer_pairs[k] / 1e6)] for k in keys], dtype=torch.float32)
+        network_maps = load_network_maps(ds)
+        node_exchange: Dict[Tuple[int, int], Tuple[float, float]] = {}
+        for a in cand_node_ids:
+            for b in cand_node_ids:
+                if a == b:
+                    node_exchange[(a, b)] = (0.0, 0.0)
+                    continue
+                h, bneck = route_hb[(a, b)]
+                entry = (network_maps.get(name_by_node_id[a]) or {}).get(name_by_node_id[b])
+                if entry is None:
+                    raise RuntimeError(f"{ds.name}: no network_maps[{name_by_node_id[a]}]"
+                                       f"[{name_by_node_id[b]}] — the exchange latency is undefined")
+                lat = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+                node_exchange[(a, b)] = (float(h) / (float(bneck) * 1024 * 1024), lat)
+        peer_norm = (max(peer_pairs.values()) * max(pb for pb, _l in node_exchange.values())
+                     + max(l for _pb, l in node_exchange.values()))
+        cand_nodes = {t: [int(c[0]) for c in graph.task_logit_to_placement[t]] for t in range(n_tasks)}
+    else:
+        peer_edge_index = torch.empty((2, 0), dtype=torch.long)
+        peer_edge_attr = torch.empty((0, 1), dtype=torch.float32)
+        node_exchange = {}
+        peer_norm = 0.0
+        cand_nodes = {}
+
+    graph.peer_edge_index = peer_edge_index
+    graph.peer_edge_attr = peer_edge_attr
+    graph.dag_edge_index = dag_edge_index
+    graph.dag_parents = parents
+    graph.task_type_onehot4 = onehot4
+    graph.dag_task_type_vocab = list(DAG_TASK_TYPE_VOCAB)
+    graph.node_caps_by_alpha = node_caps_by_alpha
+    graph.tied_optimal_logit_plans = tied_plans
+    graph.tied_optimal_rtts = tied_rtts
+    graph.dag_primary_alpha_key = DAG_PRIMARY_ALPHA_KEY
+    graph.partial_state_ctx = {
+        "node_caps": dict(primary_caps),
+        "node_caps_by_alpha": node_caps_by_alpha,
+        "demand": demand,
+        "task_type_index": task_type_idx,
+        "parents": parents,
+        "route_hops_bneck": route_hb,
+        "payload_bytes": float(payload_bytes),
+        "transfer_norm": float(transfer_norm),
+        "node_rank": dict(node_rank),
+        "ingress_links": ingress,
+        "core_links": sorted(core),
+        # peer_affinity_v1 (partial_state_v2 ingredients; empty on corpora without peers)
+        "peer_pairs": peer_pairs,
+        "node_exchange": node_exchange,
+        "peer_norm": float(peer_norm),
+        "cand_nodes": cand_nodes,
+    }
+
+
+# ============================================================================
 # MAIN SCRIPT
 # ============================================================================
 
 def main():
+    # Seeds for THIS SCRIPT's own reproducibility (dataset/graph generation order).
+    # Deliberately NOT at module scope: this module is also imported purely for
+    # DAG_TASK_TYPE_VOCAB (train_near_rtt.py, eval_route_b_stage2_arm.py), and a
+    # module-level torch.manual_seed(42) fired on every such import, clobbering
+    # whatever seed the importer had already set — see the route_b stage-2 A1 seed
+    # clobber (--seed had zero effect on training; all draws were bit-identical to
+    # full wandb-summary precision because THIS constant always ran last, after
+    # train_near_rtt.py's own NEAR_RTT_TRAIN_SEED-derived manual_seed at import
+    # time). A module must never reseed the global RNG as an import side effect.
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
+
     config = parse_args()
     script_start_time = time.perf_counter()
 
@@ -1426,7 +1904,20 @@ def main():
                         queue_snapshot=dataset_dict.get('queue_snapshot', {}),
                         temporal_state=dataset_dict.get('temporal_state', {}),
                         initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
+                        queue_feature_contract=config.queue_feature_contract,
+                        link_topology=dataset_dict.get('link_topology'),
                     )
+                    if config.platform_feature_dim != 16:
+                        graph.platform_features = graph.platform_features[
+                            :, : config.platform_feature_dim
+                        ]
+                    if config.dag_partial_state:
+                        attach_dag_partial_state_block(
+                            graph,
+                            dataset_dict['dataset_dir'],
+                            task_priors,
+                            dataset_dict['tasks']['task_type'].tolist(),
+                        )
                     invalid = int((graph.y < 0).sum().item())
                     if invalid:
                         raise RuntimeError(
@@ -1518,8 +2009,35 @@ def main():
         'num_datasets': len(all_datasets),
         'dataset_ids': dataset_ids,
         'parent_dataset_ids': parent_dataset_ids,
-        'platform_feature_dim': 16,
-        'inference_feature_layout': 'dim24',
+        'platform_feature_dim': config.platform_feature_dim,
+        'inference_feature_layout': 'dim24' if config.platform_feature_dim == 16 else 'dim22',
+        'queue_norm_mode': config.queue_norm_mode,
+        'queue_feature_contract': config.queue_feature_contract,
+        # build_graph resolves this from the process env; record what was actually used so
+        # the trainer can read it from the cache instead of trusting its own shell — the
+        # same bug class the inference_feature_layout confound (40.8% of total_rtt) had.
+        'topology_feature_contract': resolve_topology_feature_contract(),
+        # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk
+        # trainer refuses a cache without partial_state_contract, so a legacy cache
+        # can never silently serve a stage-2 arm.
+        'dag_partial_state': config.dag_partial_state,
+        'partial_state_contract': (
+            resolve_partial_state_contract() if config.dag_partial_state else None
+        ),
+        'dag_task_type_vocab': (
+            list(DAG_TASK_TYPE_VOCAB) if config.dag_partial_state else None
+        ),
+        "dag_primary_alpha_key": DAG_PRIMARY_ALPHA_KEY if config.dag_partial_state else None,
+        "peer_exchange_block": bool(config.dag_partial_state and any(
+            int(getattr(g, "peer_edge_index", torch.empty((2, 0))).numel()) > 0 for g in graphs)),
+        'dag_alpha_ladder': (
+            [_dag_alpha_key(a) for a in DAG_ALPHA_LADDER]
+            if config.dag_partial_state else None
+        ),
+        'dag_label_rtt_eps': (
+            'relative 1e-9 (tol = 1e-9 * max(1, |best|)), the §4 tie-tolerance '
+            'convention' if config.dag_partial_state else None
+        ),
         'training_contract': {
             'label_source': 'placements.jsonl_sweep_minimum',
             'replica_source': 'ssc_scheduling_time_replicas',

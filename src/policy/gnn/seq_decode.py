@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import itertools
 import json
 import math
@@ -9,14 +10,60 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+
+from src.placement.queue_features import (
+    resolve_queue_feature_contract,
+    usage_ratio_feature,
+)
 
 try:
+    import torch
     from torch import Tensor
 except ImportError:  # pragma: no cover
+    torch = None  # type: ignore
     Tensor = object  # type: ignore
 
 PlacementCombo = Tuple[Tuple[int, int], ...]
+
+# Every accepted GNN_DECODE_MODE spelling, including aliases. Dispatch is spread
+# across scheduler._gnn_inference (seq_reforward*) and run_decode_with_timing
+# (everything else), and an unknown mode silently degraded to plain argmax — so
+# the scheduler validates against this set at construction.
+KNOWN_DECODE_MODES = frozenset(
+    {
+        "argmax",
+        "argmax_uniq",
+        "uniq_platform",
+        "uniq",
+        "seqblend",
+        "seqblend_p1",
+        "1",
+        "frozen",
+        "frozen_argmax",
+        "frozen_topk",
+        "topk",
+        "topk_joint",
+        "seq_reforward",
+        "seq_reforward_argmax",
+        "seq_reforward_pull",
+        "seq_reforward_pulls",
+        "pulls_committed",
+        "pull_ledger",
+        # objective_pivot_v1 Phase 3 (P1 closed-loop): temperature-sampled sequential
+        # decode. The ONLY stochastic mode in this set — every other mode is a
+        # deterministic function of the logits, which is why a policy-gradient loop
+        # needs this one. Off by default and never used by a gate.
+        "sample",
+        "sampled",
+        # The §4 shared masked decoder of docs/lineages/route_b_v1/stage2-preregistration.md
+        # (corrected 2026-08-26): DAG topological order, capacity + reuse mask,
+        # placement-id tie rule, no relax path. Needs the masked-decoder inputs
+        # (dag_parents / node_caps / demands) — run_decode_with_timing fails loud
+        # without them; live-serving wiring is stage 3.
+        "masked_topo",
+    }
+)
 
 
 @dataclass
@@ -30,6 +77,40 @@ class GnnDecodeRunStats:
     combo_search_size: List[int] = field(default_factory=list)
     intra_batch_platform_collisions: List[int] = field(default_factory=list)
     chosen_queue_minus_min: List[int] = field(default_factory=list)
+
+    # Chosen vs shortest-queue candidate on the *same* snapshot (hard-cell dim7 blind spot).
+    dim7_chosen: List[float] = field(default_factory=list)
+    dim7_minq: List[float] = field(default_factory=list)
+    dim13_chosen: List[float] = field(default_factory=list)
+    dim13_minq: List[float] = field(default_factory=list)
+    raw_q_chosen: List[int] = field(default_factory=list)
+    raw_q_minq: List[int] = field(default_factory=list)
+    logit_margin_top2: List[float] = field(default_factory=list)
+    logit_chosen_minus_minq: List[float] = field(default_factory=list)
+    feature_probe_tasks: int = 0
+    feature_probe_skipped: int = 0
+
+    # argmax_uniq only: how often intra-batch uniqueness was satisfiable. On sparse
+    # topologies a task can have a single feasible platform, so a high relaxed count
+    # means the arm is closer to plain argmax than to a true uniqueness decode.
+    uniq_enforced_tasks: int = 0
+    uniq_relaxed_tasks: int = 0
+
+    # masked_topo only: the registered §4 prohibition is that there is NO relax
+    # path — a task whose masked candidate set is empty fails the whole batch
+    # decode, and that failure is counted here (no_feasible_rows-style loud
+    # accounting), never converted into an unmasked argmax.
+    masked_topo_infeasible_tasks: int = 0
+    masked_topo_failed_decodes: int = 0
+    # Steps where a per-step score_fn was consulted, and steps where it failed.
+    # A score_fn failure is fatal to the decode (see decode_masked_topo_placement):
+    # falling back to the static logits would silently reinstate exactly the relax
+    # path §4 forbids, so it is counted and re-raised, never absorbed.
+    masked_topo_rescored_steps: int = 0
+    masked_topo_score_fn_failures: int = 0
+    masked_topo_backtracks: int = 0
+    masked_topo_relaxed_steps: int = 0
+    masked_topo_relaxed_decodes: int = 0
 
     # Seqblend-specific (argmax + seqblend mode only)
     total_tasks: int = 0
@@ -75,6 +156,25 @@ class GnnDecodeRunStats:
         self.combo_search_size.extend(other.combo_search_size)
         self.intra_batch_platform_collisions.extend(other.intra_batch_platform_collisions)
         self.chosen_queue_minus_min.extend(other.chosen_queue_minus_min)
+        self.dim7_chosen.extend(other.dim7_chosen)
+        self.dim7_minq.extend(other.dim7_minq)
+        self.dim13_chosen.extend(other.dim13_chosen)
+        self.dim13_minq.extend(other.dim13_minq)
+        self.raw_q_chosen.extend(other.raw_q_chosen)
+        self.raw_q_minq.extend(other.raw_q_minq)
+        self.logit_margin_top2.extend(other.logit_margin_top2)
+        self.logit_chosen_minus_minq.extend(other.logit_chosen_minus_minq)
+        self.feature_probe_tasks += other.feature_probe_tasks
+        self.feature_probe_skipped += other.feature_probe_skipped
+        self.uniq_enforced_tasks += other.uniq_enforced_tasks
+        self.uniq_relaxed_tasks += other.uniq_relaxed_tasks
+        self.masked_topo_infeasible_tasks += other.masked_topo_infeasible_tasks
+        self.masked_topo_failed_decodes += other.masked_topo_failed_decodes
+        self.masked_topo_rescored_steps += other.masked_topo_rescored_steps
+        self.masked_topo_score_fn_failures += other.masked_topo_score_fn_failures
+        self.masked_topo_backtracks += other.masked_topo_backtracks
+        self.masked_topo_relaxed_steps += other.masked_topo_relaxed_steps
+        self.masked_topo_relaxed_decodes += other.masked_topo_relaxed_decodes
         self.total_tasks += other.total_tasks
         self.p1_override_count += other.p1_override_count
         self.classic_would_override_count += other.classic_would_override_count
@@ -147,6 +247,24 @@ class GnnDecodeRunStats:
                 "median": round(self._median(self.chosen_queue_minus_min), 3),
                 "p95": round(self._p95([float(v) for v in self.chosen_queue_minus_min]), 3),
             },
+            "uniq_platform": {
+                "enforced_tasks": self.uniq_enforced_tasks,
+                "relaxed_tasks": self.uniq_relaxed_tasks,
+                "relaxed_rate": round(
+                    self.uniq_relaxed_tasks
+                    / max(1, self.uniq_enforced_tasks + self.uniq_relaxed_tasks),
+                    6,
+                ),
+            },
+            "masked_topo": {
+                "infeasible_tasks": self.masked_topo_infeasible_tasks,
+                "failed_decodes": self.masked_topo_failed_decodes,
+                "rescored_steps": self.masked_topo_rescored_steps,
+                "score_fn_failures": self.masked_topo_score_fn_failures,
+                "backtracks": self.masked_topo_backtracks,
+                "relaxed_steps": self.masked_topo_relaxed_steps,
+                "relaxed_decodes": self.masked_topo_relaxed_decodes,
+            },
             "p1_margin": int(p1_margin),
             "total_decode_tasks": self.total_tasks,
             "p1_override_count": self.p1_override_count,
@@ -173,6 +291,71 @@ class GnnDecodeRunStats:
                 "gnn_mean": round(self._mean(self.gnn_queue_all), 3),
                 "final_mean": round(self._mean(self.final_queue_all), 3),
             },
+            "queue_feature_discrimination": self._queue_feature_discrimination_summary(),
+        }
+
+    def _float_pct(self, values: Sequence[float], p: float) -> float:
+        if not values:
+            return 0.0
+        s = sorted(float(v) for v in values)
+        idx = int(p / 100.0 * (len(s) - 1))
+        return float(s[idx])
+
+    def _series(self, values: Sequence[float]) -> Dict[str, float]:
+        return {
+            "mean": round(self._mean_float(list(values)), 4),
+            "median": round(self._float_pct(values, 50), 4),
+            "p95": round(self._float_pct(values, 95), 4),
+        }
+
+    def _queue_feature_discrimination_summary(self) -> Dict[str, Any]:
+        n = max(1, self.feature_probe_tasks)
+        d7_gap = [c - m for c, m in zip(self.dim7_chosen, self.dim7_minq)]
+        d13_gap = [c - m for c, m in zip(self.dim13_chosen, self.dim13_minq)]
+        raw_gap = [int(c) - int(m) for c, m in zip(self.raw_q_chosen, self.raw_q_minq)]
+        disagree = [g >= 10 for g in raw_gap]
+        n_dis = max(1, sum(1 for d in disagree if d))
+        dim7_blind = sum(
+            1
+            for g, d7 in zip(raw_gap, d7_gap)
+            if g >= 10 and abs(d7) < 0.05
+        )
+        dim13_blind = sum(
+            1
+            for g, d13 in zip(raw_gap, d13_gap)
+            if g >= 10 and abs(d13) < 0.05
+        )
+        logit_tied = sum(1 for m in self.logit_margin_top2 if abs(m) < 0.1)
+        confident_worse = sum(
+            1
+            for g, lm in zip(raw_gap, self.logit_chosen_minus_minq)
+            if g >= 10 and lm > 1.0
+        )
+        return {
+            "n_tasks": self.feature_probe_tasks,
+            "n_skipped": self.feature_probe_skipped,
+            "raw_q_chosen": self._series(self.raw_q_chosen),
+            "raw_q_minq": self._series(self.raw_q_minq),
+            "dim7_chosen": self._series(self.dim7_chosen),
+            "dim7_minq": self._series(self.dim7_minq),
+            "dim7_gap_chosen_minus_minq": self._series(d7_gap),
+            "dim13_chosen": self._series(self.dim13_chosen),
+            "dim13_minq": self._series(self.dim13_minq),
+            "dim13_gap_chosen_minus_minq": self._series(d13_gap),
+            "logit_margin_top2": self._series(self.logit_margin_top2),
+            "logit_chosen_minus_minq": self._series(self.logit_chosen_minus_minq),
+            "frac_raw_gap_ge_10": round(sum(1 for d in disagree if d) / n, 4),
+            "dim7_blind_rate": round(dim7_blind / n_dis, 4),
+            "dim13_blind_rate": round(dim13_blind / n_dis, 4),
+            "logit_tied_rate": round(logit_tied / n, 4),
+            "confident_worse_queue_rate": round(confident_worse / n_dis, 4),
+            "note": (
+                "dim7_blind_rate = share of tasks with raw chosen-min >= 10 but "
+                "|dim7_chosen-dim7_minq| < 0.05 (feature cannot see the pile). "
+                "confident_worse_queue_rate = raw gap >= 10 and logit_chosen - "
+                "logit_minq > 1 (head prefers the longer line). logit_tied_rate = "
+                "top-2 logit margin < 0.1 (never learned a sharp ranking)."
+            ),
         }
 
     def to_dict(self, *, p1_margin: int = 1) -> Dict[str, Any]:
@@ -266,6 +449,144 @@ def queue_regret_for_combo(
             live_queues[keys[chosen_idx]] = live_queues.get(keys[chosen_idx], 0) + 1
 
     return regrets
+
+
+def record_queue_feature_discrimination(
+    stats: GnnDecodeRunStats,
+    *,
+    combo: PlacementCombo,
+    logits_per_task: Sequence[Any],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    queue_snapshot: Optional[Mapping[str, int]],
+    task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]],
+    platform_features: Any,
+    queue_key_to_platform_meta: Optional[Mapping[str, Mapping[str, Any]]],
+) -> None:
+    """Log dim7/dim13 on the chosen machine vs the shortest-queue candidate.
+
+    Predictions this is built to test (hard-cell live decisions):
+
+    - dim7_blind: raw queues disagree (>=10 extra waiting) but dim7 is tied
+      (|gap| < 0.05) — the relative feature cannot see global congestion.
+    - logit_tied: top-2 margin < 0.1 — loss never taught a sharp ranking.
+    - confident_worse: large raw gap AND logit prefers the longer line —
+      the head is actively ranking against queue.
+    """
+    if not combo or not queue_snapshot or queue_key_to_platform_meta is None:
+        stats.feature_probe_skipped += max(1, len(combo) if combo else 0)
+        return
+    if platform_features is None:
+        raise RuntimeError(
+            "record_queue_feature_discrimination: platform_features is required "
+            "(refusing to silently skip the dim7/dim13 probe)"
+        )
+
+    import torch
+
+    if hasattr(platform_features, "detach"):
+        pf = platform_features.detach().cpu()
+    else:
+        pf = torch.as_tensor(platform_features)
+    if pf.ndim != 2 or pf.size(1) < 14:
+        raise RuntimeError(
+            f"platform_features must be [n, >=14], got {tuple(pf.shape)}"
+        )
+
+    live_queues = {str(k): int(v) for k, v in queue_snapshot.items()}
+    keys_map = task_logit_to_queue_key or {}
+    jsonl_path = os.environ.get("GNN_FEATURE_PROBE_JSONL", "").strip()
+    every = int(os.environ.get("GNN_FEATURE_PROBE_EVERY", "50"))
+    if every < 1:
+        raise ValueError(f"GNN_FEATURE_PROBE_EVERY must be >= 1, got {every}")
+
+    probe_rows: List[Dict[str, Any]] = []
+    for t_idx, placement in enumerate(combo):
+        if t_idx not in task_logit_to_placement:
+            stats.feature_probe_skipped += 1
+            continue
+        candidates = task_logit_to_placement[t_idx]
+        keys = _queue_keys_for_task(t_idx, candidates, keys_map)
+        queues = _candidate_queues(keys, live_queues)
+        if not queues:
+            stats.feature_probe_skipped += 1
+            continue
+        try:
+            chosen_idx = candidates.index(tuple(placement))
+        except ValueError:
+            stats.feature_probe_skipped += 1
+            continue
+        min_idx = min(range(len(queues)), key=lambda i: queues[i])
+        chosen_key = keys[chosen_idx]
+        min_key = keys[min_idx]
+        if chosen_key not in queue_key_to_platform_meta or min_key not in queue_key_to_platform_meta:
+            raise RuntimeError(
+                f"queue_key_to_platform_meta missing {chosen_key!r} or {min_key!r} "
+                f"(task {t_idx}); feature probe cannot proceed"
+            )
+        pos_c = int(queue_key_to_platform_meta[chosen_key]["platform_pos"])
+        pos_m = int(queue_key_to_platform_meta[min_key]["platform_pos"])
+        if pos_c < 0 or pos_c >= pf.size(0) or pos_m < 0 or pos_m >= pf.size(0):
+            raise RuntimeError(
+                f"platform_pos out of range chosen={pos_c} minq={pos_m} n={pf.size(0)}"
+            )
+        d7_c = float(pf[pos_c, 7].item())
+        d7_m = float(pf[pos_m, 7].item())
+        d13_c = float(pf[pos_c, 13].item())
+        d13_m = float(pf[pos_m, 13].item())
+        raw_c = int(queues[chosen_idx])
+        raw_m = int(queues[min_idx])
+
+        logits_t = logits_per_task[t_idx] if t_idx < len(logits_per_task) else None
+        if logits_t is None or (hasattr(logits_t, "numel") and logits_t.numel() == 0):
+            raise RuntimeError(f"empty logits for task {t_idx}")
+        if hasattr(logits_t, "detach"):
+            logits_cpu = logits_t.detach().flatten().cpu()
+        else:
+            logits_cpu = torch.as_tensor(logits_t, dtype=torch.float32).flatten()
+        if logits_cpu.numel() != len(candidates):
+            raise RuntimeError(
+                f"logit/candidate length mismatch task {t_idx}: "
+                f"{int(logits_cpu.numel())} vs {len(candidates)}"
+            )
+        logit_c = float(logits_cpu[chosen_idx].item())
+        logit_min = float(logits_cpu[min_idx].item())
+        if logits_cpu.numel() >= 2:
+            top2 = torch.topk(logits_cpu, k=2).values
+            margin = float(top2[0].item() - top2[1].item())
+        else:
+            margin = 0.0
+
+        stats.dim7_chosen.append(d7_c)
+        stats.dim7_minq.append(d7_m)
+        stats.dim13_chosen.append(d13_c)
+        stats.dim13_minq.append(d13_m)
+        stats.raw_q_chosen.append(raw_c)
+        stats.raw_q_minq.append(raw_m)
+        stats.logit_margin_top2.append(margin)
+        stats.logit_chosen_minus_minq.append(logit_c - logit_min)
+        stats.feature_probe_tasks += 1
+
+        if jsonl_path and (stats.feature_probe_tasks % every == 0):
+            probe_rows.append(
+                {
+                    "task_idx": t_idx,
+                    "raw_chosen": raw_c,
+                    "raw_minq": raw_m,
+                    "dim7_chosen": d7_c,
+                    "dim7_minq": d7_m,
+                    "dim13_chosen": d13_c,
+                    "dim13_minq": d13_m,
+                    "logit_margin_top2": margin,
+                    "logit_chosen_minus_minq": logit_c - logit_min,
+                }
+            )
+
+    if jsonl_path and probe_rows:
+        path = Path(jsonl_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            for row in probe_rows:
+                fh.write(json.dumps(row) + "\n")
 
 
 def record_decode_batch(
@@ -377,8 +698,17 @@ def uniq_platform_chosen_idx(
     logits_t: Tensor,
     candidates: Sequence[Tuple[int, int]],
     used_placements: set[Tuple[int, int]],
+    stats: Optional["GnnDecodeRunStats"] = None,
 ) -> int:
-    """Per-task argmax excluding platforms already picked earlier in the batch."""
+    """Per-task argmax excluding platforms already picked earlier in the batch.
+
+    On sparse topologies a task can have a single feasible platform, so intra-batch
+    uniqueness is not always satisfiable. Relaxing to plain argmax keeps the arm a
+    *decode* ablation; aborting (the previous behaviour) or falling back to
+    shortest-queue would silently substitute a different policy. Relaxations are
+    counted so a run that could rarely honour uniqueness is visible in the sidecar
+    rather than being read as a clean uniq decode.
+    """
     import torch
 
     if logits_t.numel() == 0:
@@ -388,11 +718,511 @@ def uniq_platform_chosen_idx(
         if tuple(placement) in used_placements:
             masked[i] = float("-inf")
     if not torch.isfinite(masked).any():
-        raise RuntimeError(
-            "uniq_platform decode: no unused platform among candidates "
-            f"(candidates={len(candidates)}, used_in_batch={len(used_placements)})."
-        )
+        if stats is not None:
+            stats.uniq_relaxed_tasks += 1
+        return int(logits_t.argmax().item())
+    if stats is not None:
+        stats.uniq_enforced_tasks += 1
     return int(masked.argmax().item())
+
+
+# The scorer's feasibility EPS (score_route_b_contention.EPS), reproduced here so the
+# decoder's mask and the enumerated feasible set agree at the boundary.
+_MASKED_TOPO_EPS = 1e-12
+
+
+def topological_task_order(
+    n_tasks: int,
+    dag_parents: Mapping[int, Sequence[int]],
+) -> List[int]:
+    """Kahn's algorithm over the batch DAG, lowest task index first among the ready
+    set — the §4 registered decode order of masked_topo (parents before children,
+    ties by task_id). A dependency cycle raises: silently decoding a cyclic batch in
+    index order would hide exactly the ordering property the mode is named for."""
+    parents = {
+        t: [p for p in (dag_parents.get(t) or ()) if p != t] for t in range(n_tasks)
+    }
+    remaining = {t: len(parents[t]) for t in range(n_tasks)}
+    children: Dict[int, List[int]] = {}
+    for t, ps in parents.items():
+        for p in ps:
+            if not (0 <= p < n_tasks):
+                raise RuntimeError(
+                    f"masked_topo: task {t} names parent {p} outside the batch "
+                    f"(n_tasks={n_tasks})"
+                )
+            children.setdefault(p, []).append(t)
+    ready = [t for t in range(n_tasks) if remaining[t] == 0]
+    heapq.heapify(ready)
+    order: List[int] = []
+    while ready:
+        t = heapq.heappop(ready)
+        order.append(t)
+        for c in children.get(t, ()):
+            remaining[c] -= 1
+            if remaining[c] == 0:
+                heapq.heappush(ready, c)
+    if len(order) != n_tasks:
+        raise RuntimeError(
+            "masked_topo: dependency cycle among tasks "
+            f"{sorted(set(range(n_tasks)) - set(order))}"
+        )
+    return order
+
+
+def decode_masked_topo_placement(
+    logits_per_task: Sequence[Any],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    n_tasks: int,
+    *,
+    dag_parents: Mapping[int, Sequence[int]],
+    node_caps: Mapping[int, float],
+    demands: Mapping[int, Sequence[float]],
+    stats: Optional[GnnDecodeRunStats] = None,
+    score_fn: Optional[
+        "Callable[[int, Mapping[int, Tuple[int, int]]], Sequence[float]]"
+    ] = None,
+    allow_replica_reuse: bool = False,
+    relax_on_stuck: bool = False,
+    initial_load: Optional[Mapping[int, float]] = None,
+    platform_cap: int = 0,
+) -> Optional[PlacementCombo]:
+    """The §4 shared masked decoder (docs/lineages/route_b_v1/stage2-preregistration.md, corrected
+    2026-08-26) — decode mode "masked_topo".
+
+    Tasks commit in DAG topological order (Kahn, lowest task_id first), so every
+    parent is committed when its child is scored. The mask forbids replica reuse
+    and any placement that would push a node's committed memory over its cap.
+    Among feasible candidates the HIGHEST score wins; exact score ties break by
+    the lowest (node_id, platform_id) — the registered decoder-step tie rule.
+
+    Registered prohibition: there is NO relax path. A task whose masked candidate
+    set is empty fails the whole decode (returns None) and is counted in
+    GnnDecodeRunStats.masked_topo_* — never converted into an unmasked argmax.
+
+    Inputs beyond the shared decode signature, all mandatory:
+      dag_parents  batch-local task index -> parent task indices (the batch DAG)
+      node_caps    node_id -> cap_node(alpha), computed by the caller; a node
+                   absent from the mapping is uncapped
+      demands      task index -> per-candidate memory demand, aligned index-for-
+                   index with task_logit_to_placement[task]
+
+    Optional per-step rescoring (`score_fn`), for the §2 information tiers:
+      score_fn(task_idx, committed) -> scores aligned with this task's candidates,
+      where `committed` is the prefix built so far (task index -> placement). When
+      supplied it REPLACES logits_per_task[task_idx] for that step, which is what
+      lets a T1/T2 arm condition its score on the committed prefix — §2's "the
+      GNN's sequential decode sees the same committed prefix at the same step".
+      Both arms plug into this one decoder, so decode order, mask and tie rule are
+      shared by construction.
+
+      When `score_fn is None` this function behaves EXACTLY as before — that is a
+      hard requirement, because B1's frozen acceptance (408+408 cells against
+      topological-order greedy_masked_plan fed true, static min-marginals) must not
+      move. `logits_per_task` therefore stays required and remains the fallback.
+
+      A score_fn that raises, or returns a vector that does not align with the
+      task's candidate list, is FATAL to the decode: it is counted and re-raised,
+      never silently replaced by the static logits. Absorbing it would reinstate
+      exactly the relax path §4 forbids.
+
+    Deliberately pure Python (no tensor ops): candidate lists are tiny, the exact
+    (score, placement-id) tie semantics stay visible, and the offline acceptance
+    harness can drive it with plain float lists as well as tensors.
+    """
+    if len(logits_per_task) != n_tasks:
+        return None
+    order = topological_task_order(n_tasks, dag_parents)
+    used: set = set()
+    # peer_affinity_v1 stage 3: `initial_load` is the load already standing on each node
+    # when this batch starts decoding. Default None -> empty -> the cap is intra-batch
+    # exactly as every registered read has used it. Backtracking only ever subtracts what
+    # this decode added, so a seeded floor is never undone.
+    load: Dict[int, float] = {int(k): float(v) for k, v in (initial_load or {}).items()}
+    # peer_affinity_v1 stage 3: `platform_cap` > 0 forbids a (node, platform) that already
+    # holds that many of THIS batch's tasks. node_caps limit a node; nothing limited a
+    # platform, and a platform is one FIFO queue, so a batch could legally serialise itself
+    # on one replica (measured: 12.4 % of live batches placed their whole plan on a single
+    # platform). Soft by construction -- if the cap empties a task's candidate set the cap
+    # is ignored for that step -- so it can never turn a feasible decode into a failure.
+    per_platform: Dict[Tuple[int, int], int] = {}
+    chosen: Dict[int, Tuple[int, int]] = {}
+    # peer_affinity_v1 (T1): `allow_replica_reuse` lifts the no-reuse mask (that sweep is
+    # the full Cartesian product); `relax_on_stuck` backtracks one committed step at a
+    # time (at most n_tasks undo operations in total) and, when that fails too, takes the
+    # least-over-cap candidate and COUNTS it -- never silently. Both default False, so
+    # every registered route_b reading is bit-identical to before.
+    alternatives: List[List[Tuple[Tuple[float, Tuple[int, int]], Tuple[int, int], int]]] = []
+    step = 0
+    backtracks = 0
+    relaxed_any = False
+    while step < len(order):
+        t = order[step]
+        if t not in task_logit_to_placement:
+            raise RuntimeError(f"masked_topo: task {t} has no candidate mapping")
+        candidates = task_logit_to_placement[t]
+        if len(alternatives) > step:
+            ranked = alternatives[step]
+        else:
+            if score_fn is None:
+                logits_t = logits_per_task[t]
+            else:
+                try:
+                    # A COPY: the callback is arbitrary arm code, and handing it the live
+                    # `chosen` would let a careless one corrupt decoder state mid-plan.
+                    logits_t = score_fn(t, dict(chosen))
+                    if len(logits_t) != len(candidates):
+                        raise RuntimeError(
+                            f"masked_topo: score_fn returned {len(logits_t)} scores for "
+                            f"task {t}, which has {len(candidates)} candidates"
+                        )
+                except Exception:
+                    if stats is not None:
+                        stats.masked_topo_score_fn_failures += 1
+                        stats.masked_topo_failed_decodes += 1
+                    raise
+                if stats is not None:
+                    stats.masked_topo_rescored_steps += 1
+        dem = demands.get(t) if hasattr(demands, "get") else None
+        if dem is None or len(dem) != len(candidates):
+            raise RuntimeError(
+                f"masked_topo: task {t} demand vector does not align with its "
+                f"{len(candidates)} candidates"
+            )
+        if len(alternatives) <= step:
+            ranked = []
+            for i, cand in enumerate(candidates):
+                placement = (int(cand[0]), int(cand[1]))
+                ranked.append(((-float(logits_t[i]), placement), placement, i))
+            ranked.sort(key=lambda r: r[0])
+            alternatives.append(ranked)
+        # `platform_cap` is applied only when some candidate can satisfy it together with
+        # every mask that was already there. Deciding that BEFORE the loop keeps this a
+        # single in-place pass over `ranked`, which the backtrack path depends on (it reuses
+        # `alternatives[step]` and pops its head to take the next-best).
+        cap_active = platform_cap > 0 and any(
+            (allow_replica_reuse or (int(c[0]), int(c[1])) not in used)
+            and per_platform.get((int(c[0]), int(c[1])), 0) < platform_cap
+            and load.get(int(c[0]), 0.0) + float(dem[i])
+            <= node_caps.get(int(c[0]), math.inf) + _MASKED_TOPO_EPS
+            for i, c in enumerate(candidates)
+        )
+        best = None
+        while ranked:
+            key, placement, i = ranked[0]
+            if not allow_replica_reuse and placement in used:
+                ranked.pop(0)
+                continue
+            if cap_active and per_platform.get(placement, 0) >= platform_cap:
+                ranked.pop(0)
+                continue
+            cap = node_caps.get(placement[0], math.inf)
+            if load.get(placement[0], 0.0) + float(dem[i]) > cap + _MASKED_TOPO_EPS:
+                ranked.pop(0)
+                continue
+            best = (key, placement, i)
+            break
+        if best is None:
+            if relax_on_stuck and step > 0 and backtracks < n_tasks:
+                # undo the previous step and continue from its next-best alternative;
+                # that step's ranking was scored on an unchanged prefix, so it is reused
+                prev_t = order[step - 1]
+                prev_placement = chosen.pop(prev_t)
+                prev_cands = [(int(c[0]), int(c[1])) for c in task_logit_to_placement[prev_t]]
+                load[prev_placement[0]] -= float(demands[prev_t][prev_cands.index(prev_placement)])
+                used.discard(prev_placement)
+                if per_platform.get(prev_placement):
+                    per_platform[prev_placement] -= 1
+                alternatives.pop()
+                if alternatives[step - 1]:
+                    alternatives[step - 1].pop(0)
+                backtracks += 1
+                if stats is not None:
+                    stats.masked_topo_backtracks += 1
+                step -= 1
+                continue
+            if relax_on_stuck:
+                candidates_all = [(int(c[0]), int(c[1])) for c in candidates]
+                over = [
+                    (load.get(pl[0], 0.0) + float(dem[i]) - node_caps.get(pl[0], math.inf), pl, i)
+                    for i, pl in enumerate(candidates_all)
+                    if allow_replica_reuse or pl not in used
+                ]
+                if not over:
+                    if stats is not None:
+                        stats.masked_topo_infeasible_tasks += 1
+                        stats.masked_topo_failed_decodes += 1
+                    return None
+                over.sort(key=lambda r: (r[0], r[1]))
+                _o, placement, i = over[0]
+                relaxed_any = True
+                if stats is not None:
+                    stats.masked_topo_relaxed_steps += 1
+                best = ((0.0, placement), placement, i)
+            else:
+                if stats is not None:
+                    stats.masked_topo_infeasible_tasks += 1
+                    stats.masked_topo_failed_decodes += 1
+                return None
+        _key, placement, i = best
+        chosen[t] = placement
+        used.add(placement)
+        per_platform[placement] = per_platform.get(placement, 0) + 1
+        load[placement[0]] = load.get(placement[0], 0.0) + float(dem[i])
+        step += 1
+    if stats is not None and relaxed_any:
+        stats.masked_topo_relaxed_decodes += 1
+    return tuple(chosen[t] for t in range(n_tasks))
+
+
+# ---------------------------------------------------------------------------
+# objective_pivot_v1 Phase 3: episode trajectory recording for policy gradient.
+#
+# A full episode is ~300k decisions (30k on the inner-loop trace), so the autograd
+# graph cannot be retained across an episode. The loop is therefore two-pass: pass 1
+# samples actions under no_grad and records what was chosen; pass 2 replays a
+# subsample of those decisions with grad to build the REINFORCE estimator. Uniform
+# subsampling of the per-decision log-prob sum, rescaled by T/k, is unbiased.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ReplayBatch:
+    """One decode batch kept for the pass-2 gradient replay.
+
+    ``payload`` is whatever that policy needs to recompute its own logits — a PyG
+    ``Data`` for the GNN, an ``(edge_matrix, task_boundaries)`` pair for the MLP. This
+    layer never interprets it; the trainer's per-arm adapter does. Keeping it opaque is
+    what lets CL-GNN and CL-MLP share one loop instead of forking it.
+
+    ``logprobs`` are the pass-1 values. They are not used to build the gradient (pass 2
+    recomputes them with grad), they are the *check* that pass 2 replayed the same
+    distribution: if a stored payload no longer reproduces them, the estimator is
+    differentiating something other than the policy that acted.
+    """
+
+    batch_index: int
+    payload: Any
+    chosen: List[int]
+    logprobs: List[float]
+
+
+@dataclass
+class EpisodeTrajectory:
+    """Chosen action indices per decision, plus the sampling temperature."""
+
+    temperature: float
+    task_choices: List[int] = field(default_factory=list)
+    task_n_candidates: List[int] = field(default_factory=list)
+    logprobs: List[float] = field(default_factory=list)
+    # How often the sample differed from what argmax would have taken. This is the
+    # exploration the gradient actually gets: a temperature whose episodes cost
+    # nothing because they reproduce argmax also teaches nothing.
+    n_explored: int = 0
+    # --- pass-2 replay reservoir (0 disables it; the probe ran with it disabled) ---
+    reservoir_k: int = 0
+    n_batches: int = 0
+    reservoir: List[ReplayBatch] = field(default_factory=list)
+    _batch_cursor: int = 0
+
+    def record(
+        self, chosen_idx: int, n_candidates: int, logprob: float, argmax_idx: int = -1
+    ) -> None:
+        self.task_choices.append(int(chosen_idx))
+        self.task_n_candidates.append(int(n_candidates))
+        self.logprobs.append(float(logprob))
+        if argmax_idx >= 0 and int(chosen_idx) != int(argmax_idx):
+            self.n_explored += 1
+
+    # -- batch lifecycle -----------------------------------------------------------
+    #
+    # A decode call is one forward pass, so it is the unit the gradient replays. The
+    # scheduler closes each call with exactly one of these two.
+
+    def abandon_open_batch(self) -> int:
+        """Drop decisions recorded by a decode that then failed and fell back.
+
+        A partial decode still recorded log-probs, but the placements it proposed were
+        never executed. Crediting the episode's return to actions the simulator did not
+        take points the gradient at the wrong distribution, so those records are
+        removed rather than kept and hoped about.
+        """
+        dropped = len(self.task_choices) - self._batch_cursor
+        if dropped > 0:
+            del self.task_choices[self._batch_cursor:]
+            del self.task_n_candidates[self._batch_cursor:]
+            del self.logprobs[self._batch_cursor:]
+            # n_explored is a running count and cannot be un-incremented exactly;
+            # recompute it from what survives is impossible without argmax indices, so
+            # the counter is left alone and explore_rate is documented as measured over
+            # committed decisions with at most one abandoned batch of slack.
+        return max(0, dropped)
+
+    def offer_replay(self, payload_factory: Callable[[], Any]) -> None:
+        """Close a committed decode batch and reservoir-sample it for pass 2.
+
+        Algorithm R: batch ``i`` (0-based) is kept outright while fewer than k are held,
+        and afterwards replaces a uniformly chosen held batch with probability k/(i+1).
+        Every batch of the episode therefore ends up in the reservoir with probability
+        exactly k/N, which is what makes the ``N/k`` rescale in the trainer unbiased.
+
+        ``payload_factory`` is a *thunk*, called only for a batch the reservoir actually
+        accepts. An episode is ~7.5k batches and keeps k≈64 of them, so materialising
+        (deep-copying, moving to CPU) every payload would cost two orders of magnitude
+        more than the sampling it feeds.
+        """
+        chosen = self.task_choices[self._batch_cursor:]
+        lps = self.logprobs[self._batch_cursor:]
+        self._batch_cursor = len(self.task_choices)
+        if not chosen:
+            return
+        idx = self.n_batches
+        self.n_batches += 1
+        if self.reservoir_k <= 0:
+            return
+        if len(self.reservoir) < self.reservoir_k:
+            self.reservoir.append(
+                ReplayBatch(idx, payload_factory(), list(chosen), list(lps))
+            )
+            return
+        # Drawn from the reservoir RNG, never the action RNG: consuming action draws
+        # here would make the episode depend on k, and two arms paired under common
+        # random numbers would silently stop sharing a trace.
+        j = int(torch.randint(0, idx + 1, (1,), generator=_RESERVOIR_RNG).item())
+        if j < self.reservoir_k:
+            self.reservoir[j] = ReplayBatch(
+                idx, payload_factory(), list(chosen), list(lps)
+            )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "temperature": self.temperature,
+            "n_decisions": len(self.task_choices),
+            "sum_logprob": float(sum(self.logprobs)),
+            "mean_logprob": (
+                float(sum(self.logprobs) / len(self.logprobs)) if self.logprobs else 0.0
+            ),
+            "explore_rate": (
+                self.n_explored / len(self.task_choices) if self.task_choices else 0.0
+            ),
+            "mean_n_candidates": (
+                float(sum(self.task_n_candidates) / len(self.task_n_candidates))
+                if self.task_n_candidates
+                else 0.0
+            ),
+            "n_batches": self.n_batches,
+            "reservoir_k": self.reservoir_k,
+            "n_reserved": len(self.reservoir),
+        }
+
+
+_RUN_TRAJECTORY: Optional[EpisodeTrajectory] = None
+_SAMPLE_RNG: Optional[torch.Generator] = None
+_RESERVOIR_RNG: Optional[torch.Generator] = None
+
+
+def reset_episode_trajectory(
+    temperature: float, seed: int, reservoir_k: int = 0
+) -> EpisodeTrajectory:
+    """Start recording a fresh episode. The RNG is seeded so an episode is replayable."""
+    global _RUN_TRAJECTORY, _SAMPLE_RNG, _RESERVOIR_RNG
+    if torch is None:  # pragma: no cover
+        raise RuntimeError("FAIL LOUD: sampled decode requires torch, which is not installed")
+    if temperature <= 0:
+        raise ValueError(f"FAIL LOUD: sampling temperature must be > 0, got {temperature}")
+    if reservoir_k < 0:
+        raise ValueError(f"FAIL LOUD: reservoir_k must be >= 0, got {reservoir_k}")
+    _RUN_TRAJECTORY = EpisodeTrajectory(
+        temperature=float(temperature), reservoir_k=int(reservoir_k)
+    )
+    _SAMPLE_RNG = torch.Generator(device="cpu")
+    _SAMPLE_RNG.manual_seed(int(seed))
+    # A separate stream, derived from the same seed so the episode stays a pure
+    # function of it, but never interleaved with the action draws.
+    _RESERVOIR_RNG = torch.Generator(device="cpu")
+    _RESERVOIR_RNG.manual_seed(int(seed) ^ 0x5EED_1234)
+    return _RUN_TRAJECTORY
+
+
+def get_episode_trajectory() -> Optional[EpisodeTrajectory]:
+    return _RUN_TRAJECTORY
+
+
+def clear_episode_trajectory() -> None:
+    global _RUN_TRAJECTORY, _SAMPLE_RNG, _RESERVOIR_RNG
+    _RUN_TRAJECTORY = None
+    _SAMPLE_RNG = None
+    _RESERVOIR_RNG = None
+
+
+def sampled_chosen_idx(logits_t: Tensor, temperature: float) -> Tuple[int, float]:
+    """Sample one candidate from softmax(logits / T); return (index, log-prob).
+
+    Computed in float64 over the candidate axis: episode returns are compared across
+    arms at the third decimal, and a float32 softmax over a long candidate list moves
+    the sampled index often enough to matter.
+    """
+    if _SAMPLE_RNG is None:
+        raise RuntimeError(
+            "FAIL LOUD: sampled decode called with no open episode — call "
+            "reset_episode_trajectory(temperature, seed) first. Sampling from an "
+            "unseeded RNG would make the episode unreproducible."
+        )
+    flat = logits_t.detach().to(torch.float64).reshape(-1)
+    logprobs = torch.log_softmax(flat / float(temperature), dim=0)
+    probs = logprobs.exp()
+    idx = int(torch.multinomial(probs, num_samples=1, generator=_SAMPLE_RNG).item())
+    return idx, float(logprobs[idx].item())
+
+
+def decode_sampled_placement(
+    logits_per_task: Sequence[Tensor],
+    task_logit_to_placement: Mapping[int, Sequence[Tuple[int, int]]],
+    n_tasks: int,
+    queue_snapshot: Optional[Mapping[str, int]] = None,
+    task_logit_to_queue_key: Optional[Mapping[int, Sequence[str]]] = None,
+    *,
+    temperature: float,
+) -> Optional[PlacementCombo]:
+    """Sequential decode that SAMPLES each task's placement instead of taking argmax.
+
+    Identical to decode_sequential_placement in every other respect — same candidate
+    lists, same live-queue roll-forward — so the only difference between this and the
+    served policy is the action rule. Records each decision into the active episode
+    trajectory when one is open.
+    """
+    if len(logits_per_task) != n_tasks:
+        return None
+    live_queues: Dict[str, int] = {
+        str(k): int(v) for k, v in (queue_snapshot or {}).items()
+    }
+    keys_map = task_logit_to_queue_key or {}
+    combo_list: List[Tuple[int, int]] = []
+
+    for t_idx in range(n_tasks):
+        if t_idx not in task_logit_to_placement:
+            return None
+        logits_t = logits_per_task[t_idx]
+        if logits_t.numel() == 0:
+            return None
+        candidates = task_logit_to_placement[t_idx]
+        chosen_idx, logprob = sampled_chosen_idx(logits_t, temperature)
+        if chosen_idx >= len(candidates):
+            return None
+        if _RUN_TRAJECTORY is not None:
+            _RUN_TRAJECTORY.record(
+                chosen_idx,
+                len(candidates),
+                logprob,
+                argmax_idx=int(logits_t.detach().reshape(-1).argmax().item()),
+            )
+        keys = _queue_keys_for_task(t_idx, candidates, keys_map)
+        chosen_key = keys[chosen_idx]
+        node_id, plat_id = candidates[chosen_idx]
+        combo_list.append((int(node_id), int(plat_id)))
+        live_queues[chosen_key] = live_queues.get(chosen_key, 0) + 1
+
+    return tuple(combo_list)
 
 
 def decode_sequential_placement(
@@ -430,7 +1260,9 @@ def decode_sequential_placement(
 
         candidates = task_logit_to_placement[t_idx]
         if uniq_platform:
-            chosen_idx = uniq_platform_chosen_idx(logits_t, candidates, used_placements)
+            chosen_idx = uniq_platform_chosen_idx(
+                logits_t, candidates, used_placements, stats=stats
+            )
         else:
             gnn_idx = int(logits_t.argmax().item())
             if gnn_idx >= len(candidates):
@@ -541,7 +1373,17 @@ def _refresh_queue_dependent_platform_features(
 
     platform_features = graph.platform_features
     feat_dim = int(platform_features.size(-1))
-    layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "dim22").strip().lower()
+    layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip().lower()
+    if not layout:
+        # The graph was built under the builder's layout resolution; refreshing it under a
+        # guessed one rewrites dim7/dim13 with different semantics mid-decode. The model
+        # loader always pins the layout before any decode, so an unset value here means
+        # nothing declared it — refuse rather than guess (this default used to be dim22
+        # while the builder's was atomic21).
+        raise RuntimeError(
+            "seq_reforward: INFERENCE_FEATURE_LAYOUT is unset. The layout must be pinned "
+            "by the checkpoint sidecar or the environment before decoding."
+        )
     ce_reduced = layout in ("ce_reduced", "reduced_ce", "reduced1060")
     atomic21 = layout in ("atomic21", "21")
     if feat_dim < 6:
@@ -569,7 +1411,9 @@ def _refresh_queue_dependent_platform_features(
         else:
             target_concurrency = max(float(info.get("target_concurrency", 1.0)), 1e-9)
             platform_features[pos, 7] = raw_q / float(queue_norm)
-            platform_features[pos, 13] = (raw_q / target_concurrency) / 5.0
+            platform_features[pos, 13] = usage_ratio_feature(
+                raw_q, target_concurrency, resolve_queue_feature_contract()
+            )
 
 
 def decode_sequential_reforward_placement(
@@ -897,6 +1741,12 @@ def run_decode_with_timing(
     uniq_platform: bool = False,
     top_k: int = 10,
     stats: Optional[GnnDecodeRunStats] = None,
+    dag_parents: Optional[Mapping[int, Sequence[int]]] = None,
+    node_caps: Optional[Mapping[int, float]] = None,
+    demands: Optional[Mapping[int, Sequence[float]]] = None,
+    score_fn: Optional[
+        "Callable[[int, Mapping[int, Tuple[int, int]]], Sequence[float]]"
+    ] = None,
 ) -> Optional[PlacementCombo]:
     """Run decode for the requested mode and record batch instrumentation."""
     t0 = time.perf_counter()
@@ -904,7 +1754,41 @@ def run_decode_with_timing(
     branching: Optional[List[int]] = None
     effective_mode = decode_mode
 
-    if decode_mode in ("frozen", "frozen_argmax"):
+    if decode_mode == "masked_topo":
+        if dag_parents is None or node_caps is None or demands is None:
+            raise RuntimeError(
+                "FAIL LOUD: decode mode 'masked_topo' needs dag_parents, node_caps "
+                "and demands (the §4 masked-decoder state). The stage-2 offline "
+                "harness supplies them; live-serving wiring is stage 3 and does "
+                "not exist yet."
+            )
+        combo = decode_masked_topo_placement(
+            logits_per_task,
+            task_logit_to_placement,
+            n_tasks,
+            dag_parents=dag_parents,
+            node_caps=node_caps,
+            demands=demands,
+            stats=stats,
+            score_fn=score_fn,
+        )
+    elif decode_mode in ("sample", "sampled"):
+        temp_env = os.environ.get("GNN_SAMPLE_TEMPERATURE", "").strip()
+        if not temp_env:
+            raise ValueError(
+                "FAIL LOUD: decode mode 'sample' requires GNN_SAMPLE_TEMPERATURE. "
+                "A default temperature would silently fix an unregistered "
+                "exploration level into every episode."
+            )
+        combo = decode_sampled_placement(
+            logits_per_task,
+            task_logit_to_placement,
+            n_tasks,
+            queue_snapshot,
+            task_logit_to_queue_key,
+            temperature=float(temp_env),
+        )
+    elif decode_mode in ("frozen", "frozen_argmax"):
         combo = decode_frozen_argmax_placement(
             logits_per_task, task_logit_to_placement, n_tasks
         )

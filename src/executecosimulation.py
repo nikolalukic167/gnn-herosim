@@ -9,6 +9,7 @@ import time
 import hashlib
 import uuid
 from copy import deepcopy
+from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Set, Optional
 
@@ -64,7 +65,7 @@ except ImportError:
     HAS_ORJSON = False
 
 from src.eventgenerator import increase_events_of_app
-from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH
+from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.sample_loader import load_primary_sample_and_mapping
@@ -75,6 +76,37 @@ from src.sample_loader import load_primary_sample_and_mapping
 
 # Global quiet mode flag (set via --quiet command line argument)
 QUIET_MODE = False
+
+
+# Why the last combination-generation call produced no placements (None = it didn't).
+# See generate_brute_force_placement_combinations.
+_LAST_SKIP_REASON: Optional[Dict[str, Any]] = None
+
+
+def cosim_keep_alive() -> float:
+    """Replica keep-alive for co-sim sweep episodes, overridable by env.
+
+    The default (constants.KEEP_ALIVE = 30 s) lets the autoscaler scale down replicas
+    that idle longer than 30 s MID-EPISODE. For single-node dags that is invisible —
+    all tasks batch at t~0 and nothing needs a replica after it goes idle. For a DAG it
+    corrupts the sweep: children dispatch at their parents' completion, and any physics
+    that stretches a parent stage past 30 s (route B's 800 MB transfers do) gets the
+    child's FORCED replica evicted first, killing the episode with "Invalid forced
+    placement ... not in replicas" — nondeterministically, because the scale-down victim
+    sort is the known unstable set-order tie-break. A forced-placement sweep evaluates a
+    plan over the dataset's DECLARED replica substrate; whether a replica survives to be
+    used must not depend on autoscaler timing no scheduler controls.
+
+    Set HEROSIM_COSIM_KEEP_ALIVE (seconds) to override; unset keeps KEEP_ALIVE and is
+    bit-identical to prior behavior.
+    """
+    raw = os.environ.get("HEROSIM_COSIM_KEEP_ALIVE", "").strip()
+    if not raw:
+        return KEEP_ALIVE
+    value = float(raw)
+    if value <= 0:
+        raise ValueError(f"HEROSIM_COSIM_KEEP_ALIVE must be positive, got {value}")
+    return value
 
 
 def rtt_from_stats(stats: Optional[Dict[str, Any]]) -> float:
@@ -305,7 +337,451 @@ def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
             key = filename.replace('.json', '').replace('-', '_')
             sim_inputs[key] = json.load(f)
 
+    apply_state_size_override(sim_inputs)
+    apply_storage_neutral_override(sim_inputs)
+    apply_image_size_override(sim_inputs)
+    apply_disk_capacity_override(sim_inputs)
+
     return sim_inputs
+
+
+def ensure_application_state_size(
+    sim_inputs: Dict[str, Any], application_names: Any
+) -> List[str]:
+    """Give every named application a `stateSize` entry on every task type.
+
+    `Platform.platform_process` indexes `task.type["stateSize"][application_name]`, so an
+    application the task types have never heard of is a hard KeyError mid-episode rather
+    than a startup error. Every corpus so far uses `nofs-<task_type>` applications, which
+    the shipped task-types file happens to cover; a DAG application (`nofs-diamond4`) is
+    ONE application containing several task types, and no task type has an entry for it.
+
+    Names come from the WORKLOAD, not `application-types.json`: the simulator reads each
+    event's `application` dict verbatim, so a DAG application exists only in the trace and
+    is never registered anywhere.
+
+    Clones each task type's existing `nofs-*` entry, so a DAG task keeps exactly the I/O
+    sizes it would have had as a standalone application — the DAG changes the topology of
+    the work, not the size of it. In memory only: `data/nofs-ids/` is shared by every
+    corpus and is never copied per dataset.
+
+    Returns the `task_type/application` pairs it had to synthesize.
+    """
+    task_types = sim_inputs.get("task_types") or {}
+    added: List[str] = []
+
+    for app_name in application_names:
+        for type_name, task_type in task_types.items():
+            state_size = task_type.get("stateSize") or {}
+            if app_name in state_size:
+                continue
+            donor_key = next(
+                (k for k in state_size if k.startswith("nofs-")),
+                next(iter(state_size), None),
+            )
+            if donor_key is None:
+                raise RuntimeError(
+                    f"task type {type_name!r} has no stateSize entries at all; cannot "
+                    f"synthesize one for application {app_name!r}"
+                )
+            state_size[app_name] = deepcopy(state_size[donor_key])
+            added.append(f"{type_name}/{app_name}")
+
+    return added
+
+
+def apply_state_size_override(sim_inputs: Dict[str, Any]) -> Optional[int]:
+    """Scale every task type's input stateSize in memory, from HEROSIM_STATE_SIZE_BYTES.
+
+    `stateSize` is welded into `data/nofs-ids/task-types.json` at 153,600 B, and that file
+    is shared by EVERY corpus — it is never copied per dataset — so editing it would
+    silently rewrite the physics of every existing collection. The same reasoning as
+    `sample_loader.ensure_workload_params`: grow the copy this run uses.
+
+    Intended for route_a as the lever that would raise the coupled parent->child transfer
+    relative to additive queue work. **The 2026-08-25 scaling probe showed it is not that
+    lever**: `_dependency_transfer_time` divides the payload by the CHILD's own bandwidth,
+    so the part that scales here is separable by construction, and only the (unscaled)
+    parent->child latency is pairwise. Raising this drove additive cost to ~950 s/episode
+    and left additive-argmin regret at exactly 0.000%. Still the right way to change
+    stateSize; just not a lever on separability. See route_a_v1 in LINEAGES.md.
+
+    Returns the applied value, or None when unset.
+    """
+    # `output` alone, for isolating the COUPLED term. `input` is a per-task storage read
+    # (separable); `output` is what a child pulls from its parent and is therefore the only
+    # payload the pairwise transfer carries. Scaling both together — which
+    # HEROSIM_STATE_SIZE_BYTES does — grows the separable half far faster, and measured
+    # 2026-08-25 it buried the pairwise variation 200:1 (episode ~1000 s, hop-count spread
+    # ~4.6 s). Set this to move the coupled term without touching the additive one.
+    raw_output = os.environ.get("HEROSIM_OUTPUT_SIZE_BYTES", "").strip()
+    if raw_output:
+        output_size = int(raw_output)
+        if output_size <= 0:
+            raise ValueError(f"HEROSIM_OUTPUT_SIZE_BYTES must be positive, got {output_size}")
+        task_types_out = sim_inputs.get("task_types") or {}
+        for task_type in task_types_out.values():
+            for app_entry in (task_type.get("stateSize") or {}).values():
+                app_entry["output"] = output_size
+
+    # `input` alone, for isolating the CONTENDED term. The store-and-forward fabric
+    # loop (infrastructure.py, link_contention_v1 block) transmits the task's INPUT
+    # from its client to its executing node, holding each link on the route — that is
+    # the only place link waiting accrues. `output` (above) is the pairwise
+    # parent->child payload and never touches the fabric (`_payload_transfer_time`
+    # charges time from hop count alone, no pipes). Set this to make link contention
+    # a material share of RTT without inflating the un-contended dependency transfer.
+    # Route-C screen lever, 2026-08-26.
+    raw_input = os.environ.get("HEROSIM_INPUT_SIZE_BYTES", "").strip()
+    if raw_input:
+        if os.environ.get("HEROSIM_STATE_SIZE_BYTES", "").strip():
+            raise ValueError(
+                "HEROSIM_INPUT_SIZE_BYTES and HEROSIM_STATE_SIZE_BYTES are both set — "
+                "STATE rewrites input AND output and would clobber this override; "
+                "pick one lever")
+        input_size = int(raw_input)
+        if input_size <= 0:
+            raise ValueError(f"HEROSIM_INPUT_SIZE_BYTES must be positive, got {input_size}")
+        task_types_in = sim_inputs.get("task_types") or {}
+        for task_type in task_types_in.values():
+            for app_entry in (task_type.get("stateSize") or {}).values():
+                app_entry["input"] = input_size
+
+    raw = os.environ.get("HEROSIM_STATE_SIZE_BYTES", "").strip()
+    if not raw:
+        return None
+    state_size = int(raw)
+    if state_size <= 0:
+        raise ValueError(f"HEROSIM_STATE_SIZE_BYTES must be positive, got {state_size}")
+
+    # BOTH directions. `input` is what the storage branch reads; `output` is what a CHILD
+    # reads from its parent, and therefore the payload of the parent->child transfer — the
+    # only term in the simulator that couples two placements. Scaling `input` alone moves
+    # the additive storage cost and leaves the coupled term pinned at its welded 8,000 B,
+    # so the lever would appear to do nothing to separability while visibly changing RTT.
+    # That is exactly the false negative this probe exists to avoid.
+    task_types = sim_inputs.get("task_types") or {}
+    for task_type in task_types.values():
+        for app_entry in (task_type.get("stateSize") or {}).values():
+            baseline_input = float(app_entry.get("input") or 0.0)
+            baseline_output = float(app_entry.get("output") or 0.0)
+            app_entry["input"] = state_size
+            # Keep the output/input ratio the application shipped with, so the DAG's
+            # transfer payload scales with the lever instead of being redefined by it.
+            if baseline_input > 0 and baseline_output > 0:
+                app_entry["output"] = max(1, int(round(state_size * baseline_output / baseline_input)))
+            else:
+                app_entry["output"] = state_size
+    return state_size
+
+
+def apply_storage_neutral_override(sim_inputs: Dict[str, Any]) -> bool:
+    """Make the remote storage tier's READ cost identical to the local one.
+
+    route_b_env_pivot AMENDMENT 1, build item A1. The screen's paired "separable control"
+    was defined as Arm S with `HEROSIM_DATA_LOCALITY`/`HEROSIM_OUTPUT_SIZE_BYTES` unset,
+    and that ablation does NOT produce separable physics. `infrastructure.py:1244-1252`
+    computes `local_dependencies = all(dep.storage["output"] in node.storage.items ...)`
+    and then prices the child's input read from `flashCard` (0.000743 s) when every parent
+    ran on this node and `someRemote` (0.016356 s) otherwise — 0.0156 s per task charged as
+    a function of where the task's PARENTS ran, i.e. exactly the pairwise parent->child
+    term the control exists to exclude. It is all-or-nothing: one remote parent prices the
+    same as all-remote.
+
+    This is NOT `_dependency_transfer_time` (route_a's data locality), which correctly
+    returns 0.0 when `HEROSIM_DATA_LOCALITY != 1`. It is the storage tier immediately
+    above it, whose own comment concedes the remote arm charges a constant `someRemote`
+    latency "blind to where the parent actually ran". Measured 2026-08-27: adding a single
+    per-task "all parents local" indicator to an exact additive fit cuts the residual 4-8x,
+    and the DAG root (task 0, no parents) has exactly zero duration spread.
+
+    Only the READ path moves. Write throughput/latency, capacity, iops, energy and the
+    `remote` flag are untouched, so warmth/disk semantics (`node_disk_v2`, the FilterStore
+    pull) are not perturbed — this lever removes a cost difference, not a code path:
+    `local_dependencies` still computes and still selects `someRemote`, the two arms simply
+    cost the same.
+
+    **Both tiers are clamped DOWN to a common read throughput, not raised to the local
+    tier's.** `infrastructure.py:1288-1294` prices the remote arm at
+    `min(throughput.read, node.network.bandwidth)` and the local arm at `throughput.read`
+    unclamped. Setting `someRemote`'s read equal to `flashCard`'s 235 MB/s therefore leaves
+    a residual gap wherever a node's bandwidth is below 235 — and every node in
+    `data/nofs-ids/infrastructure.json` is 100 Mbps, which left 0.00084 s of coupling
+    (an 18.7x reduction, but not zero). Pinning both tiers at
+    HEROSIM_STORAGE_NEUTRAL_READ_MBPS (default 100.0, at or below the fabric's bandwidth)
+    makes the `min()` a no-op and the two arms bit-identical. Verified 0.0 exactly.
+
+    Mutates `sim_inputs` in memory only. `data/nofs-ids/storage-types.json` is shared by
+    EVERY corpus and is never copied per dataset, so editing it would silently rewrite the
+    physics of every existing collection — the same reasoning as
+    `apply_state_size_override` above.
+
+    CONTROL ARM ONLY. Setting this on a main (Arm S) corpus removes a real coupling term
+    from the very physics the screen is testing and would fabricate a pass; AMENDMENT 1 §6
+    makes such a rung VOID-GENERATION.
+
+    Returns True when applied, False when the variable is unset.
+    """
+    if os.environ.get("HEROSIM_STORAGE_NEUTRAL", "0") != "1":
+        return False
+
+    storage_types = sim_inputs.get("storage_types") or {}
+    # Fail loud. A silent skip here would produce a control corpus that looks amended but
+    # still carries the coupling, which is the one failure mode this lever must not have.
+    for required in ("flashCard", "someRemote"):
+        if required not in storage_types:
+            raise RuntimeError(
+                f"HEROSIM_STORAGE_NEUTRAL=1 but storage_types has no {required!r} entry "
+                f"(present: {sorted(storage_types)}); refusing to produce a control corpus "
+                f"whose parent-locality coupling is still live"
+            )
+
+    raw_mbps = os.environ.get("HEROSIM_STORAGE_NEUTRAL_READ_MBPS", "").strip()
+    read_mbps = float(raw_mbps) if raw_mbps else 100.0
+    if read_mbps <= 0:
+        raise ValueError(
+            f"HEROSIM_STORAGE_NEUTRAL_READ_MBPS must be positive, got {read_mbps}")
+
+    # The clamp only vanishes when the pinned speed is <= EVERY node's bandwidth. Pinning
+    # above the fabric silently reintroduces the coupling on the remote arm alone, which
+    # would produce a control corpus that looks amended and is not — refuse instead.
+    # `node.network` is the single shared `infrastructure["network"]` block
+    # (simulation.py:142), so one bandwidth governs every node's remote-read clamp.
+    infrastructure = sim_inputs.get("infrastructure") or {}
+    network = infrastructure.get("network") if isinstance(infrastructure, dict) else None
+    fabric_mbps = (
+        float(network["bandwidth"])
+        if isinstance(network, dict) and network.get("bandwidth") is not None
+        else None
+    )
+    if fabric_mbps is not None and read_mbps > fabric_mbps:
+        raise RuntimeError(
+            f"HEROSIM_STORAGE_NEUTRAL_READ_MBPS={read_mbps} exceeds the node network "
+            f"bandwidth ({fabric_mbps} Mbps). infrastructure.py clamps the REMOTE read "
+            f"at min(throughput, bandwidth) and leaves the local read unclamped, so the "
+            f"parent-locality coupling this lever exists to remove would survive on every "
+            f"node below {read_mbps}. Pin it at or below the fabric bandwidth."
+        )
+
+    local = storage_types["flashCard"]
+    remote = storage_types["someRemote"]
+    read_latency = local["latency"]["read"]
+    for tier in (local, remote):
+        tier["throughput"]["read"] = read_mbps
+        tier["latency"]["read"] = read_latency
+    return True
+
+
+# ---------------------------------------------------------------------------
+# image_cache_v1 — the bounded node image cache lever.
+#
+# WHY. Every co-location mechanism this repo has tried collapsed onto an occupancy
+# integer, because the contended object was priced per node and the price was a function
+# of HOW MANY tasks landed there. The node image cache is priced in BYTES, and the bytes
+# depend on WHICH platform each co-resident task took — so whether a set of tasks fits is
+# a knapsack over the chosen assignment, not a count of it. That is the one shape the
+# empirical rule ("every escape collapses to an occupancy integer") does not cover.
+#
+# The machinery already exists and has never once fired: `Storage.store_function`
+# (infrastructure.py) evicts FIFO when an image does not fit, but images are ~3 GB
+# (data/nofs-ids/task-types.json) and local disks are 32/64 GB
+# (data/nofs-ids/storage-types.json), so four task types x four platforms can never
+# exceed a disk. These two levers bind it.
+#
+# BOTH ARE REQUIRED TOGETHER, and the reason is measured, not stylistic. Shipped image
+# sizes are near-uniform (3.057 / 2.990 / 2.987, with only dnn1@pynqFpga at 0.004), and a
+# uniform-weight knapsack IS a count — "how many distinct images on my node" would be a
+# sufficient statistic and the throughline predicts one integer repairs it. Heterogeneous
+# sizes are the mechanism, not a garnish.
+#
+# Both mutate `sim_inputs` in memory only. `data/nofs-ids/` is shared by EVERY corpus and
+# is never copied per dataset, so editing those files would silently rewrite the physics
+# of every existing collection — the same reasoning as `apply_state_size_override`.
+# ---------------------------------------------------------------------------
+
+
+def _yield_cost(task_type: Dict[str, Any], type_name: str) -> float:
+    """How much this task type loses by giving up its favourite platform.
+
+    `(second-best - best)` total time, where total = coldStartDuration + executionTime.
+
+    Second-best rather than worst on purpose. The worst platform of a type is typically one
+    it will never be deployed on (rf@xavierGpu is 12.7 s against 0.05 s on xavierCpu), so a
+    max-min gap ranks types by an option nobody would take. On the grid this lever targets,
+    the two platform types actually deployed ARE each type's two fastest, so second-best is
+    the gap a plan really trades against — measured on data/nofs-ids/task-types.json:
+    cnn 3.408 > dnn2 0.684 > dnn1 0.261 > rf 0.018, which is exactly the rpiCpu-vs-xavierCpu
+    ordering, where a max-min ranking gives cnn > rf > dnn1 > dnn2 and puts the type that
+    cares least (rf, 0.018 s) second.
+    """
+    platforms = task_type.get("platforms") or []
+    cold = task_type.get("coldStartDuration") or {}
+    exec_t = task_type.get("executionTime") or {}
+    missing = [p for p in platforms if p not in cold or p not in exec_t]
+    if missing:
+        raise RuntimeError(
+            f"task type {type_name!r} lists platforms {missing} with no "
+            f"coldStartDuration/executionTime entry; cannot rank task types to assign "
+            f"image sizes. Refusing to guess — the ranking IS the anti-alignment."
+        )
+    if len(platforms) < 2:
+        raise RuntimeError(
+            f"task type {type_name!r} has fewer than 2 platforms; it has no favourite to "
+            f"give up and cannot be ranked by yield cost"
+        )
+    totals = sorted(float(cold[p]) + float(exec_t[p]) for p in platforms)
+    return totals[1] - totals[0]
+
+
+def _image_task_type_order(task_types: Dict[str, Any]) -> List[str]:
+    """Task types ranked by yield cost DESCENDING; ties break by name.
+
+    The name tie-break is not decoration: this repo's classic determinism leak is an
+    unordered tie-break over objects (herosim-pythonhashseed-tiebreak-nondeterminism), and
+    PYTHONHASHSEED does not pin it.
+    """
+    return sorted(
+        task_types,
+        key=lambda name: (-_yield_cost(task_types[name], name), name),
+    )
+
+
+def apply_image_size_override(sim_inputs: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    """Spread image size across TASK TYPES, the type that yields least willingly largest.
+
+    HEROSIM_IMAGE_SIZE_MIN_GB / HEROSIM_IMAGE_SIZE_MAX_GB (both required together, unset =>
+    no-op and byte-identical to before this lever existed).
+
+    Task types are ranked by `_yield_cost` descending and assigned sizes interpolated
+    GEOMETRICALLY from MAX (yields least willingly) down to MIN. Geometric so the ratio
+    between adjacent ranks is constant and the spread does not depend on the absolute anchor.
+    Each type's size is UNIFORM across its own platforms — see "why not per platform" below.
+
+    THE DIRECTION IS DELIBERATE ENGINEERING, not an emergent property, and is stated here so
+    no reader mistakes it for a discovery: the task that loses most by moving off the
+    contested fast node is the one whose image is most expensive to keep cached there.
+    Someone must yield, and which set of tasks can share a disk depends on their sizes, not
+    their number. Route A measured that coupling ALIGNED with the pointwise optimum leaves
+    the componentwise argmin intact — every task took its favourite and the coupling term
+    was minimised there too — so anti-alignment is built in rather than hoped for.
+
+    WHY NOT PER PLATFORM, which is what this function did in its first draft. On the grid
+    this lever targets, `generate_replica_placements` gives each hosting node platform
+    instances of a SINGLE type (measured on gnn_datasets_route_b_pivot_h2/ds_00000: node0 is
+    4x rpiCpu, node1 is 4x xavierCpu). Co-located tasks therefore always share a platform
+    type, so a per-platform spread makes every co-resident image the same size and "does this
+    set fit" collapses back to a COUNT of co-residents — the exact shape that one occupancy
+    integer repaired in five previous mechanisms. Spreading across task types is what makes
+    the disk a knapsack: {cnn, rf} and {dnn1, dnn2} are both two tasks and need different
+    amounts of disk.
+
+    A per-type-uniform size also keeps the additive part of the change a per-task constant.
+    Image size is the numerator of the cold-pull duration (`determined/autoscaler.py:213-222`:
+    size / (min(write_throughput, bandwidth)/1024)), so a per-platform spread would move each
+    task's platform preference as well; per-type, it does not. The ONLY new coupling is
+    co-residency disk pressure, which is what the corpus is meant to measure.
+
+    Pull time still changes in absolute terms, so the ISOLATING comparison for the eviction
+    coupling is (these sizes, bounded disk) vs (these sizes, UNBOUNDED disk) — never against
+    the shipped sizes.
+
+    Returns (min_gb, max_gb) when applied, None when unset.
+    """
+    raw_min = os.environ.get("HEROSIM_IMAGE_SIZE_MIN_GB", "").strip()
+    raw_max = os.environ.get("HEROSIM_IMAGE_SIZE_MAX_GB", "").strip()
+    if not raw_min and not raw_max:
+        return None
+    # Fail loud on a half-set lever. Silently defaulting the missing half would produce a
+    # corpus that looks spread and is not — the failure mode AMENDMENT 1 was written for.
+    if not raw_min or not raw_max:
+        raise RuntimeError(
+            "HEROSIM_IMAGE_SIZE_MIN_GB and HEROSIM_IMAGE_SIZE_MAX_GB must be set together "
+            f"(min={raw_min!r}, max={raw_max!r}); refusing to default the missing half"
+        )
+
+    min_gb = float(raw_min)
+    max_gb = float(raw_max)
+    if min_gb <= 0.0:
+        raise ValueError(f"HEROSIM_IMAGE_SIZE_MIN_GB must be positive, got {min_gb}")
+    if max_gb < min_gb:
+        raise ValueError(
+            f"HEROSIM_IMAGE_SIZE_MAX_GB ({max_gb}) must be >= "
+            f"HEROSIM_IMAGE_SIZE_MIN_GB ({min_gb})"
+        )
+
+    task_types = sim_inputs.get("task_types") or {}
+    if not task_types:
+        raise RuntimeError(
+            "HEROSIM_IMAGE_SIZE_*_GB is set but sim_inputs has no task_types; refusing to "
+            "produce a corpus whose image sizes are silently unchanged"
+        )
+
+    order = _image_task_type_order(task_types)
+    n = len(order)
+    for rank, type_name in enumerate(order):
+        task_type = task_types[type_name]
+        # rank 0 (yields least willingly) -> max_gb; rank n-1 -> min_gb.
+        frac = 0.0 if n == 1 else rank / (n - 1)
+        size = max_gb * ((min_gb / max_gb) ** frac)
+        image_size = task_type.setdefault("imageSize", {})
+        for platform in task_type.get("platforms") or []:
+            image_size[platform] = size
+    return (min_gb, max_gb)
+
+
+def apply_disk_capacity_override(sim_inputs: Dict[str, Any]) -> Optional[float]:
+    """Bound every LOCAL storage tier's capacity, from HEROSIM_DISK_CAPACITY_GB.
+
+    Local only (`remote` falsy). `warmth.node_has_cached_image` skips remote tiers
+    outright, so the image cache lives on the node's local disk and shrinking the remote
+    tier would bound something no image ever occupies.
+
+    Refuses a capacity that cannot hold the largest single image. `store_function` evicts
+    in a `while` loop and gives up with `logging.error` + `return False` when the cache is
+    already empty and the image still does not fit — a silent no-op that would make a
+    replica look cached when nothing was stored. Catching it here turns a config error into
+    a startup failure instead of a corpus-wide silent one. (`store_function` itself is also
+    fixed to raise; this guard is the earlier, more legible of the two.)
+
+    Returns the applied capacity in GB, or None when unset.
+    """
+    raw = os.environ.get("HEROSIM_DISK_CAPACITY_GB", "").strip()
+    if not raw:
+        return None
+    capacity_gb = float(raw)
+    if capacity_gb <= 0.0:
+        raise ValueError(f"HEROSIM_DISK_CAPACITY_GB must be positive, got {capacity_gb}")
+
+    storage_types = sim_inputs.get("storage_types") or {}
+    local_tiers = {
+        name: tier for name, tier in storage_types.items() if not tier.get("remote")
+    }
+    if not local_tiers:
+        raise RuntimeError(
+            f"HEROSIM_DISK_CAPACITY_GB={capacity_gb} is set but storage_types has no local "
+            f"(non-remote) tier (present: {sorted(storage_types)}); the image cache lives "
+            f"on local disk only, so this lever would bind nothing"
+        )
+
+    task_types = sim_inputs.get("task_types") or {}
+    largest: float = 0.0
+    largest_where = ""
+    for type_name, task_type in task_types.items():
+        for platform, size in (task_type.get("imageSize") or {}).items():
+            if float(size) > largest:
+                largest = float(size)
+                largest_where = f"{type_name}@{platform}"
+    if largest > capacity_gb:
+        raise RuntimeError(
+            f"HEROSIM_DISK_CAPACITY_GB={capacity_gb} is smaller than the largest single "
+            f"image ({largest} GB, {largest_where}). No eviction sequence can ever make "
+            f"room for it, so store_function would fail on every cold pull. Raise the "
+            f"capacity or lower HEROSIM_IMAGE_SIZE_MAX_GB."
+        )
+
+    for tier in local_tiers.values():
+        tier["capacity"] = capacity_gb
+    return capacity_gb
 
 
 def generate_network_latencies(nodes: List[Dict], config: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
@@ -467,6 +943,15 @@ def prepare_workloads(
     prepared_workloads = {}
 
     # Process each application
+    missing = [a for a in apps if f'workload_{a}' not in reverse_mapping]
+    if missing:
+        raise RuntimeError(
+            f"No workload parameter in the sample mapping for: {missing}. "
+            f"Known workload keys: "
+            f"{sorted(k for k in reverse_mapping if k.startswith('workload_'))}. "
+            f"A grid naming new task types also needs those apps in the sampled space "
+            f"(simulation_data/combinations_simple_mapping.pkl), not just in wsc/prewarm."
+        )
     for app_name in apps:
         # Get the workload factor from sample
         workload_key = f'workload_{app_name}'
@@ -588,7 +1073,13 @@ def determine_replica_placement(
         'preinit_servers': preinit_servers,
         'preinit_task_types': preinit_task_types,
         'replicas_config': replicas_config,
-        'prewarm_config': infrastructure.get('prewarm', {})
+        'prewarm_config': infrastructure.get('prewarm', {}),
+        # route_b env pivot (2026-08-27), W3: task types may legitimately share a
+        # (node, platform) slot (generate_infrastructure.py's preinit.replica_overlap).
+        # precreate_replicas needs this to know its own disjoint-platform dedup must be
+        # relaxed too, or it silently drops every task type but the first one that
+        # claims a shared platform — see simulation.py:184-461.
+        'replica_overlap': bool(preinit_config.get('replica_overlap', False)),
     }
     
     print(f"Replica placement plan created")
@@ -673,6 +1164,9 @@ def load_deterministic_infrastructure_data(
         "network_maps": network_maps,
         "deterministic_replica_placements": deterministic_replica_placements,
         "deterministic_queue_distributions": deterministic_queue_distributions,
+        # link_contention_v1: the routes and per-link capacities the backbone overlay
+        # emitted. Absent (every pre-existing corpus) this is None and no fabric is built.
+        "link_topology": infra_data.get("link_topology"),
         "metadata": metadata,
     }
 
@@ -717,6 +1211,19 @@ def prepare_simulation_config(
         "preinitialize_platforms": True,
         "defer_cold_replica_init": original_config.get("defer_cold_replica_init", True),
         "warmth_physics": original_config.get("warmth_physics", "node_disk_v2"),
+        # node_contention_v3: shared execution slots per node. None (the default) leaves
+        # platforms fully independent, which is node_disk_v2 physics.
+        "compute_slots_per_node": original_config.get("nodes", {}).get(
+            "compute_slots_per_node"
+        ),
+        # network_contention_v1: shared inbound bandwidth (MB/s) per node. None (the
+        # default) means no ingress pipe and no transmission time, i.e. node_disk_v2.
+        "ingress_bandwidth_mbps": original_config.get("nodes", {}).get(
+            "ingress_bandwidth_mbps"
+        ),
+        # link_contention_v1: filled in from the deterministic infrastructure below, since
+        # routes are a property of the generated topology, not of the space config.
+        "link_topology": None,
         # New configuration parameters
         "preinit": original_config.get('preinit', {}),
         "replicas": original_config.get('replicas', {}),
@@ -735,6 +1242,9 @@ def prepare_simulation_config(
         )
         infrastructure_config['deterministic_queue_distributions'] = deepcopy(
             deterministic_data['deterministic_queue_distributions']
+        )
+        infrastructure_config['link_topology'] = deepcopy(
+            deterministic_data.get('link_topology')
         )
     elif base_nodes is not None and len(base_nodes) > 0:
         # Reuse provided nodes (and their network maps) to keep topology consistent
@@ -855,10 +1365,14 @@ def execute_simulation(
 def calculate_workload_stats(events: List[Dict]) -> Dict[str, float]:
     """Calculate statistics for the flattened workload."""
     if not events:
+        # Key must be "rps": flatten_workloads reads stats['rps']. Returning
+        # "average_rps" here turned an empty workload into a bare KeyError: 'rps'.
         return {
-            "average_rps": 0,
+            "rps": 0,
             "duration": 0,
-            "total_events": 0
+            "total_events": 0,
+            "start_timestamp": 0,
+            "end_timestamp": 0,
         }
 
     # Get timestamps as integers
@@ -882,8 +1396,17 @@ def calculate_workload_stats(events: List[Dict]) -> Dict[str, float]:
     }
 
 
-def flatten_workloads(workloads: Dict[str, Dict]) -> Dict[str, Any]:
-    """Flatten multiple workload events into a single sorted list with statistics."""
+def flatten_workloads(workloads: Dict[str, Dict],
+                      base_workload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Flatten multiple workload events into a single sorted list with statistics.
+
+    peer_affinity_v1: when the base workload carries a top-level `peer_exchange` table
+    (global task ids = event order), it is carried through -- and because the per-app split
+    above regroups events by application before the simulator assigns task ids, the
+    flattened order MUST equal the base order or every peer id would silently point at a
+    different task. Checked here, fail loud. Legacy grids (no `peer_exchange`) keep the
+    regrouped order exactly as before: changing it would re-id every existing corpus.
+    """
     # Collect all events
     all_events = []
     for app_name, workload in workloads.items():
@@ -896,11 +1419,28 @@ def flatten_workloads(workloads: Dict[str, Dict]) -> Dict[str, Any]:
     # Calculate statistics
     stats = calculate_workload_stats(sorted_events)
 
-    return {
+    flattened: Dict[str, Any] = {
         "rps": stats['rps'],
         "duration": stats['duration'],
         "events": sorted_events
     }
+    peer_exchange = (base_workload or {}).get("peer_exchange")
+    if peer_exchange:
+        def _sig(ev: Dict[str, Any]) -> Tuple[Any, ...]:
+            app = ev.get("application") or {}
+            return (app.get("name"), ev.get("node_name"), json.dumps(app.get("dag"), sort_keys=True),
+                    json.dumps(app.get("demand_scale"), sort_keys=True))
+        base_sigs = [_sig(ev) for ev in (base_workload or {}).get("events", [])]
+        flat_sigs = [_sig(ev) for ev in sorted_events]
+        if base_sigs != flat_sigs:
+            raise RuntimeError(
+                "peer_exchange present but the flattened event order differs from the "
+                "workload's event order -- task ids would not match the peer table. The "
+                "generator must emit batch events grouped by application in wsc order "
+                f"(base={[b[:2] for b in base_sigs]}, flattened={[f[:2] for f in flat_sigs]})"
+            )
+        flattened["peer_exchange"] = [list(t) for t in peer_exchange]
+    return flattened
 
 
 def capture_system_state_from_first_task(
@@ -967,10 +1507,21 @@ def capture_system_state_from_first_task(
     }
     logger.info(f"Created workload with {len(single_event_workload['events'])} event(s)")
     
-    # Prepare infrastructure configuration with auto-resolve for task 0
-    # Auto-resolve will find a warm replica that was created during precreate_replicas
-    placement_plan = {0: (-1, -1)}
-    logger.info(f"Preparing infrastructure configuration with auto-resolve placement for task 0...")
+    # Prepare infrastructure configuration with auto-resolve for every task the event
+    # creates. Auto-resolve finds a warm replica created during precreate_replicas.
+    #
+    # One event does NOT mean one task: an application's dag creates a task per node, so a
+    # 4-node DAG event yields task ids 0..3. `{0: (-1, -1)}` left tasks 1+ with no entry
+    # and the run died on "No forced placement found for task 1" — inside the warmup
+    # capture, before any measurement, which is why it presents as an unexplained
+    # "System state capture FAILED".
+    _first_dag = (first_event.get('application') or {}).get('dag') or {}
+    _n_tasks_in_event = max(1, len(_first_dag))
+    placement_plan = {task_id: (-1, -1) for task_id in range(_n_tasks_in_event)}
+    logger.info(
+        f"Preparing infrastructure configuration with auto-resolve placement for "
+        f"{_n_tasks_in_event} task(s)..."
+    )
     logger.info("NOTE: Replicas should be pre-created via replica_plan and warmed up before task 0 arrives")
     sim_config = prepare_simulation_config(
         sample,
@@ -1016,7 +1567,7 @@ def capture_system_state_from_first_task(
         # Execute simulation
         cache_policy = 'fifo'
         task_priority = 'fifo'
-        keep_alive = KEEP_ALIVE
+        keep_alive = cosim_keep_alive()
         queue_length = QUEUE_LENGTH
         scheduling_strategy = 'determined_determined'
         
@@ -1124,6 +1675,59 @@ def capture_system_state_from_first_task(
         return None
 
 
+def classify_empty_combinations(
+        tasks: List[Dict],
+        skip_threshold: int,
+        allow_non_unique_replicas: bool) -> Dict[str, Any]:
+    """Attribute an empty combination list to its actual cause.
+
+    Every task reaching here has at least one feasible platform — the zero-candidate case
+    returns `infeasible_no_candidates` earlier — so the Cartesian product is non-empty and
+    an empty result has exactly two possible causes:
+
+    1. the over-limit skip, when the **pre-uniqueness** product exceeds
+       MAX_PLACEMENT_COMBINATIONS_SKIP (the threshold tests that product, not the sweep
+       size that survives uniqueness);
+    2. **uniqueness exhaustion** — no system of distinct representatives exists, so every
+       branch of the unique-replica search dead-ends.
+
+    Cause 2 only became reachable with `replica_overlap`, which lets several task types
+    share one platform set: 4 tasks over 2 distinct platforms has 16 combinations and 0
+    unique assignments. Before it, the code attributed *any* empty list to cause 1, so
+    102 H2 datasets recorded `too_many_combinations` with `skip_threshold: 2000000`
+    against a real product of 16. Anything the two causes cannot explain is reported as
+    `unknown` and logged loudly rather than given a cause it has not earned.
+    """
+    total_possible = 1
+    for task in tasks:
+        total_possible *= len(task['feasible_platforms'])
+    distinct_platforms = {
+        (p['node_id'], p['platform_id'])
+        for task in tasks for p in task['feasible_platforms']
+    }
+    diagnostics = {
+        "n_tasks": len(tasks),
+        "n_distinct_platforms": len(distinct_platforms),
+        "total_possible_pre_uniqueness": total_possible,
+        "skip_threshold": skip_threshold,
+    }
+
+    if skip_threshold > 0 and total_possible > skip_threshold:
+        return {"reason": "too_many_combinations", **diagnostics}
+
+    if not allow_non_unique_replicas:
+        # Pigeonhole is the sufficient condition, not the only one — a matching can fail
+        # Hall's condition with enough distinct platforms to go round — so it is recorded
+        # as a property of this case, never used to decide it.
+        return {
+            "reason": "uniqueness_exhausted",
+            "pigeonhole": len(distinct_platforms) < len(tasks),
+            **diagnostics,
+        }
+
+    return {"reason": "unknown", **diagnostics}
+
+
 def generate_brute_force_placement_combinations(
         workload_events: List[Dict],
         infrastructure_config: Dict[str, Any],
@@ -1162,7 +1766,12 @@ def generate_brute_force_placement_combinations(
     logger = logging.getLogger('simulation')
     logger.info(f"=== Generating Brute Force Placement Combinations (ALL combinations) ===")
     _log("\n=== Generating Brute Force Placement Combinations (ALL combinations) ===")
-    
+
+    # Cleared here, set by whichever bail-out empties the result; read by the caller so
+    # "no combinations" is recorded with its cause instead of a generic "infeasible".
+    global _LAST_SKIP_REASON
+    _LAST_SKIP_REASON = None
+
     # Determine which replica source to use
     det_placements = infrastructure_config.get('deterministic_replica_placements', {})
     
@@ -1444,11 +2053,18 @@ def generate_brute_force_placement_combinations(
         application = event['application']
         dag = application.get('dag', {})
         
-        # Handle both list and dict DAG formats
+        # Handle both list and dict DAG formats.
+        #
+        # The dict branch must use the SAME order the simulator assigns task ids in.
+        # `Orchestrator.create_application` walks `TopologicalSorter(dag).static_order()`,
+        # and `forced_placements` is keyed by `task.id` — so taking `dag.keys()` here
+        # silently assigns each task another task's platform whenever the JSON key order is
+        # not already topological. Every dag in the corpora is single-node, where the two
+        # orders trivially agree, which is why this has never fired.
         if isinstance(dag, list):
             task_type_names = dag
         elif isinstance(dag, dict):
-            task_type_names = list(dag.keys())
+            task_type_names = list(TopologicalSorter(dag).static_order())
         else:
             task_type_names = []
         
@@ -1500,6 +2116,10 @@ def generate_brute_force_placement_combinations(
                 })
                 task_id += 1
             else:
+                _LAST_SKIP_REASON = {
+                    "reason": "infeasible_no_candidates",
+                    "task_type": task_type_name,
+                }
                 print(f"❌ Abort: No feasible platforms for workload task index {task_id} ({task_type_name}). Skipping this sample.")
                 return []
     
@@ -1564,8 +2184,29 @@ def generate_brute_force_placement_combinations(
         )
     
     if not combinations:
-        logger.warning("No placement combinations generated (dataset skipped due to size)")
-        print("⚠️  Dataset skipped: too many placement combinations")
+        # Compare the pre-uniqueness product against the threshold BEFORE attributing —
+        # under replica_overlap an empty list is far more often uniqueness exhaustion
+        # than an over-limit skip. See classify_empty_combinations.
+        _LAST_SKIP_REASON = classify_empty_combinations(
+            tasks, skip_threshold, allow_non_unique_replicas)
+        reason = _LAST_SKIP_REASON["reason"]
+        if reason == "too_many_combinations":
+            logger.warning("No placement combinations generated (dataset skipped due to size)")
+            print("⚠️  Dataset skipped: too many placement combinations "
+                  f"({_LAST_SKIP_REASON['total_possible_pre_uniqueness']:,} > {skip_threshold:,})")
+        elif reason == "uniqueness_exhausted":
+            logger.warning(
+                "No placement combinations generated: no unique-replica assignment exists "
+                f"for {_LAST_SKIP_REASON['n_tasks']} tasks over "
+                f"{_LAST_SKIP_REASON['n_distinct_platforms']} distinct platforms")
+            print(f"⚠️  Dataset skipped: uniqueness exhausted — {_LAST_SKIP_REASON['n_tasks']} "
+                  f"tasks, {_LAST_SKIP_REASON['n_distinct_platforms']} distinct platforms "
+                  f"(NOT a MAX_PLACEMENT_COMBINATIONS_SKIP problem)")
+        else:
+            logger.error(f"No placement combinations generated and neither the "
+                         f"over-limit skip nor uniqueness exhaustion explains it: "
+                         f"{_LAST_SKIP_REASON}")
+            print(f"❌ Dataset skipped for an UNEXPLAINED reason: {_LAST_SKIP_REASON}")
     
     logger.info(f"Generated {len(combinations)} valid placement combinations ({mode_label} replicas)")
     _log(f"Generated {len(combinations)} valid placement combinations ({mode_label} replicas)")
@@ -1857,7 +2498,7 @@ def process_sample_with_placement(args):
         # Execute simulation with additional inputs
         cache_policy = 'fifo'
         task_priority = 'fifo'
-        keep_alive = KEEP_ALIVE
+        keep_alive = cosim_keep_alive()
         queue_length = QUEUE_LENGTH
         scheduling_strategy = 'determined_determined'
 
@@ -1910,25 +2551,32 @@ def process_sample_with_placement(args):
         return None, float('inf'), None
 
 
-def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[Optional[Path], float, Optional[Dict]]:
+def process_placement_fast(
+    placement_plan: Dict[int, Tuple[int, int]]
+) -> Tuple[Optional[Path], float, Optional[Dict], Optional[List[List[float]]]]:
     """
     Optimized worker function that uses shared data from _worker_shared_data.
-    
+
     This function is called with ONLY the placement_plan - all other data
     is accessed from the global _worker_shared_data dict initialized by _init_worker.
     This dramatically reduces pickling overhead for each task submission.
-    
+
     OPTIMIZATION: Only writes result file if RTT is better than current best.
     This reduces I/O by 99%+ for large datasets.
-    
+
     Args:
         placement_plan: Dict mapping task_id -> (node_id, platform_id)
-    
+
     Returns:
-        Tuple of (result_file_path, rtt_value, placement_plan)
+        Tuple of (result_file_path, rtt_value, placement_plan, task_times)
         - result_file_path is None if this result was not written (worse than best)
         - rtt_value is always returned (for tracking and placements.jsonl)
         - placement_plan is always returned (for placements.jsonl)
+        - task_times is [[task_id, dispatched, done], ...] for the real (non-internal)
+          tasks when HEROSIM_RETAIN_TASK_TIMES=1, else None. Opt-in because it grows
+          every placements.jsonl row; needed to re-score a sweep under a per-batch
+          makespan (max over tasks) instead of the sum -- the sum discards exactly
+          the max-structure a fan-out objective would need.
     """
     global _worker_shared_data, QUIET_MODE
     
@@ -1985,7 +2633,7 @@ def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[
             models={},
             cache_policy='fifo',
             task_priority='fifo',
-            keep_alive=KEEP_ALIVE,
+            keep_alive=cosim_keep_alive(),
             queue_length=QUEUE_LENGTH,
         )
         
@@ -1998,6 +2646,58 @@ def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[
         # Calculate RTT FIRST (before file I/O); stats.taskResults is omitted by orchestrator
         stats = result.get('stats', {})
         rtt_value = rtt_from_stats(stats)
+
+        # Opt-in per-plan task-time retention (fail loud rather than write rows without it:
+        # a sweep that silently mixes rows with and without task_times is unscoreable).
+        task_times: Optional[List[List[float]]] = None
+        if os.environ.get("HEROSIM_RETAIN_TASK_TIMES", "0") == "1":
+            rows = [
+                tr for tr in (stats.get('taskResults') or [])
+                if tr.get('taskId') is not None and tr.get('taskId') >= 0
+            ]
+            if not rows:
+                raise RuntimeError(
+                    "HEROSIM_RETAIN_TASK_TIMES=1 but stats.taskResults has no real tasks "
+                    f"(taskResultsIncluded={stats.get('taskResultsIncluded')}, "
+                    f"num_tasks={stats.get('num_tasks')}); cannot retain per-plan task times"
+                )
+            task_times = [
+                [int(tr['taskId']), float(tr['dispatchedTime']), float(tr['doneTime'])]
+                for tr in rows
+            ]
+
+        # Opt-in per-plan link-contention retention (same fail-loud contract as
+        # task_times above: a sweep mixing rows with and without link fields is
+        # undecomposable). The stats-level fields exist since d88278c; this is the
+        # only artifact that exists for EVERY placement in a sweep.
+        link_stats: Optional[Dict[str, float]] = None
+        if os.environ.get("HEROSIM_RETAIN_LINK_STATS", "0") == "1":
+            missing = [
+                k for k in ("totalLinkWaitTime", "averageLinkTransferTime", "fabricLinkWaitTotal")
+                if k not in stats
+            ]
+            if missing:
+                raise RuntimeError(
+                    f"HEROSIM_RETAIN_LINK_STATS=1 but stats is missing {missing}; "
+                    "cannot retain per-plan link stats"
+                )
+            link_stats = {
+                "link_wait_total": float(stats["totalLinkWaitTime"]),
+                "link_transfer_avg": float(stats["averageLinkTransferTime"]),
+                "fabric_link_wait_total": float(stats["fabricLinkWaitTotal"]),
+            }
+
+        # peer_affinity_v1: opt-in per-plan peer-exchange retention, same fail-loud
+        # contract as the two blocks above. Folded into `link_stats` so the row writer
+        # needs no new branch.
+        if os.environ.get("HEROSIM_RETAIN_PEER_STATS", "0") == "1":
+            if "totalPeerExchangeTime" not in stats:
+                raise RuntimeError(
+                    "HEROSIM_RETAIN_PEER_STATS=1 but stats has no totalPeerExchangeTime; "
+                    "cannot retain per-plan peer-exchange time"
+                )
+            link_stats = dict(link_stats or {})
+            link_stats["peer_exchange_total"] = float(stats["totalPeerExchangeTime"])
 
         # OPTIMIZATION: Only write file if this is better than current best RTT
         # Use lock-free read first to minimize contention, then lock only if needed
@@ -2036,12 +2736,23 @@ def process_placement_fast(placement_plan: Dict[int, Tuple[int, int]]) -> Tuple[
 
         # Return file path (None if not written), RTT, and placement plan
         # RTT and placement_plan are always returned (needed for placements.jsonl)
-        return result_file, rtt_value, placement_plan
+        return result_file, rtt_value, placement_plan, task_times, link_stats
 
     except Exception as e:
+        # A lost placement truncates the sweep, and a truncated sweep is unscoreable —
+        # the parent counts these (worker_failed) but had no record of WHY. Route B's
+        # smoke lost 66-69/240 rows with zero diagnostic. Always append the cause to
+        # placement_errors.log in the output dir; never fail silently.
+        try:
+            import traceback as _tb
+            with open(output_dir / "placement_errors.log", "a") as _ef:
+                _ef.write(f"placement={sorted(placement_plan.items())}\n")
+                _ef.write(_tb.format_exc() + "\n")
+        except Exception:
+            pass
         if not QUIET_MODE:
             print(f"[worker] Error in simulation: {str(e)}")
-        return None, float('inf'), None
+        return None, float('inf'), None, None, None
 
 
 def execute_brute_force_optimized(
@@ -2127,9 +2838,25 @@ def execute_brute_force_optimized(
     
     # Prepare workloads
     workloads = prepare_workloads(sample, mapping, workload_base, apps)
-    flattened_workloads = flatten_workloads(workloads)
+    flattened_workloads = flatten_workloads(workloads, base_workload=workload_base)
     _log(f"Prepared {len(flattened_workloads['events'])} workload events")
-    
+
+    # A DAG application exists only in the trace — the simulator reads each event's
+    # `application` dict verbatim and nothing registers it — so its stateSize entry has to
+    # be synthesized before any episode runs, or the first task raises KeyError deep inside
+    # Platform.platform_process.
+    _synth = ensure_application_state_size(
+        sim_inputs,
+        {
+            event['application']['name']
+            for event in flattened_workloads['events']
+            if isinstance(event.get('application'), dict) and event['application'].get('name')
+        },
+    )
+    if _synth:
+        _log(f"Synthesized stateSize entries: {', '.join(sorted(_synth))}")
+
+
     # Add fast-forward warmup flag to infrastructure config (will be passed to workers)
     infra_config['fast_forward_warmup'] = fast_forward_warmup
     infra_config['fast_forward_threshold'] = fast_forward_threshold
@@ -2208,7 +2935,13 @@ def execute_brute_force_optimized(
         # Create empty placements.jsonl to indicate infeasible scenario
         placements_file = output_dir / "placements.jsonl"
         placements_file.touch()
-        _log("  No valid placement combinations - scenario is infeasible")
+        # Record WHY: an over-limit skip and a zero-candidate infeasibility used to be
+        # indistinguishable downstream, which made a MAX_SKIP sampling-bias census
+        # impossible after the fact.
+        reason = _LAST_SKIP_REASON or {"reason": "unknown"}
+        with open(output_dir / "skip_reason.json", "w") as f:
+            json.dump(reason, f)
+        _log(f"  No valid placement combinations - skipped ({reason.get('reason')})")
         return []  # Return empty list instead of raising exception
     
     # Phase 3: Execute simulations in parallel with worker initializer
@@ -2226,7 +2959,7 @@ def execute_brute_force_optimized(
     
     # Open placements file for streaming writes (avoid memory accumulation).
     # MUST be copied to ds_*/placements/placements.jsonl — required for RTT-hash training.
-    # memory/placements_jsonl_required.md
+    # docs/notes/placements_jsonl_required.md
     placements_file = output_dir / "placements.jsonl"
     placements_fh = open(placements_file, 'w')
     elapsed_time = 0  # Initialize for finally block safety
@@ -2259,8 +2992,13 @@ def execute_brute_force_optimized(
             }
             
             completed = 0
-            timeout_per_placement = 2  # 2 seconds per placement (sims take ~10ms, 2s provides 200x safety margin)
+            # Sims take ~10ms; the default 2s gives a 200x margin. Overridable because a
+            # truncated sweep silently changes the "optimum" (WS0.2, 2026-08-23).
+            timeout_per_placement = float(os.environ.get("COSIM_PLACEMENT_TIMEOUT_S", "2"))
             timed_out_count = 0
+            worker_failed_count = 0  # worker returned (None, inf, None): row NOT in placements.jsonl
+            worker_exception_count = 0  # future.result() raised: row NOT in placements.jsonl
+            early_terminated = False
             
             # Calculate update interval once
             update_interval = max(1, min(1000, num_placements // 100))
@@ -2272,13 +3010,18 @@ def execute_brute_force_optimized(
                 
                 try:
                     # Add timeout to prevent infinite hangs
-                    # Workers now return (result_file, rtt, placement_plan) - no large result dict
+                    # Workers now return (result_file, rtt, placement_plan, task_times, link_stats) - no large result dict
                     # result_file may be None if worker didn't write (worse than best RTT)
-                    result_file, cur_rtt, placement_plan = future.result(timeout=timeout_per_placement)
+                    result_file, cur_rtt, placement_plan, task_times, link_stats = future.result(timeout=timeout_per_placement)
                     
                     if placement_plan is None:
                         # Error case: placement_plan is None (worker failed)
                         # Still update progress even for None results
+                        worker_failed_count += 1
+                        logger.warning(
+                            f"Placement {placement_idx} lost: worker returned no plan "
+                            f"(row omitted from placements.jsonl)"
+                        )
                         if completed % update_interval == 0 and progress_dir:
                             try:
                                 progress_file = progress_dir / "placement_progress.txt"
@@ -2306,6 +3049,7 @@ def execute_brute_force_optimized(
                             
                             # Early termination: stop if we found a "good enough" RTT
                             if early_termination_rtt is not None and best_rtt <= early_termination_rtt:
+                                early_terminated = True
                                 if not quiet:
                                     _log(f"  Early termination: Found RTT {best_rtt:.3f}s <= {early_termination_rtt:.3f}s", force=True)
                                 logger.info(f"Early termination triggered: RTT {best_rtt:.3f}s <= {early_termination_rtt:.3f}s")
@@ -2328,6 +3072,19 @@ def execute_brute_force_optimized(
                     # Write to placements.jsonl regardless of whether file was written
                     # This preserves all placement-RTT pairs for RTT hash table
                     summary = {"placement_plan": placement_plan, "rtt": cur_rtt}
+                    if task_times is not None:
+                        summary["task_times"] = task_times
+                        # Span, not sum. `rtt` sums per-task (done - dispatched), which
+                        # cannot see critical-path structure at all: a child's wait for its
+                        # parents lands in its DISPATCH time and is therefore excluded from
+                        # every per-task elapsed it is summed from. One definition here
+                        # rather than one per consumer.
+                        summary["makespan"] = (
+                            max(done for _, _, done in task_times)
+                            - min(dispatched for _, dispatched, _ in task_times)
+                        )
+                    if link_stats is not None:
+                        summary.update(link_stats)
                     placements_fh.write(json.dumps(summary, separators=(',', ':')) + '\n')
                     num_written += 1
                     
@@ -2343,6 +3100,7 @@ def execute_brute_force_optimized(
                     logger.warning(f"Placement {placement_idx} timed out after {timeout_per_placement}s")
                     # Continue to progress update below
                 except Exception as e:
+                    worker_exception_count += 1
                     if not quiet:
                         _log(f"  Worker failed for placement {placement_idx}: {e}")
                     logger.warning(f"Worker failed for placement {placement_idx}: {e}")
@@ -2366,6 +3124,7 @@ def execute_brute_force_optimized(
                 
                 # Early termination: stop after checking X% of placements
                 if early_termination_pct is not None and completed >= int(num_placements * early_termination_pct):
+                    early_terminated = True
                     if not quiet:
                         _log(f"  Early termination: Checked {completed}/{num_placements} ({100*completed/num_placements:.1f}%) placements", force=True)
                     logger.info(f"Early termination triggered: Checked {100*early_termination_pct:.1f}% of placements")
@@ -2391,9 +3150,20 @@ def execute_brute_force_optimized(
             if best_rtt_value.value < best_rtt:
                 best_rtt = best_rtt_value.value
     
-    if timed_out_count > 0:
-        _log(f"\n[WARNING] {timed_out_count} placement(s) timed out and were skipped", force=True)
-        logger.warning(f"{timed_out_count} placement(s) timed out during execution")
+    lost_placements = timed_out_count + worker_failed_count + worker_exception_count
+    if lost_placements > 0:
+        _log(
+            f"\n[WARNING] {lost_placements} placement(s) missing from placements.jsonl "
+            f"(timeouts={timed_out_count}, worker_failed={worker_failed_count}, "
+            f"exceptions={worker_exception_count}) — the sweep is TRUNCATED and its "
+            f"minimum may not be the true optimum",
+            force=True,
+        )
+        logger.warning(
+            f"Sweep truncated: {lost_placements} placements lost "
+            f"(timeouts={timed_out_count}, failed={worker_failed_count}, "
+            f"exceptions={worker_exception_count})"
+        )
     
     # Write results
     _log(f"\n[Phase 4] Writing results...")
@@ -2471,10 +3241,36 @@ def execute_brute_force_optimized(
         try:
             metadata_file = progress_dir / "placement_metadata.json"
             with open(metadata_file, 'w') as mf:
-                json.dump({"num_placements": num_placements, "completed": len(rtts)}, mf)
-        except Exception:
-            pass
-    
+                json.dump(
+                    {
+                        "num_placements": num_placements,
+                        "completed": len(rtts),
+                        "rows_written": num_written,
+                        "timed_out": timed_out_count,
+                        "worker_failed": worker_failed_count,
+                        "worker_exception": worker_exception_count,
+                        "early_terminated": early_terminated,
+                        "timeout_per_placement_s": timeout_per_placement,
+                        "sweep_complete": (
+                            num_written == num_placements and not early_terminated
+                        ),
+                    },
+                    mf,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to write placement_metadata.json: {e}")
+
+        # Workers append per-placement failure tracebacks to placement_errors.log in the
+        # scratch output_dir, which callers routinely delete after copying results out —
+        # preserve the diagnostics next to placement_metadata.json, where the failure
+        # COUNTS already live. A truncated sweep without its error log is undebuggable.
+        try:
+            worker_error_log = output_dir / "placement_errors.log"
+            if worker_error_log.exists() and progress_dir != output_dir:
+                shutil.copy2(worker_error_log, progress_dir / "placement_errors.log")
+        except Exception as e:
+            logger.warning(f"Failed to preserve placement_errors.log: {e}")
+
     # Summary
     _log(f"\n=== Optimization Complete ===")
     _log(f"Total time: {elapsed_time:.1f}s")
@@ -2594,7 +3390,7 @@ def execute_brute_force_placement_optimization(
         # Prepare workloads
         logger.info("Preparing workloads...")
         workloads = prepare_workloads(sample, mapping, workload_base, apps)
-        flattened_workloads = flatten_workloads(workloads)
+        flattened_workloads = flatten_workloads(workloads, base_workload=workload_base)
         logger.info(f"Prepared {len(flattened_workloads['events'])} workload events")
         
         # Prepare infrastructure configuration

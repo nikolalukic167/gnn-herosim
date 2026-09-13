@@ -11,6 +11,7 @@ from typing import Any, Dict, Generator, List, Optional, Set, Tuple, TYPE_CHECKI
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.placement.live_audit import _replicas_by_type_payload
 from src.placement.model import SystemState
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
 
@@ -171,6 +172,9 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
                 self._audit_task_payload(system_state, task)
                 for task in batch_tasks
             ],
+            # Shared schema with src/placement/live_audit.py — the P3 horizon sweep
+            # needs the full per-type replica state, not just batch candidates.
+            "replicas_by_type": _replicas_by_type_payload(system_state),
         }
 
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
