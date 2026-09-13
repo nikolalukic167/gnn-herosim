@@ -1,7 +1,8 @@
 # peer_affinity_warm_v1 — train on the cluster the model is served on
 
-**Status:** `REGISTERED` (W0 screen registered 2026-09-13, before any number exists;
-W1 corpus/training/gate registered conditionally on W0).
+**Status:** `CLOSED` (2026-09-13 — W0.b NO-GO on both registered bars: the served regime's
+one-step label is pointwise-recoverable; W1 not run. W0.a PASS, W0.c descriptive; see the Record.
+Attachment: `peer_affinity_warm_v1/w0_read.json`.)
 **Parent:** [`peer_affinity_v1`](peer_affinity_v1.md) (the environment, the checkpoints
 this compares against, the gate cell and trace). **Question it answers:** is the
 train/serve *state* mismatch the H5 audit measured — a corpus captured from a cluster the
@@ -274,3 +275,51 @@ on three real sweeps (caps equal, demand multisets equal, verdicts agree). Attem
 shards, seeds and budget; a draw that was already feasible is unchanged (same key order), so the 54
 feasible datasets regenerate bit-identically and only the 46 get a different slate. Attempt-2
 corpora set aside as `..._w0_{knb,gnn}.capinfeasible_<jobid>`.
+
+### 2026-09-13 — W0 read (attempt 3, arrays 761884/761885, read job 762208): **NO-GO, lineage CLOSED**
+
+Corpus: 100/100 sweeps complete (`sweep_complete: true`, rows == plans), 0 rejected snapshots,
+prescan **0/100** infeasible at alpha 2.0, cache built on all 100. Read against the bars registered
+above, unchanged; result JSON attached as `peer_affinity_warm_v1/w0_read.json`.
+
+**W0.a — support closure: PASS.** Pooled: `xavierGpu` a candidate in **67 %** of datasets (bar ≥ 20 %)
+and **9.1 %** of candidate slots (bar ≥ 2 %; live base rate 7.6 %); dim-7 queue column over busy
+platforms p50 48.2 / **p90 111.3** (bar ≥ 20) / **max 590** (bar ≥ 150); 27.5 busy platforms per
+dataset. Per source: reactive 78 % / 11.3 %, p90 105, max 590; gnn 56 % / 6.9 %, p90 121, max 256.
+The warm cache carries the served regime the 516 cold datasets never contained.
+
+**W0.b — joint structure in the served regime: NO-GO (both bars, both sources).**
+`score_route_b_contention --objective rtt --alphas 2.5 --allow-replica-reuse`, `r_exact_band.mean_tied`:
+pooled median **0.0 %** (NO-GO bar ≤ 1.0 %), **0 of 100** datasets above 2 % (bar ≤ 20 %), 0 above
+1 %; 88/100 exactly 0.0, the 12 non-zero values 0.0006–0.046 %. Reactive source: median 0.0, max
+0.010 %, 4/50 non-zero; gnn source: median 0.0, max 0.046 %, 8/50 non-zero. A pointwise scorer with
+a perfect decoder recovers the sweep optimum on the states the gate visits: the warm one-step label
+is the platform's measured drain plus the batch's per-pair transfers, and both are sums over
+(task, placement) terms. **W1 is not run.** The lever named by the H5 audit's closing sentence —
+train on the cluster the model is served on — is closed *as a supervised route*: closing the state
+mismatch at the source produces labels a pointwise model class fits exactly.
+
+**W0.c — the cold checkpoints on warm states (descriptive, no bar).** T1b lr2e3, 16 seeds per arm,
+serving decoder (reuse + relax, cap off), regret vs the alpha-2.5 sweep optimum, 0 infeasible:
+
+| states | gnn median regret | mpoff median regret | mpoff − gnn (paired median) | gnn better | Wilcoxon p |
+|---|---|---|---|---|---|
+| pooled (100) | 42.2 % | 44.2 % | +3.54 pp | 12/16 | 0.021 |
+| reactive-source (50) | 30.6 % | 37.2 % | +6.74 pp | 11/16 | 0.058 |
+| gnn-source (50) | 48.3 % | 48.8 % | +1.93 pp | 11/16 | 0.21 |
+
+Both reversal-era arms sit ~40 % above the optimum on the states they were served on (means 70–98 %:
+heavy tails), and the graph arm is slightly less far off. This is the offline analogue of the live
+gate and is not a claim: at that regret level the sweep optimum is a pointwise object (W0.b), so
+whatever separates the arms here is fit, not graph reasoning.
+
+**Cost as run.** 2 local captures; 3 generation attempts (attempts 1–2 VOID, records above), the
+final one ~10 min per array on 20 CPU-amd nodes; one read job (~20 min incl. 32 checkpoint evals).
+
+**What this closes and what it leaves.** Closed: a warm-state *supervised* corpus as the route to a
+served graph arm that beats its twin and Knative (every option-1/route-B stop now has its warm-state
+counterpart). Left open, unregistered: the served regime is ~300× overloaded, so the one-step label
+is drain-dominated by construction — a *different* served regime (a trace the cluster can drain) would
+be a new environment question, not a re-run of this screen; and the W0.c regrets say the serving
+gap is mostly fit on out-of-support states, which is a serving/feature question the 2026-09-13 audit
+already owns.
