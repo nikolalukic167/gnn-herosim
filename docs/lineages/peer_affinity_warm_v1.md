@@ -1,8 +1,13 @@
 # peer_affinity_warm_v1 — train on the cluster the model is served on
 
-**Status:** `CLOSED` (2026-09-13 — W0.b NO-GO on both registered bars: the served regime's
-one-step label is pointwise-recoverable; W1 not run. W0.a PASS, W0.c descriptive; see the Record.
-Attachment: `peer_affinity_warm_v1/w0_read.json`.)
+**Status:** `ACTIVE` — W0 read 2026-09-13 (W0.a PASS, **W0.b NO-GO** on both registered bars,
+W0.c descriptive; attachment `peer_affinity_warm_v1/w0_read.json`). **Amendment 1 (2026-09-13,
+signed before any W1 number exists): W1 runs regardless of the W0.b verdict**, by the user's
+standing rule that a lineage ends with a live gate, never with an offline read (CLAUDE.md rule 6).
+The W0.b NO-GO stands as a measurement and is not re-scored; the W1 design, arms, seeds, bars and
+headline rule below are unchanged. What W1 can now add beyond W0.b: L1 measures whether the state
+mismatch costs *latency live* even though its one-step label is pointwise (the corpus lever), and
+L2/L3 are the live twin and baseline contrasts the headline rule requires.
 **Parent:** [`peer_affinity_v1`](peer_affinity_v1.md) (the environment, the checkpoints
 this compares against, the gate cell and trace). **Question it answers:** is the
 train/serve *state* mismatch the H5 audit measured — a corpus captured from a cluster the
@@ -127,7 +132,7 @@ served on.
 **Cost.** 2 × ~15 min of local capture (done for the reactive source, running for the
 `gnn` source); 100 sweeps of ≤ 20k plans on 20 CPU-amd nodes, ~1 h; one cache build.
 
-### W1 — the warm corpus, training and gate (runs only on a W0.b GO)
+### W1 — the warm corpus, training and gate (registered on a W0.b GO; **runs regardless per Amendment 1**)
 
 **Cells and trace.** 24 training cells `cell_s9001`–`cell_s9024` and 4 held-out cells
 `cell_s9101`–`cell_s9104`, minted by `make_peer_affinity_gate_cell.py`'s protocol (corpus
@@ -323,3 +328,13 @@ is drain-dominated by construction — a *different* served regime (a trace the 
 be a new environment question, not a re-run of this screen; and the W0.c regrets say the serving
 gap is mostly fit on out-of-support states, which is a serving/feature question the 2026-09-13 audit
 already owns.
+
+### 2026-09-13 — Amendment 1: W1 runs despite the W0.b NO-GO (signed before any W1 number)
+
+User decision, same day as the W0 read: "I always want live gate not just offline as the end of the
+discussion or lineage." Recorded as CLAUDE.md rule 6. Nothing in the W1 section changes — cells
+s9001–s9024 / s9101–s9104, `workload-150-100` + peer seed 7301, two sources × 12 snapshots per cell,
+T1b recipe × 16 seeds per arm, live gate on `cell_s7901` capped (primary) and uncapped (secondary),
+contrasts L1/L2/L3 and the headline rule as written. The W0.b result is the prior: the corpus's
+one-step label is pointwise-recoverable, so the pre-registered expectation is L2 = TIE; L1 and L3 are
+the open readings.
