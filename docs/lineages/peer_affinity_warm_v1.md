@@ -338,3 +338,24 @@ T1b recipe × 16 seeds per arm, live gate on `cell_s7901` capped (primary) and u
 contrasts L1/L2/L3 and the headline rule as written. The W0.b result is the prior: the corpus's
 one-step label is pointwise-recoverable, so the pre-registered expectation is L2 = TIE; L1 and L3 are
 the open readings.
+
+### 2026-09-13 — W1 launched (Amendment 1), before any W1 number exists
+
+Trace `workload-150-100-peer_p2_x200.json` (301,352 events, 536,124 peer pairs; peer seed 7301,
+2 partners, 200 MB) built locally and rsynced (md5 equal). 28 cells minted by
+`make_peer_affinity_gate_cell.py` (s9001–s9024 train, s9101–s9104 held-out), parity PASS on all 28.
+Datalab chain, SLURM `afterok` dependencies, submitted 2026-09-13 ~21:30 UTC at f50e704:
+
+| stage | job | what |
+|---|---|---|
+| capture | 762821 (56 tasks, %20) | `peer_affinity_warm_v1_w1_capture.sbatch`: each (cell, source) on the warm-up trace, stride 2,000, ≤ 150 snapshots; sources as W0 (`knative_network_batch` + peer-group batching; T1b `gnn` seed 1 capped) |
+| generate | 762846 (56, %20) | `..._w1_generate.sbatch`: `every = aligned // 12`, 12 datasets per (cell, source), 20k plans, cap-feasible draw, tick knob 1e12; ids `12 × task` inside `_w1_train` / `_w1_heldout` |
+| cache | 762847 | `..._w1_cache.sbatch`: SSC → prescan (set-aside) → cache `graphs_cache_peer_affinity_v1_warm` → near-RTT sidecar → `experiments/peer_affinity_v1_warm_split.json` (held-out cells = test block) |
+| train | 762848 (32) | `..._w1_train.sbatch`: `experiments/peer_affinity_v1_warm_{gnn,mpoff}_lr2e3.yaml` (T1b verbatim), CPU-amd 16 threads, checkpoints `models/peer-affinity-v1-warm-{arm}-lr2e3-seed{1..16}.pt` |
+| gate, primary | 762849 (32, %16) | stage-3 sbatch, `GNN_PREFIX_PLATFORM_CAP=1`, `CKPREFIX=models/peer-affinity-v1-warm`, `results/warm_capped_gate/` |
+| gate, secondary | 762850 (32, %16) | same, cap unset, `results/warm_uncapped_gate/` |
+| Knative check | 762851 (2) | `knative_network` + `knative_network_batch` re-run into `results/warm_knative_check/`; must reproduce the landed `total_rtt` 2.01309e10 (code has changed since) or the baselines are re-run in both configurations |
+
+Naming note (not a bar): checkpoints and cache use the `peer_affinity_t1_read.py` tag convention
+(`peer-affinity-v1-warm-…`, `graphs_cache_peer_affinity_v1_warm`) rather than the
+`peer-affinity-warm-v1-…` spelling in the W1 text, so the T1 read tool runs unmodified with `--tag warm`.
