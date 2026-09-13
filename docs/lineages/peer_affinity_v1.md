@@ -1142,6 +1142,75 @@ production workload, which no arm of this lineage had done live before. Only cap
 under-predicted the effect badly (+3.2 % at cap 1 there against +24 % on the full trace), so a serving knob
 must be sized on the production trace, not on a smoke.
 
+### H5 REGISTRATION — the live candidate set contains a platform type the corpus never had (2026-09-13, signed off before any gate number exists)
+
+**The defect, measured on the production decode traces before this registration**
+(`scripts_cosim/candidate_support_probe.py`, job 760799; artifacts
+`simulation_data/peer_affinity_candidate_support_{x200p2,x800p2,x800p3}.json`; support derived from each
+corpus's own cache, never hardcoded).
+
+The co-sim infrastructure **contains** `xavierGpu` and `xavierDla` platforms — 9 of each per dataset — but in
+**516 of 516 datasets neither is ever a replica**, so neither is ever a candidate the model ranks. The
+training candidate support is exactly `{rpiCpu, xavierCpu, pynqFpga}`. Live, the same cell under 450,729
+tasks scales up far enough that `xavierGpu` becomes a replica:
+
+| statistic, 16 seeds x 2 arms x 3 corpora | `gnn` | `mpoff` | note |
+|---|---|---|---|
+| share of live candidates outside the training support | **0.0760** | **0.0760** | identical on every corpus and seed — a property of the cluster, not the policy |
+| share of live node caps above the largest cap in training | **0.4641** | **0.4641** | likewise |
+| share of decoded placements outside the support, x200 p2 | 0.0930 | 0.0769 | p = 0.35 |
+| share of decoded placements outside the support, x800 p2 | **0.0002** | **0.0711** | **p = 0.001**, `gnn` lower on 15/16 |
+| share of decoded placements outside the support, x800 p3 | **0.0002** | **0.0311** | **p = 0.0009**, `gnn` lower on 14/16 |
+
+Two distinct consequences, and only the second can be an arm asymmetry:
+
+1. **Shared: the capacity mask stops binding.** `node_caps[n] = alpha x max single candidate demand on n`, and
+   a `xavierGpu` candidate carries demand 1.739 against a corpus maximum of 0.213 — so ONE of them inflates
+   that node's cap ~8x for the whole batch. Measured on a smoke of the gate cell: the roomiest node holds
+   **5.2 tasks in the cache, 32.5 as served live, and 3.6 once these candidates are removed**, and the mask
+   cannot bind at all in **17 of 23 live batches** against 5 of 23 restricted. This is the same quantity the
+   platform cap was invented to control, which is a candidate explanation for why that knob was worth +22 %.
+2. **Asymmetric: the two arms use the extra capacity differently, and the sign matches the reversal on all
+   three corpora.** `gnn` − `mpoff` usage reads **+1.6 / −6.9 / −3.1 pp** against a live contrast of
+   **+2.37 / −4.42 / −10.67 %**. On the two 800 MB corpora the graph arm refuses an entire class of available
+   serving capacity (0.02 % of its placements) that its pointwise twin uses at roughly the base rate of
+   availability (7.1 % / 3.1 % against 7.6 % offered) — in a regime already measured to be concurrency-bound.
+
+**H5 — removing the untrained platform type removes `mpoff`'s live advantage.** Intervention:
+`HEROSIM_REPLICA_PLATFORM_TYPES=rpiCpu,xavierCpu,pynqFpga` (new, default unset = no restriction, so every
+landed result is bit-identical), applied to **every arm including both reactive baselines**, so the cluster's
+action space is the corpus's action space for all of them. Otherwise the registered capped gate verbatim:
+same cells, same workloads, same checkpoints, `GNN_PREFIX_PLATFORM_CAP=1`, 34 arms x 3 corpora, statistic
+`total_rtt`, primary contrast `gnn` vs `mpoff` paired by training seed over 16 pairs, exact Wilcoxon, α 0.05.
+
+**H5 FIRES** when, on **both** x800 p2 and x800 p3, the median contrast is (a) at least **+3 pp** higher —
+less negative — than the landed capped value (−4.42 % and −10.67 %), **and** (b) no longer reads
+POINTWISE-BETTER (i.e. not `median < −1 %` with `p < 0.05`).
+
+**Registered discriminating control — x200 p2.** There the graph arm uses the untrained type *more* than its
+twin (+1.6 pp), so if the mechanism is differential capacity use the contrast there must move **down** (more
+negative) or stay flat. **If all three corpora move up, H5 is recorded CONFOUNDED, not fired**: that pattern
+says the allow-list helps the graph arm generally — most plausibly by restoring the capacity mask (consequence
+1) — which is a different claim needing its own test.
+
+**H5 DOES NOT FIRE** otherwise, and specifically if either x800 contrast is unchanged within ±3 pp. In that
+case the platform-type mismatch is a real serving defect that is **not** the reversal — the fifth registered
+explanation to fail, after herding, queue blindness, group splitting and the queue-feature scale — and it is
+recorded as such with no further stage authorised.
+
+**Also reported, not bars:** `frac_placements_oos` must be **0** for every arm (the intervention's own
+control — a non-zero value means the allow-list did not take); `effective_parallel_channels`; makespan; and
+each learned arm against the two reactive arms. **The vs-Knative numbers are NOT comparable to the landed
+gate** — the baselines lose the same platform type — so only the `gnn` vs `mpoff` contrast is the registered
+comparison here.
+
+**What a FIRE would and would not establish.** It would explain the offline/live reversal mechanically and
+make the live comparison one between two policies ranking the same action space. It would **not** establish
+that message passing helps: that still needs one measurement where `gnn` beats both `mpoff` and reactive
+Knative, which no reading in this program has produced.
+
+**Cost.** 102 arms of ~2–3 h on CPU-amd, throttled; no GPU, no new corpus, no retraining.
+
 ### The offline edge holds only at the TRAINING queue scale — but the defect does NOT explain the live reversal (2026-09-12/13)
 
 **Two findings, and they must not be merged.** (1) The queue feature the live path serves is broken, and at
