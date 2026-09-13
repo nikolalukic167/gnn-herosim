@@ -48,6 +48,14 @@ mkdir -p "$OUT_DIR" logs
 [[ -f "$CFG" ]] || { echo "FAIL LOUD: cell config missing: $CFG (rsync it)" >&2; exit 1; }
 echo "[INPUTS] workload $(md5sum "$WORKLOAD" | cut -c1-12) cfg $(md5sum "$CFG" | cut -c1-12)"
 
+# H5 (2026-09-13): the autoscaler allow-list is a COMMA-separated list, and `sbatch --export`
+# splits its own argument on commas -- passing it there silently truncates the list to its
+# first entry, which is a different cluster, not a failed submission. Export it in the
+# submitting shell (--export=ALL carries it) and echo it here so the first seconds of the log
+# say what actually arrived.
+echo "[ALLOW-LIST] HEROSIM_REPLICA_PLATFORM_TYPES='${HEROSIM_REPLICA_PLATFORM_TYPES:-<unset: every platform type>}'"
+echo "[KNOBS] GNN_PREFIX_PLATFORM_CAP='${GNN_PREFIX_PLATFORM_CAP:-<unset>}' CKPREFIX='${CKPREFIX:-<default t1b>}' GATE_LR='${GATE_LR:-lr2e3}'"
+
 # physics + gate contract, identical for every arm
 export HEROSIM_PEER_EXCHANGE=1
 export HEROSIM_SERVER_ONLY_REPLICAS=1
