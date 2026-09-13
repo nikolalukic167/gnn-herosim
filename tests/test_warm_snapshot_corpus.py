@@ -413,3 +413,51 @@ def test_choose_candidates_rejects_cap_infeasible_draws():
     dem = batch_demands(snap, [10, 11, 12], trace, db)
     with pytest.raises(SnapshotRejected, match="alpha=2.0 cap"):
         choose_candidates(snap, random.Random(0), target_combos=16, max_combos=1000, demands=dem)
+
+
+def test_w1_read_contrasts_and_headline(tmp_path):
+    """L1/L2/L3 readings follow the registered bars; the headline needs L2 and L3 together."""
+    import subprocess
+    from scripts_cosim.peer_affinity_warm_w1_read import read_l1, read_l2, read_l3
+
+    def arms(vals):
+        return {s: {"total_rtt": v} for s, v in enumerate(vals, start=1)}
+    base = [100.0 + s for s in range(16)]
+    better5 = [v * 0.95 for v in base]      # 5 % lower everywhere
+    worse5 = [v * 1.05 for v in base]
+    assert read_l1(arms(better5), arms(base), 16)["reading"] == "WARM-HELPS"
+    assert read_l1(arms(worse5), arms(base), 16)["reading"] == "WARM-HURTS"
+    assert read_l1(arms([v * 0.995 for v in base]), arms(base), 16)["reading"] == "NO-EFFECT"
+    assert read_l2(arms([v * 0.98 for v in base]), arms(base), 16)["reading"] == "GNN-NEEDED-LIVE"
+    assert read_l2(arms([v * 1.02 for v in base]), arms(base), 16)["reading"] == "POINTWISE-BETTER"
+    mixed = [v * (0.98 if s % 2 else 1.02) for s, v in enumerate(base)]
+    assert read_l2(arms(mixed), arms(base), 16)["reading"] == "TIE"
+    assert read_l3(arms(better5), 110.0, 16)["reading"] == "BEATS-KNATIVE"
+    assert read_l3(arms(better5), 100.0, 16)["reading"] == "NOT-BEATS-KNATIVE"  # only 5 seeds below 100
+
+    # end to end on synthetic summaries: warm gnn 4 % under warm mpoff and 10 % under Knative
+    def write(d, arm, seeds_vals, tasks=450729):
+        d.mkdir(parents=True, exist_ok=True)
+        for s, v in enumerate(seeds_vals, start=1):
+            (d / f"{arm}_s{s}.summary.json").write_text(json.dumps({"total_rtt": v, "num_tasks": tasks, "env": {}, "endTime": 1.0}))
+    kn = 200.0
+    for cfg in ("capped", "uncapped"):
+        write(tmp_path / f"warm_{cfg}", "gnn", [kn * 0.90 + s * 0.01 for s in range(16)])
+        write(tmp_path / f"warm_{cfg}", "mpoff", [kn * 0.94 + s * 0.01 for s in range(16)])
+        write(tmp_path / f"t1b_{cfg}", "gnn", [kn * 0.80 + s * 0.01 for s in range(16)])
+        write(tmp_path / f"t1b_{cfg}", "mpoff", [kn * 0.81 + s * 0.01 for s in range(16)])
+    for d in (tmp_path / "t1b_capped", tmp_path / "check"):
+        d.mkdir(exist_ok=True)
+        for arm in ("knative_network", "knative_network_batch"):
+            (d / f"{arm}.summary.json").write_text(json.dumps({"total_rtt": kn, "num_tasks": 450729, "env": {}, "endTime": 1.0}))
+    out = tmp_path / "read.json"
+    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "scripts_cosim/peer_affinity_warm_w1_read.py"),
+                    "--warm-capped", str(tmp_path / "warm_capped"), "--warm-uncapped", str(tmp_path / "warm_uncapped"),
+                    "--t1b-capped", str(tmp_path / "t1b_capped"), "--t1b-uncapped", str(tmp_path / "t1b_uncapped"),
+                    "--knative-check", str(tmp_path / "check"), "--output", str(out)], check=True, capture_output=True)
+    r = json.loads(out.read_text())
+    assert r["capped"]["L2_warm_gnn_vs_warm_mpoff"]["reading"] == "GNN-NEEDED-LIVE"
+    assert r["capped"]["L3_warm_gnn_vs_knative"]["reading"] == "BEATS-KNATIVE"
+    assert r["capped"]["headline"] == "WINNING-GNN"
+    assert r["capped"]["L1_warm_gnn_vs_t1b_gnn"]["reading"] == "WARM-HURTS"  # T1b arm is 10 pp lower here
+    assert r["knative"]["reproduced"] is True
