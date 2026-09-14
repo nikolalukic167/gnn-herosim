@@ -378,3 +378,33 @@ def test_a3_num_treats_a_zero_timestamp_as_a_timestamp():
     legitimate and reads as falsy. The D2 tests caught this once already."""
     assert a3._num({"scheduledTime": 0.0}, "scheduledTime", default=-1.0) == 0.0
     assert a3._num({}, "scheduledTime", default=-1.0) == -1.0
+
+
+def test_a2_unwraps_the_warm_snapshot_wrapper(tmp_path, monkeypatch):
+    """make_warm_corpus writes {"snapshot": {...}, "provenance": {...}}; handing the
+    wrapper to shortest_queue_plan produces an empty plan, which is then correctly but
+    uselessly reported as "not in the sweep". This is how it surfaced on the first run."""
+    captured = {}
+
+    def fake_shortest_queue_plan(snapshot, cosim_id_of):
+        captured["keys"] = sorted(snapshot.keys())
+        return {0: (1, 10)}
+
+    monkeypatch.setattr(a2, "shortest_queue_plan", fake_shortest_queue_plan)
+    monkeypatch.setattr(
+        a2, "build_state_context", lambda *a, **k: object()
+    )
+    monkeypatch.setattr(a2, "externality_seconds", lambda plan, ctx: 0.0)
+
+    ds = tmp_path / "ds_00000"
+    ds.mkdir()
+    (ds / "warm_snapshot.json").write_text(
+        json.dumps({"snapshot": {"tasks": [], "time": 1.0}, "provenance": {"source_tag": "knb"}})
+    )
+    (ds / "workload.json").write_text(json.dumps({"trace_task_ids": [7]}))
+
+    import scripts_cosim.score_route_b_contention as scorer
+
+    monkeypatch.setattr(scorer, "load_rows", lambda d, o: [({0: (1, 10)}, 5.0)])
+    a2.read_dataset(ds, {}, {}, 0.46)
+    assert captured["keys"] == ["tasks", "time"], "the wrapper reached shortest_queue_plan"

@@ -1240,6 +1240,33 @@ PEER_AFFINITY_SCREEN_C3_X200_TRAIN2_GRID: GridPreset = {
     "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_train2",
 }
 
+# drainable_objective_v1 (2026-09-14): the SAME cell as the T1b training corpus, generated
+# on the measured backlog clock. Nothing about the environment changes -- topology, batch
+# width, partners and payload are PEER_AFFINITY_SCREEN_C3_X200_GRID's -- only
+# HEROSIM_BACKLOG_DRAIN_TABLE, which makes `seed_virtual_warmup` charge a queued task what
+# a queued task actually costs under HEROSIM_PEER_EXCHANGE=1 (peer transfers and
+# source->platform latency, which the exec+comm formula omits; live_snapshot_seed.py:195-200
+# measured the omission at ~100x on a deep queue). Measured for the T1b corpus at 0.38 s per
+# queued item against 3.6-5.5 s live.
+#
+# The clock is an ENVIRONMENT variable, not a grid key, so these presets exist only to give
+# the live-clock corpora their own seed ranges and output dirs -- a corpus on one clock must
+# never be mixed with a corpus on the other. Seeds 8300-8833 overlap nothing: 7018-7034 r2,
+# 7035-7170 train, 7200-7699 train2, 7700-8233 x800.
+PEER_AFFINITY_SCREEN_C3_X200_LC_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_X200_GRID,
+    "seeds": list(range(8300, 8800)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_lc",
+}
+
+# The held-out block for the live-clock rungs. Disjoint from its own training seeds, and
+# regenerated on the SAME clock so train and test share physics.
+PEER_AFFINITY_SCREEN_C3_X200_LC_R2_GRID: GridPreset = {
+    **PEER_AFFINITY_SCREEN_C3_X200_GRID,
+    "seeds": list(range(8800, 8834)),
+    "default_output_subdir": "gnn_datasets_peer_affinity_v1_c3_x200_lc_r2",
+}
+
 # peer_affinity_v1 denser-graph rung (2026-09-11, docs/lineages/peer_affinity_v1.md): the
 # same topology cell and batch width (c3, k = 10) with THREE exchange partners per task at
 # 800 MB. `x800_a1.5_k10c3_p3` is a paper-screen GO cell; `x200_a1.5_k10c3_p3` is not, so
@@ -1315,6 +1342,8 @@ GRID_PRESETS: Dict[str, GridPreset] = {
     "peer_affinity_screen_c3_x200_r2": PEER_AFFINITY_SCREEN_C3_X200_R2_GRID,
     "peer_affinity_screen_c3_x200_train": PEER_AFFINITY_SCREEN_C3_X200_TRAIN_GRID,
     "peer_affinity_screen_c3_x200_train2": PEER_AFFINITY_SCREEN_C3_X200_TRAIN2_GRID,
+    "peer_affinity_screen_c3_x200_lc": PEER_AFFINITY_SCREEN_C3_X200_LC_GRID,
+    "peer_affinity_screen_c3_x200_lc_r2": PEER_AFFINITY_SCREEN_C3_X200_LC_R2_GRID,
     "peer_affinity_screen_c3_x800_p3_train": PEER_AFFINITY_SCREEN_C3_X800_P3_TRAIN_GRID,
     "peer_affinity_screen_c3_x800_p3_r2": PEER_AFFINITY_SCREEN_C3_X800_P3_R2_GRID,
     "peer_affinity_screen_c3_x800_p2_train": PEER_AFFINITY_SCREEN_C3_X800_P2_TRAIN_GRID,
