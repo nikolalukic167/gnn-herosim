@@ -264,3 +264,62 @@ D5's exploratory standing; the threshold itself was committed in this node befor
 
 Also recorded: at penalty 0 the `mpoff` arm reproduces its D2 latency to the digit (59.66 s),
 so the two submissions are the same experiment.
+
+### 2026-09-14 — D1 read: H-MYOPIA, on all three state sources. The model is not the problem.
+
+151 captured live batch states brute-forced into co-sim datasets (50 reactive, 55 `gnn`,
+46 `mpoff`), one graphs cache over all three, both T1b `lr2e3` seed-1 checkpoints decoded on
+every one of them — **151 decoded, 0 infeasible for each arm**. Jobs 766135–766137 (sweeps),
+766169 (top-up), 766174 (cache), 766181 (decode + read). Reading
+`simulation_data/drainable_debug_v1/d1_read_{knb,gnn,mpoff}.json`.
+
+Median regret against each state's own enumerated sweep optimum:
+
+| states captured under | n | shortest-queue plan | `gnn` decode | `mpoff` decode | verdict |
+|---|---|---|---|---|---|
+| `knative_network_batch` | 50 | **16.06 %** | **0.35 %** | 5.92 % | H-MYOPIA-SUPPORTED |
+| `gnn` | 55 | **59.20 %** | **35.49 %** | 35.49 % | H-MYOPIA-SUPPORTED |
+| `mpoff` | 46 | **51.07 %** | **37.17 %** | 28.90 % | H-MYOPIA-SUPPORTED |
+
+**Both registered alternatives are rejected and the third fires, unanimously.**
+
+* **D1a does not fire, so H-env is false.** The reactive rule is not near-optimal one-step; it
+  carries 16–59 % median regret against a 3 % bar. The one-step label has plenty to teach.
+* **D1b does not fire, so H-gap is false.** The checkpoint does not fail to reach its own
+  label's optimum relative to the rule it loses to — it is closer to that optimum than the rule
+  is, on every source.
+* **D1c fires on all three: the checkpoint makes BETTER one-step plans than reactive Knative,
+  and still loses the live gate by −226 %.** On the reactive arm's own states it is 46× closer
+  to the optimum (0.35 % against 16.06 %).
+
+Robust to the degenerate states. The reactive arm's captured states have a median whole-group
+plan space of **8 rows** (only 6 % carry ≥ 100 plans), so most of its column is scored where
+every plan coincides. Restricting each source to the states with real choice moves every number
+and changes no ordering: reactive 85.20 % vs `gnn` 43.96 % (knb), 75.05 % vs 53.80 % (gnn),
+82.11 % vs 82.47 % (mpoff — the one place the two draw).
+
+**What this means, read together with D2.** D2 found the learned arms' excess queue is
+**cross-batch**: only ~10 % of it sits behind a task their own decode placed. D1 now says those
+placements are *better* by the one-step objective than the reactive rule's. Both are true at
+once, and together they name the mechanism: **the supervised target rewards exactly the
+behaviour that loses live.** A one-step-optimal plan puts this batch's tasks on whichever
+replicas serve them best right now; the reactive rule refuses to concentrate, is measurably
+worse for this batch, and leaves the cluster in a better state for the next hundred batches.
+Knative is not a better scorer. It is a worse scorer with a better externality.
+
+**Consequences for the two registered follow-ups, both of which this read undercuts.**
+
+* **H2 (more data) — premise rejected.** The lever "the model does not fit its label well
+  enough" is the D1b branch, and D1b did not fire. More data makes an arm better at a target
+  whose optimum is already, measurably, not what wins the stream. This is the same shape as
+  `lessons.md` L73 (873 → 2,651 graphs: offline gain, live nothing) and the `route_b_v1`
+  flat-gap stop, now with the missing middle term measured on served states.
+* **H1 (higher arrival rate) — nothing here predicts a rate fixes it.** The defect is a
+  property of the objective, not of the load, and D3 has already shown the rung itself is real.
+
+**Caveats carried with this reading.** One checkpoint seed per arm (seed 1), against a
+within-arm seed spread that D2 measured at 48.60 s vs 73.78 s — so D1 establishes the
+*direction* on three independent state distributions, not a magnitude. The states are from the
+80 s window (D2's are from 16 s), because at 16 s only 8 % of group-opening batches assemble a
+complete peer group. The reactive source was truncated at t = 36,451 s by the starved-client
+spin and the other two were truncated to match.
