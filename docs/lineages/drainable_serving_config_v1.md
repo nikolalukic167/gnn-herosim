@@ -1,6 +1,13 @@
 # drainable_serving_config_v1 — is the learned arms' loss at ρ ≈ 0.16 a batching artifact?
 
-**Status:** `REGISTERED` — signed off 2026-09-14, **before any arm has been run**.
+**Status:** `CLOSED` 2026-09-14 — **BATCHING-DOES-NOT-EXPLAIN; no configuration rescues the
+graph arm.** With zero batch wait the graph arm is **−1731.86 %** against reactive Knative, 8×
+worse than the 80 s window it was suspected of being handicapped by: peer-group batching is most
+of what keeps the learned arms within an order of magnitude of a reactive baseline, not a tax they
+pay. **C3 is REACTIVE-WINS in all four readable configurations, 0/16 seeds each.** One finding
+revises the parent: `gnn` vs `mpoff` runs −499.81 % → TIE → TIE → −16.32 % as the window widens,
+so `drainable_regime_v1`'s POINTWISE-BETTER is specific to its 80 s window and is a **TIE** at the
+windows that serve both arms best. Registered with every bar committed before any arm ran.
 
 **Parent:** [`drainable_regime_v1`](drainable_regime_v1.md), whose S1 live gate closed
 POINTWISE-BETTER / REACTIVE-WINS at x4000 with every control holding.
@@ -116,3 +123,63 @@ avoids a long wait — which is itself the answer to the question the sweep asks
 F were registered. C1, C2, C3 and C5 are untouched by that: they were committed in the original
 registration and no threshold in them has moved. C4's thresholds are likewise unchanged. E and F
 are added because B fell below C4, not because of any arm's latency.
+
+### 2026-09-14 — READ: **BATCHING-DOES-NOT-EXPLAIN; no configuration rescues the graph arm**
+
+Jobs 765655 (A), 765656 (B), 765725 (E), 765726 (F); D is the parent's S1 gate. Uncapped,
+16 seeds per arm, `cell_s7901` + `drainable_f4000_n50000.json` throughout. C5 holds (peer 21.19 %,
+cool-down 0.07 %). Attachment `drainable_serving_config_v1/read.json`.
+
+| config | window | mean batch | pair retention | C4 | C2 `gnn` vs `mpoff` | C3 `gnn` vs reactive | C3 `mpoff` vs reactive |
+|---|---|---|---|---|---|---|---|
+| **A `nobatch`** | — | 1.00 | 0 % | pass | **−499.81 %**, p = 9.2e-05, 1/16 → POINTWISE-BETTER | **−1731.86 %**, 0/16 | −205.41 %, 0/16 |
+| B `pg8` | 8 s | 3.91 | 52.3 % | **FAIL** | VOID | VOID | VOID |
+| **E `pg16`** | 16 s | 5.97 | 84.7 % | pass | **−4.15 %**, p = 0.86, 10/16 → **TIE** | **−106.02 %**, 0/16 | −97.81 %, 0/16 |
+| **F `pg24`** | 24 s | 7.35 | 96.1 % | pass | −3.13 %, p = 0.60, 6/16 → **TIE** | −141.80 %, 0/16 | −134.45 %, 0/16 |
+| **D `pg80`** | 80 s | 8.16 | 99.9 % | pass | −16.32 %, p = 0.0010, 3/16 → POINTWISE-BETTER | −222.56 %, 0/16 | −177.30 %, 0/16 |
+
+**C1: BATCHING-DOES-NOT-EXPLAIN**, and not marginally. With zero batch wait the graph arm is
+**−1731.86 %** against reactive Knative — **8× worse than the 80 s window it was accused of being
+handicapped by.** Peer-group batching is not a tax the learned arms pay; it is most of what keeps
+them within an order of magnitude of a reactive baseline.
+
+**C3: REACTIVE-WINS in every readable configuration, 0/16 seeds, every time.** The best of them,
+E, still leaves both learned arms roughly 2× slower than `knative_network`.
+
+#### The decomposition, medians over 16 seeds
+
+| config | arm | latency, s | queue, s | batch wait, s | `totalPeerRendezvousWait`, s | `scaleEventCount` |
+|---|---|---|---|---|---|---|
+| (any) | `knative_network` | 25.95 | 17.76 | 0.00 | 1.316e5 | 1,036 |
+| A | `mpoff` | 79.24 | 70.74 | 0.00 | 1.213e5 | 1,767 |
+| A | **`gnn`** | **475.29** | **467.01** | 0.00 | 1.200e5 | **39,910** |
+| E | `mpoff` | 51.32 | 37.41 | 7.22 | 6.306e4 | 6,382 |
+| E | **`gnn`** | **53.45** | 39.59 | 7.22 | 6.369e4 | 6,091 |
+| F | `mpoff` | 60.83 | 45.72 | 8.67 | 4.350e4 | 7,072 |
+| F | `gnn` | 62.74 | 47.71 | 8.66 | 4.427e4 | 6,994 |
+| D | `mpoff` | 71.95 | 53.40 | 12.40 | 2.684e4 | 9,190 |
+| D | `gnn` | 83.69 | 65.19 | 12.37 | 2.646e4 | 8,878 |
+
+**The window trades rendezvous against queue, and the trade has an interior optimum.** Widening
+it from 16 s to 80 s cuts peer rendezvous wait 2.4× (6.4e4 → 2.6e4) and costs 5.2 s more batch
+wait and 26 s more queue. E wins on net; D is past the optimum. The environment's own mechanism is
+real and purchasable — it is just never worth what the queue charges for it.
+
+**The graph arm cannot decode singletons.** At A it issues **39,910** scale events against the
+pointwise twin's 1,767 — a 22× gap — and carries 467 s of queue against 70.7 s. Given a peer group
+it is indistinguishable from its twin; given one task at a time it thrashes the replica lifecycle.
+This is what the parent lineage's confounded read was actually measuring when it reported
+"autoscaler churn 1,036 → 1,774 → 20,400": a singleton-decoding graph arm.
+
+#### The finding that revises the parent
+
+**`gnn` vs `mpoff` is a function of the batch window, and POINTWISE-BETTER is not the general
+answer.** Across the four readable configurations the contrast runs **−499.81 % → TIE (−4.15 %) →
+TIE (−3.13 %) → −16.32 %** as the window widens from none to 80 s. At the two windows that best
+serve *both* arms it is a **TIE**; the parent's S1 headline of POINTWISE-BETTER at −15.94 % is
+specific to an 80 s window, 3.7× the ~21.7 s a peer group needs, and is recorded there as such.
+
+What does not move under any configuration is C3. **No batching configuration produces a graph arm
+that beats reactive Knative**, and none produces one that beats its own pointwise twin.
+
+**Status: `CLOSED` 2026-09-14 — BATCHING-DOES-NOT-EXPLAIN; no configuration rescues the graph arm.**
