@@ -122,11 +122,41 @@ def load_rows(ds_dir: Path, objective: str) -> List[Tuple[Plan, float]]:
                         "with HEROSIM_RETAIN_TASK_TIMES=1 and cannot be scored under a "
                         "makespan")
                 value = max(t[2] for t in tt) - min(t[1] for t in tt)
+            elif objective.startswith("rtt_drift"):
+                # drainable_objective_v1: the shaped label. Scored after the loop,
+                # because it needs the dataset's captured state, not just this row.
+                value = float(row["rtt"])
             else:
                 raise ValueError(f"unknown objective {objective!r}")
             rows.append((plan, value))
     if not rows:
         raise RuntimeError(f"{jsonl}: zero rows")
+    if objective.startswith("rtt_drift"):
+        # One home for the label (scripts_cosim/drift_label.py). The arrival rate comes
+        # from NEAR_RTT_LABEL_ARRIVAL_RATE and the backlog clock from
+        # HEROSIM_BACKLOG_DRAIN_TABLE, exactly as the cache builder reads them, so a
+        # scored corpus and a trained cache cannot disagree about what the label is.
+        from scripts_cosim.drift_label import (
+            DatasetLabeler,
+            LabelConfig,
+            label_config_from_env,
+            load_drain_table,
+            parse_label_objective,
+        )
+
+        _name, v = parse_label_objective(objective)
+        env_cfg = label_config_from_env()
+        cfg = LabelConfig(
+            objective="rtt_drift",
+            v=v,
+            arrival_rate=env_cfg.arrival_rate,
+            drain_table=load_drain_table(),
+        )
+        if cfg.arrival_rate <= 0.0:
+            raise RuntimeError(
+                "objective rtt_drift needs NEAR_RTT_LABEL_ARRIVAL_RATE (tasks/s the "
+                "served cluster faces) -- refusing to invent one")
+        rows = DatasetLabeler(cfg).rows(ds_dir, rows)
     return rows
 
 
@@ -1377,7 +1407,10 @@ def score_corpus(corpus: Path, task_types_db: Dict[str, dict], objective: str,
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--corpus", action="append", required=True)
-    ap.add_argument("--objective", choices=["rtt", "makespan"], default="rtt")
+    # rtt_drift:<V> is drainable_objective_v1's shaped label; it is a free-form string
+    # rather than a choice because V is part of the objective's identity.
+    ap.add_argument("--objective", default="rtt",
+                    help="rtt | makespan | rtt_drift:<V>")
     ap.add_argument("--task-types", default="data/nofs-ids/task-types.json")
     ap.add_argument("--alphas", default="1.0,1.5,2.0,2.5,3.0",
                     help="comma-separated capacity multipliers; 'inf' allowed")

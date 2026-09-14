@@ -190,3 +190,45 @@ own data. On the states with real choice its restricted table reads 43.96 / 53.8
 checkpoint regret against the faithful one-step optimum: **closer to optimal than the reactive
 rule on every source, which is what D1c tested, but not at the optimum.** The clock defect above is
 the candidate explanation and A1/C2 are its test. The parent node carries this amendment verbatim.
+
+## 2026-09-14 — Phase A engineering landed, and one design check that matters
+
+The label is implemented in one home, `scripts_cosim/drift_label.py` (23 tests), and reaches
+training through `prepare_graphs_cache.py --label-objective rtt|rtt_drift:<V>` plus
+`--label-arrival-rate` and `--label-drain-table`. The config travels in the environment
+(`NEAR_RTT_LABEL_OBJECTIVE`, `NEAR_RTT_LABEL_ARRIVAL_RATE`, `HEROSIM_BACKLOG_DRAIN_TABLE`) because
+the JSONL parse fans out over a `ProcessPoolExecutor` and a `run_experiment.py` config can only
+set env; the parent resolves the config before any dataset is read, so a bad combination fails
+there rather than inside a worker whose traceback the pool swallows. The corrected clock is
+`Platform.seed_virtual_warmup` reading the same table, so a corpus and its label cannot disagree.
+Which label built a cache is in `metadata.json`, travels into the checkpoint sidecar as
+`label_objective`, and reaches a live result through the `checkpoint_mp_config` whitelist and the
+provenance env list — the whitelist being the thing that makes a new sidecar key *silently* inert
+otherwise.
+
+**Controls, all green.** With the flag unset, a full cache build of the 34 held-out datasets is
+**identical to the pre-change code on every graph tensor, every tied-optimal label set and every
+partial-state context**, and `dataset_ids.pkl`, `optimal_rtt.pkl` and `rtt_chunk_0.pkl` match by
+md5. (`graphs.pkl` is not byte-reproducible across two runs of the *same* code, so the comparison
+is on contents; that was verified before it was relied on.) `tests/test_trainer_determinism.py` is
+17/17 with a new case pinning bit-identical weights at a fixed seed with the shaped label declared,
+and the suite is 831 passed.
+
+**The design check, and it changes nothing in the plan but confirms its order.** Building the same
+34 datasets at `V = 1` on each clock:
+
+| clock | datasets whose one-step optimum MOVED | shaped optimum ÷ one-step optimum (median) |
+|---|---|---|
+| cold, `execution + comm` (the corpus's own) | **0 / 34** | 1.01× |
+| live, a provisional flat 4.5 s/item | **32 / 34** | **4.38×** |
+
+**On the clock the T1b corpus was built with, the shaped label is inert** — the term is ~1 % of
+the label and never moves the argmin, because a backlog priced at 0.38 s/item makes `B` and `A`
+small and the term is quadratic in them. It only bites once the backlog is priced at what it
+actually costs. So the two defects are not independent levers to be tried in either order: **fixing
+the clock is a precondition for the shaping term to exist at all**, which is why Phase B
+regenerates the corpus first and why `V = 0` is the control arm rather than an afterthought.
+
+Disclosed as engineering, not as a bar: the 4.5 s figure is a flat provisional stand-in for the
+A1 read's per-(task type, platform type) table, chosen as the midpoint of the live captures'
+3.6–5.5 s medians. A1 replaces it with the measured table before any corpus is generated.

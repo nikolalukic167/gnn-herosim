@@ -278,7 +278,10 @@ def _load_sweep(simulation_data_root: Path, dataset_id: str, task_types_db: Dict
     ds_dir = simulation_data_root / dataset_id
     if not ds_dir.is_dir():
         raise EvalError(f"dataset dir not found: {ds_dir}")
-    return Dataset(ds_dir, task_types_db, "rtt")
+    # drainable_objective_v1: an arm trained on a shaped label must be scored against
+    # that label's optimum, or its regret is measured against a target it was never
+    # fitted to. EVAL_OBJECTIVE defaults to "rtt", so every existing read is unchanged.
+    return Dataset(ds_dir, task_types_db, os.environ.get("EVAL_OBJECTIVE", "rtt"))
 
 
 def evaluate_dataset(

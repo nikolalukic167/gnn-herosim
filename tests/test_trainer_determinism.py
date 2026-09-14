@@ -35,7 +35,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import pytest
 import torch
@@ -395,9 +395,15 @@ def test_a1_teacher_forced_loss_is_bit_identical_at_a_fixed_seed():
 SMOKE_DAG_CACHE = REPO_ROOT / "simulation_data" / "graphs_cache_route_b_smoke_s_dag"
 
 
-def _run_a1_via_run_experiment(seed: int, tmp_path: Path) -> Dict[str, torch.Tensor]:
+def _run_a1_via_run_experiment(
+    seed: int, tmp_path: Path, env_extra: Optional[Dict[str, str]] = None
+) -> Dict[str, torch.Tensor]:
     """One real train_near_rtt.py run through run_experiment.py --seed, on the tiny
-    12-graph smoke DAG cache, 1 epoch. Returns the saved checkpoint's tensor weights."""
+    12-graph smoke DAG cache, 1 epoch. Returns the saved checkpoint's tensor weights.
+
+    `env_extra` (drainable_objective_v1) carries label-config env into the run, so a knob
+    that changes what the trainer fits is covered by the same determinism gate as the
+    seed itself."""
     import shutil
 
     import yaml
@@ -419,7 +425,7 @@ def _run_a1_via_run_experiment(seed: int, tmp_path: Path) -> Dict[str, torch.Ten
     # parallel test runs / repeated seeds never collide with real checkpoints.
     _run_trainer(
         ["run_experiment.py", str(config_path), "--seed", str(seed)],
-        {},
+        dict(env_extra or {}),
         cwd=REPO_ROOT,
     )
     # The trainer writes models/{wandb.run.name}.pt relative to REPO_ROOT since we ran
@@ -481,3 +487,30 @@ def test_run_experiment_seed_different_seeds_diverge_for_a1():
         "calls anywhere on train_near_rtt.py's import path (prepare_graphs_cache.py is "
         "the known offender; a NEW one would reproduce this exact failure)."
     )
+
+
+@pytest.mark.skipif(
+    not SMOKE_DAG_CACHE.is_dir(), reason=f"cache not present at {SMOKE_DAG_CACHE}"
+)
+def test_label_objective_env_does_not_break_determinism(tmp_path):
+    """drainable_objective_v1: a run that declares a shaped label is still bit-identical
+    at a fixed seed.
+
+    The smoke cache was built on the one-step label, so the trainer's targets here do not
+    move -- what this pins is that the env knob itself introduces no nondeterminism (a
+    label transform that iterated a set, say, would surface exactly here). Whether the
+    label CHANGES the targets is tested against real sweeps in tests/test_drift_label.py
+    and by the cache-build equivalence check recorded in the lineage node.
+    """
+    env = {
+        "NEAR_RTT_LABEL_OBJECTIVE": "rtt_drift:1.0",
+        "NEAR_RTT_LABEL_ARRIVAL_RATE": "0.46",
+    }
+    dir_a, dir_b = tmp_path / "a", tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    first = _run_a1_via_run_experiment(4242, dir_a, env)
+    second = _run_a1_via_run_experiment(4242, dir_b, env)
+    assert set(first) == set(second)
+    for key in first:
+        assert torch.equal(first[key], second[key]), f"{key} differs between runs"

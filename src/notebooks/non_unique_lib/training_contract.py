@@ -11,7 +11,7 @@ import json
 import math
 import pickle
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 PlacementPlan = Dict[str, List[int]]
 PlacementCombo = Tuple[Tuple[int, int], ...]
@@ -49,12 +49,19 @@ def load_sweep_minimum(
     jsonl_path: Path,
     *,
     rtt_eps: float = 1e-9,
+    value_of: Optional[Callable[[dict, float], float]] = None,
 ) -> Tuple[PlacementPlan, float, PlacementCombo]:
     """
     Derive (placement_plan, min_rtt, combo) from placements.jsonl.
 
     Tie policy: among rows within rtt_eps of the minimum RTT, pick the
     lexicographically smallest combo. Fail loud on missing/empty/malformed input.
+
+    `value_of(placement_plan, rtt) -> float` (drainable_objective_v1) scores a row by
+    something other than its raw RTT -- the shaped label, which adds the queueing this
+    plan inflicts on later arrivals. None (the default) is the raw RTT and every caller
+    that does not pass it is unchanged, byte for byte. The tie policy is applied to
+    whatever this returns, because the minimiser of the label is the label's optimum.
     """
     if not jsonl_path.is_file():
         raise FileNotFoundError(f"Missing placements.jsonl: {jsonl_path}")
@@ -86,6 +93,12 @@ def load_sweep_minimum(
                 raise RuntimeError(f"{jsonl_path}:{line_number}: bad rtt={rtt!r}") from exc
             if not math.isfinite(rtt_f):
                 raise RuntimeError(f"{jsonl_path}:{line_number}: non-finite rtt={rtt_f}")
+            if value_of is not None:
+                rtt_f = float(value_of(plan, rtt_f))
+                if not math.isfinite(rtt_f):
+                    raise RuntimeError(
+                        f"{jsonl_path}:{line_number}: non-finite shaped label {rtt_f}"
+                    )
             combo = combo_from_plan(plan)
             n_rows += 1
             if min_rtt is None or rtt_f < min_rtt - rtt_eps:

@@ -38,6 +38,49 @@ _ingress_transfer_time = _transfer_time
 # Set GNN_CAPTURE_DATASET_STATE=1 when generating GNN training datasets (co-sim).
 DATASET_STATE_CAPTURE = os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1"
 
+# drainable_objective_v1: measured per-item backlog drain, keyed "<task type>|<platform
+# type>" -> seconds. Read once at import from HEROSIM_BACKLOG_DRAIN_TABLE; unset means
+# `seed_virtual_warmup` keeps its `execution + comm` formula and every existing corpus
+# regenerates byte-identically. A path that is set but unreadable, or a table that does
+# not cover a (type, platform type) the generator asks for, is FATAL -- silently falling
+# back to the other clock would reprice a whole corpus's backlog without saying so.
+_BACKLOG_DRAIN_TABLE: Optional[Dict[str, float]] = None
+_BACKLOG_DRAIN_TABLE_PATH = os.environ.get("HEROSIM_BACKLOG_DRAIN_TABLE", "")
+if _BACKLOG_DRAIN_TABLE_PATH:
+    import json as _json
+
+    from pathlib import Path as _Path
+
+    _p = _Path(_BACKLOG_DRAIN_TABLE_PATH)
+    if not _p.exists():
+        raise RuntimeError(
+            f"FAIL LOUD: HEROSIM_BACKLOG_DRAIN_TABLE={_BACKLOG_DRAIN_TABLE_PATH} does "
+            "not exist; refusing to fall back to the exec+comm backlog clock silently"
+        )
+    _payload = _json.loads(_p.read_text())
+    _table = _payload.get("drain_seconds_per_item", _payload)
+    if not isinstance(_table, dict) or not _table:
+        raise RuntimeError(f"FAIL LOUD: {_p} carries no drain_seconds_per_item map")
+    _BACKLOG_DRAIN_TABLE = {str(k): float(v) for k, v in _table.items()}
+    for _k, _v in _BACKLOG_DRAIN_TABLE.items():
+        if _v <= 0.0:
+            raise RuntimeError(f"FAIL LOUD: {_p} has non-positive drain {_v} for {_k!r}")
+
+
+def _backlog_drain_per_item(task_type_name: str, platform_type: str) -> Optional[float]:
+    """Measured seconds per queued item, or None when the default clock is in force."""
+    if _BACKLOG_DRAIN_TABLE is None:
+        return None
+    key = f"{task_type_name}|{platform_type}"
+    value = _BACKLOG_DRAIN_TABLE.get(key)
+    if value is None:
+        raise RuntimeError(
+            f"FAIL LOUD: HEROSIM_BACKLOG_DRAIN_TABLE has no entry for {key!r}; a table "
+            "that does not cover the corpus would mix two backlog clocks inside one "
+            "dataset"
+        )
+    return float(value)
+
 
 def slim_completed_task(task: "Task") -> None:
     """Drop bulky per-task snapshots once timing metrics are on the task object.
@@ -749,7 +792,19 @@ class Platform:
         write_time = (output_size / (output_speed * 1024 * 1024)) + write_latency if output_size > 0 else 0.0
         comm = read_time + write_time
 
-        total_time = cold_start + (count * (execution + comm))
+        # drainable_objective_v1: the `execution + comm` charge above is what a queued
+        # task costs when nothing else is charged. Under HEROSIM_PEER_EXCHANGE=1 it also
+        # pays its peer transfers and its source->platform latency, which this formula
+        # omits -- live_snapshot_seed.py:195-200 measured the omission at ~100x on a deep
+        # queue and replays a measured clock for captured states, so warm corpora run on
+        # the live clock while cold ones do not. HEROSIM_BACKLOG_DRAIN_TABLE supplies the
+        # measured per-item seconds for (task type, platform type) so a COLD corpus can be
+        # generated on the same clock it will be served on. Unset (the default) leaves
+        # every existing corpus and every existing run byte-identical.
+        per_item = _backlog_drain_per_item(task_type_name, self.type["shortName"])
+        if per_item is None:
+            per_item = execution + comm
+        total_time = cold_start + (count * per_item)
         self.virtual_warmup_count += count
         self.virtual_warmup_total_time += total_time
         self.virtual_warmup_task_type = task_type_name
