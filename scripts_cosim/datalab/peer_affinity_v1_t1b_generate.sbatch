@@ -35,12 +35,21 @@ export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000
 export GNN_CAPTURE_DATASET_STATE=0
 export COSIM_SUPPRESS_SIM_PRINTS=1
 
-GRID=peer_affinity_screen_c3_x200_train2
-OUT=gnn_datasets_peer_affinity_v1_c3_x200_train2
-TOTAL=500
-SHARDS=20
-PER=$(( (TOTAL + SHARDS - 1) / SHARDS ))
-START=$(( SLURM_ARRAY_TASK_ID * PER ))
+# Overridable so the SAME script extends the corpus instead of being forked per experiment
+# (CLAUDE.md rule 2). Defaults reproduce the T1b expansion exactly. `FIRST` is where this
+# submission starts in the preset's deterministic enumeration; index -> seed is fixed by the
+# preset and the loop order, so extending with FIRST=500 TOTAL=1500 continues into the
+# declared-but-unused seeds and never re-maps an existing ds_ index
+# (drainable_debug_v1 Phase 3, 2026-09-14).
+GRID="${GRID:-peer_affinity_screen_c3_x200_train2}"
+OUT="${OUT:-gnn_datasets_peer_affinity_v1_c3_x200_train2}"
+FIRST="${FIRST:-0}"
+TOTAL="${TOTAL:-500}"
+SHARDS="${SHARDS:-20}"
+SPAN=$(( TOTAL - FIRST ))
+(( SPAN > 0 )) || { echo "FAIL LOUD: TOTAL=$TOTAL must exceed FIRST=$FIRST" >&2; exit 1; }
+PER=$(( (SPAN + SHARDS - 1) / SHARDS ))
+START=$(( FIRST + SLURM_ARRAY_TASK_ID * PER ))
 COUNT=$PER
 if (( START >= TOTAL )); then echo "nothing to do"; exit 0; fi
 if (( START + COUNT > TOTAL )); then COUNT=$(( TOTAL - START )); fi
