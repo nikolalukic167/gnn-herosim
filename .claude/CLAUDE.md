@@ -141,6 +141,24 @@ positive is pointwise and descriptive: the warm-trained MP-OFF arm beats Knative
 16/16 seeds, and finishes sooner (makespan 137.6k s vs 159.2k s) — the first learned arm to do both. That is a
 new registration if pursued; still no measurement where a graph arm beats both its twin and Knative.
 
+**2026-09-14 (later) — the two live headlines are not just cluster-contingent, they are LOAD-contingent,
+and at a defensible load BOTH learned arms lose to reactive Knative.** `drainable_regime_v1` CLOSED on
+its S1 live gate. The landed gate runs at **2,659 arrivals/s against a 2.83 tasks/s drain — a 940x
+overload**, where 99.89 % of simulated time falls *after* the last arrival and the environment's own
+pair-indexed cost is 0.0098 % of the number being scored. Stretching only the timestamp scale
+(x4000 -> 0.46 arrivals/s, rho ~ 0.16) puts peer exchange at **21.19 %** of `total_rtt`, cool-down at
+**0.07 %**, and the served dim-7 queue column at **p90 = 5** against the cold-corpus max of 42 — **the
+first live gate in this program whose queue column is inside its trained range.** The same T1b
+checkpoints, same cell, same physics, 68 arms: `gnn` vs `mpoff` **-488.78 %, p = 9.2e-05, 1/16**;
+`gnn` vs `knative_network` **-1763.40 %, 0/16**; `mpoff` vs Knative **-216.49 %, 0/16**; capped and
+uncapped agree, so **the platform cap's +21.9 % was a property of a cluster whose capacity mask could
+not bind.** The mechanism is **autoscaler churn** — `scaleEventCount` 1,036 -> 1,774 -> **20,400**,
+pull time 6.86 s -> 13.63 s — not the peer objective, which is within 9 % on all four arms, and not the
+peer-group batch wait (0.018 s). **The x200 p2 GNN-NEEDED reading (+3.94 %, 13/16), the one positive
+live measurement in the program, is a property of the 940x overload.** Never quote a peer_affinity live
+number without its load factor. Read `docs/lineages/drainable_regime_v1.md` and the hard stop before
+proposing any re-run at a different arrival rate.
+
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
 What a GNN needs in order to have anything to learn from a *supervised* target:
@@ -335,10 +353,17 @@ Generation status codes: `SUCCESS` · `SKIPPED` (infeasible config) · `FAILED` 
 2. Add a grid preset to `generate_gnn_datasets_fast.py`, generate datasets.
 3. Recache with `prepare_graphs_cache.py`.
 4. Train via a config under `experiments/` — **this is what produces a checkpoint.**
-5. Gate it with a live-gate / sealed-holdout comparison in `scripts_cosim/important/`.
-6. Write the outcome into the node **and** the index row. Not done until you do.
+5. Read the curves before believing them:
+   `pipenv run python3 scripts_cosim/read_training_curves.py wandb/run-<ts>-<id>`.
+   It separates the metrics the objective can actually move from the dead and constant
+   ones, prints every live curve against its **chance floor**, and names the selected
+   epoch. A `task_acc` or `ce` quoted without that floor is not a result — the warm
+   corpus averages 2.79 candidates per task, so 43% accuracy is chance. See
+   `docs/lessons.md` → "Read a finished run's curves against their chance floor".
+6. Gate it with a live-gate / sealed-holdout comparison in `scripts_cosim/important/`.
+7. Write the outcome into the node **and** the index row. Not done until you do.
 
-**An ablation harness is not a substitute for step 5.** A comparison script that trains
+**An ablation harness is not a substitute for step 6.** A comparison script that trains
 in-process to compute an eval statistic has no reason to persist checkpoints and typically
 doesn't — `topology_transfer_v1` ran a full pre-registered gate that way and ended with zero
 deployable weights and no live-gate at all. If a result should ever face a real workload, its
