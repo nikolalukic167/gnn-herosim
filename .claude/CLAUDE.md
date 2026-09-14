@@ -141,24 +141,29 @@ positive is pointwise and descriptive: the warm-trained MP-OFF arm beats Knative
 16/16 seeds, and finishes sooner (makespan 137.6k s vs 159.2k s) — the first learned arm to do both. That is a
 new registration if pursued; still no measurement where a graph arm beats both its twin and Knative.
 
-**2026-09-14 (later) — `drainable_regime_v1` measured the LOAD the whole program was gated at, and it
-is 940x overload; the model-class re-read is IN FLIGHT.** The landed `peer_affinity_v1` gate runs at
-**2,659 arrivals/s against a 2.83 tasks/s drain**, so **99.89 % of simulated time falls after the last
-arrival** and the environment's own pair-indexed cost is **0.0098 %** of the number being scored.
-Stretching only the timestamp scale (x4000 -> 0.46 arrivals/s, rho ~ 0.16) puts peer exchange at
-**21.19 %** of `total_rtt`, cool-down at **0.07 %**, and the served dim-7 queue column at **p90 = 5**
-against the cold-corpus max of 42 — **the first live gate in this program whose queue column is inside
-its trained range.** Those regime facts are per-task statistics and they stand. **The first B1/B2 read
-at that rung is CONFOUNDED and must not be quoted:** the gate reused the stage-3 sbatch, so
-`GNN_BATCH_TIMEOUT` stayed at 0.002 s while inter-arrival times stretched 4,000x, and the peer-group
-collector expired on a singleton in **45,284 of 49,509 batches** — both learned arms decoded one task
-at a time, so message passing had nothing to pass. Amendment 1 adds **B6** (incomplete peer-group
-batches <= 20 % or the verdict is CONFOUNDED) and the gate is re-running with the window scaled.
-**The general rule this is the second instance of: every policy time constant — autoscaler reconcile
-interval, batch window, batch poll interval — must scale with the workload's time scale, or a rate
-sweep silently measures the constant instead of the rate.** Never quote a `peer_affinity` live number
-without its load factor. Read `docs/lineages/drainable_regime_v1.md` before proposing any re-run at a
-different arrival rate.
+**2026-09-14 (later) — `drainable_regime_v1` CLOSED: the whole program was gated at a 940x overload,
+and at a defensible load BOTH learned arms lose to reactive Knative.** The landed `peer_affinity_v1`
+gate runs at **2,659 arrivals/s against a 2.83 tasks/s drain**, so **99.89 % of simulated time falls
+after the last arrival** and the environment's own pair-indexed cost is **0.0098 %** of the number
+being scored. Stretching only the timestamp scale (x4000 -> 0.46 arrivals/s, rho ~ 0.16) puts peer
+exchange at **21.19 %** of `total_rtt`, cool-down at **0.07 %**, and the served dim-7 queue column at
+**p90 = 5** against the cold-corpus max of 42 — **the first live gate in this program whose queue
+column is inside its trained range**, with the decoder's batches carrying 83,788 in-batch peer pairs
+against 10,212 outside. Same T1b checkpoints, same cell, same physics, 16 seeds/arm:
+**`gnn` vs `mpoff` -15.94 %, p = 0.0010, 3/16**; **`gnn` vs `knative_network` -226.04 %, 0/16**;
+`mpoff` -181.22 %, 0/16. **The x200 p2 GNN-NEEDED reading (+3.94 %, 13/16) does not survive the load
+change.** Both learned arms *succeed* at the peer objective — rendezvous wait 47.9 % -> 9.6 % of
+exchange time, a 5x cut — and lose anyway, paying 12.4 s of peer-group batch wait, 3x the queue time
+and ~9x the autoscaler churn; the graph arm's loss to its twin is **queue**, not peers. Also closed:
+`GNN_PREFIX_PLATFORM_CAP=1` **deadlocks** 3/16 seeds in a drainable regime (identical clock at death
+across 24/64/256 GB) and is not a serving default. **Three earlier reads of this gate were confounded
+by policy time constants that did not scale with the workload — reconcile interval, batch poll
+interval, and the batch window twice (the second time because the cell config silently overrode
+`GNN_BATCH_TIMEOUT`).** The -488.78 % figure from the first read is wrong by 30x. **General rule:
+in any rate sweep, scale every policy time constant AND add a control bar that reads the arms' own
+counters to prove the policy still did what its name says.** Never quote a `peer_affinity` live
+number without its load factor. Read `docs/lineages/drainable_regime_v1.md` before proposing any
+re-run at a different arrival rate.
 
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 

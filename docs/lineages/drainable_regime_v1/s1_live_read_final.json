@@ -1,0 +1,63 @@
+{
+  "bars": {
+    "alpha": 0.05,
+    "seed_bar": 12,
+    "n_seeds": 16,
+    "b4_peer_min_pct": 20.0,
+    "b4_cooldown_max_pct": 5.0,
+    "b5_dim7_p90_max": 42.0
+  },
+  "b4": {
+    "peer_share_pct": 21.19434418302829,
+    "cooldown_pct": 0.07208404388113765,
+    "holds": true
+  },
+  "b5": {
+    "dim7_p90": 5,
+    "n_busy": 427,
+    "n_snapshots": 150,
+    "holds": true
+  },
+  "b6": {
+    "uncapped": {
+      "worst_pct": 2.9771749917300694,
+      "worst_arm": "gnn_s12",
+      "holds": true
+    }
+  },
+  "uncapped": {
+    "b1": {
+      "pct": -15.939533747452481,
+      "p": 0.001007080078125,
+      "wins": 3,
+      "losses": 13,
+      "n": 16,
+      "median_arm": 4229710.855146382,
+      "median_ref": 3648204.127127017,
+      "verdict": "POINTWISE-BETTER"
+    },
+    "b2": {
+      "pct": -226.0413777451148,
+      "p": 3.0517578125e-05,
+      "wins": 0,
+      "losses": 16,
+      "n": 16,
+      "median_arm": 4229710.855146382,
+      "median_ref": 1297292.6578825186,
+      "verdict": "REACTIVE-WINS",
+      "reference": "knative_network"
+    },
+    "mpoff_vs_reactive": {
+      "pct": -181.2167404910569,
+      "p": 3.0517578125e-05,
+      "wins": 0,
+      "losses": 16,
+      "n": 16,
+      "median_arm": 3648204.127127017,
+      "median_ref": 1297292.6578825186,
+      "reference": "knative_network"
+    }
+  },
+  "b3_cap_contingent": null,
+  "verdict": "POINTWISE-BETTER (UNCAPPED ONLY; B3 unreadable)"
+}
