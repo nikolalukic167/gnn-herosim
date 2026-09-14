@@ -1,7 +1,16 @@
 # drainable_regime_v1 — does the peer-affinity environment carry its own mechanism at a servable load?
 
-**Status:** `REGISTERED` — signed off 2026-09-14, **before any rung has been run**. Stage 1 (S0, the
-live characterisation screen) is submitted with the bars below already committed.
+**Status:** `CLOSED` 2026-09-14 on its **S1 live gate** (rule 6) — **POINTWISE-BETTER,
+REACTIVE-WINS**. At ρ ≈ 0.16, the only rung on this ladder a reviewer would accept as a load
+level, `gnn` is 4.9× slower than its own MP-OFF twin (1/16 seeds) and 18.6× slower than reactive
+Knative (0/16); `mpoff` is 3.2× slower than Knative. The mechanism is autoscaler churn
+(`scaleEventCount` 1,036 → 1,774 → 20,400), not the peer objective, which is within 9 % on all
+four arms. **The x200 p2 GNN-NEEDED reading and the platform cap's +21.9 % are both properties
+of the 940× overload.** Registered 2026-09-14 with every bar committed before any rung ran.
+
+Two S0 pass-2b arms (the x4000/x8000 *batch* rungs, job 763577) were still running when the live
+gate landed; they inform **S4**, a screen bar about batch alignment, and cannot change the live
+verdict. Their reading is appended to the S0 record when it arrives.
 
 **Parent:** [`peer_affinity_v1`](peer_affinity_v1.md) (the environment, the cell, the trace) and
 [`peer_affinity_warm_v1`](peer_affinity_warm_v1.md) (whose W0 record names "a drainable served regime"
@@ -268,3 +277,89 @@ null result — it says the one positive live reading in the program is a proper
 A **GNN-NEEDED** on B1 with B2 LEARNED-WINS would be the first measurement in this program where a
 graph arm beats both its pointwise twin and reactive Knative, and it would be at the only load the
 literature would accept. Both are recorded; neither is preferred.
+
+### 2026-09-14 — S1 LIVE GATE READ: **POINTWISE-BETTER, REACTIVE-WINS**
+
+Jobs 764300 (capped) / 764301 (uncapped), 34 arms each, all 68 COMPLETED; 764303 the B5
+snapshot capture. Trace `drainable_f4000_n50000.json` on `cell_s7901`, T1b `lr2e3`
+checkpoints, no retraining. Read by `scripts_cosim/drainable_regime_s1_read.py`;
+attachment `drainable_regime_v1/s1_live_read.json`.
+
+**Both controls hold, and B5 holds for the first time in this program.**
+
+| bar | value | bar | holds |
+|---|---|---|---|
+| B4 peer share of `total_rtt` | 21.19 % | ≥ 20 | yes |
+| B4 cool-down share | 0.07 % | < 5 | yes |
+| B5 dim-7 p90, 427 busy platform-queues over 150 snapshots | **5** | ≤ 42 | **yes** |
+
+The landed x200 gate's equivalents are 0.0098 %, 99.89 % and ~574. **This is the first live
+measurement in the program where the served queue column is inside the range the corpus
+contains**, so for once B1 and B2 are model-class readings and not extrapolations.
+
+| bar | capped | uncapped |
+|---|---|---|
+| **B1 `gnn` vs `mpoff`** | **−488.78 %**, p = 9.2e-05, 1/16 → **POINTWISE-BETTER** | −471.97 %, p = 1.5e-04, 1/16 → POINTWISE-BETTER |
+| **B2 `gnn` vs `knative_network`** | **−1763.40 %**, p = 3.1e-05, 0/16 → **REACTIVE-WINS** | −1698.52 %, p = 3.1e-05, 0/16 → REACTIVE-WINS |
+| `mpoff` vs `knative_network` (descriptive) | −216.49 %, p = 3.1e-05, 0/16 | −214.44 %, p = 3.1e-05, 0/16 |
+| **B3** | not cap-contingent — the platform cap changes nothing at this rate | |
+
+**The cap is a property of the overload, not of the decoder.** Its +21.9 %-over-Knative
+headline was measured at ρ ≈ 940; at ρ ≈ 0.16 capped and uncapped are indistinguishable on
+both bars. `GNN_PREFIX_PLATFORM_CAP` was a concentration control for a cluster whose capacity
+mask could not bind; with slack everywhere there is nothing for it to control.
+
+#### Where the time actually goes (medians over 16 seeds, capped)
+
+| statistic | `knative_network` | `knative_network_batch` | `mpoff` | `gnn` |
+|---|---|---|---|---|
+| average task latency, s | 25.95 | 26.03 | 80.43 | **474.5** |
+| of which queue, s | 17.76 | 17.82 | 71.92 | **466.1** |
+| of which batch wait, s | 0 | 0.0201 | 0.0182 | 0.0182 |
+| `totalPeerExchangeTime`, s | 2.750e5 | 2.753e5 | 2.977e5 | 2.972e5 |
+| `totalPeerRendezvousWait`, s | 1.316e5 | 1.314e5 | 1.217e5 | 1.181e5 |
+| average pull, s | 6.855 | 6.854 | 5.641 | **13.63** |
+| cold-start proportion | 0.89 | 0.892 | 1.653 | 1.509 |
+| **`scaleEventCount`** | 1,036 | 1,060 | 1,774 | **20,400** |
+
+Three things this rules out and one it establishes.
+
+- **Not the peer-group batch wait.** `averageWaitTime` is 0.018 s for both learned arms. The
+  obvious hypothesis — that waiting ~21.7 s for a 10-task group to arrive at 0.46 arrivals/s
+  is what sinks the learned arms — is refuted by the arms' own counters.
+- **Not the peer objective.** `totalPeerExchangeTime` is 2.75–2.98e5 s on **all four** arms, a
+  9 % spread. The learned arms do not reduce the quantity they were trained to reduce; they do
+  not increase it either. Rendezvous wait is actually *lowest* on `gnn`.
+- **Not the cap, and not message passing alone.** B3 is flat, and `mpoff` — the same
+  architecture with `PeerConv` switched off — loses to reactive Knative by 216 % on its own.
+- **It is autoscaler churn.** `scaleEventCount` goes 1,036 → 1,774 → **20,400** across
+  reactive, pointwise and graph. Average pull time doubles on `gnn`. The learned decoders were
+  fitted on states captured from a cluster in 940× overload, where every platform was saturated
+  and placement could not make things worse. Served with slack everywhere, they thrash the
+  replica lifecycle, and the queue they create is 26× the reactive arm's.
+
+#### What this closes
+
+The one positive live reading in the program — x200 p2 capped, `gnn` vs `mpoff` **+3.94 %**,
+p = 0.0076, 13/16, GNN-NEEDED — **is a property of the 940× overload**. At the only rung on
+this ladder that a reviewer would accept as a load level, the same checkpoints, the same cell
+and the same physics give **−488.78 %, 1/16, in the opposite direction**, with the queue column
+inside its trained range for the first time. The program's offline/live anti-correlation is
+therefore not the whole story: there is a third venue, a defensible load, where both learned
+arms lose to a reactive baseline by 2–18×.
+
+**No measurement in this program has a graph arm beating both its pointwise twin and reactive
+Knative, and the search has now covered the overloaded regime, the warm-state corpus and the
+drainable regime.**
+
+### 2026-09-14 — gate-tool correction: B5 read the wrong key and passed vacuously
+
+The first run of the S1 read reported `B5 dim-7 p90 over 0 busy candidates = 0.0 -> holds=True`.
+`LIVE_AUDIT` snapshots carry queue depth in `full_queue_snapshot` (`queue_key` → depth); the
+reader looked for `candidates[].queue_length`, which is the **co-sim dataset** schema and does
+not exist in a live capture. It found nothing, took the p90 of an empty list as 0.0, and passed.
+**A bar that cannot find its input must not pass.** Fixed the same session, before the verdict
+was recorded: B5 now reads `full_queue_snapshot`, fails loud when no snapshot parses, and
+records NOT-APPLICABLE (`holds: null`) when the snapshots parse but nothing ever queues. The
+corrected read is the one above (p90 = 5 over 427 busy platform-queues). Regression test in
+`tests/test_drainable_regime_s1_read.py`.

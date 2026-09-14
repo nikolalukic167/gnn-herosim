@@ -1,0 +1,89 @@
+{
+  "bars": {
+    "alpha": 0.05,
+    "seed_bar": 12,
+    "n_seeds": 16,
+    "b4_peer_min_pct": 20.0,
+    "b4_cooldown_max_pct": 5.0,
+    "b5_dim7_p90_max": 42.0
+  },
+  "b4": {
+    "peer_share_pct": 21.19434418302829,
+    "cooldown_pct": 0.07208404388113765,
+    "holds": true
+  },
+  "b5": {
+    "dim7_p90": 5,
+    "n_busy": 427,
+    "n_snapshots": 150,
+    "holds": true
+  },
+  "capped": {
+    "b1": {
+      "pct": -488.77510324491755,
+      "p": 9.1552734375e-05,
+      "wins": 1,
+      "losses": 15,
+      "n": 16,
+      "median_arm": 24173785.507841356,
+      "median_ref": 4105775.766436508,
+      "verdict": "POINTWISE-BETTER"
+    },
+    "b2": {
+      "pct": -1763.4026301589158,
+      "p": 3.0517578125e-05,
+      "wins": 0,
+      "losses": 16,
+      "n": 16,
+      "median_arm": 24173785.507841356,
+      "median_ref": 1297292.6578825186,
+      "verdict": "REACTIVE-WINS",
+      "reference": "knative_network"
+    },
+    "mpoff_vs_reactive": {
+      "pct": -216.48801382550664,
+      "p": 3.0517578125e-05,
+      "wins": 0,
+      "losses": 16,
+      "n": 16,
+      "median_arm": 4105775.766436508,
+      "median_ref": 1297292.6578825186,
+      "reference": "knative_network"
+    }
+  },
+  "uncapped": {
+    "b1": {
+      "pct": -471.97496323632083,
+      "p": 0.000152587890625,
+      "wins": 1,
+      "losses": 15,
+      "n": 16,
+      "median_arm": 23332064.817075055,
+      "median_ref": 4079210.860045115,
+      "verdict": "POINTWISE-BETTER"
+    },
+    "b2": {
+      "pct": -1698.5197615438892,
+      "p": 3.0517578125e-05,
+      "wins": 0,
+      "losses": 16,
+      "n": 16,
+      "median_arm": 23332064.817075055,
+      "median_ref": 1297292.6578825186,
+      "verdict": "REACTIVE-WINS",
+      "reference": "knative_network"
+    },
+    "mpoff_vs_reactive": {
+      "pct": -214.44029496808608,
+      "p": 3.0517578125e-05,
+      "wins": 0,
+      "losses": 16,
+      "n": 16,
+      "median_arm": 4079210.860045115,
+      "median_ref": 1297292.6578825186,
+      "reference": "knative_network"
+    }
+  },
+  "b3_cap_contingent": false,
+  "verdict": "POINTWISE-BETTER"
+}
