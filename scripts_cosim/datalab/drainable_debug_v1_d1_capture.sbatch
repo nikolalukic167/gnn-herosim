@@ -76,7 +76,12 @@ if [[ $SRC == knb ]]; then
   echo "[BATCH] KNATIVE_BATCH_TIMEOUT=$BT poll=$KNATIVE_BATCH_POLL_INTERVAL (from the cell config)"
 else
   POLICY=gnn
-  CK=models/peer-affinity-v1-t1b-gnn-lr2e3-seed1.pt
+  # Each arm has its OWN checkpoint, exactly as the stage-3 gate builds the path. `mpoff` is
+  # not the gnn checkpoint served with message passing switched off: the sidecar records the
+  # flag the weights were TRAINED under and `prefix_serving._adopt_or_verify_env` refuses the
+  # mismatch as a train/serve error rather than an ablation (which is the correct behaviour --
+  # it is the guard added after the 2026-09-06 MP-OFF loader hole).
+  CK="models/peer-affinity-v1-t1b-${SRC}-lr2e3-seed1.pt"
   [[ -f "$CK" && -f "${CK%.pt}.contract.json" ]] || { echo "FAIL LOUD: $CK or its sidecar missing" >&2; exit 1; }
   export GNN_MODEL_PATH="$CK" GNN_DECODE_MODE=masked_topo GNN_BATCH_BY_PEER_GROUP=1
   # Uncapped: GNN_PREFIX_PLATFORM_CAP=1 deadlocks 3/16 seeds in a drainable regime
