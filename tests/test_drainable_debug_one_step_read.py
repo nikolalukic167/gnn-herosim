@@ -210,3 +210,18 @@ def test_without_the_flag_the_record_says_so():
     snap = _snap_for_cut(n_tasks=2, n_cands=4)
     _subset, record = choose_candidates(snap, random.Random(0), target_combos=4, max_combos=100)
     assert record["forced_keys"] is None
+
+
+def test_decoded_file_provenance_blocks_are_not_read_as_datasets(tmp_path):
+    """The decode driver writes a `_stats` block next to the plans; treating it as a dataset
+    would put a bogus entry in the corpus map."""
+    from scripts_cosim.drainable_debug_one_step_read import load_decoded
+
+    p = tmp_path / "decoded.json"
+    p.write_text(json.dumps({
+        "_stats": {"gnn": {"decoded": 60, "infeasible": 0}},
+        "ds_00000": {"gnn": {"0": [1, 11]}},
+    }))
+    out = load_decoded(p)
+    assert set(out) == {"ds_00000"}
+    assert out["ds_00000"]["gnn"] == {0: (1, 11)}
