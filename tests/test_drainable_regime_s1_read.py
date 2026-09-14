@@ -108,7 +108,7 @@ def test_b5_marks_out_of_range_but_still_reads(tmp_path):
     _config(tmp_path / "unc", gnn, mpoff)
     snap = tmp_path / "s.jsonl"
     snap.write_text("\n".join(
-        json.dumps({"candidates": [{"queue_length": 500}, {"queue_length": 0}]})
+        json.dumps({"full_queue_snapshot": {"a:1": 500, "b:2": 0}})
         for _ in range(20)))
     _, res = _run(tmp_path / "cap", tmp_path / "unc", tmp_path / "o.json", snapshots=snap)
     assert res["b5"]["holds"] is False
@@ -123,7 +123,7 @@ def test_b5_holds_inside_the_trained_range(tmp_path):
     _config(tmp_path / "unc", gnn, mpoff)
     snap = tmp_path / "s.jsonl"
     snap.write_text("\n".join(
-        json.dumps({"candidates": [{"queue_length": 6}, {"queue_length": 0}]})
+        json.dumps({"full_queue_snapshot": {"a:1": 6, "b:2": 0}})
         for _ in range(20)))
     _, res = _run(tmp_path / "cap", tmp_path / "unc", tmp_path / "o.json", snapshots=snap)
     assert res["b5"]["holds"] is True
@@ -141,3 +141,18 @@ def test_missing_arm_fails_loud(tmp_path):
          "--output", str(tmp_path / "o.json")], capture_output=True, text=True)
     assert r.returncode != 0
     assert "FAIL LOUD" in r.stderr or "FAIL LOUD" in r.stdout
+
+
+def test_b5_is_not_applicable_when_nothing_ever_queues(tmp_path):
+    """An empty busy set must NOT pass the bar vacuously -- that defect shipped once."""
+    gnn = [100.0 + i for i in range(16)]
+    mpoff = [120.0 + i for i in range(16)]
+    _config(tmp_path / "cap", gnn, mpoff)
+    _config(tmp_path / "unc", gnn, mpoff)
+    snap = tmp_path / "s.jsonl"
+    snap.write_text("\n".join(
+        json.dumps({"full_queue_snapshot": {"a:1": 0, "b:2": 0}}) for _ in range(20)))
+    stdout, res = _run(tmp_path / "cap", tmp_path / "unc", tmp_path / "o.json", snapshots=snap)
+    assert res["b5"]["holds"] is None
+    assert res["b5"]["n_busy"] == 0
+    assert "NOT-APPLICABLE" in stdout
