@@ -208,13 +208,15 @@ def read(
             continue
         mean_formula = sum(c["formula_seconds_per_item"] for c in here) / len(here)
         offsets[ptype] = max(0.0, measured - mean_formula)
-    for c in cells:
-        ptype = c["platform_type"]
-        if ptype not in offsets:
-            continue
-        table[drain_table_key(c["task_type"], ptype)] = (
-            c["formula_seconds_per_item"] + offsets[ptype]
-        )
+    # Emit an entry for EVERY (task type, platform type with a measured offset), not only
+    # the cells the corpus happens to register. The live cluster queues combinations the
+    # cold corpus never does -- this read found dnn2 on pynqFpga, which appears in no
+    # x200 dataset's replica_placements, and the same shape as the 2026-09-13 xavierGpu
+    # audit. A table that covers only the corpus makes every consumer fail loud on the
+    # first live state, which is how this surfaced.
+    for ptype, offset in offsets.items():
+        for ttype, type_row in task_types_db.items():
+            table[drain_table_key(ttype, ptype)] = formula_drain(type_row, ptype) + offset
 
     qualifying = [c for c in cells if c["qualifies"] and c["ratio"] is not None]
     ratios = sorted(c["ratio"] for c in qualifying)
@@ -241,6 +243,14 @@ def read(
         "verdict": verdict,
         "cells": cells,
         "table_form": "offset: formula(t,p) + max(0, measured(p) - mean_t formula(t,p))",
+        "table_covers": "every (task type in the type table) x (platform type with a measured offset)",
+        "cells_in_corpus_only": sorted(
+            f"{c['task_type']}|{c['platform_type']}"
+            for c in cells
+            if c["datasets_registering_this_cell"] > 0 and c["n_live_observations"] == 0
+        ),
+        "platform_types_live": sorted(per_ptype),
+        "platform_types_in_corpus": sorted(mix),
         "platform_offset_seconds": offsets,
         "drain_seconds_per_item": table,
         "drain_seconds_per_item_flat": flat_table,
