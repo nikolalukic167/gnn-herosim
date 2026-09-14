@@ -36,7 +36,13 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 G=simulation_data/peer_affinity_live_gate
 D1=simulation_data/drainable_debug_v1/d1
 WORKLOAD="${WORKLOAD:-$G/workloads/drainable_f4000_n50000.json}"
-CFG="${CFG:-$G/configs/cell_s7901_f4000_pg16.json}"
+# The 80 s window, not the 16 s one D2 reads. At 16 s only 8 % of group-opening batches
+# assemble a complete peer group (measured: 10/120 for gnn, 0/120 for the reactive source),
+# and `check_aligned_peer_group` rejects the rest -- so a 16 s capture would both starve the
+# corpus and sample only the states where the group happened to arrive fast. At 80 s pair
+# retention is 99.9 % (drainable_serving_config_v1 config D), the batch IS the peer group,
+# and that is also the object the co-sim datasets and the decoder were built around.
+CFG="${CFG:-$G/configs/cell_s7901_f4000.json}"
 mkdir -p "$D1/snapshots" "$D1/capture_summaries" logs
 [[ -f "$WORKLOAD" ]] || { echo "FAIL LOUD: workload missing: $WORKLOAD" >&2; exit 1; }
 [[ -f "$CFG" ]] || { echo "FAIL LOUD: cell config missing: $CFG" >&2; exit 1; }
@@ -63,17 +69,24 @@ export HEROSIM_GNN_DEVICE=cpu
 # states where placement was a choice, which is the question, not a filter.
 export LIVE_AUDIT_SNAPSHOT_PATH="$SNAP"
 export LIVE_AUDIT_STRIDE="${LIVE_AUDIT_STRIDE:-10}"
-export LIVE_AUDIT_MAX_SNAPSHOTS="${LIVE_AUDIT_MAX_SNAPSHOTS:-120}"
+export LIVE_AUDIT_MAX_SNAPSHOTS="${LIVE_AUDIT_MAX_SNAPSHOTS:-200}"
 export LIVE_AUDIT_MIN_BATCH_SIZE=1 LIVE_AUDIT_MIN_CANDIDATES=1
 rm -f "$SNAP"
 
+# BOTH the window and the poll interval must match across sources, or the sources are running
+# different batch policies and their states are not comparable. Measured 2026-09-14: leaving
+# the GNN poll at its 0.001 s default while the reactive source polled at window/20 made the
+# GNN assemble complete peer groups 10x more often, purely because it noticed arrivals sooner.
+# That is the same unscaled-time-constant defect that confounded three reads of this lineage's
+# parent. Both are derived from the cell config here, so they cannot drift apart.
+BT=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['scheduler']['batch_timeout'])" "$CFG")
+POLL=$(python3 -c "print(float('$BT')/20.0)")
+echo "[BATCH] window=$BT poll=$POLL (both from the cell config, identical for every source)"
+
 if [[ $SRC == knb ]]; then
   POLICY=knative_network_batch
-  # The window must match the cell's GNN window or the sources see different batch policies.
-  BT=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['scheduler']['batch_timeout'])" "$CFG")
   export KNATIVE_BATCH_SIZE=10 KNATIVE_BATCH_TIMEOUT="$BT" KNATIVE_BATCH_BY_PEER_GROUP=1
-  export KNATIVE_BATCH_POLL_INTERVAL=$(python3 -c "print(float('$BT')/20.0)")
-  echo "[BATCH] KNATIVE_BATCH_TIMEOUT=$BT poll=$KNATIVE_BATCH_POLL_INTERVAL (from the cell config)"
+  export KNATIVE_BATCH_POLL_INTERVAL="$POLL"
 else
   POLICY=gnn
   # Each arm has its OWN checkpoint, exactly as the stage-3 gate builds the path. `mpoff` is
@@ -84,6 +97,7 @@ else
   CK="models/peer-affinity-v1-t1b-${SRC}-lr2e3-seed1.pt"
   [[ -f "$CK" && -f "${CK%.pt}.contract.json" ]] || { echo "FAIL LOUD: $CK or its sidecar missing" >&2; exit 1; }
   export GNN_MODEL_PATH="$CK" GNN_DECODE_MODE=masked_topo GNN_BATCH_BY_PEER_GROUP=1
+  export GNN_BATCH_POLL_INTERVAL="$POLL"
   # Uncapped: GNN_PREFIX_PLATFORM_CAP=1 deadlocks 3/16 seeds in a drainable regime
   # (drainable_regime_v1 Amendment 2) and is not a serving default.
   [[ $SRC == mpoff ]] && export GNN_DISABLE_MESSAGE_PASSING=1
