@@ -784,6 +784,19 @@ class GNNScheduler(Scheduler):
             target_node, target_platform = match[0]
             self.gnn_pure_decisions += 1
 
+            # drainable_debug_v1 D2 (2026-09-14): the per-task snapshot the argmax path has
+            # always written (see `_process_task_batch`) was never written here, so
+            # `chosen_queue_vs_min` — the statistic `queue_features.py:13-21` names as the
+            # live failure mode — was unreadable for exactly the arms this gate serves.
+            # Captured after the decode rather than before it, since the decoded replica must
+            # be one of the keys for the statistic to mean anything. Read-only, behind the
+            # same flag as every other capture, and off by default.
+            if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
+                valid_now = self._get_valid_replicas(task_replicas, task)
+                task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_now)
+                task.full_queue_snapshot = self._capture_full_queue_snapshot()
+                task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_now)
+
             from src.placement.replica_seeding import start_deferred_cold_init
 
             start_deferred_cold_init(
