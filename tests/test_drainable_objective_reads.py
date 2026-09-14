@@ -486,15 +486,20 @@ def _summary(arm, latency, mean_batch=8.0, incomplete_pct=3.0):
     }
 
 
-def _gate(v0=60.0, v1=20.0, knative=25.95, **kw):
-    """16 seeds per arm, with a small spread so medians and counts are meaningful."""
+def _gate(v1=20.0, knative=25.95, **kw):
+    """16 V=1 seeds per arm. Amendment 1: the V=0 control is T1b, supplied separately as
+    per-seed values rather than trained again."""
     arms = {"knative_network": {"arm": "knative_network", "averageElapsedTime": knative}}
     for i in range(1, 17):
         jitter = (i - 8) * 0.01
         for arm in ("gnn", "mpoff"):
-            arms[f"v0_{arm}_s{i}"] = _summary(f"v0_{arm}_s{i}", v0 + jitter, **kw)
             arms[f"v1_{arm}_s{i}"] = _summary(f"v1_{arm}_s{i}", v1 + jitter, **kw)
     return arms
+
+
+def _control(v0=60.0):
+    """T1b's 16 per-seed latencies at this cell, the C3 control."""
+    return {arm: [v0 + (i - 8) * 0.01 for i in range(1, 17)] for arm in ("gnn", "mpoff")}
 
 
 def _c1(pct):
@@ -503,35 +508,35 @@ def _c1(pct):
 
 
 def test_c_outcome_is_objective_was_the_lever_when_c3_and_c4_both_fire():
-    res = c.read(_gate(v0=60.0, v1=20.0), _c1(10.0))
+    res = c.read(_gate(v1=20.0), _c1(10.0), _control(60.0))
     assert res["C3"]["gnn"]["verdict"] == "LABEL-HELPS"
     assert res["C4"]["per_arm"]["gnn"]["verdict"] == "LEARNED-BEATS-REACTIVE"
     assert res["outcome"] == "OBJECTIVE-WAS-THE-LEVER"
 
 
-def test_c_outcome_is_label_helps_not_enough_when_it_beats_v0_but_not_knative():
-    res = c.read(_gate(v0=60.0, v1=40.0), _c1(10.0))
+def test_c_outcome_is_label_helps_not_enough_when_it_beats_the_control_but_not_knative():
+    res = c.read(_gate(v1=40.0), _c1(10.0), _control(60.0))
     assert res["C3"]["gnn"]["verdict"] == "LABEL-HELPS"
     assert res["C4"]["per_arm"]["gnn"]["verdict"] == "REACTIVE-STILL-WINS"
     assert res["outcome"] == "LABEL-HELPS-NOT-ENOUGH"
 
 
 def test_c_outcome_is_objective_not_the_lever_when_the_label_does_not_help():
-    res = c.read(_gate(v0=40.0, v1=60.0), _c1(10.0))
+    res = c.read(_gate(v1=60.0), _c1(10.0), _control(40.0))
     assert res["outcome"] == "OBJECTIVE-NOT-THE-LEVER"
 
 
 def test_c0_marks_an_arm_that_did_not_batch_as_confounded_and_drops_it():
     """The bar that caught three confounded reads in the parent, one wrong by 30x."""
-    arms = _gate(v0=60.0, v1=20.0, mean_batch=1.01)
-    res = c.read(arms, _c1(10.0))
-    assert len(res["C0"]["confounded_arms"]) == 64
+    arms = _gate(v1=20.0, mean_batch=1.01)
+    res = c.read(arms, _c1(10.0), _control(60.0))
+    assert len(res["C0"]["confounded_arms"]) == 32
     # Every learned arm is dropped, so nothing is read rather than a fast number quoted.
     assert res["C3"]["gnn"]["verdict"] == "VOID-NO-ARM"
 
 
 def test_c0_also_fires_on_too_many_incomplete_peer_groups():
-    res = c.read(_gate(mean_batch=8.0, incomplete_pct=45.0), _c1(10.0))
+    res = c.read(_gate(mean_batch=8.0, incomplete_pct=45.0), _c1(10.0), _control())
     assert res["C0"]["confounded_arms"], "45 % incomplete must confound"
 
 
@@ -539,57 +544,91 @@ def test_c0_fails_loud_when_an_arm_carries_no_counters():
     arms = _gate()
     arms["v1_gnn_s1"].pop("schedulerCounters")
     with pytest.raises(c.GateReadError, match="schedulerCounters"):
-        c.read(arms, _c1(10.0))
+        c.read(arms, _c1(10.0), _control())
 
 
 def test_c1_confounds_a_latency_win_from_an_arm_that_still_concentrates():
     """A win from an arm that did not change its behaviour is not evidence about the
     label -- it is evidence that something else moved."""
-    res = c.read(_gate(v0=60.0, v1=20.0), _c1(35.0))
+    res = c.read(_gate(v1=20.0), _c1(35.0), _control(60.0))
     assert res["C3"]["gnn"]["verdict"] == "CONFOUNDED-C1"
     assert res["C4"]["per_arm"]["gnn"]["verdict"] == "CONFOUNDED-C1"
     assert res["outcome"] == "CONFOUNDED-C1"
 
 
 def test_c1_absent_is_reported_not_assumed():
-    res = c.read(_gate(v0=60.0, v1=20.0), None)
+    res = c.read(_gate(v1=20.0), None, _control(60.0))
     assert res["C1"]["fires"] is None
     assert "note" in res["C1"]
     assert res["outcome"] == "OBJECTIVE-WAS-THE-LEVER"
 
 
-def test_c2_reads_v0_against_the_quoted_t1b_baseline():
-    res = c.read(_gate(v0=40.0, v1=20.0), _c1(10.0))
-    assert res["C2"]["gnn"]["reference_median_s"] == pytest.approx(53.45)
-    assert res["C2"]["gnn"]["verdict"] == "CLOCK-WAS-A-DEFECT"
-    res_slow = c.read(_gate(v0=90.0, v1=20.0), _c1(10.0))
-    assert res_slow["C2"]["gnn"]["verdict"] == "CLOCK-NOT-THE-DEFECT"
+def test_c2_is_withdrawn_explicitly_not_silently_dropped():
+    """Amendment 1 withdrew C2 because V = 0 is T1b and the bar could not fire by
+    construction. A withdrawn bar must say so in the output, or a later reader sees a
+    missing bar and cannot tell whether it was dropped or never run."""
+    res = c.read(_gate(v1=20.0), _c1(10.0), _control(60.0))
+    assert res["C2"]["verdict"] == "WITHDRAWN"
+    assert "argmin" in res["C2"]["note"]
+
+
+def test_c3_control_median_must_match_the_recorded_baseline(tmp_path):
+    """A control directory whose median disagrees with the record is a different run, and
+    reading a contrast against it would silently redefine the baseline."""
+    d = tmp_path / "ctrl"
+    d.mkdir()
+    for i in range(1, 17):
+        (d / f"gnn_s{i}.summary.json").write_text(json.dumps({"averageElapsedTime": 99.0}))
+        (d / f"mpoff_s{i}.summary.json").write_text(json.dumps({"averageElapsedTime": 99.0}))
+    with pytest.raises(c.GateReadError, match="not the run the record describes"):
+        c.load_control(d)
+
+
+def test_c3_control_loads_when_it_matches(tmp_path):
+    d = tmp_path / "ctrl"
+    d.mkdir()
+    for arm, med in (("gnn", 53.45), ("mpoff", 51.32)):
+        for i in range(1, 17):
+            (d / f"{arm}_s{i}.summary.json").write_text(
+                json.dumps({"averageElapsedTime": med + (i - 8) * 0.01}))
+    loaded = c.load_control(d)
+    assert len(loaded["gnn"]) == 16 and len(loaded["mpoff"]) == 16
 
 
 def test_c3_needs_significance_not_just_a_lower_median():
-    """A median that is lower by a hair on overlapping distributions must not fire."""
+    """A median lower by a hair on overlapping distributions must not fire."""
     arms = _gate()
     for i in range(1, 17):
-        arms[f"v0_gnn_s{i}"]["averageElapsedTime"] = 50.0 + (i % 5)
         arms[f"v1_gnn_s{i}"]["averageElapsedTime"] = 49.9 + (i % 5)
-    res = c.read(arms, _c1(10.0))
+    ctrl = {"gnn": [50.0 + (i % 5) for i in range(1, 17)],
+            "mpoff": [51.32 + (i - 8) * 0.01 for i in range(1, 17)]}
+    res = c.read(arms, _c1(10.0), ctrl)
     row = res["C3"]["gnn"]
     assert row["p"] is not None and row["p"] >= c.C3_ALPHA
     assert row["verdict"] == "LABEL-DOES-NOT-HELP"
 
 
+def test_c3_cannot_fire_without_per_seed_control_values():
+    """A seed-count majority against a single recorded number is not a significance test,
+    and the bar requires one."""
+    res = c.read(_gate(v1=20.0), _c1(10.0), None)
+    row = res["C3"]["gnn"]
+    assert row["p"] is None
+    assert row["verdict"] == "LABEL-DOES-NOT-HELP"
+
+
 def test_c5_predicts_a_tie_and_reports_a_gnn_win_as_an_anomaly():
-    arms = _gate(v0=60.0, v1=20.0)
+    arms = _gate(v1=20.0)
     for i in range(1, 17):
         arms[f"v1_gnn_s{i}"]["averageElapsedTime"] = 10.0 + i * 0.01
         arms[f"v1_mpoff_s{i}"]["averageElapsedTime"] = 30.0 + i * 0.01
-    res = c.read(arms, _c1(10.0))
+    res = c.read(arms, _c1(10.0), _control(60.0))
     assert res["C5"]["verdict"] == "GNN-NEEDED-ANOMALY"
     assert res["C5"]["registered_prediction"] == "TIE"
 
 
 def test_c5_is_a_tie_when_the_arms_overlap():
-    res = c.read(_gate(v0=60.0, v1=20.0), _c1(10.0))
+    res = c.read(_gate(v1=20.0), _c1(10.0), _control(60.0))
     assert res["C5"]["verdict"] == "TIE"
 
 
@@ -608,4 +647,4 @@ def test_gate_read_fails_loud_on_a_summary_without_latency():
     arms = _gate()
     arms["v1_gnn_s1"].pop("averageElapsedTime")
     with pytest.raises(c.GateReadError, match="averageElapsedTime"):
-        c.read(arms, _c1(10.0))
+        c.read(arms, _c1(10.0), _control())

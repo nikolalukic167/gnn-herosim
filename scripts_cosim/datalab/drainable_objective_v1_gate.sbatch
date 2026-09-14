@@ -4,13 +4,16 @@
 # drainable_serving_config_v1's config E, so the T1b numbers at this cell (gnn 53.45 s,
 # mpoff 51.32 s, knative_network 25.95 s) are the standing baseline and are NOT re-run.
 #
-# 66 arms:
+# Amendment 1 (2026-09-14): the V = 0 control is the EXISTING T1b lr2e3 checkpoints, which
+# were gated at this exact cell (gnn 53.45 s, mpoff 51.32 s, knative_network 25.95 s) and
+# are not re-run -- repricing the backlog on the measured clock leaves the argmin plan
+# unmoved, so a separately trained V = 0 arm would be a copy.
+#
+# 34 arms:
 #   task  0        knative_network        (reactive, per arrival)
 #   task  1        knative_network_batch  (reactive, 10-task window)
-#   tasks 2-17     v0 gnn    seeds 1-16   (live clock, ONE-STEP label: the control)
-#   tasks 18-33    v0 mpoff  seeds 1-16
-#   tasks 34-49    v1 gnn    seeds 1-16   (live clock, SHAPED label: the treatment)
-#   tasks 50-65    v1 mpoff  seeds 1-16
+#   tasks 2-17     v1 gnn    seeds 1-16   (SHAPED label: the treatment)
+#   tasks 18-33    v1 mpoff  seeds 1-16
 #
 # UNCAPPED: GNN_PREFIX_PLATFORM_CAP=1 deadlocks 3/16 seeds in a drainable regime
 # (hard-stops.md, drainable_regime_v1 Amendment 2). Q = 100, the rung D3 showed is real.
@@ -19,7 +22,7 @@
 # behaviour control: if the V = 1 arms did not stop taking replicas deeper than the
 # shallowest, a latency win is not evidence about the label.
 #
-#   sbatch --array=0-65%8 scripts_cosim/datalab/drainable_objective_v1_gate.sbatch
+#   sbatch --array=0-33%8 scripts_cosim/datalab/drainable_objective_v1_gate.sbatch
 #
 #SBATCH --job-name=dobj-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/dobj-gate-%A_%a.out
@@ -30,7 +33,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
 #SBATCH --time=12:00:00
-#SBATCH --array=0-65
+#SBATCH --array=0-33
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -80,11 +83,9 @@ else
   I=$(( T - 2 ))
   GROUP=$(( I / 16 )); SEED=$(( I % 16 + 1 ))
   case $GROUP in
-    0) TAG=v0; ARMNAME=gnn ;;
-    1) TAG=v0; ARMNAME=mpoff ;;
-    2) TAG=v1; ARMNAME=gnn ;;
-    3) TAG=v1; ARMNAME=mpoff ;;
-    *) echo "FAIL LOUD: task $T is beyond the 66 declared arms" >&2; exit 1 ;;
+    0) TAG=v1; ARMNAME=gnn ;;
+    1) TAG=v1; ARMNAME=mpoff ;;
+    *) echo "FAIL LOUD: task $T is beyond the 34 declared arms" >&2; exit 1 ;;
   esac
   ARM="${TAG}_${ARMNAME}_s${SEED}"
   CK="models/drainable-objective-v1-${TAG}-${ARMNAME}-lr2e3-seed${SEED}.pt"
@@ -97,7 +98,7 @@ else
   python3 - "$SC" "$TAG" "$ARMNAME" <<'PY'
 import json, sys
 sc, tag, arm = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
-want = {"v0": "rtt", "v1": "rtt_drift:1"}[tag]
+want = {"v1": "rtt_drift:1"}[tag]
 got = sc.get("label_objective") or "rtt"
 if not got.startswith(want):
     raise SystemExit(f"FAIL LOUD: sidecar label_objective={got!r}, slot {tag} expects {want}")

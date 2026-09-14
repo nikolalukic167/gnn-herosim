@@ -1,13 +1,15 @@
 # drainable_objective_v1 v2 -- gnn: message passing over bipartite + peer edges (PeerConv), label V = 2
 #
-# One of eight configs: V in {0, 0.5, 1, 2} x {gnn, mpoff}. The ONLY differences from
-# the T1b lr2e3 recipe this copies are the cache (a live-clock corpus, one per V) and the
-# split artifact. lr stays 2e-3 and is NOT re-tuned -- a carried limitation, stated in the
-# node, for the same reason objective_pivot_v1 Phase 3 carried its own.
+# One of six configs: V in {0.5, 1, 2} x {gnn, mpoff}. The ONLY difference from the T1b
+# lr2e3 recipe this copies is the cache, which carries the same corpus under a different
+# label. lr stays 2e-3 and is NOT re-tuned -- a carried limitation, stated in the node,
+# for the same reason objective_pivot_v1 Phase 3 carried its own.
 #
-# V = 0 is the CONTROL: the live-clock corpus with the one-step label, which isolates the
-# backlog-clock fix from the shaping term. V = 1 is the treatment the gate reads.
-# Seeds: --seed 1..16 for V in {0, 1} (gated), 1..8 for V in {0.5, 2} (offline only).
+# Amendment 1: the corpus and the split are T1b's, unchanged, and the CONTROL arm is the
+# T1b lr2e3 checkpoints themselves -- repricing the backlog on the measured clock leaves
+# the argmin plan unmoved, so a separate V = 0 arm would be a copy. Only the label differs
+# between this arm and its control.
+# Seeds: --seed 1..16 for V = 1 (gated), 1..8 for V in {0.5, 2} (offline dose-response).
 trainer: gnn
 lineage: drainable_objective_v1
 cache_dir: simulation_data/graphs_cache_drainable_objective_v1_v2
@@ -15,7 +17,7 @@ unset_env:
 - TRAIN_INIT_CHECKPOINT
 env:
   NEAR_RTT_SAVE_FINAL: '1'
-  NEAR_RTT_SPLIT_ARTIFACT: experiments/drainable_objective_v1_v2_split.json
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_affinity_v1_t1b_split.json
   NEAR_RTT_TASK_TYPE_ONEHOT: '1'
   NEAR_RTT_PARTIAL_STATE_EDGES: '1'
   NEAR_RTT_DAG_ALPHA_KEY: '2.5'

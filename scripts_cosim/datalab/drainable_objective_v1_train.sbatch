@@ -3,15 +3,13 @@
 # arms (that script is the template); the only differences are the cache, the split and
 # the checkpoint names, which carry the label the arm was fitted to.
 #
-# 8 configs (V in {0, 0.5, 1, 2} x {gnn, mpoff}) with an ASYMMETRIC seed budget, as
-# registered: 16 seeds at V = 0 and V = 1 (the gated arms), 8 at V = 0.5 and V = 2
-# (offline dose-response only, never gated, never quoted live). 48 + 48 = 96 tasks:
+# Amendment 1 (2026-09-14): V = 0 is the EXISTING T1b lr2e3 checkpoints, not a new arm --
+# repricing the backlog on the measured clock leaves the argmin plan unmoved, so a V = 0
+# arm trained here would be a copy of one already trained and already gated at this cell.
 #
-#   tasks  0- 15  v0  gnn   seeds 1-16      tasks 48- 55  v05 gnn   seeds 1-8
-#   tasks 16- 31  v0  mpoff seeds 1-16      tasks 56- 63  v05 mpoff seeds 1-8
-#   tasks 32- 47  v1  gnn   seeds 1-16      tasks 64- 71  v2  gnn   seeds 1-8
-#   tasks 72- 87  v1  mpoff seeds 1-16   -- see the table built below; the shell is the
-#                                           single source of truth, this comment is a map.
+# 6 configs (V in {1, 0.5, 2} x {gnn, mpoff}), 16 seeds for the gated V = 1 arms and 8 for
+# the dose-response arms that are never gated and never quoted live. 32 + 32 = 64 tasks;
+# the shell table below is the single source of truth and this comment is only a map.
 #
 # lr is 2e-3 for every arm and is NOT re-tuned: re-selecting it now would be choosing a
 # hyperparameter with knowledge of the outcome. Carried as a stated limitation, the same
@@ -28,7 +26,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
-#SBATCH --array=0-95
+#SBATCH --array=0-63
 
 set -euo pipefail
 # datalab-pitfalls #11: without this every GNN task dies in the first epochs with
@@ -50,7 +48,7 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 
 # (tag, arm, n_seeds) in task order. Built into a flat task table so the mapping is
 # computed once, here, rather than asserted in a comment that can drift from it.
-SPECS=("v0 gnn 16" "v0 mpoff 16" "v1 gnn 16" "v1 mpoff 16"
+SPECS=("v1 gnn 16" "v1 mpoff 16"
        "v05 gnn 8" "v05 mpoff 8" "v2 gnn 8" "v2 mpoff 8")
 TAGS=(); ARMS=(); SEEDS=()
 for spec in "${SPECS[@]}"; do
@@ -66,7 +64,8 @@ TAG=${TAGS[$T]}; ARM=${ARMS[$T]}; SEED=${SEEDS[$T]}
 CFG=experiments/drainable_objective_v1_${TAG}_${ARM}.yaml
 CK="models/drainable-objective-v1-${TAG}-${ARM}-lr2e3-seed${SEED}.pt"
 CACHE=simulation_data/graphs_cache_drainable_objective_v1_${TAG}
-SPLIT=experiments/drainable_objective_v1_${TAG}_split.json
+# T1b's split, reused verbatim so this arm and its T1b control share parents.
+SPLIT=experiments/peer_affinity_v1_t1b_split.json
 echo "[TASK $T/$NTASKS] label=$TAG arm=$ARM seed=$SEED cfg=$CFG -> $CK"
 
 [[ -f "$CFG" ]] || { echo "FAIL LOUD: $CFG missing (git pull?)" >&2; exit 1; }
@@ -86,10 +85,10 @@ for k, v in (("partial_state_contract", "partial_state_v2"), ("dag_primary_alpha
     if m.get(k) != v:
         raise SystemExit(f"FAIL LOUD: cache metadata {k}={m.get(k)!r}, this recipe requires {v!r}")
 got = m.get("label_objective") or "rtt"
-want = {"v0": "rtt", "v05": "rtt_drift:0.5", "v1": "rtt_drift:1", "v2": "rtt_drift:2"}[tag]
+want = {"v05": "rtt_drift:0.5", "v1": "rtt_drift:1", "v2": "rtt_drift:2"}[tag]
 if not got.startswith(want):
     raise SystemExit(f"FAIL LOUD: cache label_objective={got!r} but this arm is {tag} ({want})")
-if tag != "v0" and "clock=measured" not in got:
+if "clock=measured" not in got:
     raise SystemExit(f"FAIL LOUD: cache was labelled on the exec+comm clock: {got!r}")
 print("[cache] contract ok, label =", got)
 EOF2
@@ -121,7 +120,7 @@ for k, want in checks.items():
 # drainable_objective_v1: the label must reach the checkpoint, or a served arm cannot say
 # what it was fitted to and the gate's arms become unattributable six weeks later.
 got = sc.get("label_objective") or "rtt"
-want = {"v0": "rtt", "v05": "rtt_drift:0.5", "v1": "rtt_drift:1", "v2": "rtt_drift:2"}[tag]
+want = {"v05": "rtt_drift:0.5", "v1": "rtt_drift:1", "v2": "rtt_drift:2"}[tag]
 if not got.startswith(want):
     raise SystemExit(f"FAIL LOUD: sidecar label_objective={got!r} but this arm is {tag} ({want})")
 sa = sc.get("split_artifact") or {}

@@ -3,16 +3,22 @@
 # Recipe = T1b's build, as peer_affinity_warm_v1_w1_cache.sbatch records it; the only
 # addition is --label-objective, which changes what the targets mean and nothing else.
 #
-#   array task 0 -> V = 0     (the CONTROL: live clock, one-step label)
-#              1 -> V = 0.5
-#              2 -> V = 1     (the treatment the live gate reads)
-#              3 -> V = 2
+# Amendment 1 (2026-09-14): one cache, over the EXISTING T1b corpus and split.
 #
-# Four caches over one corpus is the point: the corpus, the split seeds, the features and
-# the decoder are byte-identical across the four, so a contrast between two of them is a
-# contrast about the label and nothing else.
+# The registered design regenerated a corpus on the measured backlog clock and built four
+# caches over it. Measured before any of that ran: repricing the backlog by A1's 784x moves
+# the median sweep RTT ~1 % and leaves the ARGMIN PLAN -- the training target -- unchanged,
+# because the best plan avoids backlog under either clock. So the live-clock corpus IS the
+# corpus, and V = 0 is the T1b cache that already exists with checkpoints already gated at
+# this cell. Only the V = 1 cache is new.
 #
-#   sbatch --array=0-3 scripts_cosim/datalab/drainable_objective_v1_cache.sbatch
+# The contrast is then same corpus, same split, same seeds, same lr, only the label.
+#
+#   array task 0 -> V = 1     (the treatment)
+#              1 -> V = 0.5   (offline dose-response only)
+#              2 -> V = 2     (offline dose-response only)
+#
+#   sbatch --array=0-2 scripts_cosim/datalab/drainable_objective_v1_cache.sbatch
 #
 #SBATCH --job-name=dobj-cache
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/dobj-cache-%A_%a.out
@@ -23,7 +29,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
 #SBATCH --time=08:00:00
-#SBATCH --array=0-3
+#SBATCH --array=0-2
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -38,16 +44,20 @@ export DAG_PRIMARY_ALPHA_KEY=2.5 PARTIAL_STATE_CONTRACT=partial_state_v2
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
-VS=(0 0.5 1 2)
-TAGS=(v0 v05 v1 v2)
+VS=(1 0.5 2)
+TAGS=(v1 v05 v2)
 T=${SLURM_ARRAY_TASK_ID}
 V=${VS[$T]}
 TAG=${TAGS[$T]}
 
-TRAIN=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_lc
-TEST=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_lc_r2
+# The T1b corpus, unchanged. Its own split is REUSED verbatim, so V = 1 and the T1b
+# control share train/val/test parent-for-parent -- a split that moved between the arms
+# would confound the one contrast this lineage exists to make.
+TRAIN=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_train
+TRAIN2=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_train2
+TEST=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_r2
 CACHE=simulation_data/graphs_cache_drainable_objective_v1_${TAG}
-SPLIT=experiments/drainable_objective_v1_${TAG}_split.json
+SPLIT=experiments/peer_affinity_v1_t1b_split.json
 DRAIN="${DRAIN_TABLE:-simulation_data/drainable_objective_v1/drain_table.json}"
 # The label's lambda: the gate rung's realised arrival rate (drainable_f4000_n50000.json,
 # 0.46 tasks/s). A property of the deployment the label is for, stated here and recorded
@@ -57,9 +67,9 @@ RATE="${RATE:-0.46}"
 echo "[TASK $T] V=$V tag=$TAG cache=$CACHE"
 [[ -f "$DRAIN" ]] || { echo "FAIL LOUD: missing $DRAIN -- run A1 first; a live-clock corpus labelled on the exec+comm clock is the null read this lineage already made once" >&2; exit 1; }
 echo "[CLOCK] $DRAIN ($(md5sum "$DRAIN" | cut -c1-12))  RATE=$RATE"
-[[ -f "$SPLIT" ]] && { echo "FAIL LOUD: $SPLIT exists -- a split is frozen once runs depend on it" >&2; exit 1; }
+[[ -f "$SPLIT" ]] || { echo "FAIL LOUD: $SPLIT missing -- V = 1 must reuse T1b's split verbatim" >&2; exit 1; }
 
-for d in "$TRAIN" "$TEST"; do
+for d in "$TRAIN" "$TRAIN2" "$TEST"; do
   [[ -d "$d" ]] || { echo "FAIL LOUD: corpus missing: $d" >&2; exit 1; }
   # Complete = placement_metadata.json says sweep_complete AND rows == plans. A non-empty
   # placements.jsonl is not evidence (peer_affinity_warm_v1 W0 attempt 1).
@@ -81,28 +91,14 @@ PY
   [[ "$bad" == "0" ]] || { echo "FAIL LOUD: $bad dataset dirs under $d are incomplete" >&2; exit 1; }
 done
 
-# Steps 1 and 2 touch the corpus, not the cache, so only one array task may do them.
-# Task 0 runs them; the others wait for the marker rather than racing (datalab pitfall #7).
-MARK=simulation_data/drainable_objective_v1/.lc_corpus_prepared
-if [[ $T -eq 0 ]]; then
-  echo "=== [1/5] SSC rewrite"
-  python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$TRAIN" --rewrite-ssc | tail -2
-  python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$TEST" --rewrite-ssc | tail -2
-  for d in "$TRAIN" "$TEST"; do
-    [[ $(ls "$d"/ds_*/system_state_captured_unique.json | wc -l) -eq $(ls -d "$d"/ds_* | wc -l) ]] || { echo "FAIL LOUD: SSC missing under $d" >&2; exit 1; }
-  done
-  echo "=== [2/5] alpha pre-scan (tightest rung 2.0)"
-  python3 scripts_cosim/peer_affinity_alpha_prescan.py "$TRAIN" "$TEST" --alpha 2.0 \
-    --set-aside-dir simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_lc_setaside | tail -12
-  mkdir -p "$(dirname "$MARK")" && touch "$MARK"
-else
-  for _ in $(seq 1 240); do [[ -f "$MARK" ]] && break; sleep 30; done
-  [[ -f "$MARK" ]] || { echo "FAIL LOUD: task 0 never produced $MARK after 2 h" >&2; exit 1; }
-fi
+# Steps 1 and 2 of the T1b recipe (SSC rewrite, alpha pre-scan) are NOT re-run: this IS the
+# T1b corpus and they were run on it when T1b was built. Re-running them would rewrite the
+# corpus underneath the T1b checkpoints that are this lineage's control arm.
+echo "=== [1-2/5] skipped: T1b corpus already prepared (SSC + alpha pre-scan)"
 
 echo "=== [3/5] cache -> $CACHE (label V=$V)"
 rm -rf "$CACHE"
-python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$TRAIN" "$TEST" --cache-dir "$CACHE" \
+python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$TRAIN" "$TRAIN2" "$TEST" --cache-dir "$CACHE" \
   --dag-partial-state --platform-feature-dim 14 \
   --label-objective "$( [[ "$V" == "0" ]] && echo rtt || echo "rtt_drift:$V" )" \
   --label-arrival-rate "$RATE" \
@@ -128,9 +124,20 @@ echo "=== [4/5] near-RTT sidecar"
 python3 -u src/notebooks/prepare_graphs_cache_near_rtt.py --cache-dir "$CACHE" --skip-cache-build 2>&1 | grep -v "it/s\]" | tail -4
 [[ -f "$CACHE/valid_combos_near_rtt_capped.pkl" ]] || { echo "FAIL LOUD: no near-RTT sidecar" >&2; exit 1; }
 
-echo "=== [5/5] split artifact"
-python3 scripts_cosim/make_peer_affinity_t1_split.py --cache-dir "$CACHE" \
-  --heldout-corpus "gnn_datasets_peer_affinity_v1_c3_x200_lc_r2" --output "$SPLIT"
+echo "=== [5/5] split: REUSED from T1b, asserted to cover this cache"
+python3 - "$CACHE" "$SPLIT" <<'SPLITCHK'
+import json, pickle, sys
+cache, split = sys.argv[1], sys.argv[2]
+ids = list(pickle.load(open(cache + "/dataset_ids.pkl", "rb")))
+sp = json.load(open(split))
+have = set(ids) | {i.split("/")[-1] for i in ids}
+missing = [p for key in ("train", "val", "test") for p in (sp.get(key) or [])
+           if p not in have and p.split("/")[-1] not in have]
+if missing:
+    raise SystemExit(f"FAIL LOUD: {len(missing)} split parents absent from the cache, e.g. {missing[:3]}")
+print("[split] reused T1b split covers this cache: %d datasets, %d/%d/%d train/val/test"
+      % (len(ids), len(sp.get("train") or []), len(sp.get("val") or []), len(sp.get("test") or [])))
+SPLITCHK
 sha256sum "$SPLIT"
 du -sh "$CACHE"
-echo "=== V=$V cache done: rsync $SPLIT back and commit before training ==="
+echo "=== V=$V cache done ==="
