@@ -55,6 +55,23 @@ echo "[INPUTS] workload $(md5sum "$WORKLOAD" | cut -c1-12) cfg $(md5sum "$CFG" |
 # say what actually arrived.
 echo "[ALLOW-LIST] HEROSIM_REPLICA_PLATFORM_TYPES='${HEROSIM_REPLICA_PLATFORM_TYPES:-<unset: every platform type>}'"
 echo "[KNOBS] GNN_PREFIX_PLATFORM_CAP='${GNN_PREFIX_PLATFORM_CAP:-<unset>}' CKPREFIX='${CKPREFIX:-<default t1b>}' GATE_LR='${GATE_LR:-lr2e3}'"
+# Target concurrency: the autoscaler scales up at ceil(total_queued / Q) > replicas, with Q =
+# HEROSIM_QUEUE_LENGTH (default QUEUE_LENGTH=100, src/placement/constants.py:11) for EVERY
+# policy. It has never been varied in a gate, and every co-sim corpus state was captured at
+# 100, so a run at another Q is a different cluster and must say so in its own log.
+echo "[KNOBS] HEROSIM_QUEUE_LENGTH='${HEROSIM_QUEUE_LENGTH:-<unset: default 100>}' KEEP_RAW='${KEEP_RAW:-0}' KEEP_RAW_QSNAP='${KEEP_RAW_QSNAP:-0}'"
+
+# KEEP_RAW=1 (drainable_debug_v1 D2, 2026-09-14): keep the per-task records instead of the
+# totals. `taskResults` is [] on every gate run to date -- Orchestrator._use_low_memory_stats
+# switches to the streaming path at >= 10,000 events (orchestrator.py:176-181) -- so no gate
+# in this program can be debugged after the fact. SIM_FORCE_FULL_STATS=1 restores it; the
+# optional QSNAP adds queueSnapshotAtScheduling, which chosen_queue_vs_min needs. Cost at
+# 50,000 tasks: ~60 MB, or ~350 MB with QSNAP. Default off, so every existing submission is
+# byte-identical.
+if [[ "${KEEP_RAW:-0}" == "1" ]]; then
+  export SIM_FORCE_FULL_STATS=1
+  export GNN_CAPTURE_DATASET_STATE="${KEEP_RAW_QSNAP:-0}"
+fi
 
 # physics + gate contract, identical for every arm
 export HEROSIM_PEER_EXCHANGE=1
@@ -98,7 +115,7 @@ if [[ -f "$SUMMARY" ]]; then echo "[TASK $T] summary exists, not re-running: $SU
 ${HEROSIM_PY:-pipenv run python3} src/executesimulation.py \
   --config "$CFG" --workload "$WORKLOAD" --policy "$POLICY" --output "$OUT.partial"
 python3 - "$OUT.partial" "$SUMMARY" "$ARM" "$POLICY" <<'PY'
-import json, sys
+import json, os, sys
 raw, summary, arm, policy = sys.argv[1:5]
 d = json.load(open(raw)); st = d.get("stats") or d
 # The decomposition keys are what diagnose a live loss: on this cell queue time is ~99 % of
@@ -116,10 +133,19 @@ _se = st.get("scaleEvents")
 s["scaleEventCount"] = len(_se) if isinstance(_se, list) else _se
 s["env"] = {k: v for k, v in (d.get("run_provenance") or {}).get("env", {}).items() if v}
 s["code"] = (d.get("run_provenance") or {}).get("code")
-s["arm"] = arm; s["policy_name"] = policy; s["source"] = "raw json (deleted after summary)"
+s["arm"] = arm; s["policy_name"] = policy
+# Top-level, not under stats: executesimulation.py writes the resolved target concurrency
+# next to the stats block. A gate run at a non-default Q must be readable as such later.
+s["queue_length"] = d.get("queue_length")
+s["source"] = "raw json (kept)" if os.environ.get("KEEP_RAW") == "1" else "raw json (deleted after summary)"
 json.dump(s, open(summary + ".partial", "w"))
 print("[RESULT]", json.dumps({k: s[k] for k in s if k not in ("env", "code")}))
 print("[PROVENANCE env]", json.dumps(s["env"]))
 PY
 mv "$SUMMARY.partial" "$SUMMARY"
-rm -f "$OUT.partial"
+if [[ "${KEEP_RAW:-0}" == "1" ]]; then
+  mv "$OUT.partial" "$OUT"
+  echo "[RAW KEPT] $OUT ($(du -h "$OUT" | cut -f1))"
+else
+  rm -f "$OUT.partial"
+fi
