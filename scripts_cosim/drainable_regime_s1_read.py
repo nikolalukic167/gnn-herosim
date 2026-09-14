@@ -18,6 +18,7 @@ N_SEEDS = 16
 B4_PEER_SHARE_MIN_PCT = 20.0
 B4_COOLDOWN_MAX_PCT = 5.0
 B5_DIM7_P90_MAX = 42.0
+B6_INCOMPLETE_BATCH_MAX_PCT = 20.0   # peer-group assembly control (S1 Amendment 1)
 
 
 def load_arm(d: Path, name: str) -> dict:
@@ -62,6 +63,28 @@ def verdict(r: dict, better: str, worse: str) -> str:
     if r["p"] < ALPHA and r["losses"] >= SEED_BAR:
         return worse
     return "TIE"
+
+
+def read_b6(d: Path, label: str) -> dict:
+    """Peer-group assembly control. GNN_BATCH_TIMEOUT is a policy time constant: at a
+    stretched arrival rate a window sized for the landed gate expires before a group can
+    co-arrive, the decoder sees singletons, and B1/B2 then compare two arms that both ran
+    pointwise. Measured from the arms' own counters, not inferred (S1 Amendment 1)."""
+    worst = None
+    for arm in ("gnn", "mpoff"):
+        for s in range(1, N_SEEDS + 1):
+            c = load_arm(d, f"{arm}_s{s}").get("schedulerCounters") or {}
+            batches = c.get("prefix_batches")
+            if not batches:
+                raise SystemExit(
+                    f"FAIL LOUD: {arm}_s{s} has no prefix_batches counter; B6 cannot be read")
+            pct = 100.0 * (c.get("peer_group_incomplete_batches") or 0) / batches
+            if worst is None or pct > worst[0]:
+                worst = (pct, f"{arm}_s{s}", batches, c.get("peer_group_incomplete_batches"))
+    holds = worst[0] <= B6_INCOMPLETE_BATCH_MAX_PCT
+    print(f"[{label}] B6 worst incomplete peer-group batches {worst[0]:.2f}% ({worst[1]}: "
+          f"{worst[3]}/{worst[2]}) (<= {B6_INCOMPLETE_BATCH_MAX_PCT}) -> holds={holds}")
+    return {"worst_pct": worst[0], "worst_arm": worst[1], "holds": holds}
 
 
 def read_config(d: Path, label: str) -> dict:
@@ -146,6 +169,15 @@ def main() -> int:
     if not out["b4"]["holds"]:
         out["verdict"] = "VOID"
         print("[verdict] VOID -- B4 failed; B1-B3 are not read")
+        a.output.write_text(json.dumps(out, indent=2))
+        return 0
+
+    out["b6"] = {"capped": read_b6(a.capped_dir, "capped"),
+                 "uncapped": read_b6(a.uncapped_dir, "uncapped")}
+    if not (out["b6"]["capped"]["holds"] and out["b6"]["uncapped"]["holds"]):
+        out["verdict"] = "CONFOUNDED"
+        print("[verdict] CONFOUNDED -- the peer groups never assembled, so B1/B2 would "
+              "compare two arms that both decoded singletons")
         a.output.write_text(json.dumps(out, indent=2))
         return 0
 
