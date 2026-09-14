@@ -767,17 +767,30 @@ def build_worst_regret_by_dataset(rtt_by_dataset: RttByCombo) -> Dict[str, float
     return worst
 
 
-def build_full_sweep_rtt_by_dataset(cache_dir: Path) -> RttByCombo:
-    """Full (uncapped) sweep RTTs from `rtt_chunk_*.pkl`, every parent dataset the
-    cache has. Loaded once, not lazily per-graph: validation graphs from different
-    parents interleave, and `LazyChunkedRttLookup`'s one-parent-at-a-time cache would
-    reload every chunk file per val graph per epoch. The route_b rung-3 cache is
-    ~941k rows / ~40MB across 5 chunks -- small enough to hold in full.
+def build_full_sweep_rtt_by_dataset(
+    cache_dir: Path, keep_ids: Optional[Iterable[str]] = None
+) -> RttByCombo:
+    """Full (uncapped) sweep RTTs from `rtt_chunk_*.pkl`. Loaded once, not lazily per-graph:
+    validation graphs from different parents interleave, and `LazyChunkedRttLookup`'s
+    one-parent-at-a-time cache would reload every chunk file per val graph per epoch.
+
+    `keep_ids` restricts the result to those parents, and the rows of other parents are
+    dropped as they are read rather than materialised (2026-09-14). The docstring used to
+    say "the route_b rung-3 cache is ~941k rows / ~40MB -- small enough to hold in full";
+    that stopped being true. The peer_affinity T1b cache is 19.66M rows and costs ~21 GB
+    resident at ~1.09 KB/row, and a 2,000-dataset corpus would be ~83 GB against the
+    trainer's 64 GB allocation. The per-epoch validation only ever queries VAL parents, so
+    holding the other 80 % for the whole run buys nothing; the final train/val/test
+    evaluations each reload their own split and free it.
+
+    The chunk-count check still covers every row in the cache, read or kept, so a
+    truncated chunk file is caught whether or not its parents were wanted.
     """
     import pickle
 
     from src.notebooks.non_unique_lib.cache_io import _rtt_chunks_meta
 
+    wanted = None if keep_ids is None else set(keep_ids)
     num_chunks, total_entries = _rtt_chunks_meta(cache_dir)
     out: RttByCombo = {}
     n = 0
@@ -786,8 +799,10 @@ def build_full_sweep_rtt_by_dataset(cache_dir: Path) -> RttByCombo:
         with open(chunk_path, "rb") as f:
             chunk = pickle.load(f)
         for (ds_id, combo), rtt in chunk.items():
-            out.setdefault(ds_id, {})[combo] = float(rtt)
             n += 1
+            if wanted is not None and ds_id not in wanted:
+                continue
+            out.setdefault(ds_id, {})[combo] = float(rtt)
         chunk.clear()
     if n != total_entries:
         raise RuntimeError(
@@ -795,6 +810,14 @@ def build_full_sweep_rtt_by_dataset(cache_dir: Path) -> RttByCombo:
             f"{cache_dir}/rtt_chunk_*.pkl but rtt_chunks_meta.json declares "
             f"{total_entries} -- the chunk files and their own metadata disagree."
         )
+    if wanted is not None:
+        missing = wanted - set(out)
+        if missing:
+            raise RuntimeError(
+                f"FAIL LOUD: {len(missing)} requested parent(s) have no full-sweep rows in "
+                f"{cache_dir} (e.g. {sorted(missing)[:3]}); the exact-regret metric would "
+                "silently fall back to a constant floor for them."
+            )
     return out
 
 
@@ -1344,18 +1367,8 @@ graphs, dataset_ids = load_graphs_from_cache(CACHE_CTX)
 DATA_OPTIMAL_RTT = load_optimal_rtt_from_cache(CACHE_CTX)
 PLACEMENT_TO_LOGIT_MAP, EXACT_RTT_MAP, RTT_BY_DATASET = load_or_build_valid_combos()
 WORST_REGRET_BY_DATASET = build_worst_regret_by_dataset(RTT_BY_DATASET)
+# Loaded after the split is known, for the VAL parents only -- see the loader's docstring.
 FULL_SWEEP_RTT_BY_DATASET: Optional[RttByCombo] = None
-if NEAR_CFG.val_exact_regret:
-    FULL_SWEEP_RTT_BY_DATASET = build_full_sweep_rtt_by_dataset(CACHE_CTX.cache_dir)
-    _n_full_rows = sum(len(v) for v in FULL_SWEEP_RTT_BY_DATASET.values())
-    print(
-        f"[NEAR_RTT_VAL_EXACT_REGRET] loaded {_n_full_rows:,} full-sweep rows for "
-        f"{len(FULL_SWEEP_RTT_BY_DATASET)} datasets from {CACHE_CTX.cache_dir}/"
-        "rtt_chunk_*.pkl -- decode regret metrics now fall back to the true sweep "
-        "RTT instead of a constant floor when a combo is absent from the capped "
-        "sidecar.",
-        flush=True,
-    )
 
 print(f"Loaded {len(graphs)} graphs")
 _task_feature_dim = int(graphs[0].task_features.size(-1))
@@ -1468,6 +1481,21 @@ train_loader = create_loader(train_dataset, shuffle=True)
 val_loader = create_loader(val_dataset, shuffle=False)
 test_loader = create_loader(test_dataset, shuffle=False)
 
+if NEAR_CFG.val_exact_regret:
+    FULL_SWEEP_RTT_BY_DATASET = build_full_sweep_rtt_by_dataset(
+        CACHE_CTX.cache_dir, keep_ids=val_ids
+    )
+    _n_full_rows = sum(len(v) for v in FULL_SWEEP_RTT_BY_DATASET.values())
+    print(
+        f"[NEAR_RTT_VAL_EXACT_REGRET] loaded {_n_full_rows:,} full-sweep rows for "
+        f"{len(FULL_SWEEP_RTT_BY_DATASET)} VAL datasets from {CACHE_CTX.cache_dir}/"
+        "rtt_chunk_*.pkl -- decode regret metrics now fall back to the true sweep "
+        "RTT instead of a constant floor when a combo is absent from the capped "
+        "sidecar. The train and test splits are loaded separately at the final "
+        "evaluation and freed, so the training loop holds only what it queries.",
+        flush=True,
+    )
+
 if RUNTIME_CONFIG.wandb_api_key:
     os.environ["WANDB_API_KEY"] = RUNTIME_CONFIG.wandb_api_key
 
@@ -1536,6 +1564,291 @@ wandb.init(
     },
     tags=[t for t in os.environ.get("WANDB_TAGS", "near-rtt").split(",") if t],
 )
+
+
+# ---------------------------------------------------------------------------
+# Reference lines and the W&B logging filter (2026-09-14).
+#
+# Two things made a finished run hard to read (audit of run xnjb91ic):
+#   1. 25 of 34 per-step scalars were structurally dead or constant for the
+#      objective that was actually running, so the chart grid was mostly noise.
+#   2. The 9 live ones had no floor to read them against. `task_acc` starting at
+#      43% looks like a warm start; it is chance, because the corpus averages
+#      2.79 candidates per task. `ce` rising to 11 looks like divergence; 10.26
+#      is the uniform-scorer plan NLL, so it is the val likelihood falling back
+#      THROUGH chance. `regret_greedy` in the tens of thousands looks broken; it
+#      is raw seconds on a corpus whose optimum averages 146k s.
+#
+# So: compute the floors once, log them to the run summary, emit every regret as
+# a fraction of the random-plan regret alongside the raw seconds, and keep the
+# inactive scalars out of the step stream. Nothing is deleted from the metrics
+# dicts themselves -- `ranking_checkpoint_metric` reads the counts, and the guard
+# keys are summarised at the end of the run instead of plotted 300 times.
+# ---------------------------------------------------------------------------
+
+
+def _candidate_counts(graph_list: List[Data]) -> List[List[int]]:
+    """Per-graph list of per-task candidate counts, for tasks with a usable label."""
+    out: List[List[int]] = []
+    for g in graph_list:
+        mapping = getattr(g, "task_logit_to_placement", None)
+        if mapping is None:
+            continue
+        per_graph: List[int] = []
+        for t in range(int(g.n_tasks)):
+            cands = mapping.get(t)
+            if not cands:
+                continue
+            y = int(g.y[t].item())
+            if 0 <= y < len(cands):
+                per_graph.append(len(cands))
+        if per_graph:
+            out.append(per_graph)
+    return out
+
+
+def _label_index_histogram(graph_list: List[Data]) -> Dict[int, int]:
+    hist: Dict[int, int] = {}
+    for g in graph_list:
+        mapping = getattr(g, "task_logit_to_placement", None)
+        if mapping is None:
+            continue
+        for t in range(int(g.n_tasks)):
+            cands = mapping.get(t)
+            if not cands:
+                continue
+            y = int(g.y[t].item())
+            if 0 <= y < len(cands):
+                hist[y] = hist.get(y, 0) + 1
+    return hist
+
+
+def _chance_baselines(graph_list: List[Data]) -> Dict[str, float]:
+    """What an untrained/uniform scorer scores on this split.
+
+    Every curve in the run is read against these. They depend only on the corpus
+    (candidate counts and the label distribution), never on the model, so they are
+    constants of the run and belong in the summary rather than the step stream.
+    """
+    counts = _candidate_counts(graph_list)
+    if not counts:
+        return {}
+    flat = [c for per_graph in counts for c in per_graph]
+    hist = _label_index_histogram(graph_list)
+    n_labelled = sum(hist.values())
+    majority = max(hist.values()) / n_labelled if n_labelled else 0.0
+    chance_task = float(np.mean([1.0 / c for c in flat]))
+    chance_graph = float(np.mean([float(np.prod([1.0 / c for c in per])) for per in counts]))
+    # The CE the trainer reports is a whole-PLAN NLL under the teacher-forced
+    # any-of-K objective (`-log sum_k prod_t p_t`), and a per-TASK mean otherwise.
+    # A uniform scorer scores sum_t log C_t on the first and mean_t log C_t on the
+    # second, so the floor is objective-dependent and must be computed as such.
+    if TEACHER_FORCED:
+        chance_ce = float(np.mean([float(np.sum(np.log(per))) for per in counts]))
+    else:
+        chance_ce = float(np.mean([float(np.mean(np.log(per))) for per in counts]))
+    return {
+        "chance_task_acc": chance_task,
+        "majority_task_acc": float(majority),
+        "chance_graph_acc": chance_graph,
+        "chance_ce": chance_ce,
+        "mean_candidates_per_task": float(np.mean(flat)),
+        "max_candidates_per_task": float(max(flat)),
+        "mean_tasks_per_graph": float(np.mean([len(per) for per in counts])),
+    }
+
+
+def _regret_scale(ids: Sequence[str]) -> Dict[str, float]:
+    """RTT scale of a split, so raw-seconds regret can be read as a fraction.
+
+    `random_plan_regret` is the expected regret of drawing a valid plan uniformly
+    (mean sweep RTT minus the optimum). That is the denominator that makes a
+    regret number comparable across corpora; raw seconds are not.
+    """
+    source = FULL_SWEEP_RTT_BY_DATASET if FULL_SWEEP_RTT_BY_DATASET is not None else RTT_BY_DATASET
+    opt_vals: List[float] = []
+    rand_vals: List[float] = []
+    worst_vals: List[float] = []
+    for ds in {parent_dataset_id(str(i)) for i in ids}:
+        combos = source.get(ds)
+        if not combos:
+            continue
+        vals = np.fromiter((float(v) for v in combos.values()), dtype=float)
+        mn = float(vals.min())
+        opt_vals.append(mn)
+        rand_vals.append(float(vals.mean()) - mn)
+        worst_vals.append(float(vals.max()) - mn)
+    if not opt_vals:
+        return {}
+    return {
+        "opt_rtt": float(np.mean(opt_vals)),
+        "random_plan_regret": float(np.mean(rand_vals)),
+        "worst_plan_regret": float(np.mean(worst_vals)),
+        "n_datasets_scored": float(len(opt_vals)),
+    }
+
+
+_BASELINES = _chance_baselines(val_graphs)
+_VAL_SCALE = _regret_scale(val_ids)
+_VAL_REGRET_SCALE = float(_VAL_SCALE.get("random_plan_regret", 0.0))
+# top-k joint decode with k >= every task's candidate count enumerates the WHOLE
+# plan space, so its "oracle" is the sweep optimum and `regret_oracle_topk` is
+# identically 0 by construction. Measured on the warm corpus: k=5, max C=6, and
+# the metric read 0.000 in 255 of 300 epochs. Do not plot a definitional zero.
+_TOPK_IS_EXHAUSTIVE = bool(
+    _BASELINES and NEAR_CFG.top_k_decode >= int(_BASELINES["max_candidates_per_task"])
+)
+
+for _k, _v in _BASELINES.items():
+    wandb.summary[f"baseline/val_{_k}"] = float(_v)
+for _k, _v in _VAL_SCALE.items():
+    wandb.summary[f"scale/val_{_k}"] = float(_v)
+wandb.summary["scale/topk_decode_is_exhaustive"] = bool(_TOPK_IS_EXHAUSTIVE)
+if _BASELINES:
+    print(
+        "[baselines/val] chance task_acc={:.3f} majority task_acc={:.3f} "
+        "chance graph acc={:.5f} chance ce={:.3f} "
+        "(mean {:.2f} candidates/task, {:.1f} tasks/graph)".format(
+            _BASELINES["chance_task_acc"],
+            _BASELINES["majority_task_acc"],
+            _BASELINES["chance_graph_acc"],
+            _BASELINES["chance_ce"],
+            _BASELINES["mean_candidates_per_task"],
+            _BASELINES["mean_tasks_per_graph"],
+        ),
+        flush=True,
+    )
+if _VAL_SCALE:
+    print(
+        "[scale/val] opt_rtt={:.1f}s random-plan regret={:.1f}s worst-plan "
+        "regret={:.1f}s over {:.0f} datasets -- regret_* curves are RAW SECONDS; "
+        "read the *_frac companions.".format(
+            _VAL_SCALE["opt_rtt"],
+            _VAL_SCALE["random_plan_regret"],
+            _VAL_SCALE["worst_plan_regret"],
+            _VAL_SCALE["n_datasets_scored"],
+        ),
+        flush=True,
+    )
+else:
+    print(
+        "[scale/val] WARNING: no RTT rows matched the validation ids, so no regret "
+        "scale was recorded and val/regret_*_frac will not be logged. Every regret "
+        "curve on this run is raw seconds with no denominator.",
+        flush=True,
+    )
+if _TOPK_IS_EXHAUSTIVE:
+    print(
+        f"[metrics] top_k_decode={NEAR_CFG.top_k_decode} >= max candidates/task "
+        f"{int(_BASELINES['max_candidates_per_task'])}: the top-k joint decode is "
+        "exhaustive, so regret_oracle_topk is 0 by construction and is not logged.",
+        flush=True,
+    )
+
+
+# Suffixes that are guards, not curves: their job is to be a fixed number. They
+# are checked every epoch and reported as run-level min/max, never plotted.
+_GUARD_SUFFIXES = {
+    "count_regret_greedy",
+    "count_regret_topk",
+    "count_regret_masked_topo",
+    "count_regret_seq_reforward",
+    "greedy_sidecar_coverage",
+    "topk_sidecar_coverage",
+    "seq_reforward_sidecar_coverage",
+    "masked_topo_mapped_rate",
+    "masked_topo_decoded",
+    "greedy_unmapped",
+    "seq_reforward_unmapped",
+}
+
+
+def _inactive_suffixes() -> set:
+    """Metric suffixes this run's configuration can never make non-zero."""
+    dead: set = set()
+    if REGRET_LOSS_WEIGHT <= 0.0:
+        dead |= {"rank", "valid_rank", "active_pair_frac"}
+    if not SOFT_COMBO_TRAINING:
+        dead |= {
+            "soft_combo",
+            "valid_combo",
+            "combo_count",
+            "combo_model_regret",
+            "combo_model_entropy",
+        }
+    if not CONCENTRATION_TRAINING:
+        dead |= {"concentration", "valid_conc", "conc_max_load", "conc_mean_cap"}
+    if PHASE_B_CHECKPOINT_METRIC != "seq_reforward_regret":
+        dead |= {
+            "regret_seq_reforward",
+            "count_regret_seq_reforward",
+            "seq_reforward_sidecar_coverage",
+            "seq_reforward_unmapped",
+        }
+    if not TEACHER_FORCED:
+        dead |= {
+            "regret_masked_topo",
+            "count_regret_masked_topo",
+            "masked_topo_mapped_rate",
+            "masked_topo_decoded",
+        }
+    if _TOPK_IS_EXHAUSTIVE:
+        dead |= {"regret_oracle_topk"}
+    return dead
+
+
+_INACTIVE_SUFFIXES = _inactive_suffixes()
+_GUARD_TRACE: Dict[str, List[float]] = {}
+
+
+def _wandb_log(log_dict: Dict[str, float], step: Optional[int] = None) -> None:
+    """Log only what this run can actually move, and fail loudly on guard drift."""
+    out: Dict[str, float] = {}
+    for key, value in log_dict.items():
+        suffix = key.rsplit("/", 1)[-1]
+        if suffix in _INACTIVE_SUFFIXES:
+            continue
+        if suffix in _GUARD_SUFFIXES:
+            _GUARD_TRACE.setdefault(key, []).append(float(value))
+            continue
+        out[key] = value
+    # Raw seconds are not comparable across corpora; the fraction is. Emit both.
+    if _VAL_REGRET_SCALE > 0:
+        for key in list(out):
+            if key.startswith("val/regret_") and not key.endswith("_frac"):
+                out[f"{key}_frac"] = float(out[key]) / _VAL_REGRET_SCALE
+    if out.get("train/total") == out.get("train/ce"):
+        out.pop("train/total", None)
+    if step is None:
+        wandb.log(out)
+    else:
+        wandb.log(out, step=step)
+
+
+def _flush_guard_metrics() -> None:
+    """Guards go to the summary as min/max, and any drift is said out loud."""
+    for key, values in sorted(_GUARD_TRACE.items()):
+        lo, hi = min(values), max(values)
+        wandb.summary[f"guard/{key}_min"] = float(lo)
+        wandb.summary[f"guard/{key}_max"] = float(hi)
+        suffix = key.rsplit("/", 1)[-1]
+        if suffix.endswith("_coverage") or suffix.endswith("_mapped_rate"):
+            if lo < 1.0:
+                print(
+                    f"[GUARD] {key} fell to {lo:.4f} -- some decoded plans were absent "
+                    "from the RTT lookup and were scored at the worst_regret floor. "
+                    "Regret curves on this run are partly a constant, not a decode.",
+                    flush=True,
+                )
+        elif suffix.endswith("_unmapped"):
+            if hi > 0:
+                print(f"[GUARD] {key} reached {hi:.0f} unmapped decodes.", flush=True)
+        elif lo != hi:
+            print(
+                f"[GUARD] {key} moved between {lo:.0f} and {hi:.0f} across epochs -- "
+                "the number of scored datasets is not supposed to change.",
+                flush=True,
+            )
 
 model = TaskPlacementGNN(
     task_feature_dim=_task_feature_dim,
@@ -1735,6 +2048,8 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
 
 best_val_regret = float("inf")
 best_val_acc = 0.0
+peak_val_acc = 0.0
+peak_val_task_acc = 0.0
 best_val_metrics: Dict[str, float] = {}
 checkpoint_saved = False
 phase_b_baseline: Optional[Dict[str, float]] = None
@@ -1787,9 +2102,16 @@ for epoch in range(EPOCHS):
     log_dict.update(prefix(train_metrics, "train"))
     log_dict.update(prefix(val_metrics, "val"))
     log_dict["lr"] = float(optimizer.param_groups[0]["lr"])
+    # A TRUE max over every epoch. `best_val_acc` cannot serve this purpose: on
+    # the teacher-forced branch it only moved on epochs that ALSO improved the
+    # checkpoint metric, so the summary under-reported the peak (measured on run
+    # xnjb91ic: reported 18.1%, actual 22.3% at epoch 78), and on the CE-only
+    # branch it is selection state. Reporting only -- it selects nothing.
+    peak_val_acc = max(peak_val_acc, float(val_metrics["acc"]))
+    peak_val_task_acc = max(peak_val_task_acc, float(val_metrics.get("task_acc", 0.0)))
     if not CE_ONLY_TRAINING:
         log_dict["train/effective_regret_weight"] = float(effective_regret_weight(epoch))
-    wandb.log(log_dict, step=epoch)
+    _wandb_log(log_dict, step=epoch)
 
     if TEACHER_FORCED:
         # Arm A1 is CE-only, but it must NOT select on the CE-only branch's acc/top-k:
@@ -1799,7 +2121,6 @@ for epoch in range(EPOCHS):
         if val_target < best_val_regret:
             best_val_regret = val_target
             best_val_metrics = val_metrics
-            best_val_acc = max(best_val_acc, float(val_metrics["acc"]))
             save_checkpoint(model.state_dict(), model_path)
             checkpoint_saved = True
             print(
@@ -1883,26 +2204,49 @@ if os.environ.get("NEAR_RTT_SAVE_FINAL", "0") == "1":
     print(f"[final] last-epoch weights saved to {final_path} (NEAR_RTT_SAVE_FINAL=1)")
 
 model.load_state_dict(torch.load(model_path, map_location=DEVICE))
-train_final = evaluate(
-    model, train_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/train",
-    full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
-)
-val_final = evaluate(
-    model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/val",
-    full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
-)
-test_final = evaluate(
-    model, test_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "final/test",
-    full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
-)
+
+
+def _final_eval(loader, ids, tag):
+    """Evaluate one split against its OWN full-sweep rows, then free them.
+
+    The training loop holds the val split's rows only; train and test are needed exactly
+    once, here. Loading all three at once is what made this script's resident set scale
+    with the whole corpus (~21 GB at 482 datasets, ~83 GB projected at 2,000).
+    """
+    sweep = None
+    if NEAR_CFG.val_exact_regret:
+        sweep = (
+            FULL_SWEEP_RTT_BY_DATASET
+            if tag == "final/val"
+            else build_full_sweep_rtt_by_dataset(CACHE_CTX.cache_dir, keep_ids=ids)
+        )
+    try:
+        return evaluate(
+            model, loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, tag,
+            full_sweep_rtt_by_dataset=sweep,
+        )
+    finally:
+        if sweep is not None and tag != "final/val":
+            sweep.clear()
+            del sweep
+            gc.collect()
+
+
+train_final = _final_eval(train_loader, train_ids, "final/train")
+val_final = _final_eval(val_loader, val_ids, "final/val")
+test_final = _final_eval(test_loader, test_ids, "final/test")
 
 final_log: Dict[str, float] = {}
 final_log.update(prefix(train_final, "final/train"))
 final_log.update(prefix(val_final, "final/val"))
 final_log.update(prefix(test_final, "final/test"))
-wandb.log(final_log)
+_wandb_log(final_log)
 
-if CE_ONLY_TRAINING:
+wandb.summary["peak_val_acc"] = float(peak_val_acc)
+wandb.summary["peak_val_task_acc"] = float(peak_val_task_acc)
+if CE_ONLY_TRAINING and not TEACHER_FORCED:
+    # Selection state of the CE-only branch. On the teacher-forced branch the
+    # selector is val/regret_masked_topo, so this key would name nothing.
     wandb.summary["best_val_acc"] = float(best_val_acc)
 elif is_phase_b_ce_init():
     wandb.summary["best_val_checkpoint_target"] = float(best_val_regret)
@@ -1922,6 +2266,8 @@ wandb.summary["final_test_regret_topk"] = float(test_final["regret_topk"])
 wandb.summary["final_test_regret_greedy"] = float(test_final["regret_greedy"])
 wandb.summary["final_test_oracle_topk"] = float(test_final["regret_oracle_topk"])
 
+_flush_guard_metrics()
+
 artifact = wandb.Artifact("placement-gnn-near-rtt", type="model")
 artifact.add_file(str(model_path))
 wandb.log_artifact(artifact)
@@ -1931,7 +2277,8 @@ print("=" * 80)
 print("TRAINING COMPLETE")
 print("=" * 80)
 print(f"Model saved to: {model_path}")
-if CE_ONLY_TRAINING:
+print(f"Peak val acc: {peak_val_acc * 100:.1f}% (reporting only)")
+if CE_ONLY_TRAINING and not TEACHER_FORCED:
     print(f"Best val acc: {best_val_acc * 100:.1f}%")
 else:
     print(f"Best val {checkpoint_metric_name}: {best_val_regret:.4f}s")
