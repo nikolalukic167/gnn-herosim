@@ -80,7 +80,10 @@ else
   [[ -f "${CK%.pt}.contract.json" ]] || { echo "FAIL LOUD: sidecar missing for $CK" >&2; exit 1; }
   export GNN_MODEL_PATH="$CK"
   export GNN_DECODE_MODE=masked_topo
-  export GNN_BATCH_BY_PEER_GROUP=1
+  # Default 1 = the stage 3 gate's serving mode, so every existing submission is
+  # unchanged. drainable_serving_config_v1 passes 0 to serve the same checkpoints
+  # per arrival or under a peer-blind time window.
+  export GNN_BATCH_BY_PEER_GROUP="${GNN_BATCH_BY_PEER_GROUP:-1}"
   if [[ $ARMNAME == mpoff ]]; then export GNN_DISABLE_MESSAGE_PASSING=1; fi
 fi
 OUT="$OUT_DIR/${ARM}.json"
