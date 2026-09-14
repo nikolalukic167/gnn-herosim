@@ -173,6 +173,16 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
                 )
                 continue
 
+            # drainable_debug_v1 D2 (2026-09-14): the per-arrival Knative scheduler has always
+            # written this snapshot (`knative_network/scheduler.py:93`); the batch subclass
+            # never did, so the reactive reference arm could not be compared against the
+            # learned arms on `chosen_queue_vs_min`. Read-only, behind the same flag, off by
+            # default. Captured before placement, which is where the rule reads the queue.
+            if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
+                task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
+                task.full_queue_snapshot = self._capture_full_queue_snapshot()
+                task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
+
             sched_node, sched_platform = yield self.env.process(
                 self.placement(system_state, task)
             )

@@ -86,6 +86,15 @@ medians over the datasets of one source, and a source is read only with ≥ 40 d
 | **D3** | `knative_network` mean latency at the best Q ≤ 4 as a fraction of its Q = 100 latency | < **50 %** ⇒ the rung's regime is a target-concurrency artifact | every Phase 2 contrast is then run at both Q values |
 | **D5** | best knob value's `gnn` latency on seed 1, as a fraction of the gap to `knative_network` closed | ≥ **30 %** ⇒ promote to a 16-seed registered arm | exploratory; a single seed never closes anything |
 
+**Two floors added to D2 before any D2 datum existed (2026-09-14, same day, while the read
+tool was being smoke-tested on an unrelated x200 result).** A share of a negligible excess is
+noise dressed as a finding: the first smoke printed "167.6 % of a 2.49 s excess" against a
+reference queue of 1,334 s per task, i.e. 0.19 %. D2 therefore decomposes an arm's excess only
+when it is **both ≥ 1.0 s per task and ≥ 5 % of the reference's queue time**; below either, the
+verdict is NO-EXCESS and no share is computed. Neither floor touches the case the bar exists
+for — at the drainable rung `gnn` carries 39.6 s against a 17.8 s reference, an excess of 122 %.
+The 50 % threshold itself is unchanged.
+
 **Controls that VOID a read.** D1 is VOID for a source with < 40 datasets, or if the shortest-queue
 plan or a checkpoint plan is absent from that dataset's enumerated sweep (fail loud, never
 substitute). D2 is VOID if `taskResults` is empty (the low-memory stats path) or if
@@ -111,4 +120,42 @@ counters**, which is what Phase 2 is. The measurement that closes or confirms it
 
 ## Record
 
-*(dated entries appended as each read lands)*
+### 2026-09-14 — Phase 0 landed (tooling only, no experimental datum)
+
+Five engineering changes, each verified label-invariant before anything else was built on it.
+
+**E1 — the root logger was below its own handler.** `simulation.py` configured `level=DEBUG`
+with a single `ERROR` handler, so every `logging.info` in the event loop built a full
+`LogRecord` — including the stack walk `%(funcName)s` forces — and then had it discarded.
+py-spy had already put 48 % of samples there (`drainable_regime_v1`, 2026-09-14). Root level
+now matches the handler. Verified: `total_rtt`, `num_tasks`, `scaleEventCount`, `endTime`,
+`averageQueueTime`, `averageElapsedTime` and `totalPeerExchangeTime` byte-identical before and
+after on the 3k smoke, for `knative_network` and `knative_network_batch`.
+
+**E2 — no gate in this program could be read per task.** `Orchestrator._use_low_memory_stats`
+switches to the streaming path above 10,000 events, which writes `taskResults: []`, and the
+gate sbatch deleted the raw result after summarising. `KEEP_RAW=1` now exports
+`SIM_FORCE_FULL_STATS=1` (optionally `GNN_CAPTURE_DATASET_STATE` via `KEEP_RAW_QSNAP=1`) and
+keeps the raw file. Both hooks are off by default.
+
+**E2b — two schedulers never recorded the per-task candidate snapshot.** The masked_topo
+prefix path and the `knative_network_batch` subclass both omitted the
+`queue_snapshot_at_scheduling` capture that the per-arrival Knative scheduler and the GNN
+argmax path have always written, so `chosen_queue_vs_min` — the statistic
+`queue_features.py:13-21` names as the live failure mode — was unreadable for precisely the
+arms this lineage gates. Both now capture it behind the existing `GNN_CAPTURE_DATASET_STATE`
+flag. Verified inert with the flag off (byte-identical `total_rtt` on the 3k smoke) and
+label-invariant with it on, in both batching modes.
+
+**E3 — target concurrency is now visible.** `HEROSIM_QUEUE_LENGTH` is echoed into the job log
+and the resolved value is carried into the summary, which is all that survives a gate run.
+
+**E4 — the D2 read exists, with 21 tests, before any record it will read.** One of those tests
+caught a real defect in the read: `float(rec.get("scheduledTime") or 0.0)` treats a legitimate
+simulated time of 0.0 as absent, so a batch committed at t = 0 counted as "no timestamp" and
+the same-batch attribution silently returned zero.
+
+A sanity reading on an unrelated x200 smoke behaves as the overload regime predicts: 98.1 % of
+`knative_network`'s queue time is behind *some* predecessor but **0.0 %** behind a same-batch
+one — at 940× overload the queue is standing load, not self-inflicted — and 25.5 % of tasks had
+only one legal replica, so a quarter of that trace cannot distinguish two schedulers at all.
