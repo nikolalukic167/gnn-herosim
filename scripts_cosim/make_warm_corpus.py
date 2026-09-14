@@ -244,6 +244,36 @@ def cap_feasible(
     return rec(0)
 
 
+def reactive_plan_keys(snapshot: Dict[str, Any]) -> Dict[str, Set[str]]:
+    """Per task type, the replica keys the live shortest-queue rule would use on this state.
+
+    drainable_debug_v1 D1 (2026-09-14). The candidate subsample is drawn for sweep size, so it
+    can drop the very replica a policy would have chosen -- and then that policy's plan is
+    absent from the enumerated sweep and cannot be scored at all. Skipping such datasets is
+    not an option: it keeps only the states where the policy agreed with the draw, which are
+    the states it looks best on. Forcing these keys into the subset costs at most one replica
+    per task type and makes the comparison scoreable on every dataset.
+
+    Mirrors `KnativeScheduler.placement` (`src/policy/knative_network/scheduler.py:180-192`),
+    including the depth increment between tasks and the arrival (trace id) ordering.
+    """
+    depth: Dict[str, int] = {}
+    keys: Dict[str, Set[str]] = {}
+    for task in sorted(snapshot.get("tasks") or [], key=lambda t: int(t["task_id"])):
+        cands = task.get("candidates") or []
+        if not cands:
+            raise SnapshotRejected(f"task {task.get('task_id')} has no live candidate")
+        for c in cands:
+            depth.setdefault(c["queue_key"], int(c.get("queue_length", 0) or 0))
+        pool = [c for c in cands if c.get("initialized")] or cands
+        chosen = min(
+            pool, key=lambda c: (depth[c["queue_key"]], int(c["node_id"]), int(c["platform_id"]))
+        )
+        keys.setdefault(str(task["task_type"]), set()).add(chosen["queue_key"])
+        depth[chosen["queue_key"]] += 1
+    return keys
+
+
 def choose_candidates(
     snapshot: Dict[str, Any],
     rng: random.Random,
@@ -251,6 +281,7 @@ def choose_candidates(
     max_combos: int,
     attempts: int = 200,
     demands: Optional[Sequence[Tuple[str, Dict[str, Tuple[str, float]]]]] = None,
+    force_keys: Optional[Dict[str, Set[str]]] = None,
 ) -> Tuple[Dict[str, Set[str]], Dict[str, Any]]:
     """Per task type, the subset of live replicas offered to the sweep.
 
@@ -286,6 +317,12 @@ def choose_candidates(
     for r in range(r_max, 0, -1):
         for _ in range(attempts):
             subset = {t: set(rng.sample(pool, min(r, len(pool)))) for t, pool in pools.items()}
+            if force_keys:
+                # Keys the reactive rule uses are added, never substituted, so the draw's
+                # balance is preserved and the product can only grow -- the target_combos
+                # test below still gates it.
+                for ttype, forced in force_keys.items():
+                    subset.setdefault(ttype, set()).update(k for k in forced if k in pools.get(ttype, []))
             counts = [len(subset[t] & keys) for t, keys in reach]
             if min(counts) < 1:
                 continue
@@ -317,6 +354,7 @@ def choose_candidates(
         "subset": {t: sorted(s) for t, s in subset.items()},
         "cap_feasible_alpha": None if demands is None else CAP_ALPHA_TIGHTEST,
         "cap_rejected_draws": cap_rejected,
+        "forced_keys": {t: sorted(k) for t, k in (force_keys or {}).items()} or None,
     }
     return subset, record
 
@@ -454,6 +492,12 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="write configs + candidate records, run no sweep")
+    ap.add_argument(
+        "--force-candidates-from-plans", action="store_true",
+        help="keep the replicas the live shortest-queue rule would use in the candidate subset "
+             "(drainable_debug_v1 D1), so that plan is present in the enumerated sweep and can "
+             "be scored on every dataset rather than only where the draw happened to include it",
+    )
     args = ap.parse_args()
 
     for k, v in REQUIRED_ENV.items():
@@ -494,8 +538,10 @@ def main() -> int:
             workload = build_batch_workload(snap, trace, ids, list(cell["wsc"].keys()))
             rng = random.Random(args.seed * 1_000_003 + sid)
             demands = batch_demands(snap, ids, trace, task_types_db)
+            force_keys = reactive_plan_keys(snap) if args.force_candidates_from_plans else None
             subset, record = choose_candidates(
-                snap, rng, args.target_combos, args.max_combos, demands=demands
+                snap, rng, args.target_combos, args.max_combos, demands=demands,
+                force_keys=force_keys,
             )
             flagged = flag_candidates(snap, subset)
             provenance = {
