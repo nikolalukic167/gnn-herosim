@@ -64,7 +64,6 @@ if [[ $T -eq 0 ]]; then
     --snapshots "$D1/snapshots/knb.jsonl" \
     --snapshots "$D1/snapshots/gnn.jsonl" \
     --snapshots "$D1/snapshots/mpoff.jsonl" \
-    --corpus simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_train \
     --corpus simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_train2 \
     --task-types data/nofs-ids/task-types.json \
     --out "$OUT/a1_clock_read.json" \

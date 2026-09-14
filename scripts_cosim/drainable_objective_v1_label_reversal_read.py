@@ -119,7 +119,12 @@ def read_dataset(
     snap_path = ds_dir / "warm_snapshot.json"
     if not snap_path.exists():
         raise LabelReversalError(f"{ds_dir}: warm_snapshot.json missing")
-    snapshot = json.loads(snap_path.read_text())
+    warm = json.loads(snap_path.read_text())
+    # make_warm_corpus wraps the live-audit snapshot under "snapshot" and puts its own
+    # provenance beside it. D1's read unwraps it the same way; handing the wrapper to
+    # shortest_queue_plan yields an empty plan that is then (correctly) not in the sweep,
+    # which is exactly how this surfaced.
+    snapshot = warm.get("snapshot") or warm
     workload = json.loads((ds_dir / "workload.json").read_text())
     trace_task_ids = workload.get("trace_task_ids")
     if not trace_task_ids:
