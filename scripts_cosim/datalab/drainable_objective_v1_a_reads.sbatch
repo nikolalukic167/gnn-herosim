@@ -73,6 +73,15 @@ elif [[ $T -eq 1 ]]; then
   echo "=== A2: does the shaped label prefer what wins the stream? ==="
   DECODED=simulation_data/drainable_debug_v1/d1_decoded.json
   [[ -f "$DECODED" ]] || { echo "FAIL LOUD: missing $DECODED (D1's decode)" >&2; exit 1; }
+  # A2 CONSUMES A1's output. These are live-captured states: priced on the exec+comm
+  # clock the shaped term is inert (~1e-6 of the label; every V column agrees to six
+  # digits) and the read answers a question nobody asked. The first submission ran the
+  # two array tasks in parallel and produced exactly that, which is why the read now
+  # refuses without a table and why this job must be submitted with
+  #   sbatch --array=0 ... ; sbatch --dependency=afterok:<id> --array=1 ...
+  # or with --array=0,1 on a cluster where task 0 is guaranteed to finish first (it is
+  # not), so the guard below is the real protection.
+  [[ -f "$OUT/drain_table.json" ]] || { echo "FAIL LOUD: missing $OUT/drain_table.json -- run A1 (array task 0) to completion first; A2 on the exec+comm clock is a null read, not a NO-GO" >&2; exit 1; }
   for src in knb gnn mpoff; do
     CORPUS="simulation_data/gnn_datasets_drainable_debug_v1_d1_${src}"
     [[ -d "$CORPUS" ]] || { echo "FAIL LOUD: missing $CORPUS" >&2; exit 1; }
@@ -83,6 +92,7 @@ elif [[ $T -eq 1 ]]; then
         --decoded "$DECODED" \
         --arm "$ARM" \
         --arrival-rate "$RATE" \
+        --drain-table "$OUT/drain_table.json" \
         --task-types data/nofs-ids/task-types.json \
         --out "$OUT/a2_${src}_${ARM}.json"
     done
