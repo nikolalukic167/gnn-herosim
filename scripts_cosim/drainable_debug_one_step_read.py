@@ -54,6 +54,12 @@ D1A_SHORTEST_QUEUE_MAX_PCT = 3.0
 D1B_CHECKPOINT_MIN_PCT = 10.0
 # A source is not read below this many scored datasets.
 D1_MIN_DATASETS = 40
+# A state whose whole-batch plan space is smaller than this offered essentially no placement
+# freedom, so every plan coincides and every regret is 0. Those states are REAL -- at the
+# drainable rung the reactive arm's own states have a median plan space of 8 -- so they stay in
+# the registered statistic; this threshold only splits the report, so a reader can see whether
+# a near-zero median means "the rule is near-optimal" or "there was nothing to choose".
+D1_CHOICE_ROWS_MIN = 100
 # --------------------------------------------------------------------------------------------
 
 Plan = Dict[int, Tuple[int, int]]
@@ -161,6 +167,15 @@ def read_dataset(
 
 def summarise(rows: List[Dict[str, Any]], arms: Sequence[str]) -> Dict[str, Any]:
     out: Dict[str, Any] = {"n_datasets": len(rows)}
+    sizes = [r["n_rows"] for r in rows if "n_rows" in r]
+    if sizes:
+        out["plan_space"] = {
+            "median_rows": st.median(sizes),
+            "min_rows": min(sizes),
+            "max_rows": max(sizes),
+            "with_real_choice_pct": 100.0 * sum(1 for v in sizes if v >= D1_CHOICE_ROWS_MIN) / len(sizes),
+            "choice_rows_min": D1_CHOICE_ROWS_MIN,
+        }
     for key in ("shortest_queue", *arms):
         vals = [r[key] for r in rows if key in r]
         if not vals:
@@ -255,6 +270,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "d1a_shortest_queue_max_pct": D1A_SHORTEST_QUEUE_MAX_PCT,
             "d1b_checkpoint_min_pct": D1B_CHECKPOINT_MIN_PCT,
             "d1_min_datasets": D1_MIN_DATASETS,
+            "d1_choice_rows_min": D1_CHOICE_ROWS_MIN,
         },
         "per_source": {},
         "pooled": summarise(rows, arms),
@@ -262,13 +278,28 @@ def main(argv: Optional[List[str]] = None) -> int:
     }
     for source, srows in sorted(by_source.items()):
         summary = summarise(srows, arms)
-        reading["per_source"][source] = {"summary": summary, "verdict": verdict(summary, args.arm)}
-        print(f"[{source}] n={summary['n_datasets']}")
+        choice_rows = [r for r in srows if r.get("n_rows", 0) >= D1_CHOICE_ROWS_MIN]
+        reading["per_source"][source] = {
+            "summary": summary,
+            "verdict": verdict(summary, args.arm),
+            # Disclosed alongside the registered reading, never in place of it.
+            "with_real_choice": summarise(choice_rows, arms) if choice_rows else None,
+        }
+        ps = summary.get("plan_space", {})
+        print(f"[{source}] n={summary['n_datasets']}  plan space median {ps.get('median_rows')} "
+              f"rows, {ps.get('with_real_choice_pct', 0):.0f}% with >= {D1_CHOICE_ROWS_MIN}")
         for key in ("shortest_queue", *arms):
             if key in summary:
                 s = summary[key]
                 print(f"    {key:>16}: median {s['median_pct']:7.3f}%  mean {s['mean_pct']:7.3f}%  "
                       f"exactly optimal {s['exactly_optimal_pct']:5.1f}%  >2% {s['pct_above_2']:5.1f}%")
+        wc = reading["per_source"][source]["with_real_choice"]
+        if wc:
+            print(f"    -- restricted to the {wc['n_datasets']} states with real choice:")
+            for key in ("shortest_queue", *arms):
+                if key in wc:
+                    print(f"    {key:>16}: median {wc[key]['median_pct']:7.3f}%  "
+                          f"exactly optimal {wc[key]['exactly_optimal_pct']:5.1f}%")
         print(f"    verdict: {reading['per_source'][source]['verdict']['verdict']}")
     reading["pooled_verdict"] = verdict(reading["pooled"], args.arm)
     print(f"[pooled] {reading['pooled_verdict']['verdict']}")

@@ -225,3 +225,57 @@ def test_decoded_file_provenance_blocks_are_not_read_as_datasets(tmp_path):
     out = load_decoded(p)
     assert set(out) == {"ds_00000"}
     assert out["ds_00000"]["gnn"] == {0: (1, 11)}
+
+
+def test_min_choice_fraction_defaults_to_the_training_corpus_rule():
+    """Every existing caller must keep the old behaviour: a training corpus where most tasks
+    are forced teaches nothing, and that rule predates this lineage."""
+    import inspect
+    import random
+
+    from scripts_cosim.make_warm_corpus import SnapshotRejected, choose_candidates
+
+    assert inspect.signature(choose_candidates).parameters["min_choice_fraction"].default == 0.5
+
+    # One task with four candidates, nine tasks with one: the training rule rejects it.
+    snap = {"tasks": [
+        {"task_id": 0, "task_type": "dnn1", "candidates": [_cand(c, 10 + c, c) for c in range(4)]},
+        *[{"task_id": i, "task_type": "dnn2", "candidates": [_cand(9, 99, 0)]} for i in range(1, 10)],
+    ]}
+    with pytest.raises(SnapshotRejected) as exc:
+        choose_candidates(snap, random.Random(0), target_combos=20000, max_combos=10**6)
+    assert "50%" in str(exc.value)
+
+
+def test_min_choice_fraction_zero_accepts_a_state_with_almost_no_choice():
+    """The reactive arm's served states at the drainable rung have a median whole-group plan
+    space of 8. A diagnostic that drops them measures a cluster that policy never produces."""
+    import random
+
+    from scripts_cosim.make_warm_corpus import choose_candidates
+
+    snap = {"tasks": [
+        {"task_id": 0, "task_type": "dnn1", "candidates": [_cand(c, 10 + c, c) for c in range(4)]},
+        *[{"task_id": i, "task_type": "dnn2", "candidates": [_cand(9, 99, 0)]} for i in range(1, 10)],
+    ]}
+    subset, record = choose_candidates(
+        snap, random.Random(0), target_combos=20000, max_combos=10**6, min_choice_fraction=0.0
+    )
+    assert record["min_choice_fraction"] == 0.0
+    assert record["num_combos"] >= 1
+
+
+def test_the_summary_reports_the_plan_space_so_a_zero_median_is_readable():
+    """A median regret of 0 means two different things: the rule is near-optimal, or there was
+    nothing to choose. The plan-space column separates them."""
+    from scripts_cosim.drainable_debug_one_step_read import D1_CHOICE_ROWS_MIN
+
+    rows = [
+        {"dataset": "ds_0", "n_rows": 8, "shortest_queue": 0.0},
+        {"dataset": "ds_1", "n_rows": 5000, "shortest_queue": 4.0},
+    ]
+    out = summarise(rows, [])
+    assert out["plan_space"]["median_rows"] == pytest.approx(2504.0)
+    assert out["plan_space"]["min_rows"] == 8
+    assert out["plan_space"]["with_real_choice_pct"] == pytest.approx(50.0)
+    assert D1_CHOICE_ROWS_MIN == 100
