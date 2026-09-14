@@ -56,6 +56,13 @@ TAG=${TAGS[$T]}
 TRAIN=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_train
 TRAIN2=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_train2
 TEST=simulation_data/gnn_datasets_peer_affinity_v1_c3_x200_r2
+# `_train2` was EXTENDED IN PLACE from 346 to 1500 datasets by a later generation job, so
+# "the T1b corpus" cannot be reconstructed from directory contents any more. This manifest
+# is the exact 516 parents T1b trained on, derived from its split; every weight is 1, so
+# --oversample-manifest acts as a pure filter. Without it this cache would silently be a
+# 1,670-dataset corpus and the contrast against T1b would be about corpus size, which is
+# the single largest measured lever in this program.
+PARENTS=experiments/drainable_objective_v1_t1b_parents.json
 CACHE=simulation_data/graphs_cache_drainable_objective_v1_${TAG}
 SPLIT=experiments/peer_affinity_v1_t1b_split.json
 DRAIN="${DRAIN_TABLE:-simulation_data/drainable_objective_v1/drain_table.json}"
@@ -68,6 +75,7 @@ echo "[TASK $T] V=$V tag=$TAG cache=$CACHE"
 [[ -f "$DRAIN" ]] || { echo "FAIL LOUD: missing $DRAIN -- run A1 first; a live-clock corpus labelled on the exec+comm clock is the null read this lineage already made once" >&2; exit 1; }
 echo "[CLOCK] $DRAIN ($(md5sum "$DRAIN" | cut -c1-12))  RATE=$RATE"
 [[ -f "$SPLIT" ]] || { echo "FAIL LOUD: $SPLIT missing -- V = 1 must reuse T1b's split verbatim" >&2; exit 1; }
+[[ -f "$PARENTS" ]] || { echo "FAIL LOUD: $PARENTS missing -- without it this cache is a different corpus from T1b's" >&2; exit 1; }
 
 for d in "$TRAIN" "$TRAIN2" "$TEST"; do
   [[ -d "$d" ]] || { echo "FAIL LOUD: corpus missing: $d" >&2; exit 1; }
@@ -100,6 +108,7 @@ echo "=== [3/5] cache -> $CACHE (label V=$V)"
 rm -rf "$CACHE"
 python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$TRAIN" "$TRAIN2" "$TEST" --cache-dir "$CACHE" \
   --dag-partial-state --platform-feature-dim 14 \
+  --oversample-manifest "$PARENTS" \
   --label-objective "$( [[ "$V" == "0" ]] && echo rtt || echo "rtt_drift:$V" )" \
   --label-arrival-rate "$RATE" \
   --label-drain-table "$DRAIN" 2>&1 | grep -v "it/s\]" | tail -40
@@ -116,7 +125,12 @@ want_prefix = "rtt" if v == "0" else f"rtt_drift:{float(v):g}"
 assert got and got.startswith(want_prefix), f"FAIL LOUD: cache label_objective={got!r}, expected {want_prefix}*"
 if v != "0":
     assert "clock=measured" in got, f"FAIL LOUD: cache was labelled on the exec+comm clock: {got!r}"
-print("[cache] contract ok, label =", got, "| datasets =", m.get("num_datasets"),
+n = m.get("num_datasets")
+if n != 516:
+    raise SystemExit(f"FAIL LOUD: cache holds {n} datasets, T1b's corpus is 516 -- the "
+                     "parent filter did not apply and this contrast would be about corpus "
+                     "size, not about the label")
+print("[cache] contract ok, label =", got, "| datasets =", n,
       "| rtt rows =", m.get("num_rtt_combo_rows"))
 PY
 
