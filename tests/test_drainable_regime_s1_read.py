@@ -214,3 +214,21 @@ def test_b6_fails_loud_without_counters(tmp_path):
          "--output", str(tmp_path / "o.json")], capture_output=True, text=True)
     assert r.returncode != 0
     assert "B6 cannot be read" in (r.stdout + r.stderr)
+
+
+def test_uncapped_only_read_marks_b3_unreadable(tmp_path):
+    """S1 Amendment 2: the capped arms deadlocked on 3/16 seeds, so B1/B2 are read on
+    the uncapped configuration alone and B3 is recorded UNREADABLE, never as a pass."""
+    gnn = [100.0 + i for i in range(16)]
+    mpoff = [120.0 + i for i in range(16)]
+    _config(tmp_path / "unc", gnn, mpoff)
+    r = subprocess.run(
+        [sys.executable, str(TOOL), "--uncapped-dir", str(tmp_path / "unc"),
+         "--arrival-span-s", str(SPAN), "--output", str(tmp_path / "o.json")],
+        capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    res = json.loads((tmp_path / "o.json").read_text())
+    assert res["b3_cap_contingent"] is None
+    assert "UNCAPPED ONLY" in res["verdict"]
+    assert "capped" not in res
+    assert "UNREADABLE" in r.stdout

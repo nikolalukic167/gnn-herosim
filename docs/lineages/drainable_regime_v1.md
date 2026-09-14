@@ -409,3 +409,47 @@ added, 13 total.
 GNN's window. The reactive `knative_network_batch` baseline keeps its real 0.02 s window — it is
 peer-blind by design and a 0.46 arrivals/s stream genuinely gives it singleton batches. No other
 bar changes; B1–B5 are exactly as registered.
+
+### 2026-09-14 — S1 Amendment 2: the capped arms DO NOT TERMINATE (signed before the read)
+
+With the batch window finally scaled (`cell_s7901_f4000.json`, `batch_timeout` 80 s) the peer
+groups assemble — `gnn_s1` reads **5,948 batches for 50,000 tasks (mean 8.41)**,
+**180 incomplete (3.03 %)**, and `prefix_pairs_in_batch` **83,788** against
+`prefix_peers_outside_batch` **10,212**, an inversion of the 189 / 177,410 the confounded run
+gave. B6 passes. **Three of the sixteen capped `gnn` seeds then deadlock the simulator.**
+
+| seed | 24 GB | 64 GB (94 min) | 256 GB (95–106 min) | clock at death |
+|---|---|---|---|---|
+| `gnn_s2` (task 3) | OOM | OOM | OOM | **108,685** |
+| `gnn_s4` (task 5) | OOM | OOM | OOM | **108,678** |
+| `gnn_s6` (task 7) | OOM | OOM | OOM | **108,703** |
+
+**The clock at death is identical to the digit across a 10× memory range and a 4× runtime
+range.** Simulated time is frozen while resident memory grows without bound; this is not a
+sizing problem and no memory limit fixes it. It is the starved-client retry loop recorded in
+`docs/gates/gate-tools.md` (2026-09-14) — a task whose client's reachable servers are all
+memory-full is re-queued every batch window, and each retry drives `log_system_status`, which
+appends one `systemEvents` row per task type per call, at an advancing list index but a
+stationary timestamp. The thirteen sibling seeds finish in ~3 minutes at 24 GB with
+`endTime` 108,699–108,781, i.e. within ~80 simulated seconds of where these three stop.
+
+**The same three seeds complete uncapped**: `gnn_s2/s4/s6` read `endTime` 108,683 / 108,699 /
+108,689 with 8,759 / 8,660 / 8,999 scale events. The uncapped array is **34/34 COMPLETED**. The
+trigger is therefore `GNN_PREFIX_PLATFORM_CAP=1`, which is what the cap is for — it concentrates
+placement onto fewer platforms per node, and in a cluster with slack that concentration is what
+walks a client's reachable servers into being memory-full.
+
+**This is a result about the cap, not an infrastructure failure, and it is recorded as one.**
+
+**How the read proceeds, decided before any B1/B2 number is read:**
+
+- **B1 and B2 are read on the uncapped configuration only**, at the full registered 16 seeds.
+  Nothing about those bars changes.
+- **B3 is recorded `UNREADABLE`**, never as a pass and never as "not cap-contingent". The read
+  tool now accepts a missing `--capped-dir` and prints `B3 UNREADABLE` rather than defaulting.
+- **The capped configuration is NOT read at 13 seeds.** The three missing seeds are the ones
+  whose placement concentrated hardest; dropping them would select exactly the arms that behaved
+  worst and would bias B1 in the graph arm's favour. A 13-seed capped read is not reported here
+  and must not be reported later.
+- B4 is read from the uncapped `knative_network` arm, which is the same reactive run in both
+  configurations (the cap is a GNN decoder flag and does not touch it).
