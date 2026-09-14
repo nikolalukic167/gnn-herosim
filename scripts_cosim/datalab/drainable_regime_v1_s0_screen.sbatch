@@ -33,7 +33,7 @@ python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
 GATE=simulation_data/peer_affinity_live_gate
-S0=simulation_data/drainable_regime_v1/s0
+S0="${DRAIN_S0_DIR:-simulation_data/drainable_regime_v1/s0}"
 N=50000
 # Amendment 1 (2026-09-14): overridable so the R1b/R1c rungs submit against the same script.
 read -r -a FACTORS <<< "${DRAIN_FACTORS:-300 1000 2000 4000}"
@@ -60,7 +60,19 @@ if [[ $(( T % 2 )) -eq 0 ]]; then
   POLICY=knative_network; ARM="knative_network_f${F}"
 else
   POLICY=knative_network_batch; ARM="knative_network_batch_f${F}"
-  export KNATIVE_BATCH_SIZE=10 KNATIVE_BATCH_TIMEOUT=0.02 KNATIVE_BATCH_BY_PEER_GROUP=1
+  # Amendment 2 (2026-09-14): the batch window is a POLICY time constant, not physics. Holding
+  # it at 0.02 s while stretching arrivals up to 4,000x shrinks it by the same factor relative
+  # to the workload, and S0 pass 1 measured the consequence: mean batch size 1.01-1.09 on every
+  # rung, 0 aligned batches everywhere including the overloaded control, where the landed gate
+  # at 2,659 arrivals/s aligns 149/150. DRAIN_SCALE_BATCH_TIMEOUT=1 scales it with the rung so
+  # the batching policy is comparable across rungs; the loop still exits the moment the group is
+  # complete, so a longer window costs nothing when the group arrives sooner.
+  BT=0.02
+  if [[ "${DRAIN_SCALE_BATCH_TIMEOUT:-0}" == "1" ]]; then
+    BT=$(python3 -c "print(0.02 * $F)")
+  fi
+  echo "[BATCH] KNATIVE_BATCH_TIMEOUT=$BT (scale=${DRAIN_SCALE_BATCH_TIMEOUT:-0}, factor=$F)"
+  export KNATIVE_BATCH_SIZE=10 KNATIVE_BATCH_TIMEOUT="$BT" KNATIVE_BATCH_BY_PEER_GROUP=1
   export LIVE_AUDIT_SNAPSHOT_PATH="$S0/snapshots/f${F}.jsonl"
   export LIVE_AUDIT_STRIDE=200 LIVE_AUDIT_MAX_SNAPSHOTS=150
   export LIVE_AUDIT_MIN_BATCH_SIZE=1 LIVE_AUDIT_MIN_CANDIDATES=1

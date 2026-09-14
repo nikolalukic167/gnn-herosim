@@ -125,3 +125,47 @@ screen **763554** (4 arms); the original read 763545 was cancelled and re-chaine
 arrays as **763555** (`afterok:763544:763554`). Realised ladder from the
 traces job: x300 6.139 arrivals/s, x500 3.684, x700 2.631, x1000 1.842, x2000 0.921, x4000 0.460;
 50,000 events and 88,894 peer pairs per rung, identical across rungs as the rescale requires.
+
+### 2026-09-14 — S0 pass 1 read (763544 + 763554, read 763555): **NO-GO as run, and S4's failure is a screen artifact**
+
+Twelve arms, 25–50 s each (a drainable cluster simulates far faster than an overloaded one).
+S5 control HOLDS: the x300 rung reproduces the overloaded regime (peer share 0.32 %, queue share
+99.67 %), so the rescale moved the arrival rate and nothing else, and the ladder is readable.
+
+| rung | arrivals/s | ρ | peer % of `total_rtt` | rendezvous % | queue % of latency | dim-7 busy p90 | aligned batches | mean batch size |
+|---|---|---|---|---|---|---|---|---|
+| x300 | 6.139 | 2.17 | 0.32 | 0.00 | 99.674 | 391.0 | 0 | 1.09 |
+| x500 | 3.683 | 1.30 | 0.77 | 0.01 | 99.213 | 195.2 | 0 | 1.07 |
+| x700 | 2.631 | 0.93 | 1.31 | 0.02 | 98.654 | 267.0 | 0 | 1.03 |
+| x1000 | 1.842 | 0.65 | 1.80 | 0.04 | 98.136 | 187.0 | 0 | 1.01 |
+| x2000 | 0.921 | 0.33 | 3.24 | 0.38 | 96.338 | 78.7 | 0 | 1.01 |
+| **x4000** | 0.460 | 0.16 | **21.15** | 10.10 | 68.458 | **6.0** | 0 | 1.01 |
+
+**Verdict as run: NO-GO** — no rung clears all four bars. **What it establishes anyway:**
+
+- **The mechanism is rate-controlled, and it is large.** Peer exchange rises monotonically from
+  0.32 % of `total_rtt` to **21.15 %**, against **0.0098 %** on the landed gate. S1 passes at x4000.
+- **The queue feature comes back into its trained range at the same rung.** dim-7 busy p90 falls
+  391 → 6.0 against the cold-corpus maximum of 42; x2000 is still out of range at 78.7. S2 passes
+  only at x4000, the same rung as S1. Both primaries fire together, at ρ ≈ 0.16.
+- **S4 fails on every rung, including the overloaded control, and that is a defect in the screen,
+  not a reading.** Mean batch size is **1.01–1.09 everywhere**: `KNATIVE_BATCH_TIMEOUT` was held at
+  0.02 s while inter-arrival times stretched from 0.0004 s to 2.17 s, so the batching window shrank
+  by the same factor as the rate and no peer group could ever assemble. The identical policy at the
+  landed gate's 2,659 arrivals/s aligns 149 of 150 batches. `peer_group_incomplete_batches` is
+  39,071–44,991 of 50,000 on every rung. The bar cannot distinguish "peer groups do not co-arrive
+  at this rate" from "the batch window was 4,000× too short", so it must be re-run before it is read.
+- **S3 is the same tension, honestly measured.** Rendezvous wait climbs 0.00 % → 10.10 % as the
+  rate falls. Assembling or awaiting a peer group costs more the slower the arrivals, which is the
+  real force S4 was trying to see. At x4000 a 10-task group takes ~21.7 s to arrive.
+
+### 2026-09-14 — Amendment 2 (signed before pass 2 produces a number)
+
+`KNATIVE_BATCH_TIMEOUT` is a policy time constant, not physics, and holding it fixed across a
+4,000× stretch is the confound above. Pass 2 re-runs the ladder with the window scaled per rung
+(`DRAIN_SCALE_BATCH_TIMEOUT=1`, window = 0.02 s × factor) and adds **x8000** (ρ ≈ 0.08) to find
+where the S3 guard closes the window from below. The batch loop exits the moment the group is
+complete, so a longer window costs nothing when the group arrives sooner. **No bar changes**; pass
+1's numbers stand as recorded and pass 2 is written to `s0_pass2/` so neither overwrites the other.
+Pass 1's S1/S2 readings are unaffected by the batch window (they are per-task statistics), so the
+open question pass 2 answers is exactly S4 and S3 at a comparable batching policy.
