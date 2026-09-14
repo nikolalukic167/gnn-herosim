@@ -445,3 +445,22 @@ def test_a1_offset_is_never_negative(tmp_path):
     res = a1.read([snaps], db, [corpus])
     assert res["platform_offset_seconds"]["rpiCpu"] == 0.0
     assert res["drain_seconds_per_item"]["dear|rpiCpu"] == pytest.approx(10.002, abs=1e-3)
+
+
+def test_a1_table_covers_cells_the_corpus_never_registers(tmp_path):
+    """The live cluster queues (task type, platform type) combinations the cold corpus
+    never registers -- measured: dnn2 on pynqFpga, the same shape as the 2026-09-13
+    xavierGpu audit. A table covering only the corpus makes every consumer fail loud on
+    the first live state, which is exactly how this surfaced."""
+    db = {
+        "in_corpus": {"executionTime": {"rpiCpu": 1.0}, "stateSize": {"a": {"input": 0, "output": 0}}},
+        "live_only": {"executionTime": {"rpiCpu": 2.0}, "stateSize": {"a": {"input": 0, "output": 0}}},
+    }
+    lines = [_snapshot_line(i, [_cand("rpiCpu", 1, 9.0)]) for i in range(40)]
+    snaps = _write_snapshots(tmp_path, lines)
+    corpus = _write_corpus(tmp_path, {"in_corpus": ["rpiCpu"]})  # live_only absent
+    res = a1.read([snaps], db, [corpus])
+    t = res["drain_seconds_per_item"]
+    assert "in_corpus|rpiCpu" in t
+    assert "live_only|rpiCpu" in t, "a cell the corpus never registers must still get a drain"
+    assert t["live_only|rpiCpu"] - t["in_corpus|rpiCpu"] == pytest.approx(1.0)

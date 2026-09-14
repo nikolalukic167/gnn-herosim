@@ -35,6 +35,21 @@ export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000
 export GNN_CAPTURE_DATASET_STATE=0
 export COSIM_SUPPRESS_SIM_PRINTS=1
 
+# drainable_objective_v1 (2026-09-14): optional measured backlog clock. Unset (the default)
+# leaves `seed_virtual_warmup` charging a seeded queued task `execution + comm`, which is
+# how every existing corpus was generated and keeps this script byte-identical for them.
+# Set, it charges what a queued task actually costs under HEROSIM_PEER_EXCHANGE=1 -- the
+# peer transfers and source->platform latency that formula omits. A corpus on one clock
+# must never be merged with a corpus on the other, which is why the live-clock presets have
+# their own seed ranges and output dirs.
+if [[ -n "${DRAIN_TABLE:-}" ]]; then
+  [[ -f "$DRAIN_TABLE" ]] || { echo "FAIL LOUD: DRAIN_TABLE=$DRAIN_TABLE does not exist" >&2; exit 1; }
+  export HEROSIM_BACKLOG_DRAIN_TABLE="$DRAIN_TABLE"
+  echo "[CLOCK] measured: $DRAIN_TABLE ($(md5sum "$DRAIN_TABLE" | cut -c1-12))"
+else
+  echo "[CLOCK] default: seed_virtual_warmup exec+comm"
+fi
+
 # Overridable so the SAME script extends the corpus instead of being forked per experiment
 # (CLAUDE.md rule 2). Defaults reproduce the T1b expansion exactly. `FIRST` is where this
 # submission starts in the preset's deterministic enumeration; index -> seed is fixed by the
