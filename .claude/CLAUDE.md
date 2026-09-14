@@ -165,6 +165,20 @@ counters to prove the policy still did what its name says.** Never quote a `peer
 number without its load factor. Read `docs/lineages/drainable_regime_v1.md` before proposing any
 re-run at a different arrival rate.
 
+**2026-09-14 (last) — "it's just a batching artifact" was tested and it is NOT** (`drainable_serving_config_v1`,
+CLOSED). Five batch policies on the same trace, cell, T1b checkpoints and 16 seeds, uncapped, with only
+the batch policy varying. **With zero batch wait the graph arm is -1731.86 % against reactive Knative,
+8x worse than the 80 s window it was suspected of being handicapped by** — peer-group batching is most
+of what keeps the learned arms within an order of magnitude of reactive, not a tax they pay.
+**C3 REACTIVE-WINS in all four readable configurations, 0/16 seeds each**; the best (16 s window) still
+leaves both learned arms ~2x slower than `knative_network`. **But it does revise one number: `gnn` vs
+`mpoff` is a function of the window** — -499.81 % (no batching) -> **TIE -4.15 %** (16 s) -> **TIE
+-3.13 %** (24 s) -> -16.32 % (80 s). `drainable_regime_v1`'s POINTWISE-BETTER is specific to its 80 s
+window, 3.7x the ~21.7 s a peer group needs; **quote B1 with its window, and TIE is the answer at the
+windows that serve both arms best.** Mechanism: **the graph arm cannot decode singletons** — served one
+task at a time it issues 39,910 scale events against the pointwise twin's 1,767 and carries 467 s of
+queue against 70.7 s, while given a peer group it is indistinguishable from the twin.
+
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 
 What a GNN needs in order to have anything to learn from a *supervised* target:
