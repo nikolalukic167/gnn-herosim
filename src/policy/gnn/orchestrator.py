@@ -54,7 +54,21 @@ class GNNOrchestrator(Orchestrator):
         # Stub may set scheduler.batch_size=N for determined refs; GNN/MLP must stay
         # within [2,4] or they silently fall back to shortest-queue.
         if self.scheduler_config and "batch_timeout" in self.scheduler_config:
-            self.scheduler.batch_timeout = float(self.scheduler_config["batch_timeout"])
+            cfg_bt = float(self.scheduler_config["batch_timeout"])
+            # Same rule as batch_size below, and for the same reason. Until 2026-09-14 this
+            # assignment was silent, so `GNN_BATCH_TIMEOUT=8.0` exported against a config
+            # carrying batch_timeout=0.02 served 0.02 and recorded 8.0 in run_provenance.env
+            # — the drainable_regime_v1 S1 gate re-ran with a 4,000x window and produced
+            # byte-identical scheduler counters, which is how it was caught.
+            env_bt = os.environ.get("GNN_BATCH_TIMEOUT")
+            if env_bt is not None and float(env_bt) != cfg_bt:
+                raise ValueError(
+                    f"FAIL LOUD: GNN_BATCH_TIMEOUT={env_bt} was exported but the cell config "
+                    f"declares scheduler.batch_timeout={cfg_bt}, which takes precedence. "
+                    f"Edit the config (or unset the variable) so the served batch window is "
+                    f"the one the experiment names."
+                )
+            self.scheduler.batch_timeout = cfg_bt
         if self.scheduler_config and "batch_size" in self.scheduler_config:
             cfg_bs = int(self.scheduler_config["batch_size"])
             # The range is the scheduler's own: [2,4] for the argmax family, [1,16] for
