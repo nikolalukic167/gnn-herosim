@@ -1,16 +1,17 @@
 # drainable_regime_v1 — does the peer-affinity environment carry its own mechanism at a servable load?
 
-**Status:** `CLOSED` 2026-09-14 on its **S1 live gate** (rule 6) — **POINTWISE-BETTER,
-REACTIVE-WINS**. At ρ ≈ 0.16, the only rung on this ladder a reviewer would accept as a load
-level, `gnn` is 4.9× slower than its own MP-OFF twin (1/16 seeds) and 18.6× slower than reactive
-Knative (0/16); `mpoff` is 3.2× slower than Knative. The mechanism is autoscaler churn
-(`scaleEventCount` 1,036 → 1,774 → 20,400), not the peer objective, which is within 9 % on all
-four arms. **The x200 p2 GNN-NEEDED reading and the platform cap's +21.9 % are both properties
-of the 940× overload.** Registered 2026-09-14 with every bar committed before any rung ran.
+**Status:** `ACTIVE` — the S1 live gate ran on 2026-09-14 and **its first read is CONFOUNDED**:
+the gate reused the stage-3 sbatch unchanged, so `GNN_BATCH_TIMEOUT` stayed at 0.002 s while
+inter-arrival times were stretched 4,000×, and the peer-group collector expired on a singleton
+45,284 times out of 49,509 batches. B1/B2 as first read therefore compared two arms that had both
+decoded one task at a time. Amendment 1 adds **B6**, the peer-group assembly control, and the gate
+is re-running with the window scaled (jobs 764453/764454). The confounded numbers are kept below,
+marked, and are not the lineage's outcome.
 
-Two S0 pass-2b arms (the x4000/x8000 *batch* rungs, job 763577) were still running when the live
-gate landed; they inform **S4**, a screen bar about batch alignment, and cannot change the live
-verdict. Their reading is appended to the S0 record when it arrives.
+The controls that do not depend on batching stand: at x4000 the regime is real — peer exchange
+**21.19 %** of `total_rtt`, cool-down **0.07 %**, served dim-7 queue p90 **5** against the
+cold-corpus max of 42, the first live gate in the program with its queue column inside its trained
+range.
 
 **Parent:** [`peer_affinity_v1`](peer_affinity_v1.md) (the environment, the cell, the trace) and
 [`peer_affinity_warm_v1`](peer_affinity_warm_v1.md) (whose W0 record names "a drainable served regime"
@@ -278,7 +279,14 @@ A **GNN-NEEDED** on B1 with B2 LEARNED-WINS would be the first measurement in th
 graph arm beats both its pointwise twin and reactive Knative, and it would be at the only load the
 literature would accept. Both are recorded; neither is preferred.
 
-### 2026-09-14 — S1 LIVE GATE READ: **POINTWISE-BETTER, REACTIVE-WINS**
+### 2026-09-14 — S1 live gate, first read: **CONFOUNDED** (kept, not the outcome)
+
+> **Read this block with Amendment 1 below.** The B1/B2 numbers here were produced by arms
+> whose peer groups never assembled; they are recorded because they were read, not because
+> they answer the question. B4 and B5 are unaffected — they are per-task regime statistics
+> that do not depend on how the decoder batches.
+
+Original heading: *S1 LIVE GATE READ: POINTWISE-BETTER, REACTIVE-WINS*.
 
 Jobs 764300 (capped) / 764301 (uncapped), 34 arms each, all 68 COMPLETED; 764303 the B5
 snapshot capture. Trace `drainable_f4000_n50000.json` on `cell_s7901`, T1b `lr2e3`
@@ -363,3 +371,41 @@ was recorded: B5 now reads `full_queue_snapshot`, fails loud when no snapshot pa
 records NOT-APPLICABLE (`holds: null`) when the snapshots parse but nothing ever queues. The
 corrected read is the one above (p90 = 5 over 427 busy platform-queues). Regression test in
 `tests/test_drainable_regime_s1_read.py`.
+
+
+### 2026-09-14 — S1 Amendment 1: B6, the peer-group assembly control (signed before the re-run is read)
+
+**The question that found it:** can Knative choose only existing replicas, and does the GNN do the
+same? It can, and it does — both schedulers filter `system_state.replicas[task_type]` through
+`_get_valid_replicas` and call `create_first_replica` only when that set is empty, and under this
+gate's `HEROSIM_SERVER_ONLY_REPLICAS=1` every replica is on a server, so the one asymmetry between
+the two filters (the GNN's excludes *remote client-hosted* replicas, Knative's does not) cannot
+fire. The candidate sets are symmetric. But checking it surfaced the arms' own counters, and they
+say the gate did not measure what it claimed.
+
+| counter, `gnn_s1`, x4000 | value |
+|---|---|
+| `prefix_batches` | 49,509 |
+| `prefix_tasks_decoded` | 50,000 |
+| **`peer_group_incomplete_batches`** | **45,284** |
+| `prefix_pairs_in_batch` | 189 |
+| `prefix_peers_outside_batch` | 177,410 |
+
+Mean batch size **1.01**. `GNN_BATCH_TIMEOUT` defaults to **0.002 s** and the S1 submission
+inherited it from the stage 3 gate, where 2,659 arrivals/s makes 2 ms ample — it aligned 149/150
+batches there. At **0.46** arrivals/s a 10-task peer group takes ~21.7 s to co-arrive, so the
+collector expired on a singleton nearly every time and `PeerConv` had 189 in-batch pairs to reason
+over against 177,410 outside. **This is the same confound Amendment 2 diagnosed for the S0 screen —
+a policy time constant held fixed across a 4,000× stretch — carried into the live gate by reusing
+the stage-3 script unchanged.**
+
+**B6 (new control):** the worst seed's `peer_group_incomplete_batches` must be ≤ **20 %** of its
+`prefix_batches`, read from the arms' own counters. Above it the verdict is **CONFOUNDED** and
+B1/B2 are not read. Absent counters fail loud. Enforced in `drainable_regime_s1_read.py`; 3 tests
+added, 13 total.
+
+**Re-run:** jobs 764453 (capped) / 764454 (uncapped), identical in every respect except
+`GNN_BATCH_TIMEOUT=8.0` = 0.002 s × 4,000, which is Amendment 2's scaling rule applied to the
+GNN's window. The reactive `knative_network_batch` baseline keeps its real 0.02 s window — it is
+peer-blind by design and a 0.46 arrivals/s stream genuinely gives it singleton batches. No other
+bar changes; B1–B5 are exactly as registered.
