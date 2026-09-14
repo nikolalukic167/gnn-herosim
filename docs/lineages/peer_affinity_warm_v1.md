@@ -402,3 +402,29 @@ prescan **544 datasets, 0 infeasible at α = 2.0**; cache `graphs_cache_peer_aff
 fdd5fceb…, committed, md5 equal on both venues). Knative check 762851: `knative_network` total RTT
 **20,130,899,866.180 s** vs landed 20,130,899,866.179844 s — reproduced; `knative_network_batch`
 20,128,718,383.576 s. Train 762848 (32 tasks) started 2026-09-14 ~05:00 UTC.
+
+### 2026-09-14 — W1 offline read (score 763468, read 763469): **TIE at the selected checkpoint, MP-OFF ahead at last epoch**
+
+`peer_affinity_t1_read.py --tag warm --seeds 16` over the warm held-out block (72 datasets, 3 cells),
+alpha 2.5, contract v2, replica reuse + counted relaxation; 64 reports (val-selected and `-final`
+for both arms). lr 2e-3 only, as registered. Test-median decode regret per seed (median over 16 seeds):
+
+| arm | val-selected | last epoch |
+|---|---|---|
+| `gnn` | 5.02 % | 6.37 % |
+| `mpoff` | 5.52 % | 5.73 % |
+
+| contrast (positive = `gnn` better) | median | mean | p (exact Wilcoxon) | `gnn` ahead | reading |
+|---|---|---|---|---|---|
+| `gnn` vs `mpoff` @ selected | **+0.74 pp** | +0.60 pp | 0.083 | 9/16 | **TIE** |
+| `gnn` vs `mpoff` @ last epoch | **-0.44 pp** | -0.63 pp | 0.018 | 2/16 | INDETERMINATE (significant, under the 1 pp bar, sign against MP) |
+
+Registered offline reading: **TIE** (neither GNN-NEEDED nor POINTWISE-BETTER fires at the selected
+checkpoint; the last-epoch contrast is significant at p = 0.018 but −0.44 pp is under the bar). This is
+the W0.b prior realised: on the served regime's one-step label, message passing buys nothing a
+pointwise scorer does not already recover. The MP arm also overfits from its selected epoch to 300
+(5.02 → 6.37 %) while MP-OFF barely moves (5.52 → 5.73 %) — the same selector
+asymmetry route_b_v1 documented. Convergence flag (last-20-epoch val slope flat): `gnn` 3/16,
+`mpoff` 4/16. Artifact: `simulation_data/peer_affinity_warm_read.json` on datalab, copy in
+`docs/lineages/peer_affinity_warm_v1/w1_offline_read.json`. **Per rule 6 this closes nothing** — the live
+gates (762849 capped, 762850 uncapped) are running and L1/L2/L3 decide the lineage.
