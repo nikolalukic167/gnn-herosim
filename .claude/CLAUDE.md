@@ -132,6 +132,14 @@ W1 warm corpus, training and live gate run anyway** — rule 6 below; the W0.b N
 measurement, the registered W1 bars are unchanged. The reversal-era
 checkpoints sit ~40 % above the sweep optimum on the states they were served on (W0.c). Read that node
 before proposing any corpus built from served states.
+**2026-09-14 — the W1 LIVE gate agreed and went further: `peer_affinity_warm_v1` is CLOSED, NO-WINNING-GNN.**
+Warm corpus 472 + 72 datasets, T1b recipe, 16 seeds per arm, cell_s7901. Offline: `gnn` vs `mpoff` TIE (+0.74 pp,
+p = 0.083). Live, capped: the warm graph arm is **23.9 % slower** than the cold T1b graph arm (0/16 seeds) and
+**10.4 % slower than its own MP-OFF twin** (0/16, p = 3e-05); vs Knative +1.5 %, 9/16. Uncapped: twin −17.2 %
+(1/16). Training on served states did not make message passing transfer; it removed the cap-era win. The one
+positive is pointwise and descriptive: the warm-trained MP-OFF arm beats Knative **without the cap**, +11.3 %,
+16/16 seeds, and finishes sooner (makespan 137.6k s vs 159.2k s) — the first learned arm to do both. That is a
+new registration if pursued; still no measurement where a graph arm beats both its twin and Knative.
 
 (Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
 

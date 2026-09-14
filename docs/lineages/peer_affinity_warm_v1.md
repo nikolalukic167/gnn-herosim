@@ -1,13 +1,13 @@
 # peer_affinity_warm_v1 — train on the cluster the model is served on
 
-**Status:** `ACTIVE` — W0 read 2026-09-13 (W0.a PASS, **W0.b NO-GO** on both registered bars,
-W0.c descriptive; attachment `peer_affinity_warm_v1/w0_read.json`). **Amendment 1 (2026-09-13,
-signed before any W1 number exists): W1 runs regardless of the W0.b verdict**, by the user's
-standing rule that a lineage ends with a live gate, never with an offline read (CLAUDE.md rule 6).
-The W0.b NO-GO stands as a measurement and is not re-scored; the W1 design, arms, seeds, bars and
-headline rule below are unchanged. What W1 can now add beyond W0.b: L1 measures whether the state
-mismatch costs *latency live* even though its one-step label is pointwise (the corpus lever), and
-L2/L3 are the live twin and baseline contrasts the headline rule requires.
+**Status:** `CLOSED` — **W1 live gate read 2026-09-14: NO-WINNING-GNN** (capped primary: L1 WARM-HURTS
+−23.9 %, 0/16; L2 POINTWISE-BETTER −10.4 %, 0/16; L3 NOT-BEATS-KNATIVE +1.5 %, 9/16; uncapped agrees).
+Offline W1 read: TIE at the selected checkpoint. W0 read 2026-09-13: W0.a PASS, **W0.b NO-GO**, W0.c
+descriptive. Amendment 1 (2026-09-13) ran W1 regardless of W0.b, by CLAUDE.md rule 6 (a lineage ends
+with a live gate); the live gate agreed with the offline screen and went further. Attachments
+`peer_affinity_warm_v1/w0_read.json`, `w1_offline_read.json`, `w1_live_read.json`. Side finding
+(descriptive): the warm-trained *pointwise* arm beats Knative uncapped, +11.3 %, 16/16, and finishes
+sooner — a new registration if pursued.
 **Parent:** [`peer_affinity_v1`](peer_affinity_v1.md) (the environment, the checkpoints
 this compares against, the gate cell and trace). **Question it answers:** is the
 train/serve *state* mismatch the H5 audit measured — a corpus captured from a cluster the
@@ -428,3 +428,72 @@ asymmetry route_b_v1 documented. Convergence flag (last-20-epoch val slope flat)
 `mpoff` 4/16. Artifact: `simulation_data/peer_affinity_warm_read.json` on datalab, copy in
 `docs/lineages/peer_affinity_warm_v1/w1_offline_read.json`. **Per rule 6 this closes nothing** — the live
 gates (762849 capped, 762850 uncapped) are running and L1/L2/L3 decide the lineage.
+
+### 2026-09-14 — W1 LIVE GATE READ (762849 capped, 762850 uncapped, 762851 Knative check): **NO-WINNING-GNN — lineage CLOSED**
+
+`scripts_cosim/peer_affinity_warm_w1_read.py`, 16 seeds per arm, `cell_s7901`,
+`workload-150-150-peer_p2_x200.json` (450,729 tasks, every arm), statistic `total_rtt`, "% vs X" =
+100 · (X − arm) / X (positive = arm better). Knative check: `knative_network` re-run **20,130,899,866.18 s**
+= landed (rel. diff 0.0), batch variant likewise; the re-run is the comparator. Attachment
+`peer_affinity_warm_v1/w1_live_read.json`.
+
+**Primary (capped, `GNN_PREFIX_PLATFORM_CAP=1`):**
+
+| contrast | median | p | ahead | reading |
+|---|---|---|---|---|
+| L1 warm `gnn` vs T1b `gnn` | **-23.91 %** | 3.1e-05 | 0/16 | **WARM-HURTS** |
+| L2 warm `gnn` vs warm `mpoff` | **-10.42 %** | 3.1e-05 | 0/16 | **POINTWISE-BETTER** |
+| L3 warm `gnn` vs Knative | **+1.51 %** | 0.74 | 9/16 | **NOT-BEATS-KNATIVE** |
+| reference: T1b `gnn` vs T1b `mpoff` | **+2.33 %** | 0.23 | 10/16 | **TIE** |
+| reference: T1b `gnn` vs Knative | **+21.87 %** | 3.1e-05 | 16/16 | **BEATS-KNATIVE** |
+| side: warm `mpoff` vs T1b `mpoff` | **-11.74 %** | 0.065 | 3/16 | **NO-EFFECT** |
+| side: warm `mpoff` vs Knative | **+10.82 %** | 3.1e-05 | 16/16 | **BEATS-KNATIVE** |
+
+**Secondary (uncapped):**
+
+| contrast | median | p | ahead | reading |
+|---|---|---|---|---|
+| L1 warm `gnn` vs T1b `gnn` | **-9.83 %** | 0.19 | 6/16 | **NO-EFFECT** |
+| L2 warm `gnn` vs warm `mpoff` | **-17.16 %** | 6.1e-05 | 1/16 | **POINTWISE-BETTER** |
+| L3 warm `gnn` vs Knative | **-1.86 %** | 0.21 | 8/16 | **NOT-BEATS-KNATIVE** |
+| reference: T1b `gnn` vs T1b `mpoff` | **+6.32 %** | 0.32 | 9/16 | **TIE** |
+| reference: T1b `gnn` vs Knative | **-1.54 %** | 0.63 | 8/16 | **NOT-BEATS-KNATIVE** |
+| side: warm `mpoff` vs T1b `mpoff` | **+11.79 %** | 0.0021 | 14/16 | **WARM-HELPS** |
+| side: warm `mpoff` vs Knative | **+11.29 %** | 3.1e-05 | 16/16 | **BEATS-KNATIVE** |
+
+**Headline: NO-WINNING-GNN** in both configurations (L2 reads POINTWISE-BETTER, not GNN-NEEDED-LIVE;
+L3 fails both the 12/16 and the 3 % bar). The registered question — does training on the served
+cluster's own states turn the offline MP edge into a served graph arm that beats its twin and
+Knative — is answered **no, with the sign the other way**:
+
+- **L1 WARM-HURTS on the primary.** The warm-trained graph arm is 23.9 % *slower* than the cold T1b
+  graph arm on the same cell, 0/16 seeds ahead. Training on served states did not close the
+  offline/live gap for message passing; it cost the graph arm its cap-era win over Knative
+  (+21.9 % → +1.5 %, 9/16). Uncapped the two are a NO-EFFECT tie (−9.8 %, p = 0.19), both ≈ Knative.
+- **L2 POINTWISE-BETTER, live, on a corpus whose label the pointwise class fits exactly** (W0.b).
+  The MP-OFF twin trained on the identical warm cache beats the MP arm by 10.4 % capped and 17.2 %
+  uncapped, 0/16 and 1/16 seeds the other way. The offline read of the same checkpoints was a TIE
+  (+0.74 pp, p = 0.083). This is the third corpus on which the served sign of `gnn` − `mpoff` is
+  at or below zero and the first on which it is significant in both cap configurations.
+- **Side finding, descriptive (not a registered bar):** the warm-trained **pointwise** arm is the
+  first learned arm in this program to beat Knative **without the platform cap**: +11.3 % vs Knative,
+  16/16 seeds, sign-test p = 3e-05, and WARM-HELPS over its cold twin (+11.8 %, p = 0.002, 14/16 —
+  the cold uncapped `mpoff` has collapse seeds at 41.5e9/46.0e9, the warm one has none, max 19.2e9).
+  It also finishes sooner than Knative (median end time 131,443 s capped / 137,608 s uncapped
+  against Knative's 159,215 s) — a makespan *and* mean-latency win, which the cap's +21.9 % was not
+  (its makespan was −12 %). Capped, warm `mpoff` beats Knative +10.8 % (16/16) but trails cold capped
+  `mpoff` by 11.7 % (p = 0.065). The warm arms carry *more* peer-exchange time than the cold ones
+  (2.07–2.28 M s vs 1.54 M s; Knative 2.40 M s): what they learned is drain, not exchange avoidance.
+  A registration that names this as its primary is a new lineage, not this one.
+
+**Corpus deviation carried into this read:** 20 train cells (480 → 472 datasets after 8 cap-infeasible
+snapshots) + 3 held-out cells (72), against the registered 24 + 4 (see the 2026-09-14 capture entry).
+The offline read at 472 is a TIE at the selected checkpoint; the live contrasts above are at
+p ≤ 6e-05 on 16 pairs, so the cut is not what decided them.
+
+**What closes with this:** the "train on the cluster the model is served on" lever, as a supervised
+route to a served message-passing win, is closed on its **live** gate, not only on the W0.b offline
+screen: rule 6 was applied and the live gate agreed with the offline screen in direction and went
+further in magnitude. What does NOT close: the warm corpus as a *pointwise* serving lever (side
+finding above), and the unexplained offline/live reversal of `peer_affinity_v1` (this lineage did not
+set out to explain it and does not).
