@@ -88,3 +88,54 @@ def test_truncated_ids_stay_aligned_for_the_corpus_bridge(tmp_path: Path) -> Non
     after = json.loads(dst.read_text())
     assert len(after["events"]) % 10 == 0
     assert max(max(p[0], p[1]) for p in after["peer_exchange"]) < len(after["events"])
+
+
+def test_batch_poll_interval_knob_is_off_by_default_and_fails_loud(monkeypatch) -> None:
+    """The batch poll interval is a policy time constant; a load ladder must be able to scale
+    it with the window, and an unset knob must leave every other run bit-identical.
+
+    drainable_regime_v1 S0 pass 2 (2026-09-14): an 80 s window with the hard-coded 1 ms poll
+    costs 80,000 simpy timeout events per batch and the run stalls.
+    """
+    import re
+    src = (ROOT / "src/policy/knative_network_batch/scheduler.py").read_text()
+    gnn = (ROOT / "src/policy/gnn/scheduler.py").read_text()
+    # default path untouched
+    assert "poll_interval = min(0.001, self.batch_timeout) if self.batch_timeout > 0 else 0.0" in src
+    assert "poll_interval = 0.001  # 1ms polling interval" in gnn
+    for text, var in ((src, "KNATIVE_BATCH_POLL_INTERVAL"), (gnn, "GNN_BATCH_POLL_INTERVAL")):
+        assert f'os.environ.get("{var}")' in text
+        assert re.search(rf'{var}=\{{_poll_env!r\}} is not a number', text)
+        assert re.search(rf'{var}=\{{_poll_env!r\}} must be positive', text)
+
+
+def test_batch_poll_interval_knob_parses_and_rejects(tmp_path: Path) -> None:
+    """Exercise the knob's parse/validate branches through a stand-in with the same code."""
+    import os as _os
+    src = (ROOT / "src/policy/knative_network_batch/scheduler.py").read_text()
+    start = src.index('        _poll_env = os.environ.get("KNATIVE_BATCH_POLL_INTERVAL")')
+    end = src.index("if self.batch_by_peer_group:", start)
+    body = "\n".join(l[8:] if l.startswith("        ") else l
+                     for l in src[start:end].rstrip().splitlines())
+    def run(value):
+        ns = {"os": _os, "poll_interval": 0.001}
+        env = dict(_os.environ)
+        if value is None:
+            env.pop("KNATIVE_BATCH_POLL_INTERVAL", None)
+        else:
+            env["KNATIVE_BATCH_POLL_INTERVAL"] = value
+        old = dict(_os.environ)
+        _os.environ.clear(); _os.environ.update(env)
+        try:
+            exec(compile(body, "<knob>", "exec"), ns)
+            return ns["poll_interval"]
+        finally:
+            _os.environ.clear(); _os.environ.update(old)
+    assert run(None) == 0.001
+    assert run("4.0") == 4.0
+    for bad in ("banana", "0", "-1"):
+        try:
+            run(bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"{bad!r} should have raised")

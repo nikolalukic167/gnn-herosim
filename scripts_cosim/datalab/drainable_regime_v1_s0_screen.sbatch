@@ -69,9 +69,15 @@ else
   # complete, so a longer window costs nothing when the group arrives sooner.
   BT=0.02
   if [[ "${DRAIN_SCALE_BATCH_TIMEOUT:-0}" == "1" ]]; then
+    # Amendment 2a (2026-09-14): the POLL interval is a policy time constant too, and it is
+    # the one that bites. Scaling only the window leaves 1 ms polling inside an 80 s wait =
+    # 80,000 simpy events per batch; pass 2's x4000 and x8000 arms advanced 4 simulated
+    # seconds in 30 minutes and were cancelled. Both are scaled together so the policy is
+    # self-similar to the landed gate: 20 polls per window at every rung.
     BT=$(python3 -c "print(0.02 * $F)")
+    export KNATIVE_BATCH_POLL_INTERVAL=$(python3 -c "print(0.001 * $F)")
   fi
-  echo "[BATCH] KNATIVE_BATCH_TIMEOUT=$BT (scale=${DRAIN_SCALE_BATCH_TIMEOUT:-0}, factor=$F)"
+  echo "[BATCH] KNATIVE_BATCH_TIMEOUT=$BT poll=${KNATIVE_BATCH_POLL_INTERVAL:-0.001} (scale=${DRAIN_SCALE_BATCH_TIMEOUT:-0}, factor=$F)"
   export KNATIVE_BATCH_SIZE=10 KNATIVE_BATCH_TIMEOUT="$BT" KNATIVE_BATCH_BY_PEER_GROUP=1
   export LIVE_AUDIT_SNAPSHOT_PATH="$S0/snapshots/f${F}.jsonl"
   export LIVE_AUDIT_STRIDE=200 LIVE_AUDIT_MAX_SNAPSHOTS=150
