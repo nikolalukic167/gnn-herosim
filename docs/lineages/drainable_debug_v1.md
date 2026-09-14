@@ -241,3 +241,26 @@ exactly **one** legal replica, so more than half the trace cannot distinguish tw
 all; and seed variance inside one arm is larger than the gap between arms (`gnn_s1` 48.60 s
 against `gnn_s2` 73.78 s), which is why B1-style contrasts need their 16 seeds.
 
+### 2026-09-14 — D5 screen: the decoder's standing-load knob helps, and not nearly enough
+
+`GNN_PREFIX_CONCURRENCY_PENALTY ∈ {0, 0.5, 1, 2}` × {`gnn`, `mpoff`}, seed 1, x4000, 16 s
+window, uncapped (jobs 766085–766087; penalty 0 is the D2 run). Registered as exploratory: a
+single seed never closes anything, and the bar is a promotion criterion — 30 % of the gap to
+`knative_network` — not a verdict.
+
+| penalty | `gnn` latency | gap closed | `mpoff` latency | gap closed |
+|---|---|---|---|---|
+| 0 | 48.60 | — | 59.66 | — |
+| 0.5 | 46.41 | 9.7 % | 58.47 | 3.5 % |
+| **1** | **44.89** | **16.4 %** | 58.38 | 3.8 % |
+| 2 | 57.80 | −40.6 % | 60.05 | −1.1 % |
+
+**D5 does not fire (16.4 % against 30 %); the knob is not promoted to a registered arm.** It
+does move in the direction D2 predicts — the one control that lets the decoder see standing
+load buys back a sixth of the graph arm's deficit — and it over-corrects at 2, which is what a
+penalty fighting a scale-free `min` looks like. It is not the missing term. Read with an ad-hoc
+script rather than a registered tool, which is disclosed here because it is allowed only by
+D5's exploratory standing; the threshold itself was committed in this node before the runs.
+
+Also recorded: at penalty 0 the `mpoff` arm reproduces its D2 latency to the digit (59.66 s),
+so the two submissions are the same experiment.
