@@ -650,11 +650,21 @@ def start_simulation(
     # 450,729-task arm. 102 such arms exhausted the 250 GiB /home quota on datalab and
     # killed 128 of them with exit 1 and no traceback -- the traceback could not be
     # written either. See docs/gates/gate-tools.md 2026-09-13.
+    # The ROOT level must match the handler's, not sit below it (2026-09-14). At
+    # level=DEBUG every `logging.info`/`logging.debug` in the event loop -- six or so
+    # per task in `infrastructure.py` -- was fully realised into a LogRecord, including
+    # the `%(funcName)s` stack walk this format demands, and then dropped by the
+    # handler's ERROR filter. py-spy put 48 % of samples in that dead path on a
+    # drainable-rung arm. Raising the root level makes `logging.info(...)` return at
+    # `Logger.isEnabledFor`, before any record exists. Label-invariant by construction
+    # (nothing branches on log level) and verified: byte-identical total_rtt,
+    # scaleEventCount and endTime on the 3k smoke for knative_network and
+    # knative_network_batch. `force=True` stays load-bearing -- see below.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.ERROR)
 
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.ERROR,
         format="%(levelname)s [%(funcName)18s() ] %(message)s",
         handlers=[console_handler],
         force=True,

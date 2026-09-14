@@ -84,6 +84,16 @@ else
   export LIVE_AUDIT_MIN_BATCH_SIZE=1 LIVE_AUDIT_MIN_CANDIDATES=1
   rm -f "$LIVE_AUDIT_SNAPSHOT_PATH"
 fi
+# KEEP_RAW=1 (drainable_debug_v1 D2, 2026-09-14): same hook as the stage-3 live gate. The
+# streaming stats path writes `taskResults: []` above 10,000 events, so no screen run in this
+# lineage can be read per task after the fact; SIM_FORCE_FULL_STATS=1 restores the records and
+# KEEP_RAW_QSNAP=1 adds queueSnapshotAtScheduling. Default off: unset, this file behaves as before.
+if [[ "${KEEP_RAW:-0}" == "1" ]]; then
+  export SIM_FORCE_FULL_STATS=1
+  export GNN_CAPTURE_DATASET_STATE="${KEEP_RAW_QSNAP:-0}"
+  echo "[KNOBS] KEEP_RAW=1 KEEP_RAW_QSNAP='${KEEP_RAW_QSNAP:-0}'"
+fi
+
 OUT="$S0/results/${ARM}.json"
 SUMMARY="$S0/results/${ARM}.summary.json"
 echo "[TASK $T] rung=x${F} policy=$POLICY arm=$ARM -> $SUMMARY"
@@ -119,7 +129,12 @@ print("[COUNTERS]", json.dumps(s.get("schedulerCounters")))
 print("[PROVENANCE env]", json.dumps(s["env"]))
 PY
 mv "$SUMMARY.partial" "$SUMMARY"
-rm -f "$OUT.partial"
+if [[ "${KEEP_RAW:-0}" == "1" ]]; then
+  mv "$OUT.partial" "$OUT"
+  echo "[RAW KEPT] $OUT ($(du -h "$OUT" | cut -f1))"
+else
+  rm -f "$OUT.partial"
+fi
 if [[ -n "${LIVE_AUDIT_SNAPSHOT_PATH:-}" ]]; then
   echo "[AUDIT] $(wc -l < "$LIVE_AUDIT_SNAPSHOT_PATH") snapshots -> $LIVE_AUDIT_SNAPSHOT_PATH"
 fi
