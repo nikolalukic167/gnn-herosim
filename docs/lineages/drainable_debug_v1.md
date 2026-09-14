@@ -323,3 +323,43 @@ within-arm seed spread that D2 measured at 48.60 s vs 73.78 s — so D1 establis
 80 s window (D2's are from 16 s), because at 16 s only 8 % of group-opening batches assemble a
 complete peer group. The reactive source was truncated at t = 36,451 s by the starved-client
 spin and the other two were truncated to match.
+
+## Amendment 1 (2026-09-14, filed with `drainable_objective_v1`'s registration)
+
+Two corrections to this node, both found while designing the objective lineage this one ordered,
+neither changing a bar or a verdict.
+
+**1. The D1 summary sentence is narrower than D1's own data.** "The model is not the problem" is
+the right reading of **D1c**, which is a *comparison* to the reactive rule. It is not a statement
+that the checkpoints reach the one-step optimum: on the states with real choice this node's own
+restricted table reads **43.96 / 53.80 / 82.47 %** checkpoint regret against the faithful optimum
+(knb / gnn / mpoff sources). Closer to optimal than the rule on every source, and a long way from
+optimal. Read D1c as "one-step quality is not where it loses **to Knative**", which is what it
+tested.
+
+**2. The corpus these checkpoints were trained on prices a standing queue on the wrong clock —
+which is a candidate cause of the D2 depth statistic that needs no myopia.** The cold corpus
+compresses a seeded backlog with `seed_virtual_warmup` as `cold_start + count × (execution +
+comm)` (`src/placement/infrastructure.py:692-757`). Under `HEROSIM_PEER_EXCHANGE=1` a queued task
+also pays its peer transfers and its source→platform latency, which that formula omits;
+`src/placement/live_snapshot_seed.py:195-200` states it outright — the formula *"understates a
+deep queue's drain ~100x"* — and replays `live_audit.platform_queue_drain_seconds` instead for
+snapshots that measured their own drain. **So D1's captured states run on the live clock while the
+cold T1b corpus does not.** Measured while designing the child (its A1 read reconfirms it with a
+committed tool):
+
+| per queued task ahead of the batch | median | p90 |
+|---|---|---|
+| T1b corpus states, 150 datasets, 1,472 placements | **0.38 s** | 1.18 s |
+| live x4000 captures, 3 sources (`queue_drain_seconds / queue_length`) | **3.6–5.5 s** | 10.4–12.1 s |
+
+An arm taught that twenty queued tasks cost ~8 s, served where they cost ~100 s, goes deeper than
+the shallowest replica — the behaviour D2 measured at 18–43 tasks deeper at p95. This does not
+retract D1: the checkpoints still out-plan the reactive rule **on the live-clock states of D1's own
+sweeps**. It does mean "the objective" has two separable components, and
+[`drainable_objective_v1`](drainable_objective_v1.md) tests them in order, with V = 0 as the
+clock-only control arm.
+
+**Consequence for this node's own consequences section.** H2 (more data) stays rejected — the D1b
+branch did not fire, and more data on a mis-clocked label buys more skill at the wrong target. H1
+(higher arrival rate) stays unpredicted by anything here. Neither is revived by this amendment.

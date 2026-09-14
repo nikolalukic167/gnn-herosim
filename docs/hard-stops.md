@@ -53,3 +53,30 @@ ladder that carries those controls is permitted and is what `drainable_debug_v1`
 uncapped. The cap concentrates placement until a client's reachable servers are memory-full and
 the starved-client retry loop takes over. The cap is for a cluster whose capacity mask cannot
 bind; it is not a serving default.
+
+## Not a stop: a closed-form shaped supervised label (scope note, 2026-09-14)
+
+Filed with `drainable_objective_v1`'s registration so the next reader does not close it by
+pattern-match against the two neighbouring stops. **Neither covers a label of the form
+`sweep_rtt(plan) + V × f(state, plan)` where `f` is a closed form.**
+
+* The **horizon-return** stop closed a label that was the live simulator's **rollout return** over
+  h = 10 s of trace. Its killing control was rank stability across horizon lengths (median Spearman
+  ρ(h2,h10) = −0.027; the h10 optimum at rank 120/256 at h5), and `docs/lessons.md` L32 names the
+  mechanism: such a label measures *"the decision plus everything the simulator did afterwards."*
+  A closed form runs no simulator forward and has no such amplification. **The control is still
+  owed** — L32 makes rank stability non-optional for anything in this family — and is inherited as
+  stability under a change of the shaping coefficient rather than of a horizon.
+* The **closed-loop policy-gradient** stop closed REINFORCE against the live simulator. A
+  supervised label is not that, and inherits none of its apparatus; its reopen clause ("a
+  *different* configuration with its own powered tuning stage") governs policy gradient, not
+  relabelling.
+* The **warm-corpus** stop closed **one-step** labels cut from served states (W0.b: pointwise
+  recoverable, median regret 0.0 %). A shaped label is not one-step; its own W0.b-shaped question
+  is asked as that lineage's A2 read.
+
+**What a shaped label does inherit, and it is binding:** it is a *label* lever, not a GNN lever.
+Any term expressible in per-platform counts and their squares is inside registered count
+competitor v2 (R² 1.0000 median, `peer_affinity_v1` A6) and by the `route_a_v1` composition
+theorem a pointwise scorer handed those columns expresses it exactly. **No GNN-vs-MLP or
+GNN-vs-MP-OFF claim may be founded on one.** And it still ends with a live gate (rule 6).
