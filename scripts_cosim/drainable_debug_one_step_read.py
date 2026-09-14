@@ -211,6 +211,8 @@ def load_decoded(path: Optional[Path]) -> Dict[str, Dict[str, Plan]]:
     raw = json.loads(path.read_text())
     out: Dict[str, Dict[str, Plan]] = {}
     for ds, arms in raw.items():
+        if ds.startswith("_"):
+            continue  # provenance blocks the decoder writes alongside the plans, e.g. _stats
         out[ds] = {
             arm: {int(t): (int(v[0]), int(v[1])) for t, v in plan.items()}
             for arm, plan in arms.items()
