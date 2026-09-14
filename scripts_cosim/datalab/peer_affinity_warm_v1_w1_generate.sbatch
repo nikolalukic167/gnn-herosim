@@ -68,6 +68,12 @@ python3 scripts_cosim/split_warm_snapshots.py --snapshots "$SNAP" --out-dir "$W1
 python3 scripts_cosim/make_warm_corpus.py --snapshots "$SHARD" --trace "$TRACE" --cell-config "$CFG" \
   --output-dir "$OUT" --source-tag "${SRC}_s${SEED}" --start-index "$START" --limit "$PER" \
   --target-combos "$TARGET" --workers "$WORKERS" --quiet
+# A snapshot whose FULL live slate is cap-infeasible at alpha=2.0 is recorded `rejected` with its
+# reason (no subset can carry a label; 2026-09-14, cell_s9007/gnn snapshot 133). That is a
+# measurement, not a failure: allow up to 2 of PER, require every chosen snapshot accounted for.
+# Anything other than success/rejected already raised inside make_warm_corpus.py.
 n=$(grep -c "\"source_tag\": \"${SRC}_s${SEED}\".*\"status\": \"success\"" "$OUT/warm_manifest.jsonl" || true)
-echo "=== task $T done: $n success datasets for cell_s${SEED}/${SRC} ==="
-[[ "$n" -ge "$PER" ]] || { echo "FAIL LOUD: expected $PER datasets, manifest has $n" >&2; exit 1; }
+r=$(grep -c "\"source_tag\": \"${SRC}_s${SEED}\".*\"status\": \"rejected\"" "$OUT/warm_manifest.jsonl" || true)
+echo "=== task $T done: $n success, $r rejected datasets for cell_s${SEED}/${SRC} ==="
+[[ $(( n + r )) -eq "$PER" ]] || { echo "FAIL LOUD: manifest accounts for $((n + r)) of $PER chosen snapshots" >&2; exit 1; }
+[[ "$n" -ge $(( PER - 2 )) ]] || { echo "FAIL LOUD: only $n success datasets (need >= $((PER - 2))), $r rejected" >&2; exit 1; }
