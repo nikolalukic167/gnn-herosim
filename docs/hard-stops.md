@@ -36,6 +36,17 @@ fitted on states from a 940× overload does not transfer to a cluster with headr
 **training-distribution** problem, and the supervised route to fixing it is closed by
 `peer_affinity_warm_v1` W0.b.
 
+**Amended 2026-09-14 (`drainable_debug_v1`): the premise above is false for the COLD checkpoints
+this gate served, and the stop is narrowed accordingly.** The cold T1b corpus states are the
+generator's own seeded queue draws (`shallow_pois2`, `deepvar_uniform0_12`, `deepvar_pois4`;
+dim-7 max **42** over 516 datasets) — it was the *warm* corpus that was cut from served states,
+and the gate *trace*, not the corpus, that carried the 940× overload. So "fitted on overload
+states" describes `peer_affinity_warm_v1`'s arms, not these. What stands unchanged: do not re-run
+the **warm** checkpoints at another rate (closed at p ≤ 6e-05), and do not re-run **any** arm at a
+new rate without scaling every policy time constant and adding a control bar that reads the arms'
+own counters — three reads of this very gate were confounded exactly that way. A registered
+ladder that carries those controls is permitted and is what `drainable_debug_v1` Phase 2 is.
+
 **Separately closed: `GNN_PREFIX_PLATFORM_CAP=1` in a drainable regime.** Three of sixteen capped
 `gnn` seeds deadlock the simulator — identical simulated clock at death across 24 GB, 64 GB and
 256 GB and a 4× runtime range, memory growing while time stands still. The same seeds complete
