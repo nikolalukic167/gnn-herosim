@@ -329,3 +329,54 @@ train, 766269 held-out), four caches, and the 96 training runs. **The registered
 expectation is now explicitly a negative one for C3** — A2 predicts the shaped label will
 not help — and that prediction is recorded here, before the gate, so the gate can confirm
 or refute it rather than be read backwards afterwards.
+
+### A3 — CLOSED-FORM-TRACKS on all six arms, and it calibrates λ
+
+Job 766258 task 2, over D2's six retained raw results (50,000 per-task records each).
+Spearman between the closed form's prediction for a batch and the queue time later tasks
+provably spent behind that batch's tasks:
+
+| arm | batches | inflicted something | ρ | implied λ |
+|---|---|---|---|---|
+| `knative_network` | 50,000 | 43,674 | **0.868** | 0.018 |
+| `knative_network_batch` | 49,907 | 43,600 | **0.868** | 0.018 |
+| `gnn_s1` | 26,625 | 14,731 | **0.855** | 0.087 |
+| `gnn_s2` | 26,314 | 14,922 | **0.874** | 0.109 |
+| `mpoff_s1` | 26,363 | 14,919 | **0.856** | 0.101 |
+| `mpoff_s2` | 26,343 | 14,647 | **0.856** | 0.103 |
+
+**Every arm clears the 0.50 bar at ρ ≈ 0.86.** The fluid term is not an approximation that
+happens to point the right way; it predicts the realized cross-batch queueing well enough
+to rank batches by it on a real 50,000-task stream.
+
+The implied λ column is a free calibration and it says something the design did not
+anticipate. The registered λ_p — the trace's 0.46 tasks/s split across ~5 effective
+platforms, ≈ 0.09 — matches the **learned** arms (0.087–0.109) almost exactly and is **5×**
+the reactive arms' 0.018. That is the concentration the parent measured, seen from the
+other side: an arm that piles a batch onto fewer replicas makes each of those replicas
+face a higher effective arrival rate, so the same added work inflicts more. The label's
+nominal V = 1 is therefore calibrated for the regime it is meant to correct, which is the
+right place for it to be, and this was not tuned — V = 1 was fixed before A3 ran and the
+slope is reported, not fitted back in.
+
+Also note the batch counts: the reactive arms commit 50,000 times (one per arrival) and
+the learned arms ~26,000, which is the batching doing what its name says.
+
+## Phase A outcome: **A1 CLOCK-DEFECT · A2 LABEL-DOES-NOT-AGREE · A3 CLOSED-FORM-TRACKS**
+
+Read together, the three say something sharper than any one of them:
+
+* **The mechanism is real and correctly modelled.** A3 puts the closed form at ρ ≈ 0.86
+  against the externality that actually happened. This is not the horizon label's problem —
+  A2-rank confirms the ranking is stable across the coefficient (0.89–0.99), where the
+  h = 10 s return was indistinguishable from random.
+* **The training corpus was measuring a different cluster.** A1's 784× says the arms were
+  taught a backlog is nearly free.
+* **And charging for the externality still does not make the supervised target prefer what
+  wins.** A2's reversal rate is 33–43 % against a 60 % bar on all three sources.
+
+The honest reading of all three is that **the externality is a real cost that the one-step
+label omits, that it can be computed exactly, and that adding it is not sufficient to
+reorder the label in favour of the reactive rule.** Whether it is sufficient to move a
+*trained arm* on a *live stream* is a different question from whether it reorders a static
+plan ranking, and it is the question Phase C answers.
