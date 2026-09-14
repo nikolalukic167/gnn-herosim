@@ -380,3 +380,58 @@ label omits, that it can be computed exactly, and that adding it is not sufficie
 reorder the label in favour of the reactive rule.** Whether it is sufficient to move a
 *trained arm* on a *live stream* is a different question from whether it reorders a static
 plan ranking, and it is the question Phase C answers.
+
+## Amendment 1 (2026-09-14) — the clock has almost no leverage on the LABEL, so Phase B does not regenerate a corpus
+
+Filed with the measurement that forced it, before any Phase B training ran.
+
+**What was checked.** Two datasets generated twice from the same preset and the same seeds,
+once on the default clock and once with the measured drain table, everything else identical:
+
+| dataset | median sweep RTT, cold | median, measured clock | Δ | optimum Δ | **argmin plan moved** |
+|---|---|---|---|---|---|
+| ds_00000 | 213.29 | 215.80 | +1.18 % | +8.81 % | **no** |
+| ds_00001 | 190.89 | 190.89 | 0.00 % | 0.00 % | **no** |
+
+**The training target does not move.** `data.y` is the argmin plan, and repricing the backlog
+by the measured 784× leaves it unchanged on both datasets, because **the best plan avoids
+backlog under either clock** — the optimum routes around a queue whether that queue costs
+0.4 s or 4.5 s an item. The corpus seeds ~37 queued items over 5 platforms, so even at the
+live price the whole backlog is tens of seconds against ~200 s plan RTTs.
+
+This reconciles with A1 rather than contradicting it. A1's 784× is a **per-item** ratio and
+it is right; what this measures is its **leverage on the label**, which is ~1 % on the
+median plan and zero on the argmin. Both statements are true and the second is the one
+Phase B depends on.
+
+**Two consequences, and the second is where the honesty matters.**
+
+1. **Phase B does not regenerate a corpus.** The registration said `rtt_liveclock` would be
+   "the sweep RTT of a corpus generated with the measured drain"; that corpus is now
+   measured to be the same corpus. Phase B builds **one** new cache over the **existing
+   T1b corpus and split**, labelled `rtt_drift:1` with the measured table, and **V = 0 is
+   the existing T1b cache and its already-trained, already-gated checkpoints** (53.45 s
+   `gnn` / 51.32 s `mpoff` at this cell). The contrast becomes same corpus, same split,
+   same seeds, same lr, **only the label differs** — cleaner than the registered design,
+   not weaker. Cost drops from ~60 gen-hours plus 96 training runs to 32 training runs.
+2. **A stated incoherence, bounded by the measurement above.** The shaped term prices the
+   backlog at the measured rate while the base RTT it is added to prices it at the
+   generator's rate. That would be a defect if the base were clock-sensitive; it is not
+   (argmin unmoved, median +1.2 %). It is disclosed rather than hidden, and the size of
+   the inconsistency is the table above.
+
+**And the registered C2 bar is now a foregone conclusion, which is itself recorded.** C2
+asked whether the clock fix alone moves the live gate. With V = 0 identical to T1b, C2
+cannot fire by construction, so it is **withdrawn as a bar and replaced by this
+measurement**: the clock is not the defect *at the label*, and the reason is that the
+corpus's seeded queues are shallow enough in seconds that their price does not change
+which plan wins. The live gate's contrasts become C3 (V = 1 vs T1b, the primary), C4 (vs
+reactive, the headline) and C5 (`gnn` vs `mpoff`), with C0 and C1 unchanged as controls.
+
+**One engineering fact worth keeping.** Where the clock applies was measured, not assumed.
+The co-sim sweep rebuilds each placement's starting state through `seed_virtual_warmup`,
+which is the hook; the initial warmup that *produces* the snapshot uses real
+`create_warmup_tasks` instances, and a surcharge added to their service path recorded
+**zero** applications across a whole dataset generation. That dead path was removed rather
+than left in looking plausible, and `BACKLOG_SURCHARGE_COUNTERS` now lets a corpus prove
+how much backlog it repriced instead of being trusted on its name.

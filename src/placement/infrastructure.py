@@ -67,6 +67,20 @@ if _BACKLOG_DRAIN_TABLE_PATH:
             raise RuntimeError(f"FAIL LOUD: {_p} has non-positive drain {_v} for {_k!r}")
 
 
+# drainable_objective_v1: a counter-read control. A corpus that claims to be on the
+# measured backlog clock must be able to PROVE it, the same way CLAUDE.md requires a rate
+# sweep to read the arms' own counters rather than trust the name.
+#
+# WHERE THE CLOCK ACTUALLY APPLIES, measured 2026-09-14 rather than assumed: the co-sim
+# sweep rebuilds each placement's starting state from the captured snapshot through
+# `seed_virtual_warmup`, which is the hook below. The initial warmup that PRODUCES that
+# snapshot uses real `create_warmup_tasks` instances instead -- a surcharge added to their
+# service path recorded ZERO applications across a whole dataset generation, so it was
+# removed rather than left in as a plausible-looking no-op. One hook, on the path the
+# label is built from.
+BACKLOG_SURCHARGE_COUNTERS: Dict[str, float] = {"applications": 0.0, "seconds": 0.0}
+
+
 def _backlog_drain_per_item(task_type_name: str, platform_type: str) -> Optional[float]:
     """Measured seconds per queued item, or None when the default clock is in force."""
     if _BACKLOG_DRAIN_TABLE is None:
@@ -804,6 +818,9 @@ class Platform:
         per_item = _backlog_drain_per_item(task_type_name, self.type["shortName"])
         if per_item is None:
             per_item = execution + comm
+        else:
+            BACKLOG_SURCHARGE_COUNTERS["applications"] += count
+            BACKLOG_SURCHARGE_COUNTERS["seconds"] += count * (per_item - (execution + comm))
         total_time = cold_start + (count * per_item)
         self.virtual_warmup_count += count
         self.virtual_warmup_total_time += total_time
@@ -1509,6 +1526,7 @@ class Platform:
             if peer_exchange_time:
                 task.peer_exchange_time = peer_exchange_time
                 input_duration += peer_exchange_time
+
 
             # Start the task
             yield task.started.succeed()

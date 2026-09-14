@@ -328,3 +328,26 @@ def _restore_infrastructure_module():
 
     sys.modules.pop("src.placement.infrastructure", None)
     importlib.import_module("src.placement.infrastructure")
+
+
+def test_the_clock_applies_on_the_path_the_label_is_built_from(monkeypatch, tmp_path):
+    """Where the clock applies was MEASURED, not assumed (2026-09-14).
+
+    The co-sim sweep rebuilds each placement's starting state from the captured snapshot
+    through `seed_virtual_warmup` -- the hook. The initial warmup that produces that
+    snapshot uses real `create_warmup_tasks` instances, and a surcharge added to their
+    service path recorded ZERO applications across a whole dataset generation. This test
+    pins the hook that fires and the counters that let a corpus prove it.
+    """
+    table = tmp_path / "drain.json"
+    table.write_text(json.dumps({"drain_seconds_per_item": {"dnn1|rpiCpu": 7.0}}))
+    total, infra = _seed_one_platform(monkeypatch, table, count=4)
+    assert total == pytest.approx(0.33 + 4 * 7.0)
+    # The counters say how much backlog was repriced and by how much.
+    assert infra.BACKLOG_SURCHARGE_COUNTERS["applications"] == 4
+    assert infra.BACKLOG_SURCHARGE_COUNTERS["seconds"] > 27.0
+
+
+def test_counters_stay_zero_without_a_table(monkeypatch):
+    total, infra = _seed_one_platform(monkeypatch, None, count=4)
+    assert infra.BACKLOG_SURCHARGE_COUNTERS["applications"] == 0
