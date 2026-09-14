@@ -51,6 +51,21 @@ scales, same seed. Four rungs on `workload-150-150-peer_p2_x200.json`, `cell_s79
 | R2 | 2,000 | 1.33 | 0.47 | drainable |
 | R3 | 4,000 | 0.66 | 0.23 | slack |
 
+**Amendment 1 (2026-09-14, signed before any rung produced a number).** The rungs' *realised*
+arrival rates came out below the projection: the first 50,000 events of the trace arrive at
+1,842/s, not the whole trace's 2,659/s, so the ladder landed at 6.14 / 1.84 / 0.92 / 0.46
+arrivals/s = ρ 2.17 / 0.65 / 0.33 / 0.16. That leaves the critical band ρ ∈ [0.8, 1.0]
+unsampled, and it is exactly the band where the two guards can fight: peer-group alignment (S4)
+degrades as the rate falls, while the mechanism (S1) only appears once it has. Two rungs are
+added, submitted before any rung's numbers were read and with no bar changed:
+
+| rung | factor | arrivals/s | realised ρ | role |
+|---|---|---|---|---|
+| R1b | 500 | 3.68 | 1.30 | just over capacity |
+| R1c | 700 | 2.63 | 0.93 | the critical band |
+
+The screen is therefore 6 rungs, 12 arms. Bars S1–S5 are untouched; the control stays R0.
+
 **Bars, fixed here before the data exists.** A rung PASSES only if all four of S1–S4 hold on it.
 
 - **S1 — mechanism (primary).** `totalPeerExchangeTime / total_rtt` ≥ **20 %**. Below that the
@@ -84,7 +99,7 @@ the latency decomposition of the table above at each rung, realised batch sizes 
 all at each rung (if two reactive policies are indistinguishable on a rung, placement has no room
 there regardless of what S1 says).
 
-**Cost:** 4 CPU tasks, 12 h limit each, no GPU, no training. Nothing downstream is chained to it.
+**Cost:** 12 CPU tasks (6 rungs x 2 policies), 12 h limit each, no GPU, no training. Nothing downstream is chained to it.
 
 ## What this can and cannot establish
 
@@ -103,4 +118,9 @@ corpus, nothing more.
 
 Bars above fixed before any rung ran. Screen implemented as
 `scripts_cosim/datalab/drainable_regime_v1_s0_screen.sbatch`, read tool
-`scripts_cosim/drainable_regime_s0_read.py`. Job ids recorded here on submission.
+`scripts_cosim/drainable_regime_s0_read.py` (8 tests), truncating rescaler (5 tests), all green
+before submission. Submitted at f65edb2: traces **763543** (COMPLETED, 7 s), screen **763544**
+(8 arms, R0/R1/R2/R3), read **763545**. Amendment 1's rungs R1b/R1c submitted as **763559**
+(4 arms) with the read re-chained behind both arrays as **763560**. Realised ladder from the
+traces job: x300 6.139 arrivals/s, x500 3.684, x700 2.631, x1000 1.842, x2000 0.921, x4000 0.460;
+50,000 events and 88,894 peer pairs per rung, identical across rungs as the rescale requires.
