@@ -359,3 +359,32 @@ Datalab chain, SLURM `afterok` dependencies, submitted 2026-09-13 ~21:30 UTC at 
 Naming note (not a bar): checkpoints and cache use the `peer_affinity_t1_read.py` tag convention
 (`peer-affinity-v1-warm-…`, `graphs_cache_peer_affinity_v1_warm`) rather than the
 `peer-affinity-warm-v1-…` spelling in the W1 text, so the T1 read tool runs unmodified with `--tag warm`.
+
+### 2026-09-14 — W1 capture: 5 of 28 cells STALL (starved client), dropped; chain re-linked
+
+Capture 762821 finished **46/56** tasks in 44–52 min each (150 snapshots per run). The other 10 —
+cells **s9004, s9008, s9011, s9012** (train) and **s9102** (held-out), *both* sources — ran 1.7–2.6 h
+at 100 % CPU with 1–11 snapshots written and the gateway's progress line stuck at event 1,353
+(t ≈ 6 s). `py-spy` on `cell_s9008_knb`: 53 % of samples inside
+`knative_network/autoscaler.py:create_first_replica` (46 % of that constructing DEBUG `LogRecord`s the
+ERROR-level handler then drops), locals `task_type=dnn2, source_node_name=client_node19` on every
+sample. Mechanism (`knative_network_batch/scheduler.py:_process_task_batch`): a task whose client can
+reach no server holding a replica of its type is postponed, `create_first_replica` is asked for one,
+under `HEROSIM_SERVER_ONLY_REPLICAS=1` every reachable server is already memory-full, the call returns
+`StopIteration`, the task is re-queued and the next 0.02 s batch retries — forever. Nothing is logged
+(the warning is below the handler level) and simulated time barely advances. These five topology
+draws each contain one such client; the 23 others do not. The gate cell `cell_s7901` is one of the
+23 kinds (its gates completed before).
+
+Action (execution, not registration): the 10 stalled tasks and the pending generate array 762846
+were cancelled; the partial snapshots are kept as `*.jsonl.stalled_client_starved`; generation
+resubmitted as **763302** (`--array=0-5,8-13,16-19,24-49,52-55%20`, dataset ids keep their
+`12 × task` slots, so the train corpus has gaps at ids 36–47, 84–95, 120–143 and the held-out block
+at 24–35); cache 762847 and the Knative check 762851 re-chained `afterok:763302` (the check had been
+chained on the capture array and went `DependencyNeverSatisfied`). Everything downstream is
+unchanged. **The W1 corpus is therefore 20 train cells × 2 sources × 12 = 480 datasets (registered:
+576) and 3 held-out cells × 24 = 72 (registered: 96).** 480 is the T1b corpus size (482) at which
+the offline MP edge was measured, so the L1 comparison is not under-powered by the cut; the bars
+are unchanged. The stall itself is a simulator liveness defect, recorded in
+`docs/gates/gate-tools.md` (2026-09-14); it is not fixed here because a fix changes the served
+physics and W1's sources must match the gate's.
