@@ -120,7 +120,8 @@ Bars above fixed before any rung ran. Screen implemented as
 `scripts_cosim/datalab/drainable_regime_v1_s0_screen.sbatch`, read tool
 `scripts_cosim/drainable_regime_s0_read.py` (8 tests), truncating rescaler (5 tests), all green
 before submission. Submitted at f65edb2: traces **763543** (COMPLETED, 7 s), screen **763544**
-(8 arms, R0/R1/R2/R3), read **763545**. Amendment 1's rungs R1b/R1c submitted as **763559**
-(4 arms) with the read re-chained behind both arrays as **763560**. Realised ladder from the
+(8 arms, R0/R1/R2/R3), read **763545**. Amendment 1's rungs R1b/R1c submitted as traces **763553** +
+screen **763554** (4 arms); the original read 763545 was cancelled and re-chained behind both
+arrays as **763555** (`afterok:763544:763554`). Realised ladder from the
 traces job: x300 6.139 arrivals/s, x500 3.684, x700 2.631, x1000 1.842, x2000 0.921, x4000 0.460;
 50,000 events and 88,894 peer pairs per rung, identical across rungs as the rescale requires.
