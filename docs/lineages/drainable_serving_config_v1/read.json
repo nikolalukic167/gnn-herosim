@@ -1,0 +1,150 @@
+{
+  "configs": {
+    "A": {
+      "c4": {
+        "mean_batch": 1.0,
+        "pairs_in_batch": 0.0,
+        "pair_retention_pct": 0.0,
+        "kind": "nobatch",
+        "holds": true,
+        "why": "mean batch 1.00 <= 1.05"
+      },
+      "c2": {
+        "pct": -499.80505762253057,
+        "p": 9.1552734375e-05,
+        "wins": 1,
+        "losses": 15,
+        "verdict": "POINTWISE-BETTER"
+      },
+      "c3_gnn": {
+        "pct": -1731.8582717521276,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      },
+      "c3_mpoff": {
+        "pct": -205.40894053363473,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      }
+    },
+    "B": {
+      "c4": {
+        "mean_batch": 3.9131285522647525,
+        "pairs_in_batch": 43406.0,
+        "pair_retention_pct": 52.26867684600934,
+        "kind": "peergroup",
+        "holds": false,
+        "why": "mean batch 3.91 >= 4.0 and pair retention 52.3% >= 60.0%"
+      },
+      "verdict": "VOID"
+    },
+    "E": {
+      "c4": {
+        "mean_batch": 5.970506233908614,
+        "pairs_in_batch": 70345.5,
+        "pair_retention_pct": 84.70870863638552,
+        "kind": "peergroup",
+        "holds": true,
+        "why": "mean batch 5.97 >= 4.0 and pair retention 84.7% >= 60.0%"
+      },
+      "c2": {
+        "pct": -4.154510686515482,
+        "p": 0.860260009765625,
+        "wins": 10,
+        "losses": 6,
+        "verdict": "TIE"
+      },
+      "c3_gnn": {
+        "pct": -106.023772815203,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      },
+      "c3_mpoff": {
+        "pct": -97.80590533932217,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      }
+    },
+    "F": {
+      "c4": {
+        "mean_batch": 7.349698662354843,
+        "pairs_in_batch": 79771.5,
+        "pair_retention_pct": 96.0593179519291,
+        "kind": "peergroup",
+        "holds": true,
+        "why": "mean batch 7.35 >= 4.0 and pair retention 96.1% >= 60.0%"
+      },
+      "c2": {
+        "pct": -3.1332921247246484,
+        "p": 0.596588134765625,
+        "wins": 6,
+        "losses": 10,
+        "verdict": "TIE"
+      },
+      "c3_gnn": {
+        "pct": -141.79612239369843,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      },
+      "c3_mpoff": {
+        "pct": -134.45011539172177,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      }
+    },
+    "D": {
+      "c4": {
+        "mean_batch": 8.159268929503916,
+        "pairs_in_batch": 82986.0,
+        "pair_retention_pct": 99.93015750686384,
+        "kind": "peergroup",
+        "holds": true,
+        "why": "mean batch 8.16 >= 4.0 and pair retention 99.9% >= 60.0%"
+      },
+      "c2": {
+        "pct": -16.319967974201457,
+        "p": 0.001007080078125,
+        "wins": 3,
+        "losses": 13,
+        "verdict": "POINTWISE-BETTER"
+      },
+      "c3_gnn": {
+        "pct": -222.55911242278907,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      },
+      "c3_mpoff": {
+        "pct": -177.30330229658358,
+        "p": 3.0517578125e-05,
+        "wins": 0,
+        "losses": 16,
+        "verdict": "REACTIVE-WINS"
+      }
+    }
+  },
+  "c5": {
+    "peer_share_pct": 21.19434418302829,
+    "cooldown_pct": 0.07208404388113765,
+    "holds": true
+  },
+  "c1": {
+    "gnn_vs_reactive_pct": -1731.8582717521276,
+    "verdict": "BATCHING-DOES-NOT-EXPLAIN"
+  },
+  "rescued_configs": [],
+  "verdict": "BATCHING-DOES-NOT-EXPLAIN; no configuration rescues the graph arm"
+}
