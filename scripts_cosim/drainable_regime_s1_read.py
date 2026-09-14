@@ -102,20 +102,30 @@ def read_b5(snapshots: Path) -> dict:
     if snapshots is None or not snapshots.exists():
         print("[B5] no snapshot file given -- B1/B2 recorded without the queue-range control")
         return {"dim7_p90": None, "holds": None}
-    busy = []
+    # LIVE_AUDIT snapshots carry queue depth in `full_queue_snapshot` (queue_key -> depth);
+    # `candidates` is the co-sim dataset schema and does NOT exist here. Reading the wrong
+    # key returns an empty busy set, which would pass this bar vacuously -- so an empty
+    # parse is a loud failure, not a pass (2026-09-14).
+    busy, rows = [], 0
     for line in snapshots.read_text().splitlines():
         if not line.strip():
             continue
-        for c in (json.loads(line).get("candidates") or []):
-            q = c.get("queue_length")
-            if q is not None and q > 0:
-                busy.append(q)
+        rows += 1
+        for depth in (json.loads(line).get("full_queue_snapshot") or {}).values():
+            if isinstance(depth, (int, float)) and depth > 0:
+                busy.append(depth)
+    if rows == 0:
+        raise SystemExit(f"FAIL LOUD: no snapshots parsed from {snapshots}")
+    if not busy:
+        print(f"[B5] {rows} snapshots, no platform ever carries a queue -- "
+              f"the bar is vacuous at this rate, recorded as NOT-APPLICABLE")
+        return {"dim7_p90": None, "n_busy": 0, "n_snapshots": rows, "holds": None}
     busy.sort()
-    p90 = busy[min(len(busy) - 1, int(0.9 * len(busy)))] if busy else 0.0
+    p90 = busy[min(len(busy) - 1, int(0.9 * len(busy)))]
     holds = p90 <= B5_DIM7_P90_MAX
-    print(f"[B5] dim-7 p90 over {len(busy)} busy candidates = {p90} "
+    print(f"[B5] dim-7 p90 over {len(busy)} busy platform-queues = {p90} "
           f"(<= {B5_DIM7_P90_MAX}) -> holds={holds}")
-    return {"dim7_p90": p90, "n_busy": len(busy), "holds": holds}
+    return {"dim7_p90": p90, "n_busy": len(busy), "n_snapshots": rows, "holds": holds}
 
 
 def main() -> int:
