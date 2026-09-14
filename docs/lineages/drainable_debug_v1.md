@@ -159,3 +159,85 @@ A sanity reading on an unrelated x200 smoke behaves as the overload regime predi
 `knative_network`'s queue time is behind *some* predecessor but **0.0 %** behind a same-batch
 one — at 940× overload the queue is standing load, not self-inflicted — and 25.5 % of tasks had
 only one legal replica, so a quarter of that trace cannot distinguish two schedulers at all.
+
+
+### 2026-09-14 — D3 read: the rung is real, but the ladder below it was not
+
+`knative_network` alone, `HEROSIM_QUEUE_LENGTH ∈ {1, 2, 4, 10, 100}`, two rungs, ten runs
+(jobs 766030–766039). Read tool `scripts_cosim/drainable_debug_d3_read.py` (5 tests, bar
+committed first); reading `simulation_data/drainable_regime_v1/d3_read.json`.
+
+| rung | Q=1 | Q=2 | Q=4 | Q=10 | Q=100 | best low-Q as % of Q=100 |
+|---|---|---|---|---|---|---|
+| **x4000** latency s | 18.40 | 19.78 | 21.52 | 25.49 | **25.95** | **70.9 %** |
+| **x2000** latency s | 14.39 | 16.07 | 19.67 | 28.69 | **141.73** | **10.1 %** |
+
+**x4000: REGIME-IS-REAL.** The rung both parent lineages gated at does not clear the 50 % bar.
+At the default target concurrency Knative is within 29 % of its own best, so its −226 % win over
+the graph arm is not an artifact of that constant.
+
+**x2000: TARGET-CONCURRENCY-ARTIFACT.** One rung down, the default is **9.8× worse** than Q = 1.
+Scale-up fires at `ceil(total_queued / Q) > replicas`, so at Q = 100 a replica must reach a
+hundred queued tasks before a second appears; at ρ ≈ 0.33 the arrivals never build that backlog
+fast enough and the cluster runs on too few replicas for most of the trace. **Every latency
+figure on the S0 ladder between the overload and x4000 is therefore a reading about
+`QUEUE_LENGTH = 100`, not about the rung** — including the x2000 row of the S0 pass-2 table in
+`drainable_regime_v1`. The peer-share and queue-column columns that chose x4000 are unaffected
+(they are per-task ratios, not throughput), so the rung choice stands; the latency column does
+not. Consequence for Phase 2, as registered: every contrast on the load ladder runs at Q = 100
+**and** at the low Q, and both are reported.
+
+A side observation that closes an old story for good: at x4000 Q = 1 the reactive arm issues
+**75,805** scale events — 12× the graph arm's 6,091 at the same rung — and is **29 % faster**.
+Autoscaler churn is not a cost in this simulator. The "churn" mechanism withdrawn from
+`drainable_regime_v1`'s first read should not be revived in any form.
+
+### 2026-09-14 — D2 read: the excess queue is real serialization, and it is NOT self-inflicted batching
+
+Six arms at x4000, 16 s window, uncapped, raw results retained (job 766040; read job 766052).
+50,000 task records per arm. Reading `simulation_data/drainable_regime_v1/d2_read.json`.
+
+| arm | elapsed | queue | batch wait | init | behind **any** predecessor | behind **same-batch** | effective platforms |
+|---|---|---|---|---|---|---|---|
+| `knative_network` | 25.95 | 17.76 | 0.00 | 2.64 | 99.2 % | **0.0 %** | 5.13 |
+| `knative_network_batch` | 26.03 | 17.82 | 0.02 | 2.63 | 99.2 % | 0.1 % | 5.14 |
+| `gnn_s1` | 48.60 | 35.09 | 6.94 | 1.20 | 99.2 % | **11.3 %** | 5.86 |
+| `gnn_s2` | 73.78 | 60.28 | 6.94 | 1.18 | 99.3 % | 6.7 % | 5.72 |
+| `mpoff_s1` | 59.66 | 46.11 | 6.92 | 1.19 | 99.3 % | 8.8 % | 6.05 |
+| `mpoff_s2` | 60.17 | 46.69 | 6.92 | 1.20 | 99.3 % | 8.7 % | 5.83 |
+
+**D2 does not fire: NOT-SELF-INFLICTED on all four learned arms** (9.6–22.9 % of the excess
+against a 50 % bar). Queue time is essentially all serialization — 99.2–99.3 % of it is
+provably behind another task on the same platform, for *every* arm including the reactive one —
+but only a tenth of the learned arms' excess is behind a task their own decode placed. **The
+excess is cross-batch: they put tasks onto replicas that earlier decodes had already loaded.**
+
+The statistic that says why, `chosen_queue_vs_min` — how much deeper than the shallowest legal
+replica each placement went:
+
+| arm | mean | p95 | max | placements above the minimum |
+|---|---|---|---|---|
+| `knative_network` | 0.000 | 0 | 1 | **0.005 %** |
+| `gnn_s1` | 3.65 | 19 | 100 | **35.5 %** |
+| `gnn_s2` | 6.86 | 43 | 183 | 36.0 % |
+| `mpoff_s1` | 5.00 | 18 | 158 | 36.3 % |
+| `mpoff_s2` | 5.07 | 19 | 165 | 35.2 % |
+
+Knative is a scale-free `min` re-read per task, so its number is 0 by construction. The learned
+arms take a deeper replica in **~36 % of the placements where a choice existed**, and at the
+95th percentile that replica carries 18–43 more queued tasks. This is `queue_features.py:13-21`
+measured at a drainable load, and it is the same for the graph arm and its pointwise twin.
+
+**What the learned arms buy with it: almost nothing.** Peer co-location, the environment's own
+objective, is flat across every arm — same-platform pairs 20.77 % (reactive) against 21.4–21.8 %
+(learned), and free exchange bytes 34.0 % against 34.0–35.3 %. A 0.7 pp co-location gain is paid
+for with 19 extra queued tasks at p95. The learned arms do win the terms the parents already
+credited them with (init 1.20 s against 2.64 s, covering cold start and rendezvous), and they
+spread *more*, not less (effective platforms 5.7–6.1 against 5.13) — consistent with
+`serving_gap_v1`'s refutation of the herding hypothesis.
+
+**Two facts about the cell that bound what any scheduler can do here.** 53–58 % of tasks have
+exactly **one** legal replica, so more than half the trace cannot distinguish two schedulers at
+all; and seed variance inside one arm is larger than the gap between arms (`gnn_s1` 48.60 s
+against `gnn_s2` 73.78 s), which is why B1-style contrasts need their 16 seeds.
+
