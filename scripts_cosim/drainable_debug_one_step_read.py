@@ -253,7 +253,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not dirs:
         raise SystemExit(f"FAIL LOUD: no ds_* directories under {args.corpus}")
 
-    rows = [read_dataset(d, args.objective, decoded.get(d.name)) for d in dirs]
+    # The decode file is keyed by the cache's full dataset id, `<corpus dir>/ds_XXXXX`, because
+    # every source corpus numbers its datasets from zero. Match on the same composite key.
+    corpus_name = args.corpus.resolve().name
+    rows = [
+        read_dataset(d, args.objective, decoded.get(f"{corpus_name}/{d.name}") or decoded.get(d.name))
+        for d in dirs
+    ]
+    if decoded and not any(
+        k not in ("dataset", "source", "n_rows", "optimum", "shortest_queue") for r in rows for k in r
+    ):
+        raise SystemExit(
+            f"FAIL LOUD: a decode file was given but none of its keys matched this corpus "
+            f"({corpus_name}); expected keys like '{corpus_name}/{dirs[0].name}'"
+        )
     arms = sorted({k for r in rows for k in r if k not in
                    ("dataset", "source", "n_rows", "optimum", "shortest_queue")})
 

@@ -86,10 +86,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                 f"FAIL LOUD: {ck} decoded no feasible plan on any of {len(graphs)} datasets"
             )
 
-    # Key the file by the bare dataset name, which is how the read walks the corpus dirs.
-    keyed = {did.split("/")[-1]: arms for did, arms in out.items()}
-    args.out.write_text(json.dumps({"_stats": stats, **keyed}, indent=1))
-    print(f"[wrote] {args.out} ({len(keyed)} datasets)")
+    # Key by the cache's FULL dataset id, `<corpus dir name>/ds_XXXXX`. The bare name is not
+    # unique: each source corpus numbers its datasets from zero, so keying on it silently
+    # collapsed 151 datasets into 84 and handed one source's plan to another source's sweep
+    # (caught 2026-09-14 by the read's own not-in-the-sweep guard, which is what it is for).
+    if len(out) != len(graphs):
+        raise SystemExit(
+            f"FAIL LOUD: {len(out)} keyed datasets from {len(graphs)} graphs -- dataset ids "
+            "are colliding and plans would be scored against the wrong sweep"
+        )
+    args.out.write_text(json.dumps({"_stats": stats, **out}, indent=1))
+    print(f"[wrote] {args.out} ({len(out)} datasets)")
     return 0
 
 

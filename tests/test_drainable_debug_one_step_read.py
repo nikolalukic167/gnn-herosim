@@ -279,3 +279,19 @@ def test_the_summary_reports_the_plan_space_so_a_zero_median_is_readable():
     assert out["plan_space"]["min_rows"] == 8
     assert out["plan_space"]["with_real_choice_pct"] == pytest.approx(50.0)
     assert D1_CHOICE_ROWS_MIN == 100
+
+
+def test_decoded_plans_are_matched_on_the_full_dataset_id(tmp_path):
+    """Every source corpus numbers its datasets from zero, so `ds_00000` is not a unique key.
+    Keying on the bare name collapsed 151 datasets into 84 and handed one source's plan to
+    another source's sweep; the read's not-in-the-sweep guard caught it, and this pins the fix."""
+    from scripts_cosim.drainable_debug_one_step_read import load_decoded
+
+    p = tmp_path / "decoded.json"
+    p.write_text(json.dumps({
+        "corpus_a/ds_00000": {"gnn": {"0": [1, 11]}},
+        "corpus_b/ds_00000": {"gnn": {"0": [2, 22]}},
+    }))
+    out = load_decoded(p)
+    assert set(out) == {"corpus_a/ds_00000", "corpus_b/ds_00000"}
+    assert out["corpus_a/ds_00000"]["gnn"] != out["corpus_b/ds_00000"]["gnn"]
