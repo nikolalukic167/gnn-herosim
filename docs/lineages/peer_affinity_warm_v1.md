@@ -388,3 +388,17 @@ the offline MP edge was measured, so the L1 comparison is not under-powered by t
 are unchanged. The stall itself is a simulator liveness defect, recorded in
 `docs/gates/gate-tools.md` (2026-09-14); it is not fixed here because a fix changes the served
 physics and W1's sources must match the gate's.
+
+### 2026-09-14 — W1 corpus landed (472 + 72), cache and split frozen, Knative reproduced, training running
+
+Generate 763302: 40 tasks clean, 6 exited 1 under the original bar because one of their 12 chosen
+snapshots was recorded **`rejected`** (full live slate cap-infeasible at α = 2.0, so no subset can
+carry a label — 8 such snapshots of 480; bar relaxed to ≤ 2 per task with all 12 accounted for,
+7d3859e). Manifests: train **472 success + 8 rejected** over 40 (cell, source) tags, held-out
+**72/72**; no other status anywhere. Cache 762847 (released by hand from the exit-code dependency):
+prescan **544 datasets, 0 infeasible at α = 2.0**; cache `graphs_cache_peer_affinity_v1_warm`
+(544 datasets, 8,950,999 rtt rows, 708 MB); capped near-RTT sidecar 105,029 entries; split
+`experiments/peer_affinity_v1_warm_split.json` **train 378 / val 94 / test 72** (sha256
+fdd5fceb…, committed, md5 equal on both venues). Knative check 762851: `knative_network` total RTT
+**20,130,899,866.180 s** vs landed 20,130,899,866.179844 s — reproduced; `knative_network_batch`
+20,128,718,383.576 s. Train 762848 (32 tasks) started 2026-09-14 ~05:00 UTC.
