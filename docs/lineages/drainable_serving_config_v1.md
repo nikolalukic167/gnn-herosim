@@ -76,3 +76,43 @@ configuration and must be re-stated. Both outcomes are recorded; neither is pref
 were fitted on states from a 940× overload. A null here is a statement about *serving*, not about
 whether a model trained in this regime could win. That question is closed separately by
 `peer_affinity_warm_v1` W0.b on the supervised route.
+
+### 2026-09-14 — Amendment 1: B fails C4; add E `pg16` and F `pg24` (bars unchanged)
+
+First-arm assembly check, `gnn_s1` of each configuration, read against C4 before letting the
+sweep run to conclusion:
+
+| config | mean batch | incomplete | `prefix_pairs_in_batch` | `prefix_peers_outside_batch` | batch wait |
+|---|---|---|---|---|---|
+| A `nobatch` | 1.00 | 0.0 % | 0 | 177,788 | 0.00 s |
+| **B `pg8`** | **3.91** | 63.4 % | **43,398** | 90,992 | 4.56 s |
+| C `tw8` | 4.59 | 0.0 % | 34,173 | 109,442 | 7.98 s |
+| D `pg80` (S1) | 8.41 | 3.0 % | 83,788 | 10,212 | 12.37 s |
+
+**A passes C4** (mean batch ≤ 1.05, and zero in-batch peer pairs, which is what "no grouping"
+means). **C passes C4** (mean batch ≥ 4).
+
+**B fails C4 on both of its thresholds** — mean batch **3.91** against the bar's 4, and
+**43,398** in-batch peer pairs, **51.8 %** of D's 83,788 against the bar's 60 %. **B is VOID and
+is not read.** It failed narrowly and its seed-1 `total_rtt` is the most favourable of the three,
+which is precisely why the bar is not being moved: C4's thresholds were committed before any arm
+ran and they stay where they are. A 8 s window at 0.46 arrivals/s recovers about half a peer
+group, and "about half a group" is not the configuration the sweep set out to test.
+
+**Added, with C1–C5 unchanged and no threshold touched:**
+
+| id | `scheduler.batch_size` | `scheduler.batch_timeout` | `*_BATCH_BY_PEER_GROUP` | poll |
+|---|---|---|---|---|
+| **E `pg16`** | 10 | 16 s | 1 | 0.8 s |
+| **F `pg24`** | 10 | 24 s | 1 | 1.2 s |
+
+A 10-task peer group takes ~21.7 s to co-arrive at this rate, so E sits just below that span and
+F just above it. Between them they bracket the region where a peer group first assembles without
+paying D's 80 s window, and at least one should clear C4. If neither does, the sweep reports that
+the peer-group serving mode has no configuration at this rate that both assembles groups and
+avoids a long wait — which is itself the answer to the question the sweep asks.
+
+**Disclosure.** Seed-1 `total_rtt` for A, B and C was visible in this assembly check before E and
+F were registered. C1, C2, C3 and C5 are untouched by that: they were committed in the original
+registration and no threshold in them has moved. C4's thresholds are likewise unchanged. E and F
+are added because B fell below C4, not because of any arm's latency.
