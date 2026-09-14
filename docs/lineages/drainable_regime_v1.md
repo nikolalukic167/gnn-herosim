@@ -527,3 +527,24 @@ which no measurement in this program had previously tested.
 
 **Still no measurement where a graph arm beats both its pointwise twin and reactive Knative.**
 The search has now covered the overloaded regime, the warm-state corpus and the drainable regime.
+
+### 2026-09-14 — S1's B1 is window-specific; C3 is not (from `drainable_serving_config_v1`)
+
+The child lineage swept the batch policy with everything else held fixed and found the
+`gnn`-vs-`mpoff` contrast to be a function of the window:
+
+| window | mean batch | `gnn` vs `mpoff` | `gnn` vs reactive |
+|---|---|---|---|
+| none (per arrival) | 1.00 | −499.81 %, 1/16 | −1731.86 %, 0/16 |
+| 16 s | 5.97 | **−4.15 %, p = 0.86 → TIE** | −106.02 %, 0/16 |
+| 24 s | 7.35 | **−3.13 %, p = 0.60 → TIE** | −141.80 %, 0/16 |
+| **80 s (this gate)** | 8.16 | **−16.32 %, p = 0.0010 → POINTWISE-BETTER** | −222.56 %, 0/16 |
+
+**S1's B1 verdict stands as read and is scoped to its window.** 80 s is 3.7× the ~21.7 s a
+10-task peer group needs; it was chosen as 0.02 s × 4,000 to satisfy B6, not as a serving optimum.
+At the windows that serve both arms best the contrast is a **TIE**, so **POINTWISE-BETTER is not
+the general statement about these checkpoints at ρ ≈ 0.16** — quote it with the window.
+
+**B2 needs no such qualification.** REACTIVE-WINS holds in all four readable configurations at
+0/16 seeds, and the best of them still leaves both learned arms ~2× slower than
+`knative_network`. Removing batching entirely makes the graph arm **8× worse**, not better.
