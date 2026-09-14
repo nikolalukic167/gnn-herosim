@@ -204,3 +204,67 @@ a non-number or a non-positive value; **unset, the expression is exactly what it
 in the record stays bit-identical.** The ladder scales both together, holding the landed gate's
 ratio of 20 polls per window at every rung. Pass 2 is resubmitted from the top with this in place.
 No bar changes.
+
+## Stage 2 — S1, the live gate at the candidate rung (registered 2026-09-14, before any arm is read)
+
+**Rule 6: this gate runs whatever S0 returns.** S0 orders the work; it does not close it. If S0
+returns NO-GO on every rung, S1 still runs at x4000 and its verdict is recorded with that NO-GO
+named alongside it.
+
+### Why x4000 is the rung
+
+From the pass-2 screen, reading only the arms that had completed (the two x4000/x8000 *batch* arms
+were still running and are not used to choose the rung):
+
+| rung | arrivals/s | peer % of `total_rtt` | rendezvous % of peer | queue % of latency | dim-7 p90 | cool-down |
+|---|---|---|---|---|---|---|
+| landed gate (x200) | 2,659 | 0.0098 | — | 99.99 | ~574 | **99.89 %** |
+| x700 | 2.631 | 1.33 | 1.42 | 98.64 | 143.0 | 9.56 % |
+| x1000 | 1.842 | 1.55 | 2.54 | 98.40 | 240.9 | 6.25 % |
+| x2000 | 0.921 | 3.69 | 12.34 | 95.82 | 105.0 | 3.61 % |
+| **x4000** | **0.460** | **21.19** | **47.86** | **68.44** | **6.0** | **0.07 %** |
+| x8000 | 0.230 | 20.49 | **136.71** | 51.20 | — | 0.03 % |
+
+x4000 is the only rung that clears S1's 20 % peer share while staying inside S3's 50 % rendezvous
+guard, and it is the only rung whose served queue column (dim-7 p90 = 6.0) falls inside the range the
+corpus actually contains (cold max 42). x8000 is excluded: its rendezvous wait **exceeds** its
+exchange time, so tasks spend longer waiting for a peer to appear than exchanging with one.
+
+### Slate
+
+The stage 3 gate slate, unchanged, on the drainable trace — `peer_affinity_v1_stage3_live_gate.sbatch`
+with `WORKLOAD=drainable_f4000_n50000.json`, `CFG=cell_s7901.json`:
+
+- `knative_network` — reactive, per arrival, peer-blind
+- `knative_network_batch` — reactive, 10-task window at the real 0.02 s
+- `gnn` × 16 seeds — T1b `lr2e3`, `masked_topo`, `GNN_BATCH_BY_PEER_GROUP=1`
+- `mpoff` × 16 seeds — identical, `PeerConv` never runs
+
+Run twice: `GNN_PREFIX_PLATFORM_CAP=1` (the capped headline config) and unset. 68 arms. Physics,
+seeds, warmth, `PYTHONHASHSEED` and device are the stage 3 gate's, unchanged. **No retraining** —
+these are the same checkpoints the x200/x800 gates served, so the only moving part between this gate
+and the landed one is the arrival rate.
+
+### Bars
+
+- **B1 — primary, `gnn` vs `mpoff`.** Paired over 16 seeds on `total_rtt`, Wilcoxon signed-rank.
+  **GNN-NEEDED** if `gnn` is faster at p < 0.05 with ≥ 12/16 seeds; **POINTWISE-BETTER** if `mpoff`
+  is, on the same test; **TIE** otherwise.
+- **B2 — `gnn` vs reactive.** Same test against the faster of the two Knative arms.
+  **LEARNED-WINS** / **REACTIVE-WINS** / **TIE**.
+- **B3 — cap dependence.** B1 and B2 are read separately capped and uncapped. If the two disagree on
+  either verdict, the headline is recorded **CAP-CONTINGENT**, as the x200 gate's was.
+- **B4 — regime control, VOID if it fails.** On `knative_network`'s own run: cool-down share < 5 %
+  **and** peer share ≥ 20 % of `total_rtt`. If the gate does not reproduce the screen's regime it did
+  not measure what this stage claims, and B1–B3 are not read.
+- **B5 — queue-range control.** dim-7 p90 over busy platforms ≤ 42. Above it, the served queue column
+  is again outside the trained range and B1/B2 are recorded **OUT-OF-RANGE** rather than as a
+  model-class result.
+
+### What each outcome means
+
+A **TIE** on B1 here, against the x200 p2 gate's GNN-NEEDED (+3.94 %, p = 0.0076, 13/16), is not a
+null result — it says the one positive live reading in the program is a property of a 940× overload.
+A **GNN-NEEDED** on B1 with B2 LEARNED-WINS would be the first measurement in this program where a
+graph arm beats both its pointwise twin and reactive Knative, and it would be at the only load the
+literature would accept. Both are recorded; neither is preferred.
