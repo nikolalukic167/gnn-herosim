@@ -175,11 +175,29 @@ open question pass 2 answers is exactly S4 and S3 at a comparable batching polic
 Pass 2's first submission (763560) reproduced S4 correctly on the five rungs that finished —
 mean batch size **9.82** and **143/150 aligned** at x300 through x2000, against 1.01–1.09 and
 0/150 in pass 1 — which confirms pass 1's S4 failure was the fixed batch window and nothing else.
-Its x4000 and x8000 batch arms then stalled: both advanced **4 simulated seconds in 30 minutes**
-and were cancelled. Cause: `_collect_batch` polls at a hard-coded `poll_interval = 0.001` s, so an
-80 s window costs 80,000 simpy timeout events per batch and a 160 s window twice that. Scaling the
-window without scaling the poll is not a self-similar policy; it is the same class of defect as the
-autoscaler's 1 s reconcile tick on a 6e5 s drain horizon (`COSIM_AUTOSCALER_RECONCILE_INTERVAL`).
+Its x4000 and x8000 batch arms were then cancelled as stalled. **That diagnosis was wrong and is
+corrected here.** Two samples of the simulated clock taken minutes apart differed by 4 s, and I
+attributed it to `_collect_batch`'s hard-coded `poll_interval = 0.001` s (an 80 s window would cost
+80,000 simpy timeout events per batch). The resubmitted arms carry the scaled poll — `poll=4.0` at
+x4000, `poll=8.0` at x8000, confirmed in their logs — and **run at the same speed**: 36,448
+simulated seconds after 29 min, against 37,718 after 30 min before the fix. The arms were never
+stalled; they are simply slow, about a third of their span per half hour, ~85–170 min each, and
+cancelling them was premature.
+
+`py-spy` on the x4000 arm (1,751 samples) gives the real cost, and it is neither the poll nor the
+batch window: **59.3 % of samples are inside `knative_network/autoscaler.py:create_first_replica`**
+— the starved-client retry loop recorded in `docs/gates/gate-tools.md` on 2026-09-14 — and
+**48 % of total samples are `logging.debug` building `LogRecord`s that the ERROR-level handler then
+discards** (`makeRecord` 23 %, `findCaller` 4 %, `_is_internal_frame` 2.6 %). `_collect_task_batch`
+is **5.1 %**. The root logger is configured at `DEBUG` while its only handler is at `ERROR`
+(`simulation.py:656`), so every `logging.debug` call in the simulator pays full record construction
+including a stack walk, for output nobody ever sees. That is ~45 % of the runtime of a long run, and
+it is label-invariant to fix. **Not fixed here** — it touches the shared simulator mid-lineage and
+no bar depends on it; recorded for a separate change.
+
+**Amendment 2a stands as a change but not as a diagnosis.** The poll interval genuinely is a policy
+time constant that must scale with the window, and leaving it at 1 ms inside an 80 s window is a
+latent hazard worth closing; it simply was not what made these two arms slow.
 
 `KNATIVE_BATCH_POLL_INTERVAL` and `GNN_BATCH_POLL_INTERVAL` now set it explicitly and fail loud on
 a non-number or a non-positive value; **unset, the expression is exactly what it was, so every run
