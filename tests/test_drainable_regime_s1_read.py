@@ -18,7 +18,8 @@ def _arm(d: Path, name: str, rtt: float, peer_frac=0.25, end=108681.0):
         "averageQueueTime": 1.0, "averageElapsedTime": 2.0, "arm": name}))
 
 
-def _config(d: Path, gnn_rtts, mpoff_rtts, kn=1000.0, knb=1100.0, peer_frac=0.25, end=108681.0):
+def _config(d: Path, gnn_rtts, mpoff_rtts, kn=1000.0, knb=1100.0, peer_frac=0.25, end=108681.0,
+            counters=True):
     d.mkdir(parents=True, exist_ok=True)
     _arm(d, "knative_network", kn, peer_frac, end)
     _arm(d, "knative_network_batch", knb, peer_frac, end)
@@ -26,6 +27,14 @@ def _config(d: Path, gnn_rtts, mpoff_rtts, kn=1000.0, knb=1100.0, peer_frac=0.25
         _arm(d, f"gnn_s{i}", v, peer_frac, end)
     for i, v in enumerate(mpoff_rtts, 1):
         _arm(d, f"mpoff_s{i}", v, peer_frac, end)
+    if counters:
+        for arm, rtts in (("gnn", gnn_rtts), ("mpoff", mpoff_rtts)):
+            for i in range(1, len(rtts) + 1):
+                f = d / f"{arm}_s{i}.summary.json"
+                j = json.loads(f.read_text())
+                j["schedulerCounters"] = {"prefix_batches": 5000,
+                                          "peer_group_incomplete_batches": 100}
+                f.write_text(json.dumps(j))
 
 
 def _run(cap: Path, unc: Path, out: Path, snapshots=None):
@@ -156,3 +165,52 @@ def test_b5_is_not_applicable_when_nothing_ever_queues(tmp_path):
     assert res["b5"]["holds"] is None
     assert res["b5"]["n_busy"] == 0
     assert "NOT-APPLICABLE" in stdout
+
+
+def _counters(d: Path, arm: str, batches: int, incomplete: int):
+    for i in range(1, 17):
+        p = d / f"{arm}_s{i}.summary.json"
+        j = json.loads(p.read_text())
+        j["schedulerCounters"] = {"prefix_batches": batches,
+                                  "peer_group_incomplete_batches": incomplete}
+        p.write_text(json.dumps(j))
+
+
+def test_b6_confounds_the_read_when_peer_groups_never_assemble(tmp_path):
+    """The x4000 defect: a 2 ms window at 0.46 arrivals/s decodes singletons, so B1
+    would compare two arms that both ran pointwise."""
+    gnn = [100.0 + i for i in range(16)]
+    mpoff = [120.0 + i for i in range(16)]
+    for sub in ("cap", "unc"):
+        _config(tmp_path / sub, gnn, mpoff)
+        _counters(tmp_path / sub, "gnn", 49509, 45284)
+        _counters(tmp_path / sub, "mpoff", 49509, 45284)
+    stdout, res = _run(tmp_path / "cap", tmp_path / "unc", tmp_path / "o.json")
+    assert res["verdict"] == "CONFOUNDED"
+    assert "capped" not in res
+    assert res["b6"]["capped"]["holds"] is False
+
+
+def test_b6_holds_when_groups_assemble(tmp_path):
+    gnn = [100.0 + i for i in range(16)]
+    mpoff = [120.0 + i for i in range(16)]
+    for sub in ("cap", "unc"):
+        _config(tmp_path / sub, gnn, mpoff)
+        _counters(tmp_path / sub, "gnn", 5000, 100)
+        _counters(tmp_path / sub, "mpoff", 5000, 100)
+    _, res = _run(tmp_path / "cap", tmp_path / "unc", tmp_path / "o.json")
+    assert res["b6"]["capped"]["holds"] is True
+    assert res["capped"]["b1"]["verdict"] == "GNN-NEEDED"
+
+
+def test_b6_fails_loud_without_counters(tmp_path):
+    gnn = [100.0 + i for i in range(16)]
+    mpoff = [120.0 + i for i in range(16)]
+    _config(tmp_path / "cap", gnn, mpoff, counters=False)
+    _config(tmp_path / "unc", gnn, mpoff, counters=False)
+    r = subprocess.run(
+        [sys.executable, str(TOOL), "--capped-dir", str(tmp_path / "cap"),
+         "--uncapped-dir", str(tmp_path / "unc"), "--arrival-span-s", str(SPAN),
+         "--output", str(tmp_path / "o.json")], capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "B6 cannot be read" in (r.stdout + r.stderr)
