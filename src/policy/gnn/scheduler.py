@@ -360,7 +360,24 @@ class GNNScheduler(Scheduler):
         # Wait for batch_timeout to collect more tasks
         # Use small increments to be responsive while still batching
         timeout_remaining = self.batch_timeout
+        # `poll_interval` is a POLICY time constant, like `batch_timeout`, and the default 1 ms
+        # is calibrated to the production trace's 0.02 s window (a ratio of 20 polls per
+        # window). A load ladder that stretches arrivals must stretch both or the policy is
+        # not self-similar across rungs: with an 80 s window and a 1 ms poll, one batch that
+        # waits its full window costs 80,000 simpy timeout events, and the run effectively
+        # stalls (drainable_regime_v1 S0 pass 2, 2026-09-14: two arms advanced 4 simulated
+        # seconds in 30 minutes). KNATIVE_BATCH_POLL_INTERVAL / GNN_BATCH_POLL_INTERVAL set it
+        # explicitly; unset, the expression is exactly what it was, so every other run is
+        # bit-identical.
         poll_interval = 0.001  # 1ms polling interval
+        _poll_env = os.environ.get("GNN_BATCH_POLL_INTERVAL")
+        if _poll_env is not None:
+            try:
+                poll_interval = float(_poll_env)
+            except ValueError:
+                raise ValueError(f"GNN_BATCH_POLL_INTERVAL={_poll_env!r} is not a number")
+            if poll_interval <= 0:
+                raise ValueError(f"GNN_BATCH_POLL_INTERVAL={_poll_env!r} must be positive")
 
         if self.batch_by_peer_group:
             # peer_affinity_v1 stage 3: the batch IS the first task's peer group. Members

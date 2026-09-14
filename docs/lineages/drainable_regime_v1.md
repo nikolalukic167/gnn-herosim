@@ -169,3 +169,20 @@ complete, so a longer window costs nothing when the group arrives sooner. **No b
 1's numbers stand as recorded and pass 2 is written to `s0_pass2/` so neither overwrites the other.
 Pass 1's S1/S2 readings are unaffected by the batch window (they are per-task statistics), so the
 open question pass 2 answers is exactly S4 and S3 at a comparable batching policy.
+
+### 2026-09-14 — Amendment 2a: the poll interval is a policy time constant too
+
+Pass 2's first submission (763560) reproduced S4 correctly on the five rungs that finished —
+mean batch size **9.82** and **143/150 aligned** at x300 through x2000, against 1.01–1.09 and
+0/150 in pass 1 — which confirms pass 1's S4 failure was the fixed batch window and nothing else.
+Its x4000 and x8000 batch arms then stalled: both advanced **4 simulated seconds in 30 minutes**
+and were cancelled. Cause: `_collect_batch` polls at a hard-coded `poll_interval = 0.001` s, so an
+80 s window costs 80,000 simpy timeout events per batch and a 160 s window twice that. Scaling the
+window without scaling the poll is not a self-similar policy; it is the same class of defect as the
+autoscaler's 1 s reconcile tick on a 6e5 s drain horizon (`COSIM_AUTOSCALER_RECONCILE_INTERVAL`).
+
+`KNATIVE_BATCH_POLL_INTERVAL` and `GNN_BATCH_POLL_INTERVAL` now set it explicitly and fail loud on
+a non-number or a non-positive value; **unset, the expression is exactly what it was, so every run
+in the record stays bit-identical.** The ladder scales both together, holding the landed gate's
+ratio of 20 polls per window at every rung. Pass 2 is resubmitted from the top with this in place.
+No bar changes.
