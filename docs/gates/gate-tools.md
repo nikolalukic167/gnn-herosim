@@ -125,3 +125,31 @@ Second, smaller: **`gnn_datasets_peer_affinity_v1_c3_x200_train` (the 136-datase
 T1b) is not on the cluster at all** — only `train2` was ever synced. A rebuild there needs
 it rsynced first. `models/` and corpora are gitignored, so "the repo is in sync" says
 nothing about whether a corpus is.
+
+### Addendum: the cluster's copy of a corpus can be missing the SSC the cache build needs
+
+Same day, chasing the same rebuild. After both missing corpora were rsynced, the cluster
+build still died:
+
+```
+Missing system_state_captured_unique.json for ds_00000;
+  run scripts_cosim/refresh_optimal_full_stats.py --repair
+```
+
+`system_state_captured_unique.json` is written by `refresh_optimal_full_stats --rewrite-ssc`,
+which is step 1 of the cache recipe — and **T1b's cache was built locally and rsynced**
+(its own sbatch header says so: *"Cache and split are built LOCALLY and rsynced (never race
+on them here)"*), so the SSC rewrite only ever ran on the local copy. The cluster's
+`train2` has the sweeps but not the snapshots.
+
+Two things follow:
+
+* **`--oversample-manifest` filters at graph-build time, not at load time**
+  (`prepare_graphs_cache.py:1981` versus `:718`). Every dataset under `--base-dirs` is
+  loaded first, so a parent filter does **not** save you from a broken dataset outside the
+  filter. Point `--base-dirs` at directories that hold only what you want, or repair the
+  whole directory.
+* **Rebuild where the corpus is complete.** The local tree held exactly T1b's 516 with SSC
+  on all of them, so the V = 1 cache was built there and rsynced, which is also how T1b
+  itself was built. Check `ls ds_*/system_state_captured_unique.json | wc -l` against the
+  dataset count before choosing where to build.
