@@ -464,3 +464,148 @@ def test_a1_table_covers_cells_the_corpus_never_registers(tmp_path):
     assert "in_corpus|rpiCpu" in t
     assert "live_only|rpiCpu" in t, "a cell the corpus never registers must still get a drain"
     assert t["live_only|rpiCpu"] - t["in_corpus|rpiCpu"] == pytest.approx(1.0)
+
+
+# ==========================================================================
+# Phase C -- the live gate read
+# ==========================================================================
+
+from scripts_cosim import drainable_objective_v1_gate_read as c  # noqa: E402
+
+
+def _summary(arm, latency, mean_batch=8.0, incomplete_pct=3.0):
+    batches = 1000.0
+    return {
+        "arm": arm,
+        "averageElapsedTime": latency,
+        "schedulerCounters": {
+            "prefix_batches": batches,
+            "prefix_tasks_decoded": batches * mean_batch,
+            "peer_group_incomplete_batches": batches * incomplete_pct / 100.0,
+        },
+    }
+
+
+def _gate(v0=60.0, v1=20.0, knative=25.95, **kw):
+    """16 seeds per arm, with a small spread so medians and counts are meaningful."""
+    arms = {"knative_network": {"arm": "knative_network", "averageElapsedTime": knative}}
+    for i in range(1, 17):
+        jitter = (i - 8) * 0.01
+        for arm in ("gnn", "mpoff"):
+            arms[f"v0_{arm}_s{i}"] = _summary(f"v0_{arm}_s{i}", v0 + jitter, **kw)
+            arms[f"v1_{arm}_s{i}"] = _summary(f"v1_{arm}_s{i}", v1 + jitter, **kw)
+    return arms
+
+
+def _c1(pct):
+    return {"arms": {f"v1_{a}_s{i}": {"chosen_queue_vs_min": {"pct_above_min": pct}}
+                     for a in ("gnn", "mpoff") for i in (1, 2)}}
+
+
+def test_c_outcome_is_objective_was_the_lever_when_c3_and_c4_both_fire():
+    res = c.read(_gate(v0=60.0, v1=20.0), _c1(10.0))
+    assert res["C3"]["gnn"]["verdict"] == "LABEL-HELPS"
+    assert res["C4"]["per_arm"]["gnn"]["verdict"] == "LEARNED-BEATS-REACTIVE"
+    assert res["outcome"] == "OBJECTIVE-WAS-THE-LEVER"
+
+
+def test_c_outcome_is_label_helps_not_enough_when_it_beats_v0_but_not_knative():
+    res = c.read(_gate(v0=60.0, v1=40.0), _c1(10.0))
+    assert res["C3"]["gnn"]["verdict"] == "LABEL-HELPS"
+    assert res["C4"]["per_arm"]["gnn"]["verdict"] == "REACTIVE-STILL-WINS"
+    assert res["outcome"] == "LABEL-HELPS-NOT-ENOUGH"
+
+
+def test_c_outcome_is_objective_not_the_lever_when_the_label_does_not_help():
+    res = c.read(_gate(v0=40.0, v1=60.0), _c1(10.0))
+    assert res["outcome"] == "OBJECTIVE-NOT-THE-LEVER"
+
+
+def test_c0_marks_an_arm_that_did_not_batch_as_confounded_and_drops_it():
+    """The bar that caught three confounded reads in the parent, one wrong by 30x."""
+    arms = _gate(v0=60.0, v1=20.0, mean_batch=1.01)
+    res = c.read(arms, _c1(10.0))
+    assert len(res["C0"]["confounded_arms"]) == 64
+    # Every learned arm is dropped, so nothing is read rather than a fast number quoted.
+    assert res["C3"]["gnn"]["verdict"] == "VOID-NO-ARM"
+
+
+def test_c0_also_fires_on_too_many_incomplete_peer_groups():
+    res = c.read(_gate(mean_batch=8.0, incomplete_pct=45.0), _c1(10.0))
+    assert res["C0"]["confounded_arms"], "45 % incomplete must confound"
+
+
+def test_c0_fails_loud_when_an_arm_carries_no_counters():
+    arms = _gate()
+    arms["v1_gnn_s1"].pop("schedulerCounters")
+    with pytest.raises(c.GateReadError, match="schedulerCounters"):
+        c.read(arms, _c1(10.0))
+
+
+def test_c1_confounds_a_latency_win_from_an_arm_that_still_concentrates():
+    """A win from an arm that did not change its behaviour is not evidence about the
+    label -- it is evidence that something else moved."""
+    res = c.read(_gate(v0=60.0, v1=20.0), _c1(35.0))
+    assert res["C3"]["gnn"]["verdict"] == "CONFOUNDED-C1"
+    assert res["C4"]["per_arm"]["gnn"]["verdict"] == "CONFOUNDED-C1"
+    assert res["outcome"] == "CONFOUNDED-C1"
+
+
+def test_c1_absent_is_reported_not_assumed():
+    res = c.read(_gate(v0=60.0, v1=20.0), None)
+    assert res["C1"]["fires"] is None
+    assert "note" in res["C1"]
+    assert res["outcome"] == "OBJECTIVE-WAS-THE-LEVER"
+
+
+def test_c2_reads_v0_against_the_quoted_t1b_baseline():
+    res = c.read(_gate(v0=40.0, v1=20.0), _c1(10.0))
+    assert res["C2"]["gnn"]["reference_median_s"] == pytest.approx(53.45)
+    assert res["C2"]["gnn"]["verdict"] == "CLOCK-WAS-A-DEFECT"
+    res_slow = c.read(_gate(v0=90.0, v1=20.0), _c1(10.0))
+    assert res_slow["C2"]["gnn"]["verdict"] == "CLOCK-NOT-THE-DEFECT"
+
+
+def test_c3_needs_significance_not_just_a_lower_median():
+    """A median that is lower by a hair on overlapping distributions must not fire."""
+    arms = _gate()
+    for i in range(1, 17):
+        arms[f"v0_gnn_s{i}"]["averageElapsedTime"] = 50.0 + (i % 5)
+        arms[f"v1_gnn_s{i}"]["averageElapsedTime"] = 49.9 + (i % 5)
+    res = c.read(arms, _c1(10.0))
+    row = res["C3"]["gnn"]
+    assert row["p"] is not None and row["p"] >= c.C3_ALPHA
+    assert row["verdict"] == "LABEL-DOES-NOT-HELP"
+
+
+def test_c5_predicts_a_tie_and_reports_a_gnn_win_as_an_anomaly():
+    arms = _gate(v0=60.0, v1=20.0)
+    for i in range(1, 17):
+        arms[f"v1_gnn_s{i}"]["averageElapsedTime"] = 10.0 + i * 0.01
+        arms[f"v1_mpoff_s{i}"]["averageElapsedTime"] = 30.0 + i * 0.01
+    res = c.read(arms, _c1(10.0))
+    assert res["C5"]["verdict"] == "GNN-NEEDED-ANOMALY"
+    assert res["C5"]["registered_prediction"] == "TIE"
+
+
+def test_c5_is_a_tie_when_the_arms_overlap():
+    res = c.read(_gate(v0=60.0, v1=20.0), _c1(10.0))
+    assert res["C5"]["verdict"] == "TIE"
+
+
+def test_mann_whitney_separates_disjoint_samples():
+    p = c.mann_whitney_u_p([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [10.0, 11.0, 12.0, 13.0, 14.0, 15.0])
+    assert p is not None and p < 0.01
+
+
+def test_mann_whitney_does_not_separate_identical_samples():
+    a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    p = c.mann_whitney_u_p(a, list(a))
+    assert p is not None and p > 0.5
+
+
+def test_gate_read_fails_loud_on_a_summary_without_latency():
+    arms = _gate()
+    arms["v1_gnn_s1"].pop("averageElapsedTime")
+    with pytest.raises(c.GateReadError, match="averageElapsedTime"):
+        c.read(arms, _c1(10.0))

@@ -232,3 +232,100 @@ regenerates the corpus first and why `V = 0` is the control arm rather than an a
 Disclosed as engineering, not as a bar: the 4.5 s figure is a flat provisional stand-in for the
 A1 read's per-(task type, platform type) table, chosen as the midpoint of the live captures'
 3.6–5.5 s medians. A1 replaces it with the measured table before any corpus is generated.
+
+## 2026-09-14 — Phase A read: A1 FIRES hard, **A2 DOES NOT FIRE**
+
+Jobs 766266 (A1) / 766267 (A2), chained; A3 separately. Everything below is at the gate
+rung's arrival rate, λ = 0.46 tasks/s.
+
+### A1 — CLOCK-DEFECT, by three orders of magnitude
+
+Nine qualifying (task type, platform type) cells over the three D1 capture sources
+(781–1,351 observations each). **Median ratio 784.5× against a 3.0× bar.**
+
+| cell | formula s/item | measured s/item | ratio |
+|---|---|---|---|
+| `dnn1`/`rpiCpu` | 0.0052 | 7.950 | **1536×** |
+| `rf`/`xavierCpu` | 0.0058 | 4.584 | 785× |
+| `dnn2`/`rpiCpu` | 0.1707 | 7.950 | 47× |
+| `cnn`/`xavierCpu` | 0.7078 | 4.584 | 6.5× |
+| `cnn`/`rpiCpu` | 3.0881 | 7.950 | 2.6× |
+
+The spread across cells is the point. The live drain is **4.3–8.0 s per queued item on a
+platform regardless of what type is queued**, because most of it is the peer transfers and
+latency the formula omits, which are per task *instance*. The corpus charges between
+0.005 s and 3.1 s depending on type. **So the corpus does not merely under-price a
+backlog — it prices it as if a queued task's cost were its own compute, when live it is
+dominated by a term the formula does not contain at all.**
+
+Two things the read found on the way, both recorded rather than only survived:
+
+* **The live cluster queues cells the cold corpus never registers.** A2's first attempt on
+  the measured table died on `(dnn2, pynqFpga)`, which appears in no x200 dataset's
+  `replica_placements`. Same shape as the 2026-09-13 `xavierGpu` audit. A1 now emits the
+  full cross product and reports `platform_types_live` against `platform_types_in_corpus`.
+* **The emitted table is the offset form**, `formula(t,p) + max(0, measured(p) − mean_t
+  formula(t,p))`, not the flat measured value: the measurement is per platform (the
+  snapshot does not record which types are queued), and assigning it flat would erase the
+  per-type heterogeneity the simulator does model — `cnn` on `rpiCpu` costs 3.09 s of
+  execution against `dnn1`'s 0.003 s, and a label indifferent to which type goes where
+  would be wrong in a new way. Chosen after seeing the ratios; it changes no bar (A1's is
+  the ratio) and the flat table is emitted alongside.
+
+### A2 — LABEL-DOES-NOT-AGREE on all three sources. **This is the registered falsification, and it landed.**
+
+Median regret against each state's own optimum *under the label in the column*, on the
+states with real choice:
+
+| source (n with choice) | V | shortest-queue | `gnn` | `mpoff` |
+|---|---|---|---|---|
+| `knb` (3) | 0 | 85.20 % | 43.96 % | 81.42 % |
+| | **1** | **49.95 %** | **22.65 %** | 61.00 % |
+| | 2 | 42.78 % | 16.75 % | 50.04 % |
+| `gnn` (40) | 0 | 75.05 % | 53.80 % | 49.85 % |
+| | **1** | **48.41 %** | **39.97 %** | 34.13 % |
+| | 2 | 40.90 % | 35.24 % | 34.58 % |
+| `mpoff` (29) | 0 | 82.11 % | 82.47 % | 73.56 % |
+| | **1** | **44.07 %** | 34.41 % | 32.31 % |
+| | 2 | 37.57 % | 26.73 % | 26.49 % |
+
+**Reversal rate at V = 1: 33.3 % / 42.5 % / 34.5 % against a 60 % bar → LABEL-DOES-NOT-AGREE
+on every source.** A2-rank is **STABLE** everywhere (median Spearman 0.888–0.985 between
+V = 1 and V = 2, 0.967–0.996 between V = 1 and V = 0.5, bar 0.80), so every V in the ladder
+is trainable and the horizon-chaos failure mode is absent — this label *is* a stable
+property of the (state, action) pair, which the one it replaces was not.
+
+**Direction confirmed, magnitude insufficient.** The shaped label likes the reactive plan
+much more than the one-step label does: shortest-queue regret falls 85.2 → 50.0 % on the
+reactive source and 75.1 → 48.4 % on the `gnn` source. It just likes the checkpoint's plan
+more as well, and the ordering never flips. **The externality term as specified does not
+make the supervised target prefer the behaviour that wins the stream.**
+
+Caveat carried: the `knb` source has only **3** states with real choice out of 50 (its
+median whole-group plan space is 8 rows, as D1 recorded), so its 33.3 % is one state in
+three. The `gnn` (40) and `mpoff` (29) sources carry the weight, and they agree.
+
+### What this does and does not decide
+
+A2 is an **offline** read. Under rule 6 it orders the work and does not close it, and the
+registration said so before the number existed: *"A NO-GO on any Phase A bar is recorded
+and Phase B and C still run."* Two independent reasons that is the right call here rather
+than a formality:
+
+1. **A1 fired, and the clock fix is untested live.** V = 0 — the live-clock corpus with the
+   one-step label — is a control arm whose own question A2 does not touch. The record's
+   standing explanation for the drainable loss is that the arms go 18–43 tasks deeper than
+   the shallowest replica; A1 says they were taught a backlog costs ~1/800th of what it
+   does. Whether fixing that alone moves the live gate is bar C2, and nothing offline
+   answers it.
+2. **A2 measures agreement with *shortest-queue*, not with the stream.** The reactive rule
+   is what wins live on this cell, but "the shaped label ranks the reactive plan first" is
+   a proxy for "an arm trained on the shaped label places better", and the program has a
+   standing stop against exactly that inference in the other direction (`hard-stops.md`:
+   do not cite offline regret as evidence about live placement).
+
+Phase B therefore proceeds: corpus generation launched on the measured clock (jobs 766268
+train, 766269 held-out), four caches, and the 96 training runs. **The registered
+expectation is now explicitly a negative one for C3** — A2 predicts the shaped label will
+not help — and that prediction is recorded here, before the gate, so the gate can confirm
+or refute it rather than be read backwards afterwards.
