@@ -282,6 +282,7 @@ def choose_candidates(
     attempts: int = 200,
     demands: Optional[Sequence[Tuple[str, Dict[str, Tuple[str, float]]]]] = None,
     force_keys: Optional[Dict[str, Set[str]]] = None,
+    min_choice_fraction: float = 0.5,
 ) -> Tuple[Dict[str, Set[str]], Dict[str, Any]]:
     """Per task type, the subset of live replicas offered to the sweep.
 
@@ -336,11 +337,17 @@ def choose_candidates(
                 cap_rejected += 1
                 continue
             best = (key, r, subset, counts)
-    if best is None or best[0][1] * 2 < len(reach):
+    # `min_choice_fraction` is how many of the batch's tasks must keep >= 2 candidates. The
+    # default 0.5 is the training-corpus rule: a dataset where most tasks are forced teaches
+    # nothing. A DIAGNOSTIC read over served states wants the opposite (drainable_debug_v1 D1,
+    # 2026-09-14) -- at a drainable load the reactive policy drives the cluster into states
+    # whose whole-peer-group plan space has a median size of 8, and dropping those would
+    # measure a cluster that policy never actually produces.
+    if best is None or best[0][1] < min_choice_fraction * len(reach):
         full_ok = None if demands is None else cap_feasible(demands, None)
         raise SnapshotRejected(
-            f"no candidate subset fits target_combos={target_combos} with at least half the "
-            f"tasks keeping >= 2 candidates (live product {full_product}; "
+            f"no candidate subset fits target_combos={target_combos} with at least "
+            f"{min_choice_fraction:.0%} of tasks keeping >= 2 candidates (live product {full_product}; "
             f"{cap_rejected} draws failed the alpha={CAP_ALPHA_TIGHTEST} cap, full live slate "
             f"feasible={full_ok})"
         )
@@ -355,6 +362,7 @@ def choose_candidates(
         "cap_feasible_alpha": None if demands is None else CAP_ALPHA_TIGHTEST,
         "cap_rejected_draws": cap_rejected,
         "forced_keys": {t: sorted(k) for t, k in (force_keys or {}).items()} or None,
+        "min_choice_fraction": min_choice_fraction,
     }
     return subset, record
 
@@ -493,6 +501,12 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="write configs + candidate records, run no sweep")
     ap.add_argument(
+        "--min-choice-fraction", type=float, default=0.5,
+        help="fraction of a batch's tasks that must keep >= 2 candidates for the draw to be "
+             "accepted (default 0.5, the training-corpus rule). Pass 0 for a diagnostic read "
+             "over served states, where forced tasks are part of what is being measured",
+    )
+    ap.add_argument(
         "--force-candidates-from-plans", action="store_true",
         help="keep the replicas the live shortest-queue rule would use in the candidate subset "
              "(drainable_debug_v1 D1), so that plan is present in the enumerated sweep and can "
@@ -541,7 +555,7 @@ def main() -> int:
             force_keys = reactive_plan_keys(snap) if args.force_candidates_from_plans else None
             subset, record = choose_candidates(
                 snap, rng, args.target_combos, args.max_combos, demands=demands,
-                force_keys=force_keys,
+                force_keys=force_keys, min_choice_fraction=args.min_choice_fraction,
             )
             flagged = flag_candidates(snap, subset)
             provenance = {

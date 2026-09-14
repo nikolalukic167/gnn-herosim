@@ -56,5 +56,5 @@ python3 -u scripts_cosim/make_warm_corpus.py \
   --output-dir "$OUT" --source-tag "${SOURCE}_f4000" \
   --start-index $(( SLURM_ARRAY_TASK_ID * PER )) --limit "$PER" \
   --target-combos "$TARGET" --workers "$WORKERS" \
-  --force-candidates-from-plans --quiet
+  --force-candidates-from-plans --min-choice-fraction 0 --quiet
 echo "=== task ${SLURM_ARRAY_TASK_ID} done ==="
