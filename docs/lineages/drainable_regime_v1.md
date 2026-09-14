@@ -1,17 +1,19 @@
 # drainable_regime_v1 — does the peer-affinity environment carry its own mechanism at a servable load?
 
-**Status:** `ACTIVE` — the S1 live gate ran on 2026-09-14 and **its first read is CONFOUNDED**:
-the gate reused the stage-3 sbatch unchanged, so `GNN_BATCH_TIMEOUT` stayed at 0.002 s while
-inter-arrival times were stretched 4,000×, and the peer-group collector expired on a singleton
-45,284 times out of 49,509 batches. B1/B2 as first read therefore compared two arms that had both
-decoded one task at a time. Amendment 1 adds **B6**, the peer-group assembly control, and the gate
-is re-running with the window scaled (jobs 764453/764454). The confounded numbers are kept below,
-marked, and are not the lineage's outcome.
+**Status:** `CLOSED` 2026-09-14 on its **S1 live gate** (rule 6) — **POINTWISE-BETTER,
+REACTIVE-WINS**, uncapped, B3 unreadable. At ρ ≈ 0.16 — the only rung on this ladder a reviewer
+would accept as a load level, and the **first live gate in the program with its served queue column
+inside the trained range** (dim-7 p90 5 against a cold max of 42) and its peer groups actually
+assembled (mean batch 8.41, 2.98 % incomplete) — `gnn` is **−15.94 %** against its own MP-OFF twin
+(p = 0.0010, 3/16) and **−226.04 %** against reactive Knative (0/16); `mpoff` is −181.22 % (0/16).
+Both learned arms cut peer rendezvous wait **5×** and still lose, paying 12.4 s of batch wait, 3× the
+queue time and ~9× the autoscaler churn. **The x200 p2 GNN-NEEDED reading (+3.94 %, 13/16) does not
+survive the load change.** Three earlier reads were confounded and are kept, marked, and withdrawn —
+see the amendments; the −488.78 % figure from the first is wrong by 30× and must not be quoted.
 
-The controls that do not depend on batching stand: at x4000 the regime is real — peer exchange
-**21.19 %** of `total_rtt`, cool-down **0.07 %**, served dim-7 queue p90 **5** against the
-cold-corpus max of 42, the first live gate in the program with its queue column inside its trained
-range.
+Registered 2026-09-14 with every bar committed before any rung ran. Two S0 pass-2b arms (job 763577)
+were still running at close; they inform **S4**, a screen bar about batch alignment that the S1 gate
+has since answered directly on the gate that matters.
 
 **Parent:** [`peer_affinity_v1`](peer_affinity_v1.md) (the environment, the cell, the trace) and
 [`peer_affinity_warm_v1`](peer_affinity_warm_v1.md) (whose W0 record names "a drainable served regime"
@@ -453,3 +455,75 @@ walks a client's reachable servers into being memory-full.
   and must not be reported later.
 - B4 is read from the uncapped `knative_network` arm, which is the same reactive run in both
   configurations (the cap is a GNN decoder flag and does not touch it).
+
+### 2026-09-14 — S1 LIVE GATE, FINAL READ: **POINTWISE-BETTER, REACTIVE-WINS** (uncapped, B3 unreadable)
+
+Jobs 764836/764837 on `cell_s7901_f4000.json` (`batch_timeout` 80 s) with
+`GNN_BATCH_POLL_INTERVAL=4.0`; uncapped array 34/34 COMPLETED. Attachment
+`drainable_regime_v1/s1_live_read_final.json`. **Every control holds, including the two
+that the earlier reads could not.**
+
+| bar | value | bar | holds |
+|---|---|---|---|
+| B4 peer share of `total_rtt` | 21.19 % | ≥ 20 | yes |
+| B4 cool-down share | 0.07 % | < 5 | yes |
+| B5 dim-7 p90, 427 busy platform-queues | 5 | ≤ 42 | yes |
+| **B6 worst incomplete peer-group batches** | **2.98 %** (`gnn_s12`, 180/6,046) | ≤ 20 | **yes** |
+
+| bar | value |
+|---|---|
+| **B1 `gnn` vs `mpoff`** | **−15.94 %**, p = 0.0010, **3/16** → **POINTWISE-BETTER** |
+| **B2 `gnn` vs `knative_network`** | **−226.04 %**, p = 3.1e-05, **0/16** → **REACTIVE-WINS** |
+| `mpoff` vs `knative_network` (descriptive) | −181.22 %, p = 3.1e-05, 0/16 |
+| B3 | **UNREADABLE** — the capped configuration did not terminate (Amendment 2) |
+
+**The confounded read overstated the gap by 30×.** It gave B1 −488.78 %; with the peer groups
+actually assembled it is **−15.94 %**. The sign and the significance survive, the magnitude does
+not. Any use of the earlier figure is wrong.
+
+#### Where the time goes (medians over 16 seeds, uncapped)
+
+| statistic | `knative_network` | `knative_network_batch` | `mpoff` | `gnn` |
+|---|---|---|---|---|
+| average task latency, s | 25.95 | 26.03 | 71.95 | 83.69 |
+| of which queue, s | 17.76 | 17.82 | 53.40 | **65.19** |
+| of which batch wait, s | 0 | 0.020 | **12.40** | **12.37** |
+| `totalPeerExchangeTime`, s | 2.750e5 | 2.753e5 | 2.759e5 | 2.755e5 |
+| **`totalPeerRendezvousWait`, s** | **1.316e5** | 1.314e5 | **2.684e4** | **2.646e4** |
+| rendezvous as % of exchange | 47.86 | 47.74 | **9.73** | **9.61** |
+| average pull, s | 6.855 | 6.854 | 5.164 | 5.173 |
+| average initialization, s | 2.637 | 2.634 | 0.555 | 0.547 |
+| `scaleEventCount` | 1,036 | 1,060 | 9,190 | 8,878 |
+
+**The learned arms are good at the thing they were trained on and lose anyway.** Both cut
+peer rendezvous wait **5×** against reactive Knative (47.9 % of exchange time down to 9.6 %),
+and both cut pull and initialization time. They then give it all back and more:
+
+- **12.4 s of batch wait** they pay and the reactive arms do not — the honest price of waiting
+  for a peer group to co-arrive at 0.46 arrivals/s, and 15–17 % of their own latency.
+- **3× the queue time** (53–65 s against 17.8 s).
+- **~9× the autoscaler churn** (8,878–9,190 scale events against 1,036).
+
+Net: `mpoff` is 2.8× and `gnn` 3.2× slower than reactive Knative, on **0/16** seeds each.
+
+**The graph arm's loss to its twin is queue, not peers.** `gnn` carries *less* peer exchange
+and *less* rendezvous wait than `mpoff`, the same batch wait, and **22 % more queue time**
+(65.19 s against 53.40 s). Message passing buys a marginally better peer placement and pays for
+it in queueing — which is the same trade the offline/live reversal showed, now measured at a
+load a reviewer would accept and with the peer graph actually present in the batch.
+
+**Churn is a learned-arm property, not a graph-arm property.** `scaleEventCount` is 8,878 for
+`gnn` and 9,190 for `mpoff` — the graph arm is marginally *lower*. The confounded read's
+"autoscaler churn is the mechanism, 1,036 → 1,774 → 20,400" is **withdrawn**: that spread was an
+artifact of singleton decoding.
+
+#### What this closes
+
+The one positive live reading in the program — x200 p2 capped, `gnn` vs `mpoff` **+3.94 %**,
+p = 0.0076, 13/16 — **does not survive the load change.** Same checkpoints, same cell, same
+physics, peer groups assembled in both, and at ρ ≈ 0.16 the sign is reversed at p = 0.0010.
+And both learned arms lose to reactive Knative by 2–3× at a load level the literature accepts,
+which no measurement in this program had previously tested.
+
+**Still no measurement where a graph arm beats both its pointwise twin and reactive Knative.**
+The search has now covered the overloaded regime, the warm-state corpus and the drainable regime.
