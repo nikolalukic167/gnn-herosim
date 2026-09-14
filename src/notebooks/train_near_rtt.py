@@ -274,11 +274,17 @@ _inference_feature_layout: Optional[str] = None
 _topology_feature_contract: Optional[str] = None
 _queue_norm_mode: Optional[str] = None
 _required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").strip()
+# drainable_objective_v1: default for a cache with no metadata.json at all -- every such
+# cache predates the shaped label and is one-step "rtt" by construction.
+_cache_label_objective = "rtt"
 _metadata_path = CACHE_CTX.cache_dir / "metadata.json"
 if _metadata_path.exists():
     with open(_metadata_path, "r", encoding="utf-8") as _mf:
         _cache_meta = json.load(_mf)
     _cache_version = _cache_meta.get("cache_version") or _cache_meta.get("version")
+    # drainable_objective_v1: which label this cache's targets were built on. Absent on
+    # every cache built before 2026-09-14, which are all one-step "rtt" by construction.
+    _cache_label_objective = str(_cache_meta.get("label_objective") or "rtt")
     # Caches older than CACHE_VERSION 5.7 predate the field and are legacy_v0 by construction.
     _queue_feature_contract = validate_queue_feature_contract(
         _cache_meta.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
@@ -2017,6 +2023,13 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # Which capacity rung the labels AND the capacity columns came from —
                 # they move together, so this names both.
                 "dag_alpha_key": NEAR_CFG.dag_alpha_key if TEACHER_FORCED else None,
+                # drainable_objective_v1: WHICH LABEL this checkpoint was fitted to.
+                # Copied from the cache's own metadata rather than from the environment,
+                # because the label is a property of the cache, not of the training
+                # shell — an arm trained on a shaped cache with the env unset would
+                # otherwise claim "rtt". Serving reads this through
+                # executesimulation.checkpoint_mp_config.
+                "label_objective": _cache_label_objective,
                 "tied_label_mode": (
                     "any_of_k_marginalized" if TEACHER_FORCED else None
                 ),

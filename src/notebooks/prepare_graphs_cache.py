@@ -50,6 +50,14 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from non_unique_lib.training_contract import load_sweep_minimum
+from scripts_cosim.drift_label import (
+    DRAIN_TABLE_ENV,
+    LABEL_ARRIVAL_RATE_ENV,
+    LABEL_OBJECTIVE_ENV,
+    DatasetLabeler,
+    label_config_from_env,
+    plan_from_placement_plan,
+)
 from src.placement.queue_features import (
     DEFAULT_QUEUE_FEATURE_CONTRACT,
     VALID_QUEUE_FEATURE_CONTRACTS,
@@ -164,6 +172,30 @@ class Config:
     dag_partial_state: bool = False
 
 
+# drainable_objective_v1: the label a cache is built on. Carried in the environment
+# (NEAR_RTT_LABEL_OBJECTIVE / NEAR_RTT_LABEL_ARRIVAL_RATE / HEROSIM_BACKLOG_DRAIN_TABLE)
+# rather than in Config, because the JSONL parse fans out over a ProcessPoolExecutor and
+# a worker must resolve the same label as its parent under any start method. Unset means
+# `rtt`, and every read site below is then the identity -- an existing cache rebuild is
+# byte-identical.
+_LABELER: Optional[DatasetLabeler] = None
+
+
+def _labeler() -> DatasetLabeler:
+    global _LABELER
+    if _LABELER is None:
+        _LABELER = DatasetLabeler(label_config_from_env())
+    return _LABELER
+
+
+def _label_of_row(ds_dir: Path, placement_plan: Dict, rtt: float) -> float:
+    """The training label for one sweep row. Identity under the default objective."""
+    lab = _labeler()
+    if lab.config.is_identity:
+        return float(rtt)
+    return lab.value(ds_dir, plan_from_placement_plan(placement_plan), float(rtt))
+
+
 def load_oversample_weights(manifest_path: Path) -> Dict[str, int]:
     """dataset_id (corp/ds_*) -> repeat count (>=1). Weight 0 excludes."""
     raw = json.loads(manifest_path.read_text())
@@ -208,6 +240,35 @@ def parse_args() -> Config:
             "Queue normalization mode: "
             "'scheduler_adaptive' matches GNNScheduler p90/cap logic, "
             "'fixed' uses --queue-norm-factor."
+        ),
+    )
+    parser.add_argument(
+        "--label-objective",
+        default=None,
+        help=(
+            "drainable_objective_v1: 'rtt' (default, the historical one-step sweep "
+            "minimum) or 'rtt_drift:<V>', which adds V x the queueing this plan "
+            "inflicts on later arrivals. Sets NEAR_RTT_LABEL_OBJECTIVE for the JSONL "
+            "workers."
+        ),
+    )
+    parser.add_argument(
+        "--label-arrival-rate",
+        type=float,
+        default=None,
+        help=(
+            "Tasks/s the SERVED cluster faces, required by rtt_drift. A property of the "
+            "deployment the label is for, never inferred from the 10-task batch."
+        ),
+    )
+    parser.add_argument(
+        "--label-drain-table",
+        type=Path,
+        default=None,
+        help=(
+            "Measured per-item backlog drain table (the A1 read's output). Sets "
+            "HEROSIM_BACKLOG_DRAIN_TABLE so the label prices a standing queue on the "
+            "same clock the corpus was generated with."
         ),
     )
     parser.add_argument(
@@ -269,6 +330,24 @@ def parse_args() -> Config:
 
     priors_path = args.priors_path or (args.project_root / "data" / "nofs-ids" / "task-types.json")
     cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # drainable_objective_v1: the label config travels in the environment so the JSONL
+    # ProcessPoolExecutor workers resolve the same one under any start method. A flag
+    # given here overrides an inherited env value; neither given leaves 'rtt'.
+    if args.label_objective is not None:
+        os.environ[LABEL_OBJECTIVE_ENV] = str(args.label_objective)
+    if args.label_arrival_rate is not None:
+        os.environ[LABEL_ARRIVAL_RATE_ENV] = repr(float(args.label_arrival_rate))
+    if args.label_drain_table is not None:
+        table = Path(args.label_drain_table)
+        if not table.exists():
+            raise SystemExit(f"FAIL LOUD: --label-drain-table {table} does not exist")
+        os.environ[DRAIN_TABLE_ENV] = str(table)
+    os.environ.setdefault("HEROSIM_TASK_TYPES", str(priors_path))
+    # Resolve now, in the parent, so a bad combination fails before any dataset is read
+    # rather than inside a worker whose traceback is swallowed by the pool.
+    _cfg = label_config_from_env()
+    logger.info("Label objective: %s", _cfg.describe())
 
     return Config(
         base_dirs=base_dirs,
@@ -644,7 +723,14 @@ def load_all_datasets(
                 continue
             
             try:
-                sweep_plan, sweep_rtt, _sweep_combo = load_sweep_minimum(jsonl_path)
+                sweep_plan, sweep_rtt, _sweep_combo = load_sweep_minimum(
+                    jsonl_path,
+                    value_of=(
+                        None
+                        if _labeler().config.is_identity
+                        else (lambda plan, rtt, _ds=dataset_dir: _label_of_row(_ds, plan, rtt))
+                    ),
+                )
                 dataframes = extract_dataset_to_dataframes(
                     optimal_result_path,
                     placement_plan=sweep_plan,
@@ -735,8 +821,9 @@ def export_task_metrics_for_analysis(
 def _placement_combos_from_jsonl(jsonl_path: Path) -> Tuple[str, List[Tuple[PlacementCombo, float]]]:
     """Parse one placements.jsonl; return (dataset_id, list of (placement combo, rtt))."""
     combos: List[Tuple[PlacementCombo, float]] = []
-    ds_name = jsonl_path.parent.parent.name
-    source_dir = jsonl_path.parent.parent.parent.name
+    ds_dir = jsonl_path.parent.parent
+    ds_name = ds_dir.name
+    source_dir = ds_dir.parent.name
     dataset_id = f"{source_dir}/{ds_name}"
     try:
         with open(jsonl_path, "r") as f:
@@ -758,7 +845,9 @@ def _placement_combos_from_jsonl(jsonl_path: Path) -> Tuple[str, List[Tuple[Plac
                     )
                     if len(combo) == 0:
                         continue
-                    combos.append((combo, float(rtt_val)))
+                    combos.append(
+                        (combo, _label_of_row(ds_dir, placement_plan, float(rtt_val)))
+                    )
                 except (json.JSONDecodeError, ValueError, KeyError, IndexError):
                     continue
     except OSError as e:
@@ -2038,8 +2127,17 @@ def main():
             'relative 1e-9 (tol = 1e-9 * max(1, |best|)), the §4 tie-tolerance '
             'convention' if config.dag_partial_state else None
         ),
+        # drainable_objective_v1: which label this cache was built on. 'rtt' is the
+        # historical one-step sweep minimum; anything else names the coefficient, the
+        # arrival rate and the backlog clock, so a checkpoint's provenance can never be
+        # ambiguous about what it was fitted to.
+        'label_objective': _labeler().config.describe(),
         'training_contract': {
-            'label_source': 'placements.jsonl_sweep_minimum',
+            'label_source': (
+                'placements.jsonl_sweep_minimum'
+                if _labeler().config.is_identity
+                else f'placements.jsonl_sweep_minimum@{_labeler().config.describe()}'
+            ),
             'replica_source': 'ssc_scheduling_time_replicas',
             'warmth_source': 'ssc_previous_task_type_name',
             'canonical_parent_attr': 'parent_dataset_id',

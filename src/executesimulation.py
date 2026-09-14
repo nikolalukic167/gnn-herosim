@@ -652,6 +652,12 @@ def checkpoint_mp_config(model_path: Path) -> dict:
         config["task_type_onehot_dim"] = int(payload["task_type_onehot_dim"] or 0)
     if payload.get("partial_state_contract"):
         config["partial_state_contract"] = str(payload["partial_state_contract"])
+    # drainable_objective_v1: which label the checkpoint was fitted to. Weight-invisible
+    # and serving-inert (the decoder does not change), but a live result that does not
+    # say which label produced its arm is unreadable six weeks later — and this whitelist
+    # is the only path from the sidecar to run_provenance.
+    if payload.get("label_objective"):
+        config["label_objective"] = str(payload["label_objective"])
     if payload.get("dag_task_type_vocab"):
         config["dag_task_type_vocab"] = list(payload["dag_task_type_vocab"])
     # Not a bool: which network entities the training graph contained. Recoverable from
@@ -1096,6 +1102,11 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "HEROSIM_REPLICA_PLATFORM_TYPES",
             "PARTIAL_STATE_CONTRACT",
             "PARTIAL_STATE_PEER_MASS",
+            # drainable_objective_v1: the backlog clock a corpus was generated on, and
+            # the label config, so a gate result names both.
+            "HEROSIM_BACKLOG_DRAIN_TABLE",
+            "NEAR_RTT_LABEL_OBJECTIVE",
+            "NEAR_RTT_LABEL_ARRIVAL_RATE",
             "INFERENCE_FEATURE_LAYOUT",
             "KNATIVE_BATCH_SIZE",
             "KNATIVE_BATCH_TIMEOUT",
