@@ -153,7 +153,9 @@ def read_b5(snapshots: Path) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--capped-dir", required=True, type=Path)
+    ap.add_argument("--capped-dir", type=Path,
+                    help="omit when the capped configuration did not terminate; B3 is then "
+                         "recorded UNREADABLE and B1/B2 are read on the uncapped arms only")
     ap.add_argument("--uncapped-dir", required=True, type=Path)
     ap.add_argument("--snapshots", type=Path)
     ap.add_argument("--arrival-span-s", type=float, required=True)
@@ -164,7 +166,8 @@ def main() -> int:
                     "b4_peer_min_pct": B4_PEER_SHARE_MIN_PCT,
                     "b4_cooldown_max_pct": B4_COOLDOWN_MAX_PCT,
                     "b5_dim7_p90_max": B5_DIM7_P90_MAX}}
-    out["b4"] = read_b4(a.capped_dir, a.arrival_span_s)
+    regime_dir = a.capped_dir or a.uncapped_dir
+    out["b4"] = read_b4(regime_dir, a.arrival_span_s)
     out["b5"] = read_b5(a.snapshots)
     if not out["b4"]["holds"]:
         out["verdict"] = "VOID"
@@ -172,27 +175,33 @@ def main() -> int:
         a.output.write_text(json.dumps(out, indent=2))
         return 0
 
-    out["b6"] = {"capped": read_b6(a.capped_dir, "capped"),
-                 "uncapped": read_b6(a.uncapped_dir, "uncapped")}
-    if not (out["b6"]["capped"]["holds"] and out["b6"]["uncapped"]["holds"]):
+    out["b6"] = {"uncapped": read_b6(a.uncapped_dir, "uncapped")}
+    if a.capped_dir is not None:
+        out["b6"]["capped"] = read_b6(a.capped_dir, "capped")
+    if not all(v["holds"] for v in out["b6"].values()):
         out["verdict"] = "CONFOUNDED"
         print("[verdict] CONFOUNDED -- the peer groups never assembled, so B1/B2 would "
               "compare two arms that both decoded singletons")
         a.output.write_text(json.dumps(out, indent=2))
         return 0
 
-    out["capped"] = read_config(a.capped_dir, "capped")
     out["uncapped"] = read_config(a.uncapped_dir, "uncapped")
+    if a.capped_dir is not None:
+        out["capped"] = read_config(a.capped_dir, "capped")
+        same_b1 = out["capped"]["b1"]["verdict"] == out["uncapped"]["b1"]["verdict"]
+        same_b2 = out["capped"]["b2"]["verdict"] == out["uncapped"]["b2"]["verdict"]
+        out["b3_cap_contingent"] = not (same_b1 and same_b2)
+        print(f"[B3] cap-contingent = {out['b3_cap_contingent']}")
+    else:
+        out["b3_cap_contingent"] = None
+        print("[B3] UNREADABLE -- the capped configuration did not terminate")
 
-    same_b1 = out["capped"]["b1"]["verdict"] == out["uncapped"]["b1"]["verdict"]
-    same_b2 = out["capped"]["b2"]["verdict"] == out["uncapped"]["b2"]["verdict"]
-    out["b3_cap_contingent"] = not (same_b1 and same_b2)
-    print(f"[B3] cap-contingent = {out['b3_cap_contingent']}")
-
-    head = out["capped"]["b1"]["verdict"]
+    head = (out["capped"] if a.capped_dir is not None else out["uncapped"])["b1"]["verdict"]
     if out["b5"]["holds"] is False:
         head = f"{head} (OUT-OF-RANGE: B5 failed)"
-    if out["b3_cap_contingent"]:
+    if out["b3_cap_contingent"] is None:
+        head = f"{head} (UNCAPPED ONLY; B3 unreadable)"
+    elif out["b3_cap_contingent"]:
         head = f"{head}, CAP-CONTINGENT"
     out["verdict"] = head
     print(f"[verdict] {head}")
