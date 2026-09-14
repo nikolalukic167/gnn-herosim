@@ -17,10 +17,14 @@ BARS (signed in docs/lineages/drainable_objective_v1.md before any arm ran):
                         behaviour it was built to change, C2/C3 are read as CONFOUNDED --
                         a latency win from an arm that still concentrates is not evidence
                         about the label.
-  C2 clock defect       V = 0 vs the T1b checkpoints at this cell: median lower AND
-                        >= 12/16 seeds below T1b's median  =>  CLOCK-WAS-A-DEFECT.
-  C3 label lever        V = 1 vs V = 0, same architecture: median lower, Mann-Whitney
-     (PRIMARY)          p < 0.05, >= 12/16  =>  LABEL-HELPS.
+  C2 clock defect       WITHDRAWN by Amendment 1 and replaced by a measurement: repricing
+                        the backlog on the measured clock moves the median sweep RTT ~1 %
+                        and leaves the ARGMIN PLAN unmoved, so a V = 0 arm is a copy of
+                        T1b and this bar could not have fired by construction.
+  C3 label lever        V = 1 vs the T1b lr2e3 checkpoints at this cell (the V = 0 control,
+     (PRIMARY)          same corpus, same split, same seeds, same lr -- only the label
+                        differs): median lower, Mann-Whitney p < 0.05, >= 12/16
+                        =>  LABEL-HELPS.
   C4 vs reactive        V = 1 vs knative_network: median below AND >= 12/16 seeds below
      (HEADLINE)         =>  LEARNED-BEATS-REACTIVE, which no measurement in this program
                         has produced at a drainable load.
@@ -58,10 +62,15 @@ C3_MIN_SEEDS = 12
 C3_ALPHA = 0.05
 C4_MIN_SEEDS = 12
 SEEDS_PER_ARM = 16
-# The T1b baseline at this exact cell (drainable_serving_config_v1, config E, 16 s window),
-# medians over 16 seeds. Quoted, not re-run.
+# The T1b control at this exact cell (drainable_serving_config_v1, config E, 16 s window).
+# Its PER-SEED results are on disk at results/drain_f4000_E_pg16 and are loaded with
+# --control-results, so C3 is a proper 16-vs-16 test rather than a comparison against a
+# constant. These medians are the fallback and the cross-check: a control dir whose median
+# disagrees with them is not the run the record describes, and the read says so.
 T1B_BASELINE_S = {"gnn": 53.45, "mpoff": 51.32}
+T1B_BASELINE_TOLERANCE_S = 0.05
 KNATIVE_BASELINE_S = 25.95
+CONTROL_RESULTS_DEFAULT = "simulation_data/peer_affinity_live_gate/results/drain_f4000_E_pg16"
 # ---------------------------------------------------------------------------
 
 
@@ -181,7 +190,40 @@ def compare(
     }
 
 
-def read(arms: Dict[str, Dict[str, Any]], c1: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def load_control(results_dir: Optional[Path]) -> Dict[str, List[float]]:
+    """T1b's per-seed latencies at this cell, checked against the recorded medians.
+
+    The control is a real 16-seed arm, not a number in a comment. A control directory whose
+    median disagrees with what the record says is a different run, and reading a contrast
+    against it would silently redefine the baseline.
+    """
+    if results_dir is None:
+        return {}
+    if not results_dir.is_dir():
+        raise GateReadError(f"control results dir missing: {results_dir}")
+    out: Dict[str, List[float]] = {}
+    for arm in ("gnn", "mpoff"):
+        vals = []
+        for path in sorted(results_dir.glob(f"{arm}_s*.summary.json")):
+            vals.append(float(json.loads(path.read_text())["averageElapsedTime"]))
+        if not vals:
+            raise GateReadError(f"no {arm}_s*.summary.json under {results_dir}")
+        med = st.median(vals)
+        expected = T1B_BASELINE_S[arm]
+        if abs(med - expected) > T1B_BASELINE_TOLERANCE_S:
+            raise GateReadError(
+                f"control {arm} median {med:.2f} s != the recorded T1b baseline "
+                f"{expected:.2f} s -- {results_dir} is not the run the record describes"
+            )
+        out[arm] = vals
+    return out
+
+
+def read(
+    arms: Dict[str, Dict[str, Any]],
+    c1: Optional[Dict[str, Any]],
+    control: Optional[Dict[str, List[float]]] = None,
+) -> Dict[str, Any]:
     out: Dict[str, Any] = {"bars": {
         "C0_MEAN_BATCH_MIN": C0_MEAN_BATCH_MIN,
         "C0_INCOMPLETE_MAX_PCT": C0_INCOMPLETE_MAX_PCT,
@@ -194,7 +236,7 @@ def read(arms: Dict[str, Dict[str, Any]], c1: Optional[Dict[str, Any]]) -> Dict[
     c0: Dict[str, Any] = {}
     confounded: set = set()
     for name, summary in arms.items():
-        if not any(name.startswith(p) for p in ("v0_", "v1_", "v05_", "v2_")):
+        if not any(name.startswith(p) for p in ("v1_", "v05_", "v2_")):
             continue
         c0[name] = counters_ok(summary, name)
         if not c0[name]["passes"]:
@@ -224,25 +266,36 @@ def read(arms: Dict[str, Dict[str, Any]], c1: Optional[Dict[str, Any]]) -> Dict[
 
     behaviour_ok = out["C1"].get("fires")
 
-    # --- C2 / C3 / C4 / C5 ---------------------------------------------------
-    c2: Dict[str, Any] = {}
-    for arm in ("gnn", "mpoff"):
-        c2[arm] = compare(group(f"v0_{arm}"), T1B_BASELINE_S[arm], C2_MIN_SEEDS)
-        c2[arm]["verdict"] = (
-            "CLOCK-WAS-A-DEFECT" if c2[arm].get("fires") else "CLOCK-NOT-THE-DEFECT"
-        )
-    out["C2"] = c2
+    # --- C2 (withdrawn) / C3 / C4 / C5 ---------------------------------------
+    out["C2"] = {
+        "verdict": "WITHDRAWN",
+        "note": ("Amendment 1: repricing the backlog on the measured clock moves the median "
+                 "sweep RTT ~1 % and leaves the argmin plan unmoved, so V = 0 is the T1b "
+                 "checkpoints and this bar could not fire by construction. Replaced by that "
+                 "measurement, recorded in the node."),
+    }
 
     c3: Dict[str, Any] = {}
     for arm in ("gnn", "mpoff"):
-        v0 = group(f"v0_{arm}")
         v1 = group(f"v1_{arm}")
-        if not v0 or not v1:
+        if not v1:
             c3[arm] = {"verdict": "VOID-NO-ARM"}
             continue
-        v0_med = st.median([v for _n, v in v0])
+        # The control is T1b at this cell: its 16 per-seed latencies when they are on
+        # disk (a proper 16-vs-16 test), the recorded median otherwise (seed count only,
+        # no p). A V = 0 arm trained here would be the same checkpoint by Amendment 1.
+        control_vals = (control or {}).get(arm)
+        v0_med = st.median(control_vals) if control_vals else T1B_BASELINE_S[arm]
         row = compare(v1, v0_med, C3_MIN_SEEDS)
-        row["p"] = mann_whitney_u_p([v for _n, v in v1], [v for _n, v in v0])
+        row["control"] = (
+            f"T1b {arm}, {len(control_vals)} seeds at this cell" if control_vals
+            else f"T1b {arm} recorded median at this cell (per-seed values not supplied)"
+        )
+        row["p"] = (
+            mann_whitney_u_p([v for _n, v in v1], control_vals) if control_vals else None
+        )
+        # Without per-seed control values there is no p, and the bar explicitly requires
+        # one: a seed-count majority against a single number is not a significance test.
         row["fires"] = bool(row.get("fires")) and row["p"] is not None and row["p"] < C3_ALPHA
         row["verdict"] = "LABEL-HELPS" if row["fires"] else "LABEL-DOES-NOT-HELP"
         if behaviour_ok is False:
@@ -301,12 +354,15 @@ def main() -> int:
     ap.add_argument("--results", type=Path, required=True)
     ap.add_argument("--raw-read", type=Path, default=None,
                     help="drainable_debug_pertask_read.py output, for C1")
+    ap.add_argument("--control-results", type=Path, default=Path(CONTROL_RESULTS_DEFAULT),
+                    help="T1b's 16-seed results at this cell, the C3 control")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
     arms = load_arms(args.results)
     c1 = json.loads(args.raw_read.read_text()) if args.raw_read else None
-    result = read(arms, c1)
+    control = load_control(args.control_results)
+    result = read(arms, c1, control)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2))
