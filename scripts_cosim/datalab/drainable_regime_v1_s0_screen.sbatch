@@ -35,7 +35,8 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 GATE=simulation_data/peer_affinity_live_gate
 S0=simulation_data/drainable_regime_v1/s0
 N=50000
-FACTORS=(300 1000 2000 4000)
+# Amendment 1 (2026-09-14): overridable so the R1b/R1c rungs submit against the same script.
+read -r -a FACTORS <<< "${DRAIN_FACTORS:-300 1000 2000 4000}"
 T=${SLURM_ARRAY_TASK_ID}
 F=${FACTORS[$(( T / 2 ))]}
 WORKLOAD=$GATE/workloads/drainable_f${F}_n${N}.json

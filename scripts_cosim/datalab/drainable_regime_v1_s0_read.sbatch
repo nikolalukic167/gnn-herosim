@@ -22,9 +22,9 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 
 S0=simulation_data/drainable_regime_v1/s0
 n=$(ls "$S0"/results/*.summary.json 2>/dev/null | wc -l)
-[[ "$n" -eq 8 ]] || { echo "FAIL LOUD: expected 8 arm summaries under $S0/results, found $n" >&2; exit 1; }
+[[ "$n" -eq 12 ]] || { echo "FAIL LOUD: expected 12 arm summaries under $S0/results, found $n" >&2; exit 1; }
 
 python3 scripts_cosim/drainable_regime_s0_read.py \
   --results-dir "$S0/results" --snapshots-dir "$S0/snapshots" \
-  --factors 300 1000 2000 4000 --output "$S0/s0_read.json"
+  --factors 300 500 700 1000 2000 4000 --output "$S0/s0_read.json"
 echo "=== S0 read done ==="

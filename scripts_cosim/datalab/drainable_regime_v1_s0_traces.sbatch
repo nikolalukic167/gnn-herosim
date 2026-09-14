@@ -25,10 +25,11 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 GATE=simulation_data/peer_affinity_live_gate
 SRC=$GATE/workloads/workload-150-150-peer_p2_x200.json
 N=50000
+FACTORS="${DRAIN_FACTORS:-300 1000 2000 4000}"
 [[ -f "$SRC" ]] || { echo "FAIL LOUD: source trace missing: $SRC" >&2; exit 1; }
 echo "[INPUTS] source $(md5sum "$SRC" | cut -c1-12)"
 
-for F in 300 1000 2000 4000; do
+for F in $FACTORS; do
   OUT=$GATE/workloads/drainable_f${F}_n${N}.json
   if [[ -f "$OUT" ]]; then echo "[skip] exists: $OUT"; continue; fi
   python3 scripts_cosim/rescale_workload_arrivals.py \
@@ -36,7 +37,7 @@ for F in 300 1000 2000 4000; do
   mv "$OUT.partial" "$OUT"
 done
 
-for F in 300 1000 2000 4000; do
+for F in $FACTORS; do
   OUT=$GATE/workloads/drainable_f${F}_n${N}.json
   [[ -s "$OUT" ]] || { echo "FAIL LOUD: trace not built: $OUT" >&2; exit 1; }
   python3 - "$OUT" <<'PY'
