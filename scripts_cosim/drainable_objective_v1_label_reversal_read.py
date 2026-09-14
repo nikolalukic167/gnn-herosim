@@ -112,6 +112,7 @@ def read_dataset(
     decoded_for_ds: Dict[str, Dict[str, Any]],
     task_types_db: Dict[str, Any],
     arrival_rate: float,
+    drain_table: Optional[Dict[str, float]] = None,
 ) -> Optional[Dict[str, Any]]:
     """One captured state, scored under every V in the ladder."""
     from scripts_cosim.score_route_b_contention import load_rows
@@ -134,6 +135,7 @@ def read_dataset(
     rows = load_rows(ds_dir, "rtt")
     ctx = build_state_context(
         ds_dir, task_types_db, arrival_rate=arrival_rate,
+        drain_table=drain_table,
         task_type_names=None,
     )
 
@@ -266,6 +268,22 @@ def main() -> int:
     ap.add_argument("--decoded", type=Path, required=True)
     ap.add_argument("--arm", default="gnn", help="the checkpoint arm the bar is read on")
     ap.add_argument("--arrival-rate", type=float, required=True)
+    ap.add_argument(
+        "--drain-table",
+        type=Path,
+        default=None,
+        help=(
+            "A1's measured per-item backlog drain. REQUIRED for live-captured states: "
+            "without it the externality is computed on the exec+comm clock, where it is "
+            "inert (measured: the term is ~1e-6 of the label and every V column agrees to "
+            "six digits), and the read silently answers a question nobody asked."
+        ),
+    )
+    ap.add_argument(
+        "--allow-formula-clock",
+        action="store_true",
+        help="score on the exec+comm clock deliberately, with no measured table",
+    )
     ap.add_argument("--task-types", type=Path, default=Path("data/nofs-ids/task-types.json"))
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", type=Path, required=True)
@@ -273,6 +291,21 @@ def main() -> int:
 
     db = json.loads(args.task_types.read_text())
     decoded = json.loads(args.decoded.read_text())
+
+    drain_table: Optional[Dict[str, float]] = None
+    if args.drain_table is not None:
+        payload = json.loads(args.drain_table.read_text())
+        drain_table = {str(k): float(v) for k, v in
+                       (payload.get("drain_seconds_per_item") or payload).items()}
+        if not drain_table:
+            raise LabelReversalError(f"{args.drain_table}: empty drain table")
+    elif not args.allow_formula_clock:
+        raise LabelReversalError(
+            "no --drain-table: these are LIVE-captured states and the exec+comm clock "
+            "prices their backlog at a fraction of what it costs, which makes the shaped "
+            "term inert and the read meaningless. Pass A1's table, or "
+            "--allow-formula-clock to say you meant the cold clock."
+        )
     corpus_name = args.corpus.name
 
     ds_dirs = sorted(args.corpus.glob("ds_*"))
@@ -290,7 +323,7 @@ def main() -> int:
                 "the full dataset id after a collision collapsed 151 datasets into 84; "
                 "refusing to score a dataset against another one's plan"
             )
-        row = read_dataset(ds, decoded[full_id], db, args.arrival_rate)
+        row = read_dataset(ds, decoded[full_id], db, args.arrival_rate, drain_table)
         if row is not None:
             per_dataset.append(row)
 
@@ -305,6 +338,7 @@ def main() -> int:
         },
         "corpus": str(args.corpus),
         "arrival_rate": args.arrival_rate,
+        "drain_table": str(args.drain_table) if args.drain_table else "formula(exec+comm)",
         "summary": summary,
         "per_dataset": per_dataset,
     }

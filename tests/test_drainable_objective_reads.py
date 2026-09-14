@@ -408,3 +408,40 @@ def test_a2_unwraps_the_warm_snapshot_wrapper(tmp_path, monkeypatch):
     monkeypatch.setattr(scorer, "load_rows", lambda d, o: [({0: (1, 10)}, 5.0)])
     a2.read_dataset(ds, {}, {}, 0.46)
     assert captured["keys"] == ["tasks", "time"], "the wrapper reached shortest_queue_plan"
+
+
+def test_a1_offset_table_keeps_type_heterogeneity(tmp_path):
+    """The emitted table adds the platform's MISSING seconds rather than replacing the
+    per-type cost, because the omitted terms (peer transfer, source->platform latency)
+    are per task instance, not per type. A flat table would make the label indifferent to
+    which type goes where, which the simulator is not."""
+    db = {
+        "cheap": {"executionTime": {"rpiCpu": 0.0}, "stateSize": {"a": {"input": 0, "output": 0}}},
+        "dear": {"executionTime": {"rpiCpu": 3.0}, "stateSize": {"a": {"input": 0, "output": 0}}},
+    }
+    lines = [_snapshot_line(i, [_cand("rpiCpu", 1, 8.0)]) for i in range(40)]
+    snaps = _write_snapshots(tmp_path, lines)
+    corpus = _write_corpus(tmp_path, {"cheap": ["rpiCpu"], "dear": ["rpiCpu"]})
+    res = a1.read([snaps], db, [corpus])
+    t = res["drain_seconds_per_item"]
+    cheap, dear = t["cheap|rpiCpu"], t["dear|rpiCpu"]
+    # The 3 s execution gap survives.
+    assert dear - cheap == pytest.approx(3.0)
+    # And the platform's mean still lands on what was measured.
+    assert (cheap + dear) / 2 == pytest.approx(8.0, abs=1e-6)
+    # The flat table is emitted too, so the choice stays inspectable.
+    assert res["drain_seconds_per_item_flat"]["cheap|rpiCpu"] == pytest.approx(8.0)
+
+
+def test_a1_offset_is_never_negative(tmp_path):
+    """A platform whose formula already exceeds the measured drain must not get a negative
+    offset -- that would price a backlog below the simulator's own floor."""
+    db = {
+        "dear": {"executionTime": {"rpiCpu": 10.0}, "stateSize": {"a": {"input": 0, "output": 0}}}
+    }
+    lines = [_snapshot_line(i, [_cand("rpiCpu", 2, 1.0)]) for i in range(40)]  # 0.5 s/item
+    snaps = _write_snapshots(tmp_path, lines)
+    corpus = _write_corpus(tmp_path, {"dear": ["rpiCpu"]})
+    res = a1.read([snaps], db, [corpus])
+    assert res["platform_offset_seconds"]["rpiCpu"] == 0.0
+    assert res["drain_seconds_per_item"]["dear|rpiCpu"] == pytest.approx(10.002, abs=1e-3)

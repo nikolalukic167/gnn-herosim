@@ -170,8 +170,51 @@ def read(
                 "qualifies": len(measured) >= A1_MIN_OBSERVATIONS,
             }
             cells.append(row)
-            if measured_median is not None:
-                table[drain_table_key(ttype, ptype)] = float(measured_median)
+
+    # ---- the emitted table -------------------------------------------------
+    # A candidate's `queue_drain_seconds` covers whatever types are actually queued on
+    # that platform, and the snapshot does not record them -- so the measurement is
+    # per PLATFORM, not per (type, platform). Two ways to turn it into a per-cell table:
+    #
+    #   flat      every type on p costs the measured value. Matches the aggregate and
+    #             throws away type heterogeneity the simulator really models (cnn runs
+    #             3.09 s on rpiCpu against dnn1's 0.003 s), which would make the label
+    #             indifferent to which type goes where.
+    #   offset    keep the formula's per-type cost and add the platform's missing
+    #             seconds: drain(t,p) = formula(t,p) + max(0, measured(p) - mean_t
+    #             formula(t,p)). The omitted terms are the peer transfer and the
+    #             source->platform latency, which are per task INSTANCE (payload bytes),
+    #             not per type -- so a type-independent offset is the shape the physics
+    #             has, and the aggregate still matches what was measured.
+    #
+    # `offset` is emitted. Chosen after A1's ratios were read, which is disclosed in the
+    # node; it changes no bar (A1's is the ratio, computed above and untouched) and the
+    # flat table is emitted alongside so the choice is inspectable.
+    flat_table: Dict[str, float] = {}
+    for c in cells:
+        if c["measured_median_seconds_per_item"] is not None:
+            flat_table[drain_table_key(c["task_type"], c["platform_type"])] = float(
+                c["measured_median_seconds_per_item"]
+            )
+    offsets: Dict[str, float] = {}
+    for ptype in sorted({c["platform_type"] for c in cells}):
+        here = [c for c in cells if c["platform_type"] == ptype]
+        measured = next(
+            (c["measured_median_seconds_per_item"] for c in here
+             if c["measured_median_seconds_per_item"] is not None),
+            None,
+        )
+        if measured is None:
+            continue
+        mean_formula = sum(c["formula_seconds_per_item"] for c in here) / len(here)
+        offsets[ptype] = max(0.0, measured - mean_formula)
+    for c in cells:
+        ptype = c["platform_type"]
+        if ptype not in offsets:
+            continue
+        table[drain_table_key(c["task_type"], ptype)] = (
+            c["formula_seconds_per_item"] + offsets[ptype]
+        )
 
     qualifying = [c for c in cells if c["qualifies"] and c["ratio"] is not None]
     ratios = sorted(c["ratio"] for c in qualifying)
@@ -197,7 +240,10 @@ def read(
         "max_ratio": ratios[-1] if ratios else None,
         "verdict": verdict,
         "cells": cells,
+        "table_form": "offset: formula(t,p) + max(0, measured(p) - mean_t formula(t,p))",
+        "platform_offset_seconds": offsets,
         "drain_seconds_per_item": table,
+        "drain_seconds_per_item_flat": flat_table,
     }
 
 
@@ -227,6 +273,8 @@ def main() -> int:
                 {
                     "drain_seconds_per_item": result["drain_seconds_per_item"],
                     "source": "drainable_objective_v1 A1",
+                    "table_form": result["table_form"],
+                    "platform_offset_seconds": result["platform_offset_seconds"],
                     "sources": result["sources"],
                     "verdict": result["verdict"],
                 },
