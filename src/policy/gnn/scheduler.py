@@ -257,6 +257,23 @@ class GNNScheduler(Scheduler):
         # (ect_pull persists across decisions; per-batch reset was the Phase 1 gap).
         self._pulls_committed: Dict[str, int] = {}
 
+
+    # serving_stability_v1 S3-b. The decoder keeps these on `decode_stats`, and
+    # Orchestrator._scheduler_counters reads names off the SCHEDULER, so without these
+    # properties the guardrail's counters are silently dropped from every result JSON --
+    # the same whitelist trap that made checkpoint_mp_config's guard never fire.
+    @property
+    def queue_guard_decisions(self) -> int:
+        return int(getattr(self.decode_stats, "queue_guard_decisions", 0) or 0)
+
+    @property
+    def queue_guard_steps_active(self) -> int:
+        return int(getattr(self.decode_stats, "queue_guard_steps_active", 0) or 0)
+
+    @property
+    def queue_guard_masked(self) -> int:
+        return int(getattr(self.decode_stats, "queue_guard_masked", 0) or 0)
+
     def set_models(self, models: dict):
         """
         Set GNN models from orchestrator.

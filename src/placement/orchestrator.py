@@ -205,6 +205,7 @@ class Orchestrator:
             "prefix_pairs_in_batch", "prefix_peers_outside_batch",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
             "gnn_pure_decisions", "fallback_decisions",
+            "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
         )
         out: Dict[str, Any] = {}
         for name in names:
