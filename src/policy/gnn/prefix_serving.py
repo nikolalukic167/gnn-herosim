@@ -104,6 +104,10 @@ class PrefixServingOptions:
     #                         parallelism the node-level knobs could not. Soft: the cap is
     #                         dropped for any step where it would empty the candidate set.
     platform_cap: int = 0
+    #   queue_guard_k         >0 forbids a replica whose queue is more than this many
+    #                         times the shallowest candidate the same task has, +1.
+    #                         serving_stability_v1 S3. 0 disables it entirely.
+    queue_guard_k: float = 0.0
 
 
 def _serving_knob(name: str) -> float:
@@ -273,6 +277,7 @@ def load_prefix_conditioned_gnn(
         load_seed_scale=_serving_knob("GNN_PREFIX_LOAD_SEED") if adopt_env else 0.0,
         concurrency_penalty=_serving_knob("GNN_PREFIX_CONCURRENCY_PENALTY") if adopt_env else 0.0,
         platform_cap=int(_serving_knob("GNN_PREFIX_PLATFORM_CAP")) if adopt_env else 0,
+        queue_guard_k=float(_serving_knob("GNN_QUEUE_GUARD_K") or 0.0) if adopt_env else 0.0,
     )
     print(
         f"[PREFIX SERVING] {label}: task_dim={task_feature_dim}+{onehot_dim} platform_dim="
@@ -281,6 +286,7 @@ def load_prefix_conditioned_gnn(
         f"alpha={alpha_key or '(none)'} reuse={options.allow_replica_reuse} relax={options.relax_on_stuck} "
         f"load_seed={options.load_seed_scale} conc_penalty={options.concurrency_penalty} "
         f"platform_cap={options.platform_cap}",
+        f"queue_guard_k={options.queue_guard_k}",
         flush=True,
     )
     return model, options, sidecar
@@ -582,6 +588,24 @@ def decode_prefix_conditioned(
     score_fn = make_partial_state_score_fn(model, graph, ctx)
     if options.concurrency_penalty > 0.0:
         score_fn = _with_concurrency_penalty(score_fn, graph, options.concurrency_penalty)
+    # serving_stability_v1 S3: per-candidate queue depth, read from the same snapshot the
+    # features were built from. Absent keys stay absent rather than defaulting to 0 -- a
+    # missing depth read as "empty queue" would make the guardrail mask the wrong replicas.
+    queue_of: Dict[Tuple[int, int], float] = {}
+    if options.queue_guard_k > 0.0:
+        snapshot = getattr(graph, "queue_snapshot", None) or {}
+        keys_by_task = getattr(graph, "task_logit_to_queue_key", None) or {}
+        for t in range(n_tasks):
+            for i, cand in enumerate(tl[t]):
+                key = (keys_by_task.get(t) or [None] * (i + 1))[i] if t in keys_by_task else None
+                if key is None or key not in snapshot:
+                    continue
+                queue_of[(int(cand[0]), int(cand[1]))] = float(snapshot[key])
+        if not queue_of:
+            raise PrefixServingError(
+                "GNN_QUEUE_GUARD_K is set but no candidate queue depth could be resolved "
+                "from the graph's queue_snapshot -- the guardrail would silently be a no-op"
+            )
     combo = decode_masked_topo_placement(
         [None] * n_tasks,
         tl,
@@ -595,6 +619,8 @@ def decode_prefix_conditioned(
         relax_on_stuck=options.relax_on_stuck,
         initial_load=ctx.base_load or None,
         platform_cap=options.platform_cap,
+        queue_of=queue_of or None,
+        queue_guard_k=options.queue_guard_k,
     )
     if combo is None:
         raise PrefixServingError(
