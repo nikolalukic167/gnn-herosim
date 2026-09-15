@@ -29,6 +29,40 @@ from typing import Any, Dict, List, Optional
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+# Platform feature column holding normalized queue depth. Named in
+# `src/placement/queue_features.py:3` -- "Platform queue depth reaches the models twice: as a
+# normalized depth (platform dim 7) and as a usage ratio against target concurrency (dim 13)."
+# Only dim 7 is scaled: dim 13 is log1p-compressed on a different divisor, so scaling both
+# would confound "sensitivity to depth" with "sensitivity to the compression".
+QUEUE_DEPTH_DIM = 7
+EXPECTED_PLATFORM_DIMS = 14
+
+
+def scale_queue_depth(graphs: List[Any], scale: float) -> int:
+    """Multiply platform dim 7 by `scale`, in place. Returns how many graphs were touched.
+
+    `scale == 1.0` must be a no-op: offline_live_transfer_v1's R2 relies on a scaled decode
+    being comparable to the unscaled one, so an accidental rewrite at scale 1 would make the
+    surrogate measure the rewrite instead of the sensitivity.
+    """
+    if scale == 1.0:
+        return 0
+    if scale <= 0.0:
+        raise SystemExit(f"FAIL LOUD: --queue-scale must be > 0, got {scale}")
+    touched = 0
+    for graph in graphs:
+        feats = getattr(graph, "platform_features", None)
+        if feats is None:
+            raise SystemExit("FAIL LOUD: a graph has no platform_features to scale")
+        if feats.shape[1] != EXPECTED_PLATFORM_DIMS:
+            raise SystemExit(
+                f"FAIL LOUD: platform_features has {feats.shape[1]} columns, expected "
+                f"{EXPECTED_PLATFORM_DIMS}; dim {QUEUE_DEPTH_DIM} may not be the queue column"
+            )
+        feats[:, QUEUE_DEPTH_DIM] = feats[:, QUEUE_DEPTH_DIM] * scale
+        touched += 1
+    return touched
+
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -41,6 +75,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--alpha-key", default="2.5")
     ap.add_argument("--task-types", default="data/nofs-ids/task-types.json")
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--queue-scale", type=float, default=1.0,
+                    help="multiply platform dim 7 (normalized queue depth) by this before "
+                         "decoding. 1.0 (default) is a strict no-op. Used by "
+                         "offline_live_transfer_v1 R2 to measure how much a checkpoint's plan "
+                         "moves when queue depth is pushed toward the live range the corpus "
+                         "never contains.")
     args = ap.parse_args(argv)
 
     os.environ.setdefault("EVAL_DECODE_REPLICA_REUSE", "1")
@@ -53,6 +93,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     with open(args.cache_dir / "dataset_ids.pkl", "rb") as fh:
         dataset_ids = pickle.load(fh)
     print(f"[d1-decode] {len(graphs)} graphs in {args.cache_dir}", flush=True)
+    touched = scale_queue_depth(graphs, args.queue_scale)
+    if touched:
+        print(f"[d1-decode] queue depth (platform dim {QUEUE_DEPTH_DIM}) scaled by "
+              f"{args.queue_scale} on {touched} graphs", flush=True)
 
     task_types_db = json.loads(Path(args.task_types).read_text())
     sim_root = REPO_ROOT / "simulation_data"
