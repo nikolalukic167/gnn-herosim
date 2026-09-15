@@ -375,3 +375,68 @@ and R4 (that same score: a real 13–16 % within-run signal), the position is no
 offline number tested in this program ranks training runs by how they serve, and the live
 gate — ~3 minutes an arm, against 41 minutes to train one — remains the only instrument that
 does.**
+
+## 2026-09-15 — R3: **COMPOUNDS**, and the curve is a single transient excursion, not a drift
+
+Job 767666, on captures that each reproduced their gate latency exactly (43.9905 s and
+74.7555 s, asserted to 0.01 s by the capture job). Best seed 14 against worst seed 8 of the
+V = 1 `gnn` arm: same recipe, same corpus, same split, same lr, **only the training seed
+differs**, and they serve the identical 50,000-task trace 1.7× apart.
+
+| decile | n | best queue | worst queue | gap | share |
+|---|---|---|---|---|---|
+| 1 | 5000 | 16.285 | 16.914 | 0.630 | 0.002 |
+| 2 | 5000 | 9.727 | 9.440 | −0.287 | −0.001 |
+| 3 | 5000 | 27.216 | 34.071 | 6.855 | 0.022 |
+| 4 | 5000 | 26.414 | 57.704 | 31.290 | 0.101 |
+| 5 | 5000 | 44.937 | 124.828 | 79.891 | 0.258 |
+| **6** | 5000 | 28.806 | **185.058** | **156.253** | **0.505** |
+| 7 | 5000 | 41.684 | 68.377 | 26.693 | 0.086 |
+| 8 | 5000 | 45.707 | 43.926 | −1.781 | −0.006 |
+| 9 | 5000 | 28.792 | 34.003 | 5.211 | 0.017 |
+| 10 | 5000 | 32.442 | 37.086 | 4.644 | 0.015 |
+| **full** | 50000 | 30.201 | 61.141 | 30.940 | |
+
+**Decile-1 share 0.002 ⇒ COMPOUNDS** (bar ≤ 0.20), and **PRESENT-FROM-THE-START is refuted
+outright**: the two seeds are indistinguishable over the first three deciles — 0.2 % of the
+total gap — so the worse seed is not handicapped by out-of-range live states from its first
+decision. Whatever separates them, it is not that they start in different regimes.
+
+### The verdict is right and too coarse; the curve is the finding
+
+The registered bar cannot see shape, and the descriptive `shape` field this tool reports
+(RISING, second half carries 0.617) is also too blunt for what is actually here. The gap is
+**not a drift**. It is a single excursion:
+
+* deciles 1–3: nothing (0.2 % of the gap)
+* deciles 4–6: the divergence builds and then spikes — **decile 6 alone carries 50.5 %** of
+  the whole gap, with the worst seed's mean queue at **185.1 s against the best seed's
+  28.8 s, a 6.4× excursion over its own baseline**
+* deciles 7–10: **it recovers.** Decile 8 is *negative* (the worst seed is briefly faster),
+  and the last three deciles together carry 2.6 %.
+
+**A closed loop that ran away would not come back.** This one does. So COMPOUNDS is the
+correct reading of the registered bar, and the mechanism it is usually shorthand for —
+progressive, self-reinforcing degradation — is **not** what the data shows. What the data
+shows is a seed that fell into a deep-queue excursion partway through the trace and drained
+out of it, and a 1.7× difference in headline latency that is one event's worth of queue
+spread over 50,000 tasks.
+
+### Why this matters to the rest of the lineage
+
+It explains R1 and R2 at once. If a checkpoint's live latency is set by whether it happens to
+hit one excursion in one trace, then **no property of the checkpoint measured on captured
+states can predict it** — the excursion is a property of the interaction, not of the model.
+That is exactly what R1 (ρ = −0.030 across 96 checkpoints) and R2 (no surrogate among four)
+measured, and it is why both nulls are consistent rather than merely disappointing.
+
+It also puts a number on how little the headline means: the difference between "our best
+seed" and "our worst seed" — larger than any architecture effect in this program — is one
+excursion. **A single-seed live number at this cell is not a measurement of a checkpoint.**
+
+### A limitation of this read, stated
+
+n = 2 checkpoints on n = 1 trace. The excursion's existence is measured; its *frequency* is
+not. Whether most bad seeds are bad for this reason, whether a given seed excurses on other
+traces, and what triggers the excursion are three separate questions this read does not
+answer, and a successor should not quote it as though it did.
