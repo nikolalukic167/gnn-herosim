@@ -510,3 +510,28 @@ Three practical corollaries:
 * **Two group means are not a trend.** When a pattern is built from two or three aggregates,
   price in that a constant offset reproduces it exactly, and go find the per-unit version of
   the same question before registering a lineage to explain it.
+
+## A single-seed live number measures whether that seed hit an excursion (2026-09-15)
+
+`offline_live_transfer_v1` R3. Two checkpoints of one recipe — same corpus, same split, same
+lr, **differing only in the training seed** — serve the same 50,000-task trace at **43.99 s and
+74.76 s**. Decile the trace by arrival and the difference is not a drift:
+
+* deciles 1–3 carry **0.2 %** of the gap — the seeds are indistinguishable at the start;
+* **decile 6 alone carries 50.5 %**, the worse seed's mean queue hitting **185.1 s against the
+  better seed's 28.8 s**, a 6.4× excursion over its own baseline;
+* deciles 7–10 **recover**, decile 8 going negative.
+
+**A 1.7× headline difference — larger than any architecture effect this program has chased —
+is one traffic jam's worth of queue spread over 50,000 tasks.** ⇒ **Never quote a single-seed
+live latency as a property of a checkpoint**, and size seed counts against the excursion, not
+against the effect you hope to see. It also explains why no offline statistic predicts live
+outcome here (R1, R2): the excursion belongs to the interaction between a policy and a trace,
+not to the model, so nothing measured on captured states can see it coming.
+
+Two corollaries for reading any such gap:
+
+* **Decile it before naming a mechanism.** "Compounds" and "one excursion that recovers" clear
+  the same threshold and are different physics; a runaway closed loop does not come back.
+* **A shape summary is not a shape.** This read's own RISING/FLAT/FALLING descriptor called a
+  single-decile spike with full recovery "RISING". Print the curve.
