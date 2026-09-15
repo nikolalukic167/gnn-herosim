@@ -77,6 +77,12 @@ class GnnDecodeRunStats:
     combo_search_size: List[int] = field(default_factory=list)
     intra_batch_platform_collisions: List[int] = field(default_factory=list)
     chosen_queue_minus_min: List[int] = field(default_factory=list)
+    # serving_stability_v1 S3-b: the guardrail's own counters. A serving knob that does
+    # nothing reads exactly like one that does not help, and drainable_regime_v1 lost three
+    # reads to policies that did not do what their name said.
+    queue_guard_decisions: int = 0
+    queue_guard_steps_active: int = 0
+    queue_guard_masked: int = 0
 
     # Chosen vs shortest-queue candidate on the *same* snapshot (hard-cell dim7 blind spot).
     dim7_chosen: List[float] = field(default_factory=list)
@@ -786,6 +792,8 @@ def decode_masked_topo_placement(
     relax_on_stuck: bool = False,
     initial_load: Optional[Mapping[int, float]] = None,
     platform_cap: int = 0,
+    queue_of: Optional[Mapping[Tuple[int, int], float]] = None,
+    queue_guard_k: float = 0.0,
 ) -> Optional[PlacementCombo]:
     """The §4 shared masked decoder (docs/lineages/route_b_v1/stage2-preregistration.md, corrected
     2026-08-26) — decode mode "masked_topo".
@@ -907,6 +915,32 @@ def decode_masked_topo_placement(
             <= node_caps.get(int(c[0]), math.inf) + _MASKED_TOPO_EPS
             for i, c in enumerate(candidates)
         )
+        # serving_stability_v1 S3: forbid a replica whose queue is more than `queue_guard_k`
+        # times the shallowest candidate this task has. Depth-relative, so it is a NO-OP when
+        # queues are even however concentrated the batch is -- which is what distinguishes it
+        # from platform_cap, an absolute per-platform count that deadlocks 3/16 seeds here.
+        # Like cap_active it is only switched on when some candidate satisfies it together
+        # with every mask already in force, so it can never be the reason a task is stranded.
+        guard_threshold = None
+        if queue_guard_k > 0.0 and queue_of:
+            depths = [queue_of.get((int(c[0]), int(c[1]))) for c in candidates]
+            known = [d for d in depths if d is not None]
+            if known:
+                threshold = queue_guard_k * (min(known) + 1.0)
+                if any(
+                    (allow_replica_reuse or (int(c[0]), int(c[1])) not in used)
+                    and (depths[i] is None or depths[i] <= threshold)
+                    and (not cap_active
+                         or per_platform.get((int(c[0]), int(c[1])), 0) < platform_cap)
+                    and load.get(int(c[0]), 0.0) + float(dem[i])
+                    <= node_caps.get(int(c[0]), math.inf) + _MASKED_TOPO_EPS
+                    for i, c in enumerate(candidates)
+                ):
+                    guard_threshold = threshold
+            if stats is not None:
+                stats.queue_guard_decisions += 1
+                if guard_threshold is not None:
+                    stats.queue_guard_steps_active += 1
         best = None
         while ranked:
             key, placement, i = ranked[0]
@@ -916,6 +950,13 @@ def decode_masked_topo_placement(
             if cap_active and per_platform.get(placement, 0) >= platform_cap:
                 ranked.pop(0)
                 continue
+            if guard_threshold is not None:
+                depth = queue_of.get(placement)
+                if depth is not None and depth > guard_threshold:
+                    ranked.pop(0)
+                    if stats is not None:
+                        stats.queue_guard_masked += 1
+                    continue
             cap = node_caps.get(placement[0], math.inf)
             if load.get(placement[0], 0.0) + float(dem[i]) > cap + _MASKED_TOPO_EPS:
                 ranked.pop(0)
