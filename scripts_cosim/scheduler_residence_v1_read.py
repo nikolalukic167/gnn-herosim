@@ -191,39 +191,57 @@ def read_r0(arms: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- R1
+# The registered statistic list. The last two are measured on the realised topology as
+# "clients that can reach each server": mean, and max-minus-min across servers.
 R1_STATS = ("server_nodes", "client_nodes", "mean_reachable_servers",
             "min_reachable_servers", "replicas_per_task_type", "hosting_node_spread")
 
 
-def cell_structure(config: Dict[str, Any]) -> Dict[str, Optional[float]]:
-    """Structural statistics of one live cell, from its own config.
+def cell_structure(config: Dict[str, Any], sim_input_path: Optional[Path] = None) -> Dict[str, Optional[float]]:
+    """Structural statistics of one live cell, measured on the topology it ACTUALLY builds.
 
-    Reads only what the config declares; a statistic the config cannot answer is None and is
-    skipped by the bar rather than imputed.
+    The three cells' configs are byte-identical apart from one field -- `network.topology.seed`
+    (1 differing key of 150, measured 2026-09-15) -- so reading the declared config answers
+    nothing: it would return the same 20 clients and 6 servers for all three. The statistics the
+    registration names live in the *realised* topology, so this builds it through the
+    simulator's own `prepare_infrastructure_for_real_simulation` rather than re-deriving it,
+    which keeps the measurement and the run on one code path.
     """
-    infra = config.get("infrastructure") or config
-    nodes = infra.get("nodes") or []
+    from src.executesimulation import prepare_infrastructure_for_real_simulation
+
     out: Dict[str, Optional[float]] = {k: None for k in R1_STATS}
+    infra = prepare_infrastructure_for_real_simulation(
+        config, seed=None, sim_input_path=sim_input_path
+    )
+    nodes = infra.get("nodes") or []
     if not nodes:
         return out
-    clients, servers = [], []
-    for node in nodes:
-        (clients if node.get("is_client") or node.get("client") else servers).append(node)
+    clients = [n for n in nodes if str(n.get("node_name", "")).startswith("client_node")]
+    servers = [n for n in nodes if not str(n.get("node_name", "")).startswith("client_node")]
     out["server_nodes"] = float(len(servers))
     out["client_nodes"] = float(len(clients))
+
+    server_names = {str(n.get("node_name")) for n in servers}
     reach: List[float] = []
-    server_names = {str(n.get("node_name") or n.get("name")) for n in servers}
     for node in clients:
         nm = node.get("network_map") or {}
-        seen = {str(k) for k, v in nm.items() if v} if isinstance(nm, dict) else set()
-        reach.append(float(len(seen & server_names)))
+        reachable = {str(k) for k, v in nm.items() if v} if isinstance(nm, dict) else set()
+        reach.append(float(len(reachable & server_names)))
     if reach:
         out["mean_reachable_servers"] = st.fmean(reach)
         out["min_reachable_servers"] = min(reach)
-    plats = [len(n.get("platforms") or []) for n in servers]
-    if plats:
-        out["replicas_per_task_type"] = st.fmean(float(p) for p in plats)
-        out["hosting_node_spread"] = float(sum(1 for p in plats if p))
+
+    # How many clients can reach each server: the load-concentration side of the same graph.
+    # A server every client can reach is a queue every client can pile onto.
+    per_server: List[float] = []
+    for name in sorted(server_names):
+        per_server.append(float(sum(
+            1 for c in clients
+            if isinstance(c.get("network_map"), dict) and c["network_map"].get(name)
+        )))
+    if per_server:
+        out["replicas_per_task_type"] = st.fmean(per_server)
+        out["hosting_node_spread"] = max(per_server) - min(per_server)
     return out
 
 
@@ -255,6 +273,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results", type=Path, help="R0: the residence arms' summaries")
     ap.add_argument("--configs", type=Path, help="R1: directory holding the cells' configs")
+    ap.add_argument("--sim-inputs", type=Path, default=None,
+                    help="R1: simulation input dir (task-types.json), as the live run uses")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args(argv)
     if not args.results and not args.configs:
@@ -286,7 +306,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             path = args.configs / f"{cell}.json"
             if not path.exists():
                 raise ResidenceReadError(f"{path} missing -- R1 cannot compare the cells")
-            structures[cell] = cell_structure(json.loads(path.read_text()))
+            structures[cell] = cell_structure(json.loads(path.read_text()),
+                                              sim_input_path=args.sim_inputs)
         r1 = read_r1(structures)
         result["R1"] = r1
         result["R1"]["structures"] = structures

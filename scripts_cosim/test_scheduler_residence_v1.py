@@ -157,39 +157,37 @@ def test_r0_rejects_an_arm_without_the_instrument():
 
 
 # --------------------------------------------------------------------------------- R1
-def _cfg(servers, clients, reach):
-    nodes = [{"node_name": f"s{i}", "platforms": [{}, {}]} for i in range(servers)]
-    for i in range(clients):
-        nodes.append({"node_name": f"c{i}", "is_client": True,
-                      "network_map": {f"s{j}": 1 for j in range(reach)}})
-    return {"infrastructure": {"nodes": nodes}}
+def _struct(server_nodes, client_nodes, mean_reach, min_reach, per_server, spread):
+    return {"server_nodes": float(server_nodes), "client_nodes": float(client_nodes),
+            "mean_reachable_servers": float(mean_reach),
+            "min_reachable_servers": float(min_reach),
+            "replicas_per_task_type": float(per_server), "hosting_node_spread": float(spread)}
 
 
 def test_r1_separates_on_a_statistic_outside_the_others_range():
     structures = {
-        CELLS[0]: cell_structure(_cfg(6, 20, 6)),
-        R1_GOOD_CELL: cell_structure(_cfg(12, 20, 12)),     # strictly outside
-        CELLS[2]: cell_structure(_cfg(6, 20, 6)),
+        CELLS[0]: _struct(6, 20, 4.0, 2, 13.0, 8),
+        R1_GOOD_CELL: _struct(6, 20, 5.9, 5, 19.7, 1),     # strictly outside on several
+        CELLS[2]: _struct(6, 20, 4.2, 2, 14.0, 9),
     }
     got = read_r1(structures)
     assert got["verdict"] == "STRUCTURE-SEPARATES"
-    assert "server_nodes" in got["separating"]
+    assert "min_reachable_servers" in got["separating"]
+    assert "server_nodes" not in got["separating"]          # identical by construction
 
 
 def test_r1_does_not_separate_when_the_good_cell_is_between_the_others():
     structures = {
-        CELLS[0]: cell_structure(_cfg(4, 20, 4)),
-        R1_GOOD_CELL: cell_structure(_cfg(6, 20, 6)),
-        CELLS[2]: cell_structure(_cfg(8, 20, 8)),
+        CELLS[0]: _struct(6, 20, 4.0, 2, 13.0, 8),
+        R1_GOOD_CELL: _struct(6, 20, 4.5, 3, 14.0, 7),
+        CELLS[2]: _struct(6, 20, 5.0, 4, 15.0, 6),
     }
-    got = read_r1(structures)
-    assert got["verdict"] == "STRUCTURE-DOES-NOT-SEPARATE"
+    assert read_r1(structures)["verdict"] == "STRUCTURE-DOES-NOT-SEPARATE"
 
 
 def test_r1_does_not_separate_when_all_three_are_identical():
-    structures = {c: cell_structure(_cfg(6, 20, 6)) for c in CELLS}
-    got = read_r1(structures)
-    assert got["separating"] == []
+    structures = {c: _struct(6, 20, 4.0, 2, 13.0, 8) for c in CELLS}
+    assert read_r1(structures)["separating"] == []
 
 
 def test_r1_skips_a_statistic_it_cannot_measure_rather_than_imputing_it():
@@ -199,9 +197,15 @@ def test_r1_skips_a_statistic_it_cannot_measure_rather_than_imputing_it():
     assert got["verdict"] == "STRUCTURE-DOES-NOT-SEPARATE"
 
 
-def test_cell_structure_reads_an_empty_config_as_unknown_not_zero():
-    got = cell_structure({"infrastructure": {"nodes": []}})
-    assert all(v is None for v in got.values())
+def test_r1_must_read_the_realised_topology_not_the_declared_config():
+    """The three cells' configs differ in ONE field of 150 -- the topology seed.
+
+    A `cell_structure` that reads declared fields would return identical statistics for all
+    three and R1 would be structurally incapable of firing. It must build the topology.
+    """
+    src = (REPO_ROOT / "scripts_cosim/scheduler_residence_v1_read.py").read_text()
+    assert "prepare_infrastructure_for_real_simulation" in src
+    assert "network_map" in src
 
 
 # ----------------------------------------------------------------------- the instrument
