@@ -153,3 +153,23 @@ Two things follow:
   on all of them, so the V = 1 cache was built there and rsynced, which is also how T1b
   itself was built. Check `ls ds_*/system_state_captured_unique.json | wc -l` against the
   dataset count before choosing where to build.
+
+## 2026-09-15 — `best_val_regret_topk` in a W&B summary holds the **masked_topo** value
+
+`train_near_rtt.py` selects its checkpoint on `val/regret_masked_topo` (the decoder the live path
+actually runs) but writes the selected value into the summary key **`best_val_regret_topk`**. The
+name is wrong and has been wrong on every run that logged it. Verified on `drainable_objective_v1`
+job 766897 seed 2: the summary reads `best_val_regret_topk = 128.606` and
+`final/val/regret_masked_topo = 128.606`, while the run's own `val/regret_topk` minimum over the
+300 epochs is 51.79 — a 2.5× difference, in the direction that makes a run look worse than it is.
+
+Read one of these instead, never the key's name:
+
+* the trainer's own stdout line, `Best val regret_<metric>: <value>` — it names the metric;
+* `final/val/regret_masked_topo` in the summary, which is the selected checkpoint re-evaluated;
+* `scripts_cosim/read_training_curves.py`, whose SELECTION block infers the selector by matching
+  the recorded best against each curve's minimum and prints which metric it landed on.
+
+**Not renamed on purpose.** The key is in every historical run's summary; renaming it would split
+the series and make old and new runs incomparable in the W&B UI, which is the one place the key is
+read. Fix the reader, not the key.
