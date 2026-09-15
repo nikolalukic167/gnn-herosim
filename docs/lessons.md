@@ -474,3 +474,39 @@ T1b control at 70 (76 % after). That is wasted compute, not a defect — but it 
 epoch is not the run**, and a two-arm contrast read at last epoch can invert against the same
 contrast at the selected checkpoint (measured in `route_b_v1` Phase 2, and in `peer_affinity_v1`
 T1b in the other direction).
+
+## An offline score can say "worse than it was" without being able to say "worse than that one" (2026-09-15)
+
+`offline_live_transfer_v1` measured both readings of the same number on the same checkpoints
+and they came out opposite, which is why a decade of "it wins offline and loses live" in this
+record read as a paradox.
+
+**Across runs it carries nothing.** 96 checkpoints from three families, each with both its
+selected-checkpoint held-out score and its own live latency at a matched cell: Spearman
+**−0.030**, p = 0.772, at ~80 % power for ρ = 0.30. Not underpowered — measured zero. The
+same 96 points read **−0.525, p < 0.0001** when pooled *raw*, and that number is the famous
+"offline/live reversal": it is the gap between two arm averages, not a relationship. Two
+group means, or three corpus rungs, cannot be told apart from noise-plus-offset. **Two
+registered lineages (`serving_gap_v1`, `serving_gap_v2`) closed NO-GO hunting a mechanism for
+a pattern that needs none.**
+
+**Within a run it carries a lot.** Gating each run's offline-selected checkpoint against its
+own last epoch — weights that already exist, no retraining — the selected one is **13.10 %**
+(`gnn`) and **16.42 %** (`mpoff`) faster live, p = 0.028 and p = 0.0005.
+
+⇒ **Use an offline curve to choose an epoch. Never use an offline number to choose between
+runs, seeds, arms or model classes** without showing, on that corpus, that it ranks
+checkpoints by live outcome. The two uses feel like one number and are not.
+
+Three practical corollaries:
+
+* **The cheap check is cheap.** Any program that gates N checkpoints already owns N paired
+  (offline, live) points. Correlate them **z-scored within each (family, arm) cell** — raw
+  pooling re-imports the group offsets that make the paradox — before trusting an offline
+  screen to order anything.
+* **A positive control belongs in the read.** Ours correlated live latency against live queue
+  time and returned ρ = 1.0000 in all three families, which is what makes "we measured zero"
+  different from "our pipeline is broken".
+* **Two group means are not a trend.** When a pattern is built from two or three aggregates,
+  price in that a constant offset reproduces it exactly, and go find the per-unit version of
+  the same question before registering a lineage to explain it.
