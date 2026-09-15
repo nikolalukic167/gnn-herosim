@@ -169,3 +169,123 @@ platform cap (closed — deadlocks 3/16); the load ladder.
 ## Record
 
 *(dated entries appended below as the lineage runs)*
+
+### 2026-09-15 — read, all bars. Outcome **QUEUE-RANGE-NOT-THE-LEVER**
+
+285 of 288 arms. The 3 missing are `gnn` seed 3 on `cell_s7901`, the declared livelock — no
+other failure, no `FAIL LOUD`, no timeout. `simulation_data/queue_range_v1/gate.json`.
+
+**Parity, unasked for and worth recording:** the `plain` arms reproduce
+`serving_stability_v1`'s unguarded medians **to three decimals** — 54.819 / 22.350 / 65.401
+against S3-d's 54.82 / 22.35 / 65.40 — across a commit that changed the feature builder, the
+scheduler and the orchestrator. The instrument is inert.
+
+#### Q0 — `COLUMN-IN-CONTRACT` (1/3 cells) by the bar; **fires in shape on 2/3**
+
+Per-decile share of batches whose maximum candidate dim7 exceeds the corpus maximum of 42,
+median over seeds, `plain` `gnn`:
+
+| cell | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | peak dim7 | vs reactive |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| s9001 | .00 | .00 | .00 | .00 | .00 | .00 | .00 | .00 | .00 | .00 | **2** | −6.7 % |
+| s7901 | .00 | .00 | .00 | **.21** | **.36** | .03 | .00 | .00 | .00 | .03 | **38** | −111.3 % |
+| s9002 | .00 | .00 | .00 | .00 | .03 | .17 | **.83** | .24 | .33 | .47 | **113** | −182.9 % |
+
+Three readings hold:
+
+1. **Deciles 1–2 are in contract on all three cells** — exactly where the arms beat reactive.
+2. **The cell that never leaves range is the cell that nearly ties reactive.** Severity of the
+   range violation orders with severity of the loss across all three cells. n = 3 aggregates;
+   this lineage's parent lost a mechanism claim to exactly that shape, so it is recorded as an
+   ordering and nothing more.
+3. **It is an excursion, not a drift.** s7901 blows out at deciles 4–5 and recovers; s9002
+   peaks at decile 7 and stays bad.
+
+**The bar as signed reads deciles 9–10 as "late" and therefore fires on s9002 only
+(late share 0.418, early 0.000) — 1 of 3, `COLUMN-IN-CONTRACT`. It is not moved.** The bar was
+mis-*shaped*, not mis-*tuned*: it assumed a monotone late drift and the mechanism is a
+mid-trace excursion, which `docs/lessons.md` already distinguishes from
+`offline_live_transfer_v1` R3. Filed in `docs/gates/gate-tools.md`. The `blind` sub-bar never
+fires anywhere: the divisor is 1.0 in 100 % of batches on every cell, so the column never
+compresses. **Of the two registered failure modes only OUT-OF-RANGE occurs here; COMPRESSED
+does not occur at this load at all.**
+
+#### Q1 — `KNOB-BOUND` (blocking bar, passed)
+
+`inrange` drives the out-of-range share to **exactly 0.000** where `plain` carries 0.107
+(s7901 `gnn`), 0.164 (s9002 `gnn`) and 0.197 (s9002 `mpoff`). `pinned` is an **exact no-op**,
+as it must be: the divisor was already 1.0 in every batch of every arm, so pinning it changes
+nothing. That makes `pinned` a free null control and it behaved as one — `+0.000 s` on all six
+(cell, policy) combinations, 0 seeds moved. Two further provable no-ops also held: every arm
+on s9001, where the column never approaches 42.
+
+#### Q2 — `RANGE-FIX-DOES-NOT-HELP`
+
+Paired Wilcoxon, `plain` − `inrange`, Holm over the registered family of 6:
+
+| policy | cell | plain | inrange | gain | seeds | p |
+|---|---|---|---|---|---|---|
+| `gnn` | s7901 | 54.819 | 54.778 | **+0.041 s** | 9/13 | 0.075 |
+| `gnn` | s9001 | 22.350 | 22.350 | +0.000 s | 0/15 | — |
+| `gnn` | s9002 | 65.401 | 66.429 | **−0.367 s** | 3/15 | 0.011 |
+| `mpoff` | s7901 | 51.403 | 50.210 | +0.344 s | 12/16 | 0.056 |
+| `mpoff` | s9001 | 22.523 | 22.522 | +0.000 s | 6/16 | 0.028 |
+| `mpoff` | s9002 | 73.998 | 73.135 | +0.525 s | 9/16 | 0.501 |
+
+Nothing clears Holm. **The largest effect anywhere is 0.5 s on a 74 s arm — 0.7 %** — and on
+the cell with the worst violation the fix is **significantly worse** (p = 0.011, 3/15). Putting
+the queue column back inside the range it was trained on does not recover the early advantage
+and does not move latency.
+
+#### Q3 — `REACTIVE-STILL-WINS`, 0/3 cells, as registered
+
+−111.3 % / −6.7 % / −182.9 %, 0 seeds below reactive on any cell. The registered expectation
+was NEGATIVE on ≥ 2 of 3 and the registered arithmetic (the early margin is worth ~4 s against
+deficits of 28.9 / 1.4 / 41.9 s) was right about the size and wrong only in being generous.
+
+#### Q4 — `ADVANTAGE-EXTENDS` fires, and it is a **control artifact**
+
+Deciles in which the arm's mean queue is below reactive's: s7901 **2**, s9001 **10**,
+s9002 **4** — **identical for `plain`, `pinned` and `inrange`**. The intervention changed
+nothing; the bar fired because the *control* already clears it on 2 of 3 cells. The registered
+control value of 2 came from `serving_stability_v1` S1, which reported deciles 1–2 and was
+never asked how many deciles the control wins. **A "does X extend Y" bar sized against a
+control value measured on one cell, when the family has three.** Same error shape as
+`drainable_objective_v1`'s C0, whose bar failed its own control. Not moved; filed.
+
+#### What this measurement found instead — the decomposition
+
+`plain` `gnn` against reactive, per task, medians over seeds:
+
+| | s7901 | s9001 | s9002 |
+|---|---|---|---|
+| elapsed | **+28.87** | **+1.43** | **+42.02** |
+| queue | +23.33 | **−2.67** | +37.19 |
+| **batch wait** | **+6.89** | **+6.87** | **+6.72** |
+| peer exchange | +0.07 | −0.85 | −0.13 |
+| peer rendezvous | −1.48 | −1.85 | −1.84 |
+| scale events | +5,838 | +5,930 | +3,455 |
+
+**On s9001 the learned arm wins every term it was designed to win — queue by 2.67 s, peer
+exchange by 0.85 s, rendezvous by 1.85 s — and loses the cell on batch wait alone.** Remove
+the 6.87 s and it beats reactive by ~5.4 s (−26 %). Batch wait is a **flat ~6.8 s tax on every
+cell**, independent of how badly placement fails; the queue blow-up is what separates the two
+bad cells from the good one. Autoscaler churn is 2.2–6.6× reactive's everywhere and **does not
+order with the loss** (+5,930 on the best cell, +3,455 on the worst), so it is not the
+discriminator it looked like in `drainable_regime_v1`'s aggregate.
+
+**Two distinct failures, not one.** A flat batching tax that costs the whole margin where
+placement works, and a queue blow-up on two of three cells that is not the feature range.
+`drainable_serving_config_v1` closed *removing* batching (−1731 %, the graph arm cannot decode
+singletons) and swept the window at fixed load; **nobody has tested a policy that keeps
+peer-group batching and caps the wait** — dispatch on group completion with a short deadline
+rather than a fixed window. That is a new registration, not an amendment here.
+
+#### Closed precisely
+
+The **magnitude of the `legacy_v0` queue column at serve time** is not what destroys the early
+advantage, at the x4000 rung, on these three cells, for these V = 1 checkpoints, with the
+divisor measured at 1.0 in 100 % of batches. **Not closed:** the queue blow-up itself (real on
+2/3 cells, cause unknown), batch wait, `scale_invariant_v1` as a *training* contract, and any
+cell whose serving divisor is not 1.0 — none was observed here, so COMPRESSED remains untested
+rather than refuted.
