@@ -46,7 +46,16 @@ python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
 CACHE="${CACHE:-simulation_data/graphs_cache_drainable_debug_v1_d1}"
-OUT_DIR="${OUT_DIR:-simulation_data/offline_live_transfer_v1/r2_decoded}"
+# QUEUE_SCALE=1.0 is the unscaled pass. The second pass uses R2_QUEUE_SCALE from
+# offline_live_transfer_v1_surrogate_read.py and writes to its own OUT_DIR, so the two
+# decodes never overwrite each other and range_sensitivity compares like with like.
+QUEUE_SCALE="${QUEUE_SCALE:-1.0}"
+if [[ "$QUEUE_SCALE" == "1.0" ]]; then
+  OUT_DIR="${OUT_DIR:-simulation_data/offline_live_transfer_v1/r2_decoded}"
+else
+  OUT_DIR="${OUT_DIR:-simulation_data/offline_live_transfer_v1/r2_decoded_scaled}"
+fi
+echo "[SCALE] queue depth x $QUEUE_SCALE -> $OUT_DIR"
 [[ -d "$CACHE" ]] || { echo "FAIL LOUD: D1 cache missing: $CACHE" >&2; exit 1; }
 mkdir -p "$OUT_DIR"
 
@@ -92,6 +101,7 @@ done
 ${HEROSIM_PY} scripts_cosim/drainable_debug_d1_decode.py \
   --cache-dir "$CACHE" \
   --tag "$TAG" --lr lr2e3 --arms gnn mpoff --seed "$SEED" \
+  --queue-scale "$QUEUE_SCALE" \
   --out "$OUT.partial"
 mv "$OUT.partial" "$OUT"
 echo "=== task $T done: $OUT ==="
