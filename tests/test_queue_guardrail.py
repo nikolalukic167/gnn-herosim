@@ -114,3 +114,22 @@ def test_counters_stay_zero_when_the_guardrail_is_off():
     assert stats.queue_guard_decisions == 0
     assert stats.queue_guard_steps_active == 0
     assert stats.queue_guard_masked == 0
+
+
+# ------------------- the counters must survive the orchestrator's whitelist (S3-b)
+def test_the_guardrail_counters_are_whitelisted_by_the_orchestrator():
+    """Orchestrator._scheduler_counters reads a fixed name list off the SCHEDULER.
+
+    The decoder keeps these on `decode_stats`, so without both the scheduler properties and
+    the whitelist entries they are silently dropped from every result JSON -- and S3-b, the
+    bar that proves the guardrail actually bound, would read as if it had never fired.
+    """
+    import inspect
+
+    from src.placement.orchestrator import Orchestrator
+    from src.policy.gnn.scheduler import GNNScheduler
+
+    source = inspect.getsource(Orchestrator._scheduler_counters)
+    for name in ("queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked"):
+        assert isinstance(getattr(GNNScheduler, name, None), property), f"{name} not exposed"
+        assert f'"{name}"' in source, f"{name} not whitelisted"
