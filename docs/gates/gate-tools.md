@@ -173,3 +173,25 @@ Read one of these instead, never the key's name:
 **Not renamed on purpose.** The key is in every historical run's summary; renaming it would split
 the series and make old and new runs incomparable in the W&B UI, which is the one place the key is
 read. Fix the reader, not the key.
+
+## 2026-09-15 — a "did the policy do what its name says" bar must be sized against the CONTROL's own counter
+
+`drainable_objective_v1`'s C0 required every learned arm to show ≤ 20 % incomplete
+peer-group batches. All 31 arms failed it at 34.8–35.5 %. Measuring the **control** with the
+same counter settles what that meant: T1b at the same cell sits at **37.0 %**, so the bar
+fails the thing the treatment is compared against, and the treatment arms are slightly
+*better* than the control on the very statistic that flagged them. The bar could not
+separate treatment from control at any value the arms could reach.
+
+That bar was written from what "peer-group batching" ought to look like, not from what the
+control actually does. The sibling bar in the same registration, C1, was sized against a
+measured control number (T1b's 35.5 % above-shallowest, halved to 18 %) and did its job:
+it separated the arms and failed them in an interpretable direction.
+
+**Rule:** before signing a control bar that asserts a policy behaved as named, compute that
+counter on the control arm and put the number in the registration next to the bar. A bar the
+control cannot clear is not a control.
+
+**And do not move it afterwards.** C0 stands as signed, with the control's value recorded
+beside it in the node; the verdict is carried by the bar that does separate. Re-tuning a bar
+after seeing the arms fail it is how a registration stops meaning anything.
