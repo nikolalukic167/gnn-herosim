@@ -14,6 +14,11 @@ from pathlib import Path as _Path
 _repo = _Path(__file__).resolve().parents[3]
 if str(_repo) not in _sys.path:
     _sys.path.insert(0, str(_repo))
+# non_unique_lib lives under src/notebooks, which is not a package (same treatment
+# as the scripts_cosim consumers of training_contract).
+_notebooks = _repo / "src" / "notebooks"
+if str(_notebooks) not in _sys.path:
+    _sys.path.insert(0, str(_notebooks))
 
 import argparse
 import json
@@ -30,15 +35,37 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from tqdm import tqdm
 
+from src.placement.env_fingerprint import (
+    describe_code_provenance,
+    describe_python_env,
+)
+from src.placement.queue_features import (
+    DEFAULT_QUEUE_FEATURE_CONTRACT,
+    validate_queue_feature_contract,
+)
 from src.policy.tabular.mlp_model import PointwiseEdgeMLP
 from src.policy.tabular.reduced_features import (
+    peer_mass_enabled,
+    CANDIDATE_RELATIVE_COLUMN_SPEC,
+    CANDIDATE_RELATIVE_FEATURE_DIM,
     DIM22_FEATURE_DIM,
     DIM24_FEATURE_DIM,
+    DIM25CR_FEATURE_DIM,
+    DIM63CRK_FEATURE_DIM,
+    PARTIAL_STATE_FEATURE_DIM,
+    validate_partial_state_contract,
     dim22_rows_to_dataframe,
     extract_rows_dim22_from_batch_graph,
+    extract_rows_dim25cr_tied_from_batch_graph,
+    extract_rows_dim63crk_from_batch_graph,
     validate_dim22_frame,
 )
 from src.policy.tabular.train_ranker import split_by_parent_three_way
+from non_unique_lib.training_contract import (  # noqa: E402
+    assert_split_artifact_covers,
+    canonical_parent_id,
+    load_split_artifact,
+)
 
 
 def _feature_columns(df: pd.DataFrame) -> List[str]:
@@ -59,6 +86,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-size", type=float, default=0.15,
                         help="Canonical-parent held-out test fraction")
     parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument("--split-artifact", type=Path, default=None,
+                        help="B6: path to the shared split artifact "
+                             "(scripts_cosim/make_split_artifact.py). When set, the "
+                             "pinned parent-level split replaces the drawn one, so "
+                             "--random-state seeds initialisation and batch order "
+                             "ONLY. Every arm of a paired comparison must point at "
+                             "the same file; --val-size/--test-size are then refused.")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--hidden-dim", type=int, default=64)
@@ -66,6 +100,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-graphs", type=int, default=64)
     parser.add_argument("--min-batch-tasks", type=int, default=2,
                         help="Skip batch graphs with fewer tasks (GNN/MLP deploy range)")
+    parser.add_argument("--partial-state", action="store_true",
+                        help="route_b stage 2 (docs/lineages/route_b_v1/stage2-preregistration.md §2): "
+                             "train on the dim63crk layout — dim25cr + the 38 "
+                             "partial-state/krank/linkrank columns. Requires "
+                             "--candidate-relative-queue and a stage-2 cache that "
+                             "declares a partial_state_contract.")
+    parser.add_argument("--candidate-relative-queue", action="store_true",
+                        help="P5b: append the 3 candidate-relative queue columns (dim22 -> dim25cr). "
+                             "Gives the pointwise scorer the set-relative view a graph model "
+                             "gets from message passing; see program_verdict_v1 in LINEAGES.md.")
+    parser.add_argument("--tied-labels", action="store_true",
+                        help="route_b stage 2 arm A3 (docs/lineages/route_b_v1/stage2-preregistration.md "
+                             "§3/§5, W2): train dim25cr on the SAME alpha=2.0 tied-optimal "
+                             "any-of-K label set A1/A2 teacher-force along, instead of the "
+                             "plain dim25cr path's graph.y (unconstrained sweep minimum). "
+                             "Valid only with --candidate-relative-queue and without "
+                             "--partial-state (dim63crk already implies tied labels). "
+                             "Requires a --dag-partial-state cache (tied_optimal_logit_plans).")
     parser.add_argument("--wandb-project", type=str, default=None)
     parser.add_argument("--wandb-run-name", type=str, default=None)
     parser.add_argument("--wandb-entity", type=str, default=None)
@@ -118,6 +170,25 @@ def edge_accuracy_from_dataset(model, dataset, device) -> float:
     return correct / max(len(dataset), 1)
 
 
+def candidate_relative_ablation_change(model, dataset, device, n_cr: int) -> float:
+    """Fraction of held-out decisions whose argmax moves when the CR columns are zeroed.
+
+    P5b validity gate 2 (pre-registered): a null from a model that IGNORED the new
+    columns is evidence about nothing. If this is near zero the feature is inert and the
+    control must be fixed before it is gated, not reported as a null result.
+    """
+    model.eval()
+    changed = 0
+    with torch.no_grad():
+        for X_np, _y in dataset:
+            x = torch.from_numpy(X_np).to(device)
+            x_ablated = x.clone()
+            x_ablated[:, -n_cr:] = 0.0
+            if int(model(x).argmax().item()) != int(model(x_ablated).argmax().item()):
+                changed += 1
+    return changed / max(len(dataset), 1)
+
+
 def grouped_ce_loss(model, batch, device) -> torch.Tensor:
     total_loss = torch.tensor(0.0, device=device)
     for X_np, y in batch:
@@ -139,7 +210,19 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
         if n_tasks < args.min_batch_tasks:
             skipped_small += 1
             continue
-        rows, skip_reason = extract_rows_dim22_from_batch_graph(graph, str(graph_id))
+        if getattr(args, "partial_state", False):
+            rows, skip_reason = extract_rows_dim63crk_from_batch_graph(
+                graph, str(graph_id)
+            )
+        elif getattr(args, "tied_labels", False):
+            rows, skip_reason = extract_rows_dim25cr_tied_from_batch_graph(
+                graph, str(graph_id)
+            )
+        else:
+            rows, skip_reason = extract_rows_dim22_from_batch_graph(
+                graph, str(graph_id),
+                candidate_relative=bool(args.candidate_relative_queue),
+            )
         if skip_reason or not rows:
             raise RuntimeError(f"Failed to extract {graph_id}: {skip_reason}")
         all_rows.extend(rows)
@@ -162,32 +245,141 @@ def extract_dim22_dataframe(args: argparse.Namespace, metadata, graphs, dataset_
 
 def main() -> None:
     args = parse_args()
+    # --random-state used to seed only the parent split and the batch order; the model's
+    # weight INIT came from torch's global RNG, which nothing seeded. Two identical
+    # invocations therefore produced different weights, and since the MLP's live collapse
+    # victim set is a function of the weights, every MLP checkpoint in this repo before
+    # 2026-08-24 is an unreproducible draw. Checkpoints record `torch_seeded` so a seeded
+    # one can be told from a drawn one.
+    torch.manual_seed(args.random_state)
+    np.random.seed(args.random_state)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cache_dir = args.cache_dir.resolve()
 
     metadata, graphs, dataset_ids = load_batch_cache(cache_dir)
+    candidate_relative = bool(args.candidate_relative_queue)
+    partial_state = bool(args.partial_state)
+    tied_labels = bool(args.tied_labels)
+    partial_state_contract = None
+    if partial_state:
+        if not candidate_relative:
+            raise RuntimeError(
+                "[MLP batch] --partial-state requires --candidate-relative-queue "
+                "(dim63crk = dim25cr + the partial-state block)"
+            )
+        cache_contract = metadata.get("partial_state_contract")
+        if not cache_contract:
+            raise RuntimeError(
+                "[MLP batch] --partial-state needs a stage-2 cache that declares "
+                "partial_state_contract in its metadata (build item B3); this cache "
+                "does not — refusing to train a dim63crk arm on rows that cannot "
+                "carry the partial-state columns"
+            )
+        partial_state_contract = validate_partial_state_contract(cache_contract)
+    if tied_labels:
+        # route_b stage 2 arm A3 (§3/§5, W2): same label parity gate as
+        # --partial-state, minus the partial-state dependency itself (dim63crk
+        # already implies tied labels; --tied-labels is for the T0 arm that must
+        # NOT see the partial-state block but must train on the same labels).
+        if partial_state:
+            raise RuntimeError(
+                "[MLP batch] --tied-labels is redundant with --partial-state "
+                "(dim63crk already teacher-forces the tied-optimal label set); "
+                "pick one"
+            )
+        if not candidate_relative:
+            raise RuntimeError(
+                "[MLP batch] --tied-labels requires --candidate-relative-queue "
+                "(tied-dim25cr is dim25cr with alpha=2.0 tied-optimal labels)"
+            )
+        if not metadata.get("dag_partial_state"):
+            raise RuntimeError(
+                "[MLP batch] --tied-labels needs a --dag-partial-state cache "
+                "(tied_optimal_logit_plans); this cache does not declare "
+                "dag_partial_state — refusing to train on labels that do not exist"
+            )
     df = extract_dim22_dataframe(args, metadata, graphs, dataset_ids)
     feature_cols = _feature_columns(df)
     input_dim = len(feature_cols)
-    if input_dim not in (DIM22_FEATURE_DIM, DIM24_FEATURE_DIM):
+    _LAYOUT_BY_WIDTH = {
+        DIM22_FEATURE_DIM: "dim22",
+        DIM24_FEATURE_DIM: "dim24",
+        DIM25CR_FEATURE_DIM: "dim25cr",
+        DIM63CRK_FEATURE_DIM: "dim63crk",
+    }
+    if input_dim not in _LAYOUT_BY_WIDTH:
         raise RuntimeError(
             f"[MLP batch] Unexpected input_dim={input_dim}; "
-            f"expected {DIM22_FEATURE_DIM} or {DIM24_FEATURE_DIM}"
+            f"expected one of {sorted(_LAYOUT_BY_WIDTH)}"
         )
-    layout = "dim24" if input_dim == DIM24_FEATURE_DIM else "dim22"
+    layout = _LAYOUT_BY_WIDTH[input_dim]
+    # The flags and the extracted width must agree, or the checkpoint would declare a
+    # layout it was not trained under — the confound tests/test_inference_layout_contract
+    # exists to prevent.
+    if candidate_relative != (layout in ("dim25cr", "dim63crk")):
+        raise RuntimeError(
+            f"[MLP batch] --candidate-relative-queue={candidate_relative} but extracted "
+            f"width {input_dim} implies layout {layout!r}"
+        )
+    if partial_state != (layout == "dim63crk"):
+        raise RuntimeError(
+            f"[MLP batch] --partial-state={partial_state} but extracted "
+            f"width {input_dim} implies layout {layout!r}"
+        )
+    # Caches built before CACHE_VERSION 5.7 carry no contract field and are legacy_v0 by
+    # construction; the checkpoint records it so inference cannot serve the wrong scaling.
+    queue_feature_contract = validate_queue_feature_contract(
+        metadata.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
+    )
     print(
         f"[MLP batch] device={device} input_dim={input_dim} layout={layout} "
+        f"queue_feature_contract={queue_feature_contract} "
         f"(batch cache — norm queue + shared_fate"
         f"{' + pull observables' if layout == 'dim24' else ''}, matches GNN + inference)",
         flush=True,
     )
 
-    train_df, val_df, test_df = split_by_parent_three_way(
-        df,
-        val_size=args.val_size,
-        test_size=args.test_size,
-        random_state=args.random_state,
-    )
+    if args.split_artifact is not None:
+        # B6: the pinned split. The size knobs describe a drawn split; silently
+        # ignoring them under an artifact would misrepresent what ran.
+        if args.val_size != 0.15 or args.test_size != 0.15:
+            raise RuntimeError(
+                "--split-artifact fixes the split; --val-size/--test-size have no "
+                "effect and non-default values are refused."
+            )
+        split_payload, split_sha256 = load_split_artifact(args.split_artifact)
+        canonical_parents = df["parent_dataset_id"].map(canonical_parent_id)
+        assert_split_artifact_covers(
+            split_payload,
+            canonical_parents.unique(),
+            artifact_path=str(args.split_artifact),
+        )
+        train_df = df[canonical_parents.isin(set(split_payload["train"]))].copy()
+        val_df = df[canonical_parents.isin(set(split_payload["val"]))].copy()
+        test_df = df[canonical_parents.isin(set(split_payload["test"]))].copy()
+        for name, part in (("train", train_df), ("val", val_df), ("test", test_df)):
+            if part.empty:
+                raise RuntimeError(
+                    f"Split artifact {args.split_artifact} leaves the {name} split "
+                    f"empty on this cache"
+                )
+        split_artifact_meta = {
+            "path": str(args.split_artifact),
+            "sha256": split_sha256,
+        }
+        print(
+            f"[MLP batch] split artifact {args.split_artifact} "
+            f"(sha256={split_sha256[:12]}…) — --random-state seeds init/batch order only",
+            flush=True,
+        )
+    else:
+        train_df, val_df, test_df = split_by_parent_three_way(
+            df,
+            val_size=args.val_size,
+            test_size=args.test_size,
+            random_state=args.random_state,
+        )
+        split_artifact_meta = None
     print(
         f"[MLP batch] train {len(train_df):,} rows / {train_df['graph_id'].nunique():,} graphs / "
         f"{train_df['parent_dataset_id'].nunique():,} parents  | "
@@ -228,6 +420,7 @@ def main() -> None:
                 "model": "PointwiseEdgeMLP",
                 "input_dim": input_dim,
                 "inference_feature_layout": layout,
+                "queue_feature_contract": queue_feature_contract,
                 "hidden_dim": args.hidden_dim,
                 "cache_dir": str(cache_dir),
                 "cache_version": metadata.get("version"),
@@ -307,16 +500,71 @@ def main() -> None:
     val_acc_final = edge_accuracy_from_dataset(model, val_set, device)
     test_acc_final = edge_accuracy_from_dataset(model, test_set, device)
 
+    cr_ablation_change = None
+    partial_state_ablation_change = None
+    if partial_state:
+        # B2's registered ablation gate: zeroing the 38 partial-state/krank/linkrank
+        # columns (the LAST 38 of dim63crk) must move >= 5% of held-out argmaxes,
+        # else the arm is VOID as not-actually-T1. The number is recorded in the
+        # sidecar; the VOID reading is applied by the gate, not silently here.
+        partial_state_ablation_change = candidate_relative_ablation_change(
+            model, test_set, device, PARTIAL_STATE_FEATURE_DIM
+        )
+        print(
+            f"[MLP batch] B2 ABLATION GATE — zeroing the {PARTIAL_STATE_FEATURE_DIM} "
+            f"partial-state/krank/linkrank columns moves "
+            f"{partial_state_ablation_change:.1%} of held-out argmaxes "
+            f"(registered threshold: >= 5%, else VOID as not-actually-T1)",
+            flush=True,
+        )
+    elif candidate_relative:
+        # zero-the-LAST-n ablation is only the CR ablation when the CR columns are
+        # last, i.e. on dim25cr; on dim63crk the last block is the partial state.
+        cr_ablation_change = candidate_relative_ablation_change(
+            model, test_set, device, CANDIDATE_RELATIVE_FEATURE_DIM
+        )
+        print(
+            f"[MLP batch] VALIDITY GATE 2 — zeroing the {CANDIDATE_RELATIVE_FEATURE_DIM} "
+            f"candidate-relative columns moves {cr_ablation_change:.1%} of held-out argmaxes "
+            f"(pre-registered threshold: >= 5%)",
+            flush=True,
+        )
+
+    # Label mode + alpha key, next to inference_feature_layout: dim63crk (partial_state)
+    # and tied-dim25cr (tied_labels) both teacher-force along the alpha=2.0 any-of-K
+    # tied-optimal plan set (docs/lineages/route_b_v1/stage2-preregistration.md §5); the plain dim22/
+    # dim24/dim25cr path labels from graph.y (the unconstrained sweep minimum) instead.
+    # An eval harness needs this to know which optimum a checkpoint's argmax should be
+    # compared against.
+    # Neither extractor takes an --alpha-key CLI override today; both default to the
+    # cache's dag_primary_alpha_key, which is "2.0" on every stage-2 cache built so
+    # far. Recorded explicitly (not derived from the cache at load time) so a future
+    # cache with a different primary alpha cannot silently mislabel an old checkpoint.
+    tied_optimal_training = partial_state or tied_labels
+    label_mode = "any_of_k_tied_optimal" if tied_optimal_training else "sweep_minimum"
+    label_alpha_key = "2.0" if tied_optimal_training else None
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "model_state_dict": best_state,
-            "input_dim": input_dim,
-            "hidden_dim": args.hidden_dim,
-            "inference_feature_layout": layout,
-        },
-        str(args.output),
-    )
+    checkpoint = {
+        "model_state_dict": best_state,
+        "input_dim": input_dim,
+        "hidden_dim": args.hidden_dim,
+        "inference_feature_layout": layout,
+        "label_mode": label_mode,
+        "label_alpha_key": label_alpha_key,
+        "queue_feature_contract": queue_feature_contract,
+        "torch_seeded": True,
+        "candidate_relative": candidate_relative,
+        "partial_state": partial_state,
+        "partial_state_contract": partial_state_contract,
+        "tied_labels": tied_labels,
+        # peer_affinity_v1: whether column 8 of a partial_state_v2 block (the peer-mass
+        # lookahead) was live during training -- mlp_t1 (off) vs mlp_t1x (on).
+        "peer_mass": peer_mass_enabled() if partial_state else None,
+    }
+    if candidate_relative:
+        checkpoint["candidate_relative_columns"] = CANDIDATE_RELATIVE_COLUMN_SPEC
+    torch.save(checkpoint, str(args.output))
 
     meta = {
         "cache_dir": str(cache_dir),
@@ -339,6 +587,23 @@ def main() -> None:
         "hidden_dim": args.hidden_dim,
         "input_dim": input_dim,
         "inference_feature_layout": layout,
+        "label_mode": label_mode,
+        "label_alpha_key": label_alpha_key,
+        "queue_feature_contract": queue_feature_contract,
+        "torch_seeded": True,
+        "candidate_relative": candidate_relative,
+        "candidate_relative_columns": (
+            CANDIDATE_RELATIVE_COLUMN_SPEC if candidate_relative else None
+        ),
+        "candidate_relative_ablation_argmax_change": cr_ablation_change,
+        "partial_state": partial_state,
+        "partial_state_contract": partial_state_contract,
+        "partial_state_ablation_argmax_change": partial_state_ablation_change,
+        "tied_labels": tied_labels,
+        # Which code produced these weights. Without it a checkpoint cannot be told apart
+        # from one built by a different working tree (PARITY.md rule 6).
+        "code_provenance": describe_code_provenance(),
+        "python_env": describe_python_env(),
         "epochs_run": len(history),
         "epochs_max": args.epochs,
         "patience": args.patience,
@@ -346,8 +611,15 @@ def main() -> None:
         "random_state": args.random_state,
         "val_size": args.val_size,
         "test_size": args.test_size,
+        # B6: {"path", "sha256"} of the shared artifact, or None for a drawn split.
+        # A registered paired run must carry the artifact form.
+        "split_artifact": split_artifact_meta,
         "param_count": param_count,
-        "split_note": "Canonical-parent 70/15/15; early-stop on val; test reported once at end.",
+        "split_note": (
+            "Pinned by split artifact; --random-state seeds init/batch order only."
+            if split_artifact_meta is not None
+            else "Canonical-parent 70/15/15; early-stop on val; test reported once at end."
+        ),
         "fix_note": (
             f"Trained from batch cache (same as GNN) — platform features match {layout} inference."
         ),
@@ -370,6 +642,9 @@ def main() -> None:
         wandb.summary["final_train_edge_acc"] = float(train_acc_final)
         wandb.summary["final_val_edge_acc"] = float(val_acc_final)
         wandb.summary["final_test_edge_acc"] = float(test_acc_final)
+        wandb.summary["inference_feature_layout"] = layout
+        if cr_ablation_change is not None:
+            wandb.summary["cr_ablation_argmax_change"] = float(cr_ablation_change)
         wandb.finish()
 
 

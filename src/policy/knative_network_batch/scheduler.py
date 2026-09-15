@@ -11,8 +11,45 @@ from typing import Any, Dict, Generator, List, Optional, Set, Tuple, TYPE_CHECKI
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.placement.live_audit import _replicas_by_type_payload, orchestrator_of
 from src.placement.model import SystemState
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
+
+
+def _read_batch_by_peer_group() -> bool:
+    """KNATIVE_BATCH_BY_PEER_GROUP=1: the batch is the first task's whole peer group
+    (transitive closure of the trace's peer_exchange table), waited for up to the batch
+    timeout -- the same collector the GNN arm runs under GNN_BATCH_BY_PEER_GROUP
+    (src/policy/gnn/scheduler.py). Placement stays the per-task shortest-queue rule.
+
+    peer_affinity_warm_v1 (2026-09-13): exists so a reactive behaviour policy can capture
+    live-audit snapshots whose batches ARE peer groups -- measured on the 3k smoke, the
+    window collector's batches coincide with a peer group in 14 of 387 cases, and a
+    snapshot whose peer pairs straddle two batches cannot be labelled by a batch co-sim.
+    Off by default; every landed knative_network_batch gate is unchanged."""
+    raw = os.environ.get("KNATIVE_BATCH_BY_PEER_GROUP", "0").strip().lower()
+    if raw not in ("", "0", "false", "no", "1", "true", "yes"):
+        raise ValueError(f"KNATIVE_BATCH_BY_PEER_GROUP must be a boolean, got {raw!r}")
+    return raw in ("1", "true", "yes")
+
+
+def _peer_group(orchestrator: Any, task_id: int) -> Set[int]:
+    """Transitive closure of the peer table from `task_id` (global ids, incl. its own)."""
+    table = getattr(orchestrator, "peer_exchange", None) or {}
+    seen = {int(task_id)}
+    stack = [int(task_id)]
+    while stack:
+        i = stack.pop()
+        for j in table.get(i, {}):
+            if j not in seen:
+                seen.add(int(j))
+                stack.append(int(j))
+    return seen
+
+
+def _peer_already_scheduled(orchestrator: Any, task_id: int) -> bool:
+    peer = (getattr(orchestrator, "task_by_id", None) or {}).get(int(task_id))
+    return peer is not None and bool(peer.scheduled.triggered)
 
 
 class KnativeBatchScheduler(KnativeNetworkScheduler):
@@ -22,6 +59,8 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
         super().__init__(*args, **kwargs)
         self.batch_size = int(os.environ.get("KNATIVE_BATCH_SIZE", "4"))
         self.batch_timeout = float(os.environ.get("KNATIVE_BATCH_TIMEOUT", "0.002"))
+        self.batch_by_peer_group = _read_batch_by_peer_group()
+        self.peer_group_incomplete_batches = 0
 
     def scheduler_process(self) -> Generator:
         if False:
@@ -49,7 +88,50 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
         batch.append(task)
 
         timeout_remaining = self.batch_timeout
+        # `poll_interval` is a POLICY time constant, like `batch_timeout`, and the default 1 ms
+        # is calibrated to the production trace's 0.02 s window (a ratio of 20 polls per
+        # window). A load ladder that stretches arrivals must stretch both or the policy is
+        # not self-similar across rungs: with an 80 s window and a 1 ms poll, one batch that
+        # waits its full window costs 80,000 simpy timeout events, and the run effectively
+        # stalls (drainable_regime_v1 S0 pass 2, 2026-09-14: two arms advanced 4 simulated
+        # seconds in 30 minutes). KNATIVE_BATCH_POLL_INTERVAL / GNN_BATCH_POLL_INTERVAL set it
+        # explicitly; unset, the expression is exactly what it was, so every other run is
+        # bit-identical.
         poll_interval = min(0.001, self.batch_timeout) if self.batch_timeout > 0 else 0.0
+        _poll_env = os.environ.get("KNATIVE_BATCH_POLL_INTERVAL")
+        if _poll_env is not None:
+            try:
+                poll_interval = float(_poll_env)
+            except ValueError:
+                raise ValueError(f"KNATIVE_BATCH_POLL_INTERVAL={_poll_env!r} is not a number")
+            if poll_interval <= 0:
+                raise ValueError(f"KNATIVE_BATCH_POLL_INTERVAL={_poll_env!r} must be positive")
+
+        if self.batch_by_peer_group:
+            orch = orchestrator_of(self)
+            if orch is None:
+                raise RuntimeError(
+                    "KNATIVE_BATCH_BY_PEER_GROUP=1 but no node carries an orchestrator_ref"
+                )
+            remaining = {
+                j for j in _peer_group(orch, task.id)
+                if j != task.id and not _peer_already_scheduled(orch, j)
+            }
+            while remaining and len(batch) < self.batch_size and timeout_remaining > 0:
+                ready = [t for t in self.tasks.items if t.id in remaining and task_filter(t)]
+                if ready:
+                    member: Task = yield self.tasks.get(
+                        lambda queued, _r=remaining: queued.id in _r and task_filter(queued)
+                    )
+                    batch.append(member)
+                    remaining.discard(member.id)
+                else:
+                    wait_time = min(poll_interval, timeout_remaining)
+                    yield self.env.timeout(wait_time)
+                    timeout_remaining -= wait_time
+            if remaining:
+                self.peer_group_incomplete_batches += 1
+            return batch
 
         while len(batch) < self.batch_size and timeout_remaining > 0:
             ready_tasks = [t for t in self.tasks.items if task_filter(t)]
@@ -90,6 +172,16 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
                     )
                 )
                 continue
+
+            # drainable_debug_v1 D2 (2026-09-14): the per-arrival Knative scheduler has always
+            # written this snapshot (`knative_network/scheduler.py:93`); the batch subclass
+            # never did, so the reactive reference arm could not be compared against the
+            # learned arms on `chosen_queue_vs_min`. Read-only, behind the same flag, off by
+            # default. Captured before placement, which is where the rule reads the queue.
+            if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
+                task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
+                task.full_queue_snapshot = self._capture_full_queue_snapshot()
+                task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
             sched_node, sched_platform = yield self.env.process(
                 self.placement(system_state, task)
@@ -159,19 +251,28 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
         if not self._audit_batch_qualifies(system_state, batch_tasks):
             return
 
-        snapshot = {
-            "snapshot_id": self._audit_snapshots_written,
-            "time": float(self.env.now),
-            "policy": "knative_network_batch",
-            "horizon": len(batch_tasks),
-            "trigger_task_id": int(batch_tasks[0].id),
-            "chosen": None,
-            "full_queue_snapshot": self._capture_full_queue_snapshot(),
-            "tasks": [
-                self._audit_task_payload(system_state, task)
-                for task in batch_tasks
-            ],
-        }
+        self._drain_memo = {}  # one queue walk per platform per snapshot
+        try:
+            snapshot = {
+                "snapshot_id": self._audit_snapshots_written,
+                "time": float(self.env.now),
+                "policy": "knative_network_batch",
+                "horizon": len(batch_tasks),
+                "trigger_task_id": int(batch_tasks[0].id),
+                "chosen": None,
+                "full_queue_snapshot": self._capture_full_queue_snapshot(),
+                "tasks": [
+                    self._audit_task_payload(system_state, task)
+                    for task in batch_tasks
+                ],
+                # Shared schema with src/placement/live_audit.py — the P3 horizon sweep
+                # needs the full per-type replica state, not just batch candidates.
+                "replicas_by_type": _replicas_by_type_payload(
+                    system_state, orchestrator_of(self), self._drain_memo
+                ),
+            }
+        finally:
+            self._drain_memo = None
 
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         with open(output_path, "a") as f:

@@ -25,6 +25,10 @@ from typing import Generator, Set, Tuple, List, Dict, Any, Optional, TYPE_CHECKI
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.placement.live_audit import (
+    orchestrator_of as _orchestrator_of,
+    platform_queue_drain_seconds as _platform_queue_drain_seconds,
+)
 from src.placement.model import SystemState
 
 from src.placement.scheduler import Scheduler
@@ -183,9 +187,10 @@ class KnativeScheduler(Scheduler):
         # (scheduler_process already limits queue depth on uninitialized replicas)
         candidates = initialized_replicas if initialized_replicas else valid_replicas
         
-        # Least Connected (shortest queue) among candidates
+        # Least Connected (shortest queue) among candidates. Set iteration order is not
+        # reproducible across processes (PYTHONHASHSEED), so tie-break on replica identity.
         bounded_concurrency = min(
-            candidates, key=lambda couple: len(couple[1].queue.items)
+            candidates, key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)
         )
 
         # print(f"task: {task.id}")
@@ -217,6 +222,9 @@ class KnativeScheduler(Scheduler):
                 # Fallback: check bidirectional connectivity
                 elif hasattr(node, 'network_map') and task.node_name in node.network_map:
                     valid_replicas.append((node, platform))
+        # `replicas` is a set, so its iteration order (and therefore this list's order)
+        # is not reproducible across processes (PYTHONHASHSEED) — sort for determinism.
+        valid_replicas.sort(key=lambda couple: (couple[0].id, couple[1].id))
         return valid_replicas
 
     # ==================== Live Oracle Audit Capture ====================
@@ -324,6 +332,11 @@ class KnativeScheduler(Scheduler):
             "network_latency": float(self._network_latency(task.node_name, node) or 0.0),
             "communications_time": (input_size / storage_throughput + storage_latency)
             + (output_size / storage_throughput + storage_latency),
+            # peer_affinity_warm_v1: same field the shared live_audit payload carries, so a
+            # Knative-captured snapshot replays through live_snapshot_seed identically.
+            "queue_drain_seconds": _platform_queue_drain_seconds(
+                platform, _orchestrator_of(self), getattr(self, "_drain_memo", None)
+            ),
         }
 
     def _network_latency(self, source_node_name: str, target_node: 'Node') -> float:

@@ -104,3 +104,46 @@ def load_primary_sample_and_mapping(
         raw_mapping = pickle.load(f)
     mapping = _normalize_mapping(raw_mapping)
     return sample, mapping, f"npy+pkl:{samples_npy_path},{mapping_pkl_path}"
+
+
+def ensure_workload_params(
+    sample: np.ndarray,
+    mapping: Dict[int, str],
+    apps: List[str],
+) -> Tuple[np.ndarray, Dict[int, str]]:
+    """Extend a sample/mapping in memory so every app has a `workload_<app>` parameter.
+
+    A grid preset may name task types the shared sampled space never had — the generator
+    synthesizes `wsc`/`prewarm`/`replicas` entries for those, but `prepare_workloads` then
+    fails loud on the missing workload factor. Rather than rewrite the shared
+    `sample_simple.json` / `lhs_samples_simple_mapping.pkl` (which every other grid reads,
+    at fixed indices), grow the copy this run uses.
+
+    New task types take over the *positions* of the existing ones, so a substituted pair
+    like ("cnn", "rf") inherits the workload factors ("dnn1", "dnn2") would have had and
+    the grid's workload semantics are preserved.
+    """
+    present = {name for name in mapping.values()}
+    missing = [a for a in apps if f"workload_{a}" not in present]
+    if not missing:
+        return sample, mapping
+
+    donor_indices = sorted(
+        idx for idx, name in mapping.items() if name.startswith("workload_")
+    )
+    if not donor_indices:
+        raise RuntimeError(
+            f"Cannot synthesize workload parameters for {missing}: the sample mapping has "
+            f"no workload_* entry to inherit a factor from. Mapping: {sorted(mapping.values())}"
+        )
+
+    extended = dict(mapping)
+    values = list(np.asarray(sample, dtype=np.float64))
+    next_index = max(extended) + 1
+    for position, app_name in enumerate(missing):
+        donor = donor_indices[position % len(donor_indices)]
+        extended[next_index] = f"workload_{app_name}"
+        values.append(float(sample[donor]))
+        next_index += 1
+
+    return np.array(values, dtype=np.float64), extended

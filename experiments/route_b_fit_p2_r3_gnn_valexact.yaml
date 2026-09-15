@@ -1,0 +1,31 @@
+# route_b fit-ceiling Phase 2 RETRAIN (2026-09-07): identical to route_b_fit_p2_r3_gnn.yaml
+# except NEAR_RTT_VAL_EXACT_REGRET=1 -- the checkpoint-selection metric now falls back to
+# the full enumerated sweep instead of a constant per-dataset floor when a decoded combo is
+# absent from the capped near-RTT sidecar (~66% of decodes were unmapped on this corpus; see
+# docs/gates/gate-tools.md 2026-09-07 and the training-chain audit in docs/lineages/route_b_v1.md).
+# Distinct run_name so checkpoints never collide with the original route_b_fit_p2_r3_gnn.yaml
+# run's models/route-b-fit-p2-r3-gnn-seed*.pt files.
+trainer: gnn
+lineage: route_b_v1
+cache_dir: simulation_data/graphs_cache_route_b_fit_p2_r3
+unset_env:
+  - TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: "1"
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/route_b_fit_p2_split_r3.json
+  NEAR_RTT_MP_DAG_EDGES: "1"
+  NEAR_RTT_TASK_TYPE_ONEHOT: "1"
+  NEAR_RTT_PARTIAL_STATE_EDGES: "1"
+  NEAR_RTT_DAG_ALPHA_KEY: "2.0"
+  NEAR_RTT_TIED_MAX_PLANS: "0"
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: "1"
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  learning-rate: 0.002
+wandb:
+  project: gnn-route-b-explore
+  run_name: route-b-fit-p2-r3-gnn-valexact
+  tags: [route-b, fit-ceiling, phase2, rung3, gnn, mp-on, val-exact-regret]

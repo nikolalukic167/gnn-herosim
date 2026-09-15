@@ -1,0 +1,18 @@
+# route_b fit-ceiling Phase 2 (2026-09-06), learning-curve rung 1: pointwise-plus-prefix
+# MLP (stage 2 A2 layout). Identical to Phase 1's route_b_fit_a2_long.yaml except the
+# cache/split (rung-specific). run_experiment --seed suffixes output with _seed{N}.
+trainer: mlp
+lineage: route_b_v1
+cache_dir: simulation_data/graphs_cache_route_b_fit_p2_r1
+path_args: [output, split-artifact]
+args:
+  output: models/tabular/route_b_fit_p2_r1_mlp.pt
+  split-artifact: experiments/route_b_fit_p2_split_r1.json
+  partial-state: null
+  candidate-relative-queue: null
+  epochs: 600
+  patience: 600
+  random-state: 42
+wandb:
+  project: gnn-route-b-explore
+  run_name: route-b-fit-p2-r1-mlp

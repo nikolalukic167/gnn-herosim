@@ -34,7 +34,22 @@ def main() -> None:
     parser.add_argument("--mid-delta", type=float, default=1.00)
     parser.add_argument("--trash-delta", type=float, default=5.00)
     parser.add_argument("--sidecar-name", type=str, default="valid_combos_near_rtt_capped.pkl")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help=(
+            "Seed the `random` module before reservoir sampling. The far/close bands are "
+            "reservoir-sampled through the unseeded `random` module (cache_io.py), so "
+            "without this two builds of the same cache differ. None keeps today's "
+            "unseeded behaviour."
+        ),
+    )
     args = parser.parse_args()
+    if args.seed is not None:
+        import random
+
+        random.seed(args.seed)
 
     cache_dir = args.cache_dir.expanduser().resolve()
     ctx = create_cache_context(cache_dir)

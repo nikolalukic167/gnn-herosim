@@ -25,6 +25,7 @@ from typing import (
     Dict,
     List,
     Literal,
+    Optional,
     Set,
     Tuple,
     TypedDict,
@@ -35,7 +36,7 @@ from typing import (
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform
 
-from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json
+from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json, config
 
 from simpy.core import SimTime
 
@@ -321,6 +322,14 @@ class TimeSeries(DataClassJsonMixin):
     rps: int
     duration: int
     events: List[WorkloadEvent]
+    # peer_affinity_v1: optional [task_id_i, task_id_j, bytes] triples over GLOBAL task ids
+    # (the ids Orchestrator.create_application assigns, contiguous across events). Read only
+    # under HEROSIM_PEER_EXCHANGE=1 (Platform._peer_exchange_time); absent -> None, and every
+    # existing trace loads exactly as before. The JSON key stays snake_case on purpose: the
+    # co-sim generator, the paper probe and the scorer all spell it `peer_exchange`.
+    peer_exchange: Optional[List[List[float]]] = dataclasses.field(
+        default=None, metadata=config(field_name="peer_exchange")
+    )
 
 
 @final
@@ -525,29 +534,17 @@ priority_policies: Dict[str, Set[str]] = {
 }
 
 scheduling_strategies: Dict[str, str] = {
-    "hro_hro": "HRO-HRO",
-    "hro_hrc": "HRO-HRC",
-    "hro_kn": "HRO-KN",
-    "hro_rp": "HRO-RP",
-    "hro_bpff": "HRO-BPFF",
     "hrc_hrc": "HRC-HRC",
-    "hrc_hro": "HRC-HRO",
     "hrc_kn": "HRC-KN",
     "hrc_rp": "HRC-RP",
-    "hrc_bpff": "HRC-BPFF",
     "kn_kn": "KN-KN",
-    "kn_hro": "KN-HRO",
     "kn_hrc": "KN-HRC",
     "kn_rp": "KN-RP",
-    "kn_bpff": "KN-BPFF",
-    "prokn_prokn": "PROKN-PROKN",
-    "prohetkn_prohetkn": "PROHETKN-PROHETKN",
     "gnn_gnn": "GNN-GNN",
     "gnn_hetero_gnn_hetero": "GNN-HETERO-GNN-HETERO",
     "xgb_batch_xgb_batch": "XGB-BATCH-XGB-BATCH",
     "mlp_batch_mlp_batch": "MLP-BATCH-MLP-BATCH",
     "xgb_single_xgb_single": "XGB-SINGLE-XGB-SINGLE",
-    "multiloop_multiloop": "MULTILOOP-MULTILOOP",
     "determined_determined": "DETERMINED-DETERMINED",
     "evaluator_evaluator": "EVALUATOR-EVALUATOR",
     "kn_network_kn_network": "KN-NETWORK-KN-NETWORK",
