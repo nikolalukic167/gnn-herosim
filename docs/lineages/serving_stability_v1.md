@@ -145,3 +145,145 @@ forgetting.
 5. **No GNN-vs-pointwise claim may be founded here.** A queue guardrail is exactly the kind of
    per-platform-count-and-depth function the count theorem covers; `mpoff` is expected to gain
    as much, and that prediction is recorded now.
+
+---
+
+## 2026-09-15 — the reads: **S1 FIRES, S2 does not, S3 says STABILITY-NOT-THE-LEVER**
+
+99 unguarded arms (job 768098) and 96 guarded (768219) across three cells; one arm absent in
+each, the known `s7901 × gnn seed 3` livelock, declared before the runs.
+
+### S1 — EARLY-ADVANTAGE-REAL. The registered expectation was UNCERTAIN and it fired at full strength
+
+| cell | reactive early queue | `gnn` median delta | ahead | `mpoff` median delta | ahead |
+|---|---|---|---|---|---|
+| s7901 | 17.464 s | **−4.136 s** | **13/13** | −3.479 s | 16/16 |
+| s9001 | 14.968 s | **−4.070 s** | **15/15** | −3.760 s | 16/16 |
+| s9002 | 14.550 s | **−3.475 s** | **15/15** | −3.416 s | 16/16 |
+
+**Every seed on every cell, both arms — 43/43 `gnn` and 48/48 `mpoff`.** The learned arms
+really are faster than reactive Knative while queues are shallow, and it replicates on two
+topologies that had never been looked at. This is the first thing in this program's record
+that has a learned arm ahead of reactive and survives replication.
+
+### S2 — STABILITY-NOT-SEPARATED (1 of 3 cells)
+
+| cell | reactive ratio | `gnn` median | `mpoff` median | |
+|---|---|---|---|---|
+| s7901 | 1.79 | 10.67 | 7.38 | fires |
+| s9001 | 2.01 | **2.17** | **2.29** | no — the arms are as stable as reactive |
+| s9002 | **3.42** | 26.92 | 31.30 | no — reactive fails its own bar |
+
+"The learned arms cannot control their queues" is **not** a general property.
+
+### The mechanism story does not survive its own follow-up
+
+Across the three cells, arm instability and the gap to reactive line up almost perfectly
+(1.79 → −111 %, 2.01 → −6.8 %, 3.42 → −179 %). **That is three aggregates**, and this
+program closed a lineage on exactly that shape the same day. Asked per seed **within** each
+cell — exploratory, no bar — stability does not predict latency:
+
+| cell | arm | ρ(stability, latency) | p |
+|---|---|---|---|
+| s7901 | `gnn` | **+0.825** | 0.0002 |
+| s9001 | `gnn` | **−0.650** | 0.0064 |
+| s9002 | `gnn` | +0.341 | 0.196 |
+| **pooled-z, n = 95** | | **+0.088** | **0.395** |
+
+Two cells significant in **opposite directions**, pooled zero. The correlational case for the
+mechanism is not there, which is why S3 — an intervention — is the read that decides.
+
+### S3 — the live gate
+
+* **S3-a NO-DEADLOCK.** 0 hangs. Unlike `GNN_PREFIX_PLATFORM_CAP` (3/16 in this regime), the
+  depth-relative guardrail is safe to serve. It did **not** rescue the `s7901 × seed 3`
+  livelock either, so that hang is not queue runaway.
+* **S3-b GUARDRAIL-BOUND.** The mask was active on **84–90 %** of decisions in every cell and
+  arm, minimum 83.8 %, against a 5 % bar. It did what its name says.
+* **S3-c REACTIVE-STILL-WINS, 0/3 cells.** Guarded `gnn` vs reactive: −35.2 % (s7901, 0/13),
+  −5.1 % (s9001, 1/15), −216.3 % (s9002, 0/15).
+* **S3-d GUARDRAIL-DOES-NOT-HELP** under the registered test, `gnn` 1/3 cells.
+
+| cell | guarded | unguarded | change | seeds better | registered p (Mann-Whitney) |
+|---|---|---|---|---|---|
+| s7901 | 35.07 | 54.82 | **+36.0 %** | 13/13 | < 0.0001 → fires |
+| s9001 | 22.02 | 22.35 | +1.5 % | 15/15 | 0.115 → no |
+| s9002 | 74.27 | 65.40 | **−13.6 %** | 3/15 | 0.0009 → no, and worse |
+
+**Outcome: STABILITY-NOT-THE-LEVER.**
+
+### A mis-specified test in my own registration, disclosed and not switched
+
+S3-d compares the **same seeds** with and without the guardrail, and the bar I signed names
+**Mann-Whitney**, which is an *unpaired* test. The matched test is Wilcoxon signed-rank. Run
+on all available seeds (the registered read additionally drops the two burned scoping seeds
+on C1, hence its slightly different n and medians):
+
+| cell | arm | better | registered MW p | paired Wilcoxon p |
+|---|---|---|---|---|
+| s7901 | `gnn` | 15/15 | < 0.0001 | 0.000061 |
+| s9001 | `gnn` | **16/16** | **0.127** | **0.000031** |
+| s9002 | `gnn` | 3/16 | 0.0006 | 0.025 (worse) |
+
+**Under the correctly specified test S3-d would read GUARDRAIL-HELPS on 2 of 3 cells, and the
+outcome would be HELPS-NOT-ENOUGH rather than STABILITY-NOT-THE-LEVER.** The registered
+verdict stands as signed — swapping a test after seeing which way it moves the answer is how
+a registration stops meaning anything — and the sensitivity is recorded here beside it so no
+reader has to rediscover it. The mis-specification is filed in `docs/gates/gate-tools.md`.
+
+Note what does **not** change under either test: **S3-c is 0/3 on both.** No configuration
+here beats reactive Knative.
+
+### What the guardrail actually does, and why the mechanism is refuted either way
+
+It helps enormously where the arms were unstable (s7901, ratio 10.67 → +36 %), negligibly
+where they were already stable (s9001, ratio 2.17 → +1.5 %), and **hurts** where they were
+*most* unstable (s9002, ratio 26.92 → −13.6 %). "Stabilise the unstable arm and it recovers"
+predicts the opposite of what s9002 did. The intervention's effect is cell-dependent in a way
+the stability story does not explain.
+
+`mpoff` gains as much as `gnn` throughout (S3-d fires on 2/3 cells for `mpoff` under the
+registered test against `gnn`'s 1/3), which is the registered count-theorem prediction, and
+**no GNN-vs-pointwise claim is founded here.**
+
+## Outcome (2026-09-15): **EARLY-ADVANTAGE-REAL · STABILITY-NOT-THE-LEVER** — closed
+
+| read | verdict |
+|---|---|
+| S0 controls | treatment is one field (`batch_timeout 0.02 → 16.0`); C2/C3 differ from C1 only by `network.topology.seed` |
+| **S1** | **EARLY-ADVANTAGE-REAL** — 3/3 cells, 43/43 `gnn` and 48/48 `mpoff` seeds ahead |
+| S2 | STABILITY-NOT-SEPARATED — 1/3 cells |
+| S3-a | NO-DEADLOCK — 0 hangs, unlike the platform cap |
+| S3-b | GUARDRAIL-BOUND — 84–90 % of decisions |
+| S3-c | REACTIVE-STILL-WINS — 0/3 cells |
+| S3-d | GUARDRAIL-DOES-NOT-HELP (registered test); HELPS on 2/3 under the paired test |
+
+**Two findings, and they point in opposite directions about how hopeful to be.**
+
+1. **The learned arms are genuinely better than reactive Knative early, everywhere.** Not a
+   cell artifact, not a seed artifact: every one of 91 learned arms across three topologies
+   is ahead over the first fifth of the trace. Whatever these models know, it is real and it
+   is being destroyed later in the trace rather than never having existed.
+2. **Keeping their queues bounded does not recover it.** The guardrail bound hard, never
+   deadlocked, and still lost to reactive on every cell — while helping +36 % on one, +1.5 %
+   on another and **hurting 13.6 %** on the third, the one where the arms were *least* stable.
+
+**What is closed, precisely:** the depth-relative queue guardrail at **K = 3**, decode-time,
+on the V = 1 checkpoints, at the x4000 drainable rung with a 16 s window, uncapped, Q = 100,
+across cells s7901/s9001/s9002. Do not re-run this configuration. `K` was **not** tuned, and
+a tuned `K` is a different experiment that must be registered as one.
+
+**What is NOT closed:**
+
+* **Why the early advantage is lost.** S1 says it exists; nothing here says what destroys it.
+  That is the question the next lineage should ask, and it now has a measured phenomenon
+  rather than a hunch to start from.
+* **Any non-queue stabiliser.** This tested one mechanism — capping depth relative to the
+  shallowest candidate. It says nothing about admission control, batch sizing by load, or
+  giving the model a queue feature inside its trained range.
+* **A tuned or adaptive K**, including one that is a no-op on cells like s9001 where the arms
+  are already stable and the guardrail buys 1.5 %.
+
+**Carried, unchanged:** one load rung; cells not traces; and no GNN-vs-pointwise claim — the
+pointwise twin gained at least as much as the graph arm throughout, exactly as the count
+theorem predicted before the gate ran.
