@@ -80,3 +80,48 @@ Any term expressible in per-platform counts and their squares is inside register
 competitor v2 (R² 1.0000 median, `peer_affinity_v1` A6) and by the `route_a_v1` composition
 theorem a pointwise scorer handed those columns expresses it exactly. **No GNN-vs-MLP or
 GNN-vs-MP-OFF claim may be founded on one.** And it still ends with a live gate (rule 6).
+
+## The queue-externality shaped label, as constructed (2026-09-15)
+
+`drainable_objective_v1`, CLOSED **OBJECTIVE-NOT-DELIVERED**. The scope note above stands —
+a closed-form shaped label is still not covered by the horizon-return or policy-gradient
+stops — but **this instance of one is closed, and the reason is not the latency number.**
+
+**What is stopped, exactly.** The label
+`L_V(plan) = rtt(plan) + V · Σ_p (λ_p/2)·[(B_p + A_p)² − B_p²]`
+at **V = 1**, **λ = 0.46 arrivals/s**, the **measured** per-item drain clock, trained on
+T1b's own 516-parent corpus and split at lr 2e-3 with T1b's recipe, decoded `masked_topo`
+at a 16 s window and gated at the x4000 drainable cell. Do not re-run this configuration.
+
+**Why, and this is the part that matters.** It is not that the charge was priced and the
+decoder disagreed; it is that **the charge never reached the decoder's behaviour.** The
+registered behaviour control asked that the shaped arms stop taking replicas deeper than
+the shallowest: bar ≤ 18 %, unshaped control 35.5 %, shaped arms **37.8–42.2 %** — every
+shaped arm concentrates *more* than the thing it was built to repair. The live latencies
+are consequently ties with the unshaped control (`mpoff` −0.16 %, p = 0.638; `gnn` −2.55 %,
+p = 0.441) and lose to reactive Knative 0/16 and 0/15. Phase A had already measured the
+label agreeing with the stream on only 33.3 / 42.5 / 34.5 % of states with real choice
+against a 60 % bar, so the gate is consistent with the screen — through a mechanism that
+sits upstream of latency.
+
+**What is NOT stopped.** Whether *any* non-myopic supervised label helps. This one was
+never delivered, so it is no evidence against the family. **A successor is admissible and
+owes three things before it is worth a gate:**
+
+1. **C1 first.** Measure that the decoder's placement depth actually moves under the new
+   label, on served states, before spending a live gate on latency. A label that does not
+   change behaviour cannot be tested for whether the behaviour helps.
+2. **An account of why its term survives the decode.** This one was a per-platform cost the
+   sequential decoder could see and did not follow; say what is different.
+3. **The inherited constraints, unchanged:** the rank-stability control over its own
+   coefficient, the count-competitor concession (label lever, never a GNN-vs-MLP claim),
+   and rule 6.
+
+**Two side facts from the same gate, recorded so they are not rediscovered.** One shaped
+`gnn` seed **deterministically livelocks** the simulator (sim t = 4,293 s, 99.4 % CPU, zero
+log growth, reproduced byte-for-byte) where its T1b twin at the same seed and cell runs in
+54.02 s — retraining on a shaped label can produce an unservable checkpoint, the same class
+as `GNN_PREFIX_PLATFORM_CAP`'s 3/16 deadlocks. And the **offline/live reversal reproduced
+on a label with nothing to do with peer affinity**: zero-overlap 10.0 % offline win for the
+graph arm, 6.65 % live loss (p = 0.015). Whatever drives that reversal is not a property of
+the peer-affinity objective.
