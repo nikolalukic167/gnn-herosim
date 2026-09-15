@@ -37,7 +37,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -66,6 +66,13 @@ R2_MAX_PROMOTED = 1
 # The scale the range-sensitivity decode used. Recorded here so the statistic's meaning is
 # pinned to a number rather than to whatever the sbatch happened to pass.
 R2_QUEUE_SCALE = 50.0
+# `one_step_regret` needs the plan to be inside the state's enumerated sweep. The D1 corpus
+# was cut with the candidates ITS OWN decodes used, so a checkpoint from another family can
+# land on a placement the sweep does not contain. Dropping such a state for one checkpoint
+# and not another would make the per-checkpoint means incomparable -- the same bias the D1
+# read refuses -- so the statistic is computed on the states scorable for EVERY checkpoint,
+# and is NOT-COMPUTED if fewer than this many survive. Fixed before the read ran.
+R2_MIN_COMMON_DATASETS = 100
 
 # Family tag -> the checkpoint-name prefix its decoded files carry.
 FAMILY_TAGS: Dict[str, str] = {
@@ -268,7 +275,7 @@ def load_state(sim_root: Path, ds_id: str) -> Tuple[Dict[str, Any], Dict[int, in
 
 def main(argv: Optional[List[str]] = None) -> int:
     from scripts_cosim.drainable_debug_one_step_read import (  # noqa: PLC0415
-        index_rows, plan_cost, regret_pct,
+        index_rows, regret_pct,
     )
     from scripts_cosim.score_route_b_contention import load_rows  # noqa: PLC0415
 
@@ -291,8 +298,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             live[(fam, arm, seed)] = row["averageElapsedTime"]
 
     values: Dict[str, Dict[Tuple[str, str, int], float]] = {
-        c: {} for c in ("depth", "concentration", "one_step_regret")
+        c: {} for c in ("depth", "concentration")
     }
+    # one_step_regret is assembled after the sweep-coverage pass below.
+    regrets: Dict[Tuple[str, str, int], Dict[str, float]] = defaultdict(dict)
+    seen_datasets: set = set()
+    unscorable: set = set()
     if args.scaled_dir:
         values["range_sensitivity"] = {}
 
@@ -321,8 +332,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                     per_arm[arm]["depth"].append(
                         depth_above_shallowest(plan, snapshot, cosim_id_of))
                     per_arm[arm]["concentration"].append(concentration(plan))
-                    per_arm[arm]["one_step_regret"].append(
-                        regret_pct(plan_cost(plan, index, f"{ds_id}/{arm}"), optimum))
+                    key = tuple(sorted((t, n, p) for t, (n, p) in plan.items()))
+                    cost = index.get(key)
+                    if cost is None:
+                        unscorable.add(ds_id)
+                    else:
+                        regrets[(fam, arm, seed)][ds_id] = regret_pct(cost, optimum)
                     if scaled is not None:
                         other = (scaled.get(ds_id) or {}).get(arm)
                         if other is None:
@@ -331,14 +346,34 @@ def main(argv: Optional[List[str]] = None) -> int:
                                 "decodes must cover the same states")
                         per_arm[arm]["range_sensitivity"].append(
                             range_sensitivity(plan, other))
+                seen_datasets.add(ds_id)
             for arm, series in per_arm.items():
                 for cand, xs in series.items():
                     if not xs:
                         raise TransferReadError(f"{tag} seed {seed} {arm}: no {cand} values")
                     values[cand][(fam, arm, seed)] = sum(xs) / len(xs)
             print(f"[r2] {tag} seed {seed}: "
-                  + "  ".join(f"{c}={values[c][(fam,'gnn',seed)]:.4f}" for c in values),
+                  + "  ".join(f"{c}={values[c][(fam,'gnn',seed)]:.4f}"
+                              for c in values if (fam, 'gnn', seed) in values[c]),
                   flush=True)
+
+    # one_step_regret on the states every checkpoint could be scored on, or not at all.
+    common = sorted(seen_datasets - unscorable)
+    print(f"[r2] one_step_regret: {len(common)} of {len(seen_datasets)} states scorable for "
+          f"every checkpoint ({len(unscorable)} carried an out-of-sweep plan); bar is "
+          f"{R2_MIN_COMMON_DATASETS}", flush=True)
+    if len(common) >= R2_MIN_COMMON_DATASETS:
+        values["one_step_regret"] = {}
+        for ck, by_ds in regrets.items():
+            xs = [by_ds[d] for d in common if d in by_ds]
+            if len(xs) != len(common):
+                raise TransferReadError(
+                    f"{ck}: {len(xs)} of {len(common)} common states scored -- the common "
+                    "set must be scorable for every checkpoint by construction")
+            values["one_step_regret"][ck] = sum(xs) / len(xs)
+    else:
+        print("[r2] one_step_regret is NOT-COMPUTED; Holm still divides by "
+              f"{R2_HOLM_N}", flush=True)
 
     result = read(values, live)
     args.out.parent.mkdir(parents=True, exist_ok=True)
