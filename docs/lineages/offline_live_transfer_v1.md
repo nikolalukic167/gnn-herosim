@@ -440,3 +440,62 @@ n = 2 checkpoints on n = 1 trace. The excursion's existence is measured; its *fr
 not. Whether most bad seeds are bad for this reason, whether a given seed excurses on other
 traces, and what triggers the excursion are three separate questions this read does not
 answer, and a successor should not quote it as though it did.
+
+---
+
+## Outcome (2026-09-15): **OFFLINE-SCORE-RESOLVES-WITHIN-RUN-ONLY** — closed
+
+Five reads, all run, all on families and bars fixed before their data.
+
+| read | verdict |
+|---|---|
+| R0 positive control | **CONTROL-PASSES** — ρ = 1.0000 in all three families |
+| R1 primary | **OFFLINE-UNINFORMATIVE** — pooled-z ρ = −0.030, p = 0.772, n = 96 |
+| R2 surrogates | **NO-SURROGATE** — all four fail; the best clears p and 0/3 families |
+| R3 mechanism | **COMPOUNDS** — and the gap is one excursion, not a drift |
+| R4 live gate | **SELECTOR-HELPS, COMPOSITE-BAR-SHORT-BY-ONE-SEED** — +13.1 % / +16.4 % |
+
+### The registered outcome sentences do not map, and that is recorded rather than patched
+
+The registration listed four outcomes, all of which assumed R1 and R4 would point the same
+way — that the offline score either resolves serving or does not. **It does both, depending on
+what is being ranked**, so none of the four sentences applies as written. The outcome is
+named for what was measured:
+
+> **The offline score resolves WITHIN a training run and not ACROSS runs.** It ranks epochs
+> (worth 13–16 % of live latency, so keep it) and it cannot rank seeds, runs, arms or model
+> classes (ρ = −0.030 at n = 96, ~80 % power at 0.30).
+
+No bar was moved to reach that, and the two sub-bars that turned out to be defective — R2's
+family bar not checking sign, R3's share normaliser — are recorded above and in
+`docs/gates/gate-tools.md` rather than retuned.
+
+### What this lineage changes about the record
+
+1. **The offline/live reversal is not a phenomenon.** Pooled raw it reads ρ = −0.525,
+   p < 0.0001; z-scored within (family, arm) the same 96 points read −0.030. It is the gap
+   between two arm averages of a score with no per-checkpoint signal. `serving_gap_v1` and
+   `serving_gap_v2` closed NO-GO hunting a mechanism for it; **they were looking for the cause
+   of an offset.** Neither should be reopened on that basis.
+2. **No offline-only comparison of two arms is evidence about serving** on these corpora. The
+   structural offline findings are untouched — pointwise-separability, the count theorem, "the
+   optimum never sees the mechanism" are facts about labels, not rankings of checkpoints.
+3. **A single-seed live number is not a measurement of a checkpoint.** R3: two seeds of one
+   recipe differ 1.7× live, and 50.5 % of that difference is **one decile** of one trace, with
+   full recovery afterwards.
+4. **The live gate is the cheap instrument, not the expensive one.** ~3 min per arm against
+   41 min to train the checkpoint it judges. The offline screen costs more than what it
+   filters and decides nothing across runs.
+
+### What is NOT closed
+
+* **A within-corpus screen.** `one_step_regret` reads ρ = +0.387 inside x800p2; `depth` and
+  `range_sensitivity` read ~+0.7 inside warm. Those may be real *within* their corpus. R2 only
+  rules out transfer across corpora, which is what a general screen would need.
+* **A sequence-scored evaluator** — scoring k consecutive batches rather than one. Not tested
+  here. It inherits a warning: `objective_pivot_v1` found rollout *rankings* unstable across
+  horizon lengths (ρ(h2,h10) = −0.027), so any such evaluator owes a rank-stability control as
+  a blocking bar before it is trusted.
+* **The excursion itself.** R3 measured that one exists and that it recovers. Its frequency,
+  its trigger, and whether the learned arms' loss to reactive Knative is made of the same thing
+  are three open questions, on n = 2 checkpoints and n = 1 trace.
