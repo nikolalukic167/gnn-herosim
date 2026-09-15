@@ -535,3 +535,30 @@ Two corollaries for reading any such gap:
   the same threshold and are different physics; a runaway closed loop does not come back.
 * **A shape summary is not a shape.** This read's own RISING/FLAT/FALLING descriptor called a
   single-decile spike with full recovery "RISING". Print the curve.
+
+## The learned arms beat reactive early and lose it later — the first replicated positive (2026-09-15)
+
+`serving_stability_v1` S1. Over the first fifth of a 50,000-task drainable trace, the learned
+arms carry **3.4–4.1 s less queue than reactive Knative**, and it holds on **3 of 3 cells and
+every one of 91 learned arms** (43/43 `gnn`, 48/48 `mpoff`) across two topologies that had
+never been looked at. The registered expectation was **UNCERTAIN** — this was the bar most
+likely to evaporate and it did the opposite.
+
+**Why it matters more than any offline number in this record:** every previous "the learned
+arm is worse" reading was a whole-trace aggregate, and a whole-trace aggregate cannot tell
+*never had an advantage* from *had one and lost it*. These models are not bad at placement.
+They are good at it and something destroys that later in the trace. ⇒ **Decompose a live gate
+by trace position before concluding an arm is worse at its job.** The same table also shows
+the loss is 2.4–3.9× concentrated rather than uniform.
+
+**What it is not.** Stabilising their queues does not recover it: a decode-time guardrail that
+bound on 84–90 % of decisions, with zero deadlocks, still lost to reactive on 0/3 cells, and
+**helped +36 % on one cell while hurting 13.6 % on the cell where the arms were least stable**.
+So the advantage is real, its destruction is real, and the queue-runaway explanation is
+refuted. The open question — what actually destroys it — is now the strongest lead in the
+record, and it starts from a measured phenomenon rather than a hunch.
+
+Corollary on aggregates, for the third time this day: across the three cells, instability and
+the gap to reactive line up almost perfectly. Within cells, across seeds, they do not
+(pooled-z ρ = +0.088, p = 0.40, two cells significant in **opposite** directions). Three
+aggregates are still not a trend.
