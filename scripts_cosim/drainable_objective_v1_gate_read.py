@@ -371,12 +371,14 @@ def main() -> int:
     print(f"[C1] worst V=1 arm above the shallowest replica: "
           f"{result['C1'].get('worst_v1_arm_pct')}% (bar {C1_ABOVE_MIN_MAX_PCT}) -> "
           f"{result['C1'].get('fires')}")
-    for bar in ("C2", "C3"):
-        for arm, row in result[bar].items():
-            print(f"[{bar} {arm:>5}] median {row.get('median_s')} vs "
-                  f"{row.get('reference_median_s')}  "
-                  f"{row.get('seeds_better')}/{row.get('n')} seeds  "
-                  f"p={row.get('p')}  -> {row.get('verdict')}")
+    # C2 is a flat {"verdict": ..., "note": ...} since Amendment 1 withdrew it, so it is
+    # printed on its own -- iterating it as {arm: row} walks the strings and crashes.
+    print(f"[C2] {result['C2'].get('verdict')}")
+    for arm, row in result["C3"].items():
+        print(f"[C3 {arm:>5}] median {row.get('median_s')} vs "
+              f"{row.get('reference_median_s')}  "
+              f"{row.get('seeds_better')}/{row.get('n')} seeds  "
+              f"p={row.get('p')}  -> {row.get('verdict')}")
     for arm, row in result["C4"]["per_arm"].items():
         print(f"[C4 {arm:>5}] median {row.get('median_s')} vs knative "
               f"{result['C4']['knative_latency_s']}  {row.get('seeds_better')}/{row.get('n')}"
