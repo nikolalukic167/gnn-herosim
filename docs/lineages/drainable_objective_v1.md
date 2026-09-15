@@ -435,3 +435,68 @@ which is the hook; the initial warmup that *produces* the snapshot uses real
 **zero** applications across a whole dataset generation. That dead path was removed rather
 than left in looking plausible, and `BACKLOG_SURCHARGE_COUNTERS` now lets a corpus prove
 how much backlog it repriced instead of being trusted on its name.
+
+## 2026-09-15 — Phase B landed: one cache, 32 runs, and the arms separate offline with zero overlap
+
+Amendment 1's Phase B ran as amended: **one** cache over the **existing T1b corpus and
+split**, labelled `rtt_drift:1@lambda=0.46,clock=measured`, and 32 training runs (job
+766897, `--array=0-31`, all COMPLETED) — 16 `gnn` and 16 `mpoff` at T1b's lr 2e-3, same
+seeds, same split artifact. V = 0 is the existing T1b checkpoints and was not retrained.
+The 32 dose-response runs at V = 0.5 and V = 2 (`--array=32-63`) stay deferred until after
+the gate.
+
+**The cache is the same corpus, proven rather than assumed.** `label = rtt_drift:1@lambda=0.46,clock=measured`,
+`datasets = 516`, `rtt rows = 19,663,188` — identical dataset count and row count to T1b's
+cache; split 386 / 96 / 34; 100 chunks on both sides; metadata md5 identical local and
+remote. All 32 sidecars carry the same `label_objective` string, and `mp_peer_edges` is
+`true` in both arms (the arms differ only by `disable_message_passing`).
+
+### The offline read, at the selected checkpoint
+
+| arm | selected `val/regret_masked_topo` | held-out `test` | peak `val/task_acc` |
+|---|---|---|---|
+| `gnn` (n = 16) | **126.46 / 129.80 / 131.86** | 169.27 / 176.47 / 185.44 | 0.793 / 0.804 / 0.817 |
+| `mpoff` (n = 16) | **142.72 / 144.27 / 148.55** | 183.71 / 190.90 / 196.68 | 0.848 / 0.855 / 0.860 |
+
+(min / median / max, seconds of shaped-label regret; scale: `val_random_plan_regret` 435.28 s,
+`val_worst_plan_regret` 1004.60 s, `val_opt_rtt` 480.46 s.)
+
+**The two arms do not overlap on either split** — max `gnn` < min `mpoff` on val and on
+test, 16/16 seeds each way (Mann-Whitney p ≈ 3e-9 at complete separation). The graph arm's
+median is 10.0 % below the pointwise twin's on val and 7.6 % below on test.
+
+**This does not contradict the count-theorem concession, and it is not a latency claim.**
+The concession (§ "What this lineage concedes before it starts") predicts the *label* is
+pointwise-recoverable, and the arm with the better per-task fit here is the **pointwise**
+one: `mpoff` has the higher `task_acc` (0.855 vs 0.804 median) and the worse plan regret.
+What separates the arms is plan assembly, not per-task scoring, and the number above is in
+the shaped label's own units on the offline corpus. **C5's registered prediction of a live
+TIE stands unchanged**; an offline separation is exactly the venue in which
+`peer_affinity_v1` also separated before reversing live.
+
+### The curves look broken and are not (job 767052, artifact under `simulation_data/drainable_objective_v1/curve_reads/`)
+
+Read against their floors with `scripts_cosim/read_training_curves.py`, all 32 runs are
+healthy and **better behaved than their own T1b control**:
+
+* chance `val/ce` is **9.8874** on this corpus — one value across all 32 runs, which is the
+  check that both arms are on one corpus. The shaped runs end at 7.6–7.8; **0 of 32** end
+  above chance, while the T1b control run ends at **10.7, above it.**
+* chance graph accuracy is 8.03e-5, so the ~10 % `val/acc` that looks like failure is
+  ~1,300× chance (T1b control peaks at 4.2 %).
+* chance `task_acc` is 0.385, majority-class 0.514; both arms sit far above both.
+* the 52 ↔ 290 s swing between adjacent epochs is per-epoch decode noise, present
+  identically in the control.
+
+Selection lands at **epoch 19–67 of 300** (`gnn`) and **20–60** (`mpoff`), so 78–94 % of
+each run is post-selection memorisation. That is wasted compute, not a defect, and the
+recipe is deliberately **not** changed: it must stay T1b's for the contrast to hold.
+
+### What Phase B does and does not decide
+
+It orders the work; it does not close it (rule 6). The registered expectation for the gate
+is unchanged and remains **negative for C3** — A2 measured the shaped label agreeing with
+the stream on only 33.3 / 42.5 / 34.5 % of states with real choice against a 60 % bar. The
+offline separation above is between the two *shaped* arms; it says nothing about whether
+the shaped label beats the unshaped one when served, which is C3 and which the live gate
+(job 767037, 34 arms) answers.
