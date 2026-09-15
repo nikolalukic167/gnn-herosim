@@ -206,11 +206,21 @@ class Orchestrator:
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
+            "qr_batches", "qr_blind_batches", "qr_divisor_above_one_batches",
+            "qr_dim7_over_corpus_batches",
         )
         out: Dict[str, Any] = {}
         for name in names:
             value = getattr(self.scheduler, name, None)
             if isinstance(value, (int, float)):
+                out[name] = value
+        # queue_range_v1 needs the per-batch trace, not just its totals: the claim is about
+        # how the served queue column changes ACROSS the trace, and a scalar cannot say that.
+        # The scalar filter above would drop it silently -- the same whitelist trap that made
+        # checkpoint_mp_config's guard never fire.
+        for name in ("queue_range_records",):
+            value = getattr(self.scheduler, name, None)
+            if isinstance(value, list):
                 out[name] = value
         return out
 

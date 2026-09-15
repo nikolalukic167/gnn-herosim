@@ -141,6 +141,9 @@ def decile_queue_summary(recs: List[Dict[str, Any]], n: int = R3_DECILES) -> Dic
     lo = min(depths)
     return {
         "deciles": rows,
+        # queue_range_v1 buckets its per-batch records on the SAME edges, so a batch and the
+        # tasks it placed land in the same decile. Additive; nothing else reads this key.
+        "bounds": list(bounds),
         "n_tasks": len(recs),
         "mean_queue_s": st.fmean(_num(r, QUEUE_KEY) for r in recs),
         "mean_elapsed_s": st.fmean(_num(r, ELAPSED_KEY) for r in recs),

@@ -27,6 +27,11 @@ from torch_geometric.utils import to_undirected
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
+from src.placement.queue_features import (
+    CORPUS_DIM7_CANDIDATE_MAX,
+    QUEUE_RANGE_BLIND_DIM7,
+    QUEUE_RANGE_BLIND_RAW,
+)
 from src.policy.gnn.seq_decode import (
     KNOWN_DECODE_MODES,
     reset_episode_trajectory,
@@ -209,6 +214,10 @@ class GNNScheduler(Scheduler):
         self.gnn_pure_decisions = 0
         self.fallback_decisions = 0
         self.decode_stats = reset_run_decode_stats()
+        # queue_range_v1: one record per decoded batch, so the read can bucket the served
+        # queue column by trace position against the corpus range it was trained on.
+        # Always on -- a mechanism control that has to be switched on is one that is off.
+        self._queue_range_records: List[List[float]] = []
         self._decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
         # A typo used to fall through to plain argmax silently, so an ablation could
         # report "seq_reforwrd" results that were really the control.
@@ -262,6 +271,31 @@ class GNNScheduler(Scheduler):
     # Orchestrator._scheduler_counters reads names off the SCHEDULER, so without these
     # properties the guardrail's counters are silently dropped from every result JSON --
     # the same whitelist trap that made checkpoint_mp_config's guard never fire.
+    @property
+    def queue_range_records(self) -> List[List[float]]:
+        # [sim_time, divisor, raw_spread, dim7_spread, blind, dim7_max] per decoded batch.
+        # `blind` is 1 when the candidate raw queues disagree by >= QUEUE_RANGE_BLIND_RAW and
+        # their dim7 values disagree by < QUEUE_RANGE_BLIND_DIM7 -- the column cannot see a
+        # pile the scheduler is standing in front of.
+        return self._queue_range_records
+
+    @property
+    def qr_batches(self) -> int:
+        return len(self._queue_range_records)
+
+    @property
+    def qr_blind_batches(self) -> int:
+        return sum(1 for r in self._queue_range_records if r[4])
+
+    @property
+    def qr_divisor_above_one_batches(self) -> int:
+        return sum(1 for r in self._queue_range_records if r[1] > 1.0)
+
+    @property
+    def qr_dim7_over_corpus_batches(self) -> int:
+        return sum(1 for r in self._queue_range_records
+                   if r[5] > CORPUS_DIM7_CANDIDATE_MAX)
+
     @property
     def queue_guard_decisions(self) -> int:
         return int(getattr(self.decode_stats, "queue_guard_decisions", 0) or 0)
@@ -1013,7 +1047,7 @@ class GNNScheduler(Scheduler):
         Returns: (graph, task_logit_to_placement mapping)
         """
         norm_mode = os.environ.get("GNN_QUEUE_NORM_MODE", "adaptive").strip().lower()
-        return build_pyg_inference_graph(
+        graph, mapping = build_pyg_inference_graph(
             batch_tasks,
             system_state,
             queue_snapshot,
@@ -1022,6 +1056,48 @@ class GNNScheduler(Scheduler):
             queue_norm_mode=norm_mode,
             temporal_state=temporal_state,
         )
+        self._record_queue_range(graph)
+        return graph, mapping
+
+    def _record_queue_range(self, graph: Any) -> None:
+        # One row per decoded batch: what the queue column looked like to the model.
+        #
+        # Candidate platforms only -- the column's job is to rank the machines this batch may
+        # actually go to, and the all-platform spread is dominated by idle rows that are never
+        # candidates (corpus dim7 p90 is 0.0 over all platforms and 25.0 over candidates).
+        if graph is None:
+            return
+        meta = getattr(graph, "queue_key_to_platform_meta", None)
+        keys_map = getattr(graph, "task_logit_to_queue_key", None)
+        snapshot = getattr(graph, "queue_snapshot", None)
+        pf = getattr(graph, "platform_features", None)
+        if not meta or not keys_map or pf is None:
+            return
+        if int(pf.size(-1)) < 14:
+            return          # ce_reduced/atomic21 layouts put the column elsewhere
+        cand_keys = {k for keys in keys_map.values() for k in keys}
+        raws: List[float] = []
+        d7s: List[float] = []
+        for key in cand_keys:
+            info = meta.get(key)
+            if not info or "platform_pos" not in info:
+                continue
+            pos = int(info["platform_pos"])
+            if pos < 0 or pos >= int(pf.size(0)):
+                continue
+            d7s.append(float(pf[pos, 7].item()))
+            if snapshot is not None:
+                raws.append(float(snapshot.get(str(key), 0)))
+        if not d7s:
+            return
+        raw_spread = (max(raws) - min(raws)) if raws else 0.0
+        d7_spread = max(d7s) - min(d7s)
+        blind = 1.0 if (raw_spread >= QUEUE_RANGE_BLIND_RAW
+                        and d7_spread < QUEUE_RANGE_BLIND_DIM7) else 0.0
+        self._queue_range_records.append([
+            float(self.env.now), float(getattr(graph, "queue_norm_divisor", 1.0) or 1.0),
+            raw_spread, d7_spread, blind, max(d7s),
+        ])
 
     def _decode_placements(
         self,
