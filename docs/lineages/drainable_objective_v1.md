@@ -500,3 +500,106 @@ the stream on only 33.3 / 42.5 / 34.5 % of states with real choice against a 60 
 offline separation above is between the two *shaped* arms; it says nothing about whether
 the shaped label beats the unshaped one when served, which is C3 and which the live gate
 (job 767037, 34 arms) answers.
+
+## 2026-09-15 — Phase C, the live gate: **CONFOUNDED-C1 · the label did not change the behaviour it was built to change**
+
+Job 767037, `--array=0-33%8`, `dobj_f4000_pg16`: x4000 drainable trace (50,000 events),
+`cell_s7901_f4000_pg16`, 16 s window, Q = 100, uncapped, `HEROSIM_BACKLOG_DRAIN_TABLE`
+deliberately unset. 33 of 34 arms completed; the 34th is a finding of its own, below.
+Read by `drainable_objective_v1_gate_read.py` against the T1b control's **16 per-seed**
+latencies at this same cell (`drain_f4000_E_pg16`).
+
+### C1, the behaviour control: **FAILS, and in the wrong direction**
+
+| arm (raw-retained seeds) | above the shallowest legal replica |
+|---|---|
+| bar, signed before the gate | ≤ **18.0 %** |
+| T1b, unshaped (the thing being corrected) | 35.5 % |
+| `v1 gnn` s1 / s2 | 38.5 % / 37.8 % |
+| `v1 mpoff` s1 / s2 | 40.7 % / **42.2 %** |
+
+The shaped label was built to stop the decoder taking replicas deeper than the shallowest.
+It did not. Every shaped arm concentrates **more** than the unshaped control it was meant
+to repair — 2.3 to 6.7 pp more. **The treatment did not happen**, so by the rule signed
+with the bar (*"a latency win from an arm that still concentrates is not evidence about the
+label"*) C3, C4 and C5 are VOID and the registered outcome is **CONFOUNDED-C1**.
+
+That is the honest shape of this result: the gate did not measure whether charging the
+externality helps. It measured that **this construction of the charge does not reach the
+decoder's behaviour at all.**
+
+### C0, the assembly control: **mis-set, and disclosed rather than moved**
+
+C0 flagged all 31 learned arms (`incomplete_pct` 34.8–35.5 % against a ≤ 20 % bar; mean
+batch 6.06–6.17, comfortably over its ≥ 4). Measuring the **control** with the same counter
+settles what that means:
+
+| | mean batch | incomplete peer-group batches |
+|---|---|---|
+| T1b `gnn` / `mpoff` (control, 16 seeds each) | 5.98 / 5.96 | **37.0 % / 36.9 %** |
+| `v1 gnn` / `v1 mpoff` | 6.17 / 6.06 | 35.5 % / 34.8 % |
+
+**The bar fails the control too, and the shaped arms batch slightly *better* than it.** So
+C0 as written cannot separate treatment from control at this cell: it is a mis-specified
+bar, not an arm defect. The constant is **not moved** — it stands as signed, with this
+measurement recorded next to it, and the lesson is filed in `docs/gates/gate-tools.md`.
+C1, which does separate the arms from the control, is what carries the verdict.
+
+### The latencies, descriptive only (C3/C4/C5 are VOID)
+
+| arm | median live latency | vs T1b control | seeds below control median | p | vs `knative_network` |
+|---|---|---|---|---|---|
+| `knative_network` | **25.95 s** | — | — | — | — |
+| `v1 mpoff` (n = 16) | 51.40 s | −0.16 % | 8/16 | 0.638 | −98.1 %, 0/16 |
+| `v1 gnn` (n = 15) | 54.82 s | −2.55 % | 6/15 | 0.441 | −111.3 %, 0/15 |
+| T1b `mpoff` / `gnn` | 51.32 / 53.45 s | — | — | — | — |
+
+Both shaped arms land on top of their unshaped counterparts. `gnn` vs `mpoff` reads
+**−6.65 %, p = 0.015** — pointwise better, the same direction `drainable_regime_v1` found
+at this load. Nothing here beats reactive Knative, and the record's standing sentence is
+unchanged: **no measurement in this program has a graph arm beating both its pointwise twin
+and reactive Knative.**
+
+### The offline separation reversed, on a label that has nothing to do with peer affinity
+
+Phase B: `gnn` beats `mpoff` by 10.0 % on val and 7.6 % on held-out test, **zero seed
+overlap on either split** (p ≈ 3e-9). Live, at the same cell, `mpoff` beats `gnn` by 6.65 %
+(p = 0.015). `peer_affinity_v1` established this anti-correlation on a peer-indexed target;
+it now reproduces on a **queue-externality** target built for a different reason, with a
+different corpus label. Whatever produces the offline/live reversal is **not** a property of
+the peer-affinity objective.
+
+### One arm deterministically livelocks the simulator
+
+`v1_gnn_s3` (task 4) froze at simulation time **4,293 s**, 5 s of wall clock into the run:
+99.4 % CPU, zero bytes written to its log for 63 minutes, while every sibling arm finished
+in ~3 minutes. Cancelled and resubmitted, it reproduced **byte-for-byte** — the same
+47,888-byte log, the same frozen clock — so it is deterministic, not a scheduler accident.
+**The T1b checkpoint at the same seed, cell, trace and knobs completes normally (54.02 s.)**
+Only the label differs, so the shaped label produced a checkpoint that hangs the simulator.
+That is the same class as `GNN_PREFIX_PLATFORM_CAP` deadlocking 3/16 seeds in a drainable
+regime (`drainable_regime_v1` Amendment 2), and it is recorded as a finding rather than a
+dropped seed: **1 of 16 `v1 gnn` seeds is unservable.** The `gnn` arm is therefore read at
+n = 15, above the registered ≥ 12 seed bar.
+
+## Outcome: **OBJECTIVE-NOT-DELIVERED** — closed
+
+The registration asked whether a label that charges the externality beats one that does not.
+The gate cannot answer that, because **the charge did not change the decoder's behaviour**:
+C1 moved 2.3–6.7 pp in the wrong direction and every latency contrast is a tie with the
+unshaped control. Phase A already predicted the negative (A2: the shaped label agreed with
+the stream on 33.3 / 42.5 / 34.5 % of states with real choice against a 60 % bar), and the
+gate is consistent with that prediction — but the mechanism is upstream of latency.
+
+**What is closed, precisely:** this construction — `L_V = rtt + V·Σ_p (λ_p/2)[(B_p+A_p)² −
+B_p²]` at V = 1, λ = 0.46, the measured drain clock, T1b's corpus, split, lr 2e-3 and
+recipe, decoded `masked_topo` at a 16 s window. Do not re-run it. **What is not closed:**
+whether *any* non-myopic label helps, since this one never reached the behaviour. A
+successor must put C1 first — measure that the decoder's placement depth actually moved
+before spending a gate on latency — and must explain why its term survives the decode when
+this one did not.
+
+**Not run, and now cancelled:** the 32 dose-response runs at V = 0.5 and V = 2
+(`--array=32-63`). A ladder in `V` prices the same term the C1 read shows the decoder does
+not follow at V = 1; running it would measure the dose of something that is not being
+delivered.
