@@ -207,7 +207,7 @@ class Orchestrator:
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
             "qr_batches", "qr_blind_batches", "qr_divisor_above_one_batches",
-            "qr_dim7_over_corpus_batches",
+            "qr_dim7_over_corpus_batches", "residence_unstamped",
         )
         out: Dict[str, Any] = {}
         for name in names:
@@ -218,7 +218,7 @@ class Orchestrator:
         # how the served queue column changes ACROSS the trace, and a scalar cannot say that.
         # The scalar filter above would drop it silently -- the same whitelist trap that made
         # checkpoint_mp_config's guard never fire.
-        for name in ("queue_range_records",):
+        for name in ("queue_range_records", "residence_tasks", "residence_batches"):
             value = getattr(self.scheduler, name, None)
             if isinstance(value, list):
                 out[name] = value
