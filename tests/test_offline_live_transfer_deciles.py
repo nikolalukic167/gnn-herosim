@@ -131,3 +131,46 @@ def test_load_arm_refuses_a_capture_without_task_records(tmp_path):
     p.write_text(json.dumps({"stats": {"taskResults": [], "statsSchemaVersion": 3}}))
     with pytest.raises(R3.DecileReadError, match="KEEP_RAW"):
         R3.load_arm(p)
+
+
+# --------------------------- decile_queue_summary (used by serving_stability_v1 S0/S1/S2)
+def _recs(queue_by_decile, n_per=600):
+    out = []
+    tid = 0
+    for d, q in enumerate(queue_by_decile):
+        for i in range(n_per):
+            out.append({"taskId": tid, "dispatchedTime": float(d * n_per + i),
+                        "queueTime": q, "elapsedTime": q + 1.0})
+            tid += 1
+    return out
+
+
+def test_decile_summary_reports_ten_deciles_and_the_mean():
+    s = R3.decile_queue_summary(_recs([float(d) for d in range(1, 11)]))
+    assert len(s["deciles"]) == 10
+    assert [r["mean_queue_s"] for r in s["deciles"]] == pytest.approx(
+        [float(d) for d in range(1, 11)])
+    assert s["mean_queue_s"] == pytest.approx(5.5)
+    assert s["n_tasks"] == 6000
+
+
+def test_decile_summary_computes_the_stability_ratio():
+    s = R3.decile_queue_summary(_recs([2.0] * 9 + [8.0]))
+    assert s["queue_max_over_min"] == pytest.approx(4.0)
+
+
+def test_a_zero_minimum_gives_none_not_infinity():
+    s = R3.decile_queue_summary(_recs([0.0] + [5.0] * 9))
+    assert s["queue_max_over_min"] is None
+
+
+def test_decile_summary_refuses_empty_records():
+    with pytest.raises(R3.DecileReadError, match="SIM_FORCE_FULL_STATS"):
+        R3.decile_queue_summary([])
+
+
+def test_decile_summary_refuses_a_record_missing_the_queue_field():
+    recs = _recs([1.0] * 10)
+    del recs[0]["queueTime"]
+    with pytest.raises(R3.DecileReadError, match="has no queueTime"):
+        R3.decile_queue_summary(recs)
