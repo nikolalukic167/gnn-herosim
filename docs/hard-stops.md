@@ -125,3 +125,40 @@ as `GNN_PREFIX_PLATFORM_CAP`'s 3/16 deadlocks. And the **offline/live reversal r
 on a label with nothing to do with peer affinity**: zero-overlap 10.0 % offline win for the
 graph arm, 6.65 % live loss (p = 0.015). Whatever drives that reversal is not a property of
 the peer-affinity objective.
+
+## The decode-time queue guardrail, as configured (2026-09-15)
+
+`serving_stability_v1`, CLOSED **STABILITY-NOT-THE-LEVER**.
+
+**What is stopped:** masking a candidate replica whose queue depth exceeds
+`K × (shallowest candidate for the same task + 1)` at decode time, with **K = 3**, relaxed
+when it would strand a task, on the V = 1 checkpoints at the x4000 drainable rung, 16 s
+window, uncapped, Q = 100, cells s7901 / s9001 / s9002. Do not re-run this configuration.
+
+**Why.** The guardrail is not broken and not unsafe — it bound on **84–90 %** of decisions and
+produced **0 hangs**, where `GNN_PREFIX_PLATFORM_CAP` deadlocks 3/16 seeds in this same regime.
+It simply does not deliver: **0/3 cells beat reactive Knative** (−35.2 %, −5.1 %, −216.3 %),
+and its paired effect runs the wrong way across cells — **+36.0 %** on s7901, **+1.5 %** on
+s9001, **−13.6 %** on s9002, which is the cell where the arms were *least* stable. "Stabilise
+the runaway arm and it recovers" predicts the opposite of what s9002 did.
+
+**Disclosed:** the S3-d bar named an unpaired test on seeds paired by construction; under the
+matched test the outcome would be HELPS-NOT-ENOUGH rather than STABILITY-NOT-THE-LEVER. The
+registered verdict stands. **S3-c is 0/3 under either test**, so nothing here beats reactive.
+
+**What is NOT stopped, and one of these is now the most promising open question in the record:**
+
+1. **Why the early advantage is lost.** The same lineage measured, on **3/3 cells and every one
+   of 91 learned arms**, that the arms beat reactive over the first fifth of the trace by
+   3.4–4.1 s of queue. That is the first learned-beats-reactive reading here that survives
+   replication. **Something destroys a real advantage**, and no measurement yet says what.
+2. **Any non-queue stabiliser** — admission control, load-aware batch sizing, or giving the
+   model a queue feature inside its trained range (the live column is ~300× out of range,
+   `legacy_v0`).
+3. **A tuned or adaptive K.** K = 3 was registered untuned and is a carried limitation; an
+   adaptive variant that no-ops where the arms are already stable is a different experiment
+   and needs its own registration.
+
+**Inherited, unchanged:** no GNN-vs-pointwise claim may be founded on a queue guardrail — the
+pointwise twin gained at least as much as the graph arm throughout, exactly as the count
+theorem predicted before the gate ran.
