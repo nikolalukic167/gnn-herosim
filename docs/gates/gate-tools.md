@@ -195,3 +195,26 @@ control cannot clear is not a control.
 **And do not move it afterwards.** C0 stands as signed, with the control's value recorded
 beside it in the node; the verdict is carried by the bar that does separate. Re-tuning a bar
 after seeing the arms fail it is how a registration stops meaning anything.
+
+## 2026-09-15 — a "clears in ≥ N families" bar must check the SIGN, not just |ρ|
+
+`offline_live_transfer_v1` registered two bars of the same shape a few paragraphs apart and
+only one of them checks direction.
+
+* **R1's within-arm bar** requires |ρ| ≥ 0.50 **in the same arm and the same sign** in ≥ 2
+  families. When x800p3/`gnn` read −0.553 and x800p2/`gnn` read +0.150, it correctly refused
+  to count them together.
+* **R2's family sub-bar** requires |ρ| ≥ 0.40 in ≥ 2 families and says nothing about sign. So
+  `depth` scored "2 of 3 families clearing" on **−0.490 and +0.710** — two opposite
+  relationships counted as agreement.
+
+It changed no verdict (that candidate failed the other two sub-bars and nothing was promoted),
+and the bar was left as signed rather than retuned mid-lineage. But a candidate that cleared
+the ρ and p bars could have been promoted on evidence that points both ways.
+
+**Rule:** any bar of the form "the effect reproduces in ≥ N groups" must require the effect to
+have the **same sign** in those groups. Two strong correlations in opposite directions are
+evidence *against* reproducibility, and an |ρ| threshold scores them as evidence for it.
+
+Cheap check when writing one: ask what the bar does with −0.9 and +0.9. If it passes, it is
+measuring magnitude, not reproducibility.
