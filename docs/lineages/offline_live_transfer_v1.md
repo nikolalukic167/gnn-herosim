@@ -321,3 +321,57 @@ the same declared reason it was n = 15 in `drainable_objective_v1` Phase C.
 The 30-minute `--time` on this gate, added that morning because of the first livelock, cost
 30 minutes instead of the 12 hours the previous cap would have burned. That is now the
 default shape for any gate serving freshly trained weights.
+
+## 2026-09-15 — R2: **NO-SURROGATE.** All four candidates fail, and they fail R1's way
+
+Job 767606, tool and bars committed before the correlation. Every input was complete: 96
+checkpoints × 151 states, decoded twice (unscaled and at `R2_QUEUE_SCALE = 50.0`), all 96
+array tasks COMPLETED, and **151 of 151 states scorable for every checkpoint** — no plan
+landed outside its sweep, so the common-subset protocol never had to bind.
+
+| candidate | pooled-z ρ | p | p (Holm/4) | families clearing | F1 x800p2 | F2 x800p3 | F3 warm | |
+|---|---|---|---|---|---|---|---|---|
+| depth | +0.025 | 0.811 | 1.000 | 2/3 | −0.151 | **−0.490** | **+0.710** | no |
+| concentration | +0.053 | 0.609 | 1.000 | 1/3 | −0.237 | −0.261 | **−0.511** | no |
+| one_step_regret | **+0.344** | **0.0006** | **0.0024** | **0/3** | +0.387 | −0.093 | −0.146 | no |
+| range_sensitivity | +0.001 | 0.992 | 1.000 | 1/3 | −0.130 | −0.214 | **+0.749** | no |
+
+### Every candidate that looks like something looks like something in ONE family
+
+* **`one_step_regret` is the interesting failure.** It clears the significance bar outright —
+  pooled-z ρ = +0.344, p = 0.0006, still 0.0024 after Holm over four — which is *more* signal
+  than the selector's own score carries (R1: ρ = −0.030). The sign is even the sensible one:
+  worse one-step plans, slower live. And it clears **0 of 3** families: +0.387, −0.093,
+  −0.146. The pooled significance is one family's relationship diluted across three, not a
+  property that reproduces. **This is exactly why the family sub-bar was registered**, and it
+  is the only thing standing between "p = 0.0006" and a promoted surrogate.
+* **`depth` and `range_sensitivity` both carry a strong `warm` reading** (+0.710, +0.749) that
+  is absent or reversed in the two x800 families. A statistic that predicts in the family it
+  was inspired by and nowhere else is the pattern this whole lineage exists to catch.
+
+### A defect in the family sub-bar, disclosed and not fixed
+
+As registered and implemented, the family sub-bar counts families with **|ρ| ≥ 0.40** and does
+**not** require them to agree in sign — unlike R1's within-arm bar, which does. So `depth`
+scores "2 of 3 families clearing" on **−0.490 and +0.710**, which are opposite relationships.
+
+**It changed no verdict here** — `depth` failed the ρ and Holm bars anyway, and nothing was
+promoted — but the bar is weaker than the one beside it and would matter if a future candidate
+cleared the other two. It is recorded as signed, not retuned after seeing the data; a successor
+lineage should copy R1's sign-checking form. Filed to `docs/gates/gate-tools.md`.
+
+### What R2 does and does not rule out
+
+**Rules out:** these four statistics, measured on one shared state set, as a way to rank
+checkpoints *across* families.
+
+**Does not rule out:** a within-family screen. `one_step_regret` at ρ = +0.387 in x800p2 and
+`depth`/`range_sensitivity` at ~+0.7 in warm may well be real inside those corpora. Nothing
+here says a screen calibrated and used *within one corpus* cannot work — only that none of
+these four transfers, which is what a general screen would have to do.
+
+**Verdict: NO-SURROGATE.** Combined with R1 (the selector's own score: no across-run signal)
+and R4 (that same score: a real 13–16 % within-run signal), the position is now: **no cheap
+offline number tested in this program ranks training runs by how they serve, and the live
+gate — ~3 minutes an arm, against 41 minutes to train one — remains the only instrument that
+does.**
