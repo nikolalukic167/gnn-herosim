@@ -247,3 +247,28 @@ until out=$(ssh -o ConnectTimeout=20 datalab 'squeue -j $JOB -h | wc -l' 2>/dev/
 **General rule:** when a wait loop's exit condition is "the remote says no", make sure the
 loop can tell "the remote said no" from "the remote said nothing". Any check whose failure
 mode is indistinguishable from its success mode is not a check.
+
+## 2026-09-15 — name the PAIRED test when the arms are paired, before the data decides for you
+
+`serving_stability_v1`'s S3-d compares the same 16 seeds with and without a serving knob —
+paired by construction — and the bar I signed named **Mann-Whitney**, which is unpaired. On
+the cell where the effect was small and perfectly consistent the two tests disagree completely:
+
+| cell | seeds better | Mann-Whitney (registered) | Wilcoxon (matched) |
+|---|---|---|---|
+| s9001 `gnn` | **16/16** | **p = 0.127** | **p = 0.000031** |
+
+A 16/16 sweep reading p = 0.13 is the tell: an unpaired test throws away the pairing, so a
+small, utterly consistent shift sits inside the between-seed spread and vanishes. Under the
+matched test that lineage's S3-d verdict flips from GUARDRAIL-DOES-NOT-HELP to GUARDRAIL-HELPS
+and its outcome from STABILITY-NOT-THE-LEVER to HELPS-NOT-ENOUGH.
+
+**The verdict was left as signed and the sensitivity recorded beside it** — swapping a test
+after seeing which way it moves the answer is how a registration stops meaning anything. But
+the fix is to not be in that position: **when the arms share seeds, register Wilcoxon
+signed-rank (or a paired t) and report the unpaired test as the conservative secondary**, not
+the other way round. `drainable_objective_v1` carried the same mis-specification three weeks
+earlier and got away with it only because both tests agreed there.
+
+Cheap check when signing a bar: ask whether swapping which arm a given seed belongs to would
+change the statistic. If it would not, the test is ignoring the pairing you paid for.
