@@ -238,3 +238,40 @@ everybody.
 **What R3 cannot do:** it cannot say the lopsidedness *causes* the blow-up, only that it
 predicts it across independent topology draws with the control attached. A causal read would
 hold the draw fixed and edit the reachability graph, which is a separate registration.
+
+### 2026-09-15 — R3-a: the 40 draws, and a power limitation disclosed before the gate runs
+
+`simulation_data/scheduler_residence_v1/r3_cells.json`. 40 topology draws from seeds
+9100–9139, each verified field-by-field to differ from `cell_s9001_f4000_pg16` in exactly one
+flattened field. `min_reachable_servers` is **coarse**: across 40 draws it takes only three
+values — **1 (17 draws), 2 (21), 3 (2)**. The 12 selected span 1 / 2 / 3 with 5 / 6 / 1 cells.
+
+**Disclosed, and the bar is not moved:** a three-level independent variable caps the Spearman
+a perfect monotone relationship can reach, so `R3_MIN_ABS_RHO = 0.60` is demanding on the
+primary. It was committed before the draws were measured and it stays. `hosting_node_spread`,
+the registered second statistic, is much richer across the same draws (range 1–10) and is read
+beside the primary under Holm over the registered family of 2. If the primary fails on
+granularity while the second fires, the read says exactly that rather than promoting the
+second.
+
+Selected cells (structure measured before any was served a task):
+
+| cell | min reachable servers | clients-per-server imbalance |
+|---|---|---|
+| `cell_r3s9135` | 1 | 2 |
+| `cell_r3s9120` | 1 | 4 |
+| `cell_r3s9107` | 1 | 6 |
+| `cell_r3s9103` | 1 | 7 |
+| `cell_r3s9132` | 1 | 7 |
+| `cell_r3s9125` | 2 | 1 |
+| `cell_r3s9124` | 2 | 3 |
+| `cell_r3s9114` | 2 | 4 |
+| `cell_r3s9108` | 2 | 5 |
+| `cell_r3s9112` | 2 | 6 |
+| `cell_r3s9104` | 2 | 9 |
+| `cell_r3s9127` | 3 | 6 |
+
+**Also declared:** R3 runs `gnn`/`mpoff` seeds **1, 2, 4, 5**. Seed 3's checkpoint
+deterministically livelocks the simulator on `cell_s7901`, and whether it does so on a fresh
+topology draw is unknown — it is excluded by name rather than risked, so a livelock cannot
+silently drop a cell below `R3_MIN_SEEDS_PER_CELL`.
