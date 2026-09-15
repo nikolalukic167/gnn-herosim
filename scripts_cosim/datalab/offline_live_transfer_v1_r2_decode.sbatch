@@ -34,6 +34,13 @@ export PYTHONPATH="$PWD"
 export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4
 export CUDA_VISIBLE_DEVICES=""
+# Feature environment copied VERBATIM from drainable_debug_v1_d1_read.sbatch:23-25, the run
+# whose decode these plans must be comparable to. Written from memory instead of copied, the
+# first smoke died on the partial-state contract guard -- which is the guard doing its job,
+# since the default resolves to v1 and every family here is v2.
+export HEROSIM_PEER_EXCHANGE=1 HEROSIM_GNN_DEVICE=cpu
+export DAG_PRIMARY_ALPHA_KEY=2.5 PARTIAL_STATE_CONTRACT=partial_state_v2 PARTIAL_STATE_PEER_MASS=1
+export INFERENCE_FEATURE_LAYOUT=dim22 QUEUE_FEATURE_CONTRACT=legacy_v0
 
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
@@ -63,7 +70,23 @@ if [[ -f "$OUT" ]]; then echo "[TASK $T] already decoded, skipping"; exit 0; fi
 for arm in gnn mpoff; do
   CK="models/${TAG}-${arm}-lr2e3-seed${SEED}.pt"
   [[ -f "$CK" ]] || { echo "FAIL LOUD: missing checkpoint $CK" >&2; exit 1; }
-  [[ -f "${CK%.pt}.contract.json" ]] || { echo "FAIL LOUD: no sidecar for $CK" >&2; exit 1; }
+  SC="${CK%.pt}.contract.json"
+  [[ -f "$SC" ]] || { echo "FAIL LOUD: no sidecar for $CK" >&2; exit 1; }
+  # Do not trust the exported contract: check it against what this checkpoint was trained
+  # under, and against the architecture its arm name claims.
+  python3 - "$SC" "$arm" <<'GUARD'
+import json, os, sys
+sc, arm = json.load(open(sys.argv[1])), sys.argv[2]
+for key, env in (("partial_state_contract", "PARTIAL_STATE_CONTRACT"),
+                 ("queue_feature_contract", "QUEUE_FEATURE_CONTRACT")):
+    want, got = os.environ.get(env), sc.get(key)
+    if got is not None and want != got:
+        raise SystemExit(f"FAIL LOUD: {env}={want!r} but the checkpoint was trained under "
+                         f"{key}={got!r}")
+if sc.get("disable_message_passing") is not (arm == "mpoff"):
+    raise SystemExit(f"FAIL LOUD: sidecar disable_message_passing="
+                     f"{sc.get('disable_message_passing')!r} for arm {arm}")
+GUARD
 done
 
 ${HEROSIM_PY} scripts_cosim/drainable_debug_d1_decode.py \
