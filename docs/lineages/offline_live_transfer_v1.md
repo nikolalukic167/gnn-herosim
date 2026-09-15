@@ -260,3 +260,64 @@ and this one has ordered it.
 
 **Carried limitation, restated:** three families, one simulator, one workload generator.
 This is transfer inside this system, not a general claim about offline evaluation.
+
+## 2026-09-15 — R4, the live gate: the offline score resolves **within** a run and **not across** runs
+
+Job 767324, `--array=0-31%8`, `olt_r4_lastepoch_f4000_pg16`. Identical cell, trace, window,
+physics and knobs to the selected arms' gate (`dobj_f4000_pg16`), so the two directories are
+the same measurement twice with only the checkpoint differing. No retraining: both snapshots
+were already on disk.
+
+| arm | selected (best epoch) | last epoch | selected faster by | seeds | Mann-Whitney p | Wilcoxon paired p |
+|---|---|---|---|---|---|---|
+| `gnn` (n = 15) | **54.82 s** | 63.08 s | **+13.10 %** | 11/15 | 0.0279 | 0.0256 |
+| `mpoff` (n = 16) | **51.40 s** | 61.50 s | **+16.42 %** | 14/16 | 0.0005 | 0.0010 |
+
+*(Mann-Whitney is the registered test. The data is paired by seed, so the paired Wilcoxon is
+reported beside it as a disclosed secondary; it agrees and changes nothing.)*
+
+### The registered bar, scored honestly
+
+SELECTOR-WORKS requires, in **both** arms: median lower, **≥ 12/16 seeds** better, and
+p < 0.05.
+
+* `mpoff` clears all three.
+* `gnn` clears median and p (0.0279) and reads **11 of 15 seeds — one short of the bar.**
+
+**So the composite bar does not fire.** It is recorded that way rather than rescored to fit:
+the seed-count sub-bar was signed at ≥ 12 and 11 is 11. Neither SELECTOR-IS-NOISE (one arm
+clears outright) nor SELECTOR-IS-HARMFUL (the direction is the opposite) applies either. The
+honest statement is **SELECTOR-HELPS, COMPOSITE-BAR-SHORT-BY-ONE-SEED**, with both arms
+agreeing in direction and significance.
+
+### R1 and R4 are not in conflict — and together they are the finding
+
+They ask different questions, and nothing in this record had separated them before:
+
+| question | instrument | answer |
+|---|---|---|
+| **within a run** — which epoch's weights should be kept? | the offline score across epochs | **it resolves.** Worth 13–16 % of live latency. |
+| **across runs** — is run A better than run B, or arm A than arm B? | the offline score across checkpoints | **it does not resolve.** ρ = −0.030, p = 0.772, n = 96. |
+
+This is coherent rather than contradictory. Within a run the score tracks something real and
+large: the models genuinely degrade after epoch ~27 (measured this same day —
+`drainable_objective_v1` Phase B, 78–94 % of every run is post-selection memorisation), and
+the score sees that degradation. Across runs, the residual differences in that score are
+small relative to what actually moves live latency.
+
+**The rule this produces: the offline score can say a model got worse than it was; it cannot
+say one model is better than a different model.** Every model-class and arm comparison in
+this program rests on the second reading, which is the one with no signal. Every checkpoint
+selection rests on the first, which is earning 13–16 % and must be kept.
+
+### Seed 3's second checkpoint livelocks too
+
+`lastepoch_gnn_s3` froze exactly as its selected twin did and was killed by the job's
+30-minute limit (TIMEOUT at 00:30:13). **Both snapshots from that training run are
+unservable**, so the defect belongs to the run — the seed's whole optimisation trajectory
+under this label — not to one epoch's weights. The `gnn` arm is therefore n = 15 here for
+the same declared reason it was n = 15 in `drainable_objective_v1` Phase C.
+
+The 30-minute `--time` on this gate, added that morning because of the first livelock, cost
+30 minutes instead of the 12 hours the previous cap would have burned. That is now the
+default shape for any gate serving freshly trained weights.
