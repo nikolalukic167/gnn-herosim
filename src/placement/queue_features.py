@@ -193,3 +193,68 @@ def usage_ratio_feature(
     if contract == QUEUE_FEATURE_CONTRACT_LEGACY_V0:
         return ratio / LEGACY_USAGE_RATIO_DIVISOR
     return math.log1p(ratio) / USAGE_RATIO_LOG_DIVISOR
+
+
+# --------------------------------------------------------------------------- SERVING OVERRIDES
+# These are NOT a third contract. They are serve-time overrides of the two magnitudes above,
+# default OFF, registered in docs/lineages/queue_range_v1.md and never a default.
+#
+# Why they exist (measured 2026-09-15 on graphs_cache_drainable_objective_v1_v1, 516 datasets):
+# the adaptive divisor is 1.0 in EVERY training dataset, so dim7 is literally the raw queue
+# depth -- candidate p50 12, p90 25, p99 34, max 42; dim13 candidate max 0.44. Live, the same
+# `scheduler_adaptive` rule divides by min(max(1, p90(depths)), 100), and that divisor grows
+# with load. The same real queue difference therefore maps to a SMALLER feature difference as
+# the trace gets busier: the column compresses exactly when ranking queues starts to matter.
+#
+#   GNN_QUEUE_SERVE_DIVISOR   positive float -> use this divisor instead of the adaptive one.
+#                             1.0 reproduces the training semantics (dim7 = raw depth).
+#   GNN_QUEUE_SERVE_DIM7_CLAMP   positive float -> dim7 = min(dim7, clamp). 42.0 is the
+#                             corpus maximum, so the column never leaves its trained range.
+#   GNN_QUEUE_SERVE_DIM13_CLAMP  positive float -> dim13 = min(dim13, clamp); corpus max 0.44.
+#
+# Clamping is order-preserving up to the clamp and ties everything above it -- which is what
+# the model already does at magnitudes it never saw. Both are reported by the serving path's
+# own counters so a knob that did not reach the decoder cannot read as one that did not help.
+QUEUE_SERVE_DIVISOR_ENV = "GNN_QUEUE_SERVE_DIVISOR"
+QUEUE_SERVE_DIM7_CLAMP_ENV = "GNN_QUEUE_SERVE_DIM7_CLAMP"
+QUEUE_SERVE_DIM13_CLAMP_ENV = "GNN_QUEUE_SERVE_DIM13_CLAMP"
+
+# Measured, not guessed. See the module docstring above and the lineage node.
+CORPUS_DIM7_CANDIDATE_MAX = 42.0
+CORPUS_DIM13_CANDIDATE_MAX = 0.44
+
+
+def _positive_float_env(name: str) -> Optional[float]:
+    """None when unset/blank; raises when set to something that is not a positive float."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name}={raw!r} is not a number") from exc
+    if not math.isfinite(value) or value <= 0.0:
+        raise ValueError(f"{name}={raw!r} must be a finite value > 0")
+    return value
+
+
+def serve_queue_divisor_override() -> Optional[float]:
+    return _positive_float_env(QUEUE_SERVE_DIVISOR_ENV)
+
+
+def serve_dim7_clamp() -> Optional[float]:
+    return _positive_float_env(QUEUE_SERVE_DIM7_CLAMP_ENV)
+
+
+def serve_dim13_clamp() -> Optional[float]:
+    return _positive_float_env(QUEUE_SERVE_DIM13_CLAMP_ENV)
+
+
+def apply_serve_clamp(value: float, clamp: Optional[float]) -> float:
+    return float(value) if clamp is None else float(min(float(value), clamp))
+
+
+# queue_range_v1 blindness probe. Same shape as seq_decode's existing dim7_blind_rate (raw
+# queues >= 10 apart while dim7 is < 0.05 apart), so the two numbers are comparable.
+QUEUE_RANGE_BLIND_RAW = 10.0
+QUEUE_RANGE_BLIND_DIM7 = 0.05

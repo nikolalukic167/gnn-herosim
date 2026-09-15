@@ -22,6 +22,10 @@ if TYPE_CHECKING:
 from src.policy.tabular.constants import FEATURE_DIM
 from src.placement.queue_features import (
     queue_depth_norm,
+    apply_serve_clamp,
+    serve_dim7_clamp,
+    serve_dim13_clamp,
+    serve_queue_divisor_override,
     resolve_queue_feature_contract,
     usage_ratio_feature,
 )
@@ -101,6 +105,12 @@ class InferenceFeatureBundle:
     task_logit_to_queue_key: Dict[int, List[str]]
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     feature_dim: int = FEATURE_DIM
+    # The divisor dim7 was actually built with, and the clamps that were actually applied.
+    # queue_range_v1 reads these: a serving knob that did not reach the builder must not be
+    # indistinguishable from one that reached it and did not help.
+    queue_norm_divisor: float = 1.0
+    dim7_clamp: Optional[float] = None
+    dim13_clamp: Optional[float] = None
 
 
 _warned_layout_fallback = False
@@ -323,6 +333,14 @@ def build_inference_feature_bundle(
         if use_norm_queue
         else 1.0
     )
+    # queue_range_v1 serving override (default off). The adaptive divisor is 1.0 in all 516
+    # training datasets and grows with live load, so it compresses the column exactly when
+    # queues start to matter; pinning it restores the training semantics.
+    _divisor_override = serve_queue_divisor_override() if use_norm_queue else None
+    if _divisor_override is not None:
+        queue_norm = float(_divisor_override)
+    _dim7_clamp = serve_dim7_clamp() if use_norm_queue else None
+    _dim13_clamp = serve_dim13_clamp() if use_norm_queue else None
     shared_fate_by_pos = (
         _shared_fate_by_position(platforms_info) if use_norm_queue else None
     )
@@ -340,7 +358,9 @@ def build_inference_feature_bundle(
         queue_key = f"{info.node_name}:{info.platform_id}"
         queue_len_raw = int(queue_snapshot.get(queue_key, 0))
         if use_norm_queue:
-            queue_len = float(queue_len_raw) / float(queue_norm)
+            queue_len = apply_serve_clamp(
+                float(queue_len_raw) / float(queue_norm), _dim7_clamp
+            )
         else:
             queue_len = float(queue_len_raw)
 
@@ -409,8 +429,11 @@ def build_inference_feature_bundle(
         )
         if use_norm_queue:
             target_concurrency_feat = target_concurrency_raw / 20.0
-            dim13_feat = usage_ratio_feature(
-                float(queue_len_raw), target_concurrency_raw, contract
+            dim13_feat = apply_serve_clamp(
+                usage_ratio_feature(
+                    float(queue_len_raw), target_concurrency_raw, contract
+                ),
+                _dim13_clamp,
             )
             platform_state_dim = shared_fate
         else:
@@ -575,6 +598,9 @@ def build_inference_feature_bundle(
         task_logit_to_queue_key=task_logit_to_queue_key,
         queue_key_to_platform_meta=queue_key_to_platform_meta,
         feature_dim=expected_feature_dim,
+        queue_norm_divisor=float(queue_norm),
+        dim7_clamp=_dim7_clamp,
+        dim13_clamp=_dim13_clamp,
     )
 
 
@@ -777,6 +803,10 @@ def build_pyg_inference_graph(
     data._task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.queue_key_to_platform_meta = bundle.queue_key_to_platform_meta
+    # queue_range_v1: what dim7 was actually built with, carried to the serving counters.
+    data.queue_norm_divisor = float(bundle.queue_norm_divisor)
+    data.dim7_clamp = bundle.dim7_clamp
+    data.dim13_clamp = bundle.dim13_clamp
     data.task_logit_to_placement = bundle.task_logit_to_placement
     data._task_logit_to_placement = bundle.task_logit_to_placement
     return data, bundle.task_logit_to_placement
