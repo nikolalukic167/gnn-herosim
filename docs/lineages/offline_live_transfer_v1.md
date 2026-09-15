@@ -188,3 +188,75 @@ arm, on the V = 1 `gnn` and `mpoff` families whose selected arms are already gat
    all 300 epochs.
 5. **No architecture claim may be founded on this lineage.** It is a measurement about a
    metric, not about message passing.
+
+---
+
+## 2026-09-15 — R0 PASSES, **R1 nulls: OFFLINE-UNINFORMATIVE**
+
+Job 767312, tool and bars committed at `6b2304f` before the read; the sbatch echoes the
+bar constants into its own log so which values were in force is on the record.
+
+### R0 — the positive control passes in all three families
+
+| family | n | Spearman(live queue, live latency) | bar ≥ 0.90 |
+|---|---|---|---|
+| F1 x800p2 | 32 | **+1.0000** | pass |
+| F2 x800p3 | 32 | **+1.0000** | pass |
+| F3 warm | 32 | **+1.0000** | pass |
+
+The read can detect a relationship that is there. It also restates, on three families that
+were *not* burned, the fact first seen on the burned two: **live latency is queue time.**
+Here it is not merely ρ = 0.999 but a perfectly monotone function of it, in every family.
+
+### R1 — the primary read
+
+| cell | n | ρ(offline, live) | p | offline range | live range |
+|---|---|---|---|---|---|
+| F1 x800p2 / `gnn` | 16 | +0.150 | 0.579 | 134.8–144.5 | 112,725–226,945 |
+| F1 x800p2 / `mpoff` | 16 | +0.282 | 0.289 | 139.9–148.9 | 114,347–216,454 |
+| F2 x800p3 / `gnn` | 16 | **−0.553** | **0.026** | 171.2–177.4 | 175,092–336,414 |
+| F2 x800p3 / `mpoff` | 16 | −0.038 | 0.888 | 178.5–186.2 | 148,606–418,554 |
+| F3 warm / `gnn` | 16 | +0.188 | 0.485 | 26,035–29,855 | 40,149–63,701 |
+| F3 warm / `mpoff` | 16 | −0.400 | 0.125 | 26,407–28,332 | 37,750–42,635 |
+
+* **within-arm bar: does not fire.** One cell clears |ρ| ≥ 0.50 at p < 0.05
+  (F2/`gnn`, −0.553) and the bar requires the same arm and the same sign in ≥ 2 families —
+  F2/`mpoff` reads −0.038 and F1/`gnn` reads **+0.150**, the opposite sign. Six cells were
+  tested at α = 0.05, so ~0.3 false positives are expected and P(≥ 1) ≈ 26 %: one hit is
+  what a pure null looks like, which is precisely why the bar was written to need two
+  families in agreement.
+* **pooled-z bar (the powered reading): does not fire.** ρ = **−0.030**, p = 0.772,
+  n = 96, against a bar of 0.30 at ~80 % power. This is not "too few seeds to tell"; it is
+  a measured zero.
+* **pooled raw, which decides nothing: ρ = −0.525, p < 0.0001.**
+
+### The last two lines are the finding
+
+The raw pooled correlation — **−0.525, highly significant** — is the offline/live
+"reversal" as this record has quoted it for three lineages. Strip the family and arm
+offsets by z-scoring within each (family, arm) cell, and the same 96 points read
+**−0.030**.
+
+**So the reversal is not a relationship between the two measurements. It is the difference
+between two arm averages, of a score that carries no per-checkpoint signal whatsoever.**
+That was predicted in advance and is pinned as an executable test in
+`tests/test_offline_live_transfer_reads.py::test_pooled_z_strips_an_arm_offset_that_the_raw_pooled_read_keeps`,
+which builds a synthetic family with exactly this shape — better offline, worse live, pure
+noise within arm — and reads ρ < −0.5 raw and ≈ 0 pooled-z.
+
+It also explains why `serving_gap_v1` and `serving_gap_v2` both closed NO-GO: **they were
+hunting a mechanism behind a pattern that needs no mechanism.** Neither was wrong; both were
+looking for the cause of an offset that three or fewer points cannot distinguish from noise.
+
+### What this does and does not decide
+
+**Does not touch the live arm-level comparisons.** A 16-seed median test is still a valid
+answer to "which arm is faster live", and every such reading in the record stands.
+
+**Does undermine prediction and selection.** No offline number in this program has been
+shown to rank two checkpoints by how they will serve. The cost of that is R4's question,
+and R4 is the live gate that closes this lineage (rule 6) — offline reads order the work
+and this one has ordered it.
+
+**Carried limitation, restated:** three families, one simulator, one workload generator.
+This is transfer inside this system, not a general claim about offline evaluation.
