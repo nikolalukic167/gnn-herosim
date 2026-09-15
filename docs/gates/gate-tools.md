@@ -218,3 +218,32 @@ evidence *against* reproducibility, and an |ρ| threshold scores them as evidenc
 
 Cheap check when writing one: ask what the bar does with −0.9 and +0.9. If it passes, it is
 measuring magnitude, not reproducibility.
+
+## 2026-09-15 — an ssh-polling wait loop reads a connection failure as job completion
+
+The obvious way to wait for a SLURM array is to poll `squeue` over ssh until it reports
+nothing:
+
+```bash
+until ! ssh datalab 'squeue -j $JOB -h | grep -q .'; do sleep 180; done   # WRONG
+```
+
+`ssh` returns non-zero when the **connection** fails, not only when the job is gone, so the
+negation makes a login-node outage look exactly like a finished job. The datalab login node
+refuses connections in bursts (seen twice on 2026-09-15, clearing after ~45 s), so this is
+not hypothetical: a watcher on `serving_stability_v1`'s S3 gate announced the array complete
+while **90 of 96** arms had finished and 7 were still running. A read fired on that signal
+would have scored an incomplete gate and, worse, scored it as though the missing arms had
+**hung** — which is precisely what that lineage's blocking deadlock bar counts.
+
+Require the poll to **succeed** and report zero, so a failed connection retries instead of
+terminating the wait:
+
+```bash
+until out=$(ssh -o ConnectTimeout=20 datalab 'squeue -j $JOB -h | wc -l' 2>/dev/null) \
+      && [ "$out" = "0" ]; do sleep 90; done
+```
+
+**General rule:** when a wait loop's exit condition is "the remote says no", make sure the
+loop can tell "the remote said no" from "the remote said nothing". Any check whose failure
+mode is indistinguishable from its success mode is not a check.
