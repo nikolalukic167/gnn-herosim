@@ -152,6 +152,36 @@ is 0, so this is not an artefact of how the split was defined. Two consequences 
 
 Full 96-arm confirmation at the registered n running as job 768931.
 
+### 2026-09-15 — R0 CONFIRMED at the registered n: **COLLECTION-DOMINATES, 0/3 cells**
+
+Job 768931, 95 of 96 arms (the one missing is `gnn` seed 3 on `cell_s7901`, the declared
+livelock). `simulation_data/scheduler_residence_v1/r0.json`.
+
+| cell | n | `waitTime` | head-of-line | collection | placement | reconstruction error |
+|---|---|---|---|---|---|---|
+| s7901 | 13 | 6.887 | **0.762** (11.1 %) | **6.128** (89.0 %) | 0.000 | 0.00000 |
+| s9001 | 15 | 6.872 | **0.762** (11.1 %) | **6.096** (88.7 %) | 0.000 | 0.00000 |
+| s9002 | 15 | 6.718 | **0.591** (8.8 %) | **6.125** (91.2 %) | 0.000 | 0.00000 |
+
+The smoke reproduces at n = 13–15 to three decimals. **The registered claim is refuted on every
+cell, not narrowly**: head-of-line blocking would have to be 2.6–3.4× larger to clear the bar
+and 8–10× larger to exceed collection.
+
+**Instrument inertness — the registered check, exceeded.** The bar asked for the control's
+medians to three decimals. Measured seed-by-seed against `queue_range_v1`'s `plain` arms over
+all 95 shared arms, the **worst per-seed difference is 0.000000000 s**: 54.819 / 51.403 /
+22.380 / 22.523 / 65.508 / 73.998 on both sides, bit-identical. A wrapped collector, two new
+call sites in the scheduling paths and two orchestrator whitelist entries changed nothing about
+what the simulator does.
+
+**What R0 settles.** `placement` — decode, mutex, node and platform acquisition, queue enqueue —
+is **0.000 s**, so the GNN's inference costs no simulated time and none of the loss is decode
+cost. The 6.87 s is **89 % peer-group collection**: the price of assembling a 10-task group at
+0.46 arrivals/s, where the group takes ~21.7 s to co-arrive. `drainable_serving_config_v1`
+swept the only knob on that (the window: 0 / 8 / 16 / 24 / 80 s) and found 16 s the interior
+optimum, so **within this environment the term is already minimised**. The remaining lever is
+the arrival rate, which is `cluster_scale_v1`.
+
 ### 2026-09-15 — R1 read: **STRUCTURE-SEPARATES**, against a registered NEGATIVE expectation
 
 `simulation_data/scheduler_residence_v1/r1.json`. No simulation; the topologies are built
