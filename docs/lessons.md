@@ -442,3 +442,35 @@ scorer's own rule (`cap_feasible`), or the cache refuses the dataset after the s
 And never trust a non-empty `placements.jsonl`: `placement_metadata.json.sweep_complete` is the
 completeness fact, and a driver that records `truncated` and continues is a silent failure.
 
+
+## Read a finished run's curves against their chance floor (2026-09-14/15)
+
+W&B draws every logged scalar at the same size, so a metric that *cannot move* under the running
+objective and one that carries the result look identical. Audit of `peer_affinity_warm_v1` W1 run
+`xnjb91ic`: of ~34 per-step scalars, **25 were structurally dead or constant**, and three of the
+nine live ones read as findings and were not — `task_acc` "starting at 43 %" is chance on a corpus
+averaging 2.79 candidates per task, `ce` "climbing to 11" is the plan NLL falling back *through*
+the 10.26 uniform-scorer floor, and `regret_greedy` in raw seconds means nothing without the
+random-plan regret beside it. ⇒ **A `task_acc`, `acc` or `ce` quoted without its floor is not a
+result.** `scripts_cosim/read_training_curves.py <wandb/run-dir>` classifies dead / constant /
+guard / live, prints each live curve against the floor the run recorded, names the selected epoch
+and how much training ran after it, and flags memorisation. It reads the on-disk `*.wandb`
+transaction log, so it works on an unsynced or killed run, and it can be piped to a machine that
+does not have it (`cat tool.py | ssh host 'python3 - <run-dir>'`).
+
+Worked example, `drainable_objective_v1` job 766897 (2026-09-15): the 32 shaped-label runs looked
+broken on the charts — `val/ce` rising after epoch ~60, `val/acc` ≈ 10 %, regret swinging
+52 ↔ 290 s between adjacent epochs. Against the floors they are healthy and *better behaved than
+their own control*: chance CE is 9.89 and the runs end at 7.6–7.8 while the T1b control ends at
+**10.7, above chance**; chance graph accuracy is 8.0e-5, so 10 % is ~1,300× chance against the
+control's 4.2 % peak. The per-epoch regret swing is decode noise present in both. The one real
+observation the floors leave standing is a clean arm separation, and the one trap they expose is
+that the arm with the **higher** `task_acc` (0.85 vs 0.80) has the **worse** plan regret — score
+the plan, never the per-task argmax.
+
+Corollary on selection: the tool names the selected epoch because "the curve got worse" is usually
+irrelevant. These runs select at epoch 16–34 of 300 (88–91 % of training runs after it) and the
+T1b control at 70 (76 % after). That is wasted compute, not a defect — but it means **the last
+epoch is not the run**, and a two-arm contrast read at last epoch can invert against the same
+contrast at the selected checkpoint (measured in `route_b_v1` Phase 2, and in `peer_affinity_v1`
+T1b in the other direction).
