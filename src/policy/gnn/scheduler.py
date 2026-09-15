@@ -218,6 +218,12 @@ class GNNScheduler(Scheduler):
         # queue column by trace position against the corpus range it was trained on.
         # Always on -- a mechanism control that has to be switched on is one that is off.
         self._queue_range_records: List[List[float]] = []
+        # scheduler_residence_v1: per-task [dispatched, head_of_line, collection, placement]
+        # and per-batch [loop_start, batch_return, n_tasks]. Always on, like the queue-range
+        # instrument -- a mechanism control that has to be switched on is one that is off.
+        self._residence_tasks: List[List[float]] = []
+        self._residence_batches: List[List[float]] = []
+        self._residence_unstamped = 0
         self._decode_mode = os.environ.get("GNN_DECODE_MODE", "argmax").strip().lower()
         # A typo used to fall through to plain argmax silently, so an ablation could
         # report "seq_reforwrd" results that were really the control.
@@ -271,6 +277,23 @@ class GNNScheduler(Scheduler):
     # Orchestrator._scheduler_counters reads names off the SCHEDULER, so without these
     # properties the guardrail's counters are silently dropped from every result JSON --
     # the same whitelist trap that made checkpoint_mp_config's guard never fire.
+    @property
+    def residence_tasks(self) -> List[List[float]]:
+        # [dispatched_time, head_of_line, collection, placement] per PLACED task. The three
+        # components reconstruct that task's `waitTime` exactly.
+        return self._residence_tasks
+
+    @property
+    def residence_batches(self) -> List[List[float]]:
+        # [loop_start, batch_return, n_tasks] per collection loop.
+        return self._residence_batches
+
+    @property
+    def residence_unstamped(self) -> int:
+        # Tasks scheduled without ever passing through the collector. Expected 0; if it is
+        # not 0 the decomposition covers fewer tasks than the average it is compared against.
+        return self._residence_unstamped
+
     @property
     def queue_range_records(self) -> List[List[float]]:
         # [sim_time, divisor, raw_spread, dim7_spread, blind, dim7_max] per decoded batch.
@@ -388,6 +411,47 @@ class GNNScheduler(Scheduler):
             yield self.env.process(self._process_task_batch(batch_tasks))
 
     def _collect_task_batch(self) -> Generator[Any, Any, List[Task]]:
+        """Collect a batch, and record where each task's scheduler-side time went.
+
+        scheduler_residence_v1: `averageWaitTime` is `scheduled_time - dispatched_time`, the
+        WHOLE scheduler-side residence, and it was read as "batch wait" until 2026-09-15. The
+        collection loop has two return points and its own `actual_wait_time` was printed and
+        thrown away, so the split has never been measured. This wrapper stamps every task in
+        the returned batch with the loop's start and return times; `_record_residence_placed`
+        closes the decomposition where the task is actually scheduled.
+        """
+        loop_start = self.env.now
+        batch = yield from self._collect_task_batch_inner()
+        batch_return = self.env.now
+        for task in batch:
+            # Deferred tasks come back through here; the LAST stamp wins, so the re-queue
+            # cycle lands in head-of-line where it belongs.
+            task._res_loop_start = loop_start
+            task._res_batch_return = batch_return
+        self._residence_batches.append([loop_start, batch_return, float(len(batch))])
+        return batch
+
+    def _record_residence_placed(self, task: Task) -> None:
+        """One row per placed task: [dispatched, head_of_line, collection, placement].
+
+        The three components sum to `waitTime` by construction, which is the point -- a
+        decomposition that cannot be reconciled against the number it decomposes is a story.
+        A task with no stamp is not silently dropped: it never came through the collector and
+        the read must see that, so it is counted separately.
+        """
+        dispatched = getattr(task, "dispatched_time", None)
+        loop_start = getattr(task, "_res_loop_start", None)
+        batch_return = getattr(task, "_res_batch_return", None)
+        if dispatched is None or loop_start is None or batch_return is None:
+            self._residence_unstamped += 1
+            return
+        dispatched = float(dispatched)
+        head_of_line = max(0.0, float(loop_start) - dispatched)
+        collection = max(0.0, float(batch_return) - max(float(loop_start), dispatched))
+        placement = max(0.0, float(self.env.now) - float(batch_return))
+        self._residence_tasks.append([dispatched, head_of_line, collection, placement])
+
+    def _collect_task_batch_inner(self) -> Generator[Any, Any, List[Task]]:
         """
         Collect tasks into a batch using timeout-based waiting.
         
@@ -621,6 +685,7 @@ class GNNScheduler(Scheduler):
 
             # Put task in platform queue
             yield platform.queue.put(task)
+            self._record_residence_placed(task)
             yield task.scheduled.succeed()
 
             yield node.platforms.put(platform)
@@ -867,6 +932,7 @@ class GNNScheduler(Scheduler):
             task.platform = platform
             node.wall_clock_scheduling_time += default_timer() - task_start
             yield platform.queue.put(task)
+            self._record_residence_placed(task)
             yield task.scheduled.succeed()
             yield node.platforms.put(platform)
             yield self.nodes.put(node)
