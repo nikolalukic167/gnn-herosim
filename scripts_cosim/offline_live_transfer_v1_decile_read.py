@@ -106,6 +106,50 @@ def decile_of(order: float, bounds: Sequence[float]) -> int:
     return len(bounds)
 
 
+def decile_queue_summary(recs: List[Dict[str, Any]], n: int = R3_DECILES) -> Dict[str, Any]:
+    """Per-decile mean queue time, computed from a run's OWN task records.
+
+    serving_stability_v1 needs this for 99 arms. A retained raw result is ~780 MB, so keeping
+    one per arm is not a storage plan -- and a read that can only afford two captures is how
+    this module's own parent ended at n = 2. Called from a gate's summary step, it turns the
+    records into ten numbers before they are discarded.
+
+    Fails loud on an empty record list rather than returning zeros: the streaming stats path
+    writes no taskResults above 10,000 events unless SIM_FORCE_FULL_STATS=1, and silent zeros
+    here would read as a perfectly flat, perfectly stable arm.
+    """
+    if not recs:
+        raise DecileReadError(
+            "no task records to summarise -- run with SIM_FORCE_FULL_STATS=1, or this arm "
+            "would be recorded as having a flat queue for the whole trace"
+        )
+    orders = [_num(r, ORDER_KEY) for r in recs]
+    bounds = decile_bounds(orders, n)
+    buckets: List[List[float]] = [[] for _ in range(n)]
+    elapsed: List[List[float]] = [[] for _ in range(n)]
+    for rec in recs:
+        d = decile_of(_num(rec, ORDER_KEY), bounds)
+        buckets[d].append(_num(rec, QUEUE_KEY))
+        elapsed[d].append(_num(rec, ELAPSED_KEY))
+    rows = [{"decile": i + 1, "n": len(b),
+             "mean_queue_s": st.fmean(b) if b else None,
+             "mean_elapsed_s": st.fmean(e) if e else None}
+            for i, (b, e) in enumerate(zip(buckets, elapsed))]
+    depths = [r["mean_queue_s"] for r in rows if r["mean_queue_s"] is not None]
+    if not depths:
+        raise DecileReadError("every decile is empty after bucketing")
+    lo = min(depths)
+    return {
+        "deciles": rows,
+        "n_tasks": len(recs),
+        "mean_queue_s": st.fmean(_num(r, QUEUE_KEY) for r in recs),
+        "mean_elapsed_s": st.fmean(_num(r, ELAPSED_KEY) for r in recs),
+        # S2's statistic. A zero minimum would make the ratio infinite, so it is reported as
+        # None and the read decides what to do -- not silently clamped here.
+        "queue_max_over_min": (max(depths) / lo) if lo > 0 else None,
+    }
+
+
 def read(
     best: Dict[int, Tuple[float, float, float]],
     worst: Dict[int, Tuple[float, float, float]],
