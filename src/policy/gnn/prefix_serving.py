@@ -51,6 +51,7 @@ from src.policy.gnn.seq_decode import GnnDecodeRunStats, decode_masked_topo_plac
 from src.policy.tabular.reduced_features import (
     PARTIAL_STATE_CONTRACT_ENV,
     PARTIAL_STATE_FEATURE_DIM,
+    partial_state_feature_dim,
     PARTIAL_STATE_PEER_MASS_ENV,
     build_partial_state_context_from_graph,
     krank_node_order,
@@ -218,10 +219,11 @@ def load_prefix_conditioned_gnn(
             f"!= live vocab {list(vocab)!r} — a reorder would silently permute task types"
         )
     partial_dim = int(sidecar.get("partial_state_feature_dim") or 0)
-    if partial_dim != PARTIAL_STATE_FEATURE_DIM:
+    expected_dim = partial_state_feature_dim(trained_contract)
+    if partial_dim != expected_dim:
         raise PrefixServingError(
-            f"{label}: partial_state_feature_dim={partial_dim} != live "
-            f"PARTIAL_STATE_FEATURE_DIM={PARTIAL_STATE_FEATURE_DIM}"
+            f"{label}: partial_state_feature_dim={partial_dim} != the {expected_dim} "
+            f"columns contract {trained_contract!r} emits"
         )
     alpha_key = str(sidecar.get("dag_alpha_key") or "").strip()
     env_alpha = os.environ.get("GNN_PREFIX_ALPHA_KEY", "").strip()
@@ -404,7 +406,8 @@ def attach_live_prefix_block(
         a: (sum(route_hb[(b, a)][0] for b in cand_node_ids if b != a) / max(1, len(cand_node_ids) - 1))
         for a in cand_node_ids
     }
-    node_rank = krank_node_order({nid: caps.get(nid, 0.0) for nid in cand_node_ids}, mean_hop)
+    node_rank = krank_node_order({nid: caps.get(nid, 0.0) for nid in cand_node_ids}, mean_hop,
+                                 contract=resolve_partial_state_contract())
 
     ingress: Dict[Tuple[int, int], Tuple[str, ...]] = {}
     for t, task in enumerate(batch_tasks):
