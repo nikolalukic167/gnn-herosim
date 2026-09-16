@@ -1,8 +1,32 @@
 # partial_state_v3 — a served representation that does not pin the cluster size
 
-**Status:** `REGISTERED` (2026-09-16). Every bar below is a module constant in
-`scripts_cosim/partial_state_v3_read.py`, committed **before** any cache is built. Amend by
-dated amendment only.
+**Status:** `CLOSED` (2026-09-16) — **GENERALISES · SCALE-HELPS · ENCODING-HELPS-OFFLINE ·
+TIE-LIVE-AT-6**. Registered 2026-09-16; every bar below is a module constant in
+`scripts_cosim/partial_state_v3_read.py` and was signed before its data.
+
+**Outcome.** Replacing the 24-column rank one-hot (`KRANK_WIDTH = 6`) with two size-free
+scalars is a pure representation change (P0: base and linkrank columns bit-identical, v2 rank
+recovered on 100 % of edges, 516/516 datasets). Retrained on the same 516 datasets, label,
+recipe, split and seeds, the v3 checkpoints **tie their v2 twins live at 6 servers on 3/3
+cells** for both arms (P2, with the v2 control reproducing `queue_range_v1`'s medians to three
+decimals) and fit held-out **better** offline (P1, −1.6 / −2.6 pp, p = 0.039 / 0.0008 — expected
+TIE). **Served on 12 / 24 / 80 servers they do not degrade relative to reactive Knative — they
+improve monotonically (P3 GENERALISES, P4 SCALE-HELPS)** against a registered expectation of
+DEGRADES: at 80 servers the graph arm finishes **28.7 % sooner** than reactive and the pointwise
+arm **46.9 % sooner, on 4/4 topology seeds each**, from checkpoints that never saw more than 5
+hosting nodes and now see 9.6× the corpus's candidates per task. **The first live measurement in
+this program where learned arms beat reactive Knative on a whole trace.**
+
+**Carry these, always.** (1) The scaled rungs are **saturated** (reactive queue 96 / 309 / 603 s
+vs 14 s at 6 servers; arrivals per server held at R0's ratio against a ~0.077 tasks/s/server
+cold-start drain): the statistic is *relative to reactive on the same cell*, as registered, and
+the win at scale is a queue-under-saturation win, not the peer-assembly win the axis was priced
+on (assembly wait does fall 6.8 → 0.73 s, small against 434 s of queue). (2) At 6 servers the
+arms still lose (+69 % / +29 %). (3) **No GNN claim** — `mpoff` beats `gnn` at every rung.
+(4) 2 of 144 arms were a tail livelock (`oom`, frozen sim time on re-run), disclosed, not a
+representation failure; the read's first cut printed STILL-PINNED for them (gate-tools).
+(5) Why the arms win under saturation is unregistered (they trigger 2–4× more autoscaler events
+than reactive there). Phase 2 (in-support data) did not run — conditional on DEGRADES.
 
 **Parents:** `cluster_scale_v1` (CLOSED — peer-group assembly cost falls 6.10 → 0.73 s as
 arrivals speed up 13.3×, worth ~3.9–5.4 s of net latency on the best cell, and the served
@@ -262,3 +286,67 @@ Every cell reads **TIE** under the registered bar (|median| ≤ 5 % or p ≥ 0.0
 on both arms and P3 is read cleanly. Descriptive, inside the tie band and not a claim: the v3
 pointwise arm beats its v2 twin on s9001 on 16/16 seeds; the offline ENCODING-HELPS did not
 carry to the other two cells. The encoding change costs nothing live where the old one works.
+
+### 2026-09-16 — P3 read: **GENERALISES · SCALE-HELPS** — the registered expectation (DEGRADES) is refuted
+
+Job 769872 (144 arms, `partial_state_v3_p3_gate.sbatch`; cells minted by task 0, all 16
+readable — **0 hangs** on any reactive arm, so no cell attrition), plus re-run job 770351.
+`simulation_data/partial_state_v3/p3.json`, summaries under `results/psv3_p3/`.
+
+**P3-a, read by cause.** 142 of 144 arms completed. Every one of the **140 learned arms on the
+scaled rungs that finished** served 12 / 24 / 80 candidate-hosting nodes with **no
+`krank_node_order` raise and no contract refusal** — the failure the lineage exists to remove
+did not occur once. The two losses (cs12s9005 `gnn` s4, cs24s9005 `gnn` s5) are a **tail
+livelock**: killed at the 48 GB cap after ~17.5 min with the simulation frozen at t = 54,421 s
+and 28,244 s — *after* their traces' last arrivals (~54,300 s and ~27,150 s) — and on re-run
+at 120 GB they froze at **the same sim time** and had reached 76 GB when cancelled at 24 min.
+Same class as the `gnn` seed-3 livelock this family already carries; classified `oom`,
+disclosed, and the two cells read on 3 checkpoint seeds. The first cut of the read printed
+`STILL-PINNED` for them by arithmetic; recorded as printed in `docs/gates/gate-tools.md`, and
+the read now takes causes.
+
+**P3-b/P3, the primary.** `d` = median over checkpoint seeds of (arm elapsed / reactive
+elapsed) − 1, median over 4 cells:
+
+| rung | servers | arrivals/s | reactive elapsed | `gnn` elapsed · `d` | `mpoff` elapsed · `d` | collection | batch | wall/arm |
+|---|---|---|---|---|---|---|---|---|
+| R0 | 6 | 0.460 | 22.2 s | 26.6 s · **+0.689** | 35.3 s · **+0.288** | 6.106 s | 6.17 | 2.4 min |
+| R1 | 12 | 0.921 | 103.1 s | 146.5 s · **+0.651** | 94.9 s · **+0.234** | 3.903 s | 8.57 | 1.6 min |
+| R2 | 24 | 1.842 | 316.0 s | 247.0 s · **−0.068** | 195.4 s · **−0.360** | 2.200 s | 9.56 | 1.4 min |
+| R3 | 80 | 6.139 | 610.6 s | 439.6 s · **−0.287** | 325.4 s · **−0.469** | 0.729 s | 9.96 | 1.7 min |
+
+Bar: every scaled rung within `P3_TOL = 0.10` of R0 ⇒ **GENERALISES** — and every scaled rung
+is *below* R0, on both arms. **P4:** `d_gnn` falls monotonically 0.689 → 0.651 → −0.068 →
+−0.287 and `d_R3 ≤ d_R0 − 0.05` ⇒ **SCALE-HELPS**. At 80 servers the graph arm finishes
+**28.7 % sooner than reactive Knative and the pointwise arm 46.9 % sooner, on 4 of 4 topology
+seeds each** (per-cell `d` −0.279…−0.310 and −0.460…−0.480; at 24 servers `mpoff` wins 4/4,
+`gnn` 2/4). **P3-c:** 1.7 min median at R3 against a 45-min bar. The collection column
+reproduces `cluster_scale_v1`'s curve on a different job, cells and checkpoints.
+
+**What this is, precisely — carry every clause.**
+
+1. **It is the first live measurement in this program where learned arms beat reactive Knative
+   on a whole trace**, replicated across 4 independent topology draws at two rungs. It was
+   produced by checkpoints that never saw more than 5 candidate-hosting nodes, served on 80,
+   with 9.6× the corpus's maximum candidates per task: **the out-of-support prior — three
+   times measured as a failure elsewhere in this record — did not fire here.**
+2. **The scaled rungs are saturated** (registered and disclosed): arrivals per server are held
+   at R0's ratio while the cold-start drain is ~0.077 tasks/s/server, so reactive's queue is
+   96 / 309 / 603 s at R1 / R2 / R3 against 14 s at R0. The statistic is relative to reactive
+   on the same cell, as registered, and it is defined at any load — but the *absolute* latency
+   at those rungs is a saturation number and is not read. The win at scale is a
+   **queue-under-saturation** win (R3 queue 434 s vs 603 s), not the peer-assembly win the axis
+   was priced on: the assembly gain is real (wait 6.8 → 0.73 s) and small against that queue.
+3. **Where it comes from is unregistered.** Descriptively, the learned arms trigger 2–4× more
+   autoscaler events than reactive at R1–R3 (e.g. 1,191 vs 324; 173 vs 74) — the churn that
+   *hurt* them at 6 servers (`drainable_regime_v1`, ~9×) is coincident with the win under
+   saturation. A hypothesis for a new registration, not a finding.
+4. **No GNN claim.** `mpoff` beats `gnn` at every rung (R3: −46.9 % vs −28.7 %); the encoding
+   change is policy-agnostic and moved the pointwise twin more, as `cluster_scale_v1` predicted
+   and the registration forbade reading otherwise.
+5. Same 16 s window, 1 ms poll, batch 10 at every rung; `SIM_FORCE_FULL_STATS=1`; seed 3 and
+   topology 9004 excluded by name; Phase 2 (in-support data at 12 servers) **does not run** —
+   it was conditional on DEGRADES.
+
+**Cost of the whole lineage:** ~34 min local CPU (cache), 32 training arms that stopped on
+patience at 100–146 epochs, 186 + 142 live arms at 1–3 min each. One day of cluster time.

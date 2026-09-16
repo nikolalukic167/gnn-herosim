@@ -596,3 +596,22 @@ guard did exactly its job against the wrong key, and nothing failed loud.
 topology seed, and policy, the arm name carries all three. An idempotence guard tests "did
 this arm already run", and if two arms share a name the second one silently inherits the
 first's file.
+
+## The out-of-support prior is a prior, not a measurement — and a bar naming a failure class is read by cause (2026-09-16)
+
+`partial_state_v3`. Three times this record had measured a served model failing when its
+inputs left the corpus's support (`xavierGpu`, the queue column, S0.d's candidate counts),
+so the registered expectation for serving a 6-server checkpoint on 12 / 24 / 80 servers was
+**DEGRADES**. Measured live on 4 topology seeds per rung: the arms' standing relative to
+reactive Knative **improves** with cluster size, to −28.7 % / −46.9 % at 80 servers from
+9.6× the corpus's candidates per task. The prior was wrong here and it would have been
+cheaper to believe it — one afternoon of cluster time bought the first whole-trace live win
+in the program. ⇒ **"It is out of distribution" is a reason to register a bar, not to skip
+the gate.** The size-free encoding made the question *askable*; only the live gate answered it.
+
+Two things that came with it, both cheap and both general. **Generalisation across cluster
+size can only be read live** — co-simulation brute-forces every placement, so labels at 24
+servers (14¹⁰ plans) do not exist; the live gate is the instrument, at ~2 min per arm.
+And **a bar that names a failure class (a raise, a refusal) must be read by cause, not by
+count**: the first cut of the read printed the class it was written for on two arms that
+died of a tail livelock at the memory cap — see `docs/gates/gate-tools.md`, 2026-09-16.
