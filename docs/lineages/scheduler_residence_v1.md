@@ -383,3 +383,82 @@ than wait for TIMEOUT). Nothing else about the arms changes.
 **Also declared:** whichever way R3 lands, the hang rate itself is now a recorded property of
 this environment — **4 of 12 independent topology draws are unservable by every policy** — and
 any future work that mints cells from seeds must budget for it.
+
+### 2026-09-16 — R3 READ, pooled: **LOPSIDEDNESS-DOES-NOT-PREDICT**. R1 was a three-point coincidence.
+
+Jobs 769048 + 769227, 135 arms, **15 of 20 cells readable** against the registered floor of 10.
+`simulation_data/scheduler_residence_v1/r3.json`. Batch 2 hung on 1 of 8 cells (`r3s9123`)
+against batch 1's 4 of 12, so the pooled hang rate is **5 of 20 (25 %)**.
+
+| statistic | ρ vs `gnn` excess queue | p | bar | reactive control | `mpoff` control |
+|---|---|---|---|---|---|
+| `min_reachable_servers` (**primary**) | **+0.041** | 0.885 | \|ρ\| ≥ 0.60, sign − | +0.316 (p 0.25) | +0.020 (p 0.94) |
+| `hosting_node_spread` (second) | **+0.029** | 0.918 | same | +0.120 (p 0.67) | +0.183 (p 0.51) |
+
+**Both are nulls, and both have the wrong sign.** The registered claim was that fewer reachable
+servers means more excess queue; the measured ρ is +0.041 against a bar of 0.60 — not a weak
+effect, no effect. The pointwise `mpoff` control agrees (+0.020), which is what a
+policy-agnostic topology effect should do and is the one prediction that held.
+
+**R1's separation on three cells does not replicate on fifteen.** Its two statistics put
+`cell_s9001` strictly outside the other two with no overlap, and both were committed bars. On
+15 independent topology draws from the same generator they carry no information about the
+excess at all. This is the third time in this program that a clean ordering on three aggregates
+has evaporated at a sample size (`serving_stability_v1`'s stability mechanism, this session's
+own 3-aggregate over-read, and now R1).
+
+**Disclosed: the printed verdict is `CONFOUNDED-ENVIRONMENT`, and that label is degenerate
+here.** The registered control rule fires when |control ρ| ≥ 0.75 × |primary ρ| with matching
+sign. At a primary ρ of **+0.041** that threshold is 0.031, so *any* non-trivial control ρ trips
+it — the rule fired by arithmetic, not because a confound obscured a real effect. **The bar is
+not moved**; the substantive reading is `LOPSIDEDNESS-DOES-NOT-PREDICT`, both are recorded, and
+the rule defect is filed in `docs/gates/gate-tools.md`. A ratio control needs a floor on the
+primary's own magnitude below which it reports NOT-APPLICABLE instead of CONFOUNDED.
+
+#### Descriptive, unregistered, and the most interesting thing in the read
+
+The gate incidentally produced the widest topology sample this program has ever run at a
+drainable load — 15 independent draws, each with its own reactive arm — and on it:
+
+| statistic | `gnn` | `mpoff` |
+|---|---|---|
+| beats reactive on **queue** | **7 / 15** | 7 / 15 |
+| beats reactive on **elapsed** | **3 / 15** | **4 / 15** |
+
+Against **0 / 3** on the three cells this whole family of lineages has been run on. The margins
+are not small where they land: −20.3 s, −24.0 s and −14.0 s of mean elapsed on `r3s9112`,
+`r3s9129` and `r3s9139`.
+
+And they are not randomly placed. **The learned arms win on the cells where reactive itself is
+slow**: those three carry reactive elapsed of 46.6 / 69.8 / 163.8 s against 15.5–37.2 s
+everywhere else. Post hoc, ρ(reactive elapsed, `gnn` excess) = **−0.446, p = 0.095, n = 15** —
+directionally consistent, **not significant, and not a bar this lineage registered**. It clears
+nothing. It is recorded because it names a testable claim that no existing stop covers: *the
+learned arms may be relatively better precisely where the reactive rule does badly*, which is a
+different question from every "does the arm beat reactive on this cell" gate in the record, and
+it needs its own registration with a pre-declared difficulty measure.
+
+**What this does NOT license.** These are queue and elapsed medians over 4 seeds per cell with
+no paired test, on cells selected to span a statistic that turned out to be irrelevant, and the
+3/15 is not corrected for anything. Quoting it as "the GNN beats Knative on 20 % of topologies"
+would be exactly the error `drainable_regime_v1` was created to stop.
+
+---
+
+## Outcome: **RESIDENCE-IS-COLLECTION · LOPSIDEDNESS-DOES-NOT-REPLICATE**
+
+**CLOSED 2026-09-16.**
+
+* **R0** (n = 13–15, 0/3 cells): the scheduler-side wait is **89 % peer-group collection**,
+  9–11 % head-of-line, and **0.000 s placement**. The registered claim is refuted. The
+  instrument is bit-identical to the control on all 95 shared arms.
+* **R1** (3 cells): fired against a NEGATIVE expectation.
+* **R3** (15 cells, the live gate): R1 does not replicate. ρ = +0.041.
+* **R2**: VOID, registered as conditional on R0.
+
+**Closed precisely:** head-of-line blocking is not what the learned arms pay, and neither
+`min_reachable_servers` nor the clients-per-server imbalance predicts a cell's excess queue
+over its own reactive arm, at the x4000 rung, on 15 independent topology draws from this
+generator. **Not closed:** what *does* make one topology draw a disaster and another a win —
+the excess ranges from −29.2 s to +51.6 s across draws and nothing measured here explains it;
+and the descriptive pattern above, which is a new registration if pursued.
