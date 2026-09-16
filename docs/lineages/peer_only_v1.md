@@ -1,0 +1,131 @@
+# peer_only_v1 — message passing over the peer graph only, and the corpus it was starved of
+
+**Status:** `REGISTERED` (2026-09-16). Every bar below is a module constant in
+`scripts_cosim/peer_only_v1_read.py`, committed **before** any arm is trained. Amend by dated
+amendment only.
+
+**Parents:** `partial_state_v3` (CLOSED — the size-free representation; its P3 harness, cells,
+checkpoints and reactive arms are reused here), `peer_affinity_v1` (the offline MP edge, and
+its serving asymmetry), `serving_gap_v1` (the graph arm is 3–7× *more* load-responsive than
+its twin), `drainable_regime_v1` (the graph arm loses to its twin on **queue**, not peers),
+`link_mp_v1` / `mp_ablation_v1` (message passing over the wrong graph is harmful; over the
+right graph it ties or wins).
+
+---
+
+## The claim under test
+
+Every live comparison in this program has the pointwise twin (`mpoff`) beating the graph arm
+(`gnn`) or tying it, and the record says where the loss comes from:
+
+* offline, message passing wins only on the **pair-indexed peer term** — `PeerConv` over
+  task–task exchange edges — and that edge grew with corpus size (136 → 482 datasets:
+  +2.08 → +5.14 pp);
+* live, the graph arm loses to its twin on **queue**: it cuts peer rendezvous 5× and still
+  loses, because it is 3–7× more load-responsive and over-reacts to platform queue state;
+* the reason is structural — with MP off, a task embedding never touches a platform feature;
+  with the bipartite GIN on, every platform's queue state is carried into every task
+  embedding. That is why `gnn` degraded 16 pp against `mpoff`'s 7 pp when the queue column
+  left its trained range (`peer_affinity_v1`, queue-scale probe).
+
+> **Claim A.** Keep `PeerConv` over the task–task peer edges and **drop the bipartite GIN over
+> task–platform edges**. Platform state then reaches the scorer exactly as in `mpoff`, while
+> peer structure still flows between tasks. The arm (`peeronly`) keeps the offline MP edge
+> (which came from `PeerConv`) and loses the queue over-reaction (which came from the GIN).
+>
+> **Claim B.** The MP edge is corpus-starved. Train all three arms on the **1,670-dataset**
+> corpus (`train` 136 + the full `train2` 1,500 + `r2` 34, minus any alpha set-asides) instead
+> of the 516 T1b parents, under the same recipe, and read the same live bars.
+
+`mpoff` is carried as the pointwise control and — unlike every other lineage since 2026-09-04
+— **a graph-vs-pointwise reading is the point here and is permitted**, because the arms share
+corpus, label, recipe, split and training seeds and differ only in which message passing runs.
+The selector caveat is carried: offline reads order the work and never close it.
+
+## What `peeronly` is, exactly
+
+`TaskPlacementGNN(mp_peer_edges=True, mp_platform_edges=False)`: encoders → `PeerConv` on
+task embeddings → **no GIN** → `EdgeScorer` on `[task_emb, platform_emb, edge_attr,
+partial_state_v3]`. `mp_platform_edges` is weight-invisible (the GIN is constructed and never
+run, as in `mpoff`), so it is recorded in the sidecar, whitelisted in
+`executesimulation.checkpoint_mp_config`, adopted-or-verified at serving
+(`GNN_MP_PLATFORM_EDGES`), and a mismatch fails loud. `gnn` and `mpoff` must be **bit-identical**
+to before the change (A0).
+
+## Bars
+
+### Phase A — the architecture, on the 516-dataset corpus
+
+**A0 — instrument (blocking).** (i) Re-serving one `gnn` and one `mpoff` v3 checkpoint on one
+P3 cell per rung reproduces `partial_state_v3` P3's mean elapsed to **three decimals**
+(`A0_TOL = 0.0005`), so the model change is inert for the existing arms and their P3
+summaries may be reused. (ii) The `peeronly` sidecar records `mp_platform_edges = false`,
+`mp_peer_edges = true`, `disable_message_passing = false`, contract `partial_state_v3`;
+serving refuses a sidecar/environment mismatch (unit test).
+
+**A1 — offline, ordering only.** Held-out regret at the selected checkpoint (the P1 method),
+`peeronly` vs `mpoff` and `peeronly` vs `gnn`, paired by training seed, 16 seeds
+(`A1_MIN_SEEDS = 12`, `A1_TIE_PP = 1.0`, `A1_ALPHA = 0.05`). Registered expectation:
+`peeronly` ≈ `gnn` (the edge came from `PeerConv`), both ahead of `mpoff`.
+
+**A2 — the PRIMARY, live.** Rungs **R0 (6 servers, f4000)** and **R3 (80 servers, f300)** of
+the `partial_state_v3` P3 harness — same 4 topology cells per rung, same checkpoint seeds
+(1, 2, 4, 5), same reactive and `gnn`/`mpoff` arms (reused under A0). `peeronly` vs `mpoff`
+**mean elapsed, paired by (cell, seed)**, n = 16 per rung (`A2_MIN_PAIRS = 12`), exact
+Wilcoxon, `A2_TIE_PCT = 5.0`, `A2_ALPHA = 0.05`. Per rung: **`PEERONLY-BEATS-POINTWISE`**
+(median < −5 % and p < 0.05), **`TIE`**, or **`POINTWISE-BETTER`**. The lineage headline is
+`PEERONLY-BEATS-POINTWISE` only if it reads so on at least one rung and `POINTWISE-BETTER` on
+none. **Registered expectation: TIE at R0, uncertain at R3.**
+
+**A3 — the mechanism.** Mean queue time, paired by (cell, seed): `peeronly` vs `gnn` must be
+lower by ≥ `A3_QUEUE_IMPROVE_PCT = 5.0` % (p < 0.05) on both rungs ⇒ **`GIN-IS-THE-OVERREACTION`**;
+and `peeronly` vs `mpoff` queue within ± 5 % ⇒ the over-reaction is gone, not merely reduced.
+**Registered expectation: POSITIVE.** If A3 does not fire, Claim A's mechanism is wrong even
+if A2 ties.
+
+**A4 — the peer term is retained.** `totalPeerExchangeTime + totalPeerRendezvousWait` per
+task, `peeronly` vs `mpoff`, paired: `peeronly` ≤ `mpoff` × (1 + `A4_PEER_TOL = 0.05`) on both
+rungs. An arm that lost the queue over-reaction *and* the peer advantage is `mpoff` with noise
+and reads **`PEER-TERM-LOST`**.
+
+### Phase B — the corpus, all three arms
+
+**B0 — corpus instrument (blocking).** The 1,670 corpus needs the T1b preparation the 1,154
+new `train2` datasets never had (`refresh_optimal_full_stats.py --rewrite-ssc`, then
+`peer_affinity_alpha_prescan.py --alpha 2.0` with set-asides), then one cache under
+`partial_state_v3` with the V = 1 label on the measured clock. Bars: contract, label, alpha
+identical to the psv3 cache's; the **516 T1b parents' partial-state ingredients identical** to
+the psv3 cache's, dataset for dataset (the P0 comparison restricted to those ids,
+`B0_MAX_COLUMN_DIFF = 0.0`); the test split is the same 34 `r2` datasets; `B0_MIN_DATASETS =
+1500`.
+
+**B1 — the corpus lever, per arm.** Each arm's 1,670 checkpoints vs its 516 checkpoints,
+paired by training seed: offline (A1 method, ordering) and **live** at R0 and R3 (A2 method).
+`CORPUS-HELPS` per arm and rung if median < −5 % and p < 0.05. Registered expectation:
+POSITIVE for `gnn` and `peeronly` (T1 → T1b), uncertain for `mpoff`.
+
+**B2 — the Phase B headline.** `peeronly_1670` vs `mpoff_1670`, live at R0 and R3, the A2
+bars and verdicts. Registered expectation: uncertain — this is the reading the question
+"how can the graph arm win" turns on.
+
+## Cells, seeds, cost — declared in advance
+
+* Cells: `cs6s{9001,9002,9003,9005}` and `cs80s{9001,9002,9003,9005}` as minted for P3;
+  workloads `drainable_f4000_n50000` / `drainable_f300_n50000`; window 16 s, poll 1 ms, batch
+  10, `SIM_FORCE_FULL_STATS=1`; **the R3 rung is saturated** (reactive queue ~603 s) and every
+  live number there is relative to reactive or paired between arms, never absolute.
+* Checkpoint seed 3 excluded; topology 9004 excluded; 25 % attrition budgeted; every arm name
+  carries cell, rung, arm, corpus and seed; `--patience 60 --min-epochs 100`; lr 2e-3 not
+  re-tuned (carried limitation).
+* Cost: Phase A — 16 training runs (~4 h wall) + 2 A0 arms + 32 live arms (~1 h).
+  Phase B — corpus prep + cache on datalab (~4 h), 48 training runs (~6 h wall), 96 live arms
+  (~2 h). About two days of cluster time.
+* **Not in scope:** the window (closed), the platform cap (deadlocks), queue clamps (closed),
+  horizon labels (chaos), closed-loop policy gradient (closed at n = 120), attention pooling
+  over candidates (a different representation), load-matching the rungs (closed by
+  `cluster_scale_v1` S0.a). A peer-dominated regime (peer term ≥ 50 % of the scored latency
+  at a drainable load) is the follow-on registration if B2 reads `POINTWISE-BETTER`.
+
+## Record
+
+*(none yet — registration only)*
