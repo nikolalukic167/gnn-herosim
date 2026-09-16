@@ -28,6 +28,7 @@ from torch import Tensor
 
 from src.policy.tabular.reduced_features import (
     PARTIAL_STATE_FEATURE_DIM,
+    partial_state_feature_dim,
     partial_state_columns,
 )
 
@@ -111,7 +112,8 @@ def refresh_partial_state_edge_attr(
     attr = getattr(data, "partial_state_edge_attr", None)
     if attr is None or int(attr.size(0)) != n_edges:
         attr = torch.zeros(
-            (n_edges, PARTIAL_STATE_FEATURE_DIM), dtype=torch.float32, device=ei.device
+            (n_edges, partial_state_feature_dim(getattr(ctx, "contract", None))),
+            dtype=torch.float32, device=ei.device,
         )
         data.partial_state_edge_attr = attr
     else:
@@ -155,17 +157,18 @@ def make_partial_state_score_fn(
     a node feature, which is asserted here — if a future change routes prefix state into
     ``platform_features``, this stops silently being correct and starts failing loudly.
     """
+    expected_dim = partial_state_feature_dim(getattr(ctx, "contract", None))
     if not getattr(model, "partial_state_edge_dim", 0):
         raise ValueError(
             "make_partial_state_score_fn: model.partial_state_edge_dim is 0, so the "
             "prefix columns would be built and then discarded. Construct the model "
-            "with partial_state_edge_dim=PARTIAL_STATE_FEATURE_DIM."
+            "with partial_state_edge_dim=partial_state_feature_dim(contract)."
         )
-    if int(model.partial_state_edge_dim) != PARTIAL_STATE_FEATURE_DIM:
+    if int(model.partial_state_edge_dim) != expected_dim:
         raise ValueError(
             f"make_partial_state_score_fn: model.partial_state_edge_dim="
-            f"{int(model.partial_state_edge_dim)} but this contract emits "
-            f"{PARTIAL_STATE_FEATURE_DIM} columns."
+            f"{int(model.partial_state_edge_dim)} but contract "
+            f"{getattr(ctx, 'contract', None)!r} emits {expected_dim} columns."
         )
 
     cached: Dict[str, Tuple[Tensor, Tensor]] = {}

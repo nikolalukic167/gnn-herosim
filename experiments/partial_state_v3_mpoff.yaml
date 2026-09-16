@@ -1,0 +1,43 @@
+# partial_state_v3 -- mpoff: the drainable_objective_v1 V = 1 recipe under the size-free
+# partial-state contract. docs/lineages/partial_state_v3.md.
+#
+# Everything is the v1_mpoff recipe (T1b, lr 2e-3 NOT re-tuned, CE-only, teacher-forced
+# masked_topo, T1b split, 16 seeds) except: the cache is the SAME 516 parents rebuilt under
+# PARTIAL_STATE_CONTRACT=partial_state_v3 (dim 38 -> 22), and --patience 60 --min-epochs 100
+# (2026-09-16; a stop fires only after 60 epochs without improvement, so the selected epoch
+# is always <= epochs_run - 61 and patience cannot truncate a selection).
+trainer: gnn
+lineage: partial_state_v3
+cache_dir: simulation_data/graphs_cache_drainable_objective_v1_v1_psv3
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_affinity_v1_t1b_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  GNN_DISABLE_MESSAGE_PASSING: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: partial-state-v3-mpoff
+  tags:
+  - partial-state-v3
+  - mpoff
+  - lr2e3
+  - patience60

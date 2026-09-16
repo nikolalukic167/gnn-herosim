@@ -1802,7 +1802,8 @@ def attach_dag_partial_state_block(
     }
     primary_caps = node_caps_by_alpha[DAG_PRIMARY_ALPHA_KEY]
     node_rank = krank_node_order(
-        {nid: primary_caps.get(nid, 0.0) for nid in cand_node_ids}, mean_hop
+        {nid: primary_caps.get(nid, 0.0) for nid in cand_node_ids}, mean_hop,
+        contract=resolve_partial_state_contract(),
     )
 
     ingress: Dict[Tuple[int, int], Tuple[str, ...]] = {}

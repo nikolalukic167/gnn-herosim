@@ -253,8 +253,22 @@ KRANK_WIDTH = 6  # registered pad width R = the route_b grid's max node count
 KRANK_TYPES = 4  # task types on the route_b grids, in sorted-name order
 KRANK_FEATURE_DIM = KRANK_WIDTH * KRANK_TYPES
 LINKRANK_FEATURE_DIM = 4
+# The v1/v2 width. It stays a constant because the MLP dim63crk layout is defined on it;
+# everything that can meet a v3 checkpoint or cache reads partial_state_feature_dim(contract).
 PARTIAL_STATE_FEATURE_DIM = (
     PARTIAL_STATE_BASE_DIM + KRANK_FEATURE_DIM + LINKRANK_FEATURE_DIM
+)
+# partial_state_v3 (2026-09-16, docs/lineages/partial_state_v3.md): the rank one-hot pinned
+# the served representation to KRANK_WIDTH candidate-hosting nodes (cluster_scale_v1: every
+# gnn arm above 6 servers raised in krank_node_order). v3 keeps the base and linkrank
+# columns byte-for-byte and writes, in the task's OWN type slot k, two size-free scalars:
+#   rank_frac = r / (N - 1)   (0 when N = 1)   -- in [0, 1] at any cluster size
+#   inv_n     = 1 / N                          -- bounded, monotone in N
+# from which the v2 rank is exactly recoverable at any N (r = round(rank_frac * (1/inv_n - 1))).
+KRANK_V3_SCALARS = 2
+KRANK_V3_FEATURE_DIM = KRANK_TYPES * KRANK_V3_SCALARS
+PARTIAL_STATE_V3_FEATURE_DIM = (
+    PARTIAL_STATE_BASE_DIM + KRANK_V3_FEATURE_DIM + LINKRANK_FEATURE_DIM
 )
 DIM63CRK_FEATURE_DIM = DIM25CR_FEATURE_DIM + PARTIAL_STATE_FEATURE_DIM
 DIM63CRK_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM63CRK_FEATURE_DIM)]
@@ -271,7 +285,27 @@ PARTIAL_STATE_CONTRACT_V1 = "partial_state_v1"
 # is refused (the two meanings cannot share a column). $PARTIAL_STATE_PEER_MASS=0 zeroes
 # column 8 (the mlp_t1 arm); recorded by every trainer that consumes the block.
 PARTIAL_STATE_CONTRACT_V2 = "partial_state_v2"
-VALID_PARTIAL_STATE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2})
+# partial_state_v3 (2026-09-16): v2's columns 0-9 and the 4 linkrank columns unchanged, the
+# 24-column rank one-hot replaced by KRANK_V3_FEATURE_DIM size-free scalars. Width 22.
+PARTIAL_STATE_CONTRACT_V3 = "partial_state_v3"
+VALID_PARTIAL_STATE_CONTRACTS = frozenset(
+    {PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3}
+)
+# Contracts whose columns 7-9 carry the peer block (and that therefore need a peer corpus).
+PEER_BLOCK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3})
+# Contracts whose krank block is the fixed-width one-hot; only these pad (and raise).
+KRANK_ONEHOT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2})
+
+
+def krank_feature_dim(contract: Optional[str] = None) -> int:
+    """Width of the krank block under a contract (explicit, else $PARTIAL_STATE_CONTRACT)."""
+    c = resolve_partial_state_contract(contract)
+    return KRANK_FEATURE_DIM if c in KRANK_ONEHOT_CONTRACTS else KRANK_V3_FEATURE_DIM
+
+
+def partial_state_feature_dim(contract: Optional[str] = None) -> int:
+    """Width of the whole partial-state block under a contract: 38 for v1/v2, 22 for v3."""
+    return PARTIAL_STATE_BASE_DIM + krank_feature_dim(contract) + LINKRANK_FEATURE_DIM
 PARTIAL_STATE_PEER_MASS_ENV = "PARTIAL_STATE_PEER_MASS"
 
 
@@ -334,22 +368,28 @@ def require_matching_partial_state_contract(
 
 
 def krank_node_order(
-    caps_at_alpha: Mapping[Any, float], mean_hop: Mapping[Any, float]
+    caps_at_alpha: Mapping[Any, float], mean_hop: Mapping[Any, float],
+    *, contract: Optional[str] = None,
 ) -> Dict[Any, int]:
     """THE canonical identity-free node ranking (§2): ascending (capacity at alpha,
     mean hop to the other candidate-hosting nodes, node name). Single source — the
     cache builder and the offline-eval/serving path must both import this; the
     scripts_cosim analysis copy (route_b_coefficient_transfer.krank_cols) is pinned
-    to the same ordering and independently verified by PP0'."""
+    to the same ordering and independently verified by PP0'.
+
+    The ordering is contract-free; only the PAD is not. Under the one-hot contracts a
+    seventh node has no column and this raises (cluster_scale_v1 measured that on every
+    gnn arm above 6 servers). Under partial_state_v3 the rank is a scalar and any N serves."""
     nodes = sorted(mean_hop)
     if sorted(caps_at_alpha) != nodes:
         missing = set(nodes) ^ set(caps_at_alpha)
         raise ValueError(f"krank_node_order: cap/hop node sets differ on {missing}")
     order = sorted(nodes, key=lambda n: (caps_at_alpha[n], mean_hop[n], n))
-    if len(order) > KRANK_WIDTH:
+    c = resolve_partial_state_contract(contract)
+    if c in KRANK_ONEHOT_CONTRACTS and len(order) > KRANK_WIDTH:
         raise ValueError(
             f"krank_node_order: {len(order)} nodes exceed the registered pad "
-            f"width {KRANK_WIDTH}"
+            f"width {KRANK_WIDTH} under {c}; partial_state_v3 has no pad"
         )
     return {n: i for i, n in enumerate(order)}
 
@@ -406,19 +446,19 @@ class PartialStateContext:
         self.cand_nodes = dict(cand_nodes or {})
         self.contract = resolve_partial_state_contract(contract)
         self.peer_mass = peer_mass_enabled()
-        if self.contract == PARTIAL_STATE_CONTRACT_V2:
-            # The cache records peer_norm=0.0 for a dataset without peers, so a v2 cache
+        if self.contract in PEER_BLOCK_CONTRACTS:
+            # The cache records peer_norm=0.0 for a dataset without peers, so a v2/v3 cache
             # on a peer-less corpus is still refused here. A LIVE batch may legitimately
             # carry no in-batch pair (a lone task) and passes a positive norm with an
             # empty table: columns 7-9 are then identically zero whatever the norm
             # (src/policy/gnn/prefix_serving.py).
             if self.peer_norm <= 0.0:
                 raise ValueError(
-                    "partial_state_v2 requires a peer_exchange corpus (peer_norm > 0; "
+                    f"{self.contract} requires a peer_exchange corpus (peer_norm > 0; "
                     "the cache writes 0.0 when a dataset has no peer table)"
                 )
             if any(parents.get(t) for t in parents):
-                raise ValueError("partial_state_v2 cannot be used on a corpus with DAG edges: "
+                raise ValueError(f"{self.contract} cannot be used on a corpus with DAG edges: "
                                  "columns 7-9 carry the peer block there")
         # peer_affinity_v1 stage 3 (2026-09-11): standing load already on a node when the
         # decode starts. The cache builder and every offline read leave this empty, so the
@@ -461,7 +501,10 @@ def partial_state_columns(
     import math as _math
 
     n = len(candidates)
-    out = np.zeros((n, PARTIAL_STATE_FEATURE_DIM), dtype=np.float64)
+    out = np.zeros((n, partial_state_feature_dim(ctx.contract)), dtype=np.float64)
+    krank_onehot = ctx.contract in KRANK_ONEHOT_CONTRACTS
+    linkrank_base = PARTIAL_STATE_BASE_DIM + krank_feature_dim(ctx.contract)
+    n_rank_nodes = len(ctx.node_rank)
 
     occ: Dict[Any, List[float]] = {}
     load: Dict[Any, float] = dict(ctx.base_load)
@@ -508,7 +551,7 @@ def partial_state_columns(
             out[i, 5] = 1.0
             out[i, 6] = 0.0
 
-        if ctx.contract == PARTIAL_STATE_CONTRACT_V2:
+        if ctx.contract in PEER_BLOCK_CONTRACTS:
             committed_x = 0.0
             mass = 0.0
             for j, cand_j in committed.items():
@@ -553,16 +596,27 @@ def partial_state_columns(
             )
 
         r = int(ctx.node_rank[node])
-        if not (0 <= r < KRANK_WIDTH):
-            raise ValueError(
-                f"partial_state_columns: node rank {r} outside pad width "
-                f"{KRANK_WIDTH}"
-            )
-        out[i, PARTIAL_STATE_BASE_DIM + r * KRANK_TYPES + k_self] = 1.0
+        if krank_onehot:
+            if not (0 <= r < KRANK_WIDTH):
+                raise ValueError(
+                    f"partial_state_columns: node rank {r} outside pad width "
+                    f"{KRANK_WIDTH}"
+                )
+            out[i, PARTIAL_STATE_BASE_DIM + r * KRANK_TYPES + k_self] = 1.0
+        else:
+            # partial_state_v3: the same rank, size-free, in the task's own type slot.
+            if not (0 <= r < n_rank_nodes):
+                raise ValueError(
+                    f"partial_state_columns: node rank {r} outside the {n_rank_nodes} "
+                    "ranked nodes"
+                )
+            slot = PARTIAL_STATE_BASE_DIM + k_self * KRANK_V3_SCALARS
+            out[i, slot] = (r / (n_rank_nodes - 1)) if n_rank_nodes > 1 else 0.0
+            out[i, slot + 1] = 1.0 / n_rank_nodes
 
         links = ctx.ingress_links.get((task_id, node), ())
         if links:
-            base = PARTIAL_STATE_BASE_DIM + KRANK_FEATURE_DIM
+            base = linkrank_base
             counts = [couse.get(lk, 0) for lk in links]
             out[i, base + 0] = float(max(c + 1 for c in counts))
             out[i, base + 1] = float(sum(1 for c in counts if c >= 1))
@@ -590,6 +644,13 @@ def _batch_edge_feature_dims(
                 raise ValueError(
                     "dim63crk is dim25cr + partial state; partial_state=True "
                     "requires candidate_relative=True"
+                )
+            if resolve_partial_state_contract() not in KRANK_ONEHOT_CONTRACTS:
+                # The MLP layout is defined on the 38-column block; partial_state_v3 is a
+                # GNN edge contract and the MLP is not an arm of that lineage.
+                raise ValueError(
+                    "dim63crk is defined on the partial_state_v1/v2 block (38 columns); "
+                    f"{resolve_partial_state_contract()} has no MLP layout"
                 )
             return DIM63CRK_FEATURE_DIM, DIM63CRK_FEATURE_COLUMN_NAMES, "dim63crk"
         if candidate_relative:

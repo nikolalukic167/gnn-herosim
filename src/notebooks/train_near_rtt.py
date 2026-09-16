@@ -366,6 +366,7 @@ from src.policy.gnn.seq_decode import (  # noqa: E402
 from src.policy.tabular.reduced_features import (
     peer_mass_enabled,  # noqa: E402
     PARTIAL_STATE_FEATURE_DIM,
+    partial_state_feature_dim,
     build_partial_state_context_from_graph,
     resolve_partial_state_contract,
 )
@@ -409,7 +410,7 @@ def _prefix_free_prefix_block(data: Data) -> None:
     """
     n_edges = int(data.edge_index.size(1))
     data.partial_state_edge_attr = torch.zeros(
-        (n_edges, PARTIAL_STATE_FEATURE_DIM),
+        (n_edges, partial_state_feature_dim(resolve_partial_state_contract())),
         dtype=torch.float32,
         device=data.edge_index.device,
     )
@@ -1884,7 +1885,7 @@ model = TaskPlacementGNN(
     mp_peer_edges=NEAR_CFG.mp_peer_edges,
     task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
     partial_state_edge_dim=(
-        PARTIAL_STATE_FEATURE_DIM if NEAR_CFG.partial_state_edges else 0
+        partial_state_feature_dim(resolve_partial_state_contract()) if NEAR_CFG.partial_state_edges else 0
     ),
 ).to(DEVICE)
 print(
@@ -2027,7 +2028,7 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                     else None
                 ),
                 "partial_state_feature_dim": (
-                    PARTIAL_STATE_FEATURE_DIM if NEAR_CFG.partial_state_edges else None
+                    partial_state_feature_dim(resolve_partial_state_contract()) if NEAR_CFG.partial_state_edges else None
                 ),
                 # Which capacity rung the labels AND the capacity columns came from —
                 # they move together, so this names both.
