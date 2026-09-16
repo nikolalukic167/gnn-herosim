@@ -40,10 +40,23 @@ RECORD_FILES = [
 # generous: the 23 rows that already complied when this test was written averaged 230 B.
 ROW_MAX_BYTES = 400
 
-# A reference file you cannot slice is a file you must read whole. Any record file over
-# this size needs headings so a session can load one section.
-HEADING_REQUIRED_OVER_BYTES = 20_000
-MAX_BYTES_BETWEEN_HEADINGS = 12_000
+# A reference file you cannot slice is a file you must read whole. Three separate defects,
+# because they have three different cures:
+#
+#  1. A physical line so long you cannot read part of it. hard-stops.md held 31 closed
+#     directions on ONE 12,775 B line, and LINEAGES.md rows reached 9,838 B.
+#  2. A prose wall: a run of paragraphs with no heading, list or table to grep for.
+#  3. A file so large that even well-formed sections are too far apart to find.
+#
+# A long bulleted list or a dated table is NOT a defect: both are greppable and loadable in
+# part. An earlier version of this test measured only (3) and so demanded headings inside a
+# table, which is the wrong cure for the right worry.
+MAX_PHYSICAL_LINE_BYTES = 5_000
+MAX_PROSE_RUN_BYTES = 8_000
+HEADING_REQUIRED_OVER_BYTES = 60_000
+MAX_BYTES_BETWEEN_HEADINGS = 50_000
+
+_STRUCTURED = re.compile(r"^(#{1,6} |[-*+] |\d+\. |\| |```|> )")
 
 VALID_STATUSES = {
     "ACTIVE",
@@ -248,17 +261,38 @@ def test_large_record_files_are_sliceable(doc: Path):
     if not doc.exists():
         pytest.skip(f"{doc} not present")
     text = _read(doc)
+    rel = doc.relative_to(REPO)
+
+    # (1) no unreadably long physical line
+    for n, line in enumerate(text.split("\n"), 1):
+        assert len(line.encode("utf-8")) <= MAX_PHYSICAL_LINE_BYTES, (
+            f"{rel}:{n} is {len(line.encode('utf-8'))} B on one physical line "
+            f"(max {MAX_PHYSICAL_LINE_BYTES}). Split it into one item per line -- you cannot "
+            f"read, grep or diff part of a single line."
+        )
+
+    # (2) no prose wall
+    run, worst, worst_line, start = 0, 0, 1, 1
+    for n, line in enumerate(text.split("\n"), 1):
+        if _STRUCTURED.match(line) or not line.strip():
+            run, start = 0, n + 1
+        else:
+            run += len(line.encode("utf-8")) + 1
+            if run > worst:
+                worst, worst_line = run, start
+    assert worst <= MAX_PROSE_RUN_BYTES, (
+        f"{rel} has a {worst} B run of unstructured prose starting at line {worst_line} "
+        f"(max {MAX_PROSE_RUN_BYTES}). Break it with headings or a list."
+    )
+
+    # (3) sections close enough to find in a large file
     if len(text.encode("utf-8")) <= HEADING_REQUIRED_OVER_BYTES:
         return
     offsets = [0] + [m.start() for m in re.finditer(r"^#{1,4} ", text, flags=re.M)] + [len(text)]
-    worst, at = 0, 0
-    for a, b in zip(offsets, offsets[1:]):
-        if b - a > worst:
-            worst, at = b - a, a
-    assert worst <= MAX_BYTES_BETWEEN_HEADINGS, (
-        f"{doc.relative_to(REPO)} has a {worst} B run with no heading "
-        f"(starts at line {text[:at].count(chr(10)) + 1}); "
-        f"max is {MAX_BYTES_BETWEEN_HEADINGS} B. Add headings so a session can load one section."
+    gap, at = max(((b - a, a) for a, b in zip(offsets, offsets[1:])), default=(0, 0))
+    assert gap <= MAX_BYTES_BETWEEN_HEADINGS, (
+        f"{rel} has a {gap} B stretch with no heading (starts at line "
+        f"{text[:at].count(chr(10)) + 1}); max is {MAX_BYTES_BETWEEN_HEADINGS} B."
     )
 
 
@@ -299,6 +333,36 @@ def test_node_head_is_as_current_as_its_record(node: Path):
 
 
 # --- ephemera never land in the tree ------------------------------------------------
+
+
+def test_claude_md_standing_answer_is_current():
+    """CLAUDE.md's opening block is the most-read text in the repo: it loads automatically,
+    before anything else. It had grown into 12 KB of dated paragraphs appended over five
+    weeks, and had then stopped being maintained -- the six most recent lineages appeared
+    nowhere in it, so it led with a headline that later work had reversed.
+
+    It is a STANDING ANSWER, rewritten on every close. This check holds it to that: its
+    stamp may not fall behind the newest dated entry in any lineage node.
+    """
+    text = _read(CLAUDE_MD)
+    m = re.search(r"\*\*Where the research question stands \(rewritten (20\d\d-\d\d-\d\d)", text)
+    assert m, (
+        "CLAUDE.md has no '**Where the research question stands (rewritten YYYY-MM-DD ...)**' "
+        "block. That block is the standing answer and its date is how staleness is detected; "
+        "do not remove it."
+    )
+    stamped = m.group(1)
+
+    newest, where = "", None
+    for node in sorted(NODES_DIR.glob("*.md")):
+        for d in _dates(_read(node)):
+            if d > newest:
+                newest, where = d, node.name
+    assert stamped >= newest, (
+        f"CLAUDE.md's standing answer is stamped {stamped} but {where} records work on "
+        f"{newest}. Rewrite the block (do not append a paragraph to it) so the auto-loaded "
+        f"summary cannot report a superseded result, then update the stamp."
+    )
 
 
 def test_no_live_file_references_an_archive_only_filename():

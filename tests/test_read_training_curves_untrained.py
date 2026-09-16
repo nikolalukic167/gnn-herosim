@@ -4,11 +4,7 @@ Every per-epoch history row is logged after that epoch's gradient steps, so the 
 is already one pass over the training set; the untrained read lives in the run summary
 under untrained/val_* and the reader must surface it beside the chance floor.
 """
-import sys
-
-sys.argv = ["x"]  # the reader parses argv at import time in main() only, kept inert here
-
-from scripts_cosim.read_training_curves import (  # noqa: E402
+from scripts_cosim.read_training_curves import (
     REFERENCE_PREFIXES, reference_floors, untrained_key,
 )
 
