@@ -186,6 +186,15 @@ def load_prefix_conditioned_gnn(
             "GNN_DISABLE_MESSAGE_PASSING", "1" if declared_mp_off else "0", label,
             adopt=adopt_env, default="0",
         )
+    # peer_only_v1: PeerConv on, bipartite GIN off. Sidecars before 2026-09-16 carry no
+    # key and ran the GIN; the constructor below reads the sidecar, and the environment is
+    # adopted-or-verified so run_provenance and the served architecture cannot disagree.
+    declared_platform = sidecar.get("mp_platform_edges")
+    if declared_platform is not None:
+        _adopt_or_verify_env(
+            "GNN_MP_PLATFORM_EDGES_OFF", "0" if declared_platform else "1", label,
+            adopt=adopt_env, default="0",
+        )
 
     # Contracts: partial-state column meaning, peer-mass column.
     trained_contract = sidecar.get("partial_state_contract")
@@ -259,6 +268,7 @@ def load_prefix_conditioned_gnn(
         mp_network_entities=bool(sidecar.get("mp_network_entities", False)),
         mp_dag_edges=bool(sidecar.get("mp_dag_edges", False)),
         mp_peer_edges=bool(sidecar.get("mp_peer_edges", False)),
+        mp_platform_edges=bool(sidecar.get("mp_platform_edges", True)),
         task_type_onehot_dim=onehot_dim,
         partial_state_edge_dim=partial_dim,
         normalize_platform_inputs=sidecar.get("feature_dim") == 21,

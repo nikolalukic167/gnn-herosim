@@ -279,6 +279,7 @@ class TaskPlacementGNN(nn.Module):
         partial_state_edge_dim: int = 0,
         mp_peer_edges: Optional[bool] = None,
         peer_edge_dim: int = 1,
+        mp_platform_edges: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -387,6 +388,16 @@ class TaskPlacementGNN(nn.Module):
             _env_flag("GNN_MP_PEER_EDGES") if mp_peer_edges is None else bool(mp_peer_edges)
         )
         self.peer_edge_dim = int(peer_edge_dim)
+        # peer_only_v1 (2026-09-16): message passing over the PEER graph only. When False the
+        # bipartite task<->platform GIN is skipped (PeerConv still runs), so platform state
+        # reaches the scorer unsmoothed, exactly as with GNN_DISABLE_MESSAGE_PASSING, while
+        # peer structure still flows between tasks. Weight-invisible (the GIN is constructed
+        # and never run), so it is recorded in the sidecar and verified at serving. Default
+        # ON: every checkpoint before this flag ran the GIN.
+        self.mp_platform_edges = (
+            (not _env_flag("GNN_MP_PLATFORM_EDGES_OFF")) if mp_platform_edges is None
+            else bool(mp_platform_edges)
+        )
         if self.mp_peer_edges:
             if self.task_type_onehot_dim <= 0:
                 raise ValueError("FAIL LOUD: mp_peer_edges=True requires task_type_onehot_dim > 0")
@@ -494,6 +505,10 @@ class TaskPlacementGNN(nn.Module):
                             f"FAIL LOUD: peer_edge_attr width {tuple(peer_ea.shape)} != peer_edge_dim {self.peer_edge_dim}"
                         )
                     task_embeddings = self.peer_conv(task_embeddings, peer_ei, peer_ea)
+            if not self.mp_platform_edges:
+                # peeronly: peer message passing done, no bipartite GIN. Platform embeddings
+                # are the encoder's, untouched, as in the MP-OFF twin.
+                return task_embeddings, platform_embeddings
             blocks = [task_embeddings, platform_embeddings]
             extra_edges: List[Tensor] = []
 
