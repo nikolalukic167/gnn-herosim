@@ -150,4 +150,38 @@ because it changes the topology distribution rather than its size.
 
 ## Record
 
-*(dated entries appended below as the lineage runs)*
+### 2026-09-16 — S0.d read, no simulation: **BOTH SCALED RUNGS ARE OUT-OF-SUPPORT**
+
+`simulation_data/cluster_scale_v1/s0d_cells.json`. 12 cells minted (3 rungs × 4 topology
+seeds), each verified to differ from the base in exactly the two declared fields.
+
+| rung | servers | mean candidates/task | min | vs corpus max of 5 | support |
+|---|---|---|---|---|---|
+| R1 | **6** | **3.55** | 1 | **0.71×** | **IN-SUPPORT** |
+| R2 | 24 | **14.18** | 9 | **2.83×** | **OUT-OF-SUPPORT** |
+| R3 | 80 | **47.92** | 38 | **9.58×** | **OUT-OF-SUPPORT** |
+
+The predicted arithmetic holds exactly. **Every rung that adds capacity takes the served
+candidate set outside anything the corpus contains**, and at R3 the *minimum* candidate count
+(38) is nearly 8× the corpus *maximum* (5). By the bar registered above, S1 on either scaled
+rung reports `CONFOUNDED-CANDIDATE-SUPPORT` whatever its latency.
+
+**This is a general statement about the axis, not about these three rungs.** Drain is
+proportional to replicas and candidates are the *reachable* replicas, so any lever that raises
+capacity raises the candidate count with it — unless reachability is thinned at the same rate,
+which is the separate registration noted under *Not in scope* and which pushes straight into
+the starved-client spin (`scheduler_residence_v1` R3 measured **5 of 20** draws hanging on
+every policy already, and thinning reachability is what makes that worse).
+
+**So: the cluster cannot be scaled and these checkpoints kept in distribution.** Scaling this
+axis requires a retrain. That was registered as a possible S1 outcome; S0.d establishes it
+before a single arm runs, for free.
+
+**What still runs, and why it is worth it.** S0 asks whether peer-group assembly cost actually
+falls with the arrival rate — the mechanism, and the thing that decides whether the axis is
+worth a retrain at all. **That question needs no in-distribution checkpoint:** collection
+happens strictly before any decode and never consults the model
+(`src/policy/gnn/scheduler.py:433-457`), so collection time is model-independent. The `gnn` arm
+in S0 is an **instrument**, and no latency number from it is a quality claim.
+
+
