@@ -65,7 +65,10 @@ def collect(job: int, prefix: str, tasks: Sequence[int], denom: float, *, logs: 
         log = logs / f"{prefix}-{job}_{t}.out"
         if not log.is_file():
             raise FileNotFoundError(f"FAIL LOUD: {log} missing")
-        arm, seed, run_id = parse_task_log(log.read_text(errors="replace"))
+        # The task line is on stdout; W&B prints its run URL on STDERR. Read both.
+        err = log.with_suffix(".err")
+        text = log.read_text(errors="replace") + ("\n" + err.read_text(errors="replace") if err.is_file() else "")
+        arm, seed, run_id = parse_task_log(text)
         if arm is None or run_id is None:
             raise ValueError(f"FAIL LOUD: {log} names no arm/seed or no W&B run")
         runs = sorted(glob.glob(str(wandb_dir / f"*run-*-{run_id}")))
