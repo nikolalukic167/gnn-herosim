@@ -1,0 +1,42 @@
+# peer_only_v1 -- peeronly: the partial_state_v3 gnn recipe with the bipartite task<->platform
+# GIN OFF and PeerConv ON (NEAR_RTT_MP_PLATFORM_EDGES=0). docs/lineages/peer_only_v1.md.
+#
+# Everything else is partial_state_v3_gnn.yaml verbatim: the psv3 516-dataset cache, the V = 1
+# label, T1b split, lr 2e-3 (not re-tuned), CE-only teacher-forced masked_topo, 16 seeds,
+# --patience 60 --min-epochs 100. The GIN is constructed and never run, so the flag is
+# weight-invisible: the sidecar records mp_platform_edges=false and serving verifies it.
+trainer: gnn
+lineage: peer_only_v1
+cache_dir: simulation_data/graphs_cache_drainable_objective_v1_v1_psv3
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_affinity_v1_t1b_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_PLATFORM_EDGES: '0'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: peer-only-v1-peeronly
+  tags:
+  - peer-only-v1
+  - peeronly
+  - lr2e3
+  - patience60

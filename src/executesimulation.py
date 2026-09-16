@@ -633,6 +633,8 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             # default, not an error.
             "mp_dag_edges",
             "mp_peer_edges",
+            # peer_only_v1: PeerConv on, bipartite GIN off. Weight-invisible like the rest.
+            "mp_platform_edges",
             "partial_state_edge_features",
             # Weight-invisible like the two above: the GIN module is always constructed,
             # so a checkpoint whose GIN weights were never fitted (disable_message_passing
@@ -914,6 +916,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_network_entities=mp_network_entities,
             mp_dag_edges=mp_dag_edges,
             task_type_onehot_dim=int(mp_cfg.get("task_type_onehot_dim", 0)),
+            mp_platform_edges=bool(mp_cfg.get("mp_platform_edges", True)),
         )
         print(
             f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "
@@ -947,6 +950,24 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                     "and serving MP-off weights without it runs never-trained GIN "
                     "weights (measured 5.7x train-regret error, route_b 2026-09-03)."
                 )
+        # peer_only_v1: the sidecar is authoritative for mp_platform_edges (it is passed to
+        # the constructor above); an environment that SAYS otherwise is a defect, not a
+        # request, because the two would silently serve different architectures.
+        env_platform_off = os.environ.get("GNN_MP_PLATFORM_EDGES_OFF", "").strip().lower()
+        if env_platform_off not in ("", "0", "false", "no", "1", "true", "yes"):
+            raise ValueError(f"GNN_MP_PLATFORM_EDGES_OFF={env_platform_off!r} is not a boolean")
+        if env_platform_off and "mp_platform_edges" in mp_cfg:
+            declared_platform = bool(mp_cfg["mp_platform_edges"])
+            env_platform = env_platform_off not in ("1", "true", "yes")
+            if declared_platform != env_platform:
+                raise ValueError(
+                    f"{model_path.name}: sidecar declares mp_platform_edges={declared_platform} "
+                    f"but GNN_MP_PLATFORM_EDGES_OFF={env_platform_off!r}; the sidecar is the "
+                    "record, export the flag to match or unset it"
+                )
+        if "mp_platform_edges" in mp_cfg and not mp_cfg["mp_platform_edges"]:
+            print("[GNN] mp_platform_edges=False — PeerConv runs, bipartite GIN skipped (peeronly)",
+                  flush=True)
         if serving_mp_off:
             print(
                 "[GNN] GNN_DISABLE_MESSAGE_PASSING=1 — GIN aggregation skipped; "
@@ -1085,6 +1106,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_DECODE_TOP_K",
             "GNN_QUEUE_NORM_MODE",
             "GNN_DISABLE_MESSAGE_PASSING",
+            "GNN_MP_PLATFORM_EDGES_OFF",
             "GNN_MP_NODE_EDGES",
             "GNN_LQB_LAMBDA",
             "GNN_QUEUE_FILTER_MAX_DELTA",

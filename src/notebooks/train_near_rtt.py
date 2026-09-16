@@ -173,6 +173,9 @@ class NearRttConfig:
     # peer_affinity_v1 (T1): task<->task peer edges with a continuous attribute; the
     # decoder options the registration fixes (replica reuse allowed, counted relaxation).
     mp_peer_edges: bool = os.environ.get("NEAR_RTT_MP_PEER_EDGES", "0") == "1"
+    # peer_only_v1: "0" drops the bipartite task<->platform GIN and keeps PeerConv. Default
+    # "1" = every recipe before 2026-09-16.
+    mp_platform_edges: bool = os.environ.get("NEAR_RTT_MP_PLATFORM_EDGES", "1") != "0"
     decode_replica_reuse: bool = os.environ.get("NEAR_RTT_DECODE_REPLICA_REUSE", "0") == "1"
     decode_relax_on_stuck: bool = os.environ.get("NEAR_RTT_DECODE_RELAX", "0") == "1"
     task_type_onehot: bool = os.environ.get("NEAR_RTT_TASK_TYPE_ONEHOT", "0") == "1"
@@ -1883,6 +1886,7 @@ model = TaskPlacementGNN(
     # itself, so the printed provenance above stays honest about the cache.
     mp_dag_edges=NEAR_CFG.mp_dag_edges,
     mp_peer_edges=NEAR_CFG.mp_peer_edges,
+    mp_platform_edges=NEAR_CFG.mp_platform_edges,
     task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
     partial_state_edge_dim=(
         partial_state_feature_dim(resolve_partial_state_contract()) if NEAR_CFG.partial_state_edges else 0
@@ -2008,6 +2012,9 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # reported regret means, so they are recorded too, as is the peer-mass
                 # switch that distinguishes mlp_t1 from mlp_t1x.
                 "mp_peer_edges": NEAR_CFG.mp_peer_edges,
+                # peer_only_v1: weight-invisible (the GIN exists and is not run), so the
+                # sidecar is the only record; serving verifies it against the environment.
+                "mp_platform_edges": NEAR_CFG.mp_platform_edges,
                 "decode_replica_reuse": NEAR_CFG.decode_replica_reuse,
                 "decode_relax_on_stuck": NEAR_CFG.decode_relax_on_stuck,
                 "peer_mass": peer_mass_enabled() if NEAR_CFG.partial_state_edges else None,
