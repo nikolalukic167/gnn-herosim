@@ -11,6 +11,17 @@
 #
 #   sbatch scripts_cosim/datalab/partial_state_v3_cache.sbatch
 #
+# DOES NOT RUN ON DATALAB AS OF 2026-09-16 (job 769544 FAILED after 8:44): datalab's
+# gnn_datasets_peer_affinity_v1_c3_x200_train2 is the 1500-dataset in-place extension and
+# carries NO system_state_captured_unique.json (0 of 1500), so the loader fails loud on
+# ds_00000. The v2 twin (graphs_cache_drainable_objective_v1_v1) was never built there
+# either -- sacct shows no job at its build time -- it was built on the LOCAL checkout
+# (2026-09-15 08:07 UTC), whose train2 is the original 346 parents WITH SSC files, and
+# rsynced up. The v3 cache is built the same way, locally, by the same command as below
+# with the same env, then rsynced with md5 alongside simulation_data/partial_state_v3/p0.json.
+# Kept as the one written record of the recipe; do not submit until datalab's train2 has
+# been repaired (refresh_optimal_full_stats.py --repair on the 346 parents).
+#
 #SBATCH --job-name=psv3-cache
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/psv3-cache-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/psv3-cache-%j.err
