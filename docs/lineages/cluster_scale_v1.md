@@ -185,3 +185,81 @@ happens strictly before any decode and never consults the model
 in S0 is an **instrument**, and no latency number from it is a quality claim.
 
 
+
+### 2026-09-16 — S0 read: **RUNGS-NOT-LOAD-MATCHED**, and a hard structural blocker
+
+Job 769363, 14 of 24 arms. Two arms lost to the budgeted starved-client attrition
+(`cs6s9004`, both policies), and **every `gnn` arm above 6 servers FAILED, loudly and for the
+same reason** (below).
+
+**S0.a — load match: FAILS on both scaled rungs, so R2 and R3 are VOID.**
+
+| rung | servers | arrivals/s | reactive queue | vs R1 | realised throughput |
+|---|---|---|---|---|---|
+| R1 | 6 | 0.460 | **12.17 s** | — | 0.460 /s |
+| R2 | 24 | 1.842 | **308.86 s** | **25×** | 1.829 /s |
+| R3 | 80 | 6.139 | **601.25 s** | **49×** | 5.550 /s |
+
+The band was [0.33, 3.0]×. This is 25× and 49×. **The rungs were not held at ρ ≈ 0.16 — they
+are close to saturation**, and the capacity model in the registration is wrong.
+
+**Why, and it is worth recording.** The sizing used **2.83 tasks/s on 6 servers**, the drain
+`drainable_regime_v1` measured — but that figure comes from the *landed overloaded gate*, where
+the autoscaler had long since built every replica it was ever going to build. From a cold start
+the realised per-server drain is **~0.077 tasks/s**, about **6× lower**. Holding ρ ≈ 0.16 at
+6.139 arrivals/s therefore needs on the order of **480 servers**, not 80. ⇒ **Size a rate ladder
+from the drain the cluster actually achieves in the regime being run, not from a drain measured
+in a different one.** Throughput does scale roughly with servers (0.46 → 1.83 → 5.55 /s); the
+error was purely in the constant.
+
+**The blocker, which makes the sizing error moot for these checkpoints.** Every `gnn` arm at 24
+and 80 servers died on:
+
+```
+ValueError: krank_node_order: 7 nodes exceed the registered pad width 6
+```
+
+`src/policy/tabular/reduced_features.py:252` — `KRANK_WIDTH = 6`, *"registered pad width R = the
+route_b grid's max node count"*. The partial-state feature block encodes candidate-hosting nodes
+in a **fixed-width, rank-ordered pad of six**, and `krank_node_order` raises rather than
+truncate. **So the served feature layout cannot represent a cluster with more than six
+candidate-hosting nodes at all.** The guard is correct and it fired correctly; it is a property
+of the trained representation, not a bug.
+
+Two independent structural facts now stand against this axis for these checkpoints, and they
+compound rather than substitute:
+
+1. **Candidate support** (S0.d, free): 14.2× and 47.9× candidates per task against a corpus
+   maximum of 5.
+2. **Representation width** (S0, measured): a hard cap of **6** hosting nodes in the feature
+   layout, enforced by a raise.
+
+**The cluster-scale axis requires a retrained representation, not just a retrained model.**
+Widening the pad changes `PARTIAL_STATE_FEATURE_DIM` and therefore every cached graph and every
+checkpoint in the program.
+
+---
+
+## Amendment 1 (2026-09-16) — decouple the mechanism test from the capacity test
+
+**Signed before the S0.b arms run.** No bar moves; S0.a's verdict and R2/R3's VOID stand.
+
+S0.b — *does peer-group assembly cost fall when arrivals speed up?* — is the question that
+decides whether this axis is worth a retrained representation, and **it did not need the
+scaled rungs at all.** Collection is a property of the arrival process and the peer-group rule:
+`_collect_task_batch` waits for a task's peer-group members to arrive and **exits the moment
+the group is complete** (`src/policy/gnn/scheduler.py:443`), strictly before any decode, never
+consulting the model. **So collection time can be measured at 6 servers, inside the pad width,
+by varying only the workload.**
+
+**S0.b-amended:** 6 servers, 4 topology seeds, three workloads — `f4000` / `f1000` / `f300`
+(0.460 / 1.842 / 6.139 arrivals/s). 12 arms. Bars unchanged:
+`S0_COLLECTION_MAX_S = 2.0` at the fastest rung, falling monotonically, from the 6.10–6.13 s
+measured at f4000.
+
+**Disclosed: these rungs are overloaded** (6 servers cannot drain 6.139 arrivals/s), so their
+**latency numbers are meaningless and are not read** — S0.a already VOIDed load-matching and
+this amendment does not resurrect it. The measurement is collection time alone, and its
+mechanism is arrival-driven by construction. If collection does **not** fall, the axis is closed
+on its own mechanism and no retrain is ever justified; if it does, the axis is worth exactly as
+much as a new representation costs.
