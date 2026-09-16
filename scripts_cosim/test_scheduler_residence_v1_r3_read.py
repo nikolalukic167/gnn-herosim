@@ -97,7 +97,7 @@ def test_read_fires_when_fewer_reachable_servers_means_more_excess():
     reactive = [10.0] * 12
     # excess falls as min_reach rises -> negative rho, the registered sign
     gnn = [40, 41, 42, 43, 25, 26, 27, 28, 12, 13, 14, 15]
-    got = read(m, _arms(m, reactive, [float(g) for g in gnn]))
+    got = read([m], _arms(m, reactive, [float(g) for g in gnn]))
     assert got["verdict"] == "LOPSIDEDNESS-PREDICTS"
     assert got["tests"][R3_PRIMARY_KEY]["rho"] < -R3_MIN_ABS_RHO
 
@@ -106,7 +106,7 @@ def test_read_does_not_fire_on_the_wrong_sign():
     """More reachable servers, more excess, is not the registered claim."""
     m = _manifest(min_reach=[1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])
     gnn = [12, 13, 14, 15, 25, 26, 27, 28, 40, 41, 42, 43]
-    got = read(m, _arms(m, [10.0] * 12, [float(g) for g in gnn]))
+    got = read([m], _arms(m, [10.0] * 12, [float(g) for g in gnn]))
     assert got["tests"][R3_PRIMARY_KEY]["rho"] > 0
     assert got["verdict"] == "LOPSIDEDNESS-DOES-NOT-PREDICT"
 
@@ -116,7 +116,7 @@ def test_control_voids_the_reading_when_reactive_moves_with_it():
     m = _manifest(min_reach=[1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])
     reactive = [40, 41, 42, 43, 25, 26, 27, 28, 12, 13, 14, 15]
     gnn = [r + 30 - i for i, r in enumerate(reactive)]
-    got = read(m, _arms(m, [float(r) for r in reactive], [float(g) for g in gnn]))
+    got = read([m], _arms(m, [float(r) for r in reactive], [float(g) for g in gnn]))
     assert got["tests"][R3_PRIMARY_KEY]["confounded"] is True
     assert got["verdict"] == "CONFOUNDED-ENVIRONMENT"
 
@@ -124,7 +124,7 @@ def test_control_voids_the_reading_when_reactive_moves_with_it():
 def test_control_does_not_void_when_reactive_is_flat():
     m = _manifest(min_reach=[1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])
     gnn = [40, 41, 42, 43, 25, 26, 27, 28, 12, 13, 14, 15]
-    got = read(m, _arms(m, [10.0] * 12, [float(g) for g in gnn]))
+    got = read([m], _arms(m, [10.0] * 12, [float(g) for g in gnn]))
     assert got["tests"][R3_PRIMARY_KEY]["confounded"] is False
 
 
@@ -133,7 +133,7 @@ def test_read_voids_below_the_minimum_cell_count():
     arms = _arms(m, [10.0] * 12, [20.0 + i for i in range(12)])
     for e in m["selected"][:4]:                       # kill four cells' reactive arms
         del arms[f"{e['cell']}__reactive"]
-    got = read(m, arms)
+    got = read([m], arms)
     assert got["verdict"] == "VOID-TOO-FEW-CELLS"
     assert got["n_read"] == 8 and len(got["dropped"]) == 4
 
@@ -144,21 +144,42 @@ def test_a_cell_with_too_few_seeds_is_dropped_loudly_not_silently():
     cell = m["selected"][0]["cell"]
     for s in (2, 4, 5):
         del arms[f"{cell}__gnn_s{s}"]                 # leaves 1, below the bar of 3
-    got = read(m, arms)
+    got = read([m], arms)
     assert got["n_read"] == 11
     assert any(d["cell"] == cell for d in got["dropped"])
 
 
 def test_read_refuses_a_manifest_with_the_wrong_cell_count():
     with pytest.raises(R3ReadError):
-        read(_manifest(n=9), {})
+        read([_manifest(n=9)], {})
 
 
 def test_excess_is_measured_against_each_cell_s_OWN_reactive_arm():
     m = _manifest(n=12)
     reactive = [float(5 * i) for i in range(12)]
     gnn = [r + 7.0 for r in reactive]                 # constant excess, varying reactive
-    got = read(m, _arms(m, reactive, gnn))
+    got = read([m], _arms(m, reactive, gnn))
     for row in got["cells"]:
         assert row["gnn"]["excess_queue_s"] == pytest.approx(7.0)
     assert got["verdict"] == "LOPSIDEDNESS-DOES-NOT-PREDICT"
+
+
+def test_read_pools_two_registered_batches():
+    from scripts_cosim.scheduler_residence_v1_r3_read import R3_N_CELLS_B2, R3_N_CELLS_TOTAL
+    assert (R3_N_CELLS_B2, R3_N_CELLS_TOTAL) == (8, 20)
+    a = _manifest(n=12, min_reach=[1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3])
+    b = {"selected": [{"cell": f"cell_r3s{9200 + i}_f4000_pg16", "seed": 9200 + i,
+                       "structure": {R3_PRIMARY_KEY: float(1 + i % 3),
+                                     R3_SECOND_KEY: float(i)}} for i in range(8)]}
+    arms = {}
+    arms.update(_arms(a, [10.0] * 12, [float(40 - 2 * i) for i in range(12)]))
+    arms.update(_arms(b, [10.0] * 8, [float(30 - 2 * i) for i in range(8)]))
+    got = read([a, b], arms)
+    assert got["n_read"] == 20 and got["bars"]["n_cells"] == 20
+
+
+def test_read_refuses_a_cell_counted_twice():
+    a = _manifest(n=12)
+    b = {"selected": a["selected"][:8]}          # overlapping batch
+    with pytest.raises(R3ReadError):
+        read([a, b], {})

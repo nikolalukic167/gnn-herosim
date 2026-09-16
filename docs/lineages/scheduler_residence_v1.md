@@ -305,3 +305,81 @@ Selected cells (structure measured before any was served a task):
 deterministically livelocks the simulator on `cell_s7901`, and whether it does so on a fresh
 topology draw is unknown — it is excluded by name rather than risked, so a livelock cannot
 silently drop a cell below `R3_MIN_SEEDS_PER_CELL`.
+
+### 2026-09-15/16 — R3 batch 1 read: **VOID-TOO-FEW-CELLS**, and the bar is what caught it
+
+Job 769048, 72 of 108 arms. `simulation_data/scheduler_residence_v1/r3.json`.
+**8 of 12 cells readable against `R3_MIN_CELLS_READ = 10` ⇒ VOID.** The registered floor was
+committed before the cells existed and it fired; the eight cells' numbers are recorded below
+and are **not** a result. "Could not measure" is not "nothing there".
+
+**Why four cells are missing: they hang, on all NINE arms including `knative_network`.**
+Tasks 18–26, 45–53, 54–62 and 72–80 — three complete cells each — TIMEOUT at 30 min with the
+documented signature: 100 % CPU, no log growth, frozen on `Gateway: Processing event 20001
+(30000 remaining)`. That is the **starved-client spin** already in the record
+(`docs/gates/gate-tools.md`, 2026-09-14, 5 of 28 W1 capture cells): a postponed task retried
+every batch when its client's reachable servers are memory-full. **The reactive baseline hangs
+too, so this is a property of the topology draw, not of any policy** — and at 4 of 12 fresh
+draws it is more common here (33 %) than in the W1 capture (18 %).
+
+**Does the hang bias the sample? Measured, not assumed.**
+
+| statistic | hung cells | readable cells | hung range inside readable range? |
+|---|---|---|---|
+| `min_reachable_servers` (**primary**) | 1, 2, 2, 2 (mean 1.75) | 1,1,1,1,2,2,2,3 (mean 1.62) | **yes** |
+| `mean_reachable_servers` | 3.75–4.10 (mean 3.97) | 3.45–4.10 (mean 3.91) | **yes** |
+| `hosting_node_spread` (**second**) | 1, 3, 5, 6 (mean 3.75) | 2,4,4,6,6,7,7,9 (mean 5.62) | **no — the low end is truncated** |
+
+So the loss is **not** selecting on the primary, and **is** thinning the low-imbalance end of
+the second. That is disclosed here and carried into the read; it is not corrected for.
+
+| cell | min reach | imbalance | reactive queue | `gnn` queue | `gnn` excess | `mpoff` excess |
+|---|---|---|---|---|---|---|
+| `r3s9135` | 1 | 2 | 14.097 | 16.329 | +2.232 | +6.252 |
+| `r3s9120` | 1 | 4 | 10.544 | 7.863 | **−2.681** | −2.798 |
+| `r3s9103` | 1 | 7 | 15.172 | 22.968 | +7.796 | +8.210 |
+| `r3s9132` | 1 | 7 | 11.690 | 26.939 | +15.248 | +10.763 |
+| `r3s9114` | 2 | 4 | 13.696 | 65.270 | +51.574 | +27.744 |
+| `r3s9112` | 2 | 6 | 38.590 | 13.900 | **−24.690** | −24.369 |
+| `r3s9104` | 2 | 9 | 29.142 | 49.815 | +20.673 | +33.704 |
+| `r3s9127` | 3 | 6 | 11.815 | 46.065 | +34.249 | +22.682 |
+
+One thing worth noting even from a VOID read, because it is a fact about the environment and
+not about the bar: **the learned arms beat reactive outright on 2 of these 8 fresh topology
+draws** (`r3s9120` −2.68 s, `r3s9112` −24.69 s of queue), which the three original cells never
+showed. Whatever governs that is not `min_reachable_servers` in any obvious way.
+
+---
+
+## Amendment 2 (2026-09-16) — batch 2, to reach the registered cell count
+
+**Signed before batch 2 is served.** No bar moves. R3's verdict on batch 1 stands as VOID.
+
+Eight more cells, selected from the **same 40-draw manifest** by the **same deterministic
+spanning rule** (`--exclude-seeds` over the 12 already spent), so the selection remains on the
+independent variable and no cell is hand-picked:
+
+| cell | min reach | imbalance |
+|---|---|---|
+| `cell_r3s9101` | 1 | 3 |
+| `cell_r3s9123` | 1 | 5 |
+| `cell_r3s9118` | 1 | 7 |
+| `cell_r3s9126` | 1 | 9 |
+| `cell_r3s9131` | 2 | 3 |
+| `cell_r3s9119` | 2 | 4 |
+| `cell_r3s9129` | 2 | 7 |
+| `cell_r3s9139` | 3 | 5 |
+
+The read pools both batches and reports the total readable count against the unchanged
+`R3_MIN_CELLS_READ = 10`. **If batch 2 hangs at the same 33 % rate the pooled total is ~13**,
+which clears it; if it does not, R3 stays VOID and the lineage records that this environment
+cannot supply 10 servable topology draws rather than inventing a result from 8.
+
+**Declared:** `--time` drops from 30 min to 15 min. A servable arm here takes ~5 min, so a
+hung one is identifiable in a third of the wall clock; batch 1 spent ~18 CPU-hours waiting for
+spins that were never going to finish (`gate-tools.md`, 2026-09-14: cancel and re-chain rather
+than wait for TIMEOUT). Nothing else about the arms changes.
+
+**Also declared:** whichever way R3 lands, the hang rate itself is now a recorded property of
+this environment — **4 of 12 independent topology draws are unservable by every policy** — and
+any future work that mints cells from seeds must budget for it.
