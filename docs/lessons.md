@@ -570,3 +570,29 @@ Corollary on aggregates, for the third time this day: across the three cells, in
 the gap to reactive line up almost perfectly. Within cells, across seeds, they do not
 (pooled-z ρ = +0.088, p = 0.40, two cells significant in **opposite** directions). Three
 aggregates are still not a trend.
+
+## Size a rate ladder from the drain achieved in the regime being run (2026-09-16)
+
+`cluster_scale_v1` S0. The registration used 2.83 tasks/s on 6 servers to size the scaled
+rungs — but that drain comes from the **landed overloaded gate**, where the autoscaler had
+long since built every replica it was ever going to build. From a cold start the realised
+per-server drain is **~0.077 tasks/s**, about **6× lower**, so holding ρ ≈ 0.16 at 6.139
+arrivals/s needed ~480 servers, not 80. The scaled rungs were 25× and 49× the baseline's
+reactive queue instead of the registered [0.33, 3.0]× band.
+
+⇒ **Measure the drain from the regime's own cold-start ramp, not from an overloaded steady
+state where the cluster has already built out.** The two differ by the autoscaler's lifetime
+of work, and a capacity model built from the final state predicts a cluster that can drain
+orders of magnitude more than the cold start actually sees.
+
+## An arm name must carry every axis it varies (2026-09-16)
+
+`cluster_scale_v1` S0.b, job 769390. The arm name was `${CELL}__${KIND}` with no rung tag,
+so all three rungs resolved to the same summary path and the f300 rung exited on the
+idempotence guard — `"exists, not re-running"`, 1 s per task — having measured nothing. The
+guard did exactly its job against the wrong key, and nothing failed loud.
+
+⇒ **Every axis the gate varies must appear in the arm name.** If a gate varies workload,
+topology seed, and policy, the arm name carries all three. An idempotence guard tests "did
+this arm already run", and if two arms share a name the second one silently inherits the
+first's file.
