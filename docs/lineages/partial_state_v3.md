@@ -181,4 +181,36 @@ follow-on if v3 degrades and Phase 2 does not repair it); load-matching the scal
 
 ## Record
 
-*(none yet — registration only)*
+### 2026-09-16 — P0 read: **INSTRUMENT-PASS**, and a venue trap on the way
+
+**Where the cache was built.** Datalab job 769544 (`partial_state_v3_cache.sbatch`) FAILED
+after 8:44 on `Missing system_state_captured_unique.json for ds_00000` in
+`gnn_datasets_peer_affinity_v1_c3_x200_train2`: datalab's copy of that directory is the
+1500-dataset in-place extension and carries **0** SSC files. The v2 twin was never built there
+either — `sacct` shows no job at its build time (2026-09-15 08:07 UTC) — it was built on the
+**local** checkout, whose `train2` is the original 346 parents with all 346 SSC files, and
+rsynced up; every earlier `dobj-cache` job on datalab (766312/766313/766316) had failed the
+same way. Filed in `docs/gates/gate-tools.md`. The v3 cache was built locally by the same
+command and env (`PARTIAL_STATE_CONTRACT=partial_state_v3`), 33.9 min: 516 datasets,
+19,663,188 RTT rows, label `rtt_drift:1@lambda=0.46,clock=measured`, near-RTT sidecar 99,651
+entries — every figure identical to the v2 twin's except the contract. Rsynced to datalab
+with md5 agreement on the 8 critical files; the failed job's 186 stale `rtt_chunk_*` files
+were set aside under `…_psv3.stale_769544/`, not deleted.
+
+**P0 on the two caches, all 516 datasets** (`scripts_cosim/partial_state_v3_p0.py`,
+`simulation_data/partial_state_v3/p0.json`): every partial-state ingredient identical dataset
+for dataset; columns computed under each contract from its own cache, with an empty prefix
+**and** along the first tied-optimal plan's teacher-forced prefix on 516/516 datasets:
+
+| statistic | bar | measured |
+|---|---|---|
+| max |v2 − v3| on the 10 base + 4 linkrank columns | `P0_MAX_COLUMN_DIFF = 0.0` | **0.0** |
+| v2 rank recovered from (`rank_frac`, `inv_n`) | `P0_MIN_RANK_RECOVERY = 1.0` | **1.0** (every edge) |
+| datasets | ≥ 516 | **516** |
+
+**⇒ INSTRUMENT-PASS.** v3 is a pure representation change. Also measured on the way: the
+corpus never has more than **5** candidate-hosting nodes per dataset — the pad of 6 was never
+full, so `inv_n` spans {1, 1/2, …, 1/5} in training and nothing narrower.
+
+**Training submitted:** job 769631, 32 arms (`partial_state_v3_train.sbatch`), which refused
+to start without the P0 artefact and read INSTRUMENT-PASS from it.
