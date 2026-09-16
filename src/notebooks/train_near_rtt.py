@@ -66,7 +66,7 @@ from non_unique_lib.cache_io import (
     save_valid_combos_map,
 )
 from non_unique_lib.soft_combo_loss import concentration_penalty, soft_combo_ce_loss
-from non_unique_lib.training_config import parse_training_config
+from non_unique_lib.training_config import parse_training_config, should_stop_early
 from src.placement.network_graph import (
     NETWORK_GRAPH_CONTRACT_OFF,
     resolve_network_graph_contract,
@@ -220,6 +220,13 @@ BATCH_SIZE = RUNTIME_CONFIG.batch_size
 NUM_GIN_LAYERS = RUNTIME_CONFIG.num_gin_layers
 WEIGHT_DECAY = RUNTIME_CONFIG.weight_decay
 EPOCHS = RUNTIME_CONFIG.epochs
+# Early stopping on the checkpoint-selection metric; 0 = off (the pre-2026-09-16 behaviour).
+PATIENCE = int(RUNTIME_CONFIG.patience)
+MIN_EPOCHS = int(RUNTIME_CONFIG.min_epochs)
+if PATIENCE and MIN_EPOCHS > EPOCHS:
+    raise SystemExit(
+        f"FAIL LOUD: --min-epochs {MIN_EPOCHS} exceeds --epochs {EPOCHS}; patience could never fire"
+    )
 RTT_SCALE_FACTOR = RUNTIME_CONFIG.rtt_scale_factor
 REGRET_LOSS_WEIGHT = RUNTIME_CONFIG.regret_loss_weight
 CE_LOSS_WEIGHT = RUNTIME_CONFIG.ce_loss_weight
@@ -1514,6 +1521,8 @@ wandb.init(
         "hidden_dim": int(HIDDEN_DIM),
         "lr": float(LEARNING_RATE),
         "epochs": int(EPOCHS),
+        "patience": int(PATIENCE),
+        "min_epochs": int(MIN_EPOCHS),
         "batch_size": int(BATCH_SIZE),
         "num_gin_layers": int(NUM_GIN_LAYERS),
         "weight_decay": float(WEIGHT_DECAY),
@@ -2043,6 +2052,11 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # not consumed by checkpoint_mp_config at serve time, so no serving
                 # whitelist entry is needed.
                 "split_artifact": SPLIT_ARTIFACT_PROVENANCE,
+                # Early stopping as configured (provenance only, not served): a
+                # checkpoint selected under patience saw fewer epochs than --epochs, and
+                # "last epoch" of such a run is not the same object as a full run's.
+                "early_stopping": {"patience": int(PATIENCE), "min_epochs": int(MIN_EPOCHS),
+                                   "epochs_requested": int(EPOCHS)},
                 # Message passing sees DAG structure but NOT the prefix: the 38 columns
                 # enter at the EdgeScorer. Still strictly T2 (the head interacts
                 # graph-derived embeddings with the prefix), and it is §2's fairness
@@ -2128,6 +2142,13 @@ print(f"TRAINING ({TRAIN_OBJECTIVE})")
 print("=" * 80)
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
+# Early-stopping state. "Improvement" is whatever the branch below decided to checkpoint
+# on, read off the selection state it mutates, so all three selection rules share one
+# definition and a collapse-guarded skip counts as no improvement.
+last_improvement_epoch = -1
+epochs_run = 0
+stop_reason = "epochs"
+
 for epoch in range(EPOCHS):
     start = time.perf_counter()
     train_metrics = train_epoch(model, train_loader, optimizer, criterion, epoch)
@@ -2150,6 +2171,7 @@ for epoch in range(EPOCHS):
     if not CE_ONLY_TRAINING:
         log_dict["train/effective_regret_weight"] = float(effective_regret_weight(epoch))
     _wandb_log(log_dict, step=epoch)
+    _selection_before = (best_val_regret, best_val_acc)
 
     if TEACHER_FORCED:
         # Arm A1 is CE-only, but it must NOT select on the CE-only branch's acc/top-k:
@@ -2215,6 +2237,18 @@ for epoch in range(EPOCHS):
                     f"acc={val_acc * 100:.1f}%)"
                 )
 
+    epochs_run = epoch + 1
+    if (best_val_regret, best_val_acc) != _selection_before:
+        last_improvement_epoch = epoch
+    if should_stop_early(epoch, last_improvement_epoch, PATIENCE, MIN_EPOCHS):
+        stop_reason = "patience"
+        print(
+            f"[early stop] epoch {epoch}: val/{checkpoint_metric_name} has not improved since "
+            f"epoch {last_improvement_epoch} ({PATIENCE} epochs of patience, floor {MIN_EPOCHS}); "
+            f"{EPOCHS - epochs_run} of {EPOCHS} epochs not run"
+        )
+        break
+
     if epoch % 5 == 0 or epoch == EPOCHS - 1:
         print(
             f"Epoch {epoch:3d}/{EPOCHS} "
@@ -2231,6 +2265,16 @@ for epoch in range(EPOCHS):
 
 if not checkpoint_saved:
     raise RuntimeError("No near-RTT checkpoint was saved.")
+
+# How the run ended, so a curve read knows whether "last epoch" means --epochs or a
+# patience stop. epochs_run is the number of history rows a reader should expect.
+wandb.summary["early_stop/patience"] = int(PATIENCE)
+wandb.summary["early_stop/min_epochs"] = int(MIN_EPOCHS)
+wandb.summary["early_stop/epochs_run"] = int(epochs_run)
+wandb.summary["early_stop/epochs_requested"] = int(EPOCHS)
+wandb.summary["early_stop/last_improvement_epoch"] = int(last_improvement_epoch)
+wandb.summary["early_stop/reason"] = str(stop_reason)
+print(f"[run end] {stop_reason}: {epochs_run}/{EPOCHS} epochs, last improvement at epoch {last_improvement_epoch}")
 
 # Opt-in: also keep the LAST-epoch weights, with their own sidecar. The served
 # checkpoint is always the val-selected one above; the final weights exist for
