@@ -73,12 +73,15 @@ def format_p2(res: dict) -> str:
 
 # --- P3 ----------------------------------------------------------------------------------
 
-def p3_inputs(summaries: Sequence[dict]) -> Dict[str, dict]:
+def p3_inputs(summaries: Sequence[dict], failures: Optional[Mapping[str, str]] = None) -> Dict[str, dict]:
     """rung -> {"cells": {cell: {...}}, "wallclock_min": [...]} in read_p3's shape.
 
     A cell without its reactive arm is attrition (the documented starved-client spin hangs
     every policy) and is omitted. A cell WITH reactive but missing learned arms is kept with
-    completed < expected, which is P3-a's STILL-PINNED signal."""
+    completed < expected and, per missing arm, a CAUSE from `failures` (arm name -> cause,
+    e.g. {"cs12s9005__R1__gnn_s4": "oom"}); a missing arm with no entry is "unclassified".
+    Only a representation cause fires P3-a (partial_state_v3_read.REPRESENTATION_CAUSES)."""
+    failures = dict(failures or {})
     by_rung: Dict[str, Dict[str, dict]] = {}
     walls: Dict[str, List[float]] = {}
     for s in summaries:
@@ -96,14 +99,20 @@ def p3_inputs(summaries: Sequence[dict]) -> Dict[str, dict]:
         for cell, c in cells.items():
             if c["reactive"] is None:
                 continue
+            incomplete = {}
+            for arm in ("gnn", "mpoff"):
+                missing = [s for s in P3_CHECKPOINT_SEEDS if s not in c[arm]]
+                if missing:
+                    incomplete[arm] = [{"seed": s, "cause": failures.get(f"{cell}__{rung}__{arm}_s{s}", "unclassified")}
+                                       for s in missing]
             kept[cell] = {**c, "completed": {"gnn": len(c["gnn"]), "mpoff": len(c["mpoff"])},
-                          "expected": {"gnn": n_ck, "mpoff": n_ck}}
+                          "expected": {"gnn": n_ck, "mpoff": n_ck}, "incomplete": incomplete}
         out[rung] = {"cells": kept, "wallclock_min": walls.get(rung, [])}
     return out
 
 
-def read_p3_dir(directory: str) -> dict:
-    p3 = read_p3(p3_inputs(load_summaries(directory)))
+def read_p3_dir(directory: str, failures: Optional[Mapping[str, str]] = None) -> dict:
+    p3 = read_p3(p3_inputs(load_summaries(directory), failures))
     return {"p3": p3, "p4": read_p4(p3)}
 
 
@@ -118,10 +127,13 @@ def format_p3(res: dict) -> str:
             lines.append(f"  {tag:>4} {servers:>4} {rate:>6.3f} {'0':>5}  ({r.get('reason', 'no cells')})")
             continue
         flag = "" if r.get("readable") else "  UNREADABLE"
-        inc = ", ".join(f"{c}:{a}" for c, a in r.get("incomplete_arms", [])) or "-"
+        inc = ", ".join(f"{c}:{a}[{'/'.join(causes)}]" for c, a, causes in r.get("incomplete_arms", [])) or "-"
         lines.append(f"  {tag:>4} {servers:>4} {rate:>6.3f} {r['n_cells']:>5} {r['d_gnn']:>+8.3f} {r['d_mpoff']:>+8.3f} "
                      f"{r['wallclock_min']:>8.1f}  {inc}{flag}")
     lines.append("")
+    if p3.get("incomplete_other"):
+        lines.append(f"  incomplete, NOT a representation failure (disclosed, rung read on completed arms): "
+                     f"{p3['incomplete_other']}")
     lines.append(f"  P3 VERDICT: {p3['verdict']}" + (f"  (first break at {p3['first_break']})" if p3.get("first_break") else "")
                  + (f"  reason: {p3['reason']}" if p3.get("reason") else "")
                  + (f"  pinned: {p3['pinned']}" if p3.get("pinned") else ""))
@@ -136,8 +148,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("stage", choices=["p2", "p3"])
     ap.add_argument("--dir", required=True)
     ap.add_argument("--out")
+    ap.add_argument("--failures", help="p3: JSON {arm name: cause} for arms that did not "
+                    "complete; a representation cause fires P3-a, anything else is disclosed")
     args = ap.parse_args(argv)
-    res = read_p2_dir(args.dir) if args.stage == "p2" else read_p3_dir(args.dir)
+    failures = json.load(open(args.failures)) if args.failures else None
+    res = read_p2_dir(args.dir) if args.stage == "p2" else read_p3_dir(args.dir, failures)
     print(format_p2(res) if args.stage == "p2" else format_p3(res))
     if args.out:
         json.dump(res, open(args.out, "w"), indent=1, default=str)

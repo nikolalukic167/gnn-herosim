@@ -106,11 +106,19 @@ def test_p3_degrades_end_to_end():
     assert res["p4"]["verdict"] == "NOT-READ"
 
 
-def test_p3_a_a_missing_learned_arm_on_a_scaled_cell_is_still_pinned():
-    res = read_p3_dir(_dir(_p3_docs({"R0": 0.3, "R1": 0.3, "R2": 0.3, "R3": 0.3},
-                                    drop={("R3", "cs80s9001", "gnn", 1)})))
-    assert res["p3"]["verdict"] == V_STILL_PINNED
-    assert "pinned" in format_p3(res)
+def test_p3_a_a_missing_learned_arm_is_pinned_only_when_its_cause_is_the_representation():
+    docs = _p3_docs({"R0": 0.3, "R1": 0.3, "R2": 0.3, "R3": 0.3}, drop={("R3", "cs80s9001", "gnn", 1)})
+    # cause recorded as a krank raise -> P3-a fires
+    res = read_p3_dir(_dir(docs), failures={"cs80s9001__R3__gnn_s1": "krank_node_order"})
+    assert res["p3"]["verdict"] == V_STILL_PINNED and "pinned" in format_p3(res)
+    # cause recorded as an OOM (job 769872's actual loss) -> disclosed, rung read on 3 seeds
+    res = read_p3_dir(_dir(docs), failures={"cs80s9001__R3__gnn_s1": "oom"})
+    assert res["p3"]["verdict"] == V_GENERALISES
+    assert res["p3"]["incomplete_other"] == [("R3", "cs80s9001", "gnn", ["oom"])]
+    assert "NOT a representation failure" in format_p3(res)
+    # no failures map at all -> unclassified, still not pinned
+    res = read_p3_dir(_dir(docs))
+    assert res["p3"]["verdict"] == V_GENERALISES and res["p3"]["incomplete_other"][0][3] == ["unclassified"]
 
 
 def test_p3_attrition_below_min_cells_makes_the_rung_unreadable_not_pinned():

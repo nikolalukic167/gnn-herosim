@@ -242,3 +242,23 @@ scorer input the corpus (≤ 5 nodes) never fills, and a scalar rank is a smooth
 the same fact. **Carried into P2 as context, not as a claim:** `offline_live_transfer_v1`
 measured that the offline score ranks epochs within a run and never arms, so this reads as
 "the encoding costs nothing offline and may help" until P2 says what it does when served.
+
+### 2026-09-16 — P2 read: **TIE on 3/3 cells for both arms; the v2 path is bit-identical**
+
+Job 769871, **186/186 arms COMPLETED** (192 minus the six gnn-seed-3 exclusions), 0 hangs.
+`simulation_data/partial_state_v3/p2.json`.
+
+**P2-a (blocking) passes exactly:** the re-run v2 `gnn` arms' per-cell medians are
+**54.819 / 22.350 / 65.401** — `queue_range_v1`'s `plain` medians to three decimals — so the
+commit that adds v3 left the v2 serving path untouched.
+
+| cell | `gnn` v3 vs v2 (n = 15) | `mpoff` v3 vs v2 (n = 16) |
+|---|---|---|
+| s7901 | +5.71 %, p = 0.078, v3 ahead 4/15 | +2.50 %, p = 0.57, 7/16 |
+| s9001 | −1.20 %, p = 0.23, 10/15 | **−3.35 %, p = 0.0004, 16/16** |
+| s9002 | +6.59 %, p = 0.46, 5/15 | +5.05 %, p = 0.53, 7/16 |
+
+Every cell reads **TIE** under the registered bar (|median| ≤ 5 % or p ≥ 0.05), so **P2 = TIE**
+on both arms and P3 is read cleanly. Descriptive, inside the tie band and not a claim: the v3
+pointwise arm beats its v2 twin on s9001 on 16/16 seeds; the offline ENCODING-HELPS did not
+carry to the other two cells. The encoding change costs nothing live where the old one works.

@@ -62,6 +62,11 @@ V_TIE, V_COSTS, V_HELPS = "TIE", "ENCODING-COSTS", "ENCODING-HELPS"
 V_P2_COSTS = "REPRESENTATION-COSTS-LIVE"
 V_P2_CONTROL_FAIL = "V2-PATH-MOVED"
 V_STILL_PINNED = "STILL-PINNED"
+# Causes a missing learned arm can carry. Only the representation causes fire P3-a; a
+# resource kill or a hang is attrition of a different class and is disclosed, never counted
+# as pinned (gate-tools 2026-09-16: job 769872 lost two arms to OOM past their last arrival
+# and the first cut of this read printed STILL-PINNED by arithmetic).
+REPRESENTATION_CAUSES = frozenset({"representation", "krank_node_order", "contract"})
 V_GENERALISES, V_DEGRADES = "GENERALISES", "DEGRADES"
 V_UNAFFORDABLE = "RUNG-UNAFFORDABLE"
 V_SCALE_HELPS, V_SCALE_NO = "SCALE-HELPS", "SCALE-DOES-NOT-HELP"
@@ -212,8 +217,18 @@ def read_p3(rungs: Mapping[str, dict]) -> dict:
             out["rungs"][tag] = {"servers": servers, "readable": False, "reason": "no cells"}
             continue
         cells = r["cells"]
-        incomplete = [(c, arm) for c, v in cells.items() for arm in ("gnn", "mpoff")
-                      if v["completed"].get(arm, 0) < v["expected"].get(arm, 0)]
+        # Every shortfall is listed; only a REPRESENTATION cause can fire P3-a. A cell may
+        # carry v["incomplete"] = {arm: [{"seed": s, "cause": c}, ...]}; a shortfall with no
+        # entry is "unclassified" and is disclosed, never counted as pinned.
+        incomplete = []
+        for c, v in cells.items():
+            for arm in ("gnn", "mpoff"):
+                short = v["expected"].get(arm, 0) - v["completed"].get(arm, 0)
+                if short <= 0:
+                    continue
+                causes = [str(e.get("cause", "unclassified")) for e in (v.get("incomplete") or {}).get(arm, [])]
+                causes += ["unclassified"] * (short - len(causes))
+                incomplete.append((c, arm, causes))
         d = {arm: median([cell_deficit(v[arm], v["reactive"]) for v in cells.values() if v.get(arm)])
              for arm in ("gnn", "mpoff")}
         wall = median(r.get("wallclock_min", []) or [0.0])
@@ -221,9 +236,21 @@ def read_p3(rungs: Mapping[str, dict]) -> dict:
                              "readable": len(cells) >= P3_MIN_CELLS, "incomplete_arms": incomplete,
                              "d_gnn": d["gnn"], "d_mpoff": d["mpoff"], "wallclock_min": wall}
     scaled = [t for t, *_ in P3_RUNGS[1:]]
-    # P3-a: a representation that still cannot be served at scale closes the lineage first.
-    pinned = [(t, out["rungs"][t]["incomplete_arms"]) for t in scaled
-              if out["rungs"][t].get("readable") and out["rungs"][t]["incomplete_arms"]]
+    # P3-a: a representation that still cannot be served at scale closes the lineage first --
+    # read by CAUSE. Any other loss (OOM, hang, unclassified) is disclosed and the rung is read
+    # on the arms that completed.
+    pinned, other = [], []
+    for t in scaled:
+        if not out["rungs"][t].get("readable"):
+            continue
+        for cell, arm, causes in out["rungs"][t]["incomplete_arms"]:
+            rep = [c for c in causes if c in REPRESENTATION_CAUSES]
+            rest = [c for c in causes if c not in REPRESENTATION_CAUSES]
+            if rep:
+                pinned.append((t, cell, arm, rep))
+            if rest:
+                other.append((t, cell, arm, rest))
+    out["incomplete_other"] = other
     if pinned:
         return {**out, "verdict": V_STILL_PINNED, "pinned": pinned}
     r0 = out["rungs"]["R0"]
