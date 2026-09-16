@@ -146,6 +146,8 @@ def paired_tie(v3: Mapping[int, float], v2: Mapping[int, float], *, tol: float, 
         diffs.append(100.0 * d / float(v2[s]) if relative else d)
     med = median(diffs)
     p = wilcoxon_p(diffs)
+    if p is None:            # every pair tied exactly: no evidence of any difference
+        p = 1.0
     tie = abs(med) <= tol or p >= alpha
     if tie:
         verdict = V_TIE
