@@ -131,6 +131,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--sim-inputs", type=Path, required=True)
     ap.add_argument("--seeds", required=True, help="e.g. 9100-9139 or 1,2,3")
     ap.add_argument("--select", type=int, default=0, help="write this many spanning cells")
+    ap.add_argument("--exclude-seeds", default="",
+                    help="seeds already spent (e.g. a batch that hung); selection runs over "
+                         "the remainder by the SAME rule, so replacements are deterministic")
     ap.add_argument("--out-dir", type=Path)
     ap.add_argument("--prefix", default="cell_r3s")
     ap.add_argument("--suffix", default="_f4000_pg16")
@@ -138,8 +141,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = ap.parse_args(argv)
 
     base = json.loads(args.base.read_text())
+    spent = set(parse_seeds(args.exclude_seeds)) if args.exclude_seeds.strip() else set()
     rows: List[Dict[str, Any]] = []
     for seed in parse_seeds(args.seeds):
+        if seed in spent:
+            continue
         cfg = with_seed(base, seed)
         rows.append({"seed": seed,
                      "structure": cell_structure(cfg, sim_input_path=args.sim_inputs)})
