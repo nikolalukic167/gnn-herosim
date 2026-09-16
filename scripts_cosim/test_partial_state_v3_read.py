@@ -126,7 +126,7 @@ def test_cell_deficit_is_relative_to_reactive():
     assert cell_deficit({1: 11.0, 2: 12.0, 4: 13.0, 5: 14.0}, 10.0) == pytest.approx(0.25)
 
 
-def _rung(d_gnn, d_mpoff=0.5, n_cells=4, incomplete=False, wall=5.0):
+def _rung(d_gnn, d_mpoff=0.5, n_cells=4, incomplete=False, wall=5.0, cause=None):
     cells = {}
     for i in range(n_cells):
         react = 20.0 + i
@@ -137,7 +137,23 @@ def _rung(d_gnn, d_mpoff=0.5, n_cells=4, incomplete=False, wall=5.0):
             "completed": {"gnn": 3 if incomplete else 4, "mpoff": 4},
             "expected": {"gnn": 4, "mpoff": 4},
         }
+        if incomplete and cause is not None:
+            cells[f"cs{i}"]["incomplete"] = {"gnn": [{"seed": 4, "cause": cause}]}
     return {"cells": cells, "wallclock_min": [wall] * n_cells}
+
+
+def test_p3_a_fires_only_on_a_representation_cause():
+    base = {"R0": _rung(0.30), "R1": _rung(0.30), "R3": _rung(0.30)}
+    # a krank raise at 24 servers is exactly what the bar is about
+    r = read_p3({**base, "R2": _rung(0.30, incomplete=True, cause="krank_node_order")})
+    assert r["verdict"] == V_STILL_PINNED and r["pinned"][0][:3] == ("R2", "cs0", "gnn")
+    # an OOM / hang is attrition of another class: disclosed, rung read on the completed arms
+    r = read_p3({**base, "R2": _rung(0.30, incomplete=True, cause="oom")})
+    assert r["verdict"] == V_GENERALISES
+    assert r["incomplete_other"] and r["incomplete_other"][0][:3] == ("R2", "cs0", "gnn")
+    # no cause recorded at all: never counted as pinned either
+    r = read_p3({**base, "R2": _rung(0.30, incomplete=True)})
+    assert r["verdict"] == V_GENERALISES and r["incomplete_other"][0][3] == ["unclassified"]
 
 
 def test_p3_generalises_when_every_scaled_rung_stays_within_tol():
@@ -151,8 +167,8 @@ def test_p3_degrades_and_names_the_first_breaking_rung():
 
 
 def test_p3_a_still_pinned_beats_any_latency_read():
-    r = read_p3({"R0": _rung(0.30), "R1": _rung(0.30), "R2": _rung(0.30, incomplete=True),
-                 "R3": _rung(0.30)})
+    r = read_p3({"R0": _rung(0.30), "R1": _rung(0.30),
+                 "R2": _rung(0.30, incomplete=True, cause="representation"), "R3": _rung(0.30)})
     assert r["verdict"] == V_STILL_PINNED and r["pinned"][0][0] == "R2"
 
 
