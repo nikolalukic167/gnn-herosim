@@ -41,9 +41,16 @@
 # S0.c  feasibility: median wall-clock <= 45 min at the fastest readable rung.
 #
 # 25 % cell attrition is budgeted (scheduler_residence_v1 R3: 5 of 20 draws hang on EVERY
-# policy including reactive -- the documented starved-client spin).
+# policy including reactive -- the documented starved-client spin). MEASURED on job 769390:
+# seed 9004 hangs at BOTH readable rungs (tasks 3 and 7, TIMEOUT at 45 min) and is dropped;
+# 9001-9003 complete in 78-149 s each.
 #
-#   sbatch --array=0-11%6 scripts_cosim/datalab/cluster_scale_v1_s0b.sbatch
+# DEFECT FIXED after job 769390: ARM was "${CELL}__${KIND}" with no rung tag, so all three
+# rungs resolved to the same summary path and the f300 rung exited on the idempotence guard
+# ("exists, not re-running", 1 s per task) having measured nothing. The rung is now in the
+# arm name, so a rung's own summary is what the guard tests.
+#
+#   sbatch scripts_cosim/datalab/cluster_scale_v1_s0b.sbatch
 #
 #SBATCH --job-name=cs-s0b
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/cs-s0b-%A_%a.out
@@ -53,8 +60,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
-#SBATCH --time=00:45:00
-#SBATCH --array=0-11
+#SBATCH --time=00:15:00
+#SBATCH --array=0-8
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -77,7 +84,7 @@ mkdir -p "$OUT_DIR"
 
 SERVERS=(6 6 6)
 WORKLOADS=(drainable_f4000_n50000 drainable_f1000_n50000 drainable_f300_n50000)
-SEEDS=(9001 9002 9003 9004)
+SEEDS=(9001 9002 9003)
 
 export HEROSIM_PEER_EXCHANGE=1
 export HEROSIM_SERVER_ONLY_REPLICAS=1
@@ -87,7 +94,7 @@ export HEROSIM_GNN_DEVICE=cpu
 export SIM_FORCE_FULL_STATS=1
 
 T=${SLURM_ARRAY_TASK_ID}
-R=$(( T / 4 )); I=$(( T % 4 ))
+R=$(( T / 3 )); I=$(( T % 3 ))
 NS="${SERVERS[$R]}"
 WORKLOAD="$GATE/workloads/${WORKLOADS[$R]}.json"
 [[ -f "$WORKLOAD" ]] || { echo "FAIL LOUD: workload missing: $WORKLOAD" >&2; exit 1; }
@@ -120,7 +127,8 @@ if [[ $KIND == gnn ]]; then
   export GNN_BATCH_BY_PEER_GROUP=1
 fi
 
-ARM="${CELL}__${KIND}"
+RUNG="${WORKLOADS[$R]}"; RUNG="${RUNG#drainable_}"; RUNG="${RUNG%_n50000}"
+ARM="${CELL}__${KIND}__${RUNG}"
 SUMMARY="$OUT_DIR/${ARM}.summary.json"
 echo "[TASK $T] rung=$R servers=$NS workload=${WORKLOADS[$R]} arm=$ARM"
 if [[ -f "$SUMMARY" ]]; then echo "[TASK $T] exists, not re-running"; exit 0; fi
