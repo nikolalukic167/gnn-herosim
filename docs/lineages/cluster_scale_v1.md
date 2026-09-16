@@ -263,3 +263,80 @@ this amendment does not resurrect it. The measurement is collection time alone, 
 mechanism is arrival-driven by construction. If collection does **not** fall, the axis is closed
 on its own mechanism and no retrain is ever justified; if it does, the axis is worth exactly as
 much as a new representation costs.
+
+### 2026-09-16 — S0.b read: **ASSEMBLY-IS-ARRIVAL-BOUND** ✓
+
+Job 769426 (corrected, see below), 9 arms: 3 rungs × 3 topology seeds, all on 6 servers.
+Seed 9004 hangs at both readable rungs (tasks 3 and 7 of job 769390, TIMEOUT at 45 min) and is
+dropped — the documented starved-client spin. 9001–9003 complete in 74–150 s each.
+
+**DEFECT in job 769390:** the arm name was `${CELL}__${KIND}` with no rung tag, so all three
+rungs resolved to the same summary path and the `f300` rung exited on the idempotence guard
+(`"exists, not re-running"`, tasks 8–10, 1 s each). No f300 data measured, no FAIL LOUD — the
+guard did its job against the wrong key. Fixed: the arm name is now
+`${CELL}__${KIND}__${RUNG}`. Archived the collided summaries under
+`cs_s0b.prefix_collision_769390/`.
+
+| rung | arrivals/s | cells | median collection | median HOL | place | batch size | wall/min |
+|---|---|---|---|---|---|---|---|
+| f4000 | 0.460 | 3 | **6.099 s** | 0.733 s | 0.000 s | 6.10 | 2.5 |
+| f1000 | 1.842 | 3 | **2.198 s** | 0.006 s | 0.000 s | 9.55 | 1.4 |
+| f300 | 6.139 | 3 | **0.729 s** | 0.000 s | 0.000 s | 9.96 | 1.2 |
+
+**Monotone decline: ✓.** 6.099 → 2.198 → 0.729 s, strictly decreasing.
+**Fastest rung f300: 0.729 s ≤ 2.0 s bar: ✓.** Better than predicted (1.6 s nominal).
+**Reduction: 8.37× from baseline.** 13.3× the arrival rate, 8.37× the collection time.
+**S0.c wall-clock: 1.2 min ≤ 45 min: ✓.** Not a concern.
+
+**VERDICT: `ASSEMBLY-IS-ARRIVAL-BOUND`.**
+
+#### The anatomy of the collection curve
+
+Three things improve together as arrivals speed up:
+
+1. **Collection falls faster than 1/rate.** Pure 1/rate from the baseline would predict
+   1.523 s (f1000) and 0.457 s (f300); measured is 2.198 s and 0.729 s, consistently
+   1.44–1.59× the prediction. The gap is the imperfect peer group (not every batch gets a
+   complete group — the correction decays toward 1.0 as arrival density rises).
+
+2. **Mean batch size rises: 6.10 → 9.55 → 9.96** (peer group is 10). At f300 the scheduler
+   gets 99.6 % complete groups, against 61 % at f4000. This matters for the decoder, which
+   cannot decode singletons (`drainable_serving_config_v1`, −1731 %).
+
+3. **Head-of-line collapses: 0.733 → 0.006 → 0.000 s.** With groups assembling fast, nothing
+   waits behind a batch that has nothing to do with it. At f300 each batch has essentially
+   zero head-of-line delay.
+
+4. **Peer-group splitting vanishes: 1.784 → 1.048 → 1.004 batches per peer group.** At f300
+   the scheduler almost never splits a peer group across batches, against 78.4 % of groups
+   being split at f4000.
+
+5. **Cross-topology variance vanishes.** Collection: 6.022–6.115 s (f4000) → 2.197–2.200 s
+   (f1000) → 0.729–0.729 s (f300). The collection time is a property of the arrival process,
+   not the topology.
+
+#### What this is worth
+
+The 6.099 s of collection at the landed load is the **single largest term** in the learned
+arms' scheduler overhead. `queue_range_v1`'s per-term decomposition measured that on
+`cell_s9001` the arm wins queue (−2.67 s), peer exchange (−0.85 s), and peer rendezvous
+(−1.85 s) — and loses the entire cell on `averageWaitTime` (+6.87 s), of which
+`scheduler_residence_v1` R0 measured 89 % is collection. **Cut collection from 6.10 to 0.73 s
+and the arm wins `cell_s9001` by ~3.70 s instead of losing by ~1.43 s, all else being equal.**
+
+The constraint: doing so requires 6.14 arrivals/s against a drain of 0.46 (ρ = 2.2 — grossly
+overloaded), so the real deployment needs **~80 servers at ρ ≈ 0.16**, and every checkpoint in
+the program is limited to 6 candidate-hosting nodes (S0.d: OUT-OF-SUPPORT). **The axis buys
+~5.37 s but costs a retrained representation** (`KRANK_WIDTH ≥ 80`, widening
+`PARTIAL_STATE_FEATURE_DIM` and invalidating every cached graph and checkpoint).
+
+## Status update — 2026-09-16
+
+**`cluster_scale_v1` is CLOSED. Outcome: `ASSEMBLY-IS-ARRIVAL-BOUND · REQUIRES-RETRAINED-REPRESENTATION`.**
+
+The mechanism works exactly as predicted. Faster arrivals cut collection from 6.10 s to 0.73 s
+(8.37×), make batch groups 99.6 % complete, eliminate head-of-line delay, and deliver ~5.37 s
+of net latency improvement on the best cell. The constraint is structural: achieving this in a
+load-matched deployment requires ~80 servers, which takes the served candidate set 9.58× out
+of the corpus and exceeds the feature layout's hard cap of 6 hosting nodes. This axis's
+value — measured at ~5.37 s — is worth exactly as much as a new representation costs.
