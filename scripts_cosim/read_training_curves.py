@@ -57,6 +57,22 @@ CHANCE_FLOOR = {
     "train/ce": ("baseline/val_chance_ce", "below"),
 }
 
+# Summary prefixes that are reference lines rather than curves. `untrained/` is the
+# model before any gradient step (train_near_rtt.py logs it since 2026-09-16); the
+# first HISTORY row is already after epoch 1, so without it a chart has no true start.
+REFERENCE_PREFIXES = ("baseline/", "scale/", "untrained/")
+
+
+def reference_floors(summary: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in summary.items() if k.startswith(REFERENCE_PREFIXES)}
+
+
+def untrained_key(metric: str) -> str:
+    """The summary key holding a curve's pre-training value: val/task_acc -> untrained/val_task_acc.
+    Train-side curves have no untrained read (the trainer evaluates the val split only)."""
+    split, _, name = metric.partition("/")
+    return f"untrained/{split}_{name}"
+
 
 def _read_wandb_dir(run_dir: Path) -> tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
     """History rows, summary, config from an on-disk wandb run directory."""
@@ -230,7 +246,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
 
     # --- reference lines -----------------------------------------------------
-    floors = {k: v for k, v in summary.items() if k.startswith(("baseline/", "scale/"))}
+    floors = reference_floors(summary)
     print("\nREFERENCE LINES (from the run summary)")
     if not floors:
         print("    NONE RECORDED. This run predates baseline/* and scale/* logging, so")
@@ -249,7 +265,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             ends_beating = (xs[-1] > floor) if direction == "above" else (xs[-1] < floor)
             verdict = "beats chance" if beats else "NEVER BEATS CHANCE"
             tail = "" if ends_beating else "  (and ENDS on the wrong side of it)"
-            print(f"    {metric:30s} start={_fmt(xs[0])} best={_fmt(max(xs) if direction == 'above' else min(xs))} chance={_fmt(floor)} -> {verdict}{tail}")
+            # `start` is the first LOGGED row, i.e. after epoch 1's gradient steps;
+            # `untrained` is the model before any step, when the trainer recorded it.
+            u = floors.get(untrained_key(metric))
+            u_txt = f"untrained={_fmt(float(u))} " if isinstance(u, (int, float)) else ""
+            print(f"    {metric:30s} {u_txt}after-ep1={_fmt(xs[0])} best={_fmt(max(xs) if direction == 'above' else min(xs))} chance={_fmt(floor)} -> {verdict}{tail}")
 
     # --- selection and overfit ----------------------------------------------
     print("\nSELECTION")

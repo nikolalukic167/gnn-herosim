@@ -2098,6 +2098,31 @@ if is_phase_b_ce_init():
     wandb.summary["phase_b_baseline_greedy"] = float(phase_b_baseline["regret_greedy"])
     wandb.summary["phase_b_baseline_acc"] = float(phase_b_baseline["acc"])
 
+# The untrained model's eval, so a curve has a true starting point. Every per-epoch row
+# is logged AFTER that epoch's gradient steps (train_epoch, then evaluate), so "epoch 0"
+# on a chart is already one full pass over the training set -- on the 2026-09-15
+# dobj-train arms it reads 52-85 % task accuracy against a 38.5 % chance floor, and
+# nothing in the history shows the model before it learned. The phase-b branch reads its
+# init checkpoint above; every other branch gets the same read here. It goes to the
+# summary as untrained/val_* (a reference line, like baseline/*), not to the history: a
+# step-less log would merge into epoch 0's row. Under fork_rng so the extra pass leaves
+# the training draw bit-identical to a run without it (tests/test_trainer_determinism.py).
+if phase_b_baseline is None:
+    _rng_devices = [DEVICE] if DEVICE.type == "cuda" else []
+    with torch.random.fork_rng(devices=_rng_devices):
+        _untrained = evaluate(
+            model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "untrained",
+            full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
+        )
+    for _k, _v in _untrained.items():
+        if isinstance(_v, (int, float)):
+            wandb.summary[f"untrained/val_{_k}"] = float(_v)
+    print(
+        f"[untrained] val task_acc={float(_untrained.get('task_acc', float('nan'))) * 100:.1f}% "
+        f"acc={float(_untrained['acc']) * 100:.1f}% ce={float(_untrained.get('ce', float('nan'))):.4f} "
+        f"(before any gradient step; the chance floor is baseline/val_chance_task_acc)"
+    )
+
 print("=" * 80)
 print(f"TRAINING ({TRAIN_OBJECTIVE})")
 print("=" * 80)
