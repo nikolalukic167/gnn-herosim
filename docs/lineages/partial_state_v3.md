@@ -214,3 +214,31 @@ full, so `inv_n` spans {1, 1/2, …, 1/5} in training and nothing narrower.
 
 **Training submitted:** job 769631, 32 arms (`partial_state_v3_train.sbatch`), which refused
 to start without the P0 artefact and read INSTRUMENT-PASS from it.
+
+### 2026-09-16 — training and P1 read: **ENCODING-HELPS-OFFLINE on both arms** (expectation was TIE)
+
+Job 769631: **32/32 COMPLETED**, every arm stopped on patience at 100–146 epochs (last
+improvement at epochs 34–85), so ~55 % of the registered epoch budget was never spent and no
+selection was truncated (a stop needs 60 epochs without improvement). The untrained eval the
+trainer now logs reads **38.3 %** task accuracy before any gradient step against a 38.5 %
+chance floor — the number the "why does it start at 40 %" question was about.
+
+**P1** (`scripts_cosim/partial_state_v3_p1.py`, `simulation_data/partial_state_v3/p1.json`):
+held-out regret at the selected checkpoint (`final/test/regret_masked_topo`), as a percentage
+of the 34 test datasets' mean optimal RTT (442.11 s — identical under both caches by P0),
+paired by training seed, exact Wilcoxon:
+
+| arm | v3 median | v2 median | paired median Δ | p | v3 ahead | bar (|Δ| ≤ 1.0 pp or p ≥ 0.05) | read |
+|---|---|---|---|---|---|---|---|
+| `gnn` | **38.40 %** | 39.92 % | **−1.62 pp** | 0.0386 | 12/16 | misses both | **ENCODING-HELPS** |
+| `mpoff` | **40.77 %** | 43.18 % | **−2.57 pp** | 0.0008 | 14/16 | misses both | **ENCODING-HELPS** |
+
+Selected epochs: `gnn` v3 24–140 (median 72) vs v2 19–67 (median 32); `mpoff` v3 22–56 vs
+v2 20–60. **Registered expectation was TIE** — the block is information-equivalent at N ≤ 6 —
+and it is not a tie: two scalars in the task's own type slot fit the held-out set better than a
+24-way one-hot over the same information, on both arms, with the pointwise twin gaining more.
+Plausible and unregistered: a sparse one-hot with 4 type slots × 6 ranks is 24 parameters per
+scorer input the corpus (≤ 5 nodes) never fills, and a scalar rank is a smoother function of
+the same fact. **Carried into P2 as context, not as a claim:** `offline_live_transfer_v1`
+measured that the offline score ranks epochs within a run and never arms, so this reads as
+"the encoding costs nothing offline and may help" until P2 says what it does when served.
