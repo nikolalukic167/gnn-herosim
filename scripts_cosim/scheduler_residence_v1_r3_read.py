@@ -40,6 +40,12 @@ R3_ALPHA = 0.05
 R3_HOLM_N = 2                    # primary + second. Registered; never shrunk.
 R3_MIN_CELLS_READ = 10
 R3_N_CELLS = 12
+# Amendment 2 (2026-09-16): 4 of the 12 batch-1 cells hang on ALL NINE arms including
+# reactive -- the documented starved-client spin, a property of the topology draw and not of
+# any policy. 8 more cells were selected from the SAME manifest by the SAME deterministic
+# spanning rule. The read pools both batches; R3_MIN_CELLS_READ is unchanged.
+R3_N_CELLS_B2 = 8
+R3_N_CELLS_TOTAL = R3_N_CELLS + R3_N_CELLS_B2
 R3_SEEDS_PER_ARM = 4
 R3_MIN_SEEDS_PER_CELL = 3        # below this a (cell, arm) is dropped and the read says so
 R3_PRIMARY_KEY = "min_reachable_servers"
@@ -178,11 +184,18 @@ def _queue(doc: Dict[str, Any]) -> float:
     return float(v)
 
 
-def read(manifest: Dict[str, Any], arms: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    selected = manifest.get("selected") or []
-    if len(selected) != R3_N_CELLS:
+def read(manifests: Sequence[Dict[str, Any]],
+         arms: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Pool every registered batch. The expected total is a constant, never inferred."""
+    selected: List[Dict[str, Any]] = []
+    for m in manifests:
+        selected.extend(m.get("selected") or [])
+    expected = R3_N_CELLS if len(manifests) == 1 else R3_N_CELLS_TOTAL
+    if len(selected) != expected:
         raise R3ReadError(
-            f"manifest carries {len(selected)} selected cells, registered {R3_N_CELLS}")
+            f"manifests carry {len(selected)} selected cells, registered {expected}")
+    if len({e["cell"] for e in selected}) != len(selected):
+        raise R3ReadError("a cell appears in more than one batch -- it would be counted twice")
 
     rows: List[Dict[str, Any]] = []
     dropped: List[Dict[str, Any]] = []
@@ -214,7 +227,7 @@ def read(manifest: Dict[str, Any], arms: Dict[str, Dict[str, Any]]) -> Dict[str,
     out: Dict[str, Any] = {
         "lineage": "scheduler_residence_v1", "stage": "R3",
         "bars": {"min_abs_rho": R3_MIN_ABS_RHO, "alpha": R3_ALPHA, "holm_n": R3_HOLM_N,
-                 "min_cells_read": R3_MIN_CELLS_READ, "n_cells": R3_N_CELLS,
+                 "min_cells_read": R3_MIN_CELLS_READ, "n_cells": len(selected),
                  "expected_sign": R3_EXPECTED_SIGN, "control_ratio": R3_CONTROL_RATIO},
         "registered_expectation": R3_REGISTERED_EXPECTATION,
         "cells": rows, "dropped": dropped, "n_read": len(rows),
@@ -265,15 +278,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--results", type=Path, required=True)
-    ap.add_argument("--manifest", type=Path, required=True)
+    ap.add_argument("--manifest", type=Path, action="append", required=True,
+                    help="repeat for each registered batch; the read pools them")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args(argv)
 
-    result = read(json.loads(args.manifest.read_text()), load(args.results))
+    result = read([json.loads(m.read_text()) for m in args.manifest],
+                  load(args.results))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2))
 
-    print(f"\n[R3] {result['n_read']} of {R3_N_CELLS} cells read"
+    print(f"\n[R3] {result['n_read']} of {result['bars']['n_cells']} cells read"
           + (f"; dropped {len(result['dropped'])}" if result["dropped"] else ""))
     for d in result["dropped"]:
         print(f"     DROPPED {d['cell']}: {d['why']}")
