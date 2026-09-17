@@ -1,8 +1,32 @@
 # peer_only_v1 — message passing over the peer graph only, and the corpus it was starved of
 
-**Status:** `REGISTERED` (2026-09-16). Every bar below is a module constant in
-`scripts_cosim/peer_only_v1_read.py`, committed **before** any arm is trained. Amend by dated
-amendment only.
+**Status:** `CLOSED` (2026-09-17) — **PEERONLY-BEATS-POINTWISE at 80 servers, and loses to
+the best pointwise arm anyway.** Registered 2026-09-16; every bar below is a module constant
+in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
+
+**Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
+beats its MP-OFF twin on elapsed by **−15.68 %, 16/16 pairs, p = 0.0004**, and beats reactive
+Knative by **−41.4 %, 16/16** — **the first measurement in this program where a
+message-passing arm beats both its own pointwise twin and reactive on the same cells and
+seeds.** Five clauses travel with that sentence and none is optional:
+
+1. **It loses to the best pointwise arm the program has.** `peeronly_1670` vs `mpoff_516` is
+   **+10.40 %, 0/16, p = 0.0004**. The win is corpus-matched, as registered; the best
+   available scheduler at that rung is still pointwise.
+2. **More data made every arm worse live** — B1 reads CORPUS-DOES-NOT-HELP on 6/6 arm × rung,
+   and the flip is mostly `mpoff` degrading **+35.49 %** (0/16), not `peeronly` improving.
+3. **The offline ranking is exactly inverted.** Offline `gnn` < `mpoff` < `peeronly`; live at
+   R3 `peeronly` < `mpoff` < `gnn`, same checkpoints.
+4. **The winning rung is saturated** (reactive ~600 s vs 21–36 s) and the statistic is
+   relative to reactive on the same cell. At the unsaturated 6-server rung **every arm loses
+   to reactive** and B2 is a TIE.
+5. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
+   (16/16) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
+   queue improves against *both* twins, so "GIN is the over-reaction" does not isolate it.
+
+Phase A (516 datasets) reads A1 ENCODING-COSTS offline, A2 TIE at both rungs, A4
+PEER-TERM-KEPT: **PeerConv alone carries no live edge at the small corpus.** The edge appears
+only at 1,654 datasets, and only because the pointwise twin falls further.
 
 **Parents:** `partial_state_v3` (CLOSED — the size-free representation; its P3 harness, cells,
 checkpoints and reactive arms are reused here), `peer_affinity_v1` (the offline MP edge, and
@@ -274,3 +298,58 @@ Two things, both ordering-only (rule 6 — B1 and B2 are the live bars):
 Gate submitted in two halves — `--array=36-131` is rejected with `AssocMaxSubmitJobLimit`
 because an array counts every task against the account's `MaxSubmit = 50`, and 96 > 50.
 Half 1 is job **782848** (`--array=36-83%12`); half 2 follows it.
+
+### 2026-09-17 — Phase B live: **B1 CORPUS-DOES-NOT-HELP 6/6 · B2 PEERONLY-BEATS-POINTWISE at 80 servers**
+
+Gate jobs **782848** (`--array=36-83%12`) and **782921** (`--array=84-131%12`), 96/96 arms
+COMPLETED, 132 summaries in `results/po_v1`. **A0 re-read bit-identical** on all four
+re-serves (`|d| = 0.00000`), so the `mp_platform_edges` flag remains inert on the arms that do
+not set it, across a corpus rebuild and a second gate.
+
+**B2 — the registered headline** (`peeronly_1670` vs `mpoff_1670`, elapsed, paired by
+(cell, checkpoint seed), n = 16):
+
+| rung | median | ahead | p | verdict |
+|---|---|---|---|---|
+| R0, 6 servers | −7.98 % | 12/16 | 0.0557 | TIE (inside the 5 % band on p) |
+| **R3, 80 servers** | **−15.68 %** | **16/16** | **0.0004** | **PEERONLY-BEATS-POINTWISE** |
+
+At R3 the same arm also **beats reactive Knative by 41.4 % on 16/16** pairs (per cell: −41.4,
+−42.5, −42.1, −40.6 %), cuts queue **−15.77 %** against `mpoff` and **−22.50 %** against
+`gnn`, and cuts the peer term **−11.59 %** on 15/16 (A4 PEER-TERM-KEPT). **This is the first
+measurement in the program in which a message-passing arm beats both its own MP-OFF twin and
+reactive Knative on the same cells and seeds.** Every clause below is part of that sentence.
+
+**Clause 1 — it loses to the best pointwise arm the program has.** `peeronly_1670` vs
+`mpoff_516` at R3 is **+10.40 %, 0/16, p = 0.0004**. The B2 contrast is corpus-matched by
+registration, and corpus-matched is the comparison this program insists on
+(`link_mp_v1`, `reliability_matched_v1`); against the *best available* scheduler the graph
+arm still loses. Both statements are true and neither may be quoted without the other.
+
+**Clause 2 — B1 says the corpus made every arm worse live, 6/6:** `gnn` −1.59 % (p = 0.72) /
++7.25 % (p = 0.098), `mpoff` **+14.61 %** (p = 0.026) / **+35.49 %** (0/16, p = 0.0004),
+`peeronly` +6.62 % (p = 0.063) / +6.51 % (2/16, p = 0.0019), at R0 / R3. Registered
+expectation was POSITIVE for `gnn` and `peeronly`; the read is **CORPUS-DOES-NOT-HELP
+everywhere**. So the B2 flip (516: +2.61 % TIE → 1670: −15.68 %) is mostly **`mpoff`
+degrading 35 %**, not `peeronly` improving: at 516 the arms read −45.26 % / −47.28 % vs
+reactive, at 1670 −41.37 % / −28.00 %.
+
+**Clause 3 — the offline ranking is exactly inverted.** Offline at 1,654 the order is
+`gnn` (35.85 %) < `mpoff` (39.66 %) < `peeronly` (41.28 %); live at R3 it is `peeronly`
+(−41.4 %) < `mpoff` (−28.0 %) < `gnn` (−23.6 %). The offline-best arm is the live-worst, on
+the same checkpoints. This is `offline_live_transfer_v1`'s anti-correlation in its sharpest
+form yet: a full reversal of a three-way ordering, not an offset.
+
+**Clause 4 — R3 is saturated and the statistic is relative.** Reactive elapsed is ~600 s at
+R3 against 21–36 s at R0, exactly as `partial_state_v3` P4 recorded. At the unsaturated R0
+rung **every arm loses to reactive** (`peeronly` +21.6 %, `gnn` +33.9 %, `mpoff` +70.5 %,
+1/16 pairs ahead).
+
+**Clause 5 — the arm that wins is not the GNN.** `peeronly` is PeerConv only; the full
+`gnn` (PeerConv + GIN) is beaten by `peeronly` at R3 by 22.42 % on 16/16. The registered A3
+mechanism does not survive either: at 1670 `peeronly`'s queue improves against **both**
+twins (−22.50 % vs `gnn`, −15.77 % vs `mpoff`), so "GIN is the over-reaction" no longer
+isolates the cause ⇒ **MECHANISM-NOT-CONFIRMED** at both rungs.
+
+Read: `scripts_cosim/peer_only_v1_gate_read.py --phase b`,
+`simulation_data/peer_only_v1/phase_b.json`.
