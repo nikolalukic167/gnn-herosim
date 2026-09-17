@@ -149,3 +149,48 @@ alone; it needs the platform-side message passing it was measured with. Ordering
 (rule 6); A2 is the live read and the arm whose offline score is worst has been the arm that
 wins live before (`offline_live_transfer_v1`: the score ranks epochs, never arms). Recorded
 before A2 was read.
+
+### 2026-09-17 — Phase A live: **A0 bit-identical · A2 TIE at both rungs · A3 fires at 80 servers only · A4 kept**
+
+Job 781985, **36/36 COMPLETED**, 0 hangs. `simulation_data/peer_only_v1/phase_a.json`,
+summaries under `results/po_v1/`; reactive, `gnn` and `mpoff` arms reused from P3 under A0.
+
+**A0 — INSTRUMENT-PASS, exactly.** The re-served v3 `gnn` and `mpoff` seed-1 arms reproduce
+their P3 mean elapsed to **|Δ| = 0.00000 s** on both rungs (22.2818 / 21.4006 s at 6 servers,
+465.1545 / 328.9311 s at 80): the model change is inert for every existing arm.
+
+**A2 / A3 / A4**, `peeronly` vs `mpoff` paired by (cell, seed), n = 16 per rung:
+
+| rung | A2 elapsed | A3 queue vs `gnn` | A3 queue vs `mpoff` | A4 peer cost vs `mpoff` |
+|---|---|---|---|---|
+| R0 (6) | +0.64 %, p = 0.57, ahead 7/16 → **TIE** | −9.1 %, p = 0.44 | +0.4 %, p = 0.53 → **not confirmed** | −0.3 %, p = 0.41 → KEPT |
+| R3 (80) | +2.61 %, p = 0.0052, ahead 2/16 → **TIE** (inside the 5 % band) | **−22.3 %, p = 0.0004** | +2.6 %, p = 0.0052 → **GIN-IS-THE-OVERREACTION** | +2.8 %, p = 0.0006 → KEPT (inside 5 %) |
+
+**Headline: TIE.** `peeronly` is neither better nor worse than the pointwise twin by the
+registered bars, on either rung. Per cell, median over checkpoint seeds (mean elapsed, s):
+
+| cell | reactive | `gnn` | `mpoff` | `peeronly` | queue `gnn` / `mpoff` / `peeronly` | scale events `gnn` / `mpoff` / `peeronly` |
+|---|---|---|---|---|---|---|
+| cs6s9001 | 20.95 | 22.50 | 21.55 | 21.27 | 9.5 / 8.6 / 8.3 | 7,574 / 6,769 / 6,864 |
+| cs6s9002 | 23.48 | **54.07** | 83.24 | 78.20 | 41.9 / 70.5 / 65.6 | 5,701 / 6,456 / 6,430 |
+| cs6s9003 | 20.90 | 22.48 | 22.54 | 22.91 | 9.7 / 9.9 / 10.3 | 7,874 / 8,094 / 8,268 |
+| cs6s9005 | 35.91 | 90.48 | **53.74** | 63.28 | 77.4 / 40.9 / 50.5 | 7,168 / 6,846 / 6,848 |
+| cs80s9001 | 596.0 | 428.8 | 321.8 | 330.1 | 423 / 317 / 325 | 196 / 95 / 93 |
+| cs80s9002 | 626.8 | 443.1 | 325.9 | 328.3 | 437 / 321 / 323 | 129 / 88 / 96 |
+| cs80s9003 | 611.8 | 441.3 | 327.4 | 331.3 | 435 / 323 / 326 | 148 / 102 / 103 |
+| cs80s9005 | 609.3 | 420.2 | 321.6 | 340.8 | 414 / 317 / 336 | 126 / 86 / 89 |
+
+**What the mechanism bar says, precisely.** At 80 servers the claim holds on every cell:
+drop the bipartite GIN and the graph arm's queue falls from ~430 s to ~326 s — the pointwise
+twin's level, within 2.6 % — and its autoscaler churn falls from 126–196 events to `mpoff`'s
+86–103. **The GIN is the over-reaction at scale**, and removing it recovers all of `mpoff`'s
+advantage over `gnn` (−28 % → −45 % vs reactive) but **nothing beyond it**. At 6 servers the
+same block is a coin flip per topology: on cs6s9002 the GIN is what makes `gnn` the *best*
+learned arm (54 s against 78–83 s), on cs6s9005 it is what makes it the worst (90 s against
+54–63 s), so the paired read nulls (p = 0.44) and A3 does not fire there.
+
+**Claim A, as read.** The over-reaction is real and the GIN is its source; taking the GIN out
+turns the graph arm into the pointwise twin, live, on every statistic (elapsed, queue, churn,
+peer cost) — and offline it fits worse than both (A1). `PeerConv` alone carries no live edge.
+Whether the corpus is what it was starved of is Phase B's question; Claim A on its own does
+not make the graph arm win.
