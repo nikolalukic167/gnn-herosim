@@ -7,6 +7,9 @@
 #                         reproduce partial_state_v3 P3's mean elapsed to three decimals
 #   Phase A tasks  4-35   peeronly (516) x {R0, R3} x 4 cells x seeds 1,2,4,5
 #   Phase B tasks 36-131  {gnn, mpoff, peeronly} (1670) x {R0, R3} x 4 cells x 4 seeds
+#   B3      tasks 132-227 {peeronly, mpoff} (1670) x R3 only x 4 cells x the OTHER 12 seeds --
+#                         AMENDMENT 1: B2's n = 16 is 4 checkpoints x 4 cells, and a claim about
+#                         an architecture has the checkpoint as its unit. Bar in the read module.
 #
 # Reactive, gnn(516) and mpoff(516) arms are REUSED from results/psv3_p3 under A0. Every arm
 # name carries cell, rung, corpus, arm and seed. Same physics, window, poll and batch size as
@@ -15,6 +18,8 @@
 #   sbatch --array=0-35%12   scripts_cosim/datalab/peer_only_v1_gate.sbatch   # A0 + Phase A
 #   sbatch --array=36-83%12  scripts_cosim/datalab/peer_only_v1_gate.sbatch   # Phase B, half 1
 #   sbatch --array=84-131%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch   # Phase B, half 2
+#   sbatch --array=132-179%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B3, half 1
+#   sbatch --array=180-227%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B3, half 2
 #
 # Phase B goes in two halves because the account's MaxSubmit is 50 and an array counts every
 # task against it: --array=36-131 (96 tasks) is rejected with AssocMaxSubmitJobLimit at
@@ -29,7 +34,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-131
+#SBATCH --array=0-227
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -67,6 +72,11 @@ for r in 0 1; do for a in gnn mpoff; do CORP+=("v3"); ARMS+=("$a"); RI+=("$r"); 
 for r in 0 1; do for c in 0 1 2 3; do for s in "${CKSEEDS[@]}"; do CORP+=("516"); ARMS+=("peeronly"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done
 # Phase B
 for a in gnn mpoff peeronly; do for r in 0 1; do for c in 0 1 2 3; do for s in "${CKSEEDS[@]}"; do CORP+=("1670"); ARMS+=("$a"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done; done
+# B3 -- AMENDMENT 1 (2026-09-17), tasks 132-227. The 12 trained checkpoints the gate never
+# served, peeronly and mpoff only, at R3 only. APPENDED so indices 0-131 keep their arms and
+# their summaries are never re-read; B3_SEEDS in peer_only_v1_read.py is this list plus CKSEEDS.
+B3SEEDS=(3 6 7 8 9 10 11 12 13 14 15 16)
+for a in peeronly mpoff; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"); ARMS+=("$a"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
