@@ -765,3 +765,58 @@ B5's OOM arm. Rung **20** is `cs6s900X`, already measured at 16 checkpoints.
   23.08 s. The design intent (a dispersion sweep) is not what was built, and the read says so
   rather than the node claiming it. The useful consequence stands anyway — it is a load sweep
   that stays **below** saturation, which is the regime this programme has never had.
+
+### 2026-09-17 — B7: **the first unsaturated live win in the programme**
+
+Jobs **783999** (16 reactive) and **784209 / 784266 / 784334 / 784382 / 784434 / 784482**
+(256 learned), 6 servers held, the 50,000-task workload held, 16 checkpoints per arm per rung.
+The 20-client rung is `cs6s900X`, already measured.
+
+| clients | Knative | `mpoff` | vs Knative | `peeronly` | vs Knative | `peeronly` vs `mpoff` |
+|---|---|---|---|---|---|---|
+| 20 | 22.22 | 43.49 | +95.7 % | 41.36 | +86.1 % | −16.47 %, p = 0.1477, 11/16 |
+| 40 | 30.54 | 36.18 | +18.5 % | **25.98** | **−14.9 %** | **−22.61 %, p = 0.0052, 12/16** |
+| 80 | 31.55 | 31.84 | +0.9 % | **28.60** | **−9.3 %** | **−14.08 %, p = 0.0061, 14/16** |
+
+**Every rung is UNSATURATED** — reactive's queue share is **63.4 / 72.6 / 73.2 %** against the
+registered 90 % bar — and at 40 and 80 clients **`peeronly` beats reactive Knative outright**.
+**This is the first time in this programme that a learned arm beats reactive at an unsaturated
+operating point.** Every previous live win, B2's headline included, came from a saturated rung;
+that is the caveat the standing answer has carried since `partial_state_v3`. `mpoff` does not
+manage it at any rung (+18.5 %, +0.9 %), so **`peeronly` is the only arm that does**, and it
+beats its own twin at all three rungs.
+
+**Consistency check:** the 20-client rung reads **−16.47 %**, reproducing B5's R0 to the
+decimal — the two ladders are the same measurement seen along two axes.
+
+**Carries.** (1) `LOAD-SWEEP-BY-ANOTHER-NAME`, as classified from the baseline before any
+learned arm was read: reactive's elapsed spans 22.22 → 31.55 s, a **42 %** spread against the
+registered 10 % flat band, so holding the workload did not hold load. The design intent was a
+dispersion sweep; it is not one, and the node says so. (2) The 5- and 10-client rungs are
+UNSERVABLE by every policy and are excluded by cause, `B7_CLIENTS` unedited. (3) At 20 clients
+the twin contrast is **underpowered** (p = 0.1477) even though its point estimate is the
+largest of the three.
+
+### 2026-09-17 — AMENDMENT 5: B8, clause 3 at the unsaturated rungs
+
+**Registered before any B8 arm was submitted.** `B8_CLIENTS = (40, 80)`, reusing **B4's** bars
+unchanged (`B4_TIE_PCT = 5.0`, `B4_ALPHA = 0.05`, `B4_MIN_SEEDS = 16`).
+
+B4 settled clause 3 — *"the best scheduler the programme has is still a pointwise one"*,
+`peeronly_1670` vs `mpoff_516` at **+11.17 %, 0/16** — but at **one operating point**: 80
+servers / 20 clients, a **saturated** rung, and the rung where `peeronly` is **weakest** against
+its own twin (−4.6 %). B7 has now found `peeronly` 3–5× stronger against that twin at the
+unsaturated client rungs *and* beating reactive there. **`mpoff_516` has never been served at
+those cells**, so the clause is currently quoted outside the conditions it was measured in —
+the same error this lineage has already corrected twice (B3, B4).
+
+`mpoff_516` is `partial_state_v3`'s `mpoff`, all 16 seeds present, and A0 proves the re-serve is
+bit-identical, so these extend the **same** arm (gate tag `v3ext`, relabelled `516_mpoff` by the
+read). Tasks 528–655 are **appended**; the arm name carries the corpus tag so the two `mpoff`
+arms cannot collide on one summary path.
+
+**Consequence signed before the data:** median ≥ +5 % with p < 0.05 at **both** rungs ⇒
+`POINTWISE-STILL-BEST` holds unsaturated too and CLAUDE.md's second half is unchanged.
+Otherwise ⇒ the clause is **scoped to saturated rungs** and CLAUDE.md is rewritten to say so.
+**Registered expectation: UNCERTAIN** — B4 got *stronger* with power at 80 servers, and has
+never been read where `peeronly` is strongest. 128 arms, ~35 min.
