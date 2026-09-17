@@ -165,3 +165,15 @@ def test_b5_stays_unreadable_on_a_lost_arm_but_discloses_the_rest():
     for rung in ("R0", "R1", "R2", "R3"):
         assert d["per_rung"][rung]["verdict"] != V_UNREADABLE, rung
         assert d["per_rung"][rung]["n"] == 15
+
+
+def test_tables_keeps_the_psv3_arms_at_every_b5_rung():
+    """A2_RUNGS is (R0, R3); B5's ladder also needs reactive at R1 and R2."""
+    p3 = []
+    for rung in ("R0", "R1", "R2", "R3"):
+        d = _sum("cs80s9001", rung, "516", "reactive", 0, 500.0)
+        d["arm_kind"] = "reactive"
+        p3.append(d)
+    tab = tables([], p3)
+    for rung in ("R0", "R1", "R2", "R3"):
+        assert "reactive" in tab[rung]["elapsed"], rung

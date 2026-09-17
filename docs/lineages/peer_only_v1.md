@@ -619,3 +619,49 @@ Three consequences, all of which change how this lineage should be quoted:
    5 % threshold); on the 15 that survive at every rung it is **−4.63 %** (does not), though
    p = 0.0018 either way. One checkpoint moves the verdict, so the headline should be quoted as
    "about 5 %", never as a number that comfortably clears a threshold.
+
+### 2026-09-17 — B6: reactive Knative across the whole ladder, and where the time actually goes
+
+Reactive was **already served at all four rungs** by `partial_state_v3` P3 (one run per cell,
+deterministic, no checkpoint seed), so this costs no cluster time. It was invisible until now
+because `tables()` filtered `psv3_p3` rows to `A2_RUNGS = (R0, R3)` and silently dropped the
+12- and 24-server reactive arms; fixed, with a test.
+
+**Learned arms vs reactive Knative, 15 checkpoints, median over cells:**
+
+| servers | Knative | `peeronly` | vs Knative | beat | `mpoff` | vs Knative | beat |
+|---|---|---|---|---|---|---|---|
+| 6 | 22.22 | 41.00 | **+84.5 %** | 0/15 | 43.98 | +97.9 % | 0/15 |
+| 12 | 103.09 | 121.40 | **+17.8 %** | 3/15 | 128.29 | +24.4 % | 0/15 |
+| 24 | 316.01 | 207.69 | **−34.3 %** | 15/15 | 227.33 | −28.1 % | 15/15 |
+| 80 | 610.56 | 357.08 | **−41.5 %** | 15/15 | 375.48 | −38.5 % | 15/15 |
+
+**The crossover against reactive is between 12 and 24 servers**, and `peeronly` is ahead of
+`mpoff` at every rung — the B5 ordering, now with the baseline in the same table.
+
+**Where the time goes (median s/task).** This answers "does queue dominate when there are
+fewer servers?" — **no, and that is exactly why the learned arms lose there.**
+
+| servers | arm | elapsed | queue | scheduler wait | peer | queue share |
+|---|---|---|---|---|---|---|
+| 6 | reactive | 22.22 | 14.10 | **0.00** | 8.69 | 63.4 % |
+| 6 | `mpoff` | 36.85 | 23.78 | 6.78 | 6.09 | 64.5 % |
+| 6 | `peeronly` | 25.41 | **12.67** | **6.77** | **5.92** | **49.9 %** |
+| 12 | reactive | 103.09 | 96.52 | 0.00 | 5.78 | 93.6 % |
+| 12 | `peeronly` | 118.40 | 109.52 | 3.99 | 4.97 | 92.5 % |
+| 24 | reactive | 316.01 | 308.86 | 0.00 | 7.02 | 97.7 % |
+| 24 | `peeronly` | 197.25 | 190.22 | 2.20 | 4.83 | 96.4 % |
+| 80 | reactive | 610.56 | 603.31 | 0.00 | 7.18 | 98.8 % |
+| 80 | `peeronly` | 357.47 | 352.32 | 0.73 | 4.35 | 98.6 % |
+
+**The queue share rises from ~50 % at 6 servers to ~99 % at 80.** At the small cluster the
+learned arms are not queue-bound, and the decomposition names the loss precisely: at 6 servers
+`peeronly` **beats reactive on queue** (12.67 vs 14.10) **and on the peer term** (5.92 vs 8.69)
+— the two things it is designed to win — and still loses the cell by **+3.19 s**, entirely on a
+**6.77 s scheduler wait that reactive does not pay at all**. Remove that one term and it wins
+the rung by ~3.6 s.
+
+This is `queue_range_v1`'s finding reproduced on a different corpus, a different architecture
+and three new cluster sizes: **the learned arms carry a flat scheduler-side tax that is
+invisible wherever queueing dominates and decisive wherever it does not.** It also bounds the
+whole programme's small-cluster deficit to one mechanism rather than to model quality.
