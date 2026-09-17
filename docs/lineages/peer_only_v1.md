@@ -1,7 +1,8 @@
 # peer_only_v1 — message passing over the peer graph only, and the corpus it was starved of
 
-**Status:** `CLOSED` (2026-09-17) — **PEERONLY-BEATS-POINTWISE at 80 servers, and loses to
-the best pointwise arm anyway.** Registered 2026-09-16; every bar below is a module constant
+**Status:** `CLOSED` (2026-09-17) — **PEERONLY-BEATS-POINTWISE at every cluster size and
+every client count, and beats reactive Knative unsaturated — while still losing to the best
+pointwise arm at the one operating point that has been tested (B8 is testing the others).** Registered 2026-09-16; every bar below is a module constant
 in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
 
 **Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
@@ -37,14 +38,19 @@ by more than 2×.
    offline/live anti-correlation on a new axis, **not** a defective corpus.
 5. **The offline ranking is exactly inverted.** Offline `gnn` < `mpoff` < `peeronly`; live at
    R3 `peeronly` < `mpoff` < `gnn`, same checkpoints.
-6. **Saturation qualifies the *reactive* comparison, not the twin comparison** (B5,
-   Amendment 3). Against reactive the statistic is relative on the same cell and the 80-server
-   rung is saturated (~600 s vs 21–36 s); at 6 servers **every arm loses to reactive**. But
-   against its own twin `peeronly` is ahead at **all four** cluster sizes — 6/12/24/80 servers
-   read −21.9 / −13.4 / −14.3 / −4.6 % — so the win is **not** a saturation artifact. The
-   margin **shrinks** with scale while its significance grows, falsifying B5's registered
-   MONOTONE expectation in the opposite direction. At 6 servers it is a ranking among two arms
-   that both lose to reactive, and must be stated as one.
+6. **The saturation caveat survives only on the SERVER ladder** (B5, B7). Against its own twin
+   `peeronly` is ahead at **all four** cluster sizes — 6/12/24/80 servers read
+   −21.9 / −13.4 / −14.3 / −4.6 % — and at **all three** client rungs — 20/40/80 clients read
+   −16.5 / −22.6 / −14.1 % — so the twin comparison is not a saturation artifact anywhere. The
+   margin **shrinks** as the cluster grows while its significance rises, falsifying B5's
+   registered MONOTONE expectation in the opposite direction. **And the reactive comparison is
+   no longer saturation-bound either:** on the client ladder every rung is **unsaturated**
+   (reactive queue share 63.4 / 72.6 / 73.2 % against the registered 90 % bar) and `peeronly`
+   still beats reactive at **40 clients (−14.9 %)** and **80 clients (−9.3 %)** — **the first
+   unsaturated live win in the programme**, and one `mpoff` does not achieve at any rung. What
+   remains true: on the *server* ladder the arms beat reactive only at the saturated 24- and
+   80-server rungs, and at 6 servers / 20 clients both arms lose to reactive, so that particular
+   margin is a ranking among two losers.
 7. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
    (16/16 pairs, 4 checkpoints — `gnn` was not extended) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
    queue improves against *both* twins, so "GIN is the over-reaction" does not isolate it.
