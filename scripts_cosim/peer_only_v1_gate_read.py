@@ -198,11 +198,16 @@ def read_b5(tab: Mapping[str, ArmTable]) -> dict:
     common = set.intersection(*(complete_seeds(tab, r) for r in B5_RUNGS)) if tab else set()
     excluded = sorted(set(range(1, 17)) - common)
     if excluded and common:
+        per_rung = {rung: _b3_at(tab, rung, seeds=sorted(common),
+                                 min_seeds=B5_DISCLOSED_MIN_SEEDS) for rung in B5_RUNGS}
         res["disclosed"] = {
             "excluded_seeds": excluded, "n_seeds": len(common),
             "note": "not the registered read: B5_MIN_SEEDS is not relaxed",
-            "per_rung": {rung: _b3_at(tab, rung, seeds=sorted(common),
-                                      min_seeds=B5_DISCLOSED_MIN_SEEDS) for rung in B5_RUNGS},
+            "per_rung": per_rung,
+            # the monotone question, answered on the ladder that can actually be read
+            **{k: v for k, v in read_b5_bar(per_rung).items() if k in ("verdict", "medians",
+                                                                       "crossover_rung",
+                                                                       "crossover_servers")},
         }
     return res
 
@@ -223,7 +228,8 @@ def format_b5(res: dict) -> str:
     d = res.get("disclosed")
     if d:
         lines.append(f"  DISCLOSED (NOT the registered read) -- {d['n_seeds']} checkpoints complete at "
-                     f"every rung; excluded {d['excluded_seeds']} (resource kill, read by cause)")
+                     f"every rung; excluded {d['excluded_seeds']} (resource kill, read by cause)"
+                     f"  -> {d.get('verdict')}")
         for rung in B5_RUNGS:
             r = d["per_rung"][rung]
             head = f"    {rung} ({B5_SERVERS[rung]:2d} servers): "
