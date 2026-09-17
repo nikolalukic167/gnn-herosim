@@ -1,6 +1,6 @@
 """Tests for the peer_only_v1 gate glue."""
 from scripts_cosim.peer_only_v1_gate_read import (
-    read_a0_from, read_b1, read_b3, read_phase, tables,
+    read_a0_from, read_b1, read_b3, read_b5, read_phase, tables,
 )
 from scripts_cosim.peer_only_v1_read import (
     CHECKPOINT_SEEDS, V_A0_FAIL, V_A0_PASS, V_BEATS, V_CORPUS_HELPS, V_GIN_OVERREACTION,
@@ -133,3 +133,32 @@ def test_v3ext_extends_the_516_mpoff_arm():
     tab = tables(docs, [])
     assert set(tab["R3"]["elapsed"]) == {"516_mpoff"}
     assert sorted({s for _, s in tab["R3"]["elapsed"]["516_mpoff"]}) == [3, 6]
+
+
+def _ladder(seeds, rungs=(("R0", 6), ("R1", 12), ("R2", 24), ("R3", 80)), drop=None):
+    """Full B5 ladder; `drop` is a (rung, cell, seed) triple to omit, as a resource kill would."""
+    cells = ("cs80s9001", "cs80s9002", "cs80s9003", "cs80s9005")
+    docs = []
+    for rung, _ in rungs:
+        for c in cells:
+            for s in seeds:
+                if drop and (rung, c, s) == drop:
+                    continue
+                docs.append(_sum(c, rung, "1670", "peeronly", s, 80.0))
+                docs.append(_sum(c, rung, "1670", "mpoff", s, 100.0))
+    return docs
+
+
+def test_b5_reads_the_whole_ladder_when_every_arm_landed():
+    r = read_b5(tables(_ladder(range(1, 17)), []))
+    assert r["verdict"] in ("MARGIN-GROWS-WITH-SCALE", "MARGIN-NOT-MONOTONE-IN-SCALE")
+    assert "disclosed" not in r
+
+
+def test_b5_stays_unreadable_on_a_lost_arm_but_discloses_the_rest():
+    """The registered bar is never relaxed; the 15 complete checkpoints still get printed."""
+    r = read_b5(tables(_ladder(range(1, 17), drop=("R1", "cs80s9001", 9)), []))
+    assert r["verdict"] == V_UNREADABLE
+    d = r["disclosed"]
+    assert d["excluded_seeds"] == [9] and d["n_seeds"] == 15
+    assert d["per_rung"]["R1"]["n"] == 15

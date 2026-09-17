@@ -78,6 +78,13 @@ B5_IMPROVE_PCT, B5_ALPHA = 5.0, 0.05     # same bar as B3, applied per rung
 # the per-rung medians are not ordered R0 >= R1 >= R2 >= R3, which is a real prediction: a
 # non-monotone curve would mean the advantage is a property of one operating point, not of
 # load. The crossover rung (the first at which the bar clears) is reported either way.
+#
+# Arms lost to a RESOURCE KILL are read by cause, never by count (gate-tools 2026-09-16, the
+# partial_state_v3 P3-a correction). B5_MIN_SEEDS is NOT relaxed when an arm dies: the
+# registered read says UNREADABLE, and a second DISCLOSED read on the checkpoints complete at
+# every rung is printed beneath it, with the excluded checkpoint and its cause named. Moving
+# the bar after seeing which arm died would be tuning on the data; printing nothing would
+# throw away 15 good checkpoints. Both numbers, clearly labelled, is the honest answer.
 
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"

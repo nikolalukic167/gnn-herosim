@@ -145,16 +145,39 @@ def read_b3(tab: Mapping[str, ArmTable]) -> dict:
             "per_seed_pct": {s: 100.0 * (po[s] / mp[s] - 1.0) for s in sorted(set(po) & set(mp))}}
 
 
-def _b3_at(tab: Mapping[str, ArmTable], rung: str) -> dict:
+def complete_seeds(tab: Mapping[str, ArmTable], rung: str) -> set:
+    """Checkpoint seeds carrying EVERY shared cell for both arms at this rung."""
+    t = tab.get(rung) or {}
+    po_pairs, mp_pairs = t.get("elapsed", {}).get("1670_peeronly", {}), t.get("elapsed", {}).get("1670_mpoff", {})
+    cells = {c for c, _ in po_pairs} & {c for c, _ in mp_pairs}
+    if not cells:
+        return set()
+    out = set()
+    for arm_seeds in ({s for _, s in po_pairs},):
+        for s in arm_seeds:
+            if all((c, s) in po_pairs and (c, s) in mp_pairs for c in cells):
+                out.add(s)
+    return out
+
+
+def _b3_at(tab: Mapping[str, ArmTable], rung: str, seeds: Optional[Sequence[int]] = None) -> dict:
     """The B3 statistic at one rung: one value per checkpoint, peeronly_1670 vs mpoff_1670."""
     t = tab.get(rung)
     if not t:
         return {"verdict": V_UNREADABLE, "reason": f"no summaries at {rung}"}
     po_pairs, mp_pairs = t["elapsed"].get("1670_peeronly", {}), t["elapsed"].get("1670_mpoff", {})
+    if seeds is not None:
+        keep = set(seeds)
+        po_pairs = {k: v for k, v in po_pairs.items() if k[1] in keep}
+        mp_pairs = {k: v for k, v in mp_pairs.items() if k[1] in keep}
     cells = sorted({c for c, _ in po_pairs} & {c for c, _ in mp_pairs})
     if not cells:
         return {"verdict": V_UNREADABLE, "reason": f"no shared cells at {rung}"}
-    po, mp = collapse_to_seed(po_pairs, rung_cells=cells), collapse_to_seed(mp_pairs, rung_cells=cells)
+    try:
+        po = collapse_to_seed(po_pairs, rung_cells=cells)
+        mp = collapse_to_seed(mp_pairs, rung_cells=cells)
+    except ValueError as exc:                      # an arm died; name it, do not average around it
+        return {"verdict": V_UNREADABLE, "reason": str(exc)}
     shared = sorted(set(po) & set(mp))
     r = read_b3_bar({s: po[s] for s in shared}, {s: mp[s] for s in shared})
     return {**r, "rung": rung, "cells": cells,
@@ -162,8 +185,23 @@ def _b3_at(tab: Mapping[str, ArmTable], rung: str) -> dict:
 
 
 def read_b5(tab: Mapping[str, ArmTable]) -> dict:
-    """AMENDMENT 3: the B3 contrast across the whole cluster-size ladder."""
-    return read_b5_bar({rung: _b3_at(tab, rung) for rung in B5_RUNGS})
+    """AMENDMENT 3: the B3 contrast across the whole cluster-size ladder.
+
+    The REGISTERED read requires all 16 checkpoints at every rung. When an arm is lost to a
+    resource kill it reports UNREADABLE -- the bar is never relaxed. A second DISCLOSED read
+    over the checkpoints complete at EVERY rung is attached beside it, so 15 good checkpoints
+    are not thrown away and the exclusion is visible. Read by cause, not by count.
+    """
+    res = read_b5_bar({rung: _b3_at(tab, rung) for rung in B5_RUNGS})
+    common = set.intersection(*(complete_seeds(tab, r) for r in B5_RUNGS)) if tab else set()
+    excluded = sorted(set(range(1, 17)) - common)
+    if excluded and common:
+        res["disclosed"] = {
+            "excluded_seeds": excluded, "n_seeds": len(common),
+            "note": "not the registered read: B5_MIN_SEEDS is not relaxed",
+            "per_rung": {rung: _b3_at(tab, rung, seeds=sorted(common)) for rung in B5_RUNGS},
+        }
+    return res
 
 
 def format_b5(res: dict) -> str:
@@ -177,8 +215,17 @@ def format_b5(res: dict) -> str:
     if res.get("crossover_servers"):
         lines.append(f"    first rung clearing the bar: {res['crossover_rung']} "
                      f"({res['crossover_servers']} servers)")
-    else:
+    elif res.get("verdict") != V_UNREADABLE:
         lines.append("    no rung clears the bar")
+    d = res.get("disclosed")
+    if d:
+        lines.append(f"  DISCLOSED (NOT the registered read) -- {d['n_seeds']} checkpoints complete at "
+                     f"every rung; excluded {d['excluded_seeds']} (resource kill, read by cause)")
+        for rung in B5_RUNGS:
+            r = d["per_rung"][rung]
+            head = f"    {rung} ({B5_SERVERS[rung]:2d} servers): "
+            lines.append(head + (f"{r['verdict']} ({r.get('reason')})" if r.get("verdict") == V_UNREADABLE
+                                 else fmt_pair(r)))
     return "\n".join(lines)
 
 
