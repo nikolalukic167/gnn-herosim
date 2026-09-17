@@ -5,24 +5,44 @@ the best pointwise arm anyway.** Registered 2026-09-16; every bar below is a mod
 in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
 
 **Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
-beats its MP-OFF twin on elapsed by **−15.68 %, 16/16 pairs, p = 0.0004**, and beats reactive
-Knative by **−41.4 %, 16/16** — **the first measurement in this program where a
-message-passing arm beats both its own pointwise twin and reactive on the same cells and
-seeds.** Five clauses travel with that sentence and none is optional:
+beats its MP-OFF twin on elapsed by **−15.68 %** and beats reactive Knative by **−41.4 %**, on
+every one of the 16 (cell, checkpoint) pairs — **the first measurement in this program where a
+message-passing arm beats both its own pointwise twin and reactive on the same cells.** Read
+the clauses before quoting it; none is optional, and the first two are corrections to how this
+was first written up.
 
-1. **It loses to the best pointwise arm the program has.** `peeronly_1670` vs `mpoff_516` is
+1. **`n` is 4 checkpoints × 4 cells, not 16 seeds.** A2 registered the pair as the unit and
+   the bar was honoured as signed, but a claim about an *architecture* has the **checkpoint**
+   as its independent unit. Four of them cannot yield a two-sided sign-test p below **0.125**.
+   The four seed-level medians are −9.75, −27.16, −20.15, −5.86 %. **B3 (Amendment 1)**
+   re-reads the contrast over all 16 trained checkpoints and is the number to quote.
+2. **The margin is queue, not peers.** Elapsed at R3 is ~99 % queue; the peer term — what
+   `PeerConv` exists to improve — differs by **0.66 s of a 78 s gap, under 1 %**. The arm wins
+   on queue and autoscaler churn (92 scale events vs 120). B2 is therefore **not** evidence
+   that peer-graph reasoning is what pays.
+3. **It loses to the best pointwise arm the program has.** `peeronly_1670` vs `mpoff_516` is
    **+10.40 %, 0/16, p = 0.0004**. The win is corpus-matched, as registered; the best
-   available scheduler at that rung is still pointwise.
-2. **More data made every arm worse live** — B1 reads CORPUS-DOES-NOT-HELP on 6/6 arm × rung,
-   and the flip is mostly `mpoff` degrading **+35.49 %** (0/16), not `peeronly` improving.
-3. **The offline ranking is exactly inverted.** Offline `gnn` < `mpoff` < `peeronly`; live at
+   available scheduler at that rung is still pointwise, and **both** 516 arms beat **every**
+   1,670 arm.
+4. **More data made every arm worse live** — B1 reads CORPUS-DOES-NOT-HELP on 6/6 arm × rung,
+   and the flip is mostly `mpoff` degrading **+35.49 %** (0/16), not `peeronly` improving. But
+   the corpus **did** improve every arm *offline* (regret 516 → 1,670: `gnn` 38.40 → 35.85,
+   `mpoff` 40.77 → 39.66, `peeronly` 41.92 → 41.28 %), and the two corpora are identical in
+   tasks, candidates per task, peer edges and target scale — so B1 is this program's
+   offline/live anti-correlation on a new axis, **not** a defective corpus.
+5. **The offline ranking is exactly inverted.** Offline `gnn` < `mpoff` < `peeronly`; live at
    R3 `peeronly` < `mpoff` < `gnn`, same checkpoints.
-4. **The winning rung is saturated** (reactive ~600 s vs 21–36 s) and the statistic is
+6. **The winning rung is saturated** (reactive ~600 s vs 21–36 s) and the statistic is
    relative to reactive on the same cell. At the unsaturated 6-server rung **every arm loses
    to reactive** and B2 is a TIE.
-5. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
+7. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
    (16/16) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
    queue improves against *both* twins, so "GIN is the over-reaction" does not isolate it.
+
+One thing runs the *other* way and is carried with the rest: the advantage **grows across the
+trace**, −6.2 % at the first decile to **−27.9 %** at the last. Every earlier positive in this
+program was an early-trace effect that decayed (`serving_stability_v1`); this is the opposite
+shape, so it is not that effect re-appearing.
 
 Phase A (516 datasets) reads A1 ENCODING-COSTS offline, A2 TIE at both rungs, A4
 PEER-TERM-KEPT: **PeerConv alone carries no live edge at the small corpus.** The edge appears
@@ -383,3 +403,59 @@ If it does clear, the standing answer keeps its two halves and gains the seed-le
 Cost: 96 arms at ~2 min each, submitted as two arrays of 48 (`MaxSubmit = 50`). The checkpoints
 already exist; nothing is retrained. Tasks 132–227 are **appended** to the gate's table so
 indices 0–131 keep their arms and their summaries are never re-read.
+
+### 2026-09-17 — the B2 result re-checked against the raw summaries
+
+Everything below is a read of the 274 gate summaries, not a re-run. **The direction survives
+every check; two things in how B2 was first written up do not.**
+
+**What held.**
+
+| check | result |
+|---|---|
+| completion parity | **50,000 / 50,000 tasks in all 274 arms** — the margin is not a dropped-task artifact |
+| served architecture | `(GNN_DISABLE_MESSAGE_PASSING, GNN_MP_PLATFORM_EDGES_OFF)` is `(0,0)` / `(1,0)` / `(0,1)` for `gnn` / `mpoff` / `peeronly`, 32 arms each, distinct `GNN_MODEL_PATH` per arm |
+| code parity | `code.diff_sha256` is the empty-string hash in **every** summary, and `git diff 73632a6..b650fa4 -- src/` is empty, so A0's bit-identical re-serve carries to the Phase B gate |
+| training recipe | the 516 and 1,670 yamls differ **only** in `cache_dir` and the split artifact — B1 is a clean corpus contrast |
+| consistency | `peeronly` beats `mpoff` at R3 in **4/4 checkpoints and 4/4 cells** |
+
+**The corpus is not off-distribution** — the "more data made it worse because the new data is
+different" explanation is refuted, dataset for dataset:
+
+| | datasets | tasks | candidates/task | nodes | platforms | peer edges | optimal RTT (mean) |
+|---|---|---|---|---|---|---|---|
+| T1b parents | 516 | 10.00 | 2.813 | 4.93 | 4.93 | 34.6 | 480.16 s |
+| new parents | 1,138 | 10.00 | 2.795 | 4.93 | 4.93 | 34.6 | 473.13 s |
+
+**Correction 1 — the margin is queue, not peers.** At R3 elapsed is ~99 % queue for every arm:
+
+| arm | elapsed | queue | wait | peer/task | scale events |
+|---|---|---|---|---|---|
+| reactive | 610.56 | 603.31 | 0.00 | 7.18 | 150 |
+| `1670_gnn` | 460.45 | 454.25 | 0.73 | 5.34 | 172 |
+| `1670_mpoff` | 436.01 | 430.18 | 0.73 | 5.00 | 120 |
+| `1670_peeronly` | 357.90 | 352.77 | 0.73 | 4.34 | 92 |
+| `516_peeronly` | 332.22 | 327.32 | 0.73 | 4.13 | 93 |
+| **`516_mpoff`** | **325.36** | 320.53 | 0.73 | 4.01 | 95 |
+
+The **peer term differs by 0.66 s out of a 78 s gap — under 1 %**. The arm wins by building
+less queue and triggering fewer autoscale events (92 vs 120), not by placing peers better.
+That is the substance behind A3's `MECHANISM-NOT-CONFIRMED`, and it means B2 is **not**
+evidence that peer-graph reasoning is what pays. Note also that `516_mpoff` is the fastest arm
+at the rung and **both** 516 arms beat **every** 1,670 arm.
+
+**Correction 2 — one genuinely new positive, previously unrecorded.** The advantage over
+`mpoff` **grows monotonically across the trace**: −6.2, −8.5, −9.8, −9.2, −13.9, −17.6, −16.2,
+−17.2, −23.4, **−27.9 %** by decile. Every previous positive in this program
+(`serving_stability_v1`) was an early-trace effect that decayed; this is the opposite shape, so
+it is not that effect re-appearing. `1670_gnn` meanwhile carries a mid-trace excursion (queue
+567 → 702 s at deciles 2–4, recovering to ~320 s), which is the GIN over-reaction made visible.
+
+**Correction 3 — B1 is the offline/live anti-correlation, not "the data is bad."** On the
+identical 34-dataset test set and the identical denominator (442.11 s), held-out regret
+516 → 1,670: `gnn` 38.40 → **35.85 %**, `mpoff` 40.77 → **39.66 %**, `peeronly` 41.92 →
+**41.28 %**. **Every arm improved offline and worsened live.** The corpus did move the
+objective it was optimising; the transfer is what failed, for the fourth time in this program.
+Live seed variance also explodes with corpus size — across the four checkpoints `516_mpoff`
+spans 318.6–329.9 s (~3 %) while `1670_mpoff` spans 368.3–483.2 s (~31 %) — which is the
+mechanical reason four draws is too few here, and why B3 (Amendment 1) was registered.
