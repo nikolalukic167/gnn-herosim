@@ -14,6 +14,8 @@ small summaries; the gate glue maps summary files onto them.
   B3  power        AMENDMENT 1 (2026-09-17): B2 again with the CHECKPOINT as the unit
   B4  power        AMENDMENT 2 (2026-09-17): clause 3 (vs the best pointwise arm) likewise
   B5  scale        AMENDMENT 3 (2026-09-17): the B3 contrast at 6 / 12 / 24 / 80 servers
+  B6  baseline     reactive Knative across that ladder + the per-term decomposition
+  B7  clients      AMENDMENT 4 (2026-09-17): the B3 contrast at 5 / 10 / 20 / 40 / 80 clients
 """
 from __future__ import annotations
 
@@ -87,6 +89,49 @@ B5_DISCLOSED_MIN_SEEDS = 12              # the DISCLOSED read only; never the re
 # the bar after seeing which arm died would be tuning on the data; printing nothing would
 # throw away 15 good checkpoints. Both numbers, clearly labelled, is the honest answer.
 
+# --- B7, AMENDMENT 4, registered 2026-09-17 BEFORE the learned arms were submitted ---------
+# B5 varied servers and held clients at 20. B7 holds servers at 6 and varies clients.
+#
+# FRAMING, corrected against the literature before the design was fixed. "Edge computing is
+# many clients and few servers" is NOT a defensible characterisation and is not written down
+# anywhere in this lineage: Bonomi et al. (MCC@SIGCOMM 2012), the canonical fog definition,
+# lists "very large number of nodes" as a defining property -- the opposite of "few servers" --
+# and NIST SP 500-325 and Shi et al. (IEEE IoT-J 2016) characterise edge by location awareness,
+# latency, mobility, heterogeneity and autonomy, never by client density. What IS supported is
+# a capacity statement: an edge site is individually small and cannot be pooled with its
+# neighbours, so offered load concentrates per site. There is also no empirical client-to-server
+# ratio in the literature -- simulator defaults span 4:1 (iFogSim) to ~180:1 (EdgeCloudSim
+# derivatives), and the only real geographic data (EUA 816/125, Shanghai Telecom 9,481/3,233)
+# counts candidate base stations, not deployed servers. So the rungs below are chosen to span a
+# range, NOT to claim a realistic ratio, and the node says so.
+# METHOD PRECEDENT: sweeping devices against a fixed edge capacity is EdgeCloudSim's own default
+# protocol (Sonmez et al., ETT 2018: 14 fixed edge datacenters, 100 -> 1000 mobile devices).
+B7_CLIENTS = (5, 10, 20, 40, 80)         # 20 is the existing cs6s900X rung, already measured
+B7_SERVERS = 6                            # held
+B7_MIN_SEEDS = 16
+B7_IMPROVE_PCT, B7_ALPHA = 5.0, 0.05     # the B3 bar, applied per client rung
+# SATURATION, registered as a bar rather than judged after the fact. EdgeCloudSim's own results
+# separate policies in the region where fixed edge capacity is overwhelmed, and this programme
+# has twice read a headline from a saturated rung (peer_only_v1 B2, drainable_regime_v1's 940x).
+# A rung is SATURATED if reactive Knative's queue is at least this share of its elapsed time.
+B7_SATURATED_QUEUE_SHARE = 0.90          # measured on the server ladder: 63 % at 6 servers
+                                         # (unsaturated) vs 94 / 98 / 99 % at 12 / 24 / 80
+# The PRIMARY read is the largest UNSATURATED client rung. Saturated rungs are reported as
+# secondary and labelled, never as the headline.
+#
+# LOAD vs DISPERSION, decided by the baselines and not assumed. The workload is held fixed at
+# 50,000 tasks for every rung, so more clients spread the SAME work over more origins rather
+# than offering more of it. If reactive's elapsed is flat across the rungs this is a dispersion
+# sweep with load held -- a stronger design than EdgeCloudSim's, where devices carry requests --
+# and if it rises it is a load sweep by another name and must be read as one. B7_LOAD_FLAT_PCT
+# is the band within which reactive's elapsed counts as flat.
+B7_LOAD_FLAT_PCT = 10.0
+# Registered expectation: UNCERTAIN on the margin's direction. B5 falsified a monotone
+# expectation once already, so no shape is predicted here. What IS predicted: the rungs stay
+# inside the corpus's candidate support (measured at mint time: 3.85 / 3.83 / 3.70 / 3.58 / 3.60
+# mean candidates at 5 / 10 / 20 / 40 / 80 clients, 0.72-0.77x the corpus max of 5), which is
+# the property that makes this axis readable where B5's 80-server rung at 9.6x was not.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -96,6 +141,7 @@ V_CORPUS_HELPS, V_CORPUS_NO = "CORPUS-HELPS", "CORPUS-DOES-NOT-HELP"
 V_UNDERPOWERED = "PEERONLY-BEATS-POINTWISE-UNDERPOWERED"
 V_BEST_IS_POINTWISE, V_BEST_NOT_ESTABLISHED = "POINTWISE-STILL-BEST", "BEST-ARM-NOT-ESTABLISHED"
 V_MONOTONE, V_NOT_MONOTONE = "MARGIN-GROWS-WITH-SCALE", "MARGIN-NOT-MONOTONE-IN-SCALE"
+V_DISPERSION, V_LOAD_SWEEP = "LOAD-HELD-DISPERSION-SWEEP", "LOAD-SWEEP-BY-ANOTHER-NAME"
 V_UNREADABLE = "UNREADABLE"
 
 PairKey = Tuple[str, int]      # (cell, checkpoint seed)
@@ -235,6 +281,31 @@ def read_b5(per_rung: Mapping[str, dict]) -> dict:
             "servers": dict(B5_SERVERS), "crossover_rung": crossover,
             "crossover_servers": B5_SERVERS.get(crossover) if crossover else None,
             "per_rung": dict(per_rung)}
+
+
+def classify_b7_rungs(reactive_by_rung: Mapping[int, Mapping[str, float]]) -> dict:
+    """Which client rungs are saturated, and is the ladder a load sweep or a dispersion sweep?
+
+    `reactive_by_rung` maps client count -> {"elapsed": s, "queue": s} for reactive Knative.
+    Both questions are answered from the BASELINE alone, before any learned arm is read.
+    """
+    if not reactive_by_rung:
+        return {"verdict": V_UNREADABLE, "reason": "no reactive baseline"}
+    shares, saturated = {}, []
+    for n, m in sorted(reactive_by_rung.items()):
+        el = float(m["elapsed"]) or 1.0
+        shares[n] = float(m["queue"]) / el
+        if shares[n] >= B7_SATURATED_QUEUE_SHARE:
+            saturated.append(n)
+    unsaturated = [n for n in sorted(reactive_by_rung) if n not in saturated]
+    els = [float(m["elapsed"]) for m in reactive_by_rung.values()]
+    spread = 100.0 * (max(els) - min(els)) / (min(els) or 1.0)
+    return {"verdict": V_DISPERSION if spread <= B7_LOAD_FLAT_PCT else V_LOAD_SWEEP,
+            "queue_share": shares, "saturated": saturated, "unsaturated": unsaturated,
+            "primary_rung": (max(unsaturated) if unsaturated else None),
+            "reactive_elapsed_spread_pct": spread,
+            "bar": {"saturated_queue_share": B7_SATURATED_QUEUE_SHARE,
+                    "load_flat_pct": B7_LOAD_FLAT_PCT}}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:
