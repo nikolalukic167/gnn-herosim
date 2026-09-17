@@ -13,6 +13,7 @@ small summaries; the gate glue maps summary files onto them.
   B2  headline     peeronly_1670 vs mpoff_1670 (A2 bars)
   B3  power        AMENDMENT 1 (2026-09-17): B2 again with the CHECKPOINT as the unit
   B4  power        AMENDMENT 2 (2026-09-17): clause 3 (vs the best pointwise arm) likewise
+  B5  scale        AMENDMENT 3 (2026-09-17): the B3 contrast at 6 / 12 / 24 / 80 servers
 """
 from __future__ import annotations
 
@@ -62,6 +63,22 @@ B4_RUNG = "R3"
 # WITHDRAWN and CLAUDE.md's second half ("the best scheduler is still a pointwise one") is
 # rewritten to match. That consequence is signed here, before the data.
 
+# --- B5, AMENDMENT 3, registered 2026-09-17 BEFORE the extra arms were submitted -----------
+# B2/B3 measure the contrast at two rungs only: 6 servers (TIE) and 80 (peeronly ahead). The
+# node's clause 6 carries "the winning rung is saturated" as a caveat with no measurement
+# between the two ends. partial_state_v3 P3 already minted and served 12- and 24-server cells
+# WITH their reactive baselines, so the middle of the curve costs only the two learned arms.
+# B5 reads the B3 statistic (one value per checkpoint, 16 seeds) at each of the four rungs.
+B5_RUNGS = ("R0", "R1", "R2", "R3")
+B5_SERVERS = {"R0": 6, "R1": 12, "R2": 24, "R3": 80}
+B5_MIN_SEEDS = 16
+B5_IMPROVE_PCT, B5_ALPHA = 5.0, 0.05     # same bar as B3, applied per rung
+# Registered expectation: MONOTONE -- the margin grows with cluster size, because the measured
+# advantage is queue-driven (99 % of it) and queue pressure grows with the rung. Falsified if
+# the per-rung medians are not ordered R0 >= R1 >= R2 >= R3, which is a real prediction: a
+# non-monotone curve would mean the advantage is a property of one operating point, not of
+# load. The crossover rung (the first at which the bar clears) is reported either way.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -70,6 +87,7 @@ V_PEER_KEPT, V_PEER_LOST = "PEER-TERM-KEPT", "PEER-TERM-LOST"
 V_CORPUS_HELPS, V_CORPUS_NO = "CORPUS-HELPS", "CORPUS-DOES-NOT-HELP"
 V_UNDERPOWERED = "PEERONLY-BEATS-POINTWISE-UNDERPOWERED"
 V_BEST_IS_POINTWISE, V_BEST_NOT_ESTABLISHED = "POINTWISE-STILL-BEST", "BEST-ARM-NOT-ESTABLISHED"
+V_MONOTONE, V_NOT_MONOTONE = "MARGIN-GROWS-WITH-SCALE", "MARGIN-NOT-MONOTONE-IN-SCALE"
 V_UNREADABLE = "UNREADABLE"
 
 PairKey = Tuple[str, int]      # (cell, checkpoint seed)
@@ -186,6 +204,23 @@ def read_b4(peeronly_1670_by_seed: Mapping[int, float], mpoff_516_by_seed: Mappi
     pointwise_ahead = r["median"] >= B4_TIE_PCT and r["p"] < B4_ALPHA
     return {**r, "verdict": V_BEST_IS_POINTWISE if pointwise_ahead else V_BEST_NOT_ESTABLISHED,
             "bar": {"tie_pct": B4_TIE_PCT, "alpha": B4_ALPHA, "min_seeds": B4_MIN_SEEDS}}
+
+
+def read_b5(per_rung: Mapping[str, dict]) -> dict:
+    """rung -> read_b3 result. Reports the crossover rung and whether the margin is monotone."""
+    readable = {r: v for r, v in per_rung.items() if v.get("verdict") != V_UNREADABLE}
+    if len(readable) < len(B5_RUNGS):
+        return {"verdict": V_UNREADABLE, "reason": f"only {sorted(readable)} readable",
+                "per_rung": dict(per_rung)}
+    meds = [readable[r]["median"] for r in B5_RUNGS]
+    monotone = all(a >= b for a, b in zip(meds, meds[1:]))
+    crossover = next((r for r in B5_RUNGS
+                      if readable[r]["median"] <= -B5_IMPROVE_PCT and readable[r]["p"] < B5_ALPHA), None)
+    return {"verdict": V_MONOTONE if monotone else V_NOT_MONOTONE,
+            "medians": {r: readable[r]["median"] for r in B5_RUNGS},
+            "servers": dict(B5_SERVERS), "crossover_rung": crossover,
+            "crossover_servers": B5_SERVERS.get(crossover) if crossover else None,
+            "per_rung": dict(per_rung)}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:

@@ -13,6 +13,9 @@
 #   B4      tasks 228-275 mpoff (516, served as corpus tag v3ext) x R3 x 4 cells x those 12 --
 #                         AMENDMENT 2: the same fix for clause 3, the comparison against the
 #                         best pointwise arm, which was also read on 4 checkpoints.
+#   B5      tasks 276-531 {peeronly, mpoff} (1670) x {R1=12, R2=24 servers} x 4 cells x 16 --
+#                         AMENDMENT 3: the middle of the cluster-size curve. Reactive at those
+#                         rungs is already in results/psv3_p3, so only the learned arms run.
 #
 # Reactive, gnn(516) and mpoff(516) arms are REUSED from results/psv3_p3 under A0. Every arm
 # name carries cell, rung, corpus, arm and seed. Same physics, window, poll and batch size as
@@ -24,6 +27,7 @@
 #   sbatch --array=132-179%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B3, half 1
 #   sbatch --array=180-227%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B3, half 2
 #   sbatch --array=228-275%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B4
+#   B5 is 256 tasks: submit 276-323, 324-371, 372-419, 420-467, 468-515, 516-531 (%12 each)
 #
 # Phase B goes in two halves because the account's MaxSubmit is 50 and an array counts every
 # task against it: --array=36-131 (96 tasks) is rejected with AssocMaxSubmitJobLimit at
@@ -38,7 +42,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-275
+#SBATCH --array=0-531
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -56,8 +60,11 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 GATE=simulation_data/peer_affinity_live_gate
 OUT_DIR="$GATE/results/po_v1"
 mkdir -p "$OUT_DIR"
-RUNG_TAGS=(R0 R3); RUNG_SERVERS=(6 80)
-RUNG_WORKLOADS=(drainable_f4000_n50000 drainable_f300_n50000)
+# Indices 0,1 are R0,R3 and MUST NOT MOVE -- tasks 0-275 index into these by position.
+# B5 appends R1 (12 servers) and R2 (24) at indices 2,3; same cells and workloads
+# partial_state_v3 P3 used, so its reactive baselines at those rungs are directly reusable.
+RUNG_TAGS=(R0 R3 R1 R2); RUNG_SERVERS=(6 80 12 24)
+RUNG_WORKLOADS=(drainable_f4000_n50000 drainable_f300_n50000 drainable_f2000_n50000 drainable_f1000_n50000)
 TSEEDS=(9001 9002 9003 9005)
 CKSEEDS=(1 2 4 5)
 
@@ -86,6 +93,11 @@ for a in peeronly mpoff; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CO
 # Corpus tag v3ext: mpoff_516 IS partial_state_v3's mpoff, and A0 proves the re-serve is
 # bit-identical, so these extend the SAME arm. The read relabels v3ext_* to 516_*.
 for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("v3ext"); ARMS+=("mpoff"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done
+# B5 -- AMENDMENT 3, tasks 276-531. The middle of the cluster-size curve: peeronly and mpoff
+# on the 1670 corpus at R1 (12 servers) and R2 (24), all 16 checkpoints, 4 cells. Reactive at
+# those rungs already exists in results/psv3_p3, which is why only the learned arms are run.
+ALLSEEDS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16)
+for a in peeronly mpoff; do for r in 2 3; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("1670"); ARMS+=("$a"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi

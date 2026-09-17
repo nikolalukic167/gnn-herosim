@@ -9,6 +9,7 @@ Sources, per rung (R0 = 6 servers, R3 = 80):
   * A0 re-serves, peeronly(516) and every 1670 arm come from results/po_v1.
 Pairing key everywhere is (cell, checkpoint seed). Bars and verdicts live in
 peer_only_v1_read.py; this file only builds the inputs and prints every number.
+--phase b5 adds AMENDMENT 3, the cluster-size ladder.
 --phase b3 adds AMENDMENT 1: the same B2 contrast collapsed to ONE VALUE PER CHECKPOINT
 over all 16 trained seeds, printed beside the registered pair-level test, never instead of it.
 """
@@ -21,11 +22,12 @@ import os
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from scripts_cosim.peer_only_v1_read import (
-    A2_RUNGS, B3_RUNG, B4_RUNG, V_UNREADABLE, collapse_to_seed, headline, read_a0,
-    read_a2_rung, read_a3_rung, read_a4_rung, read_b1_rung,
+    A2_RUNGS, B3_RUNG, B4_RUNG, B5_RUNGS, B5_SERVERS, V_UNREADABLE, collapse_to_seed,
+    headline, read_a0, read_a2_rung, read_a3_rung, read_a4_rung, read_b1_rung,
 )
 from scripts_cosim.peer_only_v1_read import read_b3 as read_b3_bar
 from scripts_cosim.peer_only_v1_read import read_b4 as read_b4_bar
+from scripts_cosim.peer_only_v1_read import read_b5 as read_b5_bar
 
 PairKey = Tuple[str, int]
 ArmTable = Dict[str, Dict[str, Dict[PairKey, float]]]     # metric -> arm label -> {(cell, seed): value}
@@ -143,6 +145,43 @@ def read_b3(tab: Mapping[str, ArmTable]) -> dict:
             "per_seed_pct": {s: 100.0 * (po[s] / mp[s] - 1.0) for s in sorted(set(po) & set(mp))}}
 
 
+def _b3_at(tab: Mapping[str, ArmTable], rung: str) -> dict:
+    """The B3 statistic at one rung: one value per checkpoint, peeronly_1670 vs mpoff_1670."""
+    t = tab.get(rung)
+    if not t:
+        return {"verdict": V_UNREADABLE, "reason": f"no summaries at {rung}"}
+    po_pairs, mp_pairs = t["elapsed"].get("1670_peeronly", {}), t["elapsed"].get("1670_mpoff", {})
+    cells = sorted({c for c, _ in po_pairs} & {c for c, _ in mp_pairs})
+    if not cells:
+        return {"verdict": V_UNREADABLE, "reason": f"no shared cells at {rung}"}
+    po, mp = collapse_to_seed(po_pairs, rung_cells=cells), collapse_to_seed(mp_pairs, rung_cells=cells)
+    shared = sorted(set(po) & set(mp))
+    r = read_b3_bar({s: po[s] for s in shared}, {s: mp[s] for s in shared})
+    return {**r, "rung": rung, "cells": cells,
+            "per_seed_pct": {s: 100.0 * (po[s] / mp[s] - 1.0) for s in shared}}
+
+
+def read_b5(tab: Mapping[str, ArmTable]) -> dict:
+    """AMENDMENT 3: the B3 contrast across the whole cluster-size ladder."""
+    return read_b5_bar({rung: _b3_at(tab, rung) for rung in B5_RUNGS})
+
+
+def format_b5(res: dict) -> str:
+    lines = [f"B5 (AMENDMENT 3) -- peeronly vs mpoff (1670) by CLUSTER SIZE, one value per "
+             f"checkpoint -> {res['verdict']}"]
+    for rung in B5_RUNGS:
+        r = res["per_rung"][rung]
+        head = f"    {rung} ({B5_SERVERS[rung]:2d} servers): "
+        lines.append(head + (f"{r['verdict']} ({r.get('reason')})" if r.get("verdict") == V_UNREADABLE
+                             else fmt_pair(r)))
+    if res.get("crossover_servers"):
+        lines.append(f"    first rung clearing the bar: {res['crossover_rung']} "
+                     f"({res['crossover_servers']} servers)")
+    else:
+        lines.append("    no rung clears the bar")
+    return "\n".join(lines)
+
+
 def read_b4(tab: Mapping[str, ArmTable]) -> dict:
     """AMENDMENT 2: clause 3 -- peeronly_1670 vs mpoff_516 -- with the checkpoint as the unit."""
     t = tab.get(B4_RUNG)
@@ -223,7 +262,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--po-dir", required=True)
     ap.add_argument("--p3-dir", required=True)
-    ap.add_argument("--phase", choices=["a", "b", "b3"], default="a")
+    ap.add_argument("--phase", choices=["a", "b", "b3", "b5"], default="a")
     ap.add_argument("--out")
     args = ap.parse_args(argv)
     tab = tables(load(args.po_dir), load(args.p3_dir))
@@ -234,9 +273,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.phase in ("b", "b3"):
         res["b1"] = read_b1(tab); res["phase_b"] = read_phase(tab, "1670")
         print(); print(format_b1(res["b1"])); print(); print(format_phase(res["phase_b"], "Phase B (B2, A2-bars)"))
-    if args.phase == "b3":
+    if args.phase in ("b3", "b5"):
         res["b3"] = read_b3(tab); res["b4"] = read_b4(tab)
         print(); print(format_b3(res["b3"])); print(); print(format_b4(res["b4"]))
+    if args.phase == "b5":
+        res["b5"] = read_b5(tab)
+        print(); print(format_b5(res["b5"]))
     if args.out:
         json.dump(res, open(args.out, "w"), indent=1, default=str)
         print(f"[wrote] {args.out}")

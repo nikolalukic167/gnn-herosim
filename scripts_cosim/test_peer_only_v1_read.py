@@ -5,7 +5,8 @@ from scripts_cosim.peer_only_v1_read import (
     V_CORPUS_HELPS, V_CORPUS_NO, V_GIN_OVERREACTION, V_MECHANISM_NO, V_PEER_KEPT, V_PEER_LOST,
     V_POINTWISE, V_TIE, V_UNREADABLE, headline, read_a0, read_a2_rung, read_a3_rung,
     read_a4_rung, read_b0, read_b1_rung, B3_ALPHA, B3_IMPROVE_PCT, B3_MIN_SEEDS, B3_RUNG,
-    B3_SEEDS, V_UNDERPOWERED, collapse_to_seed, read_b3,
+    B3_SEEDS, V_UNDERPOWERED, collapse_to_seed, read_b3, B5_RUNGS, B5_SERVERS,
+    V_MONOTONE, V_NOT_MONOTONE, read_b5,
 )
 
 CELLS = ("cs6s9001", "cs6s9002", "cs6s9003", "cs6s9005")
@@ -127,3 +128,32 @@ def test_b3_confirms_only_a_consistent_and_large_seed_level_margin():
 def test_b3_bar_constants_are_registered_values():
     assert (B3_IMPROVE_PCT, B3_ALPHA, B3_MIN_SEEDS, B3_RUNG) == (5.0, 0.05, 16, "R3")
     assert len(B3_SEEDS) == 16 and set(CHECKPOINT_SEEDS) <= set(B3_SEEDS)
+
+
+def _b3_like(median_pct, p=0.001):
+    return {"verdict": V_BEATS if (median_pct <= -5.0 and p < 0.05) else V_UNDERPOWERED,
+            "median": median_pct, "p": p, "n": 16}
+
+
+def test_b5_reports_monotone_and_the_crossover_rung():
+    r = read_b5({"R0": _b3_like(+2.0, p=0.6), "R1": _b3_like(-1.0, p=0.4),
+                 "R2": _b3_like(-6.0), "R3": _b3_like(-9.0)})
+    assert r["verdict"] == V_MONOTONE
+    assert r["crossover_rung"] == "R2" and r["crossover_servers"] == 24
+
+
+def test_b5_falsifies_its_own_monotone_expectation():
+    r = read_b5({"R0": _b3_like(-9.0), "R1": _b3_like(-1.0, p=0.4),
+                 "R2": _b3_like(-6.0), "R3": _b3_like(-2.0, p=0.3)})
+    assert r["verdict"] == V_NOT_MONOTONE and r["crossover_rung"] == "R0"
+
+
+def test_b5_refuses_a_partial_ladder():
+    r = read_b5({"R0": _b3_like(-9.0), "R1": {"verdict": V_UNREADABLE, "reason": "no summaries"},
+                 "R2": _b3_like(-6.0), "R3": _b3_like(-2.0)})
+    assert r["verdict"] == V_UNREADABLE and "R1" not in r["reason"]
+
+
+def test_b5_rung_table_matches_the_gate():
+    assert B5_RUNGS == ("R0", "R1", "R2", "R3")
+    assert B5_SERVERS == {"R0": 6, "R1": 12, "R2": 24, "R3": 80}
