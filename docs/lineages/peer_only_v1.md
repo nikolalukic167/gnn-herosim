@@ -229,3 +229,48 @@ candidate_not_in_sweep/REASON.md`), a cache-level guard that fails loud on the c
 restored in the corpus job, and the split artifact minted **from the cache** in the same job
 (`scripts_cosim/peer_only_v1_split.py`) so cache and artifact cannot drift. The corpus is
 rebuilt at **1,654** datasets; B0 and the artifact are re-read from the rebuild.
+
+### 2026-09-17 — Phase B rebuild, training, and the offline read: **the graph arm wins offline at 1,654**
+
+Corpus job **782258** (75 min) rebuilt the cache with the three set-asides in place:
+`train2` 1,487 datasets, all sweeps complete on all three source dirs, **all 516 T1b parents
+still present**, cache `graphs_cache_peer_only_v1_1670_psv3` at **1,654** datasets and
+56,841,605 RTT rows under `partial_state_v3` with the same V = 1 measured-clock label.
+`peer_only_v1_candidate_check.py` reads **offenders = 0** over all 1,654 graphs, so the class
+that killed job 782166 is now proven absent rather than assumed. **B0 re-reads
+INSTRUMENT-PASS** (big 1654, small 516, missing 0, metadata agrees, ingredients max diff
+**0.0**, test ids same). The split artifact was minted from the cache in the same job:
+train 1,524 · val 96 · test 34 · n 1,654 (1,138 new parents), sha `f9c79fd7bb77…`, committed
+before training.
+
+Training job **782603**: 48/48 arms COMPLETED, 48 checkpoints plus 48 final-epoch copies,
+every one with a `.contract.json` sidecar, **16/16 patience stops on every arm** (no arm ran
+the 300-epoch budget). The untrained eval logs at `task_acc = 38.3 %`, which is the chance
+floor, so the curves now start where they should.
+
+**Offline, held-out regret at the selected checkpoint** (% of the 34-dataset test split's
+mean optimal RTT, 442.11 s; paired exact Wilcoxon over 16 training seeds, A1 method,
+`simulation_data/peer_only_v1/b_offline.json`):
+
+| pair | medians | paired median | p | ahead | verdict |
+|---|---|---|---|---|---|
+| `peeronly` vs `gnn` | 41.28 % vs 35.85 % | **+5.80 pp** | 0.0004 | 0/16 | ENCODING-COSTS |
+| `peeronly` vs `mpoff` | 41.28 % vs 39.66 % | **+2.00 pp** | 0.0006 | 1/16 | ENCODING-COSTS |
+| `gnn` vs `mpoff` | 35.85 % vs 39.66 % | **−4.20 pp** | 0.0006 | 15/16 | ENCODING-HELPS |
+
+Two things, both ordering-only (rule 6 — B1 and B2 are the live bars):
+
+1. **`peeronly` loses to both twins on the big corpus too**, more heavily than at 516
+   (+5.80 pp vs gnn here, +3.31 pp there). PeerConv alone is not the carrier of the offline
+   edge; A1's ENCODING-COSTS is not a small-corpus artefact.
+2. **Full message passing beats its MP-OFF twin offline by 4.20 pp on 15/16 seeds** at 1,654
+   datasets, reproducing `peer_affinity_v1` T1b's +5.14 pp at 482 on a 3.4× corpus, a
+   size-free representation and patience-selected checkpoints. Selected epochs order the same
+   way as the regret (gnn median 80, mpoff 140): the pointwise arm needs longer and still
+   lands worse. **This is an offline number and this program's offline/live sign has reversed
+   before** (`offline_live_transfer_v1`, ρ = −0.030 across 96 checkpoints); B2 is the reading
+   that counts.
+
+Gate submitted in two halves — `--array=36-131` is rejected with `AssocMaxSubmitJobLimit`
+because an array counts every task against the account's `MaxSubmit = 50`, and 96 > 50.
+Half 1 is job **782848** (`--array=36-83%12`); half 2 follows it.
