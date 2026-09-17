@@ -12,6 +12,7 @@ small summaries; the gate glue maps summary files onto them.
   B1  corpus lever each arm 1670 vs 516, paired by seed
   B2  headline     peeronly_1670 vs mpoff_1670 (A2 bars)
   B3  power        AMENDMENT 1 (2026-09-17): B2 again with the CHECKPOINT as the unit
+  B4  power        AMENDMENT 2 (2026-09-17): clause 3 (vs the best pointwise arm) likewise
 """
 from __future__ import annotations
 
@@ -46,6 +47,21 @@ B3_RUNG = "R3"                 # the rung B2's headline is claimed at
 # significance. If B3 does not clear, the headline is recorded as UNDERPOWERED and CLAUDE.md's
 # standing answer reverts to its pre-2026-09-17 wording. That consequence is signed here.
 
+# --- B4, AMENDMENT 2, registered 2026-09-17 BEFORE the extra arms were submitted -----------
+# The same defect on the other side of the ledger. Clause 3 of the head -- "the winning arm
+# still loses to the best pointwise arm the program has", peeronly_1670 vs mpoff_516 at
+# +10.40 % -- is also a 4-checkpoint read, and B3 has just shown a 4-checkpoint read
+# overstating an effect by more than 2x. mpoff_516 is partial_state_v3's mpoff, whose 16 seeds
+# all exist; A0 proves the re-serve is bit-identical, so the 12 unused ones extend the SAME arm.
+# Paired by training seed across the two corpora, exactly as B1 pairs.
+B4_MIN_SEEDS = 16
+B4_TIE_PCT, B4_ALPHA = 5.0, 0.05
+B4_RUNG = "R3"
+# Registered expectation: the 4-seed read says peeronly_1670 LOSES by +10.40 %. If B4 confirms
+# (median > +5 %, p < alpha) clause 3 stands as written. If it ties or reverses, clause 3 is
+# WITHDRAWN and CLAUDE.md's second half ("the best scheduler is still a pointwise one") is
+# rewritten to match. That consequence is signed here, before the data.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -53,6 +69,7 @@ V_GIN_OVERREACTION, V_MECHANISM_NO = "GIN-IS-THE-OVERREACTION", "MECHANISM-NOT-C
 V_PEER_KEPT, V_PEER_LOST = "PEER-TERM-KEPT", "PEER-TERM-LOST"
 V_CORPUS_HELPS, V_CORPUS_NO = "CORPUS-HELPS", "CORPUS-DOES-NOT-HELP"
 V_UNDERPOWERED = "PEERONLY-BEATS-POINTWISE-UNDERPOWERED"
+V_BEST_IS_POINTWISE, V_BEST_NOT_ESTABLISHED = "POINTWISE-STILL-BEST", "BEST-ARM-NOT-ESTABLISHED"
 V_UNREADABLE = "UNREADABLE"
 
 PairKey = Tuple[str, int]      # (cell, checkpoint seed)
@@ -158,6 +175,17 @@ def read_b3(peeronly_by_seed: Mapping[int, float], mpoff_by_seed: Mapping[int, f
     beats = r["median"] <= -B3_IMPROVE_PCT and r["p"] < B3_ALPHA
     return {**r, "verdict": V_BEATS if beats else V_UNDERPOWERED,
             "bar": {"improve_pct": B3_IMPROVE_PCT, "alpha": B3_ALPHA, "min_seeds": B3_MIN_SEEDS}}
+
+
+def read_b4(peeronly_1670_by_seed: Mapping[int, float], mpoff_516_by_seed: Mapping[int, float]) -> dict:
+    """Clause 3 with the checkpoint as the unit: is the best pointwise arm still ahead?"""
+    r = paired_tie(dict(peeronly_1670_by_seed), dict(mpoff_516_by_seed), tol=B4_TIE_PCT,
+                   alpha=B4_ALPHA, min_seeds=B4_MIN_SEEDS, relative=True)
+    if r["verdict"] == V_UNREADABLE:
+        return r
+    pointwise_ahead = r["median"] >= B4_TIE_PCT and r["p"] < B4_ALPHA
+    return {**r, "verdict": V_BEST_IS_POINTWISE if pointwise_ahead else V_BEST_NOT_ESTABLISHED,
+            "bar": {"tie_pct": B4_TIE_PCT, "alpha": B4_ALPHA, "min_seeds": B4_MIN_SEEDS}}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:

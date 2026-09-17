@@ -10,6 +10,9 @@
 #   B3      tasks 132-227 {peeronly, mpoff} (1670) x R3 only x 4 cells x the OTHER 12 seeds --
 #                         AMENDMENT 1: B2's n = 16 is 4 checkpoints x 4 cells, and a claim about
 #                         an architecture has the checkpoint as its unit. Bar in the read module.
+#   B4      tasks 228-275 mpoff (516, served as corpus tag v3ext) x R3 x 4 cells x those 12 --
+#                         AMENDMENT 2: the same fix for clause 3, the comparison against the
+#                         best pointwise arm, which was also read on 4 checkpoints.
 #
 # Reactive, gnn(516) and mpoff(516) arms are REUSED from results/psv3_p3 under A0. Every arm
 # name carries cell, rung, corpus, arm and seed. Same physics, window, poll and batch size as
@@ -20,6 +23,7 @@
 #   sbatch --array=84-131%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch   # Phase B, half 2
 #   sbatch --array=132-179%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B3, half 1
 #   sbatch --array=180-227%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B3, half 2
+#   sbatch --array=228-275%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B4
 #
 # Phase B goes in two halves because the account's MaxSubmit is 50 and an array counts every
 # task against it: --array=36-131 (96 tasks) is rejected with AssocMaxSubmitJobLimit at
@@ -34,7 +38,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-227
+#SBATCH --array=0-275
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -77,6 +81,11 @@ for a in gnn mpoff peeronly; do for r in 0 1; do for c in 0 1 2 3; do for s in "
 # their summaries are never re-read; B3_SEEDS in peer_only_v1_read.py is this list plus CKSEEDS.
 B3SEEDS=(3 6 7 8 9 10 11 12 13 14 15 16)
 for a in peeronly mpoff; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"); ARMS+=("$a"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done; done
+# B4 -- AMENDMENT 2, tasks 228-275. The same 12 checkpoints for mpoff on the 516 corpus, so
+# clause 3 (peeronly_1670 vs the best pointwise arm) stops being a 4-checkpoint read too.
+# Corpus tag v3ext: mpoff_516 IS partial_state_v3's mpoff, and A0 proves the re-serve is
+# bit-identical, so these extend the SAME arm. The read relabels v3ext_* to 516_*.
+for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("v3ext"); ARMS+=("mpoff"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
@@ -97,7 +106,7 @@ if float(cfg["scheduler"]["batch_timeout"]) != 16.0:
 PY
 
 case "$CORPUS" in
-  v3)   CK="models/partial-state-v3-${ARM}-lr2e3-seed${S}.pt" ;;
+  v3|v3ext) CK="models/partial-state-v3-${ARM}-lr2e3-seed${S}.pt" ;;
   516)  CK="models/peer-only-v1-516-${ARM}-lr2e3-seed${S}.pt" ;;
   1670) CK="models/peer-only-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
 esac

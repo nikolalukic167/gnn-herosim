@@ -459,3 +459,57 @@ objective it was optimising; the transfer is what failed, for the fourth time in
 Live seed variance also explodes with corpus size — across the four checkpoints `516_mpoff`
 spans 318.6–329.9 s (~3 %) while `1670_mpoff` spans 368.3–483.2 s (~31 %) — which is the
 mechanical reason four draws is too few here, and why B3 (Amendment 1) was registered.
+
+### 2026-09-17 — B3: **PEERONLY-BEATS-POINTWISE holds on 16 checkpoints, at less than half the margin**
+
+Jobs **783263** + **783325**, 96/96 arms COMPLETED, 144 R3 arms in `results/po_v1`. Read:
+`peer_only_v1_gate_read.py --phase b3`, `simulation_data/peer_only_v1/phase_b3.json`.
+
+**B3, one value per checkpoint (median over its 4 cells), all 16 trained seeds:**
+median **−5.75 %**, **p = 0.0011**, **14/16 checkpoints ahead** ⇒ **PEERONLY-BEATS-POINTWISE**
+against the registered bar (median ≤ −5 %, p < 0.05, all 16 seeds present). Per checkpoint:
+−10.0, −27.3, −35.4, −19.0, −6.9, **+3.6**, −4.3, **+0.2**, −20.3, −0.4, −3.0, −9.1, −4.6,
+−4.3, −32.0, −4.4 %.
+
+**The claim stands and the effect size does not.** With the 64 (cell, checkpoint) pairs the
+same A2 statistic reads **−7.10 %, 58/64, p < 0.0001**, against **−15.68 %** on the original
+four checkpoints. **The 4-checkpoint read overstated the margin by more than 2×**, exactly the
+failure the amendment was registered against, and the checkpoint-level median (−5.75 %) now
+sits barely above the 5 % bar with **2 of 16 checkpoints on the wrong side**.
+
+Every descriptive number from the 4-seed subset moves the same way and the node's earlier
+figures are superseded by these:
+
+| statistic at R3 | 4 checkpoints | **16 checkpoints** |
+|---|---|---|
+| `peeronly_1670` vs `mpoff_1670` (pairs) | −15.68 %, 16/16 | **−7.10 %, 58/64** |
+| `peeronly_1670` vs `mpoff_1670` (checkpoints) | — | **−5.75 %, 14/16, p = 0.0011** |
+| `peeronly_1670` vs reactive | −41.37 % | **−41.45 %, 64/64** (checkpoint-level −41.48 %, 16/16) |
+| `mpoff_1670` vs reactive | −28.00 % | **−36.81 %, 64/64** |
+| queue, `peeronly` vs `mpoff` | −15.77 % | **−7.15 %** |
+| peer term, `peeronly` vs `mpoff` | −11.59 %, 15/16 | **−4.81 %, 56/64** |
+
+`mpoff_1670` was **not** as bad as four checkpoints made it look (−36.81 %, not −28.00 %), so
+B1's "the corpus cost `mpoff` +35.49 %" is itself a 4-checkpoint figure and is carried as such
+until the 516 side is extended — which is what **B4 (Amendment 2)** now does.
+
+**A0 re-read `INSTRUMENT-PASS`, `|d| = 0.00000` on all four re-serves**, across a third gate
+submission. The bar, the arm table indices 0–131 and their summaries were untouched.
+
+### 2026-09-17 — AMENDMENT 2: B4, clause 3 with the checkpoint as the unit
+
+**Registered before any B4 arm was submitted.** Bars: `B4_MIN_SEEDS = 16`, `B4_TIE_PCT = 5.0`,
+`B4_ALPHA = 0.05`, `B4_RUNG = "R3"` in `scripts_cosim/peer_only_v1_read.py`.
+
+Clause 3 of the head — *"it loses to the best pointwise arm the program has,
+`peeronly_1670` vs `mpoff_516` = +10.40 %"* — is also a 4-checkpoint read, and B3 has just
+shown a 4-checkpoint read overstating an effect by more than 2×. `mpoff_516` **is**
+`partial_state_v3`'s `mpoff`, all 16 of whose seeds exist and whose re-serve A0 proves
+bit-identical, so the 12 unused ones extend the *same* arm (gate corpus tag `v3ext`, relabelled
+to `516_mpoff` by the read; `tables()` now refuses two summaries for one arm name rather than
+letting the last one win). Paired by training seed across the two corpora, as B1 pairs.
+
+**Consequence signed before the data:** if B4 reads median ≥ +5 % with p < 0.05 the verdict is
+`POINTWISE-STILL-BEST` and clause 3 stands as written. Otherwise it is
+`BEST-ARM-NOT-ESTABLISHED`, clause 3 is **withdrawn**, and CLAUDE.md's second half — "the best
+scheduler the program has is still a pointwise one" — is rewritten to match. 48 arms, ~10 min.
