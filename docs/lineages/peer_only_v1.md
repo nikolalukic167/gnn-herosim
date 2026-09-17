@@ -194,3 +194,24 @@ turns the graph arm into the pointwise twin, live, on every statistic (elapsed, 
 peer cost) — and offline it fits worse than both (A1). `PeerConv` alone carries no live edge.
 Whether the corpus is what it was starved of is Phase B's question; Claim A on its own does
 not make the graph arm win.
+
+### 2026-09-17 — Phase B corpus: **B0 INSTRUMENT-PASS**, 1,657 datasets
+
+Job 781534, 69 min, 41.7 GB. `train2`'s 1,500 datasets received the T1b preparation for the
+first time: SSC rewritten for **1,500/1,500** (from `optimal_result.json`, no simulation),
+alpha pre-scan at 2.0 set aside **13** (1,487 remain) and **all 516 T1b parents stayed in
+place** (asserted). Cache `graphs_cache_peer_only_v1_1670_psv3`: 136 + 1,487 + 34 =
+**1,657 datasets**, 56,870,981 RTT rows, contract `partial_state_v3`, the same V = 1
+measured-clock label and alpha 2.5 as the psv3 cache. **B0:** metadata agrees, the 516
+parents' partial-state ingredients are identical to the psv3 cache's (max diff 0.0, none
+missing), the 34-dataset test split is present in both ⇒ **INSTRUMENT-PASS**. Phase B
+training submitted: job 782116, 48 arms (`gnn`, `mpoff`, `peeronly` × 16 seeds), which
+refused to start without this artefact.
+
+**Job 782116 FAILED in 9 s on every arm, correctly:** `assert_split_artifact_covers` refuses a
+split artifact that does not enumerate exactly the cache's parents, and the T1b artifact knows
+516. The registration's sentence "the split artifact is unchanged" was wrong as a file and
+right as a fact: `experiments/peer_only_v1_1670_split.json` carries **T1b's test (34) and val
+(96) verbatim** and only extends train (386 → 1,527 with the 1,141 new parents), so
+checkpoint selection and the held-out set are identical between the 516- and 1,657-dataset
+arms and B1 pairs like with like. Sha `0f1ee96edeb7…`. Resubmitted as job noted below.
