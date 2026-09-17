@@ -665,3 +665,59 @@ This is `queue_range_v1`'s finding reproduced on a different corpus, a different
 and three new cluster sizes: **the learned arms carry a flat scheduler-side tax that is
 invisible wherever queueing dominates and decisive wherever it does not.** It also bounds the
 whole programme's small-cluster deficit to one mechanism rather than to model quality.
+
+### 2026-09-17 — AMENDMENT 4: B7, the client axis — **and a correction to its premise**
+
+**Registered before any learned arm was submitted.** Bars: `B7_CLIENTS`, `B7_SERVERS = 6`,
+`B7_MIN_SEEDS = 16`, `B7_IMPROVE_PCT = 5.0`, `B7_ALPHA = 0.05`,
+`B7_SATURATED_QUEUE_SHARE = 0.90`, `B7_LOAD_FLAT_PCT = 10.0` in
+`scripts_cosim/peer_only_v1_read.py`.
+
+**The premise this started from is wrong in form, and is not written down anywhere in this
+node.** The motivating idea was "edge computing is many clients and few servers, so sweep
+clients instead of servers". A literature check before fixing the design found that **no
+canonical definition characterises edge by client density, and the "few servers" half is
+actively contradicted**: Bonomi et al. (MCC@SIGCOMM 2012), the most-cited fog characterisation,
+lists **"very large number of nodes"** as a defining property; NIST SP 500-325 and Shi et al.
+(IEEE IoT-J 2016) use location awareness, latency, mobility, heterogeneity and autonomy. There
+is also **no empirical client-to-server ratio to anchor rungs to** — simulator defaults span
+**4:1** (iFogSim, which scales clients and gateways *together*) to **~180:1** (EdgeCloudSim
+derivatives), and the only real geographic data (EUA 816 users / 125 base stations; Shanghai
+Telecom 9,481 / 3,233) counts *candidate base stations*, not deployed servers.
+
+What **is** supported, and what this amendment claims instead: **an edge site is individually
+small and cannot be pooled with its neighbours, so offered load concentrates per site**
+(the ACM CSUR 2023 MEC resource-management survey states this as contention under concurrent
+users). And the *method* has a direct precedent: sweeping devices against fixed edge capacity
+is **EdgeCloudSim's own default protocol** (Sonmez et al., ETT 2018 — 14 fixed edge
+datacenters, 100 → 1,000 mobile devices). The rungs below span a range; they do **not** claim a
+realistic ratio, and the node says so.
+
+**Why this axis is worth the cluster time even so.** It is the **only scaling axis that keeps
+the rungs inside the corpus's candidate support**. A task's candidate set is the servers its
+client can reach, so adding clients adds no candidates. Measured at mint time: **3.85 / 3.83 /
+3.70 / 3.58 / 3.60** mean candidates at 5 / 10 / 20 / 40 / 80 clients — **0.72–0.77× the corpus
+maximum of 5, IN-SUPPORT at every rung**. B5's 80-server rung was **9.6× out**. The clean
+scaling experiment is this one; the server sweep never was.
+
+**Two things decided from the BASELINE alone, before any learned arm is read**
+(`classify_b7_rungs`):
+
+1. **Saturation.** A rung is saturated if reactive Knative's queue is ≥ **90 %** of its
+   elapsed — calibrated on the server ladder, where reactive reads **63 %** at 6 servers
+   (unsaturated) against 94 / 98 / 99 % at 12 / 24 / 80. **The PRIMARY read is the largest
+   UNSATURATED rung.** Saturated rungs are secondary and labelled. This is registered because
+   EdgeCloudSim's own results separate policies precisely where fixed capacity is overwhelmed,
+   and this programme has twice taken a headline from a saturated rung (B2 here,
+   `drainable_regime_v1`'s 940× overload).
+2. **Load or dispersion.** The workload is held at **50,000 tasks for every rung**, so more
+   clients spread the *same* work over more origins rather than offering more of it. If
+   reactive's elapsed is flat within **10 %** across rungs this is a **dispersion sweep with
+   load held** — a stronger design than EdgeCloudSim's, where devices carry requests — and if
+   it rises it is a **load sweep by another name** and will be read as one. Not assumed:
+   measured, by the 16 reactive arms that run before the learned ones.
+
+**Registered expectation: UNCERTAIN on the margin's direction.** B5 falsified a monotone
+expectation already; no shape is predicted here. Cost: 16 reactive arms, then 512 learned
+(2 arms × 4 new rungs × 4 cells × 16 checkpoints); the 20-client rung is `cs6s900X` and is
+already measured.

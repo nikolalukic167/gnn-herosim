@@ -6,7 +6,8 @@ from scripts_cosim.peer_only_v1_read import (
     V_POINTWISE, V_TIE, V_UNREADABLE, headline, read_a0, read_a2_rung, read_a3_rung,
     read_a4_rung, read_b0, read_b1_rung, B3_ALPHA, B3_IMPROVE_PCT, B3_MIN_SEEDS, B3_RUNG,
     B3_SEEDS, V_UNDERPOWERED, collapse_to_seed, read_b3, B5_RUNGS, B5_SERVERS,
-    V_MONOTONE, V_NOT_MONOTONE, read_b5,
+    V_MONOTONE, V_NOT_MONOTONE, read_b5, B7_CLIENTS, B7_LOAD_FLAT_PCT, B7_MIN_SEEDS,
+    B7_SATURATED_QUEUE_SHARE, B7_SERVERS, V_DISPERSION, V_LOAD_SWEEP, classify_b7_rungs,
 )
 
 CELLS = ("cs6s9001", "cs6s9002", "cs6s9003", "cs6s9005")
@@ -157,3 +158,34 @@ def test_b5_refuses_a_partial_ladder():
 def test_b5_rung_table_matches_the_gate():
     assert B5_RUNGS == ("R0", "R1", "R2", "R3")
     assert B5_SERVERS == {"R0": 6, "R1": 12, "R2": 24, "R3": 80}
+
+
+def test_b7_saturation_bar_splits_the_rungs_on_reactive_alone():
+    r = classify_b7_rungs({5: {"elapsed": 22.0, "queue": 13.9},      # 63 % -> unsaturated
+                           10: {"elapsed": 23.0, "queue": 15.0},     # 65 % -> unsaturated
+                           40: {"elapsed": 23.5, "queue": 22.0}})    # 94 % -> saturated
+    assert r["saturated"] == [40] and r["unsaturated"] == [5, 10]
+    assert r["primary_rung"] == 10, "the primary read is the LARGEST unsaturated rung"
+
+
+def test_b7_calls_a_rising_baseline_a_load_sweep():
+    r = classify_b7_rungs({5: {"elapsed": 22.0, "queue": 13.0},
+                           80: {"elapsed": 300.0, "queue": 295.0}})
+    assert r["verdict"] == V_LOAD_SWEEP
+
+
+def test_b7_calls_a_flat_baseline_a_dispersion_sweep():
+    r = classify_b7_rungs({5: {"elapsed": 22.0, "queue": 13.0},
+                           80: {"elapsed": 23.5, "queue": 14.0}})
+    assert r["verdict"] == V_DISPERSION and r["reactive_elapsed_spread_pct"] < 10.0
+
+
+def test_b7_with_every_rung_saturated_has_no_primary():
+    r = classify_b7_rungs({5: {"elapsed": 100.0, "queue": 99.0},
+                           80: {"elapsed": 105.0, "queue": 104.0}})
+    assert r["saturated"] == [5, 80] and r["primary_rung"] is None
+
+
+def test_b7_constants_are_the_registered_values():
+    assert B7_CLIENTS == (5, 10, 20, 40, 80) and B7_SERVERS == 6
+    assert (B7_SATURATED_QUEUE_SHARE, B7_LOAD_FLAT_PCT, B7_MIN_SEEDS) == (0.90, 10.0, 16)
