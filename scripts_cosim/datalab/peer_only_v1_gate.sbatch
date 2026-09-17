@@ -13,7 +13,12 @@
 # P3; the R3 rung is saturated and read relative to reactive or paired between arms only.
 #
 #   sbatch --array=0-35%12   scripts_cosim/datalab/peer_only_v1_gate.sbatch   # A0 + Phase A
-#   sbatch --array=36-131%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch   # Phase B
+#   sbatch --array=36-83%12  scripts_cosim/datalab/peer_only_v1_gate.sbatch   # Phase B, half 1
+#   sbatch --array=84-131%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch   # Phase B, half 2
+#
+# Phase B goes in two halves because the account's MaxSubmit is 50 and an array counts every
+# task against it: --array=36-131 (96 tasks) is rejected with AssocMaxSubmitJobLimit at
+# submission time, after the training array has already drained (peer_only_v1, 2026-09-17).
 #
 #SBATCH --job-name=po-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/po-gate-%A_%a.out
