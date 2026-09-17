@@ -63,8 +63,11 @@ def tables(po: Sequence[dict], p3: Sequence[dict]) -> Dict[str, ArmTable]:
         t["queue"].setdefault(label, {})[(cell, seed)] = float(d["averageQueueTime"])
         t["peer"].setdefault(label, {})[(cell, seed)] = _peer_per_task(d)
 
+    # A2_RUNGS alone drops partial_state_v3's reactive / 516 arms at R1 and R2, which B5's
+    # ladder needs for its per-rung reactive context (peer_only_v1, 2026-09-17).
+    keep_rungs = set(A2_RUNGS) | set(B5_RUNGS)
     for d in p3:
-        if d["rung"] not in A2_RUNGS:
+        if d["rung"] not in keep_rungs:
             continue
         if d["arm_kind"] == "reactive":
             put(d["rung"], "reactive", d["cell"], 0, d)
