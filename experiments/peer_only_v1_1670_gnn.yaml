@@ -8,7 +8,7 @@ unset_env:
 - TRAIN_INIT_CHECKPOINT
 env:
   NEAR_RTT_SAVE_FINAL: '1'
-  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_affinity_v1_t1b_split.json
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_only_v1_1670_split.json
   NEAR_RTT_TASK_TYPE_ONEHOT: '1'
   NEAR_RTT_PARTIAL_STATE_EDGES: '1'
   NEAR_RTT_DAG_ALPHA_KEY: '2.5'

@@ -60,7 +60,12 @@ else
   GUARD=simulation_data/peer_only_v1/b0.json; GUARD_KEY=verdict
 fi
 CK="models/peer-only-v1-${CORPUS}-${ARM}-lr2e3-seed${SEED}.pt"
-SPLIT=experiments/peer_affinity_v1_t1b_split.json
+# The split artifact must enumerate EVERY parent of the cache (assert_split_artifact_covers
+# refuses a subset -- job 782116 died on that in 9 s). The 1,657 artifact carries T1b's test
+# and val verbatim and only extends train, so selection and held-out are identical across
+# the two corpora.
+if [[ $CORPUS == 516 ]]; then SPLIT=experiments/peer_affinity_v1_t1b_split.json
+else SPLIT=experiments/peer_only_v1_1670_split.json; fi
 echo "[TASK $T/$NTASKS] corpus=$CORPUS arm=$ARM seed=$SEED cfg=$CFG cache=$CACHE -> $CK"
 
 [[ -f "$CFG" ]] || { echo "FAIL LOUD: $CFG missing (git pull?)" >&2; exit 1; }
