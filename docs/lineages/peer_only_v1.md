@@ -128,4 +128,24 @@ bars and verdicts. Registered expectation: uncertain — this is the reading the
 
 ## Record
 
-*(none yet — registration only)*
+### 2026-09-17 — Phase A training and A1: **ENCODING-COSTS offline, against the expectation**
+
+Job 781533: **16/16 COMPLETED**, every arm stopped on patience at 130–208 epochs (last
+improvement at 69–147). `peeronly` selects later and more variably than either twin
+(selected epoch 17–147, median 48; `gnn` 24–140, median 72; `mpoff` 22–56, median 38).
+
+**A1** (`simulation_data/peer_only_v1/a1.json`, held-out regret at the selected checkpoint as
+% of the 34 test datasets' mean optimal RTT, paired by training seed, exact Wilcoxon):
+
+| comparison | `peeronly` | twin | paired median Δ | p | `peeronly` ahead | read |
+|---|---|---|---|---|---|---|
+| vs `gnn` | 41.92 % | 38.40 % | **+3.31 pp** | 0.0005 | 1/16 | ENCODING-COSTS |
+| vs `mpoff` | 41.92 % | 40.77 % | **+1.17 pp** | 0.0131 | 4/16 | ENCODING-COSTS |
+
+**The registered expectation (`peeronly` ≈ `gnn`, both ahead of `mpoff`) is refuted
+offline.** On the supervised target, `PeerConv` without the GIN fits held-out *worse* than
+either the full graph arm or the pointwise twin — the offline MP edge is not `PeerConv`
+alone; it needs the platform-side message passing it was measured with. Ordering only
+(rule 6); A2 is the live read and the arm whose offline score is worst has been the arm that
+wins live before (`offline_live_transfer_v1`: the score ranks epochs, never arms). Recorded
+before A2 was read.
