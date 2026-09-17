@@ -8,6 +8,7 @@ from scripts_cosim.peer_only_v1_read import (
     B3_SEEDS, V_UNDERPOWERED, collapse_to_seed, read_b3, B5_RUNGS, B5_SERVERS,
     V_MONOTONE, V_NOT_MONOTONE, read_b5, B7_CLIENTS, B7_LOAD_FLAT_PCT, B7_MIN_SEEDS,
     B7_SATURATED_QUEUE_SHARE, B7_SERVERS, V_DISPERSION, V_LOAD_SWEEP, classify_b7_rungs,
+    B8_CLIENTS, read_b8,
 )
 
 CELLS = ("cs6s9001", "cs6s9002", "cs6s9003", "cs6s9005")
@@ -189,3 +190,25 @@ def test_b7_with_every_rung_saturated_has_no_primary():
 def test_b7_constants_are_the_registered_values():
     assert B7_CLIENTS == (5, 10, 20, 40, 80) and B7_SERVERS == 6
     assert (B7_SATURATED_QUEUE_SHARE, B7_LOAD_FLAT_PCT, B7_MIN_SEEDS) == (0.90, 10.0, 16)
+
+
+def _b4_like(median_pct, p=0.001):
+    from scripts_cosim.peer_only_v1_read import V_BEST_IS_POINTWISE, V_BEST_NOT_ESTABLISHED
+    v = V_BEST_IS_POINTWISE if (median_pct >= 5.0 and p < 0.05) else V_BEST_NOT_ESTABLISHED
+    return {"verdict": v, "median": median_pct, "p": p, "n": 16}
+
+
+def test_b8_holds_only_when_it_holds_at_both_unsaturated_rungs():
+    from scripts_cosim.peer_only_v1_read import V_BEST_IS_POINTWISE, V_BEST_NOT_ESTABLISHED
+    both = read_b8({40: _b4_like(+9.0), 80: _b4_like(+7.0)})
+    assert both["verdict"] == V_BEST_IS_POINTWISE and both["scoped_to_saturated"] is False
+    one = read_b8({40: _b4_like(+9.0), 80: _b4_like(-3.0, p=0.2)})
+    assert one["verdict"] == V_BEST_NOT_ESTABLISHED and one["scoped_to_saturated"] is True
+
+
+def test_b8_refuses_a_partial_ladder():
+    assert read_b8({40: _b4_like(+9.0)})["verdict"] == V_UNREADABLE
+
+
+def test_b8_rungs_are_the_unsaturated_ones_b7_measured():
+    assert B8_CLIENTS == (40, 80) and set(B8_CLIENTS) < set(B7_CLIENTS)

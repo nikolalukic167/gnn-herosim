@@ -14,6 +14,8 @@
 #   Task table (4 client rungs x 4 topology seeds):
 #     reactive  tasks   0-15   knative_network, 1 run per cell (deterministic, no ckpt seed)
 #     learned   tasks  16-527  {peeronly, mpoff} (1670) x 4 rungs x 4 cells x 16 checkpoints
+#     B8        tasks 528-655  mpoff (516, tag v3ext) x {40, 80} clients x 4 cells x 16 --
+#                              AMENDMENT 5: clause 3 at the UNSATURATED rungs
 #
 #   sbatch --array=0-15%12 scripts_cosim/datalab/peer_only_v1_client_gate.sbatch   # baselines first
 #   then 16-63, 64-111, ... in blocks of <= 48 (MaxSubmit = 50 counts every array task)
@@ -27,7 +29,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=01:30:00
-#SBATCH --array=0-527
+#SBATCH --array=0-655
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -84,6 +86,13 @@ done; done
 for a in peeronly mpoff; do for nc in "${CLIENTS[@]}"; do for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=("$nc"); CI+=("$c"); ARMS+=("$a"); SEED+=("$s"); done
 done; done; done
+# B8 -- AMENDMENT 5, tasks 528-655. mpoff on the 516 corpus (partial_state_v3's mpoff, served
+# under the tag v3ext and relabelled 516_mpoff by the read) at the two UNSATURATED client rungs,
+# so clause 3 stops being a single-operating-point read. APPENDED: tasks 0-527 keep their arms.
+B8CLIENTS=(40 80)
+for nc in "${B8CLIENTS[@]}"; do for c in 0 1 2 3; do
+  for s in "${CKSEEDS[@]}"; do NC+=("$nc"); CI+=("$c"); ARMS+=("v3ext_mpoff"); SEED+=("$s"); done
+done; done
 NTASKS=${#ARMS[@]}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
 NCLIENTS=${NC[$T]}; C=${CI[$T]}; ARM=${ARMS[$T]}; S=${SEED[$T]}
@@ -105,7 +114,12 @@ if float(cfg["scheduler"]["batch_timeout"]) != 16.0:
     raise SystemExit("FAIL LOUD: batch_timeout moved -- every policy constant is held fixed")
 PY
 
-ARMNAME="${CELL}__C${NCLIENTS}__1670_${ARM}_s${S}"
+# Resolve kind + corpus BEFORE the arm name is built. v3ext_mpoff is partial_state_v3's mpoff
+# (516 corpus) re-served here; every other arm is a 1670 one. The name must carry the corpus or
+# the two mpoffs collide on one summary path -- the idempotence-guard defect from 2026-09-16.
+if [[ $ARM == v3ext_mpoff ]]; then ARM_KIND=mpoff; CORPUS_TAG=v3ext
+else ARM_KIND=$ARM; CORPUS_TAG=1670; fi
+ARMNAME="${CELL}__C${NCLIENTS}__${CORPUS_TAG}_${ARM_KIND}_s${S}"
 SUMMARY="$OUT_DIR/${ARMNAME}.summary.json"
 echo "[TASK $T] clients=$NCLIENTS cell=$CELL arm=$ARM seed=$S -> $SUMMARY"
 if [[ -f "$SUMMARY" ]]; then echo "[TASK $T] exists, not re-running"; exit 0; fi
@@ -114,11 +128,15 @@ RAW="$OUT_DIR/${ARMNAME}.raw.json"
 if [[ $ARM == reactive ]]; then
   POLICY=knative_network
 else
-  CK="models/peer-only-v1-1670-${ARM}-lr2e3-seed${S}.pt"
+  if [[ $CORPUS_TAG == v3ext ]]; then
+    CK="models/partial-state-v3-${ARM_KIND}-lr2e3-seed${S}.pt"
+  else
+    CK="models/peer-only-v1-1670-${ARM_KIND}-lr2e3-seed${S}.pt"
+  fi
   [[ -f "$CK" ]] || { echo "FAIL LOUD: missing checkpoint $CK" >&2; exit 1; }
   SC="${CK%.pt}.contract.json"
   [[ -f "$SC" ]] || { echo "FAIL LOUD: no sidecar for $CK" >&2; exit 1; }
-  python3 - "$SC" "$ARM" <<'PY'
+  python3 - "$SC" "$ARM_KIND" <<'PY'
 import json, sys
 sc, arm = json.load(open(sys.argv[1])), sys.argv[2]
 want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
@@ -132,7 +150,7 @@ PY
   export GNN_MODEL_PATH="$CK"
   export GNN_DECODE_MODE=masked_topo
   export GNN_BATCH_BY_PEER_GROUP=1
-  if [[ $ARM == mpoff ]]; then export GNN_DISABLE_MESSAGE_PASSING=1; fi
+  if [[ $ARM_KIND == mpoff ]]; then export GNN_DISABLE_MESSAGE_PASSING=1; fi
   POLICY=gnn
 fi
 
@@ -140,11 +158,11 @@ START=$(date +%s)
 python3 src/executesimulation.py --config "$CFG" --workload "$WORKLOAD" --policy "$POLICY" --output "$RAW"
 WALL=$(( $(date +%s) - START ))
 
-python3 - "$RAW" "$SUMMARY" "$ARMNAME" "$CELL" "$NCLIENTS" "$ARM" "$S" "$WALL" <<'PY'
+python3 - "$RAW" "$SUMMARY" "$ARMNAME" "$CELL" "$NCLIENTS" "$ARM_KIND" "$S" "$WALL" "$CORPUS_TAG" <<'PY'
 import json, sys
 sys.path.insert(0, ".")
 from scripts_cosim.offline_live_transfer_v1_decile_read import decile_queue_summary
-raw, summary, arm, cell, nclients, kind, seed, wall = sys.argv[1:9]
+raw, summary, arm, cell, nclients, kind, seed, wall, corpus = sys.argv[1:10]
 doc = json.load(open(raw)); st = doc.get("stats") or doc
 out = {k: st.get(k) for k in (
     "num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime", "averageWaitTime",
@@ -153,7 +171,7 @@ _se = st.get("scaleEvents")
 out["scaleEventCount"] = len(_se) if isinstance(_se, list) else _se
 out["decile_summary"] = decile_queue_summary(st.get("taskResults") or [])
 out.update(arm=arm, cell=cell, clients=int(nclients), servers=6, arm_kind=kind,
-           checkpoint_seed=int(seed), corpus="1670", rung=f"C{nclients}",
+           checkpoint_seed=int(seed), corpus=corpus, rung=f"C{nclients}",
            workload="drainable_f4000_n50000", wallclock_s=int(wall),
            env={k: v for k, v in __import__("os").environ.items()
                 if k.startswith(("GNN_", "HEROSIM_", "PARTIAL_STATE", "QUEUE_FEATURE",

@@ -16,6 +16,7 @@ small summaries; the gate glue maps summary files onto them.
   B5  scale        AMENDMENT 3 (2026-09-17): the B3 contrast at 6 / 12 / 24 / 80 servers
   B6  baseline     reactive Knative across that ladder + the per-term decomposition
   B7  clients      AMENDMENT 4 (2026-09-17): the B3 contrast at 5 / 10 / 20 / 40 / 80 clients
+  B8  best arm     AMENDMENT 5 (2026-09-17): B4 again, at the UNSATURATED client rungs
 """
 from __future__ import annotations
 
@@ -131,6 +132,23 @@ B7_LOAD_FLAT_PCT = 10.0
 # inside the corpus's candidate support (measured at mint time: 3.85 / 3.83 / 3.70 / 3.58 / 3.60
 # mean candidates at 5 / 10 / 20 / 40 / 80 clients, 0.72-0.77x the corpus max of 5), which is
 # the property that makes this axis readable where B5's 80-server rung at 9.6x was not.
+
+# --- B8, AMENDMENT 5, registered 2026-09-17 BEFORE the arms were submitted -----------------
+# B4 settled clause 3 -- "the best scheduler the programme has is still a pointwise one",
+# peeronly_1670 vs mpoff_516 = +11.17 %, 0/16 -- but it was measured at ONE operating point:
+# 80 servers / 20 clients, a SATURATED rung, and the rung where peeronly is at its weakest
+# against its own twin (-4.6 %). B7 then found peeronly 3-5x stronger against that twin at the
+# unsaturated client rungs, and beating reactive Knative outright there. mpoff_516 has never
+# been served at those cells, so the clause is currently quoted outside the conditions it was
+# measured in -- the exact error this lineage has already corrected twice (B3, B4).
+B8_CLIENTS = (40, 80)                    # the two unsaturated rungs where peeronly beats reactive
+# Bars are B4's, unchanged and deliberately reused: B4_TIE_PCT, B4_ALPHA, B4_MIN_SEEDS.
+# Consequence signed before the data:
+#   median >= +5 % and p < alpha at BOTH rungs -> POINTWISE-STILL-BEST holds unsaturated too,
+#     and CLAUDE.md's second half is unchanged;
+#   otherwise -> the clause is SCOPED TO SATURATED RUNGS and CLAUDE.md is rewritten to say so.
+# Registered expectation: UNCERTAIN. B4 got STRONGER with power at 80 servers, and it has never
+# been read where peeronly is strongest. No direction is predicted.
 
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
@@ -306,6 +324,23 @@ def classify_b7_rungs(reactive_by_rung: Mapping[int, Mapping[str, float]]) -> di
             "reactive_elapsed_spread_pct": spread,
             "bar": {"saturated_queue_share": B7_SATURATED_QUEUE_SHARE,
                     "load_flat_pct": B7_LOAD_FLAT_PCT}}
+
+
+def read_b8(per_rung: Mapping[int, dict]) -> dict:
+    """B4 at each unsaturated client rung. The clause holds only if it holds at BOTH."""
+    missing = [c for c in B8_CLIENTS if c not in per_rung]
+    if missing:
+        return {"verdict": V_UNREADABLE, "reason": f"no read at {missing} clients",
+                "per_rung": dict(per_rung)}
+    readable = {c: per_rung[c] for c in B8_CLIENTS if per_rung[c].get("verdict") != V_UNREADABLE}
+    if len(readable) < len(B8_CLIENTS):
+        return {"verdict": V_UNREADABLE, "reason": "a rung is unreadable",
+                "per_rung": dict(per_rung)}
+    holds = all(r["verdict"] == V_BEST_IS_POINTWISE for r in readable.values())
+    return {"verdict": V_BEST_IS_POINTWISE if holds else V_BEST_NOT_ESTABLISHED,
+            "scoped_to_saturated": not holds,
+            "medians": {c: readable[c]["median"] for c in B8_CLIENTS},
+            "per_rung": dict(per_rung)}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:
