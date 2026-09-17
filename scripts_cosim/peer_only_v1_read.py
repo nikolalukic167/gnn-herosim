@@ -73,6 +73,7 @@ B5_RUNGS = ("R0", "R1", "R2", "R3")
 B5_SERVERS = {"R0": 6, "R1": 12, "R2": 24, "R3": 80}
 B5_MIN_SEEDS = 16
 B5_IMPROVE_PCT, B5_ALPHA = 5.0, 0.05     # same bar as B3, applied per rung
+B5_DISCLOSED_MIN_SEEDS = 12              # the DISCLOSED read only; never the registered bar
 # Registered expectation: MONOTONE -- the margin grows with cluster size, because the measured
 # advantage is queue-driven (99 % of it) and queue pressure grows with the rung. Falsified if
 # the per-rung medians are not ordered R0 >= R1 >= R2 >= R3, which is a real prediction: a
@@ -191,10 +192,16 @@ def collapse_to_seed(arm: Mapping[PairKey, float], *, rung_cells: Sequence[str])
     return out
 
 
-def read_b3(peeronly_by_seed: Mapping[int, float], mpoff_by_seed: Mapping[int, float]) -> dict:
-    """B2's contrast with the CHECKPOINT as the unit -- one value per seed, all 16 required."""
+def read_b3(peeronly_by_seed: Mapping[int, float], mpoff_by_seed: Mapping[int, float],
+            *, min_seeds: Optional[int] = None) -> dict:
+    """B2's contrast with the CHECKPOINT as the unit -- one value per seed, all 16 required.
+
+    `min_seeds` is ONLY for the disclosed read of a ladder that lost an arm to a resource kill
+    (B5). It never relaxes the registered bar: the caller must label such a result disclosed.
+    """
     r = paired_tie(dict(peeronly_by_seed), dict(mpoff_by_seed), tol=B3_IMPROVE_PCT,
-                   alpha=B3_ALPHA, min_seeds=B3_MIN_SEEDS, relative=True)
+                   alpha=B3_ALPHA, min_seeds=B3_MIN_SEEDS if min_seeds is None else min_seeds,
+                   relative=True)
     if r["verdict"] == V_UNREADABLE:
         return r
     beats = r["median"] <= -B3_IMPROVE_PCT and r["p"] < B3_ALPHA
