@@ -214,4 +214,4 @@ split artifact that does not enumerate exactly the cache's parents, and the T1b 
 right as a fact: `experiments/peer_only_v1_1670_split.json` carries **T1b's test (34) and val
 (96) verbatim** and only extends train (386 → 1,527 with the 1,141 new parents), so
 checkpoint selection and the held-out set are identical between the 516- and 1,657-dataset
-arms and B1 pairs like with like. Sha `0f1ee96edeb7…`. Resubmitted as job noted below.
+arms and B1 pairs like with like. Sha `0f1ee96edeb7…`. Resubmitted as job **782166**.
