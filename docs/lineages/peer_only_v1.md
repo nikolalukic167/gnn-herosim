@@ -5,23 +5,27 @@ the best pointwise arm anyway.** Registered 2026-09-16; every bar below is a mod
 in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
 
 **Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
-beats its MP-OFF twin on elapsed by **−15.68 %** and beats reactive Knative by **−41.4 %**, on
-every one of the 16 (cell, checkpoint) pairs — **the first measurement in this program where a
-message-passing arm beats both its own pointwise twin and reactive on the same cells.** Read
-the clauses before quoting it; none is optional, and the first two are corrections to how this
-was first written up.
+beats its MP-OFF twin on elapsed by **−5.75 %** (16 checkpoints, 14/16, p = 0.0011; −7.10 % over
+the 64 (cell, checkpoint) pairs) and beats reactive Knative by **−41.5 %** on **64/64** pairs
+and **16/16** checkpoints — **the first measurement in this program where a message-passing arm
+beats both its own pointwise twin and reactive on the same cells.** Read the clauses before
+quoting it; none is optional. Both halves are read at **n = 16 checkpoints** after Amendments 1
+and 2; the first write-up quoted −15.68 % from a 4-checkpoint subset that overstated the margin
+by more than 2×.
 
-1. **`n` is 4 checkpoints × 4 cells, not 16 seeds.** A2 registered the pair as the unit and
-   the bar was honoured as signed, but a claim about an *architecture* has the **checkpoint**
-   as its independent unit. Four of them cannot yield a two-sided sign-test p below **0.125**.
-   The four seed-level medians are −9.75, −27.16, −20.15, −5.86 %. **B3 (Amendment 1)**
-   re-reads the contrast over all 16 trained checkpoints and is the number to quote.
+1. **The original `n` was 4 checkpoints × 4 cells, not 16 seeds — and it mattered.** A2
+   registered the pair as the unit and the bar was honoured as signed, but a claim about an
+   *architecture* has the **checkpoint** as its independent unit. **B3 (Amendment 1)** re-read
+   it on all 16: the margin fell from −15.68 % to **−5.75 %**, barely above the 5 % bar, with
+   **2 of 16 checkpoints on the wrong side**. Every descriptive figure from the subset moved
+   with it (the twin is −36.81 % vs reactive, not −28.00 %).
 2. **The margin is queue, not peers.** Elapsed at R3 is ~99 % queue; the peer term — what
    `PeerConv` exists to improve — differs by **0.66 s of a 78 s gap, under 1 %**. The arm wins
    on queue and autoscaler churn (92 scale events vs 120). B2 is therefore **not** evidence
    that peer-graph reasoning is what pays.
 3. **It loses to the best pointwise arm the program has.** `peeronly_1670` vs `mpoff_516` is
-   **+10.40 %, 0/16, p = 0.0004**. The win is corpus-matched, as registered; the best
+   **+11.17 %, 0/16 checkpoints, p = 0.0004** (**B4**, Amendment 2, 16 checkpoints — this
+   clause got *stronger* with power). The win is corpus-matched, as registered; the best
    available scheduler at that rung is still pointwise, and **both** 516 arms beat **every**
    1,670 arm.
 4. **More data made every arm worse live** — B1 reads CORPUS-DOES-NOT-HELP on 6/6 arm × rung,
@@ -36,7 +40,7 @@ was first written up.
    relative to reactive on the same cell. At the unsaturated 6-server rung **every arm loses
    to reactive** and B2 is a TIE.
 7. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
-   (16/16) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
+   (16/16 pairs, 4 checkpoints — `gnn` was not extended) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
    queue improves against *both* twins, so "GIN is the over-reaction" does not isolate it.
 
 One thing runs the *other* way and is carried with the rest: the advantage **grows across the
@@ -513,3 +517,31 @@ letting the last one win). Paired by training seed across the two corpora, as B1
 `POINTWISE-STILL-BEST` and clause 3 stands as written. Otherwise it is
 `BEST-ARM-NOT-ESTABLISHED`, clause 3 is **withdrawn**, and CLAUDE.md's second half — "the best
 scheduler the program has is still a pointwise one" — is rewritten to match. 48 arms, ~10 min.
+
+### 2026-09-17 — B4: **POINTWISE-STILL-BEST**, and clause 3 gets *stronger* with power
+
+Job **783389**, 48/48 arms COMPLETED. `peeronly_1670` vs `mpoff_516` at R3, one value per
+checkpoint, 16 seeds: median **+11.17 %**, **p = 0.0004**, **0/16 checkpoints ahead** ⇒
+**POINTWISE-STILL-BEST**. Per checkpoint: +1.7, +8.0, +5.1, +13.3, +18.2, +15.5, +15.5, +31.2,
++31.1, +11.3, +11.0, +12.9, +7.9, +3.7, +9.5, +7.5 % — the pointwise arm ahead on **every
+one**, and the 4-checkpoint estimate (+10.40 %) was, unusually, a slight *under*-statement.
+
+**The two amendments move the headline in opposite directions, and both were signed before
+their data.**
+
+| claim | 4 checkpoints | 16 checkpoints | verdict |
+|---|---|---|---|
+| B3 — `peeronly` beats its MP-OFF twin | −15.68 % | **−5.75 %**, 14/16, p = 0.0011 | holds, **margin more than halved** |
+| B4 — the best pointwise arm is still ahead | +10.40 % | **+11.17 %**, 0/16, p = 0.0004 | holds, **strengthened** |
+
+So the lineage's two-part answer survives with its weaker half weakened and its stronger half
+confirmed: **message passing over the peer graph does beat its own MP-OFF twin live, by about
+6 % rather than 16 %, and the best scheduler the program has is still the pointwise arm trained
+on the small corpus, by 11 % on every checkpoint.** Both halves are now read at n = 16
+checkpoints; neither rests on four draws.
+
+What this costs the "first arm to beat both" sentence: nothing in kind — `peeronly_1670` still
+beats reactive on **64/64** pairs and **16/16** checkpoints (−41.5 %) while beating its twin —
+and a great deal in degree. The arm that does it is PeerConv-only, its margin over the twin is
+~6 %, its advantage is 99 % queue rather than peer placement, and a pointwise arm on a third of
+the data is 11 % faster than it.
