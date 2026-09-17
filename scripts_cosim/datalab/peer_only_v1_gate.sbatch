@@ -13,6 +13,8 @@
 #   B4      tasks 228-275 mpoff (516, served as corpus tag v3ext) x R3 x 4 cells x those 12 --
 #                         AMENDMENT 2: the same fix for clause 3, the comparison against the
 #                         best pointwise arm, which was also read on 4 checkpoints.
+#   B5b     tasks 532-627 the same two arms at R0 (6 servers) x 4 cells x the other 12 seeds,
+#                         so every rung of the B5 ladder rests on 16 checkpoints.
 #   B5      tasks 276-531 {peeronly, mpoff} (1670) x {R1=12, R2=24 servers} x 4 cells x 16 --
 #                         AMENDMENT 3: the middle of the cluster-size curve. Reactive at those
 #                         rungs is already in results/psv3_p3, so only the learned arms run.
@@ -28,6 +30,7 @@
 #   sbatch --array=180-227%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B3, half 2
 #   sbatch --array=228-275%12 scripts_cosim/datalab/peer_only_v1_gate.sbatch  # B4
 #   B5 is 256 tasks: submit 276-323, 324-371, 372-419, 420-467, 468-515, 516-531 (%12 each)
+#   B5b is 96 tasks at R0: submit 532-579, 580-627 (%12 each)
 #
 # Phase B goes in two halves because the account's MaxSubmit is 50 and an array counts every
 # task against it: --array=36-131 (96 tasks) is rejected with AssocMaxSubmitJobLimit at
@@ -42,7 +45,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-531
+#SBATCH --array=0-627
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -98,6 +101,10 @@ for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("v3ext"); ARMS+=("mpoff
 # those rungs already exists in results/psv3_p3, which is why only the learned arms are run.
 ALLSEEDS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16)
 for a in peeronly mpoff; do for r in 2 3; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("1670"); ARMS+=("$a"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done; done
+# B5b -- tasks 532-627. R0 (6 servers) was left at the original 4 checkpoints when B5 filled in
+# R1 and R2, which made the ladder's bottom rung the one that could not be read. Same 12 extra
+# checkpoints, rung index 0.
+for a in peeronly mpoff; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"); ARMS+=("$a"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
