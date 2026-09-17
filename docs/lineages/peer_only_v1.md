@@ -721,3 +721,47 @@ scaling experiment is this one; the server sweep never was.
 expectation already; no shape is predicted here. Cost: 16 reactive arms, then 512 learned
 (2 arms × 4 new rungs × 4 cells × 16 checkpoints); the 20-client rung is `cs6s900X` and is
 already measured.
+
+### 2026-09-17 — B7 baselines: **the 5- and 10-client rungs are UNSERVABLE, by every policy**
+
+Job **783999**, the 16 reactive arms that run before any learned arm — the smoke test earned
+its cost immediately. **8 of 16 TIMEOUT at the 90-minute wall**, and they are exactly the two
+smallest rungs:
+
+| clients | reactive state | sim clock reached in 90 min | trace length |
+|---|---|---|---|
+| 5 | **TIMEOUT 4/4** | t ≈ 6,516 s (**6 %**) | ~108,000 s |
+| 10 | **TIMEOUT 4/4** | t ≈ 27,071 s (**25 %**) | ~108,000 s |
+| 40 | COMPLETED 4/4 | — | — |
+| 80 | COMPLETED 4/4 | — | — |
+
+The clock **advances** in both — this is not a frozen hang — but at 5 clients an arm would need
+roughly **25 hours**. The mechanism is the documented starved-client retry path: with 5 clients
+over 6 servers each client holds ~10,000 of the 50,000 tasks and reaches as few as **2** servers
+(minimum reachable, measured at mint), so postponed tasks are retried every 0.02 s and the event
+count per unit sim time explodes. **Reactive Knative is as affected as the learned arms**, so
+this is a property of the configuration, not of a policy — the same class as the 5-of-20
+unservable topology draws already in `docs/gates/gate-tools.md`.
+
+**`B7_CLIENTS` is not edited.** The two rungs are recorded as **UNSERVABLE-BY-EVERY-POLICY**
+and the ladder is read on the servable ones, disclosed — the same read-by-cause discipline as
+B5's OOM arm. Rung **20** is `cs6s900X`, already measured at 16 checkpoints.
+
+**Classification from the baseline alone, against the bars registered before it ran:**
+
+| clients | reactive elapsed | queue | queue share | saturated? |
+|---|---|---|---|---|
+| 20 | 22.22 | 14.10 | 63.4 % | no |
+| 40 | 30.54 | 22.17 | 72.6 % | no |
+| 80 | 31.55 | 23.08 | 73.2 % | no |
+
+- **Every servable rung is UNSATURATED** (all below the registered 90 % bar), so the primary
+  read is the largest of them, **80 clients**. **This is the first unsaturated ladder in the
+  programme** — every live win to date has come from a saturated rung, and B2's whole
+  saturation carry exists because of that.
+- **`LOAD-SWEEP-BY-ANOTHER-NAME`.** Reactive's elapsed spans **22.22 → 31.55 s, a 42 % spread**
+  against the registered 10 % flat band, so holding the workload at 50,000 tasks did **not**
+  hold load: spreading the same work over more clients raises reactive's queue from 14.10 to
+  23.08 s. The design intent (a dispersion sweep) is not what was built, and the read says so
+  rather than the node claiming it. The useful consequence stands anyway — it is a load sweep
+  that stays **below** saturation, which is the regime this programme has never had.
