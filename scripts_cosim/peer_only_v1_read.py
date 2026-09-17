@@ -11,6 +11,7 @@ small summaries; the gate glue maps summary files onto them.
   B0  corpus       1,670 cache instrument
   B1  corpus lever each arm 1670 vs 516, paired by seed
   B2  headline     peeronly_1670 vs mpoff_1670 (A2 bars)
+  B3  power        AMENDMENT 1 (2026-09-17): B2 again with the CHECKPOINT as the unit
 """
 from __future__ import annotations
 
@@ -31,12 +32,27 @@ B0_MIN_DATASETS = 1500
 B1_IMPROVE_PCT, B1_ALPHA = 5.0, 0.05
 CHECKPOINT_SEEDS = (1, 2, 4, 5)
 
+# --- B3, AMENDMENT 1, registered 2026-09-17 BEFORE the extra arms were submitted ----------
+# B2 pairs by (cell, checkpoint seed) and reports n = 16 from 4 checkpoints x 4 cells. The bar
+# was signed that way and is read that way. But a claim about an ARCHITECTURE has the
+# checkpoint as its independent unit, and four of them cannot produce a two-sided sign-test p
+# below 0.125 however consistent they are. B3 re-reads the same contrast with one value per
+# checkpoint -- the median over that checkpoint's four cells -- on all 16 trained seeds.
+B3_SEEDS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+B3_MIN_SEEDS = 16              # every trained checkpoint, or the read is UNREADABLE
+B3_IMPROVE_PCT, B3_ALPHA = 5.0, 0.05
+B3_RUNG = "R3"                 # the rung B2's headline is claimed at
+# Registered expectation: POSITIVE in direction (4/4 checkpoints already agree), UNCERTAIN on
+# significance. If B3 does not clear, the headline is recorded as UNDERPOWERED and CLAUDE.md's
+# standing answer reverts to its pre-2026-09-17 wording. That consequence is signed here.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
 V_GIN_OVERREACTION, V_MECHANISM_NO = "GIN-IS-THE-OVERREACTION", "MECHANISM-NOT-CONFIRMED"
 V_PEER_KEPT, V_PEER_LOST = "PEER-TERM-KEPT", "PEER-TERM-LOST"
 V_CORPUS_HELPS, V_CORPUS_NO = "CORPUS-HELPS", "CORPUS-DOES-NOT-HELP"
+V_UNDERPOWERED = "PEERONLY-BEATS-POINTWISE-UNDERPOWERED"
 V_UNREADABLE = "UNREADABLE"
 
 PairKey = Tuple[str, int]      # (cell, checkpoint seed)
@@ -113,6 +129,35 @@ def read_b1_rung(arm_1670: Mapping[PairKey, float], arm_516: Mapping[PairKey, fl
         return r
     helps = r["median"] <= -B1_IMPROVE_PCT and r["p"] < B1_ALPHA
     return {**r, "verdict": V_CORPUS_HELPS if helps else V_CORPUS_NO}
+
+
+def collapse_to_seed(arm: Mapping[PairKey, float], *, rung_cells: Sequence[str]) -> Dict[int, float]:
+    """One value per checkpoint seed: the median over that checkpoint's cells.
+
+    Fails loud rather than averaging over a ragged set -- every seed must carry every cell,
+    otherwise two checkpoints are being compared on different clusters.
+    """
+    by_seed: Dict[int, Dict[str, float]] = {}
+    for (cell, seed), v in arm.items():
+        by_seed.setdefault(int(seed), {})[cell] = float(v)
+    out: Dict[int, float] = {}
+    for seed, cells in by_seed.items():
+        missing = [c for c in rung_cells if c not in cells]
+        if missing:
+            raise ValueError(f"FAIL LOUD: checkpoint seed {seed} is missing cells {missing}")
+        out[seed] = median([cells[c] for c in rung_cells])
+    return out
+
+
+def read_b3(peeronly_by_seed: Mapping[int, float], mpoff_by_seed: Mapping[int, float]) -> dict:
+    """B2's contrast with the CHECKPOINT as the unit -- one value per seed, all 16 required."""
+    r = paired_tie(dict(peeronly_by_seed), dict(mpoff_by_seed), tol=B3_IMPROVE_PCT,
+                   alpha=B3_ALPHA, min_seeds=B3_MIN_SEEDS, relative=True)
+    if r["verdict"] == V_UNREADABLE:
+        return r
+    beats = r["median"] <= -B3_IMPROVE_PCT and r["p"] < B3_ALPHA
+    return {**r, "verdict": V_BEATS if beats else V_UNDERPOWERED,
+            "bar": {"improve_pct": B3_IMPROVE_PCT, "alpha": B3_ALPHA, "min_seeds": B3_MIN_SEEDS}}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:

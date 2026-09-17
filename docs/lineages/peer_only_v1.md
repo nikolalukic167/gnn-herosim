@@ -353,3 +353,33 @@ isolates the cause ⇒ **MECHANISM-NOT-CONFIRMED** at both rungs.
 
 Read: `scripts_cosim/peer_only_v1_gate_read.py --phase b`,
 `simulation_data/peer_only_v1/phase_b.json`.
+
+### 2026-09-17 — AMENDMENT 1: B3, the same contrast with the checkpoint as the unit
+
+**Registered before any B3 arm was submitted.** Bars are module constants in
+`scripts_cosim/peer_only_v1_read.py` (`B3_SEEDS`, `B3_MIN_SEEDS = 16`,
+`B3_IMPROVE_PCT = 5.0`, `B3_ALPHA = 0.05`, `B3_RUNG = "R3"`), committed with this section.
+
+**Why.** B2 pairs by (cell, checkpoint seed) and reports **n = 16** from `CKSEEDS = (1, 2, 4, 5)`
+crossed with 4 topology cells. That is exactly what A2 registered (`A2_MIN_PAIRS = 12`) and the
+bar was honoured as signed — this is not a violated bar. But the headline is a claim about an
+**architecture**, and for that claim the independent unit is the **checkpoint**, of which there
+are four. Their seed-level medians of the `peeronly`/`mpoff` ratio at R3 are −9.75 %, −27.16 %,
+−20.15 %, −5.86 %: all four negative, and a two-sided sign test on four units cannot go below
+**p = 0.125** however consistent they are. The reactive comparison is thinner still — one
+reactive run per cell, so "16/16 vs reactive" re-uses 4 cells four times. `peer_affinity_v1`'s
+"13/16 seeds" was 16 *training* seeds; this lineage's "16/16" is not the same quantity.
+
+**B3.** All 16 trained checkpoints of `peeronly_1670` and `mpoff_1670`, R3 only, 4 cells each.
+One value per checkpoint — the median over its four cells (`collapse_to_seed`, which fails loud
+on a ragged row rather than averaging over what it has) — then the paired exact Wilcoxon over
+16 checkpoints. `PEERONLY-BEATS-POINTWISE` if median ≤ −5 % and p < 0.05; otherwise
+**`PEERONLY-BEATS-POINTWISE-UNDERPOWERED`**.
+
+**The consequence is signed here, before the data.** If B3 does not clear, the node records the
+headline as underpowered and CLAUDE.md's standing answer reverts to its pre-2026-09-17 wording.
+If it does clear, the standing answer keeps its two halves and gains the seed-level number.
+
+Cost: 96 arms at ~2 min each, submitted as two arrays of 48 (`MaxSubmit = 50`). The checkpoints
+already exist; nothing is retrained. Tasks 132–227 are **appended** to the gate's table so
+indices 0–131 keep their arms and their summaries are never re-read.

@@ -4,7 +4,8 @@ from scripts_cosim.peer_only_v1_read import (
     B0_MIN_DATASETS, B1_IMPROVE_PCT, CHECKPOINT_SEEDS, V_A0_FAIL, V_A0_PASS, V_BEATS,
     V_CORPUS_HELPS, V_CORPUS_NO, V_GIN_OVERREACTION, V_MECHANISM_NO, V_PEER_KEPT, V_PEER_LOST,
     V_POINTWISE, V_TIE, V_UNREADABLE, headline, read_a0, read_a2_rung, read_a3_rung,
-    read_a4_rung, read_b0, read_b1_rung,
+    read_a4_rung, read_b0, read_b1_rung, B3_ALPHA, B3_IMPROVE_PCT, B3_MIN_SEEDS, B3_RUNG,
+    B3_SEEDS, V_UNDERPOWERED, collapse_to_seed, read_b3,
 )
 
 CELLS = ("cs6s9001", "cs6s9002", "cs6s9003", "cs6s9005")
@@ -75,3 +76,54 @@ def test_b0_instrument():
     assert read_b0(1499, True, 0.0, True)["verdict"] == "CORPUS-NOT-COMPARABLE"
     assert read_b0(1670, True, 1e-9, True)["verdict"] == "CORPUS-NOT-COMPARABLE"
     assert read_b0(1670, True, 0.0, False)["verdict"] == "CORPUS-NOT-COMPARABLE"
+
+
+def _seed_pairs(seeds, base=20.0, scale=1.0, jitter=0.0):
+    """One (cell, seed) entry per cell for each seed, so collapse_to_seed has a full row."""
+    out = {}
+    for i, c in enumerate(CELLS):
+        for s in seeds:
+            out[(c, s)] = (base + i) * scale * (1.0 + jitter * ((s % 3) - 1))
+    return out
+
+
+def test_collapse_to_seed_takes_the_median_over_cells():
+    arm = {("cs6s9001", 1): 10.0, ("cs6s9002", 1): 20.0, ("cs6s9003", 1): 30.0,
+           ("cs6s9005", 1): 40.0}
+    assert collapse_to_seed(arm, rung_cells=CELLS) == {1: 25.0}
+
+
+def test_collapse_to_seed_fails_loud_on_a_ragged_seed():
+    arm = {("cs6s9001", 1): 10.0, ("cs6s9002", 1): 20.0}
+    try:
+        collapse_to_seed(arm, rung_cells=CELLS)
+    except ValueError as exc:
+        assert "cs6s9003" in str(exc)
+    else:
+        raise AssertionError("a seed missing two cells must fail loud, not average over what it has")
+
+
+def test_b3_requires_every_trained_checkpoint():
+    few = tuple(range(1, 13))
+    po = collapse_to_seed(_seed_pairs(few, scale=0.80), rung_cells=CELLS)
+    mp = collapse_to_seed(_seed_pairs(few), rung_cells=CELLS)
+    assert read_b3(po, mp)["verdict"] == V_UNREADABLE
+    assert read_b3(po, mp)["n"] == len(few) < B3_MIN_SEEDS
+
+
+def test_b3_confirms_only_a_consistent_and_large_seed_level_margin():
+    po = collapse_to_seed(_seed_pairs(B3_SEEDS, scale=0.80), rung_cells=CELLS)
+    mp = collapse_to_seed(_seed_pairs(B3_SEEDS), rung_cells=CELLS)
+    r = read_b3(po, mp)
+    assert r["verdict"] == V_BEATS and r["n"] == B3_MIN_SEEDS and r["median"] < -B3_IMPROVE_PCT
+    # inside the band -> underpowered, not a win
+    near = collapse_to_seed(_seed_pairs(B3_SEEDS, scale=0.98), rung_cells=CELLS)
+    assert read_b3(near, mp)["verdict"] == V_UNDERPOWERED
+    # large but the wrong way -> also not a win
+    worse = collapse_to_seed(_seed_pairs(B3_SEEDS, scale=1.20), rung_cells=CELLS)
+    assert read_b3(worse, mp)["verdict"] == V_UNDERPOWERED
+
+
+def test_b3_bar_constants_are_registered_values():
+    assert (B3_IMPROVE_PCT, B3_ALPHA, B3_MIN_SEEDS, B3_RUNG) == (5.0, 0.05, 16, "R3")
+    assert len(B3_SEEDS) == 16 and set(CHECKPOINT_SEEDS) <= set(B3_SEEDS)
