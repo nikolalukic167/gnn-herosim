@@ -140,8 +140,17 @@ else
 import json, sys
 sc, arm = json.load(open(sys.argv[1])), sys.argv[2]
 want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
-        "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22,
-        "mp_platform_edges": arm != "peeronly"}
+        "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22}
+# mp_platform_edges postdates the partial_state_v3 checkpoints, so the key is ABSENT from
+# their sidecars. Absent means the documented default (GIN on), and for mpoff it is moot --
+# disable_message_passing=True already turns all message passing off. Demanding it
+# unconditionally failed all 48 B8 arms of job 784522, correctly and loudly. Same rule as
+# peer_only_v1_gate.sbatch: peeronly must declare False, everyone else is checked only if
+# the key is there.
+if arm == "peeronly":
+    want["mp_platform_edges"] = False
+elif "mp_platform_edges" in sc:
+    want["mp_platform_edges"] = True
 for k, v in want.items():
     if sc.get(k) != v:
         raise SystemExit(f"FAIL LOUD: sidecar {k}={sc.get(k)!r}, arm {arm} expects {v!r}")
