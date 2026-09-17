@@ -32,13 +32,16 @@ def _p3():
     return docs
 
 
-def _po(po_scale=1.0, po_queue_scale=1.0, po_peer=10.0, a0_drift=0.0, corpus="516"):
+def _po(po_scale=1.0, po_queue_scale=1.0, po_peer=10.0, a0_drift=0.0, corpus="516", with_a0=True):
+    """with_a0=False when a second _po() is concatenated: a real gate writes one summary FILE
+    per arm name, so two A0 re-serves of the same arm cannot exist and tables() refuses them."""
     docs = []
     for rung, cells in CELLS.items():
         # A0 re-serves: v3 gnn/mpoff seed 1 on the first cell
         c0 = cells[0]; react = 20.0
-        docs.append(_doc(rung, c0, "gnn", 1, react * 1.6 + 0.01 + a0_drift, react * 1.4, corpus="v3"))
-        docs.append(_doc(rung, c0, "mpoff", 1, react * 1.3 + 0.01 + a0_drift, react * 1.0, corpus="v3"))
+        if with_a0:
+            docs.append(_doc(rung, c0, "gnn", 1, react * 1.6 + 0.01 + a0_drift, react * 1.4, corpus="v3"))
+            docs.append(_doc(rung, c0, "mpoff", 1, react * 1.3 + 0.01 + a0_drift, react * 1.0, corpus="v3"))
         for i, c in enumerate(cells):
             react = 20.0 + i
             for s in CHECKPOINT_SEEDS:
@@ -78,7 +81,7 @@ def test_phase_a_beats_and_pointwise():
 
 
 def test_b1_reads_the_corpus_lever_per_arm():
-    po = _po() + _po(po_scale=0.9, corpus="1670")
+    po = _po() + _po(po_scale=0.9, corpus="1670", with_a0=False)
     # add 1670 gnn/mpoff arms that are 10 % faster than their 516 twins
     for d in _p3():
         if d["arm_kind"] in ("gnn", "mpoff"):
@@ -110,3 +113,23 @@ def test_b3_collapses_to_one_value_per_checkpoint_and_needs_all_16():
     r = read_b3(tables(full, []))
     assert r["n"] == 16 and r["median"] < -5.0 and r["rung"] == "R3"
     assert sorted(r["per_seed_pct"]) == list(range(1, 17))
+
+
+def test_tables_refuses_two_summaries_for_one_arm():
+    """The arm name is the summary file name; a duplicate means a naming collision upstream."""
+    d = _sum("cs80s9001", "R3", "1670", "peeronly", 1, 80.0)
+    try:
+        tables([d, {**d, "averageElapsedTime": 999.0}], [])
+    except ValueError as exc:
+        assert "colliding" in str(exc)
+    else:
+        raise AssertionError("a duplicate arm must fail loud, not let the last one win")
+
+
+def test_v3ext_extends_the_516_mpoff_arm():
+    """B4 serves partial_state_v3's mpoff under the tag v3ext; it must land on the 516 label."""
+    cells = ("cs80s9001", "cs80s9002", "cs80s9003", "cs80s9005")
+    docs = [_sum(c, "R3", "v3ext", "mpoff", s, 100.0) for c in cells for s in (3, 6)]
+    tab = tables(docs, [])
+    assert set(tab["R3"]["elapsed"]) == {"516_mpoff"}
+    assert sorted({s for _, s in tab["R3"]["elapsed"]["516_mpoff"]}) == [3, 6]

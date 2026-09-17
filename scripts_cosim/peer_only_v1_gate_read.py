@@ -21,10 +21,11 @@ import os
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from scripts_cosim.peer_only_v1_read import (
-    A2_RUNGS, B3_RUNG, V_UNREADABLE, collapse_to_seed, headline, read_a0, read_a2_rung,
-    read_a3_rung, read_a4_rung, read_b1_rung,
+    A2_RUNGS, B3_RUNG, B4_RUNG, V_UNREADABLE, collapse_to_seed, headline, read_a0,
+    read_a2_rung, read_a3_rung, read_a4_rung, read_b1_rung,
 )
 from scripts_cosim.peer_only_v1_read import read_b3 as read_b3_bar
+from scripts_cosim.peer_only_v1_read import read_b4 as read_b4_bar
 
 PairKey = Tuple[str, int]
 ArmTable = Dict[str, Dict[str, Dict[PairKey, float]]]     # metric -> arm label -> {(cell, seed): value}
@@ -52,6 +53,9 @@ def tables(po: Sequence[dict], p3: Sequence[dict]) -> Dict[str, ArmTable]:
 
     def put(rung, label, cell, seed, d):
         t = out.setdefault(rung, {"elapsed": {}, "queue": {}, "peer": {}})
+        if (cell, seed) in t["elapsed"].get(label, {}):
+            raise ValueError(f"FAIL LOUD: two summaries for {label} at {(cell, seed)} in {rung} "
+                             "-- an arm name is colliding, do not let one silently win")
         t["elapsed"].setdefault(label, {})[(cell, seed)] = float(d["averageElapsedTime"])
         t["queue"].setdefault(label, {})[(cell, seed)] = float(d["averageQueueTime"])
         t["peer"].setdefault(label, {})[(cell, seed)] = _peer_per_task(d)
@@ -64,7 +68,10 @@ def tables(po: Sequence[dict], p3: Sequence[dict]) -> Dict[str, ArmTable]:
         else:
             put(d["rung"], f"516_{d['arm_kind']}", d["cell"], int(d["checkpoint_seed"]), d)
     for d in po:
-        put(d["rung"], f"{d['corpus']}_{d['arm_kind']}", d["cell"], int(d["checkpoint_seed"]), d)
+        # v3ext is B4's extension of the 516-corpus mpoff arm: same checkpoints partial_state_v3
+        # trained, whose re-serve A0 proves bit-identical, so it carries the 516_* label.
+        corpus = "516" if d["corpus"] == "v3ext" else d["corpus"]
+        put(d["rung"], f"{corpus}_{d['arm_kind']}", d["cell"], int(d["checkpoint_seed"]), d)
     return out
 
 
@@ -136,6 +143,33 @@ def read_b3(tab: Mapping[str, ArmTable]) -> dict:
             "per_seed_pct": {s: 100.0 * (po[s] / mp[s] - 1.0) for s in sorted(set(po) & set(mp))}}
 
 
+def read_b4(tab: Mapping[str, ArmTable]) -> dict:
+    """AMENDMENT 2: clause 3 -- peeronly_1670 vs mpoff_516 -- with the checkpoint as the unit."""
+    t = tab.get(B4_RUNG)
+    if not t:
+        return {"verdict": V_UNREADABLE, "reason": f"no summaries at {B4_RUNG}"}
+    po_pairs, mp_pairs = t["elapsed"].get("1670_peeronly", {}), t["elapsed"].get("516_mpoff", {})
+    cells = sorted({c for c, _ in po_pairs} & {c for c, _ in mp_pairs})
+    if not cells:
+        return {"verdict": V_UNREADABLE, "reason": "no shared cells"}
+    po = collapse_to_seed(po_pairs, rung_cells=cells)
+    mp = collapse_to_seed(mp_pairs, rung_cells=cells)
+    shared = sorted(set(po) & set(mp))
+    r = read_b4_bar({s: po[s] for s in shared}, {s: mp[s] for s in shared})
+    return {**r, "rung": B4_RUNG, "cells": cells,
+            "per_seed_pct": {s: 100.0 * (po[s] / mp[s] - 1.0) for s in shared}}
+
+
+def format_b4(res: dict) -> str:
+    if res.get("verdict") == V_UNREADABLE:
+        return f"B4 -- vs the best pointwise arm: {res['verdict']} ({res.get('reason')})"
+    lines = [f"B4 (AMENDMENT 2) -- peeronly_1670 vs mpoff_516 at {res['rung']}, ONE VALUE PER "
+             f"CHECKPOINT, bar {res['bar']}  (positive = the pointwise arm is still ahead)",
+             f"    {fmt_pair(res)}"]
+    lines.append("    per checkpoint: " + "  ".join(f"s{s}:{v:+.1f}%" for s, v in sorted(res["per_seed_pct"].items())))
+    return "\n".join(lines)
+
+
 def format_b3(res: dict) -> str:
     if res.get("verdict") == V_UNREADABLE:
         return f"B3 -- checkpoint-level: {res['verdict']} ({res.get('reason')})"
@@ -201,8 +235,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         res["b1"] = read_b1(tab); res["phase_b"] = read_phase(tab, "1670")
         print(); print(format_b1(res["b1"])); print(); print(format_phase(res["phase_b"], "Phase B (B2, A2-bars)"))
     if args.phase == "b3":
-        res["b3"] = read_b3(tab)
-        print(); print(format_b3(res["b3"]))
+        res["b3"] = read_b3(tab); res["b4"] = read_b4(tab)
+        print(); print(format_b3(res["b3"])); print(); print(format_b4(res["b4"]))
     if args.out:
         json.dump(res, open(args.out, "w"), indent=1, default=str)
         print(f"[wrote] {args.out}")
