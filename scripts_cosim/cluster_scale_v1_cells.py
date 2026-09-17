@@ -32,6 +32,15 @@ from scripts_cosim.scheduler_residence_v1_read import cell_structure  # noqa: E4
 S0_CORPUS_CANDIDATE_MAX = 5.0
 SEED_PATH = "/network/topology/seed"
 SERVERS_PATH = "/nodes/server_nodes/count"
+CLIENTS_PATH = "/nodes/client_nodes/count"
+# peer_only_v1 B7 (2026-09-17): the same minting discipline on the CLIENT axis. Edge
+# deployments are characterised by their client-to-server ratio, and this is also the only
+# scaling axis that leaves candidates-per-task alone -- a task's candidate set is the servers
+# its client can reach, so varying clients does not push the rung out of corpus support the
+# way the 80-server rung did. Exactly two fields may still differ from the base.
+VARY_PATHS = {"servers": SERVERS_PATH, "clients": CLIENTS_PATH}
+VARY_KEYS = {"servers": ("nodes", "server_nodes", "count"),
+             "clients": ("nodes", "client_nodes", "count")}
 
 
 class RungMintError(RuntimeError):
@@ -51,17 +60,21 @@ def _flatten(doc: Any, prefix: str = "") -> Dict[str, Any]:
     return out
 
 
-def mint(base: Dict[str, Any], servers: int, seed: int) -> Dict[str, Any]:
+def mint(base: Dict[str, Any], value: int, seed: int, *, vary: str = "servers") -> Dict[str, Any]:
+    """One cell. `vary` names the single structural field that moves; the seed is the other."""
+    if vary not in VARY_PATHS:
+        raise RungMintError(f"vary={vary!r}: expected one of {sorted(VARY_PATHS)}")
     cfg = json.loads(json.dumps(base))
-    cfg["nodes"]["server_nodes"]["count"] = int(servers)
+    a, b, c = VARY_KEYS[vary]
+    cfg[a][b][c] = int(value)
     cfg.setdefault("network", {}).setdefault("topology", {})["seed"] = int(seed)
     fb, fc = _flatten(base), _flatten(cfg)
     differing = sorted(k for k in set(fb) | set(fc) if fb.get(k) != fc.get(k))
-    allowed = {SEED_PATH, SERVERS_PATH}
+    allowed = {SEED_PATH, VARY_PATHS[vary]}
     unexpected = [k for k in differing if k not in allowed]
     if unexpected:
         raise RungMintError(
-            f"servers={servers} seed={seed}: minted config also differs in {unexpected}; "
+            f"{vary}={value} seed={seed}: minted config also differs in {unexpected}; "
             f"only {sorted(allowed)} may change")
     return cfg
 
@@ -71,7 +84,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--base", type=Path, required=True)
     ap.add_argument("--sim-inputs", type=Path, required=True)
-    ap.add_argument("--rungs", required=True, help="server counts, e.g. 6,24,80")
+    ap.add_argument("--rungs", required=True, help="counts for the varied axis, e.g. 6,24,80")
+    ap.add_argument("--vary", choices=sorted(VARY_PATHS), default="servers",
+                    help="which structural field the rungs move (default: servers)")
     ap.add_argument("--seeds", required=True, help="topology seeds, e.g. 9001,9002,9003,9004")
     ap.add_argument("--out-dir", type=Path)
     ap.add_argument("--manifest", type=Path, required=True)
@@ -82,23 +97,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     rungs = [int(x) for x in args.rungs.split(",") if x.strip()]
     seeds = [int(x) for x in args.seeds.split(",") if x.strip()]
     out: Dict[str, Any] = {"lineage": "cluster_scale_v1", "stage": "S0.d",
-                           "base": str(args.base),
+                           "vary": args.vary, "base": str(args.base),
                            "corpus_candidate_max": S0_CORPUS_CANDIDATE_MAX, "rungs": []}
     if args.out_dir:
         args.out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n[S0.d] candidates per task = reachable servers (per_server=1). "
-          f"Corpus max {S0_CORPUS_CANDIDATE_MAX:.0f}.")
-    print(f"  {'servers':>8s} {'cells':>6s} {'mean cand':>10s} {'min':>5s} {'max':>5s} "
+          f"Corpus max {S0_CORPUS_CANDIDATE_MAX:.0f}. Varying {args.vary}.")
+    print(f"  {args.vary:>8s} {'cells':>6s} {'mean cand':>10s} {'min':>5s} {'max':>5s} "
           f"{'vs corpus':>10s}  support")
     for servers in rungs:
         cells = []
         for seed in seeds:
-            cfg = mint(base, servers, seed)
+            cfg = mint(base, servers, seed, vary=args.vary)
             name = f"{args.prefix}{servers}s{seed}"
             if args.out_dir:
                 (args.out_dir / f"{name}.json").write_text(json.dumps(cfg, indent=1))
-            cells.append({"cell": name, "servers": servers, "seed": seed,
+            cells.append({"cell": name, args.vary: servers, "seed": seed,
                           "structure": cell_structure(cfg, sim_input_path=args.sim_inputs)})
         means = [c["structure"]["mean_reachable_servers"] for c in cells
                  if c["structure"]["mean_reachable_servers"] is not None]
@@ -106,7 +121,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if c["structure"]["min_reachable_servers"] is not None]
         mean_c = st.fmean(means) if means else None
         in_support = bool(mean_c is not None and mean_c <= S0_CORPUS_CANDIDATE_MAX)
-        row = {"servers": servers, "cells": cells, "mean_candidates": mean_c,
+        row = {args.vary: servers, "cells": cells, "mean_candidates": mean_c,
                "min_candidates": min(mins) if mins else None,
                "max_candidates": max(means) if means else None,
                "in_support": in_support,
