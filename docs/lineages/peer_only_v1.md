@@ -215,3 +215,17 @@ right as a fact: `experiments/peer_only_v1_1670_split.json` carries **T1b's test
 (96) verbatim** and only extends train (386 → 1,527 with the 1,141 new parents), so
 checkpoint selection and the held-out set are identical between the 516- and 1,657-dataset
 arms and B1 pairs like with like. Sha `0f1ee96edeb7…`. Resubmitted as job **782166**.
+
+**Job 782166 FAILED at ~2.5 min on every arm, also correctly, on a corpus defect:**
+`refresh_partial_state_edge_attr: task 1 has a candidate absent from the partial-state
+context (missing key (22, 118))`. The demand table is built from the placement sweep's rows,
+while the graph's candidate set lists every replica of the task's type; in **3 of the 1,141
+new `train2` datasets** (ds_00427, ds_00493, ds_00925 — sweeps complete, 13,824 / 10,368 /
+5,184 rows) a replica on node 22 / platform 118 is a candidate for tasks 1–2 that no sweep
+row ever places on, and node 22 is absent from the ranked hosting nodes. **0 of the 516 T1b
+parents** has the defect. Handled as a set-aside with its reason (`…_setaside_peer_only_v1/
+candidate_not_in_sweep/REASON.md`), a cache-level guard that fails loud on the class
+(`scripts_cosim/peer_only_v1_candidate_check.py`), the dobj recipe's sweep-completeness loop
+restored in the corpus job, and the split artifact minted **from the cache** in the same job
+(`scripts_cosim/peer_only_v1_split.py`) so cache and artifact cannot drift. The corpus is
+rebuilt at **1,654** datasets; B0 and the artifact are re-read from the rebuild.

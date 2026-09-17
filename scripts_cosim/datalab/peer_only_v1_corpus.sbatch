@@ -85,6 +85,56 @@ print(f"[corpus] all {len(ids)} T1b parents still in place")
 PY
 echo "[corpus] train2 now: $(ls -d $TRAIN2/ds_* | wc -l) datasets; set aside: $(find $SETASIDE -maxdepth 2 -name 'ds_*' 2>/dev/null | wc -l)"
 
+echo "=== [2b/5] sweep completeness (the dobj recipe's guard, dropped from this job's first cut)"
+for d in "$TRAIN" "$TRAIN2" "$TEST"; do
+  read -r n bad <<< "$(python3 - "$d" <<'PY'
+import json, os, sys
+d = sys.argv[1]; ok = 0; bad = []
+for ds in sorted(x for x in os.listdir(d) if x.startswith("ds_")):
+    try:
+        m = json.load(open(os.path.join(d, ds, "placement_metadata.json")))
+        rows = sum(1 for _ in open(os.path.join(d, ds, "placements", "placements.jsonl")))
+        good = m.get("sweep_complete") is True and rows == m["num_placements"] and os.path.getsize(os.path.join(d, ds, "best.json")) > 0
+    except Exception:
+        good = False
+    (ok := ok + 1) if good else bad.append(ds)
+print(ok, len(bad))
+PY
+)"
+  echo "[corpus] $d: $n complete sweeps, $bad incomplete"
+  [[ "$bad" == "0" ]] || { echo "FAIL LOUD: $bad dataset dirs under $d are incomplete" >&2; exit 1; }
+done
+
+echo "=== [2c/5] candidate-not-in-sweep exclusions (job 782166: the trainer dies on a candidate the sweep never used)"
+# Measured on the first 1,657 build: exactly these three carry a replica (node 22, platform
+# 118) as a candidate for tasks 1-2 that no sweep row places on, so the partial-state demand
+# table has no entry for it. Set aside with the reason; the post-build check below fails
+# loud if any other dataset has the same defect.
+EXCLUDE_CNS="ds_00427 ds_00493 ds_00925"
+mkdir -p "$SETASIDE/candidate_not_in_sweep/$(basename $TRAIN2)"
+for ds in $EXCLUDE_CNS; do
+  if [[ -d "$TRAIN2/$ds" ]]; then
+    mv "$TRAIN2/$ds" "$SETASIDE/candidate_not_in_sweep/$(basename $TRAIN2)/$ds"
+    echo "[corpus] set aside $ds (candidate absent from the sweep; peer_only_v1 job 782166)"
+  fi
+done
+cat > "$SETASIDE/candidate_not_in_sweep/REASON.md" <<'MD'
+peer_only_v1 (2026-09-17): these train2 datasets list a replica as a candidate that no row
+of their (complete) placement sweep ever uses, so prepare_graphs_cache's partial-state
+demand table has no entry for it and the prefix-conditioned trainer fails loud at the
+first score (job 782166). None of the 516 T1b parents has the defect. Set aside, not
+deleted; scripts_cosim/peer_only_v1_candidate_check.py finds any others.
+MD
+python3 - "$PARENTS" <<'PY'
+import json, os, sys
+p = json.load(open(sys.argv[1]))
+ids = list((p.get("weights") or {}).keys()) if isinstance(p.get("weights"), dict) else [k for k in p if not k.startswith("_")]
+missing = [i for i in ids if not os.path.isdir(os.path.join("simulation_data", i))]
+if missing:
+    raise SystemExit(f"FAIL LOUD: the exclusion moved a T1b parent: {missing[:3]}")
+print(f"[corpus] all {len(ids)} T1b parents still in place after the exclusions")
+PY
+
 echo "=== [3/5] cache -> $CACHE"
 rm -rf "$CACHE"
 python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$TRAIN" "$TRAIN2" "$TEST" --cache-dir "$CACHE" \
@@ -109,9 +159,16 @@ echo "=== [4/5] near-RTT sidecar"
 python3 -u src/notebooks/prepare_graphs_cache_near_rtt.py --cache-dir "$CACHE" --skip-cache-build 2>&1 | grep -v "it/s\]" | tail -4
 [[ -f "$CACHE/valid_combos_near_rtt_capped.pkl" ]] || { echo "FAIL LOUD: no near-RTT sidecar" >&2; exit 1; }
 
-echo "=== [5/5] B0"
+echo "=== [5/7] candidate-not-in-sweep guard over the built cache (fails loud, lists offenders)"
 mkdir -p simulation_data/peer_only_v1
+python3 -u scripts_cosim/peer_only_v1_candidate_check.py --cache "$CACHE" --out simulation_data/peer_only_v1/candidate_check.json
+
+echo "=== [6/7] B0"
 python3 -u scripts_cosim/peer_only_v1_b0.py --big-cache "$CACHE" --small-cache "$SMALL" --split "$SPLIT" \
   --out simulation_data/peer_only_v1/b0.json
+
+echo "=== [7/7] split artifact: T1b's test and val verbatim, train extended to this cache's parents"
+python3 -u scripts_cosim/peer_only_v1_split.py --cache "$CACHE" --base "$SPLIT" --out experiments/peer_only_v1_1670_split.json
+sha256sum experiments/peer_only_v1_1670_split.json
 du -sh "$CACHE"
 echo "=== corpus done ==="
