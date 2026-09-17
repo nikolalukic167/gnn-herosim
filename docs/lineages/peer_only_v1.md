@@ -5,8 +5,9 @@ the best pointwise arm anyway.** Registered 2026-09-16; every bar below is a mod
 in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
 
 **Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
-beats its MP-OFF twin on elapsed by **−5.75 %** (16 checkpoints, 14/16, p = 0.0011; −7.10 % over
-the 64 (cell, checkpoint) pairs) and beats reactive Knative by **−41.5 %** on **64/64** pairs
+beats its MP-OFF twin on elapsed by **about 5 %** (−5.75 % over all 16 checkpoints, 14/16,
+p = 0.0011; **−4.63 %** over the 15 that survive at every cluster size, so the headline sits
+**on** its 5 % bar and one checkpoint moves the verdict) and beats reactive Knative by **−41.5 %** on **64/64** pairs
 and **16/16** checkpoints — **the first measurement in this program where a message-passing arm
 beats both its own pointwise twin and reactive on the same cells.** Read the clauses before
 quoting it; none is optional. Both halves are read at **n = 16 checkpoints** after Amendments 1
@@ -36,9 +37,14 @@ by more than 2×.
    offline/live anti-correlation on a new axis, **not** a defective corpus.
 5. **The offline ranking is exactly inverted.** Offline `gnn` < `mpoff` < `peeronly`; live at
    R3 `peeronly` < `mpoff` < `gnn`, same checkpoints.
-6. **The winning rung is saturated** (reactive ~600 s vs 21–36 s) and the statistic is
-   relative to reactive on the same cell. At the unsaturated 6-server rung **every arm loses
-   to reactive** and B2 is a TIE.
+6. **Saturation qualifies the *reactive* comparison, not the twin comparison** (B5,
+   Amendment 3). Against reactive the statistic is relative on the same cell and the 80-server
+   rung is saturated (~600 s vs 21–36 s); at 6 servers **every arm loses to reactive**. But
+   against its own twin `peeronly` is ahead at **all four** cluster sizes — 6/12/24/80 servers
+   read −21.9 / −13.4 / −14.3 / −4.6 % — so the win is **not** a saturation artifact. The
+   margin **shrinks** with scale while its significance grows, falsifying B5's registered
+   MONOTONE expectation in the opposite direction. At 6 servers it is a ranking among two arms
+   that both lose to reactive, and must be stated as one.
 7. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
    (16/16 pairs, 4 checkpoints — `gnn` was not extended) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
    queue improves against *both* twins, so "GIN is the over-reaction" does not isolate it.
@@ -573,3 +579,43 @@ reactive on the same cells): R0 22.22 reactive / 35.27 `mpoff`; R1 **103.09 / 94
 **316.01 / 195.35**; R3 610.56 / 325.36. The pointwise arm's own crossover against reactive is
 therefore already known to sit between **6 and 12 servers**; B5 asks where `peeronly`'s
 advantage over that arm appears.
+
+### 2026-09-17 — B5: **MARGIN-NOT-MONOTONE-IN-SCALE** — the registered expectation is falsified, backwards
+
+Jobs **783482 / 783538 / 783591 / 783652 / 783704 / 783753** (R1, R2) and **783802 / 783862**
+(R0), 352 arms. Read: `--phase b5`, `simulation_data/peer_only_v1/phase_b5.json`.
+
+**Registered read: `UNREADABLE`.** One arm — `cs12s9001 / 1670_mpoff / seed 9` — was OOM-killed
+at 48 GB and again at **120 GB after 42 min**, still emitting events at sim **t = 55,507**
+against a maximum `endTime` of **55,482** over the 127 completed R1 arms. Past the last arrival,
+unbounded growth: the documented tail class (gate-tools 2026-09-16), not a memory-sizing
+problem, so it was not chased a third time. `B5_MIN_SEEDS = 16` was **not** relaxed; the rung
+reports `UNREADABLE` and the disclosed ladder below carries the exclusion in its header.
+
+**Disclosed ladder — the 15 checkpoints complete at every rung** (`peeronly` vs `mpoff`, both
+on the 1,670 corpus, one value per checkpoint):
+
+| rung | servers | median | p | ahead | reactive on the same cells |
+|---|---|---|---|---|---|
+| R0 | 6 | **−21.87 %** | 0.0995 | 11/15 | both arms **lose** to reactive |
+| R1 | 12 | **−13.36 %** | 0.0199 | 11/15 | `mpoff` ≈ reactive |
+| R2 | 24 | **−14.25 %** | 0.0045 | 12/15 | both arms beat reactive |
+| R3 | 80 | **−4.63 %** | 0.0018 | 13/15 | both arms beat reactive |
+
+**The registered expectation was MONOTONE — the margin grows with cluster size, because the
+advantage is 99 % queue and queue pressure grows with the rung. It is falsified, and in the
+opposite direction: the margin is largest at the smallest cluster and smallest at the largest**
+(−21.9 % → −4.6 %), while the *confidence* moves the other way (p 0.0995 → 0.0018) as
+per-checkpoint variance falls with scale. ⇒ **`MARGIN-NOT-MONOTONE-IN-SCALE`.**
+
+Three consequences, all of which change how this lineage should be quoted:
+
+1. **The advantage is not a saturation artifact.** It is present, and *larger*, at the
+   unsaturated 6-server rung. Clause 6's "the winning rung is saturated" survives as a caveat
+   on the *reactive* comparison only — it is no longer a caveat on `peeronly` vs `mpoff`.
+2. **At 6 servers the comparison is between two arms that both lose to reactive Knative.** A
+   −21.9 % margin there is a ranking among losers, and must be stated as one.
+3. **The 80-server headline sits on its bar.** On all 16 checkpoints it is −5.75 % (clears the
+   5 % threshold); on the 15 that survive at every rung it is **−4.63 %** (does not), though
+   p = 0.0018 either way. One checkpoint moves the verdict, so the headline should be quoted as
+   "about 5 %", never as a number that comfortably clears a threshold.
