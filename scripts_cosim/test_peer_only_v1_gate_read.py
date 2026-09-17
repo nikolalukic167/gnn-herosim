@@ -161,4 +161,7 @@ def test_b5_stays_unreadable_on_a_lost_arm_but_discloses_the_rest():
     assert r["verdict"] == V_UNREADABLE
     d = r["disclosed"]
     assert d["excluded_seeds"] == [9] and d["n_seeds"] == 15
-    assert d["per_rung"]["R1"]["n"] == 15
+    # the disclosed read must actually RESOLVE on 15 -- it is not the registered bar
+    for rung in ("R0", "R1", "R2", "R3"):
+        assert d["per_rung"][rung]["verdict"] != V_UNREADABLE, rung
+        assert d["per_rung"][rung]["n"] == 15

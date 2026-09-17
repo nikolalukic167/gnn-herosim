@@ -22,8 +22,9 @@ import os
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from scripts_cosim.peer_only_v1_read import (
-    A2_RUNGS, B3_RUNG, B4_RUNG, B5_RUNGS, B5_SERVERS, V_UNREADABLE, collapse_to_seed,
-    headline, read_a0, read_a2_rung, read_a3_rung, read_a4_rung, read_b1_rung,
+    A2_RUNGS, B3_RUNG, B4_RUNG, B5_DISCLOSED_MIN_SEEDS, B5_RUNGS, B5_SERVERS,
+    V_UNREADABLE, collapse_to_seed, headline, read_a0, read_a2_rung, read_a3_rung,
+    read_a4_rung, read_b1_rung,
 )
 from scripts_cosim.peer_only_v1_read import read_b3 as read_b3_bar
 from scripts_cosim.peer_only_v1_read import read_b4 as read_b4_bar
@@ -160,7 +161,8 @@ def complete_seeds(tab: Mapping[str, ArmTable], rung: str) -> set:
     return out
 
 
-def _b3_at(tab: Mapping[str, ArmTable], rung: str, seeds: Optional[Sequence[int]] = None) -> dict:
+def _b3_at(tab: Mapping[str, ArmTable], rung: str, seeds: Optional[Sequence[int]] = None,
+           *, min_seeds: Optional[int] = None) -> dict:
     """The B3 statistic at one rung: one value per checkpoint, peeronly_1670 vs mpoff_1670."""
     t = tab.get(rung)
     if not t:
@@ -179,7 +181,7 @@ def _b3_at(tab: Mapping[str, ArmTable], rung: str, seeds: Optional[Sequence[int]
     except ValueError as exc:                      # an arm died; name it, do not average around it
         return {"verdict": V_UNREADABLE, "reason": str(exc)}
     shared = sorted(set(po) & set(mp))
-    r = read_b3_bar({s: po[s] for s in shared}, {s: mp[s] for s in shared})
+    r = read_b3_bar({s: po[s] for s in shared}, {s: mp[s] for s in shared}, min_seeds=min_seeds)
     return {**r, "rung": rung, "cells": cells,
             "per_seed_pct": {s: 100.0 * (po[s] / mp[s] - 1.0) for s in shared}}
 
@@ -199,7 +201,8 @@ def read_b5(tab: Mapping[str, ArmTable]) -> dict:
         res["disclosed"] = {
             "excluded_seeds": excluded, "n_seeds": len(common),
             "note": "not the registered read: B5_MIN_SEEDS is not relaxed",
-            "per_rung": {rung: _b3_at(tab, rung, seeds=sorted(common)) for rung in B5_RUNGS},
+            "per_rung": {rung: _b3_at(tab, rung, seeds=sorted(common),
+                                      min_seeds=B5_DISCLOSED_MIN_SEEDS) for rung in B5_RUNGS},
         }
     return res
 
