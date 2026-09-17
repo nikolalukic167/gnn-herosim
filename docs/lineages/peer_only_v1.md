@@ -545,3 +545,31 @@ beats reactive on **64/64** pairs and **16/16** checkpoints (−41.5 %) while be
 and a great deal in degree. The arm that does it is PeerConv-only, its margin over the twin is
 ~6 %, its advantage is 99 % queue rather than peer placement, and a pointwise arm on a third of
 the data is 11 % faster than it.
+
+### 2026-09-17 — AMENDMENT 3: B5, the contrast across the cluster-size ladder
+
+**Registered before any B5 arm was submitted.** Bars: `B5_RUNGS`, `B5_SERVERS`,
+`B5_MIN_SEEDS = 16`, `B5_IMPROVE_PCT = 5.0`, `B5_ALPHA = 0.05` in
+`scripts_cosim/peer_only_v1_read.py`.
+
+Clause 6 carries "the winning rung is saturated" as a caveat with **no measurement between the
+two ends**: B2/B3 read 6 servers (TIE) and 80 (peeronly ahead) and nothing in between.
+`partial_state_v3` P3 already minted and served **12- and 24-server cells with their reactive
+baselines**, so the middle of the curve costs only the two learned arms — 256 arms, ~2 min
+each. The rung table is **appended** (`RUNG_TAGS=(R0 R3 R1 R2)`) so indices 0–275 keep their
+arms; verified by simulating the table (task 3, 35, 131, 275 all still resolve to R3).
+
+**B5** reads the B3 statistic — one value per checkpoint, 16 seeds — at each of 6 / 12 / 24 /
+80 servers, and reports the **crossover rung**: the first at which the bar clears.
+
+**Registered expectation: MONOTONE.** The margin should grow with cluster size, because the
+measured advantage is queue-driven (99 % of it, per the re-check above) and queue pressure
+grows with the rung. Falsified if the per-rung medians are not ordered R0 ≥ R1 ≥ R2 ≥ R3 —
+`MARGIN-NOT-MONOTONE-IN-SCALE` would mean the advantage is a property of one operating point
+rather than of load, which is a materially weaker claim and would be recorded as such.
+
+For reference, the 516-corpus arms P3 already measured at those rungs (median elapsed, with
+reactive on the same cells): R0 22.22 reactive / 35.27 `mpoff`; R1 **103.09 / 94.88**; R2
+**316.01 / 195.35**; R3 610.56 / 325.36. The pointwise arm's own crossover against reactive is
+therefore already known to sit between **6 and 12 servers**; B5 asks where `peeronly`'s
+advantage over that arm appears.
