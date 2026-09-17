@@ -1,8 +1,10 @@
 """Tests for the peer_only_v1 gate glue."""
-from scripts_cosim.peer_only_v1_gate_read import read_a0_from, read_b1, read_phase, tables
+from scripts_cosim.peer_only_v1_gate_read import (
+    read_a0_from, read_b1, read_b3, read_phase, tables,
+)
 from scripts_cosim.peer_only_v1_read import (
     CHECKPOINT_SEEDS, V_A0_FAIL, V_A0_PASS, V_BEATS, V_CORPUS_HELPS, V_GIN_OVERREACTION,
-    V_PEER_KEPT, V_POINTWISE, V_TIE,
+    V_PEER_KEPT, V_POINTWISE, V_TIE, V_UNREADABLE,
 )
 
 CELLS = {"R0": ["cs6s9001", "cs6s9002", "cs6s9003", "cs6s9005"],
@@ -84,3 +86,27 @@ def test_b1_reads_the_corpus_lever_per_arm():
                        "corpus": "1670", "averageElapsedTime": d["averageElapsedTime"] * 0.9})
     res = read_b1(tables(po, _p3()))
     assert res["gnn"]["R0"]["verdict"] == V_CORPUS_HELPS and res["peeronly"]["R3"]["verdict"] == V_CORPUS_HELPS
+
+
+def _sum(cell, rung, corpus, kind, seed, elapsed):
+    return {"arm": f"{cell}__{rung}__{corpus}_{kind}_s{seed}", "cell": cell, "rung": rung,
+            "corpus": corpus, "arm_kind": kind, "checkpoint_seed": seed, "num_tasks": 50000,
+            "averageElapsedTime": elapsed, "averageQueueTime": elapsed * 0.99,
+            "averageWaitTime": 0.73, "totalPeerExchangeTime": 1.0, "totalPeerRendezvousWait": 1.0}
+
+
+def test_b3_collapses_to_one_value_per_checkpoint_and_needs_all_16():
+    cells = ("cs80s9001", "cs80s9002", "cs80s9003", "cs80s9005")
+    po, full = [], []
+    for s in range(1, 17):
+        for c in cells:
+            full.append(_sum(c, "R3", "1670", "peeronly", s, 80.0))
+            full.append(_sum(c, "R3", "1670", "mpoff", s, 100.0))
+            if s <= 4:
+                po.append(_sum(c, "R3", "1670", "peeronly", s, 80.0))
+                po.append(_sum(c, "R3", "1670", "mpoff", s, 100.0))
+    # only 4 checkpoints served -> the bar refuses to read rather than reporting n=4 as a result
+    assert read_b3(tables(po, []))["verdict"] == V_UNREADABLE
+    r = read_b3(tables(full, []))
+    assert r["n"] == 16 and r["median"] < -5.0 and r["rung"] == "R3"
+    assert sorted(r["per_seed_pct"]) == list(range(1, 17))
