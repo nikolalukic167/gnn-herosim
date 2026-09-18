@@ -1166,3 +1166,48 @@ them, so the registered bar produced the right refusal on its own.
 The question C5 asked is now answered **live instead, and in the affirmative**: C1 shows the
 bipartite penalty present at 80 servers and absent at 6. The offline instrument could not see
 it because the offline corpus has only one cluster size.
+
+### 2026-09-18 — the code read that reframes the whole question: **the two stages are not comparable**
+
+Not a gate and not a bar — a reading of `src/policy/gnn/gnn_model.py`, prompted by C1 putting
+the bipartite penalty at 80 servers and C3 finding the damage geometric. It is recorded here
+because it changes what every message-passing result in this lineage *means*.
+
+`peer_only_v1` has been read throughout as *"peer message passing helps, bipartite message
+passing hurts."* The two stages are implemented as follows:
+
+| | `PeerConv` (task↔task) | bipartite GIN (task↔platform) |
+|---|---|---|
+| residual | **yes, hardcoded** — `forward` returns `x + update_mlp(...)` | **no** — `mp_residual` defaults False, so `x = h` |
+| edge attributes | **yes** — `message()` concatenates `edge_attr` | **no** — `torch_geometric.nn.models.GIN`, constructed without `edge_dim` and called as `self.gin(x0, mp_edge_index)` |
+| live effect | helps (`peeronly` beats `mpoff` at every rung tested) | costs **18.94 %** at 80 servers (C1), nothing measurable at 6 |
+
+**So the contrast the programme has been reading as "peer graph vs bipartite graph" is
+confounded with "residual, edge-aware conv vs non-residual, edge-blind conv."** Those are two
+differences that have nothing to do with which graph is being messaged over.
+
+`PeerConv`'s own docstring records that the author hit this and solved it on one side only:
+*"`GIN` takes (x, edge_index) only, so a continuous per-pair attribute … needs its own conv."*
+The bipartite edges **do** carry a 5-column `edge_attr`, and it reaches the `EdgeScorer` — but
+never the message passing. So the bipartite stage aggregates over a **feasibility relation**
+("this task could run on this platform") with its weights stripped, which is close to
+aggregating over degree alone. That is a mechanism for C3's compression that C3 could not see,
+and it does not depend on cluster size to be true.
+
+**Consequences for how this node must be read.** No result here licenses *"a bipartite graph
+does not work in this environment."* What is measured is that **this** bipartite stage — plain
+GIN, no residual, no edge attributes — costs 18.94 % at 80 servers. The two confounds are
+separable and each is one experiment:
+
+- **C4 (AMENDMENT 9, registered, training)** removes the residual difference.
+- **C7 — NOT YET BUILT, and deliberately not built in haste.** An edge-conditioned bipartite
+  conv (the pattern already exists as `BipartiteEdgeConv` in
+  `src/policy/gnn_hetero/gnn_model.py`) removes the edge-blindness difference. It needs a new
+  module, a weight-visible flag, a sidecar key, the serving whitelist and train/serve parity
+  coverage — the exact surface this repo has been bitten on before
+  (`gnn-train-serve-mp-mismatch`, `herosim-mp-off-hole-was-also-in-the-live-loader`). It is
+  registered as the named next experiment, with this as its evidence, rather than rushed.
+
+Until both are run, the honest statement is: **the bipartite stage as configured costs at
+large cluster sizes, and the programme has not yet tested a bipartite stage built the way the
+stage that works is built.**
