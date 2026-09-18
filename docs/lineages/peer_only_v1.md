@@ -1,8 +1,9 @@
 # peer_only_v1 — message passing over the peer graph only, and the corpus it was starved of
 
-**Status:** `CLOSED` (2026-09-17) — **PEERONLY-BEATS-POINTWISE at every cluster size and
-every client count, and beats reactive Knative unsaturated — while still losing to the best
-pointwise arm at the one operating point that has been tested (B8 is testing the others).** Registered 2026-09-16; every bar below is a module constant
+**Status:** `CLOSED` (2026-09-18) — **PEERONLY-BEATS-POINTWISE at every cluster size and
+every client count; at unsaturated load a learned arm beats reactive Knative for the first time
+in the programme, but the graph arm is NOT established as better than the best pointwise arm
+there.** Registered 2026-09-16; every bar below is a module constant
 in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
 
 **Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
@@ -25,11 +26,12 @@ by more than 2×.
    `PeerConv` exists to improve — differs by **0.66 s of a 78 s gap, under 1 %**. The arm wins
    on queue and autoscaler churn (92 scale events vs 120). B2 is therefore **not** evidence
    that peer-graph reasoning is what pays.
-3. **It loses to the best pointwise arm the program has.** `peeronly_1670` vs `mpoff_516` is
-   **+11.17 %, 0/16 checkpoints, p = 0.0004** (**B4**, Amendment 2, 16 checkpoints — this
-   clause got *stronger* with power). The win is corpus-matched, as registered; the best
-   available scheduler at that rung is still pointwise, and **both** 516 arms beat **every**
-   1,670 arm.
+3. **It loses to the best pointwise arm — at the one rung where that was measured.**
+   `peeronly_1670` vs `mpoff_516` is **+11.17 %, 0/16, p = 0.0004** (**B4**) at 80 servers /
+   20 clients, saturated. **B8** re-read it at the unsaturated client rungs and the two are
+   **not separated**: −9.20 % (p = 0.5349) at 40 clients and −4.14 % (p = 0.1089) at 80, with
+   `peeronly` directionally *ahead* both times ⇒ `BEST-ARM-NOT-ESTABLISHED`, and the clause is
+   **scoped to saturated rungs** by its signed consequence.
 4. **More data made every arm worse live** — B1 reads CORPUS-DOES-NOT-HELP on 6/6 arm × rung,
    and the flip is mostly `mpoff` degrading **+35.49 %** (0/16), not `peeronly` improving. But
    the corpus **did** improve every arm *offline* (regret 516 → 1,670: `gnn` 38.40 → 35.85,
@@ -38,7 +40,8 @@ by more than 2×.
    offline/live anti-correlation on a new axis, **not** a defective corpus.
 5. **The offline ranking is exactly inverted.** Offline `gnn` < `mpoff` < `peeronly`; live at
    R3 `peeronly` < `mpoff` < `gnn`, same checkpoints.
-6. **The saturation caveat survives only on the SERVER ladder** (B5, B7). Against its own twin
+6. **The saturation caveat survives only on the SERVER ladder, and so does clause 3**
+   (B5, B7, B8). Against its own twin
    `peeronly` is ahead at **all four** cluster sizes — 6/12/24/80 servers read
    −21.9 / −13.4 / −14.3 / −4.6 % — and at **all three** client rungs — 20/40/80 clients read
    −16.5 / −22.6 / −14.1 % — so the twin comparison is not a saturation artifact anywhere. The
@@ -46,11 +49,14 @@ by more than 2×.
    registered MONOTONE expectation in the opposite direction. **And the reactive comparison is
    no longer saturation-bound either:** on the client ladder every rung is **unsaturated**
    (reactive queue share 63.4 / 72.6 / 73.2 % against the registered 90 % bar) and `peeronly`
-   still beats reactive at **40 clients (−14.9 %)** and **80 clients (−9.3 %)** — **the first
-   unsaturated live win in the programme**, and one `mpoff` does not achieve at any rung. What
-   remains true: on the *server* ladder the arms beat reactive only at the saturated 24- and
-   80-server rungs, and at 6 servers / 20 clients both arms lose to reactive, so that particular
-   margin is a ranking among two losers.
+   still beats reactive at **40 clients (−14.9 %, p = 0.0703)** and **80 clients (−9.3 %,
+   13/16, p = 0.0097)** — **the first unsaturated live win in the programme**. It is **not**
+   the only arm that manages it: `mpoff_516` also beats reactive there (−7.2 %, 12/16,
+   p = 0.0174 at 40 clients), which B8 measured and an earlier draft of this head wrongly
+   denied. The two are **not separated** from each other (B8: p = 0.5349 and 0.1089), so
+   clause 3 holds only at the saturated rung where B4 measured it. What remains true: on the
+   *server* ladder the arms beat reactive only at the saturated 24- and 80-server rungs, and at
+   6 servers / 20 clients both arms lose to reactive, so that margin is a ranking among losers.
 7. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
    (16/16 pairs, 4 checkpoints — `gnn` was not extended) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
    queue improves against *both* twins, so "GIN is the over-reaction" does not isolate it.
@@ -826,3 +832,49 @@ arms cannot collide on one summary path.
 Otherwise ⇒ the clause is **scoped to saturated rungs** and CLAUDE.md is rewritten to say so.
 **Registered expectation: UNCERTAIN** — B4 got *stronger* with power at 80 servers, and has
 never been read where `peeronly` is strongest. 128 arms, ~35 min.
+
+### 2026-09-18 — B8: **BEST-ARM-NOT-ESTABLISHED** at the unsaturated rungs — and a correction to B7's headline
+
+Jobs **784618 / 784667 / 784720**, 128/128 arms COMPLETED, all at 50,000 tasks.
+(An earlier submission, **784522**, failed all 48 arms loudly and correctly with
+`sidecar mp_platform_edges=None, arm mpoff expects True`: the flag **postdates** the
+`partial_state_v3` checkpoints, so the key is absent from their sidecars and absent means the
+documented default. The main gate already had that rule; the client gate now does too. No
+summaries were produced, so nothing was discarded.)
+
+**B8 — `peeronly_1670` vs `mpoff_516`, one value per checkpoint, 16 seeds, B4's bars unchanged:**
+
+| clients | `peeronly_1670` | `mpoff_516` | median | p | ahead | verdict |
+|---|---|---|---|---|---|---|
+| 40 | 25.98 | 28.33 | −9.20 % | 0.5349 | 10/16 | `BEST-ARM-NOT-ESTABLISHED` |
+| 80 | 28.60 | 30.02 | −4.14 % | 0.1089 | 10/16 | `BEST-ARM-NOT-ESTABLISHED` |
+
+**The signed consequence fires: clause 3 is SCOPED TO SATURATED RUNGS.** At 80 servers /
+20 clients `mpoff_516` is decisively ahead (+11.17 %, 0/16, p = 0.0004). At the unsaturated
+client rungs the two arms are **not separated** — `peeronly` is directionally *ahead* on the
+point estimate at both, but neither reading clears, and per-checkpoint spreads are enormous
+(+37 % to −44 % at 40 clients). So "the best scheduler the programme has is still a pointwise
+one" is **true where it was measured and not established anywhere else.**
+
+**Correction to the B7 write-up.** The record briefly said `peeronly` was "the only arm that
+beats reactive at an unsaturated rung". **That is wrong**, and B8's arms are what show it —
+`mpoff_516` had never been served there. Every arm against reactive at the unsaturated rungs:
+
+| clients | `mpoff_1670` | `mpoff_516` | `peeronly_1670` |
+|---|---|---|---|
+| 40 | +18.5 % (4/16, p = 0.0038) | **−7.2 % (12/16, p = 0.0174)** | **−14.9 % (10/16, p = 0.0703)** |
+| 80 | +0.9 % (8/16, p = 0.1961) | −4.8 % (10/16, p = 0.0787) | **−9.3 % (13/16, p = 0.0097)** |
+
+**Two arms beat reactive unsaturated, not one** — the graph arm on the large corpus and the
+pointwise arm on the small one — and B8 says they are not separated from each other. Note also
+that `peeronly`'s 40-client margin, the largest number on the ladder, reads **p = 0.0703** and
+does not clear; **the only unsaturated reading that clears on its own is `peeronly` at 80
+clients (−9.3 %, 13/16, p = 0.0097)**, with `mpoff_516` at 40 clients (−7.2 %, p = 0.0174) the
+other. The claim that survives is therefore narrower than the one first written:
+
+> **At unsaturated load a learned arm beats reactive Knative — the programme's first such
+> reading — and the graph arm is not established as better than the best pointwise arm there.**
+
+The 1,670-corpus pointwise twin remains the worst arm at both rungs, so B1's
+`CORPUS-DOES-NOT-HELP` is unaffected and `peeronly` vs its own corpus-matched twin (B7:
+−22.6 % and −14.1 %, p = 0.0052 / 0.0061) stands as registered.
