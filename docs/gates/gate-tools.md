@@ -384,3 +384,28 @@ the lineage closed on `CONV-IS-THE-LEVER` rather than on the attributes.
 **The rule: a missing statistic must refuse, never render.** `_fmt` now raises rather than
 printing `None`, so a headline cannot be produced without its count. Any `dict.get` feeding a
 printed number wants the same treatment — `None` in a report reads as a reported value.
+
+### A gate task table that outgrew `MaxArraySize` (2026-09-18)
+
+`peer_only_v1_gate.sbatch`'s task table has been appended to by five lineages and reached
+1,108 entries. This cluster's `MaxArraySize` is **1001**, so `sbatch --array=964-1011` is
+rejected outright with *"Invalid job array specification"* — not when the task runs, but at
+submission, and only for the blocks whose indices cross 1000. `bipartite_aggr_v1`'s first
+block (916–963) submitted and completed normally; the second failed instantly.
+
+The tempting fix is a second gate script. **Do not** — two gates that share cells, workloads,
+physics and a summary schema drift apart in exactly one constant, and then a paired comparison
+is quietly a cross-gate one. That risk is what kept `bipartite_edge_v1` and `bipartite_aggr_v1`
+inside this file in the first place.
+
+The fix is an offset, so one task table keeps being the single source of truth:
+
+```bash
+sbatch --array=0-47 --export=ALL,PO_TASK_OFFSET=964 scripts_cosim/datalab/peer_only_v1_gate.sbatch
+```
+
+`T = SLURM_ARRAY_TASK_ID + ${PO_TASK_OFFSET:-0}`, defaulting to 0 so every earlier submission
+spelling is unchanged, and the task logs the mapping when the offset is non-zero.
+
+**The rule: check `scontrol show config | grep MaxArraySize` before appending a block that
+would cross it**, and treat a growing task table as a thing with a ceiling rather than a list.
