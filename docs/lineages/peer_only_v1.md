@@ -1,14 +1,16 @@
 # peer_only_v1 — message passing over the peer graph only, and the corpus it was starved of
 
-**Status:** `ACTIVE` (2026-09-18) — **PEERONLY-BEATS-POINTWISE at every cluster size and
+**Status:** `CLOSED` (2026-09-18) — **PEERONLY-BEATS-POINTWISE at every cluster size and
 every client count; at unsaturated load a learned arm beats reactive Knative for the first time
 in the programme, but the graph arm is NOT established as better than the best pointwise arm
-there.** Reopened 2026-09-18 by AMENDMENTS 6–11: the full `gnn` arm had never been read on more
-than 4 checkpoints, and C1/C2 have now read it on 16 — the bipartite penalty is real at 80
-servers and 40 clients, absent at 6 servers, and the whole peer-vs-bipartite contrast turns out
-to be **confounded** (clause 7). **C4 is registered and training**; the lineage closes on its
-live gate, not before (rule 6). Registered 2026-09-16; every bar below is a module constant
-in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
+there — and the bipartite stage's live cost has NO established mechanism.** Closed on C4's
+live gate (rule 6). AMENDMENTS 6–11 read the full `gnn` arm on 16 checkpoints for the first
+time (C1/C2), found the bipartite penalty real at 80 servers and 40 clients and **absent at 6**,
+found the peer-vs-bipartite contrast **confounded** (clause 7), and tested the one repair the
+evidence licensed — **C4: `RESIDUAL-DOES-NOT-TRANSFER`.** The other half of the confound,
+edge-conditioned bipartite messages, is **untested and is the successor experiment (C7)**.
+Registered 2026-09-16; every bar below is a module constant in
+`scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
 
 **Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
 beats its MP-OFF twin on elapsed by **about 5 %** (−5.75 % over all 16 checkpoints, 14/16,
@@ -77,8 +79,12 @@ by more than 2×.
    and edge-attribute-aware, the bipartite GIN is **neither** (`mp_residual` off, plain
    `GIN(x, edge_index)` — the bipartite `edge_attr` reaches only the scorer). So what is
    measured is *this* bipartite stage, not bipartite message passing as a class. **No result
-   here licenses "a bipartite graph does not work in this environment."** C4 (registered,
-   training) removes the residual confound; C7 (registered, not built) removes the other.
+   here licenses "a bipartite graph does not work in this environment."** C4 tested the
+   residual half and reads **`RESIDUAL-DOES-NOT-TRANSFER`** (R3: beats reactive −31.8 % but
+   stays 13.0 % behind `peeronly` and −9.6 % vs `gnn` does not clear, p = 0.43, 14 disclosed;
+   80 clients: loses to reactive and is directionally behind `gnn` itself). So over-smoothing
+   is **not** the explanation, and the **edge-conditioning half is still untested** — that is
+   the successor experiment **C7**, and it is the only remaining lever with evidence behind it.
 
 One thing runs the *other* way and is carried with the rest: the advantage **grows across the
 trace**, −6.2 % at the first decile to **−27.9 %** at the last. Every earlier positive in this
@@ -1307,3 +1313,48 @@ of what beats reactive Knative at an unsaturated rung is:
 stage is non-residual and edge-blind while `PeerConv` is neither (see the code read above), so
 C2 measures **that** stage, not the class. C4 removes one confound; C7 is registered for the
 other.
+
+### 2026-09-18 — C4: **RESIDUAL-DOES-NOT-TRANSFER** — the repair C3 named does not pay live
+
+Training job 785000 (16/16 COMPLETED, all sidecars verified `mp_residual: true` before a
+single arm was served). Live arms: jobs 785052 / 785127 at R3 (62/64) and 785147 / 785212 at
+80 clients (63/64). **Three arms lost to the OOM tail class** (`cs80s9002` seeds 2 and 3;
+`cc80s9003` seed 15), so **both reads are DISCLOSED** — the registered 16-checkpoint bar
+refuses and is not relaxed.
+
+| rung | `gnnres` vs reactive | vs `peeronly` | vs `gnn` |
+|---|---|---|---|
+| R3 (80 srv) | **−31.81 %**, p = 0.0010, 14/14 | **+13.02 %**, p = 0.0029 (peeronly faster) | −9.60 %, p = 0.4326, 9/14 |
+| 80 clients | +3.07 %, p = 0.8647 (loses) | +8.05 %, p = 0.0609 | +4.86 %, p = 0.7299 |
+
+**Verdict `RESIDUAL-DOES-NOT-TRANSFER` at both rungs**, and the registered expectation
+(*UNCERTAIN offline, NEGATIVE live*) **was right**.
+
+**Read this precisely, because the two rungs say different things.**
+
+- At **R3** the residual arm **does** beat reactive Knative (−31.81 %, 14/14) — but that is
+  unremarkable at this rung, where *every* arm beats reactive (`peeronly` −41.5 %, `mpoff`
+  −28.0 %, `gnn` −23.6 %). `gnnres` lands **between `gnn` and `peeronly`**, still **13.02 %
+  behind `peeronly`**, and **−9.60 % vs `gnn` does NOT clear** (p = 0.4326, 9/14).
+- At **80 clients** it is **worse on every comparison**: it loses to reactive (+3.07 %), and is
+  directionally behind both `peeronly` (+8.05 %) and **`gnn` itself** (+4.86 %).
+
+**What must not be overclaimed.** The R3 `vs gnn` reading is **−9.60 % in the right direction
+but underpowered** at 14 checkpoints (p = 0.43). The honest statement is **"not established"**,
+not "the residual makes no difference" — and the 80-client rung points the other way, which is
+why the combined verdict is *does not transfer* rather than *does not help*.
+
+**What this closes, and what it does not.** The signed consequence applies as written: **the
+geometric repair does not carry live, so the bipartite stage's live cost is NOT explained by
+over-smoothing.** C3's compression is real, reproduced to the digit, and now has no
+demonstrated link to the live penalty — C4 is the third measurement in a row (after C5 and C6)
+to leave the mechanism unexplained.
+
+**It closes the question on the ONE repair the evidence licensed, and must be written as
+exactly that.** It is not a general impossibility claim. **`mp_residual` was one of the two
+ways the bipartite stage differs from `PeerConv`; the other — edge-conditioning — is still
+untested**, and after C4 it is the only remaining lever with evidence behind it: the bipartite
+`edge_attr` reaches the scorer and never the message passing, while `PeerConv` consumes its
+edge attribute in `message()`. That is **C7**, and it is a new lineage, not an amendment here:
+it needs a new conv module, a weight-visible flag, a sidecar key, the serving whitelist and
+train/serve parity coverage.
