@@ -340,3 +340,31 @@ had it defaulted to `{}`, C6 would have run 128 arms and read zeros as a measure
 The fix is purely additive (it writes something previously dropped) and was **proven inert
 rather than asserted**: `verify_venue_parity --mode logits` gives max |delta| 0.0 over 1,738
 scored edges and 0/256 argmax flips.
+
+## 2026-09-18 — reusing a named reader with its arguments swapped inverts its VERDICT, not its number
+
+`peer_only_v1` C4. The glue read the residual arm as `read_c1(gnnres, peeronly)`. `read_c1` is
+written for `(peeronly, gnn)`, where a **positive** median means the bipartite stage helped —
+so *"gnnres is 13.02 % slower than peeronly"* printed as **`BIPARTITE-HELPS`**. The median, the
+p-value and the ahead-count were all correct. Only the word was backwards, and the word is what
+gets copied into a node.
+
+This is not a naming nitpick. A reader whose verdict encodes *which arm is which* is only
+correct at one argument order, and nothing in the call site shows the order is wrong — the
+types match, the test suite passes, and the printed number is right. It was caught by reading
+the output and noticing that a 13 % **deficit** had been labelled a win.
+
+⇒ **A reader that names arms in its verdict must not be reused for a different pair.** Either
+pass the same two arms in the same order, or call an orientation-neutral reader and let the
+caller name the winner. `read_pair_pct` is that reader: negative median = first argument
+faster, verdicts `A-FASTER` / `B-FASTER` / `NOT-SEPARATED`.
+
+The test that pins it is the one `read_c1` could not have: **give the same data twice with the
+arguments swapped and assert the verdict flips.** A reader that returns the same verdict both
+ways is encoding an orientation it does not actually check.
+
+Found alongside a second defect in the same read: `_collapse_pair` intersected the two arms'
+checkpoint-seed sets, and reactive is deterministic so it is keyed at **seed 0** — the
+intersection with any learned arm is empty, so the baseline comparison silently reported *"no
+gnnres / reactive at R3"* on a table that contained both. **A deterministic baseline has no
+seed; do not intersect seeds with it.**
