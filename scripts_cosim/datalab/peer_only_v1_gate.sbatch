@@ -17,6 +17,9 @@
 #                         so every rung of the B5 ladder rests on 16 checkpoints.
 #   C4      tasks 724-787 gnnres (1670) x R3 x 4 cells x 16 -- AMENDMENT 9, the residual
 #                         bipartite arm; submit 724-771, 772-787
+#   F1      tasks 1108-1171 mpoff_516 (best_arm_v1) at R0 = the 20-client rung, never served there
+#   E2b     tasks 1172-1299 seeds 17-32 of {gnnedgesum, gnnedge0} at R0 -- AMENDMENT 1, the
+#                           higher-powered E2; all of these need PO_TASK_OFFSET
 #   E1-E3   tasks 916-1107 gnnedgesum (bipartite_aggr_v1) x {R3, R0} x 4 cells x 16, plus
 #                         gnnedge0 at R0 which E2 has no comparison arm without.
 #                         PAST MaxArraySize=1001, so these submit via PO_TASK_OFFSET:
@@ -145,6 +148,21 @@ for a in gnnedge gnnedge0; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do
 #             has no comparison arm without it.
 for r in 1 0; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("ba1670"); ARMS+=("gnnedgesum"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done
 for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("be1670"); ARMS+=("gnnedge0"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done
+# best_arm_v1 F1 (2026-09-18), tasks 1108-1171. mpoff_516 -- the best pointwise arm -- at R0,
+# which IS the 20-client rung of the client ladder (6 servers, 20 clients). It has never been
+# served there, so the "is the best scheduler still a pointwise one" contrast has no bottom
+# rung without it. Corpus tag v3ext: this IS partial_state_v3's mpoff, whose re-serve A0 proved
+# bit-identical, so it extends the same arm and the reader relabels it 516_mpoff.
+for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("v3ext"); ARMS+=("mpoff"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done
+# bipartite_aggr_v1 AMENDMENT 1, tasks 1172-1299. Seeds 17-32 of both aggregation arms at R0
+# ONLY. E2 read AGGREGATION-NOT-SEPARATED on SIGNIFICANCE, not magnitude (median -8.30 %, which
+# is outside the +-5 % tie band, at p = 0.1089), so the null is the weakest link in the closed
+# mechanism and doubling n is the cheapest thing that can move it. R3 is not re-run: E1 cleared
+# at p = 0.0052 and re-reading a bar that already fired would be shopping for a better number.
+EXTSEEDS=(17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32)
+for a in gnnedgesum gnnedge0; do for c in 0 1 2 3; do for s in "${EXTSEEDS[@]}"; do
+  if [[ $a == gnnedgesum ]]; then CORP+=("ba1670"); else CORP+=("be1670"); fi
+  ARMS+=("$a"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done; done
 NTASKS=${#ARMS[@]}
 # SLURM's MaxArraySize on this cluster is 1001, so --array indices above 1000 are rejected
 # outright ("Invalid job array specification") -- and this table has grown past that. Rather

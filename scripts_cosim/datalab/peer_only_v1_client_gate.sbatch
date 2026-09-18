@@ -16,6 +16,8 @@
 #     learned   tasks  16-527  {peeronly, mpoff} (1670) x 4 rungs x 4 cells x 16 checkpoints
 #     B8        tasks 528-655  mpoff (516, tag v3ext) x {40, 80} clients x 4 cells x 16 --
 #                              AMENDMENT 5: clause 3 at the UNSATURATED rungs
+#     F1-F2     tasks 976-1039 gnnedge0 (best_arm_v1) at 80 clients -- the only unsaturated
+#                             rung it has never been served at; 20 clients IS the R0 cell
 #     D1-D4     tasks 848-975  {gnnedge, gnnedge0} (bipartite_edge_v1) x 40 clients x 4
 #                              cells x 16 -- a DIFFERENT LINEAGE, run here to share these
 #                              cells with the arms it is compared against
@@ -34,7 +36,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=01:30:00
-#SBATCH --array=0-975
+#SBATCH --array=0-975   # MaxArraySize=1001; tasks above 1000 run via PO_TASK_OFFSET
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -67,7 +69,14 @@ export SIM_FORCE_FULL_STATS=1
 WORKLOAD="$GATE/workloads/drainable_f4000_n50000.json"   # the 6-server rung's workload, held
 [[ -f "$WORKLOAD" ]] || { echo "FAIL LOUD: workload missing: $WORKLOAD" >&2; exit 1; }
 
-T=${SLURM_ARRAY_TASK_ID}
+# Same MaxArraySize=1001 ceiling the server gate hit (docs/gates/gate-tools.md, 2026-09-18):
+#     sbatch --array=0-47 --export=ALL,PO_TASK_OFFSET=976 scripts_cosim/datalab/peer_only_v1_client_gate.sbatch
+# Applied HERE, before the mint elector below, so "task 0" means the same thing with and
+# without an offset -- an offset run has no task 0 and therefore mints nothing, which is
+# correct: the cells it needs were minted by the un-offset run that created this manifest.
+OFFSET=${PO_TASK_OFFSET:-0}
+T=$(( SLURM_ARRAY_TASK_ID + OFFSET ))
+if (( OFFSET != 0 )); then echo "[OFFSET] array id ${SLURM_ARRAY_TASK_ID} + ${OFFSET} -> task $T"; fi
 
 # --- cells: task 0 mints, everyone else waits (datalab-pitfalls #7) ------------------------
 if [[ $T -eq 0 ]]; then
@@ -122,6 +131,14 @@ done
 for a in gnnedge gnnedge0; do for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=(40); CI+=("$c"); ARMS+=("$a"); SEED+=("$s"); done
 done; done
+# best_arm_v1 F1/F2 (2026-09-18), tasks 976-1039. gnnedge0 -- the arm that actually carried
+# bipartite_edge_v1's result -- at 80 CLIENTS. It has only ever been served at 40 clients and at
+# the two server rungs, so neither the pointwise contrast nor the shape of the margin across the
+# client ladder can be read at its top rung without it. 20 clients IS the R0 server cell and is
+# already served. APPENDED: tasks 0-975 keep their arms. Needs PO_TASK_OFFSET.
+for c in 0 1 2 3; do
+  for s in "${CKSEEDS[@]}"; do NC+=(80); CI+=("$c"); ARMS+=("gnnedge0"); SEED+=("$s"); done
+done
 NTASKS=${#ARMS[@]}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
 NCLIENTS=${NC[$T]}; C=${CI[$T]}; ARM=${ARMS[$T]}; S=${SEED[$T]}

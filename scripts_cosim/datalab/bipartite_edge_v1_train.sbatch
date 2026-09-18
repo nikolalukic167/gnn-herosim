@@ -12,7 +12,8 @@
 #
 # Checkpoints: models/bipartite-edge-v1-1670-{arm}-lr2e3-seed{n}.pt
 #
-#   sbatch --array=0-31 scripts_cosim/datalab/bipartite_edge_v1_train.sbatch
+#   sbatch --array=0-31 scripts_cosim/datalab/bipartite_edge_v1_train.sbatch   # D1/D2
+#   sbatch --array=32-47 scripts_cosim/datalab/bipartite_edge_v1_train.sbatch  # E2b seeds 17-32
 #
 # 32 tasks fits under MaxSubmit=50 in one submission; an array counts EVERY task against it.
 #
@@ -25,7 +26,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
-#SBATCH --array=0-31
+#SBATCH --array=0-47
 
 set -euo pipefail
 ulimit -n 65536 2>/dev/null || true
@@ -41,11 +42,15 @@ export OMP_NUM_THREADS=16 MKL_NUM_THREADS=16 OPENBLAS_NUM_THREADS=16 CUDA_VISIBL
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__,'cuda',torch.cuda.is_available())"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
-SPECS=("gnnedge 16" "gnnedge0 16")
+# bipartite_aggr_v1 AMENDMENT 1 (2026-09-18): seeds 17-32 of gnnedge0 at tasks 32-47, so
+# E2 can be re-read at n = 32. APPENDED -- tasks 0-31 keep their arms and their checkpoints.
+SPECS=("gnnedge 1 16" "gnnedge0 1 16" "gnnedge0 17 32")
 ARMS=(); SEEDS=()
+# Spec format is "arm FIRSTSEED LASTSEED" so a later block can add seeds to an arm that
+# already has some, WITHOUT moving any existing task index (appending a bare count could not).
 for spec in "${SPECS[@]}"; do
-  read -r arm n <<< "$spec"
-  for s in $(seq 1 "$n"); do ARMS+=("$arm"); SEEDS+=("$s"); done
+  read -r arm s0 s1 <<< "$spec"
+  for s in $(seq "$s0" "$s1"); do ARMS+=("$arm"); SEEDS+=("$s"); done
 done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
