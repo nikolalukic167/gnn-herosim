@@ -1211,3 +1211,37 @@ separable and each is one experiment:
 Until both are run, the honest statement is: **the bipartite stage as configured costs at
 large cluster sizes, and the programme has not yet tested a bipartite stage built the way the
 stage that works is built.**
+
+### 2026-09-18 — C6: **NOT RUNNABLE** — the instrument is unreachable in the path the gates use
+
+Registered as AMENDMENT 11, smoke-tested on **one arm**, and stopped there. **No arms were
+spent on it and it produced no number.**
+
+C6 was to read `record_queue_feature_discrimination` — the decoder's own record of the queue
+of the platform the arm *chose* against the shortest it could have chosen — for `gnn` and
+`peeronly` at R3, the rung where C1 found the bipartite penalty. Two stacked defects make that
+impossible without a change to the serving decode path:
+
+1. **The probe is never called on this path.** Its call site is in
+   `GnnScheduler._gnn_inference`. Prefix-conditioned checkpoints served under
+   `GNN_DECODE_MODE=masked_topo` — **every arm in every gate this programme runs** — go through
+   `decode_prefix_conditioned` instead, which has no probe call at all.
+2. **Even if it ran, the output was dropped.** `executesimulation` gated writing decode stats
+   on `gnn_batches`, a counter only `record_decode_batch` increments and `masked_topo` never
+   touches. **Fixed** (`run_decode_stats_have_content`, proven inert: max |delta| 0.0, 0/256
+   argmax flips) — but the fix alone changes nothing while (1) stands.
+
+**What went right.** The one-arm smoke test failed **loud** and printed the key list, twice,
+rather than defaulting to an empty summary. Had the extraction defaulted to `{}`, C6 would have
+run 128 arms and read zeros as a measurement of "the bipartite arm decides no worse".
+
+**Not fixed here, deliberately.** Adding the probe to `decode_prefix_conditioned` edits a path
+whose docstring says *"strict by construction: every exception propagates … there is no
+try/except here at all"* — chosen so a gate can never silently serve shortest-queue for a
+batch. That is not an end-of-session edit. C6 stays registered and unrun; its bar
+(`read_c6`) and its sbatch stay in the tree so it can be run once the call site exists.
+
+**Consequence for the mechanism question.** The programme still has **no** measurement of *why*
+the bipartite stage costs at 80 servers. C3 measured geometry at 6 servers (wrong regime), C5
+was not measurable, and C6 is not runnable. What stands is C1's *what*, the confound above, and
+C4's test of one of its two halves.

@@ -304,6 +304,20 @@ It has never produced a number. `executesimulation` wrote the decode stats only 
 programme runs never calls. The probe incremented `feature_probe_tasks`, filled a stats object
 nobody wrote out, and it was dropped with the ~200 MB raw JSON. Every gate, every lineage.
 
+**Correction, same day, before anything was read from it.** The fix above is real but it was
+**not sufficient, and the first write-up of this entry implied it was.** A second smoke test
+after the fix failed identically, with `feature_probe_tasks` still 0. The reason is a
+*separate* defect one level up: the call site lives in `GnnScheduler._gnn_inference`, and
+prefix-conditioned checkpoints served under `GNN_DECODE_MODE=masked_topo` — **which is every
+gate this programme runs** — go through `decode_prefix_conditioned` instead, which never calls
+the probe at all. So there were two faults stacked: the probe is **unreachable** in the path
+the gates use, and the write guard would have dropped its output even had it run.
+
+Adding the call to the prefix path is a change to a decode path documented as *"strict by
+construction: every exception propagates … there is no try/except here at all"*, and it was
+**not** made in haste at the end of a session. `peer_only_v1` C6 is recorded as NOT-RUNNABLE
+and no arms were spent on it.
+
 ⇒ **An instrument is not on until a result file contains its output.** "Always on" in a
 docstring, a call site with no `if`, and a passing unit test all held here simultaneously
 while the instrument produced nothing. The unit tests for this probe
