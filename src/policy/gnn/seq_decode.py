@@ -385,8 +385,23 @@ def get_run_decode_stats() -> Optional[GnnDecodeRunStats]:
     return _RUN_STATS
 
 
+def run_decode_stats_have_content(stats: Optional["GnnDecodeRunStats"]) -> bool:
+    """Is there anything in here worth writing?
+
+    NOT `gnn_batches > 0`. That counter is incremented only by `record_decode_batch`, and the
+    masked_topo decode path the gates actually run never calls it -- while
+    `record_queue_feature_discrimination` runs on every batch and increments
+    `feature_probe_tasks`. Gating the write on `gnn_batches` alone therefore threw away the
+    feature probe's output in every live gate this programme has ever run: an instrument
+    documented as "always on" whose results never reached disk.
+    """
+    if stats is None:
+        return False
+    return stats.gnn_batches > 0 or stats.feature_probe_tasks > 0
+
+
 def write_run_decode_stats(path: Path, *, p1_margin: int = 1) -> Optional[Dict[str, Any]]:
-    if _RUN_STATS is None or _RUN_STATS.gnn_batches == 0:
+    if not run_decode_stats_have_content(_RUN_STATS):
         return None
     payload = _RUN_STATS.to_dict(p1_margin=p1_margin)
     path.parent.mkdir(parents=True, exist_ok=True)

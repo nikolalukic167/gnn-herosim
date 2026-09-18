@@ -1445,12 +1445,21 @@ def run_simulation(
         if policy in ml_policies:
             try:
                 if policy == "gnn_hetero":
-                    from src.policy.gnn_hetero.seq_decode import get_run_decode_stats, write_run_decode_stats
+                    from src.policy.gnn_hetero.seq_decode import (
+                        get_run_decode_stats, run_decode_stats_have_content,
+                        write_run_decode_stats,
+                    )
                 else:
-                    from src.policy.gnn.seq_decode import get_run_decode_stats, write_run_decode_stats
+                    from src.policy.gnn.seq_decode import (
+                        get_run_decode_stats, run_decode_stats_have_content,
+                        write_run_decode_stats,
+                    )
 
                 decode_stats = get_run_decode_stats()
-                if decode_stats is not None and decode_stats.gnn_batches > 0:
+                # Not `gnn_batches > 0` -- see run_decode_stats_have_content. The masked_topo
+                # path never increments that counter, so this condition silently discarded the
+                # queue-feature probe in every live gate run to date.
+                if run_decode_stats_have_content(decode_stats):
                     margin = int(os.environ.get("GNN_SEQBLEND_QUEUE_MARGIN", "1"))
                     summary = decode_stats.summary(p1_margin=margin)
                     decode_stats_summary = summary
