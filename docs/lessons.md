@@ -617,3 +617,29 @@ servers (14¹⁰ plans) do not exist; the live gate is the instrument, at ~2 min
 And **a bar that names a failure class (a raise, a refusal) must be read by cause, not by
 count**: the first cut of the read printed the class it was written for on two arms that
 died of a tail livelock at the memory cap — see `docs/gates/gate-tools.md`, 2026-09-16.
+
+## Name every path on `git add` — the scope is not the problem, the wildcard is (2026-09-18)
+
+`peer_only_v1`. Twice in one lineage a broad `git add` swept another session's uncommitted
+work into a commit that had nothing to do with it. First `a11b042` took a 350-bullet →
+67-section `lessons.md` refactor, because the staging ran `git hash-object -w` over
+*working-tree* files. Then `6629ee7` took nine `literature_reeval_l2d` sbatch scripts,
+`dag_fabric_ceiling_probe.py` and `task_duration_decomposition.py` — untracked files
+belonging to a different session — because the add was written as `git add -A scripts_cosim/`.
+
+The second one is the instructive one, because it looked careful. It **was** scoped: to one
+directory, the directory the work was in. Scoping a wildcard does not make it a list. `-A`
+and `-u` mean "whatever is here", and on a shared checkout what is here includes work that is
+not yours and that you cannot see in a diff of your own changes. ⇒ **Pass explicit paths to
+`git add`, always. Never `-A`, never `-u`, not even confined to a subdirectory.**
+
+Recovery, if it has already happened and been pushed: `git rm --cached` the foreign paths and
+commit that. It returns every file to untracked with its contents untouched on disk, and it
+does not rewrite a history someone else may have pulled. Do **not** reach for a revert or a
+rebase — the files were never theirs to lose, only yours to un-take.
+
+One further trap when a file is shared and both sides have uncommitted edits: reconstruct the
+staged blob from `HEAD` plus your hunk (`git show HEAD:path` → edit → `git hash-object -w` →
+`git update-index --cacheinfo`), never from the working tree. And say so out loud, because the
+other session's working tree will not contain your hunk — if they commit wholesale, your
+addition is lost, and only they can reconcile that.
