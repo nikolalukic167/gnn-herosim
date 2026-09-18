@@ -17,6 +17,10 @@
 #                         so every rung of the B5 ladder rests on 16 checkpoints.
 #   C4      tasks 724-787 gnnres (1670) x R3 x 4 cells x 16 -- AMENDMENT 9, the residual
 #                         bipartite arm; submit 724-771, 772-787
+#   D1-D4   tasks 788-915  {gnnedge, gnnedge0} (bipartite_edge_v1) x R3 x 4 cells x 16 --
+#                         a DIFFERENT LINEAGE, run here so it shares these cells and this
+#                         summary schema with the gnn/peeronly/reactive arms it is compared
+#                         against; submit 788-835, 836-883, 884-915
 #   C1      tasks 628-723 gnn (1670) x {R3, R0} x 4 cells x the OTHER 12 seeds -- AMENDMENT 6,
 #                         the bipartite arm at power; submit 628-675, 676-723 (%12 each)
 #   B5      tasks 276-531 {peeronly, mpoff} (1670) x {R1=12, R2=24 servers} x 4 cells x 16 --
@@ -49,7 +53,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-787
+#SBATCH --array=0-915
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -120,6 +124,13 @@ for r in 1 0; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"
 # The LIVE half of C4: R3 is where C1 measured the bipartite penalty at power, so it is where
 # the repair has to show up. APPENDED: tasks 0-723 keep their arms.
 for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("1670"); ARMS+=("gnnres"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done
+# bipartite_edge_v1 D1/D2/D3/D4 (2026-09-18), tasks 788-915. A DIFFERENT LINEAGE runs here on
+# purpose: docs/lineages/bipartite_edge_v1.md compares gnnedge against gnn, peeronly and
+# reactive at this rung, and those arms live in this results directory under this script's
+# cells, workloads, window and summary schema. A fresh copy of this file could drift in one
+# constant and make the comparison a cross-gate one; appending cannot. Tasks 0-787 keep their
+# arms. Submit 788-835, 836-883, 884-915.
+for a in gnnedge gnnedge0; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("be1670"); ARMS+=("$a"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
@@ -143,6 +154,7 @@ case "$CORPUS" in
   v3|v3ext) CK="models/partial-state-v3-${ARM}-lr2e3-seed${S}.pt" ;;
   516)  CK="models/peer-only-v1-516-${ARM}-lr2e3-seed${S}.pt" ;;
   1670) CK="models/peer-only-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
+  be1670) CK="models/bipartite-edge-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
 esac
 [[ -f "$CK" ]] || { echo "FAIL LOUD: missing checkpoint $CK" >&2; exit 1; }
 SC="${CK%.pt}.contract.json"
@@ -157,6 +169,16 @@ want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
         # wrong arm -- the flag is weight-visible, but the model is BUILT from this sidecar,
         # so strict loading would not catch it.
         "mp_residual": arm == "gnnres"}
+# bipartite_edge_v1: mp_bipartite_edge_attr_zero is NOT weight-visible, and the model is BUILT
+# from this sidecar, so this pin is the only thing standing between the control and being
+# served as the treatment. Pinned on EVERY arm, not just the two new ones -- a check that only
+# looks at the arms it expects cannot catch the arm it does not.
+want["mp_bipartite_edge_conv"] = arm in ("gnnedge", "gnnedge0")
+want["mp_bipartite_edge_attr_zero"] = arm == "gnnedge0"
+if arm not in ("gnnedge", "gnnedge0") and "mp_bipartite_edge_conv" not in sc:
+    # Sidecars written before 2026-09-18 carry neither key and ran the GIN; absent is the
+    # old default, and demanding the key would refuse every pre-existing checkpoint.
+    want.pop("mp_bipartite_edge_conv"); want.pop("mp_bipartite_edge_attr_zero")
 if arm == "peeronly":
     want["mp_platform_edges"] = False
 elif "mp_platform_edges" in sc:

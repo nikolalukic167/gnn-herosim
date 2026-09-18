@@ -16,6 +16,9 @@
 #     learned   tasks  16-527  {peeronly, mpoff} (1670) x 4 rungs x 4 cells x 16 checkpoints
 #     B8        tasks 528-655  mpoff (516, tag v3ext) x {40, 80} clients x 4 cells x 16 --
 #                              AMENDMENT 5: clause 3 at the UNSATURATED rungs
+#     D1-D4     tasks 848-975  {gnnedge, gnnedge0} (bipartite_edge_v1) x 40 clients x 4
+#                              cells x 16 -- a DIFFERENT LINEAGE, run here to share these
+#                              cells with the arms it is compared against
 #     C2        tasks 656-783  gnn (1670) x {40, 80} clients x 4 cells x 16 -- AMENDMENT 7,
 #                              the bipartite arm at the unsaturated rungs, never served there
 #
@@ -31,7 +34,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=01:30:00
-#SBATCH --array=0-847
+#SBATCH --array=0-975
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -110,6 +113,15 @@ done; done
 for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=(80); CI+=("$c"); ARMS+=("gnnres"); SEED+=("$s"); done
 done
+# bipartite_edge_v1 D1/D2/D3/D4 (2026-09-18), tasks 848-975. A DIFFERENT LINEAGE:
+# docs/lineages/bipartite_edge_v1.md. The 40-CLIENT rung, because that is where C2 measured the
+# bipartite penalty on this axis (-18.66 %, 13/16) -- NOT 80 clients, where it is absent
+# (p = 0.28) and there would be nothing to repair. The gnn, peeronly and reactive arms it is
+# compared against are already in this results directory under these cells. APPENDED: tasks
+# 0-847 keep their arms. Submit 848-895, 896-943, 944-975.
+for a in gnnedge gnnedge0; do for c in 0 1 2 3; do
+  for s in "${CKSEEDS[@]}"; do NC+=(40); CI+=("$c"); ARMS+=("$a"); SEED+=("$s"); done
+done; done
 NTASKS=${#ARMS[@]}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
 NCLIENTS=${NC[$T]}; C=${CI[$T]}; ARM=${ARMS[$T]}; S=${SEED[$T]}
@@ -135,6 +147,7 @@ PY
 # (516 corpus) re-served here; every other arm is a 1670 one. The name must carry the corpus or
 # the two mpoffs collide on one summary path -- the idempotence-guard defect from 2026-09-16.
 if [[ $ARM == v3ext_mpoff ]]; then ARM_KIND=mpoff; CORPUS_TAG=v3ext
+elif [[ $ARM == gnnedge || $ARM == gnnedge0 ]]; then ARM_KIND=$ARM; CORPUS_TAG=be1670
 else ARM_KIND=$ARM; CORPUS_TAG=1670; fi
 ARMNAME="${CELL}__C${NCLIENTS}__${CORPUS_TAG}_${ARM_KIND}_s${S}"
 SUMMARY="$OUT_DIR/${ARMNAME}.summary.json"
@@ -147,6 +160,8 @@ if [[ $ARM == reactive ]]; then
 else
   if [[ $CORPUS_TAG == v3ext ]]; then
     CK="models/partial-state-v3-${ARM_KIND}-lr2e3-seed${S}.pt"
+  elif [[ $CORPUS_TAG == be1670 ]]; then
+    CK="models/bipartite-edge-v1-1670-${ARM_KIND}-lr2e3-seed${S}.pt"
   else
     CK="models/peer-only-v1-1670-${ARM_KIND}-lr2e3-seed${S}.pt"
   fi
@@ -161,6 +176,15 @@ want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
         # C4: mp_residual is the only thing separating gnnres from gnn, and the model is BUILT
         # from this sidecar, so strict loading cannot catch a mislabel. Pinned on both.
         "mp_residual": arm == "gnnres"}
+# bipartite_edge_v1: mp_bipartite_edge_attr_zero is NOT weight-visible and the model is BUILT
+# from this sidecar, so this pin is the only thing standing between the control and being
+# served as the treatment. Pinned on EVERY arm -- a check that only looks at the arms it
+# expects cannot catch the arm it does not -- but dropped when the sidecar predates the key,
+# which is the same rule mp_platform_edges needed after it failed 48 B8 arms.
+want["mp_bipartite_edge_conv"] = arm in ("gnnedge", "gnnedge0")
+want["mp_bipartite_edge_attr_zero"] = arm == "gnnedge0"
+if arm not in ("gnnedge", "gnnedge0") and "mp_bipartite_edge_conv" not in sc:
+    want.pop("mp_bipartite_edge_conv"); want.pop("mp_bipartite_edge_attr_zero")
 # mp_platform_edges postdates the partial_state_v3 checkpoints, so the key is ABSENT from
 # their sidecars. Absent means the documented default (GIN on), and for mpoff it is moot --
 # disable_message_passing=True already turns all message passing off. Demanding it
