@@ -232,6 +232,50 @@ class PeerConv(MessagePassing):
         return self.message_mlp(torch.cat([x_j, edge_attr], dim=-1))
 
 
+class BipartiteEdgeConv(MessagePassing):
+    """bipartite_edge_v1: edge-attribute-aware message passing over the task<->platform edges.
+
+    Exists because of a confound `peer_only_v1` found by code read and could not resolve by
+    measurement. `peeronly` (PeerConv, no bipartite stage) beats the full `gnn` arm by
+    -18.94% at 80 servers, and the two stages differ in TWO ways at once: PeerConv is
+    residual AND consumes `edge_attr`, while the bipartite `GIN` is NEITHER. C4 tested the
+    residual half end-to-end and it did not transfer. This conv tests the other half.
+
+    What the bipartite GIN is blind to, specifically: `data.edge_attr` is
+    ``[exec_time, latency, is_warm, energy, comm_time]`` per (task, platform) pair -- the
+    entire physics of that pairing. `torch_geometric.nn.models.GIN` takes ``(x, edge_index)``
+    and has no `edge_dim`, so today those five columns reach the `EdgeScorer` and nothing
+    else. The bipartite stage averages platform embeddings without knowing which pairing is
+    fast, warm or cheap.
+
+    Not residual, deliberately: that keeps `mp_residual` an ORTHOGONAL flag, so
+    {GIN, EdgeConv} x {replace, residual} stays a clean 2x2 rather than two entangled arms.
+    Stacked ``num_layers`` deep to match the GIN's depth.
+
+    Pattern: src/policy/gnn_hetero/gnn_model.py BipartiteEdgeConv (re-implemented, not
+    imported -- the two model files are separate lineages and a shared definition would let
+    an edit to one silently move the other's checkpoints; PeerConv follows the same rule).
+    """
+
+    def __init__(self, embedding_dim: int, hidden_dim: int, edge_dim: int = 5, dropout_p: float = 0.1) -> None:
+        super().__init__(aggr="mean")
+        self.message_mlp = nn.Sequential(
+            nn.Linear(embedding_dim + edge_dim, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout_p),
+            nn.Linear(hidden_dim, embedding_dim),
+        )
+        self.update_mlp = nn.Sequential(
+            nn.Linear(2 * embedding_dim, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout_p),
+            nn.Linear(hidden_dim, embedding_dim),
+        )
+
+    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor) -> Tensor:
+        out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=(x.size(0), x.size(0)))
+        return self.update_mlp(torch.cat([x, out], dim=-1))
+
+    def message(self, x_j: Tensor, edge_attr: Tensor) -> Tensor:
+        return self.message_mlp(torch.cat([x_j, edge_attr], dim=-1))
+
+
 class TaskPlacementGNN(nn.Module):
     """
     1. Encode task and platform features separately
@@ -280,6 +324,8 @@ class TaskPlacementGNN(nn.Module):
         mp_peer_edges: Optional[bool] = None,
         peer_edge_dim: int = 1,
         mp_platform_edges: Optional[bool] = None,
+        mp_bipartite_edge_conv: Optional[bool] = None,
+        mp_bipartite_edge_attr_zero: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -398,6 +444,43 @@ class TaskPlacementGNN(nn.Module):
             (not _env_flag("GNN_MP_PLATFORM_EDGES_OFF")) if mp_platform_edges is None
             else bool(mp_platform_edges)
         )
+        # bipartite_edge_v1 (2026-09-18): replace the bipartite GIN with an edge-conditioned
+        # conv, so the 5-column task<->platform edge_attr reaches MESSAGE PASSING and not
+        # only the EdgeScorer. Weight-VISIBLE (bip_convs.* exist only when on, and the GIN's
+        # parameters go unused), so a strict load across this boundary fails by itself --
+        # recorded in the sidecar anyway, like every other graph option.
+        self.mp_bipartite_edge_conv = (
+            _env_flag("GNN_MP_BIPARTITE_EDGE_CONV") if mp_bipartite_edge_conv is None
+            else bool(mp_bipartite_edge_conv)
+        )
+        # The architecture control. Same conv, same parameter count, same depth -- but the
+        # edge attributes it is conditioned on are replaced by zeros. Without this arm a
+        # negative result is confounded with "GIN -> BipartiteEdgeConv", which is a change
+        # of aggregation and MLP shape as well as of edge-awareness. It is NOT weight-
+        # visible (zeroing a tensor leaves no parameter behind), so it MUST travel in the
+        # sidecar and be on the serving whitelist; that is the exact shape of defect
+        # docs/lessons.md records under sidecar keys needing a serving whitelist.
+        self.mp_bipartite_edge_attr_zero = (
+            _env_flag("GNN_MP_BIPARTITE_EDGE_ATTR_ZERO") if mp_bipartite_edge_attr_zero is None
+            else bool(mp_bipartite_edge_attr_zero)
+        )
+        if self.mp_bipartite_edge_attr_zero and not self.mp_bipartite_edge_conv:
+            raise ValueError(
+                "FAIL LOUD: mp_bipartite_edge_attr_zero=True is meaningless without "
+                "mp_bipartite_edge_conv=True -- the GIN never reads edge_attr at all, so "
+                "the flag would silently describe a model it does not affect."
+            )
+        if self.mp_bipartite_edge_conv:
+            if not self.mp_platform_edges:
+                raise ValueError(
+                    "FAIL LOUD: mp_bipartite_edge_conv=True with mp_platform_edges=False -- "
+                    "the bipartite stage is skipped entirely, so the conv would be "
+                    "constructed and never run (that is the peeronly arm)."
+                )
+            self.bip_convs = nn.ModuleList(
+                BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim, dropout_p=dropout)
+                for _ in range(num_layers)
+            )
         if self.mp_peer_edges:
             if self.task_type_onehot_dim <= 0:
                 raise ValueError("FAIL LOUD: mp_peer_edges=True requires task_type_onehot_dim > 0")
@@ -557,7 +640,39 @@ class TaskPlacementGNN(nn.Module):
                 if extra_edges
                 else data.edge_index
             )
-            h = self.post_gin_dropout(self.gin(x0, mp_edge_index))
+            if self.mp_bipartite_edge_conv:
+                # The conv is conditioned on edge_attr, which exists ONLY for the bipartite
+                # edges. node/dag/net edges carry no attribute, so silently padding them
+                # with zeros would make "no attribute" indistinguishable from "all-zero
+                # attribute" -- which is precisely what the edge_attr_zero control means.
+                # Refuse rather than overload the encoding.
+                if extra_edges:
+                    raise ValueError(
+                        "FAIL LOUD: mp_bipartite_edge_conv=True with extra message-passing "
+                        "edges (node/dag/net). Those edges have no edge_attr and the conv "
+                        "requires one per edge."
+                    )
+                ea = getattr(data, "edge_attr", None)
+                if ea is None or ea.numel() == 0:
+                    raise ValueError(
+                        "FAIL LOUD: mp_bipartite_edge_conv=True but the graph carries no "
+                        "edge_attr. The bipartite conv is conditioned on it."
+                    )
+                if int(ea.size(0)) != int(mp_edge_index.size(1)):
+                    raise ValueError(
+                        f"FAIL LOUD: edge_attr has {int(ea.size(0))} rows but edge_index has "
+                        f"{int(mp_edge_index.size(1))} columns. The bipartite conv needs them "
+                        "aligned row-for-row (prepare_graphs_cache uses to_undirected on both)."
+                    )
+                ea = ea.to(x0.device, dtype=x0.dtype)
+                if self.mp_bipartite_edge_attr_zero:
+                    ea = torch.zeros_like(ea)
+                h = x0
+                for conv in self.bip_convs:
+                    h = conv(h, mp_edge_index, ea)
+                h = self.post_gin_dropout(h)
+            else:
+                h = self.post_gin_dropout(self.gin(x0, mp_edge_index))
             x = x0 + self.mp_gate * h if self.mp_residual else h
             task_emb, platform_emb = split_task_platform_embeddings(x, n_tasks, n_platforms)
 

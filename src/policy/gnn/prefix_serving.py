@@ -269,6 +269,12 @@ def load_prefix_conditioned_gnn(
         mp_dag_edges=bool(sidecar.get("mp_dag_edges", False)),
         mp_peer_edges=bool(sidecar.get("mp_peer_edges", False)),
         mp_platform_edges=bool(sidecar.get("mp_platform_edges", True)),
+        # bipartite_edge_v1. The conv itself is weight-visible, so a mismatch here would
+        # fail the strict load below on its own; the ZERO control is not, and the sidecar
+        # is its only record -- serve it wrong and the arm and its control are the same
+        # checkpoint reporting two different things.
+        mp_bipartite_edge_conv=bool(sidecar.get("mp_bipartite_edge_conv", False)),
+        mp_bipartite_edge_attr_zero=bool(sidecar.get("mp_bipartite_edge_attr_zero", False)),
         task_type_onehot_dim=onehot_dim,
         partial_state_edge_dim=partial_dim,
         normalize_platform_inputs=sidecar.get("feature_dim") == 21,

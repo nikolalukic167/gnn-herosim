@@ -635,6 +635,12 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             "mp_peer_edges",
             # peer_only_v1: PeerConv on, bipartite GIN off. Weight-invisible like the rest.
             "mp_platform_edges",
+            # bipartite_edge_v1: the edge-conditioned bipartite conv, and its zeroed-attr
+            # control. The conv is weight-visible; the control is NOT -- zeroing a tensor
+            # leaves no parameter behind, so without this line the control would serve as
+            # the treatment and the two arms would be indistinguishable at inference.
+            "mp_bipartite_edge_conv",
+            "mp_bipartite_edge_attr_zero",
             "partial_state_edge_features",
             # Weight-invisible like the two above: the GIN module is always constructed,
             # so a checkpoint whose GIN weights were never fitted (disable_message_passing
@@ -917,6 +923,8 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_dag_edges=mp_dag_edges,
             task_type_onehot_dim=int(mp_cfg.get("task_type_onehot_dim", 0)),
             mp_platform_edges=bool(mp_cfg.get("mp_platform_edges", True)),
+            mp_bipartite_edge_conv=bool(mp_cfg.get("mp_bipartite_edge_conv", False)),
+            mp_bipartite_edge_attr_zero=bool(mp_cfg.get("mp_bipartite_edge_attr_zero", False)),
         )
         print(
             f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "
