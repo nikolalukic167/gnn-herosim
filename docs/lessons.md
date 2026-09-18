@@ -643,3 +643,33 @@ staged blob from `HEAD` plus your hunk (`git show HEAD:path` → edit → `git h
 `git update-index --cacheinfo`), never from the working tree. And say so out loud, because the
 other session's working tree will not contain your hunk — if they commit wholesale, your
 addition is lost, and only they can reconcile that.
+
+## Swapping a module to add a capability changes more than that capability — train the disabled twin
+
+`bipartite_edge_v1` replaced a bipartite `GIN` with a `BipartiteEdgeConv` so that message
+passing could see the 5-column task↔platform `edge_attr` the `GIN` has no `edge_dim` for. The
+new arm beat the old by **−20.4 %** at 80 servers (16/16) and **−28.7 %** at 40 clients, and
+took the arm from *losing* to reactive Knative (+8.44 %) to beating it by **−20.8 %** at an
+unsaturated rung. Every part of that is real.
+
+The obvious write-up — "edge-conditioning repairs the bipartite stage" — is **wrong**, and only
+one thing caught it: a second arm, `gnnedge0`, trained identically with the attributes
+**zeroed**. Same module, same parameter count, same depth, same aggregation. It reads
+**+0.44 %, 8/16, p = 0.8361** against the treatment at the unsaturated rung, and it beats
+reactive on **16/16** — one seed *better* than the treatment. The gain is the conv (`sum` →
+`mean` aggregation, a different MLP shape); the attributes contribute a marginal extra that
+clears its bar at one rung on 11/16 and is a flat null at the other.
+
+**The rule.** When a change is expressed as "swap module A for module B so the model can now
+see X", the contrast A-vs-B answers *"is B better"*, never *"does X help"* — B differs from A in
+every way its author happened to write it. Train B with X disabled and make that the primary
+contrast. It costs one more arm and it is the difference between a mechanism and a coincidence.
+
+**How to spot that you need it:** if you cannot state the change as a single flag on one module,
+you are swapping modules, and the disabled twin is not optional. `mp_residual` (one learnable
+gate on an unchanged `GIN`) needed no twin; `mp_bipartite_edge_conv` did.
+
+**Corollary for the sidecar.** The disabled twin is usually **weight-invisible** — zeroing a
+tensor leaves no parameter behind — so the two arms' checkpoints load into each other in
+silence. Its flag must be in the `.contract.json`, on the serving whitelist, and wired into
+*every* loader, or the control is served as the treatment and the two arms become one.

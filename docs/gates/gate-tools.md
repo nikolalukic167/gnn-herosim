@@ -368,3 +368,19 @@ checkpoint-seed sets, and reactive is deterministic so it is keyed at **seed 0**
 intersection with any learned arm is empty, so the baseline comparison silently reported *"no
 gnnres / reactive at R3"* on a table that contained both. **A deterministic baseline has no
 seed; do not intersect seeds with it.**
+
+### A reader that prints an absent count as `None` (2026-09-18)
+
+`bipartite_edge_v1`'s gate reader printed **`None/16`** for the ahead-count of every bar,
+beside medians that were entirely correct — including a `−20.37 %` headline. The cause is
+mundane: `paired_tie` returns the count as **`v3_ahead`** (its first caller was
+`partial_state_v3`) and the formatter read `ahead`.
+
+It matters more than a cosmetic slip because the ahead-count is what separates a median carried
+by all 16 checkpoints from one carried by nine. The corrected read turned D2 at R3 from
+"clears its bar" into "clears its bar at **11/16 with p = 0.0437**", which is most of the reason
+the lineage closed on `CONV-IS-THE-LEVER` rather than on the attributes.
+
+**The rule: a missing statistic must refuse, never render.** `_fmt` now raises rather than
+printing `None`, so a headline cannot be produced without its count. Any `dict.get` feeding a
+printed number wants the same treatment — `None` in a report reads as a reported value.
