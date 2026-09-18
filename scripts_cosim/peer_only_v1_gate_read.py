@@ -29,6 +29,8 @@ from scripts_cosim.peer_only_v1_read import (
 from scripts_cosim.peer_only_v1_read import read_b3 as read_b3_bar
 from scripts_cosim.peer_only_v1_read import read_b4 as read_b4_bar
 from scripts_cosim.peer_only_v1_read import read_b5 as read_b5_bar
+from scripts_cosim.peer_only_v1_read import C1_RUNGS, read_c1_ladder
+from scripts_cosim.peer_only_v1_read import read_c1 as read_c1_bar
 
 PairKey = Tuple[str, int]
 ArmTable = Dict[str, Dict[str, Dict[PairKey, float]]]     # metric -> arm label -> {(cell, seed): value}
@@ -189,6 +191,53 @@ def _b3_at(tab: Mapping[str, ArmTable], rung: str, seeds: Optional[Sequence[int]
             "per_seed_pct": {s: 100.0 * (po[s] / mp[s] - 1.0) for s in shared}}
 
 
+def _c1_at(tab: Mapping[str, ArmTable], rung: str) -> dict:
+    """C1 at one rung: one value per checkpoint, peeronly_1670 vs gnn_1670.
+
+    Same shape as `_b3_at` and deliberately NOT folded into it -- that helper names its two
+    arms and is cited by B3 and B5, and silently generalising it is how a read starts
+    reporting a contrast nobody registered.
+    """
+    t = tab.get(rung)
+    if not t:
+        return {"verdict": V_UNREADABLE, "reason": f"no summaries at {rung}"}
+    po_pairs = t["elapsed"].get("1670_peeronly", {})
+    gnn_pairs = t["elapsed"].get("1670_gnn", {})
+    cells = sorted({c for c, _ in po_pairs} & {c for c, _ in gnn_pairs})
+    if not cells:
+        return {"verdict": V_UNREADABLE, "reason": f"no shared cells at {rung}"}
+    try:
+        po = collapse_to_seed(po_pairs, rung_cells=cells)
+        gnn = collapse_to_seed(gnn_pairs, rung_cells=cells)
+    except ValueError as exc:                    # an arm died; name it, do not average around it
+        return {"verdict": V_UNREADABLE, "reason": str(exc)}
+    shared = sorted(set(po) & set(gnn))
+    r = read_c1_bar({s: po[s] for s in shared}, {s: gnn[s] for s in shared})
+    return {**r, "rung": rung, "cells": cells, "n_seeds": len(shared),
+            "per_seed_pct": {s: 100.0 * (po[s] / gnn[s] - 1.0) for s in shared}}
+
+
+def read_c1(tab: Mapping[str, ArmTable]) -> dict:
+    """AMENDMENT 6: what the bipartite GIN costs, with the CHECKPOINT as the unit.
+
+    Clause 7 of the node was read on FOUR checkpoints; this is the same contrast on all 16,
+    at both ends of the server ladder.
+    """
+    return read_c1_ladder({rung: _c1_at(tab, rung) for rung in C1_RUNGS})
+
+
+def format_c1(res: dict) -> str:
+    lines = ["=== C1 -- peeronly vs gnn, checkpoint-level (AMENDMENT 6) ===",
+             f"  verdict: {res['verdict']}"]
+    for rung, r in (res.get("per_rung") or {}).items():
+        if r.get("verdict") == V_UNREADABLE:
+            lines.append(f"  {rung}: UNREADABLE -- {r.get('reason')}")
+            continue
+        lines.append(f"  {rung}: {r['median']:+7.2f}%  p={r['p']:.4f}  "
+                     f"{r.get('v3_ahead', '?')}/{r['n']}  {r['verdict']}")
+    return "\n".join(lines)
+
+
 def read_b5(tab: Mapping[str, ArmTable]) -> dict:
     """AMENDMENT 3: the B3 contrast across the whole cluster-size ladder.
 
@@ -321,7 +370,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--po-dir", required=True)
     ap.add_argument("--p3-dir", required=True)
-    ap.add_argument("--phase", choices=["a", "b", "b3", "b5"], default="a")
+    ap.add_argument("--phase", choices=["a", "b", "b3", "b5", "c1"], default="a")
     ap.add_argument("--out")
     args = ap.parse_args(argv)
     tab = tables(load(args.po_dir), load(args.p3_dir))
@@ -332,12 +381,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.phase in ("b", "b3"):
         res["b1"] = read_b1(tab); res["phase_b"] = read_phase(tab, "1670")
         print(); print(format_b1(res["b1"])); print(); print(format_phase(res["phase_b"], "Phase B (B2, A2-bars)"))
-    if args.phase in ("b3", "b5"):
+    if args.phase in ("b3", "b5", "c1"):
         res["b3"] = read_b3(tab); res["b4"] = read_b4(tab)
         print(); print(format_b3(res["b3"])); print(); print(format_b4(res["b4"]))
     if args.phase == "b5":
         res["b5"] = read_b5(tab)
         print(); print(format_b5(res["b5"]))
+    if args.phase == "c1":
+        res["c1"] = read_c1(tab)
+        print(); print(format_c1(res["c1"]))
     if args.out:
         json.dump(res, open(args.out, "w"), indent=1, default=str)
         print(f"[wrote] {args.out}")

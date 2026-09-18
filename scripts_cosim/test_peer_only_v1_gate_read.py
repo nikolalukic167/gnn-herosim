@@ -177,3 +177,53 @@ def test_tables_keeps_the_psv3_arms_at_every_b5_rung():
     tab = tables([], p3)
     for rung in ("R0", "R1", "R2", "R3"):
         assert "reactive" in tab[rung]["elapsed"], rung
+
+
+# --- C1: the bipartite arm at power (AMENDMENT 6) -----------------------------------------
+
+def _c1_docs(seeds, rungs=("R3", "R0"), gnn=100.0, peeronly=80.0, drop=None):
+    """peeronly and gnn at the C1 rungs; `drop` omits a (rung, cell, seed) as a kill would."""
+    cells = ("cs80s9001", "cs80s9002", "cs80s9003", "cs80s9005")
+    docs = []
+    for rung in rungs:
+        for c in cells:
+            for s in seeds:
+                if drop and (rung, c, s) == drop:
+                    continue
+                docs.append(_sum(c, rung, "1670", "peeronly", s, peeronly + s * 0.1))
+                docs.append(_sum(c, rung, "1670", "gnn", s, gnn + s * 0.1))
+    return docs
+
+
+def test_c1_reads_both_rungs_when_every_checkpoint_landed():
+    from scripts_cosim.peer_only_v1_gate_read import read_c1
+    from scripts_cosim.peer_only_v1_read import V_BIPARTITE_COSTS
+    r = read_c1(tables(_c1_docs(range(1, 17)), []))
+    assert r["verdict"] == V_BIPARTITE_COSTS
+    assert set(r["per_rung"]) == {"R3", "R0"}
+    assert all(v["n"] == 16 for v in r["per_rung"].values())
+
+
+def test_c1_is_unreadable_on_four_checkpoints_which_is_the_whole_point():
+    from scripts_cosim.peer_only_v1_gate_read import read_c1
+    r = read_c1(tables(_c1_docs((1, 2, 4, 5)), []))
+    assert r["verdict"] == V_UNREADABLE
+
+
+def test_c1_names_a_lost_arm_rather_than_averaging_around_it():
+    from scripts_cosim.peer_only_v1_gate_read import read_c1
+    r = read_c1(tables(_c1_docs(range(1, 17), drop=("R3", "cs80s9001", 9)), []))
+    assert r["verdict"] == V_UNREADABLE
+    assert "missing cells" in r["per_rung"]["R3"]["reason"]
+
+
+def test_c1_can_report_the_gin_helping_at_one_rung():
+    """peeronly SLOWER than gnn at R0 must surface, not be smoothed into a ladder headline."""
+    from scripts_cosim.peer_only_v1_gate_read import read_c1
+    from scripts_cosim.peer_only_v1_read import V_BIPARTITE_HELPS, V_BIPARTITE_COSTS
+    docs = (_c1_docs(range(1, 17), rungs=("R3",))
+            + _c1_docs(range(1, 17), rungs=("R0",), gnn=80.0, peeronly=100.0))
+    r = read_c1(tables(docs, []))
+    assert r["per_rung"]["R3"]["verdict"] == V_BIPARTITE_COSTS
+    assert r["per_rung"]["R0"]["verdict"] == V_BIPARTITE_HELPS
+    assert r["verdict"] == V_BIPARTITE_HELPS
