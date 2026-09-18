@@ -31,7 +31,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=01:30:00
-#SBATCH --array=0-783
+#SBATCH --array=0-847
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -105,6 +105,11 @@ C2CLIENTS=(40 80)
 for nc in "${C2CLIENTS[@]}"; do for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=("$nc"); CI+=("$c"); ARMS+=("gnn"); SEED+=("$s"); done
 done; done
+# C4 -- AMENDMENT 9, tasks 784-847. gnnres at 80 clients, the registered unsaturated rung
+# (C4_LIVE_CLIENTS) where peeronly beats reactive on its own. APPENDED: 0-783 keep their arms.
+for c in 0 1 2 3; do
+  for s in "${CKSEEDS[@]}"; do NC+=(80); CI+=("$c"); ARMS+=("gnnres"); SEED+=("$s"); done
+done
 NTASKS=${#ARMS[@]}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
 NCLIENTS=${NC[$T]}; C=${CI[$T]}; ARM=${ARMS[$T]}; S=${SEED[$T]}
@@ -152,7 +157,10 @@ else
 import json, sys
 sc, arm = json.load(open(sys.argv[1])), sys.argv[2]
 want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
-        "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22}
+        "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22,
+        # C4: mp_residual is the only thing separating gnnres from gnn, and the model is BUILT
+        # from this sidecar, so strict loading cannot catch a mislabel. Pinned on both.
+        "mp_residual": arm == "gnnres"}
 # mp_platform_edges postdates the partial_state_v3 checkpoints, so the key is ABSENT from
 # their sidecars. Absent means the documented default (GIN on), and for mpoff it is moot --
 # disable_message_passing=True already turns all message passing off. Demanding it
