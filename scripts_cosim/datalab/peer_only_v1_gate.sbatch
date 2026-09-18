@@ -203,7 +203,15 @@ want["mp_bipartite_edge_attr_zero"] = arm in ("gnnedge0", "gnnedgesum")
 # gnnedgesum from gnnedge0. Pinned on every bipartite arm; absent means the documented
 # default "mean", which is what every bipartite_edge_v1 checkpoint was trained with.
 if arm in BIP:
-    want["mp_bipartite_aggr"] = "sum" if arm == "gnnedgesum" else "mean"
+    # ABSENT is provably "mean": the `aggr` parameter did not exist before 2026-09-18 and
+    # BipartiteEdgeConv hardcoded mean, so a bipartite_edge_v1 sidecar cannot be anything
+    # else. Demanding the key unconditionally failed all 64 gnnedge0 arms of job 787165,
+    # correctly and loudly -- the same shape as mp_platform_edges failing 48 B8 arms. Only
+    # the arm that must be SUM is pinned strictly; an absent key can never mean sum.
+    want["mp_bipartite_aggr"] = "sum" if arm == "gnnedgesum" else sc.get("mp_bipartite_aggr", "mean")
+    if arm != "gnnedgesum" and sc.get("mp_bipartite_aggr", "mean") != "mean":
+        raise SystemExit(f"FAIL LOUD: arm {arm} carries mp_bipartite_aggr="
+                         f"{sc.get('mp_bipartite_aggr')!r}; only gnnedgesum may be sum")
 if arm not in BIP and "mp_bipartite_edge_conv" not in sc:
     # Sidecars written before 2026-09-18 carry neither key and ran the GIN; absent is the
     # old default, and demanding the key would refuse every pre-existing checkpoint.
