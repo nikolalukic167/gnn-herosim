@@ -17,6 +17,9 @@
 #                         so every rung of the B5 ladder rests on 16 checkpoints.
 #   C4      tasks 724-787 gnnres (1670) x R3 x 4 cells x 16 -- AMENDMENT 9, the residual
 #                         bipartite arm; submit 724-771, 772-787
+#   E1-E3   tasks 916-1107 gnnedgesum (bipartite_aggr_v1) x {R3, R0} x 4 cells x 16, plus
+#                         gnnedge0 at R0 which E2 has no comparison arm without;
+#                         submit 916-963, 964-1011, 1012-1059, 1060-1107
 #   D1-D4   tasks 788-915  {gnnedge, gnnedge0} (bipartite_edge_v1) x R3 x 4 cells x 16 --
 #                         a DIFFERENT LINEAGE, run here so it shares these cells and this
 #                         summary schema with the gnn/peeronly/reactive arms it is compared
@@ -53,7 +56,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-915
+#SBATCH --array=0-1107
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -131,6 +134,16 @@ for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("1670"); ARMS+=("gnnre
 # constant and make the comparison a cross-gate one; appending cannot. Tasks 0-787 keep their
 # arms. Submit 788-835, 836-883, 884-915.
 for a in gnnedge gnnedge0; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("be1670"); ARMS+=("$a"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done; done
+# bipartite_aggr_v1 E1/E2 (2026-09-18), tasks 916-1107. ANOTHER lineage, same reason as the D
+# block: the arm it is contrasted against (`gnnedge0`) lives in this results directory under
+# these cells. Both ends of the server ladder, and that is the point -- a one-rung read cannot
+# distinguish "sum is worse" from "sum is worse BECAUSE the candidate set is large" (3.55
+# candidates/task at R0, 47.92 at R3), and only the second is a mechanism.
+#   916-1043  gnnedgesum at R3 then R0
+#   1044-1107 gnnedge0 at R0 -- it has only ever been served at R3 and at 40 clients, so E2
+#             has no comparison arm without it.
+for r in 1 0; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("ba1670"); ARMS+=("gnnedgesum"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done
+for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("be1670"); ARMS+=("gnnedge0"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
@@ -155,6 +168,7 @@ case "$CORPUS" in
   516)  CK="models/peer-only-v1-516-${ARM}-lr2e3-seed${S}.pt" ;;
   1670) CK="models/peer-only-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
   be1670) CK="models/bipartite-edge-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
+  ba1670) CK="models/bipartite-aggr-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
 esac
 [[ -f "$CK" ]] || { echo "FAIL LOUD: missing checkpoint $CK" >&2; exit 1; }
 SC="${CK%.pt}.contract.json"
@@ -173,9 +187,15 @@ want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
 # from this sidecar, so this pin is the only thing standing between the control and being
 # served as the treatment. Pinned on EVERY arm, not just the two new ones -- a check that only
 # looks at the arms it expects cannot catch the arm it does not.
-want["mp_bipartite_edge_conv"] = arm in ("gnnedge", "gnnedge0")
-want["mp_bipartite_edge_attr_zero"] = arm == "gnnedge0"
-if arm not in ("gnnedge", "gnnedge0") and "mp_bipartite_edge_conv" not in sc:
+BIP = ("gnnedge", "gnnedge0", "gnnedgesum")
+want["mp_bipartite_edge_conv"] = arm in BIP
+want["mp_bipartite_edge_attr_zero"] = arm in ("gnnedge0", "gnnedgesum")
+# bipartite_aggr_v1: a STRING flag, weight-invisible, and the ONLY thing separating
+# gnnedgesum from gnnedge0. Pinned on every bipartite arm; absent means the documented
+# default "mean", which is what every bipartite_edge_v1 checkpoint was trained with.
+if arm in BIP:
+    want["mp_bipartite_aggr"] = "sum" if arm == "gnnedgesum" else "mean"
+if arm not in BIP and "mp_bipartite_edge_conv" not in sc:
     # Sidecars written before 2026-09-18 carry neither key and ran the GIN; absent is the
     # old default, and demanding the key would refuse every pre-existing checkpoint.
     want.pop("mp_bipartite_edge_conv"); want.pop("mp_bipartite_edge_attr_zero")

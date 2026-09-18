@@ -181,6 +181,9 @@ class NearRttConfig:
     # The _ZERO variant is the architecture control -- same conv, attributes zeroed.
     mp_bipartite_edge_conv: bool = os.environ.get("NEAR_RTT_MP_BIPARTITE_EDGE_CONV", "0") == "1"
     mp_bipartite_edge_attr_zero: bool = os.environ.get("NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO", "0") == "1"
+    # bipartite_aggr_v1: how the bipartite conv pools over a task's candidate platforms.
+    # "mean" is what bipartite_edge_v1 shipped; "sum" is the GIN's behaviour under test.
+    mp_bipartite_aggr: str = os.environ.get("NEAR_RTT_MP_BIPARTITE_AGGR", "mean")
     decode_replica_reuse: bool = os.environ.get("NEAR_RTT_DECODE_REPLICA_REUSE", "0") == "1"
     decode_relax_on_stuck: bool = os.environ.get("NEAR_RTT_DECODE_RELAX", "0") == "1"
     task_type_onehot: bool = os.environ.get("NEAR_RTT_TASK_TYPE_ONEHOT", "0") == "1"
@@ -1894,6 +1897,7 @@ model = TaskPlacementGNN(
     mp_platform_edges=NEAR_CFG.mp_platform_edges,
     mp_bipartite_edge_conv=NEAR_CFG.mp_bipartite_edge_conv,
     mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
+    mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
     task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
     partial_state_edge_dim=(
         partial_state_feature_dim(resolve_partial_state_contract()) if NEAR_CFG.partial_state_edges else 0
@@ -2028,6 +2032,9 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # whitelist is a silent default, not an error.
                 "mp_bipartite_edge_conv": NEAR_CFG.mp_bipartite_edge_conv,
                 "mp_bipartite_edge_attr_zero": NEAR_CFG.mp_bipartite_edge_attr_zero,
+                # bipartite_aggr_v1: weight-invisible (aggr changes no parameter), so this
+                # sidecar is the ONLY record of which arm a checkpoint is.
+                "mp_bipartite_aggr": NEAR_CFG.mp_bipartite_aggr,
                 "decode_replica_reuse": NEAR_CFG.decode_replica_reuse,
                 "decode_relax_on_stuck": NEAR_CFG.decode_relax_on_stuck,
                 "peer_mass": peer_mass_enabled() if NEAR_CFG.partial_state_edges else None,
