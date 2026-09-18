@@ -1,0 +1,58 @@
+# bipartite_edge_v1 -- D1/D2 TREATMENT: the bipartite stage as an EDGE-CONDITIONED conv.
+# docs/lineages/bipartite_edge_v1.md.
+#
+# BYTE-IDENTICAL to experiments/peer_only_v1_1670_gnn.yaml except NEAR_RTT_MP_BIPARTITE_EDGE_CONV
+# and the wandb name/tags. Same cache, same split artifact, same objective, same schedule, same
+# learning rate, same seeds -- so the ONLY thing that differs between this arm and `gnn` is
+# whether the bipartite message-passing stage is a `GIN` or a `BipartiteEdgeConv`.
+#
+# Why: `peer_only_v1` closed with the peer-vs-bipartite contrast CONFOUNDED. `PeerConv` is
+# residual AND conditioned on its edge attribute; the bipartite `GIN` is neither. C4 tested the
+# residual half end to end and it did NOT transfer. This is the other half, and the only
+# remaining lever with evidence behind it. What the GIN is blind to is specific: `data.edge_attr`
+# is [exec_time, latency, is_warm, energy, comm_time] per (task, platform) pair -- the entire
+# physics of the pairing -- and `torch_geometric.nn.models.GIN` takes (x, edge_index) with no
+# edge_dim, so today those five columns reach the EdgeScorer and nothing else.
+#
+# NOT residual, deliberately: BipartiteEdgeConv returns update_mlp(cat[x, out]), so mp_residual
+# stays an ORTHOGONAL flag and {GIN, EdgeConv} x {replace, residual} remains a clean 2x2.
+#
+# This arm is not expected to win D3. The registered expectation
+# (docs/lineages/bipartite_edge_v1.md) is UNCERTAIN on D1/D2 and NEGATIVE on D3 -- no
+# architecture change in this programme has ever closed an 18.94 % live gap.
+trainer: gnn
+lineage: bipartite_edge_v1
+cache_dir: simulation_data/graphs_cache_peer_only_v1_1670_psv3
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_only_v1_1670_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: bipartite-edge-v1-1670-gnnedge
+  tags:
+  - bipartite-edge-v1
+  - corpus1670
+  - gnnedge
+  - lr2e3
+  - patience60

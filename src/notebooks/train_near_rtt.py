@@ -176,6 +176,11 @@ class NearRttConfig:
     # peer_only_v1: "0" drops the bipartite task<->platform GIN and keeps PeerConv. Default
     # "1" = every recipe before 2026-09-16.
     mp_platform_edges: bool = os.environ.get("NEAR_RTT_MP_PLATFORM_EDGES", "1") != "0"
+    # bipartite_edge_v1: "1" swaps the bipartite GIN for an edge-conditioned conv, so the
+    # 5-column task<->platform edge_attr reaches message passing and not only the scorer.
+    # The _ZERO variant is the architecture control -- same conv, attributes zeroed.
+    mp_bipartite_edge_conv: bool = os.environ.get("NEAR_RTT_MP_BIPARTITE_EDGE_CONV", "0") == "1"
+    mp_bipartite_edge_attr_zero: bool = os.environ.get("NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO", "0") == "1"
     decode_replica_reuse: bool = os.environ.get("NEAR_RTT_DECODE_REPLICA_REUSE", "0") == "1"
     decode_relax_on_stuck: bool = os.environ.get("NEAR_RTT_DECODE_RELAX", "0") == "1"
     task_type_onehot: bool = os.environ.get("NEAR_RTT_TASK_TYPE_ONEHOT", "0") == "1"
@@ -1887,6 +1892,8 @@ model = TaskPlacementGNN(
     mp_dag_edges=NEAR_CFG.mp_dag_edges,
     mp_peer_edges=NEAR_CFG.mp_peer_edges,
     mp_platform_edges=NEAR_CFG.mp_platform_edges,
+    mp_bipartite_edge_conv=NEAR_CFG.mp_bipartite_edge_conv,
+    mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
     task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
     partial_state_edge_dim=(
         partial_state_feature_dim(resolve_partial_state_contract()) if NEAR_CFG.partial_state_edges else 0
@@ -2015,6 +2022,12 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # peer_only_v1: weight-invisible (the GIN exists and is not run), so the
                 # sidecar is the only record; serving verifies it against the environment.
                 "mp_platform_edges": NEAR_CFG.mp_platform_edges,
+                # bipartite_edge_v1. The conv is weight-visible; the zeroed-attr control
+                # is not, and this sidecar is the ONLY place it exists. Both are on the
+                # serving whitelist in src/executesimulation.py — a key absent from that
+                # whitelist is a silent default, not an error.
+                "mp_bipartite_edge_conv": NEAR_CFG.mp_bipartite_edge_conv,
+                "mp_bipartite_edge_attr_zero": NEAR_CFG.mp_bipartite_edge_attr_zero,
                 "decode_replica_reuse": NEAR_CFG.decode_replica_reuse,
                 "decode_relax_on_stuck": NEAR_CFG.decode_relax_on_stuck,
                 "peer_mass": peer_mass_enabled() if NEAR_CFG.partial_state_edges else None,
