@@ -673,3 +673,36 @@ gate on an unchanged `GIN`) needed no twin; `mp_bipartite_edge_conv` did.
 tensor leaves no parameter behind — so the two arms' checkpoints load into each other in
 silence. Its flag must be in the `.contract.json`, on the serving whitelist, and wired into
 *every* loader, or the control is served as the treatment and the two arms become one.
+
+## A `sum` over a variable-sized neighbourhood is a scale bug, not an architecture choice
+
+`peer_only_v1` measured a message-passing stage costing **−18.94 %** live at 80 servers and
+**nothing at all** at 6 (p = 0.61). That absence survived five registered attempts at a
+mechanism — over-smoothing, a residual repair, a rank-correlation probe, a queue-discrimination
+probe, edge-conditioning — before the answer turned out to be one word in a constructor.
+
+`torch_geometric.nn.models.GIN` aggregates with **`sum`**. In this graph a task aggregates over
+its **candidate platforms**, and that set is not a fixed size: it is whatever its client can
+reach, measured at **3.55 candidates/task at 6 servers and 47.92 at 80** (`cluster_scale_v1`
+S0.d). A `sum` over it therefore produces activations that scale with cluster size, on a model
+fitted where the set was ~3.55 wide. A `mean` does not. Swapping one for the other is worth
+**+13.26 % (p = 0.0052)** at 80 servers and **nothing** at 6 — the scale-dependence the
+hypothesis predicted (`bipartite_aggr_v1`).
+
+**The rule.** Before choosing or accepting a message-passing aggregator, ask what the
+neighbourhood is and **whether its size varies across the deployments you will serve**. If it
+does, `sum` makes the layer's output a function of deployment size rather than of the state you
+meant to encode, and the failure appears only where the set is large — so it reads as "the model
+does not generalise to bigger clusters" rather than as an aggregator bug. Default to `mean` (or
+normalise) for any neighbourhood whose cardinality is a property of the environment.
+
+**How to spot it before it costs five lineages.** A defect that is **present at one operating
+point and absent at another** is evidence about the *axis*, not just noise. Measure what varies
+along that axis first — here, candidates per task, which was already in the record — and prefer
+a hypothesis that **predicts the existing null** over one that merely explains the effect.
+Over-smoothing explained the penalty; only the aggregator predicted where it would vanish.
+
+**Corollary for testing it.** `aggr` changes no parameter, so a `sum` and a `mean` checkpoint
+are byte-compatible and load into each other in silence. It needs a sidecar key, a serving
+whitelist entry and every loader — and before believing a null, check that the two arms are not
+bit-identical. See [[herosim-swap-a-module-train-the-disabled-twin]].
