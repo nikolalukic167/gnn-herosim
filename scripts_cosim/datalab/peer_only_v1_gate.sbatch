@@ -18,8 +18,9 @@
 #   C4      tasks 724-787 gnnres (1670) x R3 x 4 cells x 16 -- AMENDMENT 9, the residual
 #                         bipartite arm; submit 724-771, 772-787
 #   E1-E3   tasks 916-1107 gnnedgesum (bipartite_aggr_v1) x {R3, R0} x 4 cells x 16, plus
-#                         gnnedge0 at R0 which E2 has no comparison arm without;
-#                         submit 916-963, 964-1011, 1012-1059, 1060-1107
+#                         gnnedge0 at R0 which E2 has no comparison arm without.
+#                         PAST MaxArraySize=1001, so these submit via PO_TASK_OFFSET:
+#                           sbatch --array=0-47 --export=ALL,PO_TASK_OFFSET=964  (etc: 1012, 1060)
 #   D1-D4   tasks 788-915  {gnnedge, gnnedge0} (bipartite_edge_v1) x R3 x 4 cells x 16 --
 #                         a DIFFERENT LINEAGE, run here so it shares these cells and this
 #                         summary schema with the gnn/peeronly/reactive arms it is compared
@@ -56,7 +57,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-1107
+#SBATCH --array=0-1000   # MaxArraySize=1001; tasks above 1000 run via PO_TASK_OFFSET
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -145,7 +146,15 @@ for a in gnnedge gnnedge0; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do
 for r in 1 0; do for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("ba1670"); ARMS+=("gnnedgesum"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done
 for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("be1670"); ARMS+=("gnnedge0"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done
 NTASKS=${#ARMS[@]}
-T=${SLURM_ARRAY_TASK_ID}
+# SLURM's MaxArraySize on this cluster is 1001, so --array indices above 1000 are rejected
+# outright ("Invalid job array specification") -- and this table has grown past that. Rather
+# than split the task table across scripts, which is how two gates silently drift apart, an
+# OFFSET maps a small array onto the high range:
+#     sbatch --array=0-47 --export=ALL,PO_TASK_OFFSET=964 scripts_cosim/datalab/peer_only_v1_gate.sbatch
+# Defaults to 0, so every earlier submission spelling is unchanged.
+OFFSET=${PO_TASK_OFFSET:-0}
+T=$(( SLURM_ARRAY_TASK_ID + OFFSET ))
+if (( OFFSET != 0 )); then echo "[OFFSET] array id ${SLURM_ARRAY_TASK_ID} + ${OFFSET} -> task $T"; fi
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
 CORPUS=${CORP[$T]}; ARM=${ARMS[$T]}; R=${RI[$T]}; C=${CI[$T]}; S=${SEED[$T]}
 RUNG=${RUNG_TAGS[$R]}; NS=${RUNG_SERVERS[$R]}; TSEED=${TSEEDS[$C]}
