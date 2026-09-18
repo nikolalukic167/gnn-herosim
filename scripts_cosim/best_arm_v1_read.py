@@ -100,9 +100,18 @@ def read_f2(per_rung: Mapping[int, Mapping[str, object]]) -> dict:
         return {"verdict": V_POINTWISE_STILL_BEST, "graph_wins": graph, "pointwise_wins": point,
                 "why": "the pointwise arm is faster at >= 2 of 3; the clause survives B8's "
                        "scoping and is restored to the unsaturated rungs"}
+    # The "why" must not overstate the negative. A ladder can be split BECAUSE the graph arm
+    # won somewhere and lost somewhere else -- saying "not reproduced" there would be false,
+    # and it is the kind of false sentence that gets copied into a node verbatim.
+    if graph:
+        why = (f"the ladder is SPLIT: the graph arm is faster at {graph} of 3 rungs and behind "
+               f"at {point}. The per-rung win(s) are real and reproduce under a registered bar; "
+               "what is not established is a claim about the ladder, so B8's reading stands.")
+    else:
+        why = ("the graph arm is not faster at any rung; B8's reading stands and the post-hoc "
+               "margin is NOT reproduced under a registered bar")
     return {"verdict": V_STILL_NOT_ESTABLISHED, "graph_wins": graph, "pointwise_wins": point,
-            "why": "neither arm is shown better across the ladder; B8's reading stands and the "
-                   "post-hoc -12.96 % is NOT reproduced under a registered bar"}
+            "why": why}
 
 
 def read_f3(per_rung: Mapping[int, Mapping[str, object]]) -> dict:
