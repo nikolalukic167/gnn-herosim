@@ -16,6 +16,8 @@
 #     learned   tasks  16-527  {peeronly, mpoff} (1670) x 4 rungs x 4 cells x 16 checkpoints
 #     B8        tasks 528-655  mpoff (516, tag v3ext) x {40, 80} clients x 4 cells x 16 --
 #                              AMENDMENT 5: clause 3 at the UNSATURATED rungs
+#     C2        tasks 656-783  gnn (1670) x {40, 80} clients x 4 cells x 16 -- AMENDMENT 7,
+#                              the bipartite arm at the unsaturated rungs, never served there
 #
 #   sbatch --array=0-15%12 scripts_cosim/datalab/peer_only_v1_client_gate.sbatch   # baselines first
 #   then 16-63, 64-111, ... in blocks of <= 48 (MaxSubmit = 50 counts every array task)
@@ -29,7 +31,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=01:30:00
-#SBATCH --array=0-655
+#SBATCH --array=0-783
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -92,6 +94,16 @@ done; done; done
 B8CLIENTS=(40 80)
 for nc in "${B8CLIENTS[@]}"; do for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=("$nc"); CI+=("$c"); ARMS+=("v3ext_mpoff"); SEED+=("$s"); done
+done; done
+# C2 -- AMENDMENT 7 (2026-09-18), tasks 656-783. The full gnn arm -- PeerConv AND the bipartite
+# task<->platform GIN -- has never been served on the client axis at all. B7 found the
+# programme's first UNSATURATED live win there, so this is the one place where "does a
+# bipartite graph work in this environment" can be answered at the operating point that
+# matters, rather than at the saturated 80-server rung where every earlier gnn reading was
+# taken. All 16 checkpoints, both unsaturated rungs. APPENDED: tasks 0-655 keep their arms.
+C2CLIENTS=(40 80)
+for nc in "${C2CLIENTS[@]}"; do for c in 0 1 2 3; do
+  for s in "${CKSEEDS[@]}"; do NC+=("$nc"); CI+=("$c"); ARMS+=("gnn"); SEED+=("$s"); done
 done; done
 NTASKS=${#ARMS[@]}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
