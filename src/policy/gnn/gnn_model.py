@@ -257,8 +257,15 @@ class BipartiteEdgeConv(MessagePassing):
     an edit to one silently move the other's checkpoints; PeerConv follows the same rule).
     """
 
-    def __init__(self, embedding_dim: int, hidden_dim: int, edge_dim: int = 5, dropout_p: float = 0.1) -> None:
-        super().__init__(aggr="mean")
+    def __init__(self, embedding_dim: int, hidden_dim: int, edge_dim: int = 5, dropout_p: float = 0.1,
+                 aggr: str = "mean") -> None:
+        # bipartite_aggr_v1: `aggr` changes NO parameters, so a sum checkpoint and a mean
+        # checkpoint are byte-compatible and load into each other in silence. It travels in
+        # the sidecar and on the serving whitelist, like every other weight-invisible option.
+        if aggr not in ("mean", "sum"):
+            raise ValueError(f"FAIL LOUD: aggr must be 'mean' or 'sum', got {aggr!r}")
+        super().__init__(aggr=aggr)
+        self.aggr_kind = aggr
         self.message_mlp = nn.Sequential(
             nn.Linear(embedding_dim + edge_dim, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout_p),
             nn.Linear(hidden_dim, embedding_dim),
@@ -326,6 +333,7 @@ class TaskPlacementGNN(nn.Module):
         mp_platform_edges: Optional[bool] = None,
         mp_bipartite_edge_conv: Optional[bool] = None,
         mp_bipartite_edge_attr_zero: Optional[bool] = None,
+        mp_bipartite_aggr: Optional[str] = None,
     ) -> None:
         super().__init__()
 
@@ -464,6 +472,28 @@ class TaskPlacementGNN(nn.Module):
             _env_flag("GNN_MP_BIPARTITE_EDGE_ATTR_ZERO") if mp_bipartite_edge_attr_zero is None
             else bool(mp_bipartite_edge_attr_zero)
         )
+        # bipartite_aggr_v1 (2026-09-18): how the bipartite conv pools over a task's candidate
+        # platforms. `mean` is what bipartite_edge_v1 shipped; `sum` is the GIN's behaviour and
+        # the hypothesis under test -- a sum over a VARIABLE-SIZED candidate set scales with
+        # cluster size (3.55 candidates/task at 6 servers, 47.92 at 80, cluster_scale_v1 S0.d),
+        # which would explain why the bipartite penalty was ABSENT at 6 servers and largest at
+        # 80. Weight-INVISIBLE: it changes no parameter, so the sidecar is its only record.
+        self.mp_bipartite_aggr = (
+            (os.environ.get("GNN_MP_BIPARTITE_AGGR", "mean").strip() or "mean")
+            if mp_bipartite_aggr is None else str(mp_bipartite_aggr)
+        )
+        if self.mp_bipartite_aggr not in ("mean", "sum"):
+            raise ValueError(
+                f"FAIL LOUD: mp_bipartite_aggr must be 'mean' or 'sum', got "
+                f"{self.mp_bipartite_aggr!r} -- a typo would silently fall back to a default "
+                "and serve the wrong arm."
+            )
+        if self.mp_bipartite_aggr != "mean" and not self.mp_bipartite_edge_conv:
+            raise ValueError(
+                f"FAIL LOUD: mp_bipartite_aggr={self.mp_bipartite_aggr!r} is meaningless "
+                "without mp_bipartite_edge_conv=True -- the GIN has its own aggregation and "
+                "this flag would silently describe a model it does not affect."
+            )
         if self.mp_bipartite_edge_attr_zero and not self.mp_bipartite_edge_conv:
             raise ValueError(
                 "FAIL LOUD: mp_bipartite_edge_attr_zero=True is meaningless without "
@@ -478,7 +508,8 @@ class TaskPlacementGNN(nn.Module):
                     "constructed and never run (that is the peeronly arm)."
                 )
             self.bip_convs = nn.ModuleList(
-                BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim, dropout_p=dropout)
+                BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim, dropout_p=dropout,
+                                  aggr=self.mp_bipartite_aggr)
                 for _ in range(num_layers)
             )
         if self.mp_peer_edges:

@@ -660,6 +660,18 @@ def checkpoint_mp_config(model_path: Path) -> dict:
         config["task_type_onehot_dim"] = int(payload["task_type_onehot_dim"] or 0)
     if payload.get("partial_state_contract"):
         config["partial_state_contract"] = str(payload["partial_state_contract"])
+    # bipartite_aggr_v1: a STRING ('mean'|'sum'), so it must be read here and not in the bool
+    # block above — bool('sum') and bool('mean') are both True, which would serve every arm as
+    # the same one while looking like a correctly whitelisted key. Absent means 'mean', which
+    # is what every bipartite_edge_v1 checkpoint was trained with.
+    if payload.get("mp_bipartite_aggr"):
+        aggr = str(payload["mp_bipartite_aggr"])
+        if aggr not in ("mean", "sum"):
+            raise ValueError(
+                f"{model_path.name}: sidecar mp_bipartite_aggr={aggr!r} is neither 'mean' nor "
+                "'sum'; a typo must not fall back to a default and serve the wrong arm"
+            )
+        config["mp_bipartite_aggr"] = aggr
     # drainable_objective_v1: which label the checkpoint was fitted to. Weight-invisible
     # and serving-inert (the decoder does not change), but a live result that does not
     # say which label produced its arm is unreadable six weeks later — and this whitelist
@@ -925,6 +937,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_platform_edges=bool(mp_cfg.get("mp_platform_edges", True)),
             mp_bipartite_edge_conv=bool(mp_cfg.get("mp_bipartite_edge_conv", False)),
             mp_bipartite_edge_attr_zero=bool(mp_cfg.get("mp_bipartite_edge_attr_zero", False)),
+            mp_bipartite_aggr=str(mp_cfg.get("mp_bipartite_aggr") or "mean"),
         )
         print(
             f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "

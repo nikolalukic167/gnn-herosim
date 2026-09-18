@@ -264,3 +264,73 @@ def test_the_flags_default_off_and_the_env_switches_flip_them(monkeypatch):
     # An explicit argument still wins over the environment, as it does for every other flag.
     assert _model(mp_bipartite_edge_conv=True,
                   mp_bipartite_edge_attr_zero=False).mp_bipartite_edge_attr_zero is False
+
+
+# 5. bipartite_aggr_v1: sum vs mean over a task's candidate platforms ---------------------
+
+def test_the_aggregation_flag_is_weight_invisible_and_changes_the_embedding():
+    """`aggr` changes no parameter, so a sum checkpoint and a mean checkpoint are byte-
+    compatible and load into each other in silence -- the sidecar is the only record. But it
+    must actually change the output, or the arm is a no-op that would read as a clean null."""
+    mean = _model(mp_bipartite_edge_conv=True)
+    summ = _model(mp_bipartite_edge_conv=True, mp_bipartite_aggr="sum")
+    assert mean.mp_bipartite_aggr == "mean" and summ.mp_bipartite_aggr == "sum"
+    assert all(c.aggr_kind == "sum" for c in summ.bip_convs)
+    # byte-compatible in both directions
+    assert set(mean.state_dict()) == set(summ.state_dict())
+    summ.load_state_dict(mean.state_dict(), strict=True)
+
+    data = _graph()
+    with torch.no_grad():
+        _t_m, p_mean = mean._encode(data)
+        _t_s, p_sum = summ._encode(data)
+    assert not torch.allclose(p_mean, p_sum), "sum and mean must differ, or the arm is a no-op"
+
+
+def test_sum_scales_with_candidate_count_and_mean_does_not():
+    """The hypothesis in one assertion. A task's candidate set grows 3.55 -> 47.92 platforms
+    from 6 to 80 servers (cluster_scale_v1 S0.d); a sum over it scales with that count and a
+    mean does not. Measured on the conv's own aggregation, holding weights fixed."""
+    mean = _model(mp_bipartite_edge_conv=True)
+    summ = _model(mp_bipartite_edge_conv=True, mp_bipartite_aggr="sum")
+    summ.load_state_dict(mean.state_dict(), strict=True)
+
+    small, large = _graph(n_tasks=2, n_platforms=3), _graph(n_tasks=2, n_platforms=24)
+    with torch.no_grad():
+        t_small_m, _ = mean._encode(small)
+        t_large_m, _ = mean._encode(large)
+        t_small_s, _ = summ._encode(small)
+        t_large_s, _ = summ._encode(large)
+    # The task block is what aggregates over candidate platforms.
+    grow_sum = float(t_large_s.abs().mean() / t_small_s.abs().mean())
+    grow_mean = float(t_large_m.abs().mean() / t_small_m.abs().mean())
+    assert grow_sum > grow_mean, (
+        f"sum should grow faster with candidate count than mean; got sum x{grow_sum:.2f} "
+        f"vs mean x{grow_mean:.2f}"
+    )
+
+
+def test_the_aggregation_flag_survives_the_whitelist_as_a_string_not_a_bool(tmp_path):
+    """bool('sum') and bool('mean') are both True. Read in the bool block this key would
+    serve every arm as the same one while looking correctly whitelisted."""
+    pt = tmp_path / "m.pt"
+    pt.write_bytes(b"")
+    (tmp_path / "m.contract.json").write_text(json.dumps({
+        "mp_bipartite_edge_conv": True, "mp_bipartite_aggr": "sum",
+        "partial_state_contract": "partial_state_v3",
+    }))
+    assert checkpoint_mp_config(pt)["mp_bipartite_aggr"] == "sum"
+
+    (tmp_path / "m.contract.json").write_text(json.dumps({
+        "mp_bipartite_edge_conv": True, "mp_bipartite_aggr": "summ",
+        "partial_state_contract": "partial_state_v3",
+    }))
+    with pytest.raises(ValueError, match="neither 'mean' nor 'sum'"):
+        checkpoint_mp_config(pt)
+
+
+def test_refuses_a_bad_aggregation_and_one_set_without_the_conv():
+    with pytest.raises(ValueError, match="must be 'mean' or 'sum'"):
+        _model(mp_bipartite_edge_conv=True, mp_bipartite_aggr="max")
+    with pytest.raises(ValueError, match="meaningless"):
+        _model(mp_bipartite_aggr="sum")

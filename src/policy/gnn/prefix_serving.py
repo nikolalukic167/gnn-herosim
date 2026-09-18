@@ -275,6 +275,9 @@ def load_prefix_conditioned_gnn(
         # checkpoint reporting two different things.
         mp_bipartite_edge_conv=bool(sidecar.get("mp_bipartite_edge_conv", False)),
         mp_bipartite_edge_attr_zero=bool(sidecar.get("mp_bipartite_edge_attr_zero", False)),
+        # bipartite_aggr_v1. Absent means "mean", which is what every bipartite_edge_v1
+        # checkpoint was trained with; a sum checkpoint served as mean is a silently wrong arm.
+        mp_bipartite_aggr=str(sidecar.get("mp_bipartite_aggr") or "mean"),
         task_type_onehot_dim=onehot_dim,
         partial_state_edge_dim=partial_dim,
         normalize_platform_inputs=sidecar.get("feature_dim") == 21,
