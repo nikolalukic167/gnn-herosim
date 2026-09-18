@@ -22,6 +22,12 @@ export OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4
 export CUDA_VISIBLE_DEVICES=""
 export HEROSIM_GNN_DEVICE=cpu
 export PYTHONHASHSEED=0
+# These checkpoints are prefix-conditioned (partial_state_edge_features), so
+# load_gnn_model refuses any decode mode but masked_topo -- correctly: any other would
+# score against an all-zero prefix block. C3 never decodes (it probes _encode, where the
+# partial-state columns provably do not enter), but the loader guard is a LOADER guard
+# and it is right to fire before it knows that. Set what the gate sets.
+export GNN_DECODE_MODE=masked_topo
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
