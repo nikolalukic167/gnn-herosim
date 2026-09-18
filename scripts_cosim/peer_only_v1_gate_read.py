@@ -31,6 +31,8 @@ from scripts_cosim.peer_only_v1_read import read_b4 as read_b4_bar
 from scripts_cosim.peer_only_v1_read import read_b5 as read_b5_bar
 from scripts_cosim.peer_only_v1_read import C1_RUNGS, read_c1_ladder
 from scripts_cosim.peer_only_v1_read import read_c1 as read_c1_bar
+from scripts_cosim.peer_only_v1_read import (C4_LIVE_RUNG, read_c4 as read_c4_bar,
+                                             read_vs_reactive)
 
 PairKey = Tuple[str, int]
 ArmTable = Dict[str, Dict[str, Dict[PairKey, float]]]     # metric -> arm label -> {(cell, seed): value}
@@ -238,6 +240,87 @@ def format_c1(res: dict) -> str:
     return "\n".join(lines)
 
 
+def _collapse_pair(tab: Mapping[str, ArmTable], rung: str, a: str, b: str,
+                   *, min_seeds: Optional[int] = None) -> Optional[Tuple[dict, dict, list]]:
+    """Two arms at one rung, collapsed to one value per checkpoint over their SHARED cells.
+
+    Returns (a_by_seed, b_by_seed, excluded_seeds) or None when the rung is absent. Seeds that
+    do not carry every shared cell are dropped and REPORTED -- that is the disclosed path; the
+    registered bar is enforced by the min_seeds the caller passes on to the read.
+    """
+    t = tab.get(rung)
+    if not t:
+        return None
+    pa, pb = t["elapsed"].get(a, {}), t["elapsed"].get(b, {})
+    if not pa or not pb:
+        return None
+    cells = sorted({c for c, _ in pa} & {c for c, _ in pb})
+    if not cells:
+        return None
+
+    def complete(pairs):
+        by = {}
+        for (cell, seed) in pairs:
+            by.setdefault(int(seed), set()).add(cell)
+        return {s for s, cs in by.items() if set(cells) <= cs}
+
+    keep = complete(pa) & complete(pb)
+    excluded = sorted(({s for _, s in pa} | {s for _, s in pb}) - keep)
+    if not keep:
+        return None
+    ca = collapse_to_seed({k: v for k, v in pa.items() if int(k[1]) in keep}, rung_cells=cells)
+    cb = collapse_to_seed({k: v for k, v in pb.items() if int(k[1]) in keep}, rung_cells=cells)
+    return ca, cb, excluded
+
+
+def read_c4(tab: Mapping[str, ArmTable], *, min_seeds: Optional[int] = None) -> dict:
+    """AMENDMENT 9's LIVE read at R3: gnnres against reactive, peeronly and gnn.
+
+    `min_seeds=None` is the REGISTERED read (16 required). Pass C2_DISCLOSED_MIN_SEEDS for the
+    disclosed read when an arm was lost to a resource kill.
+    """
+    rung = C4_LIVE_RUNG
+    out: Dict[str, object] = {"rung": rung, "excluded_seeds": []}
+    pairs = {}
+    for name, (a, b) in {"vs_reactive": ("1670_gnnres", "reactive"),
+                         "vs_peeronly": ("1670_gnnres", "1670_peeronly"),
+                         "vs_gnn": ("1670_gnnres", "1670_gnn")}.items():
+        got = _collapse_pair(tab, rung, a, b, min_seeds=min_seeds)
+        if got is None:
+            pairs[name] = {"verdict": V_UNREADABLE, "reason": f"no {a} / {b} at {rung}"}
+            continue
+        ca, cb, excluded = got
+        out["excluded_seeds"] = sorted(set(out["excluded_seeds"]) | set(excluded))
+        if b == "reactive":
+            # Reactive carries no checkpoint seed; collapse_to_seed keyed it at 0. Replicate
+            # that single value across the learned arm's seeds -- the honest pairing.
+            base = {s: list(cb.values())[0] for s in ca}
+            pairs[name] = read_vs_reactive(ca, base, min_seeds=min_seeds)
+        else:
+            pairs[name] = read_c1_bar(ca, cb, min_seeds=min_seeds)
+    out.update(pairs)
+    out["verdict"] = read_c4_bar(pairs["vs_reactive"], pairs["vs_peeronly"],
+                                 pairs["vs_gnn"])["verdict"]
+    out["c4"] = read_c4_bar(pairs["vs_reactive"], pairs["vs_peeronly"], pairs["vs_gnn"])
+    return out
+
+
+def format_c4(res: dict, label: str = "C4") -> str:
+    lines = [f"=== {label} -- gnnres (residual bipartite MP) at {res.get('rung')} "
+             f"(AMENDMENT 9) ===",
+             f"  verdict: {res.get('verdict')}"]
+    if res.get("excluded_seeds"):
+        lines.append(f"  excluded seeds (incomplete cells): {res['excluded_seeds']}")
+    for k in ("vs_reactive", "vs_peeronly", "vs_gnn"):
+        r = res.get(k) or {}
+        if r.get("verdict") == V_UNREADABLE:
+            lines.append(f"  {k:<12} UNREADABLE -- {r.get('reason')}")
+        else:
+            lines.append(f"  {k:<12} {r['median']:+7.2f}%  p={r['p']:.4f}  "
+                         f"{r.get('v3_ahead', '?')}/{r['n']}  {r['verdict']}")
+    return "\n".join(lines)
+
+
 def read_b5(tab: Mapping[str, ArmTable]) -> dict:
     """AMENDMENT 3: the B3 contrast across the whole cluster-size ladder.
 
@@ -370,7 +453,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--po-dir", required=True)
     ap.add_argument("--p3-dir", required=True)
-    ap.add_argument("--phase", choices=["a", "b", "b3", "b5", "c1"], default="a")
+    ap.add_argument("--phase", choices=["a", "b", "b3", "b5", "c1", "c4"], default="a")
     ap.add_argument("--out")
     args = ap.parse_args(argv)
     tab = tables(load(args.po_dir), load(args.p3_dir))
@@ -387,9 +470,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.phase == "b5":
         res["b5"] = read_b5(tab)
         print(); print(format_b5(res["b5"]))
-    if args.phase == "c1":
+    if args.phase in ("c1", "c4"):
         res["c1"] = read_c1(tab)
         print(); print(format_c1(res["c1"]))
+    if args.phase == "c4":
+        from scripts_cosim.peer_only_v1_read import C2_DISCLOSED_MIN_SEEDS
+        res["c4"] = read_c4(tab)
+        print(); print(format_c4(res["c4"], "C4 (REGISTERED)"))
+        res["c4_disclosed"] = read_c4(tab, min_seeds=C2_DISCLOSED_MIN_SEEDS)
+        print(); print(format_c4(res["c4_disclosed"], "C4 (DISCLOSED)"))
     if args.out:
         json.dump(res, open(args.out, "w"), indent=1, default=str)
         print(f"[wrote] {args.out}")
