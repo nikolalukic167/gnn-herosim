@@ -23,6 +23,9 @@
 #                              cells with the arms it is compared against
 #     C2        tasks 656-783  gnn (1670) x {40, 80} clients x 4 cells x 16 -- AMENDMENT 7,
 #                              the bipartite arm at the unsaturated rungs, never served there
+#     H1        tasks 1040-1167 gnnedge0 trained on the 516 corpus (corpus_matched_v1) x
+#                              {40, 80} clients x 4 cells x 16 -- the missing cell of the
+#                              corpus 2x2; needs PO_TASK_OFFSET
 #
 #   sbatch --array=0-15%12 scripts_cosim/datalab/peer_only_v1_client_gate.sbatch   # baselines first
 #   then 16-63, 64-111, ... in blocks of <= 48 (MaxSubmit = 50 counts every array task)
@@ -139,6 +142,15 @@ done; done
 for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=(80); CI+=("$c"); ARMS+=("gnnedge0"); SEED+=("$s"); done
 done
+# corpus_matched_v1 H1 (2026-09-18), tasks 1040-1167. A DIFFERENT LINEAGE:
+# docs/lineages/corpus_matched_v1.md. gnnedge0 trained on the 516-dataset corpus, at the two
+# client rungs -- the missing cell of a 2x2 whose other three cells are already in this
+# directory (be1670_gnnedge0, 1670_mpoff, v3ext_mpoff). best_arm_v1 compared a 1,670-corpus
+# graph arm against a 516-corpus pointwise arm and had to carry the confound as a clause; this
+# block is what discharges it. APPENDED: tasks 0-1039 keep their arms. Needs PO_TASK_OFFSET.
+for nc in 40 80; do for c in 0 1 2 3; do
+  for s in "${CKSEEDS[@]}"; do NC+=("$nc"); CI+=("$c"); ARMS+=("cm516_gnnedge0"); SEED+=("$s"); done
+done; done
 NTASKS=${#ARMS[@]}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
 NCLIENTS=${NC[$T]}; C=${CI[$T]}; ARM=${ARMS[$T]}; S=${SEED[$T]}
@@ -164,6 +176,7 @@ PY
 # (516 corpus) re-served here; every other arm is a 1670 one. The name must carry the corpus or
 # the two mpoffs collide on one summary path -- the idempotence-guard defect from 2026-09-16.
 if [[ $ARM == v3ext_mpoff ]]; then ARM_KIND=mpoff; CORPUS_TAG=v3ext
+elif [[ $ARM == cm516_gnnedge0 ]]; then ARM_KIND=gnnedge0; CORPUS_TAG=cm516
 elif [[ $ARM == gnnedge || $ARM == gnnedge0 ]]; then ARM_KIND=$ARM; CORPUS_TAG=be1670
 else ARM_KIND=$ARM; CORPUS_TAG=1670; fi
 ARMNAME="${CELL}__C${NCLIENTS}__${CORPUS_TAG}_${ARM_KIND}_s${S}"
@@ -179,15 +192,17 @@ else
     CK="models/partial-state-v3-${ARM_KIND}-lr2e3-seed${S}.pt"
   elif [[ $CORPUS_TAG == be1670 ]]; then
     CK="models/bipartite-edge-v1-1670-${ARM_KIND}-lr2e3-seed${S}.pt"
+  elif [[ $CORPUS_TAG == cm516 ]]; then
+    CK="models/corpus-matched-v1-516-${ARM_KIND}-lr2e3-seed${S}.pt"
   else
     CK="models/peer-only-v1-1670-${ARM_KIND}-lr2e3-seed${S}.pt"
   fi
   [[ -f "$CK" ]] || { echo "FAIL LOUD: missing checkpoint $CK" >&2; exit 1; }
   SC="${CK%.pt}.contract.json"
   [[ -f "$SC" ]] || { echo "FAIL LOUD: no sidecar for $CK" >&2; exit 1; }
-  python3 - "$SC" "$ARM_KIND" <<'PY'
-import json, sys
-sc, arm = json.load(open(sys.argv[1])), sys.argv[2]
+  python3 - "$SC" "$ARM_KIND" "$CORPUS_TAG" <<'PY'
+import hashlib, json, sys
+sc, arm, corpus_tag = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
 want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
         "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22,
         # C4: mp_residual is the only thing separating gnnres from gnn, and the model is BUILT
@@ -212,9 +227,32 @@ if arm == "peeronly":
     want["mp_platform_edges"] = False
 elif "mp_platform_edges" in sc:
     want["mp_platform_edges"] = True
+# bipartite_aggr_v1 measured sum-vs-mean as worth +13.26 % at 80 servers, so serving a `sum`
+# checkpoint as a `mean` one would move a number by more than most of this programme's effects.
+# Pinned where the key exists; the 1,670 gnnedge0 checkpoints predate it and its absence means
+# the documented default -- the same rule mp_platform_edges needed after it failed 48 B8 arms.
+if arm in ("gnnedge", "gnnedge0") and "mp_bipartite_aggr" in sc:
+    want["mp_bipartite_aggr"] = "mean"
 for k, v in want.items():
     if sc.get(k) != v:
         raise SystemExit(f"FAIL LOUD: sidecar {k}={sc.get(k)!r}, arm {arm} expects {v!r}")
+# corpus_matched_v1: the CORPUS is the variable under test, and it is invisible in the weights.
+# An arm served from the wrong corpus destroys the contrast in exactly the direction that
+# flatters it, so the split artifact's sha is pinned per corpus tag rather than trusted to the
+# checkpoint path. `1670`/`be1670` share the peer_only_v1 split; `v3ext`/`cm516` the T1b one.
+# Verified against the served checkpoints 2026-09-18: 1670/be1670 carry f9c79fd7bb77 and
+# v3ext/cm516 carry 0d66d1c09276, so every arm already in this directory passes this pin.
+SPLITS = {"1670": "experiments/peer_only_v1_1670_split.json",
+          "be1670": "experiments/peer_only_v1_1670_split.json",
+          "v3ext": "experiments/peer_affinity_v1_t1b_split.json",
+          "cm516": "experiments/peer_affinity_v1_t1b_split.json"}
+want_split = SPLITS.get(corpus_tag)
+if want_split:
+    sha = hashlib.sha256(open(want_split, "rb").read()).hexdigest()
+    got = (sc.get("split_artifact") or {}).get("sha256")
+    if got != sha:
+        raise SystemExit(f"FAIL LOUD: corpus tag {corpus_tag} expects split {want_split} "
+                         f"(sha {sha[:12]}), sidecar carries {str(got)[:12]}")
 PY
   unset PARTIAL_STATE_CONTRACT GNN_MP_PLATFORM_EDGES_OFF || true
   export GNN_MODEL_PATH="$CK"
