@@ -301,3 +301,55 @@ def test_c1_c2_constants_are_the_registered_values():
     assert C1_RUNGS == ("R3", "R0") and (C1_MIN_SEEDS, C1_SEPARATE_PCT, C1_ALPHA) == (16, 5.0, 0.05)
     assert C2_CLIENTS == (40, 80) and (C2_MIN_SEEDS, C2_SEPARATE_PCT, C2_ALPHA) == (16, 5.0, 0.05)
     assert C2_CLIENTS == B8_CLIENTS      # C2 reads the same rungs B8 did, deliberately
+
+
+# --- C3: what the bipartite GIN does to platform state (AMENDMENT 8) ----------------------
+
+def _c3(sep, pre=0.8, post=0.8):
+    return {"separation_ratio": sep, "queue_r2_pre": pre, "queue_r2_post": post}
+
+
+def test_c3_confirms_oversmoothing_when_platforms_collapse_together():
+    from scripts_cosim.peer_only_v1_read import read_c3, V_OVERSMOOTHING
+    r = read_c3({s: _c3(0.2) for s in range(1, 17)})
+    assert r["verdict"] == V_OVERSMOOTHING and r["oversmooths"] and not r["queue_lost"]
+
+
+def test_c3_reports_queue_loss_even_when_platforms_stay_far_apart():
+    """The case the registration singles out: separation survives, the queue axis does not."""
+    from scripts_cosim.peer_only_v1_read import read_c3, V_QUEUE_LOST
+    r = read_c3({s: _c3(0.95, pre=0.8, post=0.1) for s in range(1, 17)})
+    assert r["verdict"] == V_QUEUE_LOST and not r["oversmooths"] and r["queue_lost"]
+
+
+def test_c3_can_clear_the_gin_that_direction_is_reachable():
+    from scripts_cosim.peer_only_v1_read import read_c3, V_PLATFORM_SURVIVES
+    r = read_c3({s: _c3(0.95, pre=0.8, post=0.75) for s in range(1, 17)})
+    assert r["verdict"] == V_PLATFORM_SURVIVES
+
+
+def test_c3_needs_a_majority_of_checkpoints_not_just_one():
+    from scripts_cosim.peer_only_v1_read import read_c3, V_PLATFORM_SURVIVES
+    per = {s: _c3(0.2) for s in range(1, 8)}          # 7 collapse
+    per.update({s: _c3(0.95) for s in range(8, 17)})  # 9 do not
+    assert read_c3(per)["verdict"] == V_PLATFORM_SURVIVES
+
+
+def test_c3_refuses_too_few_checkpoints():
+    from scripts_cosim.peer_only_v1_read import read_c3
+    assert read_c3({s: _c3(0.2) for s in range(1, 5)})["verdict"] == V_UNREADABLE
+
+
+def test_c3_excludes_a_meaningless_ratio_rather_than_scoring_it_favourably():
+    """A pre-GIN probe that recovers nothing must not make the ratio look like retention."""
+    from scripts_cosim.peer_only_v1_read import read_c3
+    r = read_c3({s: _c3(0.95, pre=0.0, post=0.0) for s in range(1, 17)})
+    assert r["n_retention_usable"] == 0 and r["median_retention_ratio"] is None
+    assert r["queue_lost"] is False
+
+
+def test_c3_constants_are_the_registered_values():
+    from scripts_cosim.peer_only_v1_read import (C3_N_GRAPHS, C3_MIN_CHECKPOINTS,
+                                                 C3_SEPARATION_RATIO, C3_RETENTION_RATIO)
+    assert (C3_N_GRAPHS, C3_MIN_CHECKPOINTS) == (64, 12)
+    assert (C3_SEPARATION_RATIO, C3_RETENTION_RATIO) == (0.5, 0.5)

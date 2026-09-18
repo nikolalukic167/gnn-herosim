@@ -932,3 +932,58 @@ at R3.
 
 **Explicitly not in scope.** Retraining anything; the 5- and 10-client rungs (unservable by
 every policy); `gnn` at R1/R2; any new topology or workload. Cost: 224 arms, ~3 min each.
+
+### 2026-09-18 — AMENDMENT 8: C3, **what the bipartite GIN does to platform state**
+
+Registered **before** the probe was run; bars in `scripts_cosim/peer_only_v1_read.py`
+(`read_c3`), probe in `scripts_cosim/peer_only_v1_oversmoothing.py`, tests in
+`scripts_cosim/test_peer_only_v1_read.py` and
+`scripts_cosim/test_peer_only_v1_oversmoothing.py`.
+
+**Why this and not more live arms.** C1 and C2 ask *whether* the bipartite stage costs. C3 is
+the only one of the three that can speak to whether a bipartite graph could **ever** work in
+this environment rather than whether *this* one does — and the programme has never measured
+the embedding geometry at all, in any lineage.
+
+There is a specific, checkable suspect. **Every trained checkpoint in this lineage declares
+`mp_residual: false`** (verified in the sidecars), so `_encode` computes `x = h`, not
+`x = x0 + gate · h`: the GIN's output **replaces** the encoded platform features instead of
+adding to them. Three GIN layers over a dense task↔platform bipartite graph is the textbook
+over-smoothing setup. This node already records the symptom without naming the cause — `gnn`
+degraded **16 pp** against `mpoff`'s 7 pp when the queue column broke, i.e. the arm that mixes
+platform state suffered *most* from that state being wrong.
+
+**The probe.** For each of the 16 `gnn` checkpoints, run the model's **own** `_encode` twice
+over the same 64 strided cached graphs: once with `mp_platform_edges = True` (the post-GIN
+platform block) and once with it `False` (the encoder's platform block, untouched — literally
+what `peeronly` and `mpoff` hand to the `EdgeScorer`). Nothing is reconstructed; the contrast
+**is** the two arms, computed by the code the gate serves. Toggling is safe exactly because
+the flag is weight-invisible.
+
+| bar | statistic | fires at |
+|---|---|---|
+| separation | mean pairwise **cosine** distance among platform rows, post / pre | ≤ 0.5 on ≥ 12/16 |
+| retention | R² of a ridge probe recovering the raw **queue column** from the embedding, post / pre, fit and scored on **disjoint graphs** | ≤ 0.5 on ≥ 12/16 |
+
+Cosine, not Euclidean: the GIN may rescale the whole block, and a uniform rescale loses no
+information. The two bars are counted **separately** because platforms can stay far apart in
+the embedding while the decision-relevant axis is washed out, and a collapsed verdict would
+hide exactly that case.
+
+**Consequence signed before the data:**
+
+- either bar fires ⇒ the mechanism is **named**: the bipartite stage *as configured* destroys
+  platform state the scorer needs. The repair is then a specific, testable architecture change
+  — residual/gated message passing (`mp_residual`, which every checkpoint here has **off**) —
+  and it becomes a **registered follow-up**, never a claim on this evidence.
+- both bars clear ⇒ `PLATFORM-STATE-SURVIVES-THE-GIN`. Over-smoothing is **refuted** as the
+  mechanism, the live loss must be explained elsewhere, and this node must stop implying a
+  representational cause it has not measured.
+
+Registered expectation: **over-smoothing confirmed on separation, UNCERTAIN on retention.**
+Stated so it can be wrong — `mp_residual = false` makes the replacement structural, but a GIN
+with learned `eps` can in principle preserve a single scalar axis while compressing everything
+else, which is precisely why retention is a separate bar.
+
+**This is a diagnostic, not a gate.** It is offline, so by rule 6 it cannot close anything;
+what it can do is say whether the live result C1/C2 measure has a representational cause.

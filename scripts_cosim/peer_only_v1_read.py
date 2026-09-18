@@ -195,6 +195,43 @@ C2_SEPARATE_PCT, C2_ALPHA = 5.0, 0.05
 # B7 has mpoff_1670 at +18.5 % and +0.9 % vs reactive, gnn is the offline-best and live-worst
 # arm at R3, and the client rungs are the ones where the ordering has never been tested.
 
+# --- C3, AMENDMENT 8, registered 2026-09-18 BEFORE the probe was run ----------------------
+# C1 and C2 ask WHETHER the bipartite stage costs. C3 asks WHY, and it is the only one of the
+# three that can say anything about whether a bipartite graph could EVER work here rather than
+# whether this one does. Every trained checkpoint in this lineage declares `mp_residual: false`
+# (verified in the sidecars), which means the GIN's output REPLACES the encoded platform
+# features rather than adding to them: x = h, not x = x0 + gate * h. Three GIN layers over a
+# dense task<->platform bipartite graph is the textbook over-smoothing setup, and this node
+# already records the symptom -- `gnn` degraded 16 pp against `mpoff`'s 7 pp when the queue
+# column broke, i.e. the arm that mixes platform state suffered MOST from that state being
+# wrong. Nothing has ever measured the embedding geometry directly.
+#
+# The probe: for each of the 16 gnn checkpoints, run the model's OWN `_encode` twice over the
+# same cached graphs -- once with mp_platform_edges=True (post-GIN platform block) and once
+# with it False (the encoder's platform block, untouched, which is literally what `peeronly`
+# and `mpoff` hand to the scorer). No architecture is reconstructed; the contrast IS the arms.
+C3_N_GRAPHS = 64                         # strided across the cache, not a head slice
+C3_MIN_CHECKPOINTS = 12                  # of 16, the B5-disclosed quorum
+# (1) SEPARATION: mean pairwise cosine distance among the platform rows, post / pre. Below
+#     this ratio the GIN has made the platforms materially harder to tell apart.
+C3_SEPARATION_RATIO = 0.5
+# (2) RETENTION: R^2 of a ridge probe recovering each platform's raw queue column from its
+#     embedding, post / pre, fit and scored on disjoint graphs. This is the decision-relevant
+#     half -- platforms can stay far apart in norm while the queue axis is washed out.
+C3_RETENTION_RATIO = 0.5
+# Consequence signed before the data:
+#   either ratio at or below its bar on >= 12/16 checkpoints -> the mechanism is NAMED. The
+#     bipartite stage as configured destroys platform state the scorer needs, the repair is a
+#     specific and testable architecture change (mp_residual / gating, which every checkpoint
+#     here has OFF), and that becomes a REGISTERED follow-up -- never a claim on this evidence.
+#   both ratios above their bars -> PLATFORM-STATE-SURVIVES-THE-GIN. Over-smoothing is REFUTED
+#     as the mechanism, the live loss must be explained elsewhere, and this node must stop
+#     implying a representational cause it has not measured.
+# Registered expectation: OVERSMOOTHING-CONFIRMED on the separation ratio, UNCERTAIN on
+# retention. Stated so it can be wrong: mp_residual=False makes the replacement structural,
+# but a GIN with learned eps can in principle preserve a single scalar axis while compressing
+# everything else, and that is exactly the case this bar is built to detect separately.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -210,6 +247,9 @@ V_BIPARTITE_HELPS = "BIPARTITE-HELPS"
 V_BIPARTITE_NOT_SEP = "BIPARTITE-NOT-SEPARATED"
 V_BIPARTITE_BEATS_REACTIVE = "BIPARTITE-BEATS-REACTIVE"
 V_BIPARTITE_LOSES_REACTIVE = "BIPARTITE-LOSES-TO-REACTIVE"
+V_OVERSMOOTHING = "GIN-OVERSMOOTHS-PLATFORM-STATE"
+V_QUEUE_LOST = "GIN-DESTROYS-QUEUE-INFORMATION"
+V_PLATFORM_SURVIVES = "PLATFORM-STATE-SURVIVES-THE-GIN"
 V_UNREADABLE = "UNREADABLE"
 
 PairKey = Tuple[str, int]      # (cell, checkpoint seed)
@@ -473,6 +513,48 @@ def read_c2(vs_reactive: Mapping[int, dict], vs_peeronly: Mapping[int, dict]) ->
             "medians_vs_reactive": {c: react[c]["median"] for c in C2_CLIENTS},
             "medians_vs_peeronly": {c: vs_peeronly[c].get("median") for c in C2_CLIENTS},
             "vs_reactive": dict(vs_reactive), "vs_peeronly": dict(vs_peeronly)}
+
+
+def read_c3(per_checkpoint: Mapping[int, Mapping[str, float]]) -> dict:
+    """Does the bipartite GIN over-smooth platform state, and does it keep the queue axis?
+
+    `per_checkpoint` maps checkpoint seed -> {"separation_ratio", "queue_r2_pre",
+    "queue_r2_post"}. Both bars are counted independently and BOTH are reported: a verdict
+    that collapsed them would hide the case the registration singles out, where platforms stay
+    far apart in the embedding while the decision-relevant axis is gone.
+    """
+    if len(per_checkpoint) < C3_MIN_CHECKPOINTS:
+        return {"verdict": V_UNREADABLE,
+                "reason": f"{len(per_checkpoint)} checkpoints < {C3_MIN_CHECKPOINTS}"}
+    sep, ret = {}, {}
+    for s, m in per_checkpoint.items():
+        sep[int(s)] = float(m["separation_ratio"])
+        pre = float(m["queue_r2_pre"])
+        # A pre-GIN probe that recovers nothing makes the ratio meaningless rather than
+        # favourable, so it is excluded and disclosed instead of silently scoring 1.0.
+        ret[int(s)] = (float(m["queue_r2_post"]) / pre) if pre > 0.01 else None
+    ret_usable = {s: v for s, v in ret.items() if v is not None}
+    n_sep = sum(1 for v in sep.values() if v <= C3_SEPARATION_RATIO)
+    n_ret = sum(1 for v in ret_usable.values() if v <= C3_RETENTION_RATIO)
+    oversmooths = n_sep >= C3_MIN_CHECKPOINTS
+    queue_lost = (len(ret_usable) >= C3_MIN_CHECKPOINTS and n_ret >= C3_MIN_CHECKPOINTS)
+    if queue_lost:
+        v = V_QUEUE_LOST
+    elif oversmooths:
+        v = V_OVERSMOOTHING
+    else:
+        v = V_PLATFORM_SURVIVES
+    return {"verdict": v, "oversmooths": oversmooths, "queue_lost": queue_lost,
+            "n_checkpoints": len(per_checkpoint),
+            "n_below_separation_bar": n_sep, "n_below_retention_bar": n_ret,
+            "n_retention_usable": len(ret_usable),
+            "median_separation_ratio": median(sorted(sep.values())),
+            "median_retention_ratio": (median(sorted(ret_usable.values()))
+                                       if ret_usable else None),
+            "separation_ratio": sep, "retention_ratio": ret,
+            "bar": {"separation_ratio": C3_SEPARATION_RATIO,
+                    "retention_ratio": C3_RETENTION_RATIO,
+                    "min_checkpoints": C3_MIN_CHECKPOINTS}}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:
