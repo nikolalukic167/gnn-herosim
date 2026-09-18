@@ -15,6 +15,8 @@
 #                         best pointwise arm, which was also read on 4 checkpoints.
 #   B5b     tasks 532-627 the same two arms at R0 (6 servers) x 4 cells x the other 12 seeds,
 #                         so every rung of the B5 ladder rests on 16 checkpoints.
+#   C4      tasks 724-787 gnnres (1670) x R3 x 4 cells x 16 -- AMENDMENT 9, the residual
+#                         bipartite arm; submit 724-771, 772-787
 #   C1      tasks 628-723 gnn (1670) x {R3, R0} x 4 cells x the OTHER 12 seeds -- AMENDMENT 6,
 #                         the bipartite arm at power; submit 628-675, 676-723 (%12 each)
 #   B5      tasks 276-531 {peeronly, mpoff} (1670) x {R1=12, R2=24 servers} x 4 cells x 16 --
@@ -47,7 +49,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-723
+#SBATCH --array=0-787
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -114,6 +116,10 @@ for a in peeronly mpoff; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CO
 # the bipartite penalty is read at power on both ends of the server ladder. APPENDED: tasks
 # 0-627 keep their arms.
 for r in 1 0; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"); ARMS+=("gnn"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done
+# C4 -- AMENDMENT 9, tasks 724-787. gnnres (residual bipartite MP) at R3, all 16 checkpoints.
+# The LIVE half of C4: R3 is where C1 measured the bipartite penalty at power, so it is where
+# the repair has to show up. APPENDED: tasks 0-723 keep their arms.
+for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("1670"); ARMS+=("gnnres"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
@@ -145,7 +151,12 @@ python3 - "$SC" "$ARM" <<'PY'
 import json, sys
 sc, arm = json.load(open(sys.argv[1])), sys.argv[2]
 want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
-        "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22}
+        "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22,
+        # C4: gnnres and gnn are otherwise indistinguishable here, and mp_residual is what
+        # separates them. Pinned on BOTH so a mislabelled checkpoint cannot be served as the
+        # wrong arm -- the flag is weight-visible, but the model is BUILT from this sidecar,
+        # so strict loading would not catch it.
+        "mp_residual": arm == "gnnres"}
 if arm == "peeronly":
     want["mp_platform_edges"] = False
 elif "mp_platform_edges" in sc:
