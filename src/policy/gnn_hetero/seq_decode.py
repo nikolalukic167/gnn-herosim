@@ -195,8 +195,21 @@ def get_run_decode_stats() -> Optional[GnnDecodeRunStats]:
     return _RUN_STATS
 
 
+def run_decode_stats_have_content(stats) -> bool:
+    """Mirror of src/policy/gnn/seq_decode.run_decode_stats_have_content.
+
+    This variant's stats object may not carry `feature_probe_tasks` (the queue-feature
+    probe lives in the homogeneous decoder), so the attribute is read defensively rather
+    than assumed -- executesimulation imports this name from whichever module matches the
+    policy.
+    """
+    if stats is None:
+        return False
+    return stats.gnn_batches > 0 or int(getattr(stats, "feature_probe_tasks", 0)) > 0
+
+
 def write_run_decode_stats(path: Path, *, p1_margin: int = 1) -> Optional[Dict[str, Any]]:
-    if _RUN_STATS is None or _RUN_STATS.gnn_batches == 0:
+    if not run_decode_stats_have_content(_RUN_STATS):
         return None
     payload = _RUN_STATS.to_dict(p1_margin=p1_margin)
     path.parent.mkdir(parents=True, exist_ok=True)
