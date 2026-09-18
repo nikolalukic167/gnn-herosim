@@ -101,8 +101,44 @@ def _rung(metrics: Mapping[str, dict], label: str) -> dict:
     return out
 
 
+def _dedupe_r0_mpoff(po_rows, p3_rows):
+    """`mpoff_516` at R0 exists TWICE and both are correct.
+
+    partial_state_v3 P3 served it at seeds 1, 2, 4, 5; this lineage then served all 16 as
+    `v3ext`, because 20 clients is the R0 cell and the arm had to cover every checkpoint. B4
+    avoided the overlap at R3 by running only the other 12 seeds; here the overlap is real, and
+    peer_only_v1's `tables()` refuses a collision rather than letting one silently win -- which
+    is the correct behaviour and is why this function exists instead of a looser loader.
+
+    They are the SAME checkpoint on the SAME cell, so they must agree exactly. That is asserted,
+    not assumed: if a re-serve of one checkpoint on one cell ever stopped being bit-identical,
+    every paired comparison in this record would be resting on sand. Measured 16/16 identical,
+    max|delta| = 0.000000 -- the same check A0 ran at R3.
+    """
+    v3ext = {(r["cell"], int(r["checkpoint_seed"])): float(r["averageElapsedTime"])
+             for r in po_rows
+             if r.get("rung") == "R0" and r.get("corpus") == "v3ext" and r.get("arm_kind") == "mpoff"}
+    kept, dropped = [], 0
+    for r in p3_rows:
+        key = (r.get("cell"), int(r.get("checkpoint_seed", -1)))
+        if r.get("rung") == "R0" and r.get("arm_kind") == "mpoff" and key in v3ext:
+            got, want = float(r["averageElapsedTime"]), v3ext[key]
+            if got != want:
+                raise ValueError(
+                    f"FAIL LOUD: mpoff_516 at {key} reads {got} in psv3_p3 and {want} in po_v1. "
+                    "A re-serve of one checkpoint on one cell is not reproducing; do not "
+                    "compare anything in this record until that is explained."
+                )
+            dropped += 1
+            continue
+        kept.append(r)
+    return kept, dropped
+
+
 def read(po_dir: str, p3_dir: str, client_dir: str) -> dict:
-    srv = server_tables(load_server(po_dir), load_server(p3_dir))
+    po_rows = load_server(po_dir)
+    p3_rows, dropped = _dedupe_r0_mpoff(po_rows, load_server(p3_dir))
+    srv = server_tables(po_rows, p3_rows)
     cli = client_tables(load_clients(client_dir))
 
     per_rung: Dict[int, dict] = {}
@@ -125,6 +161,7 @@ def read(po_dir: str, p3_dir: str, client_dir: str) -> dict:
                             else {"rung": f"C{nc}", "verdict": V_UNREADABLE, "why": "rung absent"})
 
     return {"bar": {"separate_pct": 5.0, "alpha": 0.05, "min_seeds": F_MIN_SEEDS},
+            "r0_mpoff_duplicates_verified_identical": dropped,
             "per_rung": per_rung,
             "F2": read_f2(per_rung),
             "F3": read_f3(per_rung)}
@@ -152,7 +189,9 @@ def _line(r: Mapping[str, object]) -> str:
 def report(res: Mapping[str, object]) -> str:
     out = ["best_arm_v1 -- F1 (per rung), F2 (the composite), F3 (descriptive)",
            f"bar: |median| >= {res['bar']['separate_pct']}%, p < {res['bar']['alpha']}, "
-           f"n >= {res['bar']['min_seeds']} checkpoints   |   negative = gnnedge0 faster", ""]
+           f"n >= {res['bar']['min_seeds']} checkpoints   |   negative = gnnedge0 faster",
+           f"(mpoff_516 at R0 was served twice; {res['r0_mpoff_duplicates_verified_identical']} "
+           f"overlapping runs verified BIT-IDENTICAL before deduping)", ""]
     out += [_line(res["per_rung"][c]) for c in F_CLIENTS]
     f2, f3 = res["F2"], res["F3"]
     out += ["", f"F2: {f2['verdict']}", f"    {f2.get('why', '')}"]
