@@ -232,6 +232,41 @@ C3_RETENTION_RATIO = 0.5
 # but a GIN with learned eps can in principle preserve a single scalar axis while compressing
 # everything else, and that is exactly the case this bar is built to detect separately.
 
+# --- C4, AMENDMENT 9, registered 2026-09-18 BEFORE the arm was trained --------------------
+# C3 measured the bipartite GIN compressing platform embeddings from ~25 degrees of angular
+# spread to ~7 while leaving the queue column linearly recoverable (R^2 0.999 -> 0.848). That
+# is a GEOMETRIC loss, not an informational one, and it has exactly one textbook repair: a
+# residual path, x = x0 + mp_gate * h instead of x = h, which preserves the encoder's spread
+# by construction and adds the relational term on top. Every checkpoint in this lineage has
+# mp_residual OFF, so the repair has never been tried here.
+#
+# This is the measurement that turns "could a bipartite graph ever work in this environment"
+# from a speculation into a reading. It is a FULL EXPERIMENT, not a check: 16 seeds trained
+# from scratch (experiments/peer_only_v1_1670_gnnres.yaml, byte-identical to the gnn config
+# but for NEAR_RTT_MP_RESIDUAL) and then live-gated. mp_residual adds a learnable mp_gate, so
+# unlike mp_platform_edges this flag is weight-VISIBLE; it is recorded in the sidecar anyway
+# and the training script pins it on BOTH arms, because checking only the new one would let a
+# silently-residual gnn through.
+C4_MIN_SEEDS = 16
+C4_SEPARATE_PCT, C4_ALPHA = 5.0, 0.05    # the same bar as C1/C2/B3, reused unchanged
+C4_LIVE_RUNG = "R3"                      # where C1 measures the bipartite penalty at power
+C4_LIVE_CLIENTS = 80                     # the unsaturated rung where peeronly beats reactive
+# Consequence signed before the data. The OFFLINE read orders the work and closes nothing
+# (rule 6); the LIVE read is the one that answers the question.
+#   live: gnnres beats reactive at 80 clients AND is not behind peeronly -> a bipartite graph
+#     DOES work in this environment once the residual path is there. That reverses clause 7
+#     and is the largest positive this programme could state.
+#   live: gnnres closes a real part of the gap to peeronly but stays behind -> over-smoothing
+#     was PART of the bipartite cost and not all of it. Clause 7 survives, quantified.
+#   live: gnnres does not improve on gnn -> the geometric repair does not transfer, and the
+#     live cost of the bipartite stage is NOT explained by over-smoothing. That closes the
+#     "could it ever work" question NEGATIVELY on the one repair the evidence licensed, and
+#     it must be written as that and not as a general impossibility claim.
+# Registered expectation: UNCERTAIN offline, NEGATIVE live. Rationale, stated so it can be
+# wrong: this lineage has watched an offline gain invert live more than once (A1/B2 vs the
+# live ranking, which is exactly inverted), and C3 showed the pre-GIN spread is ALREADY narrow
+# (~25 degrees), so preserving it may simply preserve something that was never wide enough.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -249,6 +284,9 @@ V_BIPARTITE_BEATS_REACTIVE = "BIPARTITE-BEATS-REACTIVE"
 V_BIPARTITE_LOSES_REACTIVE = "BIPARTITE-LOSES-TO-REACTIVE"
 V_BEATS_REACTIVE = "BEATS-REACTIVE"
 V_LOSES_REACTIVE = "LOSES-TO-REACTIVE"
+V_RESIDUAL_WORKS = "BIPARTITE-WORKS-WITH-RESIDUAL"
+V_RESIDUAL_PARTIAL = "RESIDUAL-CLOSES-PART-OF-THE-GAP"
+V_RESIDUAL_NO_HELP = "RESIDUAL-DOES-NOT-TRANSFER"
 V_OVERSMOOTHING = "GIN-OVERSMOOTHS-PLATFORM-STATE"
 V_QUEUE_LOST = "GIN-DESTROYS-QUEUE-INFORMATION"
 V_PLATFORM_SURVIVES = "PLATFORM-STATE-SURVIVES-THE-GIN"
@@ -575,6 +613,43 @@ def read_c3(per_checkpoint: Mapping[int, Mapping[str, float]]) -> dict:
             "bar": {"separation_ratio": C3_SEPARATION_RATIO,
                     "retention_ratio": C3_RETENTION_RATIO,
                     "min_checkpoints": C3_MIN_CHECKPOINTS}}
+
+
+def read_c4(gnnres_vs_reactive: Mapping[str, float], gnnres_vs_peeronly: Mapping[str, float],
+            gnnres_vs_gnn: Mapping[str, float]) -> dict:
+    """C4's LIVE read: does the residual path make the bipartite arm work?
+
+    Each argument is a `paired_tie`-shaped result (median, p) for the residual arm against one
+    comparator, at the registered live rung. Negative median = gnnres is faster.
+    """
+    for name, r in (("vs_reactive", gnnres_vs_reactive), ("vs_peeronly", gnnres_vs_peeronly),
+                    ("vs_gnn", gnnres_vs_gnn)):
+        if not r or r.get("verdict") == V_UNREADABLE:
+            return {"verdict": V_UNREADABLE, "reason": f"{name} is unreadable"}
+
+    def sig_better(r):
+        return r["median"] <= -C4_SEPARATE_PCT and r["p"] < C4_ALPHA
+
+    def sig_worse(r):
+        return r["median"] >= C4_SEPARATE_PCT and r["p"] < C4_ALPHA
+
+    beats_reactive = sig_better(gnnres_vs_reactive)
+    behind_peeronly = sig_worse(gnnres_vs_peeronly)
+    better_than_gnn = sig_better(gnnres_vs_gnn)
+    if beats_reactive and not behind_peeronly:
+        v = V_RESIDUAL_WORKS
+    elif better_than_gnn:
+        v = V_RESIDUAL_PARTIAL
+    else:
+        v = V_RESIDUAL_NO_HELP
+    return {"verdict": v, "beats_reactive": beats_reactive,
+            "behind_peeronly": behind_peeronly, "better_than_gnn": better_than_gnn,
+            "medians": {"vs_reactive": gnnres_vs_reactive["median"],
+                        "vs_peeronly": gnnres_vs_peeronly["median"],
+                        "vs_gnn": gnnres_vs_gnn["median"]},
+            "bar": {"separate_pct": C4_SEPARATE_PCT, "alpha": C4_ALPHA,
+                    "min_seeds": C4_MIN_SEEDS, "rung": C4_LIVE_RUNG,
+                    "clients": C4_LIVE_CLIENTS}}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:

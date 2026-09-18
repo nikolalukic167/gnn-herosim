@@ -6,6 +6,8 @@
 #   Phase B   tasks 16-31   gnn      on the 1,670-dataset cache         (experiments/peer_only_v1_1670_gnn.yaml)
 #             tasks 32-47   mpoff    on the 1,670-dataset cache         (experiments/peer_only_v1_1670_mpoff.yaml)
 #             tasks 48-63   peeronly on the 1,670-dataset cache         (experiments/peer_only_v1_1670_peeronly.yaml)
+#   C4        tasks 64-79   gnnres   on the 1,670-dataset cache         (experiments/peer_only_v1_1670_gnnres.yaml)
+#                           AMENDMENT 9: residual bipartite MP, the repair C3 names
 #
 # Same recipe as partial_state_v3 (T1b, lr 2e-3 not re-tuned, CE-only, teacher-forced
 # masked_topo, T1b split, patience 60 / floor 100). Phase B tasks refuse to start without
@@ -23,7 +25,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
-#SBATCH --array=0-63
+#SBATCH --array=0-79
 
 set -euo pipefail
 ulimit -n 65536 2>/dev/null || true
@@ -39,7 +41,10 @@ export OMP_NUM_THREADS=16 MKL_NUM_THREADS=16 OPENBLAS_NUM_THREADS=16 CUDA_VISIBL
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__,'cuda',torch.cuda.is_available())"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
-SPECS=("516 peeronly 16" "1670 gnn 16" "1670 mpoff 16" "1670 peeronly 16")
+# C4 -- AMENDMENT 9 (2026-09-18), tasks 64-79. gnnres: the gnn recipe with RESIDUAL
+# bipartite message passing (x = x0 + mp_gate * h instead of x = h), the one repair C3
+# licenses. APPENDED so tasks 0-63 keep their arms and their checkpoints.
+SPECS=("516 peeronly 16" "1670 gnn 16" "1670 mpoff 16" "1670 peeronly 16" "1670 gnnres 16")
 CORPORA=(); ARMS=(); SEEDS=()
 for spec in "${SPECS[@]}"; do
   read -r corpus arm n <<< "$spec"
@@ -114,6 +119,9 @@ import hashlib, json, sys
 sc, arm, split = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
 checks = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
           "mp_platform_edges": arm != "peeronly",
+          # C4: mp_residual is the ONE thing separating gnnres from gnn. Pin it on BOTH
+          # arms -- checking only the new one would let a silently-residual gnn through.
+          "mp_residual": arm == "gnnres",
           "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22,
           "dag_alpha_key": "2.5", "decode_replica_reuse": True, "decode_relax_on_stuck": True, "peer_mass": True}
 for k, want in checks.items():

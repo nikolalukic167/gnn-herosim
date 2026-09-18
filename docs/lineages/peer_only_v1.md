@@ -1038,3 +1038,45 @@ and neither is interpreted here.
 - It is **offline**, so by rule 6 it closes nothing. It explains; C1 and C2 measure.
 - It does **not** show the GIN is why `gnn` loses live. Over-smoothing is now a *measured
   property* of the stage, not a demonstrated cause of the live gap.
+
+### 2026-09-18 — AMENDMENT 9: C4, the **residual** bipartite arm — the repair C3 named
+
+Registered **before** the arm was trained; bars in `scripts_cosim/peer_only_v1_read.py`
+(`read_c4`), config `experiments/peer_only_v1_1670_gnnres.yaml`, training appended to
+`scripts_cosim/datalab/peer_only_v1_train.sbatch` as tasks 64–79.
+
+**Why.** C3 measured the bipartite GIN compressing platform embeddings from ~25° of angular
+spread to ~7° **while leaving the queue column linearly recoverable** (R² 0.999 → 0.848). The
+loss is **geometric, not informational**, and it has exactly one textbook repair: a residual
+path, `x = x0 + mp_gate · h` instead of `x = h`, which preserves the encoder's spread by
+construction and adds the relational term on top. **Every checkpoint in this lineage has
+`mp_residual` off**, so the repair has never been tried here.
+
+This is what turns *"could a bipartite graph ever work in this environment"* from a
+speculation into a reading. **It is a full experiment, not a check**: 16 seeds trained from
+scratch and then live-gated.
+
+**The control is exact.** `experiments/peer_only_v1_1670_gnnres.yaml` diffs against
+`peer_only_v1_1670_gnn.yaml` by **one env flag** plus the wandb name — same cache, same split
+artifact, same objective, same schedule, same learning rate, same seeds. `mp_residual` adds a
+learnable `mp_gate`, so unlike `mp_platform_edges` it is weight-**visible**; it is recorded in
+the sidecar regardless, and the training script now pins it on **both** arms, because checking
+only the new one would let a silently-residual `gnn` through.
+
+**Consequence signed before the data.** The offline read orders the work and closes nothing
+(rule 6); the **live** read answers the question.
+
+| live reading | consequence |
+|---|---|
+| `gnnres` beats reactive at 80 clients **and** is not behind `peeronly` | `BIPARTITE-WORKS-WITH-RESIDUAL` — a bipartite graph **does** work here once the residual path exists. Reverses clause 7; the largest positive this programme could state. |
+| `gnnres` closes a real part of the gap to `gnn` but stays behind `peeronly` | `RESIDUAL-CLOSES-PART-OF-THE-GAP` — over-smoothing was **part** of the bipartite cost, not all. Clause 7 survives, quantified. |
+| `gnnres` does not improve on `gnn` | `RESIDUAL-DOES-NOT-TRANSFER` — the geometric repair does not carry live, and the bipartite stage's live cost is **not** explained by over-smoothing. |
+
+Registered expectation: **UNCERTAIN offline, NEGATIVE live.** Stated so it can be wrong. Two
+reasons: this lineage has watched an offline gain invert live more than once (offline the
+ranking is exactly inverted from live), and C3 showed the pre-GIN spread is **already narrow**
+at ~25° — preserving it may only preserve something that was never wide enough to help.
+
+**The negative case must be written as what it is.** `RESIDUAL-DOES-NOT-TRANSFER` closes the
+question on **the one repair the evidence licensed**. It is not a proof that no bipartite
+formulation can work here, and it must never be written as one.
