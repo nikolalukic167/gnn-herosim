@@ -1,7 +1,7 @@
 # bipartite_aggr_v1 — is the bipartite penalty a `sum` over a candidate set that grows with the cluster?
 
-**Status:** `ACTIVE` (2026-09-18) — closed on **`SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`**, then **REOPENED the same day by a signed AMENDMENT 1** to re-read E2 at n = 32. The verdict below is unchanged and stands on its registered n = 16; the amendment tests its weakest clause rather than revisiting the result. **The prediction
-held.** Closed on a live gate at both ends of the server ladder (rule 6). Registered
+**Status:** `CLOSED` (2026-09-18) — **`SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`. The prediction
+held, and AMENDMENT 1 then re-read its weakest clause at n = 32 and STRENGTHENED it.** Closed on a live gate at both ends of the server ladder (rule 6). Registered
 2026-09-18; every bar is a module constant in `scripts_cosim/bipartite_aggr_v1_read.py`,
 committed before any arm was trained.
 
@@ -30,12 +30,14 @@ predicted pattern, and no other explanation this programme has offered produces 
 
 **Three clauses that must travel with it.**
 
-1. **E2 is a non-separation on SIGNIFICANCE, not on magnitude, and that is the weakest link in
-   the chain.** Its median is **−8.30 %**, which is *outside* the ±5 % tie band; it reads
-   `AGGREGATION-NOT-SEPARATED` because p = 0.1089. The point estimate at 6 servers actually
-   favours **sum**. So the honest statement is *"sum is not shown to cost where candidates are
-   few"*, **not** *"sum is harmless there"* — and a higher-powered E2 could move this. The
-   verdict is as signed; the caveat is not optional.
+1. **E2 was the weakest link, and AMENDMENT 1 settled it.** At n = 16 it was a non-separation
+   on *significance* rather than magnitude (−8.30 %, outside the ±5 % band, p = 0.1089), which
+   left open that a bigger sample would surface a real effect. Doubling to **n = 32** moved it
+   the other way: **−6.22 %, p = 0.2865, 19/32**, and the 16 **fresh** seeds alone read
+   **−4.52 %, p = 0.9176, 9/16** — a coin flip, with the point estimate now *inside* the tie
+   band. The −8.30 % looks like small-sample overestimate, the null is real, and the honest
+   statement is now *"sum is not shown to cost where candidates are few, at n = 32"*. It still
+   is **not** *"sum is harmless there"* — a null is not a proof of equality.
 2. **At 6 servers every learned arm loses to reactive Knative** (`gnnedgesum` +85.95 %, 0/16),
    as the record already says. Nothing at R0 is a claim about beating the baseline; it is a
    claim about a null between arms.
@@ -105,6 +107,37 @@ one. Recorded that way so it can be scored.
 ---
 
 ## Record (newest first)
+
+### 2026-09-18 — AMENDMENT 1 read: the null survives doubled power and gets weaker
+
+32 training runs (seeds 17–32 of both aggregation arms) and 128 live arms at R0, all
+COMPLETED. Read at the registered bars with `min_seeds = 32`:
+
+| read | n | median | p | ahead |
+|---|---|---|---|---|
+| E2, as the lineage closed | 16 | −8.30 % | 0.1089 | 10/16 |
+| **E2b (AMENDMENT 1)** | **32** | **−6.22 %** | **0.2865** | 19/32 |
+| seeds 17–32 **alone**, an independent replication | 16 | −4.52 % | 0.9176 | **9/16** |
+
+**`AGGREGATION-NOT-SEPARATED` at n = 32 — the registered expectation, and it was right.** The
+signed risk was that E2 hid a *reversed* effect (`SUM-HELPS`) rather than a missing one. It
+does not: doubling the units moved the point estimate **toward zero** (−8.30 → −6.22 %) and the
+p-value **away** from significance (0.1089 → 0.2865), and the fresh half is a flat 9/16 with
+its median **inside** the ±5 % tie band. That is the signature of noise, not of an effect the
+first sample was too small to see.
+
+**Consequence, as signed:** the null survives doubled power, `SUM-COSTS-ONLY-WHERE-CANDIDATES-
+ARE-MANY` is strengthened, and clause 1 of the head is rewritten to say the null held at
+n = 32. E1 was **not** re-run — it cleared at p = 0.0052 and re-reading a bar that already
+fired would be shopping for a better number.
+
+**Housekeeping found and fixed here, not by a reader crash later.** `best_arm_v1` served
+`mpoff_516` at R0 for all 16 seeds, but `partial_state_v3` P3 had already served seeds 1, 2, 4
+and 5 on those cells; B4 avoided the same overlap at R3 by running only the other 12. The 16
+overlapping runs were verified **bit-identical (max |delta| = 0.000000)** — an unplanned
+re-serve confirmation at R0, the check A0 ran at R3 — and the duplicates were then **archived,
+not deleted**, so the data follows B4's convention and no future reader needs a special case.
+Re-reading `best_arm_v1` afterwards reproduced all three rungs exactly.
 
 ### 2026-09-18 — CLOSED on the live gate: the predicted pattern, at both rungs
 
