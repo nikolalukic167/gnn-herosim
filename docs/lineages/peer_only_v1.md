@@ -1108,3 +1108,61 @@ Registered expectation: **`SMOOTHING-SCALES-WITH-PLATFORMS`.**
 narrow** — one corpus, 6 servers. This tests the trend **within** the training distribution and
 **cannot be extrapolated to 80 servers**. It is suggestive by construction and never
 conclusive, whichever way it reads.
+
+### 2026-09-18 — C1: **BIPARTITE-NOT-SEPARATED** — the GIN's cost is *rung-specific*
+
+Jobs 784766 and 784816 (96 arms, 48/48 COMPLETED each). Read by
+`peer_only_v1_gate_read.py --phase c1`.
+
+| rung | servers | median | p | ahead | verdict |
+|---|---|---|---|---|---|
+| R3 | 80 | **−18.94 %** | **0.0004** | **16/16** | `BIPARTITE-COSTS` |
+| R0 | 6 | −4.98 % | 0.6051 | 9/16 | `BIPARTITE-NOT-SEPARATED` |
+
+Ladder headline: **`BIPARTITE-NOT-SEPARATED`**, because one rung does not clear.
+
+**Three things this settles, and one prediction of mine it falsifies.**
+
+1. **Clause 7 was a 4-checkpoint number and is now a 16-checkpoint one at R3**: 22.42 % → 
+   **18.94 %**, and at *16/16 checkpoints* with p = 0.0004. Unlike B2, this one barely moved and
+   got **more** certain. The bipartite stage really does cost at 80 servers.
+2. **My registered expectation was wrong on the magnitude.** AMENDMENT 6 predicted
+   `BIPARTITE-COSTS` at R3 "at a margin **much smaller** than 22.42 %", reasoning from B2's
+   halving. It fell by 16 %, not by half. The verdict was right; the quantitative prediction
+   was not, and it is recorded as wrong rather than quietly dropped.
+3. **The penalty is rung-specific — at 6 servers it is not established** (−4.98 %, p = 0.61,
+   9/16 is a coin flip). R0 was registered UNCERTAIN and resolves to *not separated*. So
+   **"the arm that wins is not the GNN" is true at 80 servers and unsupported at 6**, and the
+   head must say which. This is the second flat claim in this lineage to turn out
+   operating-point-specific, on exactly the pattern of the first.
+
+**And it undercuts C3's own relevance — this is the important part.** C1 says the bipartite
+stage costs **at 80 servers** and costs nothing measurable at 6. C3 measured its over-smoothing
+on the **training cache, which is 6 servers throughout** — the regime where the penalty is
+*absent*. So the geometry C3 found is real, reproduced to the digit by a second run, and
+**measured in the wrong regime to explain the live loss**. Over-smoothing at 6 servers cannot
+be the mechanism for a penalty that only appears at 80.
+
+That does not refute the mechanism; it means the programme has **no measurement of it where it
+would matter**, and this node must not imply otherwise. Probing the geometry at 80 servers
+would need cached graphs at that cluster size, which do not exist and cannot be brute-forced
+(`cluster_scale_v1`: 14¹⁰ plans at 24 servers).
+
+### 2026-09-18 — C5: **NOT MEASURABLE ON THIS CORPUS** — and the bar was not moved
+
+Job 784866. The re-run **reproduced C3 to the digit** (separation ratio median 0.4149, 14/16;
+retention 0.8482, 0/16), which is the instrument check.
+
+C5 itself reads `UNREADABLE`: **0 of 16 checkpoints usable**. The cause is not a lost arm or a
+threshold — **every one of the 64 graphs has exactly 134 platforms**. The platform count is
+*constant*, so a rank correlation against it has no variance and is undefined.
+
+AMENDMENT 10 registered the caveat that the range was "narrow". It is **degenerate**, which is
+worse, and the honest reading is `NOT-MEASURABLE-ON-THIS-CORPUS` — **not** `SMOOTHING-IS-SCALE-FREE`,
+which is the verdict the bar would have produced if the missing values had been treated as
+evidence. `read_c5` drops unusable checkpoints and refuses below quorum rather than scoring
+them, so the registered bar produced the right refusal on its own.
+
+The question C5 asked is now answered **live instead, and in the affirmative**: C1 shows the
+bipartite penalty present at 80 servers and absent at 6. The offline instrument could not see
+it because the offline corpus has only one cluster size.
