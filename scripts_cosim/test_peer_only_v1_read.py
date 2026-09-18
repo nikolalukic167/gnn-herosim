@@ -353,3 +353,52 @@ def test_c3_constants_are_the_registered_values():
                                                  C3_SEPARATION_RATIO, C3_RETENTION_RATIO)
     assert (C3_N_GRAPHS, C3_MIN_CHECKPOINTS) == (64, 12)
     assert (C3_SEPARATION_RATIO, C3_RETENTION_RATIO) == (0.5, 0.5)
+
+
+# --- C4: does the residual path make the bipartite arm work? (AMENDMENT 9) ----------------
+
+def _pt(median, p=0.001):
+    return {"verdict": "X", "median": median, "p": p, "n": 16}
+
+
+def test_c4_calls_it_working_when_it_beats_reactive_and_is_not_behind_peeronly():
+    from scripts_cosim.peer_only_v1_read import read_c4, V_RESIDUAL_WORKS
+    r = read_c4(_pt(-12.0), _pt(-1.0, p=0.6), _pt(-20.0))
+    assert r["verdict"] == V_RESIDUAL_WORKS and r["beats_reactive"]
+
+
+def test_c4_beating_reactive_while_still_behind_peeronly_is_not_working():
+    """The registered clause is 'beats reactive AND not behind peeronly' -- both halves."""
+    from scripts_cosim.peer_only_v1_read import read_c4, V_RESIDUAL_PARTIAL
+    r = read_c4(_pt(-12.0), _pt(+9.0), _pt(-20.0))
+    assert r["verdict"] == V_RESIDUAL_PARTIAL and r["behind_peeronly"]
+
+
+def test_c4_calls_a_real_improvement_over_gnn_a_partial_close():
+    from scripts_cosim.peer_only_v1_read import read_c4, V_RESIDUAL_PARTIAL
+    r = read_c4(_pt(+8.0), _pt(+9.0), _pt(-15.0))
+    assert r["verdict"] == V_RESIDUAL_PARTIAL and r["better_than_gnn"]
+
+
+def test_c4_calls_no_improvement_a_failure_to_transfer():
+    from scripts_cosim.peer_only_v1_read import read_c4, V_RESIDUAL_NO_HELP
+    r = read_c4(_pt(+8.0), _pt(+9.0), _pt(-1.0, p=0.7))
+    assert r["verdict"] == V_RESIDUAL_NO_HELP and not r["better_than_gnn"]
+
+
+def test_c4_a_direction_that_is_merely_large_without_p_does_not_count():
+    from scripts_cosim.peer_only_v1_read import read_c4, V_RESIDUAL_NO_HELP
+    r = read_c4(_pt(-30.0, p=0.4), _pt(-30.0, p=0.4), _pt(-30.0, p=0.4))
+    assert r["verdict"] == V_RESIDUAL_NO_HELP
+
+
+def test_c4_is_unreadable_when_any_comparator_is():
+    from scripts_cosim.peer_only_v1_read import read_c4
+    assert read_c4(_pt(-12.0), {"verdict": V_UNREADABLE}, _pt(-20.0))["verdict"] == V_UNREADABLE
+
+
+def test_c4_constants_are_the_registered_values():
+    from scripts_cosim.peer_only_v1_read import (C4_MIN_SEEDS, C4_SEPARATE_PCT, C4_ALPHA,
+                                                 C4_LIVE_RUNG, C4_LIVE_CLIENTS)
+    assert (C4_MIN_SEEDS, C4_SEPARATE_PCT, C4_ALPHA) == (16, 5.0, 0.05)
+    assert (C4_LIVE_RUNG, C4_LIVE_CLIENTS) == ("R3", 80)

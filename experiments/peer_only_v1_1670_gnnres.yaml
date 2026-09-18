@@ -1,0 +1,54 @@
+# peer_only_v1 -- C4 (AMENDMENT 9): the gnn arm with RESIDUAL bipartite message passing.
+# docs/lineages/peer_only_v1.md.
+#
+# BYTE-IDENTICAL to experiments/peer_only_v1_1670_gnn.yaml except for NEAR_RTT_MP_RESIDUAL
+# and the wandb name/tags. Same cache, same split artifact, same objective, same schedule,
+# same learning rate, same seeds -- so the ONLY thing that differs between this arm and `gnn`
+# is whether _encode computes x = x0 + mp_gate * h or x = h.
+#
+# Why: C3 measured the bipartite GIN compressing platform embeddings from ~25 degrees of
+# angular spread to ~7 while leaving the queue column linearly recoverable (R^2 0.85). That
+# is a GEOMETRIC loss, and a residual path is the textbook repair for it -- it preserves the
+# encoder's spread by construction and adds the relational term on top. mp_residual adds a
+# learnable mp_gate, so unlike mp_platform_edges this flag IS weight-visible; it is also
+# recorded in the sidecar, and a mismatch at serving fails loud.
+#
+# This arm is NOT expected to win. It is the one architecture change C3 licenses, and the
+# registered expectation (docs/lineages/peer_only_v1.md, AMENDMENT 9) is UNCERTAIN offline and
+# NEGATIVE live, because this lineage has watched an offline gain invert live more than once.
+trainer: gnn
+lineage: peer_only_v1
+cache_dir: simulation_data/graphs_cache_peer_only_v1_1670_psv3
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_only_v1_1670_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_RESIDUAL: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: peer-only-v1-1670-gnnres
+  tags:
+  - peer-only-v1
+  - corpus1670
+  - gnnres
+  - lr2e3
+  - patience60
