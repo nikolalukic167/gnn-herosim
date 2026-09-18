@@ -987,3 +987,54 @@ else, which is precisely why retention is a separate bar.
 
 **This is a diagnostic, not a gate.** It is offline, so by rule 6 it cannot close anything;
 what it can do is say whether the live result C1/C2 measure has a representational cause.
+
+### 2026-09-18 — C3: **GIN-OVERSMOOTHS-PLATFORM-STATE** — but the queue axis *survives*
+
+Job 784804 (CPU, 16/16 checkpoints, 64 strided graphs from
+`graphs_cache_peer_only_v1_1670_psv3`). Result JSON:
+`simulation_data/peer_affinity_live_gate/results/peer_only_v1_c3.json`. Read by
+`read_c3`; **both registered bars fired the way AMENDMENT 8 predicted they might, and they
+disagree with each other**, which is the whole reason they were counted separately.
+
+| bar | statistic | median | below bar | verdict |
+|---|---|---|---|---|
+| separation | platform cosine spread, post / pre | **0.415** | **14/16** | fires |
+| retention | queue-column probe R², post / pre | **0.848** | **0/16** | clears |
+
+**Separation — the GIN more than halves it.** Mean pairwise cosine distance among platform
+embeddings falls from **0.143–0.235** before the GIN to **0.061–0.094** after, every
+checkpoint, ratio median 0.415. The registered expectation (over-smoothing confirmed on
+separation) is **met**.
+
+The absolute numbers are the more interesting half and were not predicted. A pre-GIN spread
+of ~0.19 means the platform embeddings already sit within roughly **25°** of one another
+*before* any message passing; the GIN compresses that to about **7°**. So the bipartite stage
+is not knocking a well-spread representation flat — it is narrowing a cone that was **already
+narrow** at the encoder.
+
+**Retention — the queue information is still there.** A ridge probe recovering the raw queue
+columns from the embedding, fit and scored on disjoint graphs, reads R² **0.999 → 0.848**.
+Per column across all 16 checkpoints: **dim7 0.884** (0/16 below bar), **dim13 0.814** (1/16).
+The registered expectation for this bar was **UNCERTAIN**, and it resolves to *survives*.
+
+**Carry this caveat with the retention number:** the pre-GIN R² of ≈1.000 is near-ceiling **by
+construction** — the pre-GIN embedding is an MLP encode of the very columns being probed, so a
+linear probe recovers them almost perfectly. That makes the ratio **conservative** (it can
+essentially only fall) and it means 1.000 is not a finding. The columns the GIN hits hardest
+are **dim3 (0.574, 7/16 below bar)** and **dim8 (0.523, 5/16)** — neither is a queue column,
+and neither is interpreted here.
+
+**What this does and does not license.**
+
+- It **names the mechanism as geometric, not informational.** The bipartite stage as configured
+  does not destroy the platform state the scorer needs; it compresses every platform into a
+  much narrower cone while leaving the queue axis linearly recoverable. `EdgeScorer` is then
+  asked to separate candidates that are 7° apart instead of 25°.
+- It makes the repair **specific and testable**: every checkpoint here has `mp_residual: false`,
+  so `_encode` computes `x = h`. Residual/gated message passing (`x = x0 + gate · h`) preserves
+  the encoder's spread by construction and adds the relational term on top. **That is a
+  registered follow-up, not a claim** — nothing here shows it would help live, and this
+  lineage has watched an offline improvement invert live more than once.
+- It is **offline**, so by rule 6 it closes nothing. It explains; C1 and C2 measure.
+- It does **not** show the GIN is why `gnn` loses live. Over-smoothing is now a *measured
+  property* of the stage, not a demonstrated cause of the live gap.
