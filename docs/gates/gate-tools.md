@@ -289,3 +289,40 @@ change the statistic. If it would not, the test is ignoring the pairing you paid
 | 2026-09-17 | `peer_only_v1` Phase B training — the corpus, not the gate (two blocking defects, both fixed) | **A split artifact minted for one corpus, and a cache candidate the sweep never priced.** (a) Job 782116 died in 9 s on every arm: `assert_split_artifact_covers` requires the artifact to enumerate **exactly** the cache's parents, and the T1b artifact knows 516 while the cache holds 1,657. (b) Job 782166 died at ~2.5 min on every arm: `refresh_partial_state_edge_attr ... candidate absent from the partial-state context (missing key (22, 118))`. The demand table is built from the **placement sweep's rows**; the graph's candidate set lists **every replica of the task's type**. In 3 of 1,141 new `train2` datasets a replica exists that no sweep row ever places on — sweeps complete, `sweep_complete` true, dataset structurally valid — so the trainer has no cost for a candidate it is asked to score. **0 of the 516 T1b parents** has it, which is why 3.5 months of training never saw it. | Both are now pre-training guards rather than post-mortems. The split artifact is **minted from the cache in the same job** (`peer_only_v1_split.py`, test and val carried verbatim so the corpus contrast pairs like with like), and `peer_only_v1_candidate_check.py` walks every graph's `task_logit_to_placement` against its `partial_state_ctx["demand"]` and **exits 1 with the offender list** — it read `offenders=0` on the 1,654 rebuild, so the class is proven absent, not assumed. **Rule: a corpus is validated by the trainer's own contracts before a GPU is booked, not by the generator's status codes.** `SUCCESS` and a complete sweep do not imply every candidate is priced. |
 | 2026-09-17 | any SLURM gate array wider than the account's `MaxSubmit` | **An array counts every task against the submit limit, so a 96-task gate is rejected outright.** `sbatch --array=36-131%12` returned `AssocMaxSubmitJobLimit` / `Job violates accounting/QOS policy` against `MaxSubmit = 50`. The `%12` throttle limits **concurrency**, not submission, and does not help. It surfaced at the worst moment — inside a chain, after a 5-hour training array had already drained — and the chain reported `PHASE B GATE NOT SUBMITTED` with an empty job id. | Phase B was submitted as two 48-task halves, chained. **Check before writing any chain: `sacctmgr -n show assoc user=$USER format=MaxSubmit` and split the array below it.** A chain that submits a later stage must also **verify the returned job id is numeric** before waiting on it — the wait loop polled `squeue -j ''`, got zero rows, and would have declared the stage complete had the chain not tested the id. |
 | 2026-09-17 | any live gate that crosses checkpoints with cells (`peer_only_v1` A2/B2; disclosed, bar NOT moved) | **`n` pairs is not `n` independent draws, and the read prints only the pair count.** B2 crossed `CKSEEDS = (1, 2, 4, 5)` with 4 topology cells and reported **16/16, p = 0.0004** — as registered (`A2_MIN_PAIRS = 12` pairs by (cell, checkpoint seed)), so no bar was violated. But the headline is a claim about an **architecture**, whose independent unit is the checkpoint, and there were **four**. A two-sided sign test on 4 units cannot go below **p = 0.125**. The same read quoted "−41.4 %, 16/16 vs reactive" from **one** reactive run per cell, re-used four times. The sister lineage's "13/16 seeds" (`peer_affinity_v1`) *was* 16 training seeds, so the two numbers look identical in a node and are not. | Amendment 1 registered `B3`: the same contrast collapsed to one value per checkpoint (median over its cells, `collapse_to_seed`, which fails loud on a ragged row) over all 16 trained seeds, with the consequence signed before the data. **Rule: the registration must name the independent unit for the claim being made, and the read must print the pair-level and unit-level statistics side by side.** Crossing K checkpoints with C cells buys precision on the cell average; it does not buy degrees of freedom for a statement about the model. Corollary for sizing: train 16 seeds and then serve 4 of them is the wrong split of a fixed budget when the claim is architectural — the gate is ~2 min per arm here against ~40 min to train one. **Measured price, same day:** serving the other 12 checkpoints (96 arms, ~40 min) took the headline from **−15.68 %** to **−5.75 %** — the 4-checkpoint read overstated the effect by more than **2×**, 2 of 16 checkpoints changed sign, and every descriptive figure moved with it (the twin reads −36.81 % against reactive, not −28.00 %). Amendment 2 then did the same for the opposing clause and it moved +10.40 % → **+11.17 %**, i.e. a thin `n` is not biased toward the exciting answer — it is simply *noisy*, and which way it errs is not knowable in advance. This is [`docs/lessons.md`](../lessons.md) → "inheriting a statistic does not inherit its power" priced in wall-clock. |
+
+## 2026-09-18 — an "always on" instrument whose output never reached disk
+
+`peer_only_v1` C6. `record_queue_feature_discrimination` records, per decoded task, the queue
+of the platform the arm **chose** against the shortest it could have chosen. It is called
+unconditionally from the GNN scheduler, wrapped so a fault in it can never discard a
+placement, and the code says why: *"Always on — a mechanism control that has to be switched on
+is one that is off."*
+
+It has never produced a number. `executesimulation` wrote the decode stats only when
+`decode_stats.gnn_batches > 0`, and `gnn_batches` is incremented **only** by
+`record_decode_batch` — which the `masked_topo` decode path that every live gate in this
+programme runs never calls. The probe incremented `feature_probe_tasks`, filled a stats object
+nobody wrote out, and it was dropped with the ~200 MB raw JSON. Every gate, every lineage.
+
+⇒ **An instrument is not on until a result file contains its output.** "Always on" in a
+docstring, a call site with no `if`, and a passing unit test all held here simultaneously
+while the instrument produced nothing. The unit tests for this probe
+(`test_gnn_queue_feature_probe.py`) construct a stats object directly and assert on
+`stats.summary()`, so they exercised the recorder and never the path that persists it.
+
+Two things that generalise:
+
+- **Test the persistence, not just the computation.** The check that would have caught this is
+  "a finished run's result JSON contains key X", not "the function returns the right dict".
+- **A write gated on a *different* counter than the one the instrument increments is a silent
+  drop.** The guard is now `run_decode_stats_have_content(stats)` — `gnn_batches` **or**
+  `feature_probe_tasks` — and `scripts_cosim/test_decode_stats_write_guard.py` pins the case
+  where the probe ran and `gnn_batches` is still 0.
+
+Found because a one-arm smoke test **failed loud instead of writing an empty summary**. The
+extraction searched the result for the block and raised with the key list when it was absent;
+had it defaulted to `{}`, C6 would have run 128 arms and read zeros as a measurement.
+
+The fix is purely additive (it writes something previously dropped) and was **proven inert
+rather than asserted**: `verify_venue_parity --mode logits` gives max |delta| 0.0 over 1,738
+scored edges and 0/256 argmax flips.
