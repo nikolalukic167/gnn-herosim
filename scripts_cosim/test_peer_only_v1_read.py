@@ -480,3 +480,26 @@ def test_c6_constants_are_the_registered_values():
     from scripts_cosim.peer_only_v1_read import (C6_RUNG, C6_MIN_SEEDS, C6_ALPHA,
                                                  C6_WORSE_RATE_PP)
     assert (C6_RUNG, C6_MIN_SEEDS, C6_ALPHA, C6_WORSE_RATE_PP) == ("R3", 16, 0.05, 5.0)
+
+
+# --- read_pair_pct: the orientation trap that mislabelled C4's first read -----------------
+
+def test_read_pair_pct_names_the_faster_arm_not_a_borrowed_verdict():
+    from scripts_cosim.peer_only_v1_read import read_pair_pct, V_A_FASTER, V_B_FASTER
+    a_fast = read_pair_pct(_seeds(100.0, -20.0, jitter=1.0), _seeds(100.0, 0.0))
+    b_fast = read_pair_pct(_seeds(100.0, +20.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert a_fast["verdict"] == V_A_FASTER and b_fast["verdict"] == V_B_FASTER
+
+
+def test_read_pair_pct_is_symmetric_under_swapping_the_arms():
+    """The bug this prevents: the same data, arguments swapped, must not read the same way."""
+    from scripts_cosim.peer_only_v1_read import read_pair_pct, V_A_FASTER, V_B_FASTER
+    x, y = _seeds(100.0, -20.0, jitter=1.0), _seeds(100.0, 0.0)
+    assert read_pair_pct(x, y)["verdict"] == V_A_FASTER
+    assert read_pair_pct(y, x)["verdict"] == V_B_FASTER
+
+
+def test_read_pair_pct_calls_a_small_difference_not_separated():
+    from scripts_cosim.peer_only_v1_read import read_pair_pct, V_PAIR_TIE
+    assert read_pair_pct(_seeds(100.0, -1.0, jitter=1.0),
+                         _seeds(100.0, 0.0))["verdict"] == V_PAIR_TIE

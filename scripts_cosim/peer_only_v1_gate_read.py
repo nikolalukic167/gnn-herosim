@@ -32,7 +32,7 @@ from scripts_cosim.peer_only_v1_read import read_b5 as read_b5_bar
 from scripts_cosim.peer_only_v1_read import C1_RUNGS, read_c1_ladder
 from scripts_cosim.peer_only_v1_read import read_c1 as read_c1_bar
 from scripts_cosim.peer_only_v1_read import (C4_LIVE_RUNG, read_c4 as read_c4_bar,
-                                             read_vs_reactive)
+                                             read_pair_pct, read_vs_reactive)
 
 PairKey = Tuple[str, int]
 ArmTable = Dict[str, Dict[str, Dict[PairKey, float]]]     # metric -> arm label -> {(cell, seed): value}
@@ -285,19 +285,31 @@ def read_c4(tab: Mapping[str, ArmTable], *, min_seeds: Optional[int] = None) -> 
     for name, (a, b) in {"vs_reactive": ("1670_gnnres", "reactive"),
                          "vs_peeronly": ("1670_gnnres", "1670_peeronly"),
                          "vs_gnn": ("1670_gnnres", "1670_gnn")}.items():
+        if b == "reactive":
+            # Reactive carries no checkpoint seed -- it is keyed at 0, so intersecting seeds
+            # with a learned arm yields the EMPTY set and the pair silently vanishes. Collapse
+            # each side on its own and replicate the baseline across the arm's seeds.
+            got = _collapse_pair(tab, rung, a, a, min_seeds=min_seeds)
+            t = tab.get(rung) or {}
+            rp = t.get("elapsed", {}).get("reactive", {})
+            if got is None or not rp:
+                pairs[name] = {"verdict": V_UNREADABLE, "reason": f"no {a} / reactive at {rung}"}
+                continue
+            ca, _, excluded = got
+            cells = sorted({c for c, _ in rp})
+            base_val = collapse_to_seed(rp, rung_cells=cells)[0]
+            out["excluded_seeds"] = sorted(set(out["excluded_seeds"]) | set(excluded))
+            pairs[name] = read_vs_reactive(ca, {s: base_val for s in ca}, min_seeds=min_seeds)
+            continue
         got = _collapse_pair(tab, rung, a, b, min_seeds=min_seeds)
         if got is None:
             pairs[name] = {"verdict": V_UNREADABLE, "reason": f"no {a} / {b} at {rung}"}
             continue
         ca, cb, excluded = got
         out["excluded_seeds"] = sorted(set(out["excluded_seeds"]) | set(excluded))
-        if b == "reactive":
-            # Reactive carries no checkpoint seed; collapse_to_seed keyed it at 0. Replicate
-            # that single value across the learned arm's seeds -- the honest pairing.
-            base = {s: list(cb.values())[0] for s in ca}
-            pairs[name] = read_vs_reactive(ca, base, min_seeds=min_seeds)
-        else:
-            pairs[name] = read_c1_bar(ca, cb, min_seeds=min_seeds)
+        # Orientation-neutral: `a` is gnnres here, so read_c1's (peeronly, gnn) verdict names
+        # would be inverted. read_pair_pct reports which arm won and lets the caller name them.
+        pairs[name] = read_pair_pct(ca, cb, min_seeds=min_seeds)
     out.update(pairs)
     out["verdict"] = read_c4_bar(pairs["vs_reactive"], pairs["vs_peeronly"],
                                  pairs["vs_gnn"])["verdict"]
