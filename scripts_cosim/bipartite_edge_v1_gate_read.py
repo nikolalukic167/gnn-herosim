@@ -176,7 +176,14 @@ def _fmt(r: Mapping[str, object]) -> str:
     v = r.get("verdict")
     if v == V_UNREADABLE:
         return f"{V_UNREADABLE} ({r.get('why', '')})"
-    med, p, ahead, n = r.get("median"), r.get("p"), r.get("ahead"), r.get("n")
+    # `paired_tie` names the ahead-count `v3_ahead` (its first caller was partial_state_v3).
+    # Reading `ahead` printed "None/16" against a -20.37 % headline, and the ahead-count is
+    # exactly what shows whether a median is carried by a few checkpoints or by all of them.
+    # Refuse rather than print None: a missing count must not look like a reported one.
+    med, p, n = r.get("median"), r.get("p"), r.get("n")
+    ahead = r.get("v3_ahead")
+    if ahead is None:
+        raise KeyError(f"FAIL LOUD: no ahead-count in {sorted(r)} -- do not print a headline without it")
     s = f"{v:32s} median {float(med):+7.2f}%  p={float(p):.4f}  {ahead}/{n}"
     if r.get("saturated") is not None:
         s += f"  [reactive queue {float(r['queue_share']):.0%}, " \

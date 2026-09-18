@@ -93,3 +93,15 @@ def test_a_rung_with_no_shared_cells_is_unreadable_rather_than_empty():
     t = _table()
     t[EDGE] = {}
     assert _read_one(t, "R3", queue_share=0.9)["verdict"] == V_UNREADABLE
+
+
+def test_the_report_prints_a_real_ahead_count_and_refuses_a_missing_one():
+    """`paired_tie` names it `v3_ahead`; reading `ahead` printed "None/16" beside a -20.37 %
+    headline. A missing count must never render as if it were a reported one."""
+    import pytest
+    from scripts_cosim.bipartite_edge_v1_gate_read import _fmt
+    r = _read_one(_table(), "R3", queue_share=0.95)["registered"]
+    assert r["D1"]["v3_ahead"] == 16, "all 16 checkpoints should be ahead on this synthetic table"
+    assert "16/16" in _fmt(r["D1"]) and "None" not in _fmt(r["D1"])
+    with pytest.raises(KeyError, match="no ahead-count"):
+        _fmt({"verdict": "X", "median": -1.0, "p": 0.01, "n": 16})
