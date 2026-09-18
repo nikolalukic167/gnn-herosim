@@ -34,4 +34,4 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 python3 scripts_cosim/peer_only_v1_oversmoothing.py \
   --cache simulation_data/graphs_cache_peer_only_v1_1670_psv3 \
   --models models --tag peer-only-v1-1670-gnn-lr2e3 --seeds 1-16 \
-  --out simulation_data/peer_affinity_live_gate/results/peer_only_v1_c3.json
+  --out simulation_data/peer_affinity_live_gate/results/peer_only_v1_c3c5.json
