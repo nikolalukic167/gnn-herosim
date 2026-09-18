@@ -35,6 +35,26 @@ export CUDA_VISIBLE_DEVICES=""
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
+# --- BLOCKED: the instrument this job exists to read is UNREACHABLE (2026-09-18) ----------
+# record_queue_feature_discrimination is called from GnnScheduler._gnn_inference. Prefix-
+# conditioned checkpoints under GNN_DECODE_MODE=masked_topo -- i.e. every arm this gate runs --
+# decode via decode_prefix_conditioned, which never calls it. A one-arm smoke test (jobs 784894
+# and 784918) failed loud at the extraction step both times, before and after the separate
+# write-guard fix.
+#
+# Each arm still costs a full 50,000-task simulation and only fails at the LAST step, so
+# submitting this array today burns ~6 CPU-hours to produce nothing. It refuses up front
+# instead. Delete this block ONLY together with the commit that adds the probe call to
+# decode_prefix_conditioned -- and see docs/lineages/peer_only_v1.md (C6) for why that path is
+# strict-by-construction and was not edited in haste.
+if [[ "${PO_C6_PROBE_IS_REACHABLE:-0}" != "1" ]]; then
+  echo "FAIL LOUD: peer_only_v1 C6 is BLOCKED -- the queue-feature probe is not called on the" >&2
+  echo "  masked_topo prefix-conditioned decode path, so every arm would run a full 50,000-task" >&2
+  echo "  simulation and then fail at extraction. Add the probe call to decode_prefix_conditioned" >&2
+  echo "  first, then re-run with PO_C6_PROBE_IS_REACHABLE=1. See docs/lineages/peer_only_v1.md." >&2
+  exit 1
+fi
+
 GATE=simulation_data/peer_affinity_live_gate
 OUT_DIR="$GATE/results/po_v1_c6"
 mkdir -p "$OUT_DIR"
