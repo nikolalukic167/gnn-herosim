@@ -1,9 +1,13 @@
 # peer_only_v1 — message passing over the peer graph only, and the corpus it was starved of
 
-**Status:** `CLOSED` (2026-09-18) — **PEERONLY-BEATS-POINTWISE at every cluster size and
+**Status:** `ACTIVE` (2026-09-18) — **PEERONLY-BEATS-POINTWISE at every cluster size and
 every client count; at unsaturated load a learned arm beats reactive Knative for the first time
 in the programme, but the graph arm is NOT established as better than the best pointwise arm
-there.** Registered 2026-09-16; every bar below is a module constant
+there.** Reopened 2026-09-18 by AMENDMENTS 6–11: the full `gnn` arm had never been read on more
+than 4 checkpoints, and C1/C2 have now read it on 16 — the bipartite penalty is real at 80
+servers and 40 clients, absent at 6 servers, and the whole peer-vs-bipartite contrast turns out
+to be **confounded** (clause 7). **C4 is registered and training**; the lineage closes on its
+live gate, not before (rule 6). Registered 2026-09-16; every bar below is a module constant
 in `scripts_cosim/peer_only_v1_read.py`, committed before any arm was trained.
 
 **Outcome.** On the 1,654-dataset corpus at the 80-server rung, `peeronly` (PeerConv, no GIN)
@@ -57,9 +61,24 @@ by more than 2×.
    clause 3 holds only at the saturated rung where B4 measured it. What remains true: on the
    *server* ladder the arms beat reactive only at the saturated 24- and 80-server rungs, and at
    6 servers / 20 clients both arms lose to reactive, so that margin is a ranking among losers.
-7. **The arm that wins is not the GNN.** The full `gnn` is beaten by `peeronly` by 22.42 %
-   (16/16 pairs, 4 checkpoints — `gnn` was not extended) at R3, and A3's registered mechanism is MECHANISM-NOT-CONFIRMED: `peeronly`'s
-   queue improves against *both* twins, so "GIN is the over-reaction" does not isolate it.
+7. **The arm that wins is not the GNN — but that is RUNG-SPECIFIC, and the comparison is
+   CONFOUNDED.** On 16 checkpoints (C1/C2, 2026-09-18) `peeronly` beats the full `gnn` by
+   **−18.94 %** at 80 servers (16/16, p = 0.0004) and **−18.66 %** at 40 clients (13/16,
+   p = 0.0262) — the same margin on two unrelated axes. It is **not established** at 6 servers
+   (−4.98 %, p = 0.61, 9/16) or at 80 clients (−5.76 %, p = 0.28, 15 seeds disclosed). `gnn`
+   also **loses to reactive Knative at 40 clients** (+8.44 %, p = 0.0494) and does not separate
+   at 80, so the unsaturated win in clause 6 is not the bipartite arm's. The earlier flat
+   "22.42 %" was a **4-checkpoint** read and must not be quoted.
+   **Two caveats travel with this and are load-bearing.** (a) A3's registered mechanism is
+   MECHANISM-NOT-CONFIRMED: `peeronly`'s queue improves against *both* twins, so "GIN is the
+   over-reaction" does not isolate it — and the programme still has **no** measurement of *why*
+   (C3 measured geometry at 6 servers, the rung where the penalty is absent; C5 was not
+   measurable; C6 is not runnable). (b) The contrast is **confounded**: `PeerConv` is residual
+   and edge-attribute-aware, the bipartite GIN is **neither** (`mp_residual` off, plain
+   `GIN(x, edge_index)` — the bipartite `edge_attr` reaches only the scorer). So what is
+   measured is *this* bipartite stage, not bipartite message passing as a class. **No result
+   here licenses "a bipartite graph does not work in this environment."** C4 (registered,
+   training) removes the residual confound; C7 (registered, not built) removes the other.
 
 One thing runs the *other* way and is carried with the rest: the advantage **grows across the
 trace**, −6.2 % at the first decile to **−27.9 %** at the last. Every earlier positive in this
@@ -1245,3 +1264,46 @@ batch. That is not an end-of-session edit. C6 stays registered and unrun; its ba
 the bipartite stage costs at 80 servers. C3 measured geometry at 6 servers (wrong regime), C5
 was not measurable, and C6 is not runnable. What stands is C1's *what*, the confound above, and
 C4's test of one of its two halves.
+
+### 2026-09-18 — C2: **the bipartite arm does not work where anything works**
+
+Jobs 784868 / 784919 / 784968, 127 of 128 arms. **`cc80s9003 / gnn / seed 13` was
+OOM-killed** — the same tail class B5 hit (`cs12s9001 / mpoff / seed 9`, killed at 48 GB and
+again at 120 GB). Read by cause: the registered bar is **not** relaxed, the 80-client rung
+reads `UNREADABLE`, and a **disclosed** read over the 15 complete checkpoints prints beside it
+with the exclusion named.
+
+| clients | `gnn` vs reactive | `peeronly` vs `gnn` | note |
+|---|---|---|---|
+| 40 | **+8.44 %**, p = 0.0494, 4/16 | **−18.66 %**, p = 0.0262, 13/16 | registered, complete |
+| 80 | −7.26 %, p = 0.6909, 9/15 | −5.76 %, p = 0.2805, 8/15 | **disclosed**, seed 13 excluded |
+
+**Headline: `BIPARTITE-LOSES-TO-REACTIVE`. The full `gnn` arm does not beat reactive Knative at
+either unsaturated rung** — it loses outright at 40 clients and does not separate at 80. The
+signed consequence therefore fires on its second clause, not its first: **the bipartite stage
+is what breaks the arm at the rung where the programme's only unsaturated win lives.**
+
+**The registered expectation was right, on both rungs.** AMENDMENT 7 predicted *"`gnn` LOSES to
+reactive at 40 clients, UNCERTAIN at 80."* It loses at 40 (p = 0.0494) and resolves to nothing
+at 80. Recorded because C1's magnitude prediction was wrong in the same session — this one held.
+
+**The penalty is the same size on two unrelated axes.** `peeronly` beats `gnn` by **−18.66 %**
+at 40 clients and **−18.94 %** at 80 servers (C1) — two different scaling axes, two different
+workloads, the same margin. It is **not** established at 6 servers (−4.98 %, p = 0.61) or at 80
+clients (−5.76 %, p = 0.28, 15 seeds).
+
+**Where this leaves the standing answer.** The unsaturated live win is `peeronly`'s and
+`mpoff_516`'s; the bipartite arm is not part of it. Putting C1 and C2 together, the full table
+of what beats reactive Knative at an unsaturated rung is:
+
+| arm | 40 clients | 80 clients |
+|---|---|---|
+| `peeronly_1670` | −14.9 % (p = 0.0703) | **−9.3 % (13/16, p = 0.0097)** |
+| `mpoff_516` | **−7.2 % (12/16, p = 0.0174)** | −4.8 % (p = 0.0787) |
+| `mpoff_1670` | +18.5 % | +0.9 % |
+| **`gnn_1670`** | **+8.4 % (loses, p = 0.0494)** | −7.3 % (p = 0.69, disclosed) |
+
+**What it does not say.** It does not say a bipartite graph cannot work here. `gnn`'s bipartite
+stage is non-residual and edge-blind while `PeerConv` is neither (see the code read above), so
+C2 measures **that** stage, not the class. C4 removes one confound; C7 is registered for the
+other.
