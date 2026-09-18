@@ -36,6 +36,7 @@ from scripts_cosim.peer_only_v1_read import (  # noqa: E402
     B8_CLIENTS,
     C2_CLIENTS,
     C2_DISCLOSED_MIN_SEEDS,
+    C4_LIVE_CLIENTS,
     V_UNREADABLE,
     classify_b7_rungs,
     collapse_to_seed,
@@ -44,6 +45,8 @@ from scripts_cosim.peer_only_v1_read import (  # noqa: E402
     read_b8,
     read_c1,
     read_c2,
+    read_c4,
+    read_pair_pct,
     read_c2_rung,
     read_vs_reactive,
 )
@@ -254,6 +257,29 @@ def read_ladder(tab: Mapping[int, dict]) -> dict:
     result["c2_disclosed"] = {"vs_reactive": disclosed_react, "vs_peeronly": disclosed_sib,
                               "excluded_seeds": excluded_by_rung,
                               "min_seeds": C2_DISCLOSED_MIN_SEEDS}
+
+    # --- C4 (AMENDMENT 9): the RESIDUAL bipartite arm at the registered client rung --------
+    t = tab.get(C4_LIVE_CLIENTS)
+    if t and "1670_gnnres" in t["elapsed"]:
+        cells = _cells(t["elapsed"], "1670_gnnres")
+        gr, gr_excluded = _by_seed_disclosed(t["elapsed"], "1670_gnnres", cells)
+        c4: Dict[str, object] = {"clients": C4_LIVE_CLIENTS, "excluded_seeds": gr_excluded,
+                                 "min_seeds": C2_DISCLOSED_MIN_SEEDS}
+        if gr:
+            if "reactive" in t["elapsed"]:
+                base = _reactive_like(t["elapsed"]["reactive"], cells, sorted(gr))
+                c4["vs_reactive"] = read_c2_rung(gr, base, min_seeds=C2_DISCLOSED_MIN_SEEDS)
+            for label, key in (("1670_peeronly", "vs_peeronly"), ("1670_gnn", "vs_gnn")):
+                other, _ = _by_seed_disclosed(t["elapsed"], label, cells)
+                if other:
+                    shared = sorted(set(gr) & set(other))
+                    c4[key] = read_pair_pct({s: gr[s] for s in shared},
+                                            {s: other[s] for s in shared},
+                                            min_seeds=C2_DISCLOSED_MIN_SEEDS)
+            if all(k in c4 for k in ("vs_reactive", "vs_peeronly", "vs_gnn")):
+                c4["verdict"] = read_c4(c4["vs_reactive"], c4["vs_peeronly"],
+                                        c4["vs_gnn"])["verdict"]
+        result["c4"] = c4
     result["c2"] = (read_c2(c2_react, c2_sib)
                     if len(c2_react) == len(C2_CLIENTS) and len(c2_sib) == len(C2_CLIENTS)
                     else {"verdict": V_UNREADABLE,
@@ -320,6 +346,15 @@ def report(res: dict) -> str:
             out.append(f"  {n:>3} clients  gnn vs reactive   {_fmt(d['vs_reactive'][n])}")
         for n in sorted(d.get("vs_peeronly", {})):
             out.append(f"  {n:>3} clients  peeronly vs gnn   {_fmt(d['vs_peeronly'][n])}")
+    c4 = res.get("c4")
+    if c4:
+        out.append(f"\n=== C4 -- gnnres (residual bipartite MP) at {c4['clients']} clients "
+                   f"(AMENDMENT 9) ===")
+        out.append(f"  verdict: {c4.get('verdict', 'UNREADABLE')}   "
+                   f"(DISCLOSED, >= {c4.get('min_seeds')}; excluded {c4.get('excluded_seeds')})")
+        for k in ("vs_reactive", "vs_peeronly", "vs_gnn"):
+            if k in c4:
+                out.append(f"  {k:<12} {_fmt(c4[k])}")
     return "\n".join(out)
 
 
