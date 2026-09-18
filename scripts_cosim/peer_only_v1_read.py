@@ -348,6 +348,7 @@ V_BIPARTITE_HELPS = "BIPARTITE-HELPS"
 V_BIPARTITE_NOT_SEP = "BIPARTITE-NOT-SEPARATED"
 V_BIPARTITE_BEATS_REACTIVE = "BIPARTITE-BEATS-REACTIVE"
 V_BIPARTITE_LOSES_REACTIVE = "BIPARTITE-LOSES-TO-REACTIVE"
+V_A_FASTER, V_B_FASTER, V_PAIR_TIE = "A-FASTER", "B-FASTER", "NOT-SEPARATED"
 V_BEATS_REACTIVE = "BEATS-REACTIVE"
 V_LOSES_REACTIVE = "LOSES-TO-REACTIVE"
 V_DECIDES_WORSE = "BIPARTITE-DECIDES-WORSE"
@@ -541,6 +542,31 @@ def read_b8(per_rung: Mapping[int, dict]) -> dict:
             "scoped_to_saturated": not holds,
             "medians": {c: readable[c]["median"] for c in B8_CLIENTS},
             "per_rung": dict(per_rung)}
+
+
+def read_pair_pct(a_by_seed: Mapping[int, float], b_by_seed: Mapping[int, float],
+                  *, tol: float = 5.0, alpha: float = 0.05,
+                  min_seeds: Optional[int] = None) -> dict:
+    """A vs B, checkpoint-level, with an ORIENTATION-NEUTRAL verdict.
+
+    Exists because reusing a named reader with its arguments in the other order silently
+    inverts its verdict string: `read_c1(peeronly, gnn)` calls a positive median
+    BIPARTITE-HELPS, and calling it as `read_c1(gnnres, peeronly)` then labels "gnnres is
+    13 % slower" as the GIN helping. The number was right and the word was backwards.
+
+    Negative median = A faster. The caller names the arms; this only reports which won.
+    """
+    r = paired_tie(dict(a_by_seed), dict(b_by_seed), tol=tol, alpha=alpha,
+                   min_seeds=C1_MIN_SEEDS if min_seeds is None else min_seeds, relative=True)
+    if r["verdict"] == V_UNREADABLE:
+        return r
+    if r["p"] < alpha and r["median"] <= -tol:
+        v = V_A_FASTER
+    elif r["p"] < alpha and r["median"] >= tol:
+        v = V_B_FASTER
+    else:
+        v = V_PAIR_TIE
+    return {**r, "verdict": v, "bar": {"tol_pct": tol, "alpha": alpha}}
 
 
 def read_c1(peeronly_by_seed: Mapping[int, float], gnn_by_seed: Mapping[int, float],
