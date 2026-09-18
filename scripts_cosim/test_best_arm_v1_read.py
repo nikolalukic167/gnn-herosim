@@ -80,8 +80,13 @@ def test_f2_restores_the_clause_when_the_pointwise_arm_wins_twice():
 def test_f2_falls_through_to_not_established_on_a_split_or_all_ties():
     assert read_f2(_rungs(V_F1_NOT_SEP, V_F1_NOT_SEP, V_F1_NOT_SEP))["verdict"] \
         == V_STILL_NOT_ESTABLISHED
+    # A split ladder must NOT be described as "not reproduced" -- the win at one rung is real.
     r = read_f2(_rungs(V_POINTWISE_FASTER, V_F1_NOT_SEP, V_GRAPH_FASTER))
-    assert r["verdict"] == V_STILL_NOT_ESTABLISHED and "NOT reproduced" in r["why"]
+    assert r["verdict"] == V_STILL_NOT_ESTABLISHED
+    assert "SPLIT" in r["why"] and "NOT reproduced" not in r["why"]
+    # Only a ladder with NO graph win may say the margin did not reproduce.
+    r0 = read_f2(_rungs(V_POINTWISE_FASTER, V_F1_NOT_SEP, V_F1_NOT_SEP))
+    assert "NOT reproduced" in r0["why"]
 
 
 def test_f2_will_not_decide_a_programme_level_clause_on_a_partial_ladder():
