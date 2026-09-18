@@ -20,6 +20,8 @@
 #   F1      tasks 1108-1171 mpoff_516 (best_arm_v1) at R0 = the 20-client rung, never served there
 #   E2b     tasks 1172-1299 seeds 17-32 of {gnnedgesum, gnnedge0} at R0 -- AMENDMENT 1, the
 #                           higher-powered E2; all of these need PO_TASK_OFFSET
+#   H1      tasks 1300-1363 gnnedge0 trained on the 516 corpus (corpus_matched_v1) at R0 =
+#                           the 20-client rung -- the missing cell of the corpus 2x2
 #   E1-E3   tasks 916-1107 gnnedgesum (bipartite_aggr_v1) x {R3, R0} x 4 cells x 16, plus
 #                         gnnedge0 at R0 which E2 has no comparison arm without.
 #                         PAST MaxArraySize=1001, so these submit via PO_TASK_OFFSET:
@@ -163,6 +165,13 @@ EXTSEEDS=(17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32)
 for a in gnnedgesum gnnedge0; do for c in 0 1 2 3; do for s in "${EXTSEEDS[@]}"; do
   if [[ $a == gnnedgesum ]]; then CORP+=("ba1670"); else CORP+=("be1670"); fi
   ARMS+=("$a"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done; done
+# corpus_matched_v1 H1 (2026-09-18), tasks 1300-1363. A DIFFERENT LINEAGE:
+# docs/lineages/corpus_matched_v1.md. gnnedge0 trained on the 516-dataset corpus, at R0 -- which
+# IS the 20-client rung. The other three cells of the 2x2 are already in this directory
+# (be1670_gnnedge0, 1670_mpoff, v3ext_mpoff), so this block alone completes it. Needs
+# PO_TASK_OFFSET: 1300 is past MaxArraySize.
+for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do
+  CORP+=("cm516"); ARMS+=("gnnedge0"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done
 NTASKS=${#ARMS[@]}
 # SLURM's MaxArraySize on this cluster is 1001, so --array indices above 1000 are rejected
 # outright ("Invalid job array specification") -- and this table has grown past that. Rather
@@ -196,13 +205,14 @@ case "$CORPUS" in
   1670) CK="models/peer-only-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
   be1670) CK="models/bipartite-edge-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
   ba1670) CK="models/bipartite-aggr-v1-1670-${ARM}-lr2e3-seed${S}.pt" ;;
+  cm516) CK="models/corpus-matched-v1-516-${ARM}-lr2e3-seed${S}.pt" ;;
 esac
 [[ -f "$CK" ]] || { echo "FAIL LOUD: missing checkpoint $CK" >&2; exit 1; }
 SC="${CK%.pt}.contract.json"
 [[ -f "$SC" ]] || { echo "FAIL LOUD: no sidecar for $CK" >&2; exit 1; }
-python3 - "$SC" "$ARM" <<'PY'
-import json, sys
-sc, arm = json.load(open(sys.argv[1])), sys.argv[2]
+python3 - "$SC" "$ARM" "$CORPUS" <<'PY'
+import hashlib, json, sys
+sc, arm, corpus_tag = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
 want = {"disable_message_passing": arm == "mpoff", "mp_peer_edges": True,
         "partial_state_contract": "partial_state_v3", "partial_state_feature_dim": 22,
         # C4: gnnres and gnn are otherwise indistinguishable here, and mp_residual is what
@@ -243,6 +253,26 @@ elif "mp_platform_edges" in sc:
 for k, v in want.items():
     if sc.get(k) != v:
         raise SystemExit(f"FAIL LOUD: sidecar {k}={sc.get(k)!r}, arm {arm} expects {v!r}")
+# corpus_matched_v1: the CORPUS is the variable under test, and it is invisible in the weights.
+# Serving an arm from the wrong corpus destroys the contrast in exactly the direction that
+# flatters it, so the split artifact's sha is pinned per corpus tag rather than trusted to the
+# checkpoint path. Verified against the served checkpoints 2026-09-18: 1670/be1670/ba1670 carry
+# f9c79fd7bb77 and v3/v3ext/516/cm516 carry 0d66d1c09276, so every arm already in this
+# directory passes this pin.
+SPLITS = {"1670": "experiments/peer_only_v1_1670_split.json",
+          "be1670": "experiments/peer_only_v1_1670_split.json",
+          "ba1670": "experiments/peer_only_v1_1670_split.json",
+          "v3": "experiments/peer_affinity_v1_t1b_split.json",
+          "v3ext": "experiments/peer_affinity_v1_t1b_split.json",
+          "516": "experiments/peer_affinity_v1_t1b_split.json",
+          "cm516": "experiments/peer_affinity_v1_t1b_split.json"}
+want_split = SPLITS.get(corpus_tag)
+if want_split:
+    sha = hashlib.sha256(open(want_split, "rb").read()).hexdigest()
+    got = (sc.get("split_artifact") or {}).get("sha256")
+    if got != sha:
+        raise SystemExit(f"FAIL LOUD: corpus tag {corpus_tag} expects split {want_split} "
+                         f"(sha {sha[:12]}), sidecar carries {str(got)[:12]}")
 PY
 unset PARTIAL_STATE_CONTRACT GNN_MP_PLATFORM_EDGES_OFF || true
 export GNN_MODEL_PATH="$CK"

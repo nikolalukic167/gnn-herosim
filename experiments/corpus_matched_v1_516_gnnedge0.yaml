@@ -1,0 +1,56 @@
+# corpus_matched_v1 -- the repaired bipartite arm on the 516-dataset corpus.
+# docs/lineages/corpus_matched_v1.md.
+#
+# BYTE-IDENTICAL to experiments/bipartite_edge_v1_1670_gnnedge0.yaml except `cache_dir`,
+# `NEAR_RTT_SPLIT_ARTIFACT`, `lineage` and the wandb name/tags -- i.e. except the corpus. That
+# is the entire point: `best_arm_v1` compared `gnnedge0` (1,670 datasets) against `mpoff_516`
+# (516) and had to carry "confounded with corpus" as a clause it could not discharge. This arm
+# is the missing cell of the 2x2.
+#
+# The corpus here is `partial_state_v3`'s psv3 cache and the T1b split -- the SAME cache and
+# split `mpoff_516` and `peeronly_516` were trained on, not a fresh 516-dataset draw. A corpus
+# is its SPLIT, not its directory (docs/lessons.md): rebuilding 516 from --base-dirs gives 1,670
+# and silently turns this into the contrast it is meant to control for.
+#
+# The bipartite flags are `gnnedge0`'s exactly: BipartiteEdgeConv ON (mean aggregation) with its
+# edge attributes ZEROED. That is the arm that carried bipartite_edge_v1's result -- the conv,
+# not the attributes -- and the arm best_arm_v1 read. Both flags are weight-INVISIBLE, so the
+# `.contract.json` sidecar is the only record; tests/test_bipartite_edge_arm.py pins the whole
+# path and the gate sbatch re-pins it per arm before serving.
+trainer: gnn
+lineage: corpus_matched_v1
+cache_dir: simulation_data/graphs_cache_drainable_objective_v1_v1_psv3
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_affinity_v1_t1b_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: corpus-matched-v1-516-gnnedge0
+  tags:
+  - corpus-matched-v1
+  - corpus516
+  - gnnedge0
+  - lr2e3
+  - patience60
