@@ -27,7 +27,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -35,6 +35,7 @@ from scripts_cosim.peer_only_v1_read import (  # noqa: E402
     B7_CLIENTS,
     B8_CLIENTS,
     C2_CLIENTS,
+    C2_DISCLOSED_MIN_SEEDS,
     V_UNREADABLE,
     classify_b7_rungs,
     collapse_to_seed,
@@ -105,6 +106,28 @@ def _by_seed(table: Mapping[str, dict], label: str, cells: Sequence[str]) -> Opt
     return collapse_to_seed(arm, rung_cells=cells)
 
 
+def _by_seed_disclosed(table: Mapping[str, dict], label: str,
+                       cells: Sequence[str]) -> Tuple[Optional[dict], List[int]]:
+    """`_by_seed`, but dropping the checkpoints that do not carry every cell.
+
+    For the DISCLOSED read only, when an arm was lost to a resource kill. Returns the
+    collapsed values and the excluded seeds, so the exclusion is printed rather than absorbed.
+    `collapse_to_seed` is deliberately strict and stays strict -- this filters its INPUT.
+    """
+    arm = table.get(label)
+    if not arm:
+        return None, []
+    by_seed: Dict[int, set] = {}
+    for (cell, seed) in arm:
+        by_seed.setdefault(int(seed), set()).add(cell)
+    complete = sorted(s for s, cs in by_seed.items() if set(cells) <= cs)
+    excluded = sorted(s for s in by_seed if s not in complete)
+    if not complete:
+        return None, excluded
+    kept = {k: v for k, v in arm.items() if int(k[1]) in set(complete)}
+    return collapse_to_seed(kept, rung_cells=cells), excluded
+
+
 def _reactive_like(reactive: Mapping[tuple, float], cells: Sequence[str],
                    seeds: Sequence[int]) -> dict:
     """Reactive replicated across the learned arm's seed keys.
@@ -146,7 +169,12 @@ def read_ladder(tab: Mapping[int, dict]) -> dict:
             if label == "reactive":
                 continue
             cells = _cells(t["elapsed"], label)
-            arm = _by_seed(t["elapsed"], label, cells)
+            try:
+                arm = _by_seed(t["elapsed"], label, cells)
+            except ValueError as exc:      # an arm died -- name it, do not average around it
+                vs_reactive.setdefault(label, {})[n] = {"verdict": V_UNREADABLE,
+                                                        "reason": str(exc)}
+                continue
             if not arm:
                 continue
             base = _reactive_like(t["elapsed"]["reactive"], cells, sorted(arm))
@@ -158,8 +186,12 @@ def read_ladder(tab: Mapping[int, dict]) -> dict:
     for n in sorted(tab):
         t = tab[n]
         cells = _cells(t["elapsed"], "1670_peeronly")
-        po = _by_seed(t["elapsed"], "1670_peeronly", cells)
-        mp = _by_seed(t["elapsed"], "1670_mpoff", cells)
+        try:
+            po = _by_seed(t["elapsed"], "1670_peeronly", cells)
+            mp = _by_seed(t["elapsed"], "1670_mpoff", cells)
+        except ValueError as exc:
+            twin[n] = {"verdict": V_UNREADABLE, "reason": str(exc)}
+            continue
         if po and mp:
             twin[n] = read_b3(po, mp)
     result["peeronly_vs_mpoff"] = twin
@@ -171,8 +203,12 @@ def read_ladder(tab: Mapping[int, dict]) -> dict:
         if not t:
             continue
         cells = _cells(t["elapsed"], "1670_peeronly")
-        po = _by_seed(t["elapsed"], "1670_peeronly", cells)
-        m516 = _by_seed(t["elapsed"], "516_mpoff", cells)
+        try:
+            po = _by_seed(t["elapsed"], "1670_peeronly", cells)
+            m516 = _by_seed(t["elapsed"], "516_mpoff", cells)
+        except ValueError as exc:
+            b8[n] = {"verdict": V_UNREADABLE, "reason": str(exc)}
+            continue
         if po and m516:
             b8[n] = read_b4(po, m516)
     result["b8"] = read_b8(b8) if len(b8) == len(B8_CLIENTS) else {
@@ -181,20 +217,43 @@ def read_ladder(tab: Mapping[int, dict]) -> dict:
 
     # --- C2: the bipartite arm, vs reactive and vs its peeronly sibling -------------------
     c2_react, c2_sib = {}, {}
+    disclosed_react, disclosed_sib, excluded_by_rung = {}, {}, {}
     for n in C2_CLIENTS:
         t = tab.get(n)
         if not t:
             continue
         cells = _cells(t["elapsed"], "1670_gnn")
-        gnn = _by_seed(t["elapsed"], "1670_gnn", cells)
-        if not gnn:
-            continue
-        if "reactive" in t["elapsed"]:
+        try:
+            gnn = _by_seed(t["elapsed"], "1670_gnn", cells)
+        except ValueError as exc:
+            # An arm died. The REGISTERED read refuses and names the cause; the disclosed read
+            # below still prints, so the surviving checkpoints are not thrown away.
+            gnn = None
+            c2_react[n] = {"verdict": V_UNREADABLE, "reason": str(exc)}
+            c2_sib[n] = {"verdict": V_UNREADABLE, "reason": str(exc)}
+        if gnn and "reactive" in t["elapsed"]:
             base = _reactive_like(t["elapsed"]["reactive"], cells, sorted(gnn))
             c2_react[n] = read_c2_rung(gnn, base)
-        po = _by_seed(t["elapsed"], "1670_peeronly", cells)
-        if po:
-            c2_sib[n] = read_c1(po, gnn)
+        if gnn:
+            po = _by_seed(t["elapsed"], "1670_peeronly", cells)
+            if po:
+                c2_sib[n] = read_c1(po, gnn)
+        # --- DISCLOSED, always computed so a refusal is never the only thing printed --------
+        g_d, excluded = _by_seed_disclosed(t["elapsed"], "1670_gnn", cells)
+        excluded_by_rung[n] = excluded
+        if g_d and "reactive" in t["elapsed"]:
+            base_d = _reactive_like(t["elapsed"]["reactive"], cells, sorted(g_d))
+            disclosed_react[n] = read_c2_rung(g_d, base_d, min_seeds=C2_DISCLOSED_MIN_SEEDS)
+        if g_d:
+            po_d, _ = _by_seed_disclosed(t["elapsed"], "1670_peeronly", cells)
+            if po_d:
+                shared = sorted(set(g_d) & set(po_d))
+                disclosed_sib[n] = read_c1({s: po_d[s] for s in shared},
+                                           {s: g_d[s] for s in shared},
+                                           min_seeds=C2_DISCLOSED_MIN_SEEDS)
+    result["c2_disclosed"] = {"vs_reactive": disclosed_react, "vs_peeronly": disclosed_sib,
+                              "excluded_seeds": excluded_by_rung,
+                              "min_seeds": C2_DISCLOSED_MIN_SEEDS}
     result["c2"] = (read_c2(c2_react, c2_sib)
                     if len(c2_react) == len(C2_CLIENTS) and len(c2_sib) == len(C2_CLIENTS)
                     else {"verdict": V_UNREADABLE,
@@ -250,6 +309,17 @@ def report(res: dict) -> str:
         out.append(f"  {n:>3} clients  gnn vs reactive   {_fmt(c2['vs_reactive'][n])}")
     for n in sorted(c2.get("vs_peeronly", {})):
         out.append(f"  {n:>3} clients  peeronly vs gnn   {_fmt(c2['vs_peeronly'][n])}")
+    d = res.get("c2_disclosed") or {}
+    if d.get("vs_reactive") or d.get("vs_peeronly"):
+        out.append(f"\n  --- DISCLOSED (>= {d.get('min_seeds')} complete checkpoints; NOT the "
+                   f"registered bar) ---")
+        for n in sorted(d.get("excluded_seeds", {})):
+            ex = d["excluded_seeds"][n]
+            out.append(f"  {n:>3} clients  excluded seeds: {ex if ex else 'none'}")
+        for n in sorted(d.get("vs_reactive", {})):
+            out.append(f"  {n:>3} clients  gnn vs reactive   {_fmt(d['vs_reactive'][n])}")
+        for n in sorted(d.get("vs_peeronly", {})):
+            out.append(f"  {n:>3} clients  peeronly vs gnn   {_fmt(d['vs_peeronly'][n])}")
     return "\n".join(out)
 
 

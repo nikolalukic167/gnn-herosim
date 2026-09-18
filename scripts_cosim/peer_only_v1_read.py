@@ -184,6 +184,13 @@ C1_SEPARATE_PCT, C1_ALPHA = 5.0, 0.05    # B3's bar, unchanged and deliberately 
 C2_CLIENTS = (40, 80)
 C2_MIN_SEEDS = 16
 C2_SEPARATE_PCT, C2_ALPHA = 5.0, 0.05
+# An arm lost to a RESOURCE KILL never relaxes the registered bar (gate-tools 2026-09-16; B5
+# applied this when cs12s9001/mpoff/seed 9 was OOM-killed twice, at 48 GB and again at 120 GB).
+# C2 lost cc80s9003 / gnn / seed 13 the same way. The registered read says UNREADABLE and names
+# the cause; a DISCLOSED read over the checkpoints complete at every cell of the rung prints
+# beside it, with the exclusion visible. Moving the bar after seeing which arm died would be
+# tuning on the data; printing nothing would throw away 15 good checkpoints.
+C2_DISCLOSED_MIN_SEEDS = 12              # the DISCLOSED read only; never the registered bar
 # Consequence signed before the data:
 #   gnn beats reactive at either unsaturated rung (median <= -5 %, p < alpha) -> the bipartite
 #     graph DOES work in this environment, clause 7 is scoped to the server ladder, and
@@ -536,7 +543,8 @@ def read_b8(per_rung: Mapping[int, dict]) -> dict:
             "per_rung": dict(per_rung)}
 
 
-def read_c1(peeronly_by_seed: Mapping[int, float], gnn_by_seed: Mapping[int, float]) -> dict:
+def read_c1(peeronly_by_seed: Mapping[int, float], gnn_by_seed: Mapping[int, float],
+            *, min_seeds: Optional[int] = None) -> dict:
     """Clause 7 with the CHECKPOINT as the unit: what does the bipartite GIN cost, at power?
 
     One value per checkpoint seed, all 16 required. Negative median = peeronly below gnn =
@@ -544,7 +552,8 @@ def read_c1(peeronly_by_seed: Mapping[int, float], gnn_by_seed: Mapping[int, flo
     same contrast, and giving it one implementation is what keeps the two readable together.
     """
     r = paired_tie(dict(peeronly_by_seed), dict(gnn_by_seed), tol=C1_SEPARATE_PCT,
-                   alpha=C1_ALPHA, min_seeds=C1_MIN_SEEDS, relative=True)
+                   alpha=C1_ALPHA,
+                   min_seeds=C1_MIN_SEEDS if min_seeds is None else min_seeds, relative=True)
     if r["verdict"] == V_UNREADABLE:
         return r
     if r["p"] < C1_ALPHA and r["median"] <= -C1_SEPARATE_PCT:
@@ -582,7 +591,8 @@ def read_c1_ladder(per_rung: Mapping[str, dict]) -> dict:
 
 
 def read_vs_reactive(arm_by_seed: Mapping[int, float],
-                     reactive_by_seed: Mapping[int, float]) -> dict:
+                     reactive_by_seed: Mapping[int, float],
+                     *, min_seeds: Optional[int] = None) -> dict:
     """ANY arm against reactive Knative at one rung, on C2's bar.
 
     `reactive_by_seed` is the cell-collapsed reactive value replicated across the same seed
@@ -594,7 +604,8 @@ def read_vs_reactive(arm_by_seed: Mapping[int, float],
     have onto their result.
     """
     r = paired_tie(dict(arm_by_seed), dict(reactive_by_seed), tol=C2_SEPARATE_PCT,
-                   alpha=C2_ALPHA, min_seeds=C2_MIN_SEEDS, relative=True)
+                   alpha=C2_ALPHA,
+                   min_seeds=C2_MIN_SEEDS if min_seeds is None else min_seeds, relative=True)
     if r["verdict"] == V_UNREADABLE:
         return r
     beats = r["median"] <= -C2_SEPARATE_PCT and r["p"] < C2_ALPHA
@@ -604,13 +615,14 @@ def read_vs_reactive(arm_by_seed: Mapping[int, float],
 
 
 def read_c2_rung(gnn_by_seed: Mapping[int, float],
-                 reactive_by_seed: Mapping[int, float]) -> dict:
+                 reactive_by_seed: Mapping[int, float],
+                 *, min_seeds: Optional[int] = None) -> dict:
     """C2's registered contrast: the BIPARTITE arm vs reactive at one unsaturated rung.
 
     Same bar and same arithmetic as `read_vs_reactive`; only the verdict is named for the
     stage under test, because C2's signed consequence keys off that name.
     """
-    r = read_vs_reactive(gnn_by_seed, reactive_by_seed)
+    r = read_vs_reactive(gnn_by_seed, reactive_by_seed, min_seeds=min_seeds)
     if r["verdict"] == V_UNREADABLE:
         return r
     return {**r, "verdict": (V_BIPARTITE_BEATS_REACTIVE if r["verdict"] == V_BEATS_REACTIVE

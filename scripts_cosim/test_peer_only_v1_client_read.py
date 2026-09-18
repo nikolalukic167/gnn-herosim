@@ -50,3 +50,50 @@ def test_a_summary_without_a_client_count_is_not_a_client_axis_summary():
     from scripts_cosim.peer_only_v1_client_read import load
     with pytest.raises(ValueError):
         tables([{"arm": "x", "cell": "c"}])
+
+
+# --- a lost arm: refuse the registered read, disclose the rest (C2, 2026-09-18) -----------
+
+def _rung(clients, arms, seeds, cells=("a", "b", "c", "d"), drop=None, elapsed=None):
+    rows = []
+    for cell in cells:
+        rows.append({"arm": f"{cell}__react", "clients": clients, "cell": cell,
+                     "arm_kind": "reactive", "checkpoint_seed": 0, "corpus": "none",
+                     "averageElapsedTime": 100.0, "averageQueueTime": 70.0})
+        for a in arms:
+            for s in seeds:
+                if drop and (a, cell, s) == drop:
+                    continue
+                rows.append(_row(clients, cell, a, s, "1670",
+                                 (elapsed or {}).get(a, 90.0) + 0.01 * s))
+    return rows
+
+
+def test_a_resource_killed_arm_makes_the_registered_read_refuse_not_crash():
+    from scripts_cosim.peer_only_v1_client_read import read_ladder
+    rows = []
+    for n in (40, 80):
+        rows += _rung(n, ("gnn", "peeronly"), range(1, 17),
+                      drop=("gnn", "c", 13) if n == 80 else None)
+    res = read_ladder(tables(rows))
+    assert res["c2"]["vs_reactive"][80]["verdict"] == "UNREADABLE"
+    assert "missing cells" in res["c2"]["vs_reactive"][80]["reason"]
+    assert res["c2"]["vs_reactive"][40]["verdict"] != "UNREADABLE"
+
+
+def test_the_disclosed_read_resolves_on_the_surviving_checkpoints_and_names_the_exclusion():
+    from scripts_cosim.peer_only_v1_client_read import read_ladder
+    rows = []
+    for n in (40, 80):
+        rows += _rung(n, ("gnn", "peeronly"), range(1, 17),
+                      drop=("gnn", "c", 13) if n == 80 else None)
+    d = read_ladder(tables(rows))["c2_disclosed"]
+    assert d["excluded_seeds"][80] == [13] and d["excluded_seeds"][40] == []
+    assert d["vs_reactive"][80]["verdict"] != "UNREADABLE"
+    assert d["vs_reactive"][80]["n"] == 15
+
+
+def test_the_disclosed_read_is_not_the_registered_bar():
+    """15 checkpoints resolve only because the DISCLOSED minimum is lower, by design."""
+    from scripts_cosim.peer_only_v1_read import C2_MIN_SEEDS, C2_DISCLOSED_MIN_SEEDS
+    assert C2_MIN_SEEDS == 16 and C2_DISCLOSED_MIN_SEEDS == 12
