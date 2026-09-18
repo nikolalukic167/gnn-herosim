@@ -247,6 +247,8 @@ V_BIPARTITE_HELPS = "BIPARTITE-HELPS"
 V_BIPARTITE_NOT_SEP = "BIPARTITE-NOT-SEPARATED"
 V_BIPARTITE_BEATS_REACTIVE = "BIPARTITE-BEATS-REACTIVE"
 V_BIPARTITE_LOSES_REACTIVE = "BIPARTITE-LOSES-TO-REACTIVE"
+V_BEATS_REACTIVE = "BEATS-REACTIVE"
+V_LOSES_REACTIVE = "LOSES-TO-REACTIVE"
 V_OVERSMOOTHING = "GIN-OVERSMOOTHS-PLATFORM-STATE"
 V_QUEUE_LOST = "GIN-DESTROYS-QUEUE-INFORMATION"
 V_PLATFORM_SURVIVES = "PLATFORM-STATE-SURVIVES-THE-GIN"
@@ -478,22 +480,40 @@ def read_c1_ladder(per_rung: Mapping[str, dict]) -> dict:
             "per_rung": dict(per_rung)}
 
 
-def read_c2_rung(gnn_by_seed: Mapping[int, float],
-                 reactive_by_seed: Mapping[int, float]) -> dict:
-    """Does the bipartite arm beat reactive Knative at ONE unsaturated client rung?
+def read_vs_reactive(arm_by_seed: Mapping[int, float],
+                     reactive_by_seed: Mapping[int, float]) -> dict:
+    """ANY arm against reactive Knative at one rung, on C2's bar.
 
     `reactive_by_seed` is the cell-collapsed reactive value replicated across the same seed
     keys -- reactive is deterministic and carries no checkpoint seed, so the pairing is each
     checkpoint against the baseline on the same cells, exactly as B7 read peeronly.
+
+    Deliberately arm-agnostic: the ladder table reads mpoff and peeronly through here too, and
+    labelling those rows with a BIPARTITE-* verdict would put the name of a stage they do not
+    have onto their result.
     """
-    r = paired_tie(dict(gnn_by_seed), dict(reactive_by_seed), tol=C2_SEPARATE_PCT,
+    r = paired_tie(dict(arm_by_seed), dict(reactive_by_seed), tol=C2_SEPARATE_PCT,
                    alpha=C2_ALPHA, min_seeds=C2_MIN_SEEDS, relative=True)
     if r["verdict"] == V_UNREADABLE:
         return r
     beats = r["median"] <= -C2_SEPARATE_PCT and r["p"] < C2_ALPHA
-    return {**r, "verdict": V_BIPARTITE_BEATS_REACTIVE if beats else V_BIPARTITE_LOSES_REACTIVE,
+    return {**r, "verdict": V_BEATS_REACTIVE if beats else V_LOSES_REACTIVE,
             "bar": {"separate_pct": C2_SEPARATE_PCT, "alpha": C2_ALPHA,
                     "min_seeds": C2_MIN_SEEDS}}
+
+
+def read_c2_rung(gnn_by_seed: Mapping[int, float],
+                 reactive_by_seed: Mapping[int, float]) -> dict:
+    """C2's registered contrast: the BIPARTITE arm vs reactive at one unsaturated rung.
+
+    Same bar and same arithmetic as `read_vs_reactive`; only the verdict is named for the
+    stage under test, because C2's signed consequence keys off that name.
+    """
+    r = read_vs_reactive(gnn_by_seed, reactive_by_seed)
+    if r["verdict"] == V_UNREADABLE:
+        return r
+    return {**r, "verdict": (V_BIPARTITE_BEATS_REACTIVE if r["verdict"] == V_BEATS_REACTIVE
+                             else V_BIPARTITE_LOSES_REACTIVE)}
 
 
 def read_c2(vs_reactive: Mapping[int, dict], vs_peeronly: Mapping[int, dict]) -> dict:

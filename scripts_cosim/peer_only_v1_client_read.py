@@ -44,6 +44,7 @@ from scripts_cosim.peer_only_v1_read import (  # noqa: E402
     read_c1,
     read_c2,
     read_c2_rung,
+    read_vs_reactive,
 )
 
 
@@ -149,7 +150,7 @@ def read_ladder(tab: Mapping[int, dict]) -> dict:
             if not arm:
                 continue
             base = _reactive_like(t["elapsed"]["reactive"], cells, sorted(arm))
-            vs_reactive.setdefault(label, {})[n] = read_c2_rung(arm, base)
+            vs_reactive.setdefault(label, {})[n] = read_vs_reactive(arm, base)
     result["vs_reactive"] = vs_reactive
 
     # --- peeronly vs its own twin, per rung (B7's architecture contrast) -------------------
@@ -205,7 +206,7 @@ def read_ladder(tab: Mapping[int, dict]) -> dict:
 def _fmt(r: dict) -> str:
     if not r or r.get("verdict") == V_UNREADABLE:
         return f"{'UNREADABLE':>28}"
-    return (f"{r['median']:+7.2f}%  p={r['p']:.4f}  {r.get('n_better', '?')}/{r['n']:<3} "
+    return (f"{r['median']:+7.2f}%  p={r['p']:.4f}  {r.get('v3_ahead', '?')}/{r['n']:<3} "
             f"{r['verdict']}")
 
 
