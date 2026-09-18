@@ -293,6 +293,39 @@ C5_RHO = -0.30                           # median Spearman rho at or below this 
 # WITHIN the training distribution and cannot be extrapolated to 80 servers. It is suggestive
 # by construction, never conclusive, and the record must say so.
 
+# --- C6, AMENDMENT 11, registered 2026-09-18 BEFORE the capture ran -----------------------
+# C1 located the bipartite penalty at 80 SERVERS and found nothing at 6. C3 measured the GIN's
+# over-smoothing on the training cache, which is 6 servers throughout -- the regime where the
+# penalty is absent -- so the programme has a mechanism measured where it cannot explain the
+# loss, and no cached graphs exist at 80 servers to move the probe (cluster_scale_v1: the
+# co-sim label at 24 servers is 14^10 plans).
+#
+# But the LIVE decoder already carries its own instrument. `record_queue_feature_discrimination`
+# runs unconditionally on every batch (it is pure instrumentation, wrapped so a fault cannot
+# discard a placement) and records, per task, the queue of the platform the arm CHOSE against
+# the shortest queue it could have chosen. The gate simply deletes it with the raw JSON.
+#
+# C6 keeps it, at R3, for gnn and peeronly. This is the decision-level version of C3's
+# question, in the regime where the penalty actually exists: not "are the embeddings closer
+# together" but "does the bipartite arm pick measurably worse-queued platforms".
+C6_RUNG = "R3"
+C6_MIN_SEEDS = 16                        # all 16 -- C1 exists because 4 was not enough
+C6_ALPHA = 0.05
+# confident_worse_queue_rate: the share of probed tasks where the raw queue gap was >= 10 AND
+# the arm preferred the longer line by a logit margin > 1.0. It is a RATE, so the bar is in
+# percentage POINTS, not relative percent.
+C6_WORSE_RATE_PP = 5.0
+# Consequence signed before the data:
+#   gnn's rate exceeds peeronly's by >= 5 pp with p < alpha -> BIPARTITE-DECIDES-WORSE. The
+#     bipartite stage's live cost shows up as worse queue decisions, which is a mechanism
+#     measured in the regime where the cost is real.
+#   otherwise -> DECISION-QUALITY-NOT-SEPARATED. The two arms choose comparably at the task
+#     level and the -18.94 % at R3 is NOT explained by per-decision queue blindness; the node
+#     must then stop offering over-smoothing as the story and say the mechanism is unknown.
+# Registered expectation: UNCERTAIN. C3 found the queue axis SURVIVING the GIN (R^2 0.85), which
+# argues against per-decision blindness; C1 found a large live penalty, which argues for some
+# decision-level difference. The two point opposite ways and no direction is predicted.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -310,6 +343,8 @@ V_BIPARTITE_BEATS_REACTIVE = "BIPARTITE-BEATS-REACTIVE"
 V_BIPARTITE_LOSES_REACTIVE = "BIPARTITE-LOSES-TO-REACTIVE"
 V_BEATS_REACTIVE = "BEATS-REACTIVE"
 V_LOSES_REACTIVE = "LOSES-TO-REACTIVE"
+V_DECIDES_WORSE = "BIPARTITE-DECIDES-WORSE"
+V_DECISION_TIE = "DECISION-QUALITY-NOT-SEPARATED"
 V_SMOOTHING_SCALES = "SMOOTHING-SCALES-WITH-PLATFORMS"
 V_SMOOTHING_FLAT = "SMOOTHING-IS-SCALE-FREE"
 V_RESIDUAL_WORKS = "BIPARTITE-WORKS-WITH-RESIDUAL"
@@ -698,6 +733,26 @@ def read_c5(rho_by_checkpoint: Mapping[int, Optional[float]]) -> dict:
             "rho": usable,
             "bar": {"rho": C5_RHO, "min_checkpoints": C5_MIN_CHECKPOINTS,
                     "min_graphs": C5_MIN_GRAPHS}}
+
+
+def read_c6(gnn_rate_by_seed: Mapping[int, float],
+            peeronly_rate_by_seed: Mapping[int, float]) -> dict:
+    """Does the bipartite arm pick measurably worse-queued platforms, at the rung where it loses?
+
+    Both arguments map checkpoint seed -> confident_worse_queue_rate (a share in [0, 1]). The
+    bar is in percentage POINTS because the statistic is a rate, so `paired_tie` is called with
+    relative=False and the values pre-scaled to points.
+    """
+    gnn_pp = {int(s): 100.0 * float(v) for s, v in gnn_rate_by_seed.items()}
+    po_pp = {int(s): 100.0 * float(v) for s, v in peeronly_rate_by_seed.items()}
+    r = paired_tie(gnn_pp, po_pp, tol=C6_WORSE_RATE_PP, alpha=C6_ALPHA,
+                   min_seeds=C6_MIN_SEEDS, relative=False)
+    if r["verdict"] == V_UNREADABLE:
+        return r
+    worse = r["median"] >= C6_WORSE_RATE_PP and r["p"] < C6_ALPHA
+    return {**r, "verdict": V_DECIDES_WORSE if worse else V_DECISION_TIE,
+            "bar": {"worse_rate_pp": C6_WORSE_RATE_PP, "alpha": C6_ALPHA,
+                    "min_seeds": C6_MIN_SEEDS, "rung": C6_RUNG}}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:

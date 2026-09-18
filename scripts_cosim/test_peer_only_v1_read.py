@@ -442,3 +442,41 @@ def test_c5_is_unreadable_below_the_checkpoint_quorum():
 def test_c5_constants_are_the_registered_values():
     from scripts_cosim.peer_only_v1_read import C5_MIN_GRAPHS, C5_MIN_CHECKPOINTS, C5_RHO
     assert (C5_MIN_GRAPHS, C5_MIN_CHECKPOINTS, C5_RHO) == (32, 12, -0.30)
+
+
+# --- C6: does the bipartite arm decide worse where it loses? (AMENDMENT 11) ----------------
+
+def test_c6_fires_when_the_bipartite_arm_picks_longer_queues_far_more_often():
+    from scripts_cosim.peer_only_v1_read import read_c6, V_DECIDES_WORSE
+    gnn = {s: 0.30 + 0.001 * s for s in range(1, 17)}
+    po = {s: 0.20 for s in range(1, 17)}
+    r = read_c6(gnn, po)
+    assert r["verdict"] == V_DECIDES_WORSE and r["median"] >= 5.0
+
+
+def test_c6_calls_a_small_rate_difference_not_separated():
+    """The bar is in percentage POINTS -- a 2 pp gap is not a mechanism."""
+    from scripts_cosim.peer_only_v1_read import read_c6, V_DECISION_TIE
+    gnn = {s: 0.22 + 0.0005 * s for s in range(1, 17)}
+    po = {s: 0.20 for s in range(1, 17)}
+    assert read_c6(gnn, po)["verdict"] == V_DECISION_TIE
+
+
+def test_c6_does_not_fire_when_the_bipartite_arm_decides_BETTER():
+    from scripts_cosim.peer_only_v1_read import read_c6, V_DECISION_TIE
+    gnn = {s: 0.10 for s in range(1, 17)}
+    po = {s: 0.30 for s in range(1, 17)}
+    assert read_c6(gnn, po)["verdict"] == V_DECISION_TIE
+
+
+def test_c6_refuses_fewer_than_sixteen_checkpoints():
+    from scripts_cosim.peer_only_v1_read import read_c6
+    gnn = {s: 0.30 for s in range(1, 5)}
+    po = {s: 0.20 for s in range(1, 5)}
+    assert read_c6(gnn, po)["verdict"] == V_UNREADABLE
+
+
+def test_c6_constants_are_the_registered_values():
+    from scripts_cosim.peer_only_v1_read import (C6_RUNG, C6_MIN_SEEDS, C6_ALPHA,
+                                                 C6_WORSE_RATE_PP)
+    assert (C6_RUNG, C6_MIN_SEEDS, C6_ALPHA, C6_WORSE_RATE_PP) == ("R3", 16, 0.05, 5.0)
