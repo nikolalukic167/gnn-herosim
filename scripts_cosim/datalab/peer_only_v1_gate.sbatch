@@ -15,6 +15,8 @@
 #                         best pointwise arm, which was also read on 4 checkpoints.
 #   B5b     tasks 532-627 the same two arms at R0 (6 servers) x 4 cells x the other 12 seeds,
 #                         so every rung of the B5 ladder rests on 16 checkpoints.
+#   C1      tasks 628-723 gnn (1670) x {R3, R0} x 4 cells x the OTHER 12 seeds -- AMENDMENT 6,
+#                         the bipartite arm at power; submit 628-675, 676-723 (%12 each)
 #   B5      tasks 276-531 {peeronly, mpoff} (1670) x {R1=12, R2=24 servers} x 4 cells x 16 --
 #                         AMENDMENT 3: the middle of the cluster-size curve. Reactive at those
 #                         rungs is already in results/psv3_p3, so only the learned arms run.
@@ -45,7 +47,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
-#SBATCH --array=0-627
+#SBATCH --array=0-723
 
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
@@ -105,6 +107,13 @@ for a in peeronly mpoff; do for r in 2 3; do for c in 0 1 2 3; do for s in "${AL
 # R1 and R2, which made the ladder's bottom rung the one that could not be read. Same 12 extra
 # checkpoints, rung index 0.
 for a in peeronly mpoff; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"); ARMS+=("$a"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done; done
+# C1 -- AMENDMENT 6 (2026-09-18), tasks 628-723. The gnn arm (PeerConv + the bipartite GIN) was
+# never extended past Phase B's 4 checkpoints, so clause 7 -- "the arm that wins is not the
+# GNN", peeronly beats gnn by 22.42 % -- is a 4-CHECKPOINT number, the exact shape B3 already
+# caught and halved once. Same 12 extra checkpoints, at R3 (rung index 1) and R0 (index 0), so
+# the bipartite penalty is read at power on both ends of the server ladder. APPENDED: tasks
+# 0-627 keep their arms.
+for r in 1 0; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"); ARMS+=("gnn"); RI+=("$r"); CI+=("$c"); SEED+=("$s"); done; done; done
 NTASKS=${#ARMS[@]}
 T=${SLURM_ARRAY_TASK_ID}
 if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi

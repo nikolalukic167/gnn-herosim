@@ -150,6 +150,51 @@ B8_CLIENTS = (40, 80)                    # the two unsaturated rungs where peero
 # Registered expectation: UNCERTAIN. B4 got STRONGER with power at 80 servers, and it has never
 # been read where peeronly is strongest. No direction is predicted.
 
+# --- C1, AMENDMENT 6, registered 2026-09-18 BEFORE the arms were submitted ----------------
+# Clause 7 of this node says "the arm that wins is not the GNN": peeronly beats the full gnn
+# (PeerConv + the bipartite task<->platform GIN) by 22.42 % at R3. That number is read on
+# FOUR checkpoints -- gnn was never extended past Phase B -- and it is the same shape as the
+# B2 headline, which more than halved (-15.68 % -> -5.75 %) and flipped 2 of 16 signs once the
+# other 12 checkpoints were served. The claim currently standing between this programme and
+# "a bipartite graph does not work here" therefore rests on the one unit discipline this
+# lineage has already been burned by twice.
+C1_RUNGS = ("R3", "R0")                  # 80 servers and 6, both ends of the server ladder
+C1_MIN_SEEDS = 16
+C1_SEPARATE_PCT, C1_ALPHA = 5.0, 0.05    # B3's bar, unchanged and deliberately reused
+# Consequence signed before the data, per rung:
+#   median <= -5 % and p < alpha -> BIPARTITE-COSTS; clause 7 stands but its NUMBER is
+#     replaced by the 16-checkpoint one and the 22.42 % is never quoted again;
+#   median >= +5 % and p < alpha -> BIPARTITE-HELPS; clause 7 is FALSIFIED at that rung and
+#     the node head and CLAUDE.md are rewritten to say the bipartite stage pays;
+#   otherwise -> BIPARTITE-NOT-SEPARATED; clause 7 is rewritten to say the penalty is NOT
+#     ESTABLISHED, which is weaker than what the node says today.
+# Registered expectation: BIPARTITE-COSTS at R3, but at a margin MUCH SMALLER than 22.42 %.
+# The prediction is explicit so it can be wrong: a 4-checkpoint margin in this lineage has
+# halved once already, and nothing about gnn makes it exempt. R0 is UNCERTAIN -- at 6 servers
+# every arm loses to reactive and cs6s9002 already showed the GIN making gnn the BEST arm on
+# one topology, so the sign there has been seen to flip per cell.
+
+# --- C2, AMENDMENT 7, registered 2026-09-18 BEFORE the arms were submitted -----------------
+# Every gnn reading this programme owns was taken at a SATURATED rung. B7 found the first
+# UNSATURATED live win on the client axis, and the gnn arm was never served there at all --
+# so "can a bipartite graph work in this environment" has literally never been asked at the
+# operating point where any learned arm beats reactive. C2 asks it: gnn at 40 and 80 clients,
+# 6 servers, 16 checkpoints, against BOTH its peeronly sibling (does the GIN cost here too?)
+# and reactive Knative (does the bipartite arm work AT ALL?).
+C2_CLIENTS = (40, 80)
+C2_MIN_SEEDS = 16
+C2_SEPARATE_PCT, C2_ALPHA = 5.0, 0.05
+# Consequence signed before the data:
+#   gnn beats reactive at either unsaturated rung (median <= -5 %, p < alpha) -> the bipartite
+#     graph DOES work in this environment, clause 7 is scoped to the server ladder, and
+#     CLAUDE.md's standing answer gains a second unsaturated winner;
+#   gnn loses to reactive at both while peeronly wins -> the bipartite stage is what breaks
+#     the arm, measured at power at the rung that matters. That is the strongest negative
+#     this programme could state about the GIN, and it is stated only if it is measured.
+# Registered expectation: gnn LOSES to reactive at 40 clients and UNCERTAIN at 80. Rationale:
+# B7 has mpoff_1670 at +18.5 % and +0.9 % vs reactive, gnn is the offline-best and live-worst
+# arm at R3, and the client rungs are the ones where the ordering has never been tested.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -160,6 +205,11 @@ V_UNDERPOWERED = "PEERONLY-BEATS-POINTWISE-UNDERPOWERED"
 V_BEST_IS_POINTWISE, V_BEST_NOT_ESTABLISHED = "POINTWISE-STILL-BEST", "BEST-ARM-NOT-ESTABLISHED"
 V_MONOTONE, V_NOT_MONOTONE = "MARGIN-GROWS-WITH-SCALE", "MARGIN-NOT-MONOTONE-IN-SCALE"
 V_DISPERSION, V_LOAD_SWEEP = "LOAD-HELD-DISPERSION-SWEEP", "LOAD-SWEEP-BY-ANOTHER-NAME"
+V_BIPARTITE_COSTS = "BIPARTITE-COSTS"
+V_BIPARTITE_HELPS = "BIPARTITE-HELPS"
+V_BIPARTITE_NOT_SEP = "BIPARTITE-NOT-SEPARATED"
+V_BIPARTITE_BEATS_REACTIVE = "BIPARTITE-BEATS-REACTIVE"
+V_BIPARTITE_LOSES_REACTIVE = "BIPARTITE-LOSES-TO-REACTIVE"
 V_UNREADABLE = "UNREADABLE"
 
 PairKey = Tuple[str, int]      # (cell, checkpoint seed)
@@ -341,6 +391,88 @@ def read_b8(per_rung: Mapping[int, dict]) -> dict:
             "scoped_to_saturated": not holds,
             "medians": {c: readable[c]["median"] for c in B8_CLIENTS},
             "per_rung": dict(per_rung)}
+
+
+def read_c1(peeronly_by_seed: Mapping[int, float], gnn_by_seed: Mapping[int, float]) -> dict:
+    """Clause 7 with the CHECKPOINT as the unit: what does the bipartite GIN cost, at power?
+
+    One value per checkpoint seed, all 16 required. Negative median = peeronly below gnn =
+    the GIN costs. Used for C1 (server rungs) and for C2's vs-sibling half alike -- it is the
+    same contrast, and giving it one implementation is what keeps the two readable together.
+    """
+    r = paired_tie(dict(peeronly_by_seed), dict(gnn_by_seed), tol=C1_SEPARATE_PCT,
+                   alpha=C1_ALPHA, min_seeds=C1_MIN_SEEDS, relative=True)
+    if r["verdict"] == V_UNREADABLE:
+        return r
+    if r["p"] < C1_ALPHA and r["median"] <= -C1_SEPARATE_PCT:
+        v = V_BIPARTITE_COSTS
+    elif r["p"] < C1_ALPHA and r["median"] >= C1_SEPARATE_PCT:
+        v = V_BIPARTITE_HELPS
+    else:
+        v = V_BIPARTITE_NOT_SEP
+    return {**r, "verdict": v,
+            "bar": {"separate_pct": C1_SEPARATE_PCT, "alpha": C1_ALPHA,
+                    "min_seeds": C1_MIN_SEEDS}}
+
+
+def read_c1_ladder(per_rung: Mapping[str, dict]) -> dict:
+    """rung -> read_c1. The headline is the WORST case for the bipartite arm across rungs:
+    a single rung where it is not separated is enough to stop clause 7 being stated flatly."""
+    missing = [r for r in C1_RUNGS if r not in per_rung]
+    if missing:
+        return {"verdict": V_UNREADABLE, "reason": f"no read at {missing}",
+                "per_rung": dict(per_rung)}
+    readable = {r: per_rung[r] for r in C1_RUNGS if per_rung[r].get("verdict") != V_UNREADABLE}
+    if len(readable) < len(C1_RUNGS):
+        return {"verdict": V_UNREADABLE, "reason": "a rung is unreadable",
+                "per_rung": dict(per_rung)}
+    verdicts = [readable[r]["verdict"] for r in C1_RUNGS]
+    if all(v == V_BIPARTITE_COSTS for v in verdicts):
+        head = V_BIPARTITE_COSTS
+    elif V_BIPARTITE_HELPS in verdicts:
+        head = V_BIPARTITE_HELPS
+    else:
+        head = V_BIPARTITE_NOT_SEP
+    return {"verdict": head,
+            "medians": {r: readable[r]["median"] for r in C1_RUNGS},
+            "per_rung": dict(per_rung)}
+
+
+def read_c2_rung(gnn_by_seed: Mapping[int, float],
+                 reactive_by_seed: Mapping[int, float]) -> dict:
+    """Does the bipartite arm beat reactive Knative at ONE unsaturated client rung?
+
+    `reactive_by_seed` is the cell-collapsed reactive value replicated across the same seed
+    keys -- reactive is deterministic and carries no checkpoint seed, so the pairing is each
+    checkpoint against the baseline on the same cells, exactly as B7 read peeronly.
+    """
+    r = paired_tie(dict(gnn_by_seed), dict(reactive_by_seed), tol=C2_SEPARATE_PCT,
+                   alpha=C2_ALPHA, min_seeds=C2_MIN_SEEDS, relative=True)
+    if r["verdict"] == V_UNREADABLE:
+        return r
+    beats = r["median"] <= -C2_SEPARATE_PCT and r["p"] < C2_ALPHA
+    return {**r, "verdict": V_BIPARTITE_BEATS_REACTIVE if beats else V_BIPARTITE_LOSES_REACTIVE,
+            "bar": {"separate_pct": C2_SEPARATE_PCT, "alpha": C2_ALPHA,
+                    "min_seeds": C2_MIN_SEEDS}}
+
+
+def read_c2(vs_reactive: Mapping[int, dict], vs_peeronly: Mapping[int, dict]) -> dict:
+    """C2 as registered: the bipartite arm against reactive AND against its sibling, at both
+    unsaturated client rungs. The signed consequence keys off the reactive half."""
+    missing = [c for c in C2_CLIENTS if c not in vs_reactive or c not in vs_peeronly]
+    if missing:
+        return {"verdict": V_UNREADABLE, "reason": f"no read at {missing} clients",
+                "vs_reactive": dict(vs_reactive), "vs_peeronly": dict(vs_peeronly)}
+    react = {c: vs_reactive[c] for c in C2_CLIENTS}
+    if any(r.get("verdict") == V_UNREADABLE for r in react.values()):
+        return {"verdict": V_UNREADABLE, "reason": "a rung is unreadable",
+                "vs_reactive": dict(vs_reactive), "vs_peeronly": dict(vs_peeronly)}
+    works = [c for c in C2_CLIENTS if react[c]["verdict"] == V_BIPARTITE_BEATS_REACTIVE]
+    return {"verdict": V_BIPARTITE_BEATS_REACTIVE if works else V_BIPARTITE_LOSES_REACTIVE,
+            "rungs_where_it_works": works,
+            "medians_vs_reactive": {c: react[c]["median"] for c in C2_CLIENTS},
+            "medians_vs_peeronly": {c: vs_peeronly[c].get("median") for c in C2_CLIENTS},
+            "vs_reactive": dict(vs_reactive), "vs_peeronly": dict(vs_peeronly)}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:

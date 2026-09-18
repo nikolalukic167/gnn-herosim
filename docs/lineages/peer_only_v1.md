@@ -878,3 +878,57 @@ other. The claim that survives is therefore narrower than the one first written:
 The 1,670-corpus pointwise twin remains the worst arm at both rungs, so B1's
 `CORPUS-DOES-NOT-HELP` is unaffected and `peeronly` vs its own corpus-matched twin (B7:
 −22.6 % and −14.1 %, p = 0.0052 / 0.0061) stands as registered.
+
+### 2026-09-18 — AMENDMENTS 6 and 7: C1 and C2, the **bipartite** arm at power
+
+Registered **before** any arm was submitted; bars in `scripts_cosim/peer_only_v1_read.py`
+(`read_c1`, `read_c1_ladder`, `read_c2_rung`, `read_c2`), tests in
+`scripts_cosim/test_peer_only_v1_read.py`, arms appended to
+`scripts_cosim/datalab/peer_only_v1_gate.sbatch` (C1, tasks 628–723) and
+`scripts_cosim/datalab/peer_only_v1_client_gate.sbatch` (C2, tasks 656–783) so no existing
+index moves.
+
+**Why.** Clause 7 of this node's head — *"the arm that wins is not the GNN"*, `peeronly`
+beats the full `gnn` by **22.42 %** at R3 — is the last claim in the lineage still resting on
+**four checkpoints**. `gnn` was never extended past Phase B. That is precisely the shape B3
+already caught and halved (B2: −15.68 % on 4 → **−5.75 %** on 16, two signs flipped), and it
+is the claim that stands between this programme and the statement *"a bipartite task↔platform
+graph does not work in this environment."* Worse, **every** `gnn` reading the programme owns
+was taken at a **saturated** rung; the arm has never been served at the unsaturated client
+rungs where B7 found the first live win at all.
+
+**C1 — the bipartite penalty on the server ladder, 16 checkpoints.** `gnn` (1670) at R3 (80
+servers) and R0 (6), the other 12 checkpoints, 4 cells each = **96 arms**. Bars are B3's,
+reused unchanged: `C1_SEPARATE_PCT = 5.0`, `C1_ALPHA = 0.05`, `C1_MIN_SEEDS = 16`,
+checkpoint-level via `collapse_to_seed`. Consequence signed in advance, per rung:
+
+| read | consequence |
+|---|---|
+| median ≤ −5 %, p < α | `BIPARTITE-COSTS` — clause 7 stands, but its **number** is replaced and 22.42 % is never quoted again |
+| median ≥ +5 %, p < α | `BIPARTITE-HELPS` — clause 7 is **falsified** at that rung; head and CLAUDE.md rewritten |
+| otherwise | `BIPARTITE-NOT-SEPARATED` — clause 7 is rewritten to **not established**, weaker than today |
+
+Registered expectation: **`BIPARTITE-COSTS` at R3, at a margin much smaller than 22.42 %.**
+Stated explicitly so it can be wrong — a 4-checkpoint margin in this lineage has halved once
+already and nothing makes `gnn` exempt. **R0 is UNCERTAIN**: at 6 servers every arm loses to
+reactive, and cs6s9002 already showed the GIN making `gnn` the *best* arm on one topology, so
+the sign there has been seen to flip per cell.
+
+**C2 — does the bipartite arm work where anything works?** `gnn` (1670) at 40 and 80 clients,
+6 servers, 16 checkpoints, 4 cells = **128 arms**, read against **both** its `peeronly`
+sibling (`read_c1`, same contrast) and reactive Knative (`read_c2_rung`). Same bars.
+Consequence signed in advance:
+
+- `gnn` beats reactive at **either** unsaturated rung ⇒ **the bipartite graph does work in
+  this environment**; clause 7 is scoped to the server ladder and CLAUDE.md's standing answer
+  gains a second unsaturated winner.
+- `gnn` loses at **both** while `peeronly` wins ⇒ the bipartite stage is **what breaks the
+  arm**, measured at power at the operating point that matters. That is the strongest negative
+  this programme could state about the GIN, and it is stated only because it was measured.
+
+Registered expectation: **`gnn` LOSES to reactive at 40 clients, UNCERTAIN at 80.** B7 has
+`mpoff_1670` at +18.5 % and +0.9 % vs reactive, and `gnn` is the offline-best / live-worst arm
+at R3.
+
+**Explicitly not in scope.** Retraining anything; the 5- and 10-client rungs (unservable by
+every policy); `gnn` at R1/R2; any new topology or workload. Cost: 224 arms, ~3 min each.

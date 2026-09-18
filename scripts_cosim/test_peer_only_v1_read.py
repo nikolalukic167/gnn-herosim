@@ -212,3 +212,92 @@ def test_b8_refuses_a_partial_ladder():
 
 def test_b8_rungs_are_the_unsaturated_ones_b7_measured():
     assert B8_CLIENTS == (40, 80) and set(B8_CLIENTS) < set(B7_CLIENTS)
+
+
+# --- C1 / C2: the bipartite arm at power (AMENDMENTS 6 and 7) -----------------------------
+
+def _seeds(base, delta_pct, n=16, jitter=0.0):
+    """16 checkpoint values for an arm `delta_pct` from `base`, with a deterministic wobble."""
+    out = {}
+    for s in range(1, n + 1):
+        w = jitter * ((s % 5) - 2)
+        out[s] = base * (1.0 + delta_pct / 100.0 + w / 100.0)
+    return out
+
+
+def test_c1_calls_a_large_consistent_peeronly_lead_bipartite_costs():
+    from scripts_cosim.peer_only_v1_read import read_c1, V_BIPARTITE_COSTS
+    r = read_c1(_seeds(100.0, -20.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert r["verdict"] == V_BIPARTITE_COSTS and r["n"] == 16
+
+
+def test_c1_calls_a_small_lead_not_separated():
+    from scripts_cosim.peer_only_v1_read import read_c1, V_BIPARTITE_NOT_SEP
+    r = read_c1(_seeds(100.0, -1.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert r["verdict"] == V_BIPARTITE_NOT_SEP
+
+
+def test_c1_can_read_the_gin_as_a_help_that_direction_is_reachable():
+    from scripts_cosim.peer_only_v1_read import read_c1, V_BIPARTITE_HELPS
+    r = read_c1(_seeds(100.0, +20.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert r["verdict"] == V_BIPARTITE_HELPS
+
+
+def test_c1_refuses_fewer_than_sixteen_checkpoints():
+    """The whole point of C1: a 4-checkpoint read is not a read."""
+    from scripts_cosim.peer_only_v1_read import read_c1
+    r = read_c1(_seeds(100.0, -20.0, n=4), _seeds(100.0, 0.0, n=4))
+    assert r["verdict"] == V_UNREADABLE
+
+
+def test_c1_ladder_needs_both_rungs_to_state_the_clause_flatly():
+    from scripts_cosim.peer_only_v1_read import (read_c1, read_c1_ladder, V_BIPARTITE_COSTS,
+                                                 V_BIPARTITE_NOT_SEP)
+    costs = read_c1(_seeds(100.0, -20.0, jitter=1.0), _seeds(100.0, 0.0))
+    flat = read_c1(_seeds(100.0, -1.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert read_c1_ladder({"R3": costs, "R0": costs})["verdict"] == V_BIPARTITE_COSTS
+    assert read_c1_ladder({"R3": costs, "R0": flat})["verdict"] == V_BIPARTITE_NOT_SEP
+
+
+def test_c1_ladder_refuses_a_partial_ladder():
+    from scripts_cosim.peer_only_v1_read import read_c1, read_c1_ladder
+    costs = read_c1(_seeds(100.0, -20.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert read_c1_ladder({"R3": costs})["verdict"] == V_UNREADABLE
+
+
+def test_c2_one_rung_reads_the_bipartite_arm_against_reactive():
+    from scripts_cosim.peer_only_v1_read import (read_c2_rung, V_BIPARTITE_BEATS_REACTIVE,
+                                                 V_BIPARTITE_LOSES_REACTIVE)
+    beats = read_c2_rung(_seeds(100.0, -15.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert beats["verdict"] == V_BIPARTITE_BEATS_REACTIVE
+    loses = read_c2_rung(_seeds(100.0, +15.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert loses["verdict"] == V_BIPARTITE_LOSES_REACTIVE
+
+
+def test_c2_works_if_it_works_at_either_unsaturated_rung():
+    from scripts_cosim.peer_only_v1_read import (read_c2, read_c2_rung, read_c1,
+                                                 V_BIPARTITE_BEATS_REACTIVE,
+                                                 V_BIPARTITE_LOSES_REACTIVE)
+    beats = read_c2_rung(_seeds(100.0, -15.0, jitter=1.0), _seeds(100.0, 0.0))
+    loses = read_c2_rung(_seeds(100.0, +15.0, jitter=1.0), _seeds(100.0, 0.0))
+    sib = read_c1(_seeds(100.0, -8.0, jitter=1.0), _seeds(100.0, 0.0))
+    r = read_c2({40: loses, 80: beats}, {40: sib, 80: sib})
+    assert r["verdict"] == V_BIPARTITE_BEATS_REACTIVE and r["rungs_where_it_works"] == [80]
+    r2 = read_c2({40: loses, 80: loses}, {40: sib, 80: sib})
+    assert r2["verdict"] == V_BIPARTITE_LOSES_REACTIVE and r2["rungs_where_it_works"] == []
+
+
+def test_c2_refuses_a_partial_ladder():
+    from scripts_cosim.peer_only_v1_read import read_c2, read_c2_rung, read_c1
+    beats = read_c2_rung(_seeds(100.0, -15.0, jitter=1.0), _seeds(100.0, 0.0))
+    sib = read_c1(_seeds(100.0, -8.0, jitter=1.0), _seeds(100.0, 0.0))
+    assert read_c2({40: beats}, {40: sib})["verdict"] == V_UNREADABLE
+
+
+def test_c1_c2_constants_are_the_registered_values():
+    from scripts_cosim.peer_only_v1_read import (C1_RUNGS, C1_MIN_SEEDS, C1_SEPARATE_PCT,
+                                                 C1_ALPHA, C2_CLIENTS, C2_MIN_SEEDS,
+                                                 C2_SEPARATE_PCT, C2_ALPHA)
+    assert C1_RUNGS == ("R3", "R0") and (C1_MIN_SEEDS, C1_SEPARATE_PCT, C1_ALPHA) == (16, 5.0, 0.05)
+    assert C2_CLIENTS == (40, 80) and (C2_MIN_SEEDS, C2_SEPARATE_PCT, C2_ALPHA) == (16, 5.0, 0.05)
+    assert C2_CLIENTS == B8_CLIENTS      # C2 reads the same rungs B8 did, deliberately
