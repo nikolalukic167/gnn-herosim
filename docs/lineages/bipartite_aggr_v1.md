@@ -1,6 +1,6 @@
 # bipartite_aggr_v1 — is the bipartite penalty a `sum` over a candidate set that grows with the cluster?
 
-**Status:** `CLOSED` (2026-09-18) — **`SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`. The prediction
+**Status:** `ACTIVE` (2026-09-18) — closed on **`SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`**, then **REOPENED the same day by a signed AMENDMENT 1** to re-read E2 at n = 32. The verdict below is unchanged and stands on its registered n = 16; the amendment tests its weakest clause rather than revisiting the result. **The prediction
 held.** Closed on a live gate at both ends of the server ladder (rule 6). Registered
 2026-09-18; every bar is a module constant in `scripts_cosim/bipartite_aggr_v1_read.py`,
 committed before any arm was trained.
@@ -62,6 +62,45 @@ set** — filed in `docs/lessons.md`, because it is not specific to this model.
 claim about edge-conditioning, settled negative by `bipartite_edge_v1`. The residual MLP-shape
 difference (−5.86 % at R3) is **not established** and is not worth a lineage. One corpus, one
 physics, two rungs.
+
+---
+
+## AMENDMENT 1 — a higher-powered E2 (signed 2026-09-18, before any extra arm is served)
+
+**What is wrong with E2 as it stands, in one line:** it is a non-separation on **significance**,
+not on magnitude. Median **−8.30 %**, which is *outside* the ±5 % tie band, at **p = 0.1089**
+on 10/16. The registered verdict is honest and the bar was met — but *"sum is not shown to cost
+where candidates are few"* is a much weaker statement than the mechanism wants, and the point
+estimate there actually favours **sum**. Every other link in the chain is significant; this one
+is the place a reader should push, so it is the place to spend more compute.
+
+**The amendment.** Train seeds **17–32** of both aggregation arms (`gnnedgesum` and `gnnedge0`)
+and re-read E2 at **n = 32** — double the units, same corpus, split, recipe, cells and bars.
+
+- **E2b** uses the SAME constants as E2 (`E_SEPARATE_PCT = 5.0`, `E_ALPHA = 0.05`), with
+  `min_seeds = 32`. Nothing about the bar moves; only the power does.
+- **R3 is NOT re-run.** E1 cleared at p = 0.0052 and re-reading a bar that already fired is
+  shopping for a better number. The amendment touches the null, not the positive.
+- **The registered E2 reading is not replaced.** E2 at n = 16 stays in the record as the
+  verdict this lineage closed on; E2b prints beside it. If they disagree, **both** are reported
+  and the disagreement is the finding.
+
+**Signed consequences.**
+- E2b `AGGREGATION-NOT-SEPARATED` ⇒ the null survives doubled power, `SUM-COSTS-ONLY-WHERE-
+  CANDIDATES-ARE-MANY` is strengthened, and clause 1 of the head is softened to say the null
+  held at n = 32.
+- E2b `SUM-COSTS` ⇒ **the scale-dependence claim is WRONG**: sum costs at both rungs, E3 becomes
+  `SUM-COSTS-EVERYWHERE`, and the head is rewritten to say the mechanism explains the *effect*
+  but **not** the 6-server null, which returns to being unexplained.
+- E2b `SUM-HELPS` ⇒ sum is *better* where candidates are few, which no mechanism on offer
+  predicts; recorded as an anomaly and not explained away.
+
+**Registered expectation: `AGGREGATION-NOT-SEPARATED` at n = 32.** If the −8.30 % point estimate
+is real rather than noise, doubling n would be expected to surface it as `SUM-HELPS`, not as
+`SUM-COSTS` — so the honest risk here is that E2 is hiding a *reversed* effect, not a missing
+one. Recorded that way so it can be scored.
+
+**Cost:** 32 training runs, 128 live arms at R0 only.
 
 ---
 
