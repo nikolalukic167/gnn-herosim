@@ -267,6 +267,32 @@ C4_LIVE_CLIENTS = 80                     # the unsaturated rung where peeronly b
 # live ranking, which is exactly inverted), and C3 showed the pre-GIN spread is ALREADY narrow
 # (~25 degrees), so preserving it may simply preserve something that was never wide enough.
 
+# --- C5, AMENDMENT 10, registered 2026-09-18 BEFORE the probe was re-run -----------------
+# C3 measured the GIN's platform-embedding compression on the TRAINING distribution: the cache
+# is 6 servers / 20 clients throughout. Every live setting where `gnn` is worst has MORE
+# platforms than that -- 80 servers at R3, and more clients at C2. A GIN mixes over neighbours,
+# so a bigger bipartite graph gives every platform more sources to be averaged toward, and the
+# compression should get WORSE with platform count. If it does, that is a single mechanism
+# explaining why the bipartite arm degrades exactly where the programme most needs it not to.
+#
+# This is a FREE re-analysis: the same probe, the same checkpoints, the same graphs, recording
+# separation per GRAPH instead of per checkpoint and correlating it with that graph's platform
+# count. No new arms, no new training.
+C5_MIN_GRAPHS = 32                       # per checkpoint, for a rank correlation to mean anything
+C5_MIN_CHECKPOINTS = 12                  # of 16, the same quorum as C3
+C5_RHO = -0.30                           # median Spearman rho at or below this fires the bar
+# Consequence signed before the data:
+#   median rho <= -0.30 AND >= 12/16 checkpoints negative -> SMOOTHING-SCALES-WITH-PLATFORMS.
+#     Over-smoothing is then not a fixed tax but one that GROWS with cluster size, which is a
+#     mechanism for the live pattern and a reason to expect C4's repair to matter MORE at R3.
+#   otherwise -> SMOOTHING-IS-SCALE-FREE. The compression is a constant of the architecture,
+#     it does NOT explain why gnn is worst at the large rungs, and this node must stop
+#     reaching for cluster size as the explanation.
+# Registered expectation: SMOOTHING-SCALES-WITH-PLATFORMS. Stated so it can be wrong -- note
+# the cache's platform-count RANGE is narrow (one corpus, 6 servers), so this tests the trend
+# WITHIN the training distribution and cannot be extrapolated to 80 servers. It is suggestive
+# by construction, never conclusive, and the record must say so.
+
 # --- verdict strings -------------------------------------------------------------------
 V_A0_PASS, V_A0_FAIL = "INSTRUMENT-PASS", "MODEL-CHANGE-NOT-INERT"
 V_BEATS, V_TIE, V_POINTWISE = "PEERONLY-BEATS-POINTWISE", "TIE", "POINTWISE-BETTER"
@@ -284,6 +310,8 @@ V_BIPARTITE_BEATS_REACTIVE = "BIPARTITE-BEATS-REACTIVE"
 V_BIPARTITE_LOSES_REACTIVE = "BIPARTITE-LOSES-TO-REACTIVE"
 V_BEATS_REACTIVE = "BEATS-REACTIVE"
 V_LOSES_REACTIVE = "LOSES-TO-REACTIVE"
+V_SMOOTHING_SCALES = "SMOOTHING-SCALES-WITH-PLATFORMS"
+V_SMOOTHING_FLAT = "SMOOTHING-IS-SCALE-FREE"
 V_RESIDUAL_WORKS = "BIPARTITE-WORKS-WITH-RESIDUAL"
 V_RESIDUAL_PARTIAL = "RESIDUAL-CLOSES-PART-OF-THE-GAP"
 V_RESIDUAL_NO_HELP = "RESIDUAL-DOES-NOT-TRANSFER"
@@ -650,6 +678,26 @@ def read_c4(gnnres_vs_reactive: Mapping[str, float], gnnres_vs_peeronly: Mapping
             "bar": {"separate_pct": C4_SEPARATE_PCT, "alpha": C4_ALPHA,
                     "min_seeds": C4_MIN_SEEDS, "rung": C4_LIVE_RUNG,
                     "clients": C4_LIVE_CLIENTS}}
+
+
+def read_c5(rho_by_checkpoint: Mapping[int, Optional[float]]) -> dict:
+    """Does the GIN's platform compression get worse as the bipartite graph gets bigger?
+
+    `rho_by_checkpoint` maps checkpoint seed -> Spearman rho between a graph's platform count
+    and its post/pre separation ratio. A NEGATIVE rho means more platforms -> more compression.
+    """
+    usable = {int(s): float(r) for s, r in rho_by_checkpoint.items() if r is not None}
+    if len(usable) < C5_MIN_CHECKPOINTS:
+        return {"verdict": V_UNREADABLE,
+                "reason": f"{len(usable)} usable checkpoints < {C5_MIN_CHECKPOINTS}"}
+    n_neg = sum(1 for r in usable.values() if r < 0)
+    med = median(sorted(usable.values()))
+    scales = med <= C5_RHO and n_neg >= C5_MIN_CHECKPOINTS
+    return {"verdict": V_SMOOTHING_SCALES if scales else V_SMOOTHING_FLAT,
+            "median_rho": med, "n_negative": n_neg, "n_checkpoints": len(usable),
+            "rho": usable,
+            "bar": {"rho": C5_RHO, "min_checkpoints": C5_MIN_CHECKPOINTS,
+                    "min_graphs": C5_MIN_GRAPHS}}
 
 
 def read_b0(n_datasets: int, meta_agree: bool, ingredients_max_diff: float, test_ids_same: bool) -> dict:

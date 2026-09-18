@@ -1080,3 +1080,31 @@ at ~25° — preserving it may only preserve something that was never wide enoug
 **The negative case must be written as what it is.** `RESIDUAL-DOES-NOT-TRANSFER` closes the
 question on **the one repair the evidence licensed**. It is not a proof that no bipartite
 formulation can work here, and it must never be written as one.
+
+### 2026-09-18 — AMENDMENT 10: C5, does the compression **scale with platform count**?
+
+Registered **before** the probe was re-run; bar in `scripts_cosim/peer_only_v1_read.py`
+(`read_c5`), emission added to `scripts_cosim/peer_only_v1_oversmoothing.py`.
+
+**Why.** C3 measured the GIN's compression on the **training distribution** — the cache is 6
+servers / 20 clients throughout. Every live setting where `gnn` is worst has **more platforms**
+than that. A GIN mixes over neighbours, so a larger bipartite graph gives every platform more
+sources to be averaged toward, and the compression should worsen with platform count. If it
+does, that is a **single mechanism** explaining why the bipartite arm degrades exactly where
+the programme most needs it not to — and a reason to expect C4's repair to matter *more* at R3.
+
+**Free re-analysis**: same probe, same checkpoints, same graphs, recording separation per
+**graph** instead of per checkpoint and correlating it with that graph's platform count. No new
+arms, no new training. Statistic: Spearman ρ per checkpoint, ≥ 32 graphs required.
+
+| read | consequence |
+|---|---|
+| median ρ ≤ −0.30 **and** ≥ 12/16 checkpoints negative | `SMOOTHING-SCALES-WITH-PLATFORMS` |
+| otherwise | `SMOOTHING-IS-SCALE-FREE` — the compression is a constant of the architecture, it does **not** explain the large-rung losses, and this node must stop reaching for cluster size as the explanation |
+
+Registered expectation: **`SMOOTHING-SCALES-WITH-PLATFORMS`.**
+
+**The limit, stated in advance and not after the fact:** the cache's platform-count **range is
+narrow** — one corpus, 6 servers. This tests the trend **within** the training distribution and
+**cannot be extrapolated to 80 servers**. It is suggestive by construction and never
+conclusive, whichever way it reads.

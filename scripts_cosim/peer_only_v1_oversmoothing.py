@@ -45,7 +45,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts_cosim.peer_only_v1_read import C3_N_GRAPHS, read_c3  # noqa: E402
+from scripts_cosim.peer_only_v1_read import (  # noqa: E402
+    C3_N_GRAPHS, C5_MIN_GRAPHS, read_c3, read_c5,
+)
+from scripts_cosim.scheduler_residence_v1_r3_read import spearman  # noqa: E402
 
 # The queue columns of the legacy_v0 platform block. Reported by name when the block is wide
 # enough to have them; the probe itself sweeps EVERY column regardless, so a layout change
@@ -189,8 +192,25 @@ def probe_checkpoint(model, graphs: Sequence[Any]) -> Dict[str, Any]:
             f"FAIL LOUD: no queue column among {cols} varies in this cache (platform block "
             f"width {width}). The retention half of C3 is not measurable here."
         )
+    # C5 (AMENDMENT 10): the same numbers per GRAPH, so the compression can be correlated
+    # with that graph's platform count. Free -- it is the data C3 already computed, not
+    # aggregated away.
+    per_graph = []
+    for i in range(n):
+        a = mean_pairwise_cosine_distance(pre[i])
+        b = mean_pairwise_cosine_distance(post[i])
+        if a is None or b is None or a <= 1e-12:
+            continue
+        per_graph.append({"n_platforms": int(raw[i].shape[0]),
+                          "separation_pre": a, "separation_post": b, "ratio": b / a})
+    rho, rho_p = (None, None)
+    if len(per_graph) >= C5_MIN_GRAPHS:
+        rho, rho_p = spearman([g["n_platforms"] for g in per_graph],
+                              [g["ratio"] for g in per_graph])
+
     return {
         "separation_ratio": separation_ratio,
+        "per_graph": per_graph, "c5_rho": rho, "c5_rho_p": rho_p,
         "separation_pre": mean_pre, "separation_post": mean_post,
         "queue_r2_pre": float(np.mean([m["pre"] for m in q])),
         "queue_r2_post": float(np.mean([m["post"] for m in q])),
@@ -236,7 +256,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
               f"{r['queue_r2_post']:.3f}", flush=True)
 
     verdict = read_c3(per_ckpt)
-    doc = {"verdict": verdict, "per_checkpoint": per_ckpt,
+    c5 = read_c5({s: r.get("c5_rho") for s, r in per_ckpt.items()})
+    doc = {"verdict": verdict, "c5": c5, "per_checkpoint": per_ckpt,
            "cache": args.cache, "tag": args.tag, "n_graphs": args.n_graphs}
     Path(args.out).write_text(json.dumps(doc, indent=1))
     print("\n=== C3 ===")
@@ -247,6 +268,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print(f"median retention   : {verdict.get('median_retention_ratio')}  "
           f"(bar <= {verdict['bar']['retention_ratio']}, "
           f"{verdict.get('n_below_retention_bar')}/{verdict.get('n_retention_usable')} below)")
+    print("\n=== C5 — does the compression scale with platform count? ===")
+    print(f"verdict            : {c5['verdict']}")
+    print(f"median rho         : {c5.get('median_rho')}  (bar <= {c5['bar']['rho']}, "
+          f"{c5.get('n_negative')}/{c5.get('n_checkpoints')} negative)"
+          if c5.get("verdict") != "UNREADABLE" else f"  {c5.get('reason')}")
     print(f"written            : {args.out}")
     return 0
 
