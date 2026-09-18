@@ -402,3 +402,43 @@ def test_c4_constants_are_the_registered_values():
                                                  C4_LIVE_RUNG, C4_LIVE_CLIENTS)
     assert (C4_MIN_SEEDS, C4_SEPARATE_PCT, C4_ALPHA) == (16, 5.0, 0.05)
     assert (C4_LIVE_RUNG, C4_LIVE_CLIENTS) == ("R3", 80)
+
+
+# --- C5: does the compression scale with platform count? (AMENDMENT 10) -------------------
+
+def test_c5_fires_when_more_platforms_means_more_compression():
+    from scripts_cosim.peer_only_v1_read import read_c5, V_SMOOTHING_SCALES
+    r = read_c5({s: -0.55 for s in range(1, 17)})
+    assert r["verdict"] == V_SMOOTHING_SCALES and r["n_negative"] == 16
+
+
+def test_c5_needs_the_magnitude_not_just_the_sign():
+    """16 negative but weak correlations must not be read as a scaling mechanism."""
+    from scripts_cosim.peer_only_v1_read import read_c5, V_SMOOTHING_FLAT
+    r = read_c5({s: -0.05 for s in range(1, 17)})
+    assert r["verdict"] == V_SMOOTHING_FLAT and r["n_negative"] == 16
+
+
+def test_c5_needs_the_quorum_not_just_the_median():
+    from scripts_cosim.peer_only_v1_read import read_c5, V_SMOOTHING_FLAT
+    per = {s: -0.9 for s in range(1, 10)}          # 9 strongly negative
+    per.update({s: +0.4 for s in range(10, 17)})   # 7 positive
+    assert read_c5(per)["verdict"] == V_SMOOTHING_FLAT
+
+
+def test_c5_drops_checkpoints_whose_rho_could_not_be_computed():
+    from scripts_cosim.peer_only_v1_read import read_c5, V_SMOOTHING_SCALES
+    per = {s: -0.55 for s in range(1, 14)}
+    per.update({s: None for s in range(14, 17)})
+    r = read_c5(per)
+    assert r["verdict"] == V_SMOOTHING_SCALES and r["n_checkpoints"] == 13
+
+
+def test_c5_is_unreadable_below_the_checkpoint_quorum():
+    from scripts_cosim.peer_only_v1_read import read_c5
+    assert read_c5({s: -0.9 for s in range(1, 5)})["verdict"] == V_UNREADABLE
+
+
+def test_c5_constants_are_the_registered_values():
+    from scripts_cosim.peer_only_v1_read import C5_MIN_GRAPHS, C5_MIN_CHECKPOINTS, C5_RHO
+    assert (C5_MIN_GRAPHS, C5_MIN_CHECKPOINTS, C5_RHO) == (32, 12, -0.30)
