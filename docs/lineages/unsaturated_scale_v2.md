@@ -1,9 +1,58 @@
 # unsaturated_scale_v2 — the same question as v1, at the power v1 lacked
 
-**Status:** `REGISTERED` (2026-09-19). Bars, reader and 24 tests
-(`scripts_cosim/unsaturated_scale_v2_read.py`, `scripts_cosim/test_unsaturated_scale_v2_read.py`)
-committed before any arm ran. Three live steps (rule 6): **mint**, **M0** the saturation screen,
-**L** the study.
+**Status:** `CLOSED` (2026-09-19) — **`EFFECTS-ARE-REAL-AND-AN-ORDER-OF-MAGNITUDE-SMALLER`.**
+Closed on a live gate (rule 6): 1,328 arms, 0 failures. Registered 2026-09-19; bars, reader and
+24 tests committed before any arm ran. **The registered expectation was wrong again** — and
+wrong in a way neither registered alternative named.
+
+**Outcome. Every effect v1 measured is real in SIGN and 4–10× SMALLER in SIZE.** The design
+delivered far more power than it was built for (**L5 `POWER-DELIVERED`**: worst-arm sd
+**4.48 pp** against the registered 10 pp bar, v1's 14–29 pp at 4 environments), and what that
+power showed is not sharper separations but collapsed magnitudes with tiny p-values:
+
+| read | v1 (4 environments, all on w0) | v2 (16 environments) |
+|---|---|---|
+| `gnnedge0` vs reactive | −6.46 % (p = 0.47) | **−1.62 % (p = 0.0023, 13/16)** |
+| `peeronly` vs reactive | −7.97 % (p = 0.12) | **−1.23 % (p = 0.0013, 15/16)** |
+| `gnn` vs reactive | +16.98 % (p = 0.044) | **+2.31 % (p = 0.0052, 3/16)** |
+| `gnnedge0` vs matched twin (L2) | −6.10 % (p = 0.47) | **−2.38 % (p = 0.0004)** |
+| `sum` vs `mean` (L3) | +26.69 % (p = 0.039) | **+2.70 % (p = 0.0019)** |
+
+**So the arms genuinely are faster than reactive — by about 1.5 %.** `gnnedge0` is ahead on
+13/16 checkpoints at p = 0.0023 and `peeronly` on 15/16 at p = 0.0013; these are not nulls, they
+are real effects far under the programme's 5 % practical bar. Under the registered rule every
+arm is **`NOT-SEPARATED`** and **L4 reads `NO-LEARNED-ARM-BEATS-REACTIVE-AT-UNSATURATED-SCALE`,
+`interpretable = True`** — v1's verdict survives, but for a completely different reason. v1 could
+not tell a 6 % effect from noise; v2 can tell a 1.6 % effect from noise, and it is 1.6 %.
+
+**Where v1's magnitudes came from: the window.** L6, per-window median vs reactive —
+
+| arm | w0 | w1 | w2 | w3 | |
+|---|---|---|---|---|---|
+| `gnnedge0` | **−6.40** | −1.06 | −0.65 | −0.18 | sign-consistent |
+| `peeronly` | **−8.07** | −0.12 | −0.42 | **+0.87** | **sign flips** |
+| `mpoff_516` | −2.21 | −0.28 | +0.28 | **+1.49** | **sign flips** |
+| `gnn` | **+5.86** | +2.21 | +2.53 | +2.86 | sign-consistent |
+
+v1's −6.46 % and −7.97 % are **w0 numbers**, reproduced here to within 0.1 pp. On the three
+windows no gate in this programme had ever run, the same arms read −0.18 to +0.87 %. w0 is the
+one arrival window every gate has used and it is the burstiest of the four (reactive queue share
+0.53–0.66 on w0 against 0.41–0.48 on w1–w3 at an identical 0.4604 arrivals/s).
+
+**The mechanism is unchanged and now fully quantified: the batching tax is the whole margin.**
+Median batch-assembly wait, this rung: `gnnedge0` 7.125 s, `peeronly` 7.123 s, `mpoff` 7.131 s,
+`gnn` 7.134 s — and **reactive 0.000 s, `knative_network_ect` 0.000 s, `random_network`
+0.000 s**. Against a reactive elapsed of 19.148 s that tax is **37 % of the total**. The learned
+arms win roughly that much queue back and end up 1–2 % ahead or behind depending on the window.
+
+**Carry.** (a) These are 6-server checkpoints served 9.58× out of candidate support
+(`cluster_scale_v1`); v2 closes "the existing checkpoints at 80 servers", not "a GNN trained at
+scale". (b) `peeronly` and `mpoff_516` **flip sign between windows**, so neither L1 number may be
+quoted without L6. (c) v2 measures the **80-server** rung only — it does not re-measure the
+6-server rungs where the standing −20.8 % headline lives, but it does show that a 4-environment
+read on this apparatus inflated every effect 4–10×, which is a caution that applies to those
+numbers too. (d) The `sum` mechanism (`bipartite_aggr_v1`) **replicates in direction at a far
+better p-value and collapses in magnitude**, +26.69 % → +2.70 %.
 
 **Why this exists.** `unsaturated_scale_v1` closed
 `NO-LEARNED-ARM-BEATS-REACTIVE-AT-UNSATURATED-SCALE` with `gnnedge0` at **−6.46 % (p = 0.47)**
@@ -57,8 +106,12 @@ therefore carries the factor matching w0's realised rate; all four now deliver 5
 **0.4604/s over 30.17 h**, asserted to 0.5 %, and the only moving part is the arrival **pattern**.
 
 **Also recorded:** the smoke test put `random_network` at **104.9 s against reactive's 23.3 s**
-(queue share 0.928) — a 4.5× floor that establishes the placement problem on this rung is not
-trivial, which no previous gate in this programme had shown.
+(queue share 0.928) — read at the time as a 4.5× floor establishing that the placement problem
+on this rung is not trivial. **WITHDRAWN by the study below**: across all 16 environments
+`random_network`'s median is **+8.4 %**, and the distribution is bimodal rather than a floor.
+The 4.5× was one environment. Left here rather than edited away, because it is the same
+one-cell-generalisation this lineage exists to fix, committed by the same session that was
+fixing it.
 
 ### The environments
 
@@ -130,3 +183,53 @@ location shift at all but a mixture, half the checkpoints winning 6–13 % and h
 
 **Explicitly not in scope.** Retraining anything; a control for the 6.82 s batching tax (no such
 arm exists — see above); training data at scale; the client axis; rungs other than 80 servers.
+
+## 2026-09-19 — L: **`EFFECTS-ARE-REAL-AND-AN-ORDER-OF-MAGNITUDE-SMALLER`**
+
+Jobs 789909–791233, **1,328 arms, all COMPLETED, 0 failures**, every one at `num_tasks = 50000`.
+Environments: `[9001, 9002, 9005, 9101] × [w0, w1, w2, w3]`, selected by the registered rule
+from a 48-environment screen. Reactive median elapsed **19.148 s**, queue share 0.41–0.66.
+
+**L5 first, because it licenses everything else.** Worst-arm sd of the checkpoint statistic
+**4.48 pp** (`gnn`; the other four are 1.26–1.77 pp) against the registered **10.0 pp**. v1's
+decomposition projected 7–9 pp and the design beat that. `POWER-DELIVERED`, so L4's negative is
+**interpretable** — this is a measured null, not v1's absence of evidence.
+
+**L1** — one value per checkpoint, the median over 16 environments of its relative % vs reactive
+on that same environment; one-sample signed-rank; bar |median| ≥ 5 % and p < 0.05.
+
+| arm | median | p | ahead | sd | verdict |
+|---|---|---|---|---|---|
+| `be1670_gnnedge0` | −1.62 % | 0.0023 | 13/16 | 1.26 | `NOT-SEPARATED` |
+| `1670_peeronly` | −1.23 % | 0.0013 | 15/16 | 1.38 | `NOT-SEPARATED` |
+| `516_mpoff` | −0.11 % | 0.6051 | 8/16 | 1.77 | `NOT-SEPARATED` |
+| `1670_mpoff` | +1.86 % | 0.0016 | 2/16 | 1.75 | `NOT-SEPARATED` |
+| `1670_gnn` | +2.31 % | 0.0052 | 3/16 | 4.48 | `NOT-SEPARATED` |
+
+Every arm sits inside the ±5 % band at p ≤ 0.006 except `mpoff_516`, which is a genuine null
+(p = 0.61, 8/16 — a coin flip). **L2** `gnnedge0` vs `mpoff_1670`: −2.38 %, p = 0.0004 —
+the model-class edge at matched corpus is real and is 2.4 %. **L3** `gnn` vs `gnnedge0`:
++2.70 %, p = 0.0019 — `SUM-NOT-SEPARATED` under the bar, direction replicated. **L4**
+`NO-LEARNED-ARM-BEATS-REACTIVE-AT-UNSATURATED-SCALE`, winners none, **losers none**, nothing
+missing, interpretable.
+
+**Baselines** (median elapsed over the 16 environments): reactive **19.148 s**;
+`knative_network_batch` 19.153 s (**+0.0 %** — a near-exact duplicate of reactive, as the smoke
+test predicted, and the reason it is not a batching control); `knative_network_ect` 20.877 s
+(**+9.0 %**, the physics-aware greedy loses); `random_network` 20.094 s (**+8.4 % median**).
+
+**A correction that belongs in the record.** The baseline smoke test put `random_network` at
+104.9 s against reactive's 23.3 s on `cs80s9001/w0`, and that single cell was quoted as "a 4.5×
+floor showing the placement problem is non-trivial". Across all 16 environments the median is
+**+8.4 %**, and the distribution is bimodal, not a floor: +4 to +8 % on nine environments,
++29 % on three, then +46 / +147 / +285 / **+782 %** (the worst at `(9002, w0)`). Random placement
+is usually nearly free at this rung and occasionally catastrophic. The one-cell number was
+wrong as a characterisation and is withdrawn.
+
+**The registered expectation, and how it failed.** It said L5 would deliver (it did, better than
+projected) and that `peeronly` and `gnnedge0` would then clear L1 as wins. They did not. The
+registered alternative — a mixture rather than a location shift, staying `NOT-SEPARATED` at any
+n with L6 showing the window driving it — got the *outcome* right and the *mechanism* wrong:
+the per-checkpoint distributions are tight (sd 1.26–1.38 pp), so it is a location shift after
+all, just a ~1.5 % one. What the window drove was not the checkpoint spread but the **size of
+the effect itself**, which is v1's environments all having been w0.

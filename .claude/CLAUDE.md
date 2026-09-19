@@ -22,12 +22,12 @@ Three routes to a positive answer. All three have been answered; route 2 was lat
    pointwise-separable, so the MLP is the *correctly specified* model class and more data
    cannot change that. Do not restart without reading that node.
 2. **Change the environment** so exploitable joint structure exists. `route_b_env_pivot_v1`
-   is `PARKED` (it could not measure S0 on its overlap rungs). **Currently reopened** via
+   is `PARKED` (could not measure S0 on its overlap rungs). **Reopened** via
    `peer_affinity_v1`: a cost indexed by *pairs of task instances* under a binding cap is
-   neither node-indexed nor routable-around, so it clears the neighbouring stops. Before
-   proposing any contention physics, read that node and `dag_fabric_contention_v1` — the
-   one untried non-node-indexed lever, DAG output over the link fabric, is NO-GO before any
-   code, and node-indexed CPU/memory contention is closed by the count theorem it cites.
+   neither node-indexed nor routable-around. Before proposing any contention physics, read
+   that node and `dag_fabric_contention_v1` — the one untried non-node-indexed lever, DAG
+   output over the link fabric, is NO-GO before any code, and node-indexed CPU/memory
+   contention is closed by the count theorem it cites.
 3. **Change the training objective, not the environment** (`objective_pivot_v1`).
    **CLOSED 2026-09-03.** Phase 1 PASSED (reliability, scope-limited to severe collapse),
    Phase 2 CLOSED (horizon labels are deterministic chaos), Phase 3 MEASURED-NEGATIVE at
@@ -44,71 +44,70 @@ objective instead.
 **A bipartite message-passing arm beats reactive Knative at an UNSATURATED 6-server rung by
 −20.8 % (15/16) and beats its corpus-matched pointwise twin — but its attribute-zeroed control
 matches it, the matched win does not reproduce on the smaller corpus, and at 80 servers, where
-reactive is healthy, NOTHING learned is separated from it.** All of that is the standing answer;
-quoting one part alone misreports it.
+reactive is healthy, every arm is inside ±2.5 %.** Quoting one part alone misreports it.
 
 - **The peer measurement** (`peer_only_v1`, 16 checkpoints throughout). `peeronly` (PeerConv
   kept, the bipartite GIN removed) beats its MP-OFF twin at **every** operating point tested
-  (−4.6 to −21.9 % across 6/12/24/80 servers, −14.1 to −22.6 % across 20/40/80 clients) and
-  beats reactive by −41.5 % at 80 servers and −9.3 % at 80 clients (13/16, p = 0.0097),
-  **unsaturated**. Only message passing differs. **Four clauses, none optional:** the margin is
-  **99 % queue** (0.66 s of 78 s is peer; A3 MECHANISM-NOT-CONFIRMED); **never quote a 4-checkpoint number** (−15.68 % more than halved on
-  16); the client ladder is a **load sweep**, not the dispersion sweep intended; and the win is
-  **not exclusive** — `mpoff_516` beats reactive there too (−7.2 %).
+  (−4.6 to −22.6 %) and beats reactive −9.3 % at 80 clients (13/16, p = 0.0097),
+  **unsaturated**. Only message passing differs. **Four clauses:** the margin is **99 % queue**
+  (0.66 s of 78 s is peer; A3 MECHANISM-NOT-CONFIRMED); **never quote a 4-checkpoint number**;
+  the client ladder is a **load sweep**, not the dispersion sweep intended; and the win is **not
+  exclusive** — `mpoff_516` beats reactive there too (−7.2 %).
 - **The bipartite penalty is SOLVED, and it was a `sum`** (`peer_only_v1` C1/C2 →
-  `bipartite_edge_v1` D1–D4 → `bipartite_aggr_v1` E1–E3). `peeronly`
-  beat `gnn` **−18.94 %** at 80 servers and **not at 6** (p = 0.61). The cause: `GIN` aggregates with **`sum`**, a task
-  aggregates over its **candidate platforms**, and that set is **3.55/task at 6 servers, 47.92
-  at 80**. Replacing the `GIN` with a mean-aggregating `BipartiteEdgeConv` is worth
-  **−15.72 %** (15/16) at 80 servers; that same conv given the `GIN`'s `sum` **collapses to
-  −5.86 %, n.s.**; and `sum` vs `mean` alone is **+13.26 % (p = 0.0052) at 80 servers, not
-  separated at 6** — `SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`.
-  **Edge-conditioning is NOT the reason** (D2: the zeroed-attribute control matches the
-  treatment), nor is MLP shape. **Use `mean` for any bipartite stage over a variable-sized
-  candidate set.** The repaired arm beats reactive by **−20.8 % (15/16) at the UNSATURATED
-  40-client rung** where `gnn` loses by +8.44 %. Carry: the 6-server null is a non-separation,
-  not equality — it **held at n = 32** (−6.22 %, p = 0.29).
+  `bipartite_edge_v1` D1–D4 → `bipartite_aggr_v1` E1–E3). `peeronly` beat `gnn` **−18.94 %** at
+  80 servers and **not at 6** (p = 0.61). Cause: `GIN` aggregates with **`sum`** over a task's
+  **candidate platforms**, a set that is **3.55/task at 6 servers, 47.92 at 80**. A
+  mean-aggregating `BipartiteEdgeConv` is worth **−15.72 %** (15/16) at 80 servers; the same conv
+  given `sum` **collapses to −5.86 %, n.s.**; `sum` vs `mean` alone is **+13.26 % (p = 0.0052) at
+  80 servers, not separated at 6** — `SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`.
+  **Edge-conditioning is NOT the reason** (D2: the zeroed control matches the treatment), nor is
+  MLP shape. **Use `mean` for any bipartite stage over a variable-sized candidate set.** The
+  repaired arm beats reactive **−20.8 % (15/16) at the UNSATURATED 40-client rung** where `gnn`
+  loses +8.44 %. Carry: the 6-server null is a non-separation, not equality — it **held at
+  n = 32** (−6.22 %, p = 0.29).
 - **The best-ARM clause stands; the best-MODEL-CLASS one does not** (`best_arm_v1` →
-  `corpus_matched_v1`). The repaired graph arm vs `mpoff_516`, three
-  unsaturated client rungs: **−14.76 % (16/16) at 40**, −11.32 % at 80, **+15.71 % (3/16,
-  it LOSES) at 20** ⇒ `BEST-ARM-STILL-NOT-ESTABLISHED` (the rule needed two wins **and no
-  loss**), so **the arm clause stands.** But **that single loss was a
+  `corpus_matched_v1`). The repaired graph arm vs `mpoff_516`, three unsaturated client rungs:
+  **−14.76 % (16/16) at 40**, −11.32 % at 80, **+15.71 % (3/16, it LOSES) at 20** ⇒
+  `BEST-ARM-STILL-NOT-ESTABLISHED`, so **the arm clause stands.** But **that single loss was a
   corpus effect.** Matched (same cache, split, seeds; only MP differs) at **1,670**: −31.65 %
   (16/16) at 40, −17.12 % at 80, **not behind at 20** (−0.73 %, p = 0.88) ⇒
   `MODEL-CLASS-EDGE-SURVIVES-MATCHING`; at **516**: one win (−10.78 % at 40), two ties ⇒
   `MODEL-CLASS-EDGE-IS-CORPUS-CONTINGENT`, so **name the corpus in every quote of either.** The
   confound is large: the same pointwise arm at 1,670 vs 516 reads **+18.71/+23.81/+8.64 %**,
-  `CONFOUND-IS-MATERIAL` at all three rungs. Carry: at 20 clients **every** arm loses to
-  reactive (+69 to +96 %, 0/16), a ranking among losers; `mpoff_516` is a GNN's MP-OFF twin,
-  **not the MLP**; the contrast is the whole MP stack, not the bipartite conv; and
-  `peeronly_1670` still loses to `mpoff_516` **+11.17 %, 0/16** at 80 servers / 20 clients,
-  **B8 SCOPED to saturated rungs**.
-- **The offline positive** (`peer_affinity_v1`): message passing beats its MP-OFF twin
-  **+5.14 pp** (p = 0.001, 13/16) at 482 datasets, reproduced at **−4.20 pp on 15/16** at 1,654
-  under the size-free representation (`peer_only_v1`). Only `PeerConv` differs.
+  `CONFOUND-IS-MATERIAL` at all three rungs. Carry: at 20 clients **every** arm loses to reactive (+69 to +96 %,
+  0/16); `mpoff_516` is a GNN's MP-OFF twin, **not the MLP**; the contrast is the whole MP stack,
+  not the bipartite conv; `peeronly_1670` loses to `mpoff_516` **+11.17 %, 0/16** at 80 srv /
+  20 cli, **B8 SCOPED to saturated rungs**.
+- **The offline positive** (`peer_affinity_v1`): MP beats its MP-OFF twin **+5.14 pp**
+  (p = 0.001, 13/16) at 482 datasets, reproduced **−4.20 pp on 15/16** at 1,654 under the
+  size-free representation. Only `PeerConv` differs.
 - **That offline edge does not transfer; it inverts** — anti-correlated with peer-graph density,
-  contingent on one platform type the corpus lacked, and **−15.94 %** vs the twin / **−226 %** vs
+  contingent on one platform type the corpus lacked, **−15.94 %** vs the twin / **−226 %** vs
   reactive at a defensible load (the gate ran at **940× overload**).
 - **Both model-class edges over the MLP fell to corpus matching** — latency (`link_mp_v1`) and
-  reliability (`reliability_matched_v1`, p = 0.113). `corpus_matched_v1` shows a matched verdict can depend on the level matched at. Any
-  GNN-vs-MLP number must name both arms' training cache.
+  reliability (`reliability_matched_v1`, p = 0.113); a matched verdict can itself depend on the
+  level matched at. Any GNN-vs-MLP number must name both arms' training cache.
 - **What survives:** a 150× trainability asymmetry (optimisation, never latency), a fit-ceiling
   split on the route B corpus, and one replicated live positive: over the first fifth of a trace
-  the learned arms beat Knative on queue on 3/3 cells and all 91 arms (`serving_stability_v1`).
-- **At scale, nothing learned beats a healthy baseline (`unsaturated_scale_v1`).** Reactive's
+  the arms beat Knative on queue on 3/3 cells and all 91 arms (`serving_stability_v1`).
+- **At scale the effects are REAL and ~1.5 %** (`unsaturated_scale_v1` → `v2`). Reactive's
   capacity never grew with the cluster: at 80 servers it is unsaturated only at the SAME 0.46/s
   that 6 servers runs at (share 0.66; 0.955 at 0.92/s), so every 80-server "win" (−28.7 to
-  −46.9 %) was read against a baseline pushed 13× past a ceiling that never moved: "less drowned". At the one healthy 80-server rung
-  (n = 16) `gnnedge0` −6.5 % (p = 0.47), `peeronly` −8.0 % (p = 0.12), both
-  `mpoff` ±0.2 %, all NOT-SEPARATED; `gnn` **loses +17 % (p = 0.044)**; `sum` still costs
-  +26.7 % (p = 0.039). Cause: every learned arm pays **6.8 s of batch assembly** reactive never
-  pays — R0's 6.77 s, because the arrival rate is R0's — and wins ~6 s of queue: a coin flip per checkpoint. `partial_state_v3`'s size-free block (dim 38 → 22) is what lets 6-server
-  checkpoints serve 80.
+  −46.9 %) was read against a baseline pushed 13× past a ceiling. At the healthy rung on
+  **16 (topology, arrival-window) environments**: `gnnedge0` **−1.62 % (p = 0.0023,
+  13/16)**, `peeronly` −1.23 % (p = 0.0013, 15/16), `gnn` **+2.31 % (p = 0.0052)**, `mpoff_516`
+  a true null (p = 0.61); matched model class −2.38 % (p = 0.0004); `sum` +2.70 % (p = 0.0019).
+  All inside the 5 % bar ⇒ NO-LEARNED-ARM-BEATS-REACTIVE, a MEASURED null (design sd 4.48 pp
+  against a signed 10). **v1's 4-environment reads inflated every one 4–10×** (−6.46/−7.97/
+  +16.98/−6.10/+26.69 %): all four were the same, burstiest, arrival window — directions
+  replicated, magnitudes did not. Cause: every learned arm pays **7.1 s of batch assembly**
+  (37 % of elapsed) that reactive, ECT and random pay 0.000 s of, and wins that much queue back.
+  `partial_state_v3`'s size-free block (dim 38 → 22) lets 6-server checkpoints serve 80 at all.
 
-**Before quoting any number from this program**, read the node and carry its caveats. Never
+**Quote a DIRECTION from a small design and a MAGNITUDE only from a large one** — every effect in `unsaturated_scale_v1` was 4–10× too big at 4 environments. **Before quoting any number from this program**, read the node and carry its caveats. Never
 quote a `peer_affinity` live number without its load factor, nor a `peer_only_v1` 80-server number
 without its saturation, nor any arm comparison without both corpora.
-Start at `docs/lineages/peer_only_v1.md`, `unsaturated_scale_v1.md` and `throughline.md` (last section).
+Start at `docs/lineages/peer_only_v1.md`, `unsaturated_scale_v2.md` and `throughline.md` (last section).
 
 ## Where knowledge lives — READ FIRST
 
