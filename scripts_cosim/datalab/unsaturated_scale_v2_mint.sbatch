@@ -129,9 +129,15 @@ for w in (0, 1, 2, 3):
     if abs(rate / target - 1.0) > 0.005:
         raise SystemExit(f"FAIL LOUD: {p} delivers {rate:.4f} arrivals/s, w0 delivers "
                          f"{target:.4f}; the window axis would be a LOAD axis")
-    # Every window must START where window 0 starts, or a policy idles through the skipped span.
-    if abs(d["events"][0]["timestamp"] - first0) > 1e-6:
-        raise SystemExit(f"FAIL LOUD: {p} starts at {d['events'][0]['timestamp']}, w0 starts at {first0}")
+    # No window may idle through the skipped span before its first arrival. The windows are
+    # rebased in NATIVE time and then scaled, and the factors differ by ~1.6x, so their scaled
+    # starts differ by ~18 s -- 0.02 % of a 108,600 s span, which is what this bar allows. An
+    # un-rebased window would start ~100,000 native seconds in and fail by five orders.
+    t0, span = float(d["events"][0]["timestamp"]), float(r["span_after_s"])
+    if t0 > 0.001 * span:
+        raise SystemExit(f"FAIL LOUD: {p} starts at {t0:.1f} s of a {span:.0f} s span "
+                         f"({100*t0/span:.3f} %); it was not rebased and every policy would "
+                         "idle through the skipped span")
     # ...and every peer pair must land inside the window.
     if d["peer_exchange"] and max(max(p2[0], p2[1]) for p2 in d["peer_exchange"]) >= 50000:
         raise SystemExit(f"FAIL LOUD: {p} has a peer pair reaching past the window")
