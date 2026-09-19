@@ -736,3 +736,24 @@ And match the **split**, not the count: rebuilding "516" from `--base-dirs` yiel
 this tree, so the matched arm's training config pins the split artifact and its sbatch asserts
 `num_datasets == 516` and the 386/96/34 split before a single epoch runs
 (`docs/lineages/corpus_matched_v1.md`).
+
+## Scaling arrivals with servers is not load-matching — sweep the baseline alone first (2026-09-19)
+
+The server ladder held arrivals-per-server at R0's ratio (f4000 at 6 servers → f300 at 80, both
+×13.3) and called the rungs comparable. Reactive's queue share went 63 → 94 → 98 → 99 % and its
+elapsed 22 → 611 s, and for three lineages every 80-server number was read as an arm beating
+reactive by 30–47 %. `unsaturated_scale_v1` S1 then swept reactive *alone* across load at 80
+servers: it is unsaturated only at the **same absolute rate** 6 servers runs at, and at twice
+that rate it is already 95 % queue. Thirteen times the servers had bought the baseline no
+throughput, so the ladder had pushed it 13× past a ceiling that never moved — every "win" was
+"less drowned". At the one healthy 80-server rung nothing learned is separated from it.
+
+**Why:** "load per server" assumes the baseline's capacity scales with servers. Whether it does
+is a property of the baseline (here, most likely the FCFS replica allocator) and has to be
+measured, not assumed; a saturated baseline turns any arm's queue advantage into a headline.
+
+**How to apply:** before reading any arm against a baseline at a new cluster size, run the
+baseline alone across an arrival ladder and select the rung by a rule signed in advance (here:
+smallest factor with queue share ≤ 0.80). A rung where the baseline is ≥ 90 % queue is read
+relative-only and labelled saturated, never as "faster than". 24 reactive arms, ~40 s each,
+would have reframed three lineages.
