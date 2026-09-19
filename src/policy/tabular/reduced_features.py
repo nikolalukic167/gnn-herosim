@@ -272,6 +272,32 @@ PARTIAL_STATE_V3_FEATURE_DIM = (
 )
 DIM63CRK_FEATURE_DIM = DIM25CR_FEATURE_DIM + PARTIAL_STATE_FEATURE_DIM
 DIM63CRK_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM63CRK_FEATURE_DIM)]
+# dim47crk (2026-09-19, docs/lineages/pointwise_baseline_v1.md): the SAME layout under
+# partial_state_v3 -- dim25cr (25) + the v3 block (22). It exists because the MLP became an arm
+# of the v3 lineages: every graph-vs-pointwise number in this programme had been measured
+# against the GNN's own MP-OFF twin, and comparing against the real pointwise model class
+# requires it to read the same representation the graph arms read.
+#
+# It is a SEPARATE NAME, not a widening of dim63crk, and that is the whole safety argument: a
+# checkpoint declares `inference_feature_layout`, so a v2 checkpoint can never be served v3
+# features or the reverse -- the mismatch is a name mismatch and fails loudly. v1/v2 keep
+# returning dim63crk with byte-identical widths and columns.
+DIM47CRK_FEATURE_DIM = DIM25CR_FEATURE_DIM + PARTIAL_STATE_V3_FEATURE_DIM
+DIM47CRK_FEATURE_COLUMN_NAMES = [f"x_{i}" for i in range(DIM47CRK_FEATURE_DIM)]
+
+
+def partial_state_mlp_layout(contract: Optional[str] = None):
+    """(feature dim, column names, layout name) for the MLP partial-state layout.
+
+    One definition, contract-driven, so the two layouts cannot drift apart. The block itself
+    is already contract-aware (`partial_state_columns` allocates
+    `partial_state_feature_dim(ctx.contract)` and branches on the krank encoding); this is the
+    only place that had the v1/v2 total wired in as a constant.
+    """
+    c = resolve_partial_state_contract(contract)
+    if c in KRANK_ONEHOT_CONTRACTS:
+        return DIM63CRK_FEATURE_DIM, DIM63CRK_FEATURE_COLUMN_NAMES, "dim63crk"
+    return DIM47CRK_FEATURE_DIM, DIM47CRK_FEATURE_COLUMN_NAMES, "dim47crk"
 _PARTIAL_STATE_EPS = 1e-12  # the scorer's feasibility EPS, kept in agreement
 
 # Contract versioning, the queue_features.py pattern: a checkpoint's sidecar declares
@@ -645,14 +671,12 @@ def _batch_edge_feature_dims(
                     "dim63crk is dim25cr + partial state; partial_state=True "
                     "requires candidate_relative=True"
                 )
-            if resolve_partial_state_contract() not in KRANK_ONEHOT_CONTRACTS:
-                # The MLP layout is defined on the 38-column block; partial_state_v3 is a
-                # GNN edge contract and the MLP is not an arm of that lineage.
-                raise ValueError(
-                    "dim63crk is defined on the partial_state_v1/v2 block (38 columns); "
-                    f"{resolve_partial_state_contract()} has no MLP layout"
-                )
-            return DIM63CRK_FEATURE_DIM, DIM63CRK_FEATURE_COLUMN_NAMES, "dim63crk"
+            # v1/v2 -> dim63crk (38-column block), v3 -> dim47crk (22-column block). Until
+            # 2026-09-19 v3 was refused here, on the stated grounds that "the MLP is not an arm
+            # of that lineage" -- an organisational reason, not a physical one, and
+            # pointwise_baseline_v1 makes the MLP an arm of it. The widths are distinct names,
+            # so nothing that reads a layout string can confuse the two.
+            return partial_state_mlp_layout()
         if candidate_relative:
             return DIM25CR_FEATURE_DIM, DIM25CR_FEATURE_COLUMN_NAMES, "dim25cr"
         return DIM22_FEATURE_DIM, DIM22_FEATURE_COLUMN_NAMES, "dim22"
@@ -1089,6 +1113,7 @@ def validate_dim22_frame(df) -> Dict[str, Any]:
         DIM24_FEATURE_DIM: "dim24",
         DIM25CR_FEATURE_DIM: "dim25cr",
         DIM63CRK_FEATURE_DIM: "dim63crk",
+        DIM47CRK_FEATURE_DIM: "dim47crk",
     }
     if n_feat not in _LAYOUT_BY_WIDTH:
         raise ValueError(
