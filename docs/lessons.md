@@ -757,3 +757,36 @@ baseline alone across an arrival ladder and select the rung by a rule signed in 
 smallest factor with queue share ≤ 0.80). A rung where the baseline is ≥ 90 % queue is read
 relative-only and labelled saturated, never as "faster than". 24 reactive arms, ~40 s each,
 would have reframed three lineages.
+
+## An effect size measured on four environments is not an effect size (2026-09-19)
+
+`unsaturated_scale_v1` read five quantities on 4 environments. `unsaturated_scale_v2` re-read
+the same five, same rung, same checkpoints, same bars, on 16 — and **every one shrank by 4-10x
+while its p-value fell by one to three orders of magnitude**:
+
+| read | 4 environments | 16 environments |
+|---|---|---|
+| `gnnedge0` vs reactive | -6.46 % (p = 0.47) | **-1.62 % (p = 0.0023)** |
+| `peeronly` vs reactive | -7.97 % (p = 0.12) | **-1.23 % (p = 0.0013)** |
+| `gnn` vs reactive | +16.98 % (p = 0.044) | **+2.31 % (p = 0.0052)** |
+| `sum` vs `mean` | +26.69 % (p = 0.039) | **+2.70 % (p = 0.0019)** |
+
+Both halves matter. The **directions all replicated** — no sign flipped, and the mechanism
+(`sum` over a variable-sized neighbourhood) held. The **magnitudes were inflated four- to
+tenfold**, because with 4 environments the checkpoint statistic's sd is 14-29 pp and the median
+of 16 draws from that is dominated by whichever environments happen to be in the set. Here all
+four happened to be the same arrival window, and the burstiest one.
+
+**Why:** a small environment set does not merely widen the interval around a stable point
+estimate — on this apparatus the point estimate itself is a function of the set, because
+(checkpoint x environment) interaction is *all* of the variance and none of it is a stable
+per-checkpoint quality. A significant result from a 4-environment read is evidence of a
+direction and says almost nothing about a size.
+
+**How to apply:** quote a direction from a small design and a magnitude only from a large one;
+size the environment count from a measured sd before believing any effect size (the sd scales
+as 1/sqrt(n_environments), so the arithmetic is one line); and put a **design-validation bar**
+in the registration — the delivered sd against a projected one — so that "the design did not
+buy the power it was built for" is a signed outcome rather than a later apology. This is
+`docs/lessons.md`'s "never quote a 4-checkpoint number" again, one level up: the same failure
+recurs on every axis that is sampled rather than enumerated.

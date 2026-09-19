@@ -214,7 +214,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             ap.error("study needs study_dir")
         res = report_study(a.screen_dir, a.study_dir)
     if a.json:
-        json.dump(res, open(a.json, "w"), indent=1, default=str)
+        # Environment keys are (topology, window) tuples, which json refuses. Stringify keys
+        # rather than dropping them -- the map of which environment was admissible is the M0
+        # record, not a debug aid.
+        def _keys(o):
+            if isinstance(o, dict):
+                return {("_".join(map(str, k)) if isinstance(k, tuple) else str(k)): _keys(v)
+                        for k, v in o.items()}
+            if isinstance(o, (list, tuple)):
+                return [_keys(v) for v in o]
+            return o
+        json.dump(_keys(res), open(a.json, "w"), indent=1, default=str)
     return 0
 
 
