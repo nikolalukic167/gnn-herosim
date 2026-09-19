@@ -1,11 +1,51 @@
 # corpus_matched_v1 — is the graph arm's win a model class, or a corpus?
 
-**Status:** `ACTIVE` (2026-09-18) — **G2 `MODEL-CLASS-EDGE-SURVIVES-MATCHING`, G3 `CONFOUND-IS-MATERIAL` at all three rungs.** With the corpus held fixed at 1,670 the graph arm beats the pointwise arm at 40 clients (−31.65 %, 16/16) and 80 (−17.12 %) and is NOT behind at 20 — `best_arm_v1`'s only pointwise win was a corpus effect, and its corpus clause is discharged. The 516 row (H) is training.
+**Status:** `CLOSED` (2026-09-18) — **`MODEL-CLASS-EDGE-IS-CORPUS-CONTINGENT`.** Closed on a
+live gate across the unsaturated client ladder (rule 6). Registered 2026-09-18; every bar below
+was signed before its data, as a module constant in `scripts_cosim/corpus_matched_v1_read.py`
+committed with its 14 tests before the reader was pointed at a results directory.
 
-Registered 2026-09-18; every bar below was signed before its data. Each is a module constant in
-`scripts_cosim/corpus_matched_v1_read.py`, committed with its tests
-(`scripts_cosim/test_corpus_matched_v1_read.py`, 14) before the reader was ever pointed at the
-results directory.
+**Outcome. `best_arm_v1`'s corpus clause is discharged — and replaced by a narrower one.** With
+the corpus held fixed at **1,670**, the graph arm beats the pointwise arm at 40 clients
+(**−31.65 %, 16/16**) and 80 (**−17.12 %, 14/16**) and is **not behind at 20** (−0.73 %,
+p = 0.88) ⇒ **G2 `MODEL-CLASS-EDGE-SURVIVES-MATCHING`**. Held fixed at **516**, the same
+contrast wins only at 40 clients (−10.78 %, 12/16) and ties elsewhere ⇒ **H2
+`MATCHED-EDGE-NOT-ESTABLISHED`**. The two disagree, so **G4 `MODEL-CLASS-EDGE-IS-CORPUS-
+CONTINGENT`: name the corpus in every quote of either.**
+
+**The finding that changes a reading: `best_arm_v1`'s only pointwise win was a corpus effect.**
+F1 compared `gnnedge0` (1,670) with `mpoff_516` (516) and read **+15.71 %** for the pointwise
+arm at 20 clients — the single loss that kept the ladder from overturning CLAUDE.md's pointwise
+clause. **G3** measures the corpus term alone, same architecture: **+18.71 / +23.81 / +8.64 %**
+in favour of 516 at the three rungs, `CONFOUND-IS-MATERIAL` at **all three**. At 20 clients the
+corpus term is larger than the whole F1 gap, and the matched model-class term is −0.73 %.
+(Medians of ratios do not add; this is a decomposition by magnitude and sign, not an identity.)
+
+**What this does NOT do.** It does not overturn `best_arm_v1`'s F2 and is not read as if it did.
+F2 was signed before its data and stands: `mpoff_516` is still the best *arm* the programme has,
+and on the best-arm question the ladder is still split. G2 answers a different question — model
+class at fixed corpus — and the two are complementary, not competing.
+
+**Four clauses, none optional.**
+
+1. **The contrast is the whole message-passing stack, not the bipartite conv.** `mpoff` has
+   *all* message passing off, PeerConv included. That is exactly the contrast F1 made, which is
+   what makes them comparable; `bipartite_edge_v1` D2/D3 is where the conv alone is isolated.
+2. **At 20 clients both arms lose to reactive Knative catastrophically** (+85 % to +96 %, 0/16
+   at every corpus). Both ties there are ties among losers on a rung where nothing the programme
+   has built is deployable.
+3. **At 40 clients the graph arm beats reactive at BOTH corpora** (−20.30 % at 1,670 on 16/16;
+   −16.28 % at 516 on 14/16) while the pointwise arm manages +18.48 % and −7.24 %. That rung is
+   where this effect lives — and it is the rung `bipartite_edge_v1` found the penalty on.
+4. **`CORPUS-DOES-NOT-HELP` is sharper than B1 recorded.** 3.2× the data costs the *pointwise*
+   arm 8.6–23.8 % of live elapsed at every unsaturated rung. Post-hoc and unregistered: it does
+   **not** cost the graph arm the same way (+10.95 % at 20 clients, −16.27 % at 80). Recorded as
+   a hypothesis needing its own registration, not folded in.
+
+**Registered expectation, scored: WRONG on the one bar it predicted.** G2 was registered
+`MATCHED-EDGE-NOT-ESTABLISHED`, on the assumption the 20-client pointwise win would survive
+matching. It did not. G1 at 40/80 and G3 were predicted correctly; H2 and G4 were registered
+UNCERTAIN.
 
 **The question.** `best_arm_v1` closed `BEST-ARM-STILL-NOT-ESTABLISHED` and carried one clause
 its own design could not discharge:
@@ -35,7 +75,7 @@ The H ladder (the 516 graph arm) does need 16 training runs and 192 gate arms.
 |  | **graph arm** (`gnnedge0`) | **pointwise arm** (`mpoff`) |
 |---|---|---|
 | **1,670 datasets** | `be1670_gnnedge0` — served | `1670_mpoff` — served |
-| **516 datasets** | `cm516_gnnedge0` — **to train** | `516_mpoff` (`v3ext`) — served |
+| **516 datasets** | `cm516_gnnedge0` — trained and served here | `516_mpoff` (`v3ext`) — served |
 
 `best_arm_v1`'s F1 read the **off-diagonal**: `be1670_gnnedge0` vs `516_mpoff`. G1 reads the
 top row, H1 the bottom row, and G3 the right-hand column.
@@ -121,6 +161,63 @@ Scored after the read; being wrong is recorded, not rewritten.
 ## Record
 
 *(newest first; appended as the reads land)*
+
+### 2026-09-18 — H1/H2/G4 read: the matched edge does NOT reproduce at 516, so it is corpus-contingent
+
+Live gate, same three rungs, same bars. 16 `cm516_gnnedge0` checkpoints trained (job 788005,
+16/16 COMPLETED) and 192 gate arms served (64 at R0, 128 on the client axis, all COMPLETED).
+
+**H1 — `cm516_gnnedge0` vs `516_mpoff`, both trained on 516 datasets.**
+
+| rung | H1 | median | p | ahead | vs reactive: graph / pointwise |
+|---|---|---|---|---|---|
+| 20 clients | `NOT-SEPARATED` | +3.00 % | 0.4691 | 7/16 | +84.97 % / +69.34 %, both 0/16 |
+| 40 clients | **`GRAPH-FASTER-AT-MATCHED-CORPUS`** | **−10.78 %** | 0.0229 | 12/16 | **−16.28 %** (14/16) / −7.24 % |
+| 80 clients | `NOT-SEPARATED` | −2.56 % | 0.4380 | 9/16 | −3.00 % / −4.84 % |
+
+**H2 `MATCHED-EDGE-NOT-ESTABLISHED`** — one win, no losses. The ladder is split, not lost: the
+40-client win is real under a registered bar and the graph arm is behind at no rung.
+
+**G4 `MODEL-CLASS-EDGE-IS-CORPUS-CONTINGENT`.** G2 read `MODEL-CLASS-EDGE-SURVIVES-MATCHING` at
+1,670 and H2 reads `MATCHED-EDGE-NOT-ESTABLISHED` at 516. **Signed consequence 6 fires: this is
+a scope limit, and every future quote of either must name the corpus.** Descriptive on two
+corpora — it moved, which is not a model of *how* it moves.
+
+**The 2×2, complete** (median %, negative = the row-arm faster; unsaturated client rungs):
+
+| | 20 clients | 40 clients | 80 clients |
+|---|---|---|---|
+| **graph vs pointwise @ 1,670** (G1) | −0.73 (tie) | **−31.65** | **−17.12** |
+| **graph vs pointwise @ 516** (H1) | +3.00 (tie) | **−10.78** | −2.56 (tie) |
+| **pointwise: 1,670 vs 516** (G3) | **+18.71** | **+23.81** | **+8.64** |
+
+**Post-hoc, NOT a registered bar: the fourth edge.** G3 registered the pointwise arm across
+corpora; its mirror — the *graph* arm across corpora — was not signed and is computed here only
+because H2 came in weaker than G2 and the question is unavoidable. `gnnedge0_1670` vs
+`gnnedge0_516`: **+10.95 % (3/16, p = 0.0151) at 20 clients, −3.74 % (tie) at 40, −16.27 %
+(12/16, p = 0.0097) at 80.** So the corpus that costs the pointwise arm 8.6–23.8 % at *every*
+rung **helps** the graph arm at the top rung and hurts it at the bottom one. That is a
+coherent-sounding story — more data pays only where there is more load to reason about — and it
+is exactly the kind of story that has failed five registered tests in this programme already.
+**It is recorded as a hypothesis needing its own registration, not folded in.**
+
+**Verification.** `cm516_gnnedge0` and `be1670_gnnedge0` are the same architecture and the same
+flags, differing only in training corpus, and both are weight-invisible in the ways that matter
+— so before believing any of the above: **0 of 192 (cell, seed) pairs read identically across
+the two corpora.** The new per-corpus split-sha pin fired on every one of the 192 arms
+(`corpus=cm516 ... ck=models/corpus-matched-v1-516-gnnedge0-lr2e3-seed1.pt` in the task logs).
+
+**Registered expectations, scored.** H2 and G4 were both registered UNCERTAIN, so neither is
+right or wrong. The one scored prediction of this lineage, G2, was **wrong** (recorded above).
+
+**Two clauses.**
+
+1. **The 40-client rung is the only one where the graph arm wins at both corpora.** It is also
+   the rung where `bipartite_edge_v1` D1 found the bipartite penalty and where the repaired arm
+   beats reactive by −20.3 %. Whatever this effect is, that rung is where it lives.
+2. **At 516 the graph arm beats reactive at 40 clients (−16.28 %, 14/16) while its matched
+   pointwise twin manages −7.24 %** — so even where the *pairwise* contrast is not established
+   as a ladder, the graph arm is the better of the two against the baseline at that rung.
 
 ### 2026-09-18 — G1/G2/G3 read: `MODEL-CLASS-EDGE-SURVIVES-MATCHING`, and the confound was material at every rung
 
