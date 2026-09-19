@@ -97,3 +97,23 @@ def test_serving_still_refuses_a_cross_contract_checkpoint():
     with pytest.raises(PartialStateContractMismatchError):
         require_matching_partial_state_contract(None, V3, model_label="mlp")
     require_matching_partial_state_contract(V3, V3, model_label="mlp")
+
+
+def test_the_b2_ablation_width_is_contract_driven():
+    """The ablation zeroes the LAST n columns, so n must be the contract's own block width.
+
+    Until 2026-09-19 the MLP trainer passed the v1/v2 constant 38. On a dim47crk arm (47 =
+    25 + 22) that zeroes the 22-column partial-state block AND 16 columns of dim25cr
+    underneath it, reporting the result as the registered B2 quantity -- a different
+    measurement than the one named, inflated in the direction that makes any arm look more
+    partial-state-dependent than it is.
+    """
+    import inspect
+
+    from src.policy.tabular import train_mlp_dim22_from_batch as tr
+
+    src = inspect.getsource(tr)
+    assert "ps_width = partial_state_feature_dim(partial_state_contract)" in src
+    assert "device, ps_width" in src
+    # and the widths it resolves to are the contract's, not a constant
+    assert partial_state_feature_dim(V2) == 38 and partial_state_feature_dim(V3) == 22

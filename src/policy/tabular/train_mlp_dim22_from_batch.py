@@ -54,6 +54,7 @@ from src.policy.tabular.reduced_features import (
     DIM47CRK_FEATURE_DIM,
     DIM63CRK_FEATURE_DIM,
     PARTIAL_STATE_FEATURE_DIM,
+    partial_state_feature_dim,
     validate_partial_state_contract,
     dim22_rows_to_dataframe,
     extract_rows_dim22_from_batch_graph,
@@ -505,15 +506,22 @@ def main() -> None:
     cr_ablation_change = None
     partial_state_ablation_change = None
     if partial_state:
-        # B2's registered ablation gate: zeroing the 38 partial-state/krank/linkrank
-        # columns (the LAST 38 of dim63crk) must move >= 5% of held-out argmaxes,
-        # else the arm is VOID as not-actually-T1. The number is recorded in the
-        # sidecar; the VOID reading is applied by the gate, not silently here.
+        # B2's registered ablation gate: zeroing the partial-state/krank/linkrank columns
+        # (the LAST block of the layout) must move >= 5% of held-out argmaxes, else the arm
+        # is VOID as not-actually-T1. The number is recorded in the sidecar; the VOID
+        # reading is applied by the gate, not silently here.
+        #
+        # The WIDTH IS CONTRACT-DRIVEN, and was not until 2026-09-19: it was the v1/v2
+        # constant 38. On a dim47crk arm (partial_state_v3, 47 = 25 + 22) zeroing the last 38
+        # zeroes the 22-column partial-state block AND 16 columns of dim25cr underneath it,
+        # so the gate measured a different quantity than the one it reports -- inflating it,
+        # in the direction that makes any arm look more partial-state-dependent than it is.
+        ps_width = partial_state_feature_dim(partial_state_contract)
         partial_state_ablation_change = candidate_relative_ablation_change(
-            model, test_set, device, PARTIAL_STATE_FEATURE_DIM
+            model, test_set, device, ps_width
         )
         print(
-            f"[MLP batch] B2 ABLATION GATE — zeroing the {PARTIAL_STATE_FEATURE_DIM} "
+            f"[MLP batch] B2 ABLATION GATE — zeroing the {ps_width} "
             f"partial-state/krank/linkrank columns moves "
             f"{partial_state_ablation_change:.1%} of held-out argmaxes "
             f"(registered threshold: >= 5%, else VOID as not-actually-T1)",

@@ -111,8 +111,11 @@ python3 - "$CK" "$SPLIT" <<'EOF2'
 import hashlib, json, sys
 import torch
 ck = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
+# dim47crk, NOT dim63crk: the v3 block is 22 columns, so the MLP layout is 25 + 22 = 47.
+# The names are distinct on purpose -- `inference_feature_layout` is what stops v2 weights
+# meeting v3 features -- so pinning the wrong one here is exactly the mistake worth failing on.
 want = {"partial_state": True, "partial_state_contract": "partial_state_v3",
-        "peer_mass": True, "inference_feature_layout": "dim63crk"}
+        "peer_mass": True, "inference_feature_layout": "dim47crk"}
 for k, v in want.items():
     if ck.get(k) != v:
         raise SystemExit(f"FAIL LOUD: checkpoint {k}={ck.get(k)!r}, expected {v!r}")
