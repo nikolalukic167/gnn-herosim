@@ -78,32 +78,57 @@ PY
 # --- 2. arrival windows -------------------------------------------------------------------
 # w0 is the existing drainable_f4000_n50000.json (skip 0) and is NOT rebuilt -- runs already
 # depend on it, and --skip-events 0 is byte-identical to how it was built (tested).
-for W in 1 2 3; do
-  SKIP=$(( W * 100000 ))
-  OUT="$GATE/workloads/drainable_f4000_n50000_w${W}.json"
-  if [[ -f "$OUT" ]]; then echo "[skip] exists: $OUT"; continue; fi
-  python3 scripts_cosim/rescale_workload_arrivals.py --workload "$SRC" --factor 4000 \
-    --max-events 50000 --skip-events "$SKIP" --group-size 10 --output "$OUT.partial"
-  mv "$OUT.partial" "$OUT"
-done
+#
+# THE FACTOR IS PER WINDOW, and that is not a detail. Measured 2026-09-19: at a common factor
+# of 4000 the windows deliver 0.460 / 0.747 / 0.753 / 0.757 arrivals/s -- window 0, the only
+# window every gate in this programme has ever used, is 1.6x SLOWER than the rest of the trace.
+# Holding the FACTOR fixed would therefore make the window axis a load axis in disguise, and at
+# 0.75/s reactive on 80 servers sits between its 0.66 share at 0.46/s and its 0.955 at 0.92/s --
+# i.e. the comparison would confound arrival pattern with saturation, which is the exact defect
+# unsaturated_scale_v1 exists to have fixed. Each window instead gets the factor that matches
+# w0's REALISED rate, so all four deliver 50,000 tasks at 0.460/s over 30.2 h and the only
+# moving part is the arrival PATTERN.
+python3 - "$SRC" "$GATE/workloads" <<'PY'
+import json, subprocess, sys
+src, wd = sys.argv[1], sys.argv[2]
+w0 = json.load(open(f"{wd}/drainable_f4000_n50000.json"))
+target = float(w0["arrival_rescale"]["rate_after_per_s"])
+print(f"[trace] target rate = w0's realised {target:.6f} arrivals/s")
+ev = json.load(open(src))["events"]
+for w in (1, 2, 3):
+    skip, n = w * 100000, 50000
+    native = ev[skip + n - 1]["timestamp"] - ev[skip]["timestamp"]
+    factor = n / (target * native)
+    out = f"{wd}/drainable_w{w}_n50000.json"
+    print(f"[trace] w{w}: native span {native:.3f} s -> factor {factor:.2f}")
+    subprocess.run([sys.executable, "scripts_cosim/rescale_workload_arrivals.py",
+                    "--workload", src, "--factor", f"{factor:.6f}", "--max-events", str(n),
+                    "--skip-events", str(skip), "--group-size", "10",
+                    "--output", out + ".partial"], check=True)
+    subprocess.run(["mv", out + ".partial", out], check=True)
+PY
 
 python3 - "$GATE/workloads" <<'PY'
 import json, sys
 wd = sys.argv[1]
 base = json.load(open(f"{wd}/drainable_f4000_n50000.json"))
-span0 = base["arrival_rescale"]["span_after_s"]
+target = float(base["arrival_rescale"]["rate_after_per_s"])
 first0 = base["events"][0]["timestamp"]
-seen = [{id(None)}]
 sigs = []
 for w in (0, 1, 2, 3):
-    p = f"{wd}/drainable_f4000_n50000.json" if w == 0 else f"{wd}/drainable_f4000_n50000_w{w}.json"
+    p = f"{wd}/drainable_f4000_n50000.json" if w == 0 else f"{wd}/drainable_w{w}_n50000.json"
     d = json.load(open(p)); r = d["arrival_rescale"]; t = r["truncation"]
     if len(d["events"]) != 50000 or t["max_events"] != 50000:
         raise SystemExit(f"FAIL LOUD: {p} has {len(d['events'])} events, the ladder is n50000")
-    if float(r["factor"]) != 4000.0:
-        raise SystemExit(f"FAIL LOUD: {p} declares factor {r['factor']}, expected 4000")
     if t.get("skip_events", 0) != w * 100000:
         raise SystemExit(f"FAIL LOUD: {p} skip_events={t.get('skip_events', 0)}, expected {w*100000}")
+    # THE bar for this design: every window delivers the SAME arrival RATE, so the window axis
+    # is arrival PATTERN and not load. 0.5 % is well inside the band that separates this rung
+    # (0.46/s, share 0.66) from the next one up (0.92/s, share 0.955).
+    rate = float(r["rate_after_per_s"])
+    if abs(rate / target - 1.0) > 0.005:
+        raise SystemExit(f"FAIL LOUD: {p} delivers {rate:.4f} arrivals/s, w0 delivers "
+                         f"{target:.4f}; the window axis would be a LOAD axis")
     # Every window must START where window 0 starts, or a policy idles through the skipped span.
     if abs(d["events"][0]["timestamp"] - first0) > 1e-6:
         raise SystemExit(f"FAIL LOUD: {p} starts at {d['events'][0]['timestamp']}, w0 starts at {first0}")
@@ -112,12 +137,12 @@ for w in (0, 1, 2, 3):
         raise SystemExit(f"FAIL LOUD: {p} has a peer pair reaching past the window")
     sigs.append(tuple(e["application"]["demand_scale"][next(iter(e["application"]["dag"]))]
                       for e in d["events"][:50]))
-    print(f"[trace] w{w}: {len(d['events'])} events, {r['rate_after_per_s']:.3f} arrivals/s, "
-          f"span {r['span_after_s']:.0f} s ({r['span_after_s']/3600:.1f} h), "
+    print(f"[trace] w{w}: {len(d['events'])} events, factor {float(r['factor']):.1f}, "
+          f"{rate:.4f} arrivals/s, span {r['span_after_s']/3600:.2f} h, "
           f"peer pairs {t['peer_pairs_after']}")
 # The windows must be DIFFERENT arrival data, not four copies of one window.
 if len(set(sigs)) != 4:
     raise SystemExit("FAIL LOUD: two windows carry identical leading events -- not disjoint")
-print("[trace] 4 windows, disjoint, all rebased to a common start")
+print("[trace] 4 windows: disjoint arrival PATTERNS, common start, rate matched to w0")
 PY
 echo "=== mint complete ==="
