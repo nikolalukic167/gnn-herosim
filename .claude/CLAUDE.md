@@ -10,182 +10,107 @@ simulation of a workload trace, and **co-simulation**, which brute-forces every 
 of a task batch to produce brute-force-labelled GNN training data.
 
 **The research question:** does a graph-aware scheduler (GNN) beat a pointwise one (MLP)
-at task placement? Knative is the industry-standard reactive baseline. The MLP exists to
-verify that a simple pointwise model *cannot* match the graph-aware one.
+at task placement? Knative is the industry-standard reactive baseline, and the MLP is the
+pointwise control. **The MLP is a control, not a straw man** — the program's repeated
+finding is that it ties, so treat "the MLP cannot match this" as a hypothesis to test, never
+an assumption to write from.
 
-Three ways to get there, and **which one is live has changed again (2026-08-28)**:
+Three routes to a positive answer. All three have been answered; route 2 was later reopened.
 
-1. Generate co-sim data good enough to train a GNN that beats Knative and MLP on latency.
-   **Closed by measurement** — see `program_verdict_v1`. The co-sim target is
-   pointwise-separable, so the MLP is the *correctly specified* model class and no amount
-   of training data changes that. Do not restart this without reading that node.
-2. **Change the environment** so exploitable joint structure exists
-   (`route_b_env_pivot_v1`, chosen 2026-08-27 after route B stage 2 returned
-   NO-GO-PREPROBE). **PARKED 2026-08-28** — the screen could not measure S0 on its
-   overlap rungs, and even a pass would feed the objective option 1 closed. Resuming
-   needs a signed amendment in its node. **Reopened on paper 2026-09-08 and killed the same
-   day** — `dag_fabric_contention_v1` (the one untried non-node-indexed lever: DAG *output*
-   payloads over the contended link fabric) is NO-GO before any code: the α=2.0 optimum carries
-   zero link wait in 98–100% of 204 datasets, so the label never sees the mechanism. Read that
-   node before proposing any contention physics; node-indexed CPU/memory contention is closed
-   by the count theorem it cites.
-   **Reopened 2026-09-10 via `peer_affinity_v1` (paper screen GO):** a cost indexed by *pairs of task
-   instances* (continuous exchange volumes, no commit order) under a binding cap is neither node-indexed
-   (the count theorem does not apply — measured: count repair 0.31 in the GO cell) nor routable-around,
-   uses no solver labels and no bandwidth/core tuning, so it violates none of the neighbouring stops.
-   Read that node before touching the environment again.
+1. **Generate better co-sim data** so a GNN beats Knative and the MLP on latency.
+   **Closed by measurement** (`program_verdict_v1`): the co-sim target is
+   pointwise-separable, so the MLP is the *correctly specified* model class and more data
+   cannot change that. Do not restart without reading that node.
+2. **Change the environment** so exploitable joint structure exists. `route_b_env_pivot_v1`
+   is `PARKED` (it could not measure S0 on its overlap rungs). **Currently reopened** via
+   `peer_affinity_v1`: a cost indexed by *pairs of task instances* under a binding cap is
+   neither node-indexed nor routable-around, so it clears the neighbouring stops. Before
+   proposing any contention physics, read that node and `dag_fabric_contention_v1` — the
+   one untried non-node-indexed lever, DAG output over the link fabric, is NO-GO before any
+   code, and node-indexed CPU/memory contention is closed by the count theorem it cites.
 3. **Change the training objective, not the environment** (`objective_pivot_v1`).
-   **CLOSED 2026-09-03 — and with it, all three routes are answered.** Phase 1 PASSED (the
-   GNN's reliability edge, scope-limited to severe collapse). Phase 2 CLOSED (horizon
-   labels fired every bar and turned out to be deterministic chaos). **Phase 3
-   MEASURED-NEGATIVE at n = 120**: closed-loop policy gradient against the live simulator
-   does not improve on the supervised checkpoint (paired median −0.85%, p = 0.928,
-   powered — 3% would have been visible). Do not restart it without reading that node.
+   **CLOSED 2026-09-03.** Phase 1 PASSED (reliability, scope-limited to severe collapse),
+   Phase 2 CLOSED (horizon labels are deterministic chaos), Phase 3 MEASURED-NEGATIVE at
+   n = 120 (closed-loop policy gradient does not beat the supervised checkpoint; −0.85%,
+   p = 0.928, powered). Do not restart without reading that node.
 
-**Where that leaves the research question (2026-09-04).** The GNN beats Knative (−44.8%
-on a held-out fabric) — but so does an MLP trained on the same corpus. Both model-class
-edges over the MLP fell to corpus matching: latency ties (`link_mp_v1`, 2026-09-03) and
-the Phase 1 reliability edge is not established (`reliability_matched_v1`, p = 0.113,
-87% of the MLP's collapse burden was the corpus). **No unconfounded GNN-vs-MLP claim existed
-on the option-1/route-B corpora; any such number must name both arms' training cache.** (Superseded
-for `peer_affinity_v1` only, 2026-09-11 — see the 2026-09-11 paragraph below.) The corpus is
-the largest measured lever (~13 pp). Two narrow findings survive: a **trainability
-asymmetry** (the closed loop moves the GNN 150× more than the MLP — optimisation, never
-latency) and, on the route B DAG corpus, a **fit-ceiling split** (converged, the GNN fits
-4–10× better than pointwise and still loses held-out; `route_b_v1`). **Measured to 5× the
-data 2026-09-07 (Phase 2, 1020 training DAGs, 204 held-out): the registered last-epoch read
-(GAP-PERSISTS, p=0.039, "no-MP generalizes best") was a checkpoint-selection artifact —
-MP-ON overfits from epoch ~60 and was compared against a val-selected MLP. Fixed the
-trainer's censored val metric and fully retrained both arms 8 seeds each: the honest-selector
-contrast is a TIE (median +0.04pp, p=0.25), confirming the earlier accidental finding was not
-a fluke. Both GNN arms now beat the MLP baseline.** Corpus size is not the
-lever there either. The target has ~23% joint variance, all of it pairwise
-parent→child co-location that every arm already sees through the prefix columns, so message
-passing is redundant, not starved; the live path cannot serve DAG checkpoints, but a frozen-
-substrate replay gate shows the no-MP planner beating reactive Knative by ~1–3% (`route_b_v1`).
+Options 1 and 2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep the
+numbering. What a GNN needs to have anything to learn from a *supervised* target is
+**multi-task placements under contention**: route A proved coupling alone is not enough, and
+route B proved contention alone is not enough either, which is why option 3 changed the
+objective instead.
 
-**2026-09-09 — the question was declared answered. 2026-09-11 — it is REOPENED, with a measured
-positive.** `docs/lineages/throughline.md` (last section) states why a graph-reasoning win looked
-unavailable on this simulator's supervised targets by construction, that the MP-OFF "GNN" is itself
-a two-tower pointwise scorer, and the three things that would change the answer. **One of them
-happened.** On `peer_affinity_v1` — an environment purpose-built so the cost is indexed by *pairs of
-task instances* rather than by machines — message passing beats its own MP-OFF twin by **+5.14 pp
-(p = 0.001, 13/16 seeds)** at 482 training datasets. Same architecture, features, decoder, selector
-and seeds; the only difference is whether `PeerConv` runs. At 136 datasets the same contrast read
-+2.08 pp, p = 0.15, and was written up as "message passing is not the lever" — **that was corpus
-size, not architecture** (3.5× data buys the MP arm −5.09 pp against the MP-OFF arm's −2.43 pp).
+**Where the research question stands (rewritten 2026-09-19).**
 
-**2026-09-12 — that win is OFFLINE ONLY, and it REVERSES live.** Do not quote it as a claim about a
-served scheduler. On matched 450,729-task production traces, 16 seeds per arm, with a live path proven
-bit-identical to the offline evaluator on 34/34 held-out datasets, `gnn` − `mpoff` reads **+5.14 / +6.53 /
-+9.61 pp offline** and **+2.37 / −4.42 / −10.67 % live** across the three corpora ordered by peer-graph
-density. The two venues are **anti-correlated and monotone**: every increment that makes message passing
-look better on the supervised target makes it worse on the stream, and the live column crosses zero between
-rung 1 and rung 2 (so the old "direction but not significance" caveat was the last point before a sign
-flip). The live peer term inverts too — the MP-OFF twin carries *less* peer-exchange time on the stream,
-i.e. the graph arm is worse at its own objective when served. Three explanations were registered in advance
-and all failed (`serving_gap_v1`, `serving_gap_v2`, both CLOSED NO-GO): it is not herding (it spreads
-*more*), not queue blindness (it is **3–7× more** load-responsive, p < 1e-4), and group splitting fires on
-only 1 of the 2 corpora required. **The reversal is measured and unexplained, and no measurement in this
-program has a graph arm beating both its pointwise twin and reactive Knative.** The one deployable result
-of the arc is a **serving** fix: a per-platform cap in the masked decoder (`GNN_PREFIX_PLATFORM_CAP=1`,
-default off) takes the graph arm from −1.5 % to **+21.9 % vs reactive Knative, 16/16 seeds, p = 3.1e-05**,
-and helps the pointwise twin about as much.
+**A bipartite message-passing arm beats reactive Knative at an UNSATURATED rung by −20.8 %
+(15/16), and beats its corpus-matched pointwise twin — but its own attribute-zeroed control
+matches it, and the matched win does not reproduce on the smaller corpus.** All of that is the
+standing answer; quoting one part alone misreports it. Everything below qualifies them.
 
-**2026-09-13 — BOTH of those live headlines are CONTINGENT ON THE CLUSTER'S PLATFORM MIX; do not quote either
-without naming it.** Audit finding: the live candidate set contains `xavierGpu`, a platform type that is a
-candidate in **0 of 516** training datasets — the corpus *has* the platform rows, the autoscaler just never
-makes one a replica before the co-sim state is captured. Identical for every arm and seed on all three
-corpora: **7.60 %** of live candidates and **46.4 %** of live node caps lie outside anything the corpus
-contains, because `node_caps = α × max candidate demand on the node` and the GPU demand is 1.739 against a
-corpus maximum of 0.213 — one such candidate inflates a node's cap ~8× and the capacity mask, the decoder's
-only concentration control, **cannot bind in 17 of 23 live batches** (5/23 restricted). Re-running the capped
-gate with that type removed from every arm (102 arms, all completed): **the offline/live reversal
-disappears** — x800 p3 goes from POINTWISE-BETTER (−10.67 %, p = 0.018) to a **TIE** (−0.28 %), x800 p2 from
-−4.42 % to +2.58 %, and x200 p2 becomes the first **GNN-NEEDED live** reading in the program (+3.94 %,
-p = 0.0076, 13/16) — **and the +21.9 % over Knative reverses with it**: `gnn` vs Knative goes
-+21.9 / +20.6 / +12.9 % to **−14.0 / −10.9 / −15.9 %, 0/16 seeds**, because removing the type costs Knative
-~6 % and the concentrating graph arm ~55 %. The registered hypothesis that this *is* the reversal's mechanism
-is recorded **CONFOUNDED, not fired** — its own control moved the wrong way. Two separate things are true:
-the reversal and the cap's win are both real on the cluster they were measured on, and **neither survives a
-cluster with one fewer platform type.** Still no measurement where a graph arm beats both its twin and
-Knative. Also qualified by this audit: the live queue column is ~300× out of its trained range and
-non-monotone (`legacy_v0`; the offline MP edge is not significant at live queue magnitudes on any corpus),
-and the cap's +21.9 % is a **mean-latency** win — makespan is −12.25 % vs Knative on x200 p2 with 1/16 seeds
-finishing sooner.
+- **The peer measurement** (`peer_only_v1`, 16 checkpoints throughout). `peeronly` (PeerConv
+  kept, the bipartite GIN removed) beats its MP-OFF twin at **every** operating point tested
+  (−4.6 to −21.9 % across 6/12/24/80 servers, −14.1 to −22.6 % across 20/40/80 clients) and
+  beats reactive by −41.5 % at 80 servers and −9.3 % at 80 clients (13/16, p = 0.0097),
+  **unsaturated**. Only message passing differs. **Four clauses, none optional:** the margin is
+  **99 % queue** (the peer term moves 0.66 s of 78 s — *not* evidence peer reasoning pays, A3
+  MECHANISM-NOT-CONFIRMED); **never quote a 4-checkpoint number** (−15.68 % more than halved on
+  16); the client ladder is a **load sweep**, not the dispersion sweep intended; and the win is
+  **not exclusive** — `mpoff_516` beats reactive there too (−7.2 %).
+- **The bipartite penalty is SOLVED, and it was a `sum`** (`peer_only_v1` C1/C2 →
+  `bipartite_edge_v1` D1–D4 → `bipartite_aggr_v1` E1–E3). `peeronly`
+  beat `gnn` by **−18.94 %** at 80 servers and **not at all at 6** (p = 0.61) — an absence that
+  survived five attempts at a mechanism. The cause: `GIN` aggregates with **`sum`**, a task
+  aggregates over its **candidate platforms**, and that set is **3.55/task at 6 servers, 47.92
+  at 80**. Replacing the `GIN` with a mean-aggregating `BipartiteEdgeConv` is worth
+  **−15.72 %** (15/16) at 80 servers; that same conv given the `GIN`'s `sum` **collapses to
+  −5.86 %, n.s.**; and `sum` vs `mean` alone is **+13.26 % (p = 0.0052) at 80 servers, not
+  separated at 6** — the predicted scale-dependence, `SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`.
+  **Edge-conditioning is NOT the reason** (D2: the zeroed-attribute control matches the
+  treatment), nor is MLP shape. **Use `mean` for any bipartite stage over a variable-sized
+  candidate set.** The repaired arm beats reactive by **−20.8 % (15/16) at the UNSATURATED
+  40-client rung** where `gnn` loses by +8.44 %. Carry: the 6-server null is a non-separation,
+  not proof of equality — but it **held at n = 32** and weakened (−6.22 %, p = 0.29).
+- **The best-ARM clause stands; the best-MODEL-CLASS one does not** (`best_arm_v1` →
+  `corpus_matched_v1`). The repaired graph arm vs `mpoff_516`, three
+  unsaturated client rungs: **−14.76 % (16/16) at 40**, −11.32 % at 80, **+15.71 % (3/16,
+  it LOSES) at 20** ⇒ `BEST-ARM-STILL-NOT-ESTABLISHED` — two wins and a loss where the signed
+  rule needed two wins **and none**, so **the arm clause stands.** But **that single loss was a
+  corpus effect.** Matched (same cache, split, seeds; only MP differs) at **1,670**: −31.65 %
+  (16/16) at 40, −17.12 % at 80, **not behind at 20** (−0.73 %, p = 0.88) ⇒
+  `MODEL-CLASS-EDGE-SURVIVES-MATCHING`; at **516**: one win (−10.78 % at 40), two ties ⇒
+  `MODEL-CLASS-EDGE-IS-CORPUS-CONTINGENT`, so **name the corpus in every quote of either.** The
+  confound is large: the same pointwise arm at 1,670 vs 516 reads **+18.71/+23.81/+8.64 %**,
+  `CONFOUND-IS-MATERIAL` at all three rungs. Carry: at 20 clients **every** arm loses to
+  reactive (+69 to +96 %, 0/16), a ranking among losers; `mpoff_516` is a GNN's MP-OFF twin,
+  **not the MLP**; the contrast is the whole MP stack, not the bipartite conv; and
+  `peeronly_1670` still loses to `mpoff_516` **+11.17 %, 0/16** at 80 servers / 20 clients,
+  **B8 SCOPED to saturated rungs**. On the **server** ladder the arms beat reactive only at 24
+  and 80; at 6 all lose.
+- **The offline positive on the supervised target** is `peer_affinity_v1`: message passing
+  beats its MP-OFF twin by **+5.14 pp** (p = 0.001, 13/16 seeds) at 482 datasets, reproduced
+  at **−4.20 pp on 15/16** on the 1,654-dataset corpus under the size-free representation
+  (`peer_only_v1`). Only `PeerConv` differs.
+- **That offline edge does not transfer, and it inverts.** Offline and live are anti-correlated
+  in peer-graph density; it is contingent on one platform type the corpus never contained; and
+  at a defensible load (the gate ran at **940× overload**) it reads **−15.94 %** vs the twin,
+  **−226 %** vs reactive.
+- **Both model-class edges over the MLP fell to corpus matching** — latency (`link_mp_v1`) and
+  reliability (`reliability_matched_v1`, p = 0.113). Corpus is the largest measured lever, and
+  `corpus_matched_v1` shows a matched verdict can itself depend on the level matched at. Any
+  GNN-vs-MLP number must name both arms' training cache.
+- **What survives:** a trainability asymmetry (the closed loop moves the GNN 150× more —
+  optimisation, never latency), a fit-ceiling split on the route B corpus, and one replicated
+  live positive: over the first fifth of a trace the learned arms beat Knative on queue on 3/3
+  cells and all 91 arms (`serving_stability_v1`).
+- **The first whole-trace live win (`partial_state_v3`)** — a size-free rank block (dim 38 → 22,
+  P0 bit-identical) lets 6-server checkpoints serve 12/24/80 and **beat reactive at 80 servers
+  by 28.7 %/46.9 % on 4/4 seeds**, against a registered DEGRADES. Superseded as the headline by
+  the unsaturated results above: those rungs are **saturated** and at 6 servers the arms lose.
 
-**Carry these caveats with any quote of the offline edge**, all in `peer_affinity_v1`'s node: it is at the
-**selected** checkpoint on the x200/x800-p2 rungs (the arms tie at last epoch there; the x800 **p3** rung is
-the one that wins at both selectors, +4.23 pp, p = 0.021); and `gnn`-vs-MLP carries a selector asymmetry
-favouring the GNN, while `gnn`-vs-`mpoff` carries none. Read `docs/lineages/peer_affinity_v1.md` and
-`docs/lineages/throughline.md` (last section) before proposing any new GNN-vs-MLP work — and before quoting
-the 2026-09-04 sentence above, which predates all of this.
-
-**2026-09-13 (later) — the "train on the cluster the model is served on" lever is CLOSED as a supervised
-route** (`peer_affinity_warm_v1`, W0 screen, 100 brute-force-labelled datasets cut from live snapshots of the
-gate cell). The warm cache does carry the served regime the cold corpora never had (`xavierGpu` a candidate
-in 67 % of datasets, queue column max 590 against a cold max of 42), and on it the pointwise-recoverable
-regret of the one-step label is **0.0 % median, 0/100 datasets above 2 %**: the label is the platform's
-queue drain plus per-pair transfers, a sum over (task, placement) terms. No supervised corpus of warm
-states can give message passing an edge by that statistic. **Reopened the same day (Amendment 1): the
-W1 warm corpus, training and live gate run anyway** — rule 6 below; the W0.b NO-GO stands as a
-measurement, the registered W1 bars are unchanged. The reversal-era
-checkpoints sit ~40 % above the sweep optimum on the states they were served on (W0.c). Read that node
-before proposing any corpus built from served states.
-**2026-09-14 — the W1 LIVE gate agreed and went further: `peer_affinity_warm_v1` is CLOSED, NO-WINNING-GNN.**
-Warm corpus 472 + 72 datasets, T1b recipe, 16 seeds per arm, cell_s7901. Offline: `gnn` vs `mpoff` TIE (+0.74 pp,
-p = 0.083). Live, capped: the warm graph arm is **23.9 % slower** than the cold T1b graph arm (0/16 seeds) and
-**10.4 % slower than its own MP-OFF twin** (0/16, p = 3e-05); vs Knative +1.5 %, 9/16. Uncapped: twin −17.2 %
-(1/16). Training on served states did not make message passing transfer; it removed the cap-era win. The one
-positive is pointwise and descriptive: the warm-trained MP-OFF arm beats Knative **without the cap**, +11.3 %,
-16/16 seeds, and finishes sooner (makespan 137.6k s vs 159.2k s) — the first learned arm to do both. That is a
-new registration if pursued; still no measurement where a graph arm beats both its twin and Knative.
-
-**2026-09-14 (later) — `drainable_regime_v1` CLOSED: the whole program was gated at a 940x overload,
-and at a defensible load BOTH learned arms lose to reactive Knative.** The landed `peer_affinity_v1`
-gate runs at **2,659 arrivals/s against a 2.83 tasks/s drain**, so **99.89 % of simulated time falls
-after the last arrival** and the environment's own pair-indexed cost is **0.0098 %** of the number
-being scored. Stretching only the timestamp scale (x4000 -> 0.46 arrivals/s, rho ~ 0.16) puts peer
-exchange at **21.19 %** of `total_rtt`, cool-down at **0.07 %**, and the served dim-7 queue column at
-**p90 = 5** against the cold-corpus max of 42 — **the first live gate in this program whose queue
-column is inside its trained range**, with the decoder's batches carrying 83,788 in-batch peer pairs
-against 10,212 outside. Same T1b checkpoints, same cell, same physics, 16 seeds/arm:
-**`gnn` vs `mpoff` -15.94 %, p = 0.0010, 3/16**; **`gnn` vs `knative_network` -226.04 %, 0/16**;
-`mpoff` -181.22 %, 0/16. **The x200 p2 GNN-NEEDED reading (+3.94 %, 13/16) does not survive the load
-change.** Both learned arms *succeed* at the peer objective — rendezvous wait 47.9 % -> 9.6 % of
-exchange time, a 5x cut — and lose anyway, paying 12.4 s of peer-group batch wait, 3x the queue time
-and ~9x the autoscaler churn; the graph arm's loss to its twin is **queue**, not peers. Also closed:
-`GNN_PREFIX_PLATFORM_CAP=1` **deadlocks** 3/16 seeds in a drainable regime (identical clock at death
-across 24/64/256 GB) and is not a serving default. **Three earlier reads of this gate were confounded
-by policy time constants that did not scale with the workload — reconcile interval, batch poll
-interval, and the batch window twice (the second time because the cell config silently overrode
-`GNN_BATCH_TIMEOUT`).** The -488.78 % figure from the first read is wrong by 30x. **General rule:
-in any rate sweep, scale every policy time constant AND add a control bar that reads the arms' own
-counters to prove the policy still did what its name says.** Never quote a `peer_affinity` live
-number without its load factor. Read `docs/lineages/drainable_regime_v1.md` before proposing any
-re-run at a different arrival rate.
-
-**2026-09-14 (last) — "it's just a batching artifact" was tested and it is NOT** (`drainable_serving_config_v1`,
-CLOSED). Five batch policies on the same trace, cell, T1b checkpoints and 16 seeds, uncapped, with only
-the batch policy varying. **With zero batch wait the graph arm is -1731.86 % against reactive Knative,
-8x worse than the 80 s window it was suspected of being handicapped by** — peer-group batching is most
-of what keeps the learned arms within an order of magnitude of reactive, not a tax they pay.
-**C3 REACTIVE-WINS in all four readable configurations, 0/16 seeds each**; the best (16 s window) still
-leaves both learned arms ~2x slower than `knative_network`. **But it does revise one number: `gnn` vs
-`mpoff` is a function of the window** — -499.81 % (no batching) -> **TIE -4.15 %** (16 s) -> **TIE
--3.13 %** (24 s) -> -16.32 % (80 s). `drainable_regime_v1`'s POINTWISE-BETTER is specific to its 80 s
-window, 3.7x the ~21.7 s a peer group needs; **quote B1 with its window, and TIE is the answer at the
-windows that serve both arms best.** Mechanism: **the graph arm cannot decode singletons** — served one
-task at a time it issues 39,910 scale events against the pointwise twin's 1,767 and carries 467 s of
-queue against 70.7 s, while given a peer group it is indistinguishable from the twin.
-
-(Options 1/2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep them.)
-
-What a GNN needs in order to have anything to learn from a *supervised* target:
-**multi-task placements under contention**. Route A proved coupling alone is not enough —
-breaking separability is necessary but not sufficient; you need contention. And route B
-proved even that is not sufficient for the supervised path — which is why option 3
-changes the objective instead.
+**Before quoting any number from this program**, read the node and carry its caveats. Never
+quote a `peer_affinity` live number without its load factor, nor `peer_only_v1`'s B2 without
+its saturation and the `mpoff_516` comparison, nor any arm comparison without both corpora.
+Start at `docs/lineages/peer_only_v1.md` and `docs/lineages/throughline.md` (last section).
 
 ## Where knowledge lives — READ FIRST
 
@@ -196,35 +121,41 @@ status and a one-line outcome per lineage, each linking to the node with the ful
 | Where | What |
 |---|---|
 | `docs/lineages/<name>.md` | One node per lineage — standing, entry points, datasets, full dated record. Attachments in `docs/lineages/<name>/`. |
-| `docs/lessons.md` | Transferable rules — what generalises past any one lineage. |
+| `docs/lessons.md` | Transferable rules, one `##` section each — what generalises past any one lineage. |
+| `docs/lessons-archive/` | Retired artifact inventories. Off the hot path; **not current practice.** |
 | `docs/hard-stops.md` | Falsified directions + the measurement that closed each. **Check before proposing one.** |
 | `docs/gates/gate-tools.md` | Corrections to the gates themselves, kept out of lineage narratives on purpose. |
 | `docs/notes/` | Design notes on physics/features that outlive a lineage. |
 | `docs/adr/` | Decisions with two live answers (warmth physics, queue contracts, mandatory sweep). |
 | `CONTEXT.md` · `PARITY.md` · `CO_SIMULATION_GUIDE.md` | Vocabulary · cross-venue comparability · co-sim pipeline. |
+| `tests/test_record_hygiene.py` | The checks that hold all of the above. ~2 s, no GPU. |
 
 Statuses: `ACTIVE` · `REGISTERED` (signed off, not run) · `CLOSED` (answered) ·
 `SUPERSEDED` · `FAILED`/`FALSIFIED` · `SYNTHESIS` · `PAPER`.
 
 **One fact, one home.** Before adding a paragraph, find the file that already owns that
-fact and edit it. `LINEAGES.md` reached 4,995 lines because five files narrated the same
-experiments and drifted apart. **Session handovers are ephemeral and never committed** —
-write them to the scratchpad; promote anything still true a week later into a node,
-`docs/lessons.md`, or `docs/gates/gate-tools.md`.
+fact and edit it. This rule has been written down four times and broken four times, so it is
+now a test: run `tests/test_record_hygiene.py`, and use the `close-a-lineage` skill when a
+lineage closes, which is when the drift enters. **Session handovers are ephemeral and never
+committed** — write them to the scratchpad; promote anything still true a week later into a
+node, `docs/lessons.md`, or `docs/gates/gate-tools.md`.
 
 **`archive/` is retired code. Ignore it** unless the user names a lineage. Do not search
 it, import from it, or treat it as current practice. Moved with `git mv` (so
 `git log --follow` works); restore point is tag `pre-cleanup-2026-08`.
 
-## The five rules that exist because they were broken
+## The rules that exist because they were broken
 
 1. **Never import from `archive/`.** The live tree is verified closed against it;
-   `LINEAGES.md` → Conventions carries the re-runnable gate.
+   `tests/test_record_hygiene.py` carries the gate, along with the rest of the record's
+   mechanical checks.
 2. **Never fork a training script per experiment.** That habit produced 40 near-identical
    `train_near_rtt_v2_*.py` differing only in cache dir and wandb name. New experiments get
    a config under `experiments/`, run via `run_experiment.py`.
 3. **A lineage is not done until it has a `LINEAGES.md` row and a `docs/lineages/` node
-   with an outcome.** A result never written down gets re-run months later.
+   with an outcome.** A result never written down gets re-run months later. The row is a
+   status and *one line*; the record is the node. Run the `close-a-lineage` skill when a
+   lineage closes — that is the moment the index, the node header and the stop all drift.
 4. **Fail loudly.** No silent failures, no skipping a failure for convenience. Fix the
    cause.
 5. **Every training run logs to Weights & Biases.** No exceptions.
@@ -304,7 +235,7 @@ sbatch banner.
 
 Before writing an `.sbatch` or submitting, load the `datalab-pitfalls` skill. Before
 comparing two numbers from different machines, read **`PARITY.md`** and run its checks in
-order (`verify_code_identity.py` → `verify_live_infra_parity.py` →
+order (`run_provenance.code` in both result JSONs → `verify_live_infra_parity.py` →
 `verify_venue_parity.py`). **Unknown is not a pass**, and a one-directional cross-venue gap
 is a feature-code bug, not the venue — measured: library versions contribute exactly 0.0 to
 GNN logits.
