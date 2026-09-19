@@ -1,9 +1,42 @@
 # unsaturated_scale_v1 — does a learned arm beat reactive on BIG infrastructure where the baseline is healthy?
 
-**Status:** `REGISTERED` (2026-09-19). Every bar below is a module constant in
-`scripts_cosim/unsaturated_scale_v1_read.py`, committed with its 13 tests before any arm ran.
-Two live steps (rule 6): **S1** the baseline sweep, **S2** the learned arms at the rung S1
-selects.
+**Status:** `CLOSED` (2026-09-19) — **`NO-LEARNED-ARM-BEATS-REACTIVE-AT-UNSATURATED-SCALE`.**
+Closed on a live gate (rule 6): 320 arms, 16 checkpoints × 4 cells × 5 arms. Registered
+2026-09-19; every bar below is a module constant in `scripts_cosim/unsaturated_scale_v1_read.py`,
+committed with its 13 tests before any arm ran. The registered expectation was **wrong**.
+
+**Outcome — two findings, the first about the baseline.**
+
+1. **Reactive Knative's capacity does not grow with the cluster** (S1). At 80 servers it is
+   unsaturated only at the *same absolute arrival rate* 6 servers runs at — 0.460/s, queue share
+   0.660 — and at 0.92/s it already reads 0.955. The server ladder held arrivals-per-server
+   constant and thereby pushed the baseline 13× past a throughput ceiling that never moved;
+   **that** is what the 99 % queue shares at R1/R2/R3 were, and why every 80-server "win" in the
+   record (`partial_state_v3` −28.7/−46.9 %, `peer_only_v1` B2 −41.5 %, `bipartite_edge_v1` D1
+   −42.2 %) was "less drowned", never "faster".
+2. **At the one healthy 80-server rung, nothing learned is separated from reactive** (S2, K4).
+   `gnnedge0` −6.46 % (p = 0.47, 9/16), `peeronly` −7.97 % (p = 0.12, 13/16), `mpoff_1670`
+   −0.21 %, `mpoff_516` −0.20 %: all `NOT-SEPARATED`. The proper GNN **loses**, +16.98 %
+   (p = 0.044). K2 (graph vs matched twin) −6.10 %, not separated. **K3 fired as predicted:**
+   `sum` costs **+26.69 % (p = 0.039)** — `bipartite_aggr_v1`'s mechanism confirmed at a second
+   operating point, one where the baseline is healthy.
+
+**The cause is the batching tax, and it is a function of arrival rate, not cluster size.**
+Every learned arm pays **6.82 s of batch-assembly wait** per task that reactive pays 0.00 for —
+the same 6.77 s R0 pays, because the healthy 80-server rung runs at R0's arrival rate. The arms
+win ~6 s of queue (11.2 vs 17.3 s) and give it all back on assembly; per checkpoint that nets
+out as a coin flip (roughly half the checkpoints beat reactive by 6–13 %, the other half lose
+by 14–130 %). A size-free representation and a mean aggregation got the model *to* 80 servers;
+the serving design is what keeps it from winning there.
+
+**Carry.** (a) These are 6-server checkpoints served 9.58× out of candidate support
+(`cluster_scale_v1`); the result closes "the existing checkpoints on big infrastructure", not
+"a GNN trained at scale", for which no data generator exists. (b) `peeronly` at 13/16 ahead
+with a −8 % median is the closest thing to a signal and is **not** quotable as one: the three
+losing checkpoints lose by +10 / +50 / +95 %. (c) `f1000` on `cs80s9001` hung (starved-client
+spin) and was cancelled; it could not have been selected. (d) The reactive cells vary 20.5–46.3 s
+at this rung, so the per-cell picture is uneven (`gnnedge0` wins 3 of 4 cells by 8–18 %, loses
+`cs80s9001` by 6.7 %); the registered unit is the checkpoint and the read is what stands.
 
 **Why this lineage exists.** The record has no unsaturated big-infrastructure measurement.
 The server ladder scales arrivals with servers — R0 is 6 servers at `f4000` (0.460/s), R3 is 80
@@ -22,10 +55,11 @@ at 80 servers against a corpus maximum of 5, **9.58× out of support at any load
 
 **Entry points.** Bars and readers: `scripts_cosim/unsaturated_scale_v1_read.py`, tests in
 `scripts_cosim/test_unsaturated_scale_v1_read.py`. S1 gate:
-`scripts_cosim/datalab/unsaturated_scale_v1_s1.sbatch` → `results/us_v1/`. S2 will be
-appended to `scripts_cosim/datalab/peer_only_v1_gate.sbatch` as a new rung index, so that it
-shares the cells, checkpoints, sidecar pins and summary schema of every arm it is compared
-against (the D/E/F/H precedent) → `results/po_v1/` with rung tag `U80`.
+`scripts_cosim/datalab/unsaturated_scale_v1_s1.sbatch` → `results/us_v1/`. S2 is rung index 4
+(`U80`) of `scripts_cosim/datalab/peer_only_v1_gate.sbatch`, tasks 1364–1683, so that it shares
+the cells, checkpoints, sidecar pins and summary schema of every arm it is compared against
+(the D/E/F/H precedent) → `results/po_v1/`. Gate read:
+`scripts_cosim/unsaturated_scale_v1_gate_read.py s2 ... --factor 4000`.
 
 ## Registration — 2026-09-19
 
@@ -138,3 +172,67 @@ Task 8 of 24 cancelled (789464_8); 23 completed, every one at `num_tasks = 50000
 
 **S2 submitted** at `f4000`: `peer_only_v1_gate.sbatch` tasks 1364–1683, rung index 4 (`U80`),
 in seven blocks of ≤ 48 via `PO_TASK_OFFSET`.
+
+## 2026-09-19 — S2: **`NO-LEARNED-ARM-BEATS-REACTIVE-AT-UNSATURATED-SCALE`** — the registered expectation was wrong
+
+Jobs 789489 / 789539 / 789588 / 789639 / 789687 / 789743 / 789795, 320 arms, all COMPLETED,
+every one at `num_tasks = 50000` on `drainable_f4000_n50000`, 0 failures. Wall ~3.5 min per arm.
+Reactive at this rung (from S1): 23.27 / 29.14 / 46.33 / 20.54 s per cell, median **26.21 s**,
+queue 17.30 s, batch wait 0.00 s, queue share 0.660.
+
+**K1 — each arm vs reactive**, one value per checkpoint (median over 4 cells), n = 16, paired
+two-sided Wilcoxon, bar |median| ≥ 5 % and p < 0.05:
+
+| arm | median vs reactive | p | ahead | elapsed (median of ck) | verdict |
+|---|---|---|---|---|---|
+| `be1670_gnnedge0` | −6.46 % | 0.469 | 9/16 | 24.51 s | `NOT-SEPARATED` |
+| `1670_peeronly` | −7.97 % | 0.121 | 13/16 | 24.12 s | `NOT-SEPARATED` |
+| `1670_mpoff` | −0.21 % | 0.679 | 9/16 | 26.15 s | `NOT-SEPARATED` |
+| `516_mpoff` | −0.20 % | 0.215 | 8/16 | 26.15 s | `NOT-SEPARATED` |
+| `1670_gnn` | **+16.98 %** | **0.044** | 7/16 | 30.65 s | **`REACTIVE-FASTER-AT-UNSATURATED-SCALE`** |
+
+**K2** `gnnedge0` vs `mpoff` (both 1,670): −6.10 %, p = 0.469, `NOT-SEPARATED`. The −31.65 %
+(16/16) the same contrast reads at 40 clients does not appear here.
+**K3** `gnn` vs `gnnedge0`: **+26.69 %, p = 0.039, `SUM-COSTS-AT-UNSATURATED-SCALE`** — as
+registered. The mechanism (`sum` over ~48 candidates/task) predicted the cost would be there at
+any load, and it is.
+**K4:** `NO-LEARNED-ARM-BEATS-REACTIVE-AT-UNSATURATED-SCALE`, winners none, losers `1670_gnn`,
+nothing missing, primary.
+
+**Registered expectation was wrong.** It said K4 would fire through `gnnedge0` and `peeronly`,
+reasoning from C80 (same queue-share band, −13.5 %) and from assembly wait shrinking with
+arrival rate. The second premise was the error: assembly wait shrinks with arrival *rate*, and
+the healthy 80-server rung runs at R0's rate, so the tax is R0's tax.
+
+**Where the time goes (median s/task over checkpoints).**
+
+| arm | elapsed | queue | batch wait |
+|---|---|---|---|
+| reactive | 26.21 | 17.30 | **0.00** |
+| `gnnedge0` | 24.51 | 11.20 | 6.83 |
+| `peeronly` | 24.12 | 10.90 | 6.82 |
+| `mpoff` (1670) | 26.15 | 12.96 | 6.82 |
+| `mpoff` (516) | 26.15 | 12.88 | 6.82 |
+| `gnn` | 30.65 | 17.44 | 6.81 |
+
+Every learned arm wins queue by 4–6 s and pays 6.8 s of assembly; `gnn` does not even win
+queue. The 6.8 s is R0's 6.77 s (`peer_only_v1` B5 decomposition) to within 0.1 s.
+
+**The distribution is bimodal, per checkpoint** (sorted relative elapsed vs reactive, %):
+`gnnedge0` −13 −12 −11 −11 −10 −9 −9 −7 −6 | 0 +14 +23 +25 +30 +30 +73;
+`peeronly` −13 −12 −12 −12 −12 −10 −10 −8 −7 −7 −7 −4 −1 | +10 +50 +95;
+`gnn` −11 −9 −8 −8 −7 −7 0 | +11 +23 +24 +46 +46 +65 +74 +85 +132.
+The losing tail is mostly `cs80s9003` (reactive 46.33 s there; `peeronly` 72.69 s and `mpoff`
+84.36 s per-cell medians). This is the training-draw lottery the record already knows
+(`docs/lessons.md`), at a rung where nothing masks it.
+
+**Descriptive, per cell** (median over 16 checkpoints, vs reactive on the same cell):
+`gnnedge0` +6.7 / −17.6 / −16.2 / −8.2 %; `peeronly` −1.0 / −17.2 / +56.9 / −9.2 %;
+`mpoff_1670` +8.7 / −8.2 / +82.1 / −3.9 %; `mpoff_516` +4.5 / −13.8 / −10.7 / −7.4 %;
+`gnn` +44.8 / −11.9 / +0.7 / −4.2 %. Cells are not the unit; this is context only.
+
+**What closes and what does not.** Closed: "the existing checkpoints beat reactive on big
+infrastructure" — at the one 80-server rung where reactive is healthy, they do not, and the
+proper GNN loses. Not closed: a model trained at scale (no generator), and a serving design
+that does not wait for a batch — the 6.8 s is the whole margin and it is a design choice, not
+a model property (`queue_range_v1` already found the same term deciding a 6-server cell).
