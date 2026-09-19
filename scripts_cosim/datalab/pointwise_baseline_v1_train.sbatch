@@ -68,7 +68,12 @@ if [[ $CORPUS == 516 ]]; then
 else
   CACHE=simulation_data/graphs_cache_peer_only_v1_1670_psv3
   SPLIT=experiments/peer_only_v1_1670_split.json
-  WANT_N=1670; WANT_SPLIT=""     # asserted against the artifact's own totals below
+  # 1654, NOT 1670. Every arm tag, split filename and cache directory in this family says
+  # "1670", but that string is a LABEL, not a count: the corpus is 1,654 datasets
+  # (1524/96/34), which is what the record has always quoted ("the 1,654-dataset corpus",
+  # CLAUDE.md and peer_only_v1). Asserting the name would fail every 1,670-tagged arm --
+  # it did, on 9 of this lineage's own selection tasks, which is the guard working.
+  WANT_N=1654; WANT_SPLIT="1524 96 34"
 fi
 CFG=experiments/pointwise_baseline_v1_${CORPUS}_mlp_${LR}.yaml
 CK="models/tabular/pointwise-baseline-v1-${CORPUS}-mlp-${LR}_seed${SEED}.pt"
