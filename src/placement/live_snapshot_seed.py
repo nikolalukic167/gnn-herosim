@@ -32,7 +32,49 @@ def build_live_snapshot_seed(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
     """Convert an audit snapshot JSON object into simulation seed data."""
     full_queue = snapshot.get("full_queue_snapshot") or {}
     platform_info: Dict[str, Dict[str, Any]] = {}
-    replicas_by_type: Dict[str, Set[Tuple[str, int]]] = {"dnn1": set(), "dnn2": set()}
+
+    # Snapshots captured after the P3 extension carry the FULL per-type replica state
+    # (live_audit._replicas_by_type_payload); seed from it so horizon arrivals from any
+    # client node find the replicas the live autoscaler had provisioned. Older
+    # snapshots fall back to the batch tasks' candidate union — sufficient for t=0
+    # sweeps, structurally incomplete for horizon continuation.
+    captured = snapshot.get("replicas_by_type") or {}
+    replicas_by_type: Dict[str, Set[Tuple[str, int]]] = (
+        {str(t): set() for t in captured} if captured else {"dnn1": set(), "dnn2": set()}
+    )
+    # peer_affinity_warm_v1: a captured replica may be marked `candidate: false` -- it is
+    # a busy platform the live autoscaler had provisioned, replayed with its backlog so the
+    # cluster's load is what the snapshot saw, but NOT offered to the sweep (and so not a
+    # candidate edge in the cache). Default true keeps every older snapshot bit-identical.
+    candidate_flags: Dict[Tuple[str, str, int], bool] = {}
+    for task_type, specs in captured.items():
+        for spec in specs:
+            node_name = str(spec.get("node_name", ""))
+            platform_id = int(spec.get("platform_id", -1))
+            if not node_name or platform_id < 0:
+                continue
+            replicas_by_type[str(task_type)].add((node_name, platform_id))
+            candidate_flags[(str(task_type), node_name, platform_id)] = bool(
+                spec.get("candidate", True)
+            )
+            qkey = f"{node_name}:{platform_id}"
+            platform_info.setdefault(
+                qkey,
+                {
+                    "node_name": node_name,
+                    "platform_id": platform_id,
+                    "initialized": bool(spec.get("initialized", True)),
+                    "queue_length": int(
+                        full_queue.get(qkey, spec.get("queue_length", 0)) or 0
+                    ),
+                    "current_task_remaining": 0.0,
+                    "comm_remaining": 0.0,
+                    "cold_start_remaining": 0.0,
+                    "task_type_hint": str(task_type),
+                    # 0.0 -> _seed_platform_state falls back to its exec+comm formula
+                    "queue_drain_seconds": float(spec.get("queue_drain_seconds", 0.0) or 0.0),
+                },
+            )
 
     for task in snapshot.get("tasks", []):
         task_type = str(task.get("task_type", ""))
@@ -54,6 +96,13 @@ def build_live_snapshot_seed(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
                 "comm_remaining": float(candidate.get("comm_remaining", 0) or 0),
                 "cold_start_remaining": float(candidate.get("cold_start_remaining", 0) or 0),
                 "task_type_hint": task_type,
+                "queue_drain_seconds": float(
+                    candidate.get(
+                        "queue_drain_seconds",
+                        platform_info.get(qkey, {}).get("queue_drain_seconds", 0.0),
+                    )
+                    or 0.0
+                ),
             }
 
     for qkey, queue_len in full_queue.items():
@@ -89,6 +138,7 @@ def build_live_snapshot_seed(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
             spec.setdefault("initialized", True)
             spec.setdefault("queue_length", 0)
             spec.setdefault("task_type_hint", task_type)
+            spec["candidate"] = candidate_flags.get((task_type, node_name, platform_id), True)
             specs.append(spec)
         replicas_payload[task_type] = specs
 
@@ -141,6 +191,13 @@ def _seed_platform_state(
     plat.virtual_warmup_total_time = (
         current_remaining + comm_remaining + queue_len * (execution + comm)
     )
+    # peer_affinity_warm_v1: a snapshot that measured its own drain (live_audit.
+    # platform_queue_drain_seconds -- execution + I/O + latency + the peer transfers the
+    # queued tasks will actually pay) replays that clock instead of the exec+comm formula,
+    # which under HEROSIM_PEER_EXCHANGE=1 understates a deep queue's drain ~100x.
+    measured_drain = float(spec.get("queue_drain_seconds", 0.0) or 0.0)
+    if measured_drain > 0.0:
+        plat.virtual_warmup_total_time = current_remaining + comm_remaining + measured_drain
 
 
 def apply_live_snapshot_seed(
@@ -169,7 +226,13 @@ def apply_live_snapshot_seed(
             if key not in plat_map:
                 continue
             node, plat = plat_map[key]
-            initial_replicas[task_type].add((node, plat))
+            if not bool(spec.get("candidate", True)):
+                # Occupied live, not offered to the sweep: seeded below like every other
+                # platform, kept out of `replicas`, and flagged so the determined
+                # orchestrator does not list it as free capacity either.
+                plat.snapshot_reserved = True
+            else:
+                initial_replicas[task_type].add((node, plat))
             if not plat.initialized.triggered:
                 plat.initialized.succeed()
             if bool(spec.get("initialized", True)):

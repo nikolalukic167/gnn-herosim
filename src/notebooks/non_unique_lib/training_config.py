@@ -29,6 +29,26 @@ class TrainingConfig:
     torch_threads: int
     precompute_rtt_lookups: bool
     hard_negative_fraction: float
+    # Early stopping on the checkpoint-selection metric. patience=0 is OFF (every
+    # registration before 2026-09-16 ran the full --epochs; a default that stopped early
+    # would silently change what "last epoch" means in offline_live_transfer_v1 R4).
+    patience: int = 0
+    min_epochs: int = 0
+
+
+def should_stop_early(epoch: int, last_improvement_epoch: int, patience: int, min_epochs: int) -> bool:
+    """True when `patience` epochs have passed since the selection metric last improved.
+
+    `epoch` is 0-based and has just finished. A run never stops before `min_epochs`
+    epochs have run, and never when patience is 0. Pure so it can be tested without a
+    trainer: measured on the 2026-09-15 cold-corpus arms the selected epoch is 19-67 and
+    on the warm corpus 34-283, so a fixed cap is wrong on one of them by construction.
+    """
+    if patience <= 0:
+        return False
+    if epoch + 1 < min_epochs:
+        return False
+    return (epoch - last_improvement_epoch) >= patience
 
 
 def parse_training_config() -> TrainingConfig:
@@ -62,6 +82,15 @@ def parse_training_config() -> TrainingConfig:
     parser.add_argument("--num-gin-layers", type=int, default=3)
     parser.add_argument("--weight-decay", type=float, default=1e-3)
     parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument(
+        "--patience", type=int, default=0,
+        help="Stop when the checkpoint-selection metric has not improved for this many "
+             "epochs. 0 (default) runs every --epochs, as every pre-2026-09-16 run did.",
+    )
+    parser.add_argument(
+        "--min-epochs", type=int, default=0,
+        help="With --patience: never stop before this many epochs have run.",
+    )
     parser.add_argument("--rtt-scale-factor", type=float, default=1.0)
     parser.add_argument("--regret-loss-weight", type=float, default=0.3)
     parser.add_argument("--ce-loss-weight", type=float, default=1.0)
@@ -136,4 +165,6 @@ def parse_training_config() -> TrainingConfig:
         torch_threads=max(0, args.torch_threads),
         precompute_rtt_lookups=not args.no_precompute_rtt_lookups,
         hard_negative_fraction=hard_negative_fraction,
+        patience=max(0, int(args.patience)),
+        min_epochs=max(0, int(args.min_epochs)),
     )

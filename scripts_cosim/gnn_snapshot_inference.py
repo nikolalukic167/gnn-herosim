@@ -9,6 +9,11 @@ from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
 
 from src.notebooks.non_unique_lib.seq_training_utils import decode_sequential_argmax_placement
+from src.placement.queue_features import (
+    LEGACY_QUEUE_NORM_CAP,
+    queue_depth_norm,
+    resolve_queue_feature_contract,
+)
 
 TASK_PLATFORM_COMPATIBILITY = {
     "dnn1": ["rpiCpu", "xavierGpu", "xavierCpu", "pynqFpga"],
@@ -17,7 +22,7 @@ TASK_PLATFORM_COMPATIBILITY = {
 
 PLATFORM_TYPES_VOCAB = ["rpiCpu", "xavierCpu", "xavierGpu", "xavierDla", "pynqFpga"]
 TASK_TYPES_VOCAB = ["dnn1", "dnn2"]
-QUEUE_NORM_CAP = 100.0
+QUEUE_NORM_CAP = LEGACY_QUEUE_NORM_CAP
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -105,12 +110,11 @@ def placement_key_from_candidate(candidate: Mapping[str, Any]) -> str:
 def _calculate_adaptive_queue_norm(queue_snapshot: Mapping[str, int]) -> float:
     if not queue_snapshot:
         return 50.0
-    values = sorted(int(v) for v in queue_snapshot.values())
-    if not values:
-        return 50.0
-    idx = int(len(values) * 0.9)
-    percentile_90 = values[min(idx, len(values) - 1)]
-    return min(QUEUE_NORM_CAP, max(1.0, float(percentile_90)))
+    return queue_depth_norm(
+        [int(v) for v in queue_snapshot.values()],
+        "scheduler_adaptive",
+        resolve_queue_feature_contract(),
+    )
 
 
 def _network_latency(source_node: str, target_node: Mapping[str, Any]) -> float:

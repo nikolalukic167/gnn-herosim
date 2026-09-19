@@ -1,0 +1,57 @@
+# Arm B of the message-passing restoration (see LINEAGES.md: siv1_full_corpus).
+#
+# Identical to full_corpus_siv1_gnn_mp_residual.yaml except that the GIN also aggregates
+# same-node platform<->platform edges, restricted to CANDIDATE platforms (those reachable
+# by >=1 task in the graph). Diffing the two arms attributes any change to the co-location
+# signal rather than to the residual.
+#
+# Why candidate-restricted, measured on this exact cache (2,651 graphs):
+#   bipartite edges                    55.0 mean
+#   same-node edges, unrestricted    1428.0 mean   25.9x bipartite  <- the 2026-08-16 flood
+#   same-node edges, candidates only   20.6 mean    0.37x bipartite
+# Unrestricted, the GIN averages every co-located platform together and erases the
+# queue-depth feature that distinguishes them (12.4x live RTT). Restricted, same-node
+# edges are a minority term that sharpens rather than swamps the bipartite signal.
+#
+# 80% of graphs in this corpus have >=1 candidate-restricted same-node edge; the other 20%
+# correctly degenerate to bipartite-only, so this arm is a superset of Arm A's behaviour.
+#
+# NOTE: unlike the 2026-08-16 regression, these edges are present at TRAINING time. The
+# checkpoint records them in its .contract.json sidecar and serving reads it back, so the
+# train/serve graphs cannot diverge again.
+trainer: gnn
+lineage: siv1_full_corpus
+description: >
+  Full-corpus siv1 dim14 CE-only with a gated GIN residual AND candidate-restricted
+  same-node edges. Arm B of the residual vs residual+node-edges comparison.
+
+cache_dir: simulation_data/graphs_cache_full_corpus_siv1_dim14
+
+unset_env:
+  - TRAIN_INIT_CHECKPOINT   # from scratch, never resume
+
+env:
+  NEAR_RTT_LOSS_VARIANT: near-rtt-v2-trash-exp
+  NEAR_RTT_SIDECAR_NAME: valid_combos_near_rtt_v2_capped.pkl
+  NEAR_RTT_MARGIN_MODE: exp
+  NEAR_RTT_MARGIN_CAP: "8.0"
+  NEAR_RTT_MARGIN_EXP_SCALE: "0.75"
+  NEAR_RTT_MARGIN_EXP_CLIP: "4.0"
+  NEAR_RTT_TRASH_DELTA: "5.0"
+  NEAR_RTT_TRASH_WEIGHT: "1.0"
+  NEAR_RTT_FAR_WEIGHT: "0.75"
+  NEAR_RTT_UNMAPPED_PENALTY: "8.0"
+  # --- the variables under test ---
+  NEAR_RTT_MP_RESIDUAL: "1"
+  NEAR_RTT_MP_NODE_EDGES: "1"
+  NEAR_RTT_MP_NODE_EDGES_CANDIDATES_ONLY: "1"
+
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+
+wandb:
+  project: gnn-full-corpus-siv1-aug2026
+  run_name: near-rtt-v2-full-corpus-siv1-dim14-ce-only-mp-residual-node-edges
+  tags: [near-rtt, ce-only, dim14, full-corpus, scale-invariant-v1, from-scratch, mp-residual, mp-node-edges]

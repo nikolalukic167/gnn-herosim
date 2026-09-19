@@ -1,0 +1,56 @@
+# bipartite_edge_v1 -- D2 CONTROL: the same conv, with its edge attributes ZEROED.
+# docs/lineages/bipartite_edge_v1.md.
+#
+# BYTE-IDENTICAL to experiments/bipartite_edge_v1_1670_gnnedge.yaml except
+# NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO and the wandb name/tags.
+#
+# Why this arm exists: `GIN -> BipartiteEdgeConv` changes the aggregation (sum -> mean) and the
+# MLP shape as well as edge-awareness, so `gnnedge` vs `gnn` ALONE cannot separate "the
+# attributes help" from "this conv is better". This is the same module, the same parameter
+# count, the same depth, with `edge_attr` replaced by zeros -- so `gnnedge` vs `gnnedge0`
+# isolates edge-conditioning exactly. Without it D1 is confounded and D2 cannot be read at all.
+#
+# DANGER, and the reason for the sidecar key: this flag is NOT weight-visible. Zeroing a tensor
+# leaves no parameter behind, so this arm's checkpoints are byte-compatible with the treatment's
+# and load into each other without complaint. `mp_bipartite_edge_attr_zero` in the
+# `.contract.json` sidecar is the ONLY thing that distinguishes them, it is on the serving
+# whitelist in src/executesimulation.py, and it is wired into prefix_serving.py -- which is the
+# path the live gates actually decode on. Serve it wrong and the control IS the treatment.
+# tests/test_bipartite_edge_arm.py pins all of that.
+trainer: gnn
+lineage: bipartite_edge_v1
+cache_dir: simulation_data/graphs_cache_peer_only_v1_1670_psv3
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_only_v1_1670_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: bipartite-edge-v1-1670-gnnedge0
+  tags:
+  - bipartite-edge-v1
+  - corpus1670
+  - gnnedge0
+  - lr2e3
+  - patience60

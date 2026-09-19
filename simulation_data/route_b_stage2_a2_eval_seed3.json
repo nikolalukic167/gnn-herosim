@@ -1,0 +1,8020 @@
+{
+  "checkpoint": "models/tabular/route_b_stage2_a2_dim63crk_seed3.pt",
+  "cache_dir": "simulation_data/graphs_cache_route_b_pilot_s_dag",
+  "arm_type": "mlp_dim63crk",
+  "alpha_key": "2.0",
+  "split_artifact": {
+    "path": "experiments/route_b_stage2_split_v1.json",
+    "sha256": "0171ef149a03c252d0cb12d8c40e898fa11d726c093eb379c449b86d39888418"
+  },
+  "num_datasets": 204,
+  "num_infeasible": 0,
+  "mean_regret_pct_all": 21.30090133923497,
+  "median_regret_pct_all": 1.5923619127778585,
+  "mean_regret_pct_train": 21.079595018002042,
+  "median_regret_pct_train": 0.8065862355086539,
+  "per_dataset": [
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00000",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 39.428628176616556,
+        "mean_tied": 39.428628176616556,
+        "optimistic": 39.428628176616556,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 39.428628176616556,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00000",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00001",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 77.53707665490589,
+        "mean_tied": 77.53707665490589,
+        "optimistic": 77.53707665490589,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          22,
+          118
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 91.67453265616928,
+      "decode_regret_pct": {
+        "registered": 18.233155815488033,
+        "pessimistic": 18.233155815488033,
+        "mean_tied": 18.233155815488033,
+        "optimistic": 18.233155815488033,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00001",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00002",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 62.33394079826506,
+        "mean_tied": 62.333940798265054,
+        "optimistic": 62.33394079826506,
+        "tie_width": 12
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 62.33394079826506,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": -1.1398970234525532e-14,
+        "optimistic": 0.0,
+        "tie_width": 12
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00002",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00003",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.63699441796934,
+        "mean_tied": 45.63699441796934,
+        "optimistic": 45.63699441796934,
+        "tie_width": 16
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 45.63699441796934,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 16
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00003",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00004",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.93723296133177,
+        "mean_tied": 45.93723296133177,
+        "optimistic": 45.93723296133177,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 60.897066020340546,
+      "decode_regret_pct": {
+        "registered": 32.56581229348619,
+        "pessimistic": 32.56581229348619,
+        "mean_tied": 32.565812293486175,
+        "optimistic": 32.56581229348619,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00004",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00005",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 53.229857886641895,
+        "mean_tied": 53.229857886641895,
+        "optimistic": 53.229857886641895,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 53.229857886641895,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00005",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00006",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.707328698794456,
+        "mean_tied": 42.707328698794456,
+        "optimistic": 42.707328698794456,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          20,
+          106
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 81.12347559039638,
+      "decode_regret_pct": {
+        "registered": 89.95211843508802,
+        "pessimistic": 89.95211843508802,
+        "mean_tied": 89.95211843508802,
+        "optimistic": 89.95211843508802,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00006",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00007",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 51.070316814354214,
+        "mean_tied": 51.070316814354214,
+        "optimistic": 51.070316814354214,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 75.95784786142761,
+      "decode_regret_pct": {
+        "registered": 48.7318908506914,
+        "pessimistic": 48.7318908506914,
+        "mean_tied": 48.7318908506914,
+        "optimistic": 48.7318908506914,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00007",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00008",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 54.98557013529403,
+        "mean_tied": 54.98557013529403,
+        "optimistic": 54.98557013529403,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 60.82272331901735,
+      "decode_regret_pct": {
+        "registered": 10.615790959993294,
+        "pessimistic": 10.615790959993294,
+        "mean_tied": 10.615790959993294,
+        "optimistic": 10.615790959993294,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00008",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00009",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 43.979764120830595,
+        "mean_tied": 43.97976412083059,
+        "optimistic": 43.97976412083059,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 43.97976412083059,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 1.6156128846165377e-14,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00009",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00010",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 44.00346558451243,
+        "mean_tied": 44.00346558451243,
+        "optimistic": 44.00346558451243,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 44.00346558451243,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00010",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00011",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 48.770386539991826,
+        "mean_tied": 48.770386539991826,
+        "optimistic": 48.770386539991826,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 51.659031191448314,
+      "decode_regret_pct": {
+        "registered": 5.922948035459577,
+        "pessimistic": 5.922948035459577,
+        "mean_tied": 5.922948035459577,
+        "optimistic": 5.922948035459577,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00011",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00012",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.17898522175822,
+        "mean_tied": 47.17898522175821,
+        "optimistic": 47.17898522175821,
+        "tie_width": 9
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 47.17898522175822,
+      "decode_regret_pct": {
+        "registered": 1.506057691619041e-14,
+        "pessimistic": 1.506057691619041e-14,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 9
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00012",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00013",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 76.35308280716328,
+        "mean_tied": 76.35308280716328,
+        "optimistic": 76.35308280716328,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          22,
+          118
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 76.42642824978702,
+      "decode_regret_pct": {
+        "registered": 0.09606087917758063,
+        "pessimistic": 0.09606087917758063,
+        "mean_tied": 0.09606087917758063,
+        "optimistic": 0.09606087917758063,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00013",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00014",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 53.43635825082168,
+        "mean_tied": 53.43635825082168,
+        "optimistic": 53.43635825082168,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          23,
+          120
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 53.43635825082168,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00014",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00015",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 40.969817118995856,
+        "mean_tied": 40.969817118995856,
+        "optimistic": 40.969817118995856,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 40.969817118995856,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00015",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00016",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 61.11072263086173,
+        "mean_tied": 61.11072263086173,
+        "optimistic": 61.11072263086173,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 63.926213565890585,
+      "decode_regret_pct": {
+        "registered": 4.607196272306874,
+        "pessimistic": 4.607196272306874,
+        "mean_tied": 4.607196272306874,
+        "optimistic": 4.607196272306874,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00016",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00017",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 56.2410868164418,
+        "mean_tied": 56.2410868164418,
+        "optimistic": 56.2410868164418,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 56.2410868164418,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00017",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00018",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 41.274633876305,
+        "mean_tied": 41.274633876305,
+        "optimistic": 41.274633876305,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 62.25943789437084,
+      "decode_regret_pct": {
+        "registered": 50.84189015692959,
+        "pessimistic": 50.84189015693001,
+        "mean_tied": 50.84189015692981,
+        "optimistic": 50.84189015692959,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00018",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00019",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 73.95828581733224,
+        "mean_tied": 73.95828581733224,
+        "optimistic": 73.95828581733224,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 109.46111760477328,
+      "decode_regret_pct": {
+        "registered": 48.003859736728636,
+        "pessimistic": 48.003859736728636,
+        "mean_tied": 48.003859736728636,
+        "optimistic": 48.003859736728636,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00019",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00020",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 69.91548025945204,
+        "mean_tied": 69.91548025945204,
+        "optimistic": 69.91548025945204,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 69.91548025945204,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00020",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00021",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 56.463329986392225,
+        "mean_tied": 56.46332998639222,
+        "optimistic": 56.463329986392225,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 74.77001834990975,
+      "decode_regret_pct": {
+        "registered": 32.42226125864251,
+        "pessimistic": 32.42226125864251,
+        "mean_tied": 32.42226125864251,
+        "optimistic": 32.42226125864251,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00021",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00022",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 67.15363321245815,
+        "mean_tied": 67.15363321245815,
+        "optimistic": 67.15363321245815,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 67.15363321245815,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00022",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00023",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 51.68474588480548,
+        "mean_tied": 51.68474588480548,
+        "optimistic": 51.68474588480548,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 66.85009205133602,
+      "decode_regret_pct": {
+        "registered": 29.342015534585258,
+        "pessimistic": 29.342015534585258,
+        "mean_tied": 29.342015534585258,
+        "optimistic": 29.342015534585258,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00023",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00024",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 41.34280248716777,
+        "mean_tied": 41.34280248716777,
+        "optimistic": 41.34280248716777,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 44.05341589825023,
+      "decode_regret_pct": {
+        "registered": 6.556433642648661,
+        "pessimistic": 6.556433642648679,
+        "mean_tied": 6.556433642648679,
+        "optimistic": 6.556433642648661,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00024",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00025",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 71.35012506752747,
+        "mean_tied": 71.35012506752747,
+        "optimistic": 71.35012506752747,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 91.298511762068,
+      "decode_regret_pct": {
+        "registered": 27.958446710024543,
+        "pessimistic": 27.958446710024543,
+        "mean_tied": 27.958446710024543,
+        "optimistic": 27.958446710024543,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00025",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00026",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 55.33427284509378,
+        "mean_tied": 55.33427284509378,
+        "optimistic": 55.33427284509378,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          20,
+          105
+        ],
+        [
+          20,
+          107
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 92.64561254489644,
+      "decode_regret_pct": {
+        "registered": 67.42898710217871,
+        "pessimistic": 67.42898710217871,
+        "mean_tied": 67.42898710217871,
+        "optimistic": 67.42898710217871,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00026",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00027",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.59089628065687,
+        "mean_tied": 45.59089628065687,
+        "optimistic": 45.59089628065687,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 45.59089628065687,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00027",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00028",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 64.12066011408331,
+        "mean_tied": 64.12066011408331,
+        "optimistic": 64.12066011408331,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 76.15570372230859,
+      "decode_regret_pct": {
+        "registered": 18.769369477501577,
+        "pessimistic": 18.769369477501577,
+        "mean_tied": 18.769369477501577,
+        "optimistic": 18.769369477501577,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00028",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00029",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 48.83481321509384,
+        "mean_tied": 48.83481321509384,
+        "optimistic": 48.83481321509384,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 60.8811087101067,
+      "decode_regret_pct": {
+        "registered": 24.667434360718723,
+        "pessimistic": 24.667434360718723,
+        "mean_tied": 24.667434360718723,
+        "optimistic": 24.667434360718723,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00029",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00030",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.06174516931319,
+        "mean_tied": 47.06174516931319,
+        "optimistic": 47.06174516931319,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          23,
+          119
+        ],
+        [
+          23,
+          121
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 50.369681815270454,
+      "decode_regret_pct": {
+        "registered": 7.0289289826723556,
+        "pessimistic": 7.0289289826723556,
+        "mean_tied": 7.0289289826723556,
+        "optimistic": 7.0289289826723556,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00030",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00031",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.10707567752674,
+        "mean_tied": 47.10707567752674,
+        "optimistic": 47.10707567752674,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 47.10707567752674,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00031",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00032",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.08460537574683,
+        "mean_tied": 47.08460537574683,
+        "optimistic": 47.08460537574683,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 47.08460537574683,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00032",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00033",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 40.966580603414414,
+        "mean_tied": 40.96658060341441,
+        "optimistic": 40.96658060341441,
+        "tie_width": 12
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 40.966580603414414,
+      "decode_regret_pct": {
+        "registered": 1.7344448213500132e-14,
+        "pessimistic": 1.7344448213500132e-14,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 12
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00033",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00034",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 102.14735308313247,
+        "mean_tied": 102.14735308313247,
+        "optimistic": 102.14735308313247,
+        "tie_width": 16
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 102.14735308313247,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 16
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00034",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00035",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 57.16080546180346,
+        "mean_tied": 57.16080546180346,
+        "optimistic": 57.16080546180346,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 57.16080546180346,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00035",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00036",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 51.71926575656919,
+        "mean_tied": 51.719265756569186,
+        "optimistic": 51.719265756569186,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 67.1828820065685,
+      "decode_regret_pct": {
+        "registered": 29.89914111074786,
+        "pessimistic": 29.89914111074786,
+        "mean_tied": 29.89914111074786,
+        "optimistic": 29.89914111074786,
+        "tie_width": 10
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00036",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00037",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 59.29143128859414,
+        "mean_tied": 59.29143128859414,
+        "optimistic": 59.29143128859414,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 82.09426839917485,
+      "decode_regret_pct": {
+        "registered": 38.45890816767529,
+        "pessimistic": 38.45890816767529,
+        "mean_tied": 38.45890816767529,
+        "optimistic": 38.45890816767529,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00037",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00038",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 51.68287122901958,
+        "mean_tied": 51.68287122901958,
+        "optimistic": 51.68287122901958,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 51.68287122901958,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00038",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00039",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 49.735332495006176,
+        "mean_tied": 49.735332495006176,
+        "optimistic": 49.735332495006176,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 51.12120601100201,
+      "decode_regret_pct": {
+        "registered": 2.786496935825222,
+        "pessimistic": 2.786496935825222,
+        "mean_tied": 2.786496935825222,
+        "optimistic": 2.786496935825222,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00039",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00040",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 60.876221022256246,
+        "mean_tied": 60.876221022256246,
+        "optimistic": 60.876221022256246,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 68.39160594581914,
+      "decode_regret_pct": {
+        "registered": 12.345353895760512,
+        "pessimistic": 12.345353895760512,
+        "mean_tied": 12.345353895760512,
+        "optimistic": 12.345353895760512,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00040",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00041",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 60.90099951674956,
+        "mean_tied": 60.90099951674956,
+        "optimistic": 60.90099951674956,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 60.90099951674956,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00041",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00042",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.56216072279773,
+        "mean_tied": 45.56216072279773,
+        "optimistic": 45.56216072279772,
+        "tie_width": 10
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 45.56216072279773,
+      "decode_regret_pct": {
+        "registered": 1.5595018420725804e-14,
+        "pessimistic": 1.5595018420725804e-14,
+        "mean_tied": 1.5595018420725804e-14,
+        "optimistic": 0.0,
+        "tie_width": 10
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00042",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00043",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 59.50311418257837,
+        "mean_tied": 59.50311418257837,
+        "optimistic": 59.50311418257837,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          20,
+          104
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 65.47635778689272,
+      "decode_regret_pct": {
+        "registered": 10.038539472045356,
+        "pessimistic": 10.038539472045356,
+        "mean_tied": 10.038539472045356,
+        "optimistic": 10.038539472045356,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00043",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00044",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 55.240531029692484,
+        "mean_tied": 55.240531029692484,
+        "optimistic": 55.240531029692484,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          23,
+          119
+        ],
+        [
+          23,
+          121
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 64.23780861230654,
+      "decode_regret_pct": {
+        "registered": 16.287456718650844,
+        "pessimistic": 16.287456718650844,
+        "mean_tied": 16.287456718650844,
+        "optimistic": 16.287456718650844,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00044",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00045",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.39971886643126,
+        "mean_tied": 47.39971886643126,
+        "optimistic": 47.39971886643126,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 56.109504824592726,
+      "decode_regret_pct": {
+        "registered": 18.37518484593753,
+        "pessimistic": 18.37518484593753,
+        "mean_tied": 18.37518484593753,
+        "optimistic": 18.37518484593753,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00045",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00046",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 56.26987566220429,
+        "mean_tied": 56.26987566220429,
+        "optimistic": 56.26987566220429,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 57.123552468589395,
+      "decode_regret_pct": {
+        "registered": 1.5171115918397273,
+        "pessimistic": 1.5171115918397273,
+        "mean_tied": 1.5171115918397273,
+        "optimistic": 1.5171115918397273,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00046",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00047",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 48.74968383649562,
+        "mean_tied": 48.74968383649562,
+        "optimistic": 48.74968383649562,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 48.74968383649562,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00047",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00048",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.6076148571235,
+        "mean_tied": 45.607614857123494,
+        "optimistic": 45.607614857123494,
+        "tie_width": 10
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 53.094466662249715,
+      "decode_regret_pct": {
+        "registered": 16.415793346309673,
+        "pessimistic": 16.415793346309673,
+        "mean_tied": 16.415793346309673,
+        "optimistic": 16.415793346309673,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00048",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00049",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.23158229833956,
+        "mean_tied": 47.23158229833956,
+        "optimistic": 47.23158229833956,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 53.08630463472174,
+      "decode_regret_pct": {
+        "registered": 12.395778526750744,
+        "pessimistic": 12.395778526750744,
+        "mean_tied": 12.395778526750744,
+        "optimistic": 12.395778526750744,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00049",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00050",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 53.23347180098299,
+        "mean_tied": 53.23347180098298,
+        "optimistic": 53.23347180098298,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 68.39469890139452,
+      "decode_regret_pct": {
+        "registered": 28.480628047505213,
+        "pessimistic": 28.480628047505213,
+        "mean_tied": 28.480628047505213,
+        "optimistic": 28.480628047505213,
+        "tie_width": 5
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00050",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00051",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.53182930731571,
+        "mean_tied": 42.53182930731571,
+        "optimistic": 42.53182930731571,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 42.53182930731571,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00051",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00052",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 99.96311695215397,
+        "mean_tied": 99.96311695215384,
+        "optimistic": 99.96311695215363,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 99.96619570215397,
+      "decode_regret_pct": {
+        "registered": 0.003079885956152123,
+        "pessimistic": 0.003079885956152123,
+        "mean_tied": 0.0030798859560810425,
+        "optimistic": 0.0030798859557967205,
+        "tie_width": 5
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00052",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00053",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.11232302821263,
+        "mean_tied": 45.11232302821263,
+        "optimistic": 45.11232302821263,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 45.11232302821263,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00053",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00054",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 34.31866469064029,
+        "mean_tied": 34.31866469064029,
+        "optimistic": 34.31866469064029,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 34.31866469064029,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00054",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00055",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.229880025382606,
+        "mean_tied": 42.229880025382606,
+        "optimistic": 42.229880025382606,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 99.96527149254098,
+      "decode_regret_pct": {
+        "registered": 136.7169204185663,
+        "pessimistic": 136.7169204185663,
+        "mean_tied": 136.716920418566,
+        "optimistic": 136.71692041856593,
+        "tie_width": 10
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00055",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00056",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.308272162294394,
+        "mean_tied": 37.308272162294394,
+        "optimistic": 37.308272162294394,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 37.308272162294394,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00056",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00057",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.743665893911075,
+        "mean_tied": 29.743665893911075,
+        "optimistic": 29.743665893911075,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.743665893911075,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00057",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00058",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 60.74997501636128,
+        "mean_tied": 60.74997501636128,
+        "optimistic": 60.74997501636128,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 100.00859206963696,
+      "decode_regret_pct": {
+        "registered": 64.62326452431047,
+        "pessimistic": 64.62326452431047,
+        "mean_tied": 64.62326452431047,
+        "optimistic": 64.62326452431047,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00058",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00059",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.67994406763408,
+        "mean_tied": 52.679944067634075,
+        "optimistic": 52.67994406763408,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          20,
+          104
+        ],
+        [
+          20,
+          107
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 57.820670921572415,
+      "decode_regret_pct": {
+        "registered": 9.758413652334784,
+        "pessimistic": 9.758413652334784,
+        "mean_tied": 9.758413652334784,
+        "optimistic": 9.758413652334784,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00059",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00060",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.774516164781353,
+        "mean_tied": 29.774516164781353,
+        "optimistic": 29.774516164781353,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 29.774516164781353,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00060",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00061",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 99.97031339819878,
+        "mean_tied": 99.97031339819878,
+        "optimistic": 99.97031339819878,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          129
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 128.9647755998625,
+      "decode_regret_pct": {
+        "registered": 29.003072228226223,
+        "pessimistic": 29.003072228226223,
+        "mean_tied": 29.003072228226223,
+        "optimistic": 29.003072228226223,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00061",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00062",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.50602533647469,
+        "mean_tied": 42.50602533647469,
+        "optimistic": 42.50602533647469,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 42.50602533647469,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00062",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00063",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.805364808369337,
+        "mean_tied": 29.805364808369337,
+        "optimistic": 29.805364808369337,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.81566537028381,
+      "decode_regret_pct": {
+        "registered": 0.034559422374795944,
+        "pessimistic": 0.034559422374795944,
+        "mean_tied": 0.034559422374795944,
+        "optimistic": 0.034559422374795944,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00063",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00064",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 44.954438006795876,
+        "mean_tied": 44.954438006795876,
+        "optimistic": 44.954438006795876,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 44.954438006795876,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00064",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00065",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.398328434063096,
+        "mean_tied": 37.398328434063096,
+        "optimistic": 37.398328434063096,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 37.398328434063096,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00065",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00066",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.760571652063724,
+        "mean_tied": 50.760571652063625,
+        "optimistic": 50.76057165206353,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 50.76057165206353,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 3.7794400734931056e-13,
+        "mean_tied": 1.8197304057559398e-13,
+        "optimistic": 0.0,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00066",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00067",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 68.1801764517428,
+        "mean_tied": 68.1801764517428,
+        "optimistic": 68.1801764517428,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 83.53892396495716,
+      "decode_regret_pct": {
+        "registered": 22.526705433338275,
+        "pessimistic": 22.526705433338275,
+        "mean_tied": 22.526705433338275,
+        "optimistic": 22.526705433338275,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00067",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00068",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 58.923674258484894,
+        "mean_tied": 58.92367425848477,
+        "optimistic": 58.92367425848454,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 58.92367425848489,
+      "decode_regret_pct": {
+        "registered": 5.908761544555514e-13,
+        "pessimistic": 6.029348514852565e-13,
+        "mean_tied": 3.9793700198026933e-13,
+        "optimistic": 0.0,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00068",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00069",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.792138857403657,
+        "mean_tied": 29.792138857403657,
+        "optimistic": 29.792138857403657,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 42.510930011884696,
+      "decode_regret_pct": {
+        "registered": 42.691769178970134,
+        "pessimistic": 42.69176917897075,
+        "mean_tied": 42.691769178970446,
+        "optimistic": 42.691769178970134,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00069",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00070",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.64957170421907,
+        "mean_tied": 52.64957170421907,
+        "optimistic": 52.64957170421907,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 159.7418782813765,
+      "decode_regret_pct": {
+        "registered": 203.4058456900526,
+        "pessimistic": 203.4058456900526,
+        "mean_tied": 203.4058456900526,
+        "optimistic": 203.4058456900526,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00070",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00071",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.74389319010649,
+        "mean_tied": 52.74389319010649,
+        "optimistic": 52.74389319010649,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 52.74389319010649,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00071",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00072",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.51065239008974,
+        "mean_tied": 42.51065239008974,
+        "optimistic": 42.51065239008974,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 58.95833751579402,
+      "decode_regret_pct": {
+        "registered": 38.69073797027551,
+        "pessimistic": 38.69073797027596,
+        "mean_tied": 38.690737970275805,
+        "optimistic": 38.69073797027551,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00072",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00073",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.749397469584494,
+        "mean_tied": 52.749397469584494,
+        "optimistic": 52.749397469584494,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 67.12924762626305,
+      "decode_regret_pct": {
+        "registered": 27.26069082584315,
+        "pessimistic": 27.26069082584315,
+        "mean_tied": 27.26069082584315,
+        "optimistic": 27.26069082584315,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00073",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00074",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.39375780999999,
+        "mean_tied": 37.39375780999999,
+        "optimistic": 37.39375780999999,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 58.31914807477223,
+      "decode_regret_pct": {
+        "registered": 55.95958119827232,
+        "pessimistic": 55.95958119827232,
+        "mean_tied": 55.95958119827232,
+        "optimistic": 55.95958119827232,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00074",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00075",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.762280115375926,
+        "mean_tied": 29.762280115375926,
+        "optimistic": 29.762280115375926,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 29.762280115375926,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00075",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00076",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 75.4107621171386,
+        "mean_tied": 75.4107621171386,
+        "optimistic": 75.4107621171386,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 90.77011544211393,
+      "decode_regret_pct": {
+        "registered": 20.367587985806356,
+        "pessimistic": 20.367587985806356,
+        "mean_tied": 20.367587985806356,
+        "optimistic": 20.367587985806356,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00076",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00077",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.05284430469152,
+        "mean_tied": 45.05284430469152,
+        "optimistic": 45.05284430469152,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 45.05284430469152,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00077",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00078",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.74246438817334,
+        "mean_tied": 50.74246438817334,
+        "optimistic": 50.74246438817334,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 98.37652544213272,
+      "decode_regret_pct": {
+        "registered": 93.87415772628803,
+        "pessimistic": 93.87415772628803,
+        "mean_tied": 93.87415772628803,
+        "optimistic": 93.87415772628803,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00078",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00079",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 75.33938787715533,
+        "mean_tied": 75.33938787715509,
+        "optimistic": 75.33938787715498,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 75.3681685428483,
+      "decode_regret_pct": {
+        "registered": 0.03820135324200796,
+        "pessimistic": 0.03820135324200796,
+        "mean_tied": 0.03820135324200796,
+        "optimistic": 0.03820135324200796,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00079",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00080",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 49.91937166228706,
+        "mean_tied": 49.91937166228706,
+        "optimistic": 49.91937166228706,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 50.751833211121514,
+      "decode_regret_pct": {
+        "registered": 1.6676122337159895,
+        "pessimistic": 1.6676122337159895,
+        "mean_tied": 1.6676122337159895,
+        "optimistic": 1.6676122337159895,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00080",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00081",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 39.30819761797348,
+        "mean_tied": 39.30819761797348,
+        "optimistic": 39.30819761797348,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 76.31479513623894,
+      "decode_regret_pct": {
+        "registered": 94.14473255152352,
+        "pessimistic": 94.14473255152352,
+        "mean_tied": 94.14473255152352,
+        "optimistic": 94.14473255152352,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00081",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00082",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 46.93616294119359,
+        "mean_tied": 46.93616294119359,
+        "optimistic": 46.93616294119359,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 60.21751969455639,
+      "decode_regret_pct": {
+        "registered": 28.296639352481876,
+        "pessimistic": 28.296639352481876,
+        "mean_tied": 28.296639352481513,
+        "optimistic": 28.296639352481137,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00082",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00083",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 39.2788225677788,
+        "mean_tied": 39.2788225677788,
+        "optimistic": 39.2788225677788,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 43.719094158022315,
+      "decode_regret_pct": {
+        "registered": 11.30449259924088,
+        "pessimistic": 11.30449259924088,
+        "mean_tied": 11.30449259924088,
+        "optimistic": 11.30449259924088,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00083",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00084",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.764226861008336,
+        "mean_tied": 29.764226861008336,
+        "optimistic": 29.764226861008336,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          129
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 98.38508951157283,
+      "decode_regret_pct": {
+        "registered": 230.5481105590518,
+        "pessimistic": 230.5481105590518,
+        "mean_tied": 230.5481105590518,
+        "optimistic": 230.5481105590518,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00084",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00085",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 68.0249791388674,
+        "mean_tied": 68.0249791388674,
+        "optimistic": 68.0249791388674,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 68.0249791388674,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00085",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00086",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.06749157177613,
+        "mean_tied": 45.067491571776124,
+        "optimistic": 45.06749157177613,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 58.93702114028076,
+      "decode_regret_pct": {
+        "registered": 30.775020052792406,
+        "pessimistic": 30.775020052792406,
+        "mean_tied": 30.77502005279193,
+        "optimistic": 30.775020052791618,
+        "tie_width": 5
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00086",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00087",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.4250323919767,
+        "mean_tied": 37.4250323919767,
+        "optimistic": 37.4250323919767,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          22,
+          118
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 53.28141024179114,
+      "decode_regret_pct": {
+        "registered": 42.36837441779686,
+        "pessimistic": 42.36837441779686,
+        "mean_tied": 42.368374417796836,
+        "optimistic": 42.36837441779686,
+        "tie_width": 5
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00087",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00088",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 58.93163512683414,
+        "mean_tied": 58.93163512683414,
+        "optimistic": 58.93163512683414,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 99.99025665116599,
+      "decode_regret_pct": {
+        "registered": 69.6716142967431,
+        "pessimistic": 69.67161429674361,
+        "mean_tied": 69.67161429674354,
+        "optimistic": 69.6716142967431,
+        "tie_width": 9
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00088",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00089",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.501081932305155,
+        "mean_tied": 42.501081932305155,
+        "optimistic": 42.501081932305155,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 42.501081932305155,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00089",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00090",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.395986140047185,
+        "mean_tied": 37.395986140047185,
+        "optimistic": 37.395986140047185,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 44.92993861665404,
+      "decode_regret_pct": {
+        "registered": 20.146420122181997,
+        "pessimistic": 20.146420122181997,
+        "mean_tied": 20.146420122181997,
+        "optimistic": 20.146420122181997,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00090",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00091",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.0050085812742,
+        "mean_tied": 45.0050085812742,
+        "optimistic": 45.0050085812742,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 45.0050085812742,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00091",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00092",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.10602011887944,
+        "mean_tied": 45.10602011887944,
+        "optimistic": 45.10602011887944,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 45.10602011887944,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00092",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00093",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.789830506668235,
+        "mean_tied": 29.789830506668235,
+        "optimistic": 29.789830506668235,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 34.30711983351955,
+      "decode_regret_pct": {
+        "registered": 15.163863808624736,
+        "pessimistic": 15.163863808624736,
+        "mean_tied": 15.163863808624736,
+        "optimistic": 15.163863808624736,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00093",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00094",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.735015318167235,
+        "mean_tied": 29.735015318167235,
+        "optimistic": 29.735015318167235,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.735015318167235,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00094",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00095",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.66596706422678,
+        "mean_tied": 52.66596706422678,
+        "optimistic": 52.66596706422678,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 52.66596706422678,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00095",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00096",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.76398422496961,
+        "mean_tied": 29.763984224969608,
+        "optimistic": 29.76398422496961,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 29.799198004804015,
+      "decode_regret_pct": {
+        "registered": 0.1183100339263798,
+        "pessimistic": 0.1183100339263798,
+        "mean_tied": 0.1183100339263798,
+        "optimistic": 0.1183100339263798,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00096",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00097",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 83.53924700069075,
+        "mean_tied": 83.53924700069064,
+        "optimistic": 83.53924700069058,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 83.55958825069075,
+      "decode_regret_pct": {
+        "registered": 0.02434933367307427,
+        "pessimistic": 0.02434933367307427,
+        "mean_tied": 0.02434933367307427,
+        "optimistic": 0.02434933367307427,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00097",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00098",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.42618011948048,
+        "mean_tied": 37.42618011948048,
+        "optimistic": 37.42618011948048,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          129
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 37.42618011948048,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00098",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00099",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.83110975070702,
+        "mean_tied": 29.831109750707025,
+        "optimistic": 29.83110975070702,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.83110975070702,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 1.1909425121927617e-14,
+        "optimistic": 0.0,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00099",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00100",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 58.932314849126094,
+        "mean_tied": 58.932314849126094,
+        "optimistic": 58.932314849126094,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 90.8295766673322,
+      "decode_regret_pct": {
+        "registered": 54.12524843096184,
+        "pessimistic": 54.12524843096184,
+        "mean_tied": 54.12524843096184,
+        "optimistic": 54.12524843096184,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00100",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00101",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.409278972247606,
+        "mean_tied": 37.409278972247606,
+        "optimistic": 37.409278972247606,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 37.409278972247606,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00101",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00102",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.812300555855074,
+        "mean_tied": 42.812300555855074,
+        "optimistic": 42.812300555855074,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 56.35224784912013,
+      "decode_regret_pct": {
+        "registered": 31.626301594328396,
+        "pessimistic": 31.626301594328826,
+        "mean_tied": 31.626301594328694,
+        "optimistic": 31.626301594328396,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00102",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00103",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 77.56068635804176,
+        "mean_tied": 77.56068635804176,
+        "optimistic": 77.56068635804176,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 77.56068635804176,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00103",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00104",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 59.45191366954215,
+        "mean_tied": 59.45191366954215,
+        "optimistic": 59.45191366954215,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 62.34020910955688,
+      "decode_regret_pct": {
+        "registered": 4.858204323024903,
+        "pessimistic": 4.858204323024903,
+        "mean_tied": 4.858204323024891,
+        "optimistic": 4.858204323024903,
+        "tie_width": 12
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00104",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00105",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.582501011641895,
+        "mean_tied": 45.58250101164188,
+        "optimistic": 45.582501011641874,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 45.582501011641895,
+      "decode_regret_pct": {
+        "registered": 4.6764178357301584e-14,
+        "pessimistic": 4.6764178357301584e-14,
+        "mean_tied": 1.5588059452433863e-14,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00105",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00106",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 68.54005002093254,
+        "mean_tied": 68.54005002093254,
+        "optimistic": 68.54005002093254,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 68.54005002093254,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00106",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00107",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 53.30025271927936,
+        "mean_tied": 53.30025271927936,
+        "optimistic": 53.30025271927936,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 53.30025271927936,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00107",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00108",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.596659663470334,
+        "mean_tied": 42.596659663470334,
+        "optimistic": 42.596659663470334,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 45.60208001636124,
+      "decode_regret_pct": {
+        "registered": 7.055530590038895,
+        "pessimistic": 7.055530590038895,
+        "mean_tied": 7.055530590038895,
+        "optimistic": 7.055530590038895,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00108",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00109",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 67.80803412621626,
+        "mean_tied": 67.80803412621626,
+        "optimistic": 67.80803412621626,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 67.80803412621626,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00109",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00110",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.62650976355617,
+        "mean_tied": 45.62650976355617,
+        "optimistic": 45.62650976355617,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 45.62650976355617,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00110",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00111",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 44.01167431644831,
+        "mean_tied": 44.01167431644831,
+        "optimistic": 44.0116743164483,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 44.01167431644831,
+      "decode_regret_pct": {
+        "registered": 1.614441501705269e-14,
+        "pessimistic": 1.614441501705269e-14,
+        "mean_tied": 1.614441501705269e-14,
+        "optimistic": 0.0,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00111",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00112",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 66.97769674790256,
+        "mean_tied": 66.97769674790256,
+        "optimistic": 66.97769674790256,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 89.74731442529821,
+      "decode_regret_pct": {
+        "registered": 33.99582067310892,
+        "pessimistic": 33.99582067310892,
+        "mean_tied": 33.995820673108796,
+        "optimistic": 33.99582067310866,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00112",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00113",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 48.70252781682831,
+        "mean_tied": 48.70252781682831,
+        "optimistic": 48.70252781682831,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 51.6243443432848,
+      "decode_regret_pct": {
+        "registered": 5.999311857991294,
+        "pessimistic": 5.999311857991294,
+        "mean_tied": 5.999311857991294,
+        "optimistic": 5.999311857991294,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00113",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00114",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 54.80619258811119,
+        "mean_tied": 54.80619258811119,
+        "optimistic": 54.80619258811119,
+        "tie_width": 16
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 54.80619258811119,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 16
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00114",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00115",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 64.78621274392226,
+        "mean_tied": 64.78621274392226,
+        "optimistic": 64.78621274392226,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 85.32479264662548,
+      "decode_regret_pct": {
+        "registered": 31.70208449116357,
+        "pessimistic": 31.70208449116357,
+        "mean_tied": 31.70208449116357,
+        "optimistic": 31.70208449116357,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00115",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00116",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 62.437727349465504,
+        "mean_tied": 62.437727349465504,
+        "optimistic": 62.4377273494655,
+        "tie_width": 9
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 62.437727349465504,
+      "decode_regret_pct": {
+        "registered": 1.1380022398688136e-14,
+        "pessimistic": 1.1380022398688136e-14,
+        "mean_tied": 1.1380022398688136e-14,
+        "optimistic": 0.0,
+        "tie_width": 9
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00116",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00117",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 40.94637306644178,
+        "mean_tied": 40.94637306644178,
+        "optimistic": 40.94637306644178,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 40.94637306644178,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00117",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00118",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 63.867208653916165,
+        "mean_tied": 63.867208653916165,
+        "optimistic": 63.867208653916165,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 63.867208653916165,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00118",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00119",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 56.2568304174608,
+        "mean_tied": 56.2568304174608,
+        "optimistic": 56.2568304174608,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 56.2568304174608,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00119",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00120",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.09432985193236,
+        "mean_tied": 47.09432985193236,
+        "optimistic": 47.09432985193236,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 47.09432985193236,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00120",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00121",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 54.730799969835985,
+        "mean_tied": 54.730799969835985,
+        "optimistic": 54.730799969835985,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 54.730799969835985,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00121",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00122",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 57.82907809153051,
+        "mean_tied": 57.82907809153051,
+        "optimistic": 57.82907809153051,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 77.50730881307987,
+      "decode_regret_pct": {
+        "registered": 34.02826289293964,
+        "pessimistic": 34.02826289293964,
+        "mean_tied": 34.02826289293964,
+        "optimistic": 34.02826289293964,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00122",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00123",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 51.68474588480548,
+        "mean_tied": 51.68474588480548,
+        "optimistic": 51.68474588480548,
+        "tie_width": 20
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 51.68474588480548,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 20
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00123",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00124",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 81.15429798476346,
+        "mean_tied": 81.15429798476346,
+        "optimistic": 81.15429798476346,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 143.40113367486993,
+      "decode_regret_pct": {
+        "registered": 76.70183494384139,
+        "pessimistic": 76.70183494384139,
+        "mean_tied": 76.70183494384139,
+        "optimistic": 76.70183494384139,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00124",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00125",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 64.13583158856957,
+        "mean_tied": 64.13583158856957,
+        "optimistic": 64.13583158856957,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 67.00672915798417,
+      "decode_regret_pct": {
+        "registered": 4.476277142286641,
+        "pessimistic": 4.476277142286641,
+        "mean_tied": 4.476277142286641,
+        "optimistic": 4.4762771422866185,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00125",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00126",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 44.08635227230961,
+        "mean_tied": 44.08635227230961,
+        "optimistic": 44.08635227230961,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 51.57421516371453,
+      "decode_regret_pct": {
+        "registered": 16.98453717639053,
+        "pessimistic": 16.98453717639053,
+        "mean_tied": 16.98453717639053,
+        "optimistic": 16.98453717639053,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00126",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00127",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.54632423438492,
+        "mean_tied": 50.54632423438492,
+        "optimistic": 50.54632423438492,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 74.6782948122077,
+      "decode_regret_pct": {
+        "registered": 47.74228580088645,
+        "pessimistic": 47.74228580088645,
+        "mean_tied": 47.74228580088645,
+        "optimistic": 47.74228580088645,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00127",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00128",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.3104388461514,
+        "mean_tied": 50.3104388461514,
+        "optimistic": 50.3104388461514,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 82.10111320887913,
+      "decode_regret_pct": {
+        "registered": 63.18902218273856,
+        "pessimistic": 63.18902218273856,
+        "mean_tied": 63.18902218273856,
+        "optimistic": 63.18902218273856,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00128",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00129",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.58639496010668,
+        "mean_tied": 45.58639496010668,
+        "optimistic": 45.58639496010668,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 45.58639496010668,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00129",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00130",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 58.816215243386125,
+        "mean_tied": 58.816215243386125,
+        "optimistic": 58.816215243386125,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 60.89676412790309,
+      "decode_regret_pct": {
+        "registered": 3.5373729436814147,
+        "pessimistic": 3.5373729436814147,
+        "mean_tied": 3.5373729436814147,
+        "optimistic": 3.5373729436814147,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00130",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00131",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 59.525051625288,
+        "mean_tied": 59.525051625288,
+        "optimistic": 59.525051625288,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 60.75687454956672,
+      "decode_regret_pct": {
+        "registered": 2.0694193295842553,
+        "pessimistic": 2.0694193295842553,
+        "mean_tied": 2.0694193295842553,
+        "optimistic": 2.0694193295842553,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00131",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00132",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 39.437248500746826,
+        "mean_tied": 39.437248500746826,
+        "optimistic": 39.437248500746826,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 39.437248500746826,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00132",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00133",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 70.0582688832252,
+        "mean_tied": 70.0582688832252,
+        "optimistic": 70.0582688832252,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 92.82796373817546,
+      "decode_regret_pct": {
+        "registered": 32.50108119700093,
+        "pessimistic": 32.5010811970012,
+        "mean_tied": 32.50108119700107,
+        "optimistic": 32.50108119700093,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00133",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00134",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 39.475022944514535,
+        "mean_tied": 39.475022944514535,
+        "optimistic": 39.475022944514535,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 48.02163980974453,
+      "decode_regret_pct": {
+        "registered": 21.650695117373285,
+        "pessimistic": 21.650695117373285,
+        "mean_tied": 21.650695117373285,
+        "optimistic": 21.650695117373285,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00134",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00135",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 41.008985398632035,
+        "mean_tied": 41.008985398632035,
+        "optimistic": 41.008985398632035,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 41.008985398632035,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00135",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00136",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 74.66194316485412,
+        "mean_tied": 74.66194316485412,
+        "optimistic": 74.66194316485412,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 94.37847706549792,
+      "decode_regret_pct": {
+        "registered": 26.407742773462974,
+        "pessimistic": 26.407742773462974,
+        "mean_tied": 26.407742773462974,
+        "optimistic": 26.407742773462974,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00136",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00137",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 51.81868806416787,
+        "mean_tied": 51.81868806416787,
+        "optimistic": 51.81868806416787,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 71.52760772316668,
+      "decode_regret_pct": {
+        "registered": 38.034385653671805,
+        "pessimistic": 38.034385653671805,
+        "mean_tied": 38.034385653671805,
+        "optimistic": 38.034385653671805,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00137",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00138",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 51.68287122901958,
+        "mean_tied": 51.68287122901958,
+        "optimistic": 51.68287122901958,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 51.68287122901958,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00138",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00139",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 71.35506456308678,
+        "mean_tied": 71.35506456308678,
+        "optimistic": 71.35506456308678,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 83.68817743938598,
+      "decode_regret_pct": {
+        "registered": 17.284145073395855,
+        "pessimistic": 17.284145073395855,
+        "mean_tied": 17.284145073395855,
+        "optimistic": 17.284145073395855,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00139",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00140",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 58.1093560613556,
+        "mean_tied": 58.1093560613556,
+        "optimistic": 58.1093560613556,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 59.33783237001739,
+      "decode_regret_pct": {
+        "registered": 2.1140766167924587,
+        "pessimistic": 2.1140766167924587,
+        "mean_tied": 2.1140766167924587,
+        "optimistic": 2.1140766167924587,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00140",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00141",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.606285766749544,
+        "mean_tied": 45.60628576674954,
+        "optimistic": 45.60628576674954,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 45.606285766749544,
+      "decode_regret_pct": {
+        "registered": 1.557992991128736e-14,
+        "pessimistic": 1.557992991128736e-14,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00141",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00142",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 68.57554347202884,
+        "mean_tied": 68.57554347202884,
+        "optimistic": 68.57554347202884,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 84.52857871100217,
+      "decode_regret_pct": {
+        "registered": 23.26344704140826,
+        "pessimistic": 23.26344704140826,
+        "mean_tied": 23.26344704140826,
+        "optimistic": 23.26344704140826,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00142",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00143",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 57.942773202480865,
+        "mean_tied": 57.942773202480865,
+        "optimistic": 57.942773202480865,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 60.87658154262435,
+      "decode_regret_pct": {
+        "registered": 5.06328602859808,
+        "pessimistic": 5.06328602859808,
+        "mean_tied": 5.06328602859808,
+        "optimistic": 5.06328602859808,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00143",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00144",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.54563284430225,
+        "mean_tied": 45.54563284430225,
+        "optimistic": 45.54563284430225,
+        "tie_width": 12
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 45.54563284430225,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 12
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00144",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00145",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 75.01906297663038,
+        "mean_tied": 75.01906297663038,
+        "optimistic": 75.01906297663038,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          23,
+          120
+        ],
+        [
+          23,
+          121
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 79.380609325741,
+      "decode_regret_pct": {
+        "registered": 5.813917391196043,
+        "pessimistic": 5.813917391196043,
+        "mean_tied": 5.813917391196043,
+        "optimistic": 5.813917391196043,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00145",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00146",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 68.5185477897766,
+        "mean_tied": 68.5185477897766,
+        "optimistic": 68.5185477897766,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          130
+        ]
+      ],
+      "decoded_rtt": 68.5185477897766,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00146",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00147",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 40.93111099801634,
+        "mean_tied": 40.93111099801634,
+        "optimistic": 40.93111099801634,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 56.08969459018676,
+      "decode_regret_pct": {
+        "registered": 37.03438099421504,
+        "pessimistic": 37.03438099421504,
+        "mean_tied": 37.03438099421504,
+        "optimistic": 37.03438099421504,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00147",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00148",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 94.35457076808522,
+        "mean_tied": 94.35457076808522,
+        "optimistic": 94.35457076808522,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          110
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 94.36337421304381,
+      "decode_regret_pct": {
+        "registered": 0.009330173288823174,
+        "pessimistic": 0.009330173288853298,
+        "mean_tied": 0.009330173288838237,
+        "optimistic": 0.009330173288823174,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00148",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00149",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 48.60163738497978,
+        "mean_tied": 48.60163738497978,
+        "optimistic": 48.60163738497978,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          21,
+          114
+        ]
+      ],
+      "decoded_rtt": 48.60163738497978,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00149",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00150",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.586114925982976,
+        "mean_tied": 45.586114925982976,
+        "optimistic": 45.586114925982976,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 51.07718580047874,
+      "decode_regret_pct": {
+        "registered": 12.045489911591446,
+        "pessimistic": 12.045489911591446,
+        "mean_tied": 12.045489911591446,
+        "optimistic": 12.045489911591446,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00150",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00151",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 92.84022092704421,
+        "mean_tied": 92.84022092704421,
+        "optimistic": 92.84022092704421,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          21,
+          115
+        ]
+      ],
+      "decoded_rtt": 92.84022092704421,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00151",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00152",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.57752760069417,
+        "mean_tied": 47.57752760069417,
+        "optimistic": 47.57752760069417,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          24,
+          125
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          24,
+          129
+        ]
+      ],
+      "decoded_rtt": 60.89131108257409,
+      "decode_regret_pct": {
+        "registered": 27.983344560522458,
+        "pessimistic": 27.983344560522458,
+        "mean_tied": 27.98334456052247,
+        "optimistic": 27.983344560522458,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00152",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00153",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.52758700897143,
+        "mean_tied": 42.52758700897143,
+        "optimistic": 42.52758700897143,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 42.52758700897143,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00153",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00154",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 99.96639759217521,
+        "mean_tied": 99.96639759217487,
+        "optimistic": 99.96639759217453,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 109.5105008365422,
+      "decode_regret_pct": {
+        "registered": 9.547311370870883,
+        "pessimistic": 9.547311370870883,
+        "mean_tied": 9.547311370870883,
+        "optimistic": 9.547311370870883,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00154",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00155",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.06054903756598,
+        "mean_tied": 45.06054903756598,
+        "optimistic": 45.06054903756598,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 45.06054903756598,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00155",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00156",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 34.33827840968665,
+        "mean_tied": 34.33827840968665,
+        "optimistic": 34.33827840968665,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 34.33827840968665,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00156",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00157",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.37511917398585,
+        "mean_tied": 50.37511917398585,
+        "optimistic": 50.37511917398585,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 100.02534781510985,
+      "decode_regret_pct": {
+        "registered": 98.56101475341782,
+        "pessimistic": 98.56101475341782,
+        "mean_tied": 98.56101475341748,
+        "optimistic": 98.56101475341714,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00157",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00158",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.54752475056667,
+        "mean_tied": 42.54752475056667,
+        "optimistic": 42.54752475056667,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 42.54752475056667,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00158",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00159",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.73479469263478,
+        "mean_tied": 29.73479469263478,
+        "optimistic": 29.73479469263478,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.73479469263478,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00159",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00160",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.807040183368997,
+        "mean_tied": 29.807040183368997,
+        "optimistic": 29.807040183368997,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 121.5083521908915,
+      "decode_regret_pct": {
+        "registered": 307.64984192790723,
+        "pessimistic": 307.64984192790723,
+        "mean_tied": 307.64984192790723,
+        "optimistic": 307.64984192790723,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00160",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00161",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.515275283947595,
+        "mean_tied": 42.515275283947595,
+        "optimistic": 42.515275283947595,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 44.89967510092119,
+      "decode_regret_pct": {
+        "registered": 5.60833677084027,
+        "pessimistic": 5.60833677084027,
+        "mean_tied": 5.60833677084027,
+        "optimistic": 5.60833677084027,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00161",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00162",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.717450241429965,
+        "mean_tied": 29.717450241429965,
+        "optimistic": 29.717450241429965,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.717450241429965,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00162",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00163",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 91.73652363832679,
+        "mean_tied": 91.73652363832656,
+        "optimistic": 91.73652363832645,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 91.75686488832662,
+      "decode_regret_pct": {
+        "registered": 0.022173556609107765,
+        "pessimistic": 0.022173556609293654,
+        "mean_tied": 0.022173556609123256,
+        "optimistic": 0.022173556608921872,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00163",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00164",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.54911937353803,
+        "mean_tied": 42.54911937353803,
+        "optimistic": 42.54911937353803,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 44.950221508744264,
+      "decode_regret_pct": {
+        "registered": 5.643130035493786,
+        "pessimistic": 5.643130035493786,
+        "mean_tied": 5.643130035493786,
+        "optimistic": 5.643130035493786,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00164",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00165",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.827615870977194,
+        "mean_tied": 29.827615870977194,
+        "optimistic": 29.827615870977194,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.827615870977194,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00165",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00166",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 46.999273599465475,
+        "mean_tied": 46.999273599465475,
+        "optimistic": 46.999273599465475,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 83.18304413697291,
+      "decode_regret_pct": {
+        "registered": 76.98793569847632,
+        "pessimistic": 76.98793569847632,
+        "mean_tied": 76.98793569847632,
+        "optimistic": 76.98793569847632,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00166",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00167",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.01848990805005,
+        "mean_tied": 45.01848990805005,
+        "optimistic": 45.01848990805005,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 45.01848990805005,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00167",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00168",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.72123504408077,
+        "mean_tied": 50.721235044080686,
+        "optimistic": 50.72123504408059,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 50.72123504408059,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 3.502195555483737e-13,
+        "mean_tied": 1.8211416888515434e-13,
+        "optimistic": 0.0,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00168",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00169",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 68.20421302151179,
+        "mean_tied": 68.20421302151179,
+        "optimistic": 68.20421302151179,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 83.55200998421665,
+      "decode_regret_pct": {
+        "registered": 22.502711024411536,
+        "pessimistic": 22.502711024411536,
+        "mean_tied": 22.502711024411536,
+        "optimistic": 22.502711024411536,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00169",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00170",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 58.95056476911705,
+        "mean_tied": 58.95056476911693,
+        "optimistic": 58.950564769116696,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 75.37243507971272,
+      "decode_regret_pct": {
+        "registered": 27.85701947880097,
+        "pessimistic": 27.85701947880097,
+        "mean_tied": 27.857019478800705,
+        "optimistic": 27.857019478800684,
+        "tie_width": 7
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00170",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00171",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 34.328640312228345,
+        "mean_tied": 34.328640312228345,
+        "optimistic": 34.328640312228345,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 34.328640312228345,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00171",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00172",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.737288232402975,
+        "mean_tied": 52.737288232402975,
+        "optimistic": 52.737288232402975,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          129
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 99.9909257525097,
+      "decode_regret_pct": {
+        "registered": 89.60194788907069,
+        "pessimistic": 89.60194788907069,
+        "mean_tied": 89.60194788907059,
+        "optimistic": 89.60194788907036,
+        "tie_width": 5
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00172",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00173",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 64.70980964260316,
+        "mean_tied": 64.70980964260316,
+        "optimistic": 64.70980964260316,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 67.85347477087807,
+      "decode_regret_pct": {
+        "registered": 4.858096702242809,
+        "pessimistic": 4.858096702242809,
+        "mean_tied": 4.858096702242809,
+        "optimistic": 4.858096702242809,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00173",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00174",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.04111468499964,
+        "mean_tied": 45.04111468499965,
+        "optimistic": 45.04111468499964,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 106.03912963359107,
+      "decode_regret_pct": {
+        "registered": 135.42740976813798,
+        "pessimistic": 135.42740976813798,
+        "mean_tied": 135.42740976813798,
+        "optimistic": 135.42740976813798,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00174",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00175",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 60.3949899062727,
+        "mean_tied": 60.3949899062727,
+        "optimistic": 60.3949899062727,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 106.18313990345266,
+      "decode_regret_pct": {
+        "registered": 75.81448406273239,
+        "pessimistic": 75.81448406273239,
+        "mean_tied": 75.81448406273239,
+        "optimistic": 75.81448406273239,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00175",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00176",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.54813935744327,
+        "mean_tied": 42.54813935744327,
+        "optimistic": 42.54813935744327,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 42.54813935744327,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00176",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00177",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.755051804691504,
+        "mean_tied": 29.755051804691504,
+        "optimistic": 29.755051804691504,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.776513996076545,
+      "decode_regret_pct": {
+        "registered": 0.07212957156289285,
+        "pessimistic": 0.07212957156289285,
+        "mean_tied": 0.07212957156289285,
+        "optimistic": 0.07212957156289285,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00177",
+      "split": "val"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00178",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.450315509812114,
+        "mean_tied": 37.450315509812114,
+        "optimistic": 37.450315509812114,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 105.64240664172445,
+      "decode_regret_pct": {
+        "registered": 182.08682678266294,
+        "pessimistic": 182.08682678266294,
+        "mean_tied": 182.08682678266294,
+        "optimistic": 182.08682678266294,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00178",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00179",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 58.95837568872689,
+        "mean_tied": 58.9583756887268,
+        "optimistic": 58.958375688726704,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 58.958522173101706,
+      "decode_regret_pct": {
+        "registered": 0.00024845388511853124,
+        "pessimistic": 0.0002484538854198212,
+        "mean_tied": 0.0002484538853595632,
+        "optimistic": 0.00024845388511853124,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00179",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00180",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.75168672674651,
+        "mean_tied": 50.751686726746385,
+        "optimistic": 50.75168672674632,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 50.75183321112132,
+      "decode_regret_pct": {
+        "registered": 0.0002886295696734416,
+        "pessimistic": 0.0002886295700514518,
+        "mean_tied": 0.000288629569799445,
+        "optimistic": 0.0002886295696734416,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00180",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00181",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.917289992839585,
+        "mean_tied": 52.917289992839585,
+        "optimistic": 52.917289992839585,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 67.87345116268156,
+      "decode_regret_pct": {
+        "registered": 28.26327873529756,
+        "pessimistic": 28.26327873529756,
+        "mean_tied": 28.26327873529756,
+        "optimistic": 28.26327873529756,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00181",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00182",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.02869406427219,
+        "mean_tied": 45.02869406427219,
+        "optimistic": 45.02869406427219,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 45.02869406427219,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00182",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00183",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 36.08422090212844,
+        "mean_tied": 36.08422090212844,
+        "optimistic": 36.08422090212844,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 98.38022328950075,
+      "decode_regret_pct": {
+        "registered": 172.64056374208081,
+        "pessimistic": 172.64056374208081,
+        "mean_tied": 172.64056374208081,
+        "optimistic": 172.64056374208081,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00183",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00184",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 57.73529812461385,
+        "mean_tied": 57.73529812461385,
+        "optimistic": 57.73529812461385,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 77.56740428414173,
+      "decode_regret_pct": {
+        "registered": 34.35005413278192,
+        "pessimistic": 34.35005413278192,
+        "mean_tied": 34.3500541327816,
+        "optimistic": 34.35005413278128,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00184",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00185",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 39.251226888419865,
+        "mean_tied": 39.251226888419865,
+        "optimistic": 39.251226888419865,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 44.87417031122591,
+      "decode_regret_pct": {
+        "registered": 14.325522712424972,
+        "pessimistic": 14.325522712424972,
+        "mean_tied": 14.325522712424972,
+        "optimistic": 14.325522712424972,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00185",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00186",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.76969907177612,
+        "mean_tied": 29.76969907177612,
+        "optimistic": 29.76969907177612,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 34.31271161528058,
+      "decode_regret_pct": {
+        "registered": 15.260525585263874,
+        "pessimistic": 15.260525585263874,
+        "mean_tied": 15.260525585263874,
+        "optimistic": 15.260525585263874,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00186",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00187",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 83.3204299790284,
+        "mean_tied": 83.32042997902816,
+        "optimistic": 83.32042997902805,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 83.3204299790284,
+      "decode_regret_pct": {
+        "registered": 4.263916640486286e-13,
+        "pessimistic": 4.263916640486286e-13,
+        "mean_tied": 1.3644533249556115e-13,
+        "optimistic": 0.0,
+        "tie_width": 6
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00187",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00188",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 48.528203102504364,
+        "mean_tied": 48.528203102504364,
+        "optimistic": 48.528203102504364,
+        "tie_width": 3
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 50.40733440126762,
+      "decode_regret_pct": {
+        "registered": 3.8722457841557296,
+        "pessimistic": 3.8722457841557296,
+        "mean_tied": 3.872245784155715,
+        "optimistic": 3.8722457841557296,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00188",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00189",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.7304994552604,
+        "mean_tied": 29.7304994552604,
+        "optimistic": 29.7304994552604,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 37.23369702914784,
+      "decode_regret_pct": {
+        "registered": 25.23737478806416,
+        "pessimistic": 25.23737478806416,
+        "mean_tied": 25.23737478806416,
+        "optimistic": 25.23737478806416,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00189",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00190",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.75554709781623,
+        "mean_tied": 52.75554709781623,
+        "optimistic": 52.75554709781623,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 52.75554709781623,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00190",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00191",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 42.514242968313,
+        "mean_tied": 42.514242968313,
+        "optimistic": 42.514242968313,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 42.514242968313,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00191",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00192",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 37.46453765232049,
+        "mean_tied": 37.46453765232049,
+        "optimistic": 37.46453765232049,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 98.42627761887944,
+      "decode_regret_pct": {
+        "registered": 162.7185167271992,
+        "pessimistic": 162.7185167271992,
+        "mean_tied": 162.7185167271992,
+        "optimistic": 162.7185167271992,
+        "tie_width": 3
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00192",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00193",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 50.15014507748086,
+        "mean_tied": 50.15014507748086,
+        "optimistic": 50.15014507748086,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          130
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 52.67607629763582,
+      "decode_regret_pct": {
+        "registered": 5.036737613126446,
+        "pessimistic": 5.036737613126446,
+        "mean_tied": 5.036737613126446,
+        "optimistic": 5.036737613126446,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00193",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00194",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.68517529671445,
+        "mean_tied": 52.68517529671445,
+        "optimistic": 52.68517529671445,
+        "tie_width": 6
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 52.68825404671445,
+      "decode_regret_pct": {
+        "registered": 0.005843674207518938,
+        "pessimistic": 0.005843674207518938,
+        "mean_tied": 0.005843674207505451,
+        "optimistic": 0.005843674207518938,
+        "tie_width": 12
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00194",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00195",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.755175495036205,
+        "mean_tied": 29.755175495036205,
+        "optimistic": 29.755175495036205,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          108
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 29.755175495036205,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00195",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00196",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 47.44490552425407,
+        "mean_tied": 47.44490552425407,
+        "optimistic": 47.44490552425407,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          112
+        ],
+        [
+          21,
+          116
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 100.0153437021207,
+      "decode_regret_pct": {
+        "registered": 110.80312542933059,
+        "pessimistic": 110.80312542933059,
+        "mean_tied": 110.80312542933059,
+        "optimistic": 110.80312542933059,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00196",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00197",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 52.677597977504604,
+        "mean_tied": 52.677597977504604,
+        "optimistic": 52.677597977504604,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          110
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          115
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 52.677597977504604,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00197",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00198",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 29.775744494480108,
+        "mean_tied": 29.775744494480108,
+        "optimistic": 29.775744494480108,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          113
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 34.301073136997616,
+      "decode_regret_pct": {
+        "registered": 15.198036923497993,
+        "pessimistic": 15.198036923497993,
+        "mean_tied": 15.198036923497993,
+        "optimistic": 15.198036923497993,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00198",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00199",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 72.66738859368591,
+        "mean_tied": 72.66738859368581,
+        "optimistic": 72.66738859368573,
+        "tie_width": 4
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          124
+        ],
+        [
+          24,
+          126
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 98.49509395281461,
+      "decode_regret_pct": {
+        "registered": 35.54236069159244,
+        "pessimistic": 35.54236069159244,
+        "mean_tied": 35.54236069159244,
+        "optimistic": 35.54236069159244,
+        "tie_width": 2
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00199",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00200",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 45.02539771602072,
+        "mean_tied": 45.02539771602072,
+        "optimistic": 45.02539771602072,
+        "tie_width": 2
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 50.7268842526025,
+      "decode_regret_pct": {
+        "registered": 12.662823263753443,
+        "pessimistic": 12.662823263753443,
+        "mean_tied": 12.662823263753443,
+        "optimistic": 12.662823263753443,
+        "tie_width": 4
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00200",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00201",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 34.31176882829838,
+        "mean_tied": 34.31176882829838,
+        "optimistic": 34.31176882829838,
+        "tie_width": 8
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          21,
+          109
+        ],
+        [
+          21,
+          111
+        ],
+        [
+          21,
+          114
+        ],
+        [
+          21,
+          117
+        ]
+      ],
+      "decoded_rtt": 34.31176882829838,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 8
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00201",
+      "split": "test"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00202",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 83.58220682742163,
+        "mean_tied": 83.58220682742146,
+        "optimistic": 83.58220682742129,
+        "tie_width": 15
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          123
+        ],
+        [
+          24,
+          128
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 83.58220682742144,
+      "decode_regret_pct": {
+        "registered": 1.8702473624558265e-13,
+        "pessimistic": 4.0805396999036216e-13,
+        "mean_tied": 2.0402698499518108e-13,
+        "optimistic": 0.0,
+        "tie_width": 15
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00202",
+      "split": "train"
+    },
+    {
+      "dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00203",
+      "alpha_key": "2.0",
+      "constrained_optimum": {
+        "pessimistic": 44.93797622388094,
+        "mean_tied": 44.93797622388094,
+        "optimistic": 44.93797622388094,
+        "tie_width": 1
+      },
+      "infeasible": false,
+      "decoded_combo": [
+        [
+          24,
+          125
+        ],
+        [
+          24,
+          127
+        ],
+        [
+          24,
+          131
+        ],
+        [
+          24,
+          132
+        ]
+      ],
+      "decoded_rtt": 44.93797622388094,
+      "decode_regret_pct": {
+        "registered": 0.0,
+        "pessimistic": 0.0,
+        "mean_tied": 0.0,
+        "optimistic": 0.0,
+        "tie_width": 1
+      },
+      "parent_dataset_id": "gnn_datasets_dag4_route_b_pilot_v1_arm_s/ds_00203",
+      "split": "train"
+    }
+  ],
+  "run_provenance": {
+    "code": {
+      "git_available": true,
+      "commit": "b3822a324032416c59435dec8445a116827eb3c1",
+      "describe": "b3822a3-dirty",
+      "branch": "feat/network-contention-v1",
+      "code_paths": [
+        "src",
+        "scripts_cosim",
+        "experiments",
+        "run_experiment.py"
+      ],
+      "dirty": true,
+      "diff_sha256": "7fbf642bfc20e9a3121b59c38694b84b12c8eae62f26e1797613de20c17d744c",
+      "changed_files": [
+        "experiments/route_b_stage2_a2.yaml",
+        "experiments/route_b_stage2_a3.yaml",
+        "run_experiment.py",
+        "scripts_cosim/eval_route_b_stage2_arm.py",
+        "src/policy/tabular/reduced_features.py",
+        "src/policy/tabular/train_mlp_dim22_from_batch.py"
+      ],
+      "changed_file_count": 6
+    },
+    "python_env": {
+      "python_version": "3.12.3",
+      "executable": "/root/.local/share/virtualenvs/my-herosim-7iPRbgpb/bin/python3",
+      "hostname": "mitrix",
+      "platform": "Linux-6.8.0-111-generic-x86_64-with-glibc2.39",
+      "torch": "2.5.1+cu121",
+      "numpy": "2.3.0",
+      "torch_geometric": "2.6.1",
+      "scipy": "1.15.3",
+      "simpy": "4.1.1",
+      "torch_cuda": "12.1",
+      "thread_env": {
+        "OMP_NUM_THREADS": null,
+        "MKL_NUM_THREADS": null,
+        "PYTHONHASHSEED": null
+      },
+      "torch_num_threads": 32,
+      "cuda_available": true,
+      "gnn_serving_device": "cpu"
+    },
+    "env_fingerprint": "f4ea668adf901c5f23c0895ac18a560c143090ccf90964e89978d3132200c545"
+  }
+}

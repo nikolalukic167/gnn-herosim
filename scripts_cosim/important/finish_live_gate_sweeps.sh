@@ -25,7 +25,7 @@ valid_rtt_count() {
   local dir="$1"
   local n=0
   while IFS= read -r f; do
-    rtt=$(pipenv run python3 -c "import json; print(json.load(open('${f}')).get('total_rtt', 0))" 2>/dev/null || echo 0)
+    rtt=$(${HEROSIM_PY:-pipenv run python3} -c "import json; print(json.load(open('${f}')).get('total_rtt', 0))" 2>/dev/null || echo 0)
     if python3 -c "import sys; sys.exit(0 if float('${rtt}') > 0 else 1)" 2>/dev/null; then
       n=$((n + 1))
     fi
@@ -36,7 +36,7 @@ valid_rtt_count() {
 run_compare() {
   local script="$1" sweep="$2" out="$3"
   log "compare: ${script} -> ${out}"
-  pipenv run python3 "$script" --sweep-dir "$sweep" | tee "$out" >> "$LOG"
+  ${HEROSIM_PY:-pipenv run python3} "$script" --sweep-dir "$sweep" | tee "$out" >> "$LOG"
 }
 
 mkdir -p "$PHASE_DIR" "$WEIGHTED_PHASE_DIR"

@@ -41,12 +41,21 @@ from typing import Any, Dict, List, Mapping, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_NOTEBOOKS_ROOT = Path(__file__).resolve().parent
+for _p in (_PROJECT_ROOT, _NOTEBOOKS_ROOT):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
 import pandas as pd
 import numpy as np
 import torch
 from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
 from tqdm import tqdm
+
+from src.placement.temporal_features import temporal_remainders
+from src.placement.topology_features import build_source_feature_context
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -962,9 +971,13 @@ def build_graph(
     task_onehot = (task_type_arr[:, None] == task_types_vocab[None, :]).astype(float)
     
     src_names = df_tasks['source_node'].to_numpy()
-    src_idx = np.fromiter((first_idx_per_name.get(n, 0) for n in src_names),
-                          dtype=np.float64, count=n_tasks)
-    src_norm = (src_idx / max(len(df_nodes), 1)).reshape(-1, 1)
+    source_ctx = build_source_feature_context(
+        df_nodes['node_name'].tolist(),
+        network_map_by_node,
+        first_idx_by_name=first_idx_per_name,
+    )
+    src_norm = np.fromiter((source_ctx.feature(n) for n in src_names),
+                           dtype=np.float64, count=n_tasks).reshape(-1, 1)
     
     task_features = np.concatenate([task_onehot, src_norm], axis=1)
     _require_finite_feature_array("task_features", task_features)
@@ -1005,37 +1018,24 @@ def build_graph(
     cold_start_remaining = np.zeros(n_platforms, dtype=np.float64)
     comm_remaining = np.zeros(n_platforms, dtype=np.float64)
     
-    if temporal_state:
-        for pos in range(n_platforms):
-            node_name = str(plat_node_by_pos[pos])
-            plat_id = int(plat_ids_arr[pos])
-            key = f"{node_name}:{plat_id}"
-            temp_state = temporal_state.get(key, {})
-            current_task_remaining[pos] = _safe_float(temp_state.get('current_task_remaining', 0.0), 0.0)
-            cold_start_remaining[pos] = _safe_float(temp_state.get('cold_start_remaining', 0.0), 0.0)
-            comm_remaining[pos] = _safe_float(temp_state.get('comm_remaining', 0.0), 0.0)
-    else:
-        # Approximate: if queue > 0, estimate some remaining time
-        for pos in range(n_platforms):
-            if queue_lengths[pos] > 0:
-                # Estimate: average execution time for platform type
-                plat_type = str(plat_types_by_pos[pos])
-                # Get average exec time across task types for this platform
-                avg_exec = 0.0
-                count = 0
-                for task_type in task_types_vocab:
-                    task_type_priors = task_priors.get(str(task_type), {})
-                    exec_map = task_type_priors.get("executionTime", {})
-                    if isinstance(exec_map, dict):
-                        exec_time = _safe_float(exec_map.get(plat_type, 0.0), 0.0)
-                        if exec_time > 0:
-                            avg_exec += exec_time
-                            count += 1
-                if count > 0:
-                    current_task_remaining[pos] = avg_exec / count
-                    # Cold start typically much shorter than execution for warm platforms
-                    cold_start_remaining[pos] = current_task_remaining[pos] * 0.1
-                    comm_remaining[pos] = current_task_remaining[pos] * 0.05
+    # Shared with live inference and prepare_graphs_cache — see
+    # src/placement/temporal_features.py for the two bugs this replaced (a snapshot-level
+    # estimate gate, and an average over task types no corpus dispatches).
+    for pos in range(n_platforms):
+        node_name = str(plat_node_by_pos[pos])
+        plat_id = int(plat_ids_arr[pos])
+        key = f"{node_name}:{plat_id}"
+        (
+            current_task_remaining[pos],
+            cold_start_remaining[pos],
+            comm_remaining[pos],
+        ) = temporal_remainders(
+            queue_depth=queue_lengths[pos],
+            recorded=(temporal_state or {}).get(key),
+            platform_type=str(plat_types_by_pos[pos]),
+            task_types_data=task_priors,
+            task_types_vocab=task_types_vocab,
+        )
     
     # Normalize temporal features (assume max ~10s)
     current_task_remaining_norm = (current_task_remaining / 10.0).reshape(-1, 1)
