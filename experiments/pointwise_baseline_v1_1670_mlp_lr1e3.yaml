@@ -1,0 +1,41 @@
+# pointwise_baseline_v1 -- the REAL pointwise model class, on the 1670-dataset corpus,
+# learning rate lr1e3. docs/lineages/pointwise_baseline_v1.md.
+#
+# Why this lineage exists: every graph-vs-pointwise number in this programme compares the GNN
+# against its OWN message-passing-disabled twin (`mpoff`). That twin shares the GNN's encoder,
+# scorer and decoder -- it is an ablation, not a different model class. CLAUDE.md says in its
+# own words that "the MLP is a control, not a straw man", and `best_arm_v1` had to carry
+# "`mpoff_516` is a GNN's MP-OFF twin, **not the MLP**" as a clause. This arm is the MLP.
+#
+# The comparison is fair by construction on the serving side: `MLPBatchScheduler` inherits
+# graph build, decode and roll-forward from `GNNScheduler` (via `XGBoostBatchScheduler`) and
+# replaces ONLY the scoring -- one batched [N_edges, 22] -> [N_edges] pass through a pointwise
+# MLP. Same decoder, same peer-group batching, same physics, same cells, same workload.
+#
+# Corpus and split are the 1670-dataset psv3 ones, i.e. IDENTICAL to the arms this is
+# compared against (`be1670_gnnedge0` and `1670_mpoff`). A corpus is its SPLIT, not its
+# directory -- the sbatch asserts num_datasets and the split sizes before training.
+#
+# THE LEARNING RATE IS NOT INHERITED FROM THE GNN. `literature_reeval_v1` found a published
+# method's tie was caused by the authors' own recipe under-training it, and this programme
+# would be making the same error if it handed its baseline the GNN's lr untested. Three lrs are
+# trained and ONE is selected on held-out OFFLINE score before any live arm runs; the selection
+# is a registered step (J0) and the live gate only ever sees the winner.
+trainer: mlp
+lineage: pointwise_baseline_v1
+cache_dir: simulation_data/graphs_cache_peer_only_v1_1670_psv3
+env:
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: "1"
+path_args: [output, split-artifact]
+args:
+  output: models/tabular/pointwise-baseline-v1-1670-mlp-lr1e3.pt
+  split-artifact: experiments/peer_only_v1_1670_split.json
+  partial-state: null
+  candidate-relative-queue: null
+  epochs: 600
+  patience: 40
+  lr: 0.001
+  random-state: 42
+  wandb-project: gnn-peer-affinity-v1
+  wandb-run-name: pointwise-baseline-v1-1670-mlp-lr1e3
