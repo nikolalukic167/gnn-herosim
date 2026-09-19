@@ -22,6 +22,8 @@
 #                           higher-powered E2; all of these need PO_TASK_OFFSET
 #   H1      tasks 1300-1363 gnnedge0 trained on the 516 corpus (corpus_matched_v1) at R0 =
 #                           the 20-client rung -- the missing cell of the corpus 2x2
+#   S2      tasks 1364-1683 unsaturated_scale_v1: five arms at U80 (80 servers, f4000 -- the
+#                           factor S1 selected, reactive queue share 0.66); PO_TASK_OFFSET
 #   E1-E3   tasks 916-1107 gnnedgesum (bipartite_aggr_v1) x {R3, R0} x 4 cells x 16, plus
 #                         gnnedge0 at R0 which E2 has no comparison arm without.
 #                         PAST MaxArraySize=1001, so these submit via PO_TASK_OFFSET:
@@ -85,6 +87,11 @@ mkdir -p "$OUT_DIR"
 # partial_state_v3 P3 used, so its reactive baselines at those rungs are directly reusable.
 RUNG_TAGS=(R0 R3 R1 R2); RUNG_SERVERS=(6 80 12 24)
 RUNG_WORKLOADS=(drainable_f4000_n50000 drainable_f300_n50000 drainable_f2000_n50000 drainable_f1000_n50000)
+# unsaturated_scale_v1 S2 (2026-09-19): index 4 = U80, the R3 cells at the factor S1 SELECTED
+# (f4000, reactive queue share 0.660 -- the only 80-server load under the 0.80 target; f2000 is
+# already 0.955). Same cells and checkpoints as R3, different trace, so the arms below are
+# read against results/us_v1's reactive at f4000, never against R3's.
+RUNG_TAGS+=(U80); RUNG_SERVERS+=(80); RUNG_WORKLOADS+=(drainable_f4000_n50000)
 TSEEDS=(9001 9002 9003 9005)
 CKSEEDS=(1 2 4 5)
 
@@ -172,6 +179,17 @@ for a in gnnedgesum gnnedge0; do for c in 0 1 2 3; do for s in "${EXTSEEDS[@]}";
 # PO_TASK_OFFSET: 1300 is past MaxArraySize.
 for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do
   CORP+=("cm516"); ARMS+=("gnnedge0"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done
+# unsaturated_scale_v1 S2 (2026-09-19), tasks 1364-1683. A DIFFERENT LINEAGE:
+# docs/lineages/unsaturated_scale_v1.md. The five registered arms (K_ARMS) at rung index 4
+# (U80 = 80 servers at f4000, the factor S1 selected), 4 cells x 16 checkpoints each:
+#   1364-1427 gnnedge0 (be1670)   1428-1491 mpoff (1670)   1492-1555 peeronly (1670)
+#   1556-1619 gnn (1670)          1620-1683 mpoff (v3ext = 516)
+# Needs PO_TASK_OFFSET; submit in blocks of 48 (MaxSubmit = 50). Tasks 0-1363 keep their arms.
+for spec in "be1670 gnnedge0" "1670 mpoff" "1670 peeronly" "1670 gnn" "v3ext mpoff"; do
+  read -r corp arm <<< "$spec"
+  for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do
+    CORP+=("$corp"); ARMS+=("$arm"); RI+=(4); CI+=("$c"); SEED+=("$s"); done; done
+done
 NTASKS=${#ARMS[@]}
 # SLURM's MaxArraySize on this cluster is 1001, so --array indices above 1000 are rejected
 # outright ("Invalid job array specification") -- and this table has grown past that. Rather
