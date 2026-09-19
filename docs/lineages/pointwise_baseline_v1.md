@@ -1,8 +1,22 @@
 # pointwise_baseline_v1 — is the pointwise baseline this programme keeps quoting actually the MLP?
 
-**Status:** `REGISTERED` (2026-09-19) — bars signed before any arm is served. Every bar is a
-module constant in `scripts_cosim/pointwise_baseline_v1_read.py`, committed with its 12 tests
-before the reader was pointed at a results directory.
+**Status:** `PARKED` (2026-09-19) — **`MLP-CANNOT-BE-SERVED-UNDER-PARTIAL-STATE`.** The bars
+are signed and the arms are trained; the lineage is parked on a missing serving
+capability, found by a one-arm smoke test before any gate arm ran. Every measured result below
+stands; resuming needs the serving path built and its parity proved, not just a re-run.
+
+**The tabular MLP has never been served live under a partial-state representation in this
+programme.** The MLP serving path scores every edge once per batch, and the partial-state block
+is a function of the committed prefix, so one-shot scoring structurally cannot carry it — it
+never has, for any contract. The first `mlp_batch` arm completed normally and read
+`fallback_decisions: 50000 / 50000`: shortest-queue on every task, wearing the MLP's name.
+**This also explains the substitution the lineage was registered to question — `mpoff` was the
+only pointwise arm that could be served at all.** Full account, and the four defects fixed on
+the way, in the Record.
+
+Every bar is a module constant in `scripts_cosim/pointwise_baseline_v1_read.py`, committed with
+its 12 tests before the reader was pointed at a results directory. **Nothing is read and no bar
+is relaxed**; J0–J4 stand exactly as signed.
 
 **The question, in one sentence: every graph-vs-pointwise number in this programme compares
 the GNN against its own message-passing-disabled twin, not against a pointwise model.**
@@ -32,13 +46,18 @@ is worth more than another rung of any existing ladder.
 
 ## What makes the comparison fair
 
-**The serving path is shared.** `MLPBatchScheduler` inherits graph build, decode and
-roll-forward from `GNNScheduler` (via `XGBoostBatchScheduler`) and replaces **only the
-scoring** — one batched `[N_edges, 22] → [N_edges]` pass through a pointwise MLP. Same
-decoder, same peer-group batching, same capacity masks, same physics, same cells, same
-workload. This programme has been burned by serving-layout confounds twice
-(`herosim-inference-layout-confound`, `herosim-live-quality-is-a-training-draw-lottery`), so
-the shared path is the reason this contrast is readable at all.
+**The serving path is shared — and this is where the lineage blocked.** `MLPBatchScheduler`
+inherits graph build, decode and roll-forward from `GNNScheduler` (via
+`XGBoostBatchScheduler`) and replaces only the scoring, which is what makes the contrast
+readable at all: this programme has been burned by serving-layout confounds twice
+(`herosim-inference-layout-confound`, `herosim-live-quality-is-a-training-draw-lottery`).
+
+**But it scores every edge ONCE per batch**, and the partial-state block changes at every
+decode step, so that path cannot serve a partial-state arm — see the Record. The route through
+is `decode_prefix_conditioned`, which is model-agnostic (it takes
+`score_fn(task_idx, committed)`) and **refuses to fall back**; what is missing is an MLP
+counterpart to `make_partial_state_score_fn`, plus the offline/live parity proof that any new
+serving path in this record has to pass before its numbers are believed.
 
 **The corpus is matched, at both levels.** `corpus_matched_v1` closed
 `MODEL-CLASS-EDGE-IS-CORPUS-CONTINGENT`, so a single-corpus answer here would be a single-level
@@ -129,3 +148,81 @@ Scored after the read; being wrong is recorded, not rewritten.
 ## Record
 
 *(newest first; appended as the reads land)*
+
+### 2026-09-19 — BLOCKED: the tabular MLP has never been servable under a partial-state representation
+
+**A one-arm smoke test stopped this lineage from producing a clean, completely invalid
+result.** It is the reason the lesson *"an instrument is not on until a result file has its
+output"* exists, and it paid for itself the first time it was run here.
+
+**What happened.** One `mlp_batch` arm was served on the real R0 cell with the gate's own
+workload, physics and env. It completed: 50,000 tasks, 0 failed, 39 s wall,
+`averageElapsedTime = 20.91 s` — which at that rung would have been **faster than reactive
+Knative (22.22 s)** and far faster than both learned arms (`mpoff_516` +69.34 %, `gnnedge0`
++94.99 %). A headline result, from a well-formed result file, on the right cells.
+
+**It was not the MLP.** `stats.schedulerCounters` reads
+**`gnn_pure_decisions: 0`, `fallback_decisions: 50000`** — the scheduler fell back to
+shortest-queue on **every single task**. The 20.91 s is a shortest-queue heuristic wearing the
+MLP's name. Had the smoke test been skipped and the registered 384-arm gate run instead, this
+lineage would have reported "the pointwise model class beats everything" and the number would
+have been a queue heuristic's.
+
+**The cause, and why it is structural rather than a bug.**
+`[MLP Batch] Feature dim mismatch: 25 != 47`. `MLPBatchScheduler.build_feature_matrix`
+assembles `task ⊕ platform ⊕ edge ⊕ candidate-relative` = **dim25cr (25)** and stops. It never
+appends the partial-state block, **for any contract** — not `dim47crk`, and not `dim63crk`
+either. `partial_state_columns` is consumed only by `src/policy/gnn/partial_state_edges.py`
+and the cache builder; **no MLP serving path has ever called it.**
+
+That is not an oversight in one function. The partial-state block is a function of the
+**committed prefix**, so it changes at every decode step, and the MLP path scores **all edges
+once per batch**. One-shot scoring structurally cannot carry a prefix-conditioned feature. It
+is the same gap `src/policy/gnn/prefix_serving.py` was built to close for the GNN.
+
+**The finding, which is worth more than the blocked comparison:**
+
+> **The tabular MLP has never been served live under a partial-state representation in this
+> programme.** Every live MLP arm in the record is a `dim22`/`dim25cr` arm; every partial-state
+> ("T1") MLP result is an **offline** one.
+
+**This explains the substitution the lineage was registered to question.** `mpoff` was not
+chosen as "the pointwise arm" out of carelessness — **it was the only pointwise arm that could
+be served at all** under the representation the graph arms use. That is a much better reason
+than the record had recorded, and it is still not the same thing as the MLP.
+
+**What was fixed on the way.**
+
+1. **`dim47crk`** — the MLP layout under `partial_state_v3` now exists
+   (`dim25cr` 25 + the v3 block 22 = 47), as a **separate layout name**, never a widened
+   `dim63crk`. `_batch_edge_feature_dims` had refused v3 outright on the stated grounds that
+   *"the MLP is not an arm of that lineage"* — organisational, not physical. v1/v2 stay
+   byte-identical; `tests/test_dim47crk_layout.py` (8) pins all of it. **Training works**: the
+   first v3 MLP trained to val_edge_acc 0.823 and declares `inference_feature_layout=dim47crk`.
+2. **The B2 ablation width was the v1/v2 constant 38.** It zeroes the *last n* columns; on a
+   47-column arm that zeroes the 22-column partial-state block **plus 16 columns of dim25cr**,
+   and reports the result as the registered B2 quantity — inflated, in the direction that makes
+   any arm look more partial-state-dependent than it is. Now contract-driven. The one
+   checkpoint trained under the bug was deleted rather than kept.
+3. **A fallback bar**, in `scripts_cosim/datalab/pointwise_baseline_v1_smoke.sbatch`. The
+   counters were already exported (`stats.schedulerCounters`) — the instrument was on, and
+   **nothing asserted it**. The smoke test now refuses any arm with `fallback_decisions != 0`.
+   Note the GNN gate arms are safe by construction: they decode via
+   `decode_prefix_conditioned`, whose docstring is explicit that *"a failed decode is an error
+   here, never a fallback"*. The hazard is specific to the batch-scheduler path.
+4. **"1670" is a label, not a count** — the corpus is 1,654 datasets. The training guard
+   asserted the name and failed 9 of its own selection tasks. Filed in `gate-tools.md`.
+
+**What remains, and its cost.** `decode_prefix_conditioned` is model-agnostic — it takes a
+`score_fn(task_idx, committed) -> logits`. So serving the MLP needs an MLP counterpart to
+`make_partial_state_score_fn`: rebuild this task's `[n_candidates, 47]` rows from the committed
+prefix in the training extractor's exact column order, forward, return. The decoder, the caps,
+the masks and the peer-group batching are all reused unchanged, and the prefix path **refuses
+to fall back**, which removes the hazard above entirely.
+
+That is a new serving path, and a serving path is not trustworthy until it is **proved
+bit-identical to the offline extractor on held-out datasets** — the discipline
+`peer_affinity_v1` stage 3 used (34/34) before any live number from it was believed. Estimate:
+the scorer and its parity proof, then the 32 training runs (18 already done) and 384 gate arms.
+
+**Nothing is read, and no bar is relaxed.** J0–J4 stand exactly as signed.
