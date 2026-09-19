@@ -79,4 +79,11 @@ read: `scripts_cosim/unsaturated_edge_v1_gate_read.py {m0,study}`.
 
 ## Record (newest first)
 
+- 2026-09-19 — C40 screen (791284): **12 of 48 cells hang** in the starved-client spin
+  (`herosim-live-run-spins-on-starved-client`), frozen at simulated t ≤ 332 s after 11 min of
+  wall — every one on **w1–w3** of topologies 9002 (w1 only), 9102, 9103 (w1, w2), 9107, 9108,
+  while those topologies' w0 runs progress. Cancelled rather than left to time out; recorded as
+  unreadable, which the rule renders inadmissible. Readable so far: 9001, 9003, 9101, 9104,
+  9106 admissible on all four windows; 9002 / 9005 / 9105 saturated on w0 alone (0.871 / 0.803
+  / 0.842 against 0.43–0.65 on w1–w3 — the w0-is-burstiest finding, again).
 - 2026-09-19 — Registered; mint (job 791283) complete; screen (791284, +1 block) running.
