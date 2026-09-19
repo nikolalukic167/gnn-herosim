@@ -63,6 +63,8 @@ DIM25CR_FEATURE_DIM = 25
 # THE single-source function reduced_features.partial_state_columns behind the
 # PARTIAL_STATE_CONTRACT version (see docs/lineages/route_b_v1/stage2-preregistration.md §2).
 DIM63CRK_FEATURE_DIM = 63
+# dim47crk: the same layout under partial_state_v3 -- dim25cr (25) + the v3 block (22).
+DIM47CRK_FEATURE_DIM = 47
 
 # CE-reduced ablation (archive/warmth_sparse/src/notebooks/train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
 CE_REDUCED_TASK_FEATURE_DIM = 3
@@ -204,7 +206,7 @@ def _uses_dim22_layout(layout: str) -> bool:
     # path never sees them and must stay byte-identical.
     return layout in (
         "dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060", "dim25cr",
-        "dim63crk",
+        "dim63crk", "dim47crk",
     )
 
 
@@ -214,20 +216,25 @@ def _uses_dim24_layout(layout: str) -> bool:
 
 def _uses_candidate_relative_layout(layout: str) -> bool:
     """P5b: dim22 + 3 candidate-relative queue columns (program_verdict_v1)."""
-    return layout in ("dim25cr", "25", "candrel", "dim63crk")
+    return layout in ("dim25cr", "25", "candrel", "dim63crk", "dim47crk")
 
 
 def _uses_partial_state_layout(layout: str) -> bool:
-    """route_b stage 2: dim25cr + the 38 partial-state/krank/linkrank columns of
-    reduced_features.partial_state_columns (contract PARTIAL_STATE_CONTRACT)."""
-    return layout in ("dim63crk", "63", "crk")
+    """dim25cr + the partial-state/krank/linkrank columns of
+    reduced_features.partial_state_columns (contract PARTIAL_STATE_CONTRACT).
+
+    TWO widths, one per contract: dim63crk is the 38-column v1/v2 block and dim47crk the
+    22-column v3 one (pointwise_baseline_v1). They are separate names on purpose -- a
+    checkpoint's `inference_feature_layout` is what stops one being served the other's
+    features, so widening dim63crk instead would have removed the only guard."""
+    return layout in ("dim63crk", "63", "crk", "dim47crk", "47")
 
 
 def _expected_feature_dim_for_layout(layout: str) -> int:
     if _uses_dim24_layout(layout):
         return DIM24_FEATURE_DIM
     if _uses_partial_state_layout(layout):
-        return DIM63CRK_FEATURE_DIM
+        return DIM47CRK_FEATURE_DIM if layout in ("dim47crk", "47") else DIM63CRK_FEATURE_DIM
     if _uses_candidate_relative_layout(layout):
         return DIM25CR_FEATURE_DIM
     if _uses_dim22_layout(layout):

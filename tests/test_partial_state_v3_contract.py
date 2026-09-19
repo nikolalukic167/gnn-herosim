@@ -131,10 +131,24 @@ def test_v3_serves_a_cluster_the_one_hot_cannot():
         _ctx(PARTIAL_STATE_CONTRACT_V2, n_nodes=80)
 
 
-def test_the_mlp_layout_refuses_v3(monkeypatch):
+def test_the_mlp_layout_under_v3_is_dim47crk_not_a_refusal(monkeypatch):
+    """SUPERSEDED 2026-09-19 (pointwise_baseline_v1), and kept rather than deleted.
+
+    Until then this asserted that v3 had "no MLP layout". That refusal was real and its
+    stated reason was organisational -- "the MLP is not an arm of that lineage" -- not
+    physical: `partial_state_columns` has always allocated `partial_state_feature_dim(
+    contract)` and branched on the krank encoding, so the v3 block was already buildable.
+    `pointwise_baseline_v1` makes the MLP an arm of the v3 lineages, because every
+    graph-vs-pointwise number in this programme had been measured against the GNN's own
+    MP-OFF twin rather than the pointwise model class.
+
+    What replaced the refusal is a SEPARATE LAYOUT NAME, not a widened dim63crk -- see
+    tests/test_dim47crk_layout.py. v2 is asserted here unchanged, because every MLP
+    checkpoint already on disk is a v1/v2 one.
+    """
     monkeypatch.setenv(rf.PARTIAL_STATE_CONTRACT_ENV, PARTIAL_STATE_CONTRACT_V3)
-    with pytest.raises(ValueError, match="no MLP layout"):
-        rf._batch_edge_feature_dims(14, candidate_relative=True, partial_state=True)
+    dim, _, layout = rf._batch_edge_feature_dims(14, candidate_relative=True, partial_state=True)
+    assert (dim, layout) == (rf.DIM47CRK_FEATURE_DIM, "dim47crk")
     monkeypatch.setenv(rf.PARTIAL_STATE_CONTRACT_ENV, PARTIAL_STATE_CONTRACT_V2)
     dim, _, layout = rf._batch_edge_feature_dims(14, candidate_relative=True, partial_state=True)
     assert (dim, layout) == (rf.DIM63CRK_FEATURE_DIM, "dim63crk")

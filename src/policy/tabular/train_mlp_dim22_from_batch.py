@@ -51,6 +51,7 @@ from src.policy.tabular.reduced_features import (
     DIM22_FEATURE_DIM,
     DIM24_FEATURE_DIM,
     DIM25CR_FEATURE_DIM,
+    DIM47CRK_FEATURE_DIM,
     DIM63CRK_FEATURE_DIM,
     PARTIAL_STATE_FEATURE_DIM,
     validate_partial_state_contract,
@@ -306,6 +307,7 @@ def main() -> None:
         DIM24_FEATURE_DIM: "dim24",
         DIM25CR_FEATURE_DIM: "dim25cr",
         DIM63CRK_FEATURE_DIM: "dim63crk",
+        DIM47CRK_FEATURE_DIM: "dim47crk",
     }
     if input_dim not in _LAYOUT_BY_WIDTH:
         raise RuntimeError(
@@ -316,12 +318,12 @@ def main() -> None:
     # The flags and the extracted width must agree, or the checkpoint would declare a
     # layout it was not trained under — the confound tests/test_inference_layout_contract
     # exists to prevent.
-    if candidate_relative != (layout in ("dim25cr", "dim63crk")):
+    if candidate_relative != (layout in ("dim25cr", "dim63crk", "dim47crk")):
         raise RuntimeError(
             f"[MLP batch] --candidate-relative-queue={candidate_relative} but extracted "
             f"width {input_dim} implies layout {layout!r}"
         )
-    if partial_state != (layout == "dim63crk"):
+    if partial_state != (layout in ("dim63crk", "dim47crk")):
         raise RuntimeError(
             f"[MLP batch] --partial-state={partial_state} but extracted "
             f"width {input_dim} implies layout {layout!r}"
