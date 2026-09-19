@@ -409,3 +409,24 @@ spelling is unchanged, and the task logs the mapping when the offset is non-zero
 
 **The rule: check `scontrol show config | grep MaxArraySize` before appending a block that
 would cross it**, and treat a growing task table as a thing with a ceiling rather than a list.
+
+## "1670" is a label, not a count — the corpus is 1,654 datasets (2026-09-19)
+
+Every arm tag, split filename and cache directory in the `peer_only_v1` family says **1670**:
+`peer_only_v1_1670_split.json`, `graphs_cache_peer_only_v1_1670_psv3`, the arm labels
+`1670_mpoff` / `be1670_gnnedge0` / `ba1670_gnnedgesum`. The corpus behind all of them is
+**1,654 datasets** (split 1524 / 96 / 34), which is what the record itself has always quoted —
+CLAUDE.md and `peer_only_v1`'s own head both say "the 1,654-dataset corpus".
+
+`pointwise_baseline_v1` asserted `num_datasets == 1670` in its training sbatch, on the
+strength of the name, and **failed 9 of its own selection tasks**. That is the guard working:
+the alternative was training a corpus-matched arm against a number nobody had checked.
+
+**The rule:** take a corpus size from the cache's `metadata.json` and the split artifact's own
+totals, never from a filename or an arm tag. If a guard asserts a size, derive the expected
+value the same way — and when a name and a measurement disagree, the measurement is the corpus
+(`docs/lessons.md` → "A corpus is its SPLIT, not its directory").
+
+The names are **not** being renamed: 1,670-tagged checkpoints and result files are on disk
+across five lineages, and a rename would break every arm label the readers match on. The tag
+is a name; this entry is the translation.
