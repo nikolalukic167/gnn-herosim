@@ -79,6 +79,31 @@ read: `scripts_cosim/unsaturated_edge_v1_gate_read.py {m0,study}`.
 
 ## Record (newest first)
 
+- 2026-09-19 — **M0 read: `DESIGN-READY` on both rungs, 59 / 96 environments admissible.**
+  Reactive queue share (`n/a` = hung in the starved-client spin, cancelled, inadmissible):
+
+  | C40 | w0 | w1 | w2 | w3 | | C80 | w0 | w1 | w2 | w3 | |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | 9001 | 0.552 | 0.429 | 0.435 | 0.432 | ✓ | 9001 | 0.660 | 0.465 | 0.454 | 0.460 | ✓ |
+  | 9002 | **0.871** | n/a | 0.530 | 0.517 | | 9002 | 0.796 | n/a | n/a | n/a | |
+  | 9003 | 0.592 | 0.473 | 0.472 | 0.467 | ✓ | 9003 | 0.637 | 0.509 | 0.511 | 0.504 | ✓ |
+  | 9005 | **0.803** | 0.517 | 0.490 | 0.492 | | 9005 | **0.893** | 0.535 | 0.538 | 0.534 | |
+  | 9101 | 0.546 | 0.455 | 0.454 | 0.445 | ✓ | 9101 | 0.495 | 0.411 | 0.405 | 0.406 | ✓ |
+  | 9103 | 0.530 | n/a | n/a | 0.477 | | 9103 | 0.533 | n/a | n/a | 0.475 | |
+  | 9104 | 0.632 | 0.533 | 0.516 | 0.509 | ✓ | 9104 | **0.827** | 0.591 | 0.582 | 0.569 | |
+  | 9105 | **0.842** | 0.651 | 0.652 | 0.646 | | 9105 | 0.673 | 0.573 | 0.575 | 0.571 | ✓ |
+  | 9106 | 0.497 | 0.435 | 0.436 | 0.433 | ✓ | 9106 | 0.500 | 0.441 | 0.443 | 0.438 | ✓ |
+
+  9102 / 9107 / 9108 hang on every window at both rungs. **Selected: C40 = [9001, 9003, 9101,
+  9104]; C80 = [9001, 9003, 9101, 9105]** (`simulation_data/unsaturated_edge_v1/selected.json`,
+  gitignored with the rest of `simulation_data/`; this table is the record). Two things the
+  screen says on its own: (a) **the same 15 cells hang at 40 and 80 clients** — the spin is a
+  property of the topology, not the load; (b) **every saturated cell is a w0 cell** (9002,
+  9005, 9105 at C40; 9005, 9104 at C80) while the same topologies read 0.49–0.65 on w1–w3 —
+  the burstiest-window finding of `unsaturated_scale_v2`, reproduced at 6 servers. Note that
+  `cc40s9005`, one of the four cells the −20.8 % headline was read on, is **saturated on w0**
+  (0.803) and drops out of the design by rule. Study submitted 21:32 (job 791449 first block).
+
 - 2026-09-19 — C40 screen (791284): **12 of 48 cells hang** in the starved-client spin
   (`herosim-live-run-spins-on-starved-client`), frozen at simulated t ≤ 332 s after 11 min of
   wall — every one on **w1–w3** of topologies 9002 (w1 only), 9102, 9103 (w1, w2), 9107, 9108,
