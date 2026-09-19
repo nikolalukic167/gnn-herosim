@@ -706,3 +706,33 @@ Over-smoothing explained the penalty; only the aggregator predicted where it wou
 are byte-compatible and load into each other in silence. It needs a sidecar key, a serving
 whitelist entry and every loader — and before believing a null, check that the two arms are not
 bit-identical. See [[herosim-swap-a-module-train-the-disabled-twin]].
+
+## Matching a confound is a measurement at one level, not a control (2026-09-18)
+
+`best_arm_v1` compared a graph arm trained on 1,670 datasets with a pointwise arm trained on
+516 and closed carrying "confounded with corpus" as a clause it could not discharge. The
+successor matched the corpus and read the contrast again. At 1,670 the graph arm won two rungs
+of three and lost none; at **516 it won one and tied two**. Same architectures, same bars, same
+cells, same seeds — **the matched verdict depends on the level you matched at.**
+
+So "we controlled for X" is only ever "we measured it at this value of X". A single matched
+comparison is one point, and a confound whose *size* varies is not removed by matching, only
+relocated into the choice of level. Two consequences, both cheap:
+
+- **Match at more than one level whenever the levels exist** — here the second level cost 16
+  training runs and 192 gate arms, against a claim that would otherwise have read as general.
+  Where a second level is genuinely unavailable, say the claim is at one level, in the node
+  head, not in a clause 40 KB down.
+- **Measure the confound itself, as its own registered contrast.** Holding X fixed tells you
+  nothing about how much X was worth. The same arm at the two corpora read **+18.71 / +23.81 /
+  +8.64 %** — bigger at one rung than the entire cross-corpus gap it had produced, which is what
+  turned "the pointwise arm wins at 20 clients" into "the 516 corpus wins at 20 clients".
+
+The trap this avoids is subtle and one-directional: a matched contrast **feels** like it has no
+confound left, so it gets quoted without the scope its unmatched parent would have carried. The
+parent's clause is honest about being unfinished; the child's silence is not.
+
+And match the **split**, not the count: rebuilding "516" from `--base-dirs` yields 1,670 in
+this tree, so the matched arm's training config pins the split artifact and its sbatch asserts
+`num_datasets == 516` and the 386/96/34 split before a single epoch runs
+(`docs/lineages/corpus_matched_v1.md`).
