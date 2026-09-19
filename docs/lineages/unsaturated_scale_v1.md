@@ -98,3 +98,43 @@ which has no known generator.
 
 **Explicitly not in scope.** Retraining; any new topology; the client axis; the 12/24-server
 rungs (the same sweep there is a follow-up if S1 finds an unsaturated factor at 80).
+
+## 2026-09-19 — S1: **`UNSATURATED-80-SERVER-RUNG-EXISTS`, at f4000 — the same absolute arrival rate 6 servers runs at**
+
+Job 789464, 24 reactive arms (6 factors × 4 cells) plus `f300` reused from `results/psv3_p3`.
+Read: `scripts_cosim/unsaturated_scale_v1_gate_read.py s1`.
+
+| factor | arrivals/s | reactive queue share (median of 4 cells) | saturated (≥ 0.90)? | in band (≤ 0.80)? |
+|---|---|---|---|---|
+| f300 (= R3) | 6.137 | 0.988 | yes | no |
+| f500 | 3.682 | 0.987 | yes | no |
+| f700 | 2.630 | 0.985 | yes | no |
+| f1000 | 1.841 | 0.975–0.982 on 3 cells — **UNREADABLE** (below) | yes | no |
+| f2000 | 0.920 | 0.955 (0.941–0.964) | yes | no |
+| **f4000** | **0.460** | **0.660** (0.539 / 0.658 / 0.661 / 0.802) | **no** | **yes** |
+| f8000 | 0.230 | 0.480 | no | yes |
+
+Share is monotone in `f`. **Selected: `f4000`**, the smallest in-band factor, as the rule
+signed above requires. Per cell at f4000, reactive's elapsed is 23.27 / 29.14 / 46.33 / 20.54 s
+(median **26.2 s**; the 6-server R0 cells read 22.22 s at this same trace).
+
+**The finding underneath the selection: reactive Knative's capacity does not grow with the
+cluster.** At 6 servers `f4000` (0.460/s) is unsaturated at 63 %; at 80 servers — 13.3× the
+servers — the *same absolute rate* is the fastest one that is unsaturated (66 %), and doubling
+it to 0.92/s already reads 95.5 %. The server ladder's "arrivals per server held at R0's ratio"
+therefore pushed reactive 13× past a throughput ceiling that never moved, and that is what the
+99 % queue shares at R1/R2/R3 were measuring. This is a **baseline** property, and it is why no
+80-server number in the record could be read as "faster than reactive": the mechanism (standing
+suspect: the replica allocator, FCFS by task type — `docs/lessons.md`) is a follow-up, not this
+lineage's question.
+
+**`f1000` on `cs80s9001` hung** at simulated t ≈ 27,346 s with no further progress for 3 min
+(other cells finish in ~40 s wall), the starved-client spin already in
+`docs/lessons.md`; cancelled rather than left to time out. The rule drops an arm that did not
+finish the trace, so `f1000` is UNREADABLE for selection; it could not have been selected
+(monotone, between 0.985 and 0.955). Descriptive on 3 cells: 0.975–0.982.
+
+Task 8 of 24 cancelled (789464_8); 23 completed, every one at `num_tasks = 50000`.
+
+**S2 submitted** at `f4000`: `peer_only_v1_gate.sbatch` tasks 1364–1683, rung index 4 (`U80`),
+in seven blocks of ≤ 48 via `PO_TASK_OFFSET`.
