@@ -114,7 +114,7 @@ served as-is.
 
 ## Record (newest first)
 
-- 2026-09-20 — **CLOSED on the screen.** Jobs 792810 / 792858 / 792907 / 792xxx: 192 tasks,
+- 2026-09-20 — **CLOSED on the screen.** Jobs 792810 / 792858 / 792907 / 792957 (+ re-run 793005, cancelled at 20 min): 192 tasks,
   189 summaries, 3 hangs cancelled by a 20-minute watchdog (tasks 92, 131, 135). Registered
   read (`batch_window_edge_v1_gate_read.py screen`): 2 s +8.77 % (n = 16, wait 1.663 s); 4 s
   UNREADABLE (seed 13 hangs on w1); 8 s UNREADABLE (seed 4 on w0); 16 s +7.70 % (n = 16, wait
