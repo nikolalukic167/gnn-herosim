@@ -65,14 +65,17 @@ before deciding. Quoting one part alone misreports it.
   `mean` for any bipartite stage over a variable-sized candidate set.** Edge-conditioning is NOT
   the reason (D2: the zeroed control matches the treatment). Name both corpora in every
   model-class quote: at 516 the edge is corpus-contingent (`corpus_matched_v1`).
-- **The mechanism, measured.** After placement a `gnnedge0` task spends **11.2 s** in the system
-  vs Knative's **17.9 s** (−37 %, C40 medians on the 16 environments); it then pays **7.1 s** of
-  peer-group assembly wait (window 16 s; groups arrive over a median 13.8 s) that Knative, ECT and
-  random pay 0.000 s of. At 80 servers the same tax is 37 % of elapsed and the arms end ±2 %
-  (`unsaturated_scale_v2`: gnnedge0 −1.62 %, p = 0.0023, real and inside the bar). The window is
-  the one untested lever that needs no retraining: `batch_window_edge_v1` (registered
-  2026-09-19) screens 2/4/8 s on one topology and confirms held-out. Removing batching outright
-  is closed (−1731 %, `drainable_serving_config_v1`).
+- **The mechanism, measured — and the window is not the lever** (`batch_window_edge_v1`,
+  2026-09-20). Per task at C40 (medians, 16 environments): Knative 8.66 s queue + 5.40 s peer
+  exchange + **3.69 s rendezvous**; `gnnedge0` **7.11 s scheduler wait** + 5.59 queue + 4.35
+  exchange + 1.25 rendezvous. Execution is ~0.1 s. Shortening the window to 2 s cuts the wait
+  to 1.66 s and the queue and rendezvous rise by the same amount: total +7.7 → +8.8 % vs
+  Knative, `WINDOW-NOT-THE-LEVER`. **Batching relocates waiting; it does not remove it.** The
+  arm's genuine gain is **−1.05 s of exchange per task** from co-location; its genuine cost is
+  the concentration. At 80 servers the same wait is 37 % of elapsed and the arms end ±2 %
+  (`unsaturated_scale_v2`: gnnedge0 −1.62 %, p = 0.0023, real and inside the bar). Removing
+  batching outright is closed (−1731 %, `drainable_serving_config_v1`); the untried lever is a
+  decoder that places each arrival immediately conditioned on the partners already placed.
 - **Reactive's capacity does not grow with the cluster** (`unsaturated_scale_v1`): 80 servers
   are healthy only at 6 servers' 0.46/s, so every earlier 80-server win was read against a
   drowned baseline; the client ladder had no admissibility screen at all until 2026-09-19. A cell

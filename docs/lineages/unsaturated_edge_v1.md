@@ -32,20 +32,25 @@ What survives: **E2 `GRAPH-FASTER`** — `gnnedge0` beats its MP-OFF twin **−6
 p = 0.0010)** paired on environment and checkpoint — and E4 `gnnedge0` vs random −4.47 % (14/14,
 below the 5 % bar; random is only +4.5 % behind Knative at 6 servers, +13.9 % at C80).
 
-**The mechanism, quantified on the study environments (C40 medians, s):**
+**The mechanism, quantified on the study environments (C40 medians per task, s; corrected
+2026-09-20 by `batch_window_edge_v1`):**
 
-| arm | scheduler wait | queue | after the decision (queue + service) | total |
-|---|---|---|---|---|
-| Knative | 0.000 | 8.66 | 17.87 | **17.87** |
-| random | 0.000 | 10.01 | 18.67 | 18.67 |
-| `gnnedge0` | **7.11** | 5.59 | **11.21** | 18.32 |
-| `peeronly` | 7.11 | 5.99 | 11.69 | 18.80 |
-| `mpoff` | 7.12 | 6.56 | 12.58 | 19.70 |
+| arm | scheduler wait | platform queue | peer exchange | rendezvous | total |
+|---|---|---|---|---|---|
+| Knative | 0.00 | 8.66 | 5.40 | **3.69** | **17.87** |
+| random | 0.00 | 10.01 | 5.05 | 3.17 | 18.67 |
+| `gnnedge0` | **7.11** | 5.59 | **4.35** | **1.25** | 18.32 |
+| `peeronly` | 7.11 | 5.99 | 4.65 | 1.23 | 18.80 |
+| `mpoff` | 7.12 | 6.56 | 4.77 | 1.20 | 19.70 |
 
-Once placed, a `gnnedge0` task spends **37 % less** time in the system than a Knative task; it
-then waits 7.1 s to collect its peer group before that decision and hands all of it back. The
-decisions are good; the waiting is the whole deficit. `batch_window_edge_v1` (registered
-2026-09-19, running at close) is the test of that.
+Execution is ~0.1 s; a task's time is queueing and peer traffic. The arm's shorter queue and
+rendezvous are **the same waiting relocated** into the scheduler — a task held until its group is
+complete arrives with its partners placed, and finds shorter queues because other tasks are
+being held too. The window sweep proves it: at 2 s the wait is 1.66 s and the queue and
+rendezvous grow by the same amount, total unchanged (`batch_window_edge_v1`). The **genuine**
+placement gain is the exchange term, **−1.05 s per task** from co-location; the genuine cost is
+the concentration that co-location causes. Net +0.4 s per task. (An earlier reading of this
+table, "the decisions are good and the waiting is the whole deficit", is withdrawn.)
 
 **Carry.** (a) `cc40s9005` and `cc40s9002`, two of the four original headline cells, are
 saturated on w0 (0.803, 0.871) and admissible on w1–w3 — the w0-is-burstiest finding of

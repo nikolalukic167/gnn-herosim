@@ -202,5 +202,18 @@ disclosed), `peeronly` +8.36 % (0/16), `mpoff` +11.53 % (0/16) at 40 clients; `g
 (0/16) at 80 clients. The decisions are good (37 % less time in the system after placement, and
 −6.82 % vs the pointwise twin on 14/14) and the 7.1 s peer-group wait is the whole deficit.
 
-**Do not restart** a "learned arm beats Knative at 6 servers" claim with these checkpoints and
-the 16 s window. The open lever is the window (`batch_window_edge_v1`), not the model.
+**Do not restart** a "learned arm beats Knative at 6 servers" claim with these checkpoints.
+The window is not the lever either (below); the arm's genuine gain is −1.05 s of peer exchange
+per task and its shorter queue and rendezvous are relocated scheduler wait.
+
+## The peer-group batch window as a lever (2026-09-20)
+
+**Direction:** "the learned arms lose only because they wait ~7 s to assemble a peer group;
+shorten the window and the placement quality shows."
+
+**What closed it** (`batch_window_edge_v1`, 189 live arms, 2 / 4 / 8 / 16 s on the screen
+topology): the wait falls 7.15 → 1.66 s and the median vs Knative stays +7.70 → +8.77 %, with
+the platform queue (4.8 → 8.2 s) and rendezvous (1.25 → 3.3 s) absorbing exactly what the
+scheduler released. Batching relocates waiting; it does not remove it. Removing it outright is
+closed too (`drainable_serving_config_v1`, −1731 %). The untried lever is a decoder that places
+each arrival immediately conditioned on the partners already placed.
