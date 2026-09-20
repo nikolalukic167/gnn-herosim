@@ -208,6 +208,9 @@ class Orchestrator:
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
             "qr_batches", "qr_blind_batches", "qr_divisor_above_one_batches",
             "qr_dim7_over_corpus_batches", "residence_unstamped",
+            # peer_greedy_live_v1: the hand rule's books (src/policy/peer_greedy_network)
+            "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
+            "pg_moved_by_exchange", "pg_batches",
         )
         out: Dict[str, Any] = {}
         for name in names:

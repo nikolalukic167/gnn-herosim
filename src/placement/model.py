@@ -555,6 +555,9 @@ scheduling_strategies: Dict[str, str] = {
     "hrc_network_hrc_network": "HRC-NETWORK-HRC-NETWORK",
     "hrc_network_batch_hrc_network_batch": "HRC-NETWORK-BATCH-HRC-NETWORK-BATCH",
     "rp_network_rp_network": "RP-NETWORK-RP-NETWORK",
+    "peer_greedy_network_peer_greedy_network": "PEER-GREEDY-NETWORK",
+    "drain_greedy_network_drain_greedy_network": "DRAIN-GREEDY-NETWORK",
+    "peer_greedy_network_batch_peer_greedy_network_batch": "PEER-GREEDY-NETWORK-BATCH",
     "offload_network_offload_network": "OFFLOAD-NETWORK-OFFLOAD-NETWORK",
 }
 
