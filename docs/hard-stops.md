@@ -217,3 +217,22 @@ the platform queue (4.8 → 8.2 s) and rendezvous (1.25 → 3.3 s) absorbing exa
 scheduler released. Batching relocates waiting; it does not remove it. Removing it outright is
 closed too (`drainable_serving_config_v1`, −1731 %). The untried lever is a decoder that places
 each arrival immediately conditioned on the partners already placed.
+
+## "A graph model learns co-location worth quoting" at the 6-server rungs (2026-09-20)
+
+**Direction:** "the graph arm's genuine gain is co-location (−1.05 s of exchange per task); a
+decoder that keeps that gain without the group wait would beat Knative."
+
+**What closed it** (`peer_greedy_live_v1`, 95 live arms on the 16 environments per rung): a
+two-line rule with the same information — queue drain in seconds plus the exchange the physics
+charges to partners already placed — beats reactive Knative **−12.96 % (C40) / −16.01 % (C80),
+16/16 each**, with no wait and no constant; served in `gnnedge0`'s own seat (16 s peer-group
+batching, greedy in task-id order) it beats `gnnedge0` **−13.18 % (16/16)** at C80 and −8.26 %
+(14/14, disclosed) at C40. The exchange-off twin ties Knative, so the margin is co-location, and
+the queue gets *shorter* under it (8.66 → 7.80 s), so concentration is not the cost.
+
+**Do not restart** a model-class claim at these rungs against Knative or random: the bar is the
+rule (`peer_greedy_network`), served in the same configuration. A learned arm that does not beat
+it has learned less than a greedy on the physics it was trained to approximate. The no-wait
+decoder (the "untried lever" above) is now worth building only against that bar, and G5 says
+removing the wait is worth ~8 % on top of whatever it learns.

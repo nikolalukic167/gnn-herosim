@@ -1,0 +1,97 @@
+
+=== C40 -- 16 environments ([9001, 9003, 9101, 9104] x ['w0', 'w1', 'w2', 'w3']), reactive median 17.870 s ===
+   [peer_greedy_network_batch] 15/16 environments on disk
+
+   read                               verdict                                   median        p   ahead
+   G1 immediate vs reactive           IMMEDIATE-RULE-BEATS-REACTIVE            -12.96 %   0.0004   16/16 
+   G2 batched vs reactive             UNREADABLE  environment (40, 9003, 'w2') missing from arm
+      disclosed (15 env)              BATCHED-RULE-BEATS-REACTIVE               -7.55 %   0.0038   12/15 
+      drain-only vs reactive          NOT-SEPARATED                             -0.45 %   0.8767    8/16 
+   G3 batched rule vs gnnedge0 (ckpt) UNREADABLE  FAIL LOUD: checkpoint seed 1 is missing environment (40, 9003, 'w2')
+      disclosed (15 env x 14 ckpt)    RULE-FASTER-THAN-GRAPH-ARM                -8.26 %   0.0010   14/14 
+      immediate rule vs gnnedge0 (ckpt) UNREADABLE  FAIL LOUD: checkpoint seed 8 is missing environment (40, 9101, 'w0')
+      disclosed (16 env x 14 ckpt)    RULE-FASTER-THAN-GRAPH-ARM               -18.00 %   0.0010   14/14 
+   G4 immediate vs random             IMMEDIATE-RULE-BEATS-RANDOM              -22.64 %   0.0004   16/16 
+   G5 immediate vs batched            UNREADABLE  environment (40, 9003, 'w2') missing from reference
+      disclosed (15 env)              IMMEDIATE-FASTER-THAN-BATCHED             -7.30 %   0.0007   15/15 
+   G6 immediate vs drain-only         EXCHANGE-TERM-HELPS                      -14.80 %   0.0005   15/16 
+      immediate vs ECT                IMMEDIATE-RULE-BEATS-REACTIVE            -28.68 %   0.0004   16/16 
+
+   G7 CO-LOCATION-DELIVERED: exchange per task fell on 16/16 environments (median -1.297 s); platform queue per task moved -1.213 s
+   G8 HAND-RULE-BEATS-REACTIVE-WITHOUT-WAITING: immediate rule vs reactive: IMMEDIATE-RULE-BEATS-REACTIVE; batched rule vs gnnedge0: UNREADABLE; immediate vs batched: UNREADABLE
+
+   per-task decomposition (medians over the environments, s):
+   arm                             wait   queue    exch  rendez  elapsed   vs reactive (median of per-env %)
+   knative_network                 0.00    8.66    5.40    3.69    17.87     +0.00 %
+   knative_network_ect             0.00   11.08    5.24    3.02    19.62    +12.80 %
+   random_network                  0.00   10.01    5.05    3.17    18.67    +10.82 %
+   drain_greedy_network            0.00    8.53    5.25    3.50    17.47     -0.45 %
+   peer_greedy_network             0.00    7.80    3.91    3.84    15.59    -12.96 %
+   peer_greedy_network          joined a partner's node on  41.3 % of decisions, exchange moved the argmin on  16.0 %; partners known/unknown 88894/88894; batches 0
+   drain_greedy_network         joined a partner's node on   0.0 % of decisions, exchange moved the argmin on   0.0 %; partners known/unknown 0/0; batches 0
+
+   per-environment elapsed (s) and % vs reactive:
+   environment         reactive   drain_greedy_n   peer_greedy_ne   peer_greedy_ne
+   (40, 9001, 'w0')      18.123   18.15 (  +0.2)   15.52 ( -14.3)   16.77 (  -7.5)
+   (40, 9001, 'w1')      16.744   17.55 (  +4.8)   15.61 (  -6.8)   16.80 (  +0.3)
+   (40, 9001, 'w2')      16.954   17.63 (  +4.0)   15.69 (  -7.4)   16.84 (  -0.7)
+   (40, 9001, 'w3')      16.760   17.38 (  +3.7)   15.59 (  -7.0)   16.71 (  -0.3)
+   (40, 9003, 'w0')      22.281   21.98 (  -1.3)   17.63 ( -20.9)   19.74 ( -11.4)
+   (40, 9003, 'w1')      18.535   19.74 (  +6.5)   16.25 ( -12.3)   18.61 (  +0.4)
+   (40, 9003, 'w2')      18.485   19.83 (  +7.3)   16.28 ( -11.9)         --      
+   (40, 9003, 'w3')      18.406   19.56 (  +6.3)   16.11 ( -12.5)   18.48 (  +0.4)
+   (40, 9101, 'w0')      19.087   17.99 (  -5.8)   15.03 ( -21.3)   16.21 ( -15.1)
+   (40, 9101, 'w1')      17.722   16.80 (  -5.2)   14.04 ( -20.8)   16.02 (  -9.6)
+   (40, 9101, 'w2')      17.694   16.66 (  -5.8)   13.96 ( -21.1)   16.00 (  -9.5)
+   (40, 9101, 'w3')      17.101   16.44 (  -3.9)   13.95 ( -18.4)   15.81 (  -7.5)
+   (40, 9104, 'w0')      20.731   16.30 ( -21.4)   16.90 ( -18.5)   17.69 ( -14.7)
+   (40, 9104, 'w1')      18.017   17.11 (  -5.0)   15.59 ( -13.5)   16.25 (  -9.8)
+   (40, 9104, 'w2')      17.206   17.21 (  +0.0)   15.54 (  -9.7)   16.14 (  -6.2)
+   (40, 9104, 'w3')      16.891   16.73 (  -0.9)   15.33 (  -9.2)   15.58 (  -7.8)
+
+=== C80 -- 16 environments ([9001, 9003, 9101, 9105] x ['w0', 'w1', 'w2', 'w3']), reactive median 18.268 s ===
+
+   read                               verdict                                   median        p   ahead
+   G1 immediate vs reactive           IMMEDIATE-RULE-BEATS-REACTIVE            -16.01 %   0.0004   16/16 
+   G2 batched vs reactive             NOT-SEPARATED                             -4.86 %   0.0229   10/16 
+      drain-only vs reactive          NOT-SEPARATED                             +0.09 %   1.0000    8/16 
+   G3 batched rule vs gnnedge0 (ckpt) RULE-FASTER-THAN-GRAPH-ARM               -13.18 %   0.0004   16/16 
+      immediate rule vs gnnedge0 (ckpt) RULE-FASTER-THAN-GRAPH-ARM               -22.90 %   0.0004   16/16 
+   G4 immediate vs random             IMMEDIATE-RULE-BEATS-RANDOM              -21.12 %   0.0004   16/16 
+   G5 immediate vs batched            IMMEDIATE-FASTER-THAN-BATCHED             -8.30 %   0.0004   16/16 
+   G6 immediate vs drain-only         EXCHANGE-TERM-HELPS                      -13.33 %   0.0004   16/16 
+      immediate vs ECT                IMMEDIATE-RULE-BEATS-REACTIVE            -31.98 %   0.0004   16/16 
+
+   G7 CO-LOCATION-DELIVERED: exchange per task fell on 16/16 environments (median -1.282 s); platform queue per task moved -1.865 s
+   G8 HAND-RULE-BEATS-REACTIVE-WITHOUT-WAITING: immediate rule vs reactive: IMMEDIATE-RULE-BEATS-REACTIVE; batched rule vs gnnedge0: RULE-FASTER-THAN-GRAPH-ARM; immediate vs batched: IMMEDIATE-FASTER-THAN-BATCHED
+
+   per-task decomposition (medians over the environments, s):
+   arm                             wait   queue    exch  rendez  elapsed   vs reactive (median of per-env %)
+   knative_network                 0.00    9.83    4.89    3.33    18.27     +0.00 %
+   knative_network_ect             0.00   13.85    5.14    2.84    22.61    +23.74 %
+   random_network                  0.00   11.46    4.95    2.96    20.81    +11.25 %
+   drain_greedy_network            0.00    9.62    4.95    3.46    19.00     +0.09 %
+   peer_greedy_network             0.00    7.90    3.77    3.69    15.90    -16.01 %
+   peer_greedy_network_batch       7.09    4.99    3.76    1.24    17.16     -4.86 %
+   peer_greedy_network          joined a partner's node on  42.9 % of decisions, exchange moved the argmin on  16.7 %; partners known/unknown 88894/88894; batches 0
+   peer_greedy_network_batch    joined a partner's node on  43.7 % of decisions, exchange moved the argmin on  17.3 %; partners known/unknown 88894/88894; batches 10028
+   drain_greedy_network         joined a partner's node on   0.0 % of decisions, exchange moved the argmin on   0.0 %; partners known/unknown 0/0; batches 0
+
+   per-environment elapsed (s) and % vs reactive:
+   environment         reactive   drain_greedy_n   peer_greedy_ne   peer_greedy_ne
+   (80, 9001, 'w0')      24.508   22.96 (  -6.3)   17.88 ( -27.0)   19.29 ( -21.3)
+   (80, 9001, 'w1')      18.495   19.84 (  +7.3)   17.30 (  -6.4)   18.84 (  +1.9)
+   (80, 9001, 'w2')      18.280   19.73 (  +8.0)   17.19 (  -5.9)   18.80 (  +2.8)
+   (80, 9001, 'w3')      18.257   19.59 (  +7.3)   17.08 (  -6.5)   18.51 (  +1.4)
+   (80, 9003, 'w0')      25.614   23.57 (  -8.0)   18.77 ( -26.7)   20.47 ( -20.1)
+   (80, 9003, 'w1')      20.366   19.81 (  -2.7)   17.08 ( -16.1)   19.22 (  -5.6)
+   (80, 9003, 'w2')      20.474   19.61 (  -4.2)   17.18 ( -16.1)   19.33 (  -5.6)
+   (80, 9003, 'w3')      20.248   19.49 (  -3.8)   17.02 ( -16.0)   19.41 (  -4.1)
+   (80, 9101, 'w0')      16.134   16.91 (  +4.8)   14.50 ( -10.1)   15.82 (  -2.0)
+   (80, 9101, 'w1')      15.288   15.62 (  +2.2)   13.64 ( -10.8)   15.52 (  +1.5)
+   (80, 9101, 'w2')      14.916   15.43 (  +3.5)   13.70 (  -8.2)   15.36 (  +3.0)
+   (80, 9101, 'w3')      14.947   15.38 (  +2.9)   13.68 (  -8.5)   15.30 (  +2.4)
+   (80, 9105, 'w0')      20.358   18.52 (  -9.0)   14.78 ( -27.4)   15.75 ( -22.6)
+   (80, 9105, 'w1')      17.251   17.30 (  +0.3)   14.35 ( -16.8)   15.35 ( -11.0)
+   (80, 9105, 'w2')      17.271   17.11 (  -0.9)   14.34 ( -17.0)   15.32 ( -11.3)
+   (80, 9105, 'w3')      17.139   17.13 (  -0.1)   14.22 ( -17.0)   15.16 ( -11.5)

@@ -39,64 +39,50 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-09-20).**
+**Where the research question stands (rewritten 2026-09-20, evening).**
 
-**No learned arm beats reactive Knative at any operating point where Knative is healthy, and the
-one number that said otherwise was an unpaired statistic.** The graph arm beats its pointwise twin
-everywhere; its entire deficit against Knative is the 7.1 s it waits to assemble a peer group
-before deciding. Quoting one part alone misreports it.
+**A two-line rule beats healthy reactive Knative by 13–16 % without waiting, and beats every
+learned arm; no learned arm beats Knative anywhere Knative is healthy.** The environment rewards
+peer-aware placement; the models have not learned what the rule encodes.
 
-- **The 6-server headline was never there** (`unsaturated_edge_v1`, 2026-09-20). "gnnedge0
-  beats reactive −20.8 % (15/16) at 40 clients" was `peer_only_v1_read.collapse_to_seed`: the
-  arm's median over 4 cells ÷ Knative's median over the same 4 cells — cells whose Knative time
-  ran 18–64 s, two of them **saturated** (share 0.87, 0.80). **Paired per cell: +4.6 / +75.8 /
-  +9.7 / −36.8 %.** Every client-rung "vs reactive" number in `peer_only_v1` → `bipartite_edge_v1`
-  → `best_arm_v1` → `corpus_matched_v1` flips sign when paired; the arm-vs-arm contrasts stand.
-  On **16 (topology, window) environments** with the paired statistic: C40 `gnnedge0` **+6.68 %
-  (0/14, disclosed — 2 of 256 arms hang)**, `peeronly` +8.36 % (0/16), `mpoff` +11.53 % (0/16),
-  `gnn` +9.24 % (0/12); C80 `gnnedge0` **+14.40 % (0/16)**. Power delivered (sd ≤ 2.9 pp).
-  Random is only +4.5 % behind Knative at 6 servers (3.6 candidates/task); the arm beats it
-  −4.5 %, inside the bar. See `docs/gates/gate-tools.md` 2026-09-20 and `docs/hard-stops.md`.
-- **The graph arm IS the better learner.** `gnnedge0` vs its corpus-matched MP-OFF twin, paired on
-  environment and checkpoint: **−6.82 % (14/14, p = 0.001)** at C40; −2.38 % (p = 0.0004) at 80
-  servers (`unsaturated_scale_v2`). The bipartite penalty is SOLVED and it was a **`sum`** over a
-  candidate set that is 3.6/task at 6 servers and 47.9 at 80 (`bipartite_aggr_v1`: +13.26 %
-  at 80 servers, not separated at 6, replicated at 16 environments as +2.70 % / +2.12 %). **Use
-  `mean` for any bipartite stage over a variable-sized candidate set.** Edge-conditioning is NOT
-  the reason (D2: the zeroed control matches the treatment). Name both corpora in every
-  model-class quote: at 516 the edge is corpus-contingent (`corpus_matched_v1`).
-- **The mechanism, measured — and the window is not the lever** (`batch_window_edge_v1`,
-  2026-09-20). Per task at C40 (medians, 16 environments): Knative 8.66 s queue + 5.40 s peer
-  exchange + **3.69 s rendezvous**; `gnnedge0` **7.11 s scheduler wait** + 5.59 queue + 4.35
-  exchange + 1.25 rendezvous. Execution is ~0.1 s. Shortening the window to 2 s cuts the wait
-  to 1.66 s and the queue and rendezvous rise by the same amount: total +7.7 → +8.8 % vs
-  Knative, `WINDOW-NOT-THE-LEVER`. **Batching relocates waiting; it does not remove it.** The
-  arm's genuine gain is **−1.05 s of exchange per task** from co-location; its genuine cost is
-  the concentration. At 80 servers the same wait is 37 % of elapsed and the arms end ±2 %
-  (`unsaturated_scale_v2`: gnnedge0 −1.62 %, p = 0.0023, real and inside the bar). Removing
-  batching outright is closed (−1731 %, `drainable_serving_config_v1`); the untried lever is a
-  decoder that places each arrival immediately conditioned on the partners already placed.
-- **Reactive's capacity does not grow with the cluster** (`unsaturated_scale_v1`): 80 servers
-  are healthy only at 6 servers' 0.46/s, so every earlier 80-server win was read against a
-  drowned baseline; the client ladder had no admissibility screen at all until 2026-09-19. A cell
-  enters a study only at reactive queue share ≤ 0.80; **unknown is not a pass**, and 15 of 48
-  6-server cells hang in the starved-client spin identically at 40 and 80 clients (topology, not
-  load). **w0**, the only arrival window every gate used before 2026-09-19, is the burstiest of
-  four; every saturated cell is a w0 cell.
+- **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
+  queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no
+  constant. On the 16 admissible environments per rung: **−12.96 % (C40) / −16.01 % (C80) vs
+  reactive, 16/16 each**; −22.6 / −21.1 % vs random; the same rule with the exchange term off
+  ties Knative, so the margin IS co-location (exchange 5.40 → 3.91 s per task and the queue
+  *shorter*, 8.66 → 7.80 s). Served in `gnnedge0`'s seat (16 s peer-group batching, greedy in id
+  order) it still beats `gnnedge0` −13.2 % (16/16, C80; −8.3 % disclosed at C40) and the
+  no-wait flavour beats the batched one −8.3 %. The no-wait decoder's bar is now the rule.
+- **The 6-server headline was never there** (`unsaturated_edge_v1`): "gnnedge0 −20.8 % (15/16)"
+  was an unpaired ratio of medians over 4 cells, 2 saturated; paired per cell +4.6 / +75.8 /
+  +9.7 / −36.8 %. On 16 environments with the paired statistic: C40 `gnnedge0` +6.68 % (0/14,
+  disclosed), `peeronly` +8.36 %, `mpoff` +11.53 %, `gnn` +9.24 %; C80 `gnnedge0` +14.40 %
+  (0/16). Every client-rung "vs reactive" number before 2026-09-20 flips sign when paired; the
+  arm-vs-arm contrasts stand: `gnnedge0` beats its MP-OFF twin −6.82 % (14/14) at C40
+  (`bipartite_aggr_v1`: use `mean`, never `sum`, over a variable-sized candidate set; name both
+  corpora, 1670 and 516, in every model-class quote).
+- **Batching relocates waiting** (`batch_window_edge_v1`): a 2 s window cuts the 7.1 s wait to
+  1.7 s and the queue and rendezvous rise by the same amount (`WINDOW-NOT-THE-LEVER`). ECT loses
+  +12.8 % to shortest-queue because its queue term is `len × exec` (0.1 s per queued task),
+  not because physics awareness hurts.
+- **Reactive's capacity does not grow with the cluster** (`unsaturated_scale_v1`): a cell
+  enters a study only at reactive queue share ≤ 0.80, **unknown is not a pass**; 15 of 48
+  6-server cells hang in the starved-client spin regardless of load; **w0** is the burstiest of
+  the four arrival windows and every saturated cell is a w0 cell.
+- **Open (registered 2026-09-20, running):** `burst_groups_v1` (groups dispatched as one burst;
+  Knative itself drops 18.1 → 10.7 s per task on the smoke cell because its rendezvous vanishes),
+  `payload_scale_v1` (×0.1 / ×10: the crossing point), `backbone_sparsity_v1` (p = 0.4, 250 Mbps).
 - **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
-  +5.14 pp, p = 0.001, reproduced at 1,654 — offline, and it inverts live at a defensible load);
-  a 150× trainability asymmetry (optimisation, never latency); a fit-ceiling split on the
-  route B corpus; and one replicated early-trace positive (`serving_stability_v1`). Both
-  model-class edges over the MLP fell to corpus matching (`link_mp_v1`,
-  `reliability_matched_v1`). `partial_state_v3`'s size-free block (dim 38 → 22) is what lets
-  6-server checkpoints serve 80 at all.
+  +5.14 pp offline, inverts live at a defensible load); a 150× trainability asymmetry
+  (optimisation, never latency); `serving_stability_v1`'s early-trace positive; both model-class
+  edges over the MLP fell to corpus matching (`link_mp_v1`, `reliability_matched_v1`);
+  `partial_state_v3`'s size-free block is what lets 6-server checkpoints serve 80 at all.
 
 **Pair on the environment before you take a median; quote a DIRECTION from a small design and a
-MAGNITUDE only from a large one.** Before quoting any number from this program, read the node and
-carry its caveats: never a `peer_affinity` live number without its load factor, never a
-client-rung "vs reactive" number from before 2026-09-20 at all, never an arm comparison without
-both corpora. Start at `docs/lineages/unsaturated_edge_v1.md`, `unsaturated_scale_v2.md` and
-`throughline.md` (last section).
+MAGNITUDE only from a large one; a rule with the model's information is the bar, never Knative
+alone.** Never a `peer_affinity` live number without its load factor, never a client-rung "vs
+reactive" number from before 2026-09-20, never an arm comparison without both corpora. Start at
+`docs/lineages/peer_greedy_live_v1.md`, `unsaturated_edge_v1.md` and `throughline.md`.
 
 ## Where knowledge lives — READ FIRST
 
