@@ -73,6 +73,23 @@ smoke cell's queue share is 0.53).
 
 **Datasets.** None; nothing trained.
 
+**Amendment 1 (signed 2026-09-20, after L0 and before any study arm).** L0 read
+`TOO-FEW-UNSATURATED-ENVIRONMENTS`: bursts of 10 hang reactive on 22 of 48 cells (the
+starved-client spin on 9002/9005/9102/9103/9107/9108 and on 9001 w1, 9104 w0) and saturate 9002 w0
+(0.894) and 9105 w0 (0.871); only **9003, 9101, 9106** are admissible on all four windows, one short
+of the registered four. By the registration the study does not run and the lever is recorded as a
+load lever at 6 servers. **This amendment runs the study on the 12 admissible environments
+anyway** (3 topologies × 4 windows; `selected_burst_a1.json`), with every rule-vs-baseline read
+printed at n = 12 as **DISCLOSED**, never in the registered slot — the n = 16 bar is a power bar,
+not an admissibility bar, and all 12 cells clear the admissibility bar (shares 0.43–0.55). The
+checkpoint-unit reads (L1, L3, L5) keep n = 16 checkpoints over 12 environments. 420 runs. The
+lineage's registered verdict stays L0's; the amendment's reads are quoted with "12 environments,
+disclosed" attached, always.
+
 ## Record (newest first)
+
+- 2026-09-20 — **L0: `TOO-FEW-UNSATURATED-ENVIRONMENTS`** (job 793207, 48 reactive arms: 25 completed,
+  22 cancelled at 20 min, 1 OOM). Screen table in `simulation_data/env_lever_v1/selected_burst.json`.
+  Amendment 1 signed (above); the 12-environment study runs next.
 
 - 2026-09-20 — Registered; local smoke as disclosed above.

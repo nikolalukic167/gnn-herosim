@@ -123,6 +123,9 @@ def report_study(lever: str, result_dir: str, selection_path: Optional[str] = No
     if sel.get("verdict") != V_DESIGN_READY:
         raise SystemExit(f"FAIL LOUD: {sel_path} verdict {sel.get('verdict')!r}; the study must not be read")
     envs = [tuple(e) for e in sel["environments"]]
+    amended = sel.get("amendment")
+    if amended:
+        print(f"\n   AMENDED DESIGN ({len(envs)} environments): {amended}")
     arms, rows, _shares = tables(result_dir)
     react = {e: v for (e, s), v in arms[L_REACTIVE].items() if s == 0}
     missing = [e for e in envs if e not in react]
@@ -158,10 +161,21 @@ def report_study(lever: str, result_dir: str, selection_path: Optional[str] = No
     for a, lab in ((L_IMMEDIATE, "L2 immediate rule vs reactive"), (L_BATCHED, "   batched rule vs reactive"),
                    (L_RANDOM, "   random vs reactive")):
         try:
-            R[f"l2_{a}"] = read_l2(env_stats(rules[a], react, envs))
+            st = env_stats(rules[a], react, envs)
+            R[f"l2_{a}"] = read_l2(st)
+            if R[f"l2_{a}"]["verdict"] == V_UNREADABLE and len(st) >= 12:
+                # a signed 12-environment amendment: the same bar at n = 12, DISCLOSED
+                from scripts_cosim.unsaturated_scale_v2_read import _one_sample
+                from scripts_cosim.env_lever_v1_read import V_REACTIVE_FASTER_THAN_RULE, V_NOT_SEP
+                d = _one_sample(st, min_n=len(st), faster_a=V_RULE_BEATS_REACTIVE,
+                                faster_b=V_REACTIVE_FASTER_THAN_RULE, tie=V_NOT_SEP)
+                d["disclosed"] = True
+                R[f"l2_{a}"]["disclosed"] = d
         except ValueError as ex:
             R[f"l2_{a}"] = {"verdict": V_UNREADABLE, "reason": str(ex)}
         _print_row(lab, R[f"l2_{a}"])
+        if "disclosed" in R[f"l2_{a}"]:
+            _print_row(f"   disclosed (n = {R[f'l2_{a}']['disclosed']['n']} env)", R[f"l2_{a}"]["disclosed"])
     graph = arms.get(L_GRAPH, {})
     if graph and all(e in rules[L_IMMEDIATE] for e in envs):
         seeds = sorted({s for (_e, s) in graph})
@@ -254,6 +268,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("lever_or_root")
     ap.add_argument("result_dir", nargs="?")
     ap.add_argument("--write-selection")
+    ap.add_argument("--selection", help="study: an amended selection file instead of selected_<lever>.json")
     ap.add_argument("--json")
     a = ap.parse_args(argv)
     if a.step == "regime":
@@ -264,7 +279,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if not a.result_dir:
             ap.error("result_dir needed")
         res = report_screen(a.lever_or_root, a.result_dir, a.write_selection) if a.step == "screen" \
-            else report_study(a.lever_or_root, a.result_dir)
+            else report_study(a.lever_or_root, a.result_dir, a.selection)
     if a.json:
         def _keys(o):
             if isinstance(o, dict):
