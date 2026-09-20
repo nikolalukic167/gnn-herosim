@@ -851,3 +851,25 @@ wins, the paper's result is the greedy and the model's task is to beat it. Keep 
 constant-free where the physics allows (here the exchange saved is compared with the queue
 added, both in seconds) so that it cannot be tuned into or out of a win. See
 [[herosim-hand-rule-beats-reactive-and-the-graph-arm-2026-09-20]].
+
+## An environment lever that changes service time is a load lever first — screen the lever, not the baseline (2026-09-20)
+
+Three levers were registered to move the exchange-vs-queue ratio (payload ×3 / ×10, a 4× slower
+backbone, burst arrivals). Every one of them also moved reactive Knative's load, and at the
+study's operating point (6 servers, 0.46 arrivals/s, reactive queue share 0.43–0.63) there was
+no headroom: payload ×3 and the 250 Mbps backbone put reactive at a queue share of 0.95–0.99 on
+every candidate cell, and bursts of 10 hung reactive on 22 of 48 cells and the batch path on a
+topology reactive survived. Only the levers that *lowered* service time (payload ×0.1) or moved
+structure without service time (bursts, barely) produced a readable design.
+
+**Why:** a lever is registered for what it does to the ratio; what it does to the load is
+discovered on the screen, and "unknown is not a pass" turns most of a sweep into "no design at
+this rate" — which is a finding about the operating point, not about the ratio.
+
+**How to apply:** before registering a sweep upward from a healthy-but-tight operating point,
+compute the lever's effect on reactive's service time and check it against the headroom
+(here: 0.80 − 0.63 = 0.17 of share); if the lever will saturate, register the matched-load
+design (the rate that holds reactive's share) as the lineage itself, with rate named as a
+confound, rather than discovering it one screen at a time. Screen every lever value on its own;
+never reuse the parent study's topologies. See
+[[herosim-environment-levers-are-load-levers-2026-09-20]].

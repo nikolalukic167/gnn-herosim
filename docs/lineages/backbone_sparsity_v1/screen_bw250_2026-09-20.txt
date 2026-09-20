@@ -1,0 +1,16 @@
+=== bw250 (backbone_sparsity_v1) screen at C40: TOO-FEW-UNSATURATED-ENVIRONMENTS ===
+    topology       w0       w1       w2       w3
+        9001    0.980    0.978    0.976    0.974
+        9002    0.985   hang      0.979    0.981
+        9003   hang      0.981    0.978    0.983
+        9005    0.981    0.977    0.976    0.977
+        9101    0.984    0.978    0.978    0.979
+        9102   hang     hang     hang     hang  
+        9103    0.985    0.982   hang      0.981
+        9104    0.982    0.979    0.979    0.978
+        9105    0.984    0.981    0.983    0.980
+        9106    0.980    0.944    0.968    0.977
+        9107   hang     hang     hang     hang  
+        9108   hang     hang     hang     hang  
+   C40: only 0 of 12 topologies are unsaturated on all 4 windows; 4 are needed for the crossed design
+   wrote simulation_data/env_lever_v1/selected_bw250.json

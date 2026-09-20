@@ -69,9 +69,15 @@ peer-aware placement; the models have not learned what the rule encodes.
   enters a study only at reactive queue share ≤ 0.80, **unknown is not a pass**; 15 of 48
   6-server cells hang in the starved-client spin regardless of load; **w0** is the burstiest of
   the four arrival windows and every saturated cell is a w0 cell.
-- **Open (registered 2026-09-20, running):** `burst_groups_v1` (groups dispatched as one burst;
-  Knative itself drops 18.1 → 10.7 s per task on the smoke cell because its rendezvous vanishes),
-  `payload_scale_v1` (×0.1 / ×10: the crossing point), `backbone_sparsity_v1` (p = 0.4, 250 Mbps).
+- **The environment levers** (`burst_groups_v1`, `payload_scale_v1`, `backbone_sparsity_v1`,
+  2026-09-20). **Bursts** (groups dispatched together) remove the 7 s wait entirely (0.001 s) and
+  Knative's rendezvous with it (Knative 17.9 → 8.3 s per task): `gnnedge0` then TIES Knative
+  (−2.2 %, 11/16) while the rule reads **−26 %** (8/8) and beats `gnnedge0` +25 % (16/16) — 8
+  environments, two signed amendments, disclosed; the wait was never the whole deficit. **Payload
+  ×0.1** (20 MB): the rule ties Knative, every batching arm pays its wait (+15–16 %); **×3, ×10
+  and a 250 Mbps backbone saturate reactive on every cell** — above the 200 MB scale every lever
+  is a load lever at 0.46 arrivals/s on 6 servers. Regime: peer-aware placement pays from ×1 for
+  the rule, at no measured scale for `gnnedge0`.
 - **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
   +5.14 pp offline, inverts live at a defensible load); a 150× trainability asymmetry
   (optimisation, never latency); `serving_stability_v1`'s early-trace positive; both model-class
