@@ -1,5 +1,7 @@
 # peer_only_v1 — message passing over the peer graph only, and the corpus it was starved of
 
+**Superseded 2026-09-20 (`unsaturated_edge_v1`):** every client-rung number below that beats reactive was read with an unpaired ratio of medians over cells, two of which were saturated; paired per cell `peeronly` is **+9.4 %** at 40 clients and +4.3 % at 80, and on 16 environments **+8.36 % (0/16)**. The peeronly-vs-twin contrasts stand.
+
 **Status:** `CLOSED` (2026-09-18) — **PEERONLY-BEATS-POINTWISE at every cluster size and
 every client count; at unsaturated load a learned arm beats reactive Knative for the first time
 in the programme, but the graph arm is NOT established as better than the best pointwise arm

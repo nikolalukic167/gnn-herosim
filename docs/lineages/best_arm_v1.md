@@ -1,5 +1,7 @@
 # best_arm_v1 — is the best scheduler this programme has still a pointwise one?
 
+**Superseded in part 2026-09-20 (`unsaturated_edge_v1`):** the client-rung "vs reactive" numbers below were an unpaired ratio of medians over cells (two saturated) and flip sign when paired (`gnnedge0` +7.0 % at 40 clients, +1.8 % at 80); the arm-vs-arm contrasts stand and `gnnedge0` beats `mpoff_1670` −6.82 % (14/14) on 16 environments.
+
 **Status:** `CLOSED` (2026-09-18) — **`BEST-ARM-STILL-NOT-ESTABLISHED`.** Closed on a live gate
 across the unsaturated client ladder (rule 6). Registered 2026-09-18; every bar is a module
 constant in `scripts_cosim/best_arm_v1_read.py`, committed before either missing arm-set was

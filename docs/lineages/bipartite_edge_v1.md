@@ -1,5 +1,7 @@
 # bipartite_edge_v1 — can a bipartite graph work in this environment, if its messages can see the edge?
 
+**Superseded 2026-09-20 (`unsaturated_edge_v1`):** the "beats reactive −20.8 %" clause was an unpaired ratio of medians over four cells, two saturated; paired per cell `gnnedge0` is **+7.0 %** on those cells and **+6.68 % (0/14)** on 16 environments. D1/D2 (arm-vs-arm, paired) stand.
+
 **Status:** `CLOSED` (2026-09-18) — **BIPARTITE-WORKS-BUT-NOT-BY-EDGE-CONDITIONING.** Closed on
 a live gate at two rungs (rule 6). Registered 2026-09-18; every bar below is a module constant
 in `scripts_cosim/bipartite_edge_v1_read.py`, committed before any arm was trained.

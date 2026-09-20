@@ -1,5 +1,7 @@
 # corpus_matched_v1 — is the graph arm's win a model class, or a corpus?
 
+**Superseded in part 2026-09-20 (`unsaturated_edge_v1`):** every "vs reactive" number on the client rungs was an unpaired ratio of medians over cells (two saturated) and flips sign when paired; the matched model-class contrasts (arm-vs-arm, paired) stand.
+
 **Status:** `CLOSED` (2026-09-18) — **`MODEL-CLASS-EDGE-IS-CORPUS-CONTINGENT`.** Closed on a
 live gate across the unsaturated client ladder (rule 6). Registered 2026-09-18; every bar below
 was signed before its data, as a module constant in `scripts_cosim/corpus_matched_v1_read.py`

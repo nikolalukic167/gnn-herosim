@@ -1,83 +1,107 @@
 # unsaturated_edge_v1 — the −20.8 % headline, at the power it was never read at
 
-**Status:** `REGISTERED` (2026-09-19) — bars, reader, 14 tests and this expectation committed
-before any learned arm runs. The saturation screen (reactive only) is running.
+**Status:** `CLOSED` (2026-09-20) — **`HEADLINE-WAS-AN-UNPAIRED-STATISTIC` ·
+`NO-LEARNED-ARM-BEATS-REACTIVE-AT-THE-EDGE-RUNG`.** Closed on a live gate (rule 6): 1,338 of
+1,344 arms (6 hang deterministically, below). Registered 2026-09-19; bars, reader, 14 tests and
+the expectation committed before any learned arm ran. **The registered expectation ("even odds
+that E1 fires at 40 clients") was wrong**, and wrong for a reason neither alternative named.
 
-**Question.** The programme's standing headline is `gnnedge0` (the bipartite, mean-aggregating,
-attribute-zeroed arm) beating reactive Knative by **−20.8 % (15/16)** at **6 servers / 40
-clients**, unsaturated (`bipartite_edge_v1` → `best_arm_v1`, cells `cc40s9001/9002/9003/9005`).
-It was read on **four cells, all on arrival window w0**. `unsaturated_scale_v2` then showed,
-on the 80-server rung, that a 4-environment read on this apparatus keeps every **direction** and
-inflates every **magnitude 4–10×**, because w0 is the burstiest of the four windows the trace
-offers (`gnnedge0` −6.40 % on w0 against −1.06 / −0.65 / −0.18 % on w1–w3). That caution
-applies to the headline verbatim. **Does the headline hold on 16 environments?**
+**Outcome. The −20.8 % headline was never there.** Read PAIRED on the same cell, the four
+w0 cells it came from give `gnnedge0` **+4.6 / +75.8 / +9.7 / −36.8 %** against Knative — it loses
+three of four, one catastrophically, and wins only on `cc40s9005`, whose reactive queue share
+(0.803) fails the admissibility bar this lineage applied. The old reader's `collapse_to_seed`
+took the median of the arm's elapsed over cells (24.5 s) and divided by the median of Knative's
+over cells (30.5 s): an **unpaired ratio of medians** across cells whose reactive times ranged
+18–64 s, and it turned that row into "−20.3 %, 15/16". Every 6-server client-rung "win" in
+`peer_only_v1` → `bipartite_edge_v1` → `best_arm_v1` → `corpus_matched_v1` came from the same two
+saturated cells (9002, 9005) and the same statistic; paired per cell, **every one flips sign**
+(C40: `gnnedge` −20.8 → +6.9, `gnnedge0` −20.3 → +7.0, `peeronly` −14.9 → +9.4, `mpoff_516` −7.2 →
++18.9; C80: `gnnedge0` −13.5 → +1.8, `peeronly` −9.3 → +4.3). Recorded in
+`docs/gates/gate-tools.md` (2026-09-20) and `docs/hard-stops.md`.
 
-**Design — v2's, at the 6-server client rungs, nothing else changed.** An environment is a
-(topology, arrival window) pair. Per rung: 12 candidate topologies (9001/9002/9003/9005 +
-9101–9108 minted here; 9004 excluded, it hangs on every policy) × 4 windows (w0 =
-`drainable_f4000_n50000`, the rung's own workload; w1–w3 minted by v2, rate-matched to w0 at
-0.4604 arrivals/s). The screen runs reactive alone on all 96 candidate environments; the study
-takes the **4 lowest-numbered topologies admissible (queue share ≤ 0.80) on all 4 windows**, per
-rung — a rule no arm can steer.
+**On 16 environments per rung, with the paired statistic** (`checkpoint_stats`, v2's): at
+**C40** `peeronly` **+8.36 %** (0/16, p = 0.0004) and `mpoff` **+11.53 %** (0/16) read
+`REACTIVE-FASTER-AT-THE-EDGE-RUNG`; `gnnedge0` and `gnn` are **UNREADABLE by the letter** (2 and 4
+of their 256 arms hang in the starved-client spin — deterministically, twice, at 48 and 96 GB —
+so the crossed design is ragged for those checkpoints) and their **disclosed** reads on the
+complete checkpoints are `gnnedge0` **+6.68 % (0/14, p = 0.0010)** and `gnn` +9.24 % (0/12). At
+**C80** `gnnedge0` reads **+14.40 % (0/16, p = 0.0004)**. E5 `POWER-DELIVERED` on both rungs
+(worst sd 1.21 / 2.93 pp against 10). E6: every arm keeps its sign on all four windows. **E7
+UNREADABLE** by the letter; on every read that exists, no learned arm is within 4 % of Knative.
+What survives: **E2 `GRAPH-FASTER`** — `gnnedge0` beats its MP-OFF twin **−6.82 % (14/14,
+p = 0.0010)** paired on environment and checkpoint — and E4 `gnnedge0` vs random −4.47 % (14/14,
+below the 5 % bar; random is only +4.5 % behind Knative at 6 servers, +13.9 % at C80).
 
-- **Primary rung, 40 clients** — where the headline lives. Arms: `gnnedge0` (be1670), its
-  corpus-matched MP-OFF twin `mpoff` (1670), `peeronly` (1670), `gnn` (1670, the GIN-sum
-  bipartite arm). 16 checkpoints each.
-- **Secondary rung, 80 clients** — `gnnedge0` alone (w0 read −13.5 % there), to read the shape
-  of the margin across load.
-- **Baselines** on every study environment: `knative_network` (the reference, from the screen),
-  `knative_network_ect`, `random_network`. Random is a registered comparison (E4), not a
-  decoration: v2 measured it +8.4 % behind reactive with a bimodal tail to +782 %.
+**The mechanism, quantified on the study environments (C40 medians, s):**
 
-**Bars — v2's, unchanged** (`scripts_cosim/unsaturated_edge_v1_read.py`, tests alongside):
-unit = checkpoint; statistic = median over the 16 environments of the checkpoint's relative %
-against the reference **on the same environment**; two-sided signed-rank against zero;
-|median| ≥ 5 %, p < 0.05, n ≥ 16. E5 design bar: worst-arm sd ≤ 10 pp, read before E7.
+| arm | scheduler wait | queue | after the decision (queue + service) | total |
+|---|---|---|---|---|
+| Knative | 0.000 | 8.66 | 17.87 | **17.87** |
+| random | 0.000 | 10.01 | 18.67 | 18.67 |
+| `gnnedge0` | **7.11** | 5.59 | **11.21** | 18.32 |
+| `peeronly` | 7.11 | 5.99 | 11.69 | 18.80 |
+| `mpoff` | 7.12 | 6.56 | 12.58 | 19.70 |
 
-| read | what | fires as |
-|---|---|---|
-| E1 | each arm vs reactive, per rung | `ARM-BEATS-REACTIVE-AT-THE-EDGE-RUNG` / `REACTIVE-FASTER…` / `NOT-SEPARATED` |
-| E2 | `gnnedge0` vs `mpoff`, paired on environment and checkpoint (C40) | `GRAPH-FASTER…` / `POINTWISE-FASTER…` |
-| E3 | `gnn` vs `gnnedge0` (C40) | `SUM-COSTS…` / `SUM-HELPS…` / `SUM-NOT-SEPARATED…` |
-| E4 | each arm vs `random_network`, per rung | `ARM-BEATS-RANDOM…` / `RANDOM-FASTER…` / `RANDOM-NOT-SEPARATED…` |
-| E5 | design power, per rung | `POWER-DELIVERED` / `POWER-NOT-DELIVERED` |
-| E6 | sign per window, per arm (descriptive, qualifies E1) | `SIGN-CONSISTENT…` / `SIGN-FLIPS…` |
-| E7 | the composite on `gnnedge0` | `HEADLINE-HOLDS-AT-POWER-ON-BOTH-RUNGS` / `…ON-THE-PRIMARY-RUNG` / `HEADLINE-SHRINKS-BELOW-THE-BAR-AT-POWER` |
+Once placed, a `gnnedge0` task spends **37 % less** time in the system than a Knative task; it
+then waits 7.1 s to collect its peer group before that decision and hands all of it back. The
+decisions are good; the waiting is the whole deficit. `batch_window_edge_v1` (registered
+2026-09-19, running at close) is the test of that.
 
-E7's BELOW-BAR is `interpretable` only if E5 delivered at C40 — an under-powered negative is
-never called a tie. A positive stands either way.
-
-**Registered expectation (signed 2026-09-19, before any learned arm).** *Roughly even odds
-that E1 fires for `gnnedge0` at C40.* The mechanism-based estimate: on w0 the arm halves
-reactive's ~22 s queue and pays a **6.8 s batch-assembly tax** reactive never pays, net −20 %.
-On w1–w3 reactive's queue is smaller (v2's share 0.53–0.66 → 0.41–0.48; the first screen cells
-here read 0.55 / 0.47 / 0.47), so the same halving saves ~5–7 s against the same 6.8 s tax:
-net −5 to +5 % per window. Pooled median therefore lands in **−3 to −10 %**, p < 0.05 likely,
-|median| ≥ 5 % uncertain; E6 spread > 10 pp. E4 fires at both rungs. E2 fires (the twin pays
-the same tax, so the model-class contrast is not tax-limited; best_arm_v1's −14.76 % will
-shrink). E3 `SUM-NOT-SEPARATED` (bipartite_aggr_v1's prediction at 3.55 candidates/task).
-C80 `gnnedge0`: `NOT-SEPARATED`.
-
-**Consequences, signed in advance.**
-- `HEADLINE-HOLDS…` (either form): the standing answer's −20.8 % is **replaced** by the
-  16-environment number, quoted with E6; that is the paper's headline.
-- `…BELOW-THE-BAR`, interpretable: the −20.8 % is **retired as a w0 number**; CLAUDE.md says
-  so; and the batch window is registered as the next lineage — every learned arm's margin is
-  tax-limited (E1 median ≈ queue saved − 6.8 s) and the window is the one untested lever that
-  needs no retraining. `drainable_serving_config_v1` swept it only at the 20-client rung,
-  where every arm loses by ≥ 70 %.
-- `…BELOW-THE-BAR`, not interpretable: redo the design with more topologies, never more tasks.
-
-**Cost.** 96 reactive arms (~40 s each) + 1,344 study arms (~165 s each) ≈ 2.5 h at the
-48-task `MaxSubmit` ceiling. Scripts: `scripts_cosim/datalab/unsaturated_edge_v1_{mint,screen,study}.sbatch`;
-read: `scripts_cosim/unsaturated_edge_v1_gate_read.py {m0,study}`.
-
-**Datasets.** No new corpus; the 1,670-dataset checkpoints of `peer_only_v1` /
-`bipartite_edge_v1` are served as-is. Cells `cc{40,80}s{9101..9108}` minted here
-(`simulation_data/unsaturated_edge_v1/cells.json`); results under
-`simulation_data/peer_affinity_live_gate/results/ue_v1_screen/` and `ue_v1/`.
+**Carry.** (a) `cc40s9005` and `cc40s9002`, two of the four original headline cells, are
+saturated on w0 (0.803, 0.871) and admissible on w1–w3 — the w0-is-burstiest finding of
+`unsaturated_scale_v2`, at 6 servers. (b) The 15 cells per rung that hang (9102, 9107, 9108 on
+every window; 9002, 9103 partly) hang identically at 40 and 80 clients: the starved-client spin
+is a property of the topology, not the load. (c) Six learned arms hang on admissible cells too
+(`gnnedge0` s8/s13 on 9101 w0/w1, `gnn` s2/4/8/12 on 9001 w3), at the END of the trace ("waiting
+for 50,000 dispatched tasks to complete"), and grow memory until they die (OOM at 48 GB after
+17 min; still spinning at 96 GB when cancelled) — a learned-arm hang the record had not seen.
+(d) Every number above is from `partial_state_v3` checkpoints trained at 6 servers, served at 6.
 
 ## Record (newest first)
+
+- 2026-09-20 — **CLOSED.** Study: 1,344 tasks, 1,338 summaries, 0 failures other than the 6
+  deterministic hangs (job 791449 … 792804; blocks 0–959 at 48 GB, 960–1343 at 96 GB after four
+  `gnn` arms died OOM at 48 GB and held a block 17 min). Registered read
+  (`unsaturated_edge_v1_gate_read.py study`):
+
+  | rung | arm | E1 vs reactive | E4 vs random | per window (w0/w1/w2/w3) |
+  |---|---|---|---|---|
+  | C40 | `gnnedge0` | UNREADABLE (n = 14); disclosed **+6.68 %**, 0/14, p = 0.0010, sd 1.41 | disclosed −4.47 %, 14/14 | +5.8 / +4.5 / +6.9 / +7.4 |
+  | C40 | `peeronly` | **+8.36 %**, 0/16, p = 0.0004, sd 0.91 | −1.42 %, 15/16 | +9.2 / +6.1 / +8.5 / +8.5 |
+  | C40 | `mpoff` | **+11.53 %**, 0/16, p = 0.0004, sd 1.21 | +1.72 %, 0/16 | +22.5 / +10.2 / +11.4 / +11.9 |
+  | C40 | `gnn` | UNREADABLE (n = 12); disclosed +9.24 %, 0/12, p = 0.0022 | disclosed −1.19 % | +10.0 / +6.3 / +9.1 / +9.4 |
+  | C80 | `gnnedge0` | **+14.40 %**, 0/16, p = 0.0004, sd 2.93 | −0.23 %, 9/16 (tie) | +13.7 / +14.0 / +15.4 / +15.1 |
+
+  E2 (disclosed, n = 14) `gnnedge0` vs `mpoff` **−6.82 %, 14/14, p = 0.0010 → GRAPH-FASTER**.
+  E3 (disclosed, n = 11) `gnn` vs `gnnedge0` +2.12 %, p = 0.0099 → `SUM-NOT-SEPARATED`
+  (bipartite_aggr_v1's prediction at 3.6 candidates/task holds). Baselines, C40 / C80 median
+  elapsed: Knative 17.870 / 18.268 s; ECT +9.8 / +23.8 %; random +4.5 / +13.9 %.
+
+  **The per-cell re-read of the original headline cells** (data of `peer_only_v1` B7 and the
+  lineages that reused its cells; nothing re-run; medians over 16 checkpoints):
+
+  | C40, w0 | 9001 (share 0.55) | 9002 (0.87) | 9003 (0.59) | 9005 (0.80) | old statistic | paired |
+  |---|---|---|---|---|---|---|
+  | `gnnedge` | +4.1 | +73.6 | +9.4 | −38.2 | −20.8 % | **+6.9 %** |
+  | `gnnedge0` | +4.6 | +75.8 | +9.7 | −36.8 | −20.3 % | **+7.0 %** |
+  | `peeronly` | +6.9 | +60.4 | +11.7 | −33.4 | −14.9 % | **+9.4 %** |
+  | `gnn` | +8.4 | +87.8 | +11.9 | +7.3 | +8.4 % | +13.4 % |
+  | `mpoff` (1670) | +13.2 | +57.2 | +32.0 | +13.8 | +18.5 % | +22.0 % |
+  | `mpoff` (516) | +14.1 | +48.6 | +23.7 | −25.2 | −7.2 % | **+18.9 %** |
+
+  | C80, w0 | 9001 (0.66) | 9002 (0.80) | 9003 (0.64) | 9005 (0.89) | old | paired |
+  |---|---|---|---|---|---|---|
+  | `gnnedge0` | +6.6 | +332 | −0.8 | −63 | −13.5 % | **+1.8 %** |
+  | `peeronly` | −0.1 | +222 | +6.6 | −64 | −9.3 % | +4.3 % |
+  | `mpoff` (1670) | +2.4 | +171 | +33.5 | −63 | +0.9 % | +19.2 % |
+
+  Determinism check on the way in: tonight's `cc40s9001 w0` reactive and `gnnedge0 s1` re-runs
+  equal B7's to the last digit of `total_rtt`.
+
+- 2026-09-20 — six learned arms hang at the end of the trace on admissible cells (task ids 199,
+  220, 881, 883, 887, 891); OOM at 48 GB after ~17 min, re-run at 96 GB reached the same
+  simulated time and were cancelled at 17 min. Recorded as unreadable; the reader fails loud on
+  the ragged checkpoints and the disclosed reads are labelled as such.
 
 - 2026-09-19 — **M0 read: `DESIGN-READY` on both rungs, 59 / 96 environments admissible.**
   Reactive queue share (`n/a` = hung in the starved-client spin, cancelled, inadmissible):

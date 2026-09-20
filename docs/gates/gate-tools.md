@@ -430,3 +430,25 @@ value the same way — and when a name and a measurement disagree, the measureme
 The names are **not** being renamed: 1,670-tagged checkpoints and result files are on disk
 across five lineages, and a rename would break every arm label the readers match on. The tag
 is a name; this entry is the translation.
+
+## 2026-09-20 — `collapse_to_seed` compared the arm's median cell with reactive's median cell: an unpaired ratio of medians
+
+`scripts_cosim/peer_only_v1_read.py::collapse_to_seed` produced one value per checkpoint as the
+**median over cells of the arm's raw elapsed**, and the chain then divided that by the same
+collapse of reactive (`paired_tie`, relative). The two medians come from different cells. On the
+B7 client rungs reactive's elapsed spanned 18–64 s across four cells, so the arm's median cell and
+reactive's median cell were never the same cluster, and the ratio said **−20.3 %** for an arm
+that loses three cells of four (+4.6 / +75.8 / +9.7 / −36.8 %). Every "beats reactive" number
+read on `cc40*` / `cc80*` cells by `peer_only_v1`, `bipartite_edge_v1`, `bipartite_aggr_v1`,
+`best_arm_v1` and `corpus_matched_v1` used it; paired per cell every one flips sign
+(`docs/lineages/unsaturated_edge_v1.md`). Arm-vs-arm contrasts on the same cells are unaffected
+only where both arms' median cell happened to coincide — treat them as directions, not magnitudes.
+
+**The fix is the statistic `unsaturated_scale_v2` introduced**: relative % against the reference
+**on the same environment first**, then the median over environments
+(`unsaturated_scale_v2_read.checkpoint_stats`); arm-vs-arm pairs raw elapsed on environment AND
+checkpoint (`pair_checkpoint_stats`). A reader that collapses cells before it pairs is wrong
+whenever the cells differ in load — which is exactly when a screen would have excluded some of
+them. Compounding defect: two of the four cells (9002, 9005) were saturated on w0 (share 0.87,
+0.80) and supplied the only wins; the server ladder had an admissibility screen, the client
+ladder never did.
