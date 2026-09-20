@@ -82,10 +82,10 @@ sel = json.load(open(sys.argv[1]))
 if sel.get("verdict") != "DESIGN-READY":
     raise SystemExit(f"FAIL LOUD: selection verdict is {sel.get('verdict')!r}, not DESIGN-READY")
 envs = sel["environments"]
-if len(envs) not in (12, 16):
-    raise SystemExit(f"FAIL LOUD: {len(envs)} environments; the registered design is 16, a signed amendment 12")
-if len(envs) == 12 and not sel.get("amendment"):
-    raise SystemExit("FAIL LOUD: a 12-environment selection must carry its signed amendment")
+if len(envs) not in (8, 12, 16):
+    raise SystemExit(f"FAIL LOUD: {len(envs)} environments; the registered design is 16, a signed amendment 8 or 12")
+if len(envs) != 16 and not sel.get("amendment"):
+    raise SystemExit("FAIL LOUD: a reduced selection must carry its signed amendment")
 for r, t, w in envs:
     if int(r) != 40:
         raise SystemExit(f"FAIL LOUD: environment {(r, t, w)} is not C40")
@@ -93,7 +93,7 @@ for r, t, w in envs:
 PY
 )
   NENV=${#ENVS[@]}
-  (( NENV == 16 || NENV == 12 )) || { echo "FAIL LOUD: environments read: $NENV" >&2; exit 1; }
+  (( NENV == 16 || NENV == 12 || NENV == 8 )) || { echo "FAIL LOUD: environments read: $NENV" >&2; exit 1; }
   NB=$(( 3 * NENV )); NCK=$(( 16 * NENV ))
   if [[ $LEVER == burst ]]; then NTASKS=$(( NB + 2 * NCK )); else NTASKS=$(( NB + NCK )); fi
   if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi

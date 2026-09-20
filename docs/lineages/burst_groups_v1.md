@@ -86,7 +86,23 @@ checkpoint-unit reads (L1, L3, L5) keep n = 16 checkpoints over 12 environments.
 lineage's registered verdict stays L0's; the amendment's reads are quoted with "12 environments,
 disclosed" attached, always.
 
+**Amendment 2 (signed 2026-09-20, after the first study block of Amendment 1).** Under bursts the
+**batch-path arms cannot be served on topology 9003**: all 12 `gnnedge0` checkpoints on 9003 w0
+and the batched rule on 9003 w0 and w1 enter the starved-client spin early in the trace
+(`No compatible hardware available for dnn2 on nodes with connectivity to client_node8`, from
+sim-time 2,078–19,794 s onward), while reactive, random and the per-arrival rule finish on all 12
+cells. A burst of 10 leaves the batch path's deferred tasks with no replica it can create; the
+per-arrival path places them one at a time as replicas appear. The 14 hung arms were cancelled
+(job 793450). **The study narrows to the 8 environments both paths can serve (9101, 9106 × 4
+windows; `selected_burst_a2.json`)**; the per-arrival results already on disk for 9003 stay in
+the result directory and are reported alongside, and every environment-unit read is DISCLOSED at
+n = 8. The registered verdict stays L0's.
+
 ## Record (newest first)
+
+- 2026-09-20 — Amendment 1's first block (job 793450, tasks 0–47): random 12/12, immediate rule
+  12/12, batched rule 10/12 (9003 w0, w1 hang), `gnnedge0` seeds 1–12 on 9003 w0 0/12 — all 14
+  hangs are the starved-client spin on 9003. Amendment 2 signed (above).
 
 - 2026-09-20 — **L0: `TOO-FEW-UNSATURATED-ENVIRONMENTS`** (job 793207, 48 reactive arms: 25 completed,
   22 cancelled at 20 min, 1 OOM). Screen table in `simulation_data/env_lever_v1/selected_burst.json`.
