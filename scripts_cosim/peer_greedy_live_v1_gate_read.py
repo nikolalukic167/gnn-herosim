@@ -142,7 +142,6 @@ def report(screen_dir: str, study_dir: str, rule_dir: str) -> dict:
         def _one_sample_env(fn, stats):
             # the read's own verdict vocabulary at the disclosed n: same bar, fewer environments
             from scripts_cosim.unsaturated_scale_v2_read import _one_sample
-            probe = fn({("x", i, "w"): 0.0 for i in range(P_MIN_ENVIRONMENTS)})
             import scripts_cosim.peer_greedy_live_v1_read as m
             names = {read_g1: (m.V_IMMEDIATE_BEATS_REACTIVE, m.V_REACTIVE_FASTER_THAN_IMMEDIATE, m.V_NOT_SEP),
                      read_g2: (m.V_BATCHED_BEATS_REACTIVE, m.V_REACTIVE_FASTER_THAN_BATCHED, m.V_NOT_SEP),
