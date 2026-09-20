@@ -55,8 +55,25 @@ if TYPE_CHECKING:
 
 PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
-    "pg_moved_by_exchange", "pg_batches",
+    "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves",
 )
+
+# joint_burst_v2 (2026-09-20): a DISCLOSED probe knob, never a registered arm's default. The
+# exchange term X is multiplied by this factor in the score (the service a task adds to its
+# backlog stays unscaled). 1.0 is the rule. The x2 arm asks whether MORE co-location than the
+# rule buys is live-valid -- the direction the group-optimum label pushes a learned arm in.
+PG_EXCHANGE_SCALE_ENV = "HEROSIM_PG_EXCHANGE_SCALE"
+
+
+def _pg_exchange_scale() -> float:
+    raw = os.environ.get(PG_EXCHANGE_SCALE_ENV, "1.0").strip() or "1.0"
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"FAIL LOUD: {PG_EXCHANGE_SCALE_ENV}={raw!r} is not a float") from exc
+    if value < 0.0:
+        raise ValueError(f"FAIL LOUD: {PG_EXCHANGE_SCALE_ENV} must be >= 0, got {value}")
+    return value
 
 
 def _require_peer_physics(policy_name: str) -> None:
@@ -80,6 +97,9 @@ class _PeerGreedyCore:
         self.pg_joined_partner = 0
         self.pg_moved_by_exchange = 0
         self.pg_batches = 0
+        self.pg_cd_passes = 0
+        self.pg_cd_moves = 0
+        self.pg_exchange_scale = _pg_exchange_scale()
         if self.exchange_on:
             _require_peer_physics(self._policy_label)
 
@@ -156,7 +176,7 @@ class _PeerGreedyCore:
             base = (drain + incoming_cold_start_time(task, platform) + exec_s
                     + network_latency_between(task.node_name, node, nodes))
             exch = self._pg_exchange_seconds(node, platform, peer_nodes)
-            scored.append((base + exch, base, exch, exec_s + comm, node, platform))
+            scored.append((base + self.pg_exchange_scale * exch, base, exch, exec_s + comm, node, platform))
         best = min(scored, key=lambda s: (s[0], s[4].id, s[5].id))
         self.pg_decisions += 1
         if peer_nodes:
@@ -227,6 +247,54 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                 f"got models with keys {sorted(models)}"
             )
 
+    def _pg_batch_pass(
+        self,
+        batch_tasks: List["Task"],
+        system_state: SystemState,
+        orch,
+        *,
+        memo: Dict[str, float],
+        committed_service: Dict[str, float],
+        planned: Dict[int, str],
+        placements: Dict[int, Tuple[int, int]],
+        service_of: Dict[int, Tuple[str, float]],
+        refine: bool,
+    ) -> int:
+        """One greedy pass over the batch in task-id order. First pass (`refine=False`): every
+        task is placed with the partners committed so far. A refine pass: every task is
+        re-chosen with EVERY other partner's node known and its own previous service removed
+        from the backlog it sat on. Returns the number of tasks that moved."""
+        moved = 0
+        order = sorted(range(len(batch_tasks)), key=lambda i: int(batch_tasks[i].id))
+        for idx in order:
+            task = batch_tasks[idx]
+            tid = int(task.id)
+            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+            if not valid:
+                raise RuntimeError(
+                    f"{self._policy_label}: task {task.id} reached the decoder without a "
+                    "network-accessible replica; the batch path defers those before decoding"
+                )
+            initialized = [r for r in valid if r[1].initialized.triggered]
+            candidates = initialized if initialized else valid
+            if refine:
+                prev_key, prev_service = service_of[tid]
+                committed_service[prev_key] -= prev_service
+                planned.pop(tid, None)
+            node, platform, service = self._pg_choose(
+                task, candidates, orch,
+                memo=memo, committed_service=committed_service, planned=planned,
+                nodes=self.nodes.items,
+            )
+            key = f"{node.node_name}:{platform.id}"
+            committed_service[key] = committed_service.get(key, 0.0) + service
+            planned[tid] = node.node_name
+            if refine and placements[idx] != (node.id, platform.id):
+                moved += 1
+            placements[idx] = (node.id, platform.id)
+            service_of[tid] = (key, service)
+        return moved
+
     def _prefix_inference(
         self,
         batch_tasks: List["Task"],
@@ -239,26 +307,12 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         committed_service: Dict[str, float] = {}
         planned: Dict[int, str] = {}
         placements: Dict[int, Tuple[int, int]] = {}
-        order = sorted(range(len(batch_tasks)), key=lambda i: int(batch_tasks[i].id))
-        for idx in order:
-            task = batch_tasks[idx]
-            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
-            if not valid:
-                raise RuntimeError(
-                    f"peer_greedy_network_batch: task {task.id} reached the decoder without a "
-                    "network-accessible replica; the batch path defers those before decoding"
-                )
-            initialized = [r for r in valid if r[1].initialized.triggered]
-            candidates = initialized if initialized else valid
-            node, platform, service = self._pg_choose(
-                task, candidates, orch,
-                memo=memo, committed_service=committed_service, planned=planned,
-                nodes=self.nodes.items,
-            )
-            key = f"{node.node_name}:{platform.id}"
-            committed_service[key] = committed_service.get(key, 0.0) + service
-            planned[int(task.id)] = node.node_name
-            placements[idx] = (node.id, platform.id)
+        service_of: Dict[int, Tuple[str, float]] = {}
+        self._pg_batch_pass(
+            batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
+            planned=planned, placements=placements, service_of=service_of, refine=False,
+        )
+        self._pg_refine(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         self.pg_batches += 1
         # the batch path counts what the decoder saw; the rule keeps the same books
         table = getattr(orch, "peer_exchange", None) or {}
@@ -268,3 +322,42 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.prefix_pairs_in_batch += pairs_in
         self.prefix_peers_outside_batch += outside
         return placements
+
+    def _pg_refine(self, batch_tasks, system_state, orch, memo, committed_service, planned,
+                   placements, service_of) -> None:
+        """The 1-pass rule refines nothing (the registered `peer_greedy_network_batch`)."""
+        return None
+
+
+class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
+    """joint_burst_v2 (2026-09-20): the batched rule plus coordinate descent on its own score.
+
+    The id-order greedy anchors the group on the first task with X == 0 (no partner known yet)
+    and never revisits an early task once the later partners' nodes are known -- the myopia a
+    joint decoder could exploit. Offline on the 48 burst held-out groups the 1-pass rule sits
+    +73 % above the sweep optimum with exchange 41.5 s vs the optimum's 25.8 s. This flavour
+    re-runs the pass up to `HEROSIM_PG_CD_PASSES` (default 3) more times, each task re-chosen
+    with every other partner's planned node known and its own service removed from the backlog
+    it sat on, stopping at the first pass that moves nothing. Same information as the rule,
+    same seat as the learned arms; registered as the honest bar for any arm that claims to
+    have learned joint structure.
+    """
+
+    _policy_label = "peer_greedy_network_cd"
+    _live_audit_policy_name = "peer_greedy_network_cd"
+
+    def _pg_refine(self, batch_tasks, system_state, orch, memo, committed_service, planned,
+                   placements, service_of) -> None:
+        raw = os.environ.get("HEROSIM_PG_CD_PASSES", "3").strip() or "3"
+        passes = int(raw)
+        if passes < 1:
+            raise ValueError(f"FAIL LOUD: HEROSIM_PG_CD_PASSES must be >= 1, got {raw!r}")
+        for _ in range(passes):
+            moved = self._pg_batch_pass(
+                batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
+                planned=planned, placements=placements, service_of=service_of, refine=True,
+            )
+            self.pg_cd_passes += 1
+            self.pg_cd_moves += moved
+            if moved == 0:
+                break
