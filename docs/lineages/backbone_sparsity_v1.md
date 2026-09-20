@@ -1,10 +1,27 @@
 # backbone_sparsity_v1 — distance as the lever: a sparser client-server graph and a slower fabric
 
-**Status:** `REGISTERED` (2026-09-20) — bars, reader, 6 tests, mint script, sbatch and the
-expectation below committed before any levered arm ran. Shares its apparatus with
-`burst_groups_v1` and `payload_scale_v1` (`scripts_cosim/env_lever_v1_*.py`,
-`scripts_cosim/datalab/env_lever_v1*.sbatch`). **Registered as the weakest of the three levers**
-and scoped accordingly.
+**Status:** `CLOSED` (2026-09-20) — **`TOO-FEW-UNSATURATED-ENVIRONMENTS` on both variants: a
+slower backbone is a load lever and a sparser graph is a reachability lever at this operating
+point; no study ran.** Closed on the two live screens (96 reactive arms; rule 6 is satisfied by
+the screens, which are live gates whose registered consequence was "recorded, not read").
+Registered 2026-09-20 as the weakest of the three levers, with both confounds named in advance —
+and both fired. Shares its apparatus with `burst_groups_v1` and `payload_scale_v1`.
+
+**Outcome.** **`bw250`** (backbone 1000 → 250 Mbps): reactive Knative's queue share is 0.944–0.985
+on every finished candidate cell (33 finish, 14 hang, 1 OOM) — a 4× slower fabric multiplies every
+remote exchange by four, which at 0.46 arrivals/s on 6 servers saturates reactive exactly as
+payload ×3 did. **`p04`** (connection probability 0.6 → 0.4): **39 of 48 reactive arms hang** in
+the starved-client spin (only 9106 is clean on all four windows; 9105 / 9107 / 9108 on one to
+three) — fewer client-server links leave more clients with no reachable replica for one task type,
+which is the spin's trigger. Neither variant yields a crossed design; nothing peer-aware was
+served. **Distance, through either knob, cannot be read at this rate on this cluster**: through
+bandwidth it is the payload lever (see `payload_scale_v1`), through sparsity it is the
+reachability defect the record already carries (`docs/lessons.md`, the starved-client spin).
+
+**Carry.** A readable distance lever needs either a matched-load design (bandwidth) or a
+reachability repair (sparsity: a client must keep at least one reachable server per task type),
+and both are changes to the apparatus, not levers on it. The paper says "co-location pays at the
+200 MB scale over a 1 Gbps backbone at 60 % connectivity" and nothing about distance.
 
 **Parents:** [`payload_scale_v1`](payload_scale_v1.md) (the same ratio through payload),
 [`peer_greedy_live_v1`](peer_greedy_live_v1.md), [`unsaturated_edge_v1`](unsaturated_edge_v1.md).
@@ -46,6 +63,10 @@ NOT-SEP 35 %; L1 NOT-SEP 45 %, REACTIVE-FASTER 35 %; L3 MATCHES 40 %.
 **Datasets.** None; nothing trained.
 
 ## Record (newest first)
+
+- 2026-09-20 — **CLOSED.** `p04` screen (job 794583): 9 completed, 39 cancelled at 20 min; only 9106
+  admissible on all four windows. `TOO-FEW-UNSATURATED-ENVIRONMENTS`; table in
+  `simulation_data/env_lever_v1/selected_p04.json` and attached below.
 
 - 2026-09-20 — **L0 for `bw250`: `TOO-FEW-UNSATURATED-ENVIRONMENTS`** (job 794506, 33 completed /
   14 cancelled at 20 min / 1 OOM): reactive queue share 0.944–0.985 on every finished candidate
