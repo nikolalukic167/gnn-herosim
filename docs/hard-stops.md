@@ -187,3 +187,20 @@ theorem predicted before the gate ran.
 **predict a cell's queue blow-up from its reachability structure** (`scheduler_residence_v1` R1/R3, CLOSED 2026-09-16, 135 live arms over 20 minted topology draws, 15 readable). On three cells the separation looked decisive and had a mechanism: the only cell without a blow-up had every client reaching ≥ 2 servers where both bad cells had a client reaching exactly 1, and a clients-per-server imbalance of 3 against 8 and 7, with the *mean* fan-out separating nothing. On **15 independent draws from the same generator** it carries no information: `min_reachable_servers` vs the cell's excess queue over its own reactive arm is **ρ = +0.041, p = 0.885** against a registered bar of \|ρ\| ≥ 0.60 and the wrong sign; the second statistic is +0.029; the pointwise control is +0.020. Do not revive either statistic without a *different* mechanism. **Still open, and now sized:** the excess ranges from **−29.2 s to +51.6 s** across draws that differ in one config field, and nothing measured explains it.
 
 **serve the v1/v2-contract checkpoints on a cluster larger than 6 hosting nodes** (`cluster_scale_v1`, CLOSED 2026-09-16, jobs 769363/769390/769426). *Qualified the same day by `partial_state_v3` (CLOSED): the stop is about the fixed-pad representation, not the models — checkpoints retrained under the size-free `partial_state_v3` contract served 12 / 24 / 80 hosting nodes on 140/142 arms without a raise and beat reactive Knative at 24 and 80 servers on 4/4 topology seeds (saturated rungs, relative statistic). Do not serve a v1/v2 checkpoint above 6 nodes; retrain under v3 instead.* Two independent hard limits compound: (1) `KRANK_WIDTH = 6` in `src/policy/tabular/reduced_features.py:252` — the partial-state feature block encodes candidate-hosting nodes in a **fixed-width rank-ordered pad of six**, and `krank_node_order` raises rather than truncate; every `gnn` arm at 24 and 80 servers FAILED on this guard, correctly. (2) S0.d: candidates per task scale with reachable servers, so at 24 servers the median is **14.18** (2.83× the corpus max of 5) and at 80 it is **47.92** (9.58×), out-of-support everywhere. **Scaling this axis requires a retrained representation**: widening the pad changes `PARTIAL_STATE_FEATURE_DIM` and invalidates every cached graph and checkpoint. A separate axis — thinning reachability to hold candidate count while adding capacity — is untested and pushes toward the starved-client spin (5 of 20 draws hang already at full reachability). **The mechanism itself is confirmed**: peer-group collection falls 6.10 → 2.20 → 0.73 s as arrivals speed 0.46 → 1.84 → 6.14 /s and is worth ~5.37 s of net latency on the best cell, so the retrain is priced.
+
+## The 6-server client-rung headline as quoted (2026-09-20)
+
+**Direction:** "a bipartite message-passing arm beats reactive Knative by −20.8 % (15/16) at an
+unsaturated 6-server / 40-client rung" (`bipartite_edge_v1` → `best_arm_v1`, and `peeronly`'s
+−9.3 % at 80 clients).
+
+**What closed it** (`unsaturated_edge_v1`, 1,338 live arms on 16 environments per rung): the
+number was an unpaired ratio of medians over four cells, two of them saturated (queue share 0.87,
+0.80). Paired per cell the same data reads +4.6 / +75.8 / +9.7 / −36.8 % (loses three of four);
+on 16 admissible environments every learned arm loses to Knative — `gnnedge0` +6.68 % (0/14,
+disclosed), `peeronly` +8.36 % (0/16), `mpoff` +11.53 % (0/16) at 40 clients; `gnnedge0` +14.40 %
+(0/16) at 80 clients. The decisions are good (37 % less time in the system after placement, and
+−6.82 % vs the pointwise twin on 14/14) and the 7.1 s peer-group wait is the whole deficit.
+
+**Do not restart** a "learned arm beats Knative at 6 servers" claim with these checkpoints and
+the 16 s window. The open lever is the window (`batch_window_edge_v1`), not the model.

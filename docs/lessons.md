@@ -790,3 +790,23 @@ in the registration — the delivered sd against a projected one — so that "th
 buy the power it was built for" is a signed outcome rather than a later apology. This is
 `docs/lessons.md`'s "never quote a 4-checkpoint number" again, one level up: the same failure
 recurs on every axis that is sampled rather than enumerated.
+
+## Pair on the environment before you take a median (2026-09-20)
+
+A median over cells of an arm's time, divided by a median over cells of the baseline's time, is
+not a comparison of the arm with the baseline: the two medians come from different cells. When the
+cells differ in load — reactive at 18 s on one and 64 s on another — the ratio can say "−20 %" for
+an arm that loses three of four cells, because the median ignores the size of the catastrophic
+cell while the baseline's slow cell pulls its median up. `unsaturated_edge_v1` found the
+programme's standing 6-server headline was exactly this: +4.6 / +75.8 / +9.7 / −36.8 % per cell
+read as −20.3 %, 15/16.
+
+**Why:** a 16-checkpoint read that fires at p < 0.01 feels like a result, and every downstream
+lineage inherited the reader without re-deriving what its statistic pairs on.
+
+**How to apply:** compute the relative difference against the reference on the same environment
+first, then take the median over environments (`checkpoint_stats`); for arm-vs-arm, pair raw
+elapsed on environment and checkpoint (`pair_checkpoint_stats`). Print the per-cell values next
+to any collapsed number the first time a reader is used. And screen every cell for baseline
+saturation on every ladder — a ratio of medians is most wrong exactly where a screen would have
+dropped a cell. See [[herosim-effect-sizes-from-four-environments-are-inflated-2026-09-19]].

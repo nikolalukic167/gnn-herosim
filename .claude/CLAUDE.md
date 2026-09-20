@@ -39,75 +39,61 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-09-19).**
+**Where the research question stands (rewritten 2026-09-20).**
 
-**A bipartite message-passing arm beats reactive Knative at an UNSATURATED 6-server rung by
-−20.8 % (15/16) and beats its corpus-matched pointwise twin — but its attribute-zeroed control
-matches it, the matched win does not reproduce on the smaller corpus, and at 80 servers, where
-reactive is healthy, every arm is inside ±2.5 %.** Quoting one part alone misreports it.
+**No learned arm beats reactive Knative at any operating point where Knative is healthy, and the
+one number that said otherwise was an unpaired statistic.** The graph arm beats its pointwise twin
+everywhere; its entire deficit against Knative is the 7.1 s it waits to assemble a peer group
+before deciding. Quoting one part alone misreports it.
 
-- **The peer measurement** (`peer_only_v1`, 16 checkpoints throughout). `peeronly` (PeerConv
-  kept, the bipartite GIN removed) beats its MP-OFF twin at **every** operating point tested
-  (−4.6 to −22.6 %) and beats reactive −9.3 % at 80 clients (13/16, p = 0.0097),
-  **unsaturated**. Only message passing differs. **Four clauses:** the margin is **99 % queue**
-  (0.66 s of 78 s is peer; A3 MECHANISM-NOT-CONFIRMED); **never quote a 4-checkpoint number**;
-  the client ladder is a **load sweep**, not the dispersion sweep intended; and the win is **not
-  exclusive** — `mpoff_516` beats reactive there too (−7.2 %).
-- **The bipartite penalty is SOLVED, and it was a `sum`** (`peer_only_v1` C1/C2 →
-  `bipartite_edge_v1` D1–D4 → `bipartite_aggr_v1` E1–E3). `peeronly` beat `gnn` **−18.94 %** at
-  80 servers and **not at 6** (p = 0.61). Cause: `GIN` aggregates with **`sum`** over a task's
-  **candidate platforms**, a set that is **3.55/task at 6 servers, 47.92 at 80**. A
-  mean-aggregating `BipartiteEdgeConv` is worth **−15.72 %** (15/16) at 80 servers; the same conv
-  given `sum` **collapses to −5.86 %, n.s.**; `sum` vs `mean` alone is **+13.26 % (p = 0.0052) at
-  80 servers, not separated at 6** — `SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`.
-  **Edge-conditioning is NOT the reason** (D2: the zeroed control matches the treatment), nor is
-  MLP shape. **Use `mean` for any bipartite stage over a variable-sized candidate set.** The
-  repaired arm beats reactive **−20.8 % (15/16) at the UNSATURATED 40-client rung** where `gnn`
-  loses +8.44 %. Carry: the 6-server null is a non-separation, not equality — it **held at
-  n = 32** (−6.22 %, p = 0.29).
-- **The best-ARM clause stands; the best-MODEL-CLASS one does not** (`best_arm_v1` →
-  `corpus_matched_v1`). The repaired graph arm vs `mpoff_516`, three unsaturated client rungs:
-  **−14.76 % (16/16) at 40**, −11.32 % at 80, **+15.71 % (3/16, it LOSES) at 20** ⇒
-  `BEST-ARM-STILL-NOT-ESTABLISHED`, so **the arm clause stands.** But **that single loss was a
-  corpus effect.** Matched (same cache, split, seeds; only MP differs) at **1,670**: −31.65 %
-  (16/16) at 40, −17.12 % at 80, **not behind at 20** (−0.73 %, p = 0.88) ⇒
-  `MODEL-CLASS-EDGE-SURVIVES-MATCHING`; at **516**: one win (−10.78 % at 40), two ties ⇒
-  `MODEL-CLASS-EDGE-IS-CORPUS-CONTINGENT`, so **name the corpus in every quote of either.** The
-  confound is large: the same pointwise arm at 1,670 vs 516 reads **+18.71/+23.81/+8.64 %**,
-  `CONFOUND-IS-MATERIAL` at all three rungs. Carry: at 20 clients **every** arm loses to reactive (+69 to +96 %,
-  0/16); `mpoff_516` is a GNN's MP-OFF twin, **not the MLP**; the contrast is the whole MP stack,
-  not the bipartite conv; `peeronly_1670` loses to `mpoff_516` **+11.17 %, 0/16** at 80 srv /
-  20 cli, **B8 SCOPED to saturated rungs**.
-- **The offline positive** (`peer_affinity_v1`): MP beats its MP-OFF twin **+5.14 pp**
-  (p = 0.001, 13/16) at 482 datasets, reproduced **−4.20 pp on 15/16** at 1,654 under the
-  size-free representation. Only `PeerConv` differs.
-- **That offline edge does not transfer; it inverts** — anti-correlated with peer-graph density,
-  contingent on one platform type the corpus lacked, **−15.94 %** vs the twin / **−226 %** vs
-  reactive at a defensible load (the gate ran at **940× overload**).
-- **Both model-class edges over the MLP fell to corpus matching** — latency (`link_mp_v1`) and
-  reliability (`reliability_matched_v1`, p = 0.113); a matched verdict can itself depend on the
-  level matched at. Any GNN-vs-MLP number must name both arms' training cache.
-- **What survives:** a 150× trainability asymmetry (optimisation, never latency), a fit-ceiling
-  split on the route B corpus, and one replicated live positive: over the first fifth of a trace
-  the arms beat Knative on queue on 3/3 cells and all 91 arms (`serving_stability_v1`).
-- **At scale the effects are REAL and ~1.5 %** (`unsaturated_scale_v1` → `v2`). Reactive's
-  capacity never grew with the cluster: at 80 servers it is unsaturated only at the SAME 0.46/s
-  that 6 servers runs at (share 0.66; 0.955 at 0.92/s), so every 80-server "win" (−28.7 to
-  −46.9 %) was read against a baseline pushed 13× past a ceiling. At the healthy rung on
-  **16 (topology, arrival-window) environments**: `gnnedge0` **−1.62 % (p = 0.0023,
-  13/16)**, `peeronly` −1.23 % (p = 0.0013, 15/16), `gnn` **+2.31 % (p = 0.0052)**, `mpoff_516`
-  a true null (p = 0.61); matched model class −2.38 % (p = 0.0004); `sum` +2.70 % (p = 0.0019).
-  All inside the 5 % bar ⇒ NO-LEARNED-ARM-BEATS-REACTIVE, a MEASURED null (design sd 4.48 pp
-  against a signed 10). **v1's 4-environment reads inflated every one 4–10×** (−6.46/−7.97/
-  +16.98/−6.10/+26.69 %): all four were the same, burstiest, arrival window — directions
-  replicated, magnitudes did not. Cause: every learned arm pays **7.1 s of batch assembly**
-  (37 % of elapsed) that reactive, ECT and random pay 0.000 s of, and wins that much queue back.
-  `partial_state_v3`'s size-free block (dim 38 → 22) lets 6-server checkpoints serve 80 at all.
+- **The 6-server headline was never there** (`unsaturated_edge_v1`, 2026-09-20). "gnnedge0
+  beats reactive −20.8 % (15/16) at 40 clients" was `peer_only_v1_read.collapse_to_seed`: the
+  arm's median over 4 cells ÷ Knative's median over the same 4 cells — cells whose Knative time
+  ran 18–64 s, two of them **saturated** (share 0.87, 0.80). **Paired per cell: +4.6 / +75.8 /
+  +9.7 / −36.8 %.** Every client-rung "vs reactive" number in `peer_only_v1` → `bipartite_edge_v1`
+  → `best_arm_v1` → `corpus_matched_v1` flips sign when paired; the arm-vs-arm contrasts stand.
+  On **16 (topology, window) environments** with the paired statistic: C40 `gnnedge0` **+6.68 %
+  (0/14, disclosed — 2 of 256 arms hang)**, `peeronly` +8.36 % (0/16), `mpoff` +11.53 % (0/16),
+  `gnn` +9.24 % (0/12); C80 `gnnedge0` **+14.40 % (0/16)**. Power delivered (sd ≤ 2.9 pp).
+  Random is only +4.5 % behind Knative at 6 servers (3.6 candidates/task); the arm beats it
+  −4.5 %, inside the bar. See `docs/gates/gate-tools.md` 2026-09-20 and `docs/hard-stops.md`.
+- **The graph arm IS the better learner.** `gnnedge0` vs its corpus-matched MP-OFF twin, paired on
+  environment and checkpoint: **−6.82 % (14/14, p = 0.001)** at C40; −2.38 % (p = 0.0004) at 80
+  servers (`unsaturated_scale_v2`). The bipartite penalty is SOLVED and it was a **`sum`** over a
+  candidate set that is 3.6/task at 6 servers and 47.9 at 80 (`bipartite_aggr_v1`: +13.26 %
+  at 80 servers, not separated at 6, replicated at 16 environments as +2.70 % / +2.12 %). **Use
+  `mean` for any bipartite stage over a variable-sized candidate set.** Edge-conditioning is NOT
+  the reason (D2: the zeroed control matches the treatment). Name both corpora in every
+  model-class quote: at 516 the edge is corpus-contingent (`corpus_matched_v1`).
+- **The mechanism, measured.** After placement a `gnnedge0` task spends **11.2 s** in the system
+  vs Knative's **17.9 s** (−37 %, C40 medians on the 16 environments); it then pays **7.1 s** of
+  peer-group assembly wait (window 16 s; groups arrive over a median 13.8 s) that Knative, ECT and
+  random pay 0.000 s of. At 80 servers the same tax is 37 % of elapsed and the arms end ±2 %
+  (`unsaturated_scale_v2`: gnnedge0 −1.62 %, p = 0.0023, real and inside the bar). The window is
+  the one untested lever that needs no retraining: `batch_window_edge_v1` (registered
+  2026-09-19) screens 2/4/8 s on one topology and confirms held-out. Removing batching outright
+  is closed (−1731 %, `drainable_serving_config_v1`).
+- **Reactive's capacity does not grow with the cluster** (`unsaturated_scale_v1`): 80 servers
+  are healthy only at 6 servers' 0.46/s, so every earlier 80-server win was read against a
+  drowned baseline; the client ladder had no admissibility screen at all until 2026-09-19. A cell
+  enters a study only at reactive queue share ≤ 0.80; **unknown is not a pass**, and 15 of 48
+  6-server cells hang in the starved-client spin identically at 40 and 80 clients (topology, not
+  load). **w0**, the only arrival window every gate used before 2026-09-19, is the burstiest of
+  four; every saturated cell is a w0 cell.
+- **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
+  +5.14 pp, p = 0.001, reproduced at 1,654 — offline, and it inverts live at a defensible load);
+  a 150× trainability asymmetry (optimisation, never latency); a fit-ceiling split on the
+  route B corpus; and one replicated early-trace positive (`serving_stability_v1`). Both
+  model-class edges over the MLP fell to corpus matching (`link_mp_v1`,
+  `reliability_matched_v1`). `partial_state_v3`'s size-free block (dim 38 → 22) is what lets
+  6-server checkpoints serve 80 at all.
 
-**Quote a DIRECTION from a small design and a MAGNITUDE only from a large one** — every effect in `unsaturated_scale_v1` was 4–10× too big at 4 environments. **Before quoting any number from this program**, read the node and carry its caveats. Never
-quote a `peer_affinity` live number without its load factor, nor a `peer_only_v1` 80-server number
-without its saturation, nor any arm comparison without both corpora.
-Start at `docs/lineages/peer_only_v1.md`, `unsaturated_scale_v2.md` and `throughline.md` (last section).
+**Pair on the environment before you take a median; quote a DIRECTION from a small design and a
+MAGNITUDE only from a large one.** Before quoting any number from this program, read the node and
+carry its caveats: never a `peer_affinity` live number without its load factor, never a
+client-rung "vs reactive" number from before 2026-09-20 at all, never an arm comparison without
+both corpora. Start at `docs/lineages/unsaturated_edge_v1.md`, `unsaturated_scale_v2.md` and
+`throughline.md` (last section).
 
 ## Where knowledge lives — READ FIRST
 

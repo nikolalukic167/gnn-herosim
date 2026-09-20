@@ -1,5 +1,7 @@
 # bipartite_aggr_v1 — is the bipartite penalty a `sum` over a candidate set that grows with the cluster?
 
+**Superseded in part 2026-09-20 (`unsaturated_edge_v1`):** every "vs reactive" number on the client rungs below was an unpaired ratio of medians over cells (two saturated) and flips sign when paired; the sum-vs-mean contrasts (arm-vs-arm, paired) stand, and E3 replicates `SUM-NOT-SEPARATED` at 6 servers on 16 environments.
+
 **Status:** `CLOSED` (2026-09-18) — **`SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`. The prediction
 held, and AMENDMENT 1 then re-read its weakest clause at n = 32 and STRENGTHENED it.** Closed on a live gate at both ends of the server ladder (rule 6). Registered
 2026-09-18; every bar is a module constant in `scripts_cosim/bipartite_aggr_v1_read.py`,
