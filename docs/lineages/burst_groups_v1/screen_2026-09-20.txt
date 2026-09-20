@@ -1,0 +1,16 @@
+=== burst (burst_groups_v1) screen at C40: TOO-FEW-UNSATURATED-ENVIRONMENTS ===
+    topology       w0       w1       w2       w3
+        9001    0.526   hang      0.420    0.425
+        9002    0.894   hang     hang     hang  
+        9003    0.553    0.468    0.461    0.458
+        9005   hang      0.483   hang      0.479
+        9101    0.499    0.433    0.433    0.432
+        9102   hang     hang     hang     hang  
+        9103   hang     hang     hang     hang  
+        9104   hang      0.491    0.488    0.485
+        9105    0.871    0.599    0.599    0.599
+        9106    0.513    0.445    0.446    0.440
+        9107   hang     hang     hang     hang  
+        9108   hang     hang     hang     hang  
+   C40: only 3 of 12 topologies are unsaturated on all 4 windows; 4 are needed for the crossed design
+   wrote simulation_data/env_lever_v1/selected_burst.json

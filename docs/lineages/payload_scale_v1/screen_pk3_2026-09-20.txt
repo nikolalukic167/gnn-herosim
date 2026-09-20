@@ -1,0 +1,16 @@
+=== pk3 (payload_scale_v1) screen at C40: TOO-FEW-UNSATURATED-ENVIRONMENTS ===
+    topology       w0       w1       w2       w3
+        9001    0.969    0.970    0.976    0.974
+        9002    0.980   hang      0.977    0.980
+        9003    0.984    0.976    0.978    0.979
+        9005    0.969    0.955    0.958    0.965
+        9101    0.980    0.973    0.959    0.967
+        9102   hang     hang     hang     hang  
+        9103    0.970    0.977   hang      0.976
+        9104    0.967    0.967    0.960    0.969
+        9105    0.974    0.985    0.981    0.981
+        9106    0.964    0.741    0.744    0.737
+        9107   hang     hang     hang     hang  
+        9108   hang     hang     hang     hang  
+   C40: only 0 of 12 topologies are unsaturated on all 4 windows; 4 are needed for the crossed design
+   wrote simulation_data/env_lever_v1/selected_pk3.json

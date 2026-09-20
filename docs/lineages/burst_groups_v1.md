@@ -1,9 +1,52 @@
 # burst_groups_v1 — peer groups that arrive together
 
-**Status:** `REGISTERED` (2026-09-20) — bars, reader, 6 tests, mint script, sbatch and the
-expectation below committed before any levered arm ran on the gate. Two local smoke runs are
-disclosed under the expectation. Shares its apparatus with `payload_scale_v1` and
-`backbone_sparsity_v1` (`scripts_cosim/env_lever_v1_*.py`, `scripts_cosim/datalab/env_lever_v1*.sbatch`).
+**Status:** `CLOSED` (2026-09-20) — **`WAIT-COLLAPSED` · `NOT-SEPARATED` (`gnnedge0` vs
+reactive) · `RULE-FASTER-THAN-GRAPH-ARM`; registered verdict `TOO-FEW-UNSATURATED-ENVIRONMENTS`,
+study read under two signed amendments on 8 environments, disclosed.** Closed on a live gate
+(rule 6): 48 screen arms + 280 study arms (3 `mpoff` checkpoints hang, below). Registered
+2026-09-20; bars, reader, 6 tests and the expectation committed before any levered arm ran; two
+local smoke runs disclosed. **The registered expectation was right on L4, L2, L3 and L5 and
+called L1 at 45 % BEATS — it read NOT-SEPARATED.** Shares its apparatus with `payload_scale_v1`
+and `backbone_sparsity_v1` (`scripts_cosim/env_lever_v1_*.py`, `scripts_cosim/datalab/env_lever_v1*.sbatch`).
+
+**Outcome. Removing the wait from the environment does not rescue the learned arm; it makes the
+rule's margin twice as large.** With every peer group dispatched as one burst the batching arms'
+scheduler wait goes from 7.1 s to **0.001 s** per task (L4 `WAIT-COLLAPSED`) and reactive Knative
+itself gets 54 % faster (17.9 → 8.29 s per task on the study environments: rendezvous 3.7 → 0.00 s,
+queue 8.7 → 3.9 s), because partners placed within milliseconds of each other are never waited
+for. On the 8 environments both serving paths can serve (9101, 9106 × 4 windows; reads at n = 8
+disclosed, checkpoint-unit reads at n = 16):
+
+| read | verdict | median | p | ahead |
+|---|---|---|---|---|
+| L1 `gnnedge0` vs reactive (ckpt) | `NOT-SEPARATED` | **−2.17 %** | 0.196 | 11/16 |
+| `mpoff` vs reactive (ckpt, 13 complete) | `REACTIVE-FASTER` | +7.95 % | 0.0015 | 0/13 |
+| L2 immediate rule vs reactive (8 env) | `RULE-BEATS-REACTIVE` | **−26.42 %** | 0.012 | 8/8 |
+| batched rule vs reactive (8 env) | `NOT-SEPARATED` at n = 8 | −20.19 % | 0.21 | 6/8 |
+| random vs reactive (8 env) | `REACTIVE-FASTER` | +22.46 % | 0.012 | 0/8 |
+| L3 `gnnedge0` vs immediate rule (ckpt) | `RULE-FASTER-THAN-GRAPH-ARM` | **+25.01 %** | 0.0004 | 0/16 |
+| L5 `gnnedge0` vs `mpoff` (ckpt, 13 complete) | `GRAPH-FASTER-THAN-TWIN` | −9.79 % | 0.0024 | 12/13 |
+
+Per task (medians, s: queue / exchange / rendezvous / elapsed): Knative 3.86 / 4.34 / 0 / 8.29;
+random 5.01 / 4.43 / 0 / 9.37; **rule 2.89 / 3.22 / 0 / 6.24**; batched rule 2.99 / 3.26 / 0 / 6.56;
+`gnnedge0` 4.04 / 3.92 / 0 / 7.96; `mpoff` 4.63 / 4.11 / 0 / 8.96. The graph arm, with no wait at
+all, saves 0.4 s of exchange and gives 0.2 s back in queue — a 2 % tie with Knative — while the
+rule saves 1.1 s of exchange **and** 1.0 s of queue. The model-class contrast survives the lever
+(`gnnedge0` beats its twin −9.8 %) and is irrelevant to the ranking: both learned arms sit between
+random and the rule.
+
+**What this settles.** (1) The 7 s wait was never the learned arm's whole deficit: with the wait
+at zero it still does not beat Knative, and the no-wait decoder inherits this prediction — its bar
+is the rule at −26 %, not Knative. (2) Bursts are a load lever at 6 servers before they are a
+structure lever: reactive hangs on 22 of 48 candidate cells (starved-client spin) and the batch
+path hangs on a topology reactive survives (Amendment 2). (3) Everything peer-aware pays more
+under bursts (rule −13 → −26 %), because with rendezvous gone the exchange term is the whole
+peer cost.
+
+**Carry.** 8 environments, two topologies: a DIRECTION read, not a magnitude; `mpoff` at 13 of
+16 checkpoints (3 hang at the end of the trace on 9101 w1; 48 and 96 GB). The registered rule's
+verdict stays `TOO-FEW-UNSATURATED-ENVIRONMENTS`; every number above is quoted with "8
+environments, disclosed".
 
 **Parents:** [`batch_window_edge_v1`](batch_window_edge_v1.md) (the wait is intrinsic to
 peer-group placement when the group arrives over 13.8 s), [`peer_greedy_live_v1`](peer_greedy_live_v1.md)
@@ -99,6 +142,11 @@ the result directory and are reported alongside, and every environment-unit read
 n = 8. The registered verdict stays L0's.
 
 ## Record (newest first)
+
+- 2026-09-20 — **CLOSED under Amendment 2** (jobs 793604 / 793853-class blocks / 794190 / 794454:
+  280 arms, 277 completed, 3 `mpoff` OOM at 48 GB on 9101 w1, re-run at 96 GB cancelled by the 20-minute watchdog at the same point, job 794555 (deterministic; disclosed)).
+  Read `env_lever_v1_gate_read.py study burst --selection selected_burst_a2.json`: as in the head.
+  L4 median wait 0.001 s.
 
 - 2026-09-20 — Amendment 1's first block (job 793450, tasks 0–47): random 12/12, immediate rule
   12/12, batched rule 10/12 (9003 w0, w1 hang), `gnnedge0` seeds 1–12 on 9003 w0 0/12 — all 14
