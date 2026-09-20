@@ -1,0 +1,41 @@
+# joint_burst_v2 -- mpoff trained UNCAPPED on the burst corpus that keeps the loaded states
+# (docs/lineages/joint_burst_v2.md). The joint_burst_v1 recipe with three swaps: the v2 cache and
+# split, and NEAR_RTT_DAG_ALPHA_KEY=inf so the label is the unconstrained group optimum and the
+# served decoder is uncapped -- the greedy's seat. Everything else verbatim.
+trainer: gnn
+lineage: joint_burst_v2
+cache_dir: simulation_data/graphs_cache_joint_burst_v2_psv3_inf
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/joint_burst_v2_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  GNN_DISABLE_MESSAGE_PASSING: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: joint-burst-v2-mpoff
+  tags:
+  - joint-burst-v2
+  - uncapped
+  - burst-corpus
+  - mpoff
+  - lr2e3
+  - patience60
