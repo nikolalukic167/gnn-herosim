@@ -244,7 +244,7 @@ def report_regime(results_root: str) -> dict:
     rule = {e: v for (e, s), v in a_p.get(L_IMMEDIATE, {}).items()}
     l2 = read_l2(env_stats(rule, react, envs)) if all(e in rule for e in envs) else {"verdict": V_UNREADABLE}
     out["by_scale"][1.0] = {"l1": l1, "l2": l2, "n_complete": len(comp)}
-    for k, lever in ((0.1, "pk0.1"), (10.0, "pk10")):
+    for k, lever in ((0.1, "pk0.1"), (3.0, "pk3"), (10.0, "pk10")):
         sel_path = f"simulation_data/env_lever_v1/selected_{lever}.json"
         d = os.path.join(results_root, "el_v1", lever)
         if not os.path.exists(sel_path) or json.load(open(sel_path)).get("verdict") != V_DESIGN_READY:
