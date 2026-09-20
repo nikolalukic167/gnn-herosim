@@ -873,3 +873,25 @@ design (the rate that holds reactive's share) as the lineage itself, with rate n
 confound, rather than discovering it one screen at a time. Screen every lever value on its own;
 never reuse the parent study's topologies. See
 [[herosim-environment-levers-are-load-levers-2026-09-20]].
+
+## A disclosed partial read from an in-flight gate is not a preview of the final direction (2026-09-20)
+
+`joint_burst_v1`'s J5 (does training on the served distribution help vs. the cold corpus)
+briefly read the *opposite* of its final answer. Mid-gate, with only a few checkpoints
+resolved out of 16 per arm, the disclosed decomposition table showed the cold control
+reading faster per-task than the burst-trained arms. Once the last block finished — mostly
+end-of-trace OOM hangs in the burst-trained checkpoints' arms, resolved by rerunning under
+the watchdog — the same table reversed: burst-trained `gnnedge0` 9.46 s vs cold 10.25 s
+elapsed, and J5 fired `SERVED-DISTRIBUTION-TRAINING-HELPS` at 15/15.
+
+**Why:** a gate's checkpoints do not finish in a random order — the ones that hang (OOM
+growth, spin) are disproportionately absent from an early disclosed subset, and which
+checkpoints hang is not independent of the arm or the environment. A partial "disclosed"
+read is a valid substitute for an UNREADABLE registered slot only once the run is complete;
+mid-run, it is a biased sample, not a preview.
+
+**How to apply:** report an in-flight gate's intermediate numbers as status ("here's what's
+in so far"), never as a finding, and flag explicitly when a decomposition or comparison
+table might still flip once the last block lands. Only the read taken after every block
+completes (or every remaining arm's hang is confirmed and disclosed) is evidence. See
+[[herosim-joint-burst-v1-closed-2026-09-20]].

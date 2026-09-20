@@ -1,8 +1,18 @@
 # joint_burst_v1 — train on the decision that is served: whole peer groups, arriving together, from loaded states
 
-**Status:** `REGISTERED` (2026-09-20) — bars, reader, 5 tests, the screen / capture / corpus /
-training / gate scripts and the expectation below committed before any burst-trained checkpoint
-exists. Nothing in this lineage is read from a cold-corpus checkpoint except as the J5 control.
+**Status:** `CLOSED` (2026-09-20) — **NO-GNN-WIN**. Registered 2026-09-20; every bar below was
+signed before its data.
+
+**Outcome.** Training on the served distribution (whole peer groups, arriving as bursts, from
+loaded states, labelled by the group optimum on the measured clock) **is the first checkpoint in
+the programme to beat a healthy reactive Knative on a registered live gate** (J3: −12.47 %,
+15/15 disclosed) — and J5 confirms the mechanism the lineage was built to test: the burst-trained
+`gnnedge0` beats the *same architecture* trained cold, paired on environment, −7.82 %, 15/15.
+**It still loses to the hand rule serving the same decoder seat** (J1: batched greedy −16.83 %
+faster, 0/15; J2: the no-wait rule −11.49 % faster, 0/15). The served distribution was necessary
+and not sufficient — the label (a supervised argmin over a ≤ 20,000-plan subsample of the group)
+or the model class is the remaining gap. This is the pre-signed trigger for
+[`rollout_imitation_v1`](rollout_imitation_v1.md): built, not yet started.
 
 **Parents:** [`burst_groups_v1`](burst_groups_v1.md) (under bursts the wait is gone and the cold
 `gnnedge0` only ties Knative while the greedy reads −26 %), [`peer_greedy_live_v1`](peer_greedy_live_v1.md)
@@ -90,5 +100,56 @@ read: `scripts_cosim/joint_burst_v1_gate_read.py`; results `results/jb_v1/`.
 `simulation_data/REGISTRY.json` when built).
 
 ## Record (newest first)
+
+- 2026-09-20 — **Gate: `NO-GNN-WIN`** (816 arms, jobs 795253–795995, ~1 h in 17 blocks of 48; 13
+  arms lost to end-of-trace OOM growth in burst-trained checkpoints — 1 `jb1_gnnedge0` seed and 9
+  `jb1_mpoff` seeds — the known checkpoint-memory hang; each disclosed, never averaged into the
+  registered slot). **J3 fires: `ARM-BEATS-REACTIVE-UNDER-BURSTS`**, burst-trained `gnnedge0`
+  −12.47 % vs reactive (p = 0.0007, 15/15 disclosed) — the first learned checkpoint in the
+  programme to beat a healthy Knative on a registered gate. The twin (`mpoff`, 7/16 complete)
+  reads the same, −12.20 % (7/7). Even the **cold** `be1670_gnnedge0` control now beats reactive
+  under bursts, −8.13 % (16/16, fully readable) — a change from `burst_groups_v1`'s cold read on
+  its own 8-cell design (`gnnedge0` TIES, −2.2 %, 11/16 not fired); the two gates differ in study
+  cells and in this gate's J0 admissibility screen (both paths finishing on all four windows),
+  not a contradiction on the same cells. **J1 fires the other way: `BATCHED-GREEDY-FASTER-THAN-
+  GRAPH-ARM`**, +16.83 % (p = 0.0007, 0/15) — the rule serving the arms' own decoder seat is still
+  faster; J2 the same vs the no-wait rule, +11.49 % (0/15). **J5 fires: `SERVED-DISTRIBUTION-
+  TRAINING-HELPS`**, burst-trained `gnnedge0` −7.82 % vs the cold-corpus twin, paired on
+  environment (p = 0.0007, 15/15) — confirms the corpus was doing real work: decomposition medians
+  put burst-trained `gnnedge0` at 9.46 s elapsed vs cold `be1670_gnnedge0` at 10.25 s. (The interim
+  read on a smaller disclosed subset, taken before the OOM-affected checkpoints resolved, had this
+  backwards — cold reading faster; flag for the record: a disclosed partial subset from an
+  in-progress gate with a non-random completion pattern is not a preview of the final direction,
+  only the final disclosed/registered read is.) **J4 `NOT-SEPARATED`** at only 6/16 complete
+  paired checkpoints (−1.98 %, p = 0.12) — under-powered by the OOM losses, not informative either
+  way. Environment-level broadcasts: immediate rule −21.69 % vs reactive (16/16), batched greedy
+  −27.73 % (14/16), random +24.49 % worse (0/16) — the rule's margin over reactive under bursts is
+  close to `burst_groups_v1`'s −26 %. **J6 composite: `NO-GNN-WIN`** (J1 fires the wrong way, J3
+  fires the right way) — per the pre-signed consequence table this is exactly "J1 GREEDY-FASTER
+  with J5 HELPS": the served distribution was necessary and not sufficient. Result JSON
+  `simulation_data/joint_burst_v1/read.json`; full table `joint_burst_v1/gate_2026-09-20.txt`.
+
+- 2026-09-20 — **Corpus, cache, training** (jobs 795159 + 795208 corpus; 795216 cache; 795217
+  train, 32/32 checkpoints in 22 min). Corpus: **311 training + 48 held-out datasets** from 20
+  capture runs (16 datasets per training run offered from up to 60 snapshots; about two thirds of
+  aligned snapshots are rejected by the corpus rules — no choice, or the live slate over the
+  alpha = 2.0 cap); the burst slates are small: **2.11 candidates per task** (max 5), sweeps of
+  ~100–3,000 plans, 1.18 M labelled rows in all. Cache `graphs_cache_joint_burst_v1_psv3`
+  (`partial_state_v3`, `rtt_drift:1@lambda=0.46,clock=measured`, 0 candidate-not-in-sweep
+  offenders); split `experiments/joint_burst_v1_split.json` train 249 / val 62 / test 48
+  (sha b5fd9488…). **Curves against their floors** (`read_training_curves.py`, gnnedge0 seed 1):
+  val task accuracy 0.62–0.65 against a **chance floor of 0.567** (majority 0.53); the decode
+  regret `val/regret_masked_topo` falls 54.2 → **24.7 s** at the selected epoch 41 on a 97.4 s
+  optimal group RTT (0.42 of the random plan's 59.3 s regret; the worst plan's is 145 s), early
+  stop at epoch 106. The model learns something and is far from the optimum offline; the gate
+  decides what that is worth live.
+
+- 2026-09-20 — **J0 screen: `DESIGN-READY`** (jobs 794882 / 794936 / 794990 / 795067 / 795123, 224 arms):
+  5 of 28 candidates servable by both paths on all four windows; the study is **9101, 9106, 9114,
+  9116** (9119 also qualifies). Under bursts reactive hangs on 62 of 112 cells and the batch path
+  spins on 47 of 112 (table attached, `joint_burst_v1/screen_2026-09-20.txt`). **Capture:** 20 of
+  48 training runs finished (job 794781; 28 spun and were cancelled at 30 min), 2,538 group
+  snapshots over 16 training runs (cells 9201–9221) and 4 held-out runs (9223, 9224); the corpus
+  builder therefore takes 16 datasets per training run (`46bb979`).
 
 - 2026-09-20 — Registered.
