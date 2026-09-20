@@ -1,0 +1,166 @@
+{
+ "num_tasks": 50000,
+ "total_rtt": 1212010.7374821042,
+ "averageElapsedTime": 24.240214749642085,
+ "averageQueueTime": 11.23234571781558,
+ "averageWaitTime": 6.8191884624798105,
+ "totalPeerExchangeTime": 244319.74080703667,
+ "totalPeerRendezvousWait": 61355.173765037434,
+ "endTime": 108681.92045153696,
+ "schedulerCounters": {
+  "prefix_batches": 8662,
+  "prefix_tasks_decoded": 50000,
+  "prefix_tasks_deferred": 4048,
+  "prefix_pairs_in_batch": 70134,
+  "prefix_peers_outside_batch": 37520,
+  "peer_group_incomplete_batches": 2832,
+  "prefix_batches_load_seeded": 0,
+  "gnn_pure_decisions": 50000,
+  "fallback_decisions": 0,
+  "queue_guard_decisions": 0,
+  "queue_guard_steps_active": 0,
+  "queue_guard_masked": 0,
+  "qr_batches": 8662,
+  "qr_blind_batches": 0,
+  "qr_divisor_above_one_batches": 0,
+  "qr_dim7_over_corpus_batches": 0,
+  "residence_unstamped": 0
+ },
+ "scaleEventCount": 8079,
+ "decile_summary": {
+  "deciles": [
+   {
+    "decile": 1,
+    "n": 5000,
+    "mean_queue_s": 17.393152401231248,
+    "mean_elapsed_s": 43.7701726774608
+   },
+   {
+    "decile": 2,
+    "n": 5000,
+    "mean_queue_s": 8.885530082267646,
+    "mean_elapsed_s": 24.43438730468243
+   },
+   {
+    "decile": 3,
+    "n": 5000,
+    "mean_queue_s": 7.154158371751532,
+    "mean_elapsed_s": 19.73740643167776
+   },
+   {
+    "decile": 4,
+    "n": 5000,
+    "mean_queue_s": 7.433658568448602,
+    "mean_elapsed_s": 18.72323185367336
+   },
+   {
+    "decile": 5,
+    "n": 5000,
+    "mean_queue_s": 10.173753511633366,
+    "mean_elapsed_s": 21.157923468643475
+   },
+   {
+    "decile": 6,
+    "n": 5000,
+    "mean_queue_s": 11.784627932145213,
+    "mean_elapsed_s": 22.378212553874654
+   },
+   {
+    "decile": 7,
+    "n": 5000,
+    "mean_queue_s": 11.671281554555364,
+    "mean_elapsed_s": 22.294052137225762
+   },
+   {
+    "decile": 8,
+    "n": 5000,
+    "mean_queue_s": 13.16987912457378,
+    "mean_elapsed_s": 23.784633742317975
+   },
+   {
+    "decile": 9,
+    "n": 5000,
+    "mean_queue_s": 12.624727982850676,
+    "mean_elapsed_s": 23.318003678049973
+   },
+   {
+    "decile": 10,
+    "n": 5000,
+    "mean_queue_s": 12.032687648698365,
+    "mean_elapsed_s": 22.804123648814652
+   }
+  ],
+  "bounds": [
+   36764.505129603676,
+   50596.86574985276,
+   60362.56144387132,
+   68238.52752156107,
+   75449.42314464466,
+   82170.87589439756,
+   88852.1965520502,
+   95372.71369425065,
+   102009.77233684392
+  ],
+  "n_tasks": 50000,
+  "mean_queue_s": 11.23234571781558,
+  "mean_elapsed_s": 24.240214749642085,
+  "queue_max_over_min": 2.4311947677743304
+ },
+ "arm": "cc40s9003__w0__1670_peeronly_s6",
+ "cell": "cc40s9003",
+ "topology": 9003,
+ "window": "w0",
+ "clients": 40,
+ "servers": 6,
+ "rung": "C40",
+ "workload": "drainable_f4000_n50000",
+ "corpus": "1670",
+ "arm_kind": "peeronly",
+ "checkpoint_seed": 6,
+ "policy_name": "gnn",
+ "wallclock_s": 160,
+ "representation": "v3",
+ "env": {
+  "GNN_DECODE_MODE": "masked_topo",
+  "GNN_QUEUE_NORM_MODE": "scheduler_adaptive",
+  "GNN_DISABLE_MESSAGE_PASSING": "0",
+  "GNN_MP_PLATFORM_EDGES_OFF": "1",
+  "HEROSIM_GNN_DEVICE": "cpu",
+  "HEROSIM_PEER_EXCHANGE": "1",
+  "GNN_BATCH_BY_PEER_GROUP": "1",
+  "HEROSIM_SERVER_ONLY_REPLICAS": "1",
+  "PARTIAL_STATE_CONTRACT": "partial_state_v3",
+  "PARTIAL_STATE_PEER_MASS": "1",
+  "INFERENCE_FEATURE_LAYOUT": "dim22",
+  "GNN_MODEL_PATH": "models/peer-only-v1-1670-peeronly-lr2e3-seed6.pt",
+  "TOPOLOGY_FEATURE_CONTRACT": "src_index_v0",
+  "QUEUE_FEATURE_CONTRACT": "legacy_v0"
+ },
+ "code": {
+  "git_available": true,
+  "commit": "f6384eb20f74d23cf46dee1c6b2929ae2635e64c",
+  "describe": "f6384eb",
+  "branch": "feat/closed-loop-p1",
+  "code_paths": [
+   "src",
+   "scripts_cosim",
+   "experiments",
+   "run_experiment.py"
+  ],
+  "dirty": true,
+  "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "changed_files": [
+   "scripts_cosim/datalab/literature_reeval_l2d_10x10_authors.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_10x10_eval.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_10x10_lrsweep.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_15x15.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_15x15_eval.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_15x15_topup.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_6x6_a2.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_6x6_eval.sbatch",
+   "scripts_cosim/datalab/literature_reeval_l2d_6x6_lrsweep.sbatch"
+  ],
+  "changed_file_count": 9
+ },
+ "queue_share": 0.46337649372439776
+}

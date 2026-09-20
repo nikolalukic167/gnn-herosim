@@ -1,12 +1,51 @@
 # batch_window_edge_v1 — the batch window where the learned arm is competitive
 
-**Status:** `REGISTERED` (2026-09-19) — bars, reader, 6 tests and this expectation committed
-before any arm at a new window is served. Runs after `unsaturated_edge_v1`'s study, on its
-16 study environments at 6 servers / 40 clients, whatever that lineage's verdict; its
-BELOW-BAR consequence makes this lineage mandatory, its HOLDS consequence makes it the next
-margin.
+**Status:** `CLOSED` (2026-09-20) — **`WINDOW-NOT-THE-LEVER` · `BATCHING-RELOCATES-WAITING`.**
+Closed on the registered screen (rule 6 satisfied: 189 live arms on the screen topology; the
+confirmation phase does not run because the incumbent won the screen). Registered 2026-09-19;
+bars, reader, 6 tests and the expectation committed before any arm at a new window ran. **The
+registered expectation (4 or 8 s chosen; W2 fires at 70 %) was wrong.**
 
-**Question.** Every learned arm collects a task's whole **peer group (10 tasks)** before it
+**Outcome. Shortening the window removes the scheduler wait and puts the same time back as
+platform queue and rendezvous; the total does not move.** `gnnedge0` on the screen topology
+(cc40s9001 × 4 windows, 16 checkpoints; median checkpoint statistic vs Knative):
+
+| window | batch wait / task | median vs Knative | w0 / w1 / w2 / w3 | n |
+|---|---|---|---|---|
+| 2 s | 1.66 s | +8.77 % | +9.3 / +8.9 / +8.6 / +8.5 | 16 |
+| 4 s | 2.65 s | +7.87 % (disclosed) | +5.7 / +8.9 / +8.0 / +7.7 | 15 |
+| 8 s | 4.30 s | +8.04 % (disclosed) | +4.0 / +8.7 / +7.9 / +8.1 | 14 |
+| **16 s** (incumbent) | 7.15 s | **+7.70 %** | +4.6 / +8.5 / +7.4 / +8.2 | 16 |
+
+The registered rule (`select_window`: lowest screen median among windows carrying all 16
+checkpoints) picks **16 s** — 4 s and 8 s are ineligible because one and two of their arms hang
+in the starved-client spin (the same checkpoints that hang at 16 s on another topology) — and
+the disclosed reads on the complete checkpoints agree: no window is better than the incumbent by
+more than 0.3 pp, and the span across all four windows is 1.1 pp. **W6's premise held** (the wait
+fell 7.15 → 1.66 s) **and it bought nothing**: at 2 s the platform queue rose 4.8 → 8.2 s and
+rendezvous 1.25 → 3.3 s per task. Nothing to confirm; the held-out phase was not run.
+
+**What this settles, with `unsaturated_edge_v1`'s decomposition** (C40, 16 environments,
+medians per task): Knative pays 8.66 s of platform queue, 5.40 s of peer exchange and **3.69 s of
+rendezvous** (waiting at the platform for a partner not yet placed); `gnnedge0` pays 7.11 s of
+scheduler wait, 5.59 s queue, 4.35 s exchange and **1.25 s rendezvous**. Execution is ~0.1 s.
+The arm's smaller queue and rendezvous are the same waiting **relocated** into the scheduler — a
+task that has waited for its whole group arrives with its partners placed and finds shorter
+queues because the other tasks are still being held. The **genuine** placement gain is the
+exchange term, **−1.05 s per task from co-location**; the genuine cost is that co-location
+concentrates load. The net is +0.4 s (+2.5 % raw, +6.7 % paired), and the window cannot move it
+because it only chooses where the waiting is booked. `unsaturated_edge_v1`'s "the decisions are
+good; the waiting is the whole deficit" is **corrected** to this reading in its head.
+
+**Carry.** (a) The hang follows the checkpoint: `gnnedge0` s13 hangs at 16 s on 9101 w1 and at
+4 s on 9001 w1; s4 and s8 at 8 s on 9001 w0. A learned-arm hang at the end of the trace is a
+property of (checkpoint, cell), reproducible, and grows memory until killed. (b) Removing
+batching outright is closed elsewhere (`drainable_serving_config_v1`: −1731 %); this lineage
+closes the interior. (c) The one lever left that this record has not measured is decoding each
+arrival **immediately, conditioned on the partners already placed** (no group wait, no
+rendezvous relocation) — the prefix decoder supports it in form; it has never been served.
+
+**Question (as registered).** Every learned arm collects a task's whole **peer group (10 tasks)** before it
 decodes, waiting up to `scheduler.batch_timeout` = **16 s** for members not yet arrived. That
 wait is **6.8 s per task** at every operating point ever measured, and reactive Knative pays
 **0.000 s** of it: at 80 servers it is 37 % of reactive's elapsed and the arms end ±2 % of
@@ -74,5 +113,14 @@ Script: `scripts_cosim/datalab/batch_window_edge_v1.sbatch`; read:
 served as-is.
 
 ## Record (newest first)
+
+- 2026-09-20 — **CLOSED on the screen.** Jobs 792810 / 792858 / 792907 / 792xxx: 192 tasks,
+  189 summaries, 3 hangs cancelled by a 20-minute watchdog (tasks 92, 131, 135). Registered
+  read (`batch_window_edge_v1_gate_read.py screen`): 2 s +8.77 % (n = 16, wait 1.663 s); 4 s
+  UNREADABLE (seed 13 hangs on w1); 8 s UNREADABLE (seed 4 on w0); 16 s +7.70 % (n = 16, wait
+  7.147 s) → `WINDOW-NOT-THE-LEVER`. Disclosed on complete checkpoints: 4 s +7.87 % (n = 15),
+  8 s +8.04 % (n = 14). Per-task decomposition on the screen topology at 2 / 4 / 8 / 16 s:
+  wait 1.66 / 2.65 / 4.30 / 7.15; queue (w1) 8.19 / 7.34 / (8 s: n/a) / 4.78; rendezvous (w1)
+  3.34 / 3.20 / — / 1.2; exchange ≈ 5.0 at every window on w1–w3, 4.1–4.2 on w0.
 
 - 2026-09-19 — Registered.

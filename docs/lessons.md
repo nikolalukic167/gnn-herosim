@@ -810,3 +810,21 @@ elapsed on environment and checkpoint (`pair_checkpoint_stats`). Print the per-c
 to any collapsed number the first time a reader is used. And screen every cell for baseline
 saturation on every ladder — a ratio of medians is most wrong exactly where a screen would have
 dropped a cell. See [[herosim-effect-sizes-from-four-environments-are-inflated-2026-09-19]].
+
+## A scheduler that holds tasks moves their queueing into its own wait — decompose before crediting a placement (2026-09-20)
+
+`unsaturated_edge_v1` read a learned arm as "37 % less time in the system after the decision"
+and the 7.1 s it waits to assemble a peer group as the whole deficit. `batch_window_edge_v1`
+then shortened the window to 2 s: the wait fell to 1.7 s and the platform queue and rendezvous
+rose by the same amount, total unchanged. A task held in the scheduler is not in a platform
+queue and is not waiting for a partner at the platform — the same seconds are booked under a
+different name.
+
+**Why:** the per-task decomposition (`wait`, `queue`, `peer_exchange`, `rendezvous`) is exact,
+and every bucket is a real wait, but only one of them — exchange, here −1.05 s from co-location
+— is caused by the placement; the others are caused by *when* the placement was made.
+
+**How to apply:** before crediting a policy with a shorter queue or rendezvous, ask whether it
+holds tasks somewhere the decomposition does not call "queue". Vary the holding time (the window)
+and see which buckets move together; only the buckets that do not move with it are placement.
+See [[herosim-headline-was-an-unpaired-statistic-2026-09-20]].
