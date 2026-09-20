@@ -72,7 +72,9 @@ if [[ $STEP == screen ]]; then
   TOPO=${TOPOS[$(( T / 4 ))]}; WINDOW=${WINDOWS[$(( T % 4 ))]}
   KIND=reactive; POLICY=knative_network
 elif [[ $STEP == study ]]; then
-  SELECTION="simulation_data/env_lever_v1/selected_${LEVER}.json"
+  # EL_SELECTION overrides the file (a signed amendment with a smaller design, e.g. selected_burst_a1.json);
+  # the environment count NENV comes from the file and the task table scales with it.
+  SELECTION="${EL_SELECTION:-simulation_data/env_lever_v1/selected_${LEVER}.json}"
   [[ -f "$SELECTION" ]] || { echo "FAIL LOUD: $SELECTION missing -- read the lever's screen first" >&2; exit 1; }
   readarray -t ENVS < <(python3 - "$SELECTION" <<'PY'
 import json, sys
@@ -80,22 +82,26 @@ sel = json.load(open(sys.argv[1]))
 if sel.get("verdict") != "DESIGN-READY":
     raise SystemExit(f"FAIL LOUD: selection verdict is {sel.get('verdict')!r}, not DESIGN-READY")
 envs = sel["environments"]
-if len(envs) != 16:
-    raise SystemExit(f"FAIL LOUD: {len(envs)} environments, the registered design is 16")
+if len(envs) not in (12, 16):
+    raise SystemExit(f"FAIL LOUD: {len(envs)} environments; the registered design is 16, a signed amendment 12")
+if len(envs) == 12 and not sel.get("amendment"):
+    raise SystemExit("FAIL LOUD: a 12-environment selection must carry its signed amendment")
 for r, t, w in envs:
     if int(r) != 40:
         raise SystemExit(f"FAIL LOUD: environment {(r, t, w)} is not C40")
     print(f"{t} {w}")
 PY
 )
-  (( ${#ENVS[@]} == 16 )) || { echo "FAIL LOUD: environments read: ${#ENVS[@]}" >&2; exit 1; }
-  if [[ $LEVER == burst ]]; then NTASKS=560; else NTASKS=304; fi
+  NENV=${#ENVS[@]}
+  (( NENV == 16 || NENV == 12 )) || { echo "FAIL LOUD: environments read: $NENV" >&2; exit 1; }
+  NB=$(( 3 * NENV )); NCK=$(( 16 * NENV ))
+  if [[ $LEVER == burst ]]; then NTASKS=$(( NB + 2 * NCK )); else NTASKS=$(( NB + NCK )); fi
   if (( T >= NTASKS )); then echo "[TASK $T] beyond the $NTASKS declared arms"; exit 0; fi
-  if (( T < 48 )); then
+  if (( T < NB )); then
     BASE=(random_network peer_greedy_network peer_greedy_network_batch)
-    KIND=${BASE[$(( T / 16 ))]}; POLICY=$KIND; EI=$(( T % 16 ))
+    KIND=${BASE[$(( T / NENV ))]}; POLICY=$KIND; EI=$(( T % NENV ))
   else
-    R=$(( T - 48 )); SI=$(( R / 256 )); REM=$(( R % 256 )); EI=$(( REM / 16 )); SEED=${SEEDS[$(( REM % 16 ))]}
+    R=$(( T - NB )); SI=$(( R / NCK )); REM=$(( R % NCK )); EI=$(( REM / 16 )); SEED=${SEEDS[$(( REM % 16 ))]}
     if (( SI == 0 )); then CORPUS=be1670; KIND=gnnedge0; else CORPUS=1670; KIND=mpoff; fi
     POLICY=gnn
   fi
