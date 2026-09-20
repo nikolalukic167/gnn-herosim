@@ -1,0 +1,38 @@
+
+=== joint_burst_v1 -- 16 environments ([9101, 9106, 9114, 9116] x ['w0', 'w1', 'w2', 'w3']), reactive median 11.127 s ===
+   [jb1_gnnedge0] 255 arms on disk
+   [jb1_mpoff] 244 arms on disk
+   [be1670_gnnedge0] 256 arms on disk
+   [peer_greedy_network] 16 arms on disk
+   [peer_greedy_network_batch] 16 arms on disk
+   [random_network] 16 arms on disk
+
+   read                                     verdict                                         median        p   ahead
+   J1 bt-gnnedge0 vs batched greedy         UNREADABLE  FAIL LOUD: checkpoint seed 9 is missing environment (40, 9116, 'w1')
+      disclosed (15 complete ckpts)         BATCHED-GREEDY-FASTER-THAN-GRAPH-ARM           +16.83 %   0.0007    0/15 
+   J2 bt-gnnedge0 vs immediate rule         UNREADABLE  FAIL LOUD: checkpoint seed 9 is missing environment (40, 9116, 'w1')
+      disclosed (15 complete ckpts)         IMMEDIATE-RULE-FASTER-THAN-GRAPH-ARM           +11.49 %   0.0007    0/15 
+   J3 bt-gnnedge0 vs reactive               UNREADABLE  FAIL LOUD: checkpoint seed 9 is missing environments [(40, 9116, 'w1')]
+      disclosed (15 complete ckpts)         ARM-BEATS-REACTIVE-UNDER-BURSTS                -12.47 %   0.0007   15/15 
+      bt-mpoff vs reactive                  UNREADABLE  FAIL LOUD: checkpoint seed 1 is missing environments [(40, 9116, 'w1')]
+      disclosed (7 complete ckpts)          ARM-BEATS-REACTIVE-UNDER-BURSTS                -12.20 %   0.0180    7/7  
+      cold gnnedge0 vs reactive             ARM-BEATS-REACTIVE-UNDER-BURSTS                 -8.13 %   0.0004   16/16 
+   J4 bt-gnnedge0 vs bt-mpoff               UNREADABLE  FAIL LOUD: checkpoint seed 1 is missing environment (40, 9116, 'w1')
+      disclosed (6 complete ckpts)          NOT-SEPARATED                                   -1.98 %   0.1159    4/6  
+   J5 bt-gnnedge0 vs cold gnnedge0          UNREADABLE  FAIL LOUD: checkpoint seed 9 is missing environment (40, 9116, 'w1')
+      disclosed (15 complete ckpts)         SERVED-DISTRIBUTION-TRAINING-HELPS              -7.82 %   0.0007   15/15 
+      immediate rule vs reactive (env)      RULE-BEATS-REACTIVE                            -21.69 %   0.0004   16/16 
+      batched greedy vs reactive (env)      RULE-BEATS-REACTIVE                            -27.73 %   0.0084   14/16 
+      random vs reactive (env)              REACTIVE-FASTER                                +24.49 %   0.0004    0/16 
+
+   J6 NO-GNN-WIN  (J1 BATCHED-GREEDY-FASTER-THAN-GRAPH-ARM, J3 ARM-BEATS-REACTIVE-UNDER-BURSTS)  [composed on disclosed reads]
+
+   per-task decomposition (medians over environments and checkpoints, s):
+   arm                             wait   queue    exch  rendez  elapsed
+   knative_network                 0.00    5.12    5.51    0.00    11.13
+   random_network                  0.00    7.58    5.20    0.00    13.75
+   peer_greedy_network             0.00    4.04    3.80    0.00     8.09
+   peer_greedy_network_batch       0.00    4.03    3.66    0.00     8.04
+   be1670_gnnedge0                 0.00    5.15    4.52    0.00    10.25
+   jb1_mpoff                       0.00    4.65    4.24    0.00     9.78
+   jb1_gnnedge0                    0.00    4.38    4.54    0.00     9.46

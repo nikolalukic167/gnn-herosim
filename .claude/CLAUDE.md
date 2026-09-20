@@ -39,11 +39,12 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-09-20, evening).**
+**Where the research question stands (rewritten 2026-09-20, night).**
 
 **A two-line rule beats healthy reactive Knative by 13–16 % without waiting, and beats every
-learned arm; no learned arm beats Knative anywhere Knative is healthy.** The environment rewards
-peer-aware placement; the models have not learned what the rule encodes.
+learned arm. One learned arm now beats Knative too** — trained on exactly the decision it is
+served (`joint_burst_v1`) — **but still loses to the rule in its own seat.** The environment
+rewards peer-aware placement; the models have learned some of what the rule encodes, not all.
 
 - **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
   queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no
@@ -78,6 +79,14 @@ peer-aware placement; the models have not learned what the rule encodes.
   and a 250 Mbps backbone saturate reactive on every cell** — above the 200 MB scale every lever
   is a load lever at 0.46 arrivals/s on 6 servers. Regime: peer-aware placement pays from ×1 for
   the rule, at no measured scale for `gnnedge0`.
+- **Trained on the served decision, `gnnedge0` beats Knative — first learned win in the
+  programme** (`joint_burst_v1`, 2026-09-20): whole peer groups, arriving as bursts, from loaded
+  states, labelled by the group optimum on the measured clock, 16 seeds. **−12.47 % vs reactive
+  (15/15 disclosed)**, and −7.82 % vs the *same architecture* trained cold (J5, 15/15) — the
+  served distribution is real signal, not just less-saturated Knative. **Still loses to the
+  batched greedy serving its own decoder seat, +16.83 % (0/15).** Necessary, not sufficient;
+  `rollout_imitation_v1` (a rollout label over the simulator, registered, not yet built) is the
+  pre-signed next lever.
 - **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
   +5.14 pp offline, inverts live at a defensible load); a 150× trainability asymmetry
   (optimisation, never latency); `serving_stability_v1`'s early-trace positive; both model-class
@@ -88,7 +97,7 @@ peer-aware placement; the models have not learned what the rule encodes.
 MAGNITUDE only from a large one; a rule with the model's information is the bar, never Knative
 alone.** Never a `peer_affinity` live number without its load factor, never a client-rung "vs
 reactive" number from before 2026-09-20, never an arm comparison without both corpora. Start at
-`docs/lineages/peer_greedy_live_v1.md`, `unsaturated_edge_v1.md` and `throughline.md`.
+`docs/lineages/peer_greedy_live_v1.md`, `joint_burst_v1.md` and `throughline.md`.
 
 ## Where knowledge lives — READ FIRST
 

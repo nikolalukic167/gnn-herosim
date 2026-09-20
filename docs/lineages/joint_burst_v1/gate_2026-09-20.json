@@ -1,0 +1,296 @@
+{
+ "environments": [
+  [
+   40,
+   9101,
+   "w0"
+  ],
+  [
+   40,
+   9101,
+   "w1"
+  ],
+  [
+   40,
+   9101,
+   "w2"
+  ],
+  [
+   40,
+   9101,
+   "w3"
+  ],
+  [
+   40,
+   9106,
+   "w0"
+  ],
+  [
+   40,
+   9106,
+   "w1"
+  ],
+  [
+   40,
+   9106,
+   "w2"
+  ],
+  [
+   40,
+   9106,
+   "w3"
+  ],
+  [
+   40,
+   9114,
+   "w0"
+  ],
+  [
+   40,
+   9114,
+   "w1"
+  ],
+  [
+   40,
+   9114,
+   "w2"
+  ],
+  [
+   40,
+   9114,
+   "w3"
+  ],
+  [
+   40,
+   9116,
+   "w0"
+  ],
+  [
+   40,
+   9116,
+   "w1"
+  ],
+  [
+   40,
+   9116,
+   "w2"
+  ],
+  [
+   40,
+   9116,
+   "w3"
+  ]
+ ],
+ "j1": {
+  "verdict": "UNREADABLE",
+  "reason": "FAIL LOUD: checkpoint seed 9 is missing environment (40, 9116, 'w1')",
+  "disclosed": {
+   "verdict": "BATCHED-GREEDY-FASTER-THAN-GRAPH-ARM",
+   "n": 15,
+   "median": 16.830267180145963,
+   "p": 0.000654958343385692,
+   "ahead": 0,
+   "bar": {
+    "separate_pct": 5.0,
+    "alpha": 0.05,
+    "min_checkpoints": 16
+   },
+   "disclosed": true,
+   "n_complete": 15
+  }
+ },
+ "j2": {
+  "verdict": "UNREADABLE",
+  "reason": "FAIL LOUD: checkpoint seed 9 is missing environment (40, 9116, 'w1')",
+  "disclosed": {
+   "verdict": "IMMEDIATE-RULE-FASTER-THAN-GRAPH-ARM",
+   "n": 15,
+   "median": 11.48584267675844,
+   "p": 0.000654958343385692,
+   "ahead": 0,
+   "bar": {
+    "separate_pct": 5.0,
+    "alpha": 0.05,
+    "min_checkpoints": 16
+   },
+   "disclosed": true,
+   "n_complete": 15
+  }
+ },
+ "j3": {
+  "verdict": "UNREADABLE",
+  "reason": "FAIL LOUD: checkpoint seed 9 is missing environments [(40, 9116, 'w1')]",
+  "disclosed": {
+   "verdict": "ARM-BEATS-REACTIVE-UNDER-BURSTS",
+   "n": 15,
+   "median": -12.468488865269446,
+   "p": 0.000654958343385692,
+   "ahead": 15,
+   "bar": {
+    "separate_pct": 5.0,
+    "alpha": 0.05,
+    "min_checkpoints": 16
+   },
+   "disclosed": true,
+   "n_complete": 15
+  }
+ },
+ "j3_twin": {
+  "verdict": "UNREADABLE",
+  "reason": "FAIL LOUD: checkpoint seed 1 is missing environments [(40, 9116, 'w1')]",
+  "disclosed": {
+   "verdict": "ARM-BEATS-REACTIVE-UNDER-BURSTS",
+   "n": 7,
+   "median": -12.198197009909784,
+   "p": 0.017960477526078655,
+   "ahead": 7,
+   "bar": {
+    "separate_pct": 5.0,
+    "alpha": 0.05,
+    "min_checkpoints": 16
+   },
+   "disclosed": true,
+   "n_complete": 7
+  }
+ },
+ "j3_cold": {
+  "verdict": "ARM-BEATS-REACTIVE-UNDER-BURSTS",
+  "n": 16,
+  "median": -8.131200339015564,
+  "p": 0.00043777719457471775,
+  "ahead": 16,
+  "bar": {
+   "separate_pct": 5.0,
+   "alpha": 0.05,
+   "min_checkpoints": 16
+  }
+ },
+ "j4": {
+  "verdict": "UNREADABLE",
+  "reason": "FAIL LOUD: checkpoint seed 1 is missing environment (40, 9116, 'w1')",
+  "disclosed": {
+   "verdict": "NOT-SEPARATED",
+   "n": 6,
+   "median": -1.9804055869193897,
+   "p": 0.11585149752593016,
+   "ahead": 4,
+   "bar": {
+    "separate_pct": 5.0,
+    "alpha": 0.05,
+    "min_checkpoints": 16
+   },
+   "disclosed": true,
+   "n_complete": 6
+  }
+ },
+ "j5": {
+  "verdict": "UNREADABLE",
+  "reason": "FAIL LOUD: checkpoint seed 9 is missing environment (40, 9116, 'w1')",
+  "disclosed": {
+   "verdict": "SERVED-DISTRIBUTION-TRAINING-HELPS",
+   "n": 15,
+   "median": -7.815832896424762,
+   "p": 0.000654958343385692,
+   "ahead": 15,
+   "bar": {
+    "separate_pct": 5.0,
+    "alpha": 0.05,
+    "min_checkpoints": 16
+   },
+   "disclosed": true,
+   "n_complete": 15
+  }
+ },
+ "env_peer_greedy_network": {
+  "verdict": "RULE-BEATS-REACTIVE",
+  "n": 16,
+  "median": -21.690039826540264,
+  "p": 0.00043777719457471775,
+  "ahead": 16,
+  "bar": {
+   "separate_pct": 5.0,
+   "alpha": 0.05,
+   "min_checkpoints": 16
+  }
+ },
+ "env_peer_greedy_network_batch": {
+  "verdict": "RULE-BEATS-REACTIVE",
+  "n": 16,
+  "median": -27.72701814059475,
+  "p": 0.008360653818070718,
+  "ahead": 14,
+  "bar": {
+   "separate_pct": 5.0,
+   "alpha": 0.05,
+   "min_checkpoints": 16
+  }
+ },
+ "env_random_network": {
+  "verdict": "REACTIVE-FASTER",
+  "n": 16,
+  "median": 24.49204743008009,
+  "p": 0.00043777719457471775,
+  "ahead": 0,
+  "bar": {
+   "separate_pct": 5.0,
+   "alpha": 0.05,
+   "min_checkpoints": 16
+  }
+ },
+ "j6": {
+  "verdict": "NO-GNN-WIN",
+  "j1": "BATCHED-GREEDY-FASTER-THAN-GRAPH-ARM",
+  "j3": "ARM-BEATS-REACTIVE-UNDER-BURSTS"
+ },
+ "decomposition": {
+  "knative_network": {
+   "wait": 0.0,
+   "queue": 5.121040068133292,
+   "exchange": 5.511803872800815,
+   "rendezvous": 0.0,
+   "elapsed": 11.126570207295888
+  },
+  "random_network": {
+   "wait": 0.0,
+   "queue": 7.577638058022998,
+   "exchange": 5.1995047151654115,
+   "rendezvous": 0.0,
+   "elapsed": 13.745131146410802
+  },
+  "peer_greedy_network": {
+   "wait": 0.0,
+   "queue": 4.0436816276155145,
+   "exchange": 3.7975038079839756,
+   "rendezvous": 0.0,
+   "elapsed": 8.08798997624147
+  },
+  "peer_greedy_network_batch": {
+   "wait": 0.0010000000005338143,
+   "queue": 4.030830730373587,
+   "exchange": 3.656404873807962,
+   "rendezvous": 0.0,
+   "elapsed": 8.041388995136646
+  },
+  "be1670_gnnedge0": {
+   "wait": 0.0010000000005338143,
+   "queue": 5.153769107266797,
+   "exchange": 4.515715835142197,
+   "rendezvous": 0.0,
+   "elapsed": 10.251953460271856
+  },
+  "jb1_mpoff": {
+   "wait": 0.0010000000005370652,
+   "queue": 4.645715023983077,
+   "exchange": 4.240337500491808,
+   "rendezvous": 0.0,
+   "elapsed": 9.783876809346062
+  },
+  "jb1_gnnedge0": {
+   "wait": 0.0010000000005370652,
+   "queue": 4.383146017444505,
+   "exchange": 4.537900301608329,
+   "rendezvous": 0.0,
+   "elapsed": 9.464413920309728
+  }
+ }
+}

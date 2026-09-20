@@ -1,0 +1,33 @@
+=== joint_burst_v1 screen at C40: DESIGN-READY ===
+    topology             w0             w1             w2             w3   (reactive share / batch path)
+        9001    0.526    ok     hang    ok    0.420    ok    0.425    ok
+        9002    0.894    ok     hang  spin     hang  spin     hang    ok
+        9003    0.553  spin    0.468  spin    0.461    ok    0.458    ok
+        9005     hang    ok    0.483    ok     hang    ok    0.479    ok
+        9101    0.499    ok    0.433    ok    0.433    ok    0.432    ok
+        9102     hang  spin     hang  spin     hang  spin     hang  spin
+        9103     hang  spin     hang  spin     hang  spin     hang    ok
+        9104     hang    ok    0.491    ok    0.488    ok    0.485    ok
+        9105    0.871  spin    0.599    ok    0.599  spin    0.599    ok
+        9106    0.513    ok    0.445    ok    0.446    ok    0.440    ok
+        9107     hang  spin     hang  spin     hang  spin     hang  spin
+        9108     hang  spin     hang  spin     hang  spin     hang  spin
+        9109    0.873    ok    0.522    ok    0.525    ok    0.543    ok
+        9110    0.603    ok    0.428    ok     hang    ok    0.435    ok
+        9111    0.434    ok     hang    ok     hang  spin    0.417    ok
+        9112    0.869    ok    0.539    ok    0.543    ok    0.543    ok
+        9113    0.536    ok     hang    ok     hang    ok     hang    ok
+        9114    0.740    ok    0.466    ok    0.455    ok    0.467    ok
+        9115    0.520  spin    0.493  spin    0.496  spin    0.496  spin
+        9116    0.610    ok    0.450    ok    0.453    ok    0.446    ok
+        9117     hang  spin     hang  spin     hang  spin     hang  spin
+        9118    0.561    ok     hang  spin    0.447  spin     hang  spin
+        9119    0.600    ok    0.460    ok    0.459    ok    0.457    ok
+        9120    0.762  spin    0.469    ok    0.471    ok    0.467    ok
+        9121     hang    ok    0.468    ok    0.463  spin    0.462  spin
+        9122     hang    ok     hang    ok     hang  spin     hang    ok
+        9123     hang  spin     hang  spin     hang  spin     hang  spin
+        9124     hang  spin     hang  spin     hang  spin     hang  spin
+   5 candidates servable by both paths; the 4 lowest ids are [9101, 9106, 9114, 9116]
+   capture: 20/48 training runs finished, 2538 snapshots
+   wrote simulation_data/joint_burst_v1/selected.json
