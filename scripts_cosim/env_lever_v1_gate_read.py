@@ -163,7 +163,7 @@ def report_study(lever: str, result_dir: str, selection_path: Optional[str] = No
         try:
             st = env_stats(rules[a], react, envs)
             R[f"l2_{a}"] = read_l2(st)
-            if R[f"l2_{a}"]["verdict"] == V_UNREADABLE and len(st) >= 12:
+            if R[f"l2_{a}"]["verdict"] == V_UNREADABLE and len(st) >= 8:
                 # a signed 12-environment amendment: the same bar at n = 12, DISCLOSED
                 from scripts_cosim.unsaturated_scale_v2_read import _one_sample
                 from scripts_cosim.env_lever_v1_read import V_REACTIVE_FASTER_THAN_RULE, V_NOT_SEP
