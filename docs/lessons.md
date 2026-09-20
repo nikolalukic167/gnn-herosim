@@ -828,3 +828,26 @@ and every bucket is a real wait, but only one of them — exchange, here −1.05
 holds tasks somewhere the decomposition does not call "queue". Vary the holding time (the window)
 and see which buckets move together; only the buckets that do not move with it are placement.
 See [[herosim-headline-was-an-unpaired-statistic-2026-09-20]].
+
+## The bar for a learned placement policy is a rule with the same information, never the reactive baseline alone (2026-09-20)
+
+For nine lineages the learned arms were read against Knative, random and each other, and the
+programme's question stayed "does a GNN beat Knative". `peer_greedy_live_v1` put a two-line rule
+on the same gate — Knative's candidate set scored in seconds, plus the exchange the physics
+charges to partners already placed — and it beat Knative by 13–16 % where every learned arm
+lost, and beat the graph arm by 8–13 % served in the graph arm's own configuration. Nothing in
+the record could have said this earlier, because nothing in the record had asked.
+
+**Why:** "beats Knative" and "beats a rule that uses the model's inputs" are different claims,
+and only the second is a claim about learning. A learned arm can lose to Knative in an
+environment that rewards its information (this one) or beat Knative in one where a rule would
+beat it by more; the reactive baseline cannot distinguish the two. The rule is also cheap: no
+training, no corpus, no train/serve contract, an afternoon of gate time.
+
+**How to apply:** before a learned arm is gated, write the greedy that uses the same features on
+the physics the simulator charges, register it as an arm, and read the learned arm against it
+paired on environment (and, for a deterministic rule, broadcast over checkpoints). If the greedy
+wins, the paper's result is the greedy and the model's task is to beat it. Keep the rule
+constant-free where the physics allows (here the exchange saved is compared with the queue
+added, both in seconds) so that it cannot be tuned into or out of a win. See
+[[herosim-hand-rule-beats-reactive-and-the-graph-arm-2026-09-20]].
