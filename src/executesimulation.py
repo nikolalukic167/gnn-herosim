@@ -1253,6 +1253,9 @@ def run_simulation(
         'herocache_network',
         'herocache_network_batch',
         'random_network',
+        'peer_greedy_network',
+        'drain_greedy_network',
+        'peer_greedy_network_batch',
         'offload_network',
         'xgboost_batch',
         'xgboost_single',
@@ -1378,6 +1381,15 @@ def run_simulation(
             models = None
         elif policy == 'random_network':
             scheduling_strategy = 'rp_network_rp_network'
+            models = None
+        elif policy == 'peer_greedy_network':
+            scheduling_strategy = 'peer_greedy_network_peer_greedy_network'
+            models = None
+        elif policy == 'drain_greedy_network':
+            scheduling_strategy = 'drain_greedy_network_drain_greedy_network'
+            models = None
+        elif policy == 'peer_greedy_network_batch':
+            scheduling_strategy = 'peer_greedy_network_batch_peer_greedy_network_batch'
             models = None
         elif policy == 'offload_network':
             scheduling_strategy = 'offload_network_offload_network'
@@ -1694,7 +1706,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|offload_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1705,7 +1717,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|offload_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1722,6 +1734,9 @@ def main():
         'herocache_network',
         'herocache_network_batch',
         'random_network',
+        'peer_greedy_network',
+        'drain_greedy_network',
+        'peer_greedy_network_batch',
         'offload_network',
         'xgboost_batch',
         'xgboost_single',

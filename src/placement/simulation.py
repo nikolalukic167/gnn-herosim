@@ -87,6 +87,11 @@ from src.policy.knative_network.orchestrator import KnativeOrchestrator as Knati
 from src.policy.knative_network.autoscaler import KnativeAutoscaler as KnativeNetworkAutoscaler
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
 from src.policy.knative_network_ect.scheduler import KnativeECTScheduler as KnativeNetworkECTScheduler
+from src.policy.peer_greedy_network.scheduler import (
+    DrainGreedyNetworkScheduler,
+    PeerGreedyNetworkBatchScheduler,
+    PeerGreedyNetworkScheduler,
+)
 from src.policy.knative_network_ect_pull.scheduler import (
     KnativeECTPullScheduler as KnativeNetworkECTPullScheduler,
 )
@@ -768,6 +773,11 @@ def start_simulation(
         "hrc_network_hrc_network": (HRCNetworkOrchestrator, HRCNetworkAutoscaler, HRCNetworkScheduler),
         "hrc_network_batch_hrc_network_batch": (HRCNetworkBatchOrchestrator, HRCNetworkBatchAutoscaler, HRCNetworkBatchScheduler),
         "rp_network_rp_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, RandomNetworkScheduler),
+        # peer_greedy_live_v1: the hand rule on the reactive stack (per arrival) and on the
+        # learned arms' stack (peer-group batching at the cell window)
+        "peer_greedy_network_peer_greedy_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedyNetworkScheduler),
+        "drain_greedy_network_drain_greedy_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, DrainGreedyNetworkScheduler),
+        "peer_greedy_network_batch_peer_greedy_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkBatchScheduler),
         "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
     }
 
