@@ -1,0 +1,21 @@
+
+=== pk0.1 (payload_scale_v1) -- 16 environments ([9001, 9003, 9005, 9101] x ['w0', 'w1', 'w2', 'w3']), reactive median 9.272 s ===
+   [random_network] 16/16 arms on disk
+   [peer_greedy_network] 16/16 arms on disk
+   [peer_greedy_network_batch] 16/16 arms on disk
+   [be1670_gnnedge0] 256/256 arms on disk
+
+   read                                 verdict                                       median        p   ahead
+   L1 gnnedge0 vs reactive              REACTIVE-FASTER-UNDER-THE-LEVER              +16.37 %   0.0004    0/16 
+   L2 immediate rule vs reactive        NOT-SEPARATED                                 -0.36 %   0.0052   14/16 
+      batched rule vs reactive          REACTIVE-FASTER-THAN-RULE-UNDER-THE-LEVER    +14.79 %   0.0004    0/16 
+      random vs reactive                NOT-SEPARATED                                 +1.20 %   0.0019    3/16 
+   L3 gnnedge0 vs immediate rule        RULE-FASTER-THAN-GRAPH-ARM                   +16.91 %   0.0004    0/16 
+
+   per-task decomposition (medians over environments and checkpoints, s):
+   arm                             wait   queue    exch  rendez  elapsed
+   knative_network                 0.00    3.31    0.66    5.19     9.27
+   random_network                  0.00    3.48    0.66    5.16     9.38
+   peer_greedy_network             0.00    3.56    0.55    5.02     9.25
+   peer_greedy_network_batch       7.18    1.51    0.54    1.32    10.61
+   be1670_gnnedge0                 7.20    1.63    0.59    1.30    10.77

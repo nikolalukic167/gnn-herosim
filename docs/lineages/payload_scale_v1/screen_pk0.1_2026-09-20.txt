@@ -1,0 +1,16 @@
+=== pk0.1 (payload_scale_v1) screen at C40: DESIGN-READY ===
+    topology       w0       w1       w2       w3
+        9001    0.422    0.332    0.329    0.327
+        9002    0.416   hang     hang     hang  
+        9003    0.406    0.355    0.357    0.354
+        9005    0.427    0.376    0.377    0.378
+        9101    0.406    0.340    0.337    0.338
+        9102   hang     hang     hang     hang  
+        9103    0.379   hang     hang      0.361
+        9104    0.432    0.392    0.391    0.388
+        9105    0.496    0.453    0.453    0.451
+        9106    0.442    0.388    0.385    0.384
+        9107   hang     hang     hang     hang  
+        9108   hang     hang     hang     hang  
+   C40: 7 topologies unsaturated on all 4 windows; the 4 lowest seed ids are [9001, 9003, 9005, 9101]
+   wrote simulation_data/env_lever_v1/selected_pk0.1.json

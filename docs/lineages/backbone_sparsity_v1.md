@@ -47,4 +47,11 @@ NOT-SEP 35 %; L1 NOT-SEP 45 %, REACTIVE-FASTER 35 %; L3 MATCHES 40 %.
 
 ## Record (newest first)
 
+- 2026-09-20 — **L0 for `bw250`: `TOO-FEW-UNSATURATED-ENVIRONMENTS`** (job 794506, 33 completed /
+  14 cancelled at 20 min / 1 OOM): reactive queue share 0.944–0.985 on every finished candidate
+  cell. A 4× slower backbone multiplies every remote exchange by four, which at 0.46 arrivals/s on
+  6 servers saturates reactive exactly as payload ×3 did (`payload_scale_v1`): the distance lever
+  through bandwidth is a load lever at this rate. Table in
+  `simulation_data/env_lever_v1/selected_bw250.json`. Study not run.
+
 - 2026-09-20 — Registered.
