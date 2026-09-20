@@ -36,7 +36,7 @@ __all__ = [
     "V_GRAPH_BEATS_GREEDY", "V_GREEDY_FASTER", "V_NOT_SEP", "V_GRAPH_BEATS_CD", "V_CD_FASTER",
     "V_ARM_BEATS_REACTIVE", "V_REACTIVE_FASTER", "V_GRAPH_FASTER_THAN_TWIN", "V_POINTWISE_FASTER",
     "V_CORPUS_HELPS", "V_CORPUS_NEUTRAL", "V_UNCAP_BEATS_GREEDY", "V_UNCAP_NOT",
-    "V_CD_BEATS_1PASS", "V_CD_NOT", "V_MORE_COLO_HELPS", "V_MORE_COLO_HURTS",
+    "V_CD_BEATS_1PASS", "V_CD_NOT", "V_MORE_COLO_HELPS", "V_MORE_COLO_HURTS", "V_MORE_COLO_NEUTRAL",
     "V_GNN_BEATS_GREEDY", "V_GNN_BEATS_CD", "V_NO_GNN_WIN",
     "read_k1", "read_k2", "read_k3", "read_k4", "read_k5", "read_k6", "read_k7", "read_k8", "read_k9",
 ]
@@ -67,6 +67,7 @@ V_CD_BEATS_1PASS = "CD-BEATS-1PASS"
 V_CD_NOT = "CD-NOT-BETTER-THAN-1PASS"
 V_MORE_COLO_HELPS = "MORE-COLOCATION-HELPS"
 V_MORE_COLO_HURTS = "MORE-COLOCATION-HURTS"
+V_MORE_COLO_NEUTRAL = "MORE-COLOCATION-NEUTRAL"
 V_GNN_BEATS_GREEDY = "GNN-BEATS-GREEDY"
 V_GNN_BEATS_CD = "GNN-BEATS-CD"
 V_NO_GNN_WIN = "NO-GNN-WIN"
@@ -122,7 +123,7 @@ def read_k8(x2_vs_1pass_by_env: Mapping) -> dict:
     x2 FIRST (per-env % delta). Negative (x2 faster) = more co-location than the rule is
     live-valid."""
     return _one_sample(x2_vs_1pass_by_env, min_n=P_MIN_ENVIRONMENTS,
-                       faster_a=V_MORE_COLO_HELPS, faster_b=V_MORE_COLO_HURTS, tie=V_MORE_COLO_HURTS)
+                       faster_a=V_MORE_COLO_HELPS, faster_b=V_MORE_COLO_HURTS, tie=V_MORE_COLO_NEUTRAL)
 
 
 def read_k9(k1: Mapping, k2: Mapping) -> dict:
