@@ -492,6 +492,13 @@ def loss_tied_teacher_forced_ce(
         )
     plans = tied[alpha_key]
     if not plans:
+        raise ValueError(
+            f"loss_tied_teacher_forced_ce: graph {getattr(data, 'dataset_id', '?')} carries an "
+            f"EMPTY label set at alpha_key {alpha_key!r} (no sweep row is feasible under that cap; "
+            "joint_burst_v2 corpora label the loaded states only at looser rungs) -- train at a "
+            "rung the corpus labels, e.g. NEAR_RTT_DAG_ALPHA_KEY=inf"
+        )
+    if not plans:
         return torch.zeros((), device=device), 0
     if NEAR_CFG.tied_max_plans > 0:
         # Deterministic: the first N in cache order. Never a random sample — this

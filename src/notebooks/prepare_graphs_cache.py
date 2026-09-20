@@ -1730,9 +1730,17 @@ def attach_dag_partial_state_block(
 
         feas = [(combo, rtt) for combo, rtt in sweep if _feasible(combo)]
         if not feas:
-            raise RuntimeError(f"{ds.name}: no feasible sweep rows at alpha={key} "
-                               "— the dataset cannot carry a label set for this "
-                               "rung")
+            # joint_burst_v2 (2026-09-20): a corpus built with make_warm_corpus --no-cap-filter
+            # keeps the loaded states whose live slate admits no plan under a tight cap. Such a
+            # dataset carries NO label set at that rung -- an empty set, recorded, never a
+            # silent default -- and the trainer's loss raises if it is asked to train at it.
+            # The primary rung must always be labelled: that is still a loud failure.
+            if key == DAG_PRIMARY_ALPHA_KEY:
+                raise RuntimeError(f"{ds.name}: no feasible sweep rows at the PRIMARY alpha={key} "
+                                   "— the dataset cannot carry a label set for this rung")
+            tied_plans[key] = []
+            tied_rtts[key] = []
+            continue
         best = min(rtt for _c, rtt in feas)
         tol = 1e-9 * max(1.0, abs(best))
         plans: List[List[int]] = []
