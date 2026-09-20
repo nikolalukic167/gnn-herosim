@@ -132,26 +132,34 @@ def report_study(lever: str, result_dir: str, selection_path: Optional[str] = No
     if missing:
         raise SystemExit(f"FAIL LOUD: no reactive baseline for {missing}")
     rk = median(react[e] for e in envs)
-    print(f"\n=== {lever} ({L_LINEAGE_OF[lever]}) -- 16 environments ({sel['topologies']} x {list(L_WINDOWS)}), "
+    print(f"\n=== {lever} ({L_LINEAGE_OF[lever]}) -- {len(envs)} environments ({sel['topologies']} x {list(L_WINDOWS)}), "
           f"reactive median {rk:.3f} s ===")
     R: dict = {"lever": lever, "environments": envs}
     for a in L_ARMS[lever]:
         want = 16 if a in (L_GRAPH, L_TWIN) else 1
         n = sum(1 for e in envs for s in range(0, 17) if (e, s) in arms.get(a, {}))
-        print(f"   [{a}] {n}/{16 * want} arms on disk")
+        print(f"   [{a}] {n}/{len(envs) * want} arms on disk")
     print(f"\n   {'read':<36} {'verdict':<42} {'median':>9} {'p':>8} {'ahead':>7}")
 
     def _ckpt(a, ref_by_env, fn, label):
+        """Registered: every checkpoint on every environment. Disclosed: the checkpoints
+        complete on every environment (a hung arm drops its checkpoint, never an environment)."""
         try:
-            st = checkpoint_stats(arms.get(a, {}), ref_by_env, envs)
-            r = fn(st)
-            if r["verdict"] == V_UNREADABLE:
-                comp = _complete(arms.get(a, {}), envs)
-                st = checkpoint_stats({k: v for k, v in arms[a].items() if k[1] in comp}, ref_by_env, envs)
-                r = fn(st, min_n=len(comp)); r["disclosed"] = True; r["n_complete"] = len(comp)
+            r = fn(checkpoint_stats(arms.get(a, {}), ref_by_env, envs))
         except ValueError as ex:
             r = {"verdict": V_UNREADABLE, "reason": str(ex)}
-        _print_row(label + (" (disclosed)" if r.get("disclosed") else ""), r)
+        if r["verdict"] == V_UNREADABLE:
+            comp = _complete(arms.get(a, {}), envs)
+            if comp:
+                try:
+                    d = fn(checkpoint_stats({k: v for k, v in arms[a].items() if k[1] in comp}, ref_by_env, envs),
+                           min_n=len(comp))
+                    d["disclosed"] = True; d["n_complete"] = len(comp); r["disclosed"] = d
+                except ValueError as ex:
+                    r["disclosed"] = {"verdict": V_UNREADABLE, "reason": str(ex)}
+        _print_row(label, r)
+        if "disclosed" in r:
+            _print_row(f"   disclosed ({r['disclosed'].get('n_complete', '?')} complete ckpts)", r["disclosed"])
         return r
 
     R["l1_graph"] = _ckpt(L_GRAPH, react, read_l1, "L1 gnnedge0 vs reactive")
@@ -180,19 +188,21 @@ def report_study(lever: str, result_dir: str, selection_path: Optional[str] = No
     if graph and all(e in rules[L_IMMEDIATE] for e in envs):
         seeds = sorted({s for (_e, s) in graph})
         try:
-            st = pair_checkpoint_stats(graph, broadcast_rule(rules[L_IMMEDIATE], seeds), envs)
-            R["l3"] = read_l3(st)
-            if R["l3"]["verdict"] == V_UNREADABLE:
-                comp = _complete(graph, envs)
-                R["l3"] = read_l3(pair_checkpoint_stats({k: v for k, v in graph.items() if k[1] in comp},
-                                                        broadcast_rule(rules[L_IMMEDIATE], sorted(comp)), envs),
-                                  min_n=len(comp))
-                R["l3"]["disclosed"] = True
+            R["l3"] = read_l3(pair_checkpoint_stats(graph, broadcast_rule(rules[L_IMMEDIATE], seeds), envs))
         except ValueError as ex:
             R["l3"] = {"verdict": V_UNREADABLE, "reason": str(ex)}
+        if R["l3"]["verdict"] == V_UNREADABLE:
+            comp = _complete(graph, envs)
+            if comp:
+                d = read_l3(pair_checkpoint_stats({k: v for k, v in graph.items() if k[1] in comp},
+                                                  broadcast_rule(rules[L_IMMEDIATE], sorted(comp)), envs),
+                            min_n=len(comp))
+                d["disclosed"] = True; d["n_complete"] = len(comp); R["l3"]["disclosed"] = d
     else:
         R["l3"] = {"verdict": V_UNREADABLE, "reason": "gnnedge0 or the immediate rule absent"}
-    _print_row("L3 gnnedge0 vs immediate rule" + (" (disclosed)" if R["l3"].get("disclosed") else ""), R["l3"])
+    _print_row("L3 gnnedge0 vs immediate rule", R["l3"])
+    if "disclosed" in R["l3"]:
+        _print_row(f"   disclosed ({R['l3']['disclosed']['n_complete']} complete ckpts)", R["l3"]["disclosed"])
     if lever == "burst":
         waits = {k: rows[L_GRAPH][k]["wait"] for k in rows.get(L_GRAPH, {}) if k[0] in envs}
         R["l4"] = read_l4(waits)
@@ -201,17 +211,19 @@ def report_study(lever: str, result_dir: str, selection_path: Optional[str] = No
         twin = arms.get(L_TWIN, {})
         if graph and twin:
             try:
-                st = pair_checkpoint_stats(graph, twin, envs)
-                R["l5"] = read_l5(st)
-                if R["l5"]["verdict"] == V_UNREADABLE:
-                    comp = _complete(graph, envs) & _complete(twin, envs)
-                    R["l5"] = read_l5(pair_checkpoint_stats({k: v for k, v in graph.items() if k[1] in comp},
-                                                            {k: v for k, v in twin.items() if k[1] in comp}, envs),
-                                      min_n=len(comp))
-                    R["l5"]["disclosed"] = True
+                R["l5"] = read_l5(pair_checkpoint_stats(graph, twin, envs))
             except ValueError as ex:
                 R["l5"] = {"verdict": V_UNREADABLE, "reason": str(ex)}
-            _print_row("L5 gnnedge0 vs mpoff" + (" (disclosed)" if R["l5"].get("disclosed") else ""), R["l5"])
+            if R["l5"]["verdict"] == V_UNREADABLE:
+                comp = _complete(graph, envs) & _complete(twin, envs)
+                if comp:
+                    d = read_l5(pair_checkpoint_stats({k: v for k, v in graph.items() if k[1] in comp},
+                                                      {k: v for k, v in twin.items() if k[1] in comp}, envs),
+                                min_n=len(comp))
+                    d["disclosed"] = True; d["n_complete"] = len(comp); R["l5"]["disclosed"] = d
+            _print_row("L5 gnnedge0 vs mpoff", R["l5"])
+            if "disclosed" in R["l5"]:
+                _print_row(f"   disclosed ({R['l5']['disclosed']['n_complete']} complete ckpts)", R["l5"]["disclosed"])
 
     print(f"\n   per-task decomposition (medians over environments and checkpoints, s):")
     print(f"   {'arm':<28} {'wait':>7} {'queue':>7} {'exch':>7} {'rendez':>7} {'elapsed':>8}")
