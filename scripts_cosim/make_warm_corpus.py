@@ -501,6 +501,14 @@ def main() -> int:
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="write configs + candidate records, run no sweep")
     ap.add_argument(
+        "--no-cap-filter", action="store_true",
+        help="joint_burst_v2 (2026-09-20): do NOT reject a snapshot whose live slate admits no plan "
+             "under the alpha=2.0 node caps. 579 of the 634 burst snapshots joint_burst_v1 rejected "
+             "were rejected for exactly this -- the loaded states the served model meets and was "
+             "never trained on. A dataset built this way carries a label only at the alpha rungs "
+             "that have a feasible row (prepare_graphs_cache records an empty label set for the "
+             "others), so train it at NEAR_RTT_DAG_ALPHA_KEY=inf.")
+    ap.add_argument(
         "--min-choice-fraction", type=float, default=0.5,
         help="fraction of a batch's tasks that must keep >= 2 candidates for the draw to be "
              "accepted (default 0.5, the training-corpus rule). Pass 0 for a diagnostic read "
@@ -554,7 +562,8 @@ def main() -> int:
             demands = batch_demands(snap, ids, trace, task_types_db)
             force_keys = reactive_plan_keys(snap) if args.force_candidates_from_plans else None
             subset, record = choose_candidates(
-                snap, rng, args.target_combos, args.max_combos, demands=demands,
+                snap, rng, args.target_combos, args.max_combos,
+                demands=None if args.no_cap_filter else demands,
                 force_keys=force_keys, min_choice_fraction=args.min_choice_fraction,
             )
             flagged = flag_candidates(snap, subset)
