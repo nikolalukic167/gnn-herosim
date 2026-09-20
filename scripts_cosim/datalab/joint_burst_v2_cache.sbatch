@@ -3,8 +3,8 @@
 # docs/lineages/joint_burst_v2.md. One task, ~30 min.
 #
 #SBATCH --job-name=jb2-cache
-#SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/jb1-cache-%j.out
-#SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/jb1-cache-%j.err
+#SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/jb2-cache-%j.out
+#SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/jb2-cache-%j.err
 #SBATCH --partition=CPU-amd
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
