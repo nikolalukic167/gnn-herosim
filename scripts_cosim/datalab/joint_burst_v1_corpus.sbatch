@@ -46,7 +46,10 @@ if (( SEED >= 9222 )); then OUT=simulation_data/gnn_datasets_joint_burst_v1_held
 # under bursts about 2 in 3 aligned snapshots are rejected by the corpus rules (no choice, or the
 # live slate over the alpha=2.0 cap -- measured locally on cc40s9001 w0: 4 of 12), so 40 snapshots
 # are offered per capture file and the builder stops at LIMIT successes
-START=$(( T * 12 )); PER=${PER:-40}; LIMIT=${LIMIT:-12}; TARGET=${TARGET:-20000}; WORKERS=$(( SLURM_CPUS_PER_TASK - 1 ))
+# 28 of 48 capture runs spun (2026-09-20), leaving 16 training runs: 16 datasets each are needed
+# for the 192-dataset bar, so 60 snapshots are offered per training run (held-out runs keep 12)
+START=$(( T * 16 )); PER=${PER:-60}; LIMIT=${LIMIT:-16}; TARGET=${TARGET:-20000}; WORKERS=$(( SLURM_CPUS_PER_TASK - 1 ))
+if (( SEED >= 9222 )); then LIMIT=12; fi
 G=simulation_data/peer_affinity_live_gate
 JB=simulation_data/joint_burst_v1
 SNAP="$JB/snapshots/${CELL}_${WINDOW}.jsonl"
