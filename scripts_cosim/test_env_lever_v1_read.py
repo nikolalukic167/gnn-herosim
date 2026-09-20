@@ -31,7 +31,7 @@ def test_levers_map_to_three_lineages_and_only_burst_carries_the_twin():
     assert set(L_LINEAGE_OF.values()) == {"burst_groups_v1", "payload_scale_v1", "backbone_sparsity_v1"}
     assert L_TWIN in L_ARMS["burst"] and all(L_TWIN not in L_ARMS[l] for l in L_LEVERS if l != "burst")
     assert all({L_GRAPH, L_IMMEDIATE, L_BATCHED} <= set(L_ARMS[l]) for l in L_LEVERS)
-    assert L_RUNG == 40 and L_PAYLOAD_SCALES == (0.1, 1.0, 10.0) and L_WAIT_COLLAPSED_S == 1.0
+    assert L_RUNG == 40 and L_PAYLOAD_SCALES == (0.1, 1.0, 3.0, 10.0) and L_WAIT_COLLAPSED_S == 1.0
 
 
 def test_l0_screens_the_lever_itself_and_unknown_is_not_a_pass():
@@ -78,10 +78,13 @@ def test_l4_is_a_bar_on_the_lever_not_on_the_arm():
 
 
 def test_l6_names_the_smallest_monotone_scale():
-    r = read_l6({0.1: V_NOT_SEP, 1.0: V_RULE_BEATS_REACTIVE, 10.0: V_RULE_BEATS_REACTIVE}, beats=V_RULE_BEATS_REACTIVE)
+    r = read_l6({0.1: V_NOT_SEP, 1.0: V_RULE_BEATS_REACTIVE, 3.0: V_RULE_BEATS_REACTIVE}, beats=V_RULE_BEATS_REACTIVE)
     assert r["verdict"] == f"{V_REGIME_FROM}-x1" and r["from_scale"] == 1.0
-    r = read_l6({0.1: V_NOT_SEP, 1.0: V_NOT_SEP, 10.0: V_RULE_BEATS_REACTIVE}, beats=V_RULE_BEATS_REACTIVE)
-    assert r["verdict"] == f"{V_REGIME_FROM}-x10"
-    assert read_l6({0.1: V_NOT_SEP, 1.0: V_NOT_SEP, 10.0: V_NOT_SEP}, beats=V_RULE_BEATS_REACTIVE)["verdict"] == V_NO_REGIME
-    # fires at 1 but not at 10: not a regime
-    assert read_l6({0.1: V_NOT_SEP, 1.0: V_RULE_BEATS_REACTIVE, 10.0: V_NOT_SEP}, beats=V_RULE_BEATS_REACTIVE)["verdict"] == V_NO_REGIME
+    r = read_l6({0.1: V_NOT_SEP, 1.0: V_NOT_SEP, 3.0: V_RULE_BEATS_REACTIVE}, beats=V_RULE_BEATS_REACTIVE)
+    assert r["verdict"] == f"{V_REGIME_FROM}-x3"
+    assert read_l6({0.1: V_NOT_SEP, 1.0: V_NOT_SEP, 3.0: V_NOT_SEP}, beats=V_RULE_BEATS_REACTIVE)["verdict"] == V_NO_REGIME
+    # fires at 1 but not at 3: not a regime
+    assert read_l6({0.1: V_NOT_SEP, 1.0: V_RULE_BEATS_REACTIVE, 3.0: V_NOT_SEP}, beats=V_RULE_BEATS_REACTIVE)["verdict"] == V_NO_REGIME
+    # a scale with no design (UNREADABLE) is left out of the composition, not counted as a failure
+    r = read_l6({0.1: V_NOT_SEP, 1.0: V_RULE_BEATS_REACTIVE, 3.0: V_RULE_BEATS_REACTIVE, 10.0: V_UNREADABLE}, beats=V_RULE_BEATS_REACTIVE)
+    assert r["verdict"] == f"{V_REGIME_FROM}-x1" and r["scales"][10.0] == V_UNREADABLE

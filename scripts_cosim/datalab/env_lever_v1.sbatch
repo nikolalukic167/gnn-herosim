@@ -43,7 +43,7 @@ echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HE
 
 LEVER=${EL_LEVER:?FAIL LOUD: EL_LEVER unset}
 STEP=${EL_STEP:?FAIL LOUD: EL_STEP unset}
-case "$LEVER" in burst|pk0.1|pk10|p04|bw250) ;; *) echo "FAIL LOUD: unknown lever $LEVER" >&2; exit 1 ;; esac
+case "$LEVER" in burst|pk0.1|pk3|pk10|p04|bw250) ;; *) echo "FAIL LOUD: unknown lever $LEVER" >&2; exit 1 ;; esac
 GATE=simulation_data/peer_affinity_live_gate
 OUT_DIR="$GATE/results/el_v1/$LEVER"
 mkdir -p "$OUT_DIR"
@@ -112,7 +112,7 @@ fi
 
 # lever-specific inputs (exactly one of the two moves)
 case "$LEVER" in
-  burst|pk0.1|pk10) CELL="cc${NC}s${TOPO}"; WLP="${LEVER}_" ;;
+  burst|pk0.1|pk3|pk10) CELL="cc${NC}s${TOPO}"; WLP="${LEVER}_" ;;
   p04|bw250)        CELL="cc${NC}s${TOPO}_${LEVER}"; WLP="" ;;
 esac
 CFG="$GATE/configs/${CELL}.json"
@@ -140,7 +140,7 @@ if (r["truncation"] or {}).get("skip_events", 0) != want:
 if abs(float(r["rate_after_per_s"]) / 0.460393 - 1.0) > 0.005:
     raise SystemExit(f"FAIL LOUD: {wl} delivers {r['rate_after_per_s']:.4f} arrivals/s, the design holds 0.460393")
 lv = (r.get("lever") or {}).get("name")
-want_lv = lever if lever in ("burst", "pk0.1", "pk10") else None
+want_lv = lever if lever in ("burst", "pk0.1", "pk3", "pk10") else None
 if lv != want_lv:
     raise SystemExit(f"FAIL LOUD: {wl} carries lever {lv!r}, task wants {want_lv!r}")
 if lever == "burst" and float(r["lever"]["span_after_s"]) != 0.0:

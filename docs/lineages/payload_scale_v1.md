@@ -60,6 +60,20 @@ exchange per task saturates reactive on more cells.
 
 **Datasets.** None; nothing trained.
 
+**Amendment 1 (signed 2026-09-20, after L0 at k = 10 and before any study arm at any scale).**
+At k = 10 reactive Knative is saturated on **every** candidate cell (queue share 0.98–0.996 on all
+34 cells that finish; 14 hang): at 2 GB per pair the exchange alone (~50 s per task) exceeds the
+6-server capacity at 0.46 arrivals/s, so the scale is a load lever before it is a ratio lever,
+exactly as the registration's last consequence says. **This amendment adds k = 3 (600 MB scale)**
+as an intermediate point with the same screen, the same arms and the same reads, so that the
+regime read has a measured scale between 1 and 10; the k = 10 point is carried as "no design at
+this load" and is excluded from the monotone check (a scale with no design is not a
+measurement). The registered bars are unchanged. Cost +352 runs.
+
 ## Record (newest first)
+
+- 2026-09-20 — **L0 at k = 10: `TOO-FEW-UNSATURATED-ENVIRONMENTS`** (job 793367, 34 completed /
+  14 cancelled at 20 min; every finished cell at share ≥ 0.98). Table in
+  `simulation_data/env_lever_v1/selected_pk10.json`. Amendment 1 signed (above): k = 3 added.
 
 - 2026-09-20 — Registered.

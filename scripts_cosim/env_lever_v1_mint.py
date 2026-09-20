@@ -9,7 +9,7 @@ Workload levers (one output per study window; input = the C40 study's `drainable
   burst   every event's timestamp becomes the EARLIEST timestamp of its peer group, so a group
           arrives as one burst; the mean rate is unchanged (`arrival_rescale` is kept and
           `lever` records the group span before and after)
-  pk<k>   every `peer_exchange` payload is multiplied by k (0.1 -> 20 MB scale, 10 -> 2 GB)
+  pk<k>   every `peer_exchange` payload is multiplied by k (0.1 -> 20 MB scale, 3 -> 600 MB, 10 -> 2 GB)
 Cell levers (one output per study topology; input = `cc40s<seed>.json`):
   p04     network.topology.connection_probability 0.6 -> 0.4 (sparser client-server graph)
   bw250   network.backbone.bandwidth_mbps 1000 -> 250 (slower fabric)
@@ -30,7 +30,7 @@ from typing import Dict, List
 
 WINDOWS = {"w0": "drainable_f4000_n50000", "w1": "drainable_w1_n50000",
            "w2": "drainable_w2_n50000", "w3": "drainable_w3_n50000"}
-WORKLOAD_LEVERS = ("burst", "pk0.1", "pk10")
+WORKLOAD_LEVERS = ("burst", "pk0.1", "pk3", "pk10")   # pk3: payload_scale_v1 Amendment 1
 CELL_LEVERS = ("p04", "bw250")
 LEVERS = WORKLOAD_LEVERS + CELL_LEVERS
 

@@ -55,8 +55,8 @@ __all__ = [
     "read_l5", "read_l6",
 ]
 
-L_LEVERS = ("burst", "pk0.1", "pk10", "p04", "bw250")
-L_LINEAGE_OF = {"burst": "burst_groups_v1", "pk0.1": "payload_scale_v1", "pk10": "payload_scale_v1",
+L_LEVERS = ("burst", "pk0.1", "pk3", "pk10", "p04", "bw250")   # pk3: payload_scale_v1 Amendment 1 (2026-09-20)
+L_LINEAGE_OF = {"burst": "burst_groups_v1", "pk0.1": "payload_scale_v1", "pk3": "payload_scale_v1", "pk10": "payload_scale_v1",
                 "p04": "backbone_sparsity_v1", "bw250": "backbone_sparsity_v1"}
 L_RUNG = 40
 L_WINDOWS = E_WINDOWS
@@ -69,7 +69,7 @@ L_REACTIVE = E_REACTIVE
 L_ARMS = {lever: (L_RANDOM, L_IMMEDIATE, L_BATCHED, L_GRAPH) + ((L_TWIN,) if lever == "burst" else ())
           for lever in L_LEVERS}
 L_WAIT_COLLAPSED_S = 1.0         # burst L4: gnnedge0's median scheduler wait per task must fall below this
-L_PAYLOAD_SCALES = (0.1, 1.0, 10.0)   # k = 1 is the study's own operating point (ue_v1 / pg_v1)
+L_PAYLOAD_SCALES = (0.1, 1.0, 3.0, 10.0)   # k = 1 is the study's own operating point (ue_v1 / pg_v1); 3 by Amendment 1
 
 V_ARM_BEATS_REACTIVE = "ARM-BEATS-REACTIVE-UNDER-THE-LEVER"
 V_REACTIVE_FASTER = "REACTIVE-FASTER-UNDER-THE-LEVER"
@@ -137,11 +137,12 @@ def read_l6(verdict_by_scale: Mapping[float, str], *, beats: str) -> dict:
     the named `beats` verdict fires, given that it also fires at every larger measured scale;
     otherwise no regime. Descriptive -- it composes L1/L2 across scales, it does not test."""
     scales = sorted(verdict_by_scale)
-    firing = [k for k in scales if verdict_by_scale[k] == beats]
+    measured = [k for k in scales if verdict_by_scale[k] != V_UNREADABLE]   # a scale with no design is not a measurement
+    firing = [k for k in measured if verdict_by_scale[k] == beats]
     if not firing:
         return {"verdict": V_NO_REGIME, "scales": {k: verdict_by_scale[k] for k in scales}}
     k0 = min(firing)
-    monotone = all(verdict_by_scale[k] == beats for k in scales if k >= k0)
+    monotone = all(verdict_by_scale[k] == beats for k in measured if k >= k0)
     return {"verdict": f"{V_REGIME_FROM}-x{k0:g}" if monotone else V_NO_REGIME,
             "from_scale": k0 if monotone else None, "monotone": monotone,
             "scales": {k: verdict_by_scale[k] for k in scales}}
