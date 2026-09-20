@@ -127,48 +127,80 @@ def report(screen_dir: str, study_dir: str, rule_dir: str) -> dict:
             except (KeyError, ValueError) as ex:
                 return {"__error__": str(ex)}
 
-        def _read(fn, s):
-            if "__error__" in s:
-                return {"verdict": V_UNREADABLE, "reason": s["__error__"]}
-            return fn(s)
+        def _read(fn, s, *, a=None, b_by_env=None):
+            if "__error__" not in s:
+                return fn(s)
+            r = {"verdict": V_UNREADABLE, "reason": s["__error__"]}
+            if a is not None and b_by_env is not None and a in have:
+                envs_have = [e for e in envs if e in have[a] and e in b_by_env]
+                if len(envs_have) >= 8:
+                    d = _one_sample_env(fn, env_stats(have[a], b_by_env, envs_have))
+                    d.update(disclosed=True, n_environments=len(envs_have))
+                    r["disclosed"] = d
+            return r
+
+        def _one_sample_env(fn, stats):
+            # the read's own verdict vocabulary at the disclosed n: same bar, fewer environments
+            from scripts_cosim.unsaturated_scale_v2_read import _one_sample
+            probe = fn({("x", i, "w"): 0.0 for i in range(P_MIN_ENVIRONMENTS)})
+            import scripts_cosim.peer_greedy_live_v1_read as m
+            names = {read_g1: (m.V_IMMEDIATE_BEATS_REACTIVE, m.V_REACTIVE_FASTER_THAN_IMMEDIATE, m.V_NOT_SEP),
+                     read_g2: (m.V_BATCHED_BEATS_REACTIVE, m.V_REACTIVE_FASTER_THAN_BATCHED, m.V_NOT_SEP),
+                     read_g4: (m.V_IMMEDIATE_BEATS_RANDOM, m.V_RANDOM_FASTER_THAN_IMMEDIATE, m.V_RANDOM_NOT_SEP),
+                     read_g5: (m.V_IMMEDIATE_FASTER_THAN_BATCHED, m.V_BATCHED_FASTER_THAN_IMMEDIATE, m.V_NOT_SEP),
+                     read_g6: (m.V_EXCHANGE_HELPS, m.V_EXCHANGE_HURTS, m.V_EXCHANGE_NOT_SEP)}[fn]
+            return _one_sample(stats, min_n=len(stats), faster_a=names[0], faster_b=names[1], tie=names[2])
 
         print(f"\n   {'read':<34} {'verdict':<38} {'median':>9} {'p':>8} {'ahead':>7}")
         R["g1"] = _read(read_g1, _stat(P_IMMEDIATE, react)); _print_row("G1 immediate vs reactive", R["g1"])
-        R["g2"] = _read(read_g2, _stat(P_BATCHED, react)); _print_row("G2 batched vs reactive", R["g2"])
+        R["g2"] = _read(read_g2, _stat(P_BATCHED, react), a=P_BATCHED, b_by_env=react); _print_row("G2 batched vs reactive", R["g2"])
+        if "disclosed" in R["g2"]: _print_row(f"   disclosed ({R['g2']['disclosed']['n_environments']} env)", R["g2"]["disclosed"])
         R["drain_vs_reactive"] = _read(read_g1, _stat(P_DRAIN, react)); _print_row("   drain-only vs reactive", R["drain_vs_reactive"])
         graph = arms.get(P_GRAPH, {})
         seeds = sorted({s for (_e, s) in graph})
-        if P_BATCHED in have and graph:
+
+        def _rule_vs_graph(rule_by_env):
+            """Registered: all 16 environments x all 16 checkpoints. Disclosed: the environments
+            the rule has x the checkpoints complete on them -- printed as such, never in the
+            registered slot."""
+            out = {}
             try:
-                st = pair_checkpoint_stats(broadcast_rule(have[P_BATCHED], seeds), graph, envs)
-                R["g3"] = read_g3(st)
-                if R["g3"]["verdict"] == V_UNREADABLE:
-                    complete = {s for s in seeds if all((e, s) in graph for e in envs)}
-                    st2 = pair_checkpoint_stats(broadcast_rule(have[P_BATCHED], sorted(complete)),
-                                                {k: v for k, v in graph.items() if k[1] in complete}, envs)
-                    R["g3_disclosed"] = read_g3(st2, min_n=len(complete))
+                out["registered"] = read_g3(pair_checkpoint_stats(broadcast_rule(rule_by_env, seeds), graph, envs))
             except ValueError as ex:
-                R["g3"] = {"verdict": V_UNREADABLE, "reason": str(ex)}
+                out["registered"] = {"verdict": V_UNREADABLE, "reason": str(ex)}
+            if out["registered"]["verdict"] == V_UNREADABLE:
+                envs_have = [e for e in envs if e in rule_by_env]
+                complete = sorted(s for s in seeds if all((e, s) in graph for e in envs_have))
+                if envs_have and complete:
+                    st = pair_checkpoint_stats(broadcast_rule(rule_by_env, complete),
+                                               {k: v for k, v in graph.items() if k[1] in complete}, envs_have)
+                    d = read_g3(st, min_n=len(complete))
+                    d.update(disclosed=True, n_environments=len(envs_have), n_checkpoints=len(complete))
+                    out["disclosed"] = d
+            return out
+
+        if P_BATCHED in have and graph:
+            g3 = _rule_vs_graph(have[P_BATCHED])
+            R["g3"] = g3["registered"]
+            if "disclosed" in g3:
+                R["g3_disclosed"] = g3["disclosed"]
         else:
             R["g3"] = {"verdict": V_UNREADABLE, "reason": "batched rule or gnnedge0 absent"}
         _print_row("G3 batched rule vs gnnedge0 (ckpt)", R["g3"])
         if "g3_disclosed" in R:
-            _print_row("   disclosed on complete ckpts", R["g3_disclosed"])
+            d = R["g3_disclosed"]
+            _print_row(f"   disclosed ({d['n_environments']} env x {d['n_checkpoints']} ckpt)", d)
         if P_IMMEDIATE in have and graph:
-            try:
-                st = pair_checkpoint_stats(broadcast_rule(have[P_IMMEDIATE], seeds), graph, envs)
-                R["immediate_vs_graph"] = read_g3(st)
-                if R["immediate_vs_graph"]["verdict"] == V_UNREADABLE:
-                    complete = {s for s in seeds if all((e, s) in graph for e in envs)}
-                    R["immediate_vs_graph"] = read_g3(pair_checkpoint_stats(
-                        broadcast_rule(have[P_IMMEDIATE], sorted(complete)),
-                        {k: v for k, v in graph.items() if k[1] in complete}, envs), min_n=len(complete))
-                    R["immediate_vs_graph"]["disclosed"] = True
-            except ValueError as ex:
-                R["immediate_vs_graph"] = {"verdict": V_UNREADABLE, "reason": str(ex)}
+            ig = _rule_vs_graph(have[P_IMMEDIATE])
+            R["immediate_vs_graph"] = ig["registered"]
             _print_row("   immediate rule vs gnnedge0 (ckpt)", R["immediate_vs_graph"])
+            if "disclosed" in ig:
+                R["immediate_vs_graph_disclosed"] = ig["disclosed"]
+                d = ig["disclosed"]
+                _print_row(f"   disclosed ({d['n_environments']} env x {d['n_checkpoints']} ckpt)", d)
         R["g4"] = _read(read_g4, _stat(P_IMMEDIATE, _by_env(arms.get(P_RANDOM, {})))); _print_row("G4 immediate vs random", R["g4"])
-        R["g5"] = _read(read_g5, _stat(P_IMMEDIATE, have.get(P_BATCHED, {}))); _print_row("G5 immediate vs batched", R["g5"])
+        R["g5"] = _read(read_g5, _stat(P_IMMEDIATE, have.get(P_BATCHED, {})), a=P_IMMEDIATE, b_by_env=have.get(P_BATCHED, {})); _print_row("G5 immediate vs batched", R["g5"])
+        if "disclosed" in R["g5"]: _print_row(f"   disclosed ({R['g5']['disclosed']['n_environments']} env)", R["g5"]["disclosed"])
         R["g6"] = _read(read_g6, _stat(P_IMMEDIATE, have.get(P_DRAIN, {}))); _print_row("G6 immediate vs drain-only", R["g6"])
         R["immediate_vs_ect"] = _read(read_g1, _stat(P_IMMEDIATE, _by_env(arms.get(P_ECT, {})))); _print_row("   immediate vs ECT", R["immediate_vs_ect"])
 
