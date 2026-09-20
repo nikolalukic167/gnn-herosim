@@ -387,7 +387,7 @@ def fig11_batch_window():
     m0 = read_m0(screen_shares(str(DATA / "results/ue_v1_screen")))
     sel40 = select_topologies(m0, 40); sp = split_environments(sel40["topologies"])
     reactive, random_, elapsed, wait = tables(str(DATA / "results/ue_v1_screen"), str(DATA / "results/ue_v1"), str(bw))
-    fig, (a, b) = plt.subplots(1, 2, figsize=(7.2, 2.9), gridspec_kw={"width_ratios": [1, 1.4]})
+    fig, (a, b) = plt.subplots(1, 2, figsize=(7.2, 2.9), gridspec_kw={"width_ratios": [1.1, 1.4]})
     envs = sp["screen"]; xs, ys, ns, ws = [], [], [], []
     for (w, arm), tab in sorted(elapsed.items()):
         if arm != W_GRAPH:
@@ -402,10 +402,10 @@ def fig11_batch_window():
         ws.append(median(v for (e, s), v in wait[(w, W_GRAPH)].items() if e in envs and s in keep))
     a.plot(xs, ys, "o-", color=C["gnnedge0"], label="vs Knative, %")
     for x, y, n, wt in zip(xs, ys, ns, ws):
-        a.annotate(f"wait {wt:.1f} s" + ("" if n == 16 else f"\nn={n}"), (x, y), xytext=(0, 8), textcoords="offset points", ha="center", fontsize=6.5)
+        a.annotate(f"wait {wt:.1f} s" + ("" if n == 16 else f", n={n}"), (x, y), xytext=(0, -14), textcoords="offset points", ha="center", fontsize=6.5)
     a.set_xscale("log", base=2); a.set_xticks(xs); a.set_xticklabels([f"{x:g}" for x in xs])
     a.axhline(0, color="k", lw=0.6); a.axhline(-5, color="#c0392b", ls="--", lw=0.8); a.set_ylim(-7, 12)
-    a.set_xlabel("batch window, s"); a.set_ylabel("gnnedge0 vs Knative, % (screen topology, 4 windows)")
+    a.set_xlabel("batch window, s"); a.set_ylabel("gnnedge0 vs Knative, %\n(screen topology, 4 arrival windows)", fontsize=8)
     a.set_title("the window moves the wait, not the total", fontsize=8); a.spines[["top", "right"]].set_visible(False)
     # right: decomposition on the 16 study environments
     envs16 = set(tuple(e) for e in sel40["environments"])
