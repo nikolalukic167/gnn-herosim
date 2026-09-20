@@ -90,6 +90,7 @@ from src.policy.knative_network_ect.scheduler import KnativeECTScheduler as Knat
 from src.policy.peer_greedy_network.scheduler import (
     DrainGreedyNetworkScheduler,
     PeerGreedyNetworkBatchScheduler,
+    PeerGreedyNetworkCDScheduler,
     PeerGreedyNetworkScheduler,
 )
 from src.policy.knative_network_ect_pull.scheduler import (
@@ -778,6 +779,7 @@ def start_simulation(
         "peer_greedy_network_peer_greedy_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedyNetworkScheduler),
         "drain_greedy_network_drain_greedy_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, DrainGreedyNetworkScheduler),
         "peer_greedy_network_batch_peer_greedy_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkBatchScheduler),
+        "peer_greedy_network_cd_peer_greedy_network_cd": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDScheduler),
         "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
     }
 

@@ -50,11 +50,15 @@ PHYSICS_ENV = {
     "PYTHONHASHSEED": "0",
 }
 
+# arm -> (strategy, extra env). joint_burst_v2 adds the coordinate-descent greedy (the honest
+# bar: same score, refined) and the exchange x2 probe (the label's direction: more co-location).
 ARMS = {
-    "batched_greedy": "peer_greedy_network_batch_peer_greedy_network_batch",
-    "immediate_rule": "peer_greedy_network_peer_greedy_network",
-    "drain_only_rule": "drain_greedy_network_drain_greedy_network",
-    "reactive_knative": "kn_network_batch_kn_network_batch",
+    "batched_greedy": ("peer_greedy_network_batch_peer_greedy_network_batch", {}),
+    "cd_greedy": ("peer_greedy_network_cd_peer_greedy_network_cd", {}),
+    "batched_greedy_x2": ("peer_greedy_network_batch_peer_greedy_network_batch", {"HEROSIM_PG_EXCHANGE_SCALE": "2.0"}),
+    "immediate_rule": ("peer_greedy_network_peer_greedy_network", {}),
+    "drain_only_rule": ("drain_greedy_network_drain_greedy_network", {}),
+    "reactive_knative": ("kn_network_batch_kn_network_batch", {}),
 }
 
 
@@ -96,9 +100,12 @@ def _one_dataset(job: Dict[str, Any]) -> Dict[str, Any]:
         )
     out: Dict[str, Any] = {"dataset": ds_dir.name, **sweep,
                            "n_tasks": len(o["config"]["workload"]["events"])}
-    for arm, strategy in ARMS.items():
+    for arm, (strategy, extra_env) in ARMS.items():
         cfg = copy.deepcopy(o["config"])
         cfg["infrastructure"].pop("forced_placements", None)
+        for k in ("HEROSIM_PG_EXCHANGE_SCALE", "HEROSIM_PG_CD_PASSES"):
+            os.environ.pop(k, None)
+        os.environ.update(extra_env)
         try:
             stats = execute_simulation(
                 cfg, o["sim_inputs"], strategy, models=None, cache_policy="fifo",
@@ -113,6 +120,7 @@ def _one_dataset(job: Dict[str, Any]) -> Dict[str, Any]:
             "regret": rtt - sweep["optimal_rtt"],
             "num_tasks": int(stats.get("num_tasks") or -1),
             "peer_exchange_time": float(stats.get("totalPeerExchangeTime") or 0.0),
+            "counters": {k: v for k, v in (stats.get("schedulerCounters") or {}).items() if k.startswith("pg_cd")},
         }
     return out
 
