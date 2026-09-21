@@ -1,10 +1,13 @@
 # rollout_imitation_v1 — learn to beat the greedy by one step of policy improvement on the simulator
 
-**Status:** `REGISTERED` (2026-09-20) — design and bars signed; **not built** until
-`joint_burst_v1` reads, because it shares that lineage's capture and its answer decides whether a
-better label is the remaining lever. Its label engine is a horizon return, which this record has
-found to be deterministic chaos once (`objective_pivot_v1` Phase 2), so the rank-stability control
-below is a blocking bar, not a diagnostic.
+**Status:** `ACTIVE` (build started 2026-09-21) — triggered by [`joint_burst_v2`](joint_burst_v2.md)
+closing `GNN-BEATS-GREEDY / CD-STILL-AHEAD`: the coordinate-descent greedy is now the ceiling, and
+this lineage's one-step policy improvement is the pre-signed lever to reach it. Building the label
+engine (forced-placement rollout over the real engine) and running the two blocking phases below
+FIRST — Phase A (rank-stability) and A.2 (label-vs-rule gain) — before spending the ~90 CPU-h
+labelling. Its label engine is a horizon return, which this record has found to be deterministic
+chaos once (`objective_pivot_v1` Phase 2), so the rank-stability control below is a blocking bar,
+not a diagnostic.
 
 **Parents:** [`peer_greedy_live_v1`](peer_greedy_live_v1.md) (the rule to improve on),
 [`joint_burst_v1`](joint_burst_v1.md) (the served-distribution corpus), `objective_pivot_v1` (the
@@ -50,4 +53,10 @@ decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training 
 
 ## Record (newest first)
 
+- 2026-09-21 — Build started. `joint_burst_v2` closed with CD greedy as the ceiling, so the
+  one-step-improvement label is the live lever. Order: build the forced-placement rollout label
+  engine → Phase A (R0 rank-stability, ≥300 decisions, N∈{20,50,100}) → Phase A.2 (R1
+  label-vs-rule gain). Both are blocking; only on a pass do the 4,000-decision corpus, training and
+  gate run. Adding CD greedy as a disclosed gate arm (v2's honest bar) alongside the pre-signed
+  R2-vs-rule primary.
 - 2026-09-20 — Registered; build deferred until `joint_burst_v1` reads.

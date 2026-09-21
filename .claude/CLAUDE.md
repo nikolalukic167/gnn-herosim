@@ -39,12 +39,17 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-09-20, night).**
+**Where the research question stands (rewritten 2026-09-21).**
 
-**A two-line rule beats healthy reactive Knative by 13–16 % without waiting, and beats every
-learned arm. One learned arm now beats Knative too** — trained on exactly the decision it is
-served (`joint_burst_v1`) — **but still loses to the rule in its own seat.** The environment
-rewards peer-aware placement; the models have learned some of what the rule encodes, not all.
+**A two-line rule beats healthy reactive Knative by 13–16 % without waiting. One learned arm now
+beats that rule in its own decoder seat** — trained on exactly the decision it is served and
+served UNCAPPED (`joint_burst_v2`): `gnnedge0` beats the one-pass greedy −11.9 % (13/13), reactive
+−34.7 %, random ~−48 %. **This is the first learned win over a rule with the model's own
+information in the programme.** The `joint_burst_v1` loss to that greedy (+16.8 %) was a **serving
+cap**, not the model or the corpus. **The remaining ceiling is a multi-pass coordinate-descent
+greedy (+12.5 % ahead of the arm);** `rollout_imitation_v1` (one step of policy improvement) is the
+live lever to reach it. The arm still only ties its pointwise MLP twin — a win over the baselines,
+not yet over the pointwise control.
 
 - **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
   queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no
@@ -79,14 +84,17 @@ rewards peer-aware placement; the models have learned some of what the rule enco
   and a 250 Mbps backbone saturate reactive on every cell** — above the 200 MB scale every lever
   is a load lever at 0.46 arrivals/s on 6 servers. Regime: peer-aware placement pays from ×1 for
   the rule, at no measured scale for `gnnedge0`.
-- **Trained on the served decision, `gnnedge0` beats Knative — first learned win in the
-  programme** (`joint_burst_v1`, 2026-09-20): whole peer groups, arriving as bursts, from loaded
-  states, labelled by the group optimum on the measured clock, 16 seeds. **−12.47 % vs reactive
-  (15/15 disclosed)**, and −7.82 % vs the *same architecture* trained cold (J5, 15/15) — the
-  served distribution is real signal, not just less-saturated Knative. **Still loses to the
-  batched greedy serving its own decoder seat, +16.83 % (0/15).** Necessary, not sufficient;
-  `rollout_imitation_v1` (a rollout label over the simulator, registered, not yet built) is the
-  pre-signed next lever.
+- **Trained on the served decision, `gnnedge0` beats the one-pass greedy in its own seat — the
+  first learned win over a rule with the model's information** (`joint_burst_v1` → `joint_burst_v2`,
+  2026-09-20/21): whole peer groups as bursts, from loaded states, labelled by the group optimum,
+  16 seeds. v1 (capped) beat reactive −12.47 % (15/15) and its cold twin −7.82 % (J5) but lost the
+  greedy's seat +16.83 %. v2 found that loss was the **serving cap** blocking the label's
+  co-location move: served UNCAPPED, `gnnedge0` beats the one-pass greedy **−11.9 % (13/13)**,
+  reactive −34.7 %, random ~−48 %; uncapping the v1 weights alone already clears the greedy (K6
+  −8.8 %, 16/16) and the loaded-state corpus adds nothing beyond it (K5 CORPUS-NEUTRAL). It **loses
+  to the coordinate-descent greedy +12.5 % (0/13)** — the honest ceiling — and only ties its MP-OFF
+  twin (−4.4 %, under the bar). `rollout_imitation_v1` (one step of policy improvement over the
+  rule, ACTIVE) is the pre-signed lever at the CD bar.
 - **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
   +5.14 pp offline, inverts live at a defensible load); a 150× trainability asymmetry
   (optimisation, never latency); `serving_stability_v1`'s early-trace positive; both model-class
@@ -97,7 +105,7 @@ rewards peer-aware placement; the models have learned some of what the rule enco
 MAGNITUDE only from a large one; a rule with the model's information is the bar, never Knative
 alone.** Never a `peer_affinity` live number without its load factor, never a client-rung "vs
 reactive" number from before 2026-09-20, never an arm comparison without both corpora. Start at
-`docs/lineages/peer_greedy_live_v1.md`, `joint_burst_v1.md` and `throughline.md`.
+`docs/lineages/peer_greedy_live_v1.md`, `joint_burst_v2.md` and `throughline.md`.
 
 ## Where knowledge lives — READ FIRST
 
@@ -333,3 +341,8 @@ end to end.
 - **Simulation is deterministic when seeded properly.** Tie-breaks over sets of objects are
   the classic leak — `PYTHONHASHSEED` does not pin them (it randomizes str/bytes only).
 - Dependencies: `Pipfile`. One env spec for cross-venue work: `envs/herosim-lock.txt`.
+
+## Comment policy
+
+When writing or editing code, don't add comments that just restate the code. Only comment
+on non-obvious reasoning.
