@@ -158,7 +158,12 @@ def label_decisions(config: Path, workload: Path, seed: int, *, capture_n: int,
                     decision_max: int, max_decisions: int) -> dict:
     peers_of = _peer_groups(workload)
     cap = Path(tempfile.gettempdir()) / f"rollout_cap_{os.getpid()}_{seed}.jsonl"
-    _run(config, workload, "peer_greedy_network", seed, max_events=capture_n, forced=None, capture=cap)
+    # the unforced rule run gives both the candidate sets (capture file) and, from taskResults,
+    # the rule's OWN choice per decision (for R1 label-vs-rule).
+    base_stats = _run(config, workload, "peer_greedy_network", seed,
+                      max_events=capture_n, forced=None, capture=cap)
+    rule_place = {tid: (r.get("executionNode"), r.get("executionPlatform"))
+                  for tid, r in _task_rows(base_stats).items()}
     decisions = []
     for line in open(cap):
         rec = json.loads(line)
@@ -201,9 +206,13 @@ def label_decisions(config: Path, workload: Path, seed: int, *, capture_n: int,
             "20_100": _spearman(costs_by_h[20], costs_by_h[100]),
             "50_100": _spearman(costs_by_h[50], costs_by_h[100]),
         }
+        # rule's own choice = the candidate index whose (node_name, platform_id) the unforced rule
+        # placed this task on; -1 if it did not run in the capture (shouldn't happen for a decision)
+        rn, rp = rule_place.get(tid, (None, None))
+        rule_idx = next((k for k, c in enumerate(cands) if c[2] == rn and str(c[3]) == str(rp)), -1)
         out_decisions.append({
             "task_id": tid, "n_candidates": len(cands), "peers": len(peers),
-            "costs": costs_by_h, "argmins": argmins, "spearman": rhos,
+            "costs": costs_by_h, "argmins": argmins, "spearman": rhos, "rule_idx": rule_idx,
         })
 
     return {"seed": seed, "config": str(config), "workload": str(workload),
