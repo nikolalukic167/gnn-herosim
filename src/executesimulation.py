@@ -1242,6 +1242,7 @@ def run_simulation(
         'herocache_network_batch',
         'random_network',
         'peer_greedy_network',
+        'peer_greedy_learned_network',
         'drain_greedy_network',
         'peer_greedy_network_batch',
         'peer_greedy_network_cd',
@@ -1385,6 +1386,9 @@ def run_simulation(
             models = None
         elif policy == 'peer_greedy_network':
             scheduling_strategy = 'peer_greedy_network_peer_greedy_network'
+            models = None
+        elif policy == 'peer_greedy_learned_network':
+            scheduling_strategy = 'peer_greedy_learned_network_peer_greedy_learned_network'
             models = None
         elif policy == 'drain_greedy_network':
             scheduling_strategy = 'drain_greedy_network_drain_greedy_network'
@@ -1732,6 +1736,7 @@ def main():
         'herocache_network_batch',
         'random_network',
         'peer_greedy_network',
+        'peer_greedy_learned_network',
         'drain_greedy_network',
         'peer_greedy_network_batch',
         'peer_greedy_network_cd',
