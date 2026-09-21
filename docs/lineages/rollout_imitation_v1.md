@@ -53,6 +53,15 @@ decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training 
 
 ## Record (newest first)
 
+- 2026-09-21 — **Corpus build.** Minted 96 more training topologies (cc40s9225..9320, clone of the
+  base cell with a new `network.topology.seed`; `rollout_imitation_v1_mint_cells.py`) → 120 total,
+  because exploitable decisions are sparse (~a handful of usable per topology). Enriched the label
+  engine to capture per-candidate score-term FEATURES ([drain, cold, exec, latency, exchange], the
+  rule's own terms) alongside the rollout label, so each decision is a self-contained (features,
+  label) example. Labelling all 120 topologies × 2 non-saturating rates (f700, f1000) via a
+  throttled local submitter. Next: offline train-screen (`rollout_imitation_v1_train_screen.py`) —
+  can a learned scorer on the rule's features learn the rollout label and beat the rule on realised
+  cost across held-out topologies — which ORDERS the live gate (rule 6), then the live gate itself.
 - 2026-09-21 — **R1 (Phase A.2) PASSES: `LABEL-DIFFERS-FROM-RULE`.** On the 440 pooled decisions,
   the rollout label differs from the rule's OWN choice on **305/440 = 69.3 %** (bar 10 %), median
   realised gain **451.6 s** where it differs (bar 0.3 s). The greedy is NOT one-step optimal: its
