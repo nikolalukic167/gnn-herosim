@@ -53,6 +53,19 @@ decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training 
 
 ## Record (newest first)
 
+- 2026-09-21 — **R0 PASSES, powered: `LABEL-IS-A-PROPERTY-OF-THE-DECISION`.** Forced-rollout label
+  engine built (`scripts_cosim/rollout_imitation_v1_label.py`, `datalab/rollout_imitation_v1_phaseA.sbatch`,
+  `..._phaseA_read.py`) and run on the 24 training topologies at two non-saturating unburst rates
+  (f700 + f1000). **440 pooled decisions, median Spearman(20,100) = 1.0, argmin(20==100) agreement
+  0.886** (both bars cleared) — the group-local rollout label is NOT the horizon chaos that closed
+  `objective_pivot_v1` P3. Build notes, disclosed: (a) the study's arrival rate saturates a 6-server
+  training cell over the horizon (rule places onto an unreachable node, fails loud), so the label
+  runs use non-saturating rates f700/f1000 — a rate choice for a well-defined cost, not the serving
+  rate; (b) exploitable decisions are SPARSE and CONCENTRATED — most (task, state) pairs give the
+  rule a single reachable initialised replica (no choice); multi-candidate decisions (exactly 2
+  candidates) appear only after replicas warm (~pos 248) and only on a subset of topologies (9 of
+  24 gave none); (c) a forced candidate can drive the truncated trace into the saturated regime —
+  that decision is skipped, disclosed. Next: A.2 (R1, label-vs-rule gain, blocking).
 - 2026-09-21 — Build started. `joint_burst_v2` closed with CD greedy as the ceiling, so the
   one-step-improvement label is the live lever. Order: build the forced-placement rollout label
   engine → Phase A (R0 rank-stability, ≥300 decisions, N∈{20,50,100}) → Phase A.2 (R1
