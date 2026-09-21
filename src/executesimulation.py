@@ -126,23 +126,18 @@ def prepare_infrastructure_for_real_simulation(
     Returns:
         Infrastructure configuration dictionary
     """
-    # Get seed from config or use default
     if seed is None:
         topology_config = space_config.get('network', {}).get('topology', {})
         seed = topology_config.get('seed', 42)
-    
-    # Create seeded RNG
+
     rng = random.Random(seed)
-    
-    # Get node counts
+
     client_nodes_count = space_config['nodes']['client_nodes']['count']
     server_nodes_count = space_config['nodes']['server_nodes']['count']
     device_types = list(space_config['pci'].keys())
-    
-    # Generate nodes
+
     nodes = []
-    
-    # Generate client nodes
+
     for i in range(client_nodes_count):
         device_type = device_types[i % len(device_types)]
         device_specs = space_config['pci'][device_type]['specs']
@@ -151,8 +146,7 @@ def prepare_infrastructure_for_real_simulation(
         node_config['type'] = device_type
         # network_map will be assigned after topology generation
         nodes.append(node_config)
-    
-    # Generate server nodes
+
     for i in range(server_nodes_count):
         device_type = device_types[i % len(device_types)]
         device_specs = space_config['pci'][device_type]['specs']
@@ -183,7 +177,6 @@ def prepare_infrastructure_for_real_simulation(
         print(f"Connection probability: {connection_probability} ({connection_probability*100:.1f}%)")
     print(f"Nodes: {len(clients)} clients, {len(servers)} servers")
 
-    # Generate network topology deterministically
     network_maps = generate_network_topology_deterministic(nodes, space_config, rng, task_types_data=task_types_data)
 
     # link_contention_v1: overlay the core backbone on the live path too. Without this the
@@ -197,14 +190,11 @@ def prepare_infrastructure_for_real_simulation(
             f"{sum(len(v) for v in link_topology['routes'].values())} routes"
         )
 
-    # Assign network maps to nodes
     for node in nodes:
         node['network_map'] = network_maps.get(node['node_name'], {})
-    
-    # Get network bandwidth (default to 1000.0 if not specified)
+
     network_bandwidth = space_config.get('network', {}).get('bandwidth', 1000.0)
-    
-    # Build infrastructure configuration for real simulation
+
     # NO preinitialize_platforms, NO replica_plan, NO deterministic placements
     infrastructure_config = {
         "network": {
@@ -995,11 +985,10 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                 "encoder embeddings go straight to the edge scorer",
                 flush=True,
             )
-        
-        # Clear CUDA cache to avoid memory issues
+
         if device.type == 'cuda':
             torch.cuda.empty_cache()
-        
+
         print(f"GNN model loaded successfully ({sum(p.numel() for p in model.parameters()):,} parameters)", flush=True)
         return model, device
     except Exception as e:
@@ -1240,7 +1229,6 @@ def run_simulation(
     """
     logger.info(f"Running {policy} simulation")
 
-    # Validate policy
     valid_policies = [
         'knative',
         'gnn',
@@ -1268,7 +1256,6 @@ def run_simulation(
         )
         return False
 
-    # For GNN policy, check if model is provided
     if policy in ('gnn', 'gnn_hetero') and (gnn_model is None or task_types_data is None):
         logger.error(f"{policy} policy requires gnn_model and task_types_data")
         return False
@@ -1288,7 +1275,6 @@ def run_simulation(
             logger.error("mlp_batch policy requires task_types_data for feature extraction")
             return False
 
-    # Check required files exist
     if not config_file.exists():
         logger.error(f"Config file not found: {config_file}")
         return False
@@ -1298,10 +1284,8 @@ def run_simulation(
         return False
 
     try:
-        # Load simulation inputs
         sim_inputs = load_simulation_inputs(sim_input_path)
 
-        # Load space config
         with open(config_file, 'r') as f:
             space_config = json.load(f)
 
@@ -1323,20 +1307,36 @@ def run_simulation(
             placement_seed = space_config.get("network", {}).get("topology", {}).get("seed", 42)
         random.seed(placement_seed)
 
-        # Load workload
         with open(workload_file, 'r') as f:
             workload = json.load(f)
 
-        # Prepare infrastructure for real simulation
         infrastructure_config = prepare_infrastructure_for_real_simulation(
             space_config, seed=seed, sim_input_path=sim_input_path
         )
 
-        # Combine into full config
         full_config = {
             "infrastructure": infrastructure_config,
             "workload": workload,
         }
+
+        # rollout_imitation_v1 label engine (no-op unless the env vars are set): truncate the trace
+        # to the first N arrivals and/or force one task to a candidate. HEROSIM_MAX_EVENTS keeps
+        # events[0:N] and the peer_exchange pairs whose BOTH endpoints survive; HEROSIM_FORCED_
+        # PLACEMENTS is a JSON {task_id: [node_id, platform_id]} injected for KnativeOrchestrator.
+        _max_ev = os.environ.get("HEROSIM_MAX_EVENTS")
+        if _max_ev:
+            n = int(_max_ev)
+            ev = workload.get("events", [])
+            if n < len(ev):
+                workload["events"] = ev[:n]
+                pe = workload.get("peer_exchange")
+                if pe:
+                    workload["peer_exchange"] = [p for p in pe if int(p[0]) < n and int(p[1]) < n]
+        _forced = os.environ.get("HEROSIM_FORCED_PLACEMENTS")
+        if _forced:
+            infrastructure_config["forced_placements"] = {
+                int(k): v for k, v in json.loads(_forced).items()
+            }
 
         # Determine scheduling strategy
         scheduling_strategy = None
@@ -1431,7 +1431,6 @@ def run_simulation(
             f"(queue_length={resolved_queue_length})..."
         )
 
-        # Execute simulation
         result = execute_simulation(
             full_config,
             sim_inputs,
@@ -1444,7 +1443,6 @@ def run_simulation(
             reconcile_interval=RECONCILE_INTERVAL,
         )
 
-        # Extract stats
         stats = result.get('stats', {})
         # Use precomputed total_rtt/num_tasks when present (avoids holding full taskResults in memory)
         task_results = stats.get('taskResults', [])
@@ -1459,7 +1457,6 @@ def run_simulation(
             )
             num_tasks = len([tr for tr in task_results if tr.get('taskId') is not None and tr.get('taskId') >= 0])
 
-        # Build result summary
         decode_stats_summary = None
         result_summary = {
             "status": "success",
@@ -1582,7 +1579,6 @@ def run_simulation(
                 flush=True,
             )
 
-        # Save result
         output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, 'w') as f:
             json.dump(result_summary, f, indent=2, cls=DataclassJSONEncoder)
@@ -1622,7 +1618,6 @@ def main():
         python -m src.executesimulation --config <space_config.json> --workload <workload.json> --policy herocache_network [--seed <seed>] [--output <output.json>]
         python -m src.executesimulation --config <space_config.json> --workload <workload.json> --policy herocache_network [--seed <seed>] [--output <output.json>]
     """
-    # Configuration
     sim_input_path = Path("data/nofs-ids")
     _gnn_model_env = os.environ.get("GNN_MODEL_PATH")
     gnn_model_path = Path(_gnn_model_env) if _gnn_model_env else Path("models/desert-galaxy-26.pt")
@@ -1640,7 +1635,6 @@ def main():
     default_mlp_model_path = Path(_mlp_model_env) if _mlp_model_env else Path("models/tabular/batch_edge_mlp.pt")
     default_output_dir = Path("simulation_data/results")
 
-    # Parse arguments
     config_file = None
     workload_file = None
     policy = None
@@ -1698,7 +1692,6 @@ def main():
         if idx + 1 < len(sys.argv):
             output_file = Path(sys.argv[idx + 1])
 
-    # Validate arguments
     if not config_file:
         print("ERROR: --config is required")
         print("Usage: python -m src.executesimulation --config <space_config.json> --workload <workload.json> --policy <knative|gnn> [--seed <seed>] [--output <output.json>]")
@@ -1759,15 +1752,12 @@ def main():
         print(f"ERROR: Workload file not found: {workload_file}")
         sys.exit(1)
 
-    # Set default output file if not provided
     if not output_file:
         default_output_dir.mkdir(parents=True, exist_ok=True)
         output_file = default_output_dir / f"simulation_result_{policy}.json"
 
-    # Setup logging
     logger = setup_logging(Path("."))
 
-    # Load GNN model if needed
     gnn_model = None
     gnn_device = None
     task_types_data = None
@@ -1810,7 +1800,6 @@ def main():
             sys.exit(1)
         task_types_data = load_task_types_data(sim_input_path)
 
-    # Run simulation
     success = run_simulation(
         config_file, workload_file, output_file, sim_input_path, logger, policy,
         seed=seed, gnn_model=gnn_model, gnn_device=gnn_device, task_types_data=task_types_data,

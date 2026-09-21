@@ -105,8 +105,16 @@ class _PeerGreedyCore:
         # one task to a candidate and lets the rule choose everything else). Empty = normal rule.
         self.forced_placements: Dict[int, Tuple[int, int]] = {}
         self.pg_forced = 0
+        self._pg_capture_path = os.environ.get("HEROSIM_PG_CAPTURE_PATH") or None
         if self.exchange_on:
             _require_peer_physics(self._policy_label)
+
+    def _pg_capture(self, task_id: int, candidates) -> None:
+        import json as _json
+        rec = {"task_id": task_id,
+               "candidates": [[int(n.id), int(p.id), n.node_name, str(p.id)] for n, p in candidates]}
+        with open(self._pg_capture_path, "a") as fh:
+            fh.write(_json.dumps(rec) + "\n")
 
     def _pg_orchestrator(self):
         orch = orchestrator_of(self)
@@ -212,6 +220,10 @@ class PeerGreedyNetworkScheduler(_PeerGreedyCore, KnativeNetworkScheduler):
             raise ValueError(f"No valid replicas for task {task.id}")
         initialized = [r for r in valid if r[1].initialized.triggered]
         candidates = initialized if initialized else valid
+        if self._pg_capture_path:
+            # rollout_imitation_v1: record each decision's candidate set (the rule's own choice set)
+            # so the label engine can force one task to each candidate. One JSON line per decision.
+            self._pg_capture(int(task.id), candidates)
         forced = None
         if self.forced_placements:
             forced = self.forced_placements.get(int(task.id))
