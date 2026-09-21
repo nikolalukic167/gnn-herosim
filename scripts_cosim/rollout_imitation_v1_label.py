@@ -210,9 +210,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--config", type=Path, required=True)
     ap.add_argument("--workload", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--capture-n", type=int, default=220, help="events kept while capturing decisions")
-    ap.add_argument("--decision-max", type=int, default=120, help="only decisions whose id < this")
-    ap.add_argument("--max-decisions", type=int, default=20)
+    # Multi-candidate decisions only appear after replicas warm (~pos 248 on a 6-server training
+    # cell) and top out at 2 candidates; capture through the warm region and label those.
+    ap.add_argument("--capture-n", type=int, default=620, help="events kept while capturing decisions")
+    ap.add_argument("--decision-max", type=int, default=500, help="only decisions whose id < this")
+    ap.add_argument("--max-decisions", type=int, default=15)
     a = ap.parse_args(argv)
 
     res = label_decisions(a.config, a.workload, a.seed, capture_n=a.capture_n,
