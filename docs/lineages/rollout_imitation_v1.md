@@ -53,6 +53,19 @@ decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training 
 
 ## Record (newest first)
 
+- 2026-09-21 — **Offline train-screen POSITIVE: a learned scorer beats the rule (orders the live
+  gate).** Full corpus 2,448 decisions (166 topology×rate files; R0 holds at scale, median Spearman
+  1.0, argmin agreement 0.815; R1 differs 42.5 %, gain 484 s). A small MLP over the rule's OWN score
+  terms [drain, cold, exec, latency, exchange], trained on 1,665 decisions and evaluated on **12
+  held-out topologies (783 decisions)**: predicts the rollout label **0.807 vs the rule's 0.609**
+  (chance 0.5); realised held-out group-cost **model 527,096 vs rule 603,726 vs oracle 397,229** —
+  **−12.7 % vs the rule, 37.1 % of the oracle gain captured.** The per-decision median delta is 0 %
+  (model agrees with the rule on ~58 %); the win is concentrated on the ~42 % it overrides. So the
+  rollout label is learnable from the rule's features and generalises across topologies, and even a
+  POINTWISE model beats the greedy rule — offline. Caveats: this is an offline estimate (the rollout
+  costs as ground truth; the held-out trajectory is still the rule's), a group-SUMMED cost not a live
+  latency, and a hand-feature scorer, not the bipartite GNN. Per rule 6 this ORDERS the live gate; it
+  does not close the lineage. Next: wire the scorer into a scheduler and gate live vs rule/reactive/CD.
 - 2026-09-21 — **Corpus build.** Minted 96 more training topologies (cc40s9225..9320, clone of the
   base cell with a new `network.topology.seed`; `rollout_imitation_v1_mint_cells.py`) → 120 total,
   because exploitable decisions are sparse (~a handful of usable per topology). Enriched the label
