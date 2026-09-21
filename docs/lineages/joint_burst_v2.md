@@ -102,6 +102,17 @@ onto memory-full nodes and spin; a spun cell is a disclosed loss, never dropped.
 
 ## Record (newest first)
 
+- 2026-09-21 — **Independent audit (recomputed from the raw `*.summary.json`, reader not trusted):
+  win CONFIRMED, two cosmetic caveats.** All claimed %Δ reproduce (reactive −34.67 %, random
+  −47.3 %, immediate rule −18.7 %, 1-pass greedy −11.90 %, CD +12.48 % LOSES, mpoff −4.44 %). 13
+  complete seeds {1-5,7-10,12,14-16}; seeds 6/11/13 fully ABSENT (not partial), all runs 50k tasks,
+  reactive cells (topology,window)-matched. Caveats: (1) the quoted p=0.0015 is the normal-approx
+  Wilcoxon; **exact two-sided p = 2.44e−4** (n=13 all-same-sign, so p reflects sign-consistency, not
+  magnitude). (2) `jb2_gnnedge0` itself SATURATES on no cell, but a few w0 BASELINE cells spin —
+  1-pass greedy (9106,w0)=44 s, random w0 cells 57-202 s — inflating the vs-1-pass and vs-random
+  margins; dropping every baseline cell >25 s moves vs-1-pass −11.90→−11.49 % (13/13) and vs-random
+  −47.3→−46.3 %, so **quote those two as ~−11.5 % / ~−46 %.** vs-reactive (−34.67 %, no saturated
+  Knative study cell) and vs-CD are fully clean.
 - 2026-09-20 (night) — **Gate read (848 arms; 13/16 jb2 gnnedge0, 14/16 jb2 mpoff, 16/16
   v1-uncapped — the 3 gnnedge0 seeds safe-stopped at the trainer's end-of-run write are absent,
   reads disclosed on the complete checkpoints).** Per-task elapsed medians (s), best first:
