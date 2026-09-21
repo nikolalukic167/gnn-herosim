@@ -31,11 +31,12 @@ V_UNDERPOWERED = "UNDERPOWERED"
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--labels-dir", required=True)
+    ap.add_argument("--labels-dir", required=True, nargs="+",
+                    help="one or more dirs of s*.json label files (pooled)")
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
 
-    files = sorted(glob.glob(os.path.join(a.labels_dir, "s*.json")))
+    files = sorted(f for d in a.labels_dir for f in glob.glob(os.path.join(d, "s*.json")))
     decisions = []
     per_topo = {}
     for f in files:

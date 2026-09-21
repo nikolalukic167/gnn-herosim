@@ -17,13 +17,15 @@ export HEROSIM_PY=python3 PYTHONPATH=.
 
 SEED=$(( 9201 + SLURM_ARRAY_TASK_ID ))
 G=simulation_data/peer_affinity_live_gate
-OUT=results/rollout_imitation_v1/labels/s${SEED}.json
+WL_NAME=${ROLL_WORKLOAD:-drainable_f700_n50000}
+LABEL_DIR=${ROLL_LABEL_DIR:-results/rollout_imitation_v1/labels}
+OUT=${LABEL_DIR}/s${SEED}.json
 mkdir -p "$(dirname "$OUT")"
 if [[ -e "$OUT" ]]; then echo "[s$SEED] exists, skip"; exit 0; fi
 
-echo "[s$SEED] labelling training topology cc40s${SEED} (unburst f700)"
+echo "[s$SEED] labelling training topology cc40s${SEED} (unburst ${WL_NAME})"
 python3 scripts_cosim/rollout_imitation_v1_label.py --seed "$SEED" \
   --config  "$G/configs/cc40s${SEED}.json" \
-  --workload "$G/workloads/drainable_f700_n50000.json" \
+  --workload "$G/workloads/${WL_NAME}.json" \
   --out "$OUT" --max-decisions 40
 echo "[s$SEED] done -> $OUT"
