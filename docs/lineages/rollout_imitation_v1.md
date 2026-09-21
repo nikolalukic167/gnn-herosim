@@ -53,6 +53,14 @@ decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training 
 
 ## Record (newest first)
 
+- 2026-09-21 — **R1 (Phase A.2) PASSES: `LABEL-DIFFERS-FROM-RULE`.** On the 440 pooled decisions,
+  the rollout label differs from the rule's OWN choice on **305/440 = 69.3 %** (bar 10 %), median
+  realised gain **451.6 s** where it differs (bar 0.3 s). The greedy is NOT one-step optimal: its
+  one-pass drain estimate mis-ranks the two candidates on two-thirds of multi-candidate decisions.
+  Note the gain is a horizon-GROUP-SUMMED cost (~100 tasks), so the magnitude is large by
+  construction and the 0.3 s bar is trivially cleared; the differ FRACTION is the substantive read.
+  Both blocking phases now pass → build the corpus, train `gnnedge0` (+ mpoff twin) on the rollout
+  label, gate vs rule (primary), reactive, twin, and CD greedy (disclosed).
 - 2026-09-21 — **R0 PASSES, powered: `LABEL-IS-A-PROPERTY-OF-THE-DECISION`.** Forced-rollout label
   engine built (`scripts_cosim/rollout_imitation_v1_label.py`, `datalab/rollout_imitation_v1_phaseA.sbatch`,
   `..._phaseA_read.py`) and run on the 24 training topologies at two non-saturating unburst rates
