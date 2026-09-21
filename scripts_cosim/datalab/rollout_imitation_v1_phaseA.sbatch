@@ -5,7 +5,7 @@
 #SBATCH --partition=CPU-amd
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=02:00:00
+#SBATCH --time=05:00:00
 #SBATCH --array=0-23
 # rollout_imitation_v1 Phase A: label the multi-candidate decisions on each of the 24 training
 # topologies (seeds 9201-9224), forced-rollout at N in {20,50,100}. The pooled read
@@ -25,5 +25,5 @@ echo "[s$SEED] labelling training topology cc40s${SEED} (unburst f700)"
 python3 scripts_cosim/rollout_imitation_v1_label.py --seed "$SEED" \
   --config  "$G/configs/cc40s${SEED}.json" \
   --workload "$G/workloads/drainable_f700_n50000.json" \
-  --out "$OUT" --max-decisions 15
+  --out "$OUT" --max-decisions 40
 echo "[s$SEED] done -> $OUT"
