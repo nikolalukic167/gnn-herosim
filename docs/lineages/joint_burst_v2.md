@@ -7,7 +7,10 @@ p = 0.0015)** — the exact contest v1 lost at +16.8 % — and beats reactive (K
 (~−48 %). It **loses to the coordinate-descent greedy (K2 +12.5 %, 0/13)**, the honest bar. The v1
 loss was the **serving cap, not the model or the corpus**: uncapping the v1 weights alone already
 beats the greedy (K6 −8.8 %, 16/16) and the loaded-state corpus adds nothing beyond it
-(K5 CORPUS-NEUTRAL −3.9 %). Ties its pointwise twin (K4 −4.4 %, under the bar). Next lever to
+(K5 CORPUS-NEUTRAL −3.9 %). The cap carries **~89 % of the greedy-beat** — a decoder-policy change
+(the cap is a placement-side memory-admission limit, not a runtime memory charge; concentration is
+charged only via the FIFO queue — 2026-09-21 code read), so this is a serving win, not a graph-
+mechanism one (K4 tie). Ties its pointwise twin (K4 −4.4 %, under the bar). Next lever to
 reach CD: [`rollout_imitation_v1`](../../LINEAGES.md) (train the multi-pass optimum, registered).
 Parent
 [`joint_burst_v1`](joint_burst_v1.md) closed `NO-GNN-WIN`: trained on the served burst
@@ -103,6 +106,77 @@ onto memory-full nodes and spin; a spun cell is a disclosed loss, never dropped.
 
 ## Record (newest first)
 
+- 2026-09-21 — **External-review reads (three gaps the reviewer flagged, all recomputed from raw
+  `*.summary.json` or read from code; two tables + one code diff).**
+
+  **(1) Cap vs corpus decomposition — the greedy-beat is ~89 % the serving cap.** Vs the 1-pass
+  greedy, burst workload:
+
+  | checkpoint | serving | vs 1-pass greedy | sign | p |
+  |---|---|---|---|---|
+  | v1 (loaded-state corpus) | capped | +16.8 % | loses | — |
+  | v1 (same corpus) | uncapped (K6) | −8.81 % | 16/16 | 0.0004 |
+  | jb2 corpus | uncapped (K1) | −11.90 % | 13/13 | 2.4e−4 |
+
+  Cap alone moves +16.8 → −8.81 = **25.6 pts (~89 % of the swing)**; corpus adds the rest (K5 jb2
+  vs v1-uncapped −3.88 %, ~11 %). **The honest one-line framing is "we stopped capping co-location,
+  and that is most of the win over the greedy" — not "burst-trained model beats the greedy."** The
+  fourth cell (capped + jb2-corpus + burst) is ≈ v1 at **+16.8 %** — but this is an assumption
+  *carried forward, not a result*: K5's −3.88 % corpus effect was measured *uncapped*, and whether a
+  loaded-state corpus behaves the same when the decoder cannot act on it is untested. Read the "≈"
+  as "inferred", not "measured". CD beats the
+  1-pass greedy −22.8 % (K7) — search finds ~2× what uncapping the model does.
+
+  **(2) Knative's burst speedup is benign — rendezvous collapse + queue relief, work preserved.**
+  Within-cell paired reactive, 14 shared C40 cells, burst vs smooth, per-task seconds:
+
+  | term | smooth | burst | Δ |
+  |---|---|---|---|
+  | elapsed | 19.62 | 9.84 | −9.78 (−50 %) |
+  | queue | 11.08 | 4.71 | −6.37 |
+  | rendezvous | 3.02 | 0.00 | −3.02 |
+  | exchange | 5.24 | 5.48 | +0.24 (unchanged) |
+  | wait | 0.00 | 0.00 | 0 |
+
+  The **real exchange transfer is preserved** (5.24 → 5.48); the drop is rendezvous synchronization
+  going to zero (peers co-arrive under `span_after_s=0`, so `Platform.platform_process`'s
+  rendezvous events — `infrastructure.py:1461` — are already satisfied; it is driven to zero *by
+  construction of the burst lever*, realised through the ordinary event path, not measured
+  coincidentally) plus the queue relief that follows from ~3 s less slot occupancy. **Queue is still
+  4.71 s under bursts (not zeroed) — concentrated load is charged.** Every arm reads rvz = 0.00 under
+  bursts. Per-arm burst decomposition (elapsed / queue / exch, s): CD 6.14 / 2.66 / 3.11, jb2
+  gnnedge0 7.05 / 3.50 / 3.07, mpoff 7.45 / 3.76 / 3.15, 1-pass greedy 8.04 / 4.03 / 3.66, reactive
+  9.84 / 4.71 / 5.48, random 13.61 / 7.46 / 5.26 — queue scales with placement quality, and the
+  uncapped arm pays **more** queue than CD (3.50 vs 2.66), which is why CD still wins: uncapping does
+  not buy free stacking. **Implication:** Knative halves for reasons unrelated to placement quality,
+  so vs-Knative/vs-random magnitudes ride on the regime shift; the trustworthy contrasts are the
+  same-regime ones (K2 CD +12.5 %, K4 mpoff −4.4 %).
+
+  **(3) Capacity-enforcement code read (the memory question, deferred three review rounds, now
+  read).** The per-node memory budget is a **placement-side admissibility cap, not a runtime
+  charge**: the decoder cap IS the budget (`prefix_serving.py:405,414` — `demand =
+  memoryRequirements[task][platform] × scale`, `cap = alpha × peak-demand`; `alpha=inf` disables it).
+  The **runtime execution path reads `memoryRequirements` nowhere** (grep: only decoder + autoscaler
+  replica-creation gate on `node.memory` + feature builders); the sole hard physical per-node runtime
+  limit is **disk capacity** (image cache + output; eviction/fail-loud `infrastructure.py:575–638`),
+  which is **verified non-binding on the corpora actually used in these gates** (32/64 GB disks vs
+  ~3 GB images, code-noted byte-identical) — *not structurally incapable of binding*. This fact is
+  now load-bearing for the whole "no silent violation" conclusion, so it is a verified-on-this-corpus
+  claim, not a structural one.
+  **So: uncapping removes a placement-side memory-admission cap; there is no runtime concurrent-memory
+  model to silently violate; concentration cost IS charged, via FIFO one-at-a-time queue serialisation
+  (table 2). No silent memory violation exists at these task/disk scales — but the runtime does not
+  independently penalise memory concentration; that discipline rests on the queue and the replica-
+  level gate.** Whether `memoryRequirements` is *meant* as a hard concurrency ceiling (it is not
+  enforced as one at runtime) or an admission heuristic (it is one) is a modelling question, not a
+  measured bug; at these scales the two coincide. **This is a dependency for the next round, not a
+  closed footnote:** everything downstream of "uncapped serving" (most of the burst results) inherits
+  it, and if the intended physics turns out to be a runtime concurrency ceiling, the cap-vs-uncapped
+  result could move again — the way the corpus framing moved once the cap was isolated. It should be
+  resolved **before** the payload sweep (20 MB / 200 MB / 2 GB), the change most likely to make disk
+  start binding: this does **not** license "the under-charging worry is answered no" without the scale
+  qualifier, and the "no silent violation" conclusion does **not** automatically travel to a corpus
+  where disk binds — that path (eviction/fail-loud) must be re-read there.
 - 2026-09-21 — **Independent audit (recomputed from the raw `*.summary.json`, reader not trusted):
   win CONFIRMED, two cosmetic caveats.** All claimed %Δ reproduce (reactive −34.67 %, random
   −47.3 %, immediate rule −18.7 %, 1-pass greedy −11.90 %, CD +12.48 % LOSES, mpoff −4.44 %). 13
