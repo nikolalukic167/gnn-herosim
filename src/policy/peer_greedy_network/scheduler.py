@@ -259,6 +259,98 @@ class DrainGreedyNetworkScheduler(PeerGreedyNetworkScheduler):
     _policy_label = "drain_greedy_network"
 
 
+class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
+    """rollout_imitation_v1: the immediate rule's candidate set and score-term features, but the
+    candidate is chosen by a LEARNED scorer -- an MLP over the rule's own terms
+    [drain, cold, exec, latency, exchange] -- trained on the one-step group-local rollout label,
+    NOT the hand-weighted sum. Served exactly as the rule (per arrival, no wait, same stack), so a
+    live win over `peer_greedy_network` is one step of policy improvement realised in the closed
+    loop, not a serving-stack artefact.
+
+    The scorer and its feature normalisation load from HEROSIM_ROLLOUT_SCORER (a .pt state_dict)
+    and its `.contract.json` sidecar; fail loud if either is missing (a checkpoint without a
+    contract is not evidence, CLAUDE.md) or if the feature order in the contract is not the order
+    _pg_choose builds below."""
+
+    _policy_label = "peer_greedy_learned_network"
+    _live_audit_policy_name = "peer_greedy_learned_network"
+    _FEATURE_ORDER = ("drain", "cold", "exec", "latency", "exchange")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._load_rollout_scorer()
+
+    def _load_rollout_scorer(self) -> None:
+        import json
+        import torch
+        import torch.nn as nn
+
+        path = os.environ.get("HEROSIM_ROLLOUT_SCORER")
+        if not path:
+            raise RuntimeError(
+                "FAIL LOUD: peer_greedy_learned_network needs HEROSIM_ROLLOUT_SCORER=<scorer.pt>"
+            )
+        contract_path = os.path.splitext(path)[0] + ".contract.json"
+        if not os.path.exists(path) or not os.path.exists(contract_path):
+            raise RuntimeError(
+                f"FAIL LOUD: scorer or contract missing ({path}, {contract_path}); "
+                "a checkpoint without a contract is not evidence"
+            )
+        contract = json.load(open(contract_path))
+        order = tuple(contract.get("feature_order", ()))
+        if order != self._FEATURE_ORDER:
+            raise RuntimeError(
+                f"FAIL LOUD: scorer contract feature_order {order} != served order "
+                f"{self._FEATURE_ORDER}; a mismatch scores the wrong term per candidate"
+            )
+        self._sc_mean = [float(x) for x in contract["feature_mean"]]
+        self._sc_sd = [float(x) for x in contract["feature_sd"]]
+        hidden = int(contract.get("hidden", 16))
+        ncol = len(self._FEATURE_ORDER)
+        net = nn.Sequential(
+            nn.Linear(ncol, hidden), nn.ReLU(),
+            nn.Linear(hidden, hidden), nn.ReLU(),
+            nn.Linear(hidden, 1),
+        )
+        net.load_state_dict(torch.load(path, map_location="cpu"))
+        net.eval()
+        self._scorer = net
+        self._torch = torch
+
+    def _pg_choose(
+        self,
+        task: "Task",
+        candidates: Sequence[Tuple["Node", "Platform"]],
+        orch,
+        *,
+        memo: Dict[str, float],
+        committed_service: Dict[str, float],
+        planned: Dict[int, str],
+        nodes,
+    ) -> Tuple["Node", "Platform", float]:
+        peer_nodes = self._pg_peer_nodes(task, orch, planned) if self.exchange_on else []
+        comm = _approx_comm(task.type)
+        rows = []  # (node, platform, service_seconds, feats5 in _FEATURE_ORDER)
+        for node, platform in candidates:
+            key = f"{node.node_name}:{platform.id}"
+            plat_type = platform.type["shortName"]
+            drain = platform_queue_drain_seconds(platform, orch, memo) + committed_service.get(key, 0.0)
+            exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0)
+            cold = incoming_cold_start_time(task, platform)
+            lat = network_latency_between(task.node_name, node, nodes)
+            exch = self._pg_exchange_seconds(node, platform, peer_nodes)
+            rows.append((node, platform, exec_s + comm + exch, [drain, cold, exec_s, lat, exch]))
+        torch = self._torch
+        norm = [[(r[3][j] - self._sc_mean[j]) / self._sc_sd[j] for j in range(len(self._sc_mean))]
+                for r in rows]
+        with torch.no_grad():
+            scores = self._scorer(torch.tensor(norm, dtype=torch.float32)).squeeze(1).tolist()
+        best_i = min(range(len(rows)), key=lambda i: (scores[i], rows[i][0].id, rows[i][1].id))
+        self.pg_decisions += 1
+        best = rows[best_i]
+        return best[0], best[1], best[2]
+
+
 class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
     """The rule on the learned arms' serving stack: peer-group batching at the cell's window,
     masked_topo's batch path (planned_node_name pre-pass, deferred tasks to the autoscaler),
