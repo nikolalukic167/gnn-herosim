@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 
 PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
-    "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves",
+    "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
 )
 
 # joint_burst_v2 (2026-09-20): a DISCLOSED probe knob, never a registered arm's default. The
@@ -100,6 +100,11 @@ class _PeerGreedyCore:
         self.pg_cd_passes = 0
         self.pg_cd_moves = 0
         self.pg_exchange_scale = _pg_exchange_scale()
+        # forced_placements: {task_id -> (node_id, platform_id)} injected by the orchestrator from
+        # config["infrastructure"]["forced_placements"] (rollout_imitation_v1's label engine forces
+        # one task to a candidate and lets the rule choose everything else). Empty = normal rule.
+        self.forced_placements: Dict[int, Tuple[int, int]] = {}
+        self.pg_forced = 0
         if self.exchange_on:
             _require_peer_physics(self._policy_label)
 
@@ -207,6 +212,21 @@ class PeerGreedyNetworkScheduler(_PeerGreedyCore, KnativeNetworkScheduler):
             raise ValueError(f"No valid replicas for task {task.id}")
         initialized = [r for r in valid if r[1].initialized.triggered]
         candidates = initialized if initialized else valid
+        forced = None
+        if self.forced_placements:
+            forced = self.forced_placements.get(int(task.id))
+            if forced is None:
+                forced = self.forced_placements.get(str(task.id))
+        if forced is not None:
+            fn, fp = int(forced[0]), int(forced[1])
+            match = next((c for c in valid if c[0].id == fn and c[1].id == fp), None)
+            if match is None:
+                raise RuntimeError(
+                    f"{self._policy_label}: forced placement ({fn},{fp}) for task {task.id} is not "
+                    f"a valid replica; valid={[(n.id, p.id) for n, p in valid]}"
+                )
+            self.pg_forced += 1
+            return match[0], match[1]
         node, platform, _svc = self._pg_choose(
             task, candidates, self._pg_orchestrator(),
             memo={}, committed_service={}, planned={}, nodes=self.nodes.items,

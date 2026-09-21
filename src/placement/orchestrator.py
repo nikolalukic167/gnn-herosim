@@ -152,7 +152,7 @@ class Orchestrator:
         self._peer_ready_events: Dict[int, Any] = {}
         self.trace_file = trace_file
         self.initial_event_count = len(time_series.events)
-        self.system_state_results: List[SystemStateResult] = []  # Store system state snapshots
+        self.system_state_results: List[SystemStateResult] = []
         
         # Set orchestrator reference on all nodes for system state capture
         for node in self.nodes.items:
@@ -210,7 +210,7 @@ class Orchestrator:
             "qr_dim7_over_corpus_batches", "residence_unstamped",
             # peer_greedy_live_v1: the hand rule's books (src/policy/peer_greedy_network)
             "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
-            "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves",
+            "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
         )
         out: Dict[str, Any] = {}
         for name in names:
@@ -472,7 +472,6 @@ class Orchestrator:
         except KeyError as e:
             raise e
 
-        # Unused platforms (% of platform count)
         unused_platforms = len(
             [
                 platform_result
@@ -481,12 +480,10 @@ class Orchestrator:
             ]
         ) / len(platform_results)
 
-        # Unused nodes (% of node count)
         unused_nodes = len(
             [node_result for node_result in node_results if node_result["unused"]]
         ) / len(node_results)
 
-        # Average resource occupation time
         resources_occupation: Dict[int, float] = {}
         for platform_result in sorted(
                 platform_results, key=lambda result: result["platformId"]
@@ -580,7 +577,6 @@ class Orchestrator:
             task_result["cacheHit"] for task_result in task_results
         ) / len(task_results)
 
-        # Compute quantiles with defensive checks
         logger.info(f"[STATS] Computing task_response_time_quantiles from {len(task_results)} task results")
         task_elapsed_times = [task["elapsedTime"] for task in task_results]
         logger.info(f"[STATS] Task elapsed times: count={len(task_elapsed_times)}, values={task_elapsed_times[:10] if len(task_elapsed_times) > 0 else 'empty'}")
@@ -589,11 +585,9 @@ class Orchestrator:
             logger.warning(f"[STATS] Cannot compute quantiles: need at least 2 data points, got {len(task_elapsed_times)}")
             logger.warning(f"[STATS] Using fallback: single value or empty list")
             if len(task_elapsed_times) == 1:
-                # Single value: return list with that value repeated
                 task_response_time_quantiles = [task_elapsed_times[0]] * 100
                 logger.info(f"[STATS] Using single value {task_elapsed_times[0]} for all quantiles")
             else:
-                # Empty list: return list of zeros
                 task_response_time_quantiles = [0.0] * 100
                 logger.warning(f"[STATS] No task results available, using zeros for quantiles")
         else:
@@ -613,11 +607,9 @@ class Orchestrator:
             logger.warning(f"[STATS] Cannot compute quantiles: need at least 2 data points, got {len(application_elapsed_times)}")
             logger.warning(f"[STATS] Using fallback: single value or empty list")
             if len(application_elapsed_times) == 1:
-                # Single value: return list with that value repeated
                 application_response_time_quantiles = [application_elapsed_times[0]] * 100
                 logger.info(f"[STATS] Using single value {application_elapsed_times[0]} for all quantiles")
             else:
-                # Empty list: return list of zeros
                 application_response_time_quantiles = [0.0] * 100
                 logger.warning(f"[STATS] No application results available, using zeros for quantiles")
         else:
@@ -629,8 +621,6 @@ class Orchestrator:
                 logger.error(f"[STATS] Application elapsed times: {application_elapsed_times}")
                 raise
 
-        # Sort task results by arrival time
-        # Filter out non-penalty tasks
         penalty_distribution_over_time: List[Tuple[MomentSecond, float]] = []
         applications_count = 0
         distribution = 0
@@ -647,7 +637,6 @@ class Orchestrator:
                     )
                 )
 
-        # Calculate network statistics
         average_network_latency = sum(
             task_result["networkLatency"] for task_result in task_results
         ) / len(task_results)
@@ -676,7 +665,6 @@ class Orchestrator:
             for task_result in task_results
         ) / len(task_results)
 
-        # Calculate per-node-pair latencies
         node_pair_latencies = defaultdict(list)
         for task_result in task_results:
             if task_result["sourceNode"] != task_result["executionNode"]:
@@ -689,7 +677,6 @@ class Orchestrator:
             for pair, latencies in node_pair_latencies.items()
         }
 
-        # Extract network topology from nodes
         network_topology = {}
         for node in self.nodes.items:
             network_topology[node.node_name] = node.network_map
@@ -765,7 +752,6 @@ class Orchestrator:
         if scheduling_capture:
             result["schedulingStateCapture"] = scheduling_capture
 
-        # Debug: Check for non-serializable types
         logging.info("Checking for non-serializable types in stats...")
         check_serializable(result, "stats")
 
@@ -833,9 +819,7 @@ class Orchestrator:
         pass
 
     def initializer_process(self) -> Generator:
-        # Initialize shared data structures according to simulation policy
         system_state: SystemState = self.initialize_state()
-        # Putting it all together...
         yield self.mutex.put(system_state)
 
         # Register any precreated warmup tasks so they can appear in logs/stats
@@ -848,7 +832,6 @@ class Orchestrator:
                 for plat in node.platforms.items:
                     if hasattr(plat, '_warmup_tasks') and plat._warmup_tasks:
                         for t in plat._warmup_tasks:
-                            # Archive task and its pseudo-application
                             # Warmup tasks are marked with is_internal=True and excluded from completion wait
                             if t.application not in self.application_archive:
                                 self.application_archive.append(t.application)
@@ -861,7 +844,6 @@ class Orchestrator:
         except Exception:
             pass
 
-        # Begin orchestration
         self.gateway = self.env.process(self.gateway_process())
         self.monitor = self.env.process(self.monitor_process())
         self.autoscaler.run = self.env.process(self.autoscaler.autoscaler_process())
@@ -894,7 +876,6 @@ class Orchestrator:
                 if task.type["name"] in parents and child_name in name_to_task
             ]
 
-        # Wait for this task's execution before doing anything else.
         yield task.done
 
         if children:
@@ -952,17 +933,14 @@ class Orchestrator:
             remaining = len(self.time_series.events)
             if events_processed == 1 or remaining % log_every == 0 or remaining <= 1:
                 print(f"[ {self.env.now} ] Gateway: Processing event {events_processed} ({remaining} remaining)", flush=True)
-            # Process workload events (FIFO)
             workload_event: WorkloadEvent = self.time_series.events.pop(0)
 
-            # Timeout until event timestamp
             time_until_next_event = workload_event["timestamp"] - self.env.now
             # fix: ? (for non-unique placements metadata generation)
             if time_until_next_event < 0:
                 time_until_next_event = 0
             yield self.env.timeout(time_until_next_event)
 
-            # Create the application according to the event properties
             app = self.create_application(
                 env=self.env,
                 app_id=app_id,
@@ -970,11 +948,9 @@ class Orchestrator:
                 event=workload_event,
             )
 
-            # Increment application and task IDs
             app_id += 1
             task_id += len(app.tasks)
 
-            # Tasks are stored in an archive for further analysis
             self.application_archive.append(app)
             self.task_archive.extend(app.tasks)
             for created in app.tasks:
@@ -995,7 +971,6 @@ class Orchestrator:
             # See scheduler_process()
             yield self.scheduler.tasks.put(first_task)
 
-        # All workload events have been processed - gateway is done
         print(f"[ {self.env.now} ] Gateway: All {len(self.task_archive)} tasks from {len(self.application_archive)} applications have been dispatched")
         logging.info(f"[ {self.env.now} ] Gateway: All workload events processed, waiting for task completion")
         
@@ -1061,15 +1036,12 @@ class Orchestrator:
         if not real_tasks:
             print(f"[ {self.env.now} ] Gateway: No dispatched tasks to wait for")
         
-        # Debug logging: final task status after all tasks complete
         completed_tasks = [task for task in real_tasks if task.done.triggered]
         failed_tasks = [task for task in real_tasks if getattr(task, 'failed', False)]
         print(f"[ {self.env.now} ] Gateway: All tasks complete - {len(completed_tasks)} done, {len(failed_tasks)} failed", flush=True)
         if failed_tasks:
             print(f"[ {self.env.now} ] Gateway: Failed tasks: {[{'id': t.id, 'type': t.type['name'], 'reason': getattr(t, 'failure_reason', 'unknown')} for t in failed_tasks[:10]]}")
         
-        # End simulation
-        # Capture final system state
         system_state = yield self.mutex.get()
         state_result = system_state.result(self.env.now)
         max_system_states = 500  # Cap to avoid OOM with 400k apps
