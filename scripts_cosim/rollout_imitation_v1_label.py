@@ -177,9 +177,15 @@ def label_decisions(config: Path, workload: Path, seed: int, *, capture_n: int,
             row = []
             for c in cands:
                 node_id, plat_id = int(c[0]), int(c[1])
-                stats = _run(config, workload, "peer_greedy_network", seed,
-                             max_events=tid + N, forced={tid: [node_id, plat_id]}, capture=None)
-                cost = _cost(stats, tid, peers)
+                # A forced candidate can drive the truncated trace into the saturated/unreachable
+                # regime (fail loud); that candidate/horizon is unlabelable, so skip the whole
+                # decision rather than crash the topology. Disclosed as a skipped decision.
+                try:
+                    stats = _run(config, workload, "peer_greedy_network", seed,
+                                 max_events=tid + N, forced={tid: [node_id, plat_id]}, capture=None)
+                    cost = _cost(stats, tid, peers)
+                except RuntimeError:
+                    cost = None
                 if cost is None:
                     ok = False
                     break
