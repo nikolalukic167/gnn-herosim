@@ -181,16 +181,23 @@ class _PeerGreedyCore:
         peer_nodes = self._pg_peer_nodes(task, orch, planned) if self.exchange_on else []
         comm = _approx_comm(task.type)
         scored = []
+        feats = []  # rollout_imitation_v1: per-candidate score terms captured for training
         for node, platform in candidates:
             key = f"{node.node_name}:{platform.id}"
             plat_type = platform.type["shortName"]
             drain = platform_queue_drain_seconds(platform, orch, memo) + committed_service.get(key, 0.0)
             exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0)
-            base = (drain + incoming_cold_start_time(task, platform) + exec_s
-                    + network_latency_between(task.node_name, node, nodes))
+            cold = incoming_cold_start_time(task, platform)
+            lat = network_latency_between(task.node_name, node, nodes)
+            base = drain + cold + exec_s + lat
             exch = self._pg_exchange_seconds(node, platform, peer_nodes)
+            if self._pg_capture_path:
+                feats.append([int(node.id), int(platform.id), node.node_name, str(platform.id),
+                              float(drain), float(cold), float(exec_s), float(lat), float(exch)])
             scored.append((base + self.pg_exchange_scale * exch, base, exch, exec_s + comm, node, platform))
         best = min(scored, key=lambda s: (s[0], s[4].id, s[5].id))
+        if self._pg_capture_path and feats:
+            self._pg_capture(int(task.id), feats)
         self.pg_decisions += 1
         if peer_nodes:
             best_without = min(scored, key=lambda s: (s[1], s[4].id, s[5].id))
@@ -220,10 +227,8 @@ class PeerGreedyNetworkScheduler(_PeerGreedyCore, KnativeNetworkScheduler):
             raise ValueError(f"No valid replicas for task {task.id}")
         initialized = [r for r in valid if r[1].initialized.triggered]
         candidates = initialized if initialized else valid
-        if self._pg_capture_path:
-            # rollout_imitation_v1: record each decision's candidate set (the rule's own choice set)
-            # so the label engine can force one task to each candidate. One JSON line per decision.
-            self._pg_capture(int(task.id), candidates)
+        # capture (candidate set + score-term features) happens inside _pg_choose when
+        # HEROSIM_PG_CAPTURE_PATH is set; forced runs never capture (path unset there).
         forced = None
         if self.forced_placements:
             forced = self.forced_placements.get(int(task.id))

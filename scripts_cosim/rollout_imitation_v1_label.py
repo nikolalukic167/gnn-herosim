@@ -212,6 +212,9 @@ def label_decisions(config: Path, workload: Path, seed: int, *, capture_n: int,
         rule_idx = next((k for k, c in enumerate(cands) if c[2] == rn and str(c[3]) == str(rp)), -1)
         out_decisions.append({
             "task_id": tid, "n_candidates": len(cands), "peers": len(peers),
+            # candidate feature rows: [node_id, plat_id, node_name, plat_str, drain, cold, exec,
+            # latency, exchange] -- the rule's own score terms, the training features
+            "candidates": cands,
             "costs": costs_by_h, "argmins": argmins, "spearman": rhos, "rule_idx": rule_idx,
         })
 
