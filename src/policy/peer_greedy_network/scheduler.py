@@ -491,3 +491,27 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
             self.pg_cd_moves += moved
             if moved == 0:
                 break
+
+
+class PeerGreedyLearnedNetworkBatchScheduler(PeerGreedyNetworkBatchScheduler):
+    """rollout_imitation_v1 cross-study arm: the LEARNED rollout scorer served in the BATCHED seat
+    (peer-group batching at the cell window, masked_topo path) instead of per arrival -- the
+    burst/batched analogue of `peer_greedy_learned_network`, so the rollout scorer can be gated in
+    the SAME seat gnnedge0 wins in. The scorer is the same MLP over the rule's own terms
+    [drain, cold, exec, latency, exchange]; the batch pass calls _pg_choose exactly as the batched
+    greedy does, so the learned scoring replaces the hand sum and nothing else changes.
+
+    Disclosed mismatch: the scorer was trained on the immediate rule's per-arrival states (no
+    in-batch commitment), and here `drain` carries the committed_service of peers placed earlier in
+    the batch -- a mild train/serve shift within the feature's own meaning, the price of gating a
+    per-arrival-trained scorer in the batched seat."""
+
+    _policy_label = "peer_greedy_learned_network_batch"
+    _live_audit_policy_name = "peer_greedy_learned_network_batch"
+    _FEATURE_ORDER = PeerGreedyLearnedNetworkScheduler._FEATURE_ORDER
+    _load_rollout_scorer = PeerGreedyLearnedNetworkScheduler._load_rollout_scorer
+    _pg_choose = PeerGreedyLearnedNetworkScheduler._pg_choose
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._load_rollout_scorer()

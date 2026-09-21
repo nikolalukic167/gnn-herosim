@@ -1245,6 +1245,7 @@ def run_simulation(
         'peer_greedy_learned_network',
         'drain_greedy_network',
         'peer_greedy_network_batch',
+        'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
         'offload_network',
         'xgboost_batch',
@@ -1395,6 +1396,9 @@ def run_simulation(
             models = None
         elif policy == 'peer_greedy_network_batch':
             scheduling_strategy = 'peer_greedy_network_batch_peer_greedy_network_batch'
+            models = None
+        elif policy == 'peer_greedy_learned_network_batch':
+            scheduling_strategy = 'peer_greedy_learned_network_batch_peer_greedy_learned_network_batch'
             models = None
         elif policy == 'peer_greedy_network_cd':
             scheduling_strategy = 'peer_greedy_network_cd_peer_greedy_network_cd'
@@ -1739,6 +1743,7 @@ def main():
         'peer_greedy_learned_network',
         'drain_greedy_network',
         'peer_greedy_network_batch',
+        'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
         'offload_network',
         'xgboost_batch',
