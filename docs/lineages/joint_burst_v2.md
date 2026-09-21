@@ -1,6 +1,7 @@
 # joint_burst_v2 — train on the served decision UNCAPPED: keep the loaded states the label-cap threw away
 
-**Status:** `CLOSED` `GNN-BEATS-GREEDY / CD-STILL-AHEAD` (gate read 2026-09-20). The uncapped
+**Status:** `CLOSED` `GNN-BEATS-GREEDY / CD-STILL-AHEAD` (gate read 2026-09-20, independently
+audit-confirmed 2026-09-21). The uncapped
 served-distribution `gnnedge0` **beats the 1-pass greedy in its own seat (K1 −11.9 %, 13/13,
 p = 0.0015)** — the exact contest v1 lost at +16.8 % — and beats reactive (K3 −34.7 %) and random
 (~−48 %). It **loses to the coordinate-descent greedy (K2 +12.5 %, 0/13)**, the honest bar. The v1
