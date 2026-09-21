@@ -75,7 +75,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     import torch
     import torch.nn as nn
+    # bit-reproducible weights at one seed (CLAUDE.md trainer-determinism): pin the thread count so
+    # the float-reduction order is fixed, and forbid nondeterministic kernels.
     torch.manual_seed(a.seed)
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.set_num_threads(1)
     random.seed(a.seed)
 
     data = _load(a.labels_dir)

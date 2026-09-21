@@ -378,10 +378,8 @@ class SystemState:
     replicas: Dict[str, Set[Tuple["Node", "Platform"]]]
 
     def result(self, timestamp: MomentSecond = 0.0) -> SystemStateResult:
-        # Serialize scheduler_state as dict, converting tuple keys to strings
         scheduler_state_dict = dataclasses.asdict(self.scheduler_state)
-        
-        # Convert tuple keys to strings in average_contention and panic_contention
+
         if "average_contention" in scheduler_state_dict:
             scheduler_state_dict["average_contention"] = {
                 task_type: {
@@ -400,7 +398,6 @@ class SystemState:
                 for task_type, contention_dict in scheduler_state_dict["panic_contention"].items()
             }
         
-        # Serialize available_resources: node_name -> [platform_id, ...]
         available_resources_dict = {
             node.node_name: [platform.id for platform in platforms]
             for node, platforms in self.available_resources.items()
@@ -413,7 +410,6 @@ class SystemState:
             ]
             for task_type, replica_set in self.replicas.items()
         }
-        # Serialize queue_occupancy: task_type -> {"node_name:platform_id" -> queue_length}
         # This captures the queue length at scheduling time for each platform
         queue_occupancy_dict = {
             task_type: {
@@ -556,6 +552,7 @@ scheduling_strategies: Dict[str, str] = {
     "hrc_network_batch_hrc_network_batch": "HRC-NETWORK-BATCH-HRC-NETWORK-BATCH",
     "rp_network_rp_network": "RP-NETWORK-RP-NETWORK",
     "peer_greedy_network_peer_greedy_network": "PEER-GREEDY-NETWORK",
+    "peer_greedy_learned_network_peer_greedy_learned_network": "PEER-GREEDY-LEARNED-NETWORK",
     "drain_greedy_network_drain_greedy_network": "DRAIN-GREEDY-NETWORK",
     "peer_greedy_network_batch_peer_greedy_network_batch": "PEER-GREEDY-NETWORK-BATCH",
     "peer_greedy_network_cd_peer_greedy_network_cd": "PEER-GREEDY-NETWORK-CD",
