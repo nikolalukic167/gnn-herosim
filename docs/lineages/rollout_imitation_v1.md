@@ -65,6 +65,26 @@ decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training 
 
 ## Record (newest first)
 
+- 2026-09-21 — **Cross-study paired table: the older `gnnedge0` beats the rollout arm in EVERY cell,
+  and no learned arm beats the rule OFF the burst regime.** To make the rollout arm and
+  `joint_burst_v2` `gnnedge0` directly subtractable (they had never been run on the same
+  environments), ran two cross-study arms: `gnnedge0` on the UNBURST `unsaturated_edge_v1` envs (16
+  seed-checkpoints, per-env median; 415/512 tasks — the burst-trained checkpoint hits reachability
+  fail-louds on some unburst topologies, but every env kept ≥1 seed so n=16 envs), and the rollout
+  scorer in the BATCHED seat on the burst envs (`peer_greedy_learned_network_batch` = the batched
+  greedy's batch machinery with the learned `_pg_choose`; disclosed mismatch — trained per-arrival,
+  served batched). **Unburst (total_rtt, n=16): `gnnedge0` vs the rule +7.7 % C40 (2/16) / +10.2 %
+  C80 (0/16) — it LOSES to the rule too, but far less than the rollout arm's +28.3 % / +14.2 %;
+  `gnnedge0` beats reactive −21.8/−24.3 % and random −15.0/−12.9 % (16/16), loses to CD +6.0/+7.3 %.**
+  So `gnnedge0`'s −18.6 % win over the rule is **BURST-SPECIFIC**: in the unburst regime NO learned
+  arm beats the two-line rule. **Burst C40 (batched seat): `gnnedge0` reproduces `joint_burst_v2` to
+  the decimal — vs immediate rule −18.6 % (16/16), vs batched greedy −11.9 % (16/16), vs CD +12.5 %
+  (1/16, loses) — cross-validating the harness; the rollout learnedbatch is far worse — vs rule
+  +34.2 % (0/16), vs batched greedy +39.4 %, vs CD +78.2 %, beats only random −15.0 %.** Consolidated:
+  the older `gnnedge0` dominates the rollout arm in both studies and both seats; the CD greedy beats
+  every learned arm everywhere; the rule is unbeaten by any learned arm outside the burst regime.
+  `simulation_data/rollout_imitation_v1/xstudy_read.json`; `scripts_cosim/datalab/rollout_imitation_v1_xstudy_{gnnedge0,learnedbatch}.sbatch`,
+  `scripts_cosim/rollout_imitation_v1_xstudy_read.py`.
 - 2026-09-21 — **LIVE GATE closes the lineage: `RULE-FASTER-LIVE` — the offline positive did not
   transfer.** Served the learned scorer in the closed loop (`peer_greedy_learned_network`: the rule's
   own candidate set + score terms, but the candidate chosen by the MLP trained on the rollout label;
