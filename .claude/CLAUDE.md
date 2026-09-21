@@ -47,9 +47,11 @@ served UNCAPPED (`joint_burst_v2`): `gnnedge0` beats the one-pass greedy −11.9
 −34.7 %, random ~−48 %. **This is the first learned win over a rule with the model's own
 information in the programme.** The `joint_burst_v1` loss to that greedy (+16.8 %) was a **serving
 cap**, not the model or the corpus. **The remaining ceiling is a multi-pass coordinate-descent
-greedy (+12.5 % ahead of the arm);** `rollout_imitation_v1` (one step of policy improvement) is the
-live lever to reach it. The arm still only ties its pointwise MLP twin — a win over the baselines,
-not yet over the pointwise control.
+greedy (+12.5 % ahead of the arm);** its lever `rollout_imitation_v1` is now **CLOSED
+`RULE-FASTER-LIVE`** — a learned scorer beats it −12.7 % OFFLINE (held-out) but is +14–28 % SLOWER
+live (R2 FAILS, 0/16 C40), an offline/live reversal. **No learned arm beats the rule live.** The
+uncapped arm still only
+ties its pointwise MLP twin — a win over the baselines, not yet over the pointwise control.
 
 - **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
   queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no
@@ -93,8 +95,8 @@ not yet over the pointwise control.
   reactive −34.7 %, random ~−48 %; uncapping the v1 weights alone already clears the greedy (K6
   −8.8 %, 16/16) and the loaded-state corpus adds nothing beyond it (K5 CORPUS-NEUTRAL). It **loses
   to the coordinate-descent greedy +12.5 % (0/13)** — the honest ceiling — and only ties its MP-OFF
-  twin (−4.4 %, under the bar). `rollout_imitation_v1` (one step of policy improvement over the
-  rule, ACTIVE) is the pre-signed lever at the CD bar.
+  twin (−4.4 %, under the bar). Its one-step-improvement follow-up `rollout_imitation_v1` CLOSED
+  `RULE-FASTER-LIVE` (see the opening paragraph).
 - **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
   +5.14 pp offline, inverts live at a defensible load); a 150× trainability asymmetry
   (optimisation, never latency); `serving_stability_v1`'s early-trace positive; both model-class
