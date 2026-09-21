@@ -555,6 +555,7 @@ scheduling_strategies: Dict[str, str] = {
     "peer_greedy_learned_network_peer_greedy_learned_network": "PEER-GREEDY-LEARNED-NETWORK",
     "drain_greedy_network_drain_greedy_network": "DRAIN-GREEDY-NETWORK",
     "peer_greedy_network_batch_peer_greedy_network_batch": "PEER-GREEDY-NETWORK-BATCH",
+    "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": "PEER-GREEDY-LEARNED-NETWORK-BATCH",
     "peer_greedy_network_cd_peer_greedy_network_cd": "PEER-GREEDY-NETWORK-CD",
     "offload_network_offload_network": "OFFLOAD-NETWORK-OFFLOAD-NETWORK",
 }
