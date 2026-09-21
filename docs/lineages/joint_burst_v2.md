@@ -1,6 +1,14 @@
 # joint_burst_v2 — train on the served decision UNCAPPED: keep the loaded states the label-cap threw away
 
-**Status:** `ACTIVE` (registered 2026-09-20) — bars signed below before the gate reads. Parent
+**Status:** `CLOSED` `GNN-BEATS-GREEDY / CD-STILL-AHEAD` (gate read 2026-09-20). The uncapped
+served-distribution `gnnedge0` **beats the 1-pass greedy in its own seat (K1 −11.9 %, 13/13,
+p = 0.0015)** — the exact contest v1 lost at +16.8 % — and beats reactive (K3 −34.7 %) and random
+(~−48 %). It **loses to the coordinate-descent greedy (K2 +12.5 %, 0/13)**, the honest bar. The v1
+loss was the **serving cap, not the model or the corpus**: uncapping the v1 weights alone already
+beats the greedy (K6 −8.8 %, 16/16) and the loaded-state corpus adds nothing beyond it
+(K5 CORPUS-NEUTRAL −3.9 %). Ties its pointwise twin (K4 −4.4 %, under the bar). Next lever to
+reach CD: [`rollout_imitation_v1`](../../LINEAGES.md) (train the multi-pass optimum, registered).
+Parent
 [`joint_burst_v1`](joint_burst_v1.md) closed `NO-GNN-WIN`: trained on the served burst
 distribution, `gnnedge0` beat reactive Knative (−12.5 %) and its cold twin (−7.8 %) but lost to
 the batched greedy in its own seat (+16.8 %). This lineage tests **why**, and whether closing the
@@ -94,6 +102,36 @@ onto memory-full nodes and spin; a spun cell is a disclosed loss, never dropped.
 
 ## Record (newest first)
 
+- 2026-09-20 (night) — **Gate read (848 arms; 13/16 jb2 gnnedge0, 14/16 jb2 mpoff, 16/16
+  v1-uncapped — the 3 gnnedge0 seeds safe-stopped at the trainer's end-of-run write are absent,
+  reads disclosed on the complete checkpoints).** Per-task elapsed medians (s), best first:
+  CD greedy **6.14**, v1-uncapped gnnedge0 6.97, **jb2 gnnedge0 7.05**, jb2 mpoff 7.45, x2 7.79,
+  1-pass greedy 8.04, immediate rule 8.09, reactive 11.59, random 13.61.
+
+  | read | verdict | median | p | ahead |
+  |---|---|---|---|---|
+  | K1 jb2 gnnedge0 vs 1-pass greedy | `GRAPH-BEATS-GREEDY` | −11.90 % | 0.0015 | 13/13 |
+  | K2 jb2 gnnedge0 vs CD greedy | `CD-FASTER-THAN-GRAPH` | +12.48 % | 0.0015 | 0/13 |
+  | K3 jb2 gnnedge0 vs reactive | `ARM-BEATS-REACTIVE` | −34.67 % | 0.0015 | 13/13 |
+  | K4 jb2 gnnedge0 vs mpoff twin | `NOT-SEPARATED` | −4.44 % | 0.0033 | 11/11 |
+  | K5 jb2 vs v1-uncapped | `CORPUS-NEUTRAL-BEYOND-UNCAPPING` | −3.88 % | 0.0015 | 13/13 |
+  | K6 v1-uncapped vs 1-pass greedy | `UNCAPPING-ALONE-BEATS-GREEDY` | −8.81 % | 0.0004 | 16/16 |
+  | K7 CD vs 1-pass greedy [env] | `CD-BEATS-1PASS` | −22.84 % | 0.0004 | 16/16 |
+  | K8 x2 vs 1-pass greedy [env] | `MORE-COLOCATION-NEUTRAL` | −2.04 % | 0.0027 | 12/16 |
+
+  **Outcome vs the pre-signed consequences: the "K1 fires, K2 does not" branch, sharpened by K6+K5.**
+  The paper claim stands as signed — *matched seat + served-distribution corpus keeping the loaded
+  states: a learned decoder beats the one-pass physics greedy in its own seat; a 3-pass coordinate
+  descent on the same score beats both.* K6 firing and K5 reading NEUTRAL localise the v1 deficit to
+  the **serving cap**, not the corpus: serving the existing v1 checkpoint uncapped already clears the
+  1-pass greedy, and rebuilding the corpus to keep the loaded states buys nothing beyond that. K4
+  under the bar keeps the model-class question a tie (this is a win over the baselines, not over the
+  MLP). K9 composite printed `UNREADABLE` — a bookkeeping artifact of the disclosed-fallback path
+  (it reads the pre-fallback primary verdict); the substance is `GNN-BEATS-GREEDY`, not `-CD`.
+  CD remains the ceiling → [`rollout_imitation_v1`](../../LINEAGES.md) is the pre-signed next lever.
+  Gate driven by a local throttle loop (`MaxSubmitJobs = 50`; the login-node reaper kills a detached
+  submitter, so the refill loop must run off-cluster); read by
+  `scripts_cosim/joint_burst_v2_gate_read.py` → `simulation_data/joint_burst_v2/read.json`.
 - 2026-09-20 — Registered; step-0 diagnostics measured (above). Corpus built (2,038 + 480);
   cache and training launched. Apparatus: `make_warm_corpus.py --no-cap-filter`,
   `src/policy/peer_greedy_network/scheduler.py::PeerGreedyNetworkCDScheduler`, the
