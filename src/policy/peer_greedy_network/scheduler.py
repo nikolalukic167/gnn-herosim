@@ -109,10 +109,11 @@ class _PeerGreedyCore:
         if self.exchange_on:
             _require_peer_physics(self._policy_label)
 
-    def _pg_capture(self, task_id: int, candidates) -> None:
+    def _pg_capture(self, task_id: int, candidate_feature_rows) -> None:
+        """Append one decision. `candidate_feature_rows` are pre-formatted rows built in _pg_choose:
+        [node_id, plat_id, node_name, plat_str, drain, cold, exec, latency, exchange]."""
         import json as _json
-        rec = {"task_id": task_id,
-               "candidates": [[int(n.id), int(p.id), n.node_name, str(p.id)] for n, p in candidates]}
+        rec = {"task_id": task_id, "candidates": candidate_feature_rows}
         with open(self._pg_capture_path, "a") as fh:
             fh.write(_json.dumps(rec) + "\n")
 
