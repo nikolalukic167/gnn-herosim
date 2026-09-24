@@ -43,24 +43,20 @@ objective instead.
 
 **Where the research question stands (rewritten 2026-09-24).**
 
-**The bar is a hand rule** (`selfpredict_bar_v1`): the peer-greedy rule plus a price for each
-unarrived partner at the node the rule would give it now beats healthy reactive Knative
-**−19.4 % / −21.4 %** (16/16), the old rule −6.2 / −8.5 % and the CD greedy −7.8 / −8.9 %. **One learned
-arm beats the one-pass greedy in its own decoder seat** — trained on exactly the decision it is served and
-served UNCAPPED (`joint_burst_v2`): `gnnedge0` beats the one-pass greedy −11.9 % (13/13), reactive
-−34.7 %, random ~−48 %. **This is the first learned win over a rule with the model's own
-information in the programme.** The `joint_burst_v1` loss to that greedy (+16.8 %) was a **serving
-cap**, not the model or the corpus. **The remaining ceiling is a multi-pass coordinate-descent
-greedy (+12.5 % ahead of the arm);** its lever `rollout_imitation_v1` is now **CLOSED
-`RULE-FASTER-LIVE`** — a learned scorer beats it −12.7 % OFFLINE (held-out) but is +14–28 % SLOWER
-live (R2 FAILS, 0/16 C40), an offline/live reversal. **No learned arm beats the rule live.** The
-uncapped arm ties its MP-OFF twin (K4 −4.5 %, 189/206), both COMPETENT: the twin co-locates as
-well; the residual is queue, not exchange. **The served GNN never sees a partner outside its
-batch**, and the one graph-specific lever left — lookahead over unarrived partners — is **CLOSED
-`HAND-COORDINATION-RECOVERS`** (`lookahead_mp_v1`): an oracle knowing where they run beats the rule
-−6.6 % / −8.2 % live, but a hand rule predicting each unarrived partner's node as the rule's own
-choice for it (`peer_greedy_selfpredict_network`) beats the rule −6.2 % / −8.5 % (15/16, 16/16) and
-gets 93–95 % of the oracle's gain. **That self-predict rule is the new bar for any learned arm.**
+**The bar is a hand rule, and in one seat a learned arm clears it.** Per arrival, the self-predict
+rule (`selfpredict_bar_v1`: the peer-greedy rule plus a price for each unarrived partner at the node
+the rule would give it now) beats healthy reactive Knative **−19.4 % / −21.4 %** (16/16), the old rule
+−6.2 / −8.5 % and the CD greedy −7.8 / −8.9 %; every learned arm served per arrival loses to the old rule. **In the
+burst seat, uncapped `gnnedge0` beats it −7.25 % (13/13 checkpoints; `selfpredict_burst_v1`)** — thin
+(9/16 environments ahead, ~4 independent topologies) and **not a message-passing win** (it ties its
+MP-OFF twin there, `joint_burst_v2` K4 −4.4 %). **The ceiling in that seat is the coordinate-descent
+greedy**, ahead of `gnnedge0` +12.5 % and of self-predict +21.3 %. `gnnedge0` got there by training on
+exactly the served decision and serving UNCAPPED (`joint_burst_v2`: −11.9 % vs the one-pass greedy;
+v1's +16.8 % loss was the serving cap). The lever to reach CD, `rollout_imitation_v1`, **CLOSED
+`RULE-FASTER-LIVE`**: −12.7 % offline, +14–28 % slower live. **The served GNN never sees a partner
+outside its batch**, and the one graph-specific lever left, lookahead over unarrived partners, **CLOSED
+`HAND-COORDINATION-RECOVERS`** (`lookahead_mp_v1`): the self-predict rule gets 93–95 % of an oracle's
+−6.6 / −8.2 %.
 
 - **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
   queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no

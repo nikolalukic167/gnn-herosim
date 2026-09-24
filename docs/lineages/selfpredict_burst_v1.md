@@ -1,10 +1,23 @@
 # selfpredict_burst_v1 — does gnnedge0's burst-seat win survive the self-predict rule?
 
-**Status:** `REGISTERED` (2026-09-24; amended the same day before post-fix data — rerun at the
-simulator-fix commit). Every bar below was signed before its data. Triggered by
-`selfpredict_bar_v1` closing `BAR=SELFPREDICT` on the unburst rungs, where no learned arm was in the gate.
+**Status:** `CLOSED` (2026-09-24) — **GNN-BEATS-SELFPREDICT; BURST-SEAT BAR = CD**. Registered 2026-09-24,
+amended the same day before post-fix data (rerun at the simulator-fix commit); every bar below was signed
+before its data.
 
-**Outcome.** Not yet run.
+**Outcome (2026-09-24).** In the burst seat, uncapped `gnnedge0` (`joint_burst_v2`, 13 checkpoints) **beats the
+self-predict rule −7.25 % (13/13 checkpoints, p = 0.0015)** — the programme's best per-arrival hand rule —
+while the **CD greedy stays ahead of both**: self-predict +21.3 % behind CD (0/16), `gnnedge0` +12.48 % behind
+(reproduced to the digit). Self-predict beats the 1-pass greedy −7.7 % (13/16), the immediate rule −13.2 %,
+Knative −33.0 %. 304 fresh runs at `d07518e`, 16 `joint_burst_v1` burst environments, C40, 6 servers.
+
+Caveats a reader must not quote without. **Not a message-passing win:** `gnnedge0` ties its MP-OFF twin in
+this seat (`joint_burst_v2` K4 −4.4 %). **Thin and clustered:** the rule is broadcast over checkpoints, so 13/13
+reads sign-consistency of one per-environment profile; per environment `gnnedge0` is ahead by > 5 % on 9 of 16
+(all of topologies 9101 and 9116, plus 9106 w0 where self-predict saturates at 52.7 s/task), within ±2 % on 6
+(9106 w1–3, 9114 w1–3) and behind +12.6 % on 9114 w0; windows w1–w3 of one topology behave alike, so this is
+closer to 4 settings than 16. Disclosed environment-unit read: −7.2 %, p = 0.025 (11/16); without the saturated
+cell −6.7 %, p = 0.045. **Seat:** the rule runs per arrival, `gnnedge0` and CD in the batched peer-group seat,
+where a burst's whole group is decoded together. A **direction**, not a magnitude.
 
 **Parents:** [`joint_burst_v2`](joint_burst_v2.md) (uncapped `gnnedge0` beats the 1-pass greedy in the
 burst seat −11.9 %, 13/13, loses to the CD greedy +12.5 %),
@@ -72,6 +85,26 @@ is deterministic and the served paths are unchanged).
 - Reader: `scripts_cosim/selfpredict_burst_v1_read.py` → `simulation_data/selfpredict_burst_v1/read.json`.
 
 ## Record (newest first)
+
+- 2026-09-24 — **CLOSED `GNN-BEATS-SELFPREDICT`, burst-seat bar CD.** Jobs 805536 / 805584 / 805633 / 805692 /
+  805742 / 805791 / 805841, 304/304 summaries at `d07518e` (`results/selfpredict_burst_v1_gate_r2`).
+  Transcript: `selfpredict_burst_v1/read_2026-09-24.txt` (+ `.json`).
+
+  | read | verdict | median | p | ahead |
+  |---|---|---|---|---|
+  | **S1** `gnnedge0` vs self-predict (ckpt) | `GRAPH-BEATS-SELFPREDICT` | −7.25 % | 0.0015 | 13/13 |
+  | **S2** self-predict vs CD (env) | `CD-FASTER` | +21.33 % | 0.0004 | 0/16 |
+  | S3 self-predict vs 1-pass greedy (env) | `SELFPREDICT-BEATS-1PASS` | −7.70 % | 0.013 | 13/16 |
+  | R `gnnedge0` vs 1-pass / vs CD | reproduced | −11.90 % / +12.48 % | | 13/13 / 0/13 |
+  | — self-predict vs immediate / Knative / random | beats | −13.2 / −33.0 / −42.8 % | 0.007 | 15/16 |
+
+  Median elapsed s/task: CD 6.14, `gnnedge0` 7.05, self-predict 7.34, 1-pass 8.04, immediate 8.09, Knative
+  11.13, random 13.70. Self-predict vs CD per task: queue +1.10 s, exchange +0.05 s — CD's edge is queue.
+  Self-predict's one blow-up is 9106 w0 (52.71 s, queue 49.6 s; the 1-pass greedy also saturates there at
+  44.16 s, the immediate rule 5.05 s). **Neutrality of the fix:** every non-random cell is identical to the
+  digit — 287/287 against the pre-fix `e728fbe` run, 256/256 against the `joint_burst_v2` gate;
+  `random_network` differs run-to-run in all 16 cells across all three runs (unseeded, independent of the
+  fix; it enters only a disclosed read). Registered expectation for S1 was `GRAPH-BEATS-SELFPREDICT` 25 %.
 
 - 2026-09-24 — **Amendment, signed before any post-fix data: the gate reruns in full at the fix
   commit.** The first run (`e728fbe`, jobs 805182–805478) completed 303 of 304 cells; cc40s9101 w0

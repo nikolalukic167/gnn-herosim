@@ -17,7 +17,8 @@ simulation is deterministic, so B2 re-running P0b to the digit confirms the code
 variability. The CD greedy is a batched seat: the self-predict rule wins by skipping its 7.1 s
 wait while paying ~3.4 s more queue and ~2.5 s more rendezvous per task, so B3 compares served
 policies, not scoring functions — and at C40 it does not separate on the sign test. Every learned
-arm in the record loses to the old rule live, so none is within reach of this bar.
+arm in the record loses to the old rule live, so none is within reach of this bar **per arrival**; in the burst
+seat uncapped `gnnedge0` beats this rule −7.25 % (thin, not an MP win; [`selfpredict_burst_v1`](selfpredict_burst_v1.md)).
 
 ## Bars (signed 2026-09-24, before any data)
 
