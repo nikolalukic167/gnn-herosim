@@ -242,3 +242,6 @@ simulation_data/separability_sparse_warmth_n150.json
 simulation_data/separability_sparse_warmth_n150_spread.json
 simulation_data/separability_warmth_1060_n150.json
 simulation_data/separability_warmth_1060_n150_spread.json
+
+# Professor summary build (figures, data copies, LaTeX outputs) — kept locally, not in git.
+paper/professor_summary/
