@@ -83,5 +83,14 @@ separated 65 %, self-predict faster 15 %. F3: not separated 70 %. CD ahead of ev
 
 ## Record (newest first)
 
+- 2026-09-24 — **Amendment A1 (screen only), signed before any screen result was read.** The first
+  screen attempt (1800 s timeout, 12 parallel) finished 10/384 runs in 12 min: every slot was held by
+  reactive runs on old-pool cells (9001 w1, 9002 w1–w3, 9005, 9102, 9103) spinning at 100 % CPU with
+  flat ~0.8 GB memory, i.e. the known starved-client spin, not the fixed stranding bug. These same
+  cells had no reactive result in the pre-fix screen either. The screen now uses a **600 s timeout
+  and 20 parallel runs**. A normal screen run takes ~60 s. A run that would finish between 600 and
+  1800 s is saturated far past the 0.80 queue-share filter, so the admission rule is unchanged: a
+  timed-out run is still a failure, and unknown is not a pass. The 10 finished summaries are kept.
+  **The gate keeps its 1800 s timeout.**
 - 2026-09-24 — **Registered.** Inputs md5-verified against datalab; mint determinism and venue
   parity (4/4 to the digit) checked; reader tested on the old-study fixture (drop rule fires).
