@@ -32,7 +32,8 @@ SEEDS = (1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 14, 15, 16)
 OLD_POOL = (9001, 9002, 9003, 9005, 9102, 9103, 9104, 9105, 9107, 9108, 9109, 9110, 9111, 9112, 9113,
             9115, 9117, 9118, 9119, 9120, 9121, 9122, 9123, 9124)
 NEW_POOL = tuple(range(9401, 9425))
-CANDIDATES = OLD_POOL + NEW_POOL
+EXT_POOL = tuple(range(9425, 9473))  # amendment A2
+CANDIDATES = OLD_POOL + NEW_POOL + EXT_POOL
 RULE_POLICY = {
     "reactive": "knative_network",
     "batched": "peer_greedy_network_batch",
@@ -64,13 +65,29 @@ def arm_name(t: Dict[str, object]) -> str:
     return f"cc40s{t['topo']}__{t['window']}__{t['kind']}_s{t['seed']}"
 
 
+def _reactive_disqualified(topo: int, out_dir: str) -> bool:
+    """Screen shortcut that cannot change admission: a failed or saturated reactive window already
+    rules the topology out, so its batch path is not run."""
+    for w in WINDOWS:
+        base = os.path.join(out_dir, f"cc40s{topo}__{w}__reactive_s0")
+        if os.path.exists(base + ".failed.json"):
+            return True
+        if os.path.exists(base + ".summary.json"):
+            share = json.load(open(base + ".summary.json")).get("queue_share")
+            if share is None or float(share) > 0.80:
+                return True
+    return False
+
+
 def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s: int) -> str:
     name = arm_name(t)
     summary = os.path.join(out_dir, name + ".summary.json")
     failed = os.path.join(out_dir, name + ".failed.json")
-    if os.path.exists(summary):
+    if os.path.exists(summary) or os.path.exists(failed):
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
+    if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
+        return f"[skip, reactive already disqualifies] {name}"
     wl_name = "burst_drainable_f4000_n50000" if window == "w0" else f"burst_drainable_{window}_n50000"
     cfg = os.path.join(inputs, "cfg", f"cc40s{t['topo']}.json")
     wl = os.path.join(inputs, "wl", wl_name + ".json")
