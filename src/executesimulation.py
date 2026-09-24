@@ -1104,6 +1104,10 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
     require_explicit_warmth_physics(descriptor)
 
     provenance: Dict[str, Any] = dict(descriptor)
+    from src.placement.exec_physics import describe_exec_physics
+
+    provenance.update(describe_exec_physics())
+    provenance["pg_exec_knowledge"] = os.environ.get("HEROSIM_PG_EXEC_KNOWLEDGE", "table") or "table"
     provenance["defer_cold_replica_init"] = space_config.get(
         "defer_cold_replica_init", _env_bool("HEROSIM_DEFER_COLD_REPLICA_INIT")
     )
