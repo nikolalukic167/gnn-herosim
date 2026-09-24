@@ -13,6 +13,8 @@
 # Two phases, because the oracle replays the rule run of the SAME environment:
 #   LA_PHASE=1  64 tasks: per rung (C40 = T<32, C80 = T>=32), 2 arms x 16 envs (rule, lookahead)
 #   LA_PHASE=2  32 tasks: per rung (C40 = T<16, C80 = T>=16), oracle x 16 envs -- after phase 1
+#   LA_PHASE=3  32 tasks: P0b, peer_greedy_selfpredict_network x 16 envs per rung (the hand
+#               coordination control: an unarrived partner's node = the rule's own argmin for it now)
 #
 # Submit (MaxSubmit = 50 counts every array task):
 #   J1=$(sbatch --parsable --array=0-47 --export=ALL,LA_PHASE=1,LA_TASK_OFFSET=0  scripts_cosim/datalab/lookahead_mp_v1_p0.sbatch)
@@ -75,7 +77,7 @@ export PYTHONHASHSEED=0
 export HEROSIM_GNN_DEVICE=cpu
 export SIM_FORCE_FULL_STATS=1
 
-PHASE=${LA_PHASE:?FAIL LOUD: set LA_PHASE=1 or 2}
+PHASE=${LA_PHASE:?FAIL LOUD: set LA_PHASE=1, 2 or 3}
 OFFSET=${LA_TASK_OFFSET:-0}
 T=$(( SLURM_ARRAY_TASK_ID + OFFSET ))
 if [[ $PHASE == 1 ]]; then
@@ -83,6 +85,9 @@ if [[ $PHASE == 1 ]]; then
   NTASKS=64; PER_RUNG=32
 elif [[ $PHASE == 2 ]]; then
   ARMS=(peer_greedy_oracle_network)
+  NTASKS=32; PER_RUNG=16
+elif [[ $PHASE == 3 ]]; then
+  ARMS=(peer_greedy_selfpredict_network)
   NTASKS=32; PER_RUNG=16
 else
   echo "FAIL LOUD: LA_PHASE=$PHASE" >&2; exit 1

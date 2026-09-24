@@ -1246,6 +1246,7 @@ def run_simulation(
         'drain_greedy_network',
         'peer_greedy_lookahead_network',
         'peer_greedy_oracle_network',
+        'peer_greedy_selfpredict_network',
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
@@ -1401,6 +1402,9 @@ def run_simulation(
             models = None
         elif policy == 'peer_greedy_oracle_network':
             scheduling_strategy = 'peer_greedy_oracle_network_peer_greedy_oracle_network'
+            models = None
+        elif policy == 'peer_greedy_selfpredict_network':
+            scheduling_strategy = 'peer_greedy_selfpredict_network_peer_greedy_selfpredict_network'
             models = None
         elif policy == 'peer_greedy_network_batch':
             scheduling_strategy = 'peer_greedy_network_batch_peer_greedy_network_batch'
@@ -1752,6 +1756,7 @@ def main():
         'drain_greedy_network',
         'peer_greedy_lookahead_network',
         'peer_greedy_oracle_network',
+        'peer_greedy_selfpredict_network',
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',

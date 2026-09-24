@@ -351,6 +351,67 @@ class PeerGreedyOracleNetworkScheduler(PeerGreedyLookaheadNetworkScheduler):
         return node_name
 
 
+class PeerGreedySelfPredictNetworkScheduler(PeerGreedyLookaheadNetworkScheduler):
+    """lookahead_mp_v1 P0b: the hand COORDINATION control. An unarrived partner's node is predicted
+    as the rule's own argmin for that partner if it arrived now -- its type and client (read from
+    its workload event), the current queues, and exchange to ITS already-known partners (this task
+    excluded: its node is what is being decided). No learning, no message passing. If this recovers
+    most of the oracle's headroom, lookahead is hand-buildable here and P1 does not start.
+
+    The full event list comes from KnativeOrchestrator (pg_event_index): the gateway pops from
+    time_series.events, so the next arrival is in neither task_by_id nor the remaining list."""
+
+    _policy_label = "peer_greedy_selfpredict_network"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pg_event_index = None
+        self._pg_state = None
+        self._pg_memo: Dict[str, float] = {}
+
+    def placement(self, system_state: SystemState, task: "Task") -> Generator:
+        self._pg_state = system_state
+        self._pg_memo = {}
+        return (yield from super().placement(system_state, task))
+
+    def _pg_predict_node(self, task: "Task", orch, peer_id: int,
+                         planned: Dict[int, str]) -> Optional[str]:
+        from types import SimpleNamespace
+
+        if self.pg_event_index is None or self._pg_state is None:
+            raise RuntimeError(
+                "FAIL LOUD: peer_greedy_selfpredict_network has no event index / system state; "
+                "it must run under KnativeOrchestrator"
+            )
+        event = self.pg_event_index[int(peer_id)]
+        (function_name,) = tuple(event["application"]["dag"])
+        task_type = orch.data.task_types[function_name]
+        partner = SimpleNamespace(id=int(peer_id), type=task_type, node_name=event["node_name"])
+        valid = self._get_valid_replicas(self._pg_state.replicas.get(task_type["name"]) or set(), partner)
+        if not valid:
+            return None
+        candidates = [r for r in valid if r[1].initialized.triggered] or valid
+        known: List[Tuple[str, float]] = []
+        for q, b in sorted(((getattr(orch, "peer_exchange", None) or {}).get(int(peer_id)) or {}).items()):
+            if int(q) == int(task.id):
+                continue
+            node_name = self._pg_node_of(orch, int(q), planned)
+            if node_name is not None:
+                known.append((node_name, float(b)))
+        best = None
+        for node, platform in candidates:
+            plat_type = platform.type["shortName"]
+            score = (platform_queue_drain_seconds(platform, orch, self._pg_memo)
+                     + incoming_cold_start_time(partner, platform)
+                     + float(task_type["executionTime"].get(plat_type, 0.0) or 0.0)
+                     + network_latency_between(partner.node_name, node, self.nodes.items)
+                     + self.pg_exchange_scale * self._pg_exchange_seconds(node, platform, known))
+            key = (score, node.id, platform.id)
+            if best is None or key < best[0]:
+                best = (key, node.node_name)
+        return best[1]
+
+
 class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
     """rollout_imitation_v1: the immediate rule's candidate set and score-term features, but the
     candidate is chosen by a LEARNED scorer -- an MLP over the rule's own terms

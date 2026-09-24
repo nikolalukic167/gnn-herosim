@@ -38,6 +38,10 @@ class KnativeOrchestrator(Orchestrator):
         fp = self.infrastructure.get("forced_placements") if isinstance(self.infrastructure, dict) else None
         if fp and hasattr(self.scheduler, "forced_placements"):
             self.scheduler.forced_placements = fp
+        # lookahead_mp_v1 P0b: a scheduler that predicts unarrived partners needs the FULL event
+        # list; the gateway pops from time_series.events, so hand over a shallow copy now.
+        if hasattr(self.scheduler, "pg_event_index"):
+            self.scheduler.pg_event_index = list(self.time_series.events)
 
     def initialize_state(self) -> KnativeSystemState:
         scheduler_state = KnativeSchedulerState(
