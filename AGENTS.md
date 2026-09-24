@@ -54,9 +54,11 @@ greedy (+12.5 % ahead of the arm);** its lever `rollout_imitation_v1` is now **C
 live (R2 FAILS, 0/16 C40), an offline/live reversal. **No learned arm beats the rule live.** The
 uncapped arm ties its MP-OFF twin (K4 −4.5 %, 189/206), both COMPETENT: the twin co-locates as
 well; the residual is queue, not exchange. **The served GNN never sees a partner outside its
-batch**, so unarrived-partner lookahead is untested; `lookahead_mp_v1` P0 (live): an oracle knowing where
-they run beats the rule −6.6 % / −8.2 % (15/16 each); a two-step hand guess gets 2–7 % of it. The
-oracle may be *coordination* rather than prediction, so a hand convention (P0b) is tested first.
+batch**, and the one graph-specific lever left — lookahead over unarrived partners — is **CLOSED
+`HAND-COORDINATION-RECOVERS`** (`lookahead_mp_v1`): an oracle knowing where they run beats the rule
+−6.6 % / −8.2 % live, but a hand rule predicting each unarrived partner's node as the rule's own
+choice for it (`peer_greedy_selfpredict_network`) beats the rule −6.2 % / −8.5 % (15/16, 16/16) and
+gets 93–95 % of the oracle's gain. **That self-predict rule is the new bar for any learned arm.**
 
 - **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
   queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no

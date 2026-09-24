@@ -1,20 +1,25 @@
 # lookahead_mp_v1 — can message passing earn its keep on partners that have not arrived?
 
-**Status:** `ACTIVE` (2026-09-24) — P0 (live headroom gate) READ: **`GO-P1`**. P1–P4 registered in
-outline, to be signed in full before P1 starts; a hand-coordination control (P0b) is proposed first.
-Triggered by `joint_burst_v2`'s K4 tie and the 2026-09-24 reads recorded below.
+**Status:** `CLOSED` (2026-09-24) — **HAND-COORDINATION-RECOVERS**. Registered 2026-09-24; the P0
+and P0b bars were signed before their data; P1–P4 (representation, corpus, GNN arms) never started.
 
-**Standing answer (2026-09-24): there IS live headroom in pricing partners that have not
-arrived, and the obvious hand guess does not reach it.** The question is the one CLAUDE.md asks —
-does a graph-aware scheduler beat its pointwise twin — narrowed to the one mechanism that is
-graph-specific and was never testable here: pricing unarrived partners. P0 (live, 16 + 16
-environments, all 96 runs on `e62945b`): an oracle that knows where each unarrived partner ran
-beats the rule **−6.56 % (C40, 15/16, p=0.0005) and −8.18 % (C80, 15/16, p=0.0005)** — `HEADROOM`
-on both rungs, `GO-P1`. The two-step hand guess recovers **2 % / 7 %** of that (−0.11 % / −0.48 %,
-not separated): 43 % of unarrived partners have no placed partner to guess from. **Not yet a GNN
-result:** the oracle's gain may be *coordination* (every group converging on the same nodes) as
-much as *prediction*, and a hand convention could capture coordination without learning — the
-`mlp_t1x` pattern. P0b tests exactly that before P1's representation work is spent.
+**Outcome (2026-09-24).** Pricing partners that have not arrived yet is **real live headroom, and
+it is hand-buildable — it is not a message-passing lever.** P0: an oracle that knows where each
+unarrived partner runs beats the peer-greedy rule **−6.56 % (C40, 15/16) / −8.18 % (C80, 15/16)**.
+P0b: a hand rule with no learning, `peer_greedy_selfpredict_network` — predict an unarrived
+partner's node as the rule's own argmin for it if it arrived now — beats the rule **−6.19 % (15/16) /
+−8.53 % (16/16)** and recovers **95 % / 93 %** of the oracle's gain (within 0.4 % of the oracle). The
+gain is *coordination* (group members converging on the nodes they will each pick), which the
+rule can compute for itself; a two-step guess from placed partners-of-partners gets only 2–7 %.
+So P1's representation work and the GNN arms do not start, and **the programme's bar moves: the
+self-predict rule is now the best hand rule, and a learned arm must beat it, not
+`peer_greedy_network`.**
+
+Caveats a reader must not quote without: 6 servers, 0.460393 arrivals/s, the 16 + 16
+`unsaturated_edge_v1` environments, per-arrival seat. Reactive Knative, random and the CD greedy
+(a batched seat) were not in this gate, so the self-predict rule's margin over Knative is not
+measured here; the rule's own −13 % / −16 % over Knative is `peer_greedy_live_v1`'s. Oracle and
+P0b are single draws of a deterministic simulation per environment.
 
 ## Why this lineage exists — the measured facts it rests on (2026-09-24)
 
@@ -103,6 +108,20 @@ Odds stated at registration: ~15–25 % that P4 opens a gap surviving both contr
 - Reader: `scripts_cosim/lookahead_mp_v1_p0_read.py` → `simulation_data/lookahead_mp_v1/p0_read.json`.
 
 ## Record (newest first)
+
+- 2026-09-24 — **P0b READ: `STOP-P1 (HAND-COORDINATION-RECOVERS)` — CLOSED.** Job 804387 (32/32,
+  code `e72e0e6`), paired against the P0 rule and oracle runs (`e62945b`; the reader reproduces the
+  committed P0 transcript exactly, so those arms are unchanged). Transcript:
+  `lookahead_mp_v1/p0b_read_2026-09-24.txt` (+ `.json`). S1 self-predict vs rule **−6.19 % C40
+  (15/16, p=0.0005), −8.53 % C80 (16/16, p<0.0001) → `COORD-BEATS-RULE`**; `recovered_b` **0.95 /
+  0.93** (bar 0.80 on every HEADROOM rung) → `STOP-P1`. Self-predict vs oracle +0.42 % (3/16) /
+  +0.37 % (5/16). Mechanism (self-predict − rule, per task): queue −0.46 / −0.68 s, exchange −0.61 /
+  −0.68 s, rendezvous +0.10 / +0.09 s — the oracle's own profile. Smoke run (3,000-event prefix) had
+  already put self-predict on the oracle (exchange 1.457 vs 1.458 s/task), direction only.
+  **What it closes:** lookahead over unarrived partners as a message-passing-specific lever at this
+  physics (filed in `docs/hard-stops.md`). **What it unblocks:** `peer_greedy_selfpredict_network` is
+  the new hand-rule bar for any learned arm at these rungs. Transferable rule filed in
+  `docs/lessons.md` ("An oracle's headroom is not a learner's headroom").
 
 - 2026-09-24 — **P0 READ: `GO-P1` — live headroom on both rungs; the two-step hand guess does not
   reach it.** Jobs 804235 / 804285 (phase 1, rule + two-step) and 804330 (phase 2, oracle), 96/96

@@ -236,3 +236,21 @@ rule (`peer_greedy_network`), served in the same configuration. A learned arm th
 it has learned less than a greedy on the physics it was trained to approximate. The no-wait
 decoder (the "untried lever" above) is now worth building only against that bar, and G5 says
 removing the wait is worth ~8 % on top of whatever it learns.
+
+## Unarrived-partner lookahead as a message-passing lever (2026-09-24)
+
+**Direction:** "a GNN that also sees partners not yet arrived can beat its pointwise twin — the
+served graph never contains an out-of-batch partner, so friend-of-friend lookahead is the one
+graph-specific mechanism never tested here."
+
+**What closed it** (`lookahead_mp_v1`, live, the 16 + 16 `unsaturated_edge_v1` environments,
+per-arrival seat): the headroom is real — an oracle knowing each unarrived partner's realised node
+beats `peer_greedy_network` −6.56 % / −8.18 % (15/16 each) — but a hand rule with no learning,
+`peer_greedy_selfpredict_network` (the partner's node = the rule's own argmin for it now), beats the
+rule −6.19 % / −8.53 % and recovers 95 % / 93 % of the oracle's gain. The gain is coordination the
+rule can compute for itself, not prediction a graph must learn.
+
+**Do not restart** a lookahead-for-message-passing lineage (out-of-batch partner nodes in the
+served graph, horizon-aware peer labels) at this physics without a mechanism the self-predict rule
+cannot express. The bar for any learned placement at these rungs is now
+`peer_greedy_selfpredict_network`, not `peer_greedy_network`.

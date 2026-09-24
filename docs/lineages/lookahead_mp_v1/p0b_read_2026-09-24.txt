@@ -1,0 +1,30 @@
+=== lookahead_mp_v1 P0 LIVE HEADROOM GATE ===
+
+-- C40 (envs: {'peer_greedy_lookahead_network': 16, 'peer_greedy_network': 16, 'peer_greedy_oracle_network': 16}) --
+  H1 oracle vs rule        n=16 median=  -6.56% faster=15/16 p=0.0005 -> HEADROOM
+  H2 lookahead vs rule     n=16 median=  -0.11% faster=9/16 p=0.8036 -> NOT-SEPARATED  recovered=0.02
+  oracle vs lookahead      n=16 median=  -6.92% faster=16/16 p=0.0000
+  [oracle - rule] queue -0.489s/task  exch -0.585s/task  rendez +0.111s/task
+  [lookahead - rule] queue +0.341s/task  exch -0.137s/task  rendez -0.150s/task
+  S1 selfpredict vs rule   n=16 median=  -6.19% faster=15/16 p=0.0005 -> COORD-BEATS-RULE  recovered_b=0.95
+  selfpredict vs oracle    n=16 median=  +0.42% faster=3/16 p=0.0213
+  [selfpredict - rule] averageQueueTime -0.458  totalPeerExchangeTime -0.605  totalPeerRendezvousWait +0.104
+  counters peer_greedy_network            {'pg_joined_partner': 20632.5, 'pg_moved_by_exchange': 7982.0, 'pg_lookahead_priced': 0.0, 'pg_lookahead_blind': 0.0}
+  counters peer_greedy_lookahead_network  {'pg_joined_partner': 26198.5, 'pg_moved_by_exchange': 10027.0, 'pg_lookahead_priced': 50477.0, 'pg_lookahead_blind': 38380.0}
+  counters peer_greedy_oracle_network     {'pg_joined_partner': 36667.5, 'pg_moved_by_exchange': 11230.5, 'pg_lookahead_priced': 88894.5, 'pg_lookahead_blind': 0.0}
+
+-- C80 (envs: {'peer_greedy_lookahead_network': 16, 'peer_greedy_network': 16, 'peer_greedy_oracle_network': 16}) --
+  H1 oracle vs rule        n=16 median=  -8.18% faster=15/16 p=0.0005 -> HEADROOM
+  H2 lookahead vs rule     n=16 median=  -0.48% faster=8/16 p=1.0000 -> NOT-SEPARATED  recovered=0.07
+  oracle vs lookahead      n=16 median=  -7.58% faster=16/16 p=0.0000
+  [oracle - rule] queue -0.719s/task  exch -0.737s/task  rendez +0.086s/task
+  [lookahead - rule] queue +0.208s/task  exch -0.172s/task  rendez -0.088s/task
+  S1 selfpredict vs rule   n=16 median=  -8.53% faster=16/16 p=0.0000 -> COORD-BEATS-RULE  recovered_b=0.93
+  selfpredict vs oracle    n=16 median=  +0.37% faster=5/16 p=0.2101
+  [selfpredict - rule] averageQueueTime -0.680  totalPeerExchangeTime -0.683  totalPeerRendezvousWait +0.092
+  counters peer_greedy_network            {'pg_joined_partner': 21425.5, 'pg_moved_by_exchange': 8329.5, 'pg_lookahead_priced': 0.0, 'pg_lookahead_blind': 0.0}
+  counters peer_greedy_lookahead_network  {'pg_joined_partner': 26639.5, 'pg_moved_by_exchange': 10828.5, 'pg_lookahead_priced': 50477.0, 'pg_lookahead_blind': 38380.0}
+  counters peer_greedy_oracle_network     {'pg_joined_partner': 36839.0, 'pg_moved_by_exchange': 12357.5, 'pg_lookahead_priced': 88894.5, 'pg_lookahead_blind': 0.0}
+
+P0 VERDICT: GO-P1  (HEADROOM on ['C40', 'C80'])
+P1 VERDICT (P0b): STOP-P1 (HAND-COORDINATION-RECOVERS)  recovered_b on HEADROOM rungs = [0.95, 0.927]
