@@ -65,6 +65,39 @@ decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training 
 
 ## Record (newest first)
 
+- 2026-09-21 — **POST-CLOSE ADDENDUM (does not change the CLOSED / `RULE-FASTER-LIVE` verdict):
+  where the +28.3 % live loss lives, from a zero-simulation re-read of the gate summaries.** The
+  gate summariser already persisted the RTT decomposition (`averageQueueTime`, `totalPeerExchangeTime`,
+  `totalPeerRendezvousWait`, `schedulerCounters`) per env; the reader (`rollout_imitation_v1_gate_read.py`)
+  discarded all but `total_rtt`. Widened `METRICS` + a per-arm decode profile + per-env table (headline
+  verdicts reproduce byte-identically → `simulation_data/rollout_imitation_v1/gate_read_decomp.json`),
+  re-read the datalab summaries (no re-sim). **Instrument correction first:** the profile's
+  `co_location_rate = 0.000` for the learned arm is an INSTRUMENT GAP, not behaviour — the learned
+  `_pg_choose` override (`peer_greedy_network/scheduler.py:320`) increments only `pg_decisions`; the
+  rule's `pg_joined_partner`/`pg_moved_by_exchange` live in `_PeerGreedyCore._pg_choose:203-208`, which
+  the override replaces. Do NOT read it as "never co-locates". **What is real** (paired learned−rule
+  median absolute, from the sim's own accounting, n=16): at C40 elapsed **+3.96 s/task**, of which
+  **queue +2.83 s (~71 %)** and **peer-exchange +1.37 s/task (~35 %)**, partly offset by rendezvous
+  −0.49 s; C80 same shape, smaller (elapsed +2.17, queue +1.56, exchange +0.59) — **worse at the
+  LIGHTER rung**, a feature-range signature, not a fixed overhead. Scheduler wait 0.000 s confirms it
+  is NOT a serving-latency effect (`total_rtt` excludes inference by construction,
+  `executesimulation.py:1046`). **The co-location deficit is corroborated independently of the broken
+  counter:** the learned arm's absolute peer-exchange time sits at the NO-co-location floor (C40
+  learned 265,928 s ≈ reactive 262,182 s), while the rule cuts it to 195,438 s and CD to 157,700 s —
+  the scorer captured essentially none of the co-location benefit that is the rule's entire edge,
+  despite `exchange` being one of its five input features. **Two hypotheses held open** (the next
+  lineage's bar should distinguish them, not assume the first): (1) a training-TARGET problem — CE
+  toward a single argmin label rewards exact-match, not "got the exchange trade-off directionally
+  right", so a margin-relevant feature ends up underweighted; (2) queue-drain and exchange are in
+  TENSION (draining fast spreads tasks out; saving exchange concentrates them), and the model took the
+  locally-sensible loss minimum on the dominant term (queue, 71 %) at the cost of the smaller one
+  (exchange, 35 %) — which would mean label-weighting alone is insufficient and the signal must encode
+  the multi-objective trade-off. **Code:** restored `pg_joined_partner` (exact) to the learned
+  `_pg_choose` for a direct behavioural readout on the NEXT run (needs a re-sim; the scorer is
+  cluster-only, so not exercised locally beyond parse/import + an isolated arithmetic check);
+  deliberately did NOT restore `pg_moved_by_exchange` — the rule's version ablates an ADDITIVE term,
+  an MLP has none, and neutralising the exchange feature perturbs a nonlinear input that flips the
+  argmin even when exchange is constant across candidates (verified), so it has no honest analog.
 - 2026-09-21 — **Cross-study paired table: the older `gnnedge0` beats the rollout arm in EVERY cell,
   and no learned arm beats the rule OFF the burst regime.** To make the rollout arm and
   `joint_burst_v2` `gnnedge0` directly subtractable (they had never been run on the same
