@@ -83,6 +83,14 @@ separated 65 %, self-predict faster 15 %. F3: not separated 70 %. CD ahead of ev
 
 ## Record (newest first)
 
+- 2026-09-24 17:01 — **Amendment A2 (contingency), signed while 7 candidates' batch-path runs were
+  still unread.** At this point 1 topology had qualified (9119) and 7 new cells had passed reactive on
+  all windows, with their batch path pending; the other 40 candidates were out. Most old-pool cells spin
+  even after the fix. If the screen ends with fewer than 12 qualified, the pool extends with **48
+  newly minted cells, 9425–9472** (same base, same generator, range checked unused), screened under
+  the same rule and A1's timeout. The study is still the 12 lowest qualified ids of the combined pool,
+  and fewer than 8 after the extension is final `DESIGN-SHORT`. The extension runs to reach 12, not
+  just 8, so a single gate-time drop cannot sink the design.
 - 2026-09-24 — **Amendment A1 (screen only), signed before any screen result was read.** The first
   screen attempt (1800 s timeout, 12 parallel) finished 10/384 runs in 12 min: every slot was held by
   reactive runs on old-pool cells (9001 w1, 9002 w1–w3, 9005, 9102, 9103) spinning at 100 % CPU with
