@@ -726,6 +726,7 @@ class Platform:
 
         self.previous_task: Task | None = None
         self.current_task: Task | None = None
+        self.executing: bool = False
         self.idle_since: SimTime = math.inf
 
         self.last_allocated: SimTime = math.inf
@@ -1145,6 +1146,19 @@ class Platform:
             events.append(ready(peer_id))
         return events
 
+    def _execute(self, task: "Task", nominal: SimTime):
+        from src.placement.exec_physics import realized_factor
+
+        factor = realized_factor(self, int(task.id))
+        duration = nominal * factor
+        task.exec_factor = factor
+        self.executing = True
+        try:
+            yield self.env.timeout(duration)
+        finally:
+            self.executing = False
+        return duration
+
     def _peer_exchange_time(self, task: "Task") -> SimTime:
         """peer_affinity_v1: cost of exchanging state with this task's peers.
 
@@ -1551,9 +1565,9 @@ class Platform:
                     contention_wait = self.env.now - contention_start
                     task.node_contention_time = contention_wait
                     self.node.contention_time += contention_wait
-                    yield self.env.timeout(task_duration)
+                    task_duration = yield from self._execute(task, task_duration)
             else:
-                yield self.env.timeout(task_duration)
+                task_duration = yield from self._execute(task, task_duration)
             task.execution_time = task_duration
 
             # Store output data
