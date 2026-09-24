@@ -43,8 +43,10 @@ objective instead.
 
 **Where the research question stands (rewritten 2026-09-24).**
 
-**A two-line rule beats healthy reactive Knative by 13–16 % without waiting. One learned arm now
-beats that rule in its own decoder seat** — trained on exactly the decision it is served and
+**The bar is a hand rule** (`selfpredict_bar_v1`): the peer-greedy rule plus a price for each
+unarrived partner at the node the rule would give it now beats healthy reactive Knative
+**−19.4 % / −21.4 %** (16/16), the old rule −6.2 / −8.5 % and the CD greedy −7.8 / −8.9 %. **One learned
+arm beats the one-pass greedy in its own decoder seat** — trained on exactly the decision it is served and
 served UNCAPPED (`joint_burst_v2`): `gnnedge0` beats the one-pass greedy −11.9 % (13/13), reactive
 −34.7 %, random ~−48 %. **This is the first learned win over a rule with the model's own
 information in the programme.** The `joint_burst_v1` loss to that greedy (+16.8 %) was a **serving
