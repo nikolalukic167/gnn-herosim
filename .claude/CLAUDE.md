@@ -39,7 +39,7 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-09-21).**
+**Where the research question stands (rewritten 2026-09-24).**
 
 **A two-line rule beats healthy reactive Knative by 13–16 % without waiting. One learned arm now
 beats that rule in its own decoder seat** — trained on exactly the decision it is served and
@@ -50,8 +50,10 @@ cap**, not the model or the corpus. **The remaining ceiling is a multi-pass coor
 greedy (+12.5 % ahead of the arm);** its lever `rollout_imitation_v1` is now **CLOSED
 `RULE-FASTER-LIVE`** — a learned scorer beats it −12.7 % OFFLINE (held-out) but is +14–28 % SLOWER
 live (R2 FAILS, 0/16 C40), an offline/live reversal. **No learned arm beats the rule live.** The
-uncapped arm still only
-ties its pointwise MLP twin — a win over the baselines, not yet over the pointwise control.
+uncapped arm ties its MP-OFF twin (K4 −4.5 %, 189/206), both COMPETENT: the twin co-locates as
+well; the residual is queue, not exchange. **The served GNN never sees a partner outside its
+batch**, so unarrived-partner lookahead is untested; `lookahead_mp_v1` (2026-09-24) asks first, live,
+if an oracle beats the rule ≥ 5 %.
 
 - **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
   queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no
@@ -60,7 +62,7 @@ ties its pointwise MLP twin — a win over the baselines, not yet over the point
   ties Knative, so the margin IS co-location (exchange 5.40 → 3.91 s per task and the queue
   *shorter*, 8.66 → 7.80 s). Served in `gnnedge0`'s seat (16 s peer-group batching, greedy in id
   order) it still beats `gnnedge0` −13.2 % (16/16, C80; −8.3 % disclosed at C40) and the
-  no-wait flavour beats the batched one −8.3 %. The no-wait decoder's bar is now the rule.
+  no-wait flavour beats the batched one −8.3 %.
 - **The 6-server headline was never there** (`unsaturated_edge_v1`): "gnnedge0 −20.8 % (15/16)"
   was an unpaired ratio of medians over 4 cells, 2 saturated; paired per cell +4.6 / +75.8 /
   +9.7 / −36.8 %. On 16 environments with the paired statistic: C40 `gnnedge0` +6.68 % (0/14,
@@ -94,9 +96,7 @@ ties its pointwise MLP twin — a win over the baselines, not yet over the point
   co-location move: served UNCAPPED, `gnnedge0` beats the one-pass greedy **−11.9 % (13/13)**,
   reactive −34.7 %, random ~−48 %; uncapping the v1 weights alone already clears the greedy (K6
   −8.8 %, 16/16) and the loaded-state corpus adds nothing beyond it (K5 CORPUS-NEUTRAL). It **loses
-  to the coordinate-descent greedy +12.5 % (0/13)** — the honest ceiling — and only ties its MP-OFF
-  twin (−4.4 %, under the bar). Its one-step-improvement follow-up `rollout_imitation_v1` CLOSED
-  `RULE-FASTER-LIVE` (see the opening paragraph).
+  to the coordinate-descent greedy +12.5 % (0/13)** — the honest ceiling.
 - **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
   +5.14 pp offline, inverts live at a defensible load); a 150× trainability asymmetry
   (optimisation, never latency); `serving_stability_v1`'s early-trace positive; both model-class
