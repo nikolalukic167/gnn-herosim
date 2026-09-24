@@ -72,6 +72,22 @@ Paired per (rung, env), primary metric `total_rtt`, chain 5 % / p < 0.05 / n = 1
   passing over a pointwise two-step column is then ≤ 20 % of the headroom.
 - Mechanism (reported, not gated): where the oracle's gain sits (queue / exchange / rendezvous).
 
+## Bars — P0b (signed 2026-09-24, after P0's read and before any P0b data)
+
+Arm `peer_greedy_selfpredict_network`: an unarrived partner's node = the rule's own argmin for that
+partner if it arrived now (its type and client from its workload event, current queues, exchange to
+its already-known partners, this task excluded). Same 16 + 16 environments, paired against the P0
+rule and oracle runs (`LA_PHASE=3`; same code path for rule and arms). Read by the same reader:
+
+- **S1 selfpredict vs rule:** `COORD-BEATS-RULE` / `RULE-FASTER` / `NOT-SEPARATED` (5 %, p < 0.05);
+  `recovered_b` = median Δ(selfpredict − rule) / median Δ(oracle − rule).
+- **P1 verdict:** `STOP-P1 (HAND-COORDINATION-RECOVERS)` if `recovered_b` ≥ 0.80 on EVERY `HEADROOM`
+  rung (lookahead is hand-buildable here; P1's representation work does not start); otherwise
+  `P1-GO`, and `peer_greedy_selfpredict_network` joins P4 as a control the GNN must also beat.
+- Disclosed: the P0b runs are a later job than the P0 rule/oracle runs; the code path of those arms
+  is unchanged (the new class and the orchestrator handoff are inert for them), which the reader's
+  regression against the committed P0 transcript and `run_provenance.code` confirm.
+
 Disclosed before data: (a) the oracle replays the RULE's trajectory; its own decisions shift
 where partners land, so it is a trajectory-conditional bound, not a strict one; (b) weight 1.0
 prices this task's own charge only — the partner's symmetric charge stays unpriced, as in the
