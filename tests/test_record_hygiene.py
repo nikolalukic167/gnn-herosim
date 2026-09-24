@@ -1,7 +1,7 @@
 """Mechanical checks on the research record.
 
 The routing rule ("one fact, one home"; `LINEAGES.md` is an index only) is stated in
-CLAUDE.md, in LINEAGES.md's own preamble, in the `experiment-gate` agent and in the
+AGENTS.md, in LINEAGES.md's own preamble, in the `experiment-gate` agent and in the
 `doc-helper` agent -- and was violated in all four places anyway. Restating it a fifth
 time does nothing. These tests make it fail loudly instead.
 
@@ -24,6 +24,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 INDEX = REPO / "LINEAGES.md"
 NODES_DIR = REPO / "docs" / "lineages"
+AGENTS_MD = REPO / "AGENTS.md"
 CLAUDE_MD = REPO / ".claude" / "CLAUDE.md"
 
 # Record files whose cited paths must resolve in the live tree.
@@ -32,7 +33,7 @@ RECORD_FILES = [
     REPO / "docs" / "lessons.md",
     REPO / "docs" / "hard-stops.md",
     REPO / "docs" / "gates" / "gate-tools.md",
-    CLAUDE_MD,
+    AGENTS_MD,
 ]
 
 # --- bounds -----------------------------------------------------------------------
@@ -335,34 +336,65 @@ def test_node_head_is_as_current_as_its_record(node: Path):
 # --- ephemera never land in the tree ------------------------------------------------
 
 
-def test_claude_md_standing_answer_is_current():
-    """CLAUDE.md's opening block is the most-read text in the repo: it loads automatically,
-    before anything else. It had grown into 12 KB of dated paragraphs appended over five
-    weeks, and had then stopped being maintained -- the six most recent lineages appeared
-    nowhere in it, so it led with a headline that later work had reversed.
+# AGENTS.md is the canonical instructions file -- `.claude/CLAUDE.md` imports it -- and
+# loads automatically on every session, so its size is a tax on all work. 2026-09-24: it
+# absorbed CLAUDE.md's operational content (~13 KB), the research-stand narrative (~5 KB)
+# and AGENTS.md's own research-entry-point routing (~6 KB) into one file, ~27.6 KB total.
+# This leaves modest headroom and still catches a narrative growing unchecked.
+AGENTS_MD_MAX_BYTES = 30_000
 
-    It is a STANDING ANSWER, rewritten on every close. This check holds it to that: its
-    stamp may not fall behind the newest dated entry in any lineage node.
+
+def test_agents_md_stays_within_budget():
+    """Raising this bound is a decision, not a fix.
+
+    If AGENTS.md no longer fits, the question is which section stopped being guidance and
+    became a record. Records go in `docs/lineages/`; this file says how to work here.
     """
-    text = _read(CLAUDE_MD)
-    m = re.search(r"\*\*Where the research question stands \(rewritten (20\d\d-\d\d-\d\d)", text)
-    assert m, (
-        "CLAUDE.md has no '**Where the research question stands (rewritten YYYY-MM-DD ...)**' "
-        "block. That block is the standing answer and its date is how staleness is detected; "
-        "do not remove it."
+    n = len(_read(AGENTS_MD).encode("utf-8"))
+    assert n <= AGENTS_MD_MAX_BYTES, (
+        f"AGENTS.md is {n} B, over the {AGENTS_MD_MAX_BYTES} B budget. It loads on "
+        f"every session. Move whatever grew into a lineage node rather than raising the cap."
     )
-    stamped = m.group(1)
 
-    newest, where = "", None
-    for node in sorted(NODES_DIR.glob("*.md")):
-        for d in _dates(_read(node)):
-            if d > newest:
-                newest, where = d, node.name
-    assert stamped >= newest, (
-        f"CLAUDE.md's standing answer is stamped {stamped} but {where} records work on "
-        f"{newest}. Rewrite the block (do not append a paragraph to it) so the auto-loaded "
-        f"summary cannot report a superseded result, then update the stamp."
+
+def test_agents_md_has_standing_answer_stamp():
+    """AGENTS.md is the single canonical, continuously-updated research narrative -- the
+    file `.claude/CLAUDE.md` imports for Claude Code sessions. A missing stamp means the
+    close-a-lineage rewrite habit lapsed."""
+    text = _read(AGENTS_MD)
+    match = re.search(r"\*\*Where the research question stands \(rewritten (20\d\d-\d\d-\d\d)", text)
+    assert match, "AGENTS.md lost its standing-answer stamp"
+
+
+def test_agents_research_entry_points_resolve():
+    """AGENTS.md's 'Current research entry points' section routes to lineage nodes outside
+    the headline narrative (L2D / DAG / workflow tracks); every path it cites must exist."""
+    text = _read(AGENTS_MD)
+    section = text.split("## Current research entry points", 1)[1].split("\n## ", 1)[0]
+    paths = re.findall(r"`(docs/lineages/[^`]+\.md)`", section)
+    assert paths, "operational guidance must route readers to current research nodes"
+    for path in paths:
+        assert (REPO / path).is_file(), f"missing research entry point: {path}"
+
+
+def test_claude_md_is_a_thin_import():
+    """`.claude/CLAUDE.md` must stay a thin `@AGENTS.md` import plus a short Claude-only
+    appendix, never grow back into a second copy of the research narrative -- the exact
+    cross-file duplication this migration removed."""
+    text = _read(CLAUDE_MD)
+    assert "@../AGENTS.md" in text or "@AGENTS.md" in text, (
+        ".claude/CLAUDE.md must import AGENTS.md"
     )
+    assert "**Where the research question stands" not in text, (
+        ".claude/CLAUDE.md must not duplicate AGENTS.md's research narrative -- "
+        "add Claude-specific notes only, below the import"
+    )
+    n = len(text.encode("utf-8"))
+    assert n <= 2_000, (
+        f".claude/CLAUDE.md is {n} B, over the 2,000 B thin-import budget. "
+        f"Move substantive content into AGENTS.md."
+    )
+
 
 
 def test_no_live_file_references_an_archive_only_filename():

@@ -10,6 +10,167 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-09-23 — Assert peer physics in mini co-sim screens
+
+The 32-task pair/triple/block move screens in
+[the fixed-replica MP ablation](../lineages/gnn_seeded_cd_mp_ablation_v1.md)
+passed workloads containing `peer_exchange` to a direct co-sim evaluator but did
+not set `HEROSIM_PEER_EXCHANGE=1`. The evaluator silently assigned zero peer
+exchange time, making both screens' apparent headroom and hand-control gaps
+invalid for the intended environment. A two-plan probe found a moved pair cost
+of 15.363 with peer physics off versus 149.378 with it on; the baseline cost
+was 17.219 in both cases.
+
+For every direct evaluator or gate, assert the effective physics environment
+before comparing plans, then run a discriminating placement with a nonzero
+`averagePeerExchangeTime` (or equivalent peer metric) when peer traffic is
+expected. A matching baseline cost alone does not verify the physics contract:
+it can remain unchanged even when peer physics is disabled.
+
+## 2026-09-23 — Do not require peer transfer in every selected live arm
+
+The initial [proposal frontier gate](../lineages/proposal_frontier_v1.md#2026-09-23--initial-gate-invalid-at-peer-accounting-audit) rejected topology 10305 because its learned-selector arms measured zero peer-transfer time while the hand arm measured positive time. The audit treated positive transfer in *every* arm as proof that peer physics was enabled. A selected plan may co-locate communicating tasks and legitimately incur zero transfer, so that assertion confounds a policy outcome with the physics switch and invalidated the incomplete gate before quality metrics were read.
+
+For live policy comparisons, check the effective peer-physics setting and frozen peer-enabled workload, then require each arm's peer accounting to be finite and nonnegative. Verify the switch separately with a discriminating placement that must transfer. Keep the positive peer-metric assertion for that probe, where transfer is expected by construction.
+
+## 2026-09-23 — Bound the warm-corpus selector by its effective limit
+
+`scripts_cosim/make_warm_corpus.py::choose_candidates` accepts `max_combos` but never
+reads it; candidate selection checks `target_combos` alone. For a 32-task batch,
+the default `min_choice_fraction=0.5` requires at least 16 tasks to retain two
+choices, hence at least 2^16 = 65,536 plans, above the default
+`target_combos=20,000`. All 16 captured full-batch snapshots were rejected in
+the dry run. Increasing `max_combos` alone cannot change that result.
+
+This is a corpus-apparatus limit, not evidence that the 32-task environment
+lacks headroom. The exploratory move screen and its scope are in the
+[owning diagnostic](../lineages/gnn_seeded_cd_mp_ablation_v1.md#2026-09-22--fixed-seat-debugging-and-move-screens).
+The historical generator source remains unchanged; any successor must set a
+feasible `target_combos` or change the candidate-selection contract explicitly
+and account for the larger search cost.
+
+## 2026-09-22 — Acquire conditional resource locks only when optional work runs
+
+The first DAG rematerialization gate included recomputed-parent locks whenever
+an output's recompute bit was set, even if that output was already cached.
+This changed execution order without performing recompute work and made a
+nonzero plan improvement appear in rows with zero rematerialization events.
+The first gate's objective comparisons are invalid for qualification. A
+conditional action must have no effect when its trigger is absent; check this
+with a no-op ablation in addition to actual-simulator parity, since two
+implementations can agree on the same mistaken contract.
+
+The corrected replay and live adapter compute effective locks from cache
+state at dispatch and retain that lock for the active task. A regression
+checks that setting a recompute bit for an always-cached output leaves the
+objective unchanged. New calibration and fresh seeds are fixed in the
+[owning record](../lineages/dag_remat_s0_v1.md).
+
+## 2026-09-22 — Translate schedule semantics between search decoders
+
+Event-dispatch priorities and serial reservation priorities are different search
+representations. Reusing the same numbers may turn a good feasible incumbent into
+a poor initialization even when both decoders cover it. The irregular-DAG
+diagnostic found this effect; its measured sizes belong to the linked record.
+The original numerical comparisons remain valid, but this weakens a claim that
+the reservation family received a strong search challenge.
+
+The successor constructs chronological ranks (ties by the original rank), checks
+that reservation initialization does not worsen its non-delay incumbent, and
+translates before cross-decoder proposals. Both materialization and translation
+count against the serving budget. Preserve the old fingerprints and use new
+qualification seeds. See the [owning record](../lineages/mixed_dispatch_v1.md#2026-09-22--dag-result-and-schedule-translation-successor).
+
+## 2026-09-22 — Read DAG job latency from terminal completion, not summed task RTT
+
+`stats.total_rtt` sums per-task elapsed times. For a zero-overhead chain those
+durations telescope to job completion; parallel branches do not. The initial
+irregular-DAG smoke check therefore disagreed on the aggregate even though every
+operation's start and completion matched independent replay. The historical
+field is not redefined and no frozen source is changed.
+
+The successor `src/placement/radical/dag_reservation_live.py` reports
+`job_completion_sum` from the unique terminal sink of each zero-release-time
+application and retains the original aggregate as `total_task_rtt`. Gates use
+the former for the declared summed job completion objective. Its diamond
+regression has job completion 9 and summed task elapsed 12, so substituting the
+old aggregate fails even when all task timings are correct. Before extending
+this adapter to nonzero job release times, subtract each job's release time.
+Validate sink coverage, the actual served DAG and every operation's completion.
+
+## 2026-09-22 — Filter timing eligibility before choosing a live control
+
+The frozen `scripts_cosim/mixed_dispatch_block_screen.py` selected its live hand
+control by maximum objective improvement without first excluding arms with a
+wall-time repeat above budget. Its separate timing gate correctly failed, but
+the selected arm could not be called a qualified equal-wall-time control.
+
+Keep the original source and artifacts for provenance. Run
+`scripts_cosim/complete_dispatch_block_budget_gate.py --out <screen-directory>`
+to filter on **every measured repeat**, choose the strongest remaining fixed
+arm, and execute/audit the missing live replays. The correction freezes its own
+protocol and hashes and preserves the original screen report. The regression in
+`tests/test_dispatch_block_moves.py` rejects an over-budget winner and raises
+when no eligible control exists. New gates must apply this filter before
+selection. The experimental outcome belongs to
+[mixed_dispatch_v1](../lineages/mixed_dispatch_v1.md#2026-09-22--capacity-scaled-block-search-result).
+
+The [DAG memory screen](../lineages/dag_memory_lifetime_s0_v1.md) exposed the
+other timing failure: allocating the whole budget to search omitted baseline
+construction and evaluation of the hand initializers. Its first calibration
+stopped before fresh inputs; the corrected gate charges the complete path and
+leaves a reserve for the last candidate evaluation. Timing eligibility must
+use that complete path before choosing a control.
+
+## 2026-09-21 — Rule availability observations and validation source identity
+
+The peer rule used `platform_queue_drain_seconds()` as availability, although that
+legacy snapshot field excludes the task already removed from the queue. An idle
+platform and one executing ten more seconds could both score zero drain. Changing
+the field itself would double-count work in snapshot replay, which separately adds
+current-task and communication residuals.
+
+`src/placement/availability.py` introduces a separate observation and estimate.
+`Platform.platform_process` records phases from dequeue through ingress, cold
+start, input I/O, peer rendezvous, execution and output I/O, plus virtual warmup.
+Existing SimPy events and their durations are preserved. Timed work decreases with
+simulation time; resource and peer waits retain an unresolved flag until released.
+The estimate separates queued work, current known service and remaining virtual
+backlog. Future I/O not yet priced by the runtime is listed in `unpriced_stages`;
+known work is not an exact predicted release time. No future placements or queues
+are consulted.
+
+Rule serving opts in with `HEROSIM_PG_DRAIN_CONTRACT=availability_v2`. The default
+`backlog_only_v1` preserves historical behavior and snapshot semantics. Under v2,
+the rule prefers candidates without unresolved waits, then minimizes its score;
+if all candidates are blocked it still places a task, since placement can release
+a peer. This ordering is a new rule contract, not a measured policy improvement.
+Both learned rollout seats reject v2 rather than silently changing checkpoint
+inputs. Results carry the contract in `schedulerCounters.pg_drain_contract`;
+the live CLI also records it in `run_provenance.pg_drain_contract` and decision
+captures carry `drain_contract`. The closed lookahead comparison/probe CLIs reject
+v2 before their environment reset; their hand controls remain on the old contract.
+
+Validation preflight now checks source-file SHA-256 and physical infrastructure
+identity before launching workers, and workers recheck the bytes they consume.
+The `physical_infrastructure_v2` fingerprint is SHA-256 of compact, sorted JSON of
+`network`, `nodes`, `link_topology`, `compute_slots_per_node`,
+`ingress_bandwidth_mbps`, and `warmth_physics` from `config.infrastructure`.
+Queue draws and forced placements do not turn one infrastructure into independent
+replicates. The launch manifest adds these explicit fingerprints and source hashes;
+the older opaque hash entries are retained for historical reference. Existing
+result artifacts and their embedded pre-run configurations are unchanged.
+
+Regression coverage: `tests/test_availability.py`, snapshot tests and source
+preflight tests. The retained 16-task immediate-rule case reproduces its task
+timings, placements and total RTT exactly under the legacy contract; v2 completes
+a small rule-only smoke with its contract recorded. This maintenance neither
+reopens `peer_lookahead_v1` nor justifies model training.
+
+| date | tool | what was wrong | now |
+|---|---|---|---|
+### 2026-08 — the first corrections
+
 | date | tool | what was wrong | now |
 |---|---|---|---|
 | 2026-08-19 | `verify_cache_live_feature_parity.py` | **Compared platform rows by position.** The cache enumerates platforms from `stats.nodeResults`, live from `config.infrastructure.nodes`, and those orders differ in **18/18 collections** (up to 229 rows). The gate therefore reported ~20 failures on every reordered corpus — false, since the model has no per-position parameter — which buried the one real failure and made the gate unrunnable on the whole netc family. | Compares **by platform identity** `(node_name, platform_id)`: features via a permutation, edges / candidates / same-node edges as identity-keyed sets, candidate lists as sets (decoding is by identity). Reordering prints as a `note:`. Object-dtype arrays compare exactly. On `netc_multihop_v1_core4/ds_00000`: 20 findings → 1 real → 0 after the fix below. |
@@ -74,6 +235,11 @@ collection you have not gated.
 | 2026-08-29 | `scripts_cosim/important/extract_gate_stats_summary.py` (prefix reads) + the skip guard above | **Prefix validity is not document validity, and an IO failure mid-write produces exactly that gap.** The extractor reads a bounded 256 KB prefix by design (the reason it turns "parse 9.6 GB" into "read 120 x 64 KB"), and the skip guard reads `total_rtt` from the same head. Both fields sit in the first few KB. So a result truncated at, say, 40 MB by a disk-quota or NFS failure still presents a valid `total_rtt` and a valid-looking stats block: the guard skips it, the extractor summarises it, and the scorer computes a verdict over it. Nothing in the chain reads far enough to notice. | **Protocol.** After any gate run that hit an IO or quota fault, verify every result parses **end-to-end** (`json.load` on the whole file), not just at the prefix. Cost is real but bounded — 240 files x ~92 MB took ~39 s on a compute node. Verified clean for `objective_pivot_v1` Phase 1: 240/240 parse fully, so the PASS verdict rests on complete documents. The general rule: a bounded-prefix reader is an optimisation over data you have *independently established* is complete; it can never itself establish completeness. |
 | 2026-08-30 | `scripts_cosim/datalab/run_full_corpus_siv1_gnn_train.sh` (`PROJECT_ROOT` default) + every pinned-worktree training sbatch that calls it | **The shared training wrapper silently escapes a pinned worktree.** The wrapper's first act is `cd "${PROJECT_ROOT:-/home/nikola.lukic/gnn-herosim}"` — so an sbatch that `cd`s into a pin worktree, asserts `[PIN] ... CODE_PATHS clean`, and then calls the wrapper trains at **main-checkout HEAD**, not at the pin. The banner asserts a venue the job then leaves. Found 2026-08-30 when link_mp_v1 preview trainings could not see worktree-local caches (loud, 8/8 instant FAILs); the quiet victims are `objective_pivot_v1` Phase 1 seeds 9-16 (job 719818) and `mp_ablation_v1`'s MP-OFF arms (724732), both of which trained at their submission day's main HEAD. Measured impact: **mp_ablation's pairing is unharmed** — `git diff` between its two training windows over `src/`, the wrapper, `experiments/` and `run_experiment.py` is EMPTY, so both arm families trained on byte-identical trainer code. Phase 1's c08aa7e-exchangeability claim was settled empirically 2026-08-31 (venuecheck job 728341, after a config re-run of 727223): seed 9 retrained truly pinned on the same node class is **BITWISE IDENTICAL across all 31 tensors** — the escape changed nothing for Phase 1 either. | **Fix: every pinned sbatch must `export PROJECT_ROOT="$PIN_DIR"` before calling the wrapper** — applied to `link_mp_v1_train.sbatch` (and the preview) 2026-08-30. The wrapper's default is left in place: changing it would move every historical caller's venue retroactively. General rule: a `cd` + banner in the sbatch binds nothing that a callee can re-`cd` out of; the venue assertion belongs in (or immediately around) the process that actually trains. |
 
+
+### 2026-09 — the serving-gap era
+
+| date | tool | what was wrong | now |
+|---|---|---|---|
 | 2026-09-03 | `src/generate_infrastructure.py` (`generate_replica_placements_deterministic`) | The 2026-08-28 row above: a task type starved to zero replicas by the FCFS walk died one stage later as an unlabelled `System state capture FAILED`, protocol-only. | **Fixed.** A type that requested replicas and was allocated zero raises `ReplicaStarvationError` at the point of cause, with per-type counts, the overlap flag and the hosting-set sizes in the message. A type that requested nothing is left alone. `tests/test_route_b_env_pivot_w3.py` now pins the raise and its wording; its two fixtures that used to *assert* the silent `typeB: []` moved to a non-starving three-server rig. |
 | 2026-09-03 | `scripts_cosim/generate_gnn_datasets_fast.py` (outcome classification + provenance) | The 2026-08-27 row above: a truncated sweep (`sweep_complete: false`) counted as SUCCESS, and no corpus recorded the physics environment it was generated under. | **Fixed.** `classify_generation_outcome` refines the engine's success with `placement_metadata.json`: an incomplete sweep is counted **TRUNCATED**, logged with its row counts and failure counters, written to the progress log as `TRUNCATED`, and the run exits 2 after the grid finishes, naming every such dataset. Every successful dataset now carries `generation_provenance.json` (all `HEROSIM_*` vars, `MAX_PLACEMENT_COMBINATIONS_SKIP`, `PYTHONHASHSEED`, argv, seed, grid, `num_tasks`, warmth physics, and the git commit / dirty flag via `describe_code_provenance`). Absence of a physics var is recorded as an empty block, not omitted, so a paired control can be checked against its main after the fact. `tests/test_cosim_generation_guards.py` (6 tests). Existing corpora carry neither and are not rewritten. |
 | 2026-09-03 | `src/policy/gnn/orchestrator.py` (`GNN_BATCH_SIZE` vs cell config) | **The env var is silently overridden by the cell config.** Every gate cell config carries `scheduler.batch_size: 4`, and the orchestrator adopts it whenever it is inside the GNN range, discarding an explicitly exported `GNN_BATCH_SIZE`. Measured on `bb_core8_bw1p5/cell01`: `GNN_BATCH_SIZE=1` served 4-task batches and reproduced the batch-size-4 episode to the last digit (5,840,709.060277444). `GNN_BATCH_SIZE=8` is refused by the scheduler (`MAX_BATCH_SIZE_FOR_GNN=4`), so the served joint decision is pinned at 4 tasks from both sides. | **Fixed for the silent half.** An explicitly exported `GNN_BATCH_SIZE` that disagrees with the config's `scheduler.batch_size` now raises; unset, or equal, behaves as before. Smoke-verified: 4 vs config 4 runs, 3 vs config 4 raises. The cap at 4 is unchanged and deliberate. |
@@ -281,7 +447,7 @@ change the statistic. If it would not, the test is ignoring the pairing you paid
 
 | 2026-09-16 | live gates that mint cells from topology seeds (measurement, not a code bug) | **5 of 20 independent topology draws are unservable by EVERY policy.** `scheduler_residence_v1` R3 minted 20 cells differing from a working base in exactly one field (`network.topology.seed`); 5 hung with the documented starved-client signature — 100 % CPU, no log growth, frozen on `Gateway: Processing event` — and `knative_network` hung on them too, so it is a property of the draw, not of a scheduler. Batch 1 lost 4 of 12 and spent ~18 CPU-hours at a 30-minute `--time` waiting for spins that were never going to finish. | **Budget 25 % attrition when sizing any gate whose cells come from fresh seeds**, and set `--time` to ~3× a servable arm (here 15 min against ~5 min) so a hang is identified in a third of the wall clock. Also: **whether the attrition biases the sample must be measured, not assumed** — R3 compared the hung cells' statistics against the readable ones and found the primary's hung range *inside* the readable range (no selection) but the second statistic's low end truncated (selection). Both are in the node; neither was corrected for. |
 
-| 2026-09-16 | `cluster_scale_v1_s0b.sbatch` — arm naming collision (measurement defect, fixed) | **An arm name that does not carry every axis the gate varies makes the idempotence guard a collision.** Job 769390 wrote ARM as `${CELL}__${KIND}` (cell + policy), but the gate also varies the workload rung. All three rungs resolved to the same summary path, so the f300 rung found the f1000 rung's file and exited in 1 s per task with "exists, not re-running". Nothing failed loud — the guard did exactly what it was designed to do against the wrong key, and the f300 rung produced no data. | Fixed: ARM is now `${CELL}__${KIND}__${RUNG}`. **Rule (same as the one filed in `docs/lessons.md`): every axis a gate varies — workload, topology seed, policy, serving config — must appear in the arm name.** An idempotence guard tests "did this arm already run", and if two distinct arms share a name the second inherits the first's file silently. This is the same class of silent re-use defect as `drainable_serving_config_v1`'s window override, where the cell config silently overrode `GNN_BATCH_TIMEOUT`. |
+| 2026-09-16 | `cluster_scale_v1_s0b.sbatch` — arm naming collision (measurement defect, fixed) | **An arm name that does not carry every axis the gate varies makes the idempotence guard a collision.** Job 769390 wrote ARM as `${CELL}__${KIND}` (cell + policy), but the gate also varies the workload rung. All three rungs resolved to the same summary path, so the f300 rung found the f1000 rung's file and exited in 1 s per task with "exists, not re-running". Nothing failed loud — the guard did exactly what it was designed to do against the wrong key, and the f300 rung produced no data. | Fixed: ARM is now `${CELL}__${KIND}__${RUNG}`. The transferable rule — every axis a gate varies must appear in the arm name — is filed once, in [`docs/lessons.md`](../lessons.md). The tool-level cause: an idempotence guard tests "did this arm already run", so when two distinct arms share a name the second silently inherits the first's file. This is the same class of silent re-use defect as `drainable_serving_config_v1`'s window override, where the cell config silently overrode `GNN_BATCH_TIMEOUT`. |
 
 | 2026-09-16 | `partial_state_v3_cache.sbatch` / any cache over the T1b corpus (venue trap, documented) | **The T1b/`drainable_objective_v1` caches were built on the LOCAL checkout, not on datalab, and cannot be rebuilt there.** Job 769544 died in 8:44 on `Missing system_state_captured_unique.json for ds_00000` in `gnn_datasets_peer_affinity_v1_c3_x200_train2`: datalab's copy is the 1500-dataset in-place extension and carries **0** SSC files, while the local copy is the original 346 parents with all 346. `sacct` shows no datalab job at the v2 cache's build time (2026-09-15 08:07 UTC) — it was built locally and rsynced, and every earlier `dobj-cache` job on datalab (766312/766313/766316) had failed the same way without anyone reading the failure. | Build caches over this corpus **locally** (same command, same env), run P0 locally, rsync cache + P0 artefact with md5. **Rule: a cache's `metadata.json` names its base dirs but not the host; when a cache exists and no job built it, look for the local build before assuming the cluster did it.** Repairing datalab's `train2` (`refresh_optimal_full_stats.py --repair` on the 346 parents) is a separate, unregistered chore. |
 
@@ -289,85 +455,6 @@ change the statistic. If it would not, the test is ignoring the pairing you paid
 | 2026-09-17 | `peer_only_v1` Phase B training — the corpus, not the gate (two blocking defects, both fixed) | **A split artifact minted for one corpus, and a cache candidate the sweep never priced.** (a) Job 782116 died in 9 s on every arm: `assert_split_artifact_covers` requires the artifact to enumerate **exactly** the cache's parents, and the T1b artifact knows 516 while the cache holds 1,657. (b) Job 782166 died at ~2.5 min on every arm: `refresh_partial_state_edge_attr ... candidate absent from the partial-state context (missing key (22, 118))`. The demand table is built from the **placement sweep's rows**; the graph's candidate set lists **every replica of the task's type**. In 3 of 1,141 new `train2` datasets a replica exists that no sweep row ever places on — sweeps complete, `sweep_complete` true, dataset structurally valid — so the trainer has no cost for a candidate it is asked to score. **0 of the 516 T1b parents** has it, which is why 3.5 months of training never saw it. | Both are now pre-training guards rather than post-mortems. The split artifact is **minted from the cache in the same job** (`peer_only_v1_split.py`, test and val carried verbatim so the corpus contrast pairs like with like), and `peer_only_v1_candidate_check.py` walks every graph's `task_logit_to_placement` against its `partial_state_ctx["demand"]` and **exits 1 with the offender list** — it read `offenders=0` on the 1,654 rebuild, so the class is proven absent, not assumed. **Rule: a corpus is validated by the trainer's own contracts before a GPU is booked, not by the generator's status codes.** `SUCCESS` and a complete sweep do not imply every candidate is priced. |
 | 2026-09-17 | any SLURM gate array wider than the account's `MaxSubmit` | **An array counts every task against the submit limit, so a 96-task gate is rejected outright.** `sbatch --array=36-131%12` returned `AssocMaxSubmitJobLimit` / `Job violates accounting/QOS policy` against `MaxSubmit = 50`. The `%12` throttle limits **concurrency**, not submission, and does not help. It surfaced at the worst moment — inside a chain, after a 5-hour training array had already drained — and the chain reported `PHASE B GATE NOT SUBMITTED` with an empty job id. | Phase B was submitted as two 48-task halves, chained. **Check before writing any chain: `sacctmgr -n show assoc user=$USER format=MaxSubmit` and split the array below it.** A chain that submits a later stage must also **verify the returned job id is numeric** before waiting on it — the wait loop polled `squeue -j ''`, got zero rows, and would have declared the stage complete had the chain not tested the id. |
 | 2026-09-17 | any live gate that crosses checkpoints with cells (`peer_only_v1` A2/B2; disclosed, bar NOT moved) | **`n` pairs is not `n` independent draws, and the read prints only the pair count.** B2 crossed `CKSEEDS = (1, 2, 4, 5)` with 4 topology cells and reported **16/16, p = 0.0004** — as registered (`A2_MIN_PAIRS = 12` pairs by (cell, checkpoint seed)), so no bar was violated. But the headline is a claim about an **architecture**, whose independent unit is the checkpoint, and there were **four**. A two-sided sign test on 4 units cannot go below **p = 0.125**. The same read quoted "−41.4 %, 16/16 vs reactive" from **one** reactive run per cell, re-used four times. The sister lineage's "13/16 seeds" (`peer_affinity_v1`) *was* 16 training seeds, so the two numbers look identical in a node and are not. | Amendment 1 registered `B3`: the same contrast collapsed to one value per checkpoint (median over its cells, `collapse_to_seed`, which fails loud on a ragged row) over all 16 trained seeds, with the consequence signed before the data. **Rule: the registration must name the independent unit for the claim being made, and the read must print the pair-level and unit-level statistics side by side.** Crossing K checkpoints with C cells buys precision on the cell average; it does not buy degrees of freedom for a statement about the model. Corollary for sizing: train 16 seeds and then serve 4 of them is the wrong split of a fixed budget when the claim is architectural — the gate is ~2 min per arm here against ~40 min to train one. **Measured price, same day:** serving the other 12 checkpoints (96 arms, ~40 min) took the headline from **−15.68 %** to **−5.75 %** — the 4-checkpoint read overstated the effect by more than **2×**, 2 of 16 checkpoints changed sign, and every descriptive figure moved with it (the twin reads −36.81 % against reactive, not −28.00 %). Amendment 2 then did the same for the opposing clause and it moved +10.40 % → **+11.17 %**, i.e. a thin `n` is not biased toward the exciting answer — it is simply *noisy*, and which way it errs is not knowable in advance. This is [`docs/lessons.md`](../lessons.md) → "inheriting a statistic does not inherit its power" priced in wall-clock. |
-
-## 2026-09-18 — an "always on" instrument whose output never reached disk
-
-`peer_only_v1` C6. `record_queue_feature_discrimination` records, per decoded task, the queue
-of the platform the arm **chose** against the shortest it could have chosen. It is called
-unconditionally from the GNN scheduler, wrapped so a fault in it can never discard a
-placement, and the code says why: *"Always on — a mechanism control that has to be switched on
-is one that is off."*
-
-It has never produced a number. `executesimulation` wrote the decode stats only when
-`decode_stats.gnn_batches > 0`, and `gnn_batches` is incremented **only** by
-`record_decode_batch` — which the `masked_topo` decode path that every live gate in this
-programme runs never calls. The probe incremented `feature_probe_tasks`, filled a stats object
-nobody wrote out, and it was dropped with the ~200 MB raw JSON. Every gate, every lineage.
-
-**Correction, same day, before anything was read from it.** The fix above is real but it was
-**not sufficient, and the first write-up of this entry implied it was.** A second smoke test
-after the fix failed identically, with `feature_probe_tasks` still 0. The reason is a
-*separate* defect one level up: the call site lives in `GnnScheduler._gnn_inference`, and
-prefix-conditioned checkpoints served under `GNN_DECODE_MODE=masked_topo` — **which is every
-gate this programme runs** — go through `decode_prefix_conditioned` instead, which never calls
-the probe at all. So there were two faults stacked: the probe is **unreachable** in the path
-the gates use, and the write guard would have dropped its output even had it run.
-
-Adding the call to the prefix path is a change to a decode path documented as *"strict by
-construction: every exception propagates … there is no try/except here at all"*, and it was
-**not** made in haste at the end of a session. `peer_only_v1` C6 is recorded as NOT-RUNNABLE
-and no arms were spent on it.
-
-⇒ **An instrument is not on until a result file contains its output.** "Always on" in a
-docstring, a call site with no `if`, and a passing unit test all held here simultaneously
-while the instrument produced nothing. The unit tests for this probe
-(`test_gnn_queue_feature_probe.py`) construct a stats object directly and assert on
-`stats.summary()`, so they exercised the recorder and never the path that persists it.
-
-Two things that generalise:
-
-- **Test the persistence, not just the computation.** The check that would have caught this is
-  "a finished run's result JSON contains key X", not "the function returns the right dict".
-- **A write gated on a *different* counter than the one the instrument increments is a silent
-  drop.** The guard is now `run_decode_stats_have_content(stats)` — `gnn_batches` **or**
-  `feature_probe_tasks` — and `scripts_cosim/test_decode_stats_write_guard.py` pins the case
-  where the probe ran and `gnn_batches` is still 0.
-
-Found because a one-arm smoke test **failed loud instead of writing an empty summary**. The
-extraction searched the result for the block and raised with the key list when it was absent;
-had it defaulted to `{}`, C6 would have run 128 arms and read zeros as a measurement.
-
-The fix is purely additive (it writes something previously dropped) and was **proven inert
-rather than asserted**: `verify_venue_parity --mode logits` gives max |delta| 0.0 over 1,738
-scored edges and 0/256 argmax flips.
-
-## 2026-09-18 — reusing a named reader with its arguments swapped inverts its VERDICT, not its number
-
-`peer_only_v1` C4. The glue read the residual arm as `read_c1(gnnres, peeronly)`. `read_c1` is
-written for `(peeronly, gnn)`, where a **positive** median means the bipartite stage helped —
-so *"gnnres is 13.02 % slower than peeronly"* printed as **`BIPARTITE-HELPS`**. The median, the
-p-value and the ahead-count were all correct. Only the word was backwards, and the word is what
-gets copied into a node.
-
-This is not a naming nitpick. A reader whose verdict encodes *which arm is which* is only
-correct at one argument order, and nothing in the call site shows the order is wrong — the
-types match, the test suite passes, and the printed number is right. It was caught by reading
-the output and noticing that a 13 % **deficit** had been labelled a win.
-
-⇒ **A reader that names arms in its verdict must not be reused for a different pair.** Either
-pass the same two arms in the same order, or call an orientation-neutral reader and let the
-caller name the winner. `read_pair_pct` is that reader: negative median = first argument
-faster, verdicts `A-FASTER` / `B-FASTER` / `NOT-SEPARATED`.
-
-The test that pins it is the one `read_c1` could not have: **give the same data twice with the
-arguments swapped and assert the verdict flips.** A reader that returns the same verdict both
-ways is encoding an orientation it does not actually check.
-
-Found alongside a second defect in the same read: `_collapse_pair` intersected the two arms'
-checkpoint-seed sets, and reactive is deterministic so it is keyed at **seed 0** — the
-intersection with any learned arm is empty, so the baseline comparison silently reported *"no
-gnnres / reactive at R3"* on a table that contained both. **A deterministic baseline has no
-seed; do not intersect seeds with it.**
 
 ### A reader that prints an absent count as `None` (2026-09-18)
 
@@ -452,3 +539,63 @@ whenever the cells differ in load — which is exactly when a screen would have 
 them. Compounding defect: two of the four cells (9002, 9005) were saturated on w0 (share 0.87,
 0.80) and supplied the only wins; the server ladder had an admissibility screen, the client
 ladder never did.
+
+## 2026-09-22 — Research guidance after the AGENTS.md migration
+
+The old hygiene test demanded that retained `.claude/CLAUDE.md` acquire the date
+of every new lineage, conflicting with the Codex migration's rule that guidance
+routes to result records and the retained Claude source is not edited as part of
+this workflow. The check now preserves the Claude migration baseline, verifies
+AGENTS.md's research-entry-point paths, and continues to enforce node-head
+freshness and index/node status agreement. No result-freshness check on the
+owning lineage nodes was removed.
+
+## 2026-09-22 — Determinism smoke isolation in the managed workspace
+
+The A1 end-to-end determinism tests claimed to use a temporary model directory but
+actually ran from the repository and selected the newest production checkpoint.
+Here that failed on the inherited unwritable model directory; it could also race
+with another training job. The smoke now invokes the absolute runner from its own
+temporary working directory and reads only that directory's checkpoints. Its W&B
+artifact cache is isolated there too, avoiding the read-only home cache. The tiny
+12-graph smoke uses zero DataLoader workers: the previous forked-worker attempt
+hung after earlier in-process Torch tests. Subprocesses have a 120-second timeout
+so recurrence fails loudly. Same-seed equality and different-seed divergence checks
+remain unchanged; production trainer defaults are unchanged.
+
+## 2026-09-23 — Sampled-slate lookup censored decoded validation plans
+
+The 32-task sampled-slate trainer selected epoch-zero checkpoints because its
+validation reader assigned a worst-regret fallback when a decoded plan was not
+one of 16 pre-scored slate rows. Final-epoch models often proposed such plans;
+the lookup measured slate membership, not their simulator RTT. Exact replay on
+the assigned validation topology changed all three architecture selections to
+final checkpoints ([g32_exact_val_selection_v1](../lineages/g32_exact_val_selection_v1.md)).
+
+For a decoder that can leave a finite label slate, select checkpoints using
+exact simulator replay of the decoded plans under the gate's physics. Verify
+physics parity by replaying at least one cached slate plan and matching its RTT
+exactly before interpreting new plans. Keep the validation topology separate
+from the held-out test and fresh live gate.
+
+## 2026-09-24 — AGENTS.md is canonical; `.claude/CLAUDE.md` is a thin import
+
+The 2026-09-22 split (retained `.claude/CLAUDE.md` as the continuously-updated
+narrative, AGENTS.md as routing-only) avoided narrative duplication by keeping
+Claude Code's default read path — CLAUDE.md, when present, is read instead of
+AGENTS.md, per Claude Code's own AGENTS.md-interop rules — the sole source. It
+still left every *other* section (rules, commands, architecture, feature
+contracts) duplicated verbatim across both files by hand, with no test over
+that half and a Codex skill already citing "AGENTS.md rule 6" against a file
+that did not carry the rules.
+
+Reversed instead: AGENTS.md is now the single canonical file, and
+`.claude/CLAUDE.md` is a two-line `@../AGENTS.md` import plus a short
+Claude-only appendix (hook/settings pointers), enforced by
+`test_claude_md_is_a_thin_import`. Claude Code resolves the import at read
+time, so both tools now read one file with no manual mirroring anywhere.
+`test_retained_claude_guidance_has_migration_baseline` and
+`test_agents_guidance_routes_to_existing_lineage_records` are replaced by
+`test_agents_md_has_standing_answer_stamp`, `test_agents_research_entry_points_resolve`,
+and `test_agents_md_stays_within_budget` (30,000 B — the merged file's real size
+plus headroom, not the old 22,000 B CLAUDE.md-only budget).

@@ -40,4 +40,5 @@ This repo already tracks decisions in files that predate this setup. They are no
 
 - **`LINEAGES.md`** — which experiment lineages are ACTIVE vs SUPERSEDED / FALSIFIED / PAPER. Read before starting work on any experiment.
 - **`PARITY.md`** — when two numbers produced on different machines may be compared.
-- **`.claude/CLAUDE.md`** — the project instructions loaded each session.
+- **`AGENTS.md`** — the canonical project instructions, loaded each session
+  (`.claude/CLAUDE.md` imports it for Claude Code sessions).

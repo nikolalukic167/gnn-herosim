@@ -1,7 +1,15 @@
 ---
 name: close-a-lineage
-description: The checklist for moving a lineage to CLOSED (or FALSIFIED, FAILED, PARKED, SUPERSEDED) without leaving the record inconsistent. Load whenever a gate has been read and a lineage is being closed, retired, parked or superseded, and before editing a LINEAGES.md row or a node's Status header. Closing is the single moment when the index, the node header, the standing answer and the hard stop all drift apart — every status drift and every oversized index row in the 2026-09-16 audit entered here. Not a guide to running or reading a gate (see the experiment-gate agent) — this is what to write down once the answer is known.
+description: The checklist for moving a lineage to CLOSED (or FALSIFIED, FAILED, PARKED,
+  SUPERSEDED) without leaving the record inconsistent. Load whenever a gate has been
+  read and a lineage is being closed, retired, parked or superseded, and before editing
+  a LINEAGES.md row or a node's Status header. Closing is the single moment when the
+  index, the node header, the standing answer and the hard stop all drift apart —
+  every status drift and every oversized index row in the 2026-09-16 audit entered
+  here. Not a guide to running or reading a gate (see the experiment-gate agent) —
+  this is what to write down once the answer is known.
 ---
+
 
 # Closing a lineage
 
@@ -71,10 +79,10 @@ weeks.
 
 If this close changes what is true about the research question, rewrite AGENTS.md's
 `**Where the research question stands (rewritten ...)**` block and bump its date.
-**Rewrite it — never append a dated paragraph.** That block reached 12 KB by accretion and
-then stopped being maintained, which is worse than either. `.claude/CLAUDE.md` imports
-AGENTS.md for Claude Code sessions and stays a thin import plus Claude-only notes — do not
-edit it as part of this step.
+**Rewrite it — never append a dated paragraph.** `.claude/CLAUDE.md` imports AGENTS.md
+for Claude Code sessions and stays a thin import plus Claude-only notes — do not edit it
+as part of this Codex workflow. If this close also affects the L2D / DAG / workflow
+routing under "Current research entry points", update that section too.
 
 ## 6. Run the check
 

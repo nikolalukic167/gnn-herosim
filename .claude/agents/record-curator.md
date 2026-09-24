@@ -56,8 +56,9 @@ current but buries its caveat below the headline has the same failure mode.
 **6. Unreferenced weight.** Files under `docs/notes/` with no inbound references, or whose
 subject closed. Closed one-off triages belong in an archive directory, not on the hot path.
 
-**7. The auto-loaded budget.** `.claude/CLAUDE.md` loads on every session. If it has grown,
-name which section stopped being guidance and became a record.
+**7. The auto-loaded budget.** `AGENTS.md` loads on every session (`.claude/CLAUDE.md`
+imports it for Claude Code). If it has grown, name which section stopped being guidance
+and became a record.
 
 ## What to fix and what to report
 
