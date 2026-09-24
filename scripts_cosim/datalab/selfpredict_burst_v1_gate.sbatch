@@ -45,7 +45,8 @@ python3 -c "import sys;print('[INTERP]',sys.executable)"
 echo "[CODE] $(git describe --dirty --always) on $(git rev-parse --abbrev-ref HEAD)"
 
 GATE=simulation_data/peer_affinity_live_gate
-OUT_DIR="$GATE/results/selfpredict_burst_v1_gate"
+# r2: rerun at the scale-down fix commit (amendment 2026-09-24); the first run is the neutrality check
+OUT_DIR="$GATE/results/selfpredict_burst_v1_gate_r2"
 SELECTION=simulation_data/joint_burst_v1/selected.json
 mkdir -p "$OUT_DIR"
 [[ -f "$SELECTION" ]] || { echo "FAIL LOUD: $SELECTION missing" >&2; exit 1; }

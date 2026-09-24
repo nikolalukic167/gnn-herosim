@@ -610,3 +610,16 @@ is a margin over ECT, not over the programme's reactive baseline. Found by the s
 `scripts_cosim/selfpredict_bar_v1_read.py`: on that gate's summaries the rule beats "reactive"
 −28.7 % / −32.0 %, against −12.96 % / −16.01 % over `knative_network` in `peer_greedy_live_v1`.
 Before quoting any "vs reactive", name the arm.
+
+## 2026-09-24 — Scale-down could strand a platform's worker forever (fixed in `src/placement/autoscaler.py`)
+
+Scale-down reset a removed platform with `platform.initialized = env.event()` unconditionally. When
+the old event had never fired, `platform_process` could already be parked on it (`yield
+self.initialized`); scale-up then fired the NEW event and the worker never woke. Every task placed on
+that platform afterwards queued forever, the run never finished, and the per-second monitor grew
+memory until SLURM's OOM killer ended it. Found in `selfpredict_burst_v1` (cc40s9101 w0,
+`peer_greedy_selfpredict_network`, 48 GB OOM after 17 min): 301 `dnn2` tasks behind node1/203, whose
+worker waited on an untriggered event that was no longer `platform.initialized`. Any policy can reach
+it; a run that completed never hit it, since hitting it is a permanent hang. Fix: replace the event
+only if it has fired. The same cell then completes (6.29 s/task). Neutrality check: `selfpredict_burst_v1`
+reran every arm at the fix commit and compared each completed cell against the pre-fix run.

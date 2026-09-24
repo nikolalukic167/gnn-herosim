@@ -384,8 +384,12 @@ class Autoscaler:
                 # FIXME: Sometimes raises KeyError ... (double remove)
                 function_replicas.remove(removed_replica)
 
-                # Reset platform to uninitialized state
-                removed_replica[1].initialized = removed_replica[1].env.event()
+                # Reset platform to uninitialized state. An initialized event that never fired
+                # already means "uninitialized" and may have a waiter (platform_process parks on
+                # it); replacing it would strand that waiter forever when scale-up fires the new
+                # one (selfpredict_burst_v1, 2026-09-24: 301 tasks queued behind a dead worker).
+                if removed_replica[1].initialized.triggered:
+                    removed_replica[1].initialized = removed_replica[1].env.event()
 
                 if getattr(self.env, "warmth_physics", None) == NODE_DISK_V2:
                     removed_replica[1].previous_task = None
