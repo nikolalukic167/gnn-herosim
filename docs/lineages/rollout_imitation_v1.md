@@ -12,8 +12,9 @@ P3), differs from the rule on 69 % of decisions (R1), and a pointwise MLP on the
 12 held-out topologies. **Served in the closed loop it does NOT transfer:** the learned arm
 (`peer_greedy_learned_network`, same per-arrival KnativeNetwork stack as the rule) is **+28.3 % slower
 than the rule at C40 (0/16, p=3e-5) and +14.2 % slower at C80 (4/16, p=0.08) — R2 FAILS.** The arm is
-not broken — it beats reactive Knative −28.6 % (15/16, C80) and random −17.6 % (14/16, C80), landing
-BETWEEN reactive and the rule: a slightly-worse rule. It loses to the CD greedy at both rungs. This is
+not broken — it beats Knative-ECT −28.6 % (15/16, C80; the gate's "reactive" arm was
+`knative_network_ect`, not `knative_network` — see the 2026-09-24 record entry) and random −17.6 %
+(14/16, C80), landing BETWEEN ECT and the rule: a slightly-worse rule. It loses to the CD greedy at both rungs. This is
 one more **offline-positive / live-negative reversal** (cf. `peer_affinity_v1`, `offline_live_transfer_v1`).
 The leading suspect is a train/serve distribution shift (labels + feature normalisation at the
 non-saturating f700/f1000 rate, served at the study's 0.46 s⁻¹ on unseen topologies), which a follow-up
@@ -64,6 +65,12 @@ passes 60 %. R2 MODEL-BEATS-RULE 30 %.
 decisions ≈ 90 CPU-hours, ~2 h at 48-wide. Then the `joint_burst_v1` training and gate recipe.
 
 ## Record (newest first)
+
+- 2026-09-24 — **Correction (verdict unchanged):** the gate's "reactive" arm (R3) was
+  `knative_network_ect`, not the `knative_network` baseline that `peer_greedy_live_v1` and
+  `joint_burst_v2` gate against. Every "vs reactive" number here is vs ECT, the weaker arm. The head
+  now says so; R2 (vs the rule) and the CLOSED verdict are unaffected. Filed in
+  `docs/gates/gate-tools.md`; found by `selfpredict_bar_v1`'s reader.
 
 - 2026-09-21 — **POST-CLOSE ADDENDUM (does not change the CLOSED / `RULE-FASTER-LIVE` verdict):
   where the +28.3 % live loss lives, from a zero-simulation re-read of the gate summaries.** The
