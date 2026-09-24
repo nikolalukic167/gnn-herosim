@@ -599,3 +599,14 @@ time, so both tools now read one file with no manual mirroring anywhere.
 `test_agents_md_has_standing_answer_stamp`, `test_agents_research_entry_points_resolve`,
 and `test_agents_md_stays_within_budget` (30,000 B — the merged file's real size
 plus headroom, not the old 22,000 B CLAUDE.md-only budget).
+
+## 2026-09-24 — "Reactive" in the rollout_imitation_v1 gate was Knative-ECT
+
+`scripts_cosim/datalab/rollout_imitation_v1_gate.sbatch` runs `knative_network_ect` and its reader
+labels that arm "reactive" (bar R3). `peer_greedy_live_v1` and `joint_burst_v2` gate against plain
+`knative_network` and report ECT separately; ECT is the weaker arm (it loses +12.8 % to
+shortest-queue, `batch_window_edge_v1`). So `rollout_imitation_v1`'s "beats reactive −7.8 % / −28.6 %"
+is a margin over ECT, not over the programme's reactive baseline. Found by the sanity line of
+`scripts_cosim/selfpredict_bar_v1_read.py`: on that gate's summaries the rule beats "reactive"
+−28.7 % / −32.0 %, against −12.96 % / −16.01 % over `knative_network` in `peer_greedy_live_v1`.
+Before quoting any "vs reactive", name the arm.
