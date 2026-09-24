@@ -47,9 +47,11 @@ objective instead.
 rule (`selfpredict_bar_v1`: the peer-greedy rule plus a price for each unarrived partner at the node
 the rule would give it now) beats healthy reactive Knative **−19.4 % / −21.4 %** (16/16), the old rule
 −6.2 / −8.5 % and the CD greedy −7.8 / −8.9 %; every learned arm served per arrival loses to the old rule. **In the
-burst seat, uncapped `gnnedge0` beats it −7.25 % (13/13 checkpoints; `selfpredict_burst_v1`)** — thin
-(9/16 environments ahead, ~4 independent topologies) and **not a message-passing win** (it ties its
-MP-OFF twin there, `joint_burst_v2` K4 −4.4 %). **The ceiling in that seat is the coordinate-descent
+burst seat, uncapped `gnnedge0` beat it −7.25 % on 4 topologies (`selfpredict_burst_v1`), but on 11
+fresh topologies that win does not replicate** (`fresh_topo_burst_v1`: −1.2 %, p = 0.70). What does
+replicate there is a **message-passing direction**: `gnnedge0` beats its MP-OFF twin −4.2 % on
+11/11 fresh topologies (p = 0.001, under the 5 % magnitude bar), and the MP-OFF twin alone loses to
+self-predict (+2.8 %, 2/11). So MP is what lifts the learned arm to parity with the rule. **The ceiling in that seat is the coordinate-descent
 greedy**, ahead of `gnnedge0` +12.5 % and of self-predict +21.3 %. `gnnedge0` got there by training on
 exactly the served decision and serving UNCAPPED (`joint_burst_v2`: −11.9 % vs the one-pass greedy;
 v1's +16.8 % loss was the serving cap). The lever to reach CD, `rollout_imitation_v1`, **CLOSED

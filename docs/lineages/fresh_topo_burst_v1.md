@@ -1,7 +1,19 @@
 # fresh_topo_burst_v1 — does the burst-seat message-passing edge hold on topologies never studied?
 
-**Status:** `REGISTERED` (2026-09-24). Every bar below was signed before the screen or gate produced
-any data; the one prior read of these statistics (the old 4-topology study, exploratory) is disclosed.
+**Status:** `CLOSED` (2026-09-24) — **MP-EDGE-GENERALISES (direction only)**. Registered 2026-09-24;
+every bar below was signed before the screen or gate produced any data; the one prior read of these
+statistics (the old 4-topology study, exploratory) is disclosed.
+
+**Outcome.** On 11 never-studied topologies (12 qualified; 9466 dropped by the failure rule, one CD
+timeout), **`gnnedge0` beats its MP-OFF twin −4.19 %, faster on 11/11 topologies (p = 0.001)**: the
+message-passing direction replicates, but its magnitude stays under the 5 % bar, so only the
+direction is quotable. **`gnnedge0` does NOT replicate its win over self-predict** (F2 −1.18 %, p = 0.70,
+8/11; +7.8 / +14.3 / +3.6 % on three topologies), and **MP-OFF loses to self-predict** (F3 +2.83 %,
+p = 0.014, 2/11). Read together: without message passing the learned arm is behind the per-arrival
+rule, and with it the learned arm reaches parity. **CD is ahead of everything** (`gnnedge0` +11.4 %,
+self-predict +15.1 %, 0/11 each). Disclosed: `gnnedge0` beats the 1-pass greedy −8.95 % and reactive
+−25.7 %, 11/11 each. Caveats: 13 checkpoints are training draws of one corpus. The CD arm's missing
+9466 w3 cell drops that topology from every contrast, not just CD's.
 
 **Parents:** [`selfpredict_burst_v1`](selfpredict_burst_v1.md) (`gnnedge0` beats self-predict −7.25 %,
 13/13 checkpoints, on 4 topologies), [`joint_burst_v2`](joint_burst_v2.md) (the checkpoints; K4
@@ -82,6 +94,34 @@ separated 65 %, self-predict faster 15 %. F3: not separated 70 %. CD ahead of ev
 - Reader: `scripts_cosim/fresh_topo_burst_v1_read.py` (`select` / `gate`).
 
 ## Record (newest first)
+
+- 2026-09-24 22:16 — **Gate read, CLOSED `MP-EDGE-GENERALISES (direction only)`.** 1,439/1,440
+  runs at one clean code state (1ae90af). One failure: `cc40s9466__w3__cd_s0`, a 1800 s timeout
+  stalled near event 10,001. By the failure rule this drops 9466 from every contrast, leaving 11
+  topologies. Statistic as registered (per env: median over 13 checkpoints; per topology: median over
+  4 windows; exact Wilcoxon over topologies):
+
+  | read | median | p | first faster | label |
+  |---|---|---|---|---|
+  | F1 `gnnedge0` vs MP-OFF | −4.19 % | 0.0010 | 11/11 | GNNEDGE0-FASTER (direction only) |
+  | F2 `gnnedge0` vs self-predict | −1.18 % | 0.7002 | 8/11 | NOT-SEPARATED |
+  | F3 MP-OFF vs self-predict | +2.83 % | 0.0137 | 2/11 | SELFPREDICT-FASTER (direction only) |
+  | `gnnedge0` vs CD | +11.42 % | 0.0010 | 0/11 | CD-FASTER |
+  | self-predict vs CD | +15.08 % | 0.0010 | 0/11 | CD-FASTER |
+  | `gnnedge0` vs 1-pass | −8.95 % | 0.0010 | 11/11 | GNNEDGE0-FASTER |
+  | `gnnedge0` vs reactive | −25.69 % | 0.0010 | 11/11 | GNNEDGE0-FASTER |
+
+  F1 per topology ranges −0.8 (9420) to −5.3 %. F2 per topology ranges −5.8 to +14.3 % (9461). Full
+  per-topology tables are in [`read.json`](fresh_topo_burst_v1/read.json). Selection:
+  [`selected.json`](fresh_topo_burst_v1/selected.json).
+
+  Against expectations: F1's direction replicated (55 % prior), with the magnitude under 5 %. F2 was
+  not separated (65 % prior). F3 was predicted not separated at 70 % and instead leans to
+  self-predict. CD led every arm, as expected (90 %). The old 4-topology study's −7.25 % over
+  self-predict does not generalise. Its MP-OFF edge does, as a direction.
+- 2026-09-24 18:40 — **Screen complete, `DESIGN-READY`.** After the A2 extension, exactly 12 of 96
+  candidates qualified: 9119, 9414, 9420, 9423, 9434, 9435, 9444, 9446, 9456, 9461, 9466 and 9469.
+  The gate was launched at 1ae90af with 12 parallel runs, a 2.5 GB cap and an 1800 s timeout.
 
 - 2026-09-24 17:01 — **Amendment A2 (contingency), signed while 7 candidates' batch-path runs were
   still unread.** At this point 1 topology had qualified (9119) and 7 new cells had passed reactive on
