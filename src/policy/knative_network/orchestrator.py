@@ -27,8 +27,23 @@ from src.placement.orchestrator import Orchestrator
 
 
 class KnativeOrchestrator(Orchestrator):
+    def __init__(self, *args, **kwargs):
+        # `infrastructure` is passed as a kwarg (simulation.py) but the base __init__ does not
+        # accept it, so pop it first — mirroring DeterminedOrchestrator.
+        self.infrastructure = kwargs.pop("infrastructure", None)
+        super().__init__(*args, **kwargs)
+        # No-op unless a caller injects forced placements (rollout_imitation_v1's label engine):
+        # copy config["infrastructure"]["forced_placements"] onto a scheduler that supports it.
+        # Absent -> normal reactive/rule behaviour, untouched.
+        fp = self.infrastructure.get("forced_placements") if isinstance(self.infrastructure, dict) else None
+        if fp and hasattr(self.scheduler, "forced_placements"):
+            self.scheduler.forced_placements = fp
+        # lookahead_mp_v1 P0b: a scheduler that predicts unarrived partners needs the FULL event
+        # list; the gateway pops from time_series.events, so hand over a shallow copy now.
+        if hasattr(self.scheduler, "pg_event_index"):
+            self.scheduler.pg_event_index = list(self.time_series.events)
+
     def initialize_state(self) -> KnativeSystemState:
-        # Initialize scheduler state
         scheduler_state = KnativeSchedulerState(
             average_contention={task_type: {} for task_type in self.data.task_types},
             panic_contention={task_type: {} for task_type in self.data.task_types},
@@ -41,12 +56,10 @@ class KnativeOrchestrator(Orchestrator):
                 for task_type in self.data.task_types
             },
         )
-        # Initialize available resources to all Tuple[Node, Platform]
         available_resources: Dict[Node, Set[Platform]] = {
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
         }
-        # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
@@ -80,7 +93,6 @@ class KnativeOrchestrator(Orchestrator):
             replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
             state: KnativeSchedulerState = system_state.scheduler_state
 
-            # Count queue depth for autoscaling
             for function_name, function_replicas in replicas.items():
                 for node, platform in function_replicas:
                     state.average_contention[function_name][
@@ -89,5 +101,4 @@ class KnativeOrchestrator(Orchestrator):
 
             yield self.mutex.put(system_state)
 
-            # Wake Monitor up once per second
             yield self.env.timeout(1)

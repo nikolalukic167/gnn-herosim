@@ -1,0 +1,986 @@
+{
+ "registered_rule": {
+  "full_sweep_disagree_threshold": 0.1,
+  "spread_plans_disagree_threshold": 0.05,
+  "disagreement": "no sum-optimal plan is makespan-optimal (ties favor agreement)"
+ },
+ "full_sweep": {
+  "n_datasets": 48,
+  "disagree_fraction": 0.041666666666666664,
+  "disagree_gt_1pct_fraction": 0.020833333333333332,
+  "makespan_regret_mean": 0.0015709384081126789,
+  "makespan_regret_max": 0.07066035469647286,
+  "sum_regret_of_makespan_argmin_mean": 0.0009966637667814075
+ },
+ "spread_plans_only": {
+  "n_datasets": 48,
+  "disagree_fraction": 0.041666666666666664,
+  "disagree_gt_1pct_fraction": 0.041666666666666664,
+  "makespan_regret_mean": 0.003158946717702627,
+  "makespan_regret_max": 0.08096908775325323,
+  "sum_regret_of_makespan_argmin_mean": 0.001878739608445472
+ },
+ "spread_unscoreable_datasets": 0,
+ "datasets": [
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00000",
+   "full": {
+    "n_plans": 456,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "spread": {
+    "n_plans": 456,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "n_spread_plans": 456
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00001",
+   "full": {
+    "n_plans": 380,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 16
+   },
+   "spread": {
+    "n_plans": 314,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 14
+   },
+   "n_spread_plans": 314
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00002",
+   "full": {
+    "n_plans": 601,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 12
+   },
+   "spread": {
+    "n_plans": 601,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 12
+   },
+   "n_spread_plans": 601
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00003",
+   "full": {
+    "n_plans": 70,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "spread": {
+    "n_plans": 70,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "n_spread_plans": 70
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00004",
+   "full": {
+    "n_plans": 90,
+    "disagree": true,
+    "makespan_regret_of_sum_argmin": 0.004744688892935725,
+    "sum_regret_of_makespan_argmin": 0.0314355961710479,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 62,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "n_spread_plans": 62
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00005",
+   "full": {
+    "n_plans": 459,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 459,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "n_spread_plans": 459
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00006",
+   "full": {
+    "n_plans": 312,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 4
+   },
+   "spread": {
+    "n_plans": 312,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 4
+   },
+   "n_spread_plans": 312
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00007",
+   "full": {
+    "n_plans": 897,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 8
+   },
+   "spread": {
+    "n_plans": 731,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 8
+   },
+   "n_spread_plans": 731
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00008",
+   "full": {
+    "n_plans": 712,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "spread": {
+    "n_plans": 712,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "n_spread_plans": 712
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00009",
+   "full": {
+    "n_plans": 52,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "spread": {
+    "n_plans": 52,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "n_spread_plans": 52
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00010",
+   "full": {
+    "n_plans": 102,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "spread": {
+    "n_plans": 102,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "n_spread_plans": 102
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00011",
+   "full": {
+    "n_plans": 300,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 100
+   },
+   "spread": {
+    "n_plans": 288,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 95
+   },
+   "n_spread_plans": 288
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00012",
+   "full": {
+    "n_plans": 1190,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 1190,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "n_spread_plans": 1190
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00013",
+   "full": {
+    "n_plans": 93,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "spread": {
+    "n_plans": 93,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "n_spread_plans": 93
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00014",
+   "full": {
+    "n_plans": 132,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 12
+   },
+   "spread": {
+    "n_plans": 118,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 10
+   },
+   "n_spread_plans": 118
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00015",
+   "full": {
+    "n_plans": 1142,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 7
+   },
+   "spread": {
+    "n_plans": 1142,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 7
+   },
+   "n_spread_plans": 1142
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00016",
+   "full": {
+    "n_plans": 80,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "spread": {
+    "n_plans": 80,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "n_spread_plans": 80
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00017",
+   "full": {
+    "n_plans": 615,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 36
+   },
+   "spread": {
+    "n_plans": 514,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 30
+   },
+   "n_spread_plans": 514
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00018",
+   "full": {
+    "n_plans": 1462,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 8
+   },
+   "spread": {
+    "n_plans": 1462,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 8
+   },
+   "n_spread_plans": 1462
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00019",
+   "full": {
+    "n_plans": 93,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 6
+   },
+   "spread": {
+    "n_plans": 93,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 6
+   },
+   "n_spread_plans": 93
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00020",
+   "full": {
+    "n_plans": 130,
+    "disagree": true,
+    "makespan_regret_of_sum_argmin": 0.07066035469647286,
+    "sum_regret_of_makespan_argmin": 0.016404264634459657,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "spread": {
+    "n_plans": 130,
+    "disagree": true,
+    "makespan_regret_of_sum_argmin": 0.07066035469647286,
+    "sum_regret_of_makespan_argmin": 0.016404264634459657,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "n_spread_plans": 130
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00021",
+   "full": {
+    "n_plans": 342,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 34
+   },
+   "spread": {
+    "n_plans": 286,
+    "disagree": true,
+    "makespan_regret_of_sum_argmin": 0.08096908775325323,
+    "sum_regret_of_makespan_argmin": 0.07377523657092301,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 22
+   },
+   "n_spread_plans": 286
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00022",
+   "full": {
+    "n_plans": 801,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 39
+   },
+   "spread": {
+    "n_plans": 801,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 39
+   },
+   "n_spread_plans": 801
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00023",
+   "full": {
+    "n_plans": 187,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 187,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "n_spread_plans": 187
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00024",
+   "full": {
+    "n_plans": 84,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 27
+   },
+   "spread": {
+    "n_plans": 74,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 22
+   },
+   "n_spread_plans": 74
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00025",
+   "full": {
+    "n_plans": 647,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 39
+   },
+   "spread": {
+    "n_plans": 647,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 39
+   },
+   "n_spread_plans": 647
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00026",
+   "full": {
+    "n_plans": 20,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "spread": {
+    "n_plans": 20,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "n_spread_plans": 20
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00027",
+   "full": {
+    "n_plans": 126,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 42
+   },
+   "spread": {
+    "n_plans": 111,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 36
+   },
+   "n_spread_plans": 111
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00028",
+   "full": {
+    "n_plans": 1451,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 16
+   },
+   "spread": {
+    "n_plans": 1451,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 16
+   },
+   "n_spread_plans": 1451
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00029",
+   "full": {
+    "n_plans": 142,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "spread": {
+    "n_plans": 142,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "n_spread_plans": 142
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00030",
+   "full": {
+    "n_plans": 382,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "spread": {
+    "n_plans": 382,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 3
+   },
+   "n_spread_plans": 382
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00031",
+   "full": {
+    "n_plans": 780,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 18
+   },
+   "spread": {
+    "n_plans": 646,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 18
+   },
+   "n_spread_plans": 646
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00032",
+   "full": {
+    "n_plans": 135,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 6
+   },
+   "spread": {
+    "n_plans": 135,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 6
+   },
+   "n_spread_plans": 135
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00033",
+   "full": {
+    "n_plans": 174,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 174,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "n_spread_plans": 174
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00034",
+   "full": {
+    "n_plans": 442,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 136
+   },
+   "spread": {
+    "n_plans": 404,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 117
+   },
+   "n_spread_plans": 404
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00035",
+   "full": {
+    "n_plans": 192,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 12
+   },
+   "spread": {
+    "n_plans": 192,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 12
+   },
+   "n_spread_plans": 192
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00036",
+   "full": {
+    "n_plans": 94,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "spread": {
+    "n_plans": 94,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 1
+   },
+   "n_spread_plans": 94
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00037",
+   "full": {
+    "n_plans": 96,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 32
+   },
+   "spread": {
+    "n_plans": 77,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 28
+   },
+   "n_spread_plans": 77
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00038",
+   "full": {
+    "n_plans": 366,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 4
+   },
+   "spread": {
+    "n_plans": 366,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 4
+   },
+   "n_spread_plans": 366
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00039",
+   "full": {
+    "n_plans": 57,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 57,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "n_spread_plans": 57
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00040",
+   "full": {
+    "n_plans": 231,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 231,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "n_spread_plans": 231
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00041",
+   "full": {
+    "n_plans": 374,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 29
+   },
+   "spread": {
+    "n_plans": 317,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 29
+   },
+   "n_spread_plans": 317
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00042",
+   "full": {
+    "n_plans": 614,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 26
+   },
+   "spread": {
+    "n_plans": 614,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 26
+   },
+   "n_spread_plans": 614
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00043",
+   "full": {
+    "n_plans": 116,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "spread": {
+    "n_plans": 116,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 2
+   },
+   "n_spread_plans": 116
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00044",
+   "full": {
+    "n_plans": 126,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 9
+   },
+   "spread": {
+    "n_plans": 111,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 9
+   },
+   "n_spread_plans": 111
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00045",
+   "full": {
+    "n_plans": 837,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 36
+   },
+   "spread": {
+    "n_plans": 837,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 36
+   },
+   "n_spread_plans": 837
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00046",
+   "full": {
+    "n_plans": 87,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 5
+   },
+   "spread": {
+    "n_plans": 87,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 5
+   },
+   "n_spread_plans": 87
+  },
+  {
+   "dataset": "simulation_data/gnn_datasets_4tasks_m3_makespan_pilot/ds_00047",
+   "full": {
+    "n_plans": 954,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 53
+   },
+   "spread": {
+    "n_plans": 760,
+    "disagree": false,
+    "makespan_regret_of_sum_argmin": 0.0,
+    "sum_regret_of_makespan_argmin": 0.0,
+    "n_sum_optimal": 1,
+    "n_makespan_optimal": 47
+   },
+   "n_spread_plans": 760
+  }
+ ]
+}

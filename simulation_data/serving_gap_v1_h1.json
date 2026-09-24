@@ -1,0 +1,90 @@
+{
+  "stage": "h1",
+  "bar": {
+    "repeat_rate_bar": 0.05,
+    "alpha": 0.05,
+    "corpora_required": 2
+  },
+  "per_corpus": {
+    "x200p2": {
+      "n_pairs": 16,
+      "median_repeat_rate_gnn_minus_mpoff": 0.0014325384581478362,
+      "p_repeat": 0.49542236328125,
+      "median_entropy_gnn_minus_mpoff": -0.016854224490459868,
+      "p_entropy": 0.49542236328125,
+      "median_autocorr_gnn_minus_mpoff": 0.003601835926487773,
+      "p_autocorr": 0.979949951171875,
+      "per_arm_medians": {
+        "gnn": {
+          "node_entropy_norm": 0.8409871504105624,
+          "modal_repeat_rate": 0.5234164940274166,
+          "hist_autocorr_lag1": 0.7511978912256939,
+          "batches": 45375.0,
+          "distinct_nodes": 6.0
+        },
+        "mpoff": {
+          "node_entropy_norm": 0.8612268173590593,
+          "modal_repeat_rate": 0.540397584519769,
+          "hist_autocorr_lag1": 0.7511081129083975,
+          "batches": 45375.0,
+          "distinct_nodes": 6.0
+        }
+      },
+      "fires": false
+    },
+    "x800p2": {
+      "n_pairs": 16,
+      "median_repeat_rate_gnn_minus_mpoff": -0.06731828800634729,
+      "p_repeat": 0.19281005859375,
+      "median_entropy_gnn_minus_mpoff": 0.015854751488175833,
+      "p_entropy": 0.899932861328125,
+      "median_autocorr_gnn_minus_mpoff": 0.01595187165216949,
+      "p_autocorr": 0.104583740234375,
+      "per_arm_medians": {
+        "gnn": {
+          "node_entropy_norm": 0.8355101448031717,
+          "modal_repeat_rate": 0.528915237801384,
+          "hist_autocorr_lag1": 0.7699094418809992,
+          "batches": 45375.0,
+          "distinct_nodes": 6.0
+        },
+        "mpoff": {
+          "node_entropy_norm": 0.8395461726907208,
+          "modal_repeat_rate": 0.5791973376823731,
+          "hist_autocorr_lag1": 0.7527695151249356,
+          "batches": 45375.0,
+          "distinct_nodes": 6.0
+        }
+      },
+      "fires": false
+    },
+    "x800p3": {
+      "n_pairs": 16,
+      "median_repeat_rate_gnn_minus_mpoff": -0.08262441045532681,
+      "p_repeat": 0.009185791015625,
+      "median_entropy_gnn_minus_mpoff": 0.062157589148286285,
+      "p_entropy": 0.01824951171875,
+      "median_autocorr_gnn_minus_mpoff": 0.004949657131824714,
+      "p_autocorr": 0.274444580078125,
+      "per_arm_medians": {
+        "gnn": {
+          "node_entropy_norm": 0.8347031955962755,
+          "modal_repeat_rate": 0.5090911094459383,
+          "hist_autocorr_lag1": 0.7615380564528669,
+          "batches": 45375.0,
+          "distinct_nodes": 6.0
+        },
+        "mpoff": {
+          "node_entropy_norm": 0.7855286334731512,
+          "modal_repeat_rate": 0.5997597743200952,
+          "hist_autocorr_lag1": 0.750130466742512,
+          "batches": 45375.0,
+          "distinct_nodes": 6.0
+        }
+      },
+      "fires": false
+    }
+  },
+  "corpora_fired": [],
+  "verdict": "H1-DOES-NOT-FIRE"
+}

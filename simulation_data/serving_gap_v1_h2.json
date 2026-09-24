@@ -1,0 +1,36 @@
+{
+  "stage": "h2",
+  "bar": {
+    "alpha": 0.05,
+    "corpora_required": 2,
+    "direction": "gnn below mpoff"
+  },
+  "per_corpus": {
+    "x200p2": {
+      "n_pairs": 16,
+      "median_sensitivity_gnn": 0.5815231963816005,
+      "median_sensitivity_mpoff": 0.169366697220132,
+      "median_gnn_minus_mpoff": 0.2515461495152146,
+      "p_exact": 6.103515625e-05,
+      "fires": false
+    },
+    "x800p2": {
+      "n_pairs": 16,
+      "median_sensitivity_gnn": 0.4244177470427218,
+      "median_sensitivity_mpoff": 0.11272369355951571,
+      "median_gnn_minus_mpoff": 0.2407663349732264,
+      "p_exact": 9.1552734375e-05,
+      "fires": false
+    },
+    "x800p3": {
+      "n_pairs": 16,
+      "median_sensitivity_gnn": 0.7699326354252378,
+      "median_sensitivity_mpoff": 0.11117825465502305,
+      "median_gnn_minus_mpoff": 0.6370727872717693,
+      "p_exact": 3.0517578125e-05,
+      "fires": false
+    }
+  },
+  "corpora_fired": [],
+  "verdict": "H2-DOES-NOT-FIRE"
+}

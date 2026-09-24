@@ -25,6 +25,7 @@ from typing import (
     Dict,
     List,
     Literal,
+    Optional,
     Set,
     Tuple,
     TypedDict,
@@ -35,7 +36,7 @@ from typing import (
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform
 
-from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json
+from dataclasses_json import DataClassJsonMixin, LetterCase, dataclass_json, config
 
 from simpy.core import SimTime
 
@@ -321,6 +322,14 @@ class TimeSeries(DataClassJsonMixin):
     rps: int
     duration: int
     events: List[WorkloadEvent]
+    # peer_affinity_v1: optional [task_id_i, task_id_j, bytes] triples over GLOBAL task ids
+    # (the ids Orchestrator.create_application assigns, contiguous across events). Read only
+    # under HEROSIM_PEER_EXCHANGE=1 (Platform._peer_exchange_time); absent -> None, and every
+    # existing trace loads exactly as before. The JSON key stays snake_case on purpose: the
+    # co-sim generator, the paper probe and the scorer all spell it `peer_exchange`.
+    peer_exchange: Optional[List[List[float]]] = dataclasses.field(
+        default=None, metadata=config(field_name="peer_exchange")
+    )
 
 
 @final
@@ -369,10 +378,8 @@ class SystemState:
     replicas: Dict[str, Set[Tuple["Node", "Platform"]]]
 
     def result(self, timestamp: MomentSecond = 0.0) -> SystemStateResult:
-        # Serialize scheduler_state as dict, converting tuple keys to strings
         scheduler_state_dict = dataclasses.asdict(self.scheduler_state)
-        
-        # Convert tuple keys to strings in average_contention and panic_contention
+
         if "average_contention" in scheduler_state_dict:
             scheduler_state_dict["average_contention"] = {
                 task_type: {
@@ -391,7 +398,6 @@ class SystemState:
                 for task_type, contention_dict in scheduler_state_dict["panic_contention"].items()
             }
         
-        # Serialize available_resources: node_name -> [platform_id, ...]
         available_resources_dict = {
             node.node_name: [platform.id for platform in platforms]
             for node, platforms in self.available_resources.items()
@@ -404,7 +410,6 @@ class SystemState:
             ]
             for task_type, replica_set in self.replicas.items()
         }
-        # Serialize queue_occupancy: task_type -> {"node_name:platform_id" -> queue_length}
         # This captures the queue length at scheduling time for each platform
         queue_occupancy_dict = {
             task_type: {
@@ -525,29 +530,17 @@ priority_policies: Dict[str, Set[str]] = {
 }
 
 scheduling_strategies: Dict[str, str] = {
-    "hro_hro": "HRO-HRO",
-    "hro_hrc": "HRO-HRC",
-    "hro_kn": "HRO-KN",
-    "hro_rp": "HRO-RP",
-    "hro_bpff": "HRO-BPFF",
     "hrc_hrc": "HRC-HRC",
-    "hrc_hro": "HRC-HRO",
     "hrc_kn": "HRC-KN",
     "hrc_rp": "HRC-RP",
-    "hrc_bpff": "HRC-BPFF",
     "kn_kn": "KN-KN",
-    "kn_hro": "KN-HRO",
     "kn_hrc": "KN-HRC",
     "kn_rp": "KN-RP",
-    "kn_bpff": "KN-BPFF",
-    "prokn_prokn": "PROKN-PROKN",
-    "prohetkn_prohetkn": "PROHETKN-PROHETKN",
     "gnn_gnn": "GNN-GNN",
     "gnn_hetero_gnn_hetero": "GNN-HETERO-GNN-HETERO",
     "xgb_batch_xgb_batch": "XGB-BATCH-XGB-BATCH",
     "mlp_batch_mlp_batch": "MLP-BATCH-MLP-BATCH",
     "xgb_single_xgb_single": "XGB-SINGLE-XGB-SINGLE",
-    "multiloop_multiloop": "MULTILOOP-MULTILOOP",
     "determined_determined": "DETERMINED-DETERMINED",
     "evaluator_evaluator": "EVALUATOR-EVALUATOR",
     "kn_network_kn_network": "KN-NETWORK-KN-NETWORK",
@@ -558,6 +551,15 @@ scheduling_strategies: Dict[str, str] = {
     "hrc_network_hrc_network": "HRC-NETWORK-HRC-NETWORK",
     "hrc_network_batch_hrc_network_batch": "HRC-NETWORK-BATCH-HRC-NETWORK-BATCH",
     "rp_network_rp_network": "RP-NETWORK-RP-NETWORK",
+    "peer_greedy_network_peer_greedy_network": "PEER-GREEDY-NETWORK",
+    "peer_greedy_learned_network_peer_greedy_learned_network": "PEER-GREEDY-LEARNED-NETWORK",
+    "drain_greedy_network_drain_greedy_network": "DRAIN-GREEDY-NETWORK",
+    "peer_greedy_lookahead_network_peer_greedy_lookahead_network": "PEER-GREEDY-LOOKAHEAD-NETWORK",
+    "peer_greedy_oracle_network_peer_greedy_oracle_network": "PEER-GREEDY-ORACLE-NETWORK",
+    "peer_greedy_selfpredict_network_peer_greedy_selfpredict_network": "PEER-GREEDY-SELFPREDICT-NETWORK",
+    "peer_greedy_network_batch_peer_greedy_network_batch": "PEER-GREEDY-NETWORK-BATCH",
+    "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": "PEER-GREEDY-LEARNED-NETWORK-BATCH",
+    "peer_greedy_network_cd_peer_greedy_network_cd": "PEER-GREEDY-NETWORK-CD",
     "offload_network_offload_network": "OFFLOAD-NETWORK-OFFLOAD-NETWORK",
 }
 

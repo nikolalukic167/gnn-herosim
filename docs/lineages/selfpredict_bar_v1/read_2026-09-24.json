@@ -1,0 +1,436 @@
+{
+ "gate_dir": "simulation_data/peer_affinity_live_gate/results/selfpredict_bar_v1_gate",
+ "rungs": {
+  "C40": {
+   "n_env": {
+    "peer_greedy_selfpredict_network": 16,
+    "peer_greedy_network": 16,
+    "peer_greedy_network_cd": 16,
+    "knative_network": 16,
+    "knative_network_ect": 16,
+    "random_network": 16
+   },
+   "reactive": {
+    "n": 16,
+    "median_pct": -19.41798681212181,
+    "median_abs": -179086.84179173975,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-REACTIVE",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -18.260693333328895,
+      "median_abs": -1.6478230244268959,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -35.746456525827384,
+      "median_abs": -1.927135284908777,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 7.668889807309491,
+      "median_abs": 0.27223875894086635,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     }
+    }
+   },
+   "rule": {
+    "n": 16,
+    "median_pct": -6.1856654116501995,
+    "median_abs": -47678.204528748116,
+    "a_faster": 15,
+    "sign_p": 0.000518798828125,
+    "verdict": "SELFPREDICT-BEATS-RULE",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -6.868623726962325,
+      "median_abs": -0.4583405395563789,
+      "a_faster": 15,
+      "sign_p": 0.000518798828125
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -15.16791322673513,
+      "median_abs": -0.605448035626394,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 2.5775295919829975,
+      "median_abs": 0.1035865940518994,
+      "a_faster": 2,
+      "sign_p": 0.004180908203125
+     }
+    }
+   },
+   "cd": {
+    "n": 16,
+    "median_pct": -7.778389934409515,
+    "median_abs": -61918.7317425097,
+    "a_faster": 12,
+    "sign_p": 0.076812744140625,
+    "verdict": "NOT-SEPARATED",
+    "parts": {
+     "averageWaitTime": {
+      "n": 16,
+      "median_pct": -100.0,
+      "median_abs": -7.10318210810774,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": 103.87691046642155,
+      "median_abs": 3.3499682272732176,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -4.800629774746898,
+      "median_abs": -0.19322245903802093,
+      "a_faster": 12,
+      "sign_p": 0.076812744140625
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 192.83215669994695,
+      "median_abs": 2.5753588729883647,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     }
+    }
+   },
+   "ect": {
+    "n": 16,
+    "median_pct": -33.113348790176516,
+    "median_abs": -324818.16544705187,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-ECT",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -47.92094917567121,
+      "median_abs": -5.311497168793419,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -35.48212298087861,
+      "median_abs": -1.7759034924220432,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 26.601153884864953,
+      "median_abs": 0.7877541867149864,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     }
+    }
+   },
+   "random": {
+    "n": 16,
+    "median_pct": -27.307814526714502,
+    "median_abs": -253175.13178591343,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-RANDOM",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -37.36245441781095,
+      "median_abs": -3.551500216895242,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -36.885466621122745,
+      "median_abs": -1.9004931214410432,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 16.963827999971574,
+      "median_abs": 0.6378462680463792,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     }
+    }
+   },
+   "sanity_rule_vs_reactive": {
+    "n": 16,
+    "median_pct": -12.956923332032538,
+    "median_abs": -117935.30111577862,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05
+   },
+   "elapsed_median_s": {
+    "peer_greedy_selfpredict_network": 14.730261810726574,
+    "peer_greedy_network": 15.58980219875242,
+    "peer_greedy_network_cd": 15.026011273032978,
+    "knative_network": 17.86958637950883,
+    "knative_network_ect": 19.619215421278756,
+    "random_network": 18.70855621335675
+   }
+  },
+  "C80": {
+   "n_env": {
+    "peer_greedy_selfpredict_network": 16,
+    "peer_greedy_network": 16,
+    "peer_greedy_network_cd": 16,
+    "knative_network": 16,
+    "knative_network_ect": 16,
+    "random_network": 16
+   },
+   "reactive": {
+    "n": 16,
+    "median_pct": -21.44401061803868,
+    "median_abs": -208864.13761609915,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-REACTIVE",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -22.937257062876874,
+      "median_abs": -2.3575291036421584,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -35.45607613542076,
+      "median_abs": -1.8221532219038754,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 12.96746406259454,
+      "median_abs": 0.42984947368940607,
+      "a_faster": 2,
+      "sign_p": 0.004180908203125
+     }
+    }
+   },
+   "rule": {
+    "n": 16,
+    "median_pct": -8.532643976737504,
+    "median_abs": -63363.39789301751,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-RULE",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -8.72288916801668,
+      "median_abs": -0.6801770827748643,
+      "a_faster": 15,
+      "sign_p": 0.000518798828125
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -15.06848530867834,
+      "median_abs": -0.6828412618567625,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 2.5868639263750817,
+      "median_abs": 0.09195318907655059,
+      "a_faster": 1,
+      "sign_p": 0.000518798828125
+     }
+    }
+   },
+   "cd": {
+    "n": 16,
+    "median_pct": -8.900806598655606,
+    "median_abs": -71285.05915724381,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-CD",
+    "parts": {
+     "averageWaitTime": {
+      "n": 16,
+      "median_pct": -100.0,
+      "median_abs": -7.094507649302445,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": 91.3122381511586,
+      "median_abs": 3.504073280383847,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -7.2450132367377265,
+      "median_abs": -0.24801566946001663,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 186.40074318647618,
+      "median_abs": 2.4325204989190023,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     }
+    }
+   },
+   "ect": {
+    "n": 16,
+    "median_pct": -37.063496585908595,
+    "median_abs": -396434.01116699696,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-ECT",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -47.905995658618906,
+      "median_abs": -6.666269691581705,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -36.41747837854628,
+      "median_abs": -2.325827134800126,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 34.058778703594804,
+      "median_abs": 0.9573490758787873,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     }
+    }
+   },
+   "random": {
+    "n": 16,
+    "median_pct": -27.531428150077396,
+    "median_abs": -277183.40202267957,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05,
+    "verdict": "SELFPREDICT-BEATS-RANDOM",
+    "parts": {
+     "averageWaitTime": {
+      "n": 0,
+      "median_pct": null,
+      "median_abs": null,
+      "a_faster": 0,
+      "sign_p": null
+     },
+     "averageQueueTime": {
+      "n": 16,
+      "median_pct": -37.61900276628081,
+      "median_abs": -4.587131122466065,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerExchangeTime": {
+      "n": 16,
+      "median_pct": -33.62617774147269,
+      "median_abs": -1.8747279738093612,
+      "a_faster": 16,
+      "sign_p": 3.0517578125e-05
+     },
+     "totalPeerRendezvousWait": {
+      "n": 16,
+      "median_pct": 23.343837981350656,
+      "median_abs": 0.7356116393052712,
+      "a_faster": 0,
+      "sign_p": 3.0517578125e-05
+     }
+    }
+   },
+   "sanity_rule_vs_reactive": {
+    "n": 16,
+    "median_pct": -16.01317257839824,
+    "median_abs": -145500.73972308164,
+    "a_faster": 16,
+    "sign_p": 3.0517578125e-05
+   },
+   "elapsed_median_s": {
+    "peer_greedy_selfpredict_network": 14.786496338570991,
+    "peer_greedy_network": 15.89766157299778,
+    "peer_greedy_network_cd": 16.027112529578027,
+    "knative_network": 18.268444536940365,
+    "knative_network_ect": 22.6149297204354,
+    "random_network": 20.75469919564079
+   }
+  }
+ },
+ "verdict": "BAR=SELFPREDICT"
+}

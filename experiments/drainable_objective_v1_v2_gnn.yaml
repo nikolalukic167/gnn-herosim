@@ -1,0 +1,44 @@
+# drainable_objective_v1 v2 -- gnn: message passing over bipartite + peer edges (PeerConv), label V = 2
+#
+# One of six configs: V in {0.5, 1, 2} x {gnn, mpoff}. The ONLY difference from the T1b
+# lr2e3 recipe this copies is the cache, which carries the same corpus under a different
+# label. lr stays 2e-3 and is NOT re-tuned -- a carried limitation, stated in the node,
+# for the same reason objective_pivot_v1 Phase 3 carried its own.
+#
+# Amendment 1: the corpus and the split are T1b's, unchanged, and the CONTROL arm is the
+# T1b lr2e3 checkpoints themselves -- repricing the backlog on the measured clock leaves
+# the argmin plan unmoved, so a separate V = 0 arm would be a copy. Only the label differs
+# between this arm and its control.
+# Seeds: --seed 1..16 for V = 1 (gated), 1..8 for V in {0.5, 2} (offline dose-response).
+trainer: gnn
+lineage: drainable_objective_v1
+cache_dir: simulation_data/graphs_cache_drainable_objective_v1_v2
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_affinity_v1_t1b_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v2
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: drainable-objective-v1-v2-gnn
+  tags:
+  - drainable-objective
+  - v2
+  - gnn
+  - lr2e3

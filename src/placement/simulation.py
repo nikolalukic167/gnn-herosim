@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Dict, Tuple, Type, Set, Any, List, Optional
 
 from src.placement.infrastructure import Node, Platform, Storage, Application, Task
+from src.placement.network_fabric import build_fabric
 
 from simpy.core import Environment  # type: ignore[import-not-found]
 from simpy.resources.store import FilterStore  # type: ignore[import-not-found]
@@ -57,9 +58,6 @@ from src.policy.gnn_hetero.autoscaler import KnativeAutoscaler as GNNHeteroAutos
 from src.policy.gnn_hetero.orchestrator import GNNOrchestrator as GNNHeteroOrchestrator
 from src.policy.gnn_hetero.scheduler import GNNScheduler as GNNHeteroScheduler
 
-from src.policy.herofake.orchestrator import HROOrchestrator
-from src.policy.herofake.autoscaler import HROAutoscaler
-from src.policy.herofake.scheduler import HROScheduler
 
 from src.policy.herocache.orchestrator import HRCOrchestrator
 from src.policy.herocache.autoscaler import HRCAutoscaler
@@ -70,24 +68,14 @@ from src.policy.herocache_network.scheduler import HRCScheduler as HRCNetworkSch
 from src.policy.herocache_network_batch.orchestrator import HRCOrchestrator as HRCNetworkBatchOrchestrator
 from src.policy.herocache_network_batch.autoscaler import HRCAutoscaler as HRCNetworkBatchAutoscaler
 from src.policy.herocache_network_batch.scheduler import HRCScheduler as HRCNetworkBatchScheduler
-from src.policy.heteroproactiveknative.autoscaler import HeteroProactiveKnativeAutoscaler
-from src.policy.heteroproactiveknative.orchestrator import HeteroProactiveKnativeOrchestrator
-from src.policy.heteroproactiveknative.scheduler import HeteroProactiveKnativeScheduler
 
 from src.policy.knative.orchestrator import KnativeOrchestrator
 from src.policy.knative.autoscaler import KnativeAutoscaler
 from src.policy.knative.scheduler import KnativeScheduler
-from src.policy.proactiveknative.autoscaler import ProactiveKnativeAutoscaler
-from src.policy.proactiveknative.orchestrator import ProactiveKnativeOrchestrator
-from src.policy.proactiveknative.scheduler import ProactiveKnativeScheduler
 
 from src.policy.random.scheduler import RandomScheduler, RandomNetworkScheduler
 
-from src.policy.bpff.scheduler import BPFFScheduler
 
-from src.policy.multiloop.orchestrator import MultiLoopOrchestrator
-from src.policy.multiloop.autoscaler import MultiLoopAutoscaler
-from src.policy.multiloop.scheduler import MultiLoopScheduler
 from src.policy.determined.orchestrator import DeterminedOrchestrator
 from src.policy.determined.autoscaler import DeterminedAutoscaler
 from src.policy.determined.scheduler import DeterminedScheduler
@@ -99,6 +87,17 @@ from src.policy.knative_network.orchestrator import KnativeOrchestrator as Knati
 from src.policy.knative_network.autoscaler import KnativeAutoscaler as KnativeNetworkAutoscaler
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
 from src.policy.knative_network_ect.scheduler import KnativeECTScheduler as KnativeNetworkECTScheduler
+from src.policy.peer_greedy_network.scheduler import (
+    DrainGreedyNetworkScheduler,
+    PeerGreedyLearnedNetworkBatchScheduler,
+    PeerGreedyLearnedNetworkScheduler,
+    PeerGreedyLookaheadNetworkScheduler,
+    PeerGreedyOracleNetworkScheduler,
+    PeerGreedySelfPredictNetworkScheduler,
+    PeerGreedyNetworkBatchScheduler,
+    PeerGreedyNetworkCDScheduler,
+    PeerGreedyNetworkScheduler,
+)
 from src.policy.knative_network_ect_pull.scheduler import (
     KnativeECTPullScheduler as KnativeNetworkECTPullScheduler,
 )
@@ -126,11 +125,23 @@ def create_nodes(
 
     nodes_store = FilterStore(env)
 
+    # node_contention_v3: a node-level pool of execution slots that co-located platforms
+    # contend for. Absent from the infrastructure (the node_disk_v2 default) it stays None
+    # and platforms run independently, so existing corpora reproduce unchanged.
+    default_compute_slots = infrastructure.get("compute_slots_per_node")
+
+    # network_contention_v1: shared inbound bandwidth per node, same opt-in shape.
+    default_ingress_bandwidth = infrastructure.get("ingress_bandwidth_mbps")
+
+    # link_contention_v1: one fabric for the whole run, because a link belongs to no
+    # single node — this is the only place that owns cross-node state. Absent a
+    # link_topology this is None and no pipes exist, so the default path is unchanged.
+    fabric = build_fabric(env, infrastructure.get("link_topology"))
+
     for node in infrastructure["nodes"]:
         platforms_store = FilterStore(env)
         storage_store = FilterStore(env)
 
-        # Initialize node
         current_node = Node(
             env=env,
             node_id=node_id,
@@ -142,7 +153,12 @@ def create_nodes(
             policy=simulation_policy,
             data=simulation_data,
             node_type=node["type"],
-            node_name=node["node_name"]
+            node_name=node["node_name"],
+            compute_slots=node.get("compute_slots", default_compute_slots),
+            ingress_bandwidth_mbps=node.get(
+                "ingress_bandwidth_mbps", default_ingress_bandwidth
+            ),
+            fabric=fabric,
         )
         nodes_store.put(current_node)
 
@@ -203,9 +219,7 @@ def precreate_replicas(
     - Creates warmup tasks for prewarmed replicas (co-simulation mode only)
     """
     print("\n=== Executing replica creation ===")
-    
-    # Replica plan is REQUIRED for this function (co-simulation mode only)
-    # This function should NOT be called from executeinitial.py
+
     if not replica_plan:
         raise ValueError(
             "replica_plan is required for precreate_replicas. "
@@ -218,13 +232,21 @@ def precreate_replicas(
     preinit_task_types = replica_plan['preinit_task_types']
     replicas_config = replica_plan['replicas_config']
     prewarm_config = replica_plan.get('prewarm_config', {})
+    # route_b env pivot (2026-08-27), W3: mirrors generate_infrastructure.py's
+    # preinit.replica_overlap. Default False -> assigned_platforms is checked exactly
+    # as before, so every existing replica_plan (no key, or key absent) materializes
+    # byte-identically. When True, a (node, platform) already claimed by one task type
+    # may ALSO be claimed by another -- this function's own dedup set exists only to
+    # stop ONE task type double-booking itself (mirrors the per-type check
+    # generate_infrastructure.py kept even under overlap), never to police cross-type
+    # sharing when overlap is the whole point.
+    replica_overlap = bool(replica_plan.get('replica_overlap', False))
     print("Using replica placement plan from executecosimulation.py (co-simulation mode)")
-    
-    # Get all nodes and their platforms
+
     all_nodes = list(nodes.items)
     server_nodes = [node for node in all_nodes if not node.node_name.startswith('client_node')]
     client_nodes = [node for node in all_nodes if node.node_name.startswith('client_node')]
-    
+
     """
     print(f"Available nodes:")
     print(f"  Server nodes: {[n.node_name for n in server_nodes]}")
@@ -233,41 +255,50 @@ def precreate_replicas(
     print(f"  preinit_servers: {preinit_servers}")
     print(f"  preinit_clients: {preinit_clients}")
     """
-    
-    # Track which platforms have been assigned to avoid double-booking
+
+    # Track which platforms have been assigned to avoid double-booking. Under
+    # replica_overlap this tracks PER-TASK-TYPE assignment instead of a single global
+    # set, so one type still can't double-book itself but different types can share.
     assigned_platforms = set()
+    assigned_platforms_by_type: Dict[str, set] = {}
+
+    def _is_assigned(task_type_name: str, key) -> bool:
+        if replica_overlap:
+            return key in assigned_platforms_by_type.get(task_type_name, set())
+        return key in assigned_platforms
+
+    def _mark_assigned(task_type_name: str, key) -> None:
+        assigned_platforms.add(key)
+        if replica_overlap:
+            assigned_platforms_by_type.setdefault(task_type_name, set()).add(key)
     initial_replicas = {}
-    
-    # Use deterministic placements if provided
+
     if deterministic_placements:
         print("Using deterministic replica placements from infrastructure.json")
-        
-        # Create node and platform lookup maps
+
         node_map = {node.node_name: node for node in all_nodes}
-        
+
         for task_type_name, placements in deterministic_placements.items():
             initial_replicas[task_type_name] = set()
-            
+
             for placement in placements:
                 node_name = placement['node_name']
                 platform_id = placement['platform_id']
-                
-                # Find node and platform
+
                 node = node_map.get(node_name)
                 if not node:
                     continue
-                
-                # Find platform by ID
+
                 platform = None
                 for p in node.platforms.items:
                     if p.id == platform_id:
                         platform = p
                         break
                 
-                if platform and (node, platform) not in assigned_platforms:
+                if platform and not _is_assigned(task_type_name, (node, platform)):
                     replica = (node, platform)
                     initial_replicas[task_type_name].add(replica)
-                    assigned_platforms.add(replica)
+                    _mark_assigned(task_type_name, replica)
 
                     queue_length = 0
                     if env and simulation_policy and deterministic_queues:
@@ -284,10 +315,17 @@ def precreate_replicas(
 
                     # Cold replicas may defer platform.initialized until image pull completes.
                     # force_warm / busy queue ⇒ succeed initialized immediately.
-                    if not (defer_cold_init and queue_length == 0 and not force_warm):
+                    #
+                    # route_b env pivot W3: under replica_overlap the SAME Platform object
+                    # is legitimately claimed by more than one task type (a shared physical
+                    # slot), so this SimPy Event can already be triggered by an earlier task
+                    # type's pass through this loop -- succeed()ing it twice raises
+                    # RuntimeError. The physical platform only needs to be marked ready
+                    # once; a second type finding it already initialized is not an error.
+                    if (not (defer_cold_init and queue_length == 0 and not force_warm)
+                            and not platform.initialized.triggered):
                         platform.initialized.succeed()
 
-                    # Use deterministic queue length if provided
                     # Only mark platform as WARM if it has queue tasks (realistic cold start)
                     # OR if placement explicitly requests warm sandbox (queue-empty).
                     if env and simulation_policy and deterministic_queues:
@@ -339,27 +377,22 @@ def precreate_replicas(
         rng = random.Random()
         print("Warning: No seed provided for RNG - replica and queue distributions will be non-deterministic")
     
-    # Create replicas for each task type according to configuration
     for task_type_name, replica_config in replicas_config.items():
         print(f"\nTask type: {task_type_name}")
         print(f"  Replica config: {replica_config}")
-        
-        # Get supported platforms for this task type
+
         task_type = simulation_data.task_types[task_type_name]
         supported_platforms = task_type["platforms"]
         print(f"  Supported platforms: {supported_platforms}")
-        
-        # Initialize replica set for this task type
+
         initial_replicas[task_type_name] = set()
-        
-        # Create server replicas
+
         per_server = replica_config.get('per_server', 0)
         if per_server > 0:
             print(f"  Creating {per_server} replicas per server")
             
             for node in server_nodes:
                 if node.node_name in preinit_servers:
-                    # Allow statistical override per node (if configured)
                     task_prewarm_cfg = prewarm_config.get(task_type_name, {}) if prewarm_config else {}
                     per_node_target = per_server
                     if task_prewarm_cfg.get('distribution') == 'statistical':
@@ -367,33 +400,27 @@ def precreate_replicas(
                         sampled = sample_replica_count('server', rep_dist, rng)
                         # preserve at least 0, and don't exceed number of suitable platforms
                         per_node_target = max(0, int(sampled))
-                    # Find suitable unassigned platforms on this server
                     suitable_platforms = [
                         platform for platform in node.platforms.items
-                        if (platform.type["shortName"] in supported_platforms and 
-                            (node, platform) not in assigned_platforms)
+                        if (platform.type["shortName"] in supported_platforms and
+                            not _is_assigned(task_type_name, (node, platform)))
                     ]
-                    
-                    # Create up to per_server replicas on this node
+
                     replicas_created = 0
                     for platform in suitable_platforms:
                         if replicas_created >= per_node_target:
                             break
-                        
-                        # Create replica
+
                         replica = (node, platform)
                         initial_replicas[task_type_name].add(replica)
-                        assigned_platforms.add(replica)
-                        
-                        # Mark platform as initialized (replica exists)
+                        _mark_assigned(task_type_name, replica)
+
                         platform.initialized.succeed()
-                        
-                        # Create warmup tasks if configured and environment/policy available
+
                         # Only mark as WARM if queue > 0 (realistic cold start simulation)
                         if env and simulation_policy and prewarm_config:
                             task_prewarm = prewarm_config.get(task_type_name, {})
                             initial_queue = task_prewarm.get('initial_queue', 0)
-                            # Statistical queue distribution support
                             if task_prewarm.get('queue_distribution') == 'statistical':
                                 q_params = task_prewarm.get('queue_distribution_params') or {}
                                 # default clamp: non-negative small cap to avoid huge queues
@@ -402,14 +429,12 @@ def precreate_replicas(
                                 sampled_q = sample_bounded_int(q_params, rng)
                                 initial_queue = max(0, int(sampled_q))
                             if initial_queue > 0:
-                                # Platform has queued tasks - mark as WARM
                                 platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
                                 try:
                                     warmup_tasks = create_warmup_tasks(
-                                        env, platform, task_type_name, simulation_data, 
+                                        env, platform, task_type_name, simulation_data,
                                         simulation_policy, initial_queue
                                     )
-                                    # Enqueue warmup tasks to the platform
                                     for warmup_task in warmup_tasks:
                                         platform.queue.put(warmup_task)
                                 except Exception as e:
@@ -418,46 +443,39 @@ def precreate_replicas(
                                     traceback.print_exc()
                                     raise
                             # else: platform.previous_task remains None = COLD
-                        
+
                         # print(f"    Created replica on {node.node_name} ({platform.type['shortName']}) - Platform {platform.id}")
                         replicas_created += 1
-        
-        # Create client replicas (if requested)
+
         per_client = replica_config.get('per_client', 0)
         if per_client > 0:
             print(f"  Creating {per_client} replicas per client")
             
             for node in client_nodes:
                 if node.node_name in preinit_clients:
-                    # Allow statistical override per node (if configured)
                     task_prewarm_cfg = prewarm_config.get(task_type_name, {}) if prewarm_config else {}
                     per_node_target = per_client
                     if task_prewarm_cfg.get('distribution') == 'statistical':
                         rep_dist = task_prewarm_cfg.get('replica_distribution') or {}
                         sampled = sample_replica_count('client', rep_dist, rng)
                         per_node_target = max(0, int(sampled))
-                    # Find suitable unassigned platforms on this client
                     suitable_platforms = [
                         platform for platform in node.platforms.items
-                        if (platform.type["shortName"] in supported_platforms and 
-                            (node, platform) not in assigned_platforms)
+                        if (platform.type["shortName"] in supported_platforms and
+                            not _is_assigned(task_type_name, (node, platform)))
                     ]
-                    
-                    # Create up to per_client replicas on this node
+
                     replicas_created = 0
                     for platform in suitable_platforms:
                         if replicas_created >= per_node_target:
                             break
-                        
-                        # Create replica
+
                         replica = (node, platform)
                         initial_replicas[task_type_name].add(replica)
-                        assigned_platforms.add(replica)
-                        
-                        # Mark platform as initialized (replica exists)
+                        _mark_assigned(task_type_name, replica)
+
                         platform.initialized.succeed()
-                        
-                        # Create warmup tasks if configured and environment/policy available
+
                         # Only mark as WARM if queue > 0 (realistic cold start simulation)
                         if env and simulation_policy and prewarm_config:
                             task_prewarm = prewarm_config.get(task_type_name, {})
@@ -469,14 +487,12 @@ def precreate_replicas(
                                 sampled_q = sample_bounded_int(q_params, rng)
                                 initial_queue = max(0, int(sampled_q))
                             if initial_queue > 0:
-                                # Platform has queued tasks - mark as WARM
                                 platform.previous_task = type('Task', (), {'type': {'name': task_type_name}})()
                                 try:
                                     warmup_tasks = create_warmup_tasks(
-                                        env, platform, task_type_name, simulation_data, 
+                                        env, platform, task_type_name, simulation_data,
                                         simulation_policy, initial_queue
                                     )
-                                    # Enqueue warmup tasks to the platform
                                     for warmup_task in warmup_tasks:
                                         platform.queue.put(warmup_task)
                                 except Exception as e:
@@ -485,10 +501,10 @@ def precreate_replicas(
                                     traceback.print_exc()
                                     raise
                             # else: platform.previous_task remains None = COLD
-                        
+
                         # print(f"    Created replica on {node.node_name} ({platform.type['shortName']}) - Platform {platform.id}")
                         replicas_created += 1
-        
+
         # print(f"  Total replicas created: {len(initial_replicas[task_type_name])}")
     
     print(f"\n=== Replica creation complete ===")
@@ -529,31 +545,25 @@ def create_warmup_tasks(
     
     warmup_tasks = []
     task_type = simulation_data.task_types[task_type_name]
-    
-    # Find an application type that uses this task type
+
     application_type = None
     for app_type in simulation_data.application_types.values():
         if task_type_name in app_type.get('dag', {}):
             application_type = app_type
             break
-    
+
     if not application_type:
-        # Fallback to first application type if none found
         application_type = list(simulation_data.application_types.values())[0]
-    
-    # Use medium QoS as default
+
     # Ensure we get a dict, not a string
     if 'medium' in simulation_data.qos_types:
         qos_type = simulation_data.qos_types['medium']
     elif simulation_data.qos_types:
-        # Get first available QoS type as fallback
         qos_type = next(iter(simulation_data.qos_types.values()))
     else:
-        # Fallback: create a minimal QoS dict if none available
         qos_type = {"maxDurationDeviation": 1.0}
-    
+
     for i in range(count):
-        # Create a lightweight application for the warmup task
         warmup_app = Application(
             id=-1000 - i,  # Negative ID to distinguish from real applications
             dispatched_time=0.0,
@@ -562,7 +572,6 @@ def create_warmup_tasks(
             tasks=[]  # Will be set after task creation
         )
         
-        # Create the warmup task
         warmup_task = Task(
             env=env,
             task_id=-1000 - i,  # Negative ID to distinguish from real tasks
@@ -573,18 +582,15 @@ def create_warmup_tasks(
             node_name=platform.node.node_name
         )
         
-        # Mark as internal warmup task
         setattr(warmup_task, 'is_internal', True)
-        
-        # Set up the task for execution
+
         warmup_task.node = platform.node
         warmup_task.platform = platform
-        
+
         # Trigger events to allow task_process to advance
         warmup_task.dispatched.succeed()
         warmup_task.scheduled.succeed()
-        
-        # Add to application's task list
+
         warmup_app.tasks = [warmup_task]
         
         # Attach to platform for orchestrator to discover later
@@ -605,23 +611,40 @@ def start_simulation(
         trace_file: str,
         models = None
 ) -> SimulationStats | None:
-    # Logger
+    # Logger. `force=True` is load-bearing, not tidying (2026-09-13): `basicConfig` is a
+    # NO-OP once the root logger has any handler, and `src/notebooks/prepare_graphs_cache.py`
+    # calls `basicConfig(level=INFO)` at MODULE IMPORT -- which a prefix-conditioned
+    # checkpoint triggers on load (`prefix_serving._task_type_vocab`). Without force the
+    # intended stdout/ERROR handler was silently discarded and every per-event
+    # `logging.info` in the simulator went to stderr at INFO instead: ~390 MB of log per
+    # 450,729-task arm. 102 such arms exhausted the 250 GiB /home quota on datalab and
+    # killed 128 of them with exit 1 and no traceback -- the traceback could not be
+    # written either. See docs/gates/gate-tools.md 2026-09-13.
+    # The ROOT level must match the handler's, not sit below it (2026-09-14). At
+    # level=DEBUG every `logging.info`/`logging.debug` in the event loop -- six or so
+    # per task in `infrastructure.py` -- was fully realised into a LogRecord, including
+    # the `%(funcName)s` stack walk this format demands, and then dropped by the
+    # handler's ERROR filter. py-spy put 48 % of samples in that dead path on a
+    # drainable-rung arm. Raising the root level makes `logging.info(...)` return at
+    # `Logger.isEnabledFor`, before any record exists. Label-invariant by construction
+    # (nothing branches on log level) and verified: byte-identical total_rtt,
+    # scaleEventCount and endTime on the 3k smoke for knative_network and
+    # knative_network_batch. `force=True` stays load-bearing -- see below.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.ERROR)
 
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.ERROR,
         format="%(levelname)s [%(funcName)18s() ] %(message)s",
         handlers=[console_handler],
+        force=True,
     )
 
     logger = logging.getLogger('simulation')
 
-    # Simulation
     env = Environment()
     finished = env.event()
-    
-    # Set fast-forward warmup flag from infrastructure config.
+
     env.fast_forward_warmup = infrastructure.get('fast_forward_warmup', False)
     env.fast_forward_threshold = infrastructure.get('fast_forward_threshold', 10)
 
@@ -631,7 +654,6 @@ def start_simulation(
         infrastructure.get('warmth_physics'),
     )
 
-    # Initialize infrastructure
     nodes: FilterStore = create_nodes(
         env=env,
         simulation_data=simulation_data,
@@ -640,7 +662,6 @@ def start_simulation(
     )
     print(f"[simulation] Created {len(nodes.items)} nodes for simulation '{simulation_policy.scheduling}'")
 
-    # Pre-create replicas for each task type based on configuration
     # NOTE: This is ONLY used by executecosimulation.py (co-simulation mode)
     # executeinitial.py does NOT provide replica_plan and should not preinitialize platforms
     initial_replicas = {}
@@ -658,21 +679,18 @@ def start_simulation(
         seeded = sum(len(replicas) for replicas in initial_replicas.values())
         print(f"[simulation] Live snapshot seed applied ({seeded} replicas)")
     elif infrastructure.get("preinitialize_platforms", False):
-        # Replica plan is only provided by executecosimulation.py (co-simulation mode)
         replica_plan = infrastructure.get('replica_plan')
         if replica_plan is not None:
-            # Get deterministic placements and queues if available
             deterministic_placements = infrastructure.get('deterministic_replica_placements')
             deterministic_queues = infrastructure.get('deterministic_queue_distributions')
-            
+
             # Get seed from infrastructure (same seed used for network topology)
             seed = None
             network_config = infrastructure.get('network', {})
             topology_config = network_config.get('topology', {})
             if topology_config and 'seed' in topology_config:
                 seed = topology_config['seed']
-            
-            # Only create replicas and warmup tasks when replica_plan exists (co-sim mode)
+
             initial_replicas = precreate_replicas(
                 nodes, simulation_data, replica_plan, env, simulation_policy,
                 seed=seed,
@@ -681,36 +699,22 @@ def start_simulation(
                 defer_cold_init=bool(infrastructure.get("defer_cold_replica_init")),
             )
         else:
-            # preinitialize_platforms=True but no replica_plan - skip replica creation
-            # This should not happen, but handle gracefully for executeinitial.py mode
             print("Warning: preinitialize_platforms=True but no replica_plan provided. Skipping replica precreation.")
 
     policies: Dict[
         str, Tuple[Type[Orchestrator], Type[Autoscaler], Type[Scheduler]]
     ] = {
-        "hro_hro": (HROOrchestrator, HROAutoscaler, HROScheduler),
-        "hro_hrc": (HROOrchestrator, HROAutoscaler, HRCScheduler),
-        "hro_kn": (HROOrchestrator, HROAutoscaler, KnativeScheduler),
-        "hro_rp": (HROOrchestrator, HROAutoscaler, RandomScheduler),
-        "hro_bpff": (HROOrchestrator, HROAutoscaler, BPFFScheduler),
         "hrc_hrc": (HRCOrchestrator, HRCAutoscaler, HRCScheduler),
-        "hrc_hro": (HRCOrchestrator, HRCAutoscaler, HROScheduler),
         "hrc_kn": (HRCOrchestrator, HRCAutoscaler, KnativeScheduler),
         "hrc_rp": (HRCOrchestrator, HRCAutoscaler, RandomScheduler),
-        "hrc_bpff": (HRCOrchestrator, HRCAutoscaler, BPFFScheduler),
         "kn_kn": (KnativeOrchestrator, KnativeAutoscaler, KnativeScheduler),
-        "kn_hro": (KnativeOrchestrator, KnativeAutoscaler, HROScheduler),
         "kn_hrc": (KnativeOrchestrator, KnativeAutoscaler, HRCScheduler),
         "kn_rp": (KnativeOrchestrator, KnativeAutoscaler, RandomScheduler),
-        "kn_bpff": (KnativeOrchestrator, KnativeAutoscaler, BPFFScheduler),
-        "prokn_prokn": (ProactiveKnativeOrchestrator, ProactiveKnativeAutoscaler, ProactiveKnativeScheduler),
-        "prohetkn_prohetkn": (HeteroProactiveKnativeOrchestrator, HeteroProactiveKnativeAutoscaler, HeteroProactiveKnativeScheduler),
         "gnn_gnn": (GNNOrchestrator, GNNAutoscaler, GNNScheduler),
         "gnn_hetero_gnn_hetero": (GNNHeteroOrchestrator, GNNHeteroAutoscaler, GNNHeteroScheduler),
         "xgb_batch_xgb_batch": (XGBoostBatchOrchestrator, GNNAutoscaler, XGBoostBatchScheduler),
         "mlp_batch_mlp_batch": (MLPBatchOrchestrator, GNNAutoscaler, MLPBatchScheduler),
         "xgb_single_xgb_single": (XGBoostSingleOrchestrator, KnativeNetworkAutoscaler, XGBoostSingleScheduler),
-        "multiloop_multiloop": (MultiLoopOrchestrator, MultiLoopAutoscaler, MultiLoopScheduler),
         "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
         "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),
         "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkScheduler),
@@ -725,6 +729,17 @@ def start_simulation(
         "hrc_network_hrc_network": (HRCNetworkOrchestrator, HRCNetworkAutoscaler, HRCNetworkScheduler),
         "hrc_network_batch_hrc_network_batch": (HRCNetworkBatchOrchestrator, HRCNetworkBatchAutoscaler, HRCNetworkBatchScheduler),
         "rp_network_rp_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, RandomNetworkScheduler),
+        # peer_greedy_live_v1: the hand rule on the reactive stack (per arrival) and on the
+        # learned arms' stack (peer-group batching at the cell window)
+        "peer_greedy_network_peer_greedy_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedyNetworkScheduler),
+        "peer_greedy_learned_network_peer_greedy_learned_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedyLearnedNetworkScheduler),
+        "drain_greedy_network_drain_greedy_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, DrainGreedyNetworkScheduler),
+        "peer_greedy_lookahead_network_peer_greedy_lookahead_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedyLookaheadNetworkScheduler),
+        "peer_greedy_oracle_network_peer_greedy_oracle_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedyOracleNetworkScheduler),
+        "peer_greedy_selfpredict_network_peer_greedy_selfpredict_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedySelfPredictNetworkScheduler),
+        "peer_greedy_network_batch_peer_greedy_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkBatchScheduler),
+        "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyLearnedNetworkBatchScheduler),
+        "peer_greedy_network_cd_peer_greedy_network_cd": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDScheduler),
         "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
     }
 
@@ -734,7 +749,6 @@ def start_simulation(
         simulation_policy.scheduling
     ]
 
-    # Prepare orchestrator arguments
     orchestrator_args = {
         'env': env,
         'data': simulation_data,
@@ -746,11 +760,12 @@ def start_simulation(
         'end_event': finished,
         'trace_file': str(trace_file),
         'models': models,
-        'initial_replicas': initial_replicas  # Pass initial replicas to orchestrator
+        'initial_replicas': initial_replicas
     }
-    
-    # Add infrastructure config for orchestrators that need it
-    if orchestrator_type.__name__ == 'DeterminedOrchestrator':
+
+    if orchestrator_type.__name__ in ('DeterminedOrchestrator', 'KnativeOrchestrator'):
+        # KnativeOrchestrator uses it only when forced_placements is present (a no-op otherwise);
+        # rollout_imitation_v1's label engine forces one task through the peer_greedy rule.
         orchestrator_args['infrastructure'] = infrastructure
     
     # Add scheduler config for GNN orchestrator (for soft blending configuration)
@@ -764,7 +779,6 @@ def start_simulation(
     env.run(until=finished)
     logging.info(f"[ {orchestrator.end_time} ] ✨ Simulation finished")
 
-    # Statistics
     stats = orchestrator.stats()
 
     logger.info("start_simulation: Simulation completed")

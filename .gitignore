@@ -172,7 +172,76 @@ simulation_data/network_topology.pdf
 models/
 latex/
 
-# Markdown files (except README)
-*.md
-!README.md
-!AGENTS.md
+# Markdown: project docs ARE tracked (CO_SIMULATION_GUIDE.md, LINEAGES.md, memory/,
+# .claude/CLAUDE.md, archive/**/README.md). Only ignore .md generated into output dirs.
+logs/**/*.md
+logs_sim/**/*.md
+analysis_results/**/*.md
+simulation_data/**/*.md
+wandb/**/*.md
+tmp/**/*.md
+
+# Stray dirs created by running scripts from the wrong CWD
+scripts_cosim/logs/
+scripts_cosim/models/
+scripts_cosim/src/
+scripts_cosim/simulation_data/
+
+# Root-level run logs
+/output.log
+/tmp.log
+/run_all_sequential.log
+
+# Local-only Claude Code settings
+.claude/settings.local.json
+
+# Editor backups
+*.bak-*
+
+# untracked scratch tool, not part of the herosim tree
+mcp-sci-bot/
+
+# Bulk result JSONs (>5k lines each) — regenerable outputs; live on datalab / local disk, not in git.
+simulation_data/route_b_fit_p2/
+simulation_data/route_b_live_replay/
+simulation_data/gate_stats_summary.json
+simulation_data/peer_affinity_probe.json
+simulation_data/peer_affinity_r1b_x200_read.json
+simulation_data/peer_affinity_r1b_x200_read_v2.json
+simulation_data/peer_affinity_r1b_x50_read.json
+simulation_data/peer_affinity_r1b_x50_read_v2.json
+simulation_data/peer_affinity_r2_read.json
+simulation_data/peer_affinity_t1b_live_replay.json
+simulation_data/peer_affinity_x800p2_read.json
+simulation_data/peer_affinity_x800p3_read.json
+simulation_data/route_b_8task_rtt.json
+simulation_data/route_b_pilot_v1_arm_b0_makespan.json
+simulation_data/route_b_pilot_v1_arm_b0_rtt.json
+simulation_data/route_b_pilot_v1_arm_s_makespan.json
+simulation_data/route_b_pilot_v1_arm_s_rtt.json
+simulation_data/route_b_pivot_h0_bars_rtt.json
+simulation_data/route_b_pivot_h0_ctrl_amd1_rtt.json
+simulation_data/route_b_pivot_h0_ctrl_rtt.json
+simulation_data/route_b_pivot_h0_rtt.json
+simulation_data/route_b_pivot_h1_bars_rtt.json
+simulation_data/route_b_pivot_h1_ctrl_amd1_rtt.json
+simulation_data/route_b_pivot_h2_ctrl_amd3_rtt.json
+simulation_data/route_b_pivot_h2_proposed_probe_rtt.json
+simulation_data/route_b_pivot_h2_proposed_probe_transfer.json
+simulation_data/route_b_pivot_h2_widearm_probe_rtt.json
+simulation_data/route_b_preprobe_makespan.json
+simulation_data/route_b_preprobe_rtt.json
+simulation_data/route_b_stage2_a1_eval_seed*.json
+simulation_data/route_b_stage2_a2_eval_seed*.json
+simulation_data/route_b_stage2_a3_eval_seed*.json
+simulation_data/route_b_stage2_preprobe_t1_rtt.json
+simulation_data/route_c_screen_4task_rtt.json
+simulation_data/separability_netc_multihop_v1_hubspectrum.json
+simulation_data/separability_netc_multihop_v1_spread.json
+simulation_data/separability_sparse_warmth_n150.json
+simulation_data/separability_sparse_warmth_n150_spread.json
+simulation_data/separability_warmth_1060_n150.json
+simulation_data/separability_warmth_1060_n150_spread.json
+
+# Professor summary build (figures, data copies, LaTeX outputs) — kept locally, not in git.
+paper/professor_summary/

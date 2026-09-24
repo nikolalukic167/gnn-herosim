@@ -118,7 +118,7 @@ def export_snapshot(
 
     from src.executesimulation import execute_simulation
     from src.placement.live_snapshot_seed import build_live_snapshot_seed
-    from src.motivational.constants import KEEP_ALIVE, QUEUE_LENGTH
+    from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH
 
     infrastructure = deepcopy(ctx._base_infrastructure)
     infrastructure["live_snapshot_seed"] = build_live_snapshot_seed({**snapshot, "tasks": list(tasks)})

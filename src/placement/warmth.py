@@ -28,8 +28,17 @@ DEFAULT_STORAGE_WRITE_LATENCY_S = 0.00012
 ESTIMATED_PULL_REMAINING_NORM_S = 100.0
 
 
+WARMTH_PHYSICS_SOURCE_CONFIG = "config"
+WARMTH_PHYSICS_SOURCE_ENV = "env"
+WARMTH_PHYSICS_SOURCE_DEFAULT = "default"
+
+
 class InvalidWarmthPhysicsError(ValueError):
     """Raised when warmth_physics is not a recognized value."""
+
+
+class ImplicitWarmthPhysicsError(ValueError):
+    """Raised when a run relies on the default warmth physics instead of declaring it."""
 
 
 def estimate_unit_pull_sec(
@@ -131,6 +140,52 @@ def resolve_warmth_physics(
             f"Invalid warmth_physics={raw!r}; expected one of {sorted(VALID_WARMTH_PHYSICS)}"
         )
     return raw
+
+
+def describe_warmth_physics(
+    infra_value: Optional[str] = None,
+    env_override: Optional[str] = None,
+) -> dict:
+    """
+    Resolve warmth physics and report which layer supplied the value.
+
+    The two physics versions differ by ~100x in live total RTT on identical
+    configs, so a run that silently takes the default is not comparable to one
+    that declared it. Callers must record the source alongside the value.
+    """
+    if infra_value is not None and infra_value != "":
+        return {
+            "warmth_physics": resolve_warmth_physics(infra_value),
+            "warmth_physics_source": WARMTH_PHYSICS_SOURCE_CONFIG,
+        }
+    env_raw = env_override if env_override is not None else os.environ.get("HEROSIM_WARMTH_PHYSICS")
+    if env_raw is not None and env_raw != "":
+        return {
+            "warmth_physics": resolve_warmth_physics(None, env_raw),
+            "warmth_physics_source": WARMTH_PHYSICS_SOURCE_ENV,
+        }
+    return {
+        "warmth_physics": PLATFORM_REUSE_V1,
+        "warmth_physics_source": WARMTH_PHYSICS_SOURCE_DEFAULT,
+    }
+
+
+def require_explicit_warmth_physics(descriptor: dict) -> None:
+    """
+    Fail loudly when HEROSIM_REQUIRE_EXPLICIT_PHYSICS is set and physics is implicit.
+
+    Every sweep script must set this so cross-sweep tables cannot mix regimes.
+    """
+    if descriptor["warmth_physics_source"] != WARMTH_PHYSICS_SOURCE_DEFAULT:
+        return
+    raw = os.environ.get("HEROSIM_REQUIRE_EXPLICIT_PHYSICS", "")
+    if raw.strip().lower() not in ("1", "true", "yes", "on"):
+        return
+    raise ImplicitWarmthPhysicsError(
+        "warmth_physics was not declared: set it in the space config "
+        "(\"warmth_physics\": \"node_disk_v2\") or export HEROSIM_WARMTH_PHYSICS. "
+        f"Implicit default is {PLATFORM_REUSE_V1!r}, which is not the Regime A physics."
+    )
 
 
 def _task_type_name(task_type: Any) -> str:

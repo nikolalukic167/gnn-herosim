@@ -15,6 +15,7 @@ limitations under the License.
 """
 
 import logging
+import os
 from typing import TYPE_CHECKING, Dict, Set, Tuple
 
 from src.policy.gnn.model import KnativeSchedulerState, KnativeSystemState
@@ -53,19 +54,49 @@ class GNNOrchestrator(Orchestrator):
         # Stub may set scheduler.batch_size=N for determined refs; GNN/MLP must stay
         # within [2,4] or they silently fall back to shortest-queue.
         if self.scheduler_config and "batch_timeout" in self.scheduler_config:
-            self.scheduler.batch_timeout = float(self.scheduler_config["batch_timeout"])
+            cfg_bt = float(self.scheduler_config["batch_timeout"])
+            # Same rule as batch_size below, and for the same reason. Until 2026-09-14 this
+            # assignment was silent, so `GNN_BATCH_TIMEOUT=8.0` exported against a config
+            # carrying batch_timeout=0.02 served 0.02 and recorded 8.0 in run_provenance.env
+            # — the drainable_regime_v1 S1 gate re-ran with a 4,000x window and produced
+            # byte-identical scheduler counters, which is how it was caught.
+            env_bt = os.environ.get("GNN_BATCH_TIMEOUT")
+            if env_bt is not None and float(env_bt) != cfg_bt:
+                raise ValueError(
+                    f"FAIL LOUD: GNN_BATCH_TIMEOUT={env_bt} was exported but the cell config "
+                    f"declares scheduler.batch_timeout={cfg_bt}, which takes precedence. "
+                    f"Edit the config (or unset the variable) so the served batch window is "
+                    f"the one the experiment names."
+                )
+            self.scheduler.batch_timeout = cfg_bt
         if self.scheduler_config and "batch_size" in self.scheduler_config:
             cfg_bs = int(self.scheduler_config["batch_size"])
-            from src.policy.gnn.scheduler import MAX_BATCH_SIZE_FOR_GNN, MIN_BATCH_SIZE_FOR_GNN
-
-            if cfg_bs > MAX_BATCH_SIZE_FOR_GNN or cfg_bs < MIN_BATCH_SIZE_FOR_GNN:
+            # The range is the scheduler's own: [2,4] for the argmax family, [1,16] for
+            # the prefix-conditioned masked_topo decoder (peer_affinity_v1 stage 3).
+            lo = getattr(self.scheduler, "batch_min", 2)
+            hi = getattr(self.scheduler, "batch_max", 4)
+            if cfg_bs > hi or cfg_bs < lo:
                 print(
                     f"[GNN Orchestrator] Ignoring infrastructure scheduler.batch_size={cfg_bs} "
-                    f"(outside GNN range [{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}]); "
+                    f"(outside GNN range [{lo},{hi}]); "
                     f"keeping GNN_BATCH_SIZE={self.scheduler.batch_size}",
                     flush=True,
                 )
             else:
+                # The cell config wins over the env var. That used to happen silently: an
+                # episode run with GNN_BATCH_SIZE=1 against a config carrying batch_size=4
+                # served 4-task batches and reproduced the batch_size=4 result to the last
+                # digit (measured 2026-09-03, bb_core8_bw1p5/cell01). An explicitly
+                # exported value that disagrees with the config is a misconfigured
+                # experiment, not a preference to be overridden.
+                env_raw = os.environ.get("GNN_BATCH_SIZE")
+                if env_raw is not None and int(env_raw) != cfg_bs:
+                    raise ValueError(
+                        f"FAIL LOUD: GNN_BATCH_SIZE={env_raw} was exported but the cell config "
+                        f"declares scheduler.batch_size={cfg_bs}, which takes precedence. "
+                        f"Edit the config (or unset the variable) so the served batch size "
+                        f"is the one the experiment names."
+                    )
                 self.scheduler.batch_size = cfg_bs
     
     def initialize_state(self) -> KnativeSystemState:

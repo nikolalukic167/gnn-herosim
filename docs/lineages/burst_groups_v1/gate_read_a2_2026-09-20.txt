@@ -1,0 +1,33 @@
+
+   AMENDED DESIGN (8 environments): A2: 8-environment disclosed design on 9101 and 9106 -- the batch-path arms (gnnedge0, the batched rule) enter the starved-client spin on 9003 under bursts (every seed on w0, the batched rule on w0/w1) while the per-arrival arms finish; reads at n = 8 environments are DISCLOSED, never registered
+
+=== burst (burst_groups_v1) -- 8 environments ([9101, 9106] x ['w0', 'w1', 'w2', 'w3']), reactive median 8.286 s ===
+   [random_network] 8/8 arms on disk
+   [peer_greedy_network] 8/8 arms on disk
+   [peer_greedy_network_batch] 8/8 arms on disk
+   [be1670_gnnedge0] 128/128 arms on disk
+   [1670_mpoff] 125/128 arms on disk
+
+   read                                 verdict                                       median        p   ahead
+   L1 gnnedge0 vs reactive              NOT-SEPARATED                                 -2.17 %   0.1961   11/16 
+      mpoff vs reactive                 UNREADABLE  FAIL LOUD: checkpoint seed 11 is missing environments [(40, 9101, 'w1')]
+      disclosed (13 complete ckpts)     REACTIVE-FASTER-UNDER-THE-LEVER               +7.95 %   0.0015    0/13 
+   L2 immediate rule vs reactive        UNREADABLE  8 checkpoints < 16
+      disclosed (n = 8 env)             RULE-BEATS-REACTIVE-UNDER-THE-LEVER          -26.42 %   0.0117    8/8  
+      batched rule vs reactive          UNREADABLE  8 checkpoints < 16
+      disclosed (n = 8 env)             NOT-SEPARATED                                -20.19 %   0.2076    6/8  
+      random vs reactive                UNREADABLE  8 checkpoints < 16
+      disclosed (n = 8 env)             REACTIVE-FASTER-THAN-RULE-UNDER-THE-LEVER    +22.46 %   0.0117    0/8  
+   L3 gnnedge0 vs immediate rule        RULE-FASTER-THAN-GRAPH-ARM                   +25.01 %   0.0004    0/16 
+   L4 WAIT-COLLAPSED: gnnedge0 median scheduler wait 0.001 s against 1.0 s
+   L5 gnnedge0 vs mpoff                 UNREADABLE  FAIL LOUD: checkpoint seed 3 is missing environment (40, 9101, 'w1')
+      disclosed (13 complete ckpts)     GRAPH-FASTER-THAN-TWIN-UNDER-THE-LEVER        -9.79 %   0.0024   12/13 
+
+   per-task decomposition (medians over environments and checkpoints, s):
+   arm                             wait   queue    exch  rendez  elapsed
+   knative_network                 0.00    3.86    4.34    0.00     8.29
+   random_network                  0.00    5.01    4.43    0.00     9.37
+   peer_greedy_network             0.00    2.89    3.22    0.00     6.24
+   peer_greedy_network_batch       0.00    2.99    3.26    0.00     6.56
+   be1670_gnnedge0                 0.00    4.04    3.92    0.00     7.96
+   1670_mpoff                      0.00    4.63    4.11    0.00     8.96

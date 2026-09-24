@@ -7,7 +7,6 @@ from src.placement.model import (
 )
 from src.placement.model import scheduling_strategies
 from src.placement.simulation import start_simulation
-from src.train import load_models
 
 
 def execute_sim(simulation_data, infrastructure, cache_policy, keep_alive, policy, queue_length, strategy,

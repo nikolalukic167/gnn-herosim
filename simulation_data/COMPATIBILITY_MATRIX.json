@@ -1,0 +1,1981 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-26T14:44:47.616040Z",
+  "compatibility_matrix": {
+    "gnn_datasets_1task": {
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      }
+    },
+    "gnn_datasets_4tasks_1060_warmth_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.8 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.8 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.8 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 27.8 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v1_probe": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 36.1 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.8 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.8 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.8 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.8 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.8 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v2_verify": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.8 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v3": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 40.1 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 40.1 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 40.1 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 40.1 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 40.1 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v4_pilot": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 27.8"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 35.8"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 40.1"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 33.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 384.9 vs 28.5"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_contention_v5_quick_test": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 27.8"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 35.8"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 40.1"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 33.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 488.3 vs 28.5"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_highq_safe_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 33.5 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 33.5 vs 488.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 33.5 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 33.5 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 33.5 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 35.3 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: platform_reuse_v1 vs node_disk_v2"
+      }
+    },
+    "gnn_datasets_4tasks_shallow_v1": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: scale_invariant_v1 vs legacy_v0"
+      }
+    },
+    "gnn_datasets_4tasks_skew_warmth_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 35.8"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 40.1"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 33.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 21.1 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_skew_warmth_v2_test": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 27.8"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 35.8"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 40.1"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 33.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 16.1 vs 28.5"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_4tasks_sparse_warmth_v2": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 27.8"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 36.1"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 35.8"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 34.8"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 40.1"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 33.5"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 35.3"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 34.0"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 14.5 vs 28.5"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 5task"
+      }
+    },
+    "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 5task"
+      }
+    },
+    "gnn_datasets_dag4_route_b_smoke_b0": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 5task"
+      }
+    },
+    "gnn_datasets_dag4_route_b_smoke_s": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 4task"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: dag4 vs 5task"
+      }
+    },
+    "hetero_large_knative_eval_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 21.1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 34.0 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "hetero_small_knative_eval_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 28.5 vs 384.9"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 28.5 vs 488.3"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 28.5 vs 16.1"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "combinable_with_care",
+        "reason": "Queue depths differ significantly: 28.5 vs 14.5"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "compatible",
+        "reason": "Compatible physics and structure"
+      },
+      "hetero_small_knative_eval_5tasks_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 4task vs 5task"
+      }
+    },
+    "hetero_small_knative_eval_5tasks_20260606": {
+      "gnn_datasets_1task": {
+        "status": "incompatible",
+        "reason": "One or both collections are deprecated"
+      },
+      "gnn_datasets_4tasks_1060_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v1_probe": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v2_verify": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v3": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v4_pilot": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_contention_v5_quick_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_highq_safe_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim": {
+        "status": "incompatible",
+        "reason": "Different warmth_physics: node_disk_v2 vs platform_reuse_v1"
+      },
+      "gnn_datasets_4tasks_shallow_v1": {
+        "status": "incompatible",
+        "reason": "Different queue_feature_contract: legacy_v0 vs scale_invariant_v1"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_skew_warmth_v2_test": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_4tasks_sparse_warmth_v2": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_pilot_v1_arm_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_b0": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs dag4"
+      },
+      "gnn_datasets_dag4_route_b_smoke_s": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs dag4"
+      },
+      "hetero_large_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      },
+      "hetero_small_knative_eval_20260606": {
+        "status": "incompatible",
+        "reason": "Different task counts: 5task vs 4task"
+      }
+    }
+  },
+  "training_groups": {
+    "legacy_v0_node_disk_v2_4task": {
+      "collections": [
+        "gnn_datasets_4tasks_1060_warmth_v2",
+        "gnn_datasets_4tasks_contention_v1_probe",
+        "gnn_datasets_4tasks_contention_v2",
+        "gnn_datasets_4tasks_contention_v2_verify",
+        "gnn_datasets_4tasks_contention_v3",
+        "gnn_datasets_4tasks_contention_v4_pilot",
+        "gnn_datasets_4tasks_contention_v5_quick_test",
+        "gnn_datasets_4tasks_highq_safe_20260606",
+        "gnn_datasets_4tasks_regime_b_cold_burst_v1",
+        "gnn_datasets_4tasks_skew_warmth_v2",
+        "gnn_datasets_4tasks_skew_warmth_v2_test",
+        "gnn_datasets_4tasks_sparse_warmth_v2",
+        "hetero_large_knative_eval_20260606",
+        "hetero_small_knative_eval_20260606"
+      ],
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "4task",
+      "total_datasets": 3049,
+      "completed_datasets": 2846,
+      "purpose": "Regime B distillation"
+    },
+    "legacy_v0_platform_reuse_v1_4task": {
+      "collections": [
+        "gnn_datasets_4tasks_regime_b_cold_burst_v1_oracle_split_cosim"
+      ],
+      "physics": {
+        "warmth_model": "platform_reuse_v1",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "4task",
+      "total_datasets": 48,
+      "completed_datasets": 48,
+      "purpose": "Regime B distillation"
+    },
+    "scale_invariant_v1_node_disk_v2_4task": {
+      "collections": [
+        "gnn_datasets_4tasks_shallow_v1"
+      ],
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "scale_invariant_v1"
+      },
+      "task_structure": "4task",
+      "total_datasets": 200,
+      "completed_datasets": 200,
+      "purpose": "General GNN training"
+    },
+    "legacy_v0_node_disk_v2_dag4": {
+      "collections": [
+        "gnn_datasets_dag4_route_b_pilot_v1_arm_b0",
+        "gnn_datasets_dag4_route_b_pilot_v1_arm_s",
+        "gnn_datasets_dag4_route_b_smoke_b0",
+        "gnn_datasets_dag4_route_b_smoke_s"
+      ],
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "dag4",
+      "total_datasets": 432,
+      "completed_datasets": 432,
+      "purpose": "General GNN training"
+    },
+    "legacy_v0_node_disk_v2_5task": {
+      "collections": [
+        "hetero_small_knative_eval_5tasks_20260606"
+      ],
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0"
+      },
+      "task_structure": "5task",
+      "total_datasets": 4,
+      "completed_datasets": 3,
+      "purpose": "General GNN training"
+    }
+  }
+}

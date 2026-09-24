@@ -1,0 +1,60 @@
+# bipartite_aggr_v1 -- E1/E2: the SAME conv with SUM aggregation instead of mean.
+# docs/lineages/bipartite_aggr_v1.md.
+#
+# BYTE-IDENTICAL to experiments/bipartite_edge_v1_1670_gnnedge0.yaml except
+# NEAR_RTT_MP_BIPARTITE_AGGR and the wandb name/tags. A SINGLE-FLAG contrast: same module,
+# same parameter count, same depth, same MLP shape, same corpus, split, schedule, lr and seeds.
+#
+# Why: bipartite_edge_v1 showed the BipartiteEdgeConv is worth -20 to -29 % live and that
+# edge-conditioning is NOT why. Two differences from the GIN remain -- aggregation (sum -> mean)
+# and MLP shape. This is the first. A task aggregates over its CANDIDATE PLATFORMS, and that set
+# grows with the cluster: 3.55 candidates/task at 6 servers, 47.92 at 80 (cluster_scale_v1
+# S0.d, a 13.5x ratio). A sum over it scales with cluster size; a mean does not. The bipartite
+# penalty was largest at 80 servers and ABSENT at 6 -- so if the aggregator is the mechanism,
+# it predicts its own exception. Registered expectation: SUM-COSTS at 80, NOT-SEPARATED at 6.
+#
+# Attributes stay ZEROED on both arms: bipartite_edge_v1 showed they do not matter, and
+# carrying them would reintroduce a second difference for no gain.
+#
+# DANGER: `aggr` changes NO parameter, so this arm's checkpoints are byte-compatible with
+# gnnedge0's and load into each other without complaint. mp_bipartite_aggr in the sidecar is
+# the only record; it is a STRING, so it is read outside checkpoint_mp_config's boolean block
+# (bool("sum") and bool("mean") are both True).
+trainer: gnn
+lineage: bipartite_aggr_v1
+cache_dir: simulation_data/graphs_cache_peer_only_v1_1670_psv3
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/peer_only_v1_1670_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: '2.5'
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+  NEAR_RTT_MP_BIPARTITE_AGGR: sum
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: bipartite-aggr-v1-1670-gnnedgesum
+  tags:
+  - bipartite-aggr-v1
+  - corpus1670
+  - gnnedgesum
+  - lr2e3
+  - patience60

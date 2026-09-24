@@ -1,0 +1,21 @@
+=== selfpredict_bar_v1 LIVE GATE ===
+
+-- C40 (envs: {'peer_greedy_selfpredict_network': 16, 'peer_greedy_network': 16, 'peer_greedy_network_cd': 16, 'knative_network': 16, 'knative_network_ect': 16, 'random_network': 16}) --
+  B1 vs reactive  n=16 median= -19.42% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-REACTIVE   [Queue -1.65s  Exchange -1.93s  RendezvousWait +0.27s]
+  B2 vs rule      n=16 median=  -6.19% faster=15/16 p=0.0005 -> SELFPREDICT-BEATS-RULE   [Queue -0.46s  Exchange -0.61s  RendezvousWait +0.10s]
+  B3 vs cd        n=16 median=  -7.78% faster=12/16 p=0.0768 -> NOT-SEPARATED   [Wait -7.10s  Queue +3.35s  Exchange -0.19s  RendezvousWait +2.58s]
+  -- vs ect       n=16 median= -33.11% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-ECT   [Queue -5.31s  Exchange -1.78s  RendezvousWait +0.79s]
+  -- vs random    n=16 median= -27.31% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-RANDOM   [Queue -3.55s  Exchange -1.90s  RendezvousWait +0.64s]
+  sanity rule vs reactive median=-12.96% (peer_greedy_live_v1: -12.96%) faster=16/16
+  median elapsed s/task: peer_greedy_selfpredict_network=14.73  peer_greedy_network=15.59  peer_greedy_network_cd=15.03  knative_network=17.87  knative_network_ect=19.62  random_network=18.71
+
+-- C80 (envs: {'peer_greedy_selfpredict_network': 16, 'peer_greedy_network': 16, 'peer_greedy_network_cd': 16, 'knative_network': 16, 'knative_network_ect': 16, 'random_network': 16}) --
+  B1 vs reactive  n=16 median= -21.44% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-REACTIVE   [Queue -2.36s  Exchange -1.82s  RendezvousWait +0.43s]
+  B2 vs rule      n=16 median=  -8.53% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-RULE   [Queue -0.68s  Exchange -0.68s  RendezvousWait +0.09s]
+  B3 vs cd        n=16 median=  -8.90% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-CD   [Wait -7.09s  Queue +3.50s  Exchange -0.25s  RendezvousWait +2.43s]
+  -- vs ect       n=16 median= -37.06% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-ECT   [Queue -6.67s  Exchange -2.33s  RendezvousWait +0.96s]
+  -- vs random    n=16 median= -27.53% faster=16/16 p=0.0000 -> SELFPREDICT-BEATS-RANDOM   [Queue -4.59s  Exchange -1.87s  RendezvousWait +0.74s]
+  sanity rule vs reactive median=-16.01% (peer_greedy_live_v1: -16.01%) faster=16/16
+  median elapsed s/task: peer_greedy_selfpredict_network=14.79  peer_greedy_network=15.90  peer_greedy_network_cd=16.03  knative_network=18.27  knative_network_ect=22.61  random_network=20.75
+
+VERDICT: BAR=SELFPREDICT

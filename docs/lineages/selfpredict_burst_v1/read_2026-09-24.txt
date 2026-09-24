@@ -1,0 +1,36 @@
+=== selfpredict_burst_v1 LIVE GATE (burst seat, 16 env, C40) ===
+  gnnedge0 checkpoints: 13 x 16 env; rule arms 16 env each
+  gnnedge0 vs selfpredict [ckpt]           GRAPH-BEATS-SELFPREDICT      median   -7.25%  p 0.001474  ahead 13/13
+  selfpredict vs CD greedy [env]           CD-FASTER                    median  +21.33%  p 0.0004378  ahead 0/16
+  selfpredict vs 1-pass greedy [env]       SELFPREDICT-BEATS-1PASS      median   -7.70%  p 0.01306  ahead 13/16
+  R gnnedge0 vs 1-pass (jb2 -11.90%)       GRAPH-BEATS-GREEDY           median  -11.90%  p 0.001474  ahead 13/13
+  R gnnedge0 vs CD (jb2 +12.48%)           CD-FASTER                    median  +12.48%  p 0.001474  ahead 0/13
+  -- gnnedge0 vs reactive [ckpt]           GRAPH-BEATS-REACTIVE         median  -34.67%  p 0.001474  ahead 13/13
+  -- selfpredict vs immediate rule         SELFPREDICT-BEATS-IMMEDIATE  median  -13.21%  p 0.00717  ahead 15/16
+  -- selfpredict vs knative_network        SELFPREDICT-BEATS-REACTIVE   median  -32.98%  p 0.00717  ahead 15/16
+  -- selfpredict vs random                 SELFPREDICT-BEATS-RANDOM     median  -42.84%  p 0.00717  ahead 15/16
+  -- CD vs 1-pass greedy                   CD-BEATS-1PASS               median  -22.84%  p 0.0004378  ahead 16/16
+  per-task deltas, selfpredict minus arm (s): peer_greedy_network_cd: wait -0.00 queue +1.10 exchange +0.05 rendezvous +0.00; peer_greedy_network_batch: wait -0.00 queue -0.17 exchange -0.35 rendezvous +0.00; peer_greedy_network: wait +0.00 queue -0.47 exchange -0.59 rendezvous +0.00; knative_network: wait +0.00 queue -1.28 exchange -2.11 rendezvous +0.00
+  median per task (s): peer_greedy_selfpredict_network=7.34  peer_greedy_network=8.09  peer_greedy_network_batch=8.04  peer_greedy_network_cd=6.14  knative_network=11.13  random_network=13.70  gnnedge0=7.05
+  R cells vs jb2 gate: 272 compared, 256 identical, max |d elapsed| 16.019821603204974
+
+VERDICT: GNN-BEATS-SELFPREDICT   BURST-SEAT BAR: CD
+wrote (datalab) simulation_data/selfpredict_burst_v1/read.json
+env       selfp  immed  1pass     cd   knat  gnn13  gnn/sp%   sp_q sp_ex  gnn_q gnn_ex
+9101 w0   6.29   7.40   6.41   4.91  11.21   5.36   -14.7   3.13  3.05   2.47  2.78
+9101 w1   6.25   7.12   6.90   5.00   9.80   5.56   -11.2   2.91  3.24   2.43  3.02
+9101 w2   6.20   7.11   6.71   5.03   9.86   5.59    -9.7   2.86  3.24   2.44  3.06
+9101 w3   6.19   7.02   6.72   4.95   9.83   5.55   -10.3   2.87  3.23   2.42  3.03
+9106 w0  52.71   5.05  44.16   9.61   6.77   4.03   -92.4  49.58  3.04   1.93  1.98
+9106 w1   4.72   5.30   5.42   4.12   5.92   4.72    +0.0   2.28  2.33   2.20  2.42
+9106 w2   4.71   5.46   6.16   4.19   5.99   4.80    +1.9   2.26  2.34   2.22  2.47
+9106 w3   4.57   5.29   5.25   4.09   5.88   4.60    +0.7   2.18  2.28   2.13  2.37
+9114 w0   7.41  10.96   9.44   6.04  21.44   8.35   +12.6   4.53  2.78   5.33  3.02
+9114 w1   7.39   8.78   8.03   6.24  11.16   7.27    -1.6   3.73  3.56   3.59  3.57
+9114 w2   7.53   8.82   8.06   6.41  11.09   7.38    -1.9   3.81  3.62   3.71  3.59
+9114 w3   7.29   8.79   8.09   6.32  11.27   7.34    +0.6   3.69  3.50   3.70  3.59
+9116 w0   9.87  12.03   9.62   8.73  16.00   9.21    -6.7   5.38  4.40   4.96  4.17
+9116 w1   8.96   9.96   8.94   7.26  11.92   8.21    -8.4   4.31  4.55   3.81  4.31
+9116 w2   8.86  10.07   8.91   7.33  11.91   8.17    -7.8   4.28  4.49   3.77  4.30
+9116 w3   8.78   9.92   8.84   7.21  11.85   8.11    -7.7   4.21  4.48   3.73  4.27
+{'pg_decisions': 50000, 'pg_partners_known': 88894, 'pg_partners_unknown': 88894, 'pg_joined_partner': 37175, 'pg_moved_by_exchange': 11397, 'pg_batches': 0, 'pg_cd_passes': 0, 'pg_cd_moves': 0, 'pg_forced': 0, 'pg_lookahead_priced': 83962, 'pg_lookahead_blind': 4932}

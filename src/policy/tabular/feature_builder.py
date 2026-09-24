@@ -20,6 +20,23 @@ if TYPE_CHECKING:
     from src.placement.model import SystemState
 
 from src.policy.tabular.constants import FEATURE_DIM
+from src.placement.queue_features import (
+    queue_depth_norm,
+    apply_serve_clamp,
+    serve_dim7_clamp,
+    serve_dim13_clamp,
+    serve_queue_divisor_override,
+    resolve_queue_feature_contract,
+    usage_ratio_feature,
+)
+from src.placement.network_graph import (
+    NETWORK_GRAPH_CONTRACT_OFF,
+    attach_network_graph_block,
+    build_network_graph_block,
+    resolve_network_graph_contract,
+)
+from src.placement.temporal_features import temporal_remainders
+from src.placement.topology_features import build_source_feature_context
 from src.placement.warmth import (
     estimated_pull_remaining_sec,
     node_has_cached_image,
@@ -36,7 +53,20 @@ LEGACY_PLATFORM_FEATURE_DIM = 14
 DIM24_FEATURE_DIM = 24
 DIM24_PLATFORM_FEATURE_DIM = 16
 
-# CE-reduced ablation (train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
+# P5b / dim25cr: dim22 + 3 candidate-relative queue columns, appended per candidate set.
+DIM25CR_FEATURE_DIM = 25
+
+# route_b stage 2 / dim63crk: dim25cr + 38 partial-state columns (10 base + 24 krank
+# one-hot + 4 linkrank), appended per (task, candidate) edge GIVEN the §4 masked
+# decoder's partial assignment. The bundle stays a dim22 bundle — the extra columns
+# exist only inside the sequential decode loop / training row assembly, computed by
+# THE single-source function reduced_features.partial_state_columns behind the
+# PARTIAL_STATE_CONTRACT version (see docs/lineages/route_b_v1/stage2-preregistration.md §2).
+DIM63CRK_FEATURE_DIM = 63
+# dim47crk: the same layout under partial_state_v3 -- dim25cr (25) + the v3 block (22).
+DIM47CRK_FEATURE_DIM = 47
+
+# CE-reduced ablation (archive/warmth_sparse/src/notebooks/train_near_rtt_ce_reduced_features.py on legacy 1060 cache).
 CE_REDUCED_TASK_FEATURE_DIM = 3
 CE_REDUCED_PLATFORM_FEATURE_DIM = 6
 CE_REDUCED_EDGE_FEATURE_DIM = 2
@@ -77,29 +107,46 @@ class InferenceFeatureBundle:
     task_logit_to_queue_key: Dict[int, List[str]]
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     feature_dim: int = FEATURE_DIM
+    # The divisor dim7 was actually built with, and the clamps that were actually applied.
+    # queue_range_v1 reads these: a serving knob that did not reach the builder must not be
+    # indistinguishable from one that reached it and did not help.
+    queue_norm_divisor: float = 1.0
+    dim7_clamp: Optional[float] = None
+    dim13_clamp: Optional[float] = None
+
+
+_warned_layout_fallback = False
 
 
 def _inference_feature_layout(feature_layout: Optional[str] = None) -> str:
-    return (feature_layout or os.environ.get("INFERENCE_FEATURE_LAYOUT", "atomic21")).strip().lower()
+    resolved = (feature_layout or os.environ.get("INFERENCE_FEATURE_LAYOUT", "")).strip().lower()
+    if resolved:
+        return resolved
+    # atomic21 is a serve-only layout no current cache produces; falling back to it
+    # silently is how a layout mismatch becomes invisible. Warn once, loudly.
+    global _warned_layout_fallback
+    if not _warned_layout_fallback:
+        _warned_layout_fallback = True
+        print(
+            "[FEATURE LAYOUT] WARNING: INFERENCE_FEATURE_LAYOUT is unset; defaulting to "
+            "atomic21. Model-serving paths must pin the layout via the checkpoint sidecar "
+            "or the environment.",
+            flush=True,
+        )
+    return "atomic21"
 
 
-def _scheduler_adaptive_queue_norm(queue_values: Sequence[int], queue_norm_mode: str) -> float:
-    if not queue_values:
-        return 50.0
-    values = sorted(int(v) for v in queue_values)
-    mode = queue_norm_mode.strip().lower()
-    if mode in ("adaptive", "scheduler_adaptive"):
-        idx = int(len(values) * 0.9)
-        p90 = values[min(idx, len(values) - 1)]
-        return float(min(max(1.0, p90), 100.0))
-    if mode == "adaptive_nonzero":
-        nonzero = [v for v in values if v > 0]
-        if not nonzero:
-            return 1.0
-        idx = int(len(nonzero) * 0.9)
-        p90 = nonzero[min(idx, len(nonzero) - 1)]
-        return float(min(max(1.0, p90), 100.0))
-    return 50.0
+def _scheduler_adaptive_queue_norm(
+    queue_values: Sequence[int],
+    queue_norm_mode: str,
+    contract: Optional[str] = None,
+) -> float:
+    """Divisor for platform dim 7; see src/placement/queue_features.py for the contracts."""
+    return queue_depth_norm(
+        [int(v) for v in queue_values],
+        queue_norm_mode,
+        resolve_queue_feature_contract(contract),
+    )
 
 
 def _batch_task_type_names(batch_tasks: Sequence["Task"]) -> Set[str]:
@@ -153,16 +200,43 @@ def _node_cold_counts_by_position(platforms_info: Sequence[PlatformInfo]) -> Lis
 
 
 def _uses_dim22_layout(layout: str) -> bool:
-    return layout in ("dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060")
+    # dim25cr is a dim22 layout as far as the BUNDLE is concerned: identical task,
+    # platform and edge arrays. Its three extra columns are set-relative, so they exist
+    # only per (task, candidate) group and are appended during MLP row assembly — the GNN
+    # path never sees them and must stay byte-identical.
+    return layout in (
+        "dim22", "legacy", "22", "ce_reduced", "reduced_ce", "reduced1060", "dim25cr",
+        "dim63crk", "dim47crk",
+    )
 
 
 def _uses_dim24_layout(layout: str) -> bool:
     return layout in ("dim24", "24", "pull_obs", "pull_observables")
 
 
+def _uses_candidate_relative_layout(layout: str) -> bool:
+    """P5b: dim22 + 3 candidate-relative queue columns (program_verdict_v1)."""
+    return layout in ("dim25cr", "25", "candrel", "dim63crk", "dim47crk")
+
+
+def _uses_partial_state_layout(layout: str) -> bool:
+    """dim25cr + the partial-state/krank/linkrank columns of
+    reduced_features.partial_state_columns (contract PARTIAL_STATE_CONTRACT).
+
+    TWO widths, one per contract: dim63crk is the 38-column v1/v2 block and dim47crk the
+    22-column v3 one (pointwise_baseline_v1). They are separate names on purpose -- a
+    checkpoint's `inference_feature_layout` is what stops one being served the other's
+    features, so widening dim63crk instead would have removed the only guard."""
+    return layout in ("dim63crk", "63", "crk", "dim47crk", "47")
+
+
 def _expected_feature_dim_for_layout(layout: str) -> int:
     if _uses_dim24_layout(layout):
         return DIM24_FEATURE_DIM
+    if _uses_partial_state_layout(layout):
+        return DIM47CRK_FEATURE_DIM if layout in ("dim47crk", "47") else DIM63CRK_FEATURE_DIM
+    if _uses_candidate_relative_layout(layout):
+        return DIM25CR_FEATURE_DIM
     if _uses_dim22_layout(layout):
         return LEGACY_FEATURE_DIM
     return FEATURE_DIM
@@ -216,6 +290,8 @@ def build_inference_feature_bundle(
     queue_norm_mode: str = "adaptive",
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
     feature_layout: Optional[str] = None,
+    queue_feature_contract: Optional[str] = None,
+    topology_feature_contract: Optional[str] = None,
 ) -> Optional[InferenceFeatureBundle]:
     """
     Build tabular/GNN features from live or cached system state.
@@ -223,6 +299,7 @@ def build_inference_feature_bundle(
     Returns None when no feasible edges exist.
     """
     layout = _inference_feature_layout(feature_layout)
+    contract = resolve_queue_feature_contract(queue_feature_contract)
     use_dim22 = _uses_dim22_layout(layout)
     use_dim24 = _uses_dim24_layout(layout)
     use_norm_queue = use_dim22 or use_dim24
@@ -240,15 +317,17 @@ def build_inference_feature_bundle(
     dnn1_replicas, dnn2_replicas = _replica_id_sets(system_state)
     network_maps = _network_maps(nodes)
 
-    node_name_to_idx = {str(node.node_name): idx for idx, node in enumerate(nodes)}
+    source_ctx = build_source_feature_context(
+        [str(node.node_name) for node in nodes],
+        network_maps,
+        contract=topology_feature_contract,
+    )
 
     task_features = []
     for task in batch_tasks:
         task_type = str(task.type["name"])
         onehot = [1.0 if task_type == t else 0.0 for t in TASK_TYPES_VOCAB]
-        src_idx = node_name_to_idx.get(str(task.node_name), 0)
-        src_norm = float(src_idx) / max(len(nodes), 1)
-        task_features.append(onehot + [src_norm])
+        task_features.append(onehot + [source_ctx.feature(str(task.node_name))])
     task_features_arr = np.asarray(task_features, dtype=np.float32)
     batch_task_types = _batch_task_type_names(batch_tasks)
 
@@ -257,10 +336,18 @@ def build_inference_feature_bundle(
         queue_key = f"{info.node_name}:{info.platform_id}"
         raw_queue_by_pos.append(int(queue_snapshot.get(queue_key, 0)))
     queue_norm = (
-        _scheduler_adaptive_queue_norm(raw_queue_by_pos, queue_norm_mode)
+        _scheduler_adaptive_queue_norm(raw_queue_by_pos, queue_norm_mode, contract)
         if use_norm_queue
         else 1.0
     )
+    # queue_range_v1 serving override (default off). The adaptive divisor is 1.0 in all 516
+    # training datasets and grows with live load, so it compresses the column exactly when
+    # queues start to matter; pinning it restores the training semantics.
+    _divisor_override = serve_queue_divisor_override() if use_norm_queue else None
+    if _divisor_override is not None:
+        queue_norm = float(_divisor_override)
+    _dim7_clamp = serve_dim7_clamp() if use_norm_queue else None
+    _dim13_clamp = serve_dim13_clamp() if use_norm_queue else None
     shared_fate_by_pos = (
         _shared_fate_by_position(platforms_info) if use_norm_queue else None
     )
@@ -278,7 +365,9 @@ def build_inference_feature_bundle(
         queue_key = f"{info.node_name}:{info.platform_id}"
         queue_len_raw = int(queue_snapshot.get(queue_key, 0))
         if use_norm_queue:
-            queue_len = float(queue_len_raw) / float(queue_norm)
+            queue_len = apply_serve_clamp(
+                float(queue_len_raw) / float(queue_norm), _dim7_clamp
+            )
         else:
             queue_len = float(queue_len_raw)
 
@@ -287,24 +376,14 @@ def build_inference_feature_bundle(
             float(shared_fate_by_pos[info.position]) if shared_fate_by_pos is not None else 0.0
         )
 
-        temporal = (temporal_state or {}).get(queue_key, {})
-        current_task_remaining = float(temporal.get("current_task_remaining", 0.0))
-        cold_start_remaining = float(temporal.get("cold_start_remaining", 0.0))
-        comm_remaining = float(temporal.get("comm_remaining", 0.0))
-        if queue_len_raw > 0 and current_task_remaining == 0.0 and task_types_data:
-            avg_exec = 0.0
-            count = 0
-            for _task_type_name, task_priors in task_types_data.items():
-                exec_map = task_priors.get("executionTime", {})
-                if isinstance(exec_map, dict):
-                    exec_time = exec_map.get(info.platform_type, 0.0)
-                    if exec_time > 0:
-                        avg_exec += float(exec_time)
-                        count += 1
-            if count > 0:
-                current_task_remaining = avg_exec / count
-                cold_start_remaining = current_task_remaining * 0.1
-                comm_remaining = current_task_remaining * 0.05
+        # Shared with all three cache builders — see src/placement/temporal_features.py.
+        current_task_remaining, cold_start_remaining, comm_remaining = temporal_remainders(
+            queue_depth=queue_len_raw,
+            recorded=(temporal_state or {}).get(queue_key),
+            platform_type=info.platform_type,
+            task_types_data=task_types_data,
+            task_types_vocab=TASK_TYPES_VOCAB,
+        )
 
         current_task_remaining_norm = current_task_remaining / 10.0
         cold_start_remaining_norm = cold_start_remaining / 10.0
@@ -357,10 +436,11 @@ def build_inference_feature_bundle(
         )
         if use_norm_queue:
             target_concurrency_feat = target_concurrency_raw / 20.0
-            dim13_feat = (
-                (float(queue_len_raw) / target_concurrency_raw / 5.0)
-                if target_concurrency_raw > 0
-                else 0.0
+            dim13_feat = apply_serve_clamp(
+                usage_ratio_feature(
+                    float(queue_len_raw), target_concurrency_raw, contract
+                ),
+                _dim13_clamp,
             )
             platform_state_dim = shared_fate
         else:
@@ -420,7 +500,23 @@ def build_inference_feature_bundle(
     for t_idx, task in enumerate(batch_tasks):
         task_type = str(task.type["name"])
         source_node = str(task.node_name)
-        compatible_types = TASK_PLATFORM_COMPATIBILITY.get(task_type, [])
+        compatible_types = TASK_PLATFORM_COMPATIBILITY.get(task_type)
+        other_type_replicas: Optional[set] = None
+        if compatible_types is None:
+            # Same rule as prepare_graphs_cache.build_graph for every task type other
+            # than dnn1/dnn2 (rf, cnn on the route_b / peer_affinity corpora): the
+            # memoryRequirements keys ARE the platform types the simulator can run the
+            # type on, and a platform is a candidate only if it currently holds a replica
+            # of that type. Until 2026-09-11 such a task got ZERO live candidates — the
+            # cache had been fixed, the live builder had not (found by
+            # scripts_cosim/peer_affinity_live_serve_check.py). The dnn1/dnn2 branches
+            # stay verbatim so every existing gate is bit-identical.
+            mem = dict(task.type.get("memoryRequirements") or {})
+            compatible_types = sorted(mem.keys())
+            other_type_replicas = {
+                (int(node.id), int(plat.id))
+                for node, plat in system_state.replicas.get(task_type, set())
+            }
         task_logit_to_placement[t_idx] = []
         task_logit_to_queue_key[t_idx] = []
 
@@ -441,6 +537,10 @@ def build_inference_feature_bundle(
             if task_type == "dnn1" and (info.node_id, info.platform_id) not in dnn1_replicas:
                 continue
             if task_type == "dnn2" and (info.node_id, info.platform_id) not in dnn2_replicas:
+                continue
+            if other_type_replicas is not None and (
+                (info.node_id, info.platform_id) not in other_type_replicas
+            ):
                 continue
 
             exec_time = 0.0
@@ -505,6 +605,9 @@ def build_inference_feature_bundle(
         task_logit_to_queue_key=task_logit_to_queue_key,
         queue_key_to_platform_meta=queue_key_to_platform_meta,
         feature_dim=expected_feature_dim,
+        queue_norm_divisor=float(queue_norm),
+        dim7_clamp=_dim7_clamp,
+        dim13_clamp=_dim13_clamp,
     )
 
 
@@ -540,6 +643,57 @@ def edge_row_features(
     return feat
 
 
+def _platform_node_names_by_position(bundle: InferenceFeatureBundle) -> List[str]:
+    """Host node name per platform position, dense over `[0, n_platforms)`.
+
+    `queue_key_to_platform_meta` covers every platform (it is filled in the platform-feature
+    loop, not the candidate loop), so a gap here means the bundle is malformed rather than
+    that a platform is uninteresting — hence the raise instead of a placeholder.
+    """
+    by_pos: List[Optional[str]] = [None] * bundle.n_platforms
+    for meta in bundle.queue_key_to_platform_meta.values():
+        by_pos[int(meta["platform_pos"])] = str(meta["node_name"])
+    missing = [i for i, name in enumerate(by_pos) if name is None]
+    if missing:
+        raise ValueError(
+            f"platform positions {missing[:5]} have no platform meta; the bundle's "
+            f"platform features and its meta map disagree"
+        )
+    return [str(name) for name in by_pos]
+
+
+def _candidate_node_names_by_task(bundle: InferenceFeatureBundle) -> List[List[str]]:
+    """Host node name per candidate edge, per task — repeats kept.
+
+    Repeats are load-bearing: the per-link candidate fraction weights a node by how many
+    candidate placements it actually offers this task, so de-duplicating would flatten a
+    10-platform node onto a 1-platform node.
+    """
+    per_task: List[List[str]] = []
+    for t_idx in range(bundle.n_tasks):
+        queue_keys = bundle.task_logit_to_queue_key.get(t_idx, [])
+        per_task.append(
+            [
+                str(bundle.queue_key_to_platform_meta[key]["node_name"])
+                for key in queue_keys
+            ]
+        )
+    return per_task
+
+
+def _live_link_topology(nodes: Sequence[Any]) -> Optional[Mapping[str, Any]]:
+    """The run's `link_topology`, read off the shared fabric every Node points at.
+
+    `None` for every corpus generated without a backbone — the network graph then has no
+    fabric to describe and degrades to an empty block, which is a no-op and not an error.
+    """
+    for node in nodes:
+        fabric = getattr(node, "fabric", None)
+        if fabric is not None:
+            return fabric.link_topology
+    return None
+
+
 def build_pyg_inference_graph(
     batch_tasks: Sequence["Task"],
     system_state: "SystemState",
@@ -549,6 +703,9 @@ def build_pyg_inference_graph(
     task_types_data: Optional[Mapping[str, Any]] = None,
     queue_norm_mode: str = "adaptive",
     temporal_state: Optional[Mapping[str, Mapping[str, float]]] = None,
+    queue_feature_contract: Optional[str] = None,
+    topology_feature_contract: Optional[str] = None,
+    network_graph_contract: Optional[str] = None,
 ) -> Tuple[Optional[Data], Optional[Dict[int, List[Tuple[int, int]]]]]:
     """Build PyG Data for GNN/XGB batch schedulers."""
     bundle = build_inference_feature_bundle(
@@ -559,6 +716,8 @@ def build_pyg_inference_graph(
         task_types_data=task_types_data,
         queue_norm_mode=queue_norm_mode,
         temporal_state=temporal_state,
+        queue_feature_contract=queue_feature_contract,
+        topology_feature_contract=topology_feature_contract,
     )
     if bundle is None:
         return None, None
@@ -604,7 +763,7 @@ def build_pyg_inference_graph(
     )
     if data.task_features.shape[1] != 3:
         raise ValueError(
-            f"Expected 3-d task features (type onehot + src_norm), got {data.task_features.shape[1]}"
+            f"Expected 3-d task features (type onehot + source feature), got {data.task_features.shape[1]}"
         )
     layout = _inference_feature_layout()
     if layout in ("ce_reduced", "reduced_ce", "reduced1060"):
@@ -629,9 +788,32 @@ def build_pyg_inference_graph(
         )
     data.node_edge_index = build_same_node_edge_index(node_to_positions, n_tasks)
 
+    # Network entities (physical nodes + core links + route edges). Default OFF: a
+    # checkpoint trained on the bipartite graph must never be served these, which is the
+    # same rule `mp_node_edges` above exists to enforce.
+    net_contract = resolve_network_graph_contract(network_graph_contract)
+    if net_contract != NETWORK_GRAPH_CONTRACT_OFF:
+        attach_network_graph_block(
+            data,
+            build_network_graph_block(
+                node_names=[str(node.node_name) for node in nodes],
+                platform_node_names=_platform_node_names_by_position(bundle),
+                task_source_names=[str(task.node_name) for task in batch_tasks],
+                task_candidate_node_names=_candidate_node_names_by_task(bundle),
+                link_topology=_live_link_topology(nodes),
+                n_tasks=n_tasks,
+                n_platforms=n_platforms,
+                contract=net_contract,
+            ),
+        )
+
     data._task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.task_logit_to_queue_key = bundle.task_logit_to_queue_key
     data.queue_key_to_platform_meta = bundle.queue_key_to_platform_meta
+    # queue_range_v1: what dim7 was actually built with, carried to the serving counters.
+    data.queue_norm_divisor = float(bundle.queue_norm_divisor)
+    data.dim7_clamp = bundle.dim7_clamp
+    data.dim13_clamp = bundle.dim13_clamp
     data.task_logit_to_placement = bundle.task_logit_to_placement
     data._task_logit_to_placement = bundle.task_logit_to_placement
     return data, bundle.task_logit_to_placement
