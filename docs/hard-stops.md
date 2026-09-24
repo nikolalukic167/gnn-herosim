@@ -254,3 +254,19 @@ rule can compute for itself, not prediction a graph must learn.
 served graph, horizon-aware peer labels) at this physics without a mechanism the self-predict rule
 cannot express. The bar for any learned placement at these rungs is now
 `peer_greedy_selfpredict_network`, not `peer_greedy_network`.
+
+## Hidden execution time as a lever for a learned arm (2026-09-24)
+
+**Direction:** "copy faas-sim: make execution time stochastic and co-location-dependent and hide it
+from the scheduler, so a model that learns it from observed completions beats a rule reading the table."
+
+**What closed it** (`hidden_exec_s0_v1`, live, the 16 + 16 `unsaturated_edge_v1` environments,
+per-arrival seat, 64 runs): under `hidden_node_v1` (per-node speed × co-execution slowdown ×
+per-invocation noise), a self-predict rule that *knows* the hidden constants vs the same rule reading
+the table: C40 +0.40 % (oracle slower, p = 0.0003) and C80 −0.05 % (p = 0.94), against a −5 % bar.
+Execution is ≈ 0.4 % of per-task latency at these rungs (≈ 0.05 s of 14.6 s); queue and peer
+exchange are the cost. With no headroom for an oracle, no learned estimator can gain anything.
+
+**Do not restart** hidden or stochastic execution-time physics at these rungs. It is also node-indexed,
+so the count theorem closes it for GNN-vs-MLP regardless of magnitude. Reopen only in a regime where
+execution dominates latency, with a rule fed running estimates of the same observations as the control.

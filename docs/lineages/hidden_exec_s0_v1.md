@@ -1,7 +1,22 @@
 # hidden_exec_s0_v1 — does hiding execution time from the rule leave headroom?
 
-**Status:** `REGISTERED` (2026-09-24). Bars below signed before the gate's data; one smoke
-environment was read first and is disclosed.
+**Status:** `CLOSED` (2026-09-24) — **NO-HEADROOM**. Registered 2026-09-24; the bars were
+signed before the gate's data (one smoke environment was read first and is disclosed).
+
+**Outcome (2026-09-24).** Hiding execution time faas-sim-style gives a rule that *knows* it
+nothing to gain here, so a learned arm has nothing to recover. Under `hidden_node_v1`, the
+self-predict rule reading the hidden node constants (`oracle`) against the same rule reading the
+table: **C40 +0.40 %** (oracle *slower*, p = 0.0003, faster 2/16), **C80 −0.05 %** (p = 0.94,
+9/16). Both are far inside the 5 % bar. The physics itself moves the rule's latency only
++0.09 % / +0.08 %, because execution is ≈ 0.05 s of a 14.6 s per-task latency; queue (~7 s) and
+peer exchange (~3 s) are the cost. The `estimate` arm was never built. The stop is in
+`docs/hard-stops.md`.
+
+Caveats a reader must not quote without: 6 servers, 0.460393 arrivals/s, the 16 + 16
+`unsaturated_edge_v1` environments, per-arrival seat, synthetic magnitudes (σ 0.5, β ≤ 0.5,
+CV 0.2), one draw per environment of a deterministic simulation. The measurement is of *this*
+regime's exec share: an environment where execution dominates latency would be a different
+question, and would still be node-indexed (count theorem) for GNN-vs-MLP.
 
 ## Why this lineage exists
 
@@ -62,5 +77,16 @@ identical to the digit.
 - Gate + reader: `scripts_cosim/hidden_exec_s0_v1_gate.sh`, `scripts_cosim/hidden_exec_s0_v1_read.py`.
 
 ## Record (newest first)
+
+- 2026-09-24 — **CLOSED `NO-HEADROOM`.** 64/64 runs at `e724999` (clean tree), local, 16 parallel;
+  reader `scripts_cosim/hidden_exec_s0_v1_read.py` → `hidden_exec_s0_v1/read_2026-09-24.json`.
+  H per rung (oracle vs table, paired `total_rtt`): C40 median **+0.40 %**, Wilcoxon p = 0.0003,
+  oracle faster 2/16 → `NO-HEADROOM` (consistent but tiny, and in the wrong direction: pricing
+  the node constants into drain moves tasks toward faster nodes and lengthens their queues);
+  C80 **−0.05 %**, p = 0.94, 9/16 → `NO-HEADROOM`. Verdict `NO-HEADROOM`, so P0b is not built.
+  Disclosed: realized exec per task 0.051 / 0.060 s against 14.64 / 14.61 s elapsed; hidden physics
+  costs the rule +0.09 % / +0.08 % against `table_v0` (the `selfpredict_bar_v1` gate, same arm).
+  Inputs: workloads for w1–w3 and seven cell configs rsynced from datalab, with md5 identical on
+  both sides.
 
 - 2026-09-24 — **Registered.** Physics built, table_v0 bit-identity and seed determinism checked.
