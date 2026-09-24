@@ -1,6 +1,7 @@
 # selfpredict_burst_v1 — does gnnedge0's burst-seat win survive the self-predict rule?
 
-**Status:** `REGISTERED` (2026-09-24). Every bar below was signed before its data. Triggered by
+**Status:** `REGISTERED` (2026-09-24; amended the same day before post-fix data — rerun at the
+simulator-fix commit). Every bar below was signed before its data. Triggered by
 `selfpredict_bar_v1` closing `BAR=SELFPREDICT` on the unburst rungs, where no learned arm was in the gate.
 
 **Outcome.** Not yet run.
@@ -66,11 +67,22 @@ is deterministic and the served paths are unchanged).
 
 ## Entry points
 
-- Gate: `scripts_cosim/datalab/selfpredict_burst_v1_gate.sbatch` (304 tasks, blocks of ≤ 48).
+- Gate: `scripts_cosim/datalab/selfpredict_burst_v1_gate.sbatch` (304 tasks, blocks of ≤ 48), writing
+  `results/selfpredict_burst_v1_gate_r2` since the amendment.
 - Reader: `scripts_cosim/selfpredict_burst_v1_read.py` → `simulation_data/selfpredict_burst_v1/read.json`.
 
 ## Record (newest first)
 
+- 2026-09-24 — **Amendment, signed before any post-fix data: the gate reruns in full at the fix
+  commit.** The first run (`e728fbe`, jobs 805182–805478) completed 303 of 304 cells; cc40s9101 w0
+  under self-predict never finished — a simulator hang, not the rule: scale-down replaced a platform's
+  never-fired `initialized` event while its worker was parked on it, so the worker never woke and 301
+  tasks queued forever (48 GB OOM; `docs/gates/gate-tools.md` 2026-09-24). Fixed in
+  `src/placement/autoscaler.py` (replace the event only if it fired); the cell then completes locally.
+  All 304 arms rerun at the fix commit into `results/selfpredict_burst_v1_gate_r2`, and **that run is
+  the one read** against the bars above, unchanged. The `e728fbe` run is not read against any bar; it
+  is the fix's neutrality check — every cell it completed must match the rerun to the digit, and any
+  that does not is disclosed.
 - 2026-09-24 — **Registered.** Reader tested on a fixture built from the `joint_burst_v2` gate's own
   summaries with the immediate rule copied in as a stand-in self-predict arm (mechanics only): it
   reproduces K1 −11.90 %, K2 +12.48 %, K3 −34.67 % exactly and matches all 272 overlapping cells to 0.0 s;
