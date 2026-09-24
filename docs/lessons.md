@@ -895,3 +895,20 @@ in so far"), never as a finding, and flag explicitly when a decomposition or com
 table might still flip once the last block lands. Only the read taken after every block
 completes (or every remaining arm's hang is confirmed and disclosed) is evidence. See
 [[herosim-joint-burst-v1-closed-2026-09-20]].
+
+## An oracle's headroom is not a learner's headroom — gate a hand convention on the same signal first (2026-09-24)
+
+An oracle that is handed a hidden quantity (where an unarrived partner will run, a future
+arrival, a realised cost) measures what KNOWING it is worth. That is two things at once:
+*prediction* (information the decision genuinely lacks) and *coordination* (every decision
+agreeing on a convention). Only the first needs a learner. `lookahead_mp_v1` found −6.6 % / −8.2 %
+of oracle headroom over the peer-greedy rule, and a two-step hand guess got only 2–7 % of it — the
+reading that would have funded a new graph representation. The cheapest control, *replace the
+oracle's knowledge with the incumbent rule's own forecast of it* ("the partner will go where the
+rule would send it now"), recovered 93–95 %.
+
+**How to apply:** after any oracle/headroom screen, and before representation or training work,
+register a blocking hand control that computes the hidden quantity from the incumbent policy
+itself, with a recovered-fraction bar (0.80 was used). A weak hand guess failing is not evidence
+that learning is needed; only the strongest cheap control failing is. See the node for the
+measurements and `docs/hard-stops.md` for the direction it closed.
