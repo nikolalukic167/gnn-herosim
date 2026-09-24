@@ -16,6 +16,23 @@ experimental runs (local or datalab) and the knowledge graph `LINEAGES.md` index
 `LINEAGES.md` is an **index only**: a status and a one-line outcome per lineage. The record
 itself lives in nodes. Never write a narrative into the index.
 
+**This is enforced, not advisory.** An index row's outcome cell must be **under 400 bytes**
+with no embedded table. `tests/test_record_hygiene.py` fails the build otherwise, and also
+checks that every node has a row, that a row's status matches the node's own `**Status:**`
+header, and that a node's head is as current as its record. Run it before you finish:
+
+```bash
+PIPENV_IGNORE_VIRTUALENVS=1 pipenv run python3 -m pytest tests/test_record_hygiene.py -q
+```
+
+The rule below was stated here, in AGENTS.md, in `LINEAGES.md` and in the `doc-helper`
+agent, and was violated in all four: rows reached 9,838 bytes and twelve statuses drifted.
+Writing it a fifth time is not the fix; running the check is.
+
+**When the outcome is a close** (CLOSED, FALSIFIED, FAILED, PARKED, SUPERSEDED), use the
+`close-a-lineage` skill instead of working from memory. Closing touches four files and
+every defect that audit found entered at close time.
+
 | Fact | Home |
 |---|---|
 | The dated outcome, its numbers, its method | `docs/lineages/<lineage>.md` — append a `### <lineage> — <verdict> (YYYY-MM-DD)` section at the end, and add it to that file's newest-first "Record" list at the top |
@@ -40,10 +57,14 @@ Statuses: `ACTIVE` · `REGISTERED` (signed off, not yet run) · `CLOSED` (answer
 4. **Append the dated outcome section** to `docs/lineages/<lineage>.md` — findings,
    metrics, implications, and pointers to supporting data (datasets, models, scripts) —
    and add it to that node's newest-first Record list
-5. **Update the one-line row** in `LINEAGES.md`: status + what settles the question
+5. **Update the one-line row** in `LINEAGES.md`: status + what settles the question, under
+   400 bytes. Move the row into the section matching its status — a `CLOSED` row does not
+   stay under `## Open`. Before dropping any figure from a row, confirm the node carries it
 6. **File anything that outlives the lineage** per the table above: a transferable rule in
    `docs/lessons.md`, a closed direction in `docs/hard-stops.md`, a gate-tool correction in
    `docs/gates/gate-tools.md`
+7. **Rewrite the node's head**, never append to it — it is the only part most sessions read
+8. **Run `tests/test_record_hygiene.py`.** Not done until it passes
 
 ## When to use
 

@@ -11,7 +11,7 @@ may cite — cite the node.
 ## The graph
 
 The routing table — which file owns which kind of fact — lives in
-[`.claude/CLAUDE.md`](.claude/CLAUDE.md) under **Where knowledge lives**, and is not
+[`AGENTS.md`](AGENTS.md) under **Where knowledge lives**, and is not
 repeated here. It was duplicated in four places and had already drifted: this file claimed
 `docs/lessons.md` held 350 rules when it held 67.
 
@@ -131,7 +131,7 @@ These carry no separate node file. `contention_v4_v5` is listed here too — it 
 | **coupled_trio** | `important/run_contention_v2_873_coupled_trio.sh`, `chain_coupled_trio_then_rebaseline.sh` | `contention_v2` | See memory note: ECT is not a ceiling. |
 | **encoder_ablation** | `important/run_gnn_encoder_ablation.sh`, `compare_encoder_ablation.py` | contention series | Is the graph encoder doing work, or is it the features? |
 | **seed_variance** | `scripts_cosim/run_gnn_seed_variance_siv1.sh` | contention_v2 | Uses `train_near_rtt_v2_contention_v2_dim14_ce_only.py`. |
-| **queue_feature_contract** | `src/placement/queue_features.py`, `scripts_cosim/test_queue_features.py`, `verify_cache_live_feature_parity.py` | all | `legacy_v0` vs `scale_invariant_v1`. See CLAUDE.md. |
+| **queue_feature_contract** | `src/placement/queue_features.py`, `scripts_cosim/test_queue_features.py`, `verify_cache_live_feature_parity.py` | all | `legacy_v0` vs `scale_invariant_v1`. See AGENTS.md. |
 | **dataset_metadata** | `scripts_cosim/{extract_dataset_metadata,validate_dataset_collection,compute_compatibility_matrix}.py` | all | Produces `REGISTRY.json`, `METADATA.json`, `COMPATIBILITY_MATRIX.json`. |
 
 Shared core (not a lineage — everything depends on it): `src/placement/`,

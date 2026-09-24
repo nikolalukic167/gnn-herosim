@@ -2,7 +2,7 @@
 """Advisory check after an edit to the research record.
 
 The routing rule ("LINEAGES.md is an index only", "one fact, one home") is stated in
-CLAUDE.md, in LINEAGES.md, in the experiment-gate agent and in the doc-helper agent, and
+AGENTS.md, in LINEAGES.md, in the experiment-gate agent and in the doc-helper agent, and
 on 2026-09-16 was found violated in all four: index rows up to 9,838 bytes, twelve
 statuses disagreeing with their own node, and an auto-loaded summary that had stopped
 tracking the work six lineages earlier.
@@ -24,7 +24,7 @@ from pathlib import Path
 # itself a reason to run it.
 WATCHED = {
     "LINEAGES.md",
-    ".claude/CLAUDE.md",
+    "AGENTS.md",
     "docs/lessons.md",
     "docs/hard-stops.md",
     "docs/gates/gate-tools.md",

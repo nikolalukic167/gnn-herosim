@@ -69,10 +69,12 @@ weeks.
 
 ## 5. Update the standing answer if the program-level story moved
 
-If this close changes what is true about the research question, rewrite CLAUDE.md's
+If this close changes what is true about the research question, rewrite AGENTS.md's
 `**Where the research question stands (rewritten ...)**` block and bump its date.
 **Rewrite it — never append a dated paragraph.** That block reached 12 KB by accretion and
-then stopped being maintained, which is worse than either.
+then stopped being maintained, which is worse than either. `.claude/CLAUDE.md` imports
+AGENTS.md for Claude Code sessions and stays a thin import plus Claude-only notes — do not
+edit it as part of this step.
 
 ## 6. Run the check
 
@@ -81,12 +83,12 @@ PIPENV_IGNORE_VIRTUALENVS=1 pipenv run python3 -m pytest tests/test_record_hygie
 ```
 
 It enforces steps 2, 3 and 5 mechanically: row length, row-vs-node status agreement, every
-node has a row, head freshness, the CLAUDE.md stamp, and that cited scripts still exist.
+node has a row, head freshness, the AGENTS.md stamp, and that cited scripts still exist.
 It runs in about two seconds. **The routing rule was written in four places and violated in
 all four; this test is the thing that actually holds it.**
 
 ## What "closed" does not mean
 
-A lineage closes on a **live gate**, never on an offline read (CLAUDE.md rule 6). An
+A lineage closes on a **live gate**, never on an offline read (AGENTS.md rule 6). An
 offline screen may order the work; a NO-GO on an offline bar is recorded and the registered
 live gate still runs. If you are closing on an offline number, you are not closing.
