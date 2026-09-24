@@ -348,6 +348,18 @@ class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
         best_i = min(range(len(rows)), key=lambda i: (scores[i], rows[i][0].id, rows[i][1].id))
         self.pg_decisions += 1
         best = rows[best_i]
+        # Behavioural instrument (added 2026-09-21, post-close). The rule's pg_joined_partner /
+        # pg_moved_by_exchange counters live in _PeerGreedyCore._pg_choose, which this override
+        # replaces -- so before this they read 0 for the learned arm as an INSTRUMENT GAP, not as
+        # "never co-locates". We restore ONLY pg_joined_partner (did the chosen node host a known
+        # partner) -- exact and transferable, and the co-location rate the decomposition needs.
+        # pg_moved_by_exchange is deliberately NOT restored: the rule's version removes an ADDITIVE
+        # exchange term, which is clean; an MLP has no additive term, and neutralising the exchange
+        # feature perturbs a nonlinear input that can flip the argmin even when exchange is constant
+        # across candidates (verified: a constant column still moves the argmin under the ReLU). A
+        # learned scorer has no honest term-ablation analog, so it stays 0 by construction here.
+        if peer_nodes and any(pn == best[0].node_name for pn, _b in peer_nodes):
+            self.pg_joined_partner += 1
         return best[0], best[1], best[2]
 
 
