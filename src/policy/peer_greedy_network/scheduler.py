@@ -259,6 +259,98 @@ class DrainGreedyNetworkScheduler(PeerGreedyNetworkScheduler):
     _policy_label = "drain_greedy_network"
 
 
+class PeerGreedyLookaheadNetworkScheduler(PeerGreedyNetworkScheduler):
+    """lookahead_mp_v1 P0: the immediate rule, plus a price for partners that have NOT arrived.
+
+    The physics charges this task, at its input stage, the exchange to EVERY partner: it waits
+    for an unarrived one to be placed, then pays against where that partner lands
+    (Platform._peer_rendezvous_events / _peer_exchange_time). The rule prices such partners at 0
+    because their node is unknown, so this task's node choice already fixes a cost the rule never
+    sees. This arm predicts the partner's node -- the node its bytes-heaviest already-known partner
+    (other than this task) runs on, a two-step hand estimate -- and prices it with the rule's own
+    _pg_exchange_seconds at weight 1.0. A partner with no known partner of its own stays unpriced,
+    exactly as in the rule (pg_lookahead_blind).
+
+    Disclosed: pg_joined_partner here counts joining a known OR a predicted partner's node."""
+
+    _policy_label = "peer_greedy_lookahead_network"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pg_lookahead_priced = 0
+        self.pg_lookahead_blind = 0
+
+    @staticmethod
+    def _pg_node_of(orch, peer_id: int, planned: Dict[int, str]) -> Optional[str]:
+        node_name = planned.get(int(peer_id))
+        if node_name is not None:
+            return node_name
+        peer = orch.task_by_id.get(int(peer_id))
+        if peer is None:
+            return None
+        plat = getattr(peer, "platform", None)
+        return plat.node.node_name if plat is not None else getattr(peer, "planned_node_name", None)
+
+    def _pg_predict_node(self, task: "Task", orch, peer_id: int,
+                         planned: Dict[int, str]) -> Optional[str]:
+        table = getattr(orch, "peer_exchange", None) or {}
+        weight: Dict[str, float] = {}
+        for q, b in (table.get(int(peer_id)) or {}).items():
+            if int(q) == int(task.id):
+                continue
+            node_name = self._pg_node_of(orch, int(q), planned)
+            if node_name is not None:
+                weight[node_name] = weight.get(node_name, 0.0) + float(b)
+        if not weight:
+            return None
+        return max(sorted(weight), key=lambda n: weight[n])
+
+    def _pg_peer_nodes(self, task: "Task", orch, planned: Dict[int, str]) -> List[Tuple[str, float]]:
+        known = super()._pg_peer_nodes(task, orch, planned)
+        peers = (getattr(orch, "peer_exchange", None) or {}).get(int(task.id)) or {}
+        for peer_id in sorted(peers):
+            if self._pg_node_of(orch, int(peer_id), planned) is not None:
+                continue
+            node_name = self._pg_predict_node(task, orch, int(peer_id), planned)
+            if node_name is None:
+                self.pg_lookahead_blind += 1
+                continue
+            self.pg_lookahead_priced += 1
+            known.append((node_name, float(peers[peer_id])))
+        return known
+
+
+class PeerGreedyOracleNetworkScheduler(PeerGreedyLookaheadNetworkScheduler):
+    """lookahead_mp_v1 P0 headroom bound: an unarrived partner's node is where it ACTUALLY ran in
+    the paired rule run of the same environment (HEROSIM_PG_ORACLE_NODES -> {task_id: node_name},
+    written from that run's taskResults). No deployable policy has this knowledge; it bounds what
+    lookahead can buy along the rule's trajectory. Disclosed: this arm's own decisions shift that
+    trajectory, so a partner may not land where the rule run put it."""
+
+    _policy_label = "peer_greedy_oracle_network"
+
+    def __init__(self, *args, **kwargs):
+        import json
+
+        path = os.environ.get("HEROSIM_PG_ORACLE_NODES")
+        if not path or not os.path.exists(path):
+            raise RuntimeError(
+                f"FAIL LOUD: peer_greedy_oracle_network needs HEROSIM_PG_ORACLE_NODES=<nodes.json>, got {path!r}"
+            )
+        self._oracle_nodes = {int(k): str(v) for k, v in json.load(open(path)).items()}
+        super().__init__(*args, **kwargs)
+
+    def _pg_predict_node(self, task: "Task", orch, peer_id: int,
+                         planned: Dict[int, str]) -> Optional[str]:
+        node_name = self._oracle_nodes.get(int(peer_id))
+        if node_name is None:
+            raise RuntimeError(
+                f"FAIL LOUD: oracle map has no node for task {peer_id}; it must come from the "
+                "paired rule run of this exact environment"
+            )
+        return node_name
+
+
 class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
     """rollout_imitation_v1: the immediate rule's candidate set and score-term features, but the
     candidate is chosen by a LEARNED scorer -- an MLP over the rule's own terms
