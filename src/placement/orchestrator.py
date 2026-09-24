@@ -211,6 +211,7 @@ class Orchestrator:
             # peer_greedy_live_v1: the hand rule's books (src/policy/peer_greedy_network)
             "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
             "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
+            "pg_partners_blinded",
             # lookahead_mp_v1 P0: unarrived partners priced / left unpriced
             "pg_lookahead_priced", "pg_lookahead_blind",
         )

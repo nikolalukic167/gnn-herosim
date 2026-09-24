@@ -56,7 +56,13 @@ if TYPE_CHECKING:
 PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
+    "pg_partners_blinded",
 )
+
+# cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
+# the batch being decided is never priced, even when it is already placed -- exactly the information
+# the served GNN decoder has (`prefix_serving.py`: peers outside the batch are invisible by contract).
+PG_BATCH_BLIND_ENV = "HEROSIM_PG_BATCH_BLIND"
 
 # joint_burst_v2 (2026-09-20): a DISCLOSED probe knob, never a registered arm's default. The
 # exchange term X is multiplied by this factor in the score (the service a task adds to its
@@ -89,6 +95,8 @@ class _PeerGreedyCore:
 
     exchange_on: bool = True
     _policy_label: str = "peer_greedy"
+    _pg_batched: bool = False
+    _pg_batch_ids: Set[int] = frozenset()
 
     def _pg_init(self) -> None:
         self.pg_decisions = 0
@@ -106,6 +114,16 @@ class _PeerGreedyCore:
         self.forced_placements: Dict[int, Tuple[int, int]] = {}
         self.pg_forced = 0
         self._pg_capture_path = os.environ.get("HEROSIM_PG_CAPTURE_PATH") or None
+        self.pg_partners_blinded = 0
+        raw_blind = os.environ.get(PG_BATCH_BLIND_ENV, "0").strip() or "0"
+        if raw_blind not in ("0", "1"):
+            raise ValueError(f"FAIL LOUD: {PG_BATCH_BLIND_ENV} must be 0 or 1, got {raw_blind!r}")
+        self.pg_batch_blind = raw_blind == "1"
+        if self.pg_batch_blind and not self._pg_batched:
+            raise RuntimeError(
+                f"FAIL LOUD: {PG_BATCH_BLIND_ENV}=1 is defined for the batched flavours only; "
+                f"{self._policy_label} decides per arrival and has no batch to be blind outside of"
+            )
         if self.exchange_on:
             _require_peer_physics(self._policy_label)
 
@@ -131,6 +149,9 @@ class _PeerGreedyCore:
         known: List[Tuple[str, float]] = []
         for peer_id in sorted(peers):
             node_name = planned.get(int(peer_id))
+            if node_name is None and self.pg_batch_blind and int(peer_id) not in self._pg_batch_ids:
+                self.pg_partners_blinded += 1
+                continue
             if node_name is None:
                 peer = orch.task_by_id.get(int(peer_id))
                 if peer is not None:
@@ -525,6 +546,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
 
     _policy_label = "peer_greedy_network_batch"
     _live_audit_policy_name = "peer_greedy_network_batch"
+    _pg_batched = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -603,6 +625,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         planned: Dict[int, str] = {}
         placements: Dict[int, Tuple[int, int]] = {}
         service_of: Dict[int, Tuple[str, float]] = {}
+        self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
         self._pg_batch_pass(
             batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
             planned=planned, placements=placements, service_of=service_of, refine=False,

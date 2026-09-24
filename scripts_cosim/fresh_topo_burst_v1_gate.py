@@ -39,6 +39,7 @@ RULE_POLICY = {
     "batched": "peer_greedy_network_batch",
     "selfpredict": "peer_greedy_selfpredict_network",
     "cd": "peer_greedy_network_cd",
+    "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
 }
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 N_TASKS = 50000
@@ -56,6 +57,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(9101, "w1", k) for k in ("selfpredict", "cd")] + \
                [task(9101, "w1", k, 1) for k in ("gnnedge0", "mpoff")]
     topos = selection["topologies"]
+    if phase == "d1":
+        return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
     out = [task(t, w, k) for t in topos for w in WINDOWS for k in GATE_RULES]
     out += [task(t, w, k, s) for t in topos for w in WINDOWS for k in ("gnnedge0", "mpoff") for s in SEEDS]
     return out
@@ -96,7 +99,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_BATCH_SIZE", "GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "GNN_PREFIX_ALPHA_KEY",
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
               "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
-              "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE"):
+              "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND"):
         env.pop(k, None)
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
@@ -115,8 +118,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "cd"):
+        if kind in ("batched", "cd", "cd_blind"):
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
+        if kind == "cd_blind":
+            env["HEROSIM_PG_BATCH_BLIND"] = "1"
     raw = os.path.join(out_dir, name + ".raw.json")
     log = os.path.join(out_dir, name + ".log")
     cmd = ["systemd-run", "--scope", "-q", "-p", f"MemoryMax={mem}", "-p", "MemorySwapMax=0",
@@ -153,8 +158,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"num_tasks={n!r}")
     if kind == "selfpredict" and (int(c.get("pg_decisions") or 0) != N_TASKS or int(c.get("pg_lookahead_priced") or 0) == 0):
         problems.append(f"rule instrument off: {c.get('pg_decisions')}/{c.get('pg_lookahead_priced')}")
-    if kind in ("batched", "cd") and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "cd", "cd_blind") and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
+    if kind == "cd_blind" and int(c.get("pg_partners_blinded") or 0) == 0:
+        problems.append("blind instrument off: pg_partners_blinded == 0")
+    if kind == "cd" and int(c.get("pg_partners_blinded") or 0) != 0:
+        problems.append("CD ran blind")
     if problems:
         json.dump({"arm": name, "why": "; ".join(problems), "wallclock_s": wall}, open(failed, "w"))
         os.remove(raw)
@@ -169,7 +178,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -178,7 +187,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     a = ap.parse_args()
     selection = None
-    if a.phase == "gate":
+    if a.phase in ("gate", "d1"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
