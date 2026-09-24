@@ -43,7 +43,8 @@ def orchestrator_of(scheduler: Any) -> Any:
 
 
 def platform_queue_drain_seconds(
-    platform: "Platform", orchestrator: Any, memo: Optional[Dict[str, float]] = None
+    platform: "Platform", orchestrator: Any, memo: Optional[Dict[str, float]] = None,
+    exec_scale: float = 1.0,
 ) -> float:
     """Seconds until `platform`'s backlog as it stands now has been served.
 
@@ -91,7 +92,7 @@ def platform_queue_drain_seconds(
 
     for task in platform.queue.items:
         task_type = task.type
-        total += float(task_type.get("executionTime", {}).get(plat_type, 0.0) or 0.0)
+        total += float(task_type.get("executionTime", {}).get(plat_type, 0.0) or 0.0) * exec_scale
         total += _approx_comm(task_type)
         if getattr(task, "node_name", None) and task.node_name != node.node_name:
             total += _latency_to(task.node_name)

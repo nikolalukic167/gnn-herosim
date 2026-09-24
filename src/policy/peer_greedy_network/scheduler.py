@@ -99,6 +99,22 @@ def _pg_ext_rate() -> Optional[float]:
     return value
 
 
+# hidden_exec_s0_v1: what the rule knows about execution time. `table` (default) reads the
+# task-type table; `oracle` also reads exec_physics' hidden node constants and current co-execution.
+PG_EXEC_KNOWLEDGE_ENV = "HEROSIM_PG_EXEC_KNOWLEDGE"
+
+
+def _pg_exec_oracle() -> bool:
+    from src.placement.exec_physics import TABLE_V0, resolve_exec_physics
+
+    raw = os.environ.get(PG_EXEC_KNOWLEDGE_ENV, "table").strip() or "table"
+    if raw not in ("table", "oracle"):
+        raise ValueError(f"FAIL LOUD: {PG_EXEC_KNOWLEDGE_ENV}={raw!r}; expected table or oracle")
+    if raw == "oracle" and resolve_exec_physics() == TABLE_V0:
+        raise ValueError(f"FAIL LOUD: {PG_EXEC_KNOWLEDGE_ENV}=oracle under table_v0 has nothing to know")
+    return raw == "oracle"
+
+
 def _pg_exchange_scale() -> float:
     raw = os.environ.get(PG_EXCHANGE_SCALE_ENV, "1.0").strip() or "1.0"
     try:
@@ -136,6 +152,7 @@ class _PeerGreedyCore:
         self.pg_cd_passes = 0
         self.pg_cd_moves = 0
         self.pg_exchange_scale = _pg_exchange_scale()
+        self.pg_exec_oracle = _pg_exec_oracle()
         # forced_placements: {task_id -> (node_id, platform_id)} injected by the orchestrator from
         # config["infrastructure"]["forced_placements"] (rollout_imitation_v1's label engine forces
         # one task to a candidate and lets the rule choose everything else). Empty = normal rule.
@@ -224,6 +241,13 @@ class _PeerGreedyCore:
                 peer_node_name, context="peer-greedy estimate")
         return total
 
+    def _pg_xf(self, platform) -> float:
+        if not self.pg_exec_oracle:
+            return 1.0
+        from src.placement.exec_physics import expected_factor
+
+        return expected_factor(platform)
+
     def _pg_choose(
         self,
         task: "Task",
@@ -244,14 +268,16 @@ class _PeerGreedyCore:
         for node, platform in candidates:
             key = f"{node.node_name}:{platform.id}"
             plat_type = platform.type["shortName"]
-            drain = platform_queue_drain_seconds(platform, orch, memo) + committed_service.get(key, 0.0)
+            xf = self._pg_xf(platform)
+            drain = (platform_queue_drain_seconds(platform, orch, memo, exec_scale=xf)
+                     + committed_service.get(key, 0.0))
             if self.pg_inflight:
                 remaining = inflight_remaining_seconds(platform)
                 if remaining:
                     drain += remaining
                     self.pg_inflight_charged += 1
                     self.pg_inflight_seconds += remaining
-            exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0)
+            exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0) * xf
             cold = incoming_cold_start_time(task, platform)
             lat = network_latency_between(task.node_name, node, nodes)
             base = drain + cold + exec_s + lat
@@ -473,9 +499,10 @@ class PeerGreedySelfPredictNetworkScheduler(PeerGreedyLookaheadNetworkScheduler)
         best = None
         for node, platform in candidates:
             plat_type = platform.type["shortName"]
-            score = (platform_queue_drain_seconds(platform, orch, self._pg_memo)
+            xf = self._pg_xf(platform)
+            score = (platform_queue_drain_seconds(platform, orch, self._pg_memo, exec_scale=xf)
                      + incoming_cold_start_time(partner, platform)
-                     + float(task_type["executionTime"].get(plat_type, 0.0) or 0.0)
+                     + float(task_type["executionTime"].get(plat_type, 0.0) or 0.0) * xf
                      + network_latency_between(partner.node_name, node, self.nodes.items)
                      + self.pg_exchange_scale * self._pg_exchange_seconds(node, platform, known))
             key = (score, node.id, platform.id)
