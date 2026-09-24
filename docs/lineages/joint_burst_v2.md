@@ -10,7 +10,9 @@ beats the greedy (K6 −8.8 %, 16/16) and the loaded-state corpus adds nothing b
 (K5 CORPUS-NEUTRAL −3.9 %). The cap carries **~89 % of the greedy-beat** — a decoder-policy change
 (the cap is a placement-side memory-admission limit, not a runtime memory charge; concentration is
 charged only via the FIFO queue — 2026-09-21 code read), so this is a serving win, not a graph-
-mechanism one (K4 tie). Ties its pointwise twin (K4 −4.4 %, under the bar). Next lever to
+mechanism one (K4 tie). Ties its pointwise twin (K4 −4.4 %, under the bar). **Later (2026-09-24,
+[`selfpredict_burst_v1`](selfpredict_burst_v1.md)):** it also beats the self-predict rule in this seat
+−7.25 % (13/13 ckpt, 9/16 env); CD still leads both. Next lever to
 reach CD: [`rollout_imitation_v1`](../../LINEAGES.md) (train the multi-pass optimum, registered).
 Parent
 [`joint_burst_v1`](joint_burst_v1.md) closed `NO-GNN-WIN`: trained on the served burst
