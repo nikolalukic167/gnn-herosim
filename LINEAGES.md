@@ -36,6 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**selfpredict_burst_v1**](docs/lineages/selfpredict_burst_v1.md) | `REGISTERED` | Does gnnedge0's burst-seat win (−11.9 % vs the 1-pass greedy) survive the self-predict rule? 304 fresh runs on joint_burst_v2's 16 environments; bars signed before data. |
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
 | [**drainable_debug_v1**](docs/lineages/drainable_debug_v1.md) | `REGISTERED` | Why do both learned arms lose to reactive Knative at ρ ≈ 0.16? Bars signed before any datum exists; parents are `drainable_regime_v1` and `drainable_serving_config_v1`. |
 | [**peer_affinity_v1**](docs/lineages/peer_affinity_v1.md) | `ACTIVE` | Message passing beats its own MP-OFF twin **+5.14 pp** offline (p = 0.001, 13/16 seeds) at 482 datasets — **offline only**. The edge reverses live, is contingent on one platform type the corpus never contained, and reads **−15.94 %** at a defensible load. Never quote a live number without its load factor. |
