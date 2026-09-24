@@ -4,6 +4,10 @@
 amended the same day before post-fix data (rerun at the simulator-fix commit); every bar below was signed
 before its data.
 
+**Qualified by [`fresh_topo_burst_v1`](fresh_topo_burst_v1.md) (2026-09-24):** on 11 never-studied topologies,
+the win over self-predict does not replicate (−1.2 %, p = 0.70). `gnnedge0`'s edge over its MP-OFF twin does
+replicate, but only as a direction (−4.2 %, 11/11).
+
 **Outcome (2026-09-24).** In the burst seat, uncapped `gnnedge0` (`joint_burst_v2`, 13 checkpoints) **beats the
 self-predict rule −7.25 % (13/13 checkpoints, p = 0.0015)** — the programme's best per-arrival hand rule —
 while the **CD greedy stays ahead of both**: self-predict +21.3 % behind CD (0/16), `gnnedge0` +12.48 % behind
