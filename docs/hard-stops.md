@@ -274,3 +274,7 @@ service.
 without a representation change that carries per-platform committed load into the score. What did
 work is using the GNN plan as a seed for CD's refine passes (−3.8 % vs CD, direction only), which is a
 learned-seed result, not a message-passing one.
+
+**That representation change has now been made** (`load_repr_v1`, `partial_state_v4`: replica backlog
+and in-batch committed service in seconds). It cuts the gap from +12.4 % to +6.7 % and beats its zeroed
+twin −5.3 % (11/11). A further attempt starts from `v4load`, not from `gnnedge0`.

@@ -1,6 +1,26 @@
 # load_repr_v1 — does giving the GNN the CD greedy's load terms in seconds close the gap to CD?
 
-**Status:** `REGISTERED` (2026-09-25). Every bar below was signed before its data.
+**Status:** `CLOSED` (2026-09-25) — **LOAD-HELPS / NARROWS**. Registered 2026-09-25; every bar below,
+and both amendments, was signed before its data.
+
+**Outcome.** Giving the burst-seat GNN CD's load terms in seconds helps, and closes about half the gap
+to CD. All numbers are live, on fixed serving (721d44f), on 10–11 fresh topologies (`fresh_topo_burst_v1`
+study).
+- **Against its zeroed twin:** `v4load` is **−5.3 %** (11/11, p = 0.001, `LOAD-HELPS`).
+- **Against CD:** it still trails, **+6.7 %** (1/10, p = 0.004, `NARROWS`). The same architecture
+  without these columns trails CD +12.4 %.
+- **Against the self-predict rule:** `v4load` is **−8.5 %** (10/11, p = 0.005). It is the first
+  learned arm to clear the burst-seat hand-rule bar on the fresh study at a quotable magnitude.
+  Uncapped `gnnedge0` ties self-predict (−0.9 %, p = 0.91). It is a 4-seed arm on one corpus
+  (jb2, 1,629 train groups).
+- **The gain is all queue:** 4.10 → 3.62 s per task against CD's 2.99 s, with exchange flat.
+- **Offline (O1):** held-out regret 9.0 % median / 42.2 % mean, against CD 8.2 / 54.5 and the twin
+  11.4 / 54.0.
+- **A serving defect, found and fixed on the way (Amendment 2).** At the uncapped rung, live serving
+  ranked zero-demand nodes first while training did not. That changed the served `krank` on 56/60
+  held-out batches for every burst-seat learned arm before 721d44f. The fix makes `gnnedge0` slightly
+  *slower* (+1.4 %, 0/12, `FIX-HURTS`), so no earlier learned-arm headline was inflated by more than
+  that.
 
 **Parent:** [`cd_gap_v1`](cd_gap_v1.md) (`SCORE-EXPLAINS / CD-FASTER`). The burst-seat `gnnedge0` trails
 CD +11–14 % live. The gap is all queue, and neither its label, its decode order, its candidate set nor
@@ -70,6 +90,44 @@ That close ended on a claim: "the fix is the representation". This lineage tests
 - Live gate: `scripts_cosim/fresh_topo_burst_v1_gate.py` phase `v4`.
 
 ## Record (newest first)
+
+- 2026-09-25 — **Live read on fixed serving: `LOAD-HELPS` (L2), `NARROWS` (L1).**
+  - **Run:** datalab job 807153 at 6688aaf (`src` = 721d44f), clean. 1,628 summaries + 4 timeouts
+    (`v4load` 9423 w3, all 4 seeds; drops 9423 from `v4load`'s contrasts). CD and self-predict are
+    the 1ae90af fresh-gate runs, which are rule arms untouched by the fix.
+
+  | read | median | p | first faster | label |
+  |---|---|---|---|---|
+  | **L2** `v4load` vs `v4twin` (same seed) | **−5.28 %** | 0.001 | 11/11 | `LOAD-HELPS` |
+  | **L1** `v4load` vs CD | **+6.72 %** | 0.004 | 1/10 | `NARROWS` |
+  | L3 `v4load` vs jb2 `gnnedge0` (seeds 1–4) | −6.93 % | 0.001 | 11/11 | reported |
+  | L3 `v4load` vs self-predict | **−8.48 %** | 0.005 | 10/11 | reported |
+  | disclosed `v4twin` vs CD | +10.91 % | 0.001 | 0/11 | |
+  | disclosed `v4twin` vs `gnnedge0` | −1.09 % | 0.0005 | 12/12 | |
+  | **R1** `gnnedge0` fixed vs as served | +1.43 % | 0.0005 | 0/12 | `FIX-HURTS` |
+  | **R2** `gnnedge0` fixed vs CD | +12.38 % | 0.001 | 0/11 | `CD-FASTER` |
+  | R3 `gnnedge0` vs MP-OFF, fixed | −3.51 % | 0.001 | 11/12 | direction only |
+  | R4 MP-OFF fixed vs as served | +0.48 % | 0.0005 | 0/12 | |
+  | R5 `gnnedge0` fixed vs self-predict | −0.93 % | 0.91 | 7/12 | not separated |
+
+  - **Decomposition (median s per task):**
+
+    | arm | queue | exchange |
+    |---|---|---|
+    | `v4load` | 3.62 | 4.14–4.17 |
+    | `v4twin` | 4.10 | 4.18 |
+    | CD | 2.99 | 4.11 |
+    | `gnnedge0` fixed | 4.22 | 4.21–4.29 |
+
+  - **As served with the defect** (job 807111, b449ebf; disclosed, not the registered read): L2
+    −5.40 % (11/11), L1 +5.40 % (1/10), vs self-predict −9.44 % (10/11). Same labels.
+  - **Reading:**
+    - The representation was the lever for part of the gap. What remains of CD's lead (+6.7 %)
+      is still queue.
+    - The defect's cost to every earlier burst-seat learned number is under 1.5 %, and in the
+      learned arms' favour. `cd_gap_v1`'s +11.4 % becomes +12.4 % on fixed serving; the MP direction
+      holds (−3.5 %, 11/12).
+  - [Read](load_repr_v1/live_read.json), [as served](load_repr_v1/asserved_read.json).
 
 - 2026-09-25 — **O1 read (offline; orders nothing): the load columns help offline.**
   - **Setup:** 480 held-out groups under A1's protocol. Training was datalab array 806789 at
