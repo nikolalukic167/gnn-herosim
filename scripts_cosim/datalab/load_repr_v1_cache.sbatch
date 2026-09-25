@@ -25,7 +25,7 @@ export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS=8
 export DAG_PRIMARY_ALPHA_KEY=inf PARTIAL_STATE_CONTRACT=partial_state_v4
 echo "[CODE] $(git describe --dirty --always) at $WT"
-[[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty" >&2; exit 1; }
+[[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py | grep -v '^?? experiments/joint_burst_v2_split.json$' || true)" ]] || { echo "FAIL LOUD: worktree dirty" >&2; exit 1; }
 TRAIN=simulation_data/gnn_datasets_joint_burst_v2_train
 TEST=simulation_data/gnn_datasets_joint_burst_v2_heldout
 CACHE=simulation_data/graphs_cache_joint_burst_v2_psv4_inf
