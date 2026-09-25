@@ -76,6 +76,31 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **D4 gate WITHDRAWN (premise false), and amendment D5 signed before any refine run.**
+  - **Why D4 is withdrawn:** the smoke test on 9119 w1 (both arms) shows the live candidate set is
+    already *smaller* than the corpus slate. There are ~16 candidate slots per 10-task batch, about
+    1.6 per task, against 2.1 in training (CD: 87,731 slots over 5,335 slated batches), and the slate
+    rule removes 0.5 % of them. The slated arms reproduce their unslated elapsed within 0.01 s (CD
+    8.793 vs 8.801, `gnnedge0` s1 9.603 vs 9.610). The candidate set is not the gap; the gate would
+    compare near-identical arms. The two smoke summaries are kept in the scratch D4 directory, not read
+    as a gate.
+  - **D5 design.** Knob `GNN_CD_REFINE` (098dcd6). After the GNN decodes a batch, CD's own refine
+    passes (`_pg_batch_pass(refine=True)`, bound, not copied, up to 3) run from the GNN's plan on the
+    same live state, with CD's books seeded from that plan. Every move is counted: node change or
+    platform only, and whether it un-stacks a batch-mate pile.
+    - `shadow` serves the GNN's plan and only counts: what CD would change on the GNN's own states,
+      on-policy.
+    - `apply` serves the refinement: a GNN-seeded CD arm.
+
+  | read | contrast | fires as |
+  |---|---|---|
+  | D5a (descriptive) | `gnnedge0_cdshadow`, seeds 1–3, fresh study | share of batches and tasks CD would change, and the move types. Shadow must reproduce `gnnedge0`'s `total_rtt` to the digit |
+  | **D5b-1** | `gnnedge0_cdapply` × 13 vs CD | `SEED-REACHES-CD` (not separated, or seeded faster) / `CD-FASTER` (≥ 5 %, p < 0.05) / direction only |
+  | D5b-2 | `gnnedge0_cdapply` vs `gnnedge0` (same seed) | reported: what CD's moves are worth on the GNN's plan |
+
+  **Expectations:** D5b-1 `SEED-REACHES-CD` 60 % (`gnn_seeded_cd_v1` in the dynamic seat: seeded
+  within +1.7 % of the hand start). D5a: CD changes ≥ 30 % of the GNN's batches 70 %.
+
 - 2026-09-25 — **Amendment D4 (candidate set), signed before any slate run.** Code trace
   (`make_warm_corpus.choose_candidates`): each training/eval group offers a **seeded random
   per-type subset** of the live replicas (≤ 20,000 plans, about 2.1 candidates per task), chosen
