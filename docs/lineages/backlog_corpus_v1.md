@@ -80,6 +80,42 @@ live queue has not been measured.
 
 ## Record (newest first)
 
+- 2026-09-25 — **Trained; P1 passes; O3 mixed (offline, orders nothing).** The live gate (job 807878,
+  phase `bc1`) is running.
+  - **Training:** job 807608 at 0f9c9c9, all 8 tasks passed their sidecar checks, W&B project
+    `gnn-peer-affinity-v1`, tag `backlog-corpus-v1`. Best val served regret (`val/regret_masked_topo`,
+    mean s, 1,186 whole-cell val groups):
+
+    | arm | s1 | s2 | s3 | s4 |
+    |---|---|---|---|---|
+    | `bc1load` | 6.81 | 7.07 | 6.96 | 6.92 |
+    | `bc1mpoff` | 7.57 | 7.50 | 7.74 | 7.71 |
+
+    On validation, every `bc1load` seed is ahead of every `bc1mpoff` seed. The 8 failed W&B runs of
+    the same names are the Amendment-2 crash (807583).
+  - **P1 passes** (job 807618). `bc1load` s1 and `bc1mpoff` s1, served with `service_end_v1`, are
+    each 60/60 bit-identical on held-out batches: fields including `backlog_s`/`service_s`, the
+    decoded plan and the sweep RTT. 46 of the 60 carry synthetic backlog (rungs 3/8/20: 14/21/11).
+  - **O3** (job 807617; 960 test groups, cells 9223/9224; registered regret %):
+
+    | arm | median per seed | mean per seed |
+    |---|---|---|
+    | `bc1load` | 4.7 / 4.7 / 4.5 / 4.0 | 25.1 / 24.8 / 26.3 / 20.7 |
+    | `bc1mpoff` | 5.3 / 5.4 / 5.6 / 5.6 | 22.6 / 20.1 / 23.4 / 23.8 |
+
+    - **Paired** (same seed): `bc1load` wins 913, loses 689 and ties 2,238, with mean +1.75 pp. The
+      median favours message passing and the mean, through a heavy tail, does not.
+    - **By rung** (median / mean %):
+
+      | rung | `bc1load` | `bc1mpoff` |
+      |---|---|---|
+      | 0 | 5.9 / 46.0 | 7.8 / 42.1 |
+      | 3 | 6.3 / 21.5 | 6.5 / 18.7 |
+      | 8 | 4.1 / 15.2 | 5.0 / 15.5 |
+      | 20 | 2.2 / 16.5 | 2.9 / 15.6 |
+
+    - Not comparable to `load_repr_v1` O1: different test groups and a different label clock.
+
 - 2026-09-25 — **Amendment 2 (signed before any trained weights exist).** The first training array
   (807583, f5edef6) failed on all 8 tasks at the first training batch: `partial_state_v4 requires a
   peer_exchange corpus`.
