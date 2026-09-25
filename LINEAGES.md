@@ -36,7 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**backlog_corpus_v1**](docs/lineages/backlog_corpus_v1.md) | `REGISTERED` | Does a corpus whose states carry (synthetic) backlog teach the burst-seat GNN to load-balance? jb2 snapshots replayed with fake queued work, label on the seeded backlog clock, cell-grouped val, in-flight capture fixed for serving. Bars signed before data. |
+| [**backlog_corpus_v1**](docs/lineages/backlog_corpus_v1.md) | `ACTIVE` | Does a corpus whose states carry (synthetic) backlog teach the burst-seat GNN to load-balance? 5,036 groups built; O1/O2 fire (51 % of candidates busy vs jb2 0.5 %; optimum moves in 46–71 % of groups). Training and live gate next. |
 | [**load_repr_v1**](docs/lineages/load_repr_v1.md) | `REGISTERED` | Does feeding the burst-seat GNN CD's load terms in seconds (replica backlog + in-batch committed service, `partial_state_v4`) close the gap to CD? v4load vs its zeroed twin vs CD, live on the fresh study. Bars signed before data. |
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
 | [**drainable_debug_v1**](docs/lineages/drainable_debug_v1.md) | `REGISTERED` | Why do both learned arms lose to reactive Knative at ρ ≈ 0.16? Bars signed before any datum exists; parents are `drainable_regime_v1` and `drainable_serving_config_v1`. |
