@@ -166,3 +166,25 @@ def test_service_end_mode_overrides_the_legacy_capture(monkeypatch):
     monkeypatch.setenv(live_audit.INFLIGHT_CAPTURE_ENV, "service_end_v1")
     got = live_audit.temporal_state_of(sched, node, plat)
     assert got["current_task_remaining"] == pytest.approx(4.0) and got["comm_remaining"] == 0.0
+
+
+def test_synthetic_seed_passes_explicit_seconds_and_skips_the_drain_table():
+    """A platform type the measured drain table never covered (xavierDla) must still seed:
+    the synthetic backlog is priced in seconds, so no per-item clock is consulted."""
+    from src.placement.live_snapshot_seed import _seed_platform_state
+
+    calls = []
+    plat = SimpleNamespace(
+        initialized=SimpleNamespace(triggered=True), type={"shortName": "xavierDla"},
+        seed_virtual_warmup=lambda *a, **k: calls.append((a, k)), virtual_warmup_total_time=0.0,
+    )
+    sim = SimpleNamespace(task_types={"dnn1": TASK_TYPE})
+    spec = {"node_name": "n0", "platform_id": 1, "queue_length": 0, "task_type_hint": "dnn1",
+            "synthetic_queue_length": 3, "synthetic_backlog_seconds": 12.5}
+    _seed_platform_state({("n0", 1): (None, plat)}, sim, spec)
+    assert calls == [(( TASK_TYPE, "dnn1", 3), {"total_seconds": 12.5})]
+    assert plat.virtual_warmup_total_time == 12.5
+    captured = {"node_name": "n0", "platform_id": 1, "queue_length": 2, "task_type_hint": "dnn1"}
+    calls.clear()
+    _seed_platform_state({("n0", 1): (None, plat)}, sim, captured)
+    assert calls[0][1] == {}

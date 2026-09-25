@@ -756,12 +756,23 @@ class Platform:
         """Queue length visible to schedulers/snapshots (real queue + virtual warmup backlog)."""
         return len(self.queue.items) + self.virtual_warmup_count
 
-    def seed_virtual_warmup(self, task_type: TaskType, task_type_name: str, count: int) -> None:
+    def seed_virtual_warmup(
+        self, task_type: TaskType, task_type_name: str, count: int,
+        total_seconds: Optional[float] = None,
+    ) -> None:
         """
         Seed compressed warmup backlog without creating per-item Task objects.
         Equivalent timing model: first warmup task may cold-start; subsequent are warm.
+
+        `total_seconds` (backlog_corpus_v1): the backlog is already priced in seconds, so no
+        per-item clock is consulted; used only for a synthetic backlog.
         """
         if count <= 0:
+            return
+        if total_seconds is not None:
+            self.virtual_warmup_count += count
+            self.virtual_warmup_total_time += float(total_seconds)
+            self.virtual_warmup_task_type = task_type_name
             return
         execution = float(task_type["executionTime"].get(self.type["shortName"], 0.0))
         cold_start = float(task_type["coldStartDuration"].get(self.type["shortName"], 0.0))
