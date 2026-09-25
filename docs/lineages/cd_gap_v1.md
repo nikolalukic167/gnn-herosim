@@ -76,6 +76,28 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **D1 read: `OUT-OF-BATCH-MATTERS (direction only)`.** Blind-CD vs CD +3.41 %
+  (median over 11 topologies, 0/11 faster, p = 0.001; per topology +2.0 to +6.7 %). Queue 2.91 →
+  3.09 s; exchange unchanged (4.18 → 4.21 s). 9466 dropped (its CD w3 cell timed out in the fresh gate).
+  Blind runs are at 5cc38d9 and 805bc79, which have the same simulator code; CD cells are the fresh
+  gate's at 1ae90af, reproduced to the digit at 5cc38d9 with the knob off (9119 w1). About 3.4 of
+  `gnnedge0`'s ~11.4 % gap to CD is information it structurally lacks. [Read](cd_gap_v1/d1_read.json).
+- 2026-09-25 — **D3 read: `NO-EXTERNALITY`.** Paired vs CD over 480 held-out groups (medians):
+  - label: sum −4.76 s (lower on 100 %), backlog **−3.55 s** (higher on only 6.9 %);
+  - `gnnedge0`: sum 0.0 s, backlog −1.53 s (higher on 28.8 %);
+  - 1-pass: sum +5.50 s, backlog +0.04 s.
+
+  Every plan was matched to a sweep row. CD's `total_rtt` matched several tied rows on 78 groups and
+  the 1-pass greedy's on 75; there the metrics are the mean over the tied rows.
+  Offline, on the 1-pass rule's states, the label and the GNN leave *less* busy time behind than CD.
+  The objective is not what loses the queue live. [Read](cd_gap_v1/d3_externality_summary.json).
+- 2026-09-25 — **D2 gate WITHDRAWN before its data**, signed with the reason. The witness cell shows
+  the probe cannot answer its question: the flag re-assigns 2 % of tasks because a node rarely holds
+  two valid replicas of one type, so "spread vs no spread" would compare two nearly identical arms.
+  The stacking measurements stay recorded in the D2 amendment below. The mechanism they point to
+  (CD splits co-located batch-mates across siblings about twice as often) is what CD's refine passes
+  do, not a serving tie-break.
+
 - 2026-09-25 — **Amendment D3 (externality), signed before D3 is computed.** The witness run showed
   the sibling-spread flag almost never fires (1,039 of 50,000 tasks moved; stacking 0.80 → 0.78;
   one cell, −1.3 %). Replicas are per task type, and a node rarely holds two valid replicas of one
