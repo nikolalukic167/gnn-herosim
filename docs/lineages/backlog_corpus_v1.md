@@ -80,6 +80,82 @@ live queue has not been measured.
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment 3 (signed before any datum of the arm): `bc1load_selfref`.** This is
+  `bc1load` served with `GNN_PREFIX_SELF_REFINE=3`: after the id-order decode, 3 passes re-score each
+  task with every other batch-mate committed, on the model's own v4 score. It uses the four `bc1load`
+  checkpoints, `service_end_v1`, gate phase `bc1selfref` and no new training.
+  - **Reads** (`backlog_corpus_v1_read.py`, the same statistic and drop rule):
+
+    | read | contrast | fires as |
+    |---|---|---|
+    | **S1** | `bc1load_selfref` vs CD | `CLOSES-GAP` if not slower (median ≤ 0 or p ≥ 0.05); else `CD-FASTER` (with the direction-only qualifier if \|median\| < 5 %) |
+    | **S2** | `bc1load_selfref` vs `bc1load` (same seed) | reported |
+    | S3 | `bc1load_selfref` vs self-predict | reported |
+
+  - **Why:** the diagnosis below found that one-pass id-order decode is about half the queue gap.
+    A 3-environment × 2-seed probe (job 808107) gave self-refine −2.3 to −6.9 % vs `bc1load` and
+    −1.8 to +5.1 % vs CD, recovering 32–66 % of CD's refine gain from the same seed (`gnnedge0`
+    in `cd_gap_v1` D6: 8.9 %). It is a direction only; the probe environments are inside the
+    study.
+  - **Caveat:** self-refine scores with later batch-mates committed, a context absent from training.
+  - **Expectations:** S1 `CLOSES-GAP` 35 %, `CD-FASTER` (direction only) 50 %, `CD-FASTER` 15 %.
+    S2 faster 90 %.
+
+- 2026-09-25 — **Diagnosis of the L-read** (five read-only investigations; scratch under
+  `/tmp/claude-0/agent_*`, cluster copies in `simulation_data/backlog_corpus_v1/debug_*`).
+  - **The live queue gap to CD is in-batch stacking.** It is 86 % of the gap over 5 probe runs
+    (job 808083): tasks of one burst wait 5–7 s behind a batch-mate's peer exchange on the same
+    platform.
+    - Inherited backlog is 14 %, and only as a knock-on of the model's own piling.
+    - On bursts that start with more than a quarter of candidates busy (8–15 % of bursts), the model
+      is already faster than CD by 0.8–4.3 s/task. The corpus fixed the regime it aimed at, and that
+      regime is small.
+    - CD's shadow refine would change 53–58 % of the model's batches, un-stacking and trading a little
+      exchange for less queue.
+  - **Not the cause:**
+    - The label: on the held-out states, a CD replay is worse than `bc1load` on raw RTT, on the label
+      and on residual busy time.
+    - Replay mechanics: offline, a stacked task waits as long as it does live (4.6–5.6 s median). A
+      stacking penalty of 1–4 s moves the label's same-platform share only 0.671 → 0.672.
+    - Train/serve code: every test passes against the base commit, the load inputs are identical,
+      and the `service_end_v1` predicted ends match the actual ends within 1 ms on 2,999/3,000
+      tasks.
+  - **Real mismatches, minor:**
+    - Live batches are not always complete: 27 % of tasks are in batches smaller than 10.
+    - Training states are much more loaded: 49 % of candidates busy vs 13 % live.
+    - A replica busy only from its in-flight task (queue count 0, backlog > 0) never appears in
+      training.
+    - Platform column 8 `node_cold_frac` is identically 0 in training and ~1 live; zeroing it
+      changes 0.9 % of plans.
+    - The capture mode is not in the checkpoint sidecar.
+    - Rung "3" is 4.5 s in effect: with the Poisson rate clamped, k = 1.
+  - **Levers named:**
+    - (a) The decode order, tested by Amendment 3.
+    - (b) An on-policy corpus from the model's own live states (it stacks 0.70 offline and 0.80 live,
+      against CD's 0.62 live).
+    - (c) Training on full-batch context, so that self-refine is in distribution.
+
+- 2026-09-25 — **Live read (L1–L3, C1): `NOT-SEPARATED` / `NO-EFFECT`.** Job 807878 at 0f9c9c9:
+  569/576 runs, and the 7 timeouts are all 9423 w3 (4 × `bc1load`, 3 × `v4load_se`), so 9423 drops
+  as it did for `v4load`. [Read](backlog_corpus_v1/bc1_read.json).
+
+  | read | median | p | first faster | label |
+  |---|---|---|---|---|
+  | **L1** `bc1load` vs `v4load_se` | +0.83 % | 0.067 | 2/11 | `NOT-SEPARATED` |
+  | **L2** `bc1load` vs CD | +6.59 % | 0.002 | 0/10 | `NO-EFFECT` |
+  | L3 `bc1load` vs `bc1mpoff` | **−5.03 %** | 0.001 | 11/11 | reported |
+  | C1 `v4load_se` vs `v4load` | −0.82 % | 0.001 | 11/11 | reported (direction) |
+  | `bc1load` vs self-predict | −7.55 % | 0.005 | 9/11 | reported |
+  | `bc1load` vs `v4load` | −0.56 % | 0.70 | 8/11 | reported |
+  | `bc1mpoff` vs CD | +10.29 % | 0.001 | 0/11 | reported |
+  | `v4load_se` vs CD | +5.82 % | 0.004 | 1/10 | reported |
+
+  - **Queue per task:** `bc1load` 3.57 s, `v4load_se` 3.53 s, CD 2.99 s. Exchange is flat at
+    4.1–4.2 s.
+  - The corpus did not move the live queue.
+  - MP beats its twin at the 5 % magnitude bar for the first time in the burst seat. This is 4 seeds
+    on one corpus; queue is 3.57 vs 3.88 s and exchange 4.18 vs 4.32 s.
+
 - 2026-09-25 — **Trained; P1 passes; O3 mixed (offline, orders nothing).** The live gate (job 807878,
   phase `bc1`) is running.
   - **Training:** job 807608 at 0f9c9c9, all 8 tasks passed their sidecar checks, W&B project

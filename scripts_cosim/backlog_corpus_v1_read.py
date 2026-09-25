@@ -60,6 +60,13 @@ def main(argv: Optional[List[str]] = None) -> int:
            "reported_bc1load_vs_v4load": C.contrast(s, topos, "bc1load", "v4load"),
            "reported_bc1mpoff_vs_cd": C.contrast(s, topos, "bc1mpoff", "cd"),
            "reported_v4load_se_vs_cd": C.contrast(s, topos, "v4load_se", "cd")}
+    if any(k[2] == "bc1load_selfref" for k in s):
+        # Amendment 3
+        res["S1"] = C.contrast(s, topos, "bc1load_selfref", "cd")
+        res["S2"] = C.contrast(s, topos, "bc1load_selfref", "bc1load")
+        res["reported_bc1load_selfref_vs_selfpredict"] = C.contrast(s, topos, "bc1load_selfref", "selfpredict")
+        res["S1_label"] = ("CLOSES-GAP" if res["S1"].get("read") and (res["S1"]["read"]["median_pct"] <= 0.0
+                           or res["S1"]["read"]["p"] >= 0.05) else res["S1"].get("verdict") or "CD-FASTER")
     res["L1_label"] = l1_label(res["L1"])
     res["L2_label"] = l2_label(res["L2"], res["L1_label"])
     print(json.dumps(res, indent=1))

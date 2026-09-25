@@ -4,7 +4,8 @@
 # CD, self-predict and v4load (legacy capture) are the existing runs, licensed by the witness job.
 # Inputs: $B/inputs = cfg/, wl/ and selected.json from the fresh inputs, both split files, and models/ holding
 # the v4load and bc1 checkpoints with their sidecars (md5-checked against their sources below).
-#   sbatch backlog_corpus_v1_gate.sbatch
+#   sbatch backlog_corpus_v1_gate.sbatch                                   (phase bc1)
+#   sbatch --export=ALL,PHASE=bc1selfref backlog_corpus_v1_gate.sbatch    (Amendment 3)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -20,7 +21,8 @@ WT=/home/nikola.lukic/gnn-herosim-wt/backlog_corpus
 FRESH=/home/nikola.lukic/gnn-herosim/simulation_data/cd_gap_v1/gates/fresh
 B=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates
 IN="$B/inputs"
-OUT="$B/bc1"
+PHASE=${PHASE:-bc1}
+OUT="$B/$PHASE"
 P=${PAR:-$(( ${SLURM_CPUS_PER_TASK:-64} - 2 ))}
 cd "$WT"
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
@@ -69,7 +71,7 @@ WD=$!
 trap 'kill $WD 2>/dev/null || true' EXIT
 
 rc=0
-python3 scripts_cosim/fresh_topo_burst_v1_gate.py bc1 --inputs "$IN" --out "$OUT" \
+python3 scripts_cosim/fresh_topo_burst_v1_gate.py "$PHASE" --inputs "$IN" --out "$OUT" \
   --selection "$IN/selected.json" --parallel "$P" --mem 2500M --timeout 1800 --no-scope || rc=$?
 kill $WD 2>/dev/null || true
 echo "driver rc=$rc"
