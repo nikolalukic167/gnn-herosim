@@ -96,6 +96,15 @@ def _backlog_drain_per_item(task_type_name: str, platform_type: str) -> Optional
     return float(value)
 
 
+def _output_estimate_seconds(task: "Task") -> float:
+    """The output write the legacy temporal capture charges (100 MB/s + 1 ms)."""
+    if not task.application:
+        return 0.0
+    state = (task.type.get("stateSize") or {}).get(task.application.type.get("name", ""))
+    size = float((state or {}).get("output", 0) or 0) if isinstance(state, dict) else 0.0
+    return size / (100.0 * 1024.0 * 1024.0) + 0.001 if size > 0 else 0.0
+
+
 def slim_completed_task(task: "Task") -> None:
     """Drop bulky per-task snapshots once timing metrics are on the task object.
 
@@ -722,6 +731,7 @@ class Platform:
         # Used to avoid creating one Python Task object per warmup item.
         self.virtual_warmup_count: int = 0
         self.virtual_warmup_total_time: float = 0.0
+        self.inflight_service_end: Optional[float] = None
         self.virtual_warmup_task_type: Optional[str] = None
 
         self.previous_task: Task | None = None
@@ -1528,6 +1538,15 @@ class Platform:
                 input_duration += peer_exchange_time
 
 
+            # backlog_corpus_v1: when this task's service will end, known here to within the
+            # node-slot wait. Bookkeeping only (read by live_audit under
+            # HEROSIM_INFLIGHT_CAPTURE=service_end_v1); nothing in the simulation reads it.
+            self.inflight_service_end = (
+                self.env.now + input_duration
+                + float(task.type["executionTime"][self.type["shortName"]])
+                + _output_estimate_seconds(task)
+            )
+
             # Start the task
             yield task.started.succeed()
 
@@ -1609,6 +1628,7 @@ class Platform:
             # Update platform cache
             self.previous_task = self.current_task
             self.current_task = None
+            self.inflight_service_end = None
             self.idle_since = self.env.now
 
             # Update platform load time

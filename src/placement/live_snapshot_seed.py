@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 if False:  # TYPE_CHECKING
@@ -67,7 +68,8 @@ def build_live_snapshot_seed(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
                     "queue_length": int(
                         full_queue.get(qkey, spec.get("queue_length", 0)) or 0
                     ),
-                    "current_task_remaining": 0.0,
+                    # Present only in HEROSIM_INFLIGHT_CAPTURE=service_end_v1 captures.
+                    "current_task_remaining": float(spec.get("current_task_remaining", 0.0) or 0.0),
                     "comm_remaining": 0.0,
                     "cold_start_remaining": 0.0,
                     "task_type_hint": str(task_type),
@@ -175,8 +177,10 @@ def _seed_platform_state(
         return
 
     queue_len = int(spec.get("queue_length", 0) or 0)
-    virtual_count = queue_len
+    virtual_count = queue_len + int(spec.get("synthetic_queue_length", 0) or 0)
     if float(spec.get("current_task_remaining", 0) or 0) > 0.0 or float(spec.get("comm_remaining", 0) or 0) > 0.0:
+        virtual_count = max(virtual_count, 1)
+    if float(spec.get("synthetic_backlog_seconds", 0) or 0) > 0.0:
         virtual_count = max(virtual_count, 1)
 
     plat.seed_virtual_warmup(task_type, task_type_name, virtual_count)
@@ -192,7 +196,76 @@ def seeded_backlog_seconds(
 
     One definition for the co-sim replay (`_seed_platform_state`) and the partial_state_v4
     backlog column (prepare_graphs_cache), so the feature a model is trained on is the clock
-    its labels were simulated on."""
+    its labels were simulated on.
+
+    `synthetic_backlog_seconds` (backlog_corpus_v1, written by make_warm_corpus
+    --synthetic-backlog-*) is added on top: fake queued work the snapshot never had."""
+    synthetic = float(spec.get("synthetic_backlog_seconds", 0) or 0)
+    base = _captured_backlog_seconds(spec, task_type, plat_type)
+    if synthetic <= 0.0 or task_type is None:
+        return base
+    return (base or 0.0) + synthetic
+
+
+def _poisson(rng: Any, lam: float) -> int:
+    if lam <= 0.0:
+        return 0
+    threshold, k, p = math.exp(-lam), 0, 1.0
+    while True:
+        p *= rng.random()
+        if p <= threshold:
+            return k
+        k += 1
+
+
+def inject_synthetic_backlog(
+    seed_block: Dict[str, Any],
+    rng: Any,
+    *,
+    mean_seconds: float,
+    busy_prob: float,
+    task_seconds: float,
+) -> Dict[str, Any]:
+    """backlog_corpus_v1: put fake queued work on the seed's platforms, in place.
+
+    Each platform is busy with probability `busy_prob`; a busy one gets
+    k = 1 + Poisson(mean_seconds / task_seconds - 1) fake queued tasks, each draining
+    Gamma(2, task_seconds / 2) seconds, so counts and seconds relate the way a live queue's
+    do (a live queued task pays execution plus its peer exchange, ~4.5 s). The draw order is
+    the sorted queue key, so a (seed, snapshot) pair always gives the same backlog.
+    `mean_seconds <= 0` injects nothing. Returns the record written into provenance.
+    """
+    record: Dict[str, Any] = {
+        "mean_seconds": float(mean_seconds), "busy_prob": float(busy_prob),
+        "task_seconds": float(task_seconds), "per_key": {},
+    }
+    if mean_seconds <= 0.0:
+        return record
+    platforms = seed_block.get("platforms") or []
+    by_key = {f"{p['node_name']}:{int(p['platform_id'])}": p for p in platforms}
+    draws: Dict[str, Tuple[int, float]] = {}
+    for qkey in sorted(by_key):
+        if rng.random() >= busy_prob:
+            continue
+        k = 1 + _poisson(rng, max(mean_seconds / task_seconds - 1.0, 0.0))
+        seconds = sum(rng.gammavariate(2.0, task_seconds / 2.0) for _ in range(k))
+        draws[qkey] = (k, seconds)
+    for qkey, spec in by_key.items():
+        k, seconds = draws.get(qkey, (0, 0.0))
+        spec["synthetic_queue_length"] = k
+        spec["synthetic_backlog_seconds"] = seconds
+    for specs in (seed_block.get("replicas_by_type") or {}).values():
+        for spec in specs:
+            k, seconds = draws.get(f"{spec['node_name']}:{int(spec['platform_id'])}", (0, 0.0))
+            spec["synthetic_queue_length"] = k
+            spec["synthetic_backlog_seconds"] = seconds
+    record["per_key"] = {q: [k, s] for q, (k, s) in sorted(draws.items())}
+    return record
+
+
+def _captured_backlog_seconds(
+    spec: Mapping[str, Any], task_type: Optional[Mapping[str, Any]], plat_type: str
+) -> Optional[float]:
     queue_len = int(spec.get("queue_length", 0) or 0)
     current_remaining = float(spec.get("current_task_remaining", 0) or 0)
     comm_remaining = float(spec.get("comm_remaining", 0) or 0)

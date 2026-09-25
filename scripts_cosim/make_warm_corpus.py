@@ -61,7 +61,7 @@ from scripts_cosim.generate_gnn_datasets_fast import (  # noqa: E402
     generate_single_dataset,
     json_dumps_pretty,
 )
-from src.placement.live_snapshot_seed import build_live_snapshot_seed  # noqa: E402
+from src.placement.live_snapshot_seed import build_live_snapshot_seed, inject_synthetic_backlog  # noqa: E402
 
 REQUIRED_ENV = {"HEROSIM_PEER_EXCHANGE": "1"}
 WARM_SNAPSHOT_FILE = "warm_snapshot.json"
@@ -423,9 +423,13 @@ def cell_base_infrastructure(cell_config: Path, sim_input: Path, seed: int, scra
 
 
 def build_infrastructure(
-    base: Dict[str, Any], flagged_snapshot: Dict[str, Any], provenance: Dict[str, Any]
+    base: Dict[str, Any], flagged_snapshot: Dict[str, Any], provenance: Dict[str, Any],
+    synthetic: Optional[Tuple[random.Random, Dict[str, float]]] = None,
 ) -> Dict[str, Any]:
     seed_block = build_live_snapshot_seed(flagged_snapshot)
+    if synthetic is not None:
+        rng, params = synthetic
+        provenance["synthetic_backlog"] = inject_synthetic_backlog(seed_block, rng, **params)
     # The seed carries the WHOLE live cluster (candidates and occupied non-candidates) and
     # is what the simulator replays. The two classic tables list the CANDIDATE replicas
     # only -- the slate the sweep enumerates -- because that is what the scoring tools
@@ -450,7 +454,9 @@ def build_infrastructure(
                 {"node_name": spec["node_name"], "platform_id": int(spec["platform_id"]),
                  "platform_type": platform_type}
             )
-            queue_distributions.setdefault(task_type, {})[key] = int(spec.get("queue_length", 0) or 0)
+            queue_distributions.setdefault(task_type, {})[key] = int(spec.get("queue_length", 0) or 0) + int(
+                spec.get("synthetic_queue_length", 0) or 0
+            )
     if not replica_placements:
         raise SnapshotRejected("seed carries no candidate replica")
     infra = {
@@ -520,7 +526,20 @@ def main() -> int:
              "(drainable_debug_v1 D1), so that plan is present in the enumerated sweep and can "
              "be scored on every dataset rather than only where the draw happened to include it",
     )
+    ap.add_argument(
+        "--synthetic-backlog-rungs", type=float, nargs="+", default=None,
+        help="backlog_corpus_v1: per dataset, draw one mean backlog (seconds per busy platform) from "
+             "this list and inject fake queued work on the replayed cluster (0 = none). Off when unset.")
+    ap.add_argument("--synthetic-backlog-busy-prob", type=float, default=0.5)
+    ap.add_argument("--synthetic-backlog-task-seconds", type=float, default=4.5,
+                    help="mean drain of one fake queued task (live execution + peer exchange scale)")
+    ap.add_argument("--synthetic-backlog-seed", type=int, default=7001)
     args = ap.parse_args()
+    if args.synthetic_backlog_rungs is not None and (
+        not 0.0 < args.synthetic_backlog_busy_prob <= 1.0 or args.synthetic_backlog_task_seconds <= 0.0
+        or any(r < 0.0 for r in args.synthetic_backlog_rungs)
+    ):
+        raise SystemExit("FAIL LOUD: synthetic backlog needs busy-prob in (0, 1], task-seconds > 0, rungs >= 0")
 
     for k, v in REQUIRED_ENV.items():
         if os.environ.get(k) != v:
@@ -573,7 +592,16 @@ def main() -> int:
                 "task_ids": ids, "trace": str(args.trace), "cell_config": str(args.cell_config),
                 "cell_seed": cell_seed, "candidate_draw": record, "candidate_seed": args.seed,
             }
-            infra = build_infrastructure(base_infra, flagged, provenance)
+            synthetic = None
+            if args.synthetic_backlog_rungs is not None:
+                brng = random.Random(args.synthetic_backlog_seed * 1_000_003 + sid)
+                synthetic = (brng, {
+                    "mean_seconds": brng.choice(args.synthetic_backlog_rungs),
+                    "busy_prob": args.synthetic_backlog_busy_prob,
+                    "task_seconds": args.synthetic_backlog_task_seconds,
+                })
+                provenance["synthetic_backlog_seed"] = args.synthetic_backlog_seed
+            infra = build_infrastructure(base_infra, flagged, provenance, synthetic)
         except SnapshotRejected as exc:
             entry["status"] = "rejected"
             entry["reason"] = str(exc)
