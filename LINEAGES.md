@@ -36,7 +36,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**cd_gap_v1**](docs/lineages/cd_gap_v1.md) | `REGISTERED` | Why the burst-seat GNN loses ~12 % to the CD greedy (the gap is all queue): D0 fit vs offline→live, D1 out-of-batch blindness, A CD imitation, B a lighter-load ladder. Bars signed before data. |
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
 | [**drainable_debug_v1**](docs/lineages/drainable_debug_v1.md) | `REGISTERED` | Why do both learned arms lose to reactive Knative at ρ ≈ 0.16? Bars signed before any datum exists; parents are `drainable_regime_v1` and `drainable_serving_config_v1`. |
 | [**peer_affinity_v1**](docs/lineages/peer_affinity_v1.md) | `ACTIVE` | Message passing beats its own MP-OFF twin **+5.14 pp** offline (p = 0.001, 13/16 seeds) at 482 datasets — **offline only**. The edge reverses live, is contingent on one platform type the corpus never contained, and reads **−15.94 %** at a defensible load. Never quote a live number without its load factor. |
@@ -50,6 +49,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**cd_gap_v1**](docs/lineages/cd_gap_v1.md) | `CLOSED` | SCORE-EXPLAINS / CD-FASTER: the burst-seat GNN trails CD because its score cannot load-balance; the label (CD-imitator +13.6 %), decode order and load (+13.8 % at half rate) don't explain it. GNN-seeded CD beats CD −3.8 % (10/10, direction only). |
 | [**fresh_topo_burst_v1**](docs/lineages/fresh_topo_burst_v1.md) | `CLOSED` | MP-EDGE-GENERALISES (direction only): on 11 fresh topologies `gnnedge0` beats its MP-OFF twin −4.2 % (11/11, p = 0.001), but ties self-predict (−1.2 %, p = 0.70); MP-OFF loses to it (+2.8 %, 2/11); CD ahead of all. |
 | [**selfpredict_burst_v1**](docs/lineages/selfpredict_burst_v1.md) | `CLOSED` | **`GNN-BEATS-SELFPREDICT`, burst-seat bar CD.** Uncapped gnnedge0 beats the self-predict rule −7.25 % (13/13 ckpt; 9/16 env, thin) in the burst seat — not an MP win (ties its MP-OFF twin); the CD greedy stays ahead of both (+12.5 / +21.3 %). |
 | [**selfpredict_bar_v1**](docs/lineages/selfpredict_bar_v1.md) | `CLOSED` | **`BAR=SELFPREDICT`.** The rule + a price for unarrived partners at the node the rule would give them beats Knative −19.4/−21.4 % (16/16), the old rule −6.2/−8.5 % and the CD greedy −7.8/−8.9 % (C40 not separated): the programme's best policy and the bar for any learned arm. |

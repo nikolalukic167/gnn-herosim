@@ -623,3 +623,17 @@ worker waited on an untriggered event that was no longer `platform.initialized`.
 it; a run that completed never hit it, since hitting it is a permanent hang. Fix: replace the event
 only if it has fired. The same cell then completes (6.29 s/task). Neutrality check: `selfpredict_burst_v1`
 reran every arm at the fix commit and compared each completed cell against the pre-fix run.
+
+## 2026-09-25 — A rate ladder scaled the cfg's time constant and missed the hardcoded ones
+
+`cd_gap_v1` B stretched every arrival timestamp ×2 and, following the hard-stop rule ("scale every policy
+time constant"), scaled the one constant a cell config carries, `scheduler.batch_timeout`. It did not
+scale `KEEP_ALIVE` (30 s) or `RECONCILE_INTERVAL` (1 s). Both are hardcoded in
+`src/placement/constants.py` and passed by `src/executesimulation.py`, so no cfg or env var exposed
+them. Replicas therefore idled out twice as often relative to traffic. The tell was a sign: at the
+lighter rate every batched arm's queue fell, while self-predict's and reactive's *rose*. With both
+constants ×2, self-predict got 15–22 % faster on the cells checked. **Fix:** `HEROSIM_POLICY_TIME_SCALE`
+multiplies both; unset is bit-identical (venue witness reproduced). `fresh_topo_burst_v1_gate.py` sets it
+from the cell's recorded `cd_gap_v1_rate_scale.factor` and fails a run whose provenance lacks it.
+**The general rule:** before a rate ladder, list the policy time constants from the code, not from the
+config. After it, check that each arm's queue moves in the direction the load moved.

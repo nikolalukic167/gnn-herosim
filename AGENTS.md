@@ -41,7 +41,7 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-09-24).**
+**Where the research question stands (rewritten 2026-09-25).**
 
 **The bar is a hand rule, and in one seat a learned arm clears it.** Per arrival, the self-predict
 rule (`selfpredict_bar_v1`: the peer-greedy rule plus a price for each unarrived partner at the node
@@ -52,7 +52,12 @@ fresh topologies that win does not replicate** (`fresh_topo_burst_v1`: −1.2 %,
 replicate there is a **message-passing direction**: `gnnedge0` beats its MP-OFF twin −4.2 % on
 11/11 fresh topologies (p = 0.001, under the 5 % magnitude bar), and the MP-OFF twin alone loses to
 self-predict (+2.8 %, 2/11). So MP is what lifts the learned arm to parity with the rule. **The ceiling in that seat is the coordinate-descent
-greedy**, ahead of `gnnedge0` +12.5 % and of self-predict +21.3 %. `gnnedge0` got there by training on
+greedy**, ahead of `gnnedge0` +12.5 % and of self-predict +21.3 %. **`cd_gap_v1` places that gap in the
+learned score, which cannot load-balance** (CD scores queue drain in seconds plus in-batch committed
+service). A CD-trained imitator ties `gnnedge0` (+0.6 %) and trails CD +13.6 %. Neither
+self-revision on the model's score nor half the arrival rate (+13.8 %) closes it, and out-of-batch
+blindness is worth ~3.4 %. Used as a seed for CD's refine passes, the GNN plan **beats CD −3.8 %**
+(10/10, direction only; ~2/3 of that is any learned seed, not MP). `gnnedge0` got there by training on
 exactly the served decision and serving UNCAPPED (`joint_burst_v2`: −11.9 % vs the one-pass greedy;
 v1's +16.8 % loss was the serving cap). The lever to reach CD, `rollout_imitation_v1`, **CLOSED
 `RULE-FASTER-LIVE`**: −12.7 % offline, +14–28 % slower live. **The served GNN never sees a partner
