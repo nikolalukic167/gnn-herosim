@@ -56,8 +56,14 @@ greedy**, ahead of `gnnedge0` +12.5 % and of self-predict +21.3 %. **`cd_gap_v1`
 learned score, which cannot load-balance** (CD scores queue drain in seconds plus in-batch committed
 service). A CD-trained imitator ties `gnnedge0` (+0.6 %) and trails CD +13.6 %. Neither
 self-revision on the model's score nor half the arrival rate (+13.8 %) closes it, and out-of-batch
-blindness is worth ~3.4 %. Used as a seed for CD's refine passes, the GNN plan **beats CD −3.8 %**
-(10/10, direction only; ~2/3 of that is any learned seed, not MP). `gnnedge0` got there by training on
+blindness is worth ~3.4 %. **Giving the model those load terms closes about half of it**
+(`load_repr_v1`, `partial_state_v4`). `v4load` beats its zeroed twin −5.3 % (11/11) and trails CD
++6.7 % (gnnedge0: +12.4 %). It **beats self-predict −8.5 % (10/11, p = 0.005)** on the fresh study,
+the first learned arm to clear the hand-rule bar there at a quotable magnitude (4 seeds, one corpus,
+jb2 1,629 groups). Used as a seed for CD's refine passes, the GNN plan beats CD −3.8 % (10/10,
+direction only; ~2/3 of that is any learned seed, not MP). Every burst-seat learned number before
+721d44f was served a node rank it was not trained on (uncapped rung, fixed). The fix costs `gnnedge0`
++1.4 %, so no earlier learned headline is inflated by more than that. `gnnedge0` got there by training on
 exactly the served decision and serving UNCAPPED (`joint_burst_v2`: −11.9 % vs the one-pass greedy;
 v1's +16.8 % loss was the serving cap). The lever to reach CD, `rollout_imitation_v1`, **CLOSED
 `RULE-FASTER-LIVE`**: −12.7 % offline, +14–28 % slower live. **The served GNN never sees a partner
