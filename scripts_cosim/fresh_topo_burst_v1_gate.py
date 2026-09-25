@@ -61,6 +61,10 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
+    if phase == "d5":
+        return [task(t, w, k, s) for k in ("gnnedge0_cdapply", "mpoff_cdapply") for s in SEEDS
+                for t in topos for w in WINDOWS] + \
+               [task(t, w, "gnnedge0_cdshadow", s) for s in (1, 2, 3) for t in topos for w in WINDOWS]
     if phase == "d4":
         return [task(t, w, "cd_slate") for t in topos for w in WINDOWS] + \
                [task(t, w, "gnnedge0_slate", s) for t in topos for w in WINDOWS for s in SEEDS]
@@ -210,7 +214,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -219,7 +223,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     a = ap.parse_args()
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
