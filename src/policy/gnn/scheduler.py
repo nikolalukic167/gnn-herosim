@@ -161,6 +161,13 @@ def _read_batch_by_peer_group() -> bool:
     return on
 
 
+def _cd_refine_mode() -> str:
+    raw = os.environ.get("GNN_CD_REFINE", "").strip()
+    if raw not in ("", "shadow", "apply"):
+        raise ValueError(f"FAIL LOUD: GNN_CD_REFINE must be unset, 'shadow' or 'apply', got {raw!r}")
+    return raw
+
+
 def _corpus_slate_on() -> bool:
     raw = os.environ.get("GNN_SERVE_CORPUS_SLATE", "0").strip() or "0"
     if raw not in ("0", "1"):
@@ -213,6 +220,14 @@ class GNNScheduler(Scheduler):
         self.slate_rejected = 0
         self.slate_candidates_full = 0
         self.slate_candidates_kept = 0
+        self._cd_refiner = None
+        self.cdr_batches = 0
+        self.cdr_batches_changed = 0
+        self.cdr_tasks = 0
+        self.cdr_moved = 0
+        self.cdr_node_change = 0
+        self.cdr_platform_only = 0
+        self.cdr_unstack = 0
         self.peer_group_incomplete_batches = 0
         # serving knobs (default off): how often a batch actually had standing load to
         # charge, so a gate arm cannot claim the seed was active when it never fired
@@ -836,6 +851,24 @@ class GNNScheduler(Scheduler):
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
 
+    def _cd_refine(self, tasks: List[Task], placements: Dict[int, Tuple[int, int]],
+                   system_state: SystemState, mode: str) -> Dict[int, Tuple[int, int]]:
+        """cd_gap_v1 D5 (GNN_CD_REFINE=shadow|apply): run the CD greedy's refine passes from the
+        decoded plan on this very state. `shadow` serves the decoded plan and only counts what CD
+        would change -- the GNN's own trajectory, on-policy; `apply` serves CD's refinement."""
+        if self._cd_refiner is None:
+            from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
+            self._cd_refiner = GnnCdRefiner(self)
+        refined, info = self._cd_refiner.refine(tasks, system_state, placements, passes=3)
+        self.cdr_batches += 1
+        self.cdr_batches_changed += 1 if info["moved"] else 0
+        self.cdr_tasks += len(tasks)
+        self.cdr_moved += info["moved"]
+        self.cdr_node_change += info["node_change"]
+        self.cdr_platform_only += info["platform_only"]
+        self.cdr_unstack += info["unstack"]
+        return refined if mode == "apply" else placements
+
     def _corpus_slate_view(self, tasks: List[Task], system_state: SystemState) -> SystemState:
         """cd_gap_v1 D4 (GNN_SERVE_CORPUS_SLATE=1): decode this batch over the candidate slate the
         training corpus would have offered for it -- `make_warm_corpus.choose_candidates`, the same
@@ -947,6 +980,9 @@ class GNNScheduler(Scheduler):
             )
             if _sibling_spread_on():
                 placements = self._spread_over_siblings(decodable, placements, system_state)
+            refine_mode = _cd_refine_mode()
+            if refine_mode:
+                placements = self._cd_refine(decodable, placements, system_state, refine_mode)
             inference_time = default_timer() - inference_start
             node_by_id = {node.id: node for node in self.nodes.items}
             for idx, task in enumerate(decodable):
