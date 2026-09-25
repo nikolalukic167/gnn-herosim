@@ -1,0 +1,46 @@
+{
+ "n_groups": 480,
+ "per_seed": {
+  "1": {
+   "regret_pct_median": 9.65422741288696,
+   "regret_pct_mean": 31.77178012754471,
+   "cd_plan_agreement": 0.17708333333333334
+  },
+  "2": {
+   "regret_pct_median": 8.38941223673762,
+   "regret_pct_mean": 40.90845396217161,
+   "cd_plan_agreement": 0.18125
+  },
+  "3": {
+   "regret_pct_median": 11.032384685352861,
+   "regret_pct_mean": 63.50843459238713,
+   "cd_plan_agreement": 0.18125
+  },
+  "4": {
+   "regret_pct_median": 11.31675791773818,
+   "regret_pct_mean": 59.76629201918185,
+   "cd_plan_agreement": 0.17291666666666666
+  }
+ },
+ "regret_pct_median": {
+  "cd": 8.211130908111725,
+  "cdimit": 11.120533402762009,
+  "gnnedge0": 11.747627899138738
+ },
+ "regret_pct_mean": {
+  "cd": 54.45850274498536,
+  "cdimit": 47.4526175184905,
+  "gnnedge0": 54.646906348602336
+ },
+ "paired_median_pp": {
+  "cdimit_minus_cd": 0.0,
+  "gnnedge0_minus_cd": 0.0
+ },
+ "cd_plan_agreement_mean_over_seeds": 0.178125,
+ "label_stats": {
+  "groups": 2516,
+  "tied": 527,
+  "cd_at_optimum": 688
+ },
+ "A1": "CANNOT-FIT-CD"
+}

@@ -76,6 +76,54 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **A1 read (offline): `CANNOT-FIT-CD`.** The CD labels cover 2,516 groups: every CD plan
+  matched a sweep row, 527 are any-of-k ties, and CD is at the sweep optimum on 688. Four
+  CD-imitator seeds, the jb2 `gnnedge0` recipe with the train label overridden and selection on
+  true-sweep val regret, give on 480 held-out groups:
+
+  | | median regret | mean regret |
+  |---|---|---|
+  | CD-imitator (median over seeds) | 11.1 % | 47.5 % |
+  | CD | 8.2 % | 54.5 % |
+  | `gnnedge0` | 11.7 % | 54.6 % |
+
+  - **Exact agreement with CD's plan:** 17.8 % (per seed 17.3–18.1 %).
+  - **Paired medians:** 0.0 pp for both learned arms against CD.
+  - **Reading:** trained directly on CD's decisions, the architecture does not reproduce them. It
+    lands where the sweep-trained model does, which agrees with D6: the representation cannot express
+    what CD's score uses. [Read](cd_gap_v1/a1_read.json).
+  - The A2 live gate (4 seeds × the fresh study) is running (datalab job 806624, worktree at
+    934c324; `src/` is identical to 00dae37).
+- 2026-09-25 — **D6 read: `SCORE-EXPLAINS`.**
+  - **D6-1:** self-revision on the model's own score vs `gnnedge0` −1.42 %, p = 0.092, 9/12
+    (`NOT-SEPARATED`).
+  - **D6-2:** vs CD +8.98 %, 0/11 (`CD-FASTER`).
+  - **D6-3:** from the same GNN seed, self-revision recovers a **median 8.9 %** (10 topologies) of
+    the gain CD's refine passes get.
+  - **Reading:** decode order and the lack of revision are not the gap; the learned score is.
+    Revising with it barely moves anything useful, while revising with CD's seconds-based score
+    closes the whole gap and more (D5). [Read](cd_gap_v1/d6_read.json).
+- 2026-09-25 — **D5 read: the GNN seed under CD refinement beats CD (direction only).** Datalab,
+  00dae37, clean; venue witness to the digit (CD 440055.157, `gnnedge0` s1 480523.270). 9423 (9 cdapply
+  timeouts) and 9466 are dropped by the failure rule, leaving 10 topologies.
+
+  | read | median | p | faster |
+  |---|---|---|---|
+  | **D5b-1** GNN-seeded CD vs CD | **−3.83 %** | 0.002 | **10/10** |
+  | D5b-2 GNN-seeded CD vs `gnnedge0` | −14.78 % | 0.002 | 10/10 |
+  | D5b-3 GNN-seeded vs MP-OFF-seeded CD (same seed) | −0.88 % | 0.037 | 8/10 |
+  | disclosed: MP-OFF-seeded CD vs CD | −2.56 % | 0.002 | 10/10 |
+
+  - **Queue:** GNN-seeded CD 2.74 s vs CD 2.99 s.
+  - **D5b-1 label:** `SEED-REACHES-CD` fires as "seeded faster", **direction only** (|median| < 5 %).
+  - **Reading:** under identical refinement, the learned seed beats the hand seed on every
+    topology. About two-thirds of that is not message passing (the MP-OFF seed gets −2.6 %); MP adds
+    a small, consistent further edge. This is a learned-seed win, not an MP win.
+  - **D5a (shadow, 144 runs, every one identical to unshadowed `gnnedge0` to the digit):** on the
+    GNN's own live states CD would change 61.1 % of batches and 16.7 % of tasks (per run 12.2–22.0 %).
+    92.7 % of the moves change the node, and 52.9 % un-stack a batch-mate pile.
+    [Read](cd_gap_v1/d5_read.json).
+
 - 2026-09-25 — **Venue change for B, D5 and D6 (procedure only; no gate datum read).** The local
   runs are discarded unread, and each phase reruns in full on datalab CPU nodes at **00dae37**. The
   reasons:
