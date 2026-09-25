@@ -1934,7 +1934,8 @@ def _v4_load_seconds_block(
     task_types = sim_inputs.get("task_types") or {}
     backlog_s: Dict[Tuple[int, int], float] = {}
     service_s: Dict[Tuple[int, Tuple[int, int]], float] = {}
-    for t, cands in enumerate(graph.task_logit_to_placement):
+    for t in range(int(graph.n_tasks)):
+        cands = graph.task_logit_to_placement[t]
         ttype = task_types.get(str(task_type_names[t]))
         if ttype is None:
             raise RuntimeError(f"{ds.name}: no sim_inputs task type {task_type_names[t]!r}")
