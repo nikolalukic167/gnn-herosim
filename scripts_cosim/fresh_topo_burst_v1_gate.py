@@ -119,8 +119,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
-              "GNN_PREFIX_SELF_REFINE"):
+              "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE"):
         env.pop(k, None)
+    # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
+    time_scale = float((json.load(open(cfg)).get("cd_gap_v1_rate_scale") or {}).get("factor", 1.0))
+    if time_scale != 1.0:
+        env["HEROSIM_POLICY_TIME_SCALE"] = repr(time_scale)
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
                MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", CUDA_VISIBLE_DEVICES="", PYTHONPATH=REPO)
@@ -190,6 +194,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     n = out.get("num_tasks")
     problems = []
+    if time_scale != 1.0 and out["env"].get("HEROSIM_POLICY_TIME_SCALE") != repr(time_scale):
+        problems.append(f"policy time scale not recorded: {out['env'].get('HEROSIM_POLICY_TIME_SCALE')!r}")
     if n is None or int(n) != N_TASKS:
         problems.append(f"num_tasks={n!r}")
     if kind == "selfpredict" and (int(c.get("pg_decisions") or 0) != N_TASKS or int(c.get("pg_lookahead_priced") or 0) == 0):

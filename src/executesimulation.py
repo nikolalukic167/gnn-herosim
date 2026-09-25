@@ -1132,6 +1132,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_PREFIX_TRACE_SLIM",
             "HEROSIM_SERVER_ONLY_REPLICAS",
             "HEROSIM_REPLICA_PLATFORM_TYPES",
+            "HEROSIM_POLICY_TIME_SCALE",
             "PARTIAL_STATE_CONTRACT",
             "PARTIAL_STATE_PEER_MASS",
             # drainable_objective_v1: the backlog clock a corpus was generated on, and
@@ -1194,6 +1195,22 @@ def _resolve_queue_length(explicit: Optional[int] = None) -> int:
     if env_raw is not None and env_raw.strip() != "":
         return int(env_raw)
     return int(QUEUE_LENGTH)
+
+
+def _resolve_policy_time_scale() -> float:
+    """HEROSIM_POLICY_TIME_SCALE multiplies keep_alive and the reconcile interval, so a workload whose
+    timestamps were stretched by a factor keeps every policy time constant in proportion (the
+    `drainable_regime_v1` rule; cd_gap_v1 B stretched arrivals and left these two unscaled)."""
+    raw = (os.environ.get("HEROSIM_POLICY_TIME_SCALE") or "").strip()
+    if not raw:
+        return 1.0
+    try:
+        scale = float(raw)
+    except ValueError:
+        raise ValueError(f"HEROSIM_POLICY_TIME_SCALE={raw!r} is not a number") from None
+    if not scale > 0:
+        raise ValueError(f"HEROSIM_POLICY_TIME_SCALE={raw!r} must be > 0")
+    return scale
 
 
 def run_simulation(
@@ -1451,16 +1468,18 @@ def run_simulation(
             f"(queue_length={resolved_queue_length})..."
         )
 
+        time_scale = _resolve_policy_time_scale()
+        # at 1.0 the unscaled ints are passed so the default path stays bit-identical
         result = execute_simulation(
             full_config,
             sim_inputs,
             scheduling_strategy=scheduling_strategy,
             cache_policy='fifo',
             task_priority='fifo',
-            keep_alive=KEEP_ALIVE,
+            keep_alive=KEEP_ALIVE if time_scale == 1.0 else KEEP_ALIVE * time_scale,
             queue_length=resolved_queue_length,
             models=models,
-            reconcile_interval=RECONCILE_INTERVAL,
+            reconcile_interval=RECONCILE_INTERVAL if time_scale == 1.0 else RECONCILE_INTERVAL * time_scale,
         )
 
         stats = result.get('stats', {})

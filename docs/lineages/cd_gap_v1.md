@@ -76,6 +76,38 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment B′ (signed before any B′ datum).** B is rerun as registered, the same
+  inputs (×2 timestamps, ×2 `batch_timeout`), arms, 12 topologies and failure rule, with
+  `keep_alive` and the reconcile interval also ×2. New knob `HEROSIM_POLICY_TIME_SCALE` in
+  `src/executesimulation.py`: unset is bit-identical, the witness CD 9119 w1 = 440055.1566891275
+  reproduced. The driver sets the knob from the cell's recorded `cd_gap_v1_rate_scale.factor` and fails
+  a run whose provenance does not carry it. B1/B2 bars and labels are unchanged; **B′ replaces B for
+  B1/B2.** Expectation unchanged: CD still faster 85 %.
+  - **Seen before signing:** the post-hoc diagnostic (a scratch worktree at 00dae37 with
+    `KEEP_ALIVE=60`, `RECONCILE_INTERVAL=2`), i.e. self-predict, CD and reactive on B's 9 topologies.
+    Its self-predict 9414 w1 equals the knob run to the digit (358884.3667).
+- 2026-09-25 — **B read (as run): design defect, not a load result.** Datalab job 806586 at 00dae37,
+  1,266 summaries + 174 failures, all 1800 s timeouts. Dropped: **9119, 9423, 9466** (batched, CD and
+  learned-arm timeouts), leaving 9 topologies (design floor 8).
+
+  | read | median | p | faster |
+  |---|---|---|---|
+  | **B1** `gnnedge0` vs CD | +34.66 % | 0.004 | 0/9 (`CD-FASTER`) |
+  | B2 `gnnedge0` vs MP-OFF | −2.67 % | 0.004 | 9/9 (direction only) |
+  | B2 `gnnedge0` vs self-predict | −19.03 % | 0.004 | 9/9 |
+  | disclosed: self-predict vs CD | +68.50 % | 0.004 | 0/9 |
+  | disclosed: `gnnedge0` vs 1-pass | +10.25 % | 0.008 | 1/9 |
+
+  - **Defect:** at the lighter rate, per-task queue fell for every batched arm (CD 2.76 → 1.56 s,
+    `gnnedge0` 4.08 → 3.27 s) but *rose* for self-predict (3.98 → 4.51 s) and reactive (4.88 → 4.97 s).
+    That is the wrong sign for a lighter load.
+  - **Cause:** `cd_gap_v1_build_b.py` scaled only `batch_timeout`. `keep_alive` (30 s) and the
+    reconcile interval (1 s), hardcoded in `src/placement/constants.py`, stayed at their base values,
+    breaking the registration's "every policy time constant scales".
+  - **Proof:** with both ×2, self-predict on 9414/9420 × w0/w1 gets 15–22 % faster (9414 w1 9.16 →
+    7.18 s). B's numbers mix load with a halved relative keep-alive, so they answer nothing; recorded,
+    not read. [Read](cd_gap_v1/b_read.json).
+
 - 2026-09-25 — **A2/A3 read (live): the label does not matter.** Datalab job 806624 at 934c324
   (`src/` identical to the witnessed 00dae37), 192/192 runs, no failures.
   - **A2:** CD-imitator vs CD **+13.58 %**, 0/11, p = 0.001 (`CD-FASTER`; 9466 dropped). A1 fired
