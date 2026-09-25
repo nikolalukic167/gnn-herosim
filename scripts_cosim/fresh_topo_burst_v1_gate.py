@@ -47,7 +47,7 @@ GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns on / zeroed
 # backlog_corpus_v1: v4load's recipe and its MP-OFF twin on the synthetic-backlog corpus, always served
 # with the in-flight capture fix; a "_se" suffix serves any other arm with it (Amendment 1: v4load_se)
-BC1_KINDS = ("bc1load", "bc1mpoff")
+BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load")  # fc1load: fullctx_refine_v1, same cache and split
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
 SERVICE_END = "service_end_v1"
@@ -74,6 +74,10 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "fc1":
+        # fullctx_refine_v1: the full-context-trained arm, self-refined (the registered arm) and plain
+        return [task(t, w, k, s) for k in ("fc1load_selfref", "fc1load") for s in (1, 2, 3, 4)
+                for t in topos for w in WINDOWS]
     if phase == "bc1selfref":
         # backlog_corpus_v1 Amendment 3: bc1load with 3 self-refine passes on its own score
         return [task(t, w, "bc1load_selfref", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
@@ -155,6 +159,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = "cd-gap-v1-cdimit-gnnedge0"
         elif base_kind in V4_KINDS:
             stem = f"load-repr-v1-{base_kind}-gnnedge0"
+        elif base_kind == "fc1load":
+            stem = "fullctx-refine-v1-fc1load"
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
         else:
@@ -285,7 +291,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -297,7 +303,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

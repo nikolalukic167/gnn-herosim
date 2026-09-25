@@ -514,3 +514,22 @@ def test_label_objective_env_does_not_break_determinism(tmp_path):
     assert set(first) == set(second)
     for key in first:
         assert torch.equal(first[key], second[key]), f"{key} differs between runs"
+
+
+@pytest.mark.skipif(
+    not SMOKE_DAG_CACHE.is_dir(), reason=f"cache not present at {SMOKE_DAG_CACHE}"
+)
+def test_full_context_ce_is_reproducible_and_changes_the_fit():
+    """fullctx_refine_v1: NEAR_RTT_FULL_CONTEXT_CE_WEIGHT adds a second any-of-K CE scored with
+    every other batch-mate committed. Same seed twice must agree bit for bit, and the term must
+    actually reach the weights (a silently ignored knob would train the prefix loss alone)."""
+    import tempfile
+
+    env = {"NEAR_RTT_FULL_CONTEXT_CE_WEIGHT": "0.5"}
+    with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2, \
+            tempfile.TemporaryDirectory() as d3:
+        w1 = _run_a1_via_run_experiment(4242, Path(d1), env)
+        w2 = _run_a1_via_run_experiment(4242, Path(d2), env)
+        w0 = _run_a1_via_run_experiment(4242, Path(d3))
+    _assert_state_dicts_identical(w1, w2, "A1 + full-context CE 0.5 (twice)")
+    assert any(not torch.equal(w1[k], w0[k]) for k in w0), "full-context CE did not change the weights"

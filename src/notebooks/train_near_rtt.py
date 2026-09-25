@@ -194,6 +194,11 @@ class NearRttConfig:
     # it is recorded in the sidecar and applied deterministically (first N in cache
     # order — never a random sample).
     tied_max_plans: int = int(os.environ.get("NEAR_RTT_TIED_MAX_PLANS", "0"))
+    # fullctx_refine_v1: weight of a second any-of-K CE in which each task is scored with EVERY
+    # other batch-mate committed where the plan puts it -- the context GNN_PREFIX_SELF_REFINE
+    # scores in at serving, which the prefix CE never shows. 0 = off (the loss is unchanged).
+    # Train batches only; val CE and checkpoint selection stay on the prefix decode.
+    full_context_ce_weight: float = float(os.environ.get("NEAR_RTT_FULL_CONTEXT_CE_WEIGHT", "0") or 0)
     # cd_gap_v1 A: replace the TRAIN graphs' label set (teacher-forced path) with the plans in
     # this file (scripts_cosim/cd_gap_v1_cd_labels.py). Val/test keep the sweep label, and every
     # regret number and the checkpoint selector stay on the true sweep. Empty = the sweep label.
@@ -257,6 +262,11 @@ if TEACHER_FORCED and TRAIN_OBJECTIVE != "ce_only":
         f"NEAR_RTT_PARTIAL_STATE_EDGES=1 registers arm A1 as CE-only, but "
         f"TRAIN_OBJECTIVE resolves to {TRAIN_OBJECTIVE!r}. The teacher-forced any-of-K "
         "CE is the registered objective; a ranking/regret term is not part of it."
+    )
+if NEAR_CFG.full_context_ce_weight < 0.0 or (NEAR_CFG.full_context_ce_weight > 0.0 and not TEACHER_FORCED):
+    raise ValueError(
+        f"NEAR_RTT_FULL_CONTEXT_CE_WEIGHT={NEAR_CFG.full_context_ce_weight} needs the teacher-forced "
+        "prefix objective (NEAR_RTT_PARTIAL_STATE_EDGES=1) and a non-negative weight"
     )
 if TEACHER_FORCED and not (NEAR_CFG.mp_dag_edges or NEAR_CFG.mp_peer_edges):
     raise ValueError(
@@ -493,7 +503,7 @@ def _plan_agreement_with_label(
 
 
 def loss_tied_teacher_forced_ce(
-    model: nn.Module, data: Data, device: torch.device
+    model: nn.Module, data: Data, device: torch.device, *, full_context_weight: float = 0.0
 ) -> Tuple[Tensor, int]:
     """The §5 any-of-K marginalized CE for arm A1: ``-log Σ_k Π_t p_t^{(k)}``.
 
@@ -581,7 +591,18 @@ def loss_tied_teacher_forced_ce(
         plan_logps.append(logp)
 
     # -log Σ_k Π_t p: any tied-optimal member counts as correct (§5).
-    return -torch.logsumexp(torch.stack(plan_logps), dim=0), n_tasks
+    loss = -torch.logsumexp(torch.stack(plan_logps), dim=0)
+    if full_context_weight > 0.0:
+        full_logps: List[Tensor] = []
+        for plan in plans:
+            full = {t: tuple(int(v) for v in placements[t][int(plan[t])]) for t in order}
+            logp = torch.zeros((), device=device)
+            for t in order:
+                lp = log_probs(t, {j: p for j, p in full.items() if j != t})
+                logp = logp + lp[int(plan[t])]
+            full_logps.append(logp)
+        loss = loss + full_context_weight * -torch.logsumexp(torch.stack(full_logps), dim=0)
+    return loss, n_tasks
 
 
 class NearRttRankingLoss(nn.Module):
@@ -1030,7 +1051,9 @@ def train_epoch(
                 # Arm A1: no single static forward exists — each step is scored under
                 # its own prefix inside the loss.
                 logits = None
-                loss_ce, valid_ce = loss_tied_teacher_forced_ce(model, data, DEVICE)
+                loss_ce, valid_ce = loss_tied_teacher_forced_ce(
+                    model, data, DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight
+                )
             else:
                 logits = model(data)
                 loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
@@ -2189,6 +2212,8 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 ),
                 # Non-zero CHANGES the loss definition, so it is recorded, not implied.
                 "tied_max_plans": NEAR_CFG.tied_max_plans if TEACHER_FORCED else None,
+                # fullctx_refine_v1: non-zero changes the train loss (provenance, not served)
+                "full_context_ce_weight": NEAR_CFG.full_context_ce_weight if TEACHER_FORCED else None,
                 # §3 requires a draw to vary initialisation and batch order ONLY.
                 # Under NEAR_RTT_SPLIT_ARTIFACT (B6) this is {"path", "sha256"} of the
                 # shared artifact; otherwise it names the split this run actually drew.
