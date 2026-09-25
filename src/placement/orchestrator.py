@@ -206,6 +206,7 @@ class Orchestrator:
             "slate_batches", "slate_rejected", "slate_candidates_full", "slate_candidates_kept",
             "cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change",
             "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves",
+            "v4_backlog_batches", "v4_backlog_nonzero",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",

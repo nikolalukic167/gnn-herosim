@@ -223,6 +223,8 @@ class GNNScheduler(Scheduler):
         self._cd_refiner = None
         self.prefix_self_refine_batches = 0
         self.prefix_self_refine_moves = 0
+        self.v4_backlog_batches = 0
+        self.v4_backlog_nonzero = 0
         self.cdr_batches = 0
         self.cdr_batches_changed = 0
         self.cdr_tasks = 0
@@ -758,6 +760,40 @@ class GNNScheduler(Scheduler):
         peer = getattr(orch, "task_by_id", {}).get(int(task_id))
         return peer is not None and bool(peer.scheduled.triggered)
 
+    def _v4_backlog_seconds(
+        self, task_logit_to_placement: Dict[int, List[Tuple[int, int]]], system_state: SystemState
+    ) -> Optional[Dict[Tuple[int, int], float]]:
+        """load_repr_v1: each candidate replica's backlog in seconds, the partial_state_v4
+        column the cache reads off the snapshot (live_audit.candidate_backlog_seconds). None
+        under any other contract, so every pre-v4 checkpoint serves exactly as before."""
+        from src.placement.live_audit import candidate_backlog_seconds
+        from src.policy.tabular.reduced_features import (
+            PARTIAL_STATE_CONTRACT_V4,
+            resolve_partial_state_contract,
+        )
+
+        if resolve_partial_state_contract() != PARTIAL_STATE_CONTRACT_V4:
+            return None
+        replica_by_key = {
+            (int(node.id), int(platform.id)): (node, platform)
+            for replicas in system_state.replicas.values()
+            for node, platform in replicas
+        }
+        memo: Dict[str, float] = {}
+        out: Dict[Tuple[int, int], float] = {}
+        for cands in task_logit_to_placement.values():
+            for cand in cands:
+                key = (int(cand[0]), int(cand[1]))
+                if key in out:
+                    continue
+                if key not in replica_by_key:
+                    raise RuntimeError(f"partial_state_v4: candidate {key} is not a live replica")
+                node, platform = replica_by_key[key]
+                out[key] = candidate_backlog_seconds(self, node, platform, memo)
+        self.v4_backlog_batches += 1
+        self.v4_backlog_nonzero += sum(1 for v in out.values() if v > 0.0)
+        return out
+
     def _prefix_inference(
         self,
         batch_tasks: List[Task],
@@ -798,6 +834,7 @@ class GNNScheduler(Scheduler):
             nodes=list(self.nodes.items),
             peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
             options=self._prefix_options,
+            backlog_seconds=self._v4_backlog_seconds(task_logit_to_placement, system_state),
         )
         self.prefix_pairs_in_batch += int(diag["n_pairs_in_batch"])
         self.prefix_peers_outside_batch += int(diag["peers_outside_batch"])

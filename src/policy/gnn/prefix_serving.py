@@ -48,13 +48,17 @@ from src.placement.network_fabric import is_core_link, route_links
 from src.policy.gnn.gnn_model import TaskPlacementGNN
 from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
 from src.policy.gnn.seq_decode import GnnDecodeRunStats, decode_masked_topo_placement
+from src.placement.live_snapshot_seed import _approx_comm
 from src.policy.tabular.reduced_features import (
     PARTIAL_STATE_CONTRACT_ENV,
+    PARTIAL_STATE_CONTRACT_V4,
     PARTIAL_STATE_FEATURE_DIM,
     partial_state_feature_dim,
+    PARTIAL_STATE_LOAD_SECONDS_ENV,
     PARTIAL_STATE_PEER_MASS_ENV,
     build_partial_state_context_from_graph,
     krank_node_order,
+    load_seconds_enabled,
     peer_mass_enabled,
     require_matching_partial_state_contract,
     resolve_partial_state_contract,
@@ -215,6 +219,20 @@ def load_prefix_conditioned_gnn(
                 f"{label}: sidecar peer_mass={bool(trained_peer_mass)} but "
                 f"{PARTIAL_STATE_PEER_MASS_ENV} resolves to {peer_mass_enabled()}; export it to match"
             )
+    # load_repr_v1: the partial_state_v4 load columns on (1) or zeroed (the twin, 0).
+    trained_load_seconds = sidecar.get("load_seconds")
+    if trained_load_seconds is not None:
+        _adopt_or_verify_env(
+            PARTIAL_STATE_LOAD_SECONDS_ENV, "1" if trained_load_seconds else "0", label,
+            adopt=adopt_env, default="1",
+        )
+        if bool(trained_load_seconds) != load_seconds_enabled():
+            raise PrefixServingError(
+                f"{label}: sidecar load_seconds={bool(trained_load_seconds)} but "
+                f"{PARTIAL_STATE_LOAD_SECONDS_ENV} resolves to {load_seconds_enabled()}"
+            )
+    elif str(trained_contract) == "partial_state_v4":
+        raise PrefixServingError(f"{label}: a partial_state_v4 sidecar must record load_seconds")
 
     vocab = _task_type_vocab()
     onehot_dim = int(sidecar.get("task_type_onehot_dim") or 0)
@@ -348,6 +366,7 @@ def attach_live_prefix_block(
     nodes: Sequence[Any],
     peer_table: Mapping[int, Mapping[int, float]],
     options: PrefixServingOptions,
+    backlog_seconds: Optional[Mapping[Tuple[int, int], float]] = None,
 ) -> Dict[str, Any]:
     """Attach the peer_affinity_v1 block to a live inference graph, in place.
 
@@ -519,6 +538,28 @@ def attach_live_prefix_block(
             if excess > 0 and mean_demand.get(nid, 0.0) > 0.0:
                 base_load[nid] = options.load_seed_scale * excess * mean_demand[nid]
 
+    # load_repr_v1 (partial_state_v4): the same two ingredients the cache builds
+    # (prepare_graphs_cache._v4_load_seconds_block), from the live replicas.
+    load_block: Dict[str, Any] = {}
+    if resolve_partial_state_contract() == PARTIAL_STATE_CONTRACT_V4:
+        if backlog_seconds is None:
+            raise PrefixServingError("partial_state_v4 serving needs backlog_seconds per candidate")
+        service_s: Dict[Tuple[int, Tuple[int, int]], float] = {}
+        backlog_s: Dict[Tuple[int, int], float] = {}
+        for t, task in enumerate(batch_tasks):
+            comm = _approx_comm(task.type)
+            for cand in tl.get(t, []):
+                placement = (int(cand[0]), int(cand[1]))
+                ptype = ptype_by_pid[placement[1]]
+                exec_s = (task.type.get("executionTime") or {}).get(ptype)
+                if exec_s is None:
+                    raise PrefixServingError(f"no executionTime[{task.type['name']}][{ptype}]")
+                service_s[(t, placement)] = float(exec_s) + comm
+                if placement not in backlog_seconds:
+                    raise PrefixServingError(f"no backlog for candidate {placement}")
+                backlog_s[placement] = float(backlog_seconds[placement])
+        load_block = {"backlog_s": backlog_s, "service_s": service_s}
+
     graph.peer_edge_index = peer_edge_index
     graph.peer_edge_attr = peer_edge_attr
     graph.dag_edge_index = torch.empty((2, 0), dtype=torch.long)
@@ -545,6 +586,7 @@ def attach_live_prefix_block(
         "cand_nodes": cand_nodes,
         "base_load": base_load,
         "queue_depth_by_node": queue_depth_by_node,
+        **load_block,
     }
     return {
         "n_pairs_in_batch": len(peer_pairs) // 2,

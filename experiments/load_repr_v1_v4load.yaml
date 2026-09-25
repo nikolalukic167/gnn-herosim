@@ -1,0 +1,41 @@
+# load_repr_v1 -- the jb2 gnnedge0 recipe under partial_state_v4: the prefix block also carries the
+# candidate replica's backlog and the in-batch committed service, in seconds (docs/lineages/load_repr_v1.md).
+# Everything else verbatim from joint_burst_v2_gnnedge0.yaml; the twin is load_repr_v1_v4twin.yaml.
+trainer: gnn
+lineage: load_repr_v1
+cache_dir: simulation_data/graphs_cache_joint_burst_v2_psv4_inf
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/joint_burst_v2_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v4
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: load-repr-v1-v4load-gnnedge0
+  tags:
+  - load-repr-v1
+  - partial-state-v4
+  - v4load
+  - lr2e3

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """joint_burst_v2 gate helper: verify a checkpoint's sidecar before serving it in the gate.
-Called as: joint_burst_v2_sidecheck.py <contract.json> <arm: gnnedge0|mpoff> <split.json> <want_alpha>
+Called as: joint_burst_v2_sidecheck.py <contract.json> <arm: gnnedge0|mpoff|v4load|v4twin> <split.json> <want_alpha>
 FAIL LOUD (exit 1) on any mismatch. Kept as a real file, not an inline heredoc, because the
 gate sbatch nests other heredocs and a `PY` terminator line collides across nesting levels.
 """
@@ -22,7 +22,11 @@ def main() -> int:
         "mp_residual": False,
         "dag_alpha_key": want_alpha,
     }
-    if arm == "gnnedge0":
+    if arm in ("v4load", "v4twin"):
+        # load_repr_v1: the gnnedge0 architecture under partial_state_v4, load columns on / zeroed
+        want.update(partial_state_contract="partial_state_v4", partial_state_feature_dim=25,
+                    load_seconds=(arm == "v4load"))
+    if arm in ("gnnedge0", "v4load", "v4twin"):
         want.update(mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True)
         if "mp_bipartite_aggr" in sc:
             want["mp_bipartite_aggr"] = "mean"

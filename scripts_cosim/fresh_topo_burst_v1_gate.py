@@ -44,6 +44,8 @@ RULE_POLICY = {
 }
 SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
+V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns on / zeroed
+LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + V4_KINDS
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
 # SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
@@ -65,6 +67,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
     if phase == "a":
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "v4":
+        return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "d6":
         return [task(t, w, "gnnedge0_selfref", s) for s in SEEDS for t in topos for w in WINDOWS]
     if phase == "d5":
@@ -119,7 +123,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
-              "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE"):
+              "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
+              "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS"):
         env.pop(k, None)
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
     time_scale = float((json.load(open(cfg)).get("cd_gap_v1_rate_scale") or {}).get("factor", 1.0))
@@ -129,9 +134,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
                MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", CUDA_VISIBLE_DEVICES="", PYTHONPATH=REPO)
     base_kind = next((kind[:-len(s)] for s in SUFFIXES if kind.endswith(s)), kind)
-    if base_kind in ("gnnedge0", "mpoff", "cdimit"):
+    if base_kind in LEARNED_KINDS:
         # cd_gap_v1 A: the CD imitator is the gnnedge0 architecture on the jb2 corpus and split
-        stem = "cd-gap-v1-cdimit-gnnedge0" if base_kind == "cdimit" else f"joint-burst-v2-{base_kind}"
+        if base_kind == "cdimit":
+            stem = "cd-gap-v1-cdimit-gnnedge0"
+        elif base_kind in V4_KINDS:
+            stem = f"load-repr-v1-{base_kind}-gnnedge0"
+        else:
+            stem = f"joint-burst-v2-{base_kind}"
         ck = os.path.join(inputs, "models", f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else base_kind
@@ -143,6 +153,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                    GNN_PREFIX_ALPHA_KEY="inf")
         if base_kind == "mpoff":
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
+        if base_kind in V4_KINDS:
+            # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
+            env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
+                       PARTIAL_STATE_LOAD_SECONDS="1" if base_kind == "v4load" else "0")
         if kind.endswith("_spread"):
             env["GNN_PREFIX_SIBLING_SPREAD"] = "1"
         if kind.endswith("_slate"):
@@ -188,7 +202,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         c.pop(k, None)
     arm_kind = RULE_POLICY.get(kind, kind)
     out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=40, servers=6,
-               rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "jb2") if base_kind in ("gnnedge0", "mpoff", "cdimit") else "none",
+               rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "jb2") if base_kind in LEARNED_KINDS else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["code"] = (doc.get("run_provenance") or {}).get("code")
@@ -220,7 +234,18 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("CD ran blind")
     if kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0) == 0:
         problems.append("spread instrument off: prefix_sibling_moves == 0")
-    if base_kind in ("gnnedge0", "mpoff", "cdimit") and not kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0):
+    if base_kind in V4_KINDS:
+        want_ls = "1" if base_kind == "v4load" else "0"
+        if out["env"].get("PARTIAL_STATE_LOAD_SECONDS", "") != want_ls:
+            problems.append(f"served PARTIAL_STATE_LOAD_SECONDS={out['env'].get('PARTIAL_STATE_LOAD_SECONDS')!r}, "
+                            f"{base_kind} needs {want_ls}")
+        if int(c.get("v4_backlog_batches") or 0) == 0:
+            problems.append("v4 instrument off: v4_backlog_batches == 0")
+        if base_kind == "v4load" and int(c.get("v4_backlog_nonzero") or 0) == 0:
+            problems.append("v4 instrument off: no candidate ever had a backlog")
+    elif int(c.get("v4_backlog_batches") or 0):
+        problems.append("a pre-v4 arm computed v4 backlogs")
+    if base_kind in LEARNED_KINDS and not kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0):
         problems.append("unspread arm moved siblings")
     if problems:
         json.dump({"arm": name, "why": "; ".join(problems), "wallclock_s": wall}, open(failed, "w"))
@@ -236,7 +261,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -248,7 +273,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

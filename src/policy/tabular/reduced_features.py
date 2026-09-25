@@ -297,6 +297,8 @@ def partial_state_mlp_layout(contract: Optional[str] = None):
     c = resolve_partial_state_contract(contract)
     if c in KRANK_ONEHOT_CONTRACTS:
         return DIM63CRK_FEATURE_DIM, DIM63CRK_FEATURE_COLUMN_NAMES, "dim63crk"
+    if c == PARTIAL_STATE_CONTRACT_V4:
+        raise ValueError("partial_state_v4 has no MLP layout (dim47crk is the v3 width)")
     return DIM47CRK_FEATURE_DIM, DIM47CRK_FEATURE_COLUMN_NAMES, "dim47crk"
 _PARTIAL_STATE_EPS = 1e-12  # the scorer's feasibility EPS, kept in agreement
 
@@ -314,11 +316,21 @@ PARTIAL_STATE_CONTRACT_V2 = "partial_state_v2"
 # partial_state_v3 (2026-09-16): v2's columns 0-9 and the 4 linkrank columns unchanged, the
 # 24-column rank one-hot replaced by KRANK_V3_FEATURE_DIM size-free scalars. Width 22.
 PARTIAL_STATE_CONTRACT_V3 = "partial_state_v3"
+# partial_state_v4 (2026-09-25, docs/lineages/load_repr_v1.md): v3's 22 columns unchanged, plus
+# LOAD_SECONDS_DIM columns at the end carrying what the CD greedy prices and v3 cannot express:
+#   22  log1p(backlog seconds of the candidate replica at batch start)
+#   23  log1p(service seconds batch-mates already committed to the SAME replica)
+#   24  log1p(the two summed)
+# $PARTIAL_STATE_LOAD_SECONDS=0 zeroes all three (the disabled twin); recorded in the sidecar.
+PARTIAL_STATE_CONTRACT_V4 = "partial_state_v4"
+LOAD_SECONDS_DIM = 3
 VALID_PARTIAL_STATE_CONTRACTS = frozenset(
-    {PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3}
+    {PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
+     PARTIAL_STATE_CONTRACT_V4}
 )
 # Contracts whose columns 7-9 carry the peer block (and that therefore need a peer corpus).
-PEER_BLOCK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3})
+PEER_BLOCK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
+                                  PARTIAL_STATE_CONTRACT_V4})
 # Contracts whose krank block is the fixed-width one-hot; only these pad (and raise).
 KRANK_ONEHOT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2})
 
@@ -330,14 +342,25 @@ def krank_feature_dim(contract: Optional[str] = None) -> int:
 
 
 def partial_state_feature_dim(contract: Optional[str] = None) -> int:
-    """Width of the whole partial-state block under a contract: 38 for v1/v2, 22 for v3."""
-    return PARTIAL_STATE_BASE_DIM + krank_feature_dim(contract) + LINKRANK_FEATURE_DIM
+    """Width of the whole partial-state block under a contract: 38 for v1/v2, 22 for v3, 25 for v4."""
+    c = resolve_partial_state_contract(contract)
+    extra = LOAD_SECONDS_DIM if c == PARTIAL_STATE_CONTRACT_V4 else 0
+    return PARTIAL_STATE_BASE_DIM + krank_feature_dim(contract) + LINKRANK_FEATURE_DIM + extra
 PARTIAL_STATE_PEER_MASS_ENV = "PARTIAL_STATE_PEER_MASS"
+PARTIAL_STATE_LOAD_SECONDS_ENV = "PARTIAL_STATE_LOAD_SECONDS"
 
 
 def peer_mass_enabled() -> bool:
     import os as _os
     return _os.environ.get(PARTIAL_STATE_PEER_MASS_ENV, "1").strip() != "0"
+
+
+def load_seconds_enabled() -> bool:
+    import os as _os
+    raw = _os.environ.get(PARTIAL_STATE_LOAD_SECONDS_ENV, "1").strip()
+    if raw not in ("0", "1"):
+        raise ValueError(f"{PARTIAL_STATE_LOAD_SECONDS_ENV}={raw!r}: expected 0 or 1")
+    return raw == "1"
 DEFAULT_PARTIAL_STATE_CONTRACT = PARTIAL_STATE_CONTRACT_V1
 PARTIAL_STATE_CONTRACT_ENV = "PARTIAL_STATE_CONTRACT"
 
@@ -465,7 +488,12 @@ class PartialStateContext:
         cand_nodes: Optional[Mapping[int, Sequence[Any]]] = None,
         contract: Optional[str] = None,
         base_load: Optional[Mapping[Any, float]] = None,
+        backlog_s: Optional[Mapping[Any, float]] = None,
+        service_s: Optional[Mapping[Tuple[int, Any], float]] = None,
     ) -> None:
+        self.backlog_s = dict(backlog_s or {})
+        self.service_s = dict(service_s or {})
+        self.load_seconds = load_seconds_enabled()
         self.peer_pairs = dict(peer_pairs or {})
         self.node_exchange = dict(node_exchange or {})
         self.peer_norm = float(peer_norm)
@@ -486,6 +514,9 @@ class PartialStateContext:
             if any(parents.get(t) for t in parents):
                 raise ValueError(f"{self.contract} cannot be used on a corpus with DAG edges: "
                                  "columns 7-9 carry the peer block there")
+        if self.contract == PARTIAL_STATE_CONTRACT_V4 and (backlog_s is None or service_s is None):
+            raise ValueError("partial_state_v4 needs backlog_s and service_s (a v4 cache or a v4 "
+                             "live prefix block); refusing to serve the load columns as zeros")
         # peer_affinity_v1 stage 3 (2026-09-11): standing load already on a node when the
         # decode starts. The cache builder and every offline read leave this empty, so the
         # committed prefix is the only load -- byte-identical to before. A LIVE decode may
@@ -557,6 +588,13 @@ def partial_state_columns(
     k_self = int(ctx.task_type_index[task_id])
     if not (0 <= k_self < KRANK_TYPES):
         raise ValueError(f"partial_state_columns: type index {k_self} out of range")
+
+    load_base = linkrank_base + LINKRANK_FEATURE_DIM
+    committed_s: Dict[Any, float] = {}
+    if ctx.contract == PARTIAL_STATE_CONTRACT_V4 and ctx.load_seconds:
+        for t, cand in committed.items():
+            key = tuple(cand) if isinstance(cand, list) else cand
+            committed_s[key] = committed_s.get(key, 0.0) + float(ctx.service_s[(t, key)])
 
     for i, cand in enumerate(candidates):
         node = ctx.node_of[cand]
@@ -650,6 +688,16 @@ def partial_state_columns(
             if core:
                 out[i, base + 2] = float(max(c + 1 for c in core))
                 out[i, base + 3] = float(sum(1 for c in core if c >= 1))
+
+        if ctx.contract == PARTIAL_STATE_CONTRACT_V4 and ctx.load_seconds:
+            key = tuple(cand) if isinstance(cand, list) else cand
+            if key not in ctx.backlog_s:
+                raise ValueError(f"partial_state_columns: no backlog for candidate {key!r}")
+            b = float(ctx.backlog_s[key])
+            c_s = committed_s.get(key, 0.0)
+            out[i, load_base + 0] = _math.log1p(b)
+            out[i, load_base + 1] = _math.log1p(c_s)
+            out[i, load_base + 2] = _math.log1p(b + c_s)
 
     return out.astype(np.float32)
 
@@ -901,6 +949,8 @@ def build_partial_state_context_from_graph(graph: Any) -> "PartialStateContext":
         peer_norm=float(psc.get("peer_norm", 0.0) or 0.0),
         cand_nodes=psc.get("cand_nodes"),
         base_load=psc.get("base_load"),
+        backlog_s=psc.get("backlog_s"),
+        service_s=psc.get("service_s"),
     )
 
 
