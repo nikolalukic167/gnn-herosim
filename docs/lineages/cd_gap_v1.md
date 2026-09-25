@@ -1,6 +1,28 @@
 # cd_gap_v1 — why does the burst-seat GNN lose to the CD greedy, and can imitating CD or changing load close it?
 
-**Status:** `REGISTERED` (2026-09-25). Every bar below was signed before its data.
+**Status:** `CLOSED` (2026-09-25) — **SCORE-EXPLAINS / CD-FASTER**. Registered 2026-09-25; every bar
+below, and each amendment, was signed before its data.
+
+**Outcome.** In the burst seat `gnnedge0` trails the CD greedy because of what its learned score can
+express, and nothing else that was tested explains the gap. What CD does and the model cannot is
+load-balance: its score is queue drain in seconds plus the service already committed in the batch.
+All numbers are live on the fresh 10–11 topologies unless marked.
+- **Ruled out, one probe each:**
+  - the label: a CD-trained imitator ties the sweep-trained model (+0.6 %) and trails CD +13.6 % (A2);
+  - decode order and revision: self-revision on the model's own score recovers 8.9 % of what CD's
+    refine gets (D6);
+  - the serving candidate set (D4, premise false);
+  - the per-batch externality (D3);
+  - load: the gap is +13.8 % at half the arrival rate (B′).
+- **Out-of-batch blindness is real but small:** blind-CD vs CD +3.4 %, direction only (D1).
+- **Offline, `gnnedge0` does not fit CD's plans:** median regret 11.7 % vs CD's 8.2 % (D0 `FIT-GAP`);
+  trained on CD's plans it agrees with them 17.8 % of the time (A1 `CANNOT-FIT-CD`).
+- **The positive:** the GNN plan used as a seed for CD's refine passes **beats CD −3.8 %** (10/10,
+  direction only, D5). About two-thirds of that comes from any learned seed (MP-OFF seed −2.6 %), so it is
+  a learned-seed result, not an MP result.
+- MP's direction over its MP-OFF twin holds at both rates (−4.2 %, −3.9 %).
+- **Caveat:** B as first run was a design defect (`keep_alive` and the reconcile interval were left
+  unscaled) and is not a result; B′ replaced it.
 
 **Parents:** [`fresh_topo_burst_v1`](fresh_topo_burst_v1.md) (on 11 fresh topologies `gnnedge0` is
 +11.4 % behind CD, 0/11), [`joint_burst_v2`](joint_burst_v2.md) (the checkpoints and the corpus; label =
@@ -75,6 +97,26 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 - D1/A/B live: `scripts_cosim/fresh_topo_burst_v1_gate.py` (its study selection and failure rule).
 
 ## Record (newest first)
+
+- 2026-09-25 — **B′ read (live): the gap holds at half the load.** Datalab job 806648 at 6d673a7, clean,
+  1,437/1,440 runs; the 3 failures are CD timeouts (9423 w3, 9466 w2/w3), which drop 9423 and 9466 and leave
+  **10 topologies**. Witness: all 108 rule-arm runs equal the local patched-constants diagnostic to the
+  digit. Every arm's per-task queue now falls with the load (CD 2.76 → 2.23 s, self-predict 3.98 → 3.53 s,
+  `gnnedge0` 4.08 → 3.26 s), and B's 174 timeouts shrink to 3, so most of B's spinning was the
+  keep-alive too.
+
+  | read | median | p | faster |
+  |---|---|---|---|
+  | **B1** `gnnedge0` vs CD | **+13.82 %** | 0.002 | 0/10 (`CD-FASTER`) |
+  | B2 `gnnedge0` vs MP-OFF | −3.88 % | 0.002 | 10/10 (direction only) |
+  | B2 `gnnedge0` vs self-predict | −4.22 % | 0.11 | 8/10 (`NOT-SEPARATED`) |
+  | disclosed: MP-OFF vs self-predict | −0.19 % | 0.92 | 6/10 |
+  | disclosed: self-predict vs CD | +21.15 % | 0.002 | 0/10 |
+  | disclosed: `gnnedge0` vs 1-pass | −6.78 % | 0.004 | 9/10 |
+
+  - **Reading:** at the base rate `gnnedge0` trails CD by +11.4 %; at arrivals ×2 slower it trails by
+    +13.8 %. The gap is not a heavy-load artifact. Every other contrast keeps its base-rate sign.
+    [Read](cd_gap_v1/b2_read.json).
 
 - 2026-09-25 — **Amendment B′ (signed before any B′ datum).** B is rerun as registered, the same
   inputs (×2 timestamps, ×2 `batch_timeout`), arms, 12 topologies and failure rule, with

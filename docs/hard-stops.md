@@ -254,3 +254,23 @@ rule can compute for itself, not prediction a graph must learn.
 served graph, horizon-aware peer labels) at this physics without a mechanism the self-predict rule
 cannot express. The bar for any learned placement at these rungs is now
 `peer_greedy_selfpredict_network`, not `peer_greedy_network`.
+
+## Relabelling or re-serving the burst-seat GNN to reach the CD greedy (2026-09-25)
+
+**Direction:** "`gnnedge0` trails the CD greedy in the burst seat because of its label, its decode
+order, its serving candidate set or the load it was gated at. Fix that one and it reaches CD."
+
+**What closed it** (`cd_gap_v1`, live, the `fresh_topo_burst_v1` fresh topologies):
+- **The label:** the same architecture trained on CD's own plans (4 seeds) agrees with CD 17.8 %
+  offline and trails CD live +13.6 % (0/11), tying the sweep-trained model (+0.6 %, p = 0.52).
+- **Decode order:** revising its plan with its own score recovers 8.9 % of CD's refine gain.
+- **Load:** at arrivals ×2 slower, with every policy time constant scaled, the gap is +13.8 % (0/10).
+- **Out-of-batch blindness:** worth ~3.4 % (blind-CD vs CD, direction only).
+
+What the score cannot express is CD's load balancing: queue drain in seconds plus in-batch committed
+service.
+
+**Do not restart** a relabel, imitation, decode-order or load-ladder attempt on this architecture
+without a representation change that carries per-platform committed load into the score. What did
+work is using the GNN plan as a seed for CD's refine passes (−3.8 % vs CD, direction only), which is a
+learned-seed result, not a message-passing one.
