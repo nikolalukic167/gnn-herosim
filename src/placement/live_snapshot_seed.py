@@ -183,7 +183,10 @@ def _seed_platform_state(
     if float(spec.get("synthetic_backlog_seconds", 0) or 0) > 0.0:
         virtual_count = max(virtual_count, 1)
 
-    plat.seed_virtual_warmup(task_type, task_type_name, virtual_count)
+    if float(spec.get("synthetic_backlog_seconds", 0) or 0) > 0.0:
+        plat.seed_virtual_warmup(task_type, task_type_name, virtual_count, total_seconds=backlog)
+    else:
+        plat.seed_virtual_warmup(task_type, task_type_name, virtual_count)
     plat.virtual_warmup_total_time = backlog
 
 
