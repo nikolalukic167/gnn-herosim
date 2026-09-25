@@ -1,0 +1,254 @@
+{
+ "checkpoint": "/home/nikola.lukic/gnn-herosim/models/joint-burst-v2-gnnedge0-lr2e3-seed1.pt",
+ "cache_dir": "/home/nikola.lukic/gnn-herosim/simulation_data/graphs_cache_joint_burst_v2_psv3_inf",
+ "split": "test",
+ "n_datasets": 60,
+ "n_clean": 0,
+ "n_with_mismatches": 60,
+ "mismatches": {
+  "gnn_datasets_joint_burst_v2_heldout/ds_08800": [
+   "partial_state_ctx.node_caps: live {'40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '40': 1, '44': 2} != cache {'40': 0, '44': 1, '45': 2}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08801": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08802": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08803": [
+   "partial_state_ctx.node_caps: live {'40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3} != cache {'40': 0, '42': 1, '44': 2, '45': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08804": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08805": [
+   "partial_state_ctx.node_caps: live {'43': inf, '41': inf, '40': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '42': 1, '40': 2, '41': 3, '43': 4} != cache {'40': 0, '41': 1, '43': 2, '45': 3, '42': 4}",
+   "decoded_combo: live [(43, 216), (45, 228), (43, 216), (42, 213), (41, 203), (41, 203), (43, 214), (41, 203), (41, 203), (41, 203)] != report [(43, 216), (45, 228), (43, 216), (42, 213), (41, 203), (41, 203), (43, 214), (41, 203), (41, 204), (41, 203)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08806": [
+   "partial_state_ctx.node_caps: live {'43': inf, '41': inf, '40': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '42': 1, '40': 2, '41': 3, '43': 4} != cache {'40': 0, '41': 1, '43': 2, '45': 3, '42': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08807": [
+   "partial_state_ctx.node_caps: live {'40': inf, '43': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '42': 1, '40': 2, '41': 3, '43': 4} != cache {'40': 0, '41': 1, '43': 2, '45': 3, '42': 4}",
+   "decoded_combo: live [(40, 200), (42, 213), (43, 215), (40, 200), (40, 200), (43, 215), (43, 214), (40, 199), (41, 203), (41, 203)] != report [(40, 200), (42, 213), (43, 215), (42, 213), (40, 200), (43, 215), (41, 203), (40, 199), (41, 203), (41, 203)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08808": [
+   "partial_state_ctx.node_caps: live {'43': inf, '40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '42': 1, '40': 2, '41': 3, '43': 4} != cache {'40': 0, '41': 1, '43': 2, '45': 3, '42': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08809": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '41': 3} != cache {'40': 0, '42': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08810": [
+   "partial_state_ctx.node_caps: live {'43': inf, '40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '42': 1, '40': 2, '41': 3, '43': 4} != cache {'40': 0, '41': 1, '43': 2, '45': 3, '42': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08811": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '40': 1, '41': 2} != cache {'40': 0, '41': 1, '45': 2}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08812": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '40': 1, '41': 2} != cache {'40': 0, '41': 1, '45': 2}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08813": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '41': 3} != cache {'40': 0, '42': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08814": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '41': 3} != cache {'40': 0, '42': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08815": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf} != cache {}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08816": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '40': 1, '41': 2} != cache {'40': 0, '42': 1, '41': 2}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08817": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '43': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4, '43': 5} != cache {'40': 0, '44': 1, '41': 2, '42': 3, '43': 4, '45': 5}",
+   "decoded_combo: live [(40, 202), (40, 202), (42, 213), (40, 202), (44, 218), (44, 218), (40, 199), (40, 199), (43, 214), (44, 218)] != report [(40, 202), (40, 202), (42, 213), (40, 202), (44, 218), (44, 218), (40, 199), (40, 199), (43, 214), (40, 199)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08818": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf, '43': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4, '43': 5} != cache {'40': 0, '44': 1, '41': 2, '42': 3, '43': 4, '45': 5}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08819": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '41': 3} != cache {'40': 0, '42': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08820": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '41': 3} != cache {'40': 0, '42': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08821": [
+   "partial_state_ctx.node_caps: live {'41': inf, '43': inf, '44': inf, '40': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4, '43': 5} != cache {'40': 0, '44': 1, '41': 2, '42': 3, '43': 4, '45': 5}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08822": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08823": [
+   "partial_state_ctx.node_caps: live {'44': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '44': 2, '41': 3} != cache {'42': 0, '44': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08824": [
+   "partial_state_ctx.node_caps: live {'44': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '44': 2, '41': 3} != cache {'42': 0, '44': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08825": [
+   "partial_state_ctx.node_caps: live {'41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '44': 1, '41': 2} != cache {'44': 0, '42': 1, '41': 2}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08826": [
+   "partial_state_ctx.node_caps: live {'41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '44': 2, '41': 3} != cache {'42': 0, '44': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08827": [
+   "partial_state_ctx.node_caps: live {'41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '44': 1, '41': 2} != cache {'44': 0, '42': 1, '41': 2}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08828": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08829": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08830": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08831": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08832": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf, '43': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '40': 1, '44': 2, '41': 3, '43': 4} != cache {'40': 0, '44': 1, '41': 2, '43': 3, '42': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08833": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'45': 0, '40': 1, '44': 2, '41': 3} != cache {'40': 0, '44': 1, '41': 2, '45': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08834": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08835": [
+   "partial_state_ctx.node_caps: live {'40': inf, '44': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08836": [
+   "partial_state_ctx.node_caps: live {'43': inf, '40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4, '43': 5} != cache {'40': 0, '44': 1, '41': 2, '42': 3, '43': 4, '45': 5}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08837": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}",
+   "decoded_combo: live [(42, 213), (42, 213), (42, 213), (45, 228), (41, 203), (41, 203), (41, 203), (44, 218), (40, 199), (41, 203)] != report [(42, 213), (42, 213), (42, 213), (45, 228), (41, 203), (41, 203), (41, 203), (40, 199), (40, 199), (41, 203)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08838": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}",
+   "decoded_combo: live [(45, 228), (45, 228), (42, 213), (42, 213), (45, 228), (44, 218), (40, 199), (44, 218), (41, 203), (40, 199)] != report [(45, 228), (45, 228), (42, 213), (42, 213), (45, 228), (40, 199), (44, 218), (44, 218), (41, 203), (44, 218)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08839": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '41': 3} != cache {'40': 0, '42': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08840": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08841": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08842": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08843": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08844": [
+   "partial_state_ctx.node_caps: live {'41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '44': 2, '41': 3} != cache {'42': 0, '44': 1, '45': 2, '41': 3}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08845": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}",
+   "decoded_combo: live [(42, 213), (45, 228), (41, 203), (44, 218), (44, 218), (44, 218), (40, 199), (41, 203), (40, 199), (44, 218)] != report [(42, 213), (45, 228), (41, 203), (44, 218), (44, 218), (40, 199), (44, 218), (41, 203), (44, 218), (40, 199)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08846": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08847": [
+   "partial_state_ctx.node_caps: live {'41': inf, '44': inf, '40': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08848": [
+   "partial_state_ctx.node_caps: live {'44': inf, '40': inf, '41': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08849": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08850": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08851": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '43': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4, '43': 5} != cache {'40': 0, '44': 1, '41': 2, '42': 3, '43': 4, '45': 5}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08852": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08853": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}",
+   "decoded_combo: live [(45, 228), (45, 228), (42, 213), (42, 213), (44, 218), (41, 203), (41, 203), (41, 203), (40, 199), (44, 218)] != report [(45, 228), (45, 228), (42, 213), (42, 213), (41, 203), (44, 218), (44, 218), (40, 199), (40, 199), (44, 218)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08854": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08855": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08856": [
+   "partial_state_ctx.node_caps: live {'40': inf, '41': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}",
+   "decoded_combo: live [(45, 228), (45, 228), (42, 213), (42, 213), (42, 213), (41, 203), (44, 218), (41, 203), (41, 203), (41, 203)] != report [(45, 228), (45, 228), (42, 213), (42, 213), (42, 213), (41, 203), (44, 218), (41, 203), (41, 203), (40, 199)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08857": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08858": [
+   "partial_state_ctx.node_caps: live {'41': inf} != cache {}"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08859": [
+   "partial_state_ctx.node_caps: live {'41': inf, '40': inf, '44': inf} != cache {}",
+   "partial_state_ctx.node_rank: live {'42': 0, '45': 1, '40': 2, '44': 3, '41': 4} != cache {'40': 0, '44': 1, '42': 2, '45': 3, '41': 4}"
+  ]
+ }
+}

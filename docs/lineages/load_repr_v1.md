@@ -71,6 +71,24 @@ That close ended on a claim: "the fix is the representation". This lineage tests
 
 ## Record (newest first)
 
+- 2026-09-25 — **O1 read (offline; orders nothing): the load columns help offline.**
+  - **Setup:** 480 held-out groups under A1's protocol. Training was datalab array 806789 at
+    b449ebf, with determinism 17/17 at the same commit. All 8 sidecars passed their checks, and
+    checkpoints were selected at epochs 104–132 (see the train logs).
+
+  | arm | median regret | mean regret |
+  |---|---|---|
+  | CD | 8.2 % | 54.5 % |
+  | **`v4load`** (median over 4 seeds; per seed 8.0–9.1 %) | **9.0 %** | **42.2 %** |
+  | `v4twin` | 11.4 % | 54.0 % |
+  | jb2 `gnnedge0` (13 seeds) | 11.7 % | 54.6 % |
+
+  - **Pairwise:** `v4load` beats its twin on 190 groups and loses on 113. Paired median is 0.0 pp
+    (most groups tie); paired mean is −11.8 pp vs the twin and −12.2 pp vs CD.
+  - **Reading:** the representation does carry what the label needs, and CD's load terms are
+    learnable from this corpus. This is the first learned arm with lower mean held-out regret than
+    CD. Live is the test. [Read](load_repr_v1/o1_read.json); parity files in `load_repr_v1/`.
+
 - 2026-09-25 — **Amendment 2 (signed before any live v4 read, and before any fixed-serving datum).**
   **The train/serve parity check found a serving defect in every burst-seat learned arm.**
   - **The check:** `peer_affinity_live_serve_check.py` on 60 held-out jb2 batches.
