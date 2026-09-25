@@ -71,6 +71,43 @@ That close ended on a claim: "the fix is the representation". This lineage tests
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment 2 (signed before any live v4 read, and before any fixed-serving datum).**
+  **The train/serve parity check found a serving defect in every burst-seat learned arm.**
+  - **The check:** `peer_affinity_live_serve_check.py` on 60 held-out jb2 batches.
+    - Pre-fix, the checkpoint behind every earlier burst-seat gate (`jb2` `gnnedge0` s1, `v3` cache)
+      is clean on 0/60. Serving gave it a different node rank (`krank`, prefix columns 10–17) than
+      training on 56/60, and decoded a different plan on 8/60.
+    - `v4load` s1 and `v4twin` s1 show the same defect, 0/60 clean.
+    - The new columns, `backlog_s` and `service_s`, matched on 60/60.
+  - **Cause:** at the uncapped rung, serving built caps as `inf × peak demand for m > 0`. That omits
+    nodes whose only candidates have zero memory demand (`pynqFpga` `dnn1` = 0.0) and ranks them first
+    at cap 0.0. The cache's uncapped rung is `{}`, which puts every node at 0.0.
+  - **Fixed at 721d44f:** serving uses `{}` at `alpha = inf`, and the decoder, which reads
+    `caps.get(n, inf)`, is unchanged.
+  - **After the fix:** `v4load` s1 is 60/60 clean. `v4twin` s1 and `jb2` `gnnedge0` s1 are 58/60,
+    and the two leftovers are same-node sibling-platform tie-breaks whose live RTT equals the sweep
+    row.
+  - **Affected:** every live number for `gnnedge0` and MP-OFF in `joint_burst_v2`,
+    `selfpredict_burst_v1`, `fresh_topo_burst_v1` and `cd_gap_v1`. Rule arms (CD, self-predict,
+    1-pass, reactive) never touch this code.
+  - **Design change:**
+    - The running v4 gate (807111, b449ebf) is recorded **as served with the defect** and does not
+      carry L1/L2.
+    - Phase `fix` reruns the learned arms at the fix commit on the same fresh study: `v4load` ×4,
+      `v4twin` ×4, `jb2` `gnnedge0` ×13, `jb2` MP-OFF ×13.
+    - CD and self-predict are the existing 00dae37 runs.
+    - **L1/L2 are read on fixed serving**, with bars and labels unchanged.
+  - **New registered reads** (`load_repr_v1_read.py --old-gate`):
+
+    | read | contrast | fires as |
+    |---|---|---|
+    | **R1** | `gnnedge0` fixed vs as served (fresh gate, 1ae90af) | `DEFECT-COST` (fixed ≤ −5 %, p < 0.05) / `DEFECT-COST (direction only)` / `NOT-SEPARATED` / `FIX-HURTS` |
+    | **R2** | `gnnedge0` fixed vs CD | as D1's labels; replaces `cd_gap_v1`'s +11.4 % if it differs |
+    | R3–R5 | MP direction fixed; MP-OFF fixed vs as served; `gnnedge0` fixed vs self-predict | reported |
+  - **Expectations:**
+    - R1 `NOT-SEPARATED` or direction only 70 %: rank changed the offline plan on ~10 % of batches.
+    - R2 still `CD-FASTER` 85 %.
+
 - 2026-09-25 — **Amendment 1 (signed before any v4 datum; no model trained yet).**
   - **The first cache job (806779) failed on every dataset.** `_v4_load_seconds_block` enumerated
     `task_logit_to_placement`, which is a dict, not a list. Fixed at ec702ba; a 3-dataset login-node

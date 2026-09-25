@@ -48,9 +48,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--probe-dir", required=True, nargs="+")
     ap.add_argument("--selection", required=True)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--old-gate", nargs="*", default=[],
+                    help="Amendment 2: dirs holding the learned arms as served BEFORE the rank fix; read as <kind>_asserved")
     a = ap.parse_args(argv)
     topos = json.load(open(a.selection))["topologies"]
     s = C._load([a.gate] + a.probe_dir)
+    if a.old_gate:
+        old = C._load(a.old_gate)
+        for (t, w, k, sd), row in old.items():
+            if k in ("gnnedge0", "mpoff", "v4load", "v4twin"):
+                s[(t, w, f"{k}_asserved", sd)] = row
     res = {"L2": C.contrast(s, topos, "v4load", "v4twin"),
            "L1": C.contrast(s, topos, "v4load", "cd"),
            "L3_vs_gnnedge0": C.contrast(s, topos, "v4load", "gnnedge0"),
@@ -59,9 +66,17 @@ def main(argv: Optional[List[str]] = None) -> int:
            "disclosed_v4twin_vs_gnnedge0": C.contrast(s, topos, "v4twin", "gnnedge0")}
     res["L2_label"] = l2_label(res["L2"])
     res["L1_label"] = l1_label(res["L1"], res["L2_label"])
+    keys = ["L2", "L1", "L3_vs_gnnedge0", "L3_vs_selfpredict", "disclosed_v4twin_vs_cd",
+            "disclosed_v4twin_vs_gnnedge0"]
+    if a.old_gate:
+        res["R1_gnnedge0_fixed_vs_asserved"] = C.contrast(s, topos, "gnnedge0", "gnnedge0_asserved")
+        res["R2_gnnedge0_fixed_vs_cd"] = C.contrast(s, topos, "gnnedge0", "cd")
+        res["R3_gnnedge0_vs_mpoff_fixed"] = C.contrast(s, topos, "gnnedge0", "mpoff")
+        res["R4_mpoff_fixed_vs_asserved"] = C.contrast(s, topos, "mpoff", "mpoff_asserved")
+        res["R5_gnnedge0_fixed_vs_selfpredict"] = C.contrast(s, topos, "gnnedge0", "selfpredict")
+        keys += [k for k in res if k.startswith("R")]
     print(json.dumps(res, indent=1))
-    for k in ("L2", "L1", "L3_vs_gnnedge0", "L3_vs_selfpredict", "disclosed_v4twin_vs_cd",
-              "disclosed_v4twin_vs_gnnedge0"):
+    for k in keys:
         r = res[k].get("read") or {}
         print(f"{k:32s} median {r.get('median_pct', float('nan')):+7.2f} %  p={r.get('p')}  "
               f"first faster {r.get('a_faster')}/{r.get('n')}  dropped {sorted(res[k].get('dropped', {}))}",
