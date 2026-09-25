@@ -76,6 +76,16 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **A2/A3 read (live): the label does not matter.** Datalab job 806624 at 934c324
+  (`src/` identical to the witnessed 00dae37), 192/192 runs, no failures.
+  - **A2:** CD-imitator vs CD **+13.58 %**, 0/11, p = 0.001 (`CD-FASTER`; 9466 dropped). A1 fired
+    `CANNOT-FIT-CD`, so `OFFLINE-LIVE-GAP-CONFIRMED` does not apply.
+  - **A3:** CD-imitator vs jb2 `gnnedge0` (seeds 1–4 paired) +0.58 %, p = 0.52, 5/12
+    (`NOT-SEPARATED`). Queue 3.97 vs 4.13 s.
+  - **Reading:** trained on the sweep optimum or on CD's own plans, the same architecture serves the
+    same arm, offline (A1) and live. The bottleneck is what the representation can express, not the
+    label. [Read](cd_gap_v1/a2_read.json).
+
 - 2026-09-25 — **A1 read (offline): `CANNOT-FIT-CD`.** The CD labels cover 2,516 groups: every CD plan
   matched a sweep row, 527 are any-of-k ties, and CD is at the sweep optimum on 688. Four
   CD-imitator seeds, the jb2 `gnnedge0` recipe with the train label overridden and selection on
