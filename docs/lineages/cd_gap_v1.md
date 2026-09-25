@@ -76,6 +76,23 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment D3 (externality), signed before D3 is computed.** The witness run showed
+  the sibling-spread flag almost never fires (1,039 of 50,000 tasks moved; stacking 0.80 → 0.78;
+  one cell, −1.3 %). Replicas are per task type, and a node rarely holds two valid replicas of one
+  type at decode time. Every same-node spread both arms make is between same-type siblings, over
+  the same 17 platforms. CD splits 38–41 % of same-node pairs onto siblings, `gnnedge0` 20–25 %,
+  the 1-pass greedy 24 %. CD's queue lead comes from its refine passes (the 1-pass greedy has the
+  same seconds-based information and queues 4.5 s).
+  **Hypothesis:** the label, and a GNN that imitates it, minimises the group's own summed elapsed
+  while leaving more busy time on its platforms for the groups that follow. The offline score never
+  charges that externality; live, it is the queue.
+  **D3 (offline, orders the work):** on the 480 held-out groups, from each plan's sweep row
+  (`task_times`), compute sum, makespan and **backlog** (Σ over used platforms of last done − first
+  dispatched) for the label, CD, the 1-pass greedy and `gnnedge0` (median over 13 checkpoints).
+  `EXTERNALITY` iff the label's backlog exceeds CD's (paired median > 0, and higher on > 50 % of
+  groups) while its sum is lower. Otherwise `NO-EXTERNALITY`. Reported the same way for `gnnedge0`.
+  Expectation: `EXTERNALITY` 55 %.
+
 - 2026-09-25 — **Amendment D2 (sibling stacking), signed before any spread run.** What prompted it
   (data already read, disclosed in full):
   - **D0 read, registered statistic: `FIT-GAP`** (median regret: `gnnedge0` 11.7 %, CD 8.2 %,
