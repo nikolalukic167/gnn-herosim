@@ -42,7 +42,7 @@ RULE_POLICY = {
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
 }
-SUFFIXES = ("_spread", "_slate")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
@@ -108,7 +108,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
               "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
-              "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON"):
+              "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE"):
         env.pop(k, None)
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
@@ -129,6 +129,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_PREFIX_SIBLING_SPREAD"] = "1"
         if kind.endswith("_slate"):
             env["GNN_SERVE_CORPUS_SLATE"] = "1"
+        if kind.endswith("_cdshadow"):
+            env["GNN_CD_REFINE"] = "shadow"
+        if kind.endswith("_cdapply"):
+            env["GNN_CD_REFINE"] = "apply"
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
@@ -174,6 +178,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"num_tasks={n!r}")
     if kind == "selfpredict" and (int(c.get("pg_decisions") or 0) != N_TASKS or int(c.get("pg_lookahead_priced") or 0) == 0):
         problems.append(f"rule instrument off: {c.get('pg_decisions')}/{c.get('pg_lookahead_priced')}")
+    if kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0) == 0:
+        problems.append("cd-refine instrument off: cdr_batches == 0")
+    if not kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0):
+        problems.append("unrefined arm was refined")
     if kind.endswith("_slate") and int(c.get("slate_batches") or 0) == 0:
         problems.append("slate instrument off: slate_batches == 0")
     if not kind.endswith("_slate") and int(c.get("slate_batches") or 0):

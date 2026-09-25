@@ -681,6 +681,81 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
                 break
 
 
+class GnnCdRefiner(_PeerGreedyCore):
+    """cd_gap_v1 D5: the CD greedy's refine passes, started from a plan someone else decoded.
+
+    Held by the GNN scheduler (`GNN_CD_REFINE=shadow|apply`). Seeds CD's own books -- committed
+    service per platform, planned nodes -- with the seed plan, then runs `_pg_batch_pass(refine=True)`
+    (the same method CD runs, bound here, not copied) until a pass moves nothing or the pass budget
+    is spent. Returns the refined plan and what moved."""
+
+    _policy_label = "gnn_cd_refine"
+    _pg_batched = True
+    _pg_batch_pass = PeerGreedyNetworkBatchScheduler._pg_batch_pass
+
+    def __init__(self, host) -> None:
+        self._host = host
+        self._pg_init()
+
+    @property
+    def nodes(self):
+        return self._host.nodes
+
+    def _get_valid_replicas(self, replicas, task):
+        return self._host._get_valid_replicas(replicas, task)
+
+    def _pg_orchestrator(self):
+        return self._host._orchestrator()
+
+    def refine(self, batch_tasks: List["Task"], system_state: SystemState,
+               seed: Dict[int, Tuple[int, int]], passes: int) -> Tuple[Dict[int, Tuple[int, int]], Dict[str, int]]:
+        orch = self._pg_orchestrator()
+        memo: Dict[str, float] = {}
+        committed_service: Dict[str, float] = {}
+        planned: Dict[int, str] = {}
+        service_of: Dict[int, Tuple[str, float]] = {}
+        placements: Dict[int, Tuple[int, int]] = dict(seed)
+        self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
+        by_id = {}
+        for idx, task in enumerate(batch_tasks):
+            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+            couple = next(((n, p) for n, p in valid if (n.id, p.id) == tuple(seed[idx])), None)
+            if couple is None:
+                raise RuntimeError(f"FAIL LOUD: seed placement {seed[idx]} of task {task.id} is not a valid replica")
+            by_id[idx] = couple
+            planned[int(task.id)] = couple[0].node_name
+        for idx in sorted(range(len(batch_tasks)), key=lambda i: int(batch_tasks[i].id)):
+            task = batch_tasks[idx]
+            node, platform, service = self._pg_choose(task, [by_id[idx]], orch, memo=memo,
+                                                      committed_service=committed_service, planned=planned,
+                                                      nodes=self.nodes.items)
+            key = f"{node.node_name}:{platform.id}"
+            committed_service[key] = committed_service.get(key, 0.0) + service
+            service_of[int(task.id)] = (key, service)
+        for _ in range(passes):
+            moved = self._pg_batch_pass(batch_tasks, system_state, orch, memo=memo,
+                                        committed_service=committed_service, planned=planned,
+                                        placements=placements, service_of=service_of, refine=True)
+            if moved == 0:
+                break
+        seed_load: Dict[Tuple[int, int], int] = {}
+        for v in seed.values():
+            seed_load[tuple(v)] = seed_load.get(tuple(v), 0) + 1
+        new_load: Dict[Tuple[int, int], int] = {}
+        for v in placements.values():
+            new_load[tuple(v)] = new_load.get(tuple(v), 0) + 1
+        info = {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
+        for idx, before in seed.items():
+            after = placements[idx]
+            if tuple(after) == tuple(before):
+                continue
+            info["moved"] += 1
+            info["node_change" if after[0] != before[0] else "platform_only"] += 1
+            if seed_load[tuple(before)] >= 2 and new_load.get(tuple(after), 0) < seed_load[tuple(before)]:
+                info["unstack"] += 1
+        return placements, info
+
+
 class PeerGreedyLearnedNetworkBatchScheduler(PeerGreedyNetworkBatchScheduler):
     """rollout_imitation_v1 cross-study arm: the LEARNED rollout scorer served in the BATCHED seat
     (peer-group batching at the cell window, masked_topo path) instead of per arrival -- the
