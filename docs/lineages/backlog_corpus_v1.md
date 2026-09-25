@@ -1,7 +1,7 @@
 # backlog_corpus_v1 — does training on states that carry backlog teach the burst-seat GNN to load-balance?
 
-**Status:** `REGISTERED` (2026-09-25). Corpus generation launched; every bar below was signed before
-any datum of this corpus existed.
+**Status:** `ACTIVE` (2026-09-25). Corpus and cache built; **O1 and O2 fire**. Training and the live
+gate (L1–L3) are next. Every bar below was signed before any datum of this corpus existed.
 
 **Parents:** [`load_repr_v1`](load_repr_v1.md) (the `partial_state_v4` load columns; its standing risk,
 measured there: only 0.5 % of jb2 replica specs carry backlog > 0) and [`cd_gap_v1`](cd_gap_v1.md) (the
@@ -78,6 +78,27 @@ live queue has not been measured.
   `graphs_cache_backlog_corpus_v1_psv4_inf`, split `experiments/backlog_corpus_v1_split.json`.
 
 ## Record (newest first)
+
+- 2026-09-25 — **Corpus and cache built; O1 and O2 fire** (offline, orders only).
+  - **Corpus** (job 807182, 12 tasks × 8 units, code eb9fa58): 5,036 groups (4,076 train, 960
+    held-out), 2 × jb2's 2,516; 132 snapshots rejected by the jb2 filters. Rungs: 0 s 1,160 · 3 s
+    1,371 · 8 s 1,558 · 20 s 947.
+  - **Cache** (job 807183) `graphs_cache_backlog_corpus_v1_psv4_inf`: label
+    `rtt_drift:1@lambda=0.46,clock=measured,backlog=seeded`, 0 incomplete sweeps, 0 candidate-guard
+    offenders, near-RTT sidecar 562,064 rows.
+  - **Split** `experiments/backlog_corpus_v1_split.json` (sha256 2fccc095…): train 2,890, val 1,186
+    (whole cells 9207, 9208, 9209, 9213; 29 % of training groups, since cells are indivisible),
+    test 960 (cells 9223/9224).
+  - **O1 fires.** 13,608 of 26,558 candidate replicas (51.2 %) carry v4 backlog > 0 (jb2: 0.5 %).
+  - **O2 fires** (`backlog_corpus_v1/audit.json`). At rungs 3/8/20 the raw-RTT optimum moves vs its
+    jb2 twin in 46 % / 57 % / 71 % of groups (bar 20 %). It puts 46 % / 42 % / 38 % of its tasks on
+    busy replicas against 51 % / 50 % / 50 % for a random plan. Playing the twin's (no-backlog)
+    optimum costs a mean +2.9 / +7.6 / +22.0 s (median 0.0 / 1.7 / 13.0 s).
+  - **Rung 0 is the jb2 control**: identical optimum cost in every group (ratio 1.000, twin regret 0);
+    the 7.5 % "moved" there are ties broken in a different row order. 4 datasets had no jb2 twin.
+  - **Smoke defect fixed before the run** (e6a39f1): the measured drain table has no `xavierDla` rows,
+    so seeding a synthetic backlog there tripped the table's coverage guard. A synthetic spec now
+    seeds by its seconds. A rung-0 replay reproduced jb2's optimum to the digit (54.394 s).
 
 - 2026-09-25 — Registered. The trainer's served-decode logging (`val/mt_task_acc_choice`,
   `val/mt_plan_exact`, `val/regret_masked_topo_median`, the `readout/*` summary keys, and the fixed
