@@ -1,0 +1,41 @@
+# backlog_corpus_v1 -- load_repr_v1's v4load recipe verbatim (partial_state_v4, load columns on) on the
+# synthetic-backlog corpus and its cell-grouped split (docs/lineages/backlog_corpus_v1.md).
+# The MP-OFF twin is backlog_corpus_v1_bc1mpoff.yaml.
+trainer: gnn
+lineage: backlog_corpus_v1
+cache_dir: simulation_data/graphs_cache_backlog_corpus_v1_psv4_inf
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/backlog_corpus_v1_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v4
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 300
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: backlog-corpus-v1-bc1load-gnnedge0
+  tags:
+  - backlog-corpus-v1
+  - partial-state-v4
+  - bc1load
+  - lr2e3
