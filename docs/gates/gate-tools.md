@@ -637,3 +637,23 @@ multiplies both; unset is bit-identical (venue witness reproduced). `fresh_topo_
 from the cell's recorded `cd_gap_v1_rate_scale.factor` and fails a run whose provenance lacks it.
 **The general rule:** before a rate ladder, list the policy time constants from the code, not from the
 config. After it, check that each arm's queue moves in the direction the load moved.
+
+## 2026-09-25 — The uncapped burst seat served a node rank the model was never trained on
+
+`joint_burst_v2` moved the served decoder to the uncapped rung (`alpha = inf`), and nobody re-ran the
+train/serve parity check (`scripts_cosim/peer_affinity_live_serve_check.py`) on that seat until
+`load_repr_v1`.
+
+- **The defect.** `prefix_serving.attach_live_prefix_block` built caps as `inf × peak demand for m > 0`.
+  That dropped every node whose candidates all have zero memory demand (`pynqFpga` `dnn1` = 0.0), and
+  `krank_node_order` then ranked those nodes first at cap 0.0. The cache's uncapped rung is `{}`, which
+  puts every node at 0.0.
+- **The size.** On 60 held-out jb2 batches, `jb2` `gnnedge0` s1 was served a different `krank` on 56
+  and decoded a different plan on 8. Every burst-seat learned-arm gate before 721d44f carries it.
+- **Fix:** 721d44f serves `{}` at `alpha = inf`. The decoder reads `caps.get(n, inf)`, so only the rank
+  changes. Parity after the fix: 58–60/60, with the leftovers same-node sibling-platform ties at equal
+  RTT.
+- **Measured cost:** `gnnedge0` fixed vs as served is +1.4 % (0/12). The defect did not inflate any
+  learned headline by more than that, and it did not favour the rule arms.
+- **The general rule:** run the parity check whenever a decode rung, a contract or a serving flag
+  changes. A seat change is a new serving path, even when the checkpoint is not new.

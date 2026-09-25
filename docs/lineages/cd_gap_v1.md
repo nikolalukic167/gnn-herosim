@@ -23,6 +23,12 @@ All numbers are live on the fresh 10–11 topologies unless marked.
 - MP's direction over its MP-OFF twin holds at both rates (−4.2 %, −3.9 %).
 - **Caveat:** B as first run was a design defect (`keep_alive` and the reconcile interval were left
   unscaled) and is not a result; B′ replaced it.
+- **Qualified by [`load_repr_v1`](load_repr_v1.md):**
+  - Adding CD's load terms in seconds to the representation takes the gap from +12.4 % to
+    **+6.7 %**, and beats self-predict −8.5 %.
+  - Every learned-arm number here was served with an uncapped-rung rank defect, fixed at 721d44f.
+    Fixing it makes `gnnedge0` +1.4 % slower, so this node's `gnnedge0` vs CD +11.4 % reads
+    +12.4 % on fixed serving.
 
 **Parents:** [`fresh_topo_burst_v1`](fresh_topo_burst_v1.md) (on 11 fresh topologies `gnnedge0` is
 +11.4 % behind CD, 0/11), [`joint_burst_v2`](joint_burst_v2.md) (the checkpoints and the corpus; label =
