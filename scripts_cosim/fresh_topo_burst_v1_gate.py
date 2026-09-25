@@ -42,7 +42,7 @@ RULE_POLICY = {
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
 }
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
@@ -61,6 +61,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
+    if phase == "d6":
+        return [task(t, w, "gnnedge0_selfref", s) for s in SEEDS for t in topos for w in WINDOWS]
     if phase == "d5":
         return [task(t, w, k, s) for k in ("gnnedge0_cdapply", "mpoff_cdapply") for s in SEEDS
                 for t in topos for w in WINDOWS] + \
@@ -112,7 +114,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
               "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
-              "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE"):
+              "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
+              "GNN_PREFIX_SELF_REFINE"):
         env.pop(k, None)
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
@@ -137,6 +140,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_CD_REFINE"] = "shadow"
         if kind.endswith("_cdapply"):
             env["GNN_CD_REFINE"] = "apply"
+        if kind.endswith("_selfref"):
+            env["GNN_PREFIX_SELF_REFINE"] = "3"
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
@@ -182,6 +187,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"num_tasks={n!r}")
     if kind == "selfpredict" and (int(c.get("pg_decisions") or 0) != N_TASKS or int(c.get("pg_lookahead_priced") or 0) == 0):
         problems.append(f"rule instrument off: {c.get('pg_decisions')}/{c.get('pg_lookahead_priced')}")
+    if kind.endswith("_selfref") and int(c.get("prefix_self_refine_batches") or 0) == 0:
+        problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
+    if not kind.endswith("_selfref") and int(c.get("prefix_self_refine_batches") or 0):
+        problems.append("unrefined arm self-refined")
     if kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
     if not kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0):
@@ -214,7 +223,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -223,7 +232,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     a = ap.parse_args()
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
