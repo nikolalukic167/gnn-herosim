@@ -6,6 +6,7 @@
 # the v4load and bc1 checkpoints with their sidecars (md5-checked against their sources below).
 #   sbatch backlog_corpus_v1_gate.sbatch                                   (phase bc1)
 #   sbatch --export=ALL,PHASE=bc1selfref backlog_corpus_v1_gate.sbatch    (Amendment 3)
+#   sbatch --export=ALL,PHASE=fc1 backlog_corpus_v1_gate.sbatch           (fullctx_refine_v1)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -43,8 +44,11 @@ cp -n "$FRESH/selected.json" "$FRESH/joint_burst_v2_split.json" "$IN/"
 cp -n "$WT/experiments/backlog_corpus_v1_split.json" "$IN/"
 cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.json" || { echo "FAIL LOUD: stale split copy"; exit 1; }
 for s in 1 2 3 4; do
+  EXTRA=()
+  if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
-           "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s"; do
+           "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
+           "${EXTRA[@]}"; do
     for ext in .pt .contract.json; do
       [ -f "$f$ext" ] || { echo "FAIL LOUD: missing $f$ext"; exit 1; }
       cp -n "$f$ext" "$IN/models/"
