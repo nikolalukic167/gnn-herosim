@@ -161,6 +161,13 @@ def _read_batch_by_peer_group() -> bool:
     return on
 
 
+def _corpus_slate_on() -> bool:
+    raw = os.environ.get("GNN_SERVE_CORPUS_SLATE", "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: GNN_SERVE_CORPUS_SLATE must be 0 or 1, got {raw!r}")
+    return raw == "1"
+
+
 def _sibling_spread_on() -> bool:
     raw = os.environ.get("GNN_PREFIX_SIBLING_SPREAD", "0").strip() or "0"
     if raw not in ("0", "1"):
@@ -202,6 +209,10 @@ class GNNScheduler(Scheduler):
         self.prefix_pairs_in_batch = 0
         self.prefix_peers_outside_batch = 0
         self.prefix_sibling_moves = 0
+        self.slate_batches = 0
+        self.slate_rejected = 0
+        self.slate_candidates_full = 0
+        self.slate_candidates_kept = 0
         self.peer_group_incomplete_batches = 0
         # serving knobs (default off): how often a batch actually had standing load to
         # charge, so a gate arm cannot claim the seed was active when it never fired
@@ -825,6 +836,43 @@ class GNNScheduler(Scheduler):
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
 
+    def _corpus_slate_view(self, tasks: List[Task], system_state: SystemState) -> SystemState:
+        """cd_gap_v1 D4 (GNN_SERVE_CORPUS_SLATE=1): decode this batch over the candidate slate the
+        training corpus would have offered for it -- `make_warm_corpus.choose_candidates`, the same
+        function, arguments (target 20,000 plans, jb2's min_choice_fraction 0.2) and seeding form,
+        applied to this batch's live candidates -- instead of every reachable replica. Returns a
+        view of the state whose replica table is the per-type subset; the state itself is not
+        touched, so enqueueing and the physics see every replica. A batch the rule cannot slate is
+        decoded unrestricted and counted."""
+        import copy
+        import random as _random
+
+        from scripts_cosim.make_warm_corpus import SnapshotRejected, choose_candidates
+
+        snapshot_tasks = []
+        for task in tasks:
+            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+            snapshot_tasks.append({"task_type": task.type["name"],
+                                   "candidates": [{"queue_key": f"{n.id}:{p.id}"} for n, p in valid]})
+        rng = _random.Random(9001 * 1_000_003 + self.slate_batches + self.slate_rejected)
+        try:
+            subset, _record = choose_candidates({"tasks": snapshot_tasks}, rng, target_combos=20000,
+                                                max_combos=20000, min_choice_fraction=0.2)
+        except SnapshotRejected:
+            self.slate_rejected += 1
+            return system_state
+        self.slate_batches += 1
+        view = copy.copy(system_state)
+        view.replicas = dict(system_state.replicas)
+        for ttype, keys in subset.items():
+            view.replicas[ttype] = {(n, p) for n, p in system_state.replicas.get(ttype, set())
+                                    if f"{n.id}:{p.id}" in keys}
+        full = sum(len(t["candidates"]) for t in snapshot_tasks)
+        kept = sum(len(self._get_valid_replicas(view.replicas.get(t.type["name"], set()), t)) for t in tasks)
+        self.slate_candidates_full += full
+        self.slate_candidates_kept += kept
+        return view
+
     def _spread_over_siblings(
         self,
         tasks: List[Task],
@@ -893,8 +941,9 @@ class GNNScheduler(Scheduler):
         inference_time = 0.0
         if decodable:
             inference_start = default_timer()
+            decode_state = self._corpus_slate_view(decodable, system_state) if _corpus_slate_on() else system_state
             placements = self._prefix_inference(
-                decodable, system_state, queue_snapshot, temporal_state
+                decodable, decode_state, queue_snapshot, temporal_state
             )
             if _sibling_spread_on():
                 placements = self._spread_over_siblings(decodable, placements, system_state)
