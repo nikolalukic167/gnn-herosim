@@ -74,6 +74,9 @@ n = nz = 0
 for g in graphs:
     psc = g.partial_state_ctx
     assert psc.get("backlog_s") and psc.get("service_s"), "FAIL LOUD: a graph lacks the v4 load block"
+    # every candidate on one node: no exchange, peer_norm 0, and the v3/v4 prefix block refuses it at
+    # train time (Amendment 2 quarantines the four such groups of pass 1)
+    assert float(psc["peer_norm"]) > 0.0, "FAIL LOUD: a graph has peer_norm 0 (single-node candidate set)"
     n += len(psc["backlog_s"]); nz += sum(1 for v in psc["backlog_s"].values() if v > 0)
 print("[cache] v4 ok, label =", got, "| graphs =", len(graphs), f"| candidate replicas {n}, backlog > 0 on {nz} ({nz / max(1, n):.1%})")
 assert nz / max(1, n) > 0.2, "FAIL LOUD: the synthetic backlog did not reach the v4 columns"

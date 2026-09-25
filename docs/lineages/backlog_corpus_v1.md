@@ -80,6 +80,25 @@ live queue has not been measured.
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment 2 (signed before any trained weights exist).** The first training array
+  (807583, f5edef6) failed on all 8 tasks at the first training batch: `partial_state_v4 requires a
+  peer_exchange corpus`.
+  - **Cause:** 4 training groups have every candidate on one node, so the exchange table is zero and
+    the cache writes `peer_norm` 0. They are two snapshots, `pgb_cc40s9203_w0` #18 and
+    `pgb_cc40s9204_w0` #8, one per backlog pass (`ds_00807`, `ds_01201`, `ds_20807`, `ds_21201`).
+    Each is a 16-plan sweep on one server. These are most likely the 4 groups the audit found with
+    no jb2 twin. No val or test group is affected.
+  - **Fix:**
+    - The 4 dataset dirs move to `simulation_data/backlog_corpus_v1/quarantine_single_node/`.
+    - The cache, split and audit are rebuilt without them.
+    - The cache job now asserts `peer_norm > 0` on every graph.
+    - The old split (sha 2fccc095…) is retired and the new one is committed before training.
+  - **Default-path witness** (`backlog_corpus_v1_witness.sbatch`, runs alongside the rebuild): CD s0
+    and `v4load` s1 on 9119 w1 must reproduce their earlier summaries to the digit at this branch's
+    code, and a `v4load_se` s1 smoke must record `service_end_v1`. Without it, the reuse of CD,
+    self-predict and `v4load` gate runs is not licensed.
+  - Bars and labels are unchanged.
+
 - 2026-09-25 — **Amendment 1 (signed before any model of this lineage is trained).** `load_repr_v1`
   closed `LOAD-HELPS / NARROWS` (`v4load` −5.3 % vs its twin, +6.7 % vs CD, gain and remaining gap
   both queue). Two facts from it change the live design:
