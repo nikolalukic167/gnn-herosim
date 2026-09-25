@@ -52,6 +52,9 @@ GUARD_SUFFIXES = {
 # live metric -> summary key holding the floor it should be read against.
 CHANCE_FLOOR = {
     "val/task_acc": ("baseline/val_chance_task_acc", "above"),
+    "val/task_acc_choice": ("baseline/val_chance_task_acc_choice", "above"),
+    "val/mt_task_acc_choice": ("baseline/val_chance_task_acc_choice", "above"),
+    "val/mt_plan_exact": ("baseline/val_chance_graph_acc", "above"),
     "val/acc": ("baseline/val_chance_graph_acc", "above"),
     "val/ce": ("baseline/val_chance_ce", "below"),
     "train/ce": ("baseline/val_chance_ce", "below"),
