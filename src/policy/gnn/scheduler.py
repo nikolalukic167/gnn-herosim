@@ -221,6 +221,8 @@ class GNNScheduler(Scheduler):
         self.slate_candidates_full = 0
         self.slate_candidates_kept = 0
         self._cd_refiner = None
+        self.prefix_self_refine_batches = 0
+        self.prefix_self_refine_moves = 0
         self.cdr_batches = 0
         self.cdr_batches_changed = 0
         self.cdr_tasks = 0
@@ -807,6 +809,9 @@ class GNNScheduler(Scheduler):
                 self.gnn_model, graph, self._prefix_options, stats=self.decode_stats
             )
         self.last_prefix_graph = graph  # parity checks read the served graph
+        if hasattr(graph, "_self_refine_moves"):
+            self.prefix_self_refine_batches += 1
+            self.prefix_self_refine_moves += int(graph._self_refine_moves)
         trace_path = os.environ.get("GNN_PREFIX_TRACE_PATH", "").strip()
         # serving_gap_v1: GNN_PREFIX_TRACE_EVERY=N traces only every Nth served batch, so a
         # production run can hand back ~500 graph-carrying records instead of 45,375 (a full

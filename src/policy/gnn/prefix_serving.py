@@ -582,6 +582,41 @@ def _with_concurrency_penalty(score_fn: Any, graph: Any, penalty: float) -> Any:
     return wrapped
 
 
+def _self_refine_passes() -> int:
+    raw = os.environ.get("GNN_PREFIX_SELF_REFINE", "0").strip() or "0"
+    try:
+        passes = int(raw)
+    except ValueError as exc:
+        raise PrefixServingError(f"GNN_PREFIX_SELF_REFINE={raw!r} is not an integer") from exc
+    if passes < 0:
+        raise PrefixServingError(f"GNN_PREFIX_SELF_REFINE must be >= 0, got {passes}")
+    return passes
+
+
+def _self_refine(score_fn: Any, tl: Mapping[int, Sequence[Tuple[int, int]]],
+                 combo: Sequence[Tuple[int, int]], passes: int) -> Tuple[Tuple[Tuple[int, int], ...], int]:
+    """cd_gap_v1 D6: coordinate descent on the MODEL'S OWN score. Each pass re-scores every task
+    (id order) with every other batch-mate committed where the plan currently puts it, and moves it
+    to the model's argmax (ties: lowest placement, the decoder's rule). Stops at a pass that moves
+    nothing. The CD greedy's structure with the learned score in place of the hand one -- what
+    separates "no revision" from "the wrong score" as the reason the one-pass decode loses to CD."""
+    plan = {t: (int(c[0]), int(c[1])) for t, c in enumerate(combo)}
+    total = 0
+    for _ in range(passes):
+        moved = 0
+        for t in sorted(plan):
+            committed = {j: p for j, p in plan.items() if j != t}
+            logits = score_fn(t, committed)
+            best = min(((-float(logits[i]), (int(c[0]), int(c[1]))) for i, c in enumerate(tl[t])))[1]
+            if best != plan[t]:
+                plan[t] = best
+                moved += 1
+        total += moved
+        if moved == 0:
+            break
+    return tuple(plan[t] for t in sorted(plan)), total
+
+
 def decode_prefix_conditioned(
     model: TaskPlacementGNN,
     graph: Any,
@@ -649,4 +684,14 @@ def decode_prefix_conditioned(
             "masked_topo decode found no cap-feasible plan and relaxation is "
             f"{'on' if options.relax_on_stuck else 'off'} — refusing to fall back"
         )
+    passes = _self_refine_passes()
+    if passes:
+        if options.platform_cap > 0 or options.queue_guard_k > 0.0 or not options.allow_replica_reuse \
+                or any(v != math.inf for v in (ctx.node_caps or {}).values()):
+            raise PrefixServingError(
+                "GNN_PREFIX_SELF_REFINE needs an unmasked decode (uncapped, replica reuse on, no "
+                "platform cap or queue guard): the revision takes the plain argmax"
+            )
+        combo, moves = _self_refine(score_fn, tl, combo, passes)
+        graph._self_refine_moves = int(moves)
     return tuple((int(a), int(b)) for a, b in combo)
