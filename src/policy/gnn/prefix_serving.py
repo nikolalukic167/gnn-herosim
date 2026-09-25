@@ -430,7 +430,14 @@ def attach_live_prefix_block(
         if nid not in peak or d > peak[nid]:
             peak[nid] = d
     alpha = float(options.alpha_key)
-    caps: Dict[int, float] = {nid: alpha * m for nid, m in peak.items() if m > 0}
+    # The uncapped rung is `{}` in the cache (prepare_graphs_cache: alpha None -> {}), so every node
+    # ranks at cap 0.0 there. `inf x m for m > 0` left zero-demand nodes (pynqFpga dnn1: 0.0) out and
+    # ranked them first live, a different krank than training on 56/60 held-out jb2 batches
+    # (load_repr_v1, peer_affinity_live_serve_check). The decoder reads caps with .get(n, inf), so
+    # `{}` and all-inf decode identically; only the rank changes.
+    caps: Dict[int, float] = (
+        {} if math.isinf(alpha) else {nid: alpha * m for nid, m in peak.items() if m > 0}
+    )
     cand_node_ids = sorted(peak)
 
     routes, links = _fabric_topology(nodes)
