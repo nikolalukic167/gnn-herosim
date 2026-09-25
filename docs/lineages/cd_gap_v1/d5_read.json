@@ -1,0 +1,565 @@
+{
+ "D5b-1": {
+  "arm": "gnnedge0_cdapply",
+  "ref": "cd",
+  "seeds": {
+   "gnnedge0_cdapply": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    12,
+    14,
+    15,
+    16
+   ],
+   "cd": [
+    0
+   ]
+  },
+  "topologies": [
+   9119,
+   9414,
+   9420,
+   9434,
+   9435,
+   9444,
+   9446,
+   9456,
+   9461,
+   9469
+  ],
+  "dropped": {
+   "9423": [
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     2
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     3
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     4
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     5
+    ]
+   ],
+   "9466": [
+    [
+     "w1",
+     "gnnedge0_cdapply",
+     1
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     1
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     2
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     8
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     10
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     12
+    ]
+   ]
+  },
+  "code_by_arm": {
+   "gnnedge0_cdapply": [
+    "00dae37"
+   ],
+   "cd": [
+    "1ae90af"
+   ]
+  },
+  "read": {
+   "median_pct": -3.8256014832183,
+   "p": 0.001953125,
+   "n": 10,
+   "a_faster": 10,
+   "verdict": "GNNEDGE0_CDAPPLY-FASTER (direction only, |median| < 5 %)",
+   "per_topology": {
+    "9119": -4.95989280168533,
+    "9414": -3.1566686909512818,
+    "9420": -1.191804548510766,
+    "9434": -3.6772779535216924,
+    "9435": -4.220655162464547,
+    "9444": -4.160760168097249,
+    "9446": -2.8959910540864606,
+    "9456": -3.6328619203910177,
+    "9461": -4.163743978234594,
+    "9469": -3.973925012914907
+   }
+  },
+  "decomposition": {
+   "gnnedge0_cdapply": {
+    "elapsed": 7.029078565375011,
+    "queue": 2.737253109396514,
+    "exchange_per_task": 4.003543832224512
+   },
+   "cd": {
+    "elapsed": 7.463275306723746,
+    "queue": 2.9860158114959288,
+    "exchange_per_task": 4.106712355211068
+   }
+  }
+ },
+ "D5b-2": {
+  "arm": "gnnedge0_cdapply",
+  "ref": "gnnedge0",
+  "seeds": {
+   "gnnedge0_cdapply": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    12,
+    14,
+    15,
+    16
+   ],
+   "gnnedge0": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    12,
+    14,
+    15,
+    16
+   ]
+  },
+  "topologies": [
+   9119,
+   9414,
+   9420,
+   9434,
+   9435,
+   9444,
+   9446,
+   9456,
+   9461,
+   9469
+  ],
+  "dropped": {
+   "9423": [
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     2
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     3
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     4
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     5
+    ]
+   ],
+   "9466": [
+    [
+     "w1",
+     "gnnedge0_cdapply",
+     1
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     1
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     2
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     8
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     10
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     12
+    ]
+   ]
+  },
+  "code_by_arm": {
+   "gnnedge0_cdapply": [
+    "00dae37"
+   ],
+   "gnnedge0": [
+    "1ae90af"
+   ]
+  },
+  "read": {
+   "median_pct": -14.784952315868845,
+   "p": 0.001953125,
+   "n": 10,
+   "a_faster": 10,
+   "verdict": "GNNEDGE0_CDAPPLY-FASTER",
+   "per_topology": {
+    "9119": -13.517461794491243,
+    "9414": -11.889760180205325,
+    "9420": -15.768668900148828,
+    "9434": -19.779440016684717,
+    "9435": -9.573679208177854,
+    "9444": -12.762178048817551,
+    "9446": -19.185775187035098,
+    "9456": -21.99580773101423,
+    "9461": -42.17904159786811,
+    "9469": -13.80123573158886
+   }
+  },
+  "decomposition": {
+   "gnnedge0_cdapply": {
+    "elapsed": 7.029078565375011,
+    "queue": 2.737253109396514,
+    "exchange_per_task": 4.003543832224512
+   },
+   "gnnedge0": {
+    "elapsed": 8.497774074056867,
+    "queue": 4.197483500214927,
+    "exchange_per_task": 4.111904319518376
+   }
+  }
+ },
+ "D5b-3": {
+  "arm": "gnnedge0_cdapply",
+  "ref": "mpoff_cdapply",
+  "seeds": {
+   "gnnedge0_cdapply": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    12,
+    14,
+    15,
+    16
+   ],
+   "mpoff_cdapply": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    12,
+    14,
+    15,
+    16
+   ]
+  },
+  "topologies": [
+   9119,
+   9414,
+   9420,
+   9434,
+   9435,
+   9444,
+   9446,
+   9456,
+   9461,
+   9469
+  ],
+  "dropped": {
+   "9423": [
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     2
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     3
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     4
+    ],
+    [
+     "w3",
+     "gnnedge0_cdapply",
+     5
+    ],
+    [
+     "w3",
+     "mpoff_cdapply",
+     3
+    ],
+    [
+     "w3",
+     "mpoff_cdapply",
+     4
+    ]
+   ],
+   "9466": [
+    [
+     "w1",
+     "gnnedge0_cdapply",
+     1
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     1
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     2
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     8
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     10
+    ],
+    [
+     "w2",
+     "gnnedge0_cdapply",
+     12
+    ]
+   ]
+  },
+  "code_by_arm": {
+   "gnnedge0_cdapply": [
+    "00dae37"
+   ],
+   "mpoff_cdapply": [
+    "00dae37"
+   ]
+  },
+  "read": {
+   "median_pct": -0.8805294656627562,
+   "p": 0.037109375,
+   "n": 10,
+   "a_faster": 8,
+   "verdict": "GNNEDGE0_CDAPPLY-FASTER (direction only, |median| < 5 %)",
+   "per_topology": {
+    "9119": -1.8725518453789523,
+    "9414": -0.4310208929137671,
+    "9420": 0.45713133684372026,
+    "9434": 0.5224236998903663,
+    "9435": -1.074902909307862,
+    "9444": -0.6861560220176505,
+    "9446": -1.2114383431981006,
+    "9456": -1.1002781867617222,
+    "9461": -1.5047419012879475,
+    "9469": -0.17370415078084042
+   }
+  },
+  "decomposition": {
+   "gnnedge0_cdapply": {
+    "elapsed": 7.029078565375011,
+    "queue": 2.737253109396514,
+    "exchange_per_task": 4.003543832224512
+   },
+   "mpoff_cdapply": {
+    "elapsed": 7.085485737138258,
+    "queue": 2.7709589106285524,
+    "exchange_per_task": 4.0490543646277
+   }
+  }
+ },
+ "disclosed_mpoff_cdapply_vs_cd": {
+  "arm": "mpoff_cdapply",
+  "ref": "cd",
+  "seeds": {
+   "mpoff_cdapply": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    12,
+    14,
+    15,
+    16
+   ],
+   "cd": [
+    0
+   ]
+  },
+  "topologies": [
+   9119,
+   9414,
+   9420,
+   9434,
+   9435,
+   9444,
+   9446,
+   9456,
+   9461,
+   9469
+  ],
+  "dropped": {
+   "9423": [
+    [
+     "w3",
+     "mpoff_cdapply",
+     3
+    ],
+    [
+     "w3",
+     "mpoff_cdapply",
+     4
+    ],
+    [
+     "w3",
+     "mpoff_cdapply",
+     5
+    ],
+    [
+     "w3",
+     "mpoff_cdapply",
+     12
+    ],
+    [
+     "w3",
+     "mpoff_cdapply",
+     16
+    ]
+   ],
+   "9466": [
+    [
+     "w2",
+     "mpoff_cdapply",
+     1
+    ],
+    [
+     "w2",
+     "mpoff_cdapply",
+     3
+    ],
+    [
+     "w2",
+     "mpoff_cdapply",
+     4
+    ],
+    [
+     "w2",
+     "mpoff_cdapply",
+     5
+    ],
+    [
+     "w2",
+     "mpoff_cdapply",
+     7
+    ],
+    [
+     "w2",
+     "mpoff_cdapply",
+     8
+    ]
+   ]
+  },
+  "code_by_arm": {
+   "mpoff_cdapply": [
+    "00dae37"
+   ],
+   "cd": [
+    "1ae90af"
+   ]
+  },
+  "read": {
+   "median_pct": -2.5620102895024646,
+   "p": 0.001953125,
+   "n": 10,
+   "a_faster": 10,
+   "verdict": "MPOFF_CDAPPLY-FASTER (direction only, |median| < 5 %)",
+   "per_topology": {
+    "9119": -3.32407755614637,
+    "9414": -2.665248866234488,
+    "9420": -1.9300053134119706,
+    "9434": -3.342693123836588,
+    "9435": -2.4587717127704405,
+    "9444": -3.9320262183309174,
+    "9446": -1.9342954221627284,
+    "9456": -2.2697678576568405,
+    "9461": -0.17331098933580152,
+    "9469": -3.6535588483387462
+   }
+  },
+  "decomposition": {
+   "mpoff_cdapply": {
+    "elapsed": 7.085485737138258,
+    "queue": 2.7709589106285524,
+    "exchange_per_task": 4.0490543646277
+   },
+   "cd": {
+    "elapsed": 7.463275306723746,
+    "queue": 2.9860158114959288,
+    "exchange_per_task": 4.106712355211068
+   }
+  }
+ }
+}
