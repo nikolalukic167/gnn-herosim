@@ -76,6 +76,32 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment D4 (candidate set), signed before any slate run.** Code trace
+  (`make_warm_corpus.choose_candidates`): each training/eval group offers a **seeded random
+  per-type subset** of the live replicas (≤ 20,000 plans, about 2.1 candidates per task), chosen
+  without regard to quality. The offline eval decodes only over it, and so does D0's CD replay. Live,
+  both the GNN and CD choose among every reachable replica (6–10 per task by the corpus docstring).
+  D0's offline tie was therefore measured under the slate; the live gap is measured without it.
+  Knob `GNN_SERVE_CORPUS_SLATE=1` (cc905d7): each batch is decided over the slate the corpus rule
+  would draw for it — the same function and arguments, seeded per batch — via a view of the replica
+  table; enqueueing and the physics see every replica. A batch the rule rejects is decided
+  unrestricted and counted. Knob-off identity at cc905d7: `gnnedge0` s1 and CD on 9119 w1 match
+  the fresh gate to the digit.
+  Arms on the fresh study (11 topologies + 9466, dropped by the fresh rule): `cd_slate`,
+  `gnnedge0_slate` × 13.
+
+  | read | contrast | fires as |
+  |---|---|---|
+  | **D4-1 (primary)** | `gnnedge0_slate` vs `cd_slate` | `CANDIDATE-SET-IS-THE-GAP` (not separated, or `gnnedge0` faster) / `PARTIAL` (CD faster, direction only) / `GAP-PERSISTS-UNDER-SLATE` (CD faster ≥ 5 %, p < 0.05) |
+  | D4-2 | `gnnedge0_slate` vs `gnnedge0` (same seed) | reported |
+  | D4-3 | `cd_slate` vs CD | reported |
+
+  **Expectations:** D4-1 `GAP-PERSISTS` 50 %, `PARTIAL` 30 %, `CANDIDATE-SET-IS-THE-GAP` 20 %.
+  **Consequence:** `CANDIDATE-SET-IS-THE-GAP` means the fix is the corpus, i.e. training on the
+  full live candidate set. `GAP-PERSISTS` puts the cause in live states and dynamics (the
+  standing-load replay is a synthetic busy period, not real queued tasks), which A and an on-policy
+  corpus test.
+
 - 2026-09-25 — **D1 read: `OUT-OF-BATCH-MATTERS (direction only)`.** Blind-CD vs CD +3.41 %
   (median over 11 topologies, 0/11 faster, p = 0.001; per topology +2.0 to +6.7 %). Queue 2.91 →
   3.09 s; exchange unchanged (4.18 → 4.21 s). 9466 dropped (its CD w3 cell timed out in the fresh gate).
