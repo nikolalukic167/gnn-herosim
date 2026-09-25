@@ -203,6 +203,7 @@ class Orchestrator:
         names = (
             "prefix_batches", "prefix_tasks_decoded", "prefix_tasks_deferred",
             "prefix_pairs_in_batch", "prefix_peers_outside_batch", "prefix_sibling_moves",
+            "slate_batches", "slate_rejected", "slate_candidates_full", "slate_candidates_kept",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",

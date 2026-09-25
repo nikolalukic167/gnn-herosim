@@ -11,6 +11,7 @@ after the model has learned to avoid obviously bad placements.
 """
 
 import gc
+import hashlib
 import itertools
 import json
 import os
@@ -193,6 +194,10 @@ class NearRttConfig:
     # it is recorded in the sidecar and applied deterministically (first N in cache
     # order — never a random sample).
     tied_max_plans: int = int(os.environ.get("NEAR_RTT_TIED_MAX_PLANS", "0"))
+    # cd_gap_v1 A: replace the TRAIN graphs' label set (teacher-forced path) with the plans in
+    # this file (scripts_cosim/cd_gap_v1_cd_labels.py). Val/test keep the sweep label, and every
+    # regret number and the checkpoint selector stay on the true sweep. Empty = the sweep label.
+    label_override_json: str = os.environ.get("NEAR_RTT_LABEL_OVERRIDE_JSON", "").strip()
     # B6: path to the shared split artifact (scripts_cosim/make_split_artifact.py).
     # When set, the trainer loads the pinned parent-level split instead of drawing
     # one, so a "draw" varies initialisation and batch order ONLY (§3). Every arm of
@@ -1504,6 +1509,46 @@ else:
         f"Split (canonical-parent 70/15/15): "
         f"train={len(train_graphs)} val={len(val_graphs)} test={len(test_graphs)}"
     )
+
+LABEL_SOURCE: Optional[Dict[str, Any]] = None
+if NEAR_CFG.label_override_json:
+    if not TEACHER_FORCED:
+        raise RuntimeError("FAIL LOUD: NEAR_RTT_LABEL_OVERRIDE_JSON needs the teacher-forced path")
+    if not NEAR_CFG.split_artifact:
+        raise RuntimeError("FAIL LOUD: NEAR_RTT_LABEL_OVERRIDE_JSON needs a pinned split artifact")
+    _ov_path = Path(NEAR_CFG.label_override_json)
+    if not _ov_path.is_absolute() and not _ov_path.is_file():
+        _ov_path = _REPO_ROOT / NEAR_CFG.label_override_json
+    _ov_bytes = _ov_path.read_bytes()
+    _override = json.loads(_ov_bytes)
+    _alpha = NEAR_CFG.dag_alpha_key
+    _n_over, _n_ties = 0, 0
+    for _g, _gid in zip(train_graphs, train_ids):
+        _entry = _override.get(str(_gid))
+        if _entry is None:
+            raise RuntimeError(f"FAIL LOUD: label override has no entry for train graph {_gid}")
+        _tl = _g.task_logit_to_placement
+        _idx_plans = []
+        for _plan in _entry["plans"]:
+            if len(_plan) != len(_tl):
+                raise RuntimeError(f"FAIL LOUD: {_gid}: override plan has {len(_plan)} tasks, graph {len(_tl)}")
+            _row = []
+            for _t, (_nid, _pid) in enumerate(_plan):
+                _cands = [tuple(int(v) for v in c) for c in _tl[_t]]
+                if (int(_nid), int(_pid)) not in _cands:
+                    raise RuntimeError(f"FAIL LOUD: {_gid}: task {_t} override ({_nid}, {_pid}) is not a candidate")
+                _row.append(_cands.index((int(_nid), int(_pid))))
+            _idx_plans.append(_row)
+        _g.tied_optimal_logit_plans = {**dict(_g.tied_optimal_logit_plans), _alpha: _idx_plans}
+        if hasattr(_g, "tied_optimal_rtts") and isinstance(_g.tied_optimal_rtts, dict):
+            _g.tied_optimal_rtts = {**dict(_g.tied_optimal_rtts), _alpha: [float(_entry["cd_rtt"])] * len(_idx_plans)}
+        _n_over += 1
+        _n_ties += len(_idx_plans) > 1
+    LABEL_SOURCE = {"kind": "override", "path": str(_ov_path),
+                    "sha256": hashlib.sha256(_ov_bytes).hexdigest(),
+                    "n_train_overridden": _n_over, "n_train_tied": _n_ties}
+    print(f"[NEAR_RTT_LABEL_OVERRIDE_JSON] train label replaced on {_n_over} graphs "
+          f"({_n_ties} any-of-k); val/test keep the sweep label")
 
 train_dataset = GraphRttDataset(train_graphs, train_ids, DATA_OPTIMAL_RTT)
 val_dataset = GraphRttDataset(val_graphs, val_ids, DATA_OPTIMAL_RTT)
