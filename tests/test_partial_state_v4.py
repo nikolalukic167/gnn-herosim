@@ -71,6 +71,16 @@ def test_v4_keeps_v3_columns_and_prices_committed_service_per_replica(monkeypatc
         assert v4[i, 24] == pytest.approx(math.log1p(BACKLOG[r] + c_s), rel=1e-6)
 
 
+def test_committed_service_charges_the_peer_transfer_across_nodes(monkeypatch):
+    monkeypatch.delenv("PARTIAL_STATE_LOAD_SECONDS", raising=False)
+    # partners 0 and 1 on different nodes: each pays 1.0 B x 1.0 s/B + 0.1 s latency
+    committed = {0: ("n0", 0), 1: ("n1", 1)}
+    v4 = partial_state_columns(_ctx(PARTIAL_STATE_CONTRACT_V4), 2, REPLICAS, committed)
+    want = {("n0", 0): 1.0 + 1.1, ("n1", 1): 2.5 + 1.1}
+    for i, r in enumerate(REPLICAS):
+        assert v4[i, 23] == pytest.approx(math.log1p(want.get(r, 0.0)), rel=1e-6)
+
+
 def test_the_twin_zeroes_exactly_the_load_columns(monkeypatch):
     committed = {0: ("n1", 1)}
     monkeypatch.setenv("PARTIAL_STATE_LOAD_SECONDS", "1")
