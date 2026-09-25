@@ -126,7 +126,7 @@ def recovered_share(s: Dict, topos: List[int], base: str, partial: str, full: st
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("probe", choices=("d1", "d5", "d6"))
+    ap.add_argument("probe", choices=("d1", "d5", "d6", "a"))
     ap.add_argument("--gate", required=True)
     ap.add_argument("--probe-dir", required=True, nargs="+")
     ap.add_argument("--selection", required=True)
@@ -148,6 +148,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                "D5b-2": contrast(s, topos, "gnnedge0_cdapply", "gnnedge0"),
                "D5b-3": contrast(s, topos, "gnnedge0_cdapply", "mpoff_cdapply"),
                "disclosed_mpoff_cdapply_vs_cd": contrast(s, topos, "mpoff_cdapply", "cd")}
+    elif a.probe == "a":
+        s = _load([a.gate] + a.probe_dir)
+        topos = sel["topologies"]
+        res = {"A2": contrast(s, topos, "cdimit", "cd"),
+               "A3": contrast(s, topos, "cdimit", "gnnedge0")}
     else:
         s = _load([a.gate] + a.probe_dir)
         topos = sel["topologies"]
