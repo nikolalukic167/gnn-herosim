@@ -46,6 +46,8 @@ SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
+# SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
+NO_SCOPE = False
 
 
 def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
@@ -153,9 +155,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1", GNN_SERVE_CORPUS_SLATE="1")
     raw = os.path.join(out_dir, name + ".raw.json")
     log = os.path.join(out_dir, name + ".log")
-    cmd = ["systemd-run", "--scope", "-q", "-p", f"MemoryMax={mem}", "-p", "MemorySwapMax=0",
-           "timeout", str(timeout_s)] + PY + [os.path.join(REPO, "src/executesimulation.py"), "--config", cfg,
-                                              "--workload", wl, "--policy", policy, "--output", raw]
+    scope = [] if NO_SCOPE else ["systemd-run", "--scope", "-q", "-p", f"MemoryMax={mem}", "-p", "MemorySwapMax=0"]
+    cmd = scope + ["timeout", str(timeout_s)] + PY + [os.path.join(REPO, "src/executesimulation.py"), "--config", cfg,
+                                                      "--workload", wl, "--policy", policy, "--output", raw]
     start = time.time()
     with open(log, "w") as fh:
         rc = subprocess.run(cmd, env=env, cwd=REPO, stdout=fh, stderr=subprocess.STDOUT).returncode
@@ -230,7 +232,10 @@ def main() -> int:
     ap.add_argument("--parallel", type=int, default=12)
     ap.add_argument("--mem", default="4G")
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--no-scope", action="store_true", help="no per-run systemd scope (SLURM nodes)")
     a = ap.parse_args()
+    global NO_SCOPE
+    NO_SCOPE = a.no_scope
     selection = None
     if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6"):
         selection = json.load(open(a.selection))
