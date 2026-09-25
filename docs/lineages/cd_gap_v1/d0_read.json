@@ -1,0 +1,87 @@
+{
+ "n_groups": 480,
+ "regret_pct": {
+  "cd": {
+   "median": 8.211130908111725,
+   "mean": 54.45850274498536
+  },
+  "1pass": {
+   "median": 28.460472101910273,
+   "mean": 162.39096745223839
+  },
+  "gnnedge0": {
+   "median": 11.747627899138738,
+   "mean": 54.646906348602336
+  },
+  "mpoff": {
+   "median": 11.369542997390361,
+   "mean": 54.291921302547564
+  }
+ },
+ "per_cell_window": {
+  "cc40s9223_w0": {
+   "n": 145,
+   "cd_median": 7.706428934925122,
+   "gnnedge0_median": 11.505937765345228,
+   "mpoff_median": 10.670960713209576,
+   "1pass_median": 18.64670995415576,
+   "gnnedge0_minus_cd_paired_median": 0.6655865798161109,
+   "gnnedge0_minus_mpoff_paired_median": 0.0,
+   "gnnedge0_beats_cd_frac": 0.3724137931034483
+  },
+  "cc40s9223_w1": {
+   "n": 102,
+   "cd_median": 6.390144164527581,
+   "gnnedge0_median": 10.386072432078798,
+   "mpoff_median": 10.337582890816641,
+   "1pass_median": 20.006308395477856,
+   "gnnedge0_minus_cd_paired_median": 0.10698934849598997,
+   "gnnedge0_minus_mpoff_paired_median": 0.0,
+   "gnnedge0_beats_cd_frac": 0.37254901960784315
+  },
+  "cc40s9224_w0": {
+   "n": 140,
+   "cd_median": 11.532295096733078,
+   "gnnedge0_median": 14.473771978218139,
+   "mpoff_median": 14.177387820412381,
+   "1pass_median": 58.89967627214378,
+   "gnnedge0_minus_cd_paired_median": 0.0,
+   "gnnedge0_minus_mpoff_paired_median": 0.0,
+   "gnnedge0_beats_cd_frac": 0.4357142857142857
+  },
+  "cc40s9224_w1": {
+   "n": 93,
+   "cd_median": 6.472157688520215,
+   "gnnedge0_median": 15.41873174019544,
+   "mpoff_median": 11.787844238414678,
+   "1pass_median": 47.36111758789691,
+   "gnnedge0_minus_cd_paired_median": 0.0,
+   "gnnedge0_minus_mpoff_paired_median": 0.0,
+   "gnnedge0_beats_cd_frac": 0.3655913978494624
+  }
+ },
+ "gnnedge0_minus_cd_paired_median_pp": 0.0,
+ "D0": "FIT-GAP",
+ "D0b_gnnedge0_minus_mpoff_paired_median_pp": 0.0,
+ "stacking_decoded": {
+  "gnnedge0": {
+   "max_on_platform": 3.978525641025641,
+   "distinct_platforms": 4.409294871794872,
+   "pairs_same_node": 14.600801282051282,
+   "pairs_same_platform": 9.909775641025641
+  },
+  "mpoff": {
+   "max_on_platform": 4.024839743589744,
+   "distinct_platforms": 4.337019230769231,
+   "pairs_same_node": 14.933173076923078,
+   "pairs_same_platform": 10.16121794871795
+  }
+ },
+ "stacking_sweep_optimum": {
+  "max_on_platform": 4.202083333333333,
+  "distinct_platforms": 4.2875,
+  "pairs_same_node": 17.85625,
+  "pairs_same_platform": 11.002083333333333,
+  "n": 480
+ }
+}
