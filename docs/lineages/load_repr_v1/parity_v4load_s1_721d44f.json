@@ -1,0 +1,9 @@
+{
+ "checkpoint": "/home/nikola.lukic/gnn-herosim/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed1.pt",
+ "cache_dir": "/home/nikola.lukic/gnn-herosim/simulation_data/graphs_cache_joint_burst_v2_psv4_inf",
+ "split": "test",
+ "n_datasets": 60,
+ "n_clean": 60,
+ "n_with_mismatches": 0,
+ "mismatches": {}
+}

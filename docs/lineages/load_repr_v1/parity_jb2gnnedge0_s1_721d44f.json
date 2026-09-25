@@ -1,0 +1,16 @@
+{
+ "checkpoint": "/home/nikola.lukic/gnn-herosim/models/joint-burst-v2-gnnedge0-lr2e3-seed1.pt",
+ "cache_dir": "/home/nikola.lukic/gnn-herosim/simulation_data/graphs_cache_joint_burst_v2_psv3_inf",
+ "split": "test",
+ "n_datasets": 60,
+ "n_clean": 58,
+ "n_with_mismatches": 2,
+ "mismatches": {
+  "gnn_datasets_joint_burst_v2_heldout/ds_08805": [
+   "decoded_combo: live [(43, 216), (45, 228), (43, 216), (42, 213), (41, 203), (41, 203), (43, 214), (41, 203), (41, 203), (41, 204)] != report [(43, 216), (45, 228), (43, 216), (42, 213), (41, 203), (41, 203), (43, 214), (41, 203), (41, 204), (41, 203)]"
+  ],
+  "gnn_datasets_joint_burst_v2_heldout/ds_08810": [
+   "decoded_combo: live [(42, 213), (43, 215), (45, 228), (43, 215), (41, 203), (43, 214), (41, 203), (41, 203), (41, 203), (43, 217)] != report [(42, 213), (43, 215), (45, 228), (43, 215), (41, 203), (43, 214), (41, 203), (41, 203), (41, 203), (43, 214)]"
+  ]
+ }
+}
