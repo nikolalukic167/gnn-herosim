@@ -74,6 +74,9 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "bc1selfref":
+        # backlog_corpus_v1 Amendment 3: bc1load with 3 self-refine passes on its own score
+        return [task(t, w, "bc1load_selfref", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "bc1":
         return [task(t, w, k, s) for k in BC1_KINDS + ("v4load_se",) for s in (1, 2, 3, 4)
                 for t in topos for w in WINDOWS]
@@ -282,7 +285,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -294,7 +297,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
