@@ -136,6 +136,7 @@ class StateContext:
     task_type_names: List[str]
     drain: Dict[Tuple[str, str], float]
     lam: Dict[int, float]
+    seeded_backlog: Optional[Dict[int, float]] = None
 
     def drain_of(self, task_type: str, platform_id: int) -> float:
         ptype = self.platform_type_of.get(platform_id)
@@ -153,6 +154,8 @@ class StateContext:
 
     def backlog_seconds(self) -> Dict[int, float]:
         """B_p for every platform that carries any backlog."""
+        if self.seeded_backlog is not None:
+            return dict(self.seeded_backlog)
         out: Dict[int, float] = {}
         for (task_type, pid), count in self.backlog_counts.items():
             if count <= 0:
@@ -244,6 +247,7 @@ def build_state_context(
     arrival_rate: float,
     drain_table: Optional[Mapping[str, float]] = None,
     task_type_names: Optional[Sequence[str]] = None,
+    backlog_clock: str = "counts",
 ) -> StateContext:
     """Read one co-sim dataset's captured state into a StateContext.
 
@@ -342,6 +346,8 @@ def build_state_context(
         for pid in pids:
             lam[pid] = lam.get(pid, 0.0) + per_replica
 
+    seeded = _seeded_backlog_by_pid(ds_dir, infra, platform_type_of, task_types_db, backlog_clock)
+
     return StateContext(
         platform_type_of=platform_type_of,
         node_of=node_of,
@@ -350,7 +356,50 @@ def build_state_context(
         task_type_names=names,
         drain=drain,
         lam=lam,
+        seeded_backlog=seeded,
     )
+
+
+def _seeded_backlog_by_pid(
+    ds_dir: Path,
+    infra: Mapping[str, object],
+    platform_type_of: Mapping[int, str],
+    task_types_db: Mapping[str, Mapping[str, object]],
+    backlog_clock: str,
+) -> Optional[Dict[int, float]]:
+    """B_p on the clock the co-sim replays (live_snapshot_seed.seeded_backlog_seconds).
+
+    backlog_corpus_v1: a synthetic backlog lives only in that clock (fake work in seconds);
+    the count x drain-table clock cannot see its seconds, so a synthetic corpus labelled on
+    `counts` would price a queue the simulator never ran. That combination is refused.
+    """
+    if backlog_clock not in BACKLOG_CLOCKS:
+        raise DriftLabelError(f"unknown backlog clock {backlog_clock!r}; one of {BACKLOG_CLOCKS}")
+    seed = infra.get("live_snapshot_seed") or {}
+    platforms = seed.get("platforms") or []  # type: ignore[union-attr]
+    synthetic = any(float(p.get("synthetic_backlog_seconds", 0) or 0) > 0 for p in platforms)
+    if backlog_clock == "counts":
+        if synthetic:
+            raise DriftLabelError(
+                f"{ds_dir}: carries a synthetic backlog but the label's backlog clock is "
+                f"'counts' -- set {BACKLOG_CLOCK_ENV}=seeded"
+            )
+        return None
+    if not platforms:
+        raise DriftLabelError(f"{ds_dir}: backlog clock 'seeded' needs live_snapshot_seed.platforms")
+    from src.placement.live_snapshot_seed import seeded_backlog_seconds
+
+    spec_by_pid = {int(p["platform_id"]): p for p in platforms}  # type: ignore[index]
+    out: Dict[int, float] = {}
+    for pid, ptype in platform_type_of.items():
+        spec = spec_by_pid.get(pid)
+        if spec is None:
+            raise DriftLabelError(f"{ds_dir}: replica platform {pid} is not in the snapshot seed")
+        hint = task_types_db.get(str(spec.get("task_type_hint", "dnn1")))
+        seconds = seeded_backlog_seconds(spec, hint, ptype)
+        if seconds:
+            out[pid] = float(seconds)
+    return out
 
 
 def parse_label_objective(spec: str) -> Tuple[str, float]:
@@ -386,6 +435,8 @@ def parse_label_objective(spec: str) -> Tuple[str, float]:
 
 LABEL_OBJECTIVE_ENV = "NEAR_RTT_LABEL_OBJECTIVE"
 LABEL_ARRIVAL_RATE_ENV = "NEAR_RTT_LABEL_ARRIVAL_RATE"
+BACKLOG_CLOCK_ENV = "NEAR_RTT_LABEL_BACKLOG_CLOCK"
+BACKLOG_CLOCKS = ("counts", "seeded")
 
 
 @dataclass(frozen=True)
@@ -394,6 +445,7 @@ class LabelConfig:
     v: float
     arrival_rate: float
     drain_table: Optional[Dict[str, float]]
+    backlog_clock: str = "counts"
 
     @property
     def is_identity(self) -> bool:
@@ -404,7 +456,8 @@ class LabelConfig:
         if self.is_identity:
             return "rtt"
         clock = "measured" if self.drain_table else "exec+comm"
-        return f"rtt_drift:{self.v:g}@lambda={self.arrival_rate:g},clock={clock}"
+        tail = ",backlog=seeded" if self.backlog_clock == "seeded" else ""
+        return f"rtt_drift:{self.v:g}@lambda={self.arrival_rate:g},clock={clock}{tail}"
 
 
 def label_config_from_env() -> LabelConfig:
@@ -417,8 +470,12 @@ def label_config_from_env() -> LabelConfig:
             "default"
         )
     rate = float(raw_rate) if raw_rate else 0.0
+    backlog_clock = os.environ.get(BACKLOG_CLOCK_ENV, "counts") or "counts"
+    if backlog_clock not in BACKLOG_CLOCKS:
+        raise DriftLabelError(f"{BACKLOG_CLOCK_ENV}={backlog_clock!r}; one of {BACKLOG_CLOCKS}")
     return LabelConfig(
-        objective=objective, v=v, arrival_rate=rate, drain_table=load_drain_table()
+        objective=objective, v=v, arrival_rate=rate, drain_table=load_drain_table(),
+        backlog_clock=backlog_clock,
     )
 
 
@@ -448,6 +505,7 @@ class DatasetLabeler:
                 self._db(),
                 arrival_rate=self.config.arrival_rate,
                 drain_table=self.config.drain_table,
+                backlog_clock=self.config.backlog_clock,
             )
         return self._ctx[ds_dir]
 

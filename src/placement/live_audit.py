@@ -115,6 +115,45 @@ def platform_queue_drain_seconds(
     return float(total)
 
 
+INFLIGHT_CAPTURE_ENV = "HEROSIM_INFLIGHT_CAPTURE"
+INFLIGHT_CAPTURE_MODES = ("legacy", "service_end_v1")
+
+
+def inflight_capture_mode() -> str:
+    """backlog_corpus_v1. `legacy` prices an in-flight task as execution minus time since
+    `started`, but `started` fires before the input + peer-exchange stage (the dominant
+    ~4 s), so a busy platform reads ~idle. `service_end_v1` reads the service end the
+    platform recorded (Platform.inflight_service_end). Capture and serving must agree."""
+    mode = os.environ.get(INFLIGHT_CAPTURE_ENV, "legacy") or "legacy"
+    if mode not in INFLIGHT_CAPTURE_MODES:
+        raise ValueError(f"{INFLIGHT_CAPTURE_ENV}={mode!r}; one of {INFLIGHT_CAPTURE_MODES}")
+    return mode
+
+
+def inflight_remaining_seconds(platform: "Platform") -> Optional[float]:
+    """Seconds until the in-flight task's service ends; None when there is none or its end
+    is not known yet (cold start, peer rendezvous)."""
+    end = getattr(platform, "inflight_service_end", None)
+    if platform.current_task is None or end is None:
+        return None
+    return max(0.0, float(end) - float(platform.env.now))
+
+
+def temporal_state_of(scheduler: Any, node: "Node", platform: "Platform") -> Dict[str, float]:
+    queue_key = f"{node.node_name}:{platform.id}"
+    legacy = scheduler._capture_temporal_state_for_replicas([(node, platform)]).get(queue_key, {})
+    if inflight_capture_mode() == "legacy":
+        return legacy
+    remaining = inflight_remaining_seconds(platform)
+    if remaining is None:
+        return legacy
+    return {
+        "current_task_remaining": remaining,
+        "comm_remaining": 0.0,
+        "cold_start_remaining": float(legacy.get("cold_start_remaining", 0.0) or 0.0),
+    }
+
+
 def candidate_backlog_seconds(
     scheduler: Any, node: "Node", platform: "Platform", memo: Optional[Dict[str, float]] = None
 ) -> float:
@@ -122,8 +161,7 @@ def candidate_backlog_seconds(
     (`current_task_remaining`, `comm_remaining`, `queue_drain_seconds` in `_candidate_payload`)
     summed the way `live_snapshot_seed.seeded_backlog_seconds` replays them. partial_state_v4
     serves this; the cache reads the same terms off the snapshot."""
-    queue_key = f"{node.node_name}:{platform.id}"
-    temporal = scheduler._capture_temporal_state_for_replicas([(node, platform)]).get(queue_key, {})
+    temporal = temporal_state_of(scheduler, node, platform)
     return (
         float(temporal.get("current_task_remaining", 0.0) or 0.0)
         + float(temporal.get("comm_remaining", 0.0) or 0.0)
@@ -138,9 +176,7 @@ def _candidate_payload(
     platform: "Platform",
 ) -> Dict[str, Any]:
     queue_key = f"{node.node_name}:{platform.id}"
-    temporal = scheduler._capture_temporal_state_for_replicas([(node, platform)]).get(
-        queue_key, {}
-    )
+    temporal = temporal_state_of(scheduler, node, platform)
     task_type = task.type
     platform_type = platform.type["shortName"]
     state_size = task_type.get("stateSize", {})
@@ -237,6 +273,8 @@ def _replicas_by_type_payload(
             if orchestrator is not None:
                 spec["platform_type"] = str(platform.type["shortName"])
                 spec["queue_drain_seconds"] = platform_queue_drain_seconds(platform, orchestrator, memo)
+            if inflight_capture_mode() != "legacy":
+                spec["current_task_remaining"] = float(inflight_remaining_seconds(platform) or 0.0)
             specs.append(spec)
         payload[str(task_type)] = specs
     return payload

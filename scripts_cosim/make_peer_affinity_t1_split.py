@@ -36,6 +36,14 @@ import hashlib
 import json
 
 
+def _cell_seed(ds_dir: Path) -> int:
+    meta = json.loads((ds_dir / "infrastructure.json").read_text()).get("metadata") or {}
+    cell = (meta.get("warm_snapshot") or {}).get("cell_seed")
+    if cell is None:
+        raise SystemExit(f"{ds_dir}: no metadata.warm_snapshot.cell_seed -- cannot group by cell")
+    return int(cell)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--cache-dir", type=Path, required=True)
@@ -43,6 +51,11 @@ def main() -> None:
     ap.add_argument("--val-fraction", type=float, default=0.2)
     ap.add_argument("--random-state", type=int, default=42)
     ap.add_argument("--output", type=Path, required=True)
+    ap.add_argument(
+        "--val-group-by", choices=("dataset", "cell"), default="dataset",
+        help="cell (backlog_corpus_v1): val holds out WHOLE capture cells (warm_snapshot.cell_seed), so "
+             "no val group has a same-run neighbour in train; cells are taken in a seeded order until "
+             "val reaches --val-fraction of the training datasets")
     args = ap.parse_args()
     if args.output.exists():
         raise SystemExit(f"Refusing to overwrite {args.output} — a split artifact is frozen once runs depend on it.")
@@ -57,10 +70,27 @@ def main() -> None:
     if not test or not rest:
         raise SystemExit(f"held-out {len(test)} / training {len(rest)} — both must be non-empty")
     rng = random.Random(args.random_state)
-    shuffled = rest[:]
-    rng.shuffle(shuffled)
-    n_val = max(1, int(round(args.val_fraction * len(rest))))
-    val = sorted(shuffled[:n_val]); train = sorted(shuffled[n_val:])
+    val_cells = None
+    if args.val_group_by == "cell":
+        cell_of = {i: _cell_seed(REPO_ROOT / "simulation_data" / i) for i in rest}
+        cells = sorted(set(cell_of.values()))
+        rng.shuffle(cells)
+        target = args.val_fraction * len(rest)
+        val_cells, n = [], 0
+        for c in cells:
+            if n >= target:
+                break
+            val_cells.append(c)
+            n += sum(1 for v in cell_of.values() if v == c)
+        val = sorted(i for i in rest if cell_of[i] in set(val_cells))
+        train = sorted(i for i in rest if cell_of[i] not in set(val_cells))
+        if not train:
+            raise SystemExit("cell-grouped split left no training datasets")
+    else:
+        shuffled = rest[:]
+        rng.shuffle(shuffled)
+        n_val = max(1, int(round(args.val_fraction * len(rest))))
+        val = sorted(shuffled[:n_val]); train = sorted(shuffled[n_val:])
     payload = {
         "schema": SPLIT_ARTIFACT_SCHEMA,
         "cache_dir": str(args.cache_dir),
@@ -68,6 +98,7 @@ def main() -> None:
         "random_state": int(args.random_state),
         "heldout_corpus": args.heldout_corpus,
         "val_fraction": float(args.val_fraction),
+        **({"val_group_by": "cell", "val_cells": sorted(val_cells)} if val_cells is not None else {}),
         "train": train,
         "val": val,
         "test": sorted(test),
