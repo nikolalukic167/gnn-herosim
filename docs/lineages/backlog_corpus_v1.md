@@ -1,7 +1,8 @@
 # backlog_corpus_v1 — does training on states that carry backlog teach the burst-seat GNN to load-balance?
 
-**Status:** `ACTIVE` (2026-09-25). Corpus and cache built; **O1 and O2 fire**. Training and the live
-gate (L1–L3) are next. Every bar below was signed before any datum of this corpus existed.
+**Status:** `ACTIVE` (2026-09-25). Corpus and cache built; **O1 and O2 fire**. Amendment 1 (serve-only
+`v4load_se` arm, L1 read at fixed capture, parity check P1) signed; training, P1 and the live gate
+(L1–L3) are next. Every bar below was signed before any datum of this corpus existed.
 
 **Parents:** [`load_repr_v1`](load_repr_v1.md) (the `partial_state_v4` load columns; its standing risk,
 measured there: only 0.5 % of jb2 replica specs carry backlog > 0) and [`cd_gap_v1`](cd_gap_v1.md) (the
@@ -56,7 +57,7 @@ learned arms are served with `service_end_v1`.
 
 | read | contrast | fires as |
 |---|---|---|
-| **L1** | `bc1load` vs `v4load`, paired | `CORPUS-HELPS` (≤ −5 %, p < 0.05) / `CORPUS-HELPS (direction only)` (p < 0.05) / `NOT-SEPARATED` / `CORPUS-HURTS` |
+| **L1** | `bc1load` vs `v4load`, paired (Amendment 1: vs `v4load_se`, same capture) | `CORPUS-HELPS` (≤ −5 %, p < 0.05) / `CORPUS-HELPS (direction only)` (p < 0.05) / `NOT-SEPARATED` / `CORPUS-HURTS` |
 | **L2** | `bc1load` vs CD | `CLOSES-GAP` if not slower (median ≤ 0 or p ≥ 0.05), else `NARROWS` if L1 helps, else `NO-EFFECT` |
 | L3 | `bc1load` vs `bc1mpoff` | reported; a backlog term is pointwise-expressible, so this is not a GNN-vs-MLP lever |
 
@@ -78,6 +79,40 @@ live queue has not been measured.
   `graphs_cache_backlog_corpus_v1_psv4_inf`, split `experiments/backlog_corpus_v1_split.json`.
 
 ## Record (newest first)
+
+- 2026-09-25 — **Amendment 1 (signed before any model of this lineage is trained).** `load_repr_v1`
+  closed `LOAD-HELPS / NARROWS` (`v4load` −5.3 % vs its twin, +6.7 % vs CD, gain and remaining gap
+  both queue). Two facts from it change the live design:
+  - **The capture mode confounds L1 as registered.** `v4load` was gated with the legacy capture;
+    `bc1load` is served with `service_end_v1`. L1 would mix corpus with capture. CD is not affected:
+    its score is `platform_queue_drain_seconds` (queued items + seeded warmup), which never reads the
+    in-flight task.
+  - **`v4load`'s backlog column was served populated but trained nearly empty.** Live (fixed-serving
+    gate 807153) ~0.43 candidates per batch carry backlog > 0; in jb2, 0.5 % of replica specs do.
+    The reading that `v4load`'s gain came mostly from the committed-service column is inference, not
+    measured column by column.
+  - **Design change:**
+    - New serve-only arm **`v4load_se`**: the four `load_repr_v1` `v4load` checkpoints served with
+      `HEROSIM_INFLIGHT_CAPTURE=service_end_v1`. No training.
+    - **L1 is read as `bc1load` vs `v4load_se`** (capture held fixed; corpus is the only difference).
+      Bars and labels unchanged.
+    - **C1 (reported):** `v4load_se` vs `v4load` as gated in 807153 (capture effect on a jb2-trained
+      model).
+    - **P1, parity, required before the gate:** `peer_affinity_live_serve_check.py` on 60 held-out
+      batches of this cache for `bc1load` s1, served with `service_end_v1`. `backlog_s` and
+      `service_s` must match on 60/60 and the plan on ≥ 58/60, with any leftover a same-node sibling
+      tie-break whose live RTT equals the sweep row (`load_repr_v1`'s standard). A failure blocks the
+      gate and is fixed, never waived.
+    - **O3 (orders nothing):** held-out regret on this lineage's test cells, both arms, A1's protocol.
+  - **Training:** `experiments/backlog_corpus_v1_{bc1load,bc1mpoff}.yaml` are `v4load`'s recipe and
+    jb2 mpoff's swap on this cache and split; `scripts_cosim/datalab/backlog_corpus_v1_train.sbatch`,
+    seeds 1–4, sidecar checks as `load_repr_v1`.
+  - **Disclosed, not controlled:** corpus size (2,890 train groups vs jb2's 1,629) and split
+    (whole-cell val vs jb2's random val). Every quote names both corpora. A size-matched arm is not
+    registered here. The serve-only zeroing of the backlog column alone is not run (it needs a new
+    serving knob).
+  - **Expectations:** C1 `NOT-SEPARATED` 50 %, `v4load_se` slower 30 %, faster 20 %. L1 and L2 as
+    registered.
 
 - 2026-09-25 — **Corpus and cache built; O1 and O2 fire** (offline, orders only).
   - **Corpus** (job 807182, 12 tasks × 8 units, code eb9fa58): 5,036 groups (4,076 train, 960
