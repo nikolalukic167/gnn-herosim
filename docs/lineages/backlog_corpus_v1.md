@@ -1,8 +1,11 @@
 # backlog_corpus_v1 — does training on states that carry backlog teach the burst-seat GNN to load-balance?
 
-**Status:** `ACTIVE` (2026-09-25). Corpus and cache built; **O1 and O2 fire**. Amendment 1 (serve-only
-`v4load_se` arm, L1 read at fixed capture, parity check P1) signed; training, P1 and the live gate
-(L1–L3) are next. Every bar below was signed before any datum of this corpus existed.
+**Status:** `ACTIVE` (2026-09-25).
+- **L-read:** L1 `NOT-SEPARATED` (+0.83 %) and L2 `NO-EFFECT` (+6.59 % vs CD). The backlog corpus did
+  not move the live queue. MP vs its twin is −5.03 % (11/11).
+- **Amendment 3:** self-refine on the same weights is not separated from CD (S1 +1.50 %, p = 0.15),
+  −3.4 % vs `bc1load` and −10.8 % vs self-predict.
+- **Next:** decide the close, or a follow-up that trains for full-batch context. Every bar below was signed before any datum of this corpus existed.
 
 **Parents:** [`load_repr_v1`](load_repr_v1.md) (the `partial_state_v4` load columns; its standing risk,
 measured there: only 0.5 % of jb2 replica specs carry backlog > 0) and [`cd_gap_v1`](cd_gap_v1.md) (the
@@ -79,6 +82,29 @@ live queue has not been measured.
   `graphs_cache_backlog_corpus_v1_psv4_inf`, split `experiments/backlog_corpus_v1_split.json`.
 
 ## Record (newest first)
+
+- 2026-09-25 — **S-read: `bc1load_selfref` is not separated from CD (S1 fires `CLOSES-GAP` under
+  the registered rule).** Job 808159 at 0775ba1: 191/192 runs, with one timeout (9466 w3 s1), so 9466
+  drops. [Read](backlog_corpus_v1/bc1selfref_read.json).
+
+  | read | median | p | first faster | label |
+  |---|---|---|---|---|
+  | **S1** `bc1load_selfref` vs CD | +1.50 % | 0.147 | 5/11 | `CLOSES-GAP` (not separated) |
+  | S2 vs `bc1load` (same seed) | **−3.43 %** | 0.004 | 9/10 | reported (direction only) |
+  | S3 vs self-predict | **−10.78 %** | 0.003 | 10/11 | reported |
+
+  - **Per topology vs CD (%):**
+    - Near zero on six: 9119 −0.4, 9414 −0.4, 9423 −1.3, 9435 −3.5, 9444 +1.5, 9469 −0.2.
+    - Slower on five: 9420 +5.3, 9434 +9.3, 9446 +3.8, 9456 +16.0, 9461 +44.6.
+    - The label fires on p ≥ 0.05 with a right tail. It is a tie in the median, not a win.
+  - **Queue per task:** `bc1load_selfref` 3.13 s vs CD 2.91 s (vs `bc1load` 3.58 s); exchange is
+    flat. Revision removed about two thirds of the queue gap on the common topologies.
+  - 9423 w3, which timed out for every `bc1load` and `v4load` seed, completed under self-refine.
+  - **Caveat:** the three probe environments that motivated the amendment (9119 w1, 9414 w1, 9446 w2)
+    are inside the study.
+  - Against self-predict (−10.8 %), this is the fastest learned arm on the fresh study.
+  - **Standing:** the served decode order was a real lever, and the rest of the gap is the score on
+    a minority of topologies.
 
 - 2026-09-25 — **Amendment 3 (signed before any datum of the arm): `bc1load_selfref`.** This is
   `bc1load` served with `GNN_PREFIX_SELF_REFINE=3`: after the id-order decode, 3 passes re-score each
