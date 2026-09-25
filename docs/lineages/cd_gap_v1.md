@@ -76,4 +76,43 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment D2 (sibling stacking), signed before any spread run.** What prompted it
+  (data already read, disclosed in full):
+  - **D0 read, registered statistic: `FIT-GAP`** (median regret: `gnnedge0` 11.7 %, CD 8.2 %,
+    1-pass 28.5 %, MP-OFF 11.4 %). The per-group paired median of `gnnedge0` minus CD is **0.0 pp**
+    (they tie on most groups) and the mean regret is equal (54.6 vs 54.5 %). MP vs MP-OFF offline:
+    paired median 0.0 pp.
+  - **What the served model sees** (code trace): one per-platform queue count and the running
+    task's remaining time, frozen at batch start (`partial_state_edges.py`: the encoding is computed
+    once). The in-batch load signal is per node and per type (`reduced_features.partial_state_columns`
+    cols 0–3). Nothing distinguishes sibling platforms. A xavier node has 8 identical `xavierCpu`
+    platforms; each platform is one FIFO queue. CD charges in-batch commitments per platform, in
+    seconds.
+  - **Stacking, measured** (share of same-node batch pairs that share one platform):
+    - Offline, 480 held-out groups: sweep optimum 0.62, `gnnedge0` 0.68, MP-OFF 0.68.
+    - Live, two witness cells (9119 w1, 9444 w2): `gnnedge0` 0.80 / 0.75, MP-OFF 0.81, CD 0.62 / 0.59,
+      1-pass 0.76, self-predict 0.84.
+    - A task stacked behind a batch-mate queues ~7–8 s, against ~1 s for the first task on a platform.
+    - Co-location is equal: same-node pairs per batch are ~10 for `gnnedge0` and ~11 for CD.
+
+  **D2 design.** Serving flag `GNN_PREFIX_SIBLING_SPREAD=1`: keep every decoded node, and re-pick the
+  platform among that node's valid same-type replicas. The key, in order: fewest batch-mates already on
+  it, then shortest queue, then the decoder's own pick. Node choice and all prefix features are unchanged.
+  Arms `gnnedge0_spread` and `mpoff_spread` × 13 seeds on the fresh study, paired with that study's
+  cells. Code is identical with the flag off, witnessed on 9119 w1 s1.
+
+  | read | contrast | fires as |
+  |---|---|---|
+  | **D2-1 (primary)** | `gnnedge0_spread` vs `gnnedge0` (same seed) | `SPREAD-HELPS` (≤ −5 %, p < 0.05) / `(direction only)` / `NOT-SEPARATED` / `SPREAD-HURTS` |
+  | **D2-2** | `gnnedge0_spread` vs CD | `GNN-BEATS-CD` / `CD-FASTER` / `(direction only)` / `NOT-SEPARATED` |
+  | D2-3 | `gnnedge0_spread` vs `mpoff_spread` (same seed) | as fresh_topo F1 |
+  | D2-4 | `gnnedge0_spread` vs self-predict | as fresh_topo F2 |
+
+  **Expectations:** D2-1 `SPREAD-HELPS` 55 %, direction only 30 %. D2-2 CD still faster 60 %, not
+  separated 30 %, GNN faster 10 %.
+
+  **Consequence, signed:** if D2-1 fires, the offline→live gap has a named serving cause: the model
+  cannot see sibling platforms within a batch. The deployable fix is then a representation change
+  (a per-platform in-batch commitment feature), not the hand spread; the hand spread is the probe.
+
 - 2026-09-25 — **Registered.**

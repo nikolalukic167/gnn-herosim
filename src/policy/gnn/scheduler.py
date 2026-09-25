@@ -161,6 +161,13 @@ def _read_batch_by_peer_group() -> bool:
     return on
 
 
+def _sibling_spread_on() -> bool:
+    raw = os.environ.get("GNN_PREFIX_SIBLING_SPREAD", "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: GNN_PREFIX_SIBLING_SPREAD must be 0 or 1, got {raw!r}")
+    return raw == "1"
+
+
 def _read_gnn_batch_timeout() -> float:
     raw = os.environ.get("GNN_BATCH_TIMEOUT", "0.002")
     try:
@@ -194,6 +201,7 @@ class GNNScheduler(Scheduler):
         self.prefix_tasks_deferred = 0
         self.prefix_pairs_in_batch = 0
         self.prefix_peers_outside_batch = 0
+        self.prefix_sibling_moves = 0
         self.peer_group_incomplete_batches = 0
         # serving knobs (default off): how often a batch actually had standing load to
         # charge, so a gate arm cannot claim the seed was active when it never fired
@@ -817,6 +825,39 @@ class GNNScheduler(Scheduler):
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
 
+    def _spread_over_siblings(
+        self,
+        tasks: List[Task],
+        placements: Dict[int, Tuple[int, int]],
+        system_state: SystemState,
+    ) -> Dict[int, Tuple[int, int]]:
+        """cd_gap_v1 D2 (GNN_PREFIX_SIBLING_SPREAD=1): keep every decoded NODE, re-pick the
+        PLATFORM among that node's valid replicas of the same device type, by fewest batch-mates
+        already on it, then shortest queue, then the decoder's own pick. The served model cannot
+        tell sibling platforms apart within a batch (platform features are frozen at batch start
+        and the prefix block is per node), so it stacks batch-mates on one FIFO queue; the node
+        choice -- co-location, exchange -- is untouched, and so is every prefix feature."""
+        on_platform: Dict[Tuple[int, int], int] = {}
+        out: Dict[int, Tuple[int, int]] = {}
+        for idx in sorted(placements):
+            task = tasks[idx]
+            node_id, plat_id = placements[idx]
+            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+            chosen = next((pl for nd, pl in valid if nd.id == node_id and pl.id == plat_id), None)
+            if chosen is None:
+                raise RuntimeError(
+                    f"FAIL LOUD: decoded ({node_id}, {plat_id}) for task {task.id} is not a valid replica"
+                )
+            kind = chosen.type["shortName"]
+            siblings = [pl for nd, pl in valid if nd.id == node_id and pl.type["shortName"] == kind]
+            best = min(siblings, key=lambda pl: (on_platform.get((node_id, pl.id), 0), pl.queue_length(),
+                                                 0 if pl.id == plat_id else 1, pl.id))
+            if best.id != plat_id:
+                self.prefix_sibling_moves += 1
+            on_platform[(node_id, best.id)] = on_platform.get((node_id, best.id), 0) + 1
+            out[idx] = (node_id, best.id)
+        return out
+
     def _process_task_batch_prefix(self, batch_tasks: List[Task]) -> Generator:
         """masked_topo batch path.
 
@@ -855,6 +896,8 @@ class GNNScheduler(Scheduler):
             placements = self._prefix_inference(
                 decodable, system_state, queue_snapshot, temporal_state
             )
+            if _sibling_spread_on():
+                placements = self._spread_over_siblings(decodable, placements, system_state)
             inference_time = default_timer() - inference_start
             node_by_id = {node.id: node for node in self.nodes.items}
             for idx, task in enumerate(decodable):
