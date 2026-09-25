@@ -76,6 +76,19 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **Venue change for B, D5 and D6 (procedure only; no gate datum read).** The local
+  runs are discarded unread, and each phase reruns in full on datalab CPU nodes at **00dae37**. The
+  reasons:
+  - B holds slots for 30 min on its spinning cells (54/1,440 done in ~1 h).
+  - Two local B runs crashed from an editing race (the live tree was mid-edit; `NameError` in the
+    scheduler), and several recorded a dirty code state.
+  - Spin logs filled the shared root disk; a log watchdog now truncates them.
+
+  Datalab reproduces these arms to the digit (fresh_topo parity, 4/4). A venue witness at 00dae37
+  (CD and `gnnedge0` s1 on 9119 w1 against the local totals) must match before any phase runs. The
+  D5 smoke cell stays disclosed above. The driver gained `--no-scope`: no per-run cgroup on SLURM,
+  where the job allocation caps memory, with the same 1,800 s timeout.
+
 - 2026-09-25 — **Amendment D6 (decode order vs score), signed before any D6 run.**
   - **What D5's smoke says:** CD's refine passes, started from the GNN's own plan, move mostly nodes.
     The GNN's masked_topo decode is one pass in id order and never revisits a task, whereas CD's edge
