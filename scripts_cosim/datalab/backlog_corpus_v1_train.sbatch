@@ -39,7 +39,7 @@ CK="models/backlog-corpus-v1-${ARM}-lr2e3-seed${SEED}.pt"
 echo "[TASK $T] arm=$ARM seed=$SEED cfg=$CFG -> $CK"
 [[ -f "$CFG" ]] || { echo "FAIL LOUD: $CFG missing" >&2; exit 1; }
 [[ -f "$CACHE/metadata.json" && -f "$CACHE/valid_combos_near_rtt_capped.pkl" ]] || { echo "FAIL LOUD: $CACHE incomplete" >&2; exit 1; }
-[[ "$(sha256sum "$SPLIT" | cut -d' ' -f1)" == 2fccc095e3b85e50a1d6d2a1a1bc3fe18167fcf9e8cf9c1eb63d4c6f377f158e ]] || { echo "FAIL LOUD: split sha mismatch" >&2; exit 1; }
+[[ "$(sha256sum "$SPLIT" | cut -d' ' -f1)" == 9c459b16ebf5e96dad7486f87cd681a647fe2e3121e16316dd0ae5df4fad5463 ]] || { echo "FAIL LOUD: split sha mismatch" >&2; exit 1; }
 python3 - "$CACHE" <<'EOF2'
 import json, sys
 m = json.load(open(sys.argv[1] + "/metadata.json"))

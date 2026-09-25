@@ -1,8 +1,8 @@
 {
-  "missing_twin": 4,
+  "missing_twin": 0,
   "rungs": {
     "0": {
-      "n": 1160,
+      "n": 1158,
       "busy_candidate_fraction": 0.0,
       "opt_on_busy": 0.0,
       "random_on_busy": 0.0,
@@ -22,10 +22,10 @@
       "twin_plan_regret_s_median": 0.0
     },
     "8": {
-      "n": 1558,
-      "busy_candidate_fraction": 0.49903417079283574,
-      "opt_on_busy": 0.4200256739409499,
-      "random_on_busy": 0.5002182284980745,
+      "n": 1556,
+      "busy_candidate_fraction": 0.49903292936711957,
+      "opt_on_busy": 0.41979434447300773,
+      "random_on_busy": 0.499961439588689,
       "opt_moved_vs_twin": 0.5713367609254498,
       "opt_rtt_ratio_vs_twin": 2.3683372816042554,
       "twin_plan_regret_s": 7.634555171318505,

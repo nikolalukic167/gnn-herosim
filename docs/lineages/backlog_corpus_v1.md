@@ -98,6 +98,20 @@ live queue has not been measured.
     code, and a `v4load_se` s1 smoke must record `service_end_v1`. Without it, the reuse of CD,
     self-predict and `v4load` gate runs is not licensed.
   - Bars and labels are unchanged.
+  - **Rebuilt** (job 807594, 75f9caa): 5,032 graphs, backlog > 0 on 51.3 % of candidate replicas,
+    candidate guard 0 offenders. **Split** `experiments/backlog_corpus_v1_split.json` sha256
+    9c459b16… is train 2,886, val 1,186 (the same cells, 9207/9208/9209/9213) and test 960. The audit
+    now finds a jb2 twin for every group (`missing_twin` 0), so the 4 quarantined groups were exactly
+    the twinless ones. O1/O2 are unchanged to the reported precision.
+  - **Witness passed** (job 807595, 75f9caa), with 9119 w1 reproduced to the digit:
+    - CD s0: 440055.157;
+    - `v4load` s1: 452534.104;
+    - `v4load_se` s1 ran clean with `HEROSIM_INFLIGHT_CAPTURE=service_end_v1` recorded (one
+      environment, not a read).
+  - The CD and self-predict runs of the fresh gate (1ae90af, 48 environments each) are copied
+    md5-verified to datalab `simulation_data/backlog_corpus_v1/gates/ref_fresh_1ae90af/`. Reader:
+    `scripts_cosim/backlog_corpus_v1_read.py`, which reproduces `cd_gap_v1`'s `gnnedge0` vs CD
+    +11.42 % (11 topologies).
 
 - 2026-09-25 — **Amendment 1 (signed before any model of this lineage is trained).** `load_repr_v1`
   closed `LOAD-HELPS / NARROWS` (`v4load` −5.3 % vs its twin, +6.7 % vs CD, gain and remaining gap
