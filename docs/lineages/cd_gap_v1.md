@@ -76,6 +76,19 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment D5-MP, signed after the D5 smoke cell and before the D5 gate.**
+  - **Disclosed smoke (9119 w1, seed 1, 4883c27):**
+    - shadow reproduces `gnnedge0` `total_rtt` to the digit (480523.270);
+    - CD would change 57.8 % of the GNN's batches, moving 15.6 % of tasks; 94 % of the moves change
+      the node and 57 % un-stack a pile;
+    - `gnnedge0_cdapply` elapsed 8.364 against CD 8.801 and `gnnedge0` 9.610 (one cell: a direction
+      at most).
+  - **Why this amendment:** `gnnedge0_cdapply` vs CD differs only in the seed: the GNN's decoded plan
+    versus the 1-pass greedy's, under identical refinement. A seed win is a learned-seed win, not a
+    message-passing win (`gnn_seeded_cd_mp_ablation_v1`). So the gate adds `mpoff_cdapply` × 13.
+  - **Added read D5b-3:** `gnnedge0_cdapply` vs `mpoff_cdapply` (same seed), labelled as
+    `fresh_topo_burst_v1` F1. Its expectation: not separated 55 %.
+
 - 2026-09-25 — **D4 gate WITHDRAWN (premise false), and amendment D5 signed before any refine run.**
   - **Why D4 is withdrawn:** the smoke test on 9119 w1 (both arms) shows the live candidate set is
     already *smaller* than the corpus slate. There are ~16 candidate slots per 10-task batch, about
