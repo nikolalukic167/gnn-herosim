@@ -59,6 +59,9 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
+    if phase == "d2":
+        return [task(t, w, k, s) for t in topos for w in WINDOWS for k in ("gnnedge0_spread", "mpoff_spread")
+                for s in SEEDS]
     out = [task(t, w, k) for t in topos for w in WINDOWS for k in GATE_RULES]
     out += [task(t, w, k, s) for t in topos for w in WINDOWS for k in ("gnnedge0", "mpoff") for s in SEEDS]
     return out
@@ -99,22 +102,26 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_BATCH_SIZE", "GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "GNN_PREFIX_ALPHA_KEY",
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
               "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
-              "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND"):
+              "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
+              "GNN_PREFIX_SIBLING_SPREAD"):
         env.pop(k, None)
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
                MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", CUDA_VISIBLE_DEVICES="", PYTHONPATH=REPO)
-    if kind in ("gnnedge0", "mpoff"):
-        ck = os.path.join(inputs, "models", f"joint-burst-v2-{kind}-lr2e3-seed{seed}.pt")
+    base_kind = kind[:-len("_spread")] if kind.endswith("_spread") else kind
+    if base_kind in ("gnnedge0", "mpoff"):
+        ck = os.path.join(inputs, "models", f"joint-burst-v2-{base_kind}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
-        rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, kind,
+        rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, base_kind,
                                   os.path.join(inputs, "joint_burst_v2_split.json"), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
-        if kind == "mpoff":
+        if base_kind == "mpoff":
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
+        if kind.endswith("_spread"):
+            env["GNN_PREFIX_SIBLING_SPREAD"] = "1"
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
@@ -148,7 +155,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         c.pop(k, None)
     arm_kind = RULE_POLICY.get(kind, kind)
     out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=40, servers=6,
-               rung="C40", lever="burst", workload=wl_name, corpus="jb2" if kind in ("gnnedge0", "mpoff") else "none",
+               rung="C40", lever="burst", workload=wl_name, corpus="jb2" if base_kind in ("gnnedge0", "mpoff") else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["code"] = (doc.get("run_provenance") or {}).get("code")
@@ -164,6 +171,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("blind instrument off: pg_partners_blinded == 0")
     if kind == "cd" and int(c.get("pg_partners_blinded") or 0) != 0:
         problems.append("CD ran blind")
+    if kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0) == 0:
+        problems.append("spread instrument off: prefix_sibling_moves == 0")
+    if base_kind in ("gnnedge0", "mpoff") and not kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0):
+        problems.append("unspread arm moved siblings")
     if problems:
         json.dump({"arm": name, "why": "; ".join(problems), "wallclock_s": wall}, open(failed, "w"))
         os.remove(raw)
@@ -178,7 +189,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -187,7 +198,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     a = ap.parse_args()
     selection = None
-    if a.phase in ("gate", "d1"):
+    if a.phase in ("gate", "d1", "d2"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

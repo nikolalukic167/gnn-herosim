@@ -202,7 +202,7 @@ class Orchestrator:
         schedulers that keep none."""
         names = (
             "prefix_batches", "prefix_tasks_decoded", "prefix_tasks_deferred",
-            "prefix_pairs_in_batch", "prefix_peers_outside_batch",
+            "prefix_pairs_in_batch", "prefix_peers_outside_batch", "prefix_sibling_moves",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
