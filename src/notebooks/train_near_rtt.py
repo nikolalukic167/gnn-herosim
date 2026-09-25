@@ -463,6 +463,35 @@ def _masked_topo_regret_for_graph(
     )
 
 
+def _plan_agreement_with_label(
+    combo: PlacementCombo, data: Data
+) -> Tuple[int, int, bool]:
+    """Score a decoded plan against the tied-optimal label set.
+
+    Returns (choice tasks agreeing with the closest tied plan, choice tasks, exact member).
+    Forced tasks (one candidate) are excluded from the count: they are correct by construction.
+    """
+    alpha_key = str(
+        NEAR_CFG.dag_alpha_key or getattr(data, "dag_primary_alpha_key", "2.0")
+    )
+    plans = data.tied_optimal_logit_plans.get(alpha_key) or []
+    if not plans:
+        raise ValueError(
+            f"_plan_agreement_with_label: graph {getattr(data, 'dataset_id', '?')} has no "
+            f"tied-optimal plans at alpha_key {alpha_key!r}"
+        )
+    placements = data.task_logit_to_placement
+    n_tasks = int(data.n_tasks)
+    choice = [t for t in range(n_tasks) if len(placements[t]) > 1]
+    decoded = [tuple(int(v) for v in combo[t]) for t in range(n_tasks)]
+    best_agree, exact = 0, False
+    for plan in plans:
+        label = [tuple(int(v) for v in placements[t][int(plan[t])]) for t in range(n_tasks)]
+        best_agree = max(best_agree, sum(decoded[t] == label[t] for t in choice))
+        exact = exact or decoded == label
+    return best_agree, len(choice), exact
+
+
 def loss_tied_teacher_forced_ce(
     model: nn.Module, data: Data, device: torch.device
 ) -> Tuple[Tensor, int]:
@@ -1121,6 +1150,11 @@ def evaluate(
     regret_masked_topo: List[float] = []
     masked_topo_mapped = 0
     masked_topo_total = 0
+    choice_tasks_correct = 0
+    choice_tasks_total = 0
+    mt_choice_correct = 0
+    mt_choice_total = 0
+    mt_plan_exact = 0
 
     for batch in tqdm(loader, desc=f"Evaluating {split_name}", leave=False):
         for graph in batch:
@@ -1151,6 +1185,9 @@ def evaluate(
                 pred = int(logits_t.argmax().item())
                 tasks_correct += int(pred == target)
                 tasks_total += 1
+                if logits_t.numel() > 1:
+                    choice_tasks_correct += int(pred == target)
+                    choice_tasks_total += 1
                 local_valid += 1
                 if pred != target:
                     all_correct = False
@@ -1211,6 +1248,10 @@ def evaluate(
                     )
                     if mt_regret is not None:
                         regret_masked_topo.append(mt_regret)
+                    agree, n_choice, exact = _plan_agreement_with_label(mt_combo, data)
+                    mt_choice_correct += agree
+                    mt_choice_total += n_choice
+                    mt_plan_exact += int(exact)
 
             if PHASE_B_CHECKPOINT_METRIC == "seq_reforward_regret":
                 seq_combo = decode_sequential_reforward(model, data)
@@ -1252,8 +1293,12 @@ def evaluate(
         "ce": ce_total / max(1, valid_tasks),
         "acc": graph_correct / max(1, graphs),
         "task_acc": tasks_correct / max(1, tasks_total),
+        "task_acc_choice": choice_tasks_correct / max(1, choice_tasks_total),
         "regret_greedy": avg(regret_greedy),
         "regret_masked_topo": avg(regret_masked_topo),
+        "regret_masked_topo_median": float(np.median(regret_masked_topo)) if regret_masked_topo else 0.0,
+        "mt_task_acc_choice": mt_choice_correct / max(1, mt_choice_total),
+        "mt_plan_exact": mt_plan_exact / max(1, masked_topo_total),
         "count_regret_masked_topo": float(len(regret_masked_topo)),
         "masked_topo_mapped_rate": masked_topo_mapped / max(1, masked_topo_total),
         "masked_topo_decoded": float(masked_topo_total),
@@ -1276,9 +1321,18 @@ def evaluate(
             f"(sidecar_hit={metrics['seq_reforward_sidecar_coverage']*100:.1f}%, "
             f"unmapped={int(metrics['seq_reforward_unmapped'])})"
         )
+    mt_msg = ""
+    if TEACHER_FORCED:
+        mt_msg = (
+            f"served(masked_topo): regret={metrics['regret_masked_topo']:.4f}s "
+            f"median={metrics['regret_masked_topo_median']:.4f}s "
+            f"choice_task_acc={metrics['mt_task_acc_choice']*100:.1f}% "
+            f"plan_exact={metrics['mt_plan_exact']*100:.1f}% | prefix-free: "
+        )
     print(
-        f"[{split_name}] acc={metrics['acc']*100:.1f}% "
+        f"[{split_name}] {mt_msg}acc={metrics['acc']*100:.1f}% "
         f"task_acc={metrics['task_acc']*100:.1f}% "
+        f"choice_task_acc={metrics['task_acc_choice']*100:.1f}% "
         f"greedy_regret={metrics['regret_greedy']:.4f}s "
         f"(sidecar_hit={metrics['greedy_sidecar_coverage']*100:.1f}%, "
         f"unmapped={int(metrics['greedy_unmapped'])}) "
@@ -1718,6 +1772,8 @@ def _chance_baselines(graph_list: List[Data]) -> Dict[str, float]:
     n_labelled = sum(hist.values())
     majority = max(hist.values()) / n_labelled if n_labelled else 0.0
     chance_task = float(np.mean([1.0 / c for c in flat]))
+    choice = [c for c in flat if c > 1]
+    chance_task_choice = float(np.mean([1.0 / c for c in choice])) if choice else 0.0
     chance_graph = float(np.mean([float(np.prod([1.0 / c for c in per])) for per in counts]))
     # The CE the trainer reports is a whole-PLAN NLL under the teacher-forced
     # any-of-K objective (`-log sum_k prod_t p_t`), and a per-TASK mean otherwise.
@@ -1729,6 +1785,8 @@ def _chance_baselines(graph_list: List[Data]) -> Dict[str, float]:
         chance_ce = float(np.mean([float(np.mean(np.log(per))) for per in counts]))
     return {
         "chance_task_acc": chance_task,
+        "chance_task_acc_choice": chance_task_choice,
+        "forced_task_fraction": 1.0 - len(choice) / len(flat),
         "majority_task_acc": float(majority),
         "chance_graph_acc": chance_graph,
         "chance_ce": chance_ce,
@@ -1786,10 +1844,12 @@ for _k, _v in _VAL_SCALE.items():
 wandb.summary["scale/topk_decode_is_exhaustive"] = bool(_TOPK_IS_EXHAUSTIVE)
 if _BASELINES:
     print(
-        "[baselines/val] chance task_acc={:.3f} majority task_acc={:.3f} "
-        "chance graph acc={:.5f} chance ce={:.3f} "
+        "[baselines/val] chance task_acc={:.3f} (choice tasks only {:.3f}, {:.1%} of tasks "
+        "forced) majority task_acc={:.3f} chance graph acc={:.5f} chance ce={:.3f} "
         "(mean {:.2f} candidates/task, {:.1f} tasks/graph)".format(
             _BASELINES["chance_task_acc"],
+            _BASELINES["chance_task_acc_choice"],
+            _BASELINES["forced_task_fraction"],
             _BASELINES["majority_task_acc"],
             _BASELINES["chance_graph_acc"],
             _BASELINES["chance_ce"],
@@ -1868,9 +1928,12 @@ def _inactive_suffixes() -> set:
     if not TEACHER_FORCED:
         dead |= {
             "regret_masked_topo",
+            "regret_masked_topo_median",
             "count_regret_masked_topo",
             "masked_topo_mapped_rate",
             "masked_topo_decoded",
+            "mt_task_acc_choice",
+            "mt_plan_exact",
         }
     if _TOPK_IS_EXHAUSTIVE:
         dead |= {"regret_oracle_topk"}
@@ -2412,6 +2475,16 @@ if CE_ONLY_TRAINING and not TEACHER_FORCED:
     # Selection state of the CE-only branch. On the teacher-forced branch the
     # selector is val/regret_masked_topo, so this key would name nothing.
     wandb.summary["best_val_acc"] = float(best_val_acc)
+elif TEACHER_FORCED:
+    # task_acc / acc / regret_greedy / regret_topk score an EMPTY prefix, not this arm's
+    # decision; the masked_topo keys (and mt_*) are the served decode.
+    wandb.summary["best_val_checkpoint_target"] = float(best_val_regret)
+    wandb.summary["best_val_regret_masked_topo"] = float(best_val_regret)
+    wandb.summary["checkpoint_metric"] = str(checkpoint_metric_name)
+    wandb.summary["readout/decision_metrics"] = (
+        "regret_masked_topo, regret_masked_topo_median, mt_task_acc_choice, mt_plan_exact, ce"
+    )
+    wandb.summary["readout/prefix_free_metrics"] = "task_acc, task_acc_choice, acc, regret_greedy, regret_topk"
 elif is_phase_b_ce_init():
     wandb.summary["best_val_checkpoint_target"] = float(best_val_regret)
     wandb.summary["best_val_regret_greedy"] = float(
