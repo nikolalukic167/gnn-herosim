@@ -92,6 +92,12 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
   - **Reading:** trained directly on CD's decisions, the architecture does not reproduce them. It
     lands where the sweep-trained model does, which agrees with D6: the representation cannot express
     what CD's score uses. [Read](cd_gap_v1/a1_read.json).
+  - **Training facts** (datalab jobs 806568 test, 806570 train, 806571 eval):
+    - `tests/test_trainer_determinism.py` 17/17 passed, no skips.
+    - The override replaced the train label on all 1,629 train graphs (364 any-of-k) in every seed.
+    - Early stop on true-sweep val regret selected epochs 14 / 75 / 47 / 91 (seeds 1–4).
+    - **Caveat:** checkpoints are selected for sweep regret, not CD agreement, so the 17.8 % is
+      agreement at regret-selected epochs. The `-final` checkpoints are kept but unread.
   - The A2 live gate (4 seeds × the fresh study) is running (datalab job 806624, worktree at
     934c324; `src/` is identical to 00dae37).
 - 2026-09-25 — **D6 read: `SCORE-EXPLAINS`.**
