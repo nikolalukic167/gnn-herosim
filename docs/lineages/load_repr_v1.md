@@ -19,7 +19,9 @@ That close ended on a claim: "the fix is the representation". This lineage tests
   - **Backlog** is the clock the co-sim replays for that replica, `live_snapshot_seed.seeded_backlog_seconds`
     (current task remaining + comm remaining + measured drain). Serving computes the same terms with
     `live_audit.candidate_backlog_seconds`.
-  - **Service** is execution on the candidate's platform type plus the storage I/O approximation.
+  - **Service** of a committed batch-mate is execution on the candidate's platform type, plus the
+    storage I/O approximation, plus its peer transfer to committed partners on other nodes
+    (Amendment 1).
   - The columns enter at the EdgeScorer only, like the rest of the prefix block, so the cached-encode
     invariant holds.
 - **Arms (4 seeds each, seeds 1–4):**
@@ -68,6 +70,22 @@ That close ended on a claim: "the fix is the representation". This lineage tests
 - Live gate: `scripts_cosim/fresh_topo_burst_v1_gate.py` phase `v4`.
 
 ## Record (newest first)
+
+- 2026-09-25 — **Amendment 1 (signed before any v4 datum; no model trained yet).**
+  - **The first cache job (806779) failed on every dataset.** `_v4_load_seconds_block` enumerated
+    `task_logit_to_placement`, which is a dict, not a list. Fixed at ec702ba; a 3-dataset login-node
+    smoke then built.
+  - **The smoke showed a design gap.** Service as registered (execution + storage I/O) is ~0.003 s per
+    task in this physics, so column 23 would carry almost nothing. CD's committed service is
+    `exec + comm + exch`, and the backlog clock also charges each queued task its peer transfers.
+  - **Column 23 now charges each committed batch-mate** its execution + I/O plus the peer transfer to
+    every committed partner on another node, using column 7's formula. Bars and labels are unchanged.
+  - **Corpus fact, measured from `infrastructure.json` before training.**
+    - 1,284 of 2,516 jb2 groups have at least one replica with seeded backlog > 0.
+    - Only 0.5 % of the 576,164 replica specs have backlog > 0 (median 0.75 s, p90 23.6 s,
+      max 624 s).
+    - The training states are far emptier than the live seat, where `gnnedge0` queues ~4 s per task.
+      This is the standing risk named above, now measured, not an outcome.
 
 - 2026-09-25 — Registered. Code at the registration commit. The default path is bit-identical (the
   two witnesses above). `tests/test_partial_state_v4.py` 14/14 pass. The related suites show 100

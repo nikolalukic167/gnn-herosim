@@ -319,7 +319,8 @@ PARTIAL_STATE_CONTRACT_V3 = "partial_state_v3"
 # partial_state_v4 (2026-09-25, docs/lineages/load_repr_v1.md): v3's 22 columns unchanged, plus
 # LOAD_SECONDS_DIM columns at the end carrying what the CD greedy prices and v3 cannot express:
 #   22  log1p(backlog seconds of the candidate replica at batch start)
-#   23  log1p(service seconds batch-mates already committed to the SAME replica)
+#   23  log1p(service seconds batch-mates already committed to the SAME replica: execution + I/O +
+#       the peer transfer each pays to its committed partners on other nodes)
 #   24  log1p(the two summed)
 # $PARTIAL_STATE_LOAD_SECONDS=0 zeroes all three (the disabled twin); recorded in the sidecar.
 PARTIAL_STATE_CONTRACT_V4 = "partial_state_v4"
@@ -592,9 +593,21 @@ def partial_state_columns(
     load_base = linkrank_base + LINKRANK_FEATURE_DIM
     committed_s: Dict[Any, float] = {}
     if ctx.contract == PARTIAL_STATE_CONTRACT_V4 and ctx.load_seconds:
+        # a committed batch-mate's service on its replica is what the platform will charge it:
+        # execution + storage I/O (service_s) plus the peer transfer it pays to every committed
+        # partner on another node -- the CD greedy's `exec + comm + exch`, and the per-task charge
+        # live_audit.platform_queue_drain_seconds walks in the backlog.
         for t, cand in committed.items():
             key = tuple(cand) if isinstance(cand, list) else cand
-            committed_s[key] = committed_s.get(key, 0.0) + float(ctx.service_s[(t, key)])
+            exch = 0.0
+            node_t = ctx.node_of[cand]
+            for j, cand_j in committed.items():
+                b = ctx.peer_pairs.get((t, j))
+                if b is None or j == t:
+                    continue
+                pb, lat = ctx.node_exchange[(node_t, ctx.node_of[cand_j])]
+                exch += b * pb + (lat if pb > 0.0 else 0.0)
+            committed_s[key] = committed_s.get(key, 0.0) + float(ctx.service_s[(t, key)]) + exch
 
     for i, cand in enumerate(candidates):
         node = ctx.node_of[cand]
