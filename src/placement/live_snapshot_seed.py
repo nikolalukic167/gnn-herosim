@@ -168,36 +168,48 @@ def _seed_platform_state(
     else:
         plat.previous_task = None
 
+    task_type_name = str(spec.get("task_type_hint", "dnn1"))
+    task_type = simulation_data.task_types.get(task_type_name)
+    backlog = seeded_backlog_seconds(spec, task_type, plat.type["shortName"])
+    if backlog is None:
+        return
+
+    queue_len = int(spec.get("queue_length", 0) or 0)
+    virtual_count = queue_len
+    if float(spec.get("current_task_remaining", 0) or 0) > 0.0 or float(spec.get("comm_remaining", 0) or 0) > 0.0:
+        virtual_count = max(virtual_count, 1)
+
+    plat.seed_virtual_warmup(task_type, task_type_name, virtual_count)
+    plat.virtual_warmup_total_time = backlog
+
+
+def seeded_backlog_seconds(
+    spec: Mapping[str, Any], task_type: Optional[Mapping[str, Any]], plat_type: str
+) -> Optional[float]:
+    """The backlog clock a seeded platform replays: `current_task_remaining + comm_remaining`
+    plus the snapshot's measured drain, else `queue_length x (execution + comm)` of the hint
+    type. None when nothing is seeded (an idle platform, or an unknown hint type).
+
+    One definition for the co-sim replay (`_seed_platform_state`) and the partial_state_v4
+    backlog column (prepare_graphs_cache), so the feature a model is trained on is the clock
+    its labels were simulated on."""
     queue_len = int(spec.get("queue_length", 0) or 0)
     current_remaining = float(spec.get("current_task_remaining", 0) or 0)
     comm_remaining = float(spec.get("comm_remaining", 0) or 0)
     if queue_len <= 0 and current_remaining <= 0.0 and comm_remaining <= 0.0:
-        return
-
-    task_type_name = str(spec.get("task_type_hint", "dnn1"))
-    task_type = simulation_data.task_types.get(task_type_name)
+        return None
     if task_type is None:
-        return
-
-    plat_type = plat.type["shortName"]
+        return None
     execution = float(task_type.get("executionTime", {}).get(plat_type, 0.0) or 0.0)
     comm = _approx_comm(task_type)
-
-    virtual_count = queue_len
-    if current_remaining > 0.0 or comm_remaining > 0.0:
-        virtual_count = max(virtual_count, 1)
-
-    plat.seed_virtual_warmup(task_type, task_type_name, virtual_count)
-    plat.virtual_warmup_total_time = (
-        current_remaining + comm_remaining + queue_len * (execution + comm)
-    )
     # peer_affinity_warm_v1: a snapshot that measured its own drain (live_audit.
     # platform_queue_drain_seconds -- execution + I/O + latency + the peer transfers the
     # queued tasks will actually pay) replays that clock instead of the exec+comm formula,
     # which under HEROSIM_PEER_EXCHANGE=1 understates a deep queue's drain ~100x.
     measured_drain = float(spec.get("queue_drain_seconds", 0.0) or 0.0)
     if measured_drain > 0.0:
-        plat.virtual_warmup_total_time = current_remaining + comm_remaining + measured_drain
+        return current_remaining + comm_remaining + measured_drain
+    return current_remaining + comm_remaining + queue_len * (execution + comm)
 
 
 def apply_live_snapshot_seed(

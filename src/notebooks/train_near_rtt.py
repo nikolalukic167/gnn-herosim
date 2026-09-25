@@ -380,6 +380,7 @@ from src.policy.gnn.seq_decode import (  # noqa: E402
     topological_task_order,
 )
 from src.policy.tabular.reduced_features import (
+    load_seconds_enabled,  # noqa: E402
     peer_mass_enabled,  # noqa: E402
     PARTIAL_STATE_FEATURE_DIM,
     partial_state_feature_dim,
@@ -2090,6 +2091,7 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "decode_replica_reuse": NEAR_CFG.decode_replica_reuse,
                 "decode_relax_on_stuck": NEAR_CFG.decode_relax_on_stuck,
                 "peer_mass": peer_mass_enabled() if NEAR_CFG.partial_state_edges else None,
+                "load_seconds": load_seconds_enabled() if NEAR_CFG.partial_state_edges else None,
                 "task_type_onehot_dim": (
                     DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0
                 ),

@@ -60,6 +60,8 @@ PSC_FIELDS = (
     "node_caps", "demand", "task_type_index", "parents", "route_hops_bneck", "payload_bytes",
     "transfer_norm", "node_rank", "ingress_links", "core_links", "peer_pairs", "node_exchange",
     "peer_norm", "cand_nodes",
+    # load_repr_v1 (partial_state_v4); absent on both sides of any earlier contract
+    "backlog_s", "service_s",
 )
 
 

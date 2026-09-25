@@ -30,7 +30,7 @@ import concurrent.futures
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Tuple, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -93,6 +93,7 @@ from src.placement.dag_workload import (
 )
 from src.placement.network_fabric import is_core_link, route_links
 from src.policy.tabular.reduced_features import (
+    PARTIAL_STATE_CONTRACT_V4,
     krank_node_order,
     resolve_partial_state_contract,
 )
@@ -1871,6 +1872,11 @@ def attach_dag_partial_state_block(
         peer_norm = 0.0
         cand_nodes = {}
 
+    load_block = {}
+    if resolve_partial_state_contract() == PARTIAL_STATE_CONTRACT_V4:
+        load_block = _v4_load_seconds_block(ds, graph, dag["task_type_names"], sim_inputs,
+                                            ptype_by_pid, name_by_node_id)
+
     graph.peer_edge_index = peer_edge_index
     graph.peer_edge_attr = peer_edge_attr
     graph.dag_edge_index = dag_edge_index
@@ -1898,7 +1904,57 @@ def attach_dag_partial_state_block(
         "node_exchange": node_exchange,
         "peer_norm": float(peer_norm),
         "cand_nodes": cand_nodes,
+        **load_block,
     }
+
+
+def _v4_load_seconds_block(
+    ds: Path,
+    graph: Data,
+    task_type_names: Sequence[str],
+    sim_inputs: Mapping[str, Any],
+    ptype_by_pid: Mapping[int, str],
+    name_by_node_id: Mapping[int, str],
+) -> Dict[str, Any]:
+    """partial_state_v4 ingredients from the dataset's own files (docs/lineages/load_repr_v1.md).
+
+    backlog_s[(node_id, platform_id)] is the clock the co-sim replays for that replica
+    (live_snapshot_seed.seeded_backlog_seconds over infrastructure.json's live_snapshot_seed);
+    service_s[(t, placement)] is execution on the candidate's platform type plus the storage
+    I/O approximation, the per-task cost the CD greedy commits. Loud on anything missing."""
+    from src.placement.live_snapshot_seed import _approx_comm, seeded_backlog_seconds
+
+    with open(ds / "infrastructure.json") as fh:
+        seed = (json.load(fh).get("live_snapshot_seed") or {})
+    platforms = seed.get("platforms")
+    if not platforms:
+        raise RuntimeError(f"{ds.name}: partial_state_v4 needs infrastructure.json "
+                           "live_snapshot_seed.platforms (a warm-snapshot corpus)")
+    spec_by_key = {(str(p["node_name"]), int(p["platform_id"])): p for p in platforms}
+    task_types = sim_inputs.get("task_types") or {}
+    backlog_s: Dict[Tuple[int, int], float] = {}
+    service_s: Dict[Tuple[int, Tuple[int, int]], float] = {}
+    for t, cands in enumerate(graph.task_logit_to_placement):
+        ttype = task_types.get(str(task_type_names[t]))
+        if ttype is None:
+            raise RuntimeError(f"{ds.name}: no sim_inputs task type {task_type_names[t]!r}")
+        for cand in cands:
+            nid, pid = int(cand[0]), int(cand[1])
+            ptype = ptype_by_pid[pid]
+            exec_s = (ttype.get("executionTime") or {}).get(ptype)
+            if exec_s is None:
+                raise RuntimeError(f"{ds.name}: no executionTime[{task_type_names[t]}][{ptype}]")
+            service_s[(t, (nid, pid))] = float(exec_s) + _approx_comm(ttype)
+            if (nid, pid) in backlog_s:
+                continue
+            spec = spec_by_key.get((name_by_node_id[nid], pid))
+            if spec is None:
+                raise RuntimeError(f"{ds.name}: candidate {name_by_node_id[nid]}:{pid} is not in "
+                                   "the snapshot seed")
+            hint = task_types.get(str(spec.get("task_type_hint", "dnn1")))
+            backlog = seeded_backlog_seconds(spec, hint, ptype)
+            backlog_s[(nid, pid)] = float(backlog or 0.0)
+    return {"backlog_s": backlog_s, "service_s": service_s}
 
 
 # ============================================================================

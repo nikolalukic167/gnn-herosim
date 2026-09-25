@@ -115,6 +115,22 @@ def platform_queue_drain_seconds(
     return float(total)
 
 
+def candidate_backlog_seconds(
+    scheduler: Any, node: "Node", platform: "Platform", memo: Optional[Dict[str, float]] = None
+) -> float:
+    """Live backlog of one candidate replica, in seconds: the terms a snapshot records for it
+    (`current_task_remaining`, `comm_remaining`, `queue_drain_seconds` in `_candidate_payload`)
+    summed the way `live_snapshot_seed.seeded_backlog_seconds` replays them. partial_state_v4
+    serves this; the cache reads the same terms off the snapshot."""
+    queue_key = f"{node.node_name}:{platform.id}"
+    temporal = scheduler._capture_temporal_state_for_replicas([(node, platform)]).get(queue_key, {})
+    return (
+        float(temporal.get("current_task_remaining", 0.0) or 0.0)
+        + float(temporal.get("comm_remaining", 0.0) or 0.0)
+        + platform_queue_drain_seconds(platform, orchestrator_of(scheduler), memo)
+    )
+
+
 def _candidate_payload(
     scheduler: Any,
     task: "Task",
