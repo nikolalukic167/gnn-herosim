@@ -76,6 +76,27 @@ outside and CD's lead is queue, not exchange). A1: `IMITATES-CD` 45 %. A2 given 
 
 ## Record (newest first)
 
+- 2026-09-25 — **Amendment D6 (decode order vs score), signed before any D6 run.**
+  - **What D5's smoke says:** CD's refine passes, started from the GNN's own plan, move mostly nodes.
+    The GNN's masked_topo decode is one pass in id order and never revisits a task, whereas CD's edge
+    is revision.
+  - **Two causes to separate:** no revision (decode order), or the score (seconds of drain and
+    committed service vs the model's counts).
+  - **Design.** Knob `GNN_PREFIX_SELF_REFINE=3` (68b6ecd): after the decode, up to 3 passes of
+    coordinate descent on the **model's own score**. Each task is re-scored with every other
+    batch-mate committed where the plan puts it and moved to the model's argmax, with the decoder's
+    tie rule; unmasked decode only (fail loud otherwise). Arm `gnnedge0_selfref` × 13 on the fresh
+    study.
+
+  | read | contrast | fires as |
+  |---|---|---|
+  | **D6-1** | `gnnedge0_selfref` vs `gnnedge0` (same seed) | `SELF-REVISION-HELPS` (≤ −5 %, p < 0.05) / direction only / `NOT-SEPARATED` / `SELF-REVISION-HURTS` |
+  | D6-2 | `gnnedge0_selfref` vs CD | reported |
+  | **D6-3** | share of D5's CD-refine gain recovered by self-revision, per topology: median of (gnnedge0 − selfref) / (gnnedge0 − cdapply), elapsed | `REVISION-EXPLAINS` ≥ 50 % / `SCORE-EXPLAINS` < 25 % / `MIXED` |
+
+  **Expectations:** D6-1 helps or direction only 50 %. D6-3 `SCORE-EXPLAINS` 50 %, `MIXED` 30 %,
+  `REVISION-EXPLAINS` 20 %.
+
 - 2026-09-25 — **Amendment D5-MP, signed after the D5 smoke cell and before the D5 gate.**
   - **Disclosed smoke (9119 w1, seed 1, 4883c27):**
     - shadow reproduces `gnnedge0` `total_rtt` to the digit (480523.270);
