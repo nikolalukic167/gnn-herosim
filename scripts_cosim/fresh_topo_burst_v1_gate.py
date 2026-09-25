@@ -63,6 +63,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
+    if phase == "a":
+        return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "d6":
         return [task(t, w, "gnnedge0_selfref", s) for s in SEEDS for t in topos for w in WINDOWS]
     if phase == "d5":
@@ -123,10 +125,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
                MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", CUDA_VISIBLE_DEVICES="", PYTHONPATH=REPO)
     base_kind = next((kind[:-len(s)] for s in SUFFIXES if kind.endswith(s)), kind)
-    if base_kind in ("gnnedge0", "mpoff"):
-        ck = os.path.join(inputs, "models", f"joint-burst-v2-{base_kind}-lr2e3-seed{seed}.pt")
+    if base_kind in ("gnnedge0", "mpoff", "cdimit"):
+        # cd_gap_v1 A: the CD imitator is the gnnedge0 architecture on the jb2 corpus and split
+        stem = "cd-gap-v1-cdimit-gnnedge0" if base_kind == "cdimit" else f"joint-burst-v2-{base_kind}"
+        ck = os.path.join(inputs, "models", f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
-        rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, base_kind,
+        check_kind = "gnnedge0" if base_kind == "cdimit" else base_kind
+        rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
                                   os.path.join(inputs, "joint_burst_v2_split.json"), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
@@ -179,7 +184,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         c.pop(k, None)
     arm_kind = RULE_POLICY.get(kind, kind)
     out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=40, servers=6,
-               rung="C40", lever="burst", workload=wl_name, corpus="jb2" if base_kind in ("gnnedge0", "mpoff") else "none",
+               rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "jb2") if base_kind in ("gnnedge0", "mpoff", "cdimit") else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["code"] = (doc.get("run_provenance") or {}).get("code")
@@ -209,7 +214,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("CD ran blind")
     if kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0) == 0:
         problems.append("spread instrument off: prefix_sibling_moves == 0")
-    if base_kind in ("gnnedge0", "mpoff") and not kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0):
+    if base_kind in ("gnnedge0", "mpoff", "cdimit") and not kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0):
         problems.append("unspread arm moved siblings")
     if problems:
         json.dump({"arm": name, "why": "; ".join(problems), "wallclock_s": wall}, open(failed, "w"))
@@ -225,7 +230,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -237,7 +242,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
