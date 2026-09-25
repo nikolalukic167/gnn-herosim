@@ -42,10 +42,15 @@ RULE_POLICY = {
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
 }
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_se")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns on / zeroed
-LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + V4_KINDS
+# backlog_corpus_v1: v4load's recipe and its MP-OFF twin on the synthetic-backlog corpus, always served
+# with the in-flight capture fix; a "_se" suffix serves any other arm with it (Amendment 1: v4load_se)
+BC1_KINDS = ("bc1load", "bc1mpoff")
+LOAD_KINDS = V4_KINDS + BC1_KINDS
+LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
+SERVICE_END = "service_end_v1"
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
 # SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
@@ -69,6 +74,9 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "bc1":
+        return [task(t, w, k, s) for k in BC1_KINDS + ("v4load_se",) for s in (1, 2, 3, 4)
+                for t in topos for w in WINDOWS]
     if phase == "fix":
         # load_repr_v1 Amendment 2: every learned arm again after the uncapped-rung rank fix (721d44f)
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS] + \
@@ -128,7 +136,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
-              "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS"):
+              "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE"):
         env.pop(k, None)
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
     time_scale = float((json.load(open(cfg)).get("cd_gap_v1_rate_scale") or {}).get("factor", 1.0))
@@ -144,23 +152,28 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = "cd-gap-v1-cdimit-gnnedge0"
         elif base_kind in V4_KINDS:
             stem = f"load-repr-v1-{base_kind}-gnnedge0"
+        elif base_kind in BC1_KINDS:
+            stem = f"backlog-corpus-v1-{base_kind}"
         else:
             stem = f"joint-burst-v2-{base_kind}"
         ck = os.path.join(inputs, "models", f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else base_kind
+        split = "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS else "joint_burst_v2_split.json"
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
-                                  os.path.join(inputs, "joint_burst_v2_split.json"), "inf"], env=env, cwd=REPO)
+                                  os.path.join(inputs, split), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
-        if base_kind == "mpoff":
+        if base_kind in ("mpoff", "bc1mpoff"):
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
-        if base_kind in V4_KINDS:
+        if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
-                       PARTIAL_STATE_LOAD_SECONDS="1" if base_kind == "v4load" else "0")
+                       PARTIAL_STATE_LOAD_SECONDS="0" if base_kind == "v4twin" else "1")
+        if base_kind in BC1_KINDS or kind.endswith("_se"):
+            env["HEROSIM_INFLIGHT_CAPTURE"] = SERVICE_END
         if kind.endswith("_spread"):
             env["GNN_PREFIX_SIBLING_SPREAD"] = "1"
         if kind.endswith("_slate"):
@@ -206,7 +219,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         c.pop(k, None)
     arm_kind = RULE_POLICY.get(kind, kind)
     out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=40, servers=6,
-               rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "jb2") if base_kind in LEARNED_KINDS else "none",
+               rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "bc1" if base_kind in BC1_KINDS else "jb2") if base_kind in LEARNED_KINDS else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["code"] = (doc.get("run_provenance") or {}).get("code")
@@ -238,14 +251,18 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("CD ran blind")
     if kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0) == 0:
         problems.append("spread instrument off: prefix_sibling_moves == 0")
-    if base_kind in V4_KINDS:
-        want_ls = "1" if base_kind == "v4load" else "0"
+    want_capture = SERVICE_END if (base_kind in BC1_KINDS or kind.endswith("_se")) else None
+    if out["env"].get("HEROSIM_INFLIGHT_CAPTURE") != want_capture:
+        problems.append(f"served HEROSIM_INFLIGHT_CAPTURE={out['env'].get('HEROSIM_INFLIGHT_CAPTURE')!r}, "
+                        f"{kind} needs {want_capture!r}")
+    if base_kind in LOAD_KINDS:
+        want_ls = "0" if base_kind == "v4twin" else "1"
         if out["env"].get("PARTIAL_STATE_LOAD_SECONDS", "") != want_ls:
             problems.append(f"served PARTIAL_STATE_LOAD_SECONDS={out['env'].get('PARTIAL_STATE_LOAD_SECONDS')!r}, "
                             f"{base_kind} needs {want_ls}")
         if int(c.get("v4_backlog_batches") or 0) == 0:
             problems.append("v4 instrument off: v4_backlog_batches == 0")
-        if base_kind == "v4load" and int(c.get("v4_backlog_nonzero") or 0) == 0:
+        if base_kind != "v4twin" and int(c.get("v4_backlog_nonzero") or 0) == 0:
             problems.append("v4 instrument off: no candidate ever had a backlog")
     elif int(c.get("v4_backlog_batches") or 0):
         problems.append("a pre-v4 arm computed v4 backlogs")
@@ -265,7 +282,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -277,7 +294,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
