@@ -40,7 +40,9 @@ RULE_POLICY = {
     "selfpredict": "peer_greedy_selfpredict_network",
     "cd": "peer_greedy_network_cd",
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
+    "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
 }
+SUFFIXES = ("_spread", "_slate")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
@@ -59,6 +61,9 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
+    if phase == "d4":
+        return [task(t, w, "cd_slate") for t in topos for w in WINDOWS] + \
+               [task(t, w, "gnnedge0_slate", s) for t in topos for w in WINDOWS for s in SEEDS]
     if phase == "d2":
         return [task(t, w, k, s) for t in topos for w in WINDOWS for k in ("gnnedge0_spread", "mpoff_spread")
                 for s in SEEDS]
@@ -103,12 +108,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
               "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
-              "GNN_PREFIX_SIBLING_SPREAD"):
+              "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON"):
         env.pop(k, None)
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
                MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", CUDA_VISIBLE_DEVICES="", PYTHONPATH=REPO)
-    base_kind = kind[:-len("_spread")] if kind.endswith("_spread") else kind
+    base_kind = next((kind[:-len(s)] for s in SUFFIXES if kind.endswith(s)), kind)
     if base_kind in ("gnnedge0", "mpoff"):
         ck = os.path.join(inputs, "models", f"joint-burst-v2-{base_kind}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
@@ -122,6 +127,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
         if kind.endswith("_spread"):
             env["GNN_PREFIX_SIBLING_SPREAD"] = "1"
+        if kind.endswith("_slate"):
+            env["GNN_SERVE_CORPUS_SLATE"] = "1"
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
@@ -129,6 +136,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_blind":
             env["HEROSIM_PG_BATCH_BLIND"] = "1"
+        if kind == "cd_slate":
+            env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1", GNN_SERVE_CORPUS_SLATE="1")
     raw = os.path.join(out_dir, name + ".raw.json")
     log = os.path.join(out_dir, name + ".log")
     cmd = ["systemd-run", "--scope", "-q", "-p", f"MemoryMax={mem}", "-p", "MemorySwapMax=0",
@@ -165,7 +174,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"num_tasks={n!r}")
     if kind == "selfpredict" and (int(c.get("pg_decisions") or 0) != N_TASKS or int(c.get("pg_lookahead_priced") or 0) == 0):
         problems.append(f"rule instrument off: {c.get('pg_decisions')}/{c.get('pg_lookahead_priced')}")
-    if kind in ("batched", "cd", "cd_blind") and int(c.get("pg_batches") or 0) == 0:
+    if kind.endswith("_slate") and int(c.get("slate_batches") or 0) == 0:
+        problems.append("slate instrument off: slate_batches == 0")
+    if not kind.endswith("_slate") and int(c.get("slate_batches") or 0):
+        problems.append("unslated arm was slated")
+    if kind in ("batched", "cd", "cd_blind", "cd_slate") and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
     if kind == "cd_blind" and int(c.get("pg_partners_blinded") or 0) == 0:
         problems.append("blind instrument off: pg_partners_blinded == 0")
@@ -189,7 +202,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -198,7 +211,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     a = ap.parse_args()
     selection = None
-    if a.phase in ("gate", "d1", "d2"):
+    if a.phase in ("gate", "d1", "d2", "d4"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
