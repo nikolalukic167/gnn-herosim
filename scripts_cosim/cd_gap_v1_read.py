@@ -63,11 +63,20 @@ def _load(dirs: List[str]) -> Dict:
     return s
 
 
+def _registered_seeds(kind: str) -> List[int]:
+    """The seeds the design registers for an arm -- never inferred from which files exist, so a seed
+    that never ran is a missing run, not a smaller sample."""
+    if kind.endswith("_cdshadow"):
+        return [1, 2, 3]
+    if kind.split("_")[0] in ("gnnedge0", "mpoff", "cdimit"):
+        return list(F.SEEDS)
+    return [0]
+
+
 def contrast(s: Dict, topos: List[int], arm: str, ref: str) -> dict:
     """arm vs ref on the study. A learned arm (13 seeds) against a rule: per environment the median over
     seeds of the paired %. Two learned arms: the same seed paired. Two rules: the single run."""
-    a_seeds = sorted({k[3] for k in s if k[2] == arm})
-    r_seeds = sorted({k[3] for k in s if k[2] == ref})
+    a_seeds, r_seeds = _registered_seeds(arm), _registered_seeds(ref)
     same_seed = a_seeds != [0] and r_seeds != [0]
 
     def env(t, w):
@@ -100,7 +109,7 @@ def contrast(s: Dict, topos: List[int], arm: str, ref: str) -> dict:
 def recovered_share(s: Dict, topos: List[int], base: str, partial: str, full: str) -> dict:
     """D6-3: per topology, the median over windows and seeds of (base - partial) elapsed divided by the
     median of (base - full); then the median over topologies."""
-    seeds = sorted({k[3] for k in s if k[2] == base})
+    seeds = _registered_seeds(base)
     per = {}
     for t in topos:
         try:
