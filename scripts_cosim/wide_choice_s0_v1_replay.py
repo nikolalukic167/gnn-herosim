@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import gzip
 import json
 import multiprocessing as mp
 import os
@@ -42,7 +43,9 @@ _MODELS: Dict[str, Any] = {}
 
 def _sweep(ds_dir: Path) -> Dict[str, float]:
     rtts: List[float] = []
-    with open(ds_dir / "placements/placements.jsonl") as fh:
+    plain = ds_dir / "placements/placements.jsonl"
+    # the generation job gzips each finished sweep to keep /home small
+    with (open(plain) if plain.is_file() else gzip.open(str(plain) + ".gz", "rt")) as fh:
         for line in fh:
             if line.strip():
                 rtts.append(float(json.loads(line)["rtt"]))
