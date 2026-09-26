@@ -9,6 +9,7 @@
 #   sbatch --export=ALL,PHASE=fc1 backlog_corpus_v1_gate.sbatch           (fullctx_refine_v1)
 #   sbatch --export=ALL,PHASE=xs1 backlog_corpus_v1_gate.sbatch           (exchange_seconds_v1)
 #   sbatch --export=ALL,PHASE=xs1cd backlog_corpus_v1_gate.sbatch         (seeded_cd_xs1_v1)
+#   sbatch --export=ALL,PHASE=capacity,WT=<capacity worktree> backlog_corpus_v1_gate.sbatch   (capacity_sweep_v1)
 #   sbatch --export=ALL,PHASE=ladder,WT=<burst_ladder worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (burst_ladder_v1)
 #   sbatch --export=ALL,PHASE=ladderjit,WT=<burst_ladder worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (burst_ladder_v1 Amendment 1)
 #SBATCH --job-name=bc1-gate
@@ -51,7 +52,7 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
            "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
            "${EXTRA[@]}"; do
@@ -88,6 +89,30 @@ if [[ $PHASE == jitsmoke || $PHASE == ladderjit ]]; then
       if [[ ! -f "$D/.built" ]]; then
         rm -rf "$D"
         python3 scripts_cosim/burst_ladder_jitter.py --src "$IN/ladder/$R" --out "$D" --seed "$k"
+      fi
+    done
+  done
+fi
+
+# capacity_sweep_v1: rungs x1.1 / x1.2 / x1.3 built like the ladder (factor 1/intensity), then the same 4 draws;
+# the x1 draws must already exist (burst_ladder_v1 Amendment 1). Built once; existing inputs never rewritten.
+if [[ $PHASE == capacity ]]; then
+  TOPOS=$(python3 -c "import json,sys;print(' '.join(map(str,json.load(open(sys.argv[1]))['topologies'])))" "$IN/selected.json")
+  for k in 1 2 3 4; do [[ -f "$IN/ladder/x10d$k/.built" ]] || { echo "FAIL LOUD: x10d$k not built (burst_ladder_v1 ladderjit)"; exit 1; }; done
+  for pair in x11:0.9090909090909091 x12:0.8333333333333334 x13:0.7692307692307692; do
+    R=${pair%%:*}; F=${pair##*:}; D="$IN/ladder/$R"
+    if [[ ! -f "$D/.built" ]]; then
+      rm -rf "$D"; mkdir -p "$D"
+      python3 scripts_cosim/cd_gap_v1_build_b.py --src "$IN" --out "$D" --factor "$F" --topologies $TOPOS
+      ln -s "$IN/backlog_corpus_v1_split.json" "$D/backlog_corpus_v1_split.json"
+      find "$D/wl" -name '*.json' ! -name 'burst_drainable_f4000_n50000.json' -delete
+      touch "$D/.built"
+    fi
+    for k in 1 2 3 4; do
+      DD="$IN/ladder/${R}d$k"
+      if [[ ! -f "$DD/.built" ]]; then
+        rm -rf "$DD"
+        python3 scripts_cosim/burst_ladder_jitter.py --src "$D" --out "$DD" --seed "$k"
       fi
     done
   done
