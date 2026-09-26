@@ -59,12 +59,26 @@ gen() {  # gen <tier> <shard index>
   mkdir -p "$OUT/shard$i"
   echo "=== tier $NAME target ${TARGET[$NAME]}: $CELL $WINDOW -> $OUT/shard$i (limit ${LIMIT[$NAME]})"
   local t0=$SECONDS
+  # gzip a dataset's sweep once make_warm_corpus has appended its manifest line (written after every
+  # other step for that dataset; datasets are swept one at a time)
+  ( while true; do
+      if [[ -f "$OUT/shard$i/warm_manifest.jsonl" ]]; then
+        for ds in $(grep -o '"dataset_id": "ds_[0-9]*"' "$OUT/shard$i/warm_manifest.jsonl" | grep -o 'ds_[0-9]*'); do
+          f="$OUT/shard$i/$ds/placements/placements.jsonl"
+          [[ -f "$f" ]] && gzip -f "$f"
+        done
+      fi
+      sleep 30
+    done ) &
+  local GZ=$!
   # one output dir per array task: warm_manifest.jsonl is appended per dataset, never shared across tasks
   python3 scripts_cosim/make_warm_corpus.py --snapshots "$SHARD" --trace "$TRACE" --cell-config "$CFG" \
     --output-dir "$OUT/shard$i" --source-tag "wc${NAME}_${CELL}_${WINDOW}" --start-index $(( i * 1000 )) --limit "${LIMIT[$NAME]}" \
     --target-combos "${TARGET[$NAME]}" --workers "$WORKERS" --no-cap-filter --min-choice-fraction 0.8 --quiet \
     --synthetic-backlog-rungs 0 3 --synthetic-backlog-busy-prob 0.5 --synthetic-backlog-task-seconds 4.5 \
     --synthetic-backlog-seed 7101
+  kill $GZ 2>/dev/null || true
+  find "$OUT/shard$i" -name placements.jsonl -exec gzip -f {} +
   local n; n=$(grep -c '"status": "success"' "$OUT/shard$i/warm_manifest.jsonl" || true)
   echo "=== $n groups in $(( SECONDS - t0 )) s"; du -sh "$OUT/shard$i"
   [[ "$n" -ge 1 ]] || { echo "FAIL LOUD: no group generated for $CELL $WINDOW" >&2; exit 1; }
