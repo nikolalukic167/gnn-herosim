@@ -95,6 +95,24 @@ answer still ends with its own registered live gate.
 
 ## Record (newest first)
 
+- 2026-09-26 — **Every arm vs Knative per rung** (reported, not a bar; the same per-rung paired statistic,
+  from the `reactive` runs that served as the admissibility reference).
+  - **Attachment:** [`ladder_vs_reactive.json`](burst_ladder_v1/ladder_vs_reactive.json).
+
+    | arm vs Knative | ×1 | ×1.5 | ×2 |
+    |---|---|---|---|
+    | `xs1load_selfref` | −51.3 % (11/12, p 0.034) | −77.4 % (11/12) | −60.9 % (12/12) |
+    | `xs1load_cdapply` | −48.4 % (12/12) | −48.5 % (11/12) | −42.0 % (12/12) |
+    | CD | −44.2 % (12/12) | −43.3 % (12/12) | −38.7 % (12/12) |
+    | `cd_inflight` | −46.8 % | −57.8 % | −45.4 % |
+    | self-predict | −36.4 % | −46.9 % | −33.9 % |
+
+  - **Pooled elapsed (s), Knative / CD / `xs1load_selfref`:** ×1 14.8 / 8.5 / 7.2; ×1.5 115.1 / 54.5 / 17.3;
+    ×2 190.5 / 105.9 / 73.2.
+  - At ×1.5 and ×2 the learned arm is the fastest arm and every contrast favours it. Every arm is saturated
+    there, Knative worst (queue share 0.88–0.98), so these are overload numbers. They are disclosed, never
+    quoted as the regime result.
+
 - 2026-09-26 — **S0 read** (datalab job 809097 at b2ec7f9, 20 min; 432/432 runs, no failures).
   - **Witness:** 120/120 ×1 runs equal their existing w0 runs in `total_rtt` to the digit (CD,
     self-predict and reactive from `ref_fresh_1ae90af`, the learned arms from `xs1`/`xs1cd`).
