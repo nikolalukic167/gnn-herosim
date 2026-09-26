@@ -1,11 +1,18 @@
 # burst_ladder_v1 — is the learned arm's lead over CD in bursty w0 real, and does it grow with intensity?
 
-**Status:** `ACTIVE`. Registered 2026-09-26; the S0 gate was read 2026-09-26.
-- **×1 `NO-LEAD`:** A −11.1 %, p = 0.064, 10/12. The in-flight blind spot is **not** the cause:
-  `cd_inflight` recovers 5 % of the lead.
-- **×1.5 `CD-DEFECT`** (share 0.67; B −12.2 %, p = 0.11) and **×2 `NO-LEAD`** (A −37 %, p = 0.13;
-  B −30 %, p = 0.042) are both **inadmissible**: reactive saturates on 11/12 and 12/12 topologies.
-- The 20 % criterion is not met.
+**Status:** `ACTIVE`. Registered 2026-09-26. S0 read 2026-09-26; Amendment 1 (4 perturbed arrival draws for
+every arm) read 2026-09-27. The Amendment 1 reads supersede the single-draw S0 numbers.
+- **×1 (admissible) `DISSOLVES`:** `xs1load_selfref` vs CD −11.9 %, p = 0.15, 9/12.
+  - A tight, draw-stable −9.5 to −16.4 % on 9 topologies.
+  - 9434 collapses in every draw (+274 %); 9456 +8 % and 9461 +13 %.
+  - S0's 9461 "−61 %" was a single-draw CD collapse.
+  - CD's in-flight blind spot is real but small (`cd_inflight` vs CD −2.5 %).
+- **×1.5 (inadmissible, Knative queue share 0.88–0.96) `OVERLOAD-LEAD-SURVIVES`:** −28.1 % vs CD
+  (p = 0.009, 11/12) and −29.8 % vs `cd_inflight`, with medians taken over the rules' own draws.
+  Past capacity the learned arm tips into runaway queues less often than any rule. It is not a quotable
+  regime result.
+- The 20 % criterion is not met at admissible load. The blockers are the 9434 collapse and the 9456/9461
+  node-choice weighting.
 
 **What this is:** a live S0 screen that orders work toward a ~20 % learned-arm win. It is live, so rule 6 is
 met for what it reads. It does not by itself close the program question. A lineage that trains on its
