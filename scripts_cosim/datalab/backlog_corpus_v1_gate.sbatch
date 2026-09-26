@@ -10,6 +10,7 @@
 #   sbatch --export=ALL,PHASE=xs1 backlog_corpus_v1_gate.sbatch           (exchange_seconds_v1)
 #   sbatch --export=ALL,PHASE=xs1cd backlog_corpus_v1_gate.sbatch         (seeded_cd_xs1_v1)
 #   sbatch --export=ALL,PHASE=ladder,WT=<burst_ladder worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (burst_ladder_v1)
+#   sbatch --export=ALL,PHASE=ladderjit,WT=<burst_ladder worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (burst_ladder_v1 Amendment 1)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -50,7 +51,7 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
            "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
            "${EXTRA[@]}"; do
@@ -75,6 +76,20 @@ if [[ $PHASE == ladder ]]; then
       find "$D/wl" -name '*.json' ! -name 'burst_drainable_f4000_n50000.json' -delete
       touch "$D/.built"
     fi
+  done
+fi
+
+# burst_ladder_v1 Amendment 1: perturbed draws d1-d4 of the x1 and x1.5 rungs (burst_ladder_jitter.py), built once.
+if [[ $PHASE == jitsmoke || $PHASE == ladderjit ]]; then
+  for R in x10 x15; do
+    [[ -f "$IN/ladder/$R/.built" ]] || { echo "FAIL LOUD: rung $R not built (run PHASE=ladder first)"; exit 1; }
+    for k in 1 2 3 4; do
+      D="$IN/ladder/${R}d$k"
+      if [[ ! -f "$D/.built" ]]; then
+        rm -rf "$D"
+        python3 scripts_cosim/burst_ladder_jitter.py --src "$IN/ladder/$R" --out "$D" --seed "$k"
+      fi
+    done
   done
 fi
 
