@@ -109,6 +109,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                            "SECONDS-HELP (direction only)" if v2.startswith("XS1LOAD_SELFREF-FASTER") else
                            "SECONDS-HURT" if v2.startswith("FC1LOAD_SELFREF-FASTER") else
                            "NOT-SEPARATED" if r2 else v2)
+    if any(k[2] == "xs1load_cdapply" for k in s):
+        # seeded_cd_xs1_v1 (docs/lineages/seeded_cd_xs1_v1.md)
+        res["G1"] = C.contrast(s, topos, "xs1load_cdapply", "cd")
+        res["G2"] = C.contrast(s, topos, "xs1load_cdapply", "xs1load_selfref")
+        res["reported_xs1load_cdapply_vs_bc1mpoff_cdapply"] = C.contrast(s, topos, "xs1load_cdapply", "bc1mpoff_cdapply")
+        res["reported_bc1mpoff_cdapply_vs_cd"] = C.contrast(s, topos, "bc1mpoff_cdapply", "cd")
+        res["reported_xs1load_cdapply_vs_selfpredict"] = C.contrast(s, topos, "xs1load_cdapply", "selfpredict")
+        r1 = res["G1"].get("read")
+        if not r1:
+            res["G1_label"] = res["G1"].get("verdict", "NO-READ")
+        elif r1["p"] < 0.05 and r1["median_pct"] <= -5.0:
+            res["G1_label"] = "BEATS-CD"
+        elif r1["p"] < 0.05 and r1["median_pct"] < 0.0:
+            res["G1_label"] = "BEATS-CD (direction only)"
+        elif r1["p"] < 0.05 and r1["median_pct"] > 0.0:
+            res["G1_label"] = "CD-FASTER"
+        else:
+            res["G1_label"] = "TIES-CD"
     res["L1_label"] = l1_label(res["L1"])
     res["L2_label"] = l2_label(res["L2"], res["L1_label"])
     print(json.dumps(res, indent=1))
@@ -121,7 +139,7 @@ def main(argv: Optional[List[str]] = None) -> int:
               f"{v.get('verdict', '')}", file=sys.stderr)
     print(f"L1: {res['L1_label']}   L2: {res['L2_label']}   S1: {res.get('S1_label')}   "
           f"F1: {res.get('F1_label')}   F2: {res.get('F2_label')}   X1: {res.get('X1_label')}   "
-          f"X2: {res.get('X2_label')}", file=sys.stderr)
+          f"X2: {res.get('X2_label')}   G1: {res.get('G1_label')}", file=sys.stderr)
     if a.out:
         json.dump(res, open(a.out, "w"), indent=1)
     return 0
