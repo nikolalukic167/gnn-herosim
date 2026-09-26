@@ -41,7 +41,13 @@ RULE_POLICY = {
     "cd": "peer_greedy_network_cd",
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
+    "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
 }
+# burst_ladder_v1: w0 at three arrival intensities; the window label carries the rung, the inputs live in
+# <inputs>/ladder/x<rung> (cd_gap_v1_build_b.py, factor 1/intensity on timestamps and policy time constants)
+LADDER_RUNGS = {"w0x10": "x10", "w0x15": "x15", "w0x20": "x20"}
+LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
+LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
 SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_se")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns on / zeroed
@@ -74,6 +80,9 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "ladder":
+        return [task(t, w, k) for w in LADDER_RUNGS for t in topos for k in LADDER_ARMS] + \
+               [task(t, w, k, s) for w in LADDER_RUNGS for k in LADDER_LEARNED for s in (1, 2, 3, 4) for t in topos]
     if phase == "xs1cd":
         # seeded_cd_xs1_v1: CD's refine passes started from the xs1load plan, and from the MP-OFF bc1 plan
         return [task(t, w, k, s) for k in ("xs1load_cdapply", "bc1mpoff_cdapply") for s in (1, 2, 3, 4)
@@ -140,7 +149,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
-    wl_name = "burst_drainable_f4000_n50000" if window == "w0" else f"burst_drainable_{window}_n50000"
+    if window in LADDER_RUNGS:
+        inputs = os.path.join(inputs, "ladder", LADDER_RUNGS[window])
+        wl_name = "burst_drainable_f4000_n50000"
+    else:
+        wl_name = "burst_drainable_f4000_n50000" if window == "w0" else f"burst_drainable_{window}_n50000"
     cfg = os.path.join(inputs, "cfg", f"cc40s{t['topo']}.json")
     wl = os.path.join(inputs, "wl", wl_name + ".json")
     env = dict(os.environ)
@@ -151,7 +164,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
-              "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE"):
+              "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
+              "HEROSIM_PG_INFLIGHT"):
         env.pop(k, None)
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
     time_scale = float((json.load(open(cfg)).get("cd_gap_v1_rate_scale") or {}).get("factor", 1.0))
@@ -207,8 +221,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "cd", "cd_blind"):
+        if kind in ("batched", "cd", "cd_blind", "cd_inflight"):
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
+        if kind == "cd_inflight":
+            env["HEROSIM_PG_INFLIGHT"] = "1"
         if kind == "cd_blind":
             env["HEROSIM_PG_BATCH_BLIND"] = "1"
         if kind == "cd_slate":
@@ -263,12 +279,16 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("slate instrument off: slate_batches == 0")
     if not kind.endswith("_slate") and int(c.get("slate_batches") or 0):
         problems.append("unslated arm was slated")
-    if kind in ("batched", "cd", "cd_blind", "cd_slate") and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "cd", "cd_blind", "cd_slate", "cd_inflight") and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
     if kind == "cd_blind" and int(c.get("pg_partners_blinded") or 0) == 0:
         problems.append("blind instrument off: pg_partners_blinded == 0")
     if kind == "cd" and int(c.get("pg_partners_blinded") or 0) != 0:
         problems.append("CD ran blind")
+    if kind == "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") != "1" or int(c.get("pg_inflight_charged") or 0) == 0):
+        problems.append("inflight instrument off: HEROSIM_PG_INFLIGHT not served or pg_inflight_charged == 0")
+    if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
+        problems.append("a non-inflight arm charged the in-flight task")
     if kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0) == 0:
         problems.append("spread instrument off: prefix_sibling_moves == 0")
     want_capture = SERVICE_END if (base_kind in BC1_KINDS or kind.endswith("_se")) else None
@@ -306,7 +326,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -318,7 +338,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

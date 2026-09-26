@@ -9,6 +9,7 @@
 #   sbatch --export=ALL,PHASE=fc1 backlog_corpus_v1_gate.sbatch           (fullctx_refine_v1)
 #   sbatch --export=ALL,PHASE=xs1 backlog_corpus_v1_gate.sbatch           (exchange_seconds_v1)
 #   sbatch --export=ALL,PHASE=xs1cd backlog_corpus_v1_gate.sbatch         (seeded_cd_xs1_v1)
+#   sbatch --export=ALL,PHASE=ladder,WT=<burst_ladder worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (burst_ladder_v1)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -20,7 +21,8 @@
 #SBATCH --time=24:00:00
 
 set -euo pipefail
-WT=/home/nikola.lukic/gnn-herosim-wt/backlog_corpus
+WT=${WT:-/home/nikola.lukic/gnn-herosim-wt/backlog_corpus}
+TIMEOUT=${TIMEOUT:-1800}
 FRESH=/home/nikola.lukic/gnn-herosim/simulation_data/cd_gap_v1/gates/fresh
 B=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates
 IN="$B/inputs"
@@ -48,7 +50,7 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
            "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
            "${EXTRA[@]}"; do
@@ -59,6 +61,22 @@ for s in 1 2 3 4; do
     done
   done
 done
+
+# burst_ladder_v1: w0 at intensity x1 / x1.5 / x2 (timestamps and policy time constants x1, x2/3, x1/2),
+# built once into $IN/ladder/x<rung> from $IN; the existing inputs are never rewritten.
+if [[ $PHASE == ladder ]]; then
+  TOPOS=$(python3 -c "import json,sys;print(' '.join(map(str,json.load(open(sys.argv[1]))['topologies'])))" "$IN/selected.json")
+  for pair in x10:1.0 x15:0.6666666666666666 x20:0.5; do
+    R=${pair%%:*}; F=${pair##*:}; D="$IN/ladder/$R"
+    if [[ ! -f "$D/.built" ]]; then
+      rm -rf "$D"; mkdir -p "$D"
+      python3 scripts_cosim/cd_gap_v1_build_b.py --src "$IN" --out "$D" --factor "$F" --topologies $TOPOS
+      ln -s "$IN/backlog_corpus_v1_split.json" "$D/backlog_corpus_v1_split.json"
+      find "$D/wl" -name '*.json' ! -name 'burst_drainable_f4000_n50000.json' -delete
+      touch "$D/.built"
+    fi
+  done
+fi
 
 # Logs are not evidence (summaries come from the raw JSON); keep them within the /home quota.
 (
@@ -79,7 +97,7 @@ trap 'kill $WD 2>/dev/null || true' EXIT
 
 rc=0
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py "$PHASE" --inputs "$IN" --out "$OUT" \
-  --selection "$IN/selected.json" --parallel "$P" --mem 2500M --timeout 1800 --no-scope || rc=$?
+  --selection "$IN/selected.json" --parallel "$P" --mem 2500M --timeout "$TIMEOUT" --no-scope || rc=$?
 kill $WD 2>/dev/null || true
 echo "driver rc=$rc"
 exit $rc
