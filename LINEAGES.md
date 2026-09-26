@@ -36,6 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**seeded_cd_xs1_v1**](docs/lineages/seeded_cd_xs1_v1.md) | `ACTIVE` | Does CD refinement started from the `xs1load` plan (the strongest learned burst-seat arm) beat CD? MP-OFF seed as a reported control. Registered 2026-09-26; gate running. |
 | [**exchange_seconds_v1**](docs/lineages/exchange_seconds_v1.md) | `ACTIVE` | Exchange in log1p seconds on top of `fc1load`: X1 `CLOSES-GAP` −0.94 % vs CD (p=0.92, 5/10); X2 `NOT-SEPARATED` −1.34 % vs `fc1load_selfref` (p=0.054, 10/11) but 9461 got worse (+3.9 %); −14.6 % vs self-predict (11/11). |
 | [**fullctx_refine_v1**](docs/lineages/fullctx_refine_v1.md) | `ACTIVE` | Training on full-batch context makes the self-refined GNN tie CD from the fast side: F1 `CLOSES-GAP` −1.76 % (p=0.76, 6/11); F2 −2.23 % vs `bc1load_selfref` (10/11, direction only); −13.9 % vs self-predict (12/12). |
 | [**backlog_corpus_v1**](docs/lineages/backlog_corpus_v1.md) | `ACTIVE` | Synthetic-backlog corpus does not move the live queue (L1 +0.83 % NOT-SEPARATED, L2 +6.6 % vs CD); the gap is in-batch stacking; self-refine on the same weights ties CD (+1.5 %, p = 0.15). |
