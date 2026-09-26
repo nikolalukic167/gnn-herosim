@@ -36,7 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**decima_rule_v1**](docs/lineages/decima_rule_v1.md) | `ACTIVE` | Decima's strongest hand baseline (tuned weighted fair, α tuned off-study) in the burst seat, gated vs self-predict, CD and the learned arms. Registered 2026-09-26. |
+| [**decima_rule_v1**](docs/lineages/decima_rule_v1.md) | `ACTIVE` | Decima's tuned weighted-fair rule (α=+1) is +46 % vs self-predict (0/12) and +66 % vs CD: locality-blind, not a bar here. Learned arm beats it −41 % (11/11). |
 | [**seeded_cd_xs1_v1**](docs/lineages/seeded_cd_xs1_v1.md) | `ACTIVE` | CD refine seeded by `xs1load` beats CD −3.74 % (p=0.002, 10/10, direction only; 9461 −0.9 %); MP-OFF seed −3.07 %, so ~4/5 is any learned seed; −17.8 % vs self-predict. |
 | [**exchange_seconds_v1**](docs/lineages/exchange_seconds_v1.md) | `ACTIVE` | Exchange in log1p seconds on top of `fc1load`: X1 `CLOSES-GAP` −0.94 % vs CD (p=0.92, 5/10); X2 `NOT-SEPARATED` −1.34 % vs `fc1load_selfref` (p=0.054, 10/11) but 9461 got worse (+3.9 %); −14.6 % vs self-predict (11/11). |
 | [**fullctx_refine_v1**](docs/lineages/fullctx_refine_v1.md) | `ACTIVE` | Training on full-batch context makes the self-refined GNN tie CD from the fast side: F1 `CLOSES-GAP` −1.76 % (p=0.76, 6/11); F2 −2.23 % vs `bc1load_selfref` (10/11, direction only); −13.9 % vs self-predict (12/12). |
