@@ -41,7 +41,15 @@ RULE_POLICY = {
     "cd": "peer_greedy_network_cd",
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
+    "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
 }
+# decima_rule_v1 tuning arms: Decima's tuned weighted fair at a fixed alpha (a0 = fair, a1 = naive weighted fair)
+DECIMA_TUNE_ALPHAS = {"decima_am2": -2.0, "decima_am1": -1.0, "decima_am05": -0.5, "decima_a0": 0.0,
+                      "decima_a05": 0.5, "decima_a1": 1.0}
+RULE_POLICY.update({k: "decima_wfair_network" for k in DECIMA_TUNE_ALPHAS})
+# Tuning never touches the study: non-study candidates from the fresh pool (disclosed: not screened for
+# reactive admission).
+DECIMA_TUNE_TOPOS = (9101, 9102, 9103, 9104)
 SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_se")
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns on / zeroed
@@ -67,6 +75,9 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     if phase == "parity":
         return [task(9101, "w1", k) for k in ("selfpredict", "cd")] + \
                [task(9101, "w1", k, 1) for k in ("gnnedge0", "mpoff")]
+    if phase == "decimatune":
+        return [task(t, w, k) for k in DECIMA_TUNE_ALPHAS for t in DECIMA_TUNE_TOPOS for w in WINDOWS] + \
+               [task(t, w, "cd") for t in DECIMA_TUNE_TOPOS for w in WINDOWS]
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
@@ -74,6 +85,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "decima":
+        return [task(t, w, "decima") for t in topos for w in WINDOWS]
     if phase == "xs1cd":
         # seeded_cd_xs1_v1: CD's refine passes started from the xs1load plan, and from the MP-OFF bc1 plan
         return [task(t, w, k, s) for k in ("xs1load_cdapply", "bc1mpoff_cdapply") for s in (1, 2, 3, 4)
@@ -147,7 +160,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     for k in ("GNN_MODEL_PATH", "GNN_DISABLE_MESSAGE_PASSING", "GNN_MP_PLATFORM_EDGES_OFF", "GNN_BATCH_TIMEOUT",
               "GNN_BATCH_SIZE", "GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "GNN_PREFIX_ALPHA_KEY",
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
-              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
+              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_DECIMA_ALPHA", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
@@ -207,8 +220,15 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "cd", "cd_blind"):
+        if kind in ("batched", "cd", "cd_blind") or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
+        if kind in DECIMA_TUNE_ALPHAS:
+            env["HEROSIM_DECIMA_ALPHA"] = repr(DECIMA_TUNE_ALPHAS[kind])
+        if kind == "decima":
+            alpha = os.environ.get("HEROSIM_DECIMA_ALPHA", "").strip()
+            if not alpha:
+                raise SystemExit("FAIL LOUD: the decima study arm needs HEROSIM_DECIMA_ALPHA (the tuned alpha)")
+            env["HEROSIM_DECIMA_ALPHA"] = alpha
         if kind == "cd_blind":
             env["HEROSIM_PG_BATCH_BLIND"] = "1"
         if kind == "cd_slate":
@@ -263,6 +283,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("slate instrument off: slate_batches == 0")
     if not kind.endswith("_slate") and int(c.get("slate_batches") or 0):
         problems.append("unslated arm was slated")
+    if RULE_POLICY.get(kind) == "decima_wfair_network":
+        if int(c.get("decima_batches") or 0) == 0:
+            problems.append("decima instrument off: decima_batches == 0")
+        if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
+            problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
     if kind in ("batched", "cd", "cd_blind", "cd_slate") and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
     if kind == "cd_blind" and int(c.get("pg_partners_blinded") or 0) == 0:
@@ -306,7 +331,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "decimatune", "decima"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -318,7 +343,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "decimatune", "decima"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

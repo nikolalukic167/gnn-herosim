@@ -98,6 +98,7 @@ from src.policy.peer_greedy_network.scheduler import (
     PeerGreedyNetworkCDScheduler,
     PeerGreedyNetworkScheduler,
 )
+from src.policy.decima_wfair.scheduler import DecimaWeightedFairBatchScheduler
 from src.policy.knative_network_ect_pull.scheduler import (
     KnativeECTPullScheduler as KnativeNetworkECTPullScheduler,
 )
@@ -740,6 +741,8 @@ def start_simulation(
         "peer_greedy_network_batch_peer_greedy_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkBatchScheduler),
         "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyLearnedNetworkBatchScheduler),
         "peer_greedy_network_cd_peer_greedy_network_cd": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDScheduler),
+        # decima_rule_v1: Decima's tuned weighted-fair baseline in the burst seat
+        "decima_wfair_network_decima_wfair_network": (GNNOrchestrator, GNNAutoscaler, DecimaWeightedFairBatchScheduler),
         "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
     }
 

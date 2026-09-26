@@ -127,6 +127,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             res["G1_label"] = "CD-FASTER"
         else:
             res["G1_label"] = "TIES-CD"
+    if any(k[2] == "decima" for k in s):
+        # decima_rule_v1: Decima's tuned weighted-fair baseline against the bars and the learned arms
+        res["D1"] = C.contrast(s, topos, "decima", "cd")
+        res["D2"] = C.contrast(s, topos, "decima", "selfpredict")
+        for arm in ("xs1load_selfref", "xs1load_cdapply"):
+            if any(k[2] == arm for k in s):
+                res[f"D_{arm}_vs_decima"] = C.contrast(s, topos, arm, "decima")
     res["L1_label"] = l1_label(res["L1"])
     res["L2_label"] = l2_label(res["L2"], res["L1_label"])
     print(json.dumps(res, indent=1))

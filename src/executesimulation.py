@@ -1137,6 +1137,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "PARTIAL_STATE_PEER_MASS",
             "PARTIAL_STATE_LOAD_SECONDS",
             "PARTIAL_STATE_EXCHANGE_SECONDS",
+            "HEROSIM_DECIMA_ALPHA",
             # drainable_objective_v1: the backlog clock a corpus was generated on, and
             # the label config, so a gate result names both.
             "HEROSIM_BACKLOG_DRAIN_TABLE",
@@ -1272,6 +1273,7 @@ def run_simulation(
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'decima_wfair_network',
         'offload_network',
         'xgboost_batch',
         'xgboost_single',
@@ -1436,6 +1438,9 @@ def run_simulation(
             models = None
         elif policy == 'peer_greedy_network_cd':
             scheduling_strategy = 'peer_greedy_network_cd_peer_greedy_network_cd'
+            models = None
+        elif policy == 'decima_wfair_network':
+            scheduling_strategy = 'decima_wfair_network_decima_wfair_network'
             models = None
         elif policy == 'offload_network':
             scheduling_strategy = 'offload_network_offload_network'
@@ -1747,7 +1752,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|offload_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|decima_wfair_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1758,7 +1763,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|offload_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|decima_wfair_network|offload_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1784,6 +1789,7 @@ def main():
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'decima_wfair_network',
         'offload_network',
         'xgboost_batch',
         'xgboost_single',
