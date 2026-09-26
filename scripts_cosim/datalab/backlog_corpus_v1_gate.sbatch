@@ -9,6 +9,8 @@
 #   sbatch --export=ALL,PHASE=fc1 backlog_corpus_v1_gate.sbatch           (fullctx_refine_v1)
 #   sbatch --export=ALL,PHASE=xs1 backlog_corpus_v1_gate.sbatch           (exchange_seconds_v1)
 #   sbatch --export=ALL,PHASE=xs1cd backlog_corpus_v1_gate.sbatch         (seeded_cd_xs1_v1)
+#   sbatch --export=ALL,PHASE=decimatune,WT=<decima worktree> backlog_corpus_v1_gate.sbatch            (decima_rule_v1 tuning)
+#   sbatch --export=ALL,PHASE=decima,WT=<decima worktree>,HEROSIM_DECIMA_ALPHA=<tuned> backlog_corpus_v1_gate.sbatch
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -20,7 +22,7 @@
 #SBATCH --time=24:00:00
 
 set -euo pipefail
-WT=/home/nikola.lukic/gnn-herosim-wt/backlog_corpus
+WT=${WT:-/home/nikola.lukic/gnn-herosim-wt/backlog_corpus}
 FRESH=/home/nikola.lukic/gnn-herosim/simulation_data/cd_gap_v1/gates/fresh
 B=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates
 IN="$B/inputs"

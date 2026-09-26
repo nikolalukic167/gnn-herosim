@@ -216,6 +216,9 @@ class Orchestrator:
             "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
             "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
             "pg_partners_blinded",
+            # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
+            "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
+            "decima_allowed_platforms", "decima_fallbacks",
             # lookahead_mp_v1 P0: unarrived partners priced / left unpriced
             "pg_lookahead_priced", "pg_lookahead_blind",
         )
