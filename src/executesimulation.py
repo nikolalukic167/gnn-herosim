@@ -1136,6 +1136,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "PARTIAL_STATE_CONTRACT",
             "PARTIAL_STATE_PEER_MASS",
             "PARTIAL_STATE_LOAD_SECONDS",
+            "PARTIAL_STATE_EXCHANGE_SECONDS",
             # drainable_objective_v1: the backlog clock a corpus was generated on, and
             # the label config, so a gate result names both.
             "HEROSIM_BACKLOG_DRAIN_TABLE",

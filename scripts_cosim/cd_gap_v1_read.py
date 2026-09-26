@@ -68,7 +68,7 @@ def _registered_seeds(kind: str) -> List[int]:
     that never ran is a missing run, not a smaller sample."""
     if kind.endswith("_cdshadow"):
         return [1, 2, 3]
-    if kind.split("_")[0] in ("cdimit", "v4load", "v4twin", "bc1load", "bc1mpoff", "fc1load"):  # v4*: load_repr_v1; bc1*: backlog_corpus_v1
+    if kind.split("_")[0] in ("cdimit", "v4load", "v4twin", "bc1load", "bc1mpoff", "fc1load", "xs1load"):  # v4*: load_repr_v1; bc1*: backlog_corpus_v1
         return [1, 2, 3, 4]
     if kind.split("_")[0] in ("gnnedge0", "mpoff"):
         return list(F.SEEDS)

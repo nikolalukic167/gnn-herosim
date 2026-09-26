@@ -39,7 +39,7 @@ def _ctx(contract, n_tasks=3, **kw):
         route_hops_bneck={(a, b): ((0.0, math.inf) if a == b else (1.0, 100.0)) for a in NODES for b in NODES},
         payload_bytes=0.0, transfer_norm=0.0, node_rank=krank_node_order(caps, hop, contract=contract),
         ingress_links={(t, n): () for t in tasks for n in NODES}, core_links=frozenset(),
-        peer_pairs={(0, 1): 1.0, (1, 0): 1.0}, peer_norm=1.0,
+        peer_pairs={(0, 1): 1.0, (1, 0): 1.0}, peer_norm=extra.pop("peer_norm", 1.0),
         node_exchange={(a, b): ((0.0, 0.0) if a == b else (1.0, 0.1)) for a in NODES for b in NODES},
         cand_nodes={t: list(NODES) for t in tasks}, contract=contract, **extra,
     )
@@ -131,3 +131,37 @@ def _old_seed_clock(spec, tt, ptype):
 @pytest.mark.parametrize("tt", [TT, None])
 def test_seeded_backlog_is_the_old_seed_clock(spec, tt):
     assert seeded_backlog_seconds(spec, tt, "xavierGpu") == _old_seed_clock(spec, tt, "xavierGpu")
+
+
+def test_exchange_seconds_is_log1p_seconds_and_free_of_peer_norm(monkeypatch):
+    """exchange_seconds_v1: columns 7-8 in log1p seconds, independent of the per-batch peer_norm;
+    every other column unchanged; off by default."""
+    monkeypatch.delenv("PARTIAL_STATE_EXCHANGE_SECONDS", raising=False)
+    committed = {1: ("n1", 0)}
+    off = partial_state_columns(_ctx(PARTIAL_STATE_CONTRACT_V4, peer_norm=4.0), 0, REPLICAS, committed)
+    monkeypatch.setenv("PARTIAL_STATE_EXCHANGE_SECONDS", "1")
+    on = partial_state_columns(_ctx(PARTIAL_STATE_CONTRACT_V4, peer_norm=4.0), 0, REPLICAS, committed)
+    on_other_norm = partial_state_columns(_ctx(PARTIAL_STATE_CONTRACT_V4, peer_norm=0.5), 0, REPLICAS, committed)
+    np.testing.assert_array_equal(on, on_other_norm)
+    rest = [c for c in range(on.shape[1]) if c not in (7, 8)]
+    np.testing.assert_array_equal(on[:, rest], off[:, rest])
+    # task 0 on n0 vs partner on n1: 1 byte * 1.0 s/B + 0.1 s latency; same node costs nothing
+    x = {n: (0.0 if n == "n1" else 1.1) for n in NODES}
+    for i, r in enumerate(REPLICAS):
+        assert on[i, 7] == pytest.approx(math.log1p(x[r[0]]), rel=1e-6)
+        assert off[i, 7] == pytest.approx(x[r[0]] / 4.0, rel=1e-6)
+    # peer mass: task 1 is committed, so nothing is left to look ahead to for task 0
+    assert np.all(on[:, 8] == 0.0)
+    lone = partial_state_columns(_ctx(PARTIAL_STATE_CONTRACT_V4), 0, REPLICAS, {})
+    x_mass = {n: sum((0.0 if n == m else 1.1) for m in NODES) / len(NODES) for n in NODES}
+    for i, r in enumerate(REPLICAS):
+        assert lone[i, 8] == pytest.approx(math.log1p(x_mass[r[0]]), rel=1e-6)
+
+
+def test_exchange_seconds_refuses_pre_v4_contracts(monkeypatch):
+    monkeypatch.setenv("PARTIAL_STATE_EXCHANGE_SECONDS", "1")
+    with pytest.raises(ValueError, match="only under partial_state_v4"):
+        _ctx(PARTIAL_STATE_CONTRACT_V3)
+    monkeypatch.setenv("PARTIAL_STATE_EXCHANGE_SECONDS", "yes")
+    with pytest.raises(ValueError, match="expected 0 or 1"):
+        _ctx(PARTIAL_STATE_CONTRACT_V4)

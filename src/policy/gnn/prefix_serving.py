@@ -54,9 +54,11 @@ from src.policy.tabular.reduced_features import (
     PARTIAL_STATE_CONTRACT_V4,
     PARTIAL_STATE_FEATURE_DIM,
     partial_state_feature_dim,
+    PARTIAL_STATE_EXCHANGE_SECONDS_ENV,
     PARTIAL_STATE_LOAD_SECONDS_ENV,
     PARTIAL_STATE_PEER_MASS_ENV,
     build_partial_state_context_from_graph,
+    exchange_seconds_enabled,
     krank_node_order,
     load_seconds_enabled,
     peer_mass_enabled,
@@ -233,6 +235,17 @@ def load_prefix_conditioned_gnn(
             )
     elif str(trained_contract) == "partial_state_v4":
         raise PrefixServingError(f"{label}: a partial_state_v4 sidecar must record load_seconds")
+    # exchange_seconds_v1: sidecars before it carry no key and were trained with the flag off.
+    trained_exchange_seconds = bool(sidecar.get("exchange_seconds") or False)
+    _adopt_or_verify_env(
+        PARTIAL_STATE_EXCHANGE_SECONDS_ENV, "1" if trained_exchange_seconds else "0", label,
+        adopt=adopt_env, default="0",
+    )
+    if trained_exchange_seconds != exchange_seconds_enabled():
+        raise PrefixServingError(
+            f"{label}: sidecar exchange_seconds={trained_exchange_seconds} but "
+            f"{PARTIAL_STATE_EXCHANGE_SECONDS_ENV} resolves to {exchange_seconds_enabled()}"
+        )
 
     vocab = _task_type_vocab()
     onehot_dim = int(sidecar.get("task_type_onehot_dim") or 0)
