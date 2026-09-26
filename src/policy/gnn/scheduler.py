@@ -182,6 +182,21 @@ def _sibling_spread_on() -> bool:
     return raw == "1"
 
 
+def _keepwarm_params() -> Optional[Tuple[int, float]]:
+    """replica_guard_v1 (GNN_REPLICA_KEEPWARM=1): (max replicas a type may have for the guard to act,
+    seconds before keep_alive expiry that count as "about to expire"), or None when off."""
+    raw = os.environ.get("GNN_REPLICA_KEEPWARM", "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: GNN_REPLICA_KEEPWARM must be 0 or 1, got {raw!r}")
+    if raw == "0":
+        return None
+    max_replicas = int(os.environ.get("GNN_REPLICA_KEEPWARM_MAX_REPLICAS", "4"))
+    margin = float(os.environ.get("GNN_REPLICA_KEEPWARM_MARGIN_S", "5"))
+    if max_replicas < 1 or not (margin >= 0.0):
+        raise ValueError(f"FAIL LOUD: keep-warm max_replicas={max_replicas}, margin={margin}")
+    return max_replicas, margin
+
+
 def _read_gnn_batch_timeout() -> float:
     raw = os.environ.get("GNN_BATCH_TIMEOUT", "0.002")
     try:
@@ -223,6 +238,10 @@ class GNNScheduler(Scheduler):
         self._cd_refiner = None
         self.prefix_self_refine_batches = 0
         self.prefix_self_refine_moves = 0
+        self.keepwarm_armed = 1 if _keepwarm_params() is not None else 0
+        self.keepwarm_batches_fired = 0
+        self.keepwarm_moves = 0
+        self.keepwarm_expiring_seen = 0
         self.v4_backlog_batches = 0
         self.v4_backlog_nonzero = 0
         self.cdr_batches = 0
@@ -948,6 +967,65 @@ class GNNScheduler(Scheduler):
         self.slate_candidates_kept += kept
         return view
 
+    def _keep_replicas_warm(
+        self,
+        tasks: List[Task],
+        placements: Dict[int, Tuple[int, int]],
+        system_state: SystemState,
+        max_replicas: int,
+        margin: float,
+    ) -> Dict[int, Tuple[int, int]]:
+        """replica_guard_v1: stop a task type's replica pool shrinking through disuse. The autoscaler
+        removes a replica idle for more than keep_alive whenever ceil(concurrency / target) is below
+        the count, which at w0's load means down to 1-2 replicas; a model that concentrates a type on
+        its fastest devices then meets the next burst with one candidate per task (9434 w0). For each
+        type in the batch with at most `max_replicas` replicas, every replica that is idle, not already
+        targeted by this batch and within `margin` s of expiry receives one task of that type -- the
+        task whose chosen platform has the longest queue, then the lowest index. Score-blind by design."""
+        keep_alive = float(self.autoscaler.policy.keep_alive)
+        now = float(self.env.now)
+        out = dict(placements)
+        targeted = {out[idx] for idx in out}
+        moved: Set[int] = set()
+        fired = False
+        for type_name in sorted({t.type["name"] for t in tasks}):
+            pool = system_state.replicas.get(type_name, set())
+            if len(pool) > max_replicas:
+                continue
+            expiring = sorted(
+                ((nd, pl) for nd, pl in pool
+                 if not pl.queue.items and pl.current_task is None
+                 and now - pl.idle_since >= keep_alive - margin
+                 and (nd.id, pl.id) not in targeted),
+                key=lambda c: (c[1].idle_since, c[0].id, c[1].id),
+            )
+            self.keepwarm_expiring_seen += len(expiring)
+            for nd, pl in expiring:
+                movable = []
+                for idx in sorted(out):
+                    task = tasks[idx]
+                    if idx in moved or task.type["name"] != type_name:
+                        continue
+                    valid = self._get_valid_replicas(pool, task)
+                    if not any(v_nd.id == nd.id and v_pl.id == pl.id for v_nd, v_pl in valid):
+                        continue
+                    cur = next((v_pl for v_nd, v_pl in valid
+                                if (v_nd.id, v_pl.id) == out[idx]), None)
+                    if cur is None:
+                        raise RuntimeError(f"FAIL LOUD: decoded {out[idx]} for task {task.id} is not a valid replica")
+                    movable.append((-cur.queue_length(), idx))
+                if not movable:
+                    continue
+                _neg_q, idx = min(movable)
+                out[idx] = (nd.id, pl.id)
+                targeted.add((nd.id, pl.id))
+                moved.add(idx)
+                self.keepwarm_moves += 1
+                fired = True
+        if fired:
+            self.keepwarm_batches_fired += 1
+        return out
+
     def _spread_over_siblings(
         self,
         tasks: List[Task],
@@ -1025,6 +1103,9 @@ class GNNScheduler(Scheduler):
             refine_mode = _cd_refine_mode()
             if refine_mode:
                 placements = self._cd_refine(decodable, placements, system_state, refine_mode)
+            keepwarm = _keepwarm_params()
+            if keepwarm is not None:
+                placements = self._keep_replicas_warm(decodable, placements, system_state, *keepwarm)
             inference_time = default_timer() - inference_start
             node_by_id = {node.id: node for node in self.nodes.items}
             for idx, task in enumerate(decodable):
