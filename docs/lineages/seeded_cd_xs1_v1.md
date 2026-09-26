@@ -1,7 +1,12 @@
 # seeded_cd_xs1_v1 — does CD refinement started from the strongest learned plan beat CD?
 
-**Status:** `ACTIVE` (2026-09-26). Registered; the gate is running. Every bar below was signed before
-any datum of this arm existed.
+**Status:** `ACTIVE`. Registered 2026-09-26; the live gate was read 2026-09-26.
+- **G1 `BEATS-CD (direction only)`:** CD refinement seeded by `xs1load` vs CD −3.74 %, p = 0.002,
+  faster on 10/10 topologies.
+- It is faster than CD on every topology, including 9461 (−0.9 %), and −17.8 % vs self-predict.
+- It is under the 5 % magnitude bar, on 4 seeds and 10 topologies.
+- Most of it is any learned seed: MP-OFF-seeded CD reads −3.07 %, and `xs1load` beats that seed by
+  −0.94 % (10/10).
 
 **Parents:**
 - [`exchange_seconds_v1`](exchange_seconds_v1.md): `xs1load_selfref` ties CD (−0.94 %, p = 0.92). It is
@@ -56,5 +61,37 @@ own greedy pass, now that the seed is `xs1load` rather than `gnnedge0`.
   - `cc40s9423__w3` has timed out for several learned arms at 1800 s. The drop rule applies.
 
 ## Record (newest first)
+
+- 2026-09-26 — **Live gate read** (job 808791, phase `xs1cd`, 50 min, at 1c72012).
+  - **Runs:** 372 of 384 wrote summaries. All 12 misses are 1800 s timeouts:
+    - `cc40s9423__w3`: `xs1load_cdapply` s1–4 and `bc1mpoff_cdapply` s2;
+    - `cc40s9466__w2`: `bc1mpoff_cdapply` s1–4 and `xs1load_cdapply` s2 and s4;
+    - `cc40s9466__w3`: `xs1load_cdapply` s2.
+    - The drop rule removes 9423 and 9466 from every G read. 9466 would be dropped anyway, since CD's
+      own w3 is missing.
+    - **Disclosed:** a timeout is a slow run, so the drop can remove cells where a seeded arm is worst.
+  - **Attachment:** [`xs1cd_read.json`](seeded_cd_xs1_v1/xs1cd_read.json).
+  - **G1 `BEATS-CD (direction only)`:** −3.74 %, p = 0.002, 10/10.
+    - Per topology (%): 9119 −4.8, 9414 −3.4, 9420 −2.1, 9434 −7.8, 9435 −4.4, 9444 −4.4, 9446 −3.3,
+      9456 −3.1, 9461 −0.9, 9469 −4.1.
+    - Pooled means: elapsed 7.03 vs 7.46 s; queue 2.71 vs 2.99 s; exchange 3.94 vs 4.11 s per task.
+  - **G2 (reported), vs `xs1load_selfref`:** −1.64 %, p = 0.020, 9/10.
+    - The gain is concentrated where the learned score was wrong: 9461 −28.9 %, 9434 −12.3 %,
+      9456 −9.9 %. It is ~0 on the topologies where the model already tied or beat CD.
+    - Queue 3.09 → 2.71 s; exchange unchanged (3.93 → 3.94 s).
+  - **G3 (reported), vs `bc1mpoff_cdapply`:** −0.94 %, p = 0.002, 10/10. The better seed helps
+    consistently but little. This is a learned-seed contrast, confounded as disclosed; it is not an
+    MP read.
+  - **G4 (reported):**
+    - `bc1mpoff_cdapply` vs CD −3.07 %, p = 0.002, 10/10. Four fifths of the gain comes from any learned
+      seed, as in `cd_gap_v1` D5 (−2.56 %).
+    - `xs1load_cdapply` vs self-predict −17.78 %, 10/10.
+  - **Reading:** a learned plan is a better start for CD's refine than CD's own greedy pass, on every
+    topology. This replicates D5 (−3.83 %, `gnnedge0` seed) with a stronger seed and a consistent
+    +0.9 % seed-quality term.
+    - The refine repairs exactly the node-choice weighting error the 9461 study found
+      ([`exchange_seconds_v1`](exchange_seconds_v1.md)), so the hybrid wins where each part alone loses.
+    - Quote it as a learned-seed + hand-search win, never as a stand-alone learned policy or a
+      message-passing win.
 
 - 2026-09-26 — Registered.

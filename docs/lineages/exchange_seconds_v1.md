@@ -70,6 +70,34 @@ measured the mis-weighting at 0.04 s per decision.
 
 ## Record (newest first)
 
+- 2026-09-26 — **9461 study** (two agents).
+  - **Forensics** on the existing gate summaries. **Instrumented reruns** on 9461 w0–w3 of CD,
+    `xs1load_selfref` s1 and `xs1load` under CD-refine shadow, on datalab at 1c72012, with raw per-task
+    results kept (since deleted).
+  - **The loss is w1–w3 only.** In w0, CD collapses (node5 queue 19.5 s) and the learned arm is 61 %
+    faster. The window median discards that.
+  - **9461 is the lightest topology.** CD's w1–w3 elapsed is 2.5–3.1 s, against 4.9–9.0 s elsewhere.
+    The absolute gap (about +1 s) is still the largest of the 11.
+  - **Mechanism: node choice, not sibling spread and not the normaliser.**
+    - CD puts 77–79 % of tasks on node0 (4 `rpiCpu` siblings, p199–202), against 60–66 % for the GNN.
+    - It keeps 76–80 % of peer bytes on one node, against 66–72 %.
+    - The GNN sends `dnn1` to node5's FPGA (22.8 % vs CD's 10.9 %) and `dnn2` to the Xavier nodes
+      (31 % vs 15 %). That saves 12 ms of execution and pays about 1.2 s of exchange plus queue per task.
+    - Node0's queue is *lower* under CD despite more load (1.15 vs 1.46 s): the exchange stage occupies
+      the platform, so co-location shortens service and with it the queue behind batch-mates.
+    - Batch-mates per platform are equal (mean maximum 4.8 vs 4.3). Sibling-spread ratios match.
+  - **Counterfactuals:**
+    - `GNN_PREFIX_SIBLING_SPREAD=1` on `xs1load_selfref` w1/w2 changes nothing (4.274 vs 4.271 s,
+      3.580 vs 3.554 s).
+    - CD-refine shadow on the GNN trajectory would move 14.7 % of tasks; 75 % of those moves change node.
+    - CD refine seeded by any learned plan (`gnnedge0` or MP-OFF, `cd_gap_v1` D5) matches CD on 9461.
+  - **Reading:** a per-task score can express this, since CD's own greedy is one. The learned score
+    over-weights device speed against exchange bytes on a topology where one many-sibling node is the
+    natural exchange hub.
+    - The earlier reading, CD spreading partners across siblings, is refuted by the counterfactual.
+    - The seconds encoding did not fix the weighting (9461 +3.9 %).
+    - A likely cause is too few hub-shaped topologies in the training corpus. That is untested.
+
 - 2026-09-26 — **Live gate read** (job 808426, phase `xs1`, 48 min, at cca3533).
   - **Runs:** 378 of 384 wrote summaries. The misses are all 1800 s timeouts on `cc40s9423__w3`: plain
     `xs1load` s1–4 (as for plain `bc1load` and `fc1load`) and `xs1load_selfref` s1–2. By the drop rule,
