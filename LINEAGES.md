@@ -36,7 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**fullctx_refine_v1**](docs/lineages/fullctx_refine_v1.md) | `ACTIVE` | Does training on full-batch context (a second CE with every batch-mate committed) make the GNN's self-refine beat CD? Registered 2026-09-25; training. |
+| [**fullctx_refine_v1**](docs/lineages/fullctx_refine_v1.md) | `ACTIVE` | Training on full-batch context makes the self-refined GNN tie CD from the fast side: F1 `CLOSES-GAP` −1.76 % (p=0.76, 6/11); F2 −2.23 % vs `bc1load_selfref` (10/11, direction only); −13.9 % vs self-predict (12/12). |
 | [**backlog_corpus_v1**](docs/lineages/backlog_corpus_v1.md) | `ACTIVE` | Synthetic-backlog corpus does not move the live queue (L1 +0.83 % NOT-SEPARATED, L2 +6.6 % vs CD); the gap is in-batch stacking; self-refine on the same weights ties CD (+1.5 %, p = 0.15). |
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
 | [**drainable_debug_v1**](docs/lineages/drainable_debug_v1.md) | `REGISTERED` | Why do both learned arms lose to reactive Knative at ρ ≈ 0.16? Bars signed before any datum exists; parents are `drainable_regime_v1` and `drainable_serving_config_v1`. |
