@@ -1,7 +1,11 @@
 # burst_ladder_v1 — is the learned arm's lead over CD in bursty w0 real, and does it grow with intensity?
 
-**Status:** `ACTIVE` (2026-09-26). Registered; the S0 gate is running. Every bar below was signed before
-any datum of this ladder existed.
+**Status:** `ACTIVE`. Registered 2026-09-26; the S0 gate was read 2026-09-26.
+- **×1 `NO-LEAD`:** A −11.1 %, p = 0.064, 10/12. The in-flight blind spot is **not** the cause:
+  `cd_inflight` recovers 5 % of the lead.
+- **×1.5 `CD-DEFECT`** (share 0.67; B −12.2 %, p = 0.11) and **×2 `NO-LEAD`** (A −37 %, p = 0.13;
+  B −30 %, p = 0.042) are both **inadmissible**: reactive saturates on 11/12 and 12/12 topologies.
+- The 20 % criterion is not met.
 
 **What this is:** a live S0 screen that orders work toward a ~20 % learned-arm win. It is live, so rule 6 is
 met for what it reads. It does not by itself close the program question. A lineage that trains on its
@@ -90,5 +94,43 @@ answer still ends with its own registered live gate.
 - Reader: `scripts_cosim/burst_ladder_v1_read.py`.
 
 ## Record (newest first)
+
+- 2026-09-26 — **S0 read** (datalab job 809097 at b2ec7f9, 20 min; 432/432 runs, no failures).
+  - **Witness:** 120/120 ×1 runs equal their existing w0 runs in `total_rtt` to the digit (CD,
+    self-predict and reactive from `ref_fresh_1ae90af`, the learned arms from `xs1`/`xs1cd`).
+  - **Attachment:** [`ladder_read.json`](burst_ladder_v1/ladder_read.json).
+
+  | rung | A learned vs CD | B learned vs `cd_inflight` | I `cd_inflight` vs CD | share | admissible | label |
+  |---|---|---|---|---|---|---|
+  | ×1 | −11.07 %, p 0.064, 10/12 | −6.63 %, p 0.13, 10/12 | −0.56 %, p 0.064 | 0.05 | 12/12 | `NO-LEAD` |
+  | ×1.5 | −29.93 %, p 0.021, 9/12 | −12.20 %, p 0.11, 10/12 | −10.63 %, p 0.11 | 0.67 | 1/12 | `CD-DEFECT` |
+  | ×2 | −36.95 %, p 0.13, 10/12 | −30.00 %, p 0.042, 9/12 | −6.48 %, p 0.15 | 0.37 | 0/12 | `NO-LEAD` |
+
+  - **At ×1 (the admissible regime), the CD-defect explanation is refuted.**
+    - The in-flight term moves CD −0.56 %, and recovers 5 % of the lead (median over the 10 leading
+      topologies).
+    - The lead is large and broad (per topology: −13.5, −14.1, −3.7, −11.2, −17.7, −11.5, −8.8, −61.4,
+      −5.1, −10.9 %).
+    - It does not reach significance because of two topologies: **9434 +220 %**, the registered w0
+      collapse, reproduced to the digit, and 9456 +6.5 %.
+    - Pooled means: learned 7.24 s vs CD 8.52 s; queue 3.47 vs 4.38 s; exchange 3.87 vs 4.06 s per task.
+  - **×1.5 and ×2 are overload, not a regime to quote.**
+    - Reactive queue share is 0.88–0.96 at ×1.5 and 0.96–0.98 at ×2. Every arm's queue is 13–106 s per
+      task.
+    - The gaps are large (A −30 % and −37 %; per topology up to −85 %). They are a race to collapse, with
+      the learned arm itself collapsing on 9434 (+29 %, +42 %) and 9461 at ×2 (+356 %).
+    - B's median grows with intensity (−6.6 → −12.2 → −30.0 %), but only across inadmissible rungs.
+  - **Reported:**
+    - The hybrid (`xs1load_cdapply`) vs CD is −3.5 % at ×1 (p = 0.042) and not separated at ×1.5 and ×2.
+      Under overload, CD's refine pulls the learned plan back.
+    - The learned arm vs self-predict: −20.3 % at ×1 (11/12), −49.9 % at ×1.5, −33.4 % at ×2.
+  - **Reading:**
+    - In w0 at the real load, the pure learned arm leads CD by about 11 % on 10 of 12 topologies, for
+      reasons other than CD's in-flight blind spot.
+    - What stops it from being a result is **reliability**: seed- and topology-dependent collapses
+      (9434) that one bad cell makes decisive in an 12-topology Wilcoxon.
+    - Raising intensity by 1.5× already saturates the reactive reference, so the ladder has no admissible
+      upper rung. An intensity between ×1 and ×1.5 (e.g. ×1.1, ×1.25) is where growth could be measured
+      admissibly.
 
 - 2026-09-26 — Registered.
