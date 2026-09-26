@@ -1,6 +1,13 @@
 # wide_choice_s0_v1 — does a wider per-task choice set push CD far from the per-batch optimum?
 
-**Status:** `ACTIVE` (2026-09-26). Registered; not yet run. Every bar below was signed before any datum.
+**Status:** `ACTIVE`. Registered 2026-09-26; the S0 was read 2026-09-26: **S0 FAIL**.
+- **W1 `CD-MIDDLE`:** CD's median regret against the exact optimum is 13.9 % (tier A, 138 groups) and
+  12.0 % (tier B, 60).
+- **W2 `LEARNED-AT-OR-BELOW-CD`:** −1.8 pp paired.
+- **W3 `COMPLEMENTARY`:** 33 %.
+- **CD's regret does not grow with slate width.** The width the live replica pools allow is ~2.3–2.9
+  candidates per task, not 3–4. The live offline-to-live gate this S0 would have licensed is not
+  registered.
 
 **An offline screen (S0).** It *orders* work; it does not close anything (rule 6).
 - A pass leads to a registered live gate on a wide-choice environment, with training on a wide-choice
@@ -74,5 +81,59 @@ win needs an environment where CD is far from optimal.
   - W3 `COMPLEMENTARY` 50 %.
 
 ## Record (newest first)
+
+- 2026-09-26 — **S0 read** (datalab; generation array 809098 plus read 809099, at 3e75638 on
+  `wide-choice-s0-v1`).
+  - **Attachment:** [`wide_choice_s0_v1_read.json`](wide_choice_s0_v1/wide_choice_s0_v1_read.json).
+  - **Groups, fewer and narrower than designed:**
+    - Tier A kept 138 of 479 snapshots; tier B kept 60 of 167. Every rejection is the
+      `--min-choice-fraction 0.8` rule: fewer than 80 % of a group's tasks can keep ≥ 2 candidates.
+    - The cause is the live replica pools. Most snapshots hold 2–3 replicas per task type (pool
+      sizes (3, 3) 41×, (2, 3) 38× in tier A), so the target caps are rarely binding.
+    - Achieved width: tier A has a median of 2.3 candidates per task (q10–q90 1.9–3.2) and 2,124 plans;
+      tier B has 2.9 (2.0–3.7) and 22,950 plans. Only 10 + 22 groups exceed 3.25.
+    - The regret study's "6–10 live candidates per task" does not hold for these states: pools are the
+      binding limit.
+    - Every learned replay formed exactly 1 batch, and no replay beat the exhaustive optimum.
+  - **The landscape is a needle.** The median share of plans within 5 % of the optimum is 0.23 %
+    (tier A) and 0.19 % (tier B).
+  - **Median regret over the exact optimum, tier A** (tier B in brackets):
+
+    | Arm | Median regret | Share of groups ≥ 20 % |
+    |---|---|---|
+    | CD | 13.9 % (12.0) | 46 % |
+    | 1-pass greedy | 43.5 % (44.1) | — |
+    | `xs1load` one-pass (median of 4 seeds) | 14.1 % (13.9) | — |
+    | self-refine | 12.0 % (12.4) | — |
+    | GNN-seeded CD | 12.7 % (10.6) | — |
+
+    CD's mean regret is 90.0 % (49.1): a heavy tail.
+  - **W1 `CD-MIDDLE`** (13.9 %).
+  - **W2 `LEARNED-AT-OR-BELOW-CD`:** one-pass minus CD is −1.8 pp (tier B −1.9). The learned arm is better
+    on 52 % of groups and worse on 41 %.
+    - Self-refine: −2.5 pp. GNN-seeded CD: 0.0 pp at the median, mean −50 pp. It removes CD's tail.
+  - **W3 `COMPLEMENTARY`:** in 33 % (32 %) of groups, the better of {CD, one-pass} is ≥ 10 % faster than CD.
+  - **Regret by width, the decisive read.** CD's regret *falls* as the slate widens; the learned arm's
+    *rises*:
+
+    | Candidates per task | CD median (tier A) | One-pass median (tier A) |
+    |---|---|---|
+    | < 2 (n = 23) | 22.6 % | 7.7 % |
+    | 2–2.75 (n = 74) | 17.7 % | 16.0 % |
+    | 2.75–3.25 (n = 31) | 13.5 % | 14.9 % |
+    | > 3.25 (n = 10) | 7.3 % | 34.7 % |
+
+    - Tier B shows the same: CD 30.0 / 12.7 / 7.6 / 12.3 %, one-pass 0.0 / 13.3 / 13.7 / 18.9 %.
+    - This refutes the premise that widening the slate makes CD weak. The earlier quintile correlation
+      (1.2 % → 14–20 %) confounded width with other group properties.
+    - The learned arm, trained on ~2.1-candidate slates, degrades out of distribution at > 3 candidates.
+  - **Reading:** in this environment the slate is capped by the live replica pools, and within that
+    range CD is not systematically weaker on wider choices.
+    - A 20 % learned edge would need a physics change that grows the pools (more replicas per type), and
+      even then this S0 shows CD improving with width.
+    - CD's weakness is a heavy tail of needle groups: 46 % of groups ≥ 20 % regret, mean 90 %. The
+      learned arms and GNN-seeded CD already trim that tail (mean −31 to −50 pp).
+    - The actionable thread is the tail, not the width.
+    - The live gate this S0 would have ordered is not registered.
 
 - 2026-09-26 — Registered.

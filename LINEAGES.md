@@ -36,7 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**wide_choice_s0_v1**](docs/lineages/wide_choice_s0_v1.md) | `ACTIVE` | Offline S0: does a ~3–3.5-candidates-per-task slate push CD's per-batch regret vs the exact optimum to ≥ 20 % while `xs1load` stays at/below CD? Registered 2026-09-26. |
+| [**wide_choice_s0_v1**](docs/lineages/wide_choice_s0_v1.md) | `ACTIVE` | Offline S0 FAIL: live replica pools cap slates at ~2.3–2.9 candidates/task; CD median regret vs exact optimum 13.9 % (`CD-MIDDLE`, falls with width); `xs1load` −1.8 pp vs CD, degrades >3 candidates; W3 33 % complementary. |
 | [**seeded_cd_xs1_v1**](docs/lineages/seeded_cd_xs1_v1.md) | `ACTIVE` | CD refine seeded by `xs1load` beats CD −3.74 % (p=0.002, 10/10, direction only; 9461 −0.9 %); MP-OFF seed −3.07 %, so ~4/5 is any learned seed; −17.8 % vs self-predict. |
 | [**exchange_seconds_v1**](docs/lineages/exchange_seconds_v1.md) | `ACTIVE` | Exchange in log1p seconds on top of `fc1load`: X1 `CLOSES-GAP` −0.94 % vs CD (p=0.92, 5/10); X2 `NOT-SEPARATED` −1.34 % vs `fc1load_selfref` (p=0.054, 10/11) but 9461 got worse (+3.9 %); −14.6 % vs self-predict (11/11). |
 | [**fullctx_refine_v1**](docs/lineages/fullctx_refine_v1.md) | `ACTIVE` | Training on full-batch context makes the self-refined GNN tie CD from the fast side: F1 `CLOSES-GAP` −1.76 % (p=0.76, 6/11); F2 −2.23 % vs `bc1load_selfref` (10/11, direction only); −13.9 % vs self-predict (12/12). |

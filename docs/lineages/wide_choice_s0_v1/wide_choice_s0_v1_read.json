@@ -1,0 +1,196 @@
+{
+ "A": {
+  "n_groups": 138,
+  "slate": {
+   "cands_per_task_median": 2.3,
+   "cands_per_task_q10_q90": [
+    1.9,
+    3.2
+   ],
+   "n_plans_median": 2124.0,
+   "near5_share_median": 0.0023148148148148147,
+   "batches_per_group_learned_max": 1
+  },
+  "cd": {
+   "median": 13.852753401451867,
+   "mean": 89.9758323615545,
+   "share_ge20": 0.463768115942029
+  },
+  "onepass_greedy": {
+   "median": 43.46493483049363,
+   "mean": 224.1141060668787,
+   "share_ge20": 0.7028985507246377
+  },
+  "xs1load_onepass": {
+   "median": 14.070157984262131,
+   "mean": 59.23184534906664,
+   "share_ge20": 0.4057971014492754
+  },
+  "xs1load_selfref": {
+   "median": 11.978661350937443,
+   "mean": 46.28827369163715,
+   "share_ge20": 0.34057971014492755
+  },
+  "xs1load_cdapply": {
+   "median": 12.711429252603523,
+   "mean": 39.61760684590525,
+   "share_ge20": 0.41304347826086957
+  },
+  "W1": {
+   "cd_median_regret_pct": 13.852753401451867,
+   "label": "CD-MIDDLE"
+  },
+  "W2_onepass": {
+   "median_pp": -1.7859304015213295,
+   "mean_pp": -30.74398701248785,
+   "share_learned_better": 0.5217391304347826,
+   "share_cd_better": 0.41304347826086957,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W2_selfref": {
+   "median_pp": -2.493848578177359,
+   "mean_pp": -43.68755866991734,
+   "share_learned_better": 0.5652173913043478,
+   "share_cd_better": 0.3695652173913043,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W2_cdapply": {
+   "median_pp": 0.0,
+   "mean_pp": -50.35822551564924,
+   "share_learned_better": 0.35507246376811596,
+   "share_cd_better": 0.2753623188405797,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W2": {
+   "median_pp": -1.7859304015213295,
+   "mean_pp": -30.74398701248785,
+   "share_learned_better": 0.5217391304347826,
+   "share_cd_better": 0.41304347826086957,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W3": {
+   "share": 0.3333333333333333,
+   "label": "COMPLEMENTARY"
+  },
+  "by_cands_per_task": {
+   "0-2.0": {
+    "n": 23,
+    "cd_median": 22.61429495695173,
+    "xs1load_onepass_median": 7.6732774836480555
+   },
+   "2.0-2.75": {
+    "n": 74,
+    "cd_median": 17.68031851362015,
+    "xs1load_onepass_median": 15.993877002941481
+   },
+   "2.75-3.25": {
+    "n": 31,
+    "cd_median": 13.541816090191316,
+    "xs1load_onepass_median": 14.947300855608216
+   },
+   "3.25-99": {
+    "n": 10,
+    "cd_median": 7.334302478813992,
+    "xs1load_onepass_median": 34.73384430824284
+   }
+  },
+  "S0": "FAIL"
+ },
+ "B": {
+  "n_groups": 60,
+  "slate": {
+   "cands_per_task_median": 2.9,
+   "cands_per_task_q10_q90": [
+    2.0,
+    3.7
+   ],
+   "n_plans_median": 22950.0,
+   "near5_share_median": 0.0018819122942386832,
+   "batches_per_group_learned_max": 1
+  },
+  "cd": {
+   "median": 11.98863434385884,
+   "mean": 49.10148744297392,
+   "share_ge20": 0.35
+  },
+  "onepass_greedy": {
+   "median": 44.0853771667572,
+   "mean": 130.7473626539564,
+   "share_ge20": 0.65
+  },
+  "xs1load_onepass": {
+   "median": 13.86538361459012,
+   "mean": 51.22276109669333,
+   "share_ge20": 0.4
+  },
+  "xs1load_selfref": {
+   "median": 12.356638768354923,
+   "mean": 40.69926591842547,
+   "share_ge20": 0.3333333333333333
+  },
+  "xs1load_cdapply": {
+   "median": 10.571061426042116,
+   "mean": 29.632291267340854,
+   "share_ge20": 0.31666666666666665
+  },
+  "W1": {
+   "cd_median_regret_pct": 11.98863434385884,
+   "label": "CD-MIDDLE"
+  },
+  "W2_onepass": {
+   "median_pp": -1.9125672865639758,
+   "mean_pp": 2.1212736537194186,
+   "share_learned_better": 0.5333333333333333,
+   "share_cd_better": 0.4,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W2_selfref": {
+   "median_pp": -1.0877700837895854,
+   "mean_pp": -8.402221524548443,
+   "share_learned_better": 0.5,
+   "share_cd_better": 0.4,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W2_cdapply": {
+   "median_pp": 0.0,
+   "mean_pp": -19.46919617563306,
+   "share_learned_better": 0.43333333333333335,
+   "share_cd_better": 0.21666666666666667,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W2": {
+   "median_pp": -1.9125672865639758,
+   "mean_pp": 2.1212736537194186,
+   "share_learned_better": 0.5333333333333333,
+   "share_cd_better": 0.4,
+   "label": "LEARNED-AT-OR-BELOW-CD"
+  },
+  "W3": {
+   "share": 0.31666666666666665,
+   "label": "COMPLEMENTARY"
+  },
+  "by_cands_per_task": {
+   "0-2.0": {
+    "n": 5,
+    "cd_median": 29.991490948368128,
+    "xs1load_onepass_median": 0.0
+   },
+   "2.0-2.75": {
+    "n": 20,
+    "cd_median": 12.66267259053837,
+    "xs1load_onepass_median": 13.288503070721896
+   },
+   "2.75-3.25": {
+    "n": 13,
+    "cd_median": 7.56585815275026,
+    "xs1load_onepass_median": 13.72734389426926
+   },
+   "3.25-99": {
+    "n": 22,
+    "cd_median": 12.328725566269538,
+    "xs1load_onepass_median": 18.90378248007559
+   }
+  },
+  "S0": "FAIL"
+ }
+}
