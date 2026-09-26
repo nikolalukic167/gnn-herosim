@@ -36,7 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**exchange_seconds_v1**](docs/lineages/exchange_seconds_v1.md) | `ACTIVE` | Does pricing peer exchange in log1p seconds (not /per-batch peer_norm) on top of `fc1load` make the self-refined GNN beat CD? Registered 2026-09-26; training. |
+| [**exchange_seconds_v1**](docs/lineages/exchange_seconds_v1.md) | `ACTIVE` | Exchange in log1p seconds on top of `fc1load`: X1 `CLOSES-GAP` −0.94 % vs CD (p=0.92, 5/10); X2 `NOT-SEPARATED` −1.34 % vs `fc1load_selfref` (p=0.054, 10/11) but 9461 got worse (+3.9 %); −14.6 % vs self-predict (11/11). |
 | [**fullctx_refine_v1**](docs/lineages/fullctx_refine_v1.md) | `ACTIVE` | Training on full-batch context makes the self-refined GNN tie CD from the fast side: F1 `CLOSES-GAP` −1.76 % (p=0.76, 6/11); F2 −2.23 % vs `bc1load_selfref` (10/11, direction only); −13.9 % vs self-predict (12/12). |
 | [**backlog_corpus_v1**](docs/lineages/backlog_corpus_v1.md) | `ACTIVE` | Synthetic-backlog corpus does not move the live queue (L1 +0.83 % NOT-SEPARATED, L2 +6.6 % vs CD); the gap is in-batch stacking; self-refine on the same weights ties CD (+1.5 %, p = 0.15). |
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
