@@ -88,6 +88,27 @@ def main(argv: Optional[List[str]] = None) -> int:
                            "TRAINING-HELPS (direction only)" if v2.startswith("FC1LOAD_SELFREF-FASTER") else
                            "TRAINING-HURTS" if v2.startswith("BC1LOAD_SELFREF-FASTER") else
                            "NOT-SEPARATED" if r2 else v2)
+    if any(k[2] == "xs1load_selfref" for k in s):
+        # exchange_seconds_v1 (docs/lineages/exchange_seconds_v1.md)
+        res["X1"] = C.contrast(s, topos, "xs1load_selfref", "cd")
+        res["X2"] = C.contrast(s, topos, "xs1load_selfref", "fc1load_selfref")
+        res["reported_xs1load_vs_fc1load"] = C.contrast(s, topos, "xs1load", "fc1load")
+        res["reported_xs1load_selfref_vs_selfpredict"] = C.contrast(s, topos, "xs1load_selfref", "selfpredict")
+        r1 = res["X1"].get("read")
+        if not r1:
+            res["X1_label"] = res["X1"].get("verdict", "NO-READ")
+        elif r1["p"] < 0.05 and r1["median_pct"] < 0.0:
+            res["X1_label"] = "BEATS-CD"
+        elif r1["median_pct"] <= 0.0 or r1["p"] >= 0.05:
+            res["X1_label"] = "CLOSES-GAP"
+        else:
+            res["X1_label"] = "CD-FASTER"
+        r2 = res["X2"].get("read")
+        v2 = r2["verdict"] if r2 else res["X2"].get("verdict", "NO-READ")
+        res["X2_label"] = ("SECONDS-HELP" if v2 == "XS1LOAD_SELFREF-FASTER" else
+                           "SECONDS-HELP (direction only)" if v2.startswith("XS1LOAD_SELFREF-FASTER") else
+                           "SECONDS-HURT" if v2.startswith("FC1LOAD_SELFREF-FASTER") else
+                           "NOT-SEPARATED" if r2 else v2)
     res["L1_label"] = l1_label(res["L1"])
     res["L2_label"] = l2_label(res["L2"], res["L1_label"])
     print(json.dumps(res, indent=1))
@@ -99,7 +120,8 @@ def main(argv: Optional[List[str]] = None) -> int:
               f"first faster {r.get('a_faster')}/{r.get('n')}  dropped {sorted(v.get('dropped', {}))}  "
               f"{v.get('verdict', '')}", file=sys.stderr)
     print(f"L1: {res['L1_label']}   L2: {res['L2_label']}   S1: {res.get('S1_label')}   "
-          f"F1: {res.get('F1_label')}   F2: {res.get('F2_label')}", file=sys.stderr)
+          f"F1: {res.get('F1_label')}   F2: {res.get('F2_label')}   X1: {res.get('X1_label')}   "
+          f"X2: {res.get('X2_label')}", file=sys.stderr)
     if a.out:
         json.dump(res, open(a.out, "w"), indent=1)
     return 0

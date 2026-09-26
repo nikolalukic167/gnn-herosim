@@ -349,6 +349,11 @@ def partial_state_feature_dim(contract: Optional[str] = None) -> int:
     return PARTIAL_STATE_BASE_DIM + krank_feature_dim(contract) + LINKRANK_FEATURE_DIM + extra
 PARTIAL_STATE_PEER_MASS_ENV = "PARTIAL_STATE_PEER_MASS"
 PARTIAL_STATE_LOAD_SECONDS_ENV = "PARTIAL_STATE_LOAD_SECONDS"
+# exchange_seconds_v1 (2026-09-26): under partial_state_v4 only, columns 7-8 carry log1p of the
+# committed-peer exchange and the peer-mass lookahead in SECONDS instead of divided by the
+# per-batch peer_norm, so the same exchange cost reads the same across batches and on the
+# scale of the load columns 22-24. Default 0 (v4 as trained before); recorded in the sidecar.
+PARTIAL_STATE_EXCHANGE_SECONDS_ENV = "PARTIAL_STATE_EXCHANGE_SECONDS"
 
 
 def peer_mass_enabled() -> bool:
@@ -361,6 +366,14 @@ def load_seconds_enabled() -> bool:
     raw = _os.environ.get(PARTIAL_STATE_LOAD_SECONDS_ENV, "1").strip()
     if raw not in ("0", "1"):
         raise ValueError(f"{PARTIAL_STATE_LOAD_SECONDS_ENV}={raw!r}: expected 0 or 1")
+    return raw == "1"
+
+
+def exchange_seconds_enabled() -> bool:
+    import os as _os
+    raw = _os.environ.get(PARTIAL_STATE_EXCHANGE_SECONDS_ENV, "0").strip()
+    if raw not in ("0", "1"):
+        raise ValueError(f"{PARTIAL_STATE_EXCHANGE_SECONDS_ENV}={raw!r}: expected 0 or 1")
     return raw == "1"
 DEFAULT_PARTIAL_STATE_CONTRACT = PARTIAL_STATE_CONTRACT_V1
 PARTIAL_STATE_CONTRACT_ENV = "PARTIAL_STATE_CONTRACT"
@@ -495,6 +508,7 @@ class PartialStateContext:
         self.backlog_s = dict(backlog_s or {})
         self.service_s = dict(service_s or {})
         self.load_seconds = load_seconds_enabled()
+        self.exchange_seconds = exchange_seconds_enabled()
         self.peer_pairs = dict(peer_pairs or {})
         self.node_exchange = dict(node_exchange or {})
         self.peer_norm = float(peer_norm)
@@ -515,6 +529,9 @@ class PartialStateContext:
             if any(parents.get(t) for t in parents):
                 raise ValueError(f"{self.contract} cannot be used on a corpus with DAG edges: "
                                  "columns 7-9 carry the peer block there")
+        if self.exchange_seconds and self.contract != PARTIAL_STATE_CONTRACT_V4:
+            raise ValueError(f"{PARTIAL_STATE_EXCHANGE_SECONDS_ENV}=1 is defined only under "
+                             f"{PARTIAL_STATE_CONTRACT_V4}, not {self.contract}")
         if self.contract == PARTIAL_STATE_CONTRACT_V4 and (backlog_s is None or service_s is None):
             raise ValueError("partial_state_v4 needs backlog_s and service_s (a v4 cache or a v4 "
                              "live prefix block); refusing to serve the load columns as zeros")
@@ -649,8 +666,12 @@ def partial_state_columns(
                         pb, lat = ctx.node_exchange[(node, nj)]
                         acc += b * pb + (lat if pb > 0.0 else 0.0)
                     mass += acc / len(nodes_j)
-            out[i, 7] = committed_x / ctx.peer_norm
-            out[i, 8] = mass / ctx.peer_norm
+            if ctx.exchange_seconds:
+                out[i, 7] = _math.log1p(committed_x)
+                out[i, 8] = _math.log1p(mass)
+            else:
+                out[i, 7] = committed_x / ctx.peer_norm
+                out[i, 8] = mass / ctx.peer_norm
             out[i, 9] = 0.0
         elif parent_ids:
             hops: List[float] = []
