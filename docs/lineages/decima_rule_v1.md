@@ -1,7 +1,10 @@
 # decima_rule_v1 — Decima's strongest hand baseline (tuned weighted fair) as a burst-seat bar
 
-**Status:** `ACTIVE` (2026-09-26). Registered, not yet gated. Every bar below was signed before any
-datum of the rule existed.
+**Status:** `ACTIVE`. Registered 2026-09-26; gated 2026-09-26.
+- **D2 `SELFPREDICT-REMAINS-BAR`:** Decima's tuned weighted-fair rule (α = +1) is +46.4 % slower than
+  self-predict (0/12) and +65.7 % slower than CD (0/11).
+- Against it, the learned arm reads −41.4 % (11/11) and GNN-seeded CD −42.9 %. That is a Decima-style
+  "beats the heuristic" number against a weak bar, never a headline.
 
 **Why:** the user asked to replicate Decima's best hand rule and gate it against the learned arms and CD.
 Decima (Mao et al., SIGCOMM 2019, §7) reports its learned scheduler ≥ 21 % ahead of hand-tuned
@@ -53,6 +56,25 @@ the job's remaining work and α is grid-searched; the reported best is α = −1
   `backlog_corpus_v1_gate.sbatch` with `WT=` pointing at the `decima-rule-v1` worktree.
 
 ## Record (newest first)
+
+- 2026-09-26 — **Study gate read** (job 809132, phase `decima`, 48 of 48 runs, α = +1, at 5ead8a1).
+  - **Attachment:** [`decima_read.json`](decima_rule_v1/decima_read.json).
+  - **D1:** rule vs CD +65.73 %, p = 0.001, 0/11 (9466 dropped: CD w3). Per topology from +54.6 % (9435)
+    to +222.9 % (9461).
+  - **D2 `SELFPREDICT-REMAINS-BAR`:** rule vs self-predict +46.44 %, p = 0.0005, 0/12.
+  - **Pooled means, rule vs CD:** elapsed 12.71 vs 7.63 s; queue 6.86 vs 2.91 s; exchange 5.62 vs
+    4.18 s per task.
+    - The rule pays in both terms: it spreads groups exchange-blind, so exchange rises, and the queue
+      rises with it because exchange occupies the platform.
+  - **Learned vs the rule:**
+    - `xs1load_selfref` −41.37 % (11/11; 9423 dropped);
+    - `xs1load_cdapply` −42.94 % (10/10; 9423 and 9466 dropped).
+  - **Reading:**
+    - Decima's best hand baseline does not transfer to a seat whose cost is dominated by peer exchange,
+      because it is locality-blind by construction.
+    - The ~41 % margin is the kind Decima reports (≥ 21 % over tuned heuristics), and like Decima's it is
+      measured against a baseline that does not see the dominant cost.
+    - The honest burst-seat bars stay self-predict and CD.
 
 - 2026-09-26 — **Tuning read** (job 809092, phase `decimatune`, 34 min, at 06f66f8): **α = +1 chosen**.
   - **Only 2 of the 4 tuning topologies read.** 9102 and 9103 time out at 1800 s in every window for
