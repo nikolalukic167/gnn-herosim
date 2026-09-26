@@ -54,6 +54,24 @@ the job's remaining work and α is grid-searched; the reported best is α = −1
 
 ## Record (newest first)
 
+- 2026-09-26 — **Tuning read** (job 809092, phase `decimatune`, 34 min, at 06f66f8): **α = +1 chosen**.
+  - **Only 2 of the 4 tuning topologies read.** 9102 and 9103 time out at 1800 s in every window for
+    *every* arm, CD included (40 of 112 runs, 8 of them CD), so they carry no ordering information.
+  - **Median elapsed vs CD over 9101 and 9104:**
+
+    | α | vs CD |
+    |---|---|
+    | −2 | +90.6 % |
+    | −1 (Decima's reported best) | +90.7 % |
+    | −0.5 | +90.6 % |
+    | 0 | +86.5 % |
+    | +0.5 | +85.8 % |
+    | **+1 (chosen)** | **+84.9 %** (9101 +99.8 %, 9104 +70.1 %) |
+
+  - α moves the rule by at most 6 pp. Spreading a group wider (larger α) helps slightly.
+  - Disclosed: 2 topologies is a thin tuning set. The choice matters little given the 6 pp range.
+  - The study runs at `HEROSIM_DECIMA_ALPHA=1.0`.
+
 - 2026-09-26 — Registered (f40dc43 plus this node). Tests 8/8. Local smoke (not a result): 9101 w1, first
   3,000 arrivals.
   - Rule 10.78 s at α = −1 and −2, 10.21 s at α = +1; CD 5.31 s.
