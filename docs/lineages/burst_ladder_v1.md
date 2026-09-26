@@ -138,6 +138,45 @@ The contrasts vs `cd_inflight`, `reactive` and `selfpredict` are reported, not b
 
 ## Record (newest first)
 
+- 2026-09-27 — **Amendment 1 read** (job 809156, phase `ladderjit`, 528/528 runs, no failures, 26 min, at
+  d9e1372). Smoke 809153: CD on 9119 ×1.5 reads 116.7 / 65.4 / 98.1 s over draws d1–d3 (undrawn 65.0 s), so
+  the perturbation perturbs.
+  - **Attachment:** [`ladderjit_read.json`](burst_ladder_v1/ladderjit_read.json).
+  - **×1.5 `OVERLOAD-LEAD-SURVIVES`:** `xs1load_selfref` vs CD −28.12 %, p = 0.009, 11/12.
+    - Per topology (%): 9119 −27.3, 9414 −13.5, 9420 −31.3, 9423 −17.4, 9434 +30.0, 9435 −60.1, 9444 −72.9,
+      9446 −22.9, 9456 −4.6, 9461 −80.8, 9466 −29.0, 9469 −82.6.
+    - Reported contrasts:
+
+      | contrast | median | p | faster |
+      |---|---|---|---|
+      | learned vs `cd_inflight` | −29.75 % | 0.042 | 10/12 |
+      | learned vs Knative | −79.39 % | 0.001 | 11/12 |
+      | learned vs self-predict | −51.32 % | 0.003 | 11/12 |
+      | `cd_inflight` vs CD | −4.56 % | 0.30 | — |
+      | Knative vs CD | +108 % | — | — |
+
+  - **Dispersion at ×1.5** (max/min across the 4 draws; per seed for the learned arm, median over seeds):
+    - CD 1.07–3.19, median about 1.5; `cd_inflight` 1.13–2.69; Knative 1.05–2.09; self-predict 1.03–1.46.
+    - Learned arm 1.04–2.50.
+    - Every arm is bistable at this rung. The learned lead survives medians taken over the rules' own draws,
+      so it is not a single-draw artefact.
+    - ×1.5 stays inadmissible (Knative queue share 0.88–0.96). This licenses "the overload lead is not
+      noise", not "a 28 % regime result".
+  - **×1 control `DISSOLVES`:** `xs1load_selfref` s1 vs CD −11.87 %, p = 0.15, 9/12.
+    - Per topology (%): 9119 −14.5, 9414 −16.2, 9420 −11.8, 9423 −11.9, 9434 **+273.6**, 9435 −13.0,
+      9444 −11.4, 9446 −9.5, 9456 +8.1, **9461 +13.3**, 9466 −16.4, 9469 −14.0.
+    - The learned arm is −9.5 to −16.4 % on 9 topologies, a tight, draw-stable band (ratio ≤ 1.09).
+    - 9434 collapses in every draw (30.3–50.5 s vs CD 8.1–9.2 s). 9456 and 9461 are slower.
+    - `cd_inflight` vs CD −2.51 % (p = 0.007, 10/12): the in-flight defect is real but small.
+  - **Correction to the S0 read:** ×1 9461 "−61 %" was a single-draw CD collapse (undrawn CD 10.6 s). Across
+    4 draws, CD on 9461 ×1 reads 3.6–3.9 s, and the learned arm is +13 % there.
+    - The ×1 lead is therefore about −12 % on 9 of 12 topologies, with two small losses (9456, 9461) and
+      one collapse (9434). It is not a broad lead with one outlier.
+  - **Reading:** past capacity the learned arm tips into the runaway regime less often than any rule, and
+    that survives the rules' own scatter. At admissible load the lead is a consistent ~12 % on three
+    quarters of the topologies. The blockers are the 9434 collapse and the 9456/9461 node-choice weighting
+    (`exchange_seconds_v1`'s 9461 study).
+
 - 2026-09-26 — **Every arm vs Knative per rung** (reported, not a bar; the same per-rung paired statistic,
   from the `reactive` runs that served as the admissibility reference).
   - **Attachment:** [`ladder_vs_reactive.json`](burst_ladder_v1/ladder_vs_reactive.json).
