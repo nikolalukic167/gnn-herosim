@@ -46,6 +46,10 @@ RULE_POLICY = {
 # burst_ladder_v1: w0 at three arrival intensities; the window label carries the rung, the inputs live in
 # <inputs>/ladder/x<rung> (cd_gap_v1_build_b.py, factor 1/intensity on timestamps and policy time constants)
 LADDER_RUNGS = {"w0x10": "x10", "w0x15": "x15", "w0x20": "x20"}
+# burst_ladder_v1 Amendment 1: K perturbed draws of a rung (burst_ladder_jitter.py), the same draw for every arm
+JIT_DRAWS = (1, 2, 3, 4)
+JIT_RUNGS = {f"w0{r}d{k}": f"{r}d{k}" for r in ("x10", "x15") for k in JIT_DRAWS}
+LADDER_RUNGS.update(JIT_RUNGS)
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
 SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_se")
@@ -80,6 +84,15 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "jitsmoke":
+        return [task(9119, f"w0x15d{k}", "cd") for k in (1, 2, 3)]
+    if phase == "ladderjit":
+        x15 = [f"w0x15d{k}" for k in JIT_DRAWS]
+        x10 = [f"w0x10d{k}" for k in JIT_DRAWS]
+        return [task(t, w, k) for w in x15 for t in topos for k in LADDER_ARMS] + \
+               [task(t, w, "xs1load_selfref", s) for w in x15 for s in (1, 2, 3, 4) for t in topos] + \
+               [task(t, w, k) for w in x10 for t in topos for k in ("cd", "cd_inflight")] + \
+               [task(t, w, "xs1load_selfref", 1) for w in x10 for t in topos]
     if phase == "ladder":
         return [task(t, w, k) for w in LADDER_RUNGS for t in topos for k in LADDER_ARMS] + \
                [task(t, w, k, s) for w in LADDER_RUNGS for k in LADDER_LEARNED for s in (1, 2, 3, 4) for t in topos]
@@ -326,7 +339,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -338,7 +351,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

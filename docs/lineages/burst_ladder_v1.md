@@ -84,6 +84,49 @@ answer still ends with its own registered live gate.
     there. That is disclosed; it under-repairs CD rather than over-repairs it.
   - One window shape: the ladder scales w0, it does not sample new bursty traces.
 
+## Amendment 1 — perturbed draws (signed 2026-09-27, before any datum)
+
+**Why.** In the S0 ladder every rule arm ran once per topology, while the learned arm ran 4 checkpoint seeds.
+Past capacity the system is bistable: `xs1load_selfref` seeds on one topology at ×1.5 range from 18 to 107 s.
+A single rule draw is therefore not a comparison, and the ×1.5 lead (−29.9 % vs CD, −77 % vs Knative) is
+unreadable until the rules' own run-to-run scatter is measured.
+
+**The perturbation.** It is the same for every arm and is not a checkpoint seed.
+- Draw k ∈ {1, 2, 3, 4} moves each peer group's shared timestamp *later* by `u · min(0.5 s, ¼ · gap to the
+  next group)`, with `u ~ U(0, 1)` from `Random(k)` (`scripts_cosim/burst_ladder_jitter.py`).
+- Groups stay dispatched together and the event order is unchanged, so the `peer_exchange` indices stay
+  valid. The rung's cfg and rate scale are copied unchanged.
+- The minimum gap between groups is 1.97 s, so no shift exceeds 0.5 s.
+- A smoke (phase `jitsmoke`: CD on 9119 ×1.5, d1–d3) must show CD's elapsed changing across draws. If it
+  does not, the perturbation is too weak, and that is recorded before the study runs.
+
+**Arms (phase `ladderjit`, 528 runs).**
+- ×1.5, draws d1–d4: `reactive`, `cd`, `cd_inflight`, `selfpredict`, and `xs1load_selfref` s1–4, on 12
+  topologies.
+- ×1 control, draws d1–d4: `cd`, `cd_inflight`, and `xs1load_selfref` s1, on 12 topologies.
+
+**Statistic** (`scripts_cosim/burst_ladder_jit_read.py`).
+- Per topology, each arm's value is the median elapsed over all its runs: draws, plus seeds for the
+  learned arm.
+- The contrast is `100 · (arm / ref − 1)` on those medians, with an exact two-sided Wilcoxon over
+  topologies. A topology missing any run of either arm is dropped by name.
+- Also reported: dispersion per arm and topology (max/min across draws; for the learned arm, per seed, then
+  the median over seeds).
+
+**Bars**, on `xs1load_selfref` vs CD per rung:
+- `OVERLOAD-LEAD-SURVIVES`: median ≤ −10 % and p < 0.05;
+- `DIRECTION-ONLY`: median < 0 and p < 0.05;
+- `DISSOLVES`: otherwise.
+
+The contrasts vs `cd_inflight`, `reactive` and `selfpredict` are reported, not barred.
+
+**Standing rules and expectations.**
+- ×1.5 remains inadmissible under `unsaturated_scale_v1` (Knative queue share 0.88–0.96). A survival
+  label here says the lead is not a single-draw artefact. It does not license quoting ×1.5 as the regime
+  result.
+- Expectation at ×1.5: `OVERLOAD-LEAD-SURVIVES` 35 %, `DIRECTION-ONLY` 30 %, `DISSOLVES` 35 %.
+- Expectation at ×1 (one learned seed; 9434 collapses): `DIRECTION-ONLY` or `DISSOLVES`.
+
 ## Entry points
 
 - CD knob: `src/policy/peer_greedy_network/scheduler.py` (`PG_INFLIGHT_ENV`, `_pg_choose`). Test:
