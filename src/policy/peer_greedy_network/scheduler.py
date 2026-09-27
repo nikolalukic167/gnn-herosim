@@ -42,7 +42,7 @@ from __future__ import annotations
 import os
 from typing import Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
-from src.placement.live_audit import orchestrator_of, platform_queue_drain_seconds
+from src.placement.live_audit import inflight_remaining_seconds, orchestrator_of, platform_queue_drain_seconds
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.model import SystemState
 from src.placement.scheduling_cost import incoming_cold_start_time, network_latency_between
@@ -56,13 +56,20 @@ if TYPE_CHECKING:
 PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
-    "pg_partners_blinded",
+    "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
 # the batch being decided is never priced, even when it is already placed -- exactly the information
 # the served GNN decoder has (`prefix_serving.py`: peers outside the batch are invisible by contract).
 PG_BATCH_BLIND_ENV = "HEROSIM_PG_BATCH_BLIND"
+
+# burst_ladder_v1 (2026-09-26): a DISCLOSED control knob. The drain term never charges the task a
+# platform is serving now (`platform_queue_drain_seconds` walks only the queue), and that task's
+# remaining service includes its input + peer-exchange stage, so under a burst a busy platform reads
+# ~idle. 1 adds `live_audit.inflight_remaining_seconds` -- the service end the platform recorded -- to
+# the drain. 0 (the default) is the registered rule, byte-identical.
+PG_INFLIGHT_ENV = "HEROSIM_PG_INFLIGHT"
 
 # joint_burst_v2 (2026-09-20): a DISCLOSED probe knob, never a registered arm's default. The
 # exchange term X is multiplied by this factor in the score (the service a task adds to its
@@ -119,6 +126,12 @@ class _PeerGreedyCore:
         if raw_blind not in ("0", "1"):
             raise ValueError(f"FAIL LOUD: {PG_BATCH_BLIND_ENV} must be 0 or 1, got {raw_blind!r}")
         self.pg_batch_blind = raw_blind == "1"
+        raw_inflight = os.environ.get(PG_INFLIGHT_ENV, "0").strip() or "0"
+        if raw_inflight not in ("0", "1"):
+            raise ValueError(f"FAIL LOUD: {PG_INFLIGHT_ENV} must be 0 or 1, got {raw_inflight!r}")
+        self.pg_inflight = raw_inflight == "1"
+        self.pg_inflight_charged = 0
+        self.pg_inflight_seconds = 0.0
         if self.pg_batch_blind and not self._pg_batched:
             raise RuntimeError(
                 f"FAIL LOUD: {PG_BATCH_BLIND_ENV}=1 is defined for the batched flavours only; "
@@ -208,6 +221,12 @@ class _PeerGreedyCore:
             key = f"{node.node_name}:{platform.id}"
             plat_type = platform.type["shortName"]
             drain = platform_queue_drain_seconds(platform, orch, memo) + committed_service.get(key, 0.0)
+            if self.pg_inflight:
+                remaining = inflight_remaining_seconds(platform)
+                if remaining:
+                    drain += remaining
+                    self.pg_inflight_charged += 1
+                    self.pg_inflight_seconds += remaining
             exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0)
             cold = incoming_cold_start_time(task, platform)
             lat = network_latency_between(task.node_name, node, nodes)
