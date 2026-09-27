@@ -1,6 +1,6 @@
 # replica_guard_v1 — does a keep-warm serving guard remove the learned arm's 9434 w0 collapse and let its ×1 w0 lead over CD separate?
 
-**Status:** `ACTIVE`. Registered 2026-09-27; gated 2026-09-27. **K1 `NOT-FIXED`, K2 `TIES`.**
+**Status:** `FAILED` (2026-09-27) — **K1 `NOT-FIXED`, K2 `TIES`.** Registered 2026-09-27; gated 2026-09-27.
 - The keep-warm guard halves the 9434 collapse but does not remove it.
 - It adds a new failure: a starved-client spin on 9119 draw d3, every seed.
 - Against CD it reads −11.25 %, p = 0.24, 8/11, the same as its unguarded twin (−10.91 %).
@@ -86,6 +86,12 @@ Scratch reruns on datalab (jobs 809147, 809165, 809166), on a throwaway branch t
 - Gate: `scripts_cosim/fresh_topo_burst_v1_gate.py` phase `guard`. Reader: `scripts_cosim/replica_guard_v1_read.py`.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed, `FAILED`.** A serving-side keep-warm guard is not the lever for the 9434
+  collapse or the ×1 w0 significance gap: it only partially helps the one topology it targets, does
+  nothing for 9456 or 9461, and introduces a new starved-client spin. `GNN_REPLICA_KEEPWARM` must not be
+  used in a gate. The next lever is training (replica idle age as a feature, or training on bursty loaded
+  states), not another serving guard.
 
 - 2026-09-27 — **Gate read** (jobs 809178, 809299, 809311, phase `guard`, all at ec7fa71).
   - **Runs:** 576 of 584 summaries.

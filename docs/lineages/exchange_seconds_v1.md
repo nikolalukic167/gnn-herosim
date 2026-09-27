@@ -1,6 +1,7 @@
 # exchange_seconds_v1 — does pricing peer exchange in seconds, not per-batch-normalised, close the rest of the CD gap?
 
-**Status:** `ACTIVE`. Registered 2026-09-26; the live gate was read 2026-09-26.
+**Status:** `CLOSED` (2026-09-27) — **X1 `CLOSES-GAP`** (a tie). Registered 2026-09-26; the live gate was
+read 2026-09-26.
 - **X1 `CLOSES-GAP`:** `xs1load_selfref` vs CD −0.94 %, p = 0.92, faster on 5/10 topologies.
 - **X2 `NOT-SEPARATED`:** vs `fc1load_selfref` −1.34 %, p = 0.054, faster on 10/11.
 
@@ -69,6 +70,10 @@ measured the mis-weighting at 0.04 s per decision.
   sidecar check).
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed.** X1/X2 are answered as read below: a small, consistent gain that does not
+  separate from CD and does not fix 9461. `seeded_cd_xs1_v1` supersedes this arm as the standing best
+  burst-seat result.
 
 - 2026-09-26 — **9461 study** (two agents).
   - **Forensics** on the existing gate summaries. **Instrumented reruns** on 9461 w0–w3 of CD,

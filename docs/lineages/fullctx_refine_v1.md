@@ -1,6 +1,7 @@
 # fullctx_refine_v1 — does training the burst-seat GNN on full-batch context make its self-refine beat CD?
 
-**Status:** `ACTIVE`. Registered 2026-09-25; the live gate was read 2026-09-26.
+**Status:** `CLOSED` (2026-09-27) — **F1 `CLOSES-GAP`** (a tie). Registered 2026-09-25; the live gate was
+read 2026-09-26.
 - **F1 `CLOSES-GAP`:** `fc1load_selfref` vs CD −1.76 %, p = 0.76, faster on 6/11 topologies.
 - **F2 `TRAINING-HELPS` (direction only):** vs `bc1load_selfref` −2.23 %, p = 0.002, faster on 10/11.
 
@@ -63,6 +64,9 @@ which had no committed-service column.
 - Serving self-refine: `src/policy/gnn/prefix_serving.py` (`_self_refine`).
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed.** F1/F2 are answered as read below: full-context training ties CD from the fast
+  side but does not separate. `exchange_seconds_v1` and `seeded_cd_xs1_v1` continue from this checkpoint.
 
 - 2026-09-26 — **Live gate read** (job 808242, phase `fc1`, 47 min, at b2c395d).
   - **Runs:** 380 of 384 wrote summaries. The 4 misses are plain `fc1load` on `cc40s9423__w3`, seeds 1–4,
