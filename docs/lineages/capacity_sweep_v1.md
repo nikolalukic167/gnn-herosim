@@ -10,11 +10,10 @@ Registered and gated 2026-09-27.
 The ×1 lead is placement, not churn. The 9434 collapse vanishes (+1.2 %), but 9461 turns +16.6 %. A
 capacity gain is not shown at 10 % rung spacing.
 
-**What is quotable from this lineage.** At the first admissible burst rung (×1.1, Knative admissible on
-11/12 topologies), `xs1load_selfref` seed 1 beats CD **−13.7 % (p = 0.042, 10/12)** — one learned seed,
-disclosed. This is the one number from the whole day-2 study that clears both the 5 % magnitude bar and
-p < 0.05 under an admissible load. Confirming it with all 4 seeds is the open next step for a future
-lineage; C1/C2 themselves are answered.
+**Qualified by [`x11_confirm_v1`](x11_confirm_v1.md) (2026-09-27): the ×1.1 win is NOT confirmed.** Seed 1's
+−13.7 % (p = 0.042) was the favourable draw; seeds 2–4, unseen, read −11.5 % (p = 0.092, 9/12) and all four
+together −11.8 % (p = 0.064). The ~−11 % magnitude replicates; significance does not, because 9434 collapses
+on every seed. Do not quote the ×1.1 number as significant.
 
 **Parent:** [`burst_ladder_v1`](burst_ladder_v1.md). With 4 perturbed draws at w0 ×1.5, `xs1load_selfref` beats
 CD −28.1 % (p = 0.009, 11/12), `cd_inflight` −29.8 %, self-predict −51 % and Knative −79 %
