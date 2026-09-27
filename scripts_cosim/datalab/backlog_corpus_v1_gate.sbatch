@@ -16,6 +16,7 @@
 #   sbatch --export=ALL,PHASE=decimatune,WT=<decima worktree> backlog_corpus_v1_gate.sbatch            (decima_rule_v1 tuning)
 #   sbatch --export=ALL,PHASE=decima,WT=<decima worktree>,HEROSIM_DECIMA_ALPHA=<tuned> backlog_corpus_v1_gate.sbatch
 #   sbatch --export=ALL,PHASE=x11confirm backlog_corpus_v1_gate.sbatch       (x11_confirm_v1)
+#   sbatch --export=ALL,PHASE=grounded,WT=<grounded worktree> backlog_corpus_v1_gate.sbatch   (grounded_workload_v1)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -56,7 +57,8 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == grounded ]]; then EXTRA+=("$FRESH/models/joint-burst-v2-gnnedge0-lr2e3-seed$s" "$FRESH/models/joint-burst-v2-mpoff-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
            "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
            "${EXTRA[@]}"; do
@@ -127,6 +129,25 @@ if [[ $PHASE == x11confirm ]]; then
   for k in 1 2 3 4; do
     [[ -f "$IN/ladder/x11d$k/.built" ]] || { echo "FAIL LOUD: draw x11d$k not built (capacity_sweep_v1)"; exit 1; }
   done
+fi
+
+# grounded_workload_v1: the four Alibaba-grounded windows, minted here from the committed fan-out libraries and the
+# study's pre-burst windows; every file must match the sha256 minted locally (docs/lineages/grounded_workload_v1/).
+# Its witness reruns xs1load_selfref seed 1 on two x1.1 draws, so those draws must exist.
+if [[ $PHASE == grounded ]]; then
+  export HEROSIM_DECIMA_ALPHA=1.0
+  [[ -f "$IN/ladder/x11d1/.built" ]] || { echo "FAIL LOUD: draw x11d1 not built (capacity_sweep_v1)"; exit 1; }
+  G="$IN/grounded/wl"; BASEWL=/home/nikola.lukic/gnn-herosim/simulation_data/peer_affinity_live_gate/workloads
+  LIB="$WT/docs/lineages/grounded_workload_v1"
+  mkdir -p "$G"
+  i=0
+  for pair in 0:drainable_f4000_n50000 50:drainable_w1_n50000 100:drainable_w2_n50000 130:drainable_w3_n50000; do
+    K=${pair%%:*}; BW=${pair##*:}
+    [ -f "$G/grounded_g${i}_n50000.json" ] || python3 scripts_cosim/grounded_workload_v1_mint.py \
+      --lib "$LIB/fanout_lib_$K.json.gz" --base "$BASEWL/$BW.json" --seed $((7400 + i)) --out "$G/grounded_g${i}_n50000.json" >/dev/null
+    i=$((i + 1))
+  done
+  (cd "$G" && sha256sum -c "$LIB/workloads.sha256") || { echo "FAIL LOUD: grounded workloads differ from the local mint"; exit 1; }
 fi
 
 # replica_guard_v1 reuses the x1 draws exactly as burst_ladder_v1 Amendment 1 built them.
