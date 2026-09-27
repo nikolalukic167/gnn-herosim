@@ -68,10 +68,12 @@ direction only; ~2/3 of that is any learned seed, not MP). Every burst-seat lear
 **Three fixes narrowed the gap further; none separates from CD** (`backlog_corpus_v1` →
 `fullctx_refine_v1` → `exchange_seconds_v1`, `CLOSED`: median +1.5 % → −1.8 % → −0.94 %, p ≥ 0.76).
 **CD's refine seeded by the strongest checkpoint beats CD outright**, −3.74 %
-(10/10, direction only, `seeded_cd_xs1_v1` `CLOSED`), replicating D5 with a stronger seed. **In bursty
+(10/10, direction only, `seeded_cd_xs1_v1` `CLOSED`). **In bursty
 arrivals the learned arm leads CD by ~−11 % at admissible load, but not significantly** (×1.1, 4 seeds:
-−11.8 %, p=0.064; seed 1's −13.7 % did not replicate its p — `x11_confirm_v1`). The blocker is one
+−11.8 %, p=0.064, `x11_confirm_v1`). The blocker is one
 topology's collapse (a starved replica type), NOT fixed by a keep-warm guard (`replica_guard_v1` `FAILED`).
+**On Alibaba-grounded windows it ties CD (+0.4 %) and self-predict**, beating Knative −16 %
+(`grounded_workload_v1`).
 Same-day negatives (`docs/hard-stops.md`): Decima's best baseline loses by 46–66 %; widening the choice
 set makes CD more optimal, not less.
 
