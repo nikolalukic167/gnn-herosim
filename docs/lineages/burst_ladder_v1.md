@@ -1,6 +1,7 @@
 # burst_ladder_v1 — is the learned arm's lead over CD in bursty w0 real, and does it grow with intensity?
 
-**Status:** `ACTIVE`. Registered 2026-09-26. S0 read 2026-09-26; Amendment 1 (4 perturbed arrival draws for
+**Status:** `CLOSED` (2026-09-27) — **`DISSOLVES` at admissible load, `OVERLOAD-LEAD-SURVIVES`** but
+inadmissible. Registered 2026-09-26. S0 read 2026-09-26; Amendment 1 (4 perturbed arrival draws for
 every arm) read 2026-09-27. The Amendment 1 reads supersede the single-draw S0 numbers.
 - **×1 (admissible) `DISSOLVES`:** `xs1load_selfref` vs CD −11.9 %, p = 0.15, 9/12.
   - A tight, draw-stable −9.5 to −16.4 % on 9 topologies.
@@ -144,6 +145,10 @@ The contrasts vs `cd_inflight`, `reactive` and `selfpredict` are reported, not b
 - Reader: `scripts_cosim/burst_ladder_v1_read.py`.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed.** The ×1 lead does not separate (9434 collapse); the ×1.5 lead survives
+  perturbation but is not quotable (inadmissible load). `capacity_sweep_v1` and `replica_guard_v1`
+  continue from the two open threads (a capacity claim, and the 9434 collapse) this lineage identified.
 
 - 2026-09-27 — **Amendment 1 read** (job 809156, phase `ladderjit`, 528/528 runs, no failures, 26 min, at
   d9e1372). Smoke 809153: CD on 9119 ×1.5 reads 116.7 / 65.4 / 98.1 s over draws d1–d3 (undrawn 65.0 s), so

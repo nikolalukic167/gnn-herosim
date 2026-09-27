@@ -1,6 +1,7 @@
 # seeded_cd_xs1_v1 — does CD refinement started from the strongest learned plan beat CD?
 
-**Status:** `ACTIVE`. Registered 2026-09-26; the live gate was read 2026-09-26.
+**Status:** `CLOSED` (2026-09-27) — **G1 `BEATS-CD` (direction only).** Registered 2026-09-26; the live
+gate was read 2026-09-26.
 - **G1 `BEATS-CD (direction only)`:** CD refinement seeded by `xs1load` vs CD −3.74 %, p = 0.002,
   faster on 10/10 topologies.
 - It is faster than CD on every topology, including 9461 (−0.9 %), and −17.8 % vs self-predict.
@@ -61,6 +62,10 @@ own greedy pass, now that the seed is `xs1load` rather than `gnnedge0`.
   - `cc40s9423__w3` has timed out for several learned arms at 1800 s. The drop rule applies.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed.** G1-G4 are answered as read below; the hybrid (learned seed + CD refine) is
+  the standing best burst-seat result. `capacity_sweep_v1` and `burst_ladder_v1` continue the search for
+  a magnitude-qualifying pure-learned win; this lineage does not need to reopen for that.
 
 - 2026-09-26 — **Live gate read** (job 808791, phase `xs1cd`, 50 min, at 1c72012).
   - **Runs:** 372 of 384 wrote summaries. All 12 misses are 1800 s timeouts:

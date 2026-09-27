@@ -1,11 +1,13 @@
 # backlog_corpus_v1 — does training on states that carry backlog teach the burst-seat GNN to load-balance?
 
-**Status:** `ACTIVE` (2026-09-25).
+**Status:** `CLOSED` (2026-09-27) — **`NO-EFFECT` / `NOT-SEPARATED`.**
 - **L-read:** L1 `NOT-SEPARATED` (+0.83 %) and L2 `NO-EFFECT` (+6.59 % vs CD). The backlog corpus did
   not move the live queue. MP vs its twin is −5.03 % (11/11).
 - **Amendment 3:** self-refine on the same weights is not separated from CD (S1 +1.50 %, p = 0.15),
   −3.4 % vs `bc1load` and −10.8 % vs self-predict.
-- **Next:** decide the close, or a follow-up that trains for full-batch context. Every bar below was signed before any datum of this corpus existed.
+- **What followed:** `fullctx_refine_v1` (full-batch-context training), `exchange_seconds_v1` (exchange
+  in seconds) and `seeded_cd_xs1_v1` (CD-seeded refine) each closed the gap a little further; none
+  separates from CD. Every bar below was signed before any datum of this corpus existed.
 
 **Parents:** [`load_repr_v1`](load_repr_v1.md) (the `partial_state_v4` load columns; its standing risk,
 measured there: only 0.5 % of jb2 replica specs carry backlog > 0) and [`cd_gap_v1`](cd_gap_v1.md) (the
@@ -82,6 +84,11 @@ live queue has not been measured.
   `graphs_cache_backlog_corpus_v1_psv4_inf`, split `experiments/backlog_corpus_v1_split.json`.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed.** The synthetic-backlog corpus and its self-refine amendment are answered: no
+  live gain over CD, diagnosis complete (in-batch stacking). The chain of follow-on lineages
+  (`fullctx_refine_v1`, `exchange_seconds_v1`, `seeded_cd_xs1_v1`, `burst_ladder_v1`, `capacity_sweep_v1`)
+  carries the investigation forward; none needs to reopen this node.
 
 - 2026-09-25 — **S-read: `bc1load_selfref` is not separated from CD (S1 fires `CLOSES-GAP` under
   the registered rule).** Job 808159 at 0775ba1: 191/192 runs, with one timeout (9466 w3 s1), so 9466

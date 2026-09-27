@@ -1,6 +1,7 @@
 # capacity_sweep_v1 — does the learned burst-seat arm sustain more load than CD, and is its x1 lead placement or replica churn?
 
-**Status:** `ACTIVE`. Registered 2026-09-27; gated 2026-09-27.
+**Status:** `CLOSED` (2026-09-27) — **C1 `NO-CAPACITY-GAIN`, C2 `PLACEMENT-LEAD` (direction only).**
+Registered and gated 2026-09-27.
 - **C1 `NO-CAPACITY-GAIN`:** the learned knee is above CD's on 5 of 11 topologies, below on 1, tied on 5
   (sign p = 0.22). The median interpolated capacity ratio (learned / CD) is 1.05.
 - **C2 `PLACEMENT-LEAD` (direction only):** at ×1 with replica expiry removed, learned vs CD −8.43 %
@@ -8,6 +9,12 @@
 
 The ×1 lead is placement, not churn. The 9434 collapse vanishes (+1.2 %), but 9461 turns +16.6 %. A
 capacity gain is not shown at 10 % rung spacing.
+
+**What is quotable from this lineage.** At the first admissible burst rung (×1.1, Knative admissible on
+11/12 topologies), `xs1load_selfref` seed 1 beats CD **−13.7 % (p = 0.042, 10/12)** — one learned seed,
+disclosed. This is the one number from the whole day-2 study that clears both the 5 % magnitude bar and
+p < 0.05 under an admissible load. Confirming it with all 4 seeds is the open next step for a future
+lineage; C1/C2 themselves are answered.
 
 **Parent:** [`burst_ladder_v1`](burst_ladder_v1.md). With 4 perturbed draws at w0 ×1.5, `xs1load_selfref` beats
 CD −28.1 % (p = 0.009, 11/12), `cd_inflight` −29.8 %, self-predict −51 % and Knative −79 %
@@ -82,6 +89,9 @@ every draw.
 - Tests: `tests/test_capacity_sweep_v1.py`.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed.** C1 and C2 are answered as read below. The ×1.1 single-seed result is carried
+  in the head as the entry point for the next lineage (confirm with 4 seeds); it does not reopen this one.
 
 - 2026-09-27 — **Gate read** (jobs 809177 and rerun 809232, at 19a86df; 720 runs, 719 summaries).
   - **Attachment:** [`capacity_read.json`](capacity_sweep_v1/capacity_read.json). No dirty-code runs.

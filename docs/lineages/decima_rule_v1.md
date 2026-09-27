@@ -1,6 +1,7 @@
 # decima_rule_v1 — Decima's strongest hand baseline (tuned weighted fair) as a burst-seat bar
 
-**Status:** `ACTIVE`. Registered 2026-09-26; gated 2026-09-26.
+**Status:** `CLOSED` (2026-09-27) — **`SELFPREDICT-REMAINS-BAR`, D2 `NOT-A-BAR`.** Registered 2026-09-26;
+live-gated 2026-09-26.
 - **D2 `SELFPREDICT-REMAINS-BAR`:** Decima's tuned weighted-fair rule (α = +1) is +46.4 % slower than
   self-predict (0/12) and +65.7 % slower than CD (0/11).
 - Against it, the learned arm reads −41.4 % (11/11) and GNN-seeded CD −42.9 %. That is a Decima-style
@@ -56,6 +57,10 @@ the job's remaining work and α is grid-searched; the reported best is α = −1
   `backlog_corpus_v1_gate.sbatch` with `WT=` pointing at the `decima-rule-v1` worktree.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed.** Decima's strongest hand baseline is locality-blind by construction and loses
+  to both burst-seat bars by a wide margin; it is not a candidate replacement for self-predict or CD.
+  Do not re-propose it as a bar without a different mapping onto the burst seat.
 
 - 2026-09-26 — **Study gate read** (job 809132, phase `decima`, 48 of 48 runs, α = +1, at 5ead8a1).
   - **Attachment:** [`decima_read.json`](decima_rule_v1/decima_read.json).

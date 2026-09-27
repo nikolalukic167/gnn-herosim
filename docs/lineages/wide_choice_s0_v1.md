@@ -1,6 +1,10 @@
 # wide_choice_s0_v1 — does a wider per-task choice set push CD far from the per-batch optimum?
 
-**Status:** `ACTIVE`. Registered 2026-09-26; the S0 was read 2026-09-26: **S0 FAIL**.
+**Status:** `FALSIFIED` (2026-09-27) — **S0-FAIL, NO-GO.** Registered 2026-09-26; read 2026-09-26.
+Widening the per-task choice set does not push CD far from the optimum: CD's regret *falls* as width
+grows, and live replica pools cap the width at ~2.3–2.9 candidates/task regardless. No live gate is
+licensed on this lever; do not re-propose a wide-choice environment without new evidence that live
+pools can be widened past that cap.
 - **W1 `CD-MIDDLE`:** CD's median regret against the exact optimum is 13.9 % (tier A, 138 groups) and
   12.0 % (tier B, 60).
 - **W2 `LEARNED-AT-OR-BELOW-CD`:** −1.8 pp paired.
@@ -81,6 +85,10 @@ win needs an environment where CD is far from optimal.
   - W3 `COMPLEMENTARY` 50 %.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Closed, `FALSIFIED` / `S0-FAIL`.** No new evidence since the 2026-09-26 read; recorded
+  here so the index and this head agree. Re-opening needs a signed amendment showing live pools can be
+  widened past ~3 candidates/task, not a re-run of this design.
 
 - 2026-09-26 — **S0 read** (datalab; generation array 809098 plus read 809099, at 3e75638 on
   `wide-choice-s0-v1`).
