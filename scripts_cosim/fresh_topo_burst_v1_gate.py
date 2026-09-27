@@ -50,6 +50,14 @@ LADDER_RUNGS = {"w0x10": "x10", "w0x15": "x15", "w0x20": "x20"}
 JIT_DRAWS = (1, 2, 3, 4)
 JIT_RUNGS = {f"w0{r}d{k}": f"{r}d{k}" for r in ("x10", "x15") for k in JIT_DRAWS}
 LADDER_RUNGS.update(JIT_RUNGS)
+# capacity_sweep_v1: x1.1 / x1.2 / x1.3 rungs with the same 4 draws, and the x1 draws served with replica keep_alive
+# removed (window suffix "ka": the x1 draw's inputs, HEROSIM_KEEP_ALIVE=CAP_KEEP_ALIVE for every arm)
+CAP_RUNGS = ("x11", "x12", "x13")
+LADDER_RUNGS.update({f"w0{r}d{k}": f"{r}d{k}" for r in CAP_RUNGS for k in JIT_DRAWS})
+KA_WINDOWS = {f"w0x10d{k}ka": f"x10d{k}" for k in JIT_DRAWS}
+LADDER_RUNGS.update(KA_WINDOWS)
+CAP_KEEP_ALIVE = "1e9"
+CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
 SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_se")
@@ -65,6 +73,22 @@ N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
 # SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
 NO_SCOPE = False
+
+
+def queue_drift(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """capacity_sweep_v1: mean queue time per quarter of the tasks in dispatch order, and last / first quarter.
+    Recorded so stability can be read after the raw per-task file is deleted."""
+    if not task_results:
+        return None
+    rows = sorted((float(r["dispatchedTime"]), float(r["queueTime"])) for r in task_results
+                  if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    n = len(rows)
+    if n < 4:
+        return None
+    q = [rows[i * n // 4:(i + 1) * n // 4] for i in range(4)]
+    means = [sum(x for _, x in part) / len(part) if part else 0.0 for part in q]
+    return {"quarter_mean_queue": means,
+            "last_over_first": (means[3] / means[0]) if means[0] > 0 else None}
 
 
 def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
@@ -86,6 +110,16 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "jitsmoke":
         return [task(9119, f"w0x15d{k}", "cd") for k in (1, 2, 3)]
+    if phase == "capacity":
+        # capacity_sweep_v1 (docs/lineages/capacity_sweep_v1.md). C1: the new rungs, plus the x1 draws' missing
+        # reactive and self-predict runs; C2: every arm at x1 with keep_alive removed.
+        new = [f"w0{r}d{k}" for r in CAP_RUNGS for k in JIT_DRAWS]
+        x10 = [f"w0x10d{k}" for k in JIT_DRAWS]
+        return [task(t, w, k) for w in new for t in topos for k in CAP_ARMS] + \
+               [task(t, w, "xs1load_selfref", 1) for w in new for t in topos] + \
+               [task(t, w, k) for w in x10 for t in topos for k in ("reactive", "selfpredict")] + \
+               [task(t, w, k) for w in KA_WINDOWS for t in topos for k in ("reactive", "cd", "selfpredict")] + \
+               [task(t, w, "xs1load_selfref", 1) for w in KA_WINDOWS for t in topos]
     if phase == "ladderjit":
         x15 = [f"w0x15d{k}" for k in JIT_DRAWS]
         x10 = [f"w0x10d{k}" for k in JIT_DRAWS]
@@ -178,8 +212,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT"):
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE"):
         env.pop(k, None)
+    if window in KA_WINDOWS:
+        env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
     time_scale = float((json.load(open(cfg)).get("cd_gap_v1_rate_scale") or {}).get("factor", 1.0))
     if time_scale != 1.0:
@@ -260,6 +296,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[FAILED rc={rc} {wall}s] {name}"
     doc = json.load(open(raw))
     st = doc.get("stats") or doc
+    drift = queue_drift(st.get("taskResults"))
     out = {k: st.get(k) for k in ("num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime",
                                   "averageWaitTime", "totalPeerExchangeTime", "totalPeerRendezvousWait", "endTime",
                                   "schedulerCounters")}
@@ -271,6 +308,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "bc1" if base_kind in BC1_KINDS else "jb2") if base_kind in LEARNED_KINDS else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
+    out["queue_drift"] = drift
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     n = out.get("num_tasks")
     problems = []
@@ -278,6 +316,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"policy time scale not recorded: {out['env'].get('HEROSIM_POLICY_TIME_SCALE')!r}")
     if n is None or int(n) != N_TASKS:
         problems.append(f"num_tasks={n!r}")
+    want_ka = CAP_KEEP_ALIVE if window in KA_WINDOWS else None
+    if out["env"].get("HEROSIM_KEEP_ALIVE") != want_ka:
+        problems.append(f"served HEROSIM_KEEP_ALIVE={out['env'].get('HEROSIM_KEEP_ALIVE')!r}, {window} needs {want_ka!r}")
+    if window in LADDER_RUNGS and window.startswith(("w0x11", "w0x12", "w0x13", "w0x10d")) and drift is None:
+        problems.append("queue drift not computable: no taskResults in the raw result")
     if kind == "selfpredict" and (int(c.get("pg_decisions") or 0) != N_TASKS or int(c.get("pg_lookahead_priced") or 0) == 0):
         problems.append(f"rule instrument off: {c.get('pg_decisions')}/{c.get('pg_lookahead_priced')}")
     if kind.endswith("_selfref") and int(c.get("prefix_self_refine_batches") or 0) == 0:
@@ -339,7 +382,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -351,7 +394,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
