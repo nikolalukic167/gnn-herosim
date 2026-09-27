@@ -1,7 +1,19 @@
 # grounded_workload_v1 — does the learned burst-seat arm beat every strategy on a workload whose group structure is measured, not assumed?
 
-**Status:** `REGISTERED` (2026-09-27). Every bar below was signed before any gate datum existed. The only
-runs seen before signing were a 3,000-event smoke of three rules on one cell (disclosed below).
+**Status:** `CLOSED` (2026-09-27) — **G1 `NOT-SEPARATED`: on the grounded workload the learned arm ties CD.**
+Registered 2026-09-27; every bar below was signed before any gate datum existed (the only runs seen before
+signing were a 3,000-event smoke of three rules on one cell, disclosed below).
+
+**Outcome** (job 810898, 1,046/1,058 runs, 43/48 cells admissible, witness passed, no reliability flag):
+- **G1** `xs1load_selfref` vs CD **+0.43 %**, p = 0.57, 6/12 — a tight tie (per topology −5.6 to +3.0 %).
+- **G2** vs self-predict −0.91 %, p = 0.76 — tie.
+- **G3 `CONFIRMED`** vs Knative **−16.2 %**, random **−39.8 %**, one-pass greedy **−7.1 %**, Decima **−20.5 %**
+  (each p ≤ 0.001, 11–12/12).
+- **G4** `gnnedge0` vs its MP-OFF twin −1.41 %, 12/12, p = 0.0005 — direction only; the MP twins both trail
+  CD (+5.4 / +6.6 %).
+- So on a trace-grounded workload the learned arm is in the top tier with CD and self-predict and beats every
+  industry-style baseline; **it is not a win over CD** and must not be quoted as one. All 12 failures were
+  rule runs timing out (11 on 9466, 1 CD on 9423/g2); no learned run failed and 9434 did not collapse.
 
 **Why.** Every burst-seat result so far (`joint_burst_v2`, `fresh_topo_burst_v1`, `burst_ladder_v1`,
 `x11_confirm_v1`) runs one invented group structure: 10 consecutive arrivals form a peer group, either spread
@@ -102,5 +114,29 @@ rpcid parent.
 
 ## Record (newest first)
 
+- 2026-09-27 — **Gate read** (job 810898 on os-cpu-slurm-5, `gnn` env torch 2.5.1, at f31deaf; datalab's own
+  mint of g0–g3 matched every local sha256). Attachment: [`grounded_read.json`](grounded_workload_v1/grounded_read.json).
+  - **Runs:** 1,046/1,058. 12 timeouts at 1,800 s, all rules: 9466 reactive g0/g1/g3, random g0–g3,
+    self-predict g0–g3 (the starved-client spin); CD on 9423/g2 (stalled at event 40,001). Learned arms: 0.
+  - **Admissible:** 43/48. Out: 9466 g0/g1/g3 (reactive failed), 9461 g1 (0.809) and g2 (0.808).
+  - **Witness passes:** 9119 8.726741 s and 9420 5.741893 s equal `capacity_sweep_v1` to the digit.
+  - **G1 `NOT-SEPARATED`:** +0.43 %, p = 0.569, 6/12; 9423/g2 dropped by name (CD failed). Per topology (%):
+    9119 −4.0, 9414 −0.0, 9420 +1.7, 9423 −4.0, 9434 +1.4, 9435 −5.6, 9444 −2.3, 9446 +2.7, 9456 +3.0,
+    9461 +1.3, 9466 +0.9, 9469 −2.1.
+  - **G2 `NOT-SEPARATED`:** −0.91 %, p = 0.765, 6/11 (9466 has no admissible self-predict run).
+  - **G3 `CONFIRMED`:** reactive −16.15 %, random −39.75 %, batched −7.14 %, decima −20.47 %.
+  - **G4 `DIRECTION-ONLY`:** `gnnedge0` vs `mpoff` −1.41 %, 12/12, p = 0.0005.
+  - **Reported:**
+
+    | vs → | random | reactive | batched | selfpredict | cd | decima |
+    |---|---|---|---|---|---|---|
+    | `xs1load` (plain decode) | −38.8 | −14.4 | −5.6 | +1.7 ns | +2.6 ns | −17.9 |
+    | `gnnedge0` | −36.7 | −12.3 | −3.0 dir | +4.9 | +5.4 | −15.7 |
+    | `mpoff` | −35.9 | −10.0 | −0.9 ns | +6.9 | +6.6 | −14.3 |
+
+    Rules vs reactive: CD −14.8 %, self-predict −16.8 %, one-pass −10.3 %, Decima +4.4 %, random +46.8 %.
+  - **Reading:** the measured group structure (≈4 tasks, ms spacing) does not change the ranking. The best
+    learned arm sits exactly at CD's level with a narrow spread, i.e. this is a well-measured tie, not an
+    underpowered miss. Self-refine is worth ~2 pp over plain decode (+0.4 vs +2.6 % vs CD).
 - 2026-09-27 — Registered. Smoke seen before signing: 3,000 events of `g0` on 9119, `random_network`,
   `knative_network`, `peer_greedy_network_cd` all complete (smoke only; not a read).
