@@ -15,6 +15,7 @@
 #   sbatch --export=ALL,PHASE=guard,WT=<replica_guard worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (replica_guard_v1; needs the x10 draws built)
 #   sbatch --export=ALL,PHASE=decimatune,WT=<decima worktree> backlog_corpus_v1_gate.sbatch            (decima_rule_v1 tuning)
 #   sbatch --export=ALL,PHASE=decima,WT=<decima worktree>,HEROSIM_DECIMA_ALPHA=<tuned> backlog_corpus_v1_gate.sbatch
+#   sbatch --export=ALL,PHASE=x11confirm backlog_corpus_v1_gate.sbatch       (x11_confirm_v1)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -55,7 +56,7 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
            "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
            "${EXTRA[@]}"; do
@@ -118,6 +119,13 @@ if [[ $PHASE == capacity ]]; then
         python3 scripts_cosim/burst_ladder_jitter.py --src "$D" --out "$DD" --seed "$k"
       fi
     done
+  done
+fi
+
+# x11_confirm_v1 reuses the x1.1 draws exactly as capacity_sweep_v1 built them.
+if [[ $PHASE == x11confirm ]]; then
+  for k in 1 2 3 4; do
+    [[ -f "$IN/ladder/x11d$k/.built" ]] || { echo "FAIL LOUD: draw x11d$k not built (capacity_sweep_v1)"; exit 1; }
   done
 fi
 
