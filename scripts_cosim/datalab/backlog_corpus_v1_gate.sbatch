@@ -13,6 +13,8 @@
 #   sbatch --export=ALL,PHASE=ladder,WT=<burst_ladder worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (burst_ladder_v1)
 #   sbatch --export=ALL,PHASE=ladderjit,WT=<burst_ladder worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (burst_ladder_v1 Amendment 1)
 #   sbatch --export=ALL,PHASE=guard,WT=<replica_guard worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (replica_guard_v1; needs the x10 draws built)
+#   sbatch --export=ALL,PHASE=decimatune,WT=<decima worktree> backlog_corpus_v1_gate.sbatch            (decima_rule_v1 tuning)
+#   sbatch --export=ALL,PHASE=decima,WT=<decima worktree>,HEROSIM_DECIMA_ALPHA=<tuned> backlog_corpus_v1_gate.sbatch
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
