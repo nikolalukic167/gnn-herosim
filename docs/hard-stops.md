@@ -278,3 +278,38 @@ learned-seed result, not a message-passing one.
 **That representation change has now been made** (`load_repr_v1`, `partial_state_v4`: replica backlog
 and in-batch committed service in seconds). It cuts the gap from +12.4 % to +6.7 % and beats its zeroed
 twin −5.3 % (11/11). A further attempt starts from `v4load`, not from `gnnedge0`.
+
+## Widening the per-task candidate set to make CD far from optimal (2026-09-26)
+
+**Direction:** "CD is only 8.2 % from the per-batch optimum on the training corpus (2.1 candidates/task
+vs 6–10 live) because the choice set is narrow; widen it and CD's regret rises toward the ~20 % a
+learned arm needs to beat it by."
+
+**What closed it** (`wide_choice_s0_v1`, offline S0, 198 exhaustively-swept 10-task groups): CD's
+regret **falls** as the candidate set widens (22.6 % at &lt;2 candidates/task → 7.3 % at &gt;3.25), the
+opposite of the registered direction. Live replica pools cap the achievable width at ~2.3–2.9
+candidates/task regardless of the target, so "6–10 candidates live" does not hold on the snapshots
+tested. The learned arm also degrades past 3 candidates (trained near 2.1).
+
+**Do not re-propose** a wide-choice environment or corpus without new evidence that live replica pools
+can be widened past ~3 candidates/task. What survives: the two arms are complementary regardless of
+width (in a third of groups the better of CD/learned beats CD by ≥10 %), which is why CD seeded by the
+learned plan (`seeded_cd_xs1_v1`) beats plain CD.
+
+## A serving-side keep-warm guard to fix the burst-seat GNN's replica-expiry collapse (2026-09-27)
+
+**Direction:** "the learned arm collapses on topology 9434 under w0 because it starves a replica type
+by concentrating on fast devices until the slow ones expire (`keep_alive` 30 s) and the autoscaler
+lags; a serving guard that keeps a floor of replicas warm will fix it without retraining."
+
+**What closed it** (`replica_guard_v1`, live gate, `GNN_REPLICA_KEEPWARM`): the guard only halves the
+9434 excess over CD (20.7 → 10.7 s; CD 9.1 s) — seeds still collapse to 20–25 s — and does nothing for
+the two other topologies behind CD (9456, 9461), which never had a replica collapse. It also introduces
+a new failure: a starved-client spin on a different topology/draw (9119 d3), because the replicas it
+keeps warm can hold hardware another client needs.
+
+**Do not use `GNN_REPLICA_KEEPWARM` in a gate.** The mechanism is confirmed (with `HEROSIM_KEEP_ALIVE`
+effectively infinite for every arm, the 9434 collapse vanishes and the learned arm's ×1 w0 lead over CD
+is placement, not churn — `capacity_sweep_v1` C2, −8.4 %, p = 0.042), but the fix has to be inside the
+policy's own scoring or training (replica idle age as an input, or training on bursty loaded states),
+not a rule bolted onto serving.
