@@ -1,7 +1,9 @@
 # replica_guard_v1 — does a keep-warm serving guard remove the learned arm's 9434 w0 collapse and let its ×1 w0 lead over CD separate?
 
-**Status:** `ACTIVE` (2026-09-27). Registered; the gate is running. Every bar below was signed before any
-datum of the guarded arm existed.
+**Status:** `ACTIVE`. Registered 2026-09-27; gated 2026-09-27. **K1 `NOT-FIXED`, K2 `TIES`.**
+- The keep-warm guard halves the 9434 collapse but does not remove it.
+- It adds a new failure: a starved-client spin on 9119 draw d3, every seed.
+- Against CD it reads −11.25 %, p = 0.24, 8/11, the same as its unguarded twin (−10.91 %).
 
 **Parent:** [`burst_ladder_v1`](burst_ladder_v1.md). Its Amendment 1 read `xs1load_selfref` against CD at
 ×1 w0 over 4 perturbed draws at −11.9 %, faster on 9/12, p = 0.15 (`DISSOLVES` by its bar).
@@ -84,5 +86,57 @@ Scratch reruns on datalab (jobs 809147, 809165, 809166), on a throwaway branch t
 - Gate: `scripts_cosim/fresh_topo_burst_v1_gate.py` phase `guard`. Reader: `scripts_cosim/replica_guard_v1_read.py`.
 
 ## Record (newest first)
+
+- 2026-09-27 — **Gate read** (jobs 809178, 809299, 809311, phase `guard`, all at ec7fa71).
+  - **Runs:** 576 of 584 summaries.
+  - **Attachment:** [`guard_read.json`](replica_guard_v1/guard_read.json).
+  - **Infrastructure, disclosed:**
+    - Job 809178's tail lost 89 runs to "memory cap or crash" (rc 120 after the simulation completed) and
+      6 to zero-byte summaries. Both are the `/home`-quota signature.
+    - The cause was the guard's own spin logs: 4 runs on 9119 d3 wrote 4.7 GB each before the 2700 s
+      timeout.
+    - Those 95 runs were rerun unchanged, at `PAR=24` (809299) and `PAR=8` (809311). The spin logs were
+      truncated.
+  - **New guard failure, 9119 draw d3, all 4 seeds, reproduced on the rerun with no contention:**
+    - Simulated time freezes at 32,291 s in the starved-client spin ("No compatible hardware available for
+      dnn2 on nodes with connectivity to client_node8", retried forever), until the 2700 s timeout.
+    - The twin runs the same cell in about 150 s (7.5–8.2 s elapsed).
+    - Plausible mechanism, not verified: replicas the guard keeps alive hold the hardware that a `dnn2`
+      replica reachable from client_node8 needs.
+    - The drop rule removes 9119 from K2 and K3_draws. **That hides a guard failure, so it is stated here:**
+      counted as a loss, the guard is worse than the twin on 9119.
+  - **K1 `NOT-FIXED`** (9434):
+    - Over the 4 draws × 4 seeds, the median is guard 10.69 s, twin 20.74 s, CD 9.05 s. The median improves
+      48.5 %, just under the 50 % `PARTIAL` bar. The excess over CD is cut by 86 %.
+    - Per draw (s1–s4, s), with CD's value:
+
+      | draw | CD | guard | twin |
+      |---|---|---|---|
+      | d1 | 8.12 | 8.0 / 24.7 / 10.7 / 8.7 | 33.0 / 8.5 / 11.9 / 8.7 |
+      | d2 | 9.12 | 25.6 / 19.5 / 24.3 / 21.3 | 30.3 / 20.7 / 25.8 / 20.7 |
+      | d3 | 9.25 | 9.0 / 24.6 / 8.9 / 8.8 | 34.7 / 22.9 / 9.2 / 22.3 |
+      | d4 | 8.99 | 8.1 / 22.9 / 10.6 / 8.6 | 50.5 / 8.7 / 12.0 / 8.8 |
+
+    - On unperturbed w0 the guard is not better: 42.5 / 19.5 / 31.9 / 37.4 against the twin's
+      51.6 / 19.6 / 35.2 / 20.6.
+    - Seeds still collapse to about 20–25 s, and draw d2 collapses on every seed of both arms.
+  - **K2 `TIES`:** guard vs CD −11.25 %, p = 0.24, 8/11 (9119 dropped).
+    - Per topology (%): 9414 −14.2, 9420 −7.2, 9423 −12.0, 9434 +18.0, 9435 −13.7, 9444 −11.3, 9446 −8.3,
+      9456 +4.0, 9461 +13.4, 9466 −17.3, 9469 −11.4.
+    - Reported: the twin vs CD −10.91 %, p = 0.23, 9/12 (9434 +129 %, 9456 +8 %, 9461 +13 %).
+  - **K3 (reported):**
+    - Guard vs twin on the draws, the other topologies: −0.63 %, p = 0.19, 7/10.
+    - Unperturbed w1 −1.49 % (10/12, p = 0.021), w2 −1.28 % (11/12, p = 0.034), w3 −0.98 % (10/11,
+      p = 0.042).
+    - Outside 9434 the guard is neutral to slightly helpful, except 9461 (w2 +7.9 %).
+    - Guard moves: median 7.5 per 1,000 tasks (max 9.9).
+  - **Reading:**
+    - Keeping replicas warm attacks the right mechanism on 9434, but it is not the only cause there.
+      Collapses of about 20 s survive on some seeds and on every seed of d2.
+    - It does not move the statistic: K2 ties exactly as the twin does, because 9456 and 9461 trail CD
+      with no replica collapse and 9434 remains +18 %.
+    - Its interaction with the replica allocator creates a starved-client spin on another topology.
+    - A serving guard is not the lever for a quotable ×1 win. The remaining candidates are training-side:
+      replica idle age as a feature, or training on loaded bursty states. Neither is registered.
 
 - 2026-09-27 — Registered.

@@ -36,7 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**replica_guard_v1**](docs/lineages/replica_guard_v1.md) | `ACTIVE` | A keep-warm serving guard against the learned arm's 9434 w0 replica-expiry collapse; does the ×1 w0 lead over CD then separate? Registered 2026-09-27; gate running. |
+| [**replica_guard_v1**](docs/lineages/replica_guard_v1.md) | `ACTIVE` | Keep-warm serving guard: K1 `NOT-FIXED` (9434 median 20.7→10.7 s, CD 9.1; seeds still collapse), K2 `TIES` −11.25 % vs CD (p=0.24, same as twin); new starved-client spin on 9119 d3. |
 | [**burst_ladder_v1**](docs/lineages/burst_ladder_v1.md) | `ACTIVE` | w0 ×1: learned −11.9 % vs CD over 4 draws (9/12, p=0.15; 9434 collapses, 9461's old −61 % was a single-draw CD collapse). ×1.5 (inadmissible): −28.1 % vs CD over 4 draws (11/12, p=0.009) — survives rule scatter. |
 | [**seeded_cd_xs1_v1**](docs/lineages/seeded_cd_xs1_v1.md) | `ACTIVE` | CD refine seeded by `xs1load` beats CD −3.74 % (p=0.002, 10/10, direction only; 9461 −0.9 %); MP-OFF seed −3.07 %, so ~4/5 is any learned seed; −17.8 % vs self-predict. |
 | [**exchange_seconds_v1**](docs/lineages/exchange_seconds_v1.md) | `ACTIVE` | Exchange in log1p seconds on top of `fc1load`: X1 `CLOSES-GAP` −0.94 % vs CD (p=0.92, 5/10); X2 `NOT-SEPARATED` −1.34 % vs `fc1load_selfref` (p=0.054, 10/11) but 9461 got worse (+3.9 %); −14.6 % vs self-predict (11/11). |
