@@ -1133,6 +1133,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "HEROSIM_SERVER_ONLY_REPLICAS",
             "HEROSIM_REPLICA_PLATFORM_TYPES",
             "HEROSIM_POLICY_TIME_SCALE",
+            "HEROSIM_KEEP_ALIVE",
             "PARTIAL_STATE_CONTRACT",
             "PARTIAL_STATE_PEER_MASS",
             "PARTIAL_STATE_LOAD_SECONDS",
@@ -1217,6 +1218,22 @@ def _resolve_policy_time_scale() -> float:
     if not scale > 0:
         raise ValueError(f"HEROSIM_POLICY_TIME_SCALE={raw!r} must be > 0")
     return scale
+
+
+def _resolve_keep_alive(time_scale: float):
+    """capacity_sweep_v1: HEROSIM_KEEP_ALIVE (seconds, > 0) replaces the replica keep_alive for every policy, before
+    the policy time scale applies; unset keeps KEEP_ALIVE, and at scale 1.0 the unscaled int, so the default path
+    stays bit-identical. A very large value removes idle-replica expiry (the churn control)."""
+    raw = (os.environ.get("HEROSIM_KEEP_ALIVE") or "").strip()
+    if not raw:
+        return KEEP_ALIVE if time_scale == 1.0 else KEEP_ALIVE * time_scale
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ValueError(f"HEROSIM_KEEP_ALIVE={raw!r} is not a number") from None
+    if not value > 0 or value != value:
+        raise ValueError(f"HEROSIM_KEEP_ALIVE={raw!r} must be > 0")
+    return value * time_scale
 
 
 def run_simulation(
@@ -1482,7 +1499,7 @@ def run_simulation(
             scheduling_strategy=scheduling_strategy,
             cache_policy='fifo',
             task_priority='fifo',
-            keep_alive=KEEP_ALIVE if time_scale == 1.0 else KEEP_ALIVE * time_scale,
+            keep_alive=_resolve_keep_alive(time_scale),
             queue_length=resolved_queue_length,
             models=models,
             reconcile_interval=RECONCILE_INTERVAL if time_scale == 1.0 else RECONCILE_INTERVAL * time_scale,
