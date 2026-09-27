@@ -60,7 +60,9 @@ CAP_KEEP_ALIVE = "1e9"
 CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_se")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_selfrefkw", "_se")
+# replica_guard_v1: "_selfrefkw" = self-refine plus the GNN_REPLICA_KEEPWARM serving guard (registered parameters)
+KEEPWARM_ENV = {"GNN_REPLICA_KEEPWARM": "1", "GNN_REPLICA_KEEPWARM_MAX_REPLICAS": "4", "GNN_REPLICA_KEEPWARM_MARGIN_S": "5"}
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns on / zeroed
 # backlog_corpus_v1: v4load's recipe and its MP-OFF twin on the synthetic-backlog corpus, always served
@@ -120,6 +122,16 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
                [task(t, w, k) for w in x10 for t in topos for k in ("reactive", "selfpredict")] + \
                [task(t, w, k) for w in KA_WINDOWS for t in topos for k in ("reactive", "cd", "selfpredict")] + \
                [task(t, w, "xs1load_selfref", 1) for w in KA_WINDOWS for t in topos]
+    if phase == "guard":
+        # replica_guard_v1: guard vs its twin vs CD on the x1 perturbed draws; 9434 w0 as run in every gate;
+        # w1-w3 unperturbed, guard vs twin, seeds 1-2
+        x10 = [f"w0x10d{k}" for k in JIT_DRAWS]
+        return [task(t, w, "cd") for w in x10 for t in topos] + \
+               [task(t, w, k, s) for w in x10 for k in ("xs1load_selfref", "xs1load_selfrefkw")
+                for s in (1, 2, 3, 4) for t in topos] + \
+               [task(9434, "w0", k, s) for k in ("xs1load_selfref", "xs1load_selfrefkw") for s in (1, 2, 3, 4)] + \
+               [task(t, w, k, s) for w in ("w1", "w2", "w3") for k in ("xs1load_selfref", "xs1load_selfrefkw")
+                for s in (1, 2) for t in topos]
     if phase == "ladderjit":
         x15 = [f"w0x15d{k}" for k in JIT_DRAWS]
         x10 = [f"w0x10d{k}" for k in JIT_DRAWS]
@@ -212,7 +224,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE"):
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -265,8 +277,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_CD_REFINE"] = "shadow"
         if kind.endswith("_cdapply"):
             env["GNN_CD_REFINE"] = "apply"
-        if kind.endswith("_selfref"):
+        if kind.endswith(("_selfref", "_selfrefkw")):
             env["GNN_PREFIX_SELF_REFINE"] = "3"
+        if kind.endswith("_selfrefkw"):
+            env.update(KEEPWARM_ENV)
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
@@ -323,9 +337,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("queue drift not computable: no taskResults in the raw result")
     if kind == "selfpredict" and (int(c.get("pg_decisions") or 0) != N_TASKS or int(c.get("pg_lookahead_priced") or 0) == 0):
         problems.append(f"rule instrument off: {c.get('pg_decisions')}/{c.get('pg_lookahead_priced')}")
-    if kind.endswith("_selfref") and int(c.get("prefix_self_refine_batches") or 0) == 0:
+    if kind.endswith("_selfrefkw") and int(c.get("keepwarm_armed") or 0) != 1:
+        problems.append("keep-warm guard not armed")
+    if not kind.endswith("_selfrefkw") and int(c.get("keepwarm_armed") or 0):
+        problems.append("keep-warm guard armed on an unguarded arm")
+    if kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0) == 0:
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
-    if not kind.endswith("_selfref") and int(c.get("prefix_self_refine_batches") or 0):
+    if not kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
     if kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
@@ -382,7 +400,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -394,7 +412,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
