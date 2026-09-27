@@ -121,6 +121,12 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "x11confirm":
+        # x11_confirm_v1: xs1load_selfref seeds 2-4 on the x1.1 draws (seed 1, CD and reactive are capacity_sweep_v1's
+        # runs); plus seed 1 on two cells at this commit, the witness that the served path is unchanged.
+        x11 = [f"w0x11d{k}" for k in JIT_DRAWS]
+        return [task(t, w, "xs1load_selfref", s) for s in (2, 3, 4) for w in x11 for t in topos] + \
+               [task(t, "w0x11d1", "xs1load_selfref", 1) for t in (9119, 9420)]
     if phase == "decima":
         return [task(t, w, "decima") for t in topos for w in WINDOWS]
     if phase == "jitsmoke":
@@ -425,7 +431,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -437,7 +443,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
