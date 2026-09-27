@@ -43,6 +43,7 @@ RULE_POLICY = {
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
+    "random": "random_network",
 }
 # decima_rule_v1 tuning arms: Decima's tuned weighted fair at a fixed alpha (a0 = fair, a1 = naive weighted fair)
 DECIMA_TUNE_ALPHAS = {"decima_am2": -2.0, "decima_am1": -1.0, "decima_am05": -0.5, "decima_a0": 0.0,
@@ -79,6 +80,11 @@ BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load")  # fc1load: fullctx_re
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
 SERVICE_END = "service_end_v1"
+# grounded_workload_v1: study windows whose group sizes, sibling offsets and arrival process come from Alibaba's
+# 2021 call graphs (grounded_workload_v1_mint.py), at the study's x1 rate; files live in <inputs>/grounded/wl
+GROUNDED_WINDOWS = {f"g{i}": f"grounded_g{i}_n50000" for i in range(4)}
+GROUNDED_RULES = ("random", "reactive", "batched", "selfpredict", "cd", "decima")
+GROUNDED_LEARNED = ("xs1load_selfref", "xs1load", "gnnedge0", "mpoff")
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
 # SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
@@ -121,6 +127,12 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "grounded":
+        gw = tuple(GROUNDED_WINDOWS)
+        # witness: xs1load_selfref seed 1 on two x1.1 draws must equal capacity_sweep_v1's runs to the digit
+        return [task(t, "w0x11d1", "xs1load_selfref", 1) for t in (9119, 9420)] + \
+               [task(t, w, k) for k in GROUNDED_RULES for t in topos for w in gw] + \
+               [task(t, w, k, s) for k in GROUNDED_LEARNED for s in (1, 2, 3, 4) for t in topos for w in gw]
     if phase == "x11confirm":
         # x11_confirm_v1: xs1load_selfref seeds 2-4 on the x1.1 draws (seed 1, CD and reactive are capacity_sweep_v1's
         # runs); plus seed 1 on two cells at this commit, the witness that the served path is unchanged.
@@ -227,13 +239,17 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
-    if window in LADDER_RUNGS:
+    wl_dir = None
+    if window in GROUNDED_WINDOWS:
+        wl_name = GROUNDED_WINDOWS[window]
+        wl_dir = os.path.join(inputs, "grounded", "wl")
+    elif window in LADDER_RUNGS:
         inputs = os.path.join(inputs, "ladder", LADDER_RUNGS[window])
         wl_name = "burst_drainable_f4000_n50000"
     else:
         wl_name = "burst_drainable_f4000_n50000" if window == "w0" else f"burst_drainable_{window}_n50000"
     cfg = os.path.join(inputs, "cfg", f"cc40s{t['topo']}.json")
-    wl = os.path.join(inputs, "wl", wl_name + ".json")
+    wl = os.path.join(wl_dir or os.path.join(inputs, "wl"), wl_name + ".json")
     env = dict(os.environ)
     for k in ("GNN_MODEL_PATH", "GNN_DISABLE_MESSAGE_PASSING", "GNN_MP_PLATFORM_EDGES_OFF", "GNN_BATCH_TIMEOUT",
               "GNN_BATCH_SIZE", "GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "GNN_PREFIX_ALPHA_KEY",
@@ -431,7 +447,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -443,7 +459,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
