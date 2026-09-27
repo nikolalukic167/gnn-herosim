@@ -41,7 +41,7 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-09-25).**
+**Where the research question stands (rewritten 2026-09-27).**
 
 **The bar is a hand rule, and in one seat a learned arm clears it.** Per arrival, the self-predict
 rule (`selfpredict_bar_v1`: the peer-greedy rule plus a price for each unarrived partner at the node
@@ -63,7 +63,20 @@ the first learned arm to clear the hand-rule bar there at a quotable magnitude (
 jb2 1,629 groups). Used as a seed for CD's refine passes, the GNN plan beats CD −3.8 % (10/10,
 direction only; ~2/3 of that is any learned seed, not MP). Every burst-seat learned number before
 721d44f was served a node rank it was not trained on (uncapped rung, fixed). The fix costs `gnnedge0`
-+1.4 %, so no earlier learned headline is inflated by more than that. `gnnedge0` got there by training on
++1.4 %, so no earlier learned headline is inflated by more than that.
+
+**Three fixes narrowed the gap further; none separates from CD** (`backlog_corpus_v1` →
+`fullctx_refine_v1` → `exchange_seconds_v1`, `CLOSED`: median +1.5 % → −1.8 % → −0.94 %, p ≥ 0.76).
+**CD's refine seeded by the strongest checkpoint beats CD outright**, −3.74 %
+(10/10, direction only, `seeded_cd_xs1_v1` `CLOSED`), replicating D5 with a stronger seed. **In bursty
+arrivals the lead over CD grows with load; one admissible rung clears the bar, one seed** (−13.7 %,
+p=0.042, 10/12; normal load −11.9 %, p=0.15, blocked by a one-topology collapse — `burst_ladder_v1`,
+`capacity_sweep_v1`, `CLOSED`). Placement, not churn; the collapse (a starved replica type) is NOT
+fixed by a keep-warm guard (`replica_guard_v1` `FAILED`).
+Same-day negatives (`docs/hard-stops.md`): Decima's best baseline loses by 46–66 %; widening the choice
+set makes CD more optimal, not less.
+
+`gnnedge0` got there by training on
 exactly the served decision and serving UNCAPPED (`joint_burst_v2`: −11.9 % vs the one-pass greedy;
 v1's +16.8 % loss was the serving cap). The lever to reach CD, `rollout_imitation_v1`, **CLOSED
 `RULE-FASTER-LIVE`**: −12.7 % offline, +14–28 % slower live. **The served GNN never sees a partner
