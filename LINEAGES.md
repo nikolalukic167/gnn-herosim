@@ -49,6 +49,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**peak_load_v1**](docs/lineages/peak_load_v1.md) | `CLOSED` | **`PEAK-LOAD-WIN`.** At published peak/surge loads the self-refined GNN beats CD: w0 ×1.5 −24.6 %; grounded ×1.5 −5.3 %, ×2 −12.5 %, ×3 −20.4 %, ×5 −9.2 % (all CONFIRMED); beats one-pass, Decima, Knative, random; ties self-predict. ×2–×5 rungs post hoc; ×3/×5 overload. |
 | [**grounded_workload_v1**](docs/lineages/grounded_workload_v1.md) | `CLOSED` | **`NOT-SEPARATED`.** On Alibaba-grounded windows (≈4-task groups, ms sibling spacing, ×1) the learned arm ties CD (+0.4 %, p=0.57) and self-predict (−0.9 %); beats Knative −16 %, random −40 %, one-pass −7 %, Decima −20 % (12/12). |
 | [**x11_confirm_v1**](docs/lineages/x11_confirm_v1.md) | `CLOSED` | **`NOT-CONFIRMED`.** The ×1.1 w0 win over CD on unseen seeds 2–4: −11.5 % (p=0.092, 9/12); 4 seeds −11.8 % (p=0.064). Magnitude replicates, significance doesn't: 9434 collapses on every seed. |
 | [**backlog_corpus_v1**](docs/lineages/backlog_corpus_v1.md) | `CLOSED` | Synthetic-backlog corpus does not move the live queue (L1 +0.83 % NOT-SEPARATED, L2 +6.6 % vs CD); the gap is in-batch stacking; self-refine on the same weights ties CD (+1.5 %, p = 0.15). |
