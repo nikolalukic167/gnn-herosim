@@ -89,6 +89,10 @@ GROUNDED_LEARNED = ("xs1load_selfref", "xs1load", "gnnedge0", "mpoff")
 # built with the ladder protocol (timestamps and policy time constants x 1/1.5) into <inputs>/grounded_x15
 GROUNDED_X15 = {f"g{i}x15": f"grounded_g{i}_n50000" for i in range(4)}
 X15_FILL_RULES = ("random", "batched", "decima")
+# peak_load_v2: the same grounded windows at x2 / x3 / x5 (load sweep to saturation, as DeathStarBench, Gan et al.
+# ASPLOS'19), built the same way into <inputs>/grounded_x20 etc.
+GROUNDED_RUNGS = {"x20": 0.5, "x30": 1 / 3, "x50": 0.2}
+GROUNDED_LADDER = {f"g{i}{r}": (f"grounded_g{i}_n50000", f"grounded_{r}") for r in GROUNDED_RUNGS for i in range(4)}
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
 # SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
@@ -143,6 +147,12 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         gw = tuple(GROUNDED_X15)
         return [task(t, w, k) for k in GROUNDED_RULES for t in topos for w in gw] + \
                [task(t, w, k, s) for k in GROUNDED_LEARNED for s in (1, 2, 3, 4) for t in topos for w in gw]
+    if phase == "groundedladder":
+        # peak_load_v2: CD and the GNN first so the primary can be read early, then every other rule
+        gw = tuple(GROUNDED_LADDER)
+        return [task(t, w, "cd") for t in topos for w in gw] + \
+               [task(t, w, "xs1load_selfref", s) for s in (1, 2, 3, 4) for t in topos for w in gw] + \
+               [task(t, w, k) for k in GROUNDED_RULES if k != "cd" for t in topos for w in gw]
     if phase == "grounded":
         gw = tuple(GROUNDED_WINDOWS)
         # witness: xs1load_selfref seed 1 on two x1.1 draws must equal capacity_sweep_v1's runs to the digit
@@ -256,7 +266,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
     wl_dir = None
-    if window in GROUNDED_X15:
+    if window in GROUNDED_LADDER:
+        wl_name, sub = GROUNDED_LADDER[window]
+        inputs = os.path.join(inputs, sub)
+    elif window in GROUNDED_X15:
         wl_name = GROUNDED_X15[window]
         inputs = os.path.join(inputs, "grounded_x15")
     elif window in GROUNDED_WINDOWS:
@@ -466,7 +479,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -478,7 +491,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

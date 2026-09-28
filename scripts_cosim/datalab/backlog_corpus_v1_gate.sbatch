@@ -19,6 +19,7 @@
 #   sbatch --export=ALL,PHASE=grounded,WT=<grounded worktree> backlog_corpus_v1_gate.sbatch   (grounded_workload_v1)
 #   sbatch --export=ALL,PHASE=x15fill,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch      (peak_load_v1 a)
 #   sbatch --export=ALL,PHASE=groundedx15,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (peak_load_v1 b)
+#   sbatch --export=ALL,PHASE=groundedladder,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (peak_load_v2)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -59,7 +60,7 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
   if [[ $PHASE == grounded || $PHASE == groundedx15 ]]; then EXTRA+=("$FRESH/models/joint-burst-v2-gnnedge0-lr2e3-seed$s" "$FRESH/models/joint-burst-v2-mpoff-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
            "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
@@ -136,7 +137,7 @@ fi
 # grounded_workload_v1: the four Alibaba-grounded windows, minted here from the committed fan-out libraries and the
 # study's pre-burst windows; every file must match the sha256 minted locally (docs/lineages/grounded_workload_v1/).
 # Its witness reruns xs1load_selfref seed 1 on two x1.1 draws, so those draws must exist.
-if [[ $PHASE == grounded || $PHASE == groundedx15 ]]; then
+if [[ $PHASE == grounded || $PHASE == groundedx15 || $PHASE == groundedladder ]]; then
   export HEROSIM_DECIMA_ALPHA=1.0
   if [[ $PHASE == grounded ]]; then
     [[ -f "$IN/ladder/x11d1/.built" ]] || { echo "FAIL LOUD: draw x11d1 not built (capacity_sweep_v1)"; exit 1; }
@@ -168,6 +169,23 @@ if [[ $PHASE == groundedx15 ]]; then
     [ "$(ls "$D"/wl/grounded_g*_n50000.json | wc -l)" = 4 ] || { echo "FAIL LOUD: grounded x1.5 build incomplete"; exit 1; }
     touch "$D/.built"
   fi
+fi
+
+# peak_load_v2: the grounded windows at x2 / x3 / x5, built exactly as (b)'s x1.5.
+if [[ $PHASE == groundedladder ]]; then
+  SRC="$IN/grounded_src"
+  [ -L "$SRC/wl" ] || { echo "FAIL LOUD: $SRC missing (build groundedx15 first)"; exit 1; }
+  TOPOS=$(python3 -c "import json,sys;print(' '.join(map(str,json.load(open(sys.argv[1]))['topologies'])))" "$IN/selected.json")
+  for pair in x20:0.5 x30:0.3333333333333333 x50:0.2; do
+    R=${pair%%:*}; F=${pair##*:}; D="$IN/grounded_$R"
+    if [[ ! -f "$D/.built" ]]; then
+      rm -rf "$D"; mkdir -p "$D"
+      python3 scripts_cosim/cd_gap_v1_build_b.py --src "$SRC" --out "$D" --factor "$F" --topologies $TOPOS
+      ln -s "$IN/backlog_corpus_v1_split.json" "$D/backlog_corpus_v1_split.json"
+      [ "$(ls "$D"/wl/grounded_g*_n50000.json | wc -l)" = 4 ] || { echo "FAIL LOUD: grounded $R build incomplete"; exit 1; }
+      touch "$D/.built"
+    fi
+  done
 fi
 
 # peak_load_v1 (a) reuses the x1.5 draws exactly as burst_ladder_v1 Amendment 1 built them.

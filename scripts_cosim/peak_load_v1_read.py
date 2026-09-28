@@ -4,6 +4,7 @@ Shahrad et al. ATC'20 Fig. 4), on two workloads.
 
   peak_load_v1_read.py a --ladderjit <dir> --fill <dir> --selection selected.json [--out read.json]
   peak_load_v1_read.py b --gate <groundedx15 dir> --selection selected.json [--out read.json]
+  peak_load_v1_read.py b --gate <groundedladder dir> --rung x20|x30|x50 --selection selected.json   (peak_load_v2)
 
 (a) the w0 x1.5 draws d1-d4 of burst_ladder_v1 Amendment 1 (reactive, CD, cd_inflight, self-predict, the GNN)
     completed with random, one-pass and Decima; a witness reruns CD and the GNN seed 1 on two cells.
@@ -104,13 +105,13 @@ def read_a(ladderjit: str, fill: str, topos: Sequence[int]) -> dict:
     return res
 
 
-def read_b(gate: str, topos: Sequence[int]) -> dict:
+def read_b(gate: str, topos: Sequence[int], windows: Sequence[str] = B_WINDOWS) -> dict:
     s = F._summaries(gate)
-    return {"primary": contrast(s, topos, B_WINDOWS, GNN, "cd"),
-            "vs": {f"{a}_vs_{r}": contrast(s, topos, B_WINDOWS, a, r) for a in LEARNED for r in B_RULES},
-            "mp_twin": contrast(s, topos, B_WINDOWS, "gnnedge0", "mpoff"),
-            "rules_vs_reactive": {r: contrast(s, topos, B_WINDOWS, r, "reactive") for r in B_RULES if r != "reactive"},
-            "reactive_queue_share": shares(s, topos, B_WINDOWS)}
+    return {"primary": contrast(s, topos, windows, GNN, "cd"),
+            "vs": {f"{a}_vs_{r}": contrast(s, topos, windows, a, r) for a in LEARNED for r in B_RULES},
+            "mp_twin": contrast(s, topos, windows, "gnnedge0", "mpoff"),
+            "rules_vs_reactive": {r: contrast(s, topos, windows, r, "reactive") for r in B_RULES if r != "reactive"},
+            "reactive_queue_share": shares(s, topos, windows)}
 
 
 def _line(name: str, c: dict) -> str:
@@ -124,6 +125,7 @@ def main(argv: List[str] = None) -> int:
     ap.add_argument("--ladderjit")
     ap.add_argument("--fill")
     ap.add_argument("--gate")
+    ap.add_argument("--rung", default="x15", help="part b: grounded rung (x15, or peak_load_v2's x20/x30/x50)")
     ap.add_argument("--selection", required=True)
     ap.add_argument("--out")
     a = ap.parse_args(argv)
@@ -136,7 +138,7 @@ def main(argv: List[str] = None) -> int:
     else:
         if not a.gate:
             ap.error("part b needs --gate")
-        res = read_b(a.gate, topos)
+        res = read_b(a.gate, topos, tuple(f"g{i}{a.rung}" for i in range(4)))
         print(_line("MP twin gnnedge0 vs mpoff", res["mp_twin"]), file=sys.stderr)
     print(_line(f"PRIMARY {GNN} vs cd", res["primary"]), file=sys.stderr)
     for k, c in res["vs"].items():
