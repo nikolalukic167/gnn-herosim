@@ -85,6 +85,10 @@ SERVICE_END = "service_end_v1"
 GROUNDED_WINDOWS = {f"g{i}": f"grounded_g{i}_n50000" for i in range(4)}
 GROUNDED_RULES = ("random", "reactive", "batched", "selfpredict", "cd", "decima")
 GROUNDED_LEARNED = ("xs1load_selfref", "xs1load", "gnnedge0", "mpoff")
+# peak_load_v1: 1.5x the mean rate (peak hour; Azure's hourly peak/mean is ~1.6, Shahrad et al. ATC'20 Fig. 4),
+# built with the ladder protocol (timestamps and policy time constants x 1/1.5) into <inputs>/grounded_x15
+GROUNDED_X15 = {f"g{i}x15": f"grounded_g{i}_n50000" for i in range(4)}
+X15_FILL_RULES = ("random", "batched", "decima")
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
 # SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
@@ -127,6 +131,18 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, "cdimit", s) for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
     if phase == "v4":
         return [task(t, w, k, s) for k in V4_KINDS for s in (1, 2, 3, 4) for t in topos for w in WINDOWS]
+    if phase == "x15fill":
+        # peak_load_v1 (a): the rules burst_ladder_v1 Amendment 1 did not run at x1.5, on the same four draws; the
+        # witness reruns CD and xs1load_selfref seed 1 on two cells, which must equal the ladderjit runs to the digit
+        x15 = [f"w0x15d{k}" for k in JIT_DRAWS]
+        return [task(t, "w0x15d1", "cd") for t in (9119, 9420)] + \
+               [task(t, "w0x15d1", "xs1load_selfref", 1) for t in (9119, 9420)] + \
+               [task(t, w, k) for k in X15_FILL_RULES for t in topos for w in x15]
+    if phase == "groundedx15":
+        # peak_load_v1 (b): every arm on the Alibaba-grounded windows at x1.5
+        gw = tuple(GROUNDED_X15)
+        return [task(t, w, k) for k in GROUNDED_RULES for t in topos for w in gw] + \
+               [task(t, w, k, s) for k in GROUNDED_LEARNED for s in (1, 2, 3, 4) for t in topos for w in gw]
     if phase == "grounded":
         gw = tuple(GROUNDED_WINDOWS)
         # witness: xs1load_selfref seed 1 on two x1.1 draws must equal capacity_sweep_v1's runs to the digit
@@ -240,7 +256,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
     wl_dir = None
-    if window in GROUNDED_WINDOWS:
+    if window in GROUNDED_X15:
+        wl_name = GROUNDED_X15[window]
+        inputs = os.path.join(inputs, "grounded_x15")
+    elif window in GROUNDED_WINDOWS:
         wl_name = GROUNDED_WINDOWS[window]
         wl_dir = os.path.join(inputs, "grounded", "wl")
     elif window in LADDER_RUNGS:
@@ -447,7 +466,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -459,7 +478,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
