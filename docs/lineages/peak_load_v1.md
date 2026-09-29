@@ -69,6 +69,20 @@ peak or burst numbers) and UNSW-NB15 (no arrival rates).
 
 ## Record
 
+### 2026-09-29 — Amendment 1 independent audit
+
+Recomputed from the raw summaries by a separate script (`peak_load_v1/audit.py`, output `peak_load_v1/audit.json`;
+rerun reproduces it byte for byte). Every primary and rule contrast matches the reader to 4 d.p.; 576/576 learned
+runs, one commit (01282d1), none dirty, no metadata mismatch.
+- **Geometric-mean latency ratio GNN/CD, 95 % bootstrap CI over topologies** (10⁴ resamples, seed 0): ×2 0.84
+  [0.71, 0.95], ×3 0.75 [0.63, 0.90], ×5 0.91 [0.88, 0.94] — every interval excludes 1.
+- **Mean over seeds instead of median:** ×2 −11.2 % (p .021), ×3 −17.0 % (**p .077**), ×5 −7.6 % (p .0015).
+- **Per seed vs CD:** ×2 all four win (−10.9 to −15.0 %, p ≤ .027); ×3 −14.2 to −28.5 % but only seed 1 is
+  significant alone; **×5 seeds 2 and 3 do not beat CD** (+1.4 %, +4.5 %; 5/12 each), seeds 1 and 4 do (−25.6, −16.9 %).
+- **Mechanism (medians, s; latency / queue / exchange):** ×3 GNN 45.6 / 42.2 / 3.09 vs CD 66.0 / 62.1 / 3.51. The
+  GNN's lead is shorter queues plus ~0.4 s less exchange per task. Wait ≤ 0.13 s and rendezvous ≤ 0.23 s everywhere.
+- Self-predict at ×2 has a lower mean latency than the GNN (16.26 vs 16.84 s): no win over it at any rung.
+
 ### 2026-09-28 — Amendment 1 read (job 812291)
 
 1,425/1,440 summaries, 0 empty; 15 timeouts, none learned: 9466 random / reactive / self-predict on
