@@ -28,6 +28,9 @@ exact Wilcoxon over 12 topologies; ✓ = `CONFIRMED`, ≤ −5 % and p < 0.05):
   called inadmissible, re-read with every rule.
 - ×3 is the least stable rung: 9434 and 9461 go the other way (+19.9 / +19.7 %).
 - **No learned run failed** in any part. Rule timeouts (2,700 s) are recorded and dropped by name.
+- **Audited 2026-09-29** (independent recompute, reproduces): GNN/CD geometric-mean ratio CI excludes 1 at ×2 / ×3
+  / ×5, but ×3 is aggregator-sensitive (mean over seeds −17.0 %, p .077) and at ×5 two of four seeds do not beat
+  CD. Quote the CI with the median.
 
 **Parents:** [`grounded_workload_v1`](grounded_workload_v1.md) (the grounded windows; ×1 tie),
 [`burst_ladder_v1`](burst_ladder_v1.md) (the w0 ×1.5 draws and the ladder protocol),
