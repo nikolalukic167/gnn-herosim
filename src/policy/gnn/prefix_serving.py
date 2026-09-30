@@ -259,7 +259,12 @@ def load_prefix_conditioned_gnn(
             f"!= live vocab {list(vocab)!r} — a reorder would silently permute task types"
         )
     partial_dim = int(sidecar.get("partial_state_feature_dim") or 0)
-    expected_dim = partial_state_feature_dim(trained_contract)
+    plan_raw = bool(sidecar.get("plan_raw", False))
+    if plan_raw:
+        from src.policy.gnn.plan_raw import PLAN_RAW_DIM
+        expected_dim = PLAN_RAW_DIM
+    else:
+        expected_dim = partial_state_feature_dim(trained_contract)
     if partial_dim != expected_dim:
         raise PrefixServingError(
             f"{label}: partial_state_feature_dim={partial_dim} != the {expected_dim} "
@@ -311,6 +316,7 @@ def load_prefix_conditioned_gnn(
         mp_bipartite_aggr=str(sidecar.get("mp_bipartite_aggr") or "mean"),
         task_type_onehot_dim=onehot_dim,
         partial_state_edge_dim=partial_dim,
+        plan_raw=plan_raw,
         normalize_platform_inputs=sidecar.get("feature_dim") == 21,
     )
     model.load_state_dict(state_dict)

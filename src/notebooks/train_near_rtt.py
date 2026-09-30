@@ -189,6 +189,9 @@ class NearRttConfig:
     decode_relax_on_stuck: bool = os.environ.get("NEAR_RTT_DECODE_RELAX", "0") == "1"
     task_type_onehot: bool = os.environ.get("NEAR_RTT_TASK_TYPE_ONEHOT", "0") == "1"
     partial_state_edges: bool = os.environ.get("NEAR_RTT_PARTIAL_STATE_EDGES", "0") == "1"
+    # peak_controls_v1: the committed plan enters as raw graph facts (src/policy/gnn/plan_raw.py)
+    # instead of the contract's engineered columns. Rides the partial-state plumbing, width 2.
+    plan_raw: bool = os.environ.get("NEAR_RTT_PLAN_RAW", "0") == "1"
     dag_alpha_key: str = os.environ.get("NEAR_RTT_DAG_ALPHA_KEY", "2.0")
     # 0 = use every tied-optimal plan. Any other value CHANGES THE LOSS DEFINITION, so
     # it is recorded in the sidecar and applied deterministically (first N in cache
@@ -429,6 +432,13 @@ def loss_original_ce(logits_per_task: List[Tensor], data: Data, device: torch.de
     return loss_total / max(1, valid_tasks), valid_tasks
 
 
+def _prefix_block_dim() -> int:
+    if NEAR_CFG.plan_raw:
+        from src.policy.gnn.plan_raw import PLAN_RAW_DIM
+        return PLAN_RAW_DIM
+    return partial_state_feature_dim(resolve_partial_state_contract())
+
+
 def _prefix_free_prefix_block(data: Data) -> None:
     """Zero the prefix block so a plain ``model(data)`` is well-defined for arm A1.
 
@@ -438,7 +448,7 @@ def _prefix_free_prefix_block(data: Data) -> None:
     """
     n_edges = int(data.edge_index.size(1))
     data.partial_state_edge_attr = torch.zeros(
-        (n_edges, partial_state_feature_dim(resolve_partial_state_contract())),
+        (n_edges, _prefix_block_dim()),
         dtype=torch.float32,
         device=data.edge_index.device,
     )
@@ -2039,10 +2049,11 @@ model = TaskPlacementGNN(
     mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
     mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
     task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
-    partial_state_edge_dim=(
-        partial_state_feature_dim(resolve_partial_state_contract()) if NEAR_CFG.partial_state_edges else 0
-    ),
+    partial_state_edge_dim=(_prefix_block_dim() if NEAR_CFG.partial_state_edges else 0),
+    plan_raw=NEAR_CFG.plan_raw,
 ).to(DEVICE)
+if NEAR_CFG.plan_raw and not NEAR_CFG.partial_state_edges:
+    raise ValueError("FAIL LOUD: NEAR_RTT_PLAN_RAW=1 rides the prefix path; set NEAR_RTT_PARTIAL_STATE_EDGES=1")
 print(
     f"Message passing: residual={NEAR_CFG.mp_residual} node_edges={NEAR_CFG.mp_node_edges} "
     f"candidates_only={NEAR_CFG.mp_node_edges_candidates_only} "
@@ -2197,8 +2208,11 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                     else None
                 ),
                 "partial_state_feature_dim": (
-                    partial_state_feature_dim(resolve_partial_state_contract()) if NEAR_CFG.partial_state_edges else None
+                    _prefix_block_dim() if NEAR_CFG.partial_state_edges else None
                 ),
+                # peak_controls_v1: weight-visible, but the sidecar is what tells serving to build
+                # the raw plan instead of the contract's columns.
+                "plan_raw": NEAR_CFG.plan_raw,
                 # Which capacity rung the labels AND the capacity columns came from —
                 # they move together, so this names both.
                 "dag_alpha_key": NEAR_CFG.dag_alpha_key if TEACHER_FORCED else None,

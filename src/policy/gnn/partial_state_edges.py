@@ -157,6 +157,10 @@ def make_partial_state_score_fn(
     a node feature, which is asserted here — if a future change routes prefix state into
     ``platform_features``, this stops silently being correct and starts failing loudly.
     """
+    if getattr(model, "plan_raw", False):
+        # peak_controls_v1: the raw plan replaces the engineered columns; same call sites.
+        from src.policy.gnn.plan_raw import make_plan_raw_score_fn
+        return make_plan_raw_score_fn(model, data)
     expected_dim = partial_state_feature_dim(getattr(ctx, "contract", None))
     if not getattr(model, "partial_state_edge_dim", 0):
         raise ValueError(
