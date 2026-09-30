@@ -1,6 +1,6 @@
 # peak_controls_v1 — is peak_load_v1's win over CD the objective, or the model class?
 
-**Status:** `REGISTERED` (2026-09-30). Reads fixed below before any run.
+**Status:** `ACTIVE` (2026-09-30). C1 read; C2 (MP-OFF twin) training. Reads were fixed below before any run.
 
 **Question.** [`peak_load_v1`](peak_load_v1.md) found the self-refined GNN (`xs1load_selfref`) beats CD at ×2 / ×3 / ×5
 on the grounded windows. Two confounds stand between that and "a learned graph scorer beats hand search":
@@ -40,6 +40,29 @@ on the grounded windows. Two confounds stand between that and "a learned graph s
 term).
 
 ## Record
+
+### 2026-09-30 — C1 read (job 819913, phase `peakctl`)
+
+290 runs: 289 summaries, 1 timeout. The timeout is `cdextr` on 9423 `g2x20`, the same cell where CD timed out in
+`groundedladder`. Witness passed: CD matches to the digit on both cells. Every externality run charged the term on
+every batch. Read file: `peak_controls_v1/peakctl_read.json`.
+
+**R1 / R2 — GNN vs CD + externality** (median paired %, Wilcoxon p, Holm over rungs, faster/12):
+
+| Rung | vs `cdext` (0.46 /s) | vs `cdextr` (offered rate) | `cdext` vs CD | `cdextr` vs CD |
+|---|---|---|---|---|
+| ×2 | −7.4 % (p .027, Holm .081), 11/12 | **−9.8 % (Holm .010) ✓**, 11/12 | −3.4 % (12/12) | −2.6 % (11/12) |
+| ×3 | −9.5 % (p .11), 10/12 | **−13.9 % (Holm .004) ✓**, 11/12 | −16.0 % (p .043) | −6.3 % (p .52) |
+| ×5 | −3.9 % (p .34), 8/12 | −1.3 % (p .38), 8/12 | −7.1 % (p .027) | −5.6 % (p .027) |
+
+- The externality term makes CD faster, and it accounts for roughly half of the GNN's margin over CD. Mean latency
+  (s) for GNN / CD / `cdext` / `cdextr`: ×2 16.8 / 24.2 / 18.9 / 19.7; ×3 54.1 / 68.7 / 61.5 / 65.1; ×5 146.1 /
+  158.7 / 151.8 / 149.4.
+- The GNN's median is ahead of both externality rules at every rung. That lead survives Holm against `cdextr` at ×2
+  and ×3 only. Against `cdext` it is uncorrected at ×2 and not separated at ×3 or ×5. At ×5 neither contrast
+  separates.
+- Reading: the learned score is not only the objective. At ×2 and ×3 the GNN beats search that optimises the
+  label's objective at the offered rate. At saturation the objective accounts for all of the margin.
 
 ### 2026-09-30 — registered
 
