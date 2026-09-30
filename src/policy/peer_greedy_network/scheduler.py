@@ -57,6 +57,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
+    "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -76,6 +77,26 @@ PG_INFLIGHT_ENV = "HEROSIM_PG_INFLIGHT"
 # backlog stays unscaled). 1.0 is the rule. The x2 arm asks whether MORE co-location than the
 # rule buys is live-valid -- the direction the group-optimum label pushes a learned arm in.
 PG_EXCHANGE_SCALE_ENV = "HEROSIM_PG_EXCHANGE_SCALE"
+
+# peak_controls_v1 (2026-09-30): the co-sim label's queueing externality added to the rule's score, for
+# the batched flavours. A candidate that adds `a` seconds to a backlog of `B` seconds is charged
+# (lambda_p / 2)[(B + a)^2 - B^2], lambda_p = rate x the batch's type share / |that type's replicas|,
+# summed over the types p serves -- drift_label.py's lambda_p, with this env's value as the rate
+# (tasks/s). Unset = the registered rule, byte-identical.
+PG_EXT_RATE_ENV = "HEROSIM_PG_EXT_RATE"
+
+
+def _pg_ext_rate() -> Optional[float]:
+    raw = os.environ.get(PG_EXT_RATE_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"FAIL LOUD: {PG_EXT_RATE_ENV}={raw!r} is not a float") from exc
+    if not value > 0.0:
+        raise ValueError(f"FAIL LOUD: {PG_EXT_RATE_ENV} must be > 0, got {value}")
+    return value
 
 
 def _pg_exchange_scale() -> float:
@@ -132,6 +153,16 @@ class _PeerGreedyCore:
         self.pg_inflight = raw_inflight == "1"
         self.pg_inflight_charged = 0
         self.pg_inflight_seconds = 0.0
+        self.pg_ext_rate = _pg_ext_rate()
+        self._pg_ext_lambda: Dict[str, float] = {}
+        self.pg_ext_batches = 0
+        self.pg_ext_charged = 0
+        self.pg_ext_seconds = 0.0
+        if self.pg_ext_rate is not None and not self._pg_batched:
+            raise RuntimeError(
+                f"FAIL LOUD: {PG_EXT_RATE_ENV} is defined for the batched flavours only (lambda_p is "
+                f"split by the batch's type mix); {self._policy_label} decides per arrival"
+            )
         if self.pg_batch_blind and not self._pg_batched:
             raise RuntimeError(
                 f"FAIL LOUD: {PG_BATCH_BLIND_ENV}=1 is defined for the batched flavours only; "
@@ -232,11 +263,19 @@ class _PeerGreedyCore:
             lat = network_latency_between(task.node_name, node, nodes)
             base = drain + cold + exec_s + lat
             exch = self._pg_exchange_seconds(node, platform, peer_nodes)
+            ext = 0.0
+            if self.pg_ext_rate is not None:
+                lam = self._pg_ext_lambda.get(key, 0.0)
+                added = exec_s + comm + exch
+                ext = 0.5 * lam * ((drain + added) ** 2 - drain ** 2)
             if self._pg_capture_path:
                 feats.append([int(node.id), int(platform.id), node.node_name, str(platform.id),
                               float(drain), float(cold), float(exec_s), float(lat), float(exch)])
-            scored.append((base + self.pg_exchange_scale * exch, base, exch, exec_s + comm, node, platform))
+            scored.append((base + self.pg_exchange_scale * exch + ext, base, exch, exec_s + comm, node, platform, ext))
         best = min(scored, key=lambda s: (s[0], s[4].id, s[5].id))
+        if best[6] > 0.0:
+            self.pg_ext_charged += 1
+            self.pg_ext_seconds += best[6]
         if self._pg_capture_path and feats:
             self._pg_capture(int(task.id), feats)
         self.pg_decisions += 1
@@ -645,6 +684,9 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         placements: Dict[int, Tuple[int, int]] = {}
         service_of: Dict[int, Tuple[str, float]] = {}
         self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
+        if self.pg_ext_rate is not None:
+            self._pg_ext_lambda = self._pg_ext_lambdas(batch_tasks, system_state)
+            self.pg_ext_batches += 1
         self._pg_batch_pass(
             batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
             planned=planned, placements=placements, service_of=service_of, refine=False,
@@ -659,6 +701,29 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.prefix_pairs_in_batch += pairs_in
         self.prefix_peers_outside_batch += outside
         return placements
+
+    def _pg_ext_lambdas(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[str, float]:
+        """lambda_p per `node:platform` key: the rate split by the batch's type mix, then evenly over the
+        replicas the pass would consider for that type (initialized ones if any, else all valid)."""
+        share: Dict[str, float] = {}
+        for task in batch_tasks:
+            share[task.type["name"]] = share.get(task.type["name"], 0.0) + 1.0 / len(batch_tasks)
+        lam: Dict[str, float] = {}
+        for task in batch_tasks:
+            name = task.type["name"]
+            if name not in share:
+                continue
+            valid = self._get_valid_replicas(system_state.replicas.get(name, set()), task)
+            initialized = [r for r in valid if r[1].initialized.triggered]
+            pool = initialized if initialized else valid
+            if not pool:
+                share.pop(name)
+                continue
+            per_replica = self.pg_ext_rate * share.pop(name) / len(pool)
+            for node, platform in pool:
+                key = f"{node.node_name}:{platform.id}"
+                lam[key] = lam.get(key, 0.0) + per_replica
+        return lam
 
     def _pg_refine(self, batch_tasks, system_state, orch, memo, committed_service, planned,
                    placements, service_of) -> None:

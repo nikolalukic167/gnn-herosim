@@ -20,6 +20,8 @@
 #   sbatch --export=ALL,PHASE=x15fill,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch      (peak_load_v1 a)
 #   sbatch --export=ALL,PHASE=groundedx15,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (peak_load_v1 b)
 #   sbatch --export=ALL,PHASE=groundedladder,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (peak_load_v2)
+#   sbatch --export=ALL,PHASE=peakctl,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (peak_controls_v1 CD+externality)
+#   sbatch --export=ALL,PHASE=peakmlp,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (peak_controls_v1 MP-OFF twin)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -60,7 +62,8 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder || $PHASE == peakctl || $PHASE == peakmlp ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == peakmlp ]]; then EXTRA+=("$WT/models/peak-controls-v1-xs1mpoff-lr2e3-seed$s"); fi
   if [[ $PHASE == grounded || $PHASE == groundedx15 ]]; then EXTRA+=("$FRESH/models/joint-burst-v2-gnnedge0-lr2e3-seed$s" "$FRESH/models/joint-burst-v2-mpoff-lr2e3-seed$s"); fi
   for f in "$FRESH/models/load-repr-v1-v4load-gnnedge0-lr2e3-seed$s" \
            "$WT/models/backlog-corpus-v1-bc1load-lr2e3-seed$s" "$WT/models/backlog-corpus-v1-bc1mpoff-lr2e3-seed$s" \
@@ -185,6 +188,13 @@ if [[ $PHASE == groundedladder ]]; then
       [ "$(ls "$D"/wl/grounded_g*_n50000.json | wc -l)" = 4 ] || { echo "FAIL LOUD: grounded $R build incomplete"; exit 1; }
       touch "$D/.built"
     fi
+  done
+fi
+
+# peak_controls_v1 reuses the x2 / x3 / x5 cells exactly as peak_load_v2 built them.
+if [[ $PHASE == peakctl || $PHASE == peakmlp ]]; then
+  for R in x20 x30 x50; do
+    [[ -f "$IN/grounded_$R/.built" ]] || { echo "FAIL LOUD: grounded_$R not built (peak_load_v2 groundedladder)"; exit 1; }
   done
 fi
 

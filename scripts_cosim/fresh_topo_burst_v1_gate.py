@@ -44,7 +44,13 @@ RULE_POLICY = {
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
+    "cdext": "peer_greedy_network_cd",  # peak_controls_v1: CD + the label's externality at the label's rate
+    "cdextr": "peer_greedy_network_cd",  # peak_controls_v1: CD + the externality at the rung's offered rate
 }
+# peak_controls_v1: HEROSIM_PG_EXT_RATE for the externality arms. The label's constant (drift_label, 0.46/s)
+# is the study's x1 rate; cdextr multiplies it by the rung (1 / HEROSIM_POLICY_TIME_SCALE).
+EXT_LABEL_RATE = 0.46
+EXT_KINDS = ("cdext", "cdextr")
 # decima_rule_v1 tuning arms: Decima's tuned weighted fair at a fixed alpha (a0 = fair, a1 = naive weighted fair)
 DECIMA_TUNE_ALPHAS = {"decima_am2": -2.0, "decima_am1": -1.0, "decima_am05": -0.5, "decima_a0": 0.0,
                       "decima_a05": 0.5, "decima_a1": 1.0}
@@ -76,7 +82,7 @@ GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
 V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns on / zeroed
 # backlog_corpus_v1: v4load's recipe and its MP-OFF twin on the synthetic-backlog corpus, always served
 # with the in-flight capture fix; a "_se" suffix serves any other arm with it (Amendment 1: v4load_se)
-BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load")  # fc1load: fullctx_refine_v1; xs1load: exchange_seconds_v1; same cache and split
+BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff")  # xs1mpoff: peak_controls_v1's MP-OFF twin of xs1load  # fc1load: fullctx_refine_v1; xs1load: exchange_seconds_v1; same cache and split
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
 SERVICE_END = "service_end_v1"
@@ -93,6 +99,9 @@ X15_FILL_RULES = ("random", "batched", "decima")
 # ASPLOS'19), built the same way into <inputs>/grounded_x20 etc.
 GROUNDED_RUNGS = {"x20": 0.5, "x30": 1 / 3, "x50": 0.2}
 GROUNDED_LADDER = {f"g{i}{r}": (f"grounded_g{i}_n50000", f"grounded_{r}") for r in GROUNDED_RUNGS for i in range(4)}
+# peak_controls_v1: the two controls on the same ladder cells -- CD with the label's externality (two rates) and the
+# MP-OFF twin of the GNN trained on the same corpus and recipe, served with the same self-refine
+PEAKCTL_WITNESS = ((9119, "g0x30"), (9420, "g0x30"))
 N_TASKS = 50000
 PY = shlex.split(os.environ.get("HEROSIM_PY", "pipenv run python3"))
 # SLURM compute nodes have no systemd-run: the job's own memory allocation caps the runs instead.
@@ -147,6 +156,14 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         gw = tuple(GROUNDED_X15)
         return [task(t, w, k) for k in GROUNDED_RULES for t in topos for w in gw] + \
                [task(t, w, k, s) for k in GROUNDED_LEARNED for s in (1, 2, 3, 4) for t in topos for w in gw]
+    if phase == "peakctl":
+        gw = tuple(GROUNDED_LADDER)
+        # witness: CD on two x3 cells must equal the groundedladder runs to the digit (the externality code is inert when unset)
+        return [task(t, w, "cd") for t, w in PEAKCTL_WITNESS] + \
+               [task(t, w, k) for k in EXT_KINDS for t in topos for w in gw]
+    if phase == "peakmlp":
+        gw = tuple(GROUNDED_LADDER)
+        return [task(t, w, "xs1mpoff_selfref", s) for s in (1, 2, 3, 4) for t in topos for w in gw]
     if phase == "groundedladder":
         # peak_load_v2: CD and the GNN first so the primary can be read early, then every other rule
         gw = tuple(GROUNDED_LADDER)
@@ -291,7 +308,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", *KEEPWARM_ENV):
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -313,6 +330,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = "fullctx-refine-v1-fc1load"
         elif base_kind == "xs1load":
             stem = "exchange-seconds-v1-xs1load"
+        elif base_kind == "xs1mpoff":
+            stem = "peak-controls-v1-xs1mpoff"
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
         else:
@@ -327,13 +346,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
-        if base_kind in ("mpoff", "bc1mpoff"):
+        if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff"):
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
         if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
                        PARTIAL_STATE_LOAD_SECONDS="0" if base_kind == "v4twin" else "1",
-                       PARTIAL_STATE_EXCHANGE_SECONDS="1" if base_kind == "xs1load" else "0")
+                       PARTIAL_STATE_EXCHANGE_SECONDS="1" if base_kind in ("xs1load", "xs1mpoff") else "0")
         if base_kind in BC1_KINDS or kind.endswith("_se"):
             env["HEROSIM_INFLIGHT_CAPTURE"] = SERVICE_END
         if kind.endswith("_spread"):
@@ -351,8 +370,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "cd", "cd_blind", "cd_inflight") or policy == "decima_wfair_network":
+        if kind in ("batched", "cd", "cd_blind", "cd_inflight", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
+        if kind == "cdext":
+            env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE)
+        if kind == "cdextr":
+            env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / time_scale)
         if kind == "cd_inflight":
             env["HEROSIM_PG_INFLIGHT"] = "1"
         if kind in DECIMA_TUNE_ALPHAS:
@@ -432,8 +455,17 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("decima instrument off: decima_batches == 0")
         if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
             problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
-    if kind in ("batched", "cd", "cd_blind", "cd_slate", "cd_inflight") and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "cd", "cd_blind", "cd_slate", "cd_inflight", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
+    if kind in EXT_KINDS:
+        want_rate = repr(EXT_LABEL_RATE if kind == "cdext" else EXT_LABEL_RATE / time_scale)
+        if out["env"].get("HEROSIM_PG_EXT_RATE") != want_rate:
+            problems.append(f"served HEROSIM_PG_EXT_RATE={out['env'].get('HEROSIM_PG_EXT_RATE')!r}, {kind} needs {want_rate}")
+        if int(c.get("pg_ext_batches") or 0) != int(c.get("pg_batches") or 0) or int(c.get("pg_ext_charged") or 0) == 0:
+            problems.append(f"externality instrument off: {c.get('pg_ext_batches')}/{c.get('pg_batches')} batches, "
+                            f"{c.get('pg_ext_charged')} charged")
+    elif out["env"].get("HEROSIM_PG_EXT_RATE") or int(c.get("pg_ext_batches") or 0):
+        problems.append("a non-externality arm charged the externality")
     if kind == "cd_blind" and int(c.get("pg_partners_blinded") or 0) == 0:
         problems.append("blind instrument off: pg_partners_blinded == 0")
     if kind == "cd" and int(c.get("pg_partners_blinded") or 0) != 0:
@@ -453,7 +485,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if out["env"].get("PARTIAL_STATE_LOAD_SECONDS", "") != want_ls:
             problems.append(f"served PARTIAL_STATE_LOAD_SECONDS={out['env'].get('PARTIAL_STATE_LOAD_SECONDS')!r}, "
                             f"{base_kind} needs {want_ls}")
-        want_xs = "1" if base_kind == "xs1load" else "0"
+        want_xs = "1" if base_kind in ("xs1load", "xs1mpoff") else "0"
         if out["env"].get("PARTIAL_STATE_EXCHANGE_SECONDS", "") != want_xs:
             problems.append(f"served PARTIAL_STATE_EXCHANGE_SECONDS={out['env'].get('PARTIAL_STATE_EXCHANGE_SECONDS')!r}, "
                             f"{base_kind} needs {want_xs}")
@@ -479,7 +511,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -491,7 +523,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
