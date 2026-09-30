@@ -334,6 +334,7 @@ class TaskPlacementGNN(nn.Module):
         mp_bipartite_edge_conv: Optional[bool] = None,
         mp_bipartite_edge_attr_zero: Optional[bool] = None,
         mp_bipartite_aggr: Optional[str] = None,
+        plan_raw: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -500,6 +501,26 @@ class TaskPlacementGNN(nn.Module):
                 "mp_bipartite_edge_conv=True -- the GIN never reads edge_attr at all, so "
                 "the flag would silently describe a model it does not affect."
             )
+        # peak_controls_v1 raw_plan_v1 (src/policy/gnn/plan_raw.py): the partial plan enters as two raw
+        # columns on every bipartite edge (committed flag, committed count on the platform) that feed
+        # message passing as well as the scorer, and same-node platform edges join the conv with a
+        # type flag, so co-location is learnable rather than supplied. Weight-visible (the conv and
+        # scorer widths change); recorded in the sidecar as `plan_raw`.
+        from src.policy.gnn.plan_raw import PLAN_RAW_DIM, PLAN_RAW_ENV
+        self.plan_raw = _env_flag(PLAN_RAW_ENV) if plan_raw is None else bool(plan_raw)
+        self._plan_raw_conv_extra = (PLAN_RAW_DIM + 1) if self.plan_raw else 0
+        if self.plan_raw:
+            if self.partial_state_edge_dim != PLAN_RAW_DIM:
+                raise ValueError(
+                    f"FAIL LOUD: plan_raw needs partial_state_edge_dim={PLAN_RAW_DIM} (the raw plan "
+                    f"columns), got {self.partial_state_edge_dim}"
+                )
+            if self.mp_node_edges:
+                raise ValueError("FAIL LOUD: plan_raw adds its own typed same-node edges; "
+                                 "mp_node_edges would add them a second time, untyped")
+            if not self._disable_mp and not self.mp_bipartite_edge_conv:
+                raise ValueError("FAIL LOUD: plan_raw with message passing needs mp_bipartite_edge_conv "
+                                 "(the GIN reads no edge attributes, so the plan would never reach it)")
         if self.mp_bipartite_edge_conv:
             if not self.mp_platform_edges:
                 raise ValueError(
@@ -508,7 +529,8 @@ class TaskPlacementGNN(nn.Module):
                     "constructed and never run (that is the peeronly arm)."
                 )
             self.bip_convs = nn.ModuleList(
-                BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim, dropout_p=dropout,
+                BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim + self._plan_raw_conv_extra,
+                                  dropout_p=dropout,
                                   aggr=self.mp_bipartite_aggr)
                 for _ in range(num_layers)
             )
@@ -698,6 +720,29 @@ class TaskPlacementGNN(nn.Module):
                 ea = ea.to(x0.device, dtype=x0.dtype)
                 if self.mp_bipartite_edge_attr_zero:
                     ea = torch.zeros_like(ea)
+                if self.plan_raw:
+                    ps = getattr(data, "partial_state_edge_attr", None)
+                    if ps is None or tuple(ps.shape) != (int(ea.size(0)), self.partial_state_edge_dim):
+                        raise ValueError(
+                            "FAIL LOUD: plan_raw encode needs partial_state_edge_attr "
+                            f"[{int(ea.size(0))}, {self.partial_state_edge_dim}] (src.policy.gnn.plan_raw)"
+                        )
+                    ps = ps.to(x0.device, dtype=x0.dtype)
+                    ea = torch.cat([ea, ps, torch.zeros_like(ea[:, :1])], dim=-1)
+                    node_ei = getattr(data, "node_edge_index", None)
+                    if node_ei is None:
+                        raise ValueError("FAIL LOUD: plan_raw needs node_edge_index on the graph")
+                    node_ei = node_ei.to(mp_edge_index.device)
+                    if node_ei.numel() > 0:
+                        node_ei = restrict_node_edges_to_candidates(
+                            node_ei, data.edge_index, n_tasks, n_platforms
+                        )
+                    if node_ei.numel() > 0:
+                        node_ea = torch.zeros((int(node_ei.size(1)), int(ea.size(1))),
+                                              device=ea.device, dtype=ea.dtype)
+                        node_ea[:, -1] = 1.0
+                        mp_edge_index = torch.cat([mp_edge_index, node_ei], dim=1)
+                        ea = torch.cat([ea, node_ea], dim=0)
                 h = x0
                 for conv in self.bip_convs:
                     h = conv(h, mp_edge_index, ea)

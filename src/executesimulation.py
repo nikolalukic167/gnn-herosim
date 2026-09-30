@@ -641,6 +641,8 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             # THIS loader's own mp_node_edges/mp_dag_edges-style guard had nothing to check
             # against below.
             "disable_message_passing",
+            # peak_controls_v1: raw_plan_v1 instead of the contract's engineered columns.
+            "plan_raw",
         )
         if key in payload
     }
