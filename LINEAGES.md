@@ -37,7 +37,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | Lineage | Status | Outcome |
 |---|---|---|
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
-| [**peak_controls_v1**](docs/lineages/peak_controls_v1.md) | `ACTIVE` | C1: CD plus the label's externality recovers about half of the GNN's margin; the GNN still beats the offered-rate variant at ×2 / ×3 (−9.8 / −13.9 %) and ties at ×5. C2 (MP-OFF twin) is pending. |
 | [**drainable_debug_v1**](docs/lineages/drainable_debug_v1.md) | `REGISTERED` | Why do both learned arms lose to reactive Knative at ρ ≈ 0.16? Bars signed before any datum exists; parents are `drainable_regime_v1` and `drainable_serving_config_v1`. |
 | [**peer_affinity_v1**](docs/lineages/peer_affinity_v1.md) | `ACTIVE` | Message passing beats its own MP-OFF twin **+5.14 pp** offline (p = 0.001, 13/16 seeds) at 482 datasets — **offline only**. The edge reverses live, is contingent on one platform type the corpus never contained, and reads **−15.94 %** at a defensible load. Never quote a live number without its load factor. |
 | [**literature_reeval_v1**](docs/lineages/literature_reeval_v1.md) | `ACTIVE` | **L2D closed out** across 6×6 / 10×10 / 15×15: message passing ties at the authors' learning rate and wins ~1.5–5 pp once converged, so the authors' recipe under-trains. FDD/MWKR beats the learned policy at every size. |
@@ -50,6 +49,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**peak_controls_v1**](docs/lineages/peak_controls_v1.md) | `CLOSED` | **`LEARNED-SCORER-WIN / NOT-MP`.** The MP-OFF twin beats CD −11 / −19 / −20 % and CD+externality at every rung; it ties the GNN at ×2 / ×3 and beats it at ×5 (+13 %). The externality closes ~half of the GNN–CD gap. |
 | [**peak_load_v1**](docs/lineages/peak_load_v1.md) | `CLOSED` | **`PEAK-LOAD-WIN`.** At published peak/surge loads the self-refined GNN beats CD: w0 ×1.5 −24.6 %; grounded ×1.5 −5.3 %, ×2 −12.5 %, ×3 −20.4 %, ×5 −9.2 % (all CONFIRMED); beats one-pass, Decima, Knative, random; ties self-predict. ×2–×5 rungs post hoc; ×3/×5 overload. |
 | [**grounded_workload_v1**](docs/lineages/grounded_workload_v1.md) | `CLOSED` | **`NOT-SEPARATED`.** On Alibaba-grounded windows (≈4-task groups, ms sibling spacing, ×1) the learned arm ties CD (+0.4 %, p=0.57) and self-predict (−0.9 %); beats Knative −16 %, random −40 %, one-pass −7 %, Decima −20 % (12/12). |
 | [**x11_confirm_v1**](docs/lineages/x11_confirm_v1.md) | `CLOSED` | **`NOT-CONFIRMED`.** The ×1.1 w0 win over CD on unseen seeds 2–4: −11.5 % (p=0.092, 9/12); 4 seeds −11.8 % (p=0.064). Magnitude replicates, significance doesn't: 9434 collapses on every seed. |

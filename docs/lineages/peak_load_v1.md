@@ -18,6 +18,9 @@ exact Wilcoxon over 12 topologies; ✓ = `CONFIRMED`, ≤ −5 % and p < 0.05):
 | ×3 minute surge (Am. 1) | grounded | **−20.4 ✓** (p .027, 10/12) | −14.5 tie (p .23) | −29.2 ✓ | −50.2 ✓ | −71.3 ✓ | −91.1 ✓ | 0.97 |
 | ×5 to saturation (Am. 1) | grounded | **−9.2 ✓** (p .002, 11/12) | −2.3 tie (p .30) | −12.8 ✓ | −22.9 ✓ | −30.5 ✓ | −68.6 ✓ | 0.98 |
 
+- **Qualified 2026-09-30 by [`peak_controls_v1`](peak_controls_v1.md).** The GNN's MP-OFF twin matches it at ×2
+  and ×3 and beats it at ×5 (+13 %). CD with the label's externality recovers about half of the margin. This is a
+  learned-scorer win, never a GNN one.
 - The gap to CD rises to a peak at ×3 and falls at ×5: the saturation knee. Quote the curve, never ×3 alone.
 - **Not quotable as a message-passing win.** At ×1.5 grounded the plain decode of the same weights ties CD
   (−2.6 %, p = 0.13), `gnnedge0` and its MP-OFF twin both trail CD (+2.9 / +4.5 %), and MP vs its twin is

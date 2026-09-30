@@ -313,3 +313,16 @@ effectively infinite for every arm, the 9434 collapse vanishes and the learned a
 is placement, not churn — `capacity_sweep_v1` C2, −8.4 %, p = 0.042), but the fix has to be inside the
 policy's own scoring or training (replica idle age as an input, or training on bursty loaded states),
 not a rule bolted onto serving.
+
+## Message passing as the source of the peak-load win over CD (2026-09-30)
+
+**Direction:** "the GNN beats CD at peak load (`peak_load_v1`) because message passing lets it coordinate the
+group."
+
+**What closed it** (`peak_controls_v1`, live gate, 12 topologies × 4 windows × 4 seeds per rung): the MP-OFF twin
+has the same corpus, labels, `partial_state_v4` context and self-refine. It beats CD by −11 / −18.5 / −19.8 % at
+×2 / ×3 / ×5. It ties the GNN at ×2 / ×3 (−1.5 % direction, −2.2 % p = .91), and at ×5 the GNN is +13.1 % slower
+(1/12, Holm .003).
+
+**Do not attribute** the peak-load margin to graph structure. It is carried by the learned score on the plan-context
+features.
