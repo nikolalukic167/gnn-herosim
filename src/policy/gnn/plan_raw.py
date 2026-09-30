@@ -66,9 +66,10 @@ def plan_raw_edge_attr(data: Any, committed: Mapping[int, Any]) -> Tensor:
     memo = getattr(data, "_plan_raw_layout", None)
     if memo is None:
         plat, reverse = _edge_platforms(data)
+        placements = data.task_logit_to_placement
         index_of = [
-            {tuple(int(v) for v in c): k for k, c in enumerate(cands)}
-            for cands in data.task_logit_to_placement
+            {tuple(int(v) for v in c): k for k, c in enumerate(placements[t])}
+            for t in range(int(data.n_tasks))
         ]
         memo = (torch.as_tensor(plat, dtype=torch.long), reverse, index_of)
         setattr(data, "_plan_raw_layout", memo)

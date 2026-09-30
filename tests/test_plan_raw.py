@@ -66,7 +66,8 @@ def _graph() -> Data:
             meta[k] = {"platform_pos": p}
     data.task_logit_to_queue_key = keys
     data.queue_key_to_platform_meta = meta
-    data.task_logit_to_placement = [[PLACEMENT[p] for p in CANDS[t]] for t in range(n_tasks)]
+    # keyed by task index, as the cache and the live builder store it
+    data.task_logit_to_placement = {t: [PLACEMENT[p] for p in CANDS[t]] for t in range(n_tasks)}
     return data
 
 
