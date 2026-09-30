@@ -1,6 +1,17 @@
 # peak_controls_v1 — is peak_load_v1's win over CD the objective, or the model class?
 
-**Status:** `ACTIVE` (2026-09-30). C1 read; C2 (MP-OFF twin) training. Reads were fixed below before any run.
+**Status:** `CLOSED` (2026-09-30) — **`LEARNED-SCORER-WIN / NOT-MP`**. Registered 2026-09-30, and every read below
+was fixed before its data.
+
+**Outcome.** The peak-load win is a **learned-scorer** win, not a message-passing one, and only part of it is the
+objective.
+- **C2, MP-OFF twin.** `xs1mpoff_selfref` beats CD at every rung: −11.0 / −18.5 / −19.8 % (Holm ≤ .005). It also
+  beats CD with the externality at the offered rate, `cdextr`: −8.2 / −14.0 / −13.1 % (Holm ≤ .007). Against the
+  GNN it gives −1.5 % (direction only), then ties at ×3, then is **faster at ×5, +13.1 % for the GNN (1/12)**.
+- **C1, externality in CD.** Adding the label's externality to CD recovers about half of the GNN's margin. The GNN
+  still beats `cdextr` at ×2 / ×3 (−9.8 / −13.9 %) and ties it at ×5.
+- **Quote this as:** "a learned pointwise scorer over plan-context features beats hand search, including search
+  over the same objective". Never quote it as a GNN or MP win. The MLP twin is the stronger arm at saturation.
 
 **Question.** [`peak_load_v1`](peak_load_v1.md) found the self-refined GNN (`xs1load_selfref`) beats CD at ×2 / ×3 / ×5
 on the grounded windows. Two confounds stand between that and "a learned graph scorer beats hand search":
@@ -40,6 +51,26 @@ on the grounded windows. Two confounds stand between that and "a learned graph s
 term).
 
 ## Record
+
+### 2026-09-30 — C2 read (job 820542, phase `peakmlp`); CLOSED
+
+576/576 runs, 0 failed. Training: job 819912, 4 seeds, W&B `peak-controls-v1-xs1mpoff`, sidecars checked. Best val
+regret was 6.83–7.08 s, against xs1load's 6.44–6.72 s. Read file: `peak_controls_v1/peak_controls_read.json`.
+
+| Rung | GNN vs MLP | MLP vs CD | MLP vs `cdextr` | MLP vs `cdext` | Mean latency GNN / MLP (s) |
+|---|---|---|---|---|---|
+| ×2 | −1.5 % (Holm .024, 11/12) direction | −11.0 % ✓ | −8.2 % ✓ | −6.2 % ✓ | 16.8 / 17.4 |
+| ×3 | −2.2 % (p .91) tie | −18.5 % ✓ | −14.0 % ✓ | −9.6 % (p .11) | 54.1 / 50.0 |
+| ×5 | **+13.1 % (Holm .003, 1/12)** MLP faster | −19.8 % ✓ | −13.1 % ✓ | −14.8 % ✓ | 146.0 / 131.4 |
+
+- MLP vs the other baselines at ×2 / ×3 / ×5: one-pass −17.4 / −27.2 / −21.8 %, Decima −32.8 / −49.9 / −31.6 %,
+  Knative −34.4 / −71.9 / −37.4 %, random −72.9 / −91.6 / −71.5 %. Every one survives Holm.
+- MLP vs self-predict: −5.5 / −13.0 / −12.6 %, none significant.
+- Per seed vs CD: 10 of 12 (seed, rung) cells are `CONFIRMED`; seeds 2 and 4 at ×3 and seed 1 at ×5 are negative but
+  not separated.
+- Reading: offline, message passing buys ~5 % val regret. Live, it buys nothing at ×2 / ×3 and costs 13 % at ×5.
+  The margin over search comes from the learned score on the `partial_state_v4` plan context, not from graph
+  propagation.
 
 ### 2026-09-30 — C1 read (job 819913, phase `peakctl`)
 
