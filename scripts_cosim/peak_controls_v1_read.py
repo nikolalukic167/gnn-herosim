@@ -42,6 +42,11 @@ FAMILIES = {
     "cdext_vs_cd": ("cdext", "cd"),
     "cdextr_vs_cd": ("cdextr", "cd"),
     "gnn_vs_cd": (GNN, "cd"),
+    "gnn_vs_batched": (GNN, "batched"),
+    "gnn_vs_decima": (GNN, "decima"),
+    "gnn_vs_reactive": (GNN, "reactive"),
+    "gnn_vs_random": (GNN, "random"),
+    "mlp_vs_cdext": (MLP, "cdext"),
 }
 DESCRIBE = (GNN, MLP, "cd", "cdext", "cdextr", "batched", "decima", "reactive", "random", "selfpredict")
 WITNESS = ((9119, "g0x30"), (9420, "g0x30"))
