@@ -1151,6 +1151,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # backlog_corpus_v1: how an in-flight task is priced at capture and serving.
             "HEROSIM_INFLIGHT_CAPTURE",
             "HEROSIM_PG_INFLIGHT",
+            "HEROSIM_PG_EXT_RATE",
             "INFERENCE_FEATURE_LAYOUT",
             "KNATIVE_BATCH_SIZE",
             "KNATIVE_BATCH_TIMEOUT",
