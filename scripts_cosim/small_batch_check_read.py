@@ -31,7 +31,7 @@ def cell_of(root: str, gid: str) -> int:
     from non_unique_lib.training_contract import canonical_parent_id
 
     parent = canonical_parent_id(gid)
-    meta = json.load(open(os.path.join(root, parent, "metadata.json")))
+    meta = json.load(open(os.path.join(root, parent, "infrastructure.json"))).get("metadata") or {}
     return int((meta.get("warm_snapshot") or {})["cell_seed"])
 
 
