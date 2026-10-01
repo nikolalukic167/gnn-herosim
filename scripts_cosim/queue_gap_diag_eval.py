@@ -10,6 +10,8 @@ Decodes every VAL graph of the backlog_corpus_v1 split with the served decoder
   q_*            queue length (tasks) at the chosen / label / shortest candidate, summed over choice tasks
   agree          choice tasks where the decode equals the first tied-optimal plan
   backlog        mean queue length over every candidate of every choice task (how loaded the state is)
+  plat/node_*    most tasks stacked on one platform / node, for the decode and for the label plan
+  coloc_*        peer pairs placed on one node, for the decode and for the label plan (n_pairs in total)
 Everything is read from the cache; nothing is simulated.
 """
 from __future__ import annotations
@@ -95,6 +97,22 @@ def main() -> int:
             label = g.tied_optimal_logit_plans[alpha][0]
             n = int(g.n_tasks)
             qs = {"chosen": 0.0, "label": 0.0, "min": 0.0}
+            lab_combo = [tuple(int(v) for v in tl[t][int(label[t])]) for t in range(n)]
+            dec_combo = [tuple(int(v) for v in combo[t]) for t in range(n)]
+
+            def stack(plan, idx):
+                counts: Dict[tuple, int] = {}
+                for c in plan:
+                    k = c if idx is None else c[idx]
+                    counts[k] = counts.get(k, 0) + 1
+                return max(counts.values())
+
+            pe = getattr(g, "peer_edge_index", None)
+            pairs = sorted({tuple(sorted((int(x), int(y)))) for x, y in pe.t().tolist()}) if pe is not None and pe.numel() else []
+
+            def coloc(plan):
+                return sum(plan[x][0] == plan[y][0] for x, y in pairs)
+
             cand_q, n_choice, agree = [], 0, 0
             for t in range(n):
                 if len(tl[t]) < 2:
@@ -111,7 +129,11 @@ def main() -> int:
             if opt is None:
                 raise RuntimeError(f"FAIL LOUD: no optimal RTT for {gid}")
             rows.append({"id": gid, "regret": rmap[combo] - float(opt), "n_tasks": n, "n_choice": n_choice,
-                         "agree": agree, "q_chosen": qs["chosen"], "q_label": qs["label"], "q_min": qs["min"],
+                         "agree": agree,
+                         "plat_dec": stack(dec_combo, None), "plat_lab": stack(lab_combo, None),
+                         "node_dec": stack(dec_combo, 0), "node_lab": stack(lab_combo, 0),
+                         "n_pairs": len(pairs), "coloc_dec": coloc(dec_combo), "coloc_lab": coloc(lab_combo),
+                         "q_chosen": qs["chosen"], "q_label": qs["label"], "q_min": qs["min"],
                          "backlog": sum(cand_q) / max(1, len(cand_q))})
     mean = sum(r["regret"] for r in rows) / len(rows)
     print(f"[diag] {os.path.basename(a.ckpt)} refine={a.refine}: val regret {mean:.3f}s over {len(rows)} graphs "
