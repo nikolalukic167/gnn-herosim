@@ -10,7 +10,7 @@ objective.
   GNN it gives −1.5 % (direction only), then ties at ×3, then is **faster at ×5, +13.1 % for the GNN (1/12)**.
 - **C1, externality in CD.** Adding the label's externality to CD recovers about half of the GNN's margin. The GNN
   still beats `cdextr` at ×2 / ×3 (−9.8 / −13.9 %) and ties it at ×5.
-- **Amendment 1 (2026-10-01, running):** the MP-OFF twin on the w0 ×1.5 / ×1.1 draws, against the GNN's w0 results.
+- **Amendment 1 (2026-10-01), bursty w0.** The twin ties the GNN at ×1.5 and ×1.1 (−0.2 / +0.6 %). It beats CD −30.3 % and −11.9 %, both passing Holm. At ×1.1 that is significant where the GNN's −11.8 % was not.
 - **Quote this as:** "a learned pointwise scorer over plan-context features beats hand search, including search
   over the same objective". Never quote it as a GNN or MP win. The MLP twin is the stronger arm at saturation.
 
@@ -52,6 +52,21 @@ on the grounded windows. Two confounds stand between that and "a learned graph s
 term).
 
 ## Record
+
+### 2026-10-01 — Amendment 1 read (job 821466, phase `w0mlp`)
+
+386/386 runs, 0 failed. Witness passed: GNN seed 1 equals `ladderjit` to the digit on both cells. Read file:
+`peak_controls_v1/w0mlp_read.json`.
+
+| w0 rung | GNN vs MLP | MLP vs CD | GNN vs CD | Mean latency GNN / MLP / CD (s) |
+|---|---|---|---|---|
+| ×1.5 | −0.2 % (p .91) tie | **−30.3 % (Holm .009) ✓**, 11/12 | −24.6 % ✓ | 32.8 / 32.1 / 49.8 |
+| ×1.1 | +0.6 % (p .62) tie | **−11.9 % (Holm .005) ✓**, 10/12 | −11.8 % (p .064) | 9.9 / 8.3 / 9.7 |
+
+- At ×1.5 the MLP also beats every other rule: `cd_inflight` −27.5 %, self-predict −46.6 %, one-pass −51.1 %,
+  Decima −63.5 %, Knative −74.0 % and random −94.1 %, all passing Holm.
+- The w0 result agrees with the grounded one: message passing adds nothing measurable when the engineered context is
+  present.
 
 ### 2026-10-01 — Amendment 1 registered: the MP-OFF twin on w0
 
