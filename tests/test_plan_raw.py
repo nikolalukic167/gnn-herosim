@@ -20,7 +20,7 @@ from src.policy.gnn.gnn_model import TaskPlacementGNN
 from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
 from src.policy.gnn.plan_raw import PLAN_RAW_DIM, plan_raw_edge_attr
 
-ENVS = ("GNN_DISABLE_MESSAGE_PASSING", "GNN_PLAN_RAW", "GNN_MP_NODE_EDGES")
+ENVS = ("GNN_DISABLE_MESSAGE_PASSING", "GNN_PLAN_RAW", "GNN_PLAN_RAW_SUM", "GNN_MP_NODE_EDGES")
 
 # platform positions 0,1 on node 0; 2,3 on node 1. (node_id, platform_id) placements.
 PLACEMENT = {0: (0, 10), 1: (0, 11), 2: (1, 20), 3: (1, 21)}
@@ -125,3 +125,74 @@ def test_constructor_refuses_a_mis_sized_block():
         TaskPlacementGNN(task_feature_dim=3, platform_feature_dim=14, task_type_onehot_dim=4,
                          mp_peer_edges=True, mp_bipartite_edge_conv=True,
                          partial_state_edge_dim=25, plan_raw=True)
+
+
+# raw_plan_v2: the committed-load channel (TaskPlacementGNN._committed_load)
+
+def _sum_model(*, convs: bool) -> TaskPlacementGNN:
+    if not convs:
+        os.environ["GNN_DISABLE_MESSAGE_PASSING"] = "1"
+    torch.manual_seed(1)
+    model = TaskPlacementGNN(
+        task_feature_dim=3, platform_feature_dim=14, task_type_onehot_dim=4,
+        mp_peer_edges=True, mp_bipartite_edge_conv=convs, mp_bipartite_edge_attr_zero=False,
+        partial_state_edge_dim=PLAN_RAW_DIM, plan_raw=True, plan_raw_sum=True,
+    )
+    model.eval()
+    return model
+
+
+def _platform_emb(model, data, committed):
+    data.partial_state_edge_attr = plan_raw_edge_attr(data, committed)
+    with torch.no_grad():
+        return model._encode(data)[1].clone()
+
+
+def test_load_channel_moves_only_the_committed_platform():
+    data, model = _graph(), _sum_model(convs=False)
+    base = _platform_emb(model, data, {})
+    moved = _platform_emb(model, data, {0: PLACEMENT[0]})
+    assert not torch.allclose(base[0], moved[0])
+    assert torch.equal(base[1:], moved[1:])
+
+
+def test_load_channel_is_a_sum_not_a_mean():
+    data, model = _graph(), _sum_model(convs=False)
+    base = _platform_emb(model, data, {})
+    one = _platform_emb(model, data, {0: PLACEMENT[0]}) - base
+    other = _platform_emb(model, data, {2: PLACEMENT[0]}) - base
+    both = _platform_emb(model, data, {0: PLACEMENT[0], 2: PLACEMENT[0]}) - base
+    assert torch.allclose(both[0], one[0] + other[0], atol=1e-6)
+    assert not torch.allclose(both[0], one[0], atol=1e-4)
+
+
+def test_no_conv_twin_keeps_the_channel_and_drops_the_convs():
+    keys = _sum_model(convs=False).state_dict().keys()
+    assert any(k.startswith("load_mlp.") for k in keys)
+    assert not any(k.startswith("bip_convs.") for k in keys)
+
+
+def test_twin_reads_load_committed_onto_its_own_candidate_only():
+    data, model = _graph(), _sum_model(convs=False)
+    base = _logits(model, data, {}, 1)
+    assert torch.allclose(base, _logits(model, data, {0: PLACEMENT[0]}, 1))
+    assert not torch.allclose(base, _logits(model, data, {2: PLACEMENT[3]}, 1))
+
+
+def test_sum_checkpoint_does_not_load_into_a_model_without_the_channel():
+    sd = _sum_model(convs=True).state_dict()
+    torch.manual_seed(1)
+    plain = TaskPlacementGNN(
+        task_feature_dim=3, platform_feature_dim=14, task_type_onehot_dim=4,
+        mp_peer_edges=True, mp_bipartite_edge_conv=True,
+        partial_state_edge_dim=PLAN_RAW_DIM, plan_raw=True,
+    )
+    with pytest.raises(RuntimeError, match="load_mlp"):
+        plain.load_state_dict(sd)
+
+
+def test_plan_raw_sum_requires_plan_raw():
+    with pytest.raises(ValueError, match="needs plan_raw"):
+        TaskPlacementGNN(task_feature_dim=3, platform_feature_dim=14, task_type_onehot_dim=4,
+                         mp_peer_edges=True, mp_bipartite_edge_conv=True,
+                         partial_state_edge_dim=PLAN_RAW_DIM, plan_raw_sum=True)

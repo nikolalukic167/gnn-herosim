@@ -192,6 +192,8 @@ class NearRttConfig:
     # peak_controls_v1: the committed plan enters as raw graph facts (src/policy/gnn/plan_raw.py)
     # instead of the contract's engineered columns. Rides the partial-state plumbing, width 2.
     plan_raw: bool = os.environ.get("NEAR_RTT_PLAN_RAW", "0") == "1"
+    # raw_plan_v2: the committed-load channel (gnn_model.TaskPlacementGNN._committed_load)
+    plan_raw_sum: bool = os.environ.get("NEAR_RTT_PLAN_RAW_SUM", "0") == "1"
     dag_alpha_key: str = os.environ.get("NEAR_RTT_DAG_ALPHA_KEY", "2.0")
     # 0 = use every tied-optimal plan. Any other value CHANGES THE LOSS DEFINITION, so
     # it is recorded in the sidecar and applied deterministically (first N in cache
@@ -2051,6 +2053,7 @@ model = TaskPlacementGNN(
     task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
     partial_state_edge_dim=(_prefix_block_dim() if NEAR_CFG.partial_state_edges else 0),
     plan_raw=NEAR_CFG.plan_raw,
+    plan_raw_sum=NEAR_CFG.plan_raw_sum,
 ).to(DEVICE)
 if NEAR_CFG.plan_raw and not NEAR_CFG.partial_state_edges:
     raise ValueError("FAIL LOUD: NEAR_RTT_PLAN_RAW=1 rides the prefix path; set NEAR_RTT_PARTIAL_STATE_EDGES=1")
@@ -2213,6 +2216,7 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # peak_controls_v1: weight-visible, but the sidecar is what tells serving to build
                 # the raw plan instead of the contract's columns.
                 "plan_raw": NEAR_CFG.plan_raw,
+                "plan_raw_sum": NEAR_CFG.plan_raw_sum,
                 # Which capacity rung the labels AND the capacity columns came from —
                 # they move together, so this names both.
                 "dag_alpha_key": NEAR_CFG.dag_alpha_key if TEACHER_FORCED else None,

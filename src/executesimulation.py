@@ -643,6 +643,8 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             "disable_message_passing",
             # peak_controls_v1: raw_plan_v1 instead of the contract's engineered columns.
             "plan_raw",
+            # raw_plan_v2: the committed-load channel.
+            "plan_raw_sum",
         )
         if key in payload
     }

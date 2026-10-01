@@ -260,6 +260,7 @@ def load_prefix_conditioned_gnn(
         )
     partial_dim = int(sidecar.get("partial_state_feature_dim") or 0)
     plan_raw = bool(sidecar.get("plan_raw", False))
+    plan_raw_sum = bool(sidecar.get("plan_raw_sum", False))
     if plan_raw:
         from src.policy.gnn.plan_raw import PLAN_RAW_DIM
         expected_dim = PLAN_RAW_DIM
@@ -317,6 +318,7 @@ def load_prefix_conditioned_gnn(
         task_type_onehot_dim=onehot_dim,
         partial_state_edge_dim=partial_dim,
         plan_raw=plan_raw,
+        plan_raw_sum=plan_raw_sum,
         normalize_platform_inputs=sidecar.get("feature_dim") == 21,
     )
     model.load_state_dict(state_dict)
