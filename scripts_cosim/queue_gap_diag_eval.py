@@ -12,6 +12,7 @@ Decodes every VAL graph of the backlog_corpus_v1 split with the served decoder
   backlog        mean queue length over every candidate of every choice task (how loaded the state is)
   plat/node_*    most tasks stacked on one platform / node, for the decode and for the label plan
   coloc_*        peer pairs placed on one node, for the decode and for the label plan (n_pairs in total)
+  agree_peer/solo  agreement with the label on choice tasks that have a peer partner in the batch / that have none
 Everything is read from the cache; nothing is simulated.
 """
 from __future__ import annotations
@@ -113,6 +114,8 @@ def main() -> int:
             def coloc(plan):
                 return sum(plan[x][0] == plan[y][0] for x, y in pairs)
 
+            peer_tasks = {x for pr in pairs for x in pr}
+            ag = {"peer": [0, 0], "solo": [0, 0]}
             cand_q, n_choice, agree = [], 0, 0
             for t in range(n):
                 if len(tl[t]) < 2:
@@ -124,12 +127,17 @@ def main() -> int:
                 qs["label"] += qrow[int(label[t])]
                 qs["min"] += min(qrow)
                 agree += int(chosen == int(label[t]))
+                kind = "peer" if t in peer_tasks else "solo"
+                ag[kind][0] += int(chosen == int(label[t]))
+                ag[kind][1] += 1
                 cand_q.extend(qrow)
             opt = opt_rtt.get(gid, opt_rtt.get(key))
             if opt is None:
                 raise RuntimeError(f"FAIL LOUD: no optimal RTT for {gid}")
             rows.append({"id": gid, "regret": rmap[combo] - float(opt), "n_tasks": n, "n_choice": n_choice,
                          "agree": agree,
+                         "agree_peer": ag["peer"][0], "n_peer": ag["peer"][1],
+                         "agree_solo": ag["solo"][0], "n_solo": ag["solo"][1],
                          "plat_dec": stack(dec_combo, None), "plat_lab": stack(lab_combo, None),
                          "node_dec": stack(dec_combo, 0), "node_lab": stack(lab_combo, 0),
                          "n_pairs": len(pairs), "coloc_dec": coloc(dec_combo), "coloc_lab": coloc(lab_combo),
