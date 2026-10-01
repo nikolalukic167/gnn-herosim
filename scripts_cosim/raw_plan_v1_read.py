@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """raw_plan_v1 -- the learned scorer with the raw plan instead of engineered plan-context columns.
 
-  raw_plan_v1_read.py --ladder <groundedladder> --ctl <peakctl> --mlp <peakmlp> --raw <rawplan>
+  raw_plan_v1_read.py --ladder <groundedladder> --ctl <peakctl> --mlp <peakmlp> --raw <rawgnn> [<rawmlp> ...]
                       --selection selected.json [--out read.json]
 
 R1: rawgnn vs rawmlp (does message passing recover the plan context the pointwise twin cannot see?).
@@ -62,12 +62,13 @@ def read(dirs: List[str], topos: List[int]) -> dict:
 
 def main(argv: List[str] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    for k in ("ladder", "ctl", "mlp", "raw", "selection"):
+    for k in ("ladder", "ctl", "mlp", "selection"):
         ap.add_argument(f"--{k}", required=True)
+    ap.add_argument("--raw", nargs="+", required=True)
     ap.add_argument("--out")
     a = ap.parse_args(argv)
     topos = json.load(open(a.selection))["topologies"]
-    res = read([a.ladder, a.ctl, a.mlp, a.raw], topos)
+    res = read([a.ladder, a.ctl, a.mlp, *a.raw], topos)
     for r in RUNGS:
         print(f"--- {r}", file=sys.stderr)
         for n, c in res["rungs"][r]["contrasts"].items():
