@@ -1,0 +1,23 @@
+{
+  "name": "shuffle_network_gate_v1",
+  "parent": "shuffle_placement_s0_v1",
+  "configuration_seeds": [31201, 31202, 31203, 31204],
+  "intervals_seconds": [0.25, 0.10],
+  "jobs_per_stream": 12,
+  "repeats": 2,
+  "arms": ["static_route", "adaptive_route", "adaptive_search"],
+  "exact_forecast_budget": 16,
+  "calibration_repeats": 3,
+  "calibration_bytes_per_flow": 8388608,
+  "validation_median_absolute_relative_error_limit": 0.20,
+  "tbf_burst_bytes": 32768,
+  "tbf_latency_ms": 50,
+  "netem_delay_us_per_egress": 100,
+  "tcp_port": 19381,
+  "scope": "real TCP in isolated Linux network namespaces, generated records and measured producer release offsets, shared physical CPU and memory; no physical multi-machine deployment",
+  "compute_contract": "actual reducer computation under one lock per emulated host; speed factors all one, no emulated compute acceleration",
+  "local_transfer_contract": "local TCP bypasses shaped veth links; does not implement the parent's assumed 5 GB/s memory resource",
+  "adaptive_contract": "snapshot all receiver byte-progress and reducer completion records at arrival; no future jobs; exact forecasts are exact only for the fluid replay model",
+  "selection_cost": "snapshot, features, scoring and forecasts included in measured decision duration and application response time",
+  "training": "none; this gate does not qualify GNN training by itself"
+}
