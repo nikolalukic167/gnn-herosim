@@ -11,10 +11,10 @@
 #SBATCH --partition=CPU-amd
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=48G
-#SBATCH --time=02:00:00
-#SBATCH --array=0-95
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=160G
+#SBATCH --time=04:00:00
+#SBATCH --array=0-23
 
 set -euo pipefail
 WT=${WT:-/home/nikola.lukic/gnn-herosim-wt/small_batch}
@@ -33,16 +33,18 @@ GATE=/home/nikola.lukic/gnn-herosim/simulation_data/peer_affinity_live_gate
 WLDIR=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/inputs/grounded/wl
 SB=simulation_data/small_batch_v1
 mkdir -p "$SB/snapshots" "$SB/capture_summaries"
-SEEDS=($(seq 9201 9224)); WINDOWS=(g0 g1 g2 g3)
+SEEDS=($(seq 9201 9224))
 T=${SLURM_ARRAY_TASK_ID}
-SEED=${SEEDS[$(( T / 4 ))]}; WINDOW=${WINDOWS[$(( T % 4 ))]}
+SEED=${SEEDS[$T]}
+unit() {
+WINDOW=$1
 CELL="cc40s${SEED}"; CFG="$GATE/configs/${CELL}.json"
 WORKLOAD="$WLDIR/grounded_${WINDOW}_n50000.json"
 [[ -f "$CFG" && -f "$WORKLOAD" ]] || { echo "FAIL LOUD: $CFG or $WORKLOAD missing" >&2; exit 1; }
 SNAP="$SB/snapshots/${CELL}_${WINDOW}.jsonl"
 SUMMARY="$SB/capture_summaries/${CELL}_${WINDOW}.summary.json"
-if [[ -f "$SUMMARY" && -s "$SNAP" ]]; then echo "[TASK $T] done already"; exit 0; fi
-echo "[TASK $T] $CELL $WINDOW -> $SNAP"
+if [[ -f "$SUMMARY" && -s "$SNAP" ]]; then echo "[TASK $T $WINDOW] done already"; return 0; fi
+echo "[TASK $T $WINDOW] $CELL $WINDOW -> $SNAP"
 
 export HEROSIM_PEER_EXCHANGE=1 HEROSIM_SERVER_ONLY_REPLICAS=1 HEROSIM_WARMTH_PHYSICS=node_disk_v2
 export PYTHONHASHSEED=0 HEROSIM_GNN_DEVICE=cpu
@@ -74,3 +76,10 @@ PY
 mv "$SUMMARY.partial" "$SUMMARY"; rm -f "$RAW"
 [[ -s "$SNAP" ]] || { echo "FAIL LOUD: no snapshots captured in $SNAP" >&2; exit 1; }
 echo "=== task $T done: $(wc -l < "$SNAP") snapshots ==="
+
+}
+pids=()
+for W in g0 g1 g2 g3; do unit $W > "$SB/capture_summaries/${CELL:-cc40s${SEED}}_$W.log" 2>&1 & pids+=($!); done
+rc=0; for p in "${pids[@]}"; do wait "$p" || rc=1; done
+for W in g0 g1 g2 g3; do tail -3 "$SB/capture_summaries/cc40s${SEED}_$W.log"; done
+exit $rc
