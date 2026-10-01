@@ -3,7 +3,7 @@
 # Same synthetic backlog (rungs 0 3 8 20, busy 0.5, 4.5 task-s, seed 7001), same cap-free candidate draw and
 # the same filters as backlog_corpus_v1_corpus.sbatch; the ONLY change is the batch: whole peer groups of the grounded
 # workload (2..~12 tasks) instead of aligned 10-task groups (make_warm_corpus.py --variable-group-min 2).
-# One array task per (training cell, grounded window): 24 x 4 = 96.
+# One array task per training cell (its four grounded windows in sequence): 24 tasks.
 #
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/small_batch_v1_corpus.sbatch
 #
@@ -15,8 +15,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=120G
-#SBATCH --time=03:00:00
-#SBATCH --array=0-95
+#SBATCH --time=08:00:00
+#SBATCH --array=0-23
 set -euo pipefail
 WT=${WT:-/home/nikola.lukic/gnn-herosim-wt/small_batch}
 cd "$WT"
@@ -39,18 +39,20 @@ echo "[CODE] $(git describe --dirty --always) at $WT"
 
 SEEDS=($(seq 9201 9224)); WINDOWS=(g0 g1 g2 g3)
 T=${SLURM_ARRAY_TASK_ID}
-SEED=${SEEDS[$(( T / 4 ))]}; WINDOW=${WINDOWS[$(( T % 4 ))]}
+SEED=${SEEDS[$T]}
+for WI in 0 1 2 3; do
+WINDOW=${WINDOWS[$WI]}
 CELL="cc40s${SEED}"
 SB=simulation_data/small_batch_v1
 if (( SEED >= 9222 )); then OUT=$SB/gnn_datasets_small_batch_v1_heldout; else OUT=$SB/gnn_datasets_small_batch_v1_train; fi
-START=$(( T * 200 )); LIMIT=${LIMIT:-55}; TARGET=${TARGET:-20000}; WORKERS=$(( SLURM_CPUS_PER_TASK - 1 ))
+START=$(( (T * 4 + WI) * 200 )); LIMIT=${LIMIT:-55}; TARGET=${TARGET:-20000}; WORKERS=$(( SLURM_CPUS_PER_TASK - 1 ))
 G=/home/nikola.lukic/gnn-herosim/simulation_data/peer_affinity_live_gate
 TRACE=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/inputs/grounded/wl/grounded_${WINDOW}_n50000.json
 CFG=$G/configs/${CELL}.json
 SNAP=$SB/snapshots/${CELL}_${WINDOW}.jsonl
 RUNGS="${RUNGS:-0 3 8 20}"; BUSY="${BUSY:-0.5}"; TASKSEC="${TASKSEC:-4.5}"; BSEED=7001
 mkdir -p "$OUT"
-if [[ ! -s "$SNAP" ]]; then echo "[TASK $T] no snapshots for $CELL $WINDOW (the capture spun); skipped"; exit 0; fi
+if [[ ! -s "$SNAP" ]]; then echo "[TASK $T] no snapshots for $CELL $WINDOW (the capture spun); skipped"; continue; fi
 [[ -f "$CFG" && -f "$TRACE" ]] || { echo "FAIL LOUD: $CFG or $TRACE missing" >&2; exit 1; }
 echo "[TASK $T] $CELL $WINDOW -> $OUT ids from $START (limit $LIMIT, rungs $RUNGS)"
 # offer evenly spaced snapshots over the whole trace (the builder stops at --limit, so an unthinned file would
@@ -80,3 +82,4 @@ n=$(grep -c "\"source_tag\": \"sb_${CELL}_${WINDOW}\".*\"status\": \"success\"" 
 r=$(grep -c "\"source_tag\": \"sb_${CELL}_${WINDOW}\".*\"status\": \"rejected\"" "$OUT/warm_manifest.jsonl" || true)
 echo "=== task $T done: $n success, $r rejected for $CELL/$WINDOW ==="
 [[ "$n" -ge 4 ]] || { echo "FAIL LOUD: only $n success datasets (need >= 4), $r rejected" >&2; exit 1; }
+done
