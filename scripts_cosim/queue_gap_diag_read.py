@@ -12,7 +12,8 @@ Tables:
   3. queue behaviour on choice tasks: queue length at the chosen candidate minus the label's and minus the shortest;
   4. agreement with the first tied-optimal plan;
   5. by batch size (number of choice tasks);
-  6. plan shape against the label plan: tasks stacked on the busiest platform / node, and peer pairs on one node.
+  6. plan shape against the label plan: tasks stacked on the busiest platform / node, and peer pairs on one node;
+  7. agreement with the label on tasks that have a peer partner against tasks that have none.
 """
 from __future__ import annotations
 
@@ -61,7 +62,8 @@ def main() -> int:
             seeds = data[(arm, refine)]
             pg[arm] = {f: per_graph(seeds, f) for f in
                        ("regret", "q_chosen", "q_label", "q_min", "agree", "n_choice", "backlog", "n_tasks",
-                        "plat_dec", "plat_lab", "node_dec", "node_lab", "n_pairs", "coloc_dec", "coloc_lab")}
+                        "plat_dec", "plat_lab", "node_dec", "node_lab", "n_pairs", "coloc_dec", "coloc_lab",
+                        "agree_peer", "n_peer", "agree_solo", "n_solo")}
             ids = set(pg[arm]["regret"]) if ids is None else ids & set(pg[arm]["regret"])
         ids = sorted(ids)
         res["regret"][refine] = {arm: mean(pg[arm]["regret"][i] for i in ids) for arm in ARMS}
@@ -83,6 +85,10 @@ def main() -> int:
                 "label_minus_min": sum(pg[arm]["q_label"][i] - pg[arm]["q_min"][i] for i in ids) / nc}
             res["agree"][refine][arm] = sum(pg[arm]["agree"][i] for i in ids) / nc
             pairs = sum(pg[arm]["n_pairs"][i] for i in ids)
+            res.setdefault("agree_split", {}).setdefault(refine, {})[arm] = {
+                "peer_tasks": sum(pg[arm]["agree_peer"][i] for i in ids) / max(1, sum(pg[arm]["n_peer"][i] for i in ids)),
+                "solo_tasks": sum(pg[arm]["agree_solo"][i] for i in ids) / max(1, sum(pg[arm]["n_solo"][i] for i in ids)),
+                "n_peer": sum(pg[arm]["n_peer"][i] for i in ids), "n_solo": sum(pg[arm]["n_solo"][i] for i in ids)}
             res.setdefault("shape", {}).setdefault(refine, {})[arm] = {
                 "platform_stack_decode": mean(pg[arm]["plat_dec"][i] for i in ids),
                 "platform_stack_label": mean(pg[arm]["plat_lab"][i] for i in ids),
@@ -113,6 +119,10 @@ def main() -> int:
             print(f"  {arm:7s} platform {x['platform_stack_decode']:.2f} | {x['platform_stack_label']:.2f}   "
                   f"node {x['node_stack_decode']:.2f} | {x['node_stack_label']:.2f}   "
                   f"coloc {100 * x['peer_colocated_decode']:5.1f} % | {100 * x['peer_colocated_label']:5.1f} %")
+        print("agreement with the label on choice tasks WITH a peer partner | WITHOUT one:")
+        for arm in ARMS:
+            x = res["agree_split"][refine][arm]
+            print(f"  {arm:7s} {100 * x['peer_tasks']:5.1f} % (n={x['n_peer']:.0f}) | {100 * x['solo_tasks']:5.1f} % (n={x['n_solo']:.0f})")
         print("by number of choice tasks (regret s):")
         for b, r in res["by_choice"][refine].items():
             print(f"  {b:22s} n={r['n']:4d}  " + "  ".join(f"{arm}={r[arm]:6.2f}" for arm in ARMS))
