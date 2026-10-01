@@ -25,7 +25,7 @@ from scipy.stats import wilcoxon
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "scripts_cosim"))
-from fresh_topo_burst_v1_gate import CANDIDATES, GATE_RULES, SEEDS, WINDOWS  # noqa: E402
+from fresh_topo_burst_v1_gate import CANDIDATES, GATE_RULES, RP2C_POOL, SEEDS, WINDOWS  # noqa: E402
 
 TARGET_SHARE = 0.80
 N_STUDY = 12
@@ -43,7 +43,7 @@ def _summaries(d: str) -> Dict[Tuple[int, str, str, int], dict]:
     return out
 
 
-def select(screen: str) -> dict:
+def select(screen: str, candidates: Tuple[int, ...] = CANDIDATES) -> dict:
     s = _summaries(screen)
 
     def ok(t: int) -> bool:
@@ -53,9 +53,9 @@ def select(screen: str) -> dict:
                 return False
         return True
 
-    qualified = [t for t in CANDIDATES if ok(t)]
+    qualified = [t for t in candidates if ok(t)]
     failed = sorted(os.path.basename(f) for f in glob.glob(os.path.join(screen, "*.failed.json")))
-    base = {"qualified": qualified, "n_candidates": len(CANDIDATES), "failed_runs": failed,
+    base = {"qualified": qualified, "n_candidates": len(candidates), "failed_runs": failed,
             "rule": f"reactive queue share <= {TARGET_SHARE} and the batch path finishes, all 4 windows; "
                     f"the {N_STUDY} lowest qualified ids are the study (unknown is not a pass)"}
     if len(qualified) < MIN_TOPOLOGIES:
@@ -159,9 +159,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--gate")
     ap.add_argument("--selection")
     ap.add_argument("--out")
+    ap.add_argument("--pool", choices=("fresh", "rp2c"), default="fresh",
+                    help="candidate pool: fresh_topo_burst_v1's, or raw_plan_v2 Phase C's (9473-9520)")
     a = ap.parse_args(argv)
     if a.phase == "select":
-        r = select(a.screen)
+        r = select(a.screen, RP2C_POOL if a.pool == "rp2c" else CANDIDATES)
         print(json.dumps({k: v for k, v in r.items() if k != "failed_runs"}, indent=1))
         print(f"failed screen runs: {len(r['failed_runs'])}")
     else:

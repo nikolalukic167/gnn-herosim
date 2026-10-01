@@ -34,6 +34,8 @@ OLD_POOL = (9001, 9002, 9003, 9005, 9102, 9103, 9104, 9105, 9107, 9108, 9109, 91
 NEW_POOL = tuple(range(9401, 9425))
 EXT_POOL = tuple(range(9425, 9473))  # amendment A2
 CANDIDATES = OLD_POOL + NEW_POOL + EXT_POOL
+# raw_plan_v2 Phase C: unseen confirmation topologies, screened under the same rule (phase rp2screen)
+RP2C_POOL = tuple(range(9473, 9521))
 RULE_POLICY = {
     "reactive": "knative_network",
     "batched": "peer_greedy_network_batch",
@@ -133,8 +135,9 @@ def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
 
 
 def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
-    if phase == "screen":
-        return [task(t, w, k) for k in ("reactive", "batched") for t in CANDIDATES for w in WINDOWS]
+    if phase in ("screen", "rp2screen"):
+        pool = RP2C_POOL if phase == "rp2screen" else CANDIDATES
+        return [task(t, w, k) for k in ("reactive", "batched") for t in pool for w in WINDOWS]
     if phase == "parity":
         return [task(9101, "w1", k) for k in ("selfpredict", "cd")] + \
                [task(9101, "w1", k, 1) for k in ("gnnedge0", "mpoff")]
@@ -535,7 +538,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)

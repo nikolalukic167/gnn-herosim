@@ -60,10 +60,13 @@ the trainer closure and the serving path must give identical raw-plan edge attri
   - each arm vs CD / `cdextr` / its twin / `rawmlp`.
 
 **Phase C — confirmation** (unseen topologies; the only phase that can claim a win).
-- **Cells.** Mint ids 9473–9520 with the same generator. The range must be checked as unused and disjoint from the
+- **Cells.** Mint ids 9473–9520 with the same generator (`cluster_scale_v1_cells.py`, base `cs6s9001.json`, 40
+  clients, seed = id), in a separate inputs tree so the development cells are never rebuilt. The range must be checked as unused and disjoint from the
   training corpus and the 12 development topologies. Build the grounded ×2 / ×3 / ×5 ladder as in `peak_load_v1`.
 - **Admission** (the rule that selected the development topologies):
-  - reactive queue share ≤ 0.80 in all 4 windows at base load (×1);
+  - reactive queue share ≤ 0.80 and the batched rule finishing, in all 4 **burst** windows w0–w3 at base load (×1),
+    i.e. `fresh_topo_burst_v1_gate.py screen` + `fresh_topo_burst_v1_read.py select` unchanged (clarified
+    2026-10-01, before any screen: the development topologies were admitted on w0–w3, not on the grounded g0–g3);
   - a failed, hung or missing run is not a pass;
   - the overloaded rungs are not screened.
 - **Study.** The study is the 12 lowest admitted ids. If fewer than 12 are admitted, the result is `DESIGN-SHORT`
