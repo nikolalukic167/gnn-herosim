@@ -39,4 +39,12 @@ retrain changes the corpus size and seeds as well as the batches, so B is a bund
 
 ## Record
 
+- 2026-10-01 — **Data built.** Capture (job 823068): 56 of 96 cell×window runs finished; the rest hung in the
+  starved-client spin (logs frozen, no summary) and were cancelled and dropped, as `joint_burst_v1` did. That removes
+  validation cell 9213 entirely, so check A reads cells 9207, 9208, 9209. Captured batch sizes (2–10 tasks): 2: 4,877,
+  3: 6,002, 4: 2,171, 5: 1,412, 6: 627, 7: 345, 8: 165, 9: 158, 10: 1,043 (16,800 snapshots). Corpus (job 823139, limit 90
+  per unit): 4,320 train + 720 held-out datasets, every sweep complete. Cache (job 823218): 35 datasets with `peer_norm 0`
+  quarantined (backlog_corpus_v1 Amendment 2), 5,005 graphs, train 3,305 / val 981 / test 719, split sha256 `a580315e…`,
+  backlog on 60.8 % of candidates (bc1: 49 %). Check A (job 823282) and the `sb1load` / `sb1mpoff` training (job 823283)
+  submitted.
 - 2026-10-01 — registered; capture submitted (job 823068, 24 cells × 4 windows).
