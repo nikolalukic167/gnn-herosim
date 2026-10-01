@@ -98,6 +98,40 @@ Anything less is reported by label.
 
 ## Record
 
+### 2026-10-01 — queue-gap diagnostic (offline, descriptive; changes no registered read)
+
+`scripts_cosim/queue_gap_diag_eval.py` / `queue_gap_diag_read.py` (job 822198; read `raw_plan_v2/queue_gap_read.json`).
+The served decoder ran on all 1,186 VAL graphs of the `backlog_corpus_v1` split for the v1 raw GNN (`rawgnn`), v1 raw MLP
+(`rawmlp`), the engineered-context GNN (`psignn` = `xs1load`) and its MP-OFF twin (`psimlp`), 4 seeds each, self-refine
+0 and 3. Seed 1 of `rawgnn` reproduces the trainer's val regret (19.109 s against 19.101 s). The checkpoints were
+selected on this split, so these are comparisons across arms, not held-out estimates.
+
+- **Val regret (s), refine 0 → 3:** rawgnn 19.2 → 18.3; rawmlp 31.0 → 30.6; psignn 6.57 → 3.99; psimlp 6.96 → 3.87.
+  Self-refine removes 39 % of the engineered GNN's regret and 5 % of the raw GNN's.
+- **Not the standing queue.** The raw GNN's gap to psignn is present in every backlog quartile, including the emptiest
+  (Q1, mean candidate queue 0.12 tasks: 15.4 s vs 6.2 s). On choice tasks it picks candidates with a *shorter* standing
+  queue than the label does (−0.07 tasks, against psignn −0.03).
+- **Not stacking, and not how often it co-locates.** Tasks on the busiest platform: 3.83 (label 3.70), psignn 3.92.
+  Peer pairs on one node: 35.6 % (label 37.8 %), psignn 38.8 %.
+- **The CD greedy's own cost terms, decoded plan minus label plan, per graph (s),** refine 0:
+
+  | | service | exchange | backlog | in-batch wait | total | val regret |
+  |---|---|---|---|---|---|---|
+  | rawgnn | −0.01 | **+7.68** | +1.23 | **+9.07** | +17.97 | 19.2 |
+  | rawmlp | −0.05 | +15.52 | −0.93 | +18.03 | +32.57 | 31.0 |
+  | psignn | −0.01 | −0.05 | −0.52 | +4.40 | +3.81 | 6.6 |
+  | psimlp | 0.00 | −0.18 | −0.48 | +4.06 | +3.40 | 7.0 |
+
+  The totals track the regrets, so these terms explain them. The raw GNN loses on **exchange seconds** and
+  **in-batch wait**. The two are not independent: a task's charge to its platform includes its exchange, so extra
+  exchange also lengthens the wait of later batch-mates. Service is unaffected, so platform-type choice is fine.
+- **Reading.** What the raw graph lacks is the cost of *where* a non-co-located partner sits. The cached tensors
+  hold no inter-node route: `platform_features` are type, queue length, remaining times and concurrency, `edge_attr`
+  is task-to-platform, and the node-to-node transfer seconds, `route_hops_bneck` and the per-candidate backlog seconds
+  live only in `partial_state_ctx`, which only ψ reads. The raw GNN gets the *number* of co-located pairs about right
+  and puts the rest on the wrong remote nodes. This is an inference from the cost split and the cache layout. It has
+  not been tested by giving the raw graph the missing information.
+
 ### 2026-10-01 — Phase C study selected (Amendment A1): 12 of 19 admitted in 9473–9568
 
 - **Screen of 9473–9520** (job 821825; 384 runs, 600 s timeout, 60 parallel, no scope). **7 of 48 admitted**: 9483,
