@@ -52,6 +52,14 @@ term).
 
 ## Record
 
+### 2026-10-01 — Amendment 1 registered: the MP-OFF twin on w0
+
+Requested after the close. Phase `w0mlp` runs `xs1mpoff_selfref` seeds 1–4 on the bursty w0 draws where the GNN
+has 4 seeds: ×1.5 `w0x15d1–4` (`ladderjit`, the −24.6 % of `peak_load_v1` (a)) and ×1.1 `w0x11d1–4` (`capacity` +
+`x11confirm`). That is 384 runs, plus a witness: GNN seed 1 rerun on 9119 / 9420 `w0x15d1` must equal `ladderjit`.
+Reader: `scripts_cosim/peak_controls_v1_w0_read.py`. It computes GNN vs MLP (paired on the seed), MLP vs CD and
+MLP vs every rule present, with Holm over the two rungs. Fixed before any run.
+
 ### 2026-09-30 — C2 read (job 820542, phase `peakmlp`); CLOSED
 
 576/576 runs, 0 failed. Training: job 819912, 4 seeds, W&B `peak-controls-v1-xs1mpoff`, sidecars checked. Best val
