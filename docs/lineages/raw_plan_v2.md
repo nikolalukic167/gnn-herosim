@@ -132,6 +132,48 @@ selected on this split, so these are comparisons across arms, not held-out estim
   and puts the rest on the wrong remote nodes. This is an inference from the cost split and the cache layout. It has
   not been tested by giving the raw graph the missing information.
 
+### 2026-10-01 — information-injection test (offline, descriptive; changes no registered read)
+
+An independent reviewer (a fresh subagent given only the draft and the repository) read the diagnostic above and
+found the inference "the raw graph lacks route information" **partly unsupported**: the exchange excess falls roughly
+linearly with the co-location rate across arms (rawmlp 30.6 % / +15.5 s, rawgnn 35.6 % / +7.7 s, psignn 38.8 % / −0.05 s),
+so some of it may be use of information the model has, not information it lacks. It also noted that the corpus's
+validation states are near-empty (mean candidate queue 0.12–3.1 tasks by quartile), while the live deficit sits at
+25 s of queue per task, so **the diagnostic cannot see the live standing-backlog regime**, and that the live record
+(`raw_plan_v1`: exchange 3.60 s per task against CD 3.24, queue 25.3 against 20.6) was never reconciled with it. Both
+points stand. "Not the standing queue" above holds for the validation states only.
+
+The reviewer proposed a no-training test. `queue_gap_inject_eval.py` / `queue_gap_inject_read.py` (jobs 822301, 822308)
+subtract hand-computed terms, in seconds from the cached context, from the model's own logits at decode: the peer
+transfer to committed partners (`exch`), the in-batch service + exchange already on the candidate's platform (`load`),
+the expected transfer to partners not yet placed, averaged over their candidate nodes (`mass`, the lookahead column),
+and the standing backlog seconds on the platform (`back`). The weights are tuned on the even-indexed half of VAL and
+read on the odd-indexed half, per checkpoint, 4 seeds. Stage 1 grids (`exch`, `load`); stage 2 fixes them at the stage-1
+optimum, 0.3 and 0.1 (the same on all four seeds), and grids (`mass`, `back`). The zero setting reproduces the
+diagnostic's regrets. The injection is additive and post hoc, so it understates what a trained channel could use.
+
+Held-out half of VAL, mean regret (s), 4 seeds:
+
+| | none | + exch | + exch, load | + mass | + mass, back |
+|---|---|---|---|---|---|
+| rawgnn | 19.45 | 15.81 | 15.07 | 11.88 | **10.02** |
+| rawmlp | 31.15 | 18.60 | 16.73 | 11.30 | **10.78** |
+| psignn (reference) | 6.65 | 6.65 | 6.65 | 7.12 | 7.13 |
+
+(`+ mass` and `+ mass, back` are on top of `exch` 0.3 and `load` 0.1. psignn takes no injection, as expected: it already
+reads these terms.)
+
+- **The missing information is real and large.** The four terms remove 9.4 s of the raw GNN's 12.8 s gap to the
+  engineered GNN (73 %), and 20.4 s of the raw MLP's 24.5 s. The largest single term for the GNN is the **lookahead over
+  unplaced partners**, −3.2 s, more than committed-partner exchange, −3.6 s.
+- **It does not remove it all.** The raw GNN stays 3.4 s above the engineered GNN. The cause of that remainder is not
+  isolated.
+- **The message-passing edge goes with the information.** Raw GNN beats raw MLP by 11.7 s with no injection and by 0.8 s
+  with all four terms. The raw GNN's offline advantage over its twin is the recovery of this same information.
+  Once the facts are supplied, a pointwise model matches it, as with the engineered context.
+- **Consequence for a route channel limited to committed partners:** it addresses 3.6–4.4 s of the 12.8 s; the lookahead
+  term is the larger piece and the channel as drafted lacks it.
+
 ### 2026-10-01 — Phase C study selected (Amendment A1): 12 of 19 admitted in 9473–9568
 
 - **Screen of 9473–9520** (job 821825; 384 runs, 600 s timeout, 60 parallel, no scope). **7 of 48 admitted**: 9483,
