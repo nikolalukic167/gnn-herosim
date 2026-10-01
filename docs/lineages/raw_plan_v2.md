@@ -98,25 +98,32 @@ Anything less is reported by label.
 
 ## Record
 
-### 2026-10-01 — Phase C screen `DESIGN-SHORT` (0 / 48); Amendment A1: extend to 9521–9568
+### 2026-10-01 — Phase C study selected (Amendment A1): 12 of 19 admitted in 9473–9568
 
-Amendment A1 was signed before any extension cell was minted or screened.
-
-- **Screen of 9473–9520** (job 821825; 384 runs, 600 s timeout, 60 parallel, no scope): **0 of 48 admitted**.
-  - 14 topologies pass reactive queue share ≤ 0.80 on all four burst windows: 9475, 9483–9488, 9491, 9492, 9499,
-    9502, 9506, 9518 and 9520. Every one of them also has at least one reactive or batched run that timed out.
-  - All 133 failed runs are timeouts. The hung runs stall at the first event, or at event 10,001 with simulated time
-    far advanced; this is the starved-client spin, not slowness. Finished runs take 44–125 s.
-  - Selection: `confirm/selected_before_9521.json`.
-- **Witness** (job 821923, `raw_plan_v2_screen_witness.sbatch`). The same code, venue and timeout reran the screen on
-  four topologies `fresh_topo_burst_v1` admitted (9434, 9435, 9444, 9446). All 32 runs finished in 53–84 s, every
-  share is ≤ 0.64, and all 32 are **identical to the digit** to the original screen. The hangs are a property of the
-  new cells, not of the code or the cluster. For comparison, the earlier extension 9425–9472 admitted 8 of 48.
-- **Amendment A1**, as the registration prescribes:
+- **Screen of 9473–9520** (job 821825; 384 runs, 600 s timeout, 60 parallel, no scope). **7 of 48 admitted**: 9483,
+  9484, 9485, 9487, 9491, 9502 and 9506. That is `DESIGN-SHORT`, since 12 are needed
+  (`confirm/selected_before_9521.json`).
+  - The job's closing check printed "0 admitted": it counted `topologies`, which `select` omits on a short verdict.
+    The fix counts `qualified`.
+  - An earlier version of this entry repeated "0 of 48". It also claimed every topology passing the reactive
+    test had a hung run. **Both were wrong**; the verdict (short of 12) was right.
+  - All 133 failed runs are timeouts. They stall at the first event, or at event 10,001 with simulated time far
+    advanced: the starved-client spin. Finished runs take 44–125 s.
+- **Witness** (job 821923, `raw_plan_v2_screen_witness.sbatch`). It was run because of the misread "0". The same
+  code, venue and timeout reran the screen on four topologies `fresh_topo_burst_v1` admitted (9434, 9435, 9444,
+  9446). All 32 runs finished in 53–84 s, with every share ≤ 0.64. All 32 are **identical to the digit** to the
+  original screen: this code and venue reproduce the development pool's admission.
+- **Amendment A1**, signed before any extension cell was minted, as the registration prescribes:
   - the pool extends with 48 newly minted ids, **9521–9568**: same generator, same unused check, same rule;
-  - the study is the 12 lowest admitted ids of the combined pool 9473–9568;
-  - if fewer than 12 are admitted, the result is a final `DESIGN-SHORT` and is recorded as such;
-  - the ids reserved for post-read amendments move to 9569+.
+  - the study is the 12 lowest admitted ids of the combined pool;
+  - fewer than 12 would be final `DESIGN-SHORT`;
+  - ids for post-read amendments move to 9569+.
+- **Extension screen** (job 821929):
+  - the generator witness was byte-identical again, the range was unused, and all 48 cells were verified;
+  - 12 of the 48 new cells were admitted: 9525, 9529, 9533, 9538, 9540, 9548, 9550, 9551, 9557, 9565, 9566, 9568;
+  - combined, **19 of 96 were admitted, verdict `DESIGN-READY`**;
+  - **Phase C study: 9483, 9484, 9485, 9487, 9491, 9502, 9506, 9525, 9529, 9533, 9538, 9540**
+    (`confirm/selected.json`).
 
 ### 2026-10-01 — parity passed; training and Phase C screen launched
 

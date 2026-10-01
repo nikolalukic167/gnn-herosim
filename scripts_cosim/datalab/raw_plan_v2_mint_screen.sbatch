@@ -87,8 +87,8 @@ python3 scripts_cosim/fresh_topo_burst_v1_read.py select --screen "$C/screen" --
 python3 - "$C/selected.json" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1]))
-n = len(r.get("topologies") or [])
-if r.get("verdict") != "DESIGN-READY" or n < 12:
+n = len(r.get("qualified") or [])  # "topologies" is absent on a short verdict; count the admitted ids
+if r.get("verdict") != "DESIGN-READY" or len(r.get("topologies") or []) < 12:
     raise SystemExit(f"FAIL LOUD: DESIGN-SHORT for raw_plan_v2 Phase C: {n} admitted of {r['n_candidates']} (need 12)")
 print("[select] Phase C study:", r["topologies"])
 PY
