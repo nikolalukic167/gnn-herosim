@@ -22,6 +22,7 @@
 #   sbatch --export=ALL,PHASE=groundedladder,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch  (peak_load_v2)
 #   sbatch --export=ALL,PHASE=peakctl,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (peak_controls_v1 CD+externality)
 #   sbatch --export=ALL,PHASE=peakmlp,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (peak_controls_v1 MP-OFF twin)
+#   sbatch --export=ALL,PHASE=w0mlp,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch     (peak_controls_v1 Am. 1)
 #   sbatch --export=ALL,PHASE=rawplan,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (raw_plan_v1; or PHASE=rawgnn / rawmlp)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
@@ -63,7 +64,8 @@ cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder || $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder || $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp || $PHASE == w0mlp ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == w0mlp ]]; then EXTRA+=("$WT/models/peak-controls-v1-xs1mpoff-lr2e3-seed$s"); fi
   if [[ $PHASE == rawplan || $PHASE == rawgnn ]]; then EXTRA+=("$WT/models/raw-plan-v1-rawgnn-lr2e3-seed$s"); fi
   if [[ $PHASE == rawplan || $PHASE == rawmlp ]]; then EXTRA+=("$WT/models/raw-plan-v1-rawmlp-lr2e3-seed$s"); fi
   if [[ $PHASE == peakmlp ]]; then EXTRA+=("$WT/models/peak-controls-v1-xs1mpoff-lr2e3-seed$s"); fi
@@ -207,6 +209,13 @@ if [[ $PHASE == x15fill ]]; then
   for k in 1 2 3 4; do
     [[ -f "$IN/ladder/x15d$k/.built" ]] || { echo "FAIL LOUD: draw x15d$k not built (burst_ladder_v1 ladderjit)"; exit 1; }
   done
+fi
+
+# peak_controls_v1 Amendment 1 reuses the w0 x1.5 and x1.1 draws exactly as burst_ladder_v1 / capacity_sweep_v1 built them.
+if [[ $PHASE == w0mlp ]]; then
+  for R in x15 x11; do for k in 1 2 3 4; do
+    [[ -f "$IN/ladder/${R}d$k/.built" ]] || { echo "FAIL LOUD: draw ${R}d$k not built"; exit 1; }
+  done; done
 fi
 
 # replica_guard_v1 reuses the x1 draws exactly as burst_ladder_v1 Amendment 1 built them.

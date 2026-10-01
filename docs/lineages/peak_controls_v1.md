@@ -10,6 +10,7 @@ objective.
   GNN it gives −1.5 % (direction only), then ties at ×3, then is **faster at ×5, +13.1 % for the GNN (1/12)**.
 - **C1, externality in CD.** Adding the label's externality to CD recovers about half of the GNN's margin. The GNN
   still beats `cdextr` at ×2 / ×3 (−9.8 / −13.9 %) and ties it at ×5.
+- **Amendment 1 (2026-10-01, running):** the MP-OFF twin on the w0 ×1.5 / ×1.1 draws, against the GNN's w0 results.
 - **Quote this as:** "a learned pointwise scorer over plan-context features beats hand search, including search
   over the same objective". Never quote it as a GNN or MP win. The MLP twin is the stronger arm at saturation.
 
