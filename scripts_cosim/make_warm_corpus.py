@@ -90,6 +90,18 @@ def check_aligned_peer_group(snapshot: Dict[str, Any], group_size: int) -> List[
     return ids
 
 
+def check_consecutive_batch(snapshot: Dict[str, Any], min_size: int) -> List[int]:
+    """Variable-group mode (small_batch_v1): the batch is whatever peer group the live scheduler dispatched
+    (the grounded workload's fan-out sizes), so only consecutiveness and a minimum size are checked. A peer
+    pair reaching outside the batch is rejected by `build_batch_workload`, so a batch is always a whole group."""
+    ids = batch_task_ids(snapshot)
+    if len(ids) < min_size:
+        raise SnapshotRejected(f"batch has {len(ids)} tasks, need >= {min_size}")
+    if ids != list(range(ids[0], ids[0] + len(ids))):
+        raise SnapshotRejected(f"batch ids are not consecutive: {ids}")
+    return ids
+
+
 def build_batch_workload(
     snapshot: Dict[str, Any], trace: Dict[str, Any], ids: Sequence[int], app_order: Sequence[str]
 ) -> Dict[str, Any]:
@@ -497,6 +509,9 @@ def main() -> int:
     ap.add_argument("--sim-input", type=Path, default=PROJECT_ROOT / "data" / "nofs-ids")
     ap.add_argument("--source-tag", required=True, help="behaviour policy + cell, recorded per dataset (e.g. knb_c9001)")
     ap.add_argument("--group-size", type=int, default=10)
+    ap.add_argument("--variable-group-min", type=int, default=None,
+                    help="accept any consecutive batch of at least this many tasks (the batch size is then the "
+                         "snapshot's own); default keeps the aligned fixed --group-size check")
     ap.add_argument("--start-index", type=int, default=0, help="first dataset number (ds_XXXXX)")
     ap.add_argument("--limit", type=int, default=None, help="stop after this many datasets")
     ap.add_argument("--min-time", type=float, default=0.0, help="skip snapshots captured before this sim time")
@@ -575,7 +590,8 @@ def main() -> int:
         try:
             if float(snap.get("time", 0.0)) < args.min_time:
                 raise SnapshotRejected(f"time {snap.get('time')} < --min-time {args.min_time}")
-            ids = check_aligned_peer_group(snap, args.group_size)
+            ids = (check_consecutive_batch(snap, args.variable_group_min) if args.variable_group_min is not None
+                   else check_aligned_peer_group(snap, args.group_size))
             workload = build_batch_workload(snap, trace, ids, list(cell["wsc"].keys()))
             rng = random.Random(args.seed * 1_000_003 + sid)
             demands = batch_demands(snap, ids, trace, task_types_db)
@@ -626,7 +642,8 @@ def main() -> int:
         workload_path.write_text(json_dumps_pretty(workload))
         config = deepcopy(cell)
         config.setdefault("scheduler", {})
-        config["scheduler"]["batch_size"] = args.group_size
+        n_batch = len(ids)
+        config["scheduler"]["batch_size"] = n_batch
         config["scheduler"].setdefault("batch_timeout", 0.1)
         config["warm_snapshot"] = provenance
         with open(out_dir / WARM_SNAPSHOT_FILE, "w") as fh:
@@ -645,7 +662,7 @@ def main() -> int:
                 seed=cell_seed, max_workers=args.workers, quiet=args.quiet,
                 fast_forward_warmup=True, fast_forward_threshold=1,
                 allow_non_unique_replicas=True, warmth_physics="node_disk_v2",
-                grid_name=f"warm_snapshot:{args.source_tag}", num_tasks=args.group_size,
+                grid_name=f"warm_snapshot:{args.source_tag}", num_tasks=n_batch,
                 infrastructure_override=infra_path,
             )
             entry.update({"status": status, "rtt": rtt, "seconds": secs})
