@@ -56,6 +56,10 @@ def main() -> None:
         help="cell (backlog_corpus_v1): val holds out WHOLE capture cells (warm_snapshot.cell_seed), so "
              "no val group has a same-run neighbour in train; cells are taken in a seeded order until "
              "val reaches --val-fraction of the training datasets")
+    ap.add_argument(
+        "--val-cells", type=int, nargs="+", default=None,
+        help="with --val-group-by cell: hold out exactly these cells instead of a seeded draw (small_batch_v1 keeps "
+             "backlog_corpus_v1's validation cells)")
     args = ap.parse_args()
     if args.output.exists():
         raise SystemExit(f"Refusing to overwrite {args.output} — a split artifact is frozen once runs depend on it.")
@@ -74,14 +78,20 @@ def main() -> None:
     if args.val_group_by == "cell":
         cell_of = {i: _cell_seed(REPO_ROOT / "simulation_data" / i) for i in rest}
         cells = sorted(set(cell_of.values()))
-        rng.shuffle(cells)
-        target = args.val_fraction * len(rest)
-        val_cells, n = [], 0
-        for c in cells:
-            if n >= target:
-                break
-            val_cells.append(c)
-            n += sum(1 for v in cell_of.values() if v == c)
+        if args.val_cells is not None:
+            missing = sorted(set(args.val_cells) - set(cells))
+            if missing:
+                raise SystemExit(f"--val-cells {missing} have no training datasets in this cache")
+            val_cells = sorted(args.val_cells)
+        else:
+            rng.shuffle(cells)
+            target = args.val_fraction * len(rest)
+            val_cells, n = [], 0
+            for c in cells:
+                if n >= target:
+                    break
+                val_cells.append(c)
+                n += sum(1 for v in cell_of.values() if v == c)
         val = sorted(i for i in rest if cell_of[i] in set(val_cells))
         train = sorted(i for i in rest if cell_of[i] not in set(val_cells))
         if not train:
