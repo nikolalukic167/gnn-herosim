@@ -59,11 +59,30 @@ done
 echo "=== [1/5] SSC rewrite"
 python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$TRAIN" --rewrite-ssc | tail -2
 python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$TEST" --rewrite-ssc | tail -2
+build_cache() {
 echo "=== [2/5] cache -> $CACHE"
 rm -rf "$CACHE"
 python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$TRAIN" "$TEST" --cache-dir "$CACHE" \
   --dag-partial-state --platform-feature-dim 14 \
   --label-objective "rtt_drift:1" --label-arrival-rate "$RATE" --label-drain-table "$DRAIN" 2>&1 | grep -v "it/s\]" | tail -30
+}
+build_cache
+# backlog_corpus_v1 Amendment 2: a group whose candidates all sit on one node has peer_norm 0, and the v3/v4 prefix block
+# refuses it at train time. Small batches make this common, so those datasets move to a quarantine directory (listed, not
+# deleted) and the cache is rebuilt without them.
+python3 - "$CACHE" simulation_data/small_batch_v1/quarantine_single_node <<'PY'
+import os, pickle, shutil, sys
+cache, q = sys.argv[1:3]
+graphs = pickle.load(open(cache + "/graphs.pkl", "rb")); ids = pickle.load(open(cache + "/dataset_ids.pkl", "rb"))
+bad = sorted({i.split("@seq", 1)[0] for g, i in zip(graphs, ids) if float(g.partial_state_ctx["peer_norm"]) <= 0.0})
+os.makedirs(q, exist_ok=True)
+for i in bad:
+    shutil.move(os.path.join("simulation_data", i), os.path.join(q, i.replace("/", "__")))
+open(os.path.join(q, "list.txt"), "w").write("\n".join(bad) + "\n")
+print(f"[quarantine] {len(bad)} of {len(graphs)} datasets have peer_norm 0 and moved to {q}")
+open("/tmp/sb1_quarantined", "w").write(str(len(bad)))
+PY
+if [[ "$(cat /tmp/sb1_quarantined)" != "0" ]]; then build_cache; fi
 python3 - "$CACHE" <<'PY'
 import json, pickle, sys
 m = json.load(open(sys.argv[1] + "/metadata.json"))
