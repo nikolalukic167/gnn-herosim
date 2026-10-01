@@ -54,6 +54,23 @@ TRAINERS = {
     },
 }
 
+# Default ceiling on training length for every run (Nikola, 2026-10-01): the long arms
+# plateau well before 300 epochs. A config asking for more is clamped; raise it per run
+# with HEROSIM_MAX_EPOCHS.
+DEFAULT_MAX_EPOCHS = 100
+MAX_EPOCHS_ENV = "HEROSIM_MAX_EPOCHS"
+
+
+def max_epochs() -> int:
+    raw = os.environ.get(MAX_EPOCHS_ENV)
+    if raw is None:
+        return DEFAULT_MAX_EPOCHS
+    value = int(raw)
+    if value < 1:
+        raise ValueError(f"FAIL LOUD: {MAX_EPOCHS_ENV}={raw!r} must be a positive integer")
+    return value
+
+
 TOP_LEVEL_KEYS = {
     "trainer", "description", "lineage", "cache_dir",
     "env", "unset_env", "args", "path_args", "wandb",
@@ -142,6 +159,13 @@ def resolve(
     argv = [str(trainer), "--cache-dir", str(cache_dir)]
 
     args = dict(cfg.get("args") or {})
+    cap = max_epochs()
+    if "epochs" in args and int(args["epochs"]) > cap:
+        print(f"[run_experiment] epochs {args['epochs']} -> {cap} (cap; set {MAX_EPOCHS_ENV} to raise)",
+              file=sys.stderr)
+        args["epochs"] = cap
+    if "min-epochs" in args and int(args["min-epochs"]) > int(args.get("epochs", cap)):
+        args["min-epochs"] = int(args.get("epochs", cap))
     path_args = set(cfg.get("path_args") or [])
     unknown_paths = path_args - set(args)
     if unknown_paths:

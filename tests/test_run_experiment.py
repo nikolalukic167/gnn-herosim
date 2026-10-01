@@ -216,3 +216,30 @@ def test_shipped_config_lineage_is_in_ledger(cfg_path):
     assert lineage in ledger, (
         f"{cfg_path.name} declares lineage {lineage!r} with no row in LINEAGES.md"
     )
+
+
+def _flag(argv, name):
+    return argv[argv.index(name) + 1]
+
+
+def test_epochs_capped_at_default(tmp_path, monkeypatch):
+    monkeypatch.delenv(rx.MAX_EPOCHS_ENV, raising=False)
+    cfg = write(tmp_path, BASE + "args:\n  epochs: 300\n  min-epochs: 150\n")
+    _, _, argv = rx.resolve(rx.load_config(cfg), cfg)
+    assert _flag(argv, "--epochs") == str(rx.DEFAULT_MAX_EPOCHS)
+    assert _flag(argv, "--min-epochs") == str(rx.DEFAULT_MAX_EPOCHS)
+
+
+def test_epochs_cap_raised_by_env(tmp_path, monkeypatch):
+    monkeypatch.setenv(rx.MAX_EPOCHS_ENV, "300")
+    cfg = write(tmp_path, BASE + "args:\n  epochs: 300\n  min-epochs: 100\n")
+    _, _, argv = rx.resolve(rx.load_config(cfg), cfg)
+    assert _flag(argv, "--epochs") == "300"
+    assert _flag(argv, "--min-epochs") == "100"
+
+
+def test_epochs_under_cap_untouched(tmp_path, monkeypatch):
+    monkeypatch.delenv(rx.MAX_EPOCHS_ENV, raising=False)
+    cfg = write(tmp_path, BASE + "args:\n  epochs: 40\n")
+    _, _, argv = rx.resolve(rx.load_config(cfg), cfg)
+    assert _flag(argv, "--epochs") == "40"
