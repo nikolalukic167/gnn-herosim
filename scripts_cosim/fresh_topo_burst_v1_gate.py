@@ -163,10 +163,11 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         # witness: CD on two x3 cells must equal the groundedladder runs to the digit (the externality code is inert when unset)
         return [task(t, w, "cd") for t, w in PEAKCTL_WITNESS] + \
                [task(t, w, k) for k in EXT_KINDS for t in topos for w in gw]
-    if phase == "rawplan":
+    if phase in ("rawplan", "rawgnn", "rawmlp"):
+        # raw_plan_v1: rawgnn / rawmlp run one arm each, so whichever finishes training first is not held back
         gw = tuple(GROUNDED_LADDER)
-        return [task(t, w, k, s) for k in ("rawgnn_selfref", "rawmlp_selfref") for s in (1, 2, 3, 4)
-                for t in topos for w in gw]
+        kinds = ("rawgnn_selfref", "rawmlp_selfref") if phase == "rawplan" else (f"{phase}_selfref",)
+        return [task(t, w, k, s) for k in kinds for s in (1, 2, 3, 4) for t in topos for w in gw]
     if phase == "peakmlp":
         gw = tuple(GROUNDED_LADDER)
         return [task(t, w, "xs1mpoff_selfref", s) for s in (1, 2, 3, 4) for t in topos for w in gw]
@@ -519,7 +520,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan"))
+    ap.add_argument("phase", choices=("screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp"))
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -531,7 +532,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan"):
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp"):
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

@@ -22,7 +22,7 @@ passes):
 - `rawmlp`: the same inputs, every message-passing layer skipped. It sees a partner's placement only when that
   partner lands on one of its own candidates, via the count column. `experiments/raw_plan_v1_rawmlp.yaml`.
 
-**Cells:** the ×2 / ×3 / ×5 grounded cells of [`peak_load_v1`](peak_load_v1.md), phase `rawplan` (1,152 runs). Every
+**Cells:** the ×2 / ×3 / ×5 grounded cells of [`peak_load_v1`](peak_load_v1.md), phase `rawplan` (1,152 runs; run as `rawmlp` + `rawgnn`, one arm each). Every
 other arm is read from `groundedladder`, `peakctl` and `peakmlp`.
 
 **Reads, per rung** (`scripts_cosim/raw_plan_v1_read.py`). Labels follow `peak_load_v1`, with Holm over the three rungs
