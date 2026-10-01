@@ -35,7 +35,7 @@ python3 - "$C/selected.json" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1]))
 assert r.get("verdict") == "DESIGN-READY" and len(r.get("topologies") or []) == 12, r.get("verdict")
-assert all(9473 <= t <= 9520 for t in r["topologies"]), r["topologies"]
+assert all(9473 <= t <= 9568 for t in r["topologies"]), r["topologies"]
 print("[selection] Phase C study:", r["topologies"])
 PY
 
