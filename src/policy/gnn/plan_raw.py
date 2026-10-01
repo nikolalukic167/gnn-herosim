@@ -30,6 +30,7 @@ from src.policy.gnn.partial_state_edges import candidate_edge_rows
 PLAN_RAW_DIM = 2
 PLAN_RAW_CONTRACT = "raw_plan_v1"
 PLAN_RAW_ENV = "GNN_PLAN_RAW"
+PLAN_RAW_SUM_ENV = "GNN_PLAN_RAW_SUM"
 
 
 def _edge_platforms(data: Any) -> Tuple[List[int], Dict[int, int]]:

@@ -335,6 +335,7 @@ class TaskPlacementGNN(nn.Module):
         mp_bipartite_edge_attr_zero: Optional[bool] = None,
         mp_bipartite_aggr: Optional[str] = None,
         plan_raw: Optional[bool] = None,
+        plan_raw_sum: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -521,6 +522,20 @@ class TaskPlacementGNN(nn.Module):
             if not self._disable_mp and not self.mp_bipartite_edge_conv:
                 raise ValueError("FAIL LOUD: plan_raw with message passing needs mp_bipartite_edge_conv "
                                  "(the GIN reads no edge attributes, so the plan would never reach it)")
+        # raw_plan_v2: a committed-load channel -- a learned SUM over the committed task->platform rows of
+        # [task embedding | unzeroed physics edge_attr], added to the platform embedding before any conv.
+        # The bipartite conv means over every candidate, which may hide total committed work. Runs with
+        # message passing disabled too (the no-convolution twin keeps it). Weight-visible (load_mlp.*);
+        # recorded in the sidecar as `plan_raw_sum`.
+        from src.policy.gnn.plan_raw import PLAN_RAW_SUM_ENV
+        self.plan_raw_sum = _env_flag(PLAN_RAW_SUM_ENV) if plan_raw_sum is None else bool(plan_raw_sum)
+        if self.plan_raw_sum:
+            if not self.plan_raw:
+                raise ValueError("FAIL LOUD: plan_raw_sum reads the raw plan's committed flag; it needs plan_raw")
+            self.load_mlp = nn.Sequential(
+                nn.Linear(embedding_dim + edge_dim, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout),
+                nn.Linear(hidden_dim, embedding_dim),
+            )
         if self.mp_bipartite_edge_conv:
             if not self.mp_platform_edges:
                 raise ValueError(
@@ -594,6 +609,25 @@ class TaskPlacementGNN(nn.Module):
             )
         return torch.cat([tf, onehot.to(tf.device, dtype=tf.dtype)], dim=-1)
 
+    def _committed_load(self, data: Data, task_embeddings: Tensor) -> Tensor:
+        """[n_platforms, emb]: sum of load_mlp([task_emb | edge_attr]) over committed task->platform rows."""
+        n_tasks: int = int(data.n_tasks)
+        n_platforms: int = int(data.n_platforms)
+        ps = getattr(data, "partial_state_edge_attr", None)
+        ea = getattr(data, "edge_attr", None)
+        ei = data.edge_index
+        if ps is None or ea is None or int(ps.size(0)) != int(ei.size(1)) or int(ea.size(0)) != int(ei.size(1)):
+            raise ValueError("FAIL LOUD: plan_raw_sum needs edge_attr and partial_state_edge_attr aligned with "
+                             "edge_index (src.policy.gnn.plan_raw)")
+        src, dst = ei[0], ei[1]
+        rows = (ps[:, 0].to(src.device) > 0.5) & (src < n_tasks) & (dst >= n_tasks) & (dst < n_tasks + n_platforms)
+        out = task_embeddings.new_zeros((n_platforms, task_embeddings.size(1)))
+        if bool(rows.any()):
+            t, p = src[rows], dst[rows] - n_tasks
+            e = ea[rows.to(ea.device)].to(task_embeddings.device, dtype=task_embeddings.dtype)
+            out = out.index_add(0, p.to(out.device), self.load_mlp(torch.cat([task_embeddings[t], e], dim=-1)))
+        return out
+
     def _encode(self, data: Data) -> Tuple[Tensor, Tensor]:
         """Node encoding + message passing → (task_emb, platform_emb).
 
@@ -610,6 +644,8 @@ class TaskPlacementGNN(nn.Module):
         if self.platform_input_norm is not None:
             platform_feats = self.platform_input_norm(platform_feats)
         platform_embeddings = self.platform_encoder(platform_feats)
+        if self.plan_raw_sum:
+            platform_embeddings = platform_embeddings + self._committed_load(data, task_embeddings)
 
         # Message passing. The GIN aggregates over the bipartite task<->platform edges
         # PLUS optional platform<->platform edges for platforms on the same physical node
