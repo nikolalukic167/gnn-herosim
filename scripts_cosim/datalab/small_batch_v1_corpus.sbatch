@@ -53,7 +53,24 @@ mkdir -p "$OUT"
 if [[ ! -s "$SNAP" ]]; then echo "[TASK $T] no snapshots for $CELL $WINDOW (the capture spun); skipped"; exit 0; fi
 [[ -f "$CFG" && -f "$TRACE" ]] || { echo "FAIL LOUD: $CFG or $TRACE missing" >&2; exit 1; }
 echo "[TASK $T] $CELL $WINDOW -> $OUT ids from $START (limit $LIMIT, rungs $RUNGS)"
-python3 scripts_cosim/make_warm_corpus.py --snapshots "$SNAP" --trace "$TRACE" --cell-config "$CFG" \
+# offer evenly spaced snapshots over the whole trace (the builder stops at --limit, so an unthinned file would
+# take only the front of the run); no RNG, so the selection is the command line
+SHARD=$SB/shards/${CELL}_${WINDOW}.jsonl; mkdir -p "$SB/shards"
+python3 - "$SNAP" "$SHARD" "$(( LIMIT * 3 / 2 ))" <<'PY'
+import json, sys
+from scripts_cosim.make_warm_corpus import SnapshotRejected, check_consecutive_batch
+src, dst, want = sys.argv[1], sys.argv[2], int(sys.argv[3])
+ok = []
+for line in open(src):
+    if line.strip():
+        try: check_consecutive_batch(json.loads(line), 2); ok.append(line)
+        except SnapshotRejected: pass
+step = max(1, len(ok) // want)
+keep = ok[::step][:want]
+open(dst, "w").writelines(keep)
+print(f"[shard] {len(ok)} eligible snapshots, offering {len(keep)} (every {step})")
+PY
+python3 scripts_cosim/make_warm_corpus.py --snapshots "$SHARD" --trace "$TRACE" --cell-config "$CFG" \
   --output-dir "$OUT" --source-tag "sb_${CELL}_${WINDOW}" --start-index "$START" --limit "$LIMIT" \
   --target-combos "$TARGET" --workers "$WORKERS" --no-cap-filter --min-choice-fraction 0.2 --quiet \
   --variable-group-min 2 \
