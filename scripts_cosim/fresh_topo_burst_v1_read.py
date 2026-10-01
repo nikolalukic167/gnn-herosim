@@ -160,7 +160,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--selection")
     ap.add_argument("--out")
     ap.add_argument("--pool", choices=("fresh", "rp2c"), default="fresh",
-                    help="candidate pool: fresh_topo_burst_v1's, or raw_plan_v2 Phase C's (9473-9520)")
+                    help="candidate pool: fresh_topo_burst_v1's, or raw_plan_v2 Phase C's (9473-9568)")
     a = ap.parse_args(argv)
     if a.phase == "select":
         r = select(a.screen, RP2C_POOL if a.pool == "rp2c" else CANDIDATES)

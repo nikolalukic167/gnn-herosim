@@ -34,8 +34,9 @@ OLD_POOL = (9001, 9002, 9003, 9005, 9102, 9103, 9104, 9105, 9107, 9108, 9109, 91
 NEW_POOL = tuple(range(9401, 9425))
 EXT_POOL = tuple(range(9425, 9473))  # amendment A2
 CANDIDATES = OLD_POOL + NEW_POOL + EXT_POOL
-# raw_plan_v2 Phase C: unseen confirmation topologies, screened under the same rule (phase rp2screen)
-RP2C_POOL = tuple(range(9473, 9521))
+# raw_plan_v2 Phase C: unseen confirmation topologies, screened under the same rule (phase rp2screen); 9521-9568 is
+# its Amendment A1 extension (0 of 9473-9520 admitted)
+RP2C_POOL = tuple(range(9473, 9569))
 RULE_POLICY = {
     "reactive": "knative_network",
     "batched": "peer_greedy_network_batch",
