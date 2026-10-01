@@ -13,6 +13,10 @@ Decodes every VAL graph of the backlog_corpus_v1 split with the served decoder
   plat/node_*    most tasks stacked on one platform / node, for the decode and for the label plan
   coloc_*        peer pairs placed on one node, for the decode and for the label plan (n_pairs in total)
   agree_peer/solo  agreement with the label on choice tasks that have a peer partner in the batch / that have none
+  cost_*_dec/lab   the CD greedy's cost terms of the decoded / label plan, in seconds, from the cached context:
+                   svc (service of every task at its candidate), exch (peer transfer to partners on other nodes),
+                   back (standing backlog at each chosen platform), wait (in-batch stacking: each task waits for the
+                   service + exchange of earlier batch-mates on its platform, in task-id order)
 Everything is read from the cache; nothing is simulated.
 """
 from __future__ import annotations
@@ -114,6 +118,31 @@ def main() -> int:
             def coloc(plan):
                 return sum(plan[x][0] == plan[y][0] for x, y in pairs)
 
+            from src.policy.tabular.reduced_features import build_partial_state_context_from_graph
+
+            ctx = build_partial_state_context_from_graph(g)
+
+            def terms(plan):
+                svc = exch = back = wait = 0.0
+                load: Dict[tuple, float] = {}
+                for t in range(n):
+                    key = plan[t]
+                    e = 0.0
+                    for j in range(n):
+                        b = ctx.peer_pairs.get((t, j))
+                        if b is None or j == t:
+                            continue
+                        pb, lat = ctx.node_exchange[(ctx.node_of[key], ctx.node_of[plan[j]])]
+                        e += b * pb + (lat if pb > 0.0 else 0.0)
+                    charge = float(ctx.service_s[(t, key)]) + e
+                    svc += float(ctx.service_s[(t, key)])
+                    exch += e
+                    back += float(ctx.backlog_s[key])
+                    wait += load.get(key, 0.0)
+                    load[key] = load.get(key, 0.0) + charge
+                return svc, exch, back, wait
+
+            cost = {"dec": terms(dec_combo), "lab": terms(lab_combo)}
             peer_tasks = {x for pr in pairs for x in pr}
             ag = {"peer": [0, 0], "solo": [0, 0]}
             cand_q, n_choice, agree = [], 0, 0
@@ -140,6 +169,8 @@ def main() -> int:
                          "agree_solo": ag["solo"][0], "n_solo": ag["solo"][1],
                          "plat_dec": stack(dec_combo, None), "plat_lab": stack(lab_combo, None),
                          "node_dec": stack(dec_combo, 0), "node_lab": stack(lab_combo, 0),
+                         **{f"cost_{nm}_{w}": cost[w][i] for w in ("dec", "lab")
+                            for i, nm in enumerate(("svc", "exch", "back", "wait"))},
                          "n_pairs": len(pairs), "coloc_dec": coloc(dec_combo), "coloc_lab": coloc(lab_combo),
                          "q_chosen": qs["chosen"], "q_label": qs["label"], "q_min": qs["min"],
                          "backlog": sum(cand_q) / max(1, len(cand_q))})
