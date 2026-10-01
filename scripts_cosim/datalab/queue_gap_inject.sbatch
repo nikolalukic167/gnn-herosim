@@ -2,7 +2,7 @@
 # Information-injection test (docs/lineages/raw_plan_v2.md): hand exchange / in-batch-load terms subtracted from the
 # model's own logits at decode, 5x5 grid, raw GNN, raw MLP and the engineered-context GNN as the reference, 4 seeds.
 # The zero setting must reproduce the diagnostic's refine-0 regrets.
-#   sbatch --export=ALL,WT=<grounded worktree> queue_gap_inject.sbatch
+#   sbatch --export=ALL,WT=<grounded worktree>[,STAGE=2] queue_gap_inject.sbatch
 #SBATCH --job-name=qinj
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/qinj-%j.out
 #SBATCH --partition=CPU-amd
@@ -29,10 +29,11 @@ case "$1" in
   *) echo "FAIL LOUD: arm $1" >&2; exit 1;;
 esac
 F="$QINJ_OUT/$1_s$2.json"
-[[ -f "$F" ]] || python3 scripts_cosim/queue_gap_inject_eval.py --ckpt "models/$STEM-lr2e3-seed$2.pt" --out "$F" 2>&1 \
-  | grep -vi warn | grep "lam_exch=0.0 lam_load=0.0\|Error\|FAIL\|Traceback" || true
+[[ $QINJ_STAGE == 2 ]] && F="$QINJ_OUT/$1_s$2_st2.json"
+[[ -f "$F" ]] || python3 scripts_cosim/queue_gap_inject_eval.py --ckpt "models/$STEM-lr2e3-seed$2.pt" --out "$F" --stage "$QINJ_STAGE" 2>&1 \
+  | grep -vi warn | grep "a=0.0 b=0.0\|Error\|FAIL\|Traceback" || true
 [[ -f "$F" ]] || { echo "FAIL LOUD: no $F" >&2; exit 1; }
 RUN
-chmod +x "$O/run_one.sh"; export QINJ_OUT="$O"
+chmod +x "$O/run_one.sh"; export QINJ_OUT="$O" QINJ_STAGE="${STAGE:-1}"
 for arm in rawgnn rawmlp psignn; do for s in 1 2 3 4; do echo "$arm $s"; done; done | xargs -P 12 -L 1 "$O/run_one.sh"
-echo "=== qinj done: $(ls "$O"/*_s*.json | wc -l)/12 ==="
+echo "=== qinj done: $(ls "$O"/*_s*.json | wc -l) result files ==="
