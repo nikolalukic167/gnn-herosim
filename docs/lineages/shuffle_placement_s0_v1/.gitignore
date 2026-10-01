@@ -1,0 +1,5 @@
+*.bin
+run_2026-10-01/exact_scores.json
+*.log
+**/wandb/latest-run
+network_gate_2026-10-01/*/[01]_*.json

@@ -49,6 +49,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**shuffle_placement_s0_v1**](docs/lineages/shuffle_placement_s0_v1.md) | `CLOSED` | 48 real-TCP streams audit; adaptive search has small exploratory gains, fluid timing validation fails on 2/4 configurations. No GNN training qualification. |
 | [**selfpredict_burst_v1**](docs/lineages/selfpredict_burst_v1.md) | `CLOSED` | **`GNN-BEATS-SELFPREDICT`, burst-seat bar CD.** Uncapped gnnedge0 beats the self-predict rule −7.25 % (13/13 ckpt; 9/16 env, thin) in the burst seat — not an MP win (ties its MP-OFF twin); the CD greedy stays ahead of both (+12.5 / +21.3 %). |
 | [**selfpredict_bar_v1**](docs/lineages/selfpredict_bar_v1.md) | `CLOSED` | **`BAR=SELFPREDICT`.** The rule + a price for unarrived partners at the node the rule would give them beats Knative −19.4/−21.4 % (16/16), the old rule −6.2/−8.5 % and the CD greedy −7.8/−8.9 % (C40 not separated): the programme's best policy and the bar for any learned arm. |
 | [**lookahead_mp_v1**](docs/lineages/lookahead_mp_v1.md) | `CLOSED` | **`HAND-COORDINATION-RECOVERS`.** Pricing unarrived partners is real live headroom (oracle −6.6/−8.2 % vs the rule), but a hand self-predict rule gets 93–95 % of it (−6.2/−8.5 %): coordination, not a message-passing lever. P1 never started; that rule is the new bar. |

@@ -1,0 +1,326 @@
+[
+  {
+    "absolute_relative_error": 0.26739777877342047,
+    "case": "single_core",
+    "flow_observations": {
+      "cal:single_core:0:0": {
+        "bytes": 8388608,
+        "end": 12525540.86495328,
+        "received": 8388608,
+        "start": 12525540.785602495
+      }
+    },
+    "measured_s": 0.09160341322422028,
+    "predicted_s": 0.067108864,
+    "repeat": 0
+  },
+  {
+    "absolute_relative_error": 0.21680023674239124,
+    "case": "single_core",
+    "flow_observations": {
+      "cal:single_core:1:0": {
+        "bytes": 8388608,
+        "end": 12525541.114825789,
+        "received": 8388608,
+        "start": 12525541.03805658
+      }
+    },
+    "measured_s": 0.0856855008751154,
+    "predicted_s": 0.067108864,
+    "repeat": 1
+  },
+  {
+    "absolute_relative_error": 0.186515966845773,
+    "case": "single_core",
+    "flow_observations": {
+      "cal:single_core:2:0": {
+        "bytes": 8388608,
+        "end": 12525541.357619286,
+        "received": 8388608,
+        "start": 12525541.282064645
+      }
+    },
+    "measured_s": 0.08249561302363873,
+    "predicted_s": 0.067108864,
+    "repeat": 2
+  },
+  {
+    "absolute_relative_error": 0.44867374417497446,
+    "case": "shared_core",
+    "flow_observations": {
+      "cal:shared_core:0:0": {
+        "bytes": 8388608,
+        "end": 12525541.622978292,
+        "received": 8388608,
+        "start": 12525541.529543843
+      },
+      "cal:shared_core:0:1": {
+        "bytes": 8388608,
+        "end": 12525541.645160565,
+        "received": 8388608,
+        "start": 12525541.533893544
+      }
+    },
+    "measured_s": 0.12172259762883186,
+    "predicted_s": 0.067108864,
+    "repeat": 0
+  },
+  {
+    "absolute_relative_error": 0.44295215992943066,
+    "case": "shared_core",
+    "flow_observations": {
+      "cal:shared_core:1:0": {
+        "bytes": 8388608,
+        "end": 12525541.889654793,
+        "received": 8388608,
+        "start": 12525541.807110498
+      },
+      "cal:shared_core:1:1": {
+        "bytes": 8388608,
+        "end": 12525541.921262393,
+        "received": 8388608,
+        "start": 12525541.811352918
+      }
+    },
+    "measured_s": 0.12047235295176506,
+    "predicted_s": 0.067108864,
+    "repeat": 1
+  },
+  {
+    "absolute_relative_error": 0.3608907642658145,
+    "case": "shared_core",
+    "flow_observations": {
+      "cal:shared_core:2:0": {
+        "bytes": 8388608,
+        "end": 12525542.177788036,
+        "received": 8388608,
+        "start": 12525542.086487528
+      },
+      "cal:shared_core:2:1": {
+        "bytes": 8388608,
+        "end": 12525542.184573956,
+        "received": 8388608,
+        "start": 12525542.087541968
+      }
+    },
+    "measured_s": 0.10500374622642994,
+    "predicted_s": 0.067108864,
+    "repeat": 2
+  },
+  {
+    "absolute_relative_error": 0.11127821850093973,
+    "case": "disjoint_access",
+    "flow_observations": {
+      "cal:disjoint_access:0:0": {
+        "bytes": 8388608,
+        "end": 12525542.42505283,
+        "received": 8388608,
+        "start": 12525542.354396932
+      },
+      "cal:disjoint_access:0:1": {
+        "bytes": 8388608,
+        "end": 12525542.424898552,
+        "received": 8388608,
+        "start": 12525542.357394036
+      }
+    },
+    "measured_s": 0.07551166787743568,
+    "predicted_s": 0.067108864,
+    "repeat": 0
+  },
+  {
+    "absolute_relative_error": 0.12260291230153811,
+    "case": "disjoint_access",
+    "flow_observations": {
+      "cal:disjoint_access:1:0": {
+        "bytes": 8388608,
+        "end": 12525542.657455528,
+        "received": 8388608,
+        "start": 12525542.58562622
+      },
+      "cal:disjoint_access:1:1": {
+        "bytes": 8388608,
+        "end": 12525542.65498329,
+        "received": 8388608,
+        "start": 12525542.586358584
+      }
+    },
+    "measured_s": 0.07648630812764168,
+    "predicted_s": 0.067108864,
+    "repeat": 1
+  },
+  {
+    "absolute_relative_error": 0.13742976613645028,
+    "case": "disjoint_access",
+    "flow_observations": {
+      "cal:disjoint_access:2:0": {
+        "bytes": 8388608,
+        "end": 12525542.903164364,
+        "received": 8388608,
+        "start": 12525542.832900172
+      },
+      "cal:disjoint_access:2:1": {
+        "bytes": 8388608,
+        "end": 12525542.894018313,
+        "received": 8388608,
+        "start": 12525542.832598643
+      }
+    },
+    "measured_s": 0.0778010431677103,
+    "predicted_s": 0.067108864,
+    "repeat": 2
+  },
+  {
+    "absolute_relative_error": 0.13690244308809343,
+    "case": "shared_receiver",
+    "flow_observations": {
+      "cal:shared_receiver:0:0": {
+        "bytes": 8388608,
+        "end": 12525543.225224704,
+        "received": 8388608,
+        "start": 12525543.0811633
+      },
+      "cal:shared_receiver:0:1": {
+        "bytes": 8388608,
+        "end": 12525543.182451596,
+        "received": 8388608,
+        "start": 12525543.074355597
+      }
+    },
+    "measured_s": 0.155507018789649,
+    "predicted_s": 0.134217728,
+    "repeat": 0
+  },
+  {
+    "absolute_relative_error": 0.12914898000642586,
+    "case": "shared_receiver",
+    "flow_observations": {
+      "cal:shared_receiver:1:0": {
+        "bytes": 8388608,
+        "end": 12525543.538671222,
+        "received": 8388608,
+        "start": 12525543.401561372
+      },
+      "cal:shared_receiver:1:1": {
+        "bytes": 8388608,
+        "end": 12525543.516507484,
+        "received": 8388608,
+        "start": 12525543.389751673
+      }
+    },
+    "measured_s": 0.1541224904358387,
+    "predicted_s": 0.134217728,
+    "repeat": 1
+  },
+  {
+    "absolute_relative_error": 0.14430294922014267,
+    "case": "shared_receiver",
+    "flow_observations": {
+      "cal:shared_receiver:2:0": {
+        "bytes": 8388608,
+        "end": 12525543.819333375,
+        "received": 8388608,
+        "start": 12525543.71181096
+      },
+      "cal:shared_receiver:2:1": {
+        "bytes": 8388608,
+        "end": 12525543.862708632,
+        "received": 8388608,
+        "start": 12525543.718167547
+      }
+    },
+    "measured_s": 0.15685192309319973,
+    "predicted_s": 0.134217728,
+    "repeat": 2
+  },
+  {
+    "absolute_relative_error": 0.1119180578164353,
+    "case": "single_access",
+    "flow_observations": {
+      "cal:single_access:0:0": {
+        "bytes": 8388608,
+        "end": 12525544.103926392,
+        "received": 8388608,
+        "start": 12525544.031783272
+      }
+    },
+    "measured_s": 0.07556607201695442,
+    "predicted_s": 0.067108864,
+    "repeat": 0
+  },
+  {
+    "absolute_relative_error": 0.12335075873291583,
+    "case": "single_access",
+    "flow_observations": {
+      "cal:single_access:1:0": {
+        "bytes": 8388608,
+        "end": 12525544.347792407,
+        "received": 8388608,
+        "start": 12525544.276495336
+      }
+    },
+    "measured_s": 0.07655155658721924,
+    "predicted_s": 0.067108864,
+    "repeat": 1
+  },
+  {
+    "absolute_relative_error": 0.13579291047887715,
+    "case": "single_access",
+    "flow_observations": {
+      "cal:single_access:2:0": {
+        "bytes": 8388608,
+        "end": 12525544.592763888,
+        "received": 8388608,
+        "start": 12525544.521583728
+      }
+    },
+    "measured_s": 0.0776536837220192,
+    "predicted_s": 0.067108864,
+    "repeat": 2
+  },
+  {
+    "absolute_relative_error": 0.8607936940066576,
+    "case": "local_tcp",
+    "flow_observations": {
+      "cal:local_tcp:0:0": {
+        "bytes": 8388608,
+        "end": 12525544.772496335,
+        "received": 8388608,
+        "start": 12525544.767749527
+      }
+    },
+    "measured_s": 0.012052051723003387,
+    "predicted_s": 0.0016777216,
+    "repeat": 0
+  },
+  {
+    "absolute_relative_error": 0.8401803727893367,
+    "case": "local_tcp",
+    "flow_observations": {
+      "cal:local_tcp:1:0": {
+        "bytes": 8388608,
+        "end": 12525544.943429492,
+        "received": 8388608,
+        "start": 12525544.939170493
+      }
+    },
+    "measured_s": 0.010497594252228737,
+    "predicted_s": 0.0016777216,
+    "repeat": 1
+  },
+  {
+    "absolute_relative_error": 0.8436700120912941,
+    "case": "local_tcp",
+    "flow_observations": {
+      "cal:local_tcp:2:0": {
+        "bytes": 8388608,
+        "end": 12525545.112555869,
+        "received": 8388608,
+        "start": 12525545.108199596
+      }
+    },
+    "measured_s": 0.010731924325227737,
+    "predicted_s": 0.0016777216,
+    "repeat": 2
+  }
+]

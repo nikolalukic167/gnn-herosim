@@ -1,0 +1,19 @@
+{
+  "name": "shuffle_placement_s0_v1",
+  "schema": 1,
+  "workload": {"mappers": 4, "reducers": 4, "rows_per_mapper": 1000000, "keys": 4096, "seeds": [4101, 4102, 4103, 4104], "repeats": 3},
+  "development_topologies": [31001, 31002, 31003, 31004, 31005, 31006, 31007, 31008],
+  "holdout_topologies": [31101, 31102, 31103, 31104, 31105, 31106, 31107, 31108],
+  "network": {"hosts": 4, "racks": 2, "access_bytes_per_second": [125000000, 250000000], "core_bytes_per_second": [62500000, 125000000, 250000000], "local_bytes_per_second": 5000000000, "propagation_seconds": 0.0001},
+  "compute_speed_factors": [0.75, 1.0, 1.25, 1.5],
+  "slot_contract": "one reducer executes per host; additional reducers queue, no artificial placement cap",
+  "network_contract": "fixed routes, directed access/core links, progressive max-min flow sharing; local copies use a shared host-memory link",
+  "objective": "time from job submission until all reducers finish",
+  "online_plan_evaluations": 16,
+  "ridge_alpha": 1.0,
+  "extra_trees": {"n_estimators": 64, "min_samples_leaf": 3, "random_state": 7301, "n_jobs": 1},
+  "screen": {"minimum_oracle_gain_percent": 8, "maximum_control_capture_fraction": 0.5},
+  "stream_gate": {"jobs": 32, "interval_seconds": 0.25},
+  "scope": "generated input, measured local TCP application, assumed multi-host topology; exploratory successor, not production trace or validated HeROsim physics",
+  "training_permission": "screen controls only; no GNN training justified by this experiment"
+}

@@ -1,0 +1,16 @@
+{
+  "closure": "ACTIVE; adaptive live policy and network validation not run",
+  "compressed_scores_roundtrip": true,
+  "exact_plan_scores": 16384,
+  "heldout_instances": 32,
+  "max_route_search_gap_s": 0.001365737773260739,
+  "max_route_search_regret_percent": 0.5767357054856995,
+  "measurements": 12,
+  "median_configuration_oracle_gain_percent": 0.9586303145216915,
+  "placements_per_instance": 256,
+  "route_search_exact_matches": 30,
+  "static_instances": 64,
+  "stream_jobs": 1280,
+  "stream_runs": 40,
+  "witness_replay_bit_identical": true
+}

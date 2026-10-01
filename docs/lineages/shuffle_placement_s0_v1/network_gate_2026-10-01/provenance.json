@@ -1,0 +1,9 @@
+{
+  "kernel": "6.8.0-111-generic",
+  "measurements_sha256": "86c0e5672b1c5f1bc6243d98ea57c9a7575b35200473a18a97c8b580c7b0ac08",
+  "network_namespace": "net:[4026532801]",
+  "parent_source_sha256": "85bb28df3846edb30df2c58ba07d91b889c9d317148cc799c6f4b75b61736a35",
+  "protocol_sha256": "8f6774eb927b3265f27645066488f8e2ba8ef8aa6db3e500a8befb7b6f6fafbe",
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+  "source_sha256": "7cf57f3e44ef4fc23cf5003b8fd7cf0a13329d2a5cf6271672eb85a29cc94b61"
+}
