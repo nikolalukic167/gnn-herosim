@@ -39,6 +39,26 @@ retrain changes the corpus size and seeds as well as the batches, so B is a bund
 
 ## Record
 
+- 2026-10-01 — **Check A read (offline, descriptive; `small_batch_v1/check_read.json`).** The 10-task-trained checkpoints on
+  the small-batch VAL (981 graphs, mean 4.1 tasks) against the 10-task VAL restricted to the same cells (1,146 graphs, 10.0
+  tasks); 4 seeds averaged first. Ratio = arm regret ÷ the CD-replica regret on the same graphs, self-refine 3:
+
+  | arm | regret, 10 → small (s) | ratio to CD-replica | change | call |
+  |---|---|---|---|---|
+  | `xs1load` | 4.00 → 1.28 | 0.35 → 0.41 | +19 % | MIXED |
+  | `xs1mpoff` | 3.87 → 1.28 | 0.34 → 0.41 | +23 % | MIXED |
+  | `rawgnn` | 18.36 → 5.88 | 1.59 → 1.90 | +19 % | MIXED |
+  | `rawmlp` | 30.49 → 7.83 | 2.65 → 2.53 | −4 % | ROBUST |
+
+  Refine 0 gives the same calls (+16 / +17 / +20 / −3 %). CD-replica regret falls 11.5 → 3.1 s and the independent argmin
+  41.4 → 7.9 s: small batches are much easier for every rule, and the learned arms track that.
+  - **Reading:** the 10-task-trained engineered-context arms beat the CD-replica offline at both sizes (ratio 0.35–0.66), so the
+    batch-size shift does not break them; they lose a fifth of their margin over CD, not the margin. The signed bar's
+    DEGRADES (> +25 %) was not met for any arm.
+  - **What it rules out:** batch size as the explanation of the live loss to CD. The same models beat the CD cost model offline
+    at both sizes and still lose to CD live (queue-dominated), which is the offline-to-live gap `cd_gap_v1` already named.
+  - **Limits:** 3 validation cells (9213 lost to a hung capture), one VAL, no live read. The CD-replica is CD's cost model,
+    not the live CD arm. The `sb1load` / `sb1mpoff` retraining and its live gate (B) are still to read.
 - 2026-10-01 — **Data built.** Capture (job 823068): 56 of 96 cell×window runs finished; the rest hung in the
   starved-client spin (logs frozen, no summary) and were cancelled and dropped, as `joint_burst_v1` did. That removes
   validation cell 9213 entirely, so check A reads cells 9207, 9208, 9209. Captured batch sizes (2–10 tasks): 2: 4,877,
