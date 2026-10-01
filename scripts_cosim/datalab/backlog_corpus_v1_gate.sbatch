@@ -24,6 +24,7 @@
 #   sbatch --export=ALL,PHASE=peakmlp,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (peak_controls_v1 MP-OFF twin)
 #   sbatch --export=ALL,PHASE=w0mlp,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch     (peak_controls_v1 Am. 1)
 #   sbatch --export=ALL,PHASE=rawplan,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (raw_plan_v1; or PHASE=rawgnn / rawmlp)
+#   sbatch --export=ALL,PHASE=rawS,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch      (raw_plan_v2 Phase D; rawE|rawS|rawES|rawStwin, or rp2dev for all four)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.err
@@ -61,10 +62,14 @@ for d in cfg wl; do [ -e "$IN/$d" ] || ln -s "$FRESH/$d" "$IN/$d"; done
 cp -n "$FRESH/selected.json" "$FRESH/joint_burst_v2_split.json" "$IN/"
 cp -n "$WT/experiments/backlog_corpus_v1_split.json" "$IN/"
 cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.json" || { echo "FAIL LOUD: stale split copy"; exit 1; }
+RP2=0; [[ $PHASE == rp2dev || $PHASE == rawE || $PHASE == rawS || $PHASE == rawES || $PHASE == rawStwin ]] && RP2=1
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder || $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp || $PHASE == w0mlp ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder || $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp || $PHASE == w0mlp || $RP2 == 1 ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  for A in rawE rawS rawES rawStwin; do
+    if [[ $PHASE == "$A" || $PHASE == rp2dev ]]; then EXTRA+=("$WT/models/raw-plan-v2-$A-lr2e3-seed$s"); fi
+  done
   if [[ $PHASE == w0mlp ]]; then EXTRA+=("$WT/models/peak-controls-v1-xs1mpoff-lr2e3-seed$s"); fi
   if [[ $PHASE == rawplan || $PHASE == rawgnn ]]; then EXTRA+=("$WT/models/raw-plan-v1-rawgnn-lr2e3-seed$s"); fi
   if [[ $PHASE == rawplan || $PHASE == rawmlp ]]; then EXTRA+=("$WT/models/raw-plan-v1-rawmlp-lr2e3-seed$s"); fi
@@ -197,7 +202,7 @@ if [[ $PHASE == groundedladder ]]; then
 fi
 
 # peak_controls_v1 reuses the x2 / x3 / x5 cells exactly as peak_load_v2 built them.
-if [[ $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp ]]; then
+if [[ $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp || $RP2 == 1 ]]; then
   for R in x20 x30 x50; do
     [[ -f "$IN/grounded_$R/.built" ]] || { echo "FAIL LOUD: grounded_$R not built (peak_load_v2 groundedladder)"; exit 1; }
   done
