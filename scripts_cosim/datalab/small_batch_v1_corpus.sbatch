@@ -45,14 +45,15 @@ WINDOW=${WINDOWS[$WI]}
 CELL="cc40s${SEED}"
 SB=simulation_data/small_batch_v1
 if (( SEED >= 9222 )); then OUT=$SB/gnn_datasets_small_batch_v1_heldout; else OUT=$SB/gnn_datasets_small_batch_v1_train; fi
-START=$(( (T * 4 + WI) * 200 )); LIMIT=${LIMIT:-55}; TARGET=${TARGET:-20000}; WORKERS=$(( SLURM_CPUS_PER_TASK - 1 ))
+START=$(( (T * 4 + WI) * 200 )); LIMIT=${LIMIT:-90}; TARGET=${TARGET:-20000}; WORKERS=$(( SLURM_CPUS_PER_TASK - 1 ))
 G=/home/nikola.lukic/gnn-herosim/simulation_data/peer_affinity_live_gate
 TRACE=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/inputs/grounded/wl/grounded_${WINDOW}_n50000.json
 CFG=$G/configs/${CELL}.json
 SNAP=$SB/snapshots/${CELL}_${WINDOW}.jsonl
 RUNGS="${RUNGS:-0 3 8 20}"; BUSY="${BUSY:-0.5}"; TASKSEC="${TASKSEC:-4.5}"; BSEED=7001
 mkdir -p "$OUT"
-if [[ ! -s "$SNAP" ]]; then echo "[TASK $T] no snapshots for $CELL $WINDOW (the capture spun); skipped"; continue; fi
+# a capture that hung (the starved-client spin) never wrote its summary; its partial snapshot file is not a corpus
+if [[ ! -s "$SNAP" || ! -f "$SB/capture_summaries/${CELL}_${WINDOW}.summary.json" ]]; then echo "[TASK $T] no finished capture for $CELL $WINDOW (it spun); skipped"; continue; fi
 [[ -f "$CFG" && -f "$TRACE" ]] || { echo "FAIL LOUD: $CFG or $TRACE missing" >&2; exit 1; }
 echo "[TASK $T] $CELL $WINDOW -> $OUT ids from $START (limit $LIMIT, rungs $RUNGS)"
 # offer evenly spaced snapshots over the whole trace (the builder stops at --limit, so an unthinned file would
