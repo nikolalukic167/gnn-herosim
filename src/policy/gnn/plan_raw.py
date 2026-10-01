@@ -20,6 +20,7 @@ live decoder, as with the partial-state columns.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Callable, Dict, List, Mapping, Tuple
 
 import torch
@@ -31,6 +32,11 @@ PLAN_RAW_DIM = 2
 PLAN_RAW_CONTRACT = "raw_plan_v1"
 PLAN_RAW_ENV = "GNN_PLAN_RAW"
 PLAN_RAW_SUM_ENV = "GNN_PLAN_RAW_SUM"
+# raw_plan_v2 parity instrument: when set to a directory, the first GNN_PLAN_RAW_DUMP_N encodes are saved there
+# (graph, committed set, every task's logits) for scripts_cosim/raw_plan_v2_parity.py to replay offline.
+PLAN_RAW_DUMP_ENV = "GNN_PLAN_RAW_DUMP"
+PLAN_RAW_DUMP_N_ENV = "GNN_PLAN_RAW_DUMP_N"
+_dump_count = 0
 
 
 def _edge_platforms(data: Any) -> Tuple[List[int], Dict[int, int]]:
@@ -91,6 +97,19 @@ def plan_raw_edge_attr(data: Any, committed: Mapping[int, Any]) -> Tensor:
     return attr.to(data.edge_index.device)
 
 
+def _maybe_dump(data: Any, committed: Mapping[int, Any], logits: List[Tensor]) -> None:
+    global _dump_count
+    out_dir = os.environ.get(PLAN_RAW_DUMP_ENV)
+    if not out_dir or _dump_count >= int(os.environ.get(PLAN_RAW_DUMP_N_ENV, "200")):
+        return
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"call_{os.getpid()}_{_dump_count:05d}.pt")
+    torch.save({"graph": data, "committed": {int(j): tuple(int(v) for v in p) for j, p in committed.items()},
+                "logits": [t.detach().cpu().clone() for t in logits]}, path + ".partial")
+    os.replace(path + ".partial", path)
+    _dump_count += 1
+
+
 def make_plan_raw_score_fn(model: Any, data: Any) -> Callable[[int, Mapping[int, Any]], Tensor]:
     """``(task_idx, committed) -> logits[task_idx]``, re-encoding per distinct committed set."""
     if not getattr(model, "plan_raw", False):
@@ -110,6 +129,7 @@ def make_plan_raw_score_fn(model: Any, data: Any) -> Callable[[int, Mapping[int,
             task_emb, platform_emb = model._encode(data)
             logits = model._score(task_emb, platform_emb, data)
             cache[key] = logits
+            _maybe_dump(data, committed, logits)
         return logits[int(task_idx)]
 
     return score
