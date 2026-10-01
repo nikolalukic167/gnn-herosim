@@ -326,3 +326,5 @@ has the same corpus, labels, `partial_state_v4` context and self-refine. It beat
 
 **Do not attribute** the peak-load margin to graph structure. It is carried by the learned score on the plan-context
 features.
+Qualifier (`raw_plan_v1`, 2026-10-01): with the raw plan instead of those features MP does beat its twin
+(−12 to −24 %, 12/12), but both raw arms lose to CD by +24 to +53 %.
