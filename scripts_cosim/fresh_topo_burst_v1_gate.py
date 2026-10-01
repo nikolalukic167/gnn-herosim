@@ -179,6 +179,17 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         gw = tuple(GROUNDED_LADDER)
         kinds = ("rawgnn_selfref", "rawmlp_selfref") if phase == "rawplan" else (f"{phase}_selfref",)
         return [task(t, w, k, s) for k in kinds for s in (1, 2, 3, 4) for t in topos for w in gw]
+    if phase == "rp2conf":
+        # raw_plan_v2 Phase C on the unseen topologies: the dev-selected arm (RP2_SELECTED), its twin, the plain MLP,
+        # and the rules. The arm is named by the operator from the dev read; a typo fails here, not in a run.
+        sel = os.environ.get("RP2_SELECTED", "")
+        if sel not in ("rawE", "rawS", "rawES"):
+            raise SystemExit(f"FAIL LOUD: RP2_SELECTED={sel!r}; must be the dev read's selected arm (rawE|rawS|rawES)")
+        twin = "rawmlp" if sel == "rawE" else "rawStwin"
+        gw = tuple(GROUNDED_LADDER)
+        learned = tuple(dict.fromkeys((sel, twin, "rawmlp")))
+        return [task(t, w, k) for k in ("cd", "cdextr", "reactive") for t in topos for w in gw] + \
+               [task(t, w, f"{k}_selfref", s) for k in learned for s in (1, 2, 3, 4) for t in topos for w in gw]
     if phase == "rp2dev" or phase in RAW_V2:
         # raw_plan_v2 Phase D: the development cells; one phase per arm so arms are not held back by each other
         gw = tuple(GROUNDED_LADDER)
@@ -538,7 +549,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -550,7 +561,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
