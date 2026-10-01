@@ -1,6 +1,22 @@
 # raw_plan_v1 — does the learned scorer still beat search without engineered plan context, and does message passing earn its keep there?
 
-**Status:** `REGISTERED` (2026-09-30). Every read below was fixed before any data.
+**Status:** `CLOSED` (2026-10-01) — **`MP-BEATS-TWIN / CD-FASTER`**. Registered 2026-09-30; every read below was
+fixed before any data.
+
+**Outcome** (12 topologies × 4 windows × 4 seeds per rung; median over topologies of the per-topology median paired
+%; exact Wilcoxon; Holm over the three rungs; read `raw_plan_v1/raw_plan_read.json`):
+- **R1 `CONFIRMED` at every rung.** Without engineered plan context, `rawgnn` beats its MP-OFF twin `rawmlp`
+  **−13.9 / −24.3 / −11.8 %** at ×2 / ×3 / ×5, 12/12 topologies each, Holm p = .0015. This is the program's first
+  live message-passing win over a twin trained identically — but on inputs from which the pointwise class is
+  deliberately blind to the partner plan.
+- **R2 `REF-FASTER` at every rung.** Both raw arms lose to CD (`rawgnn` +26.1 / +53.0 / +23.9 %, 0/12) and to
+  `cdextr` (+31.7 / +72.5 / +30.1 %).
+- **R3:** engineered context ψ is worth +40.5 / +83.8 / +32.4 % to the GNN and +63 / +157 / +65 % to the twin.
+  The deficit is queue, not exchange (×2: queue 25.3 s vs 13.4 s for `xs1load` and 20.6 s for CD; exchange
+  3.60 vs 3.02 / 3.24 s).
+- **Do not quote** R1 as "the GNN beats the MLP" without "raw plan, both arms lose to CD". Training was stopped by
+  hand at epoch 110–115 of 300 after a plateau; every selected checkpoint (and every `rawmlp` one) lies within the
+  first 100 epochs. Successor: [`raw_plan_v2`](raw_plan_v2.md).
 
 **Question.** [`peak_controls_v1`](peak_controls_v1.md) found the peak-load win is carried by a learned scorer over the
 engineered `partial_state_v4` plan-context columns ψ, not by message passing. The MP-OFF twin ties the GNN and beats it
@@ -43,6 +59,35 @@ within each family.
 [`backlog_corpus_v1`](backlog_corpus_v1.md).
 
 ## Record
+
+### 2026-10-01 — gate read: `MP-BEATS-TWIN / CD-FASTER`
+
+**Training.** `rawmlp` (job 820944) ran to patience: last improvement at epochs 93 / 44 / 92 / 30, best val regret
+30.8–31.2 s. `rawgnn` (job 820943) was cancelled by hand at epoch 110–115 of 300 (user request, after a plateau:
+≤ 0.4 s gain between epochs ~45 and ~110). Its best checkpoints, saved with sidecars on every improvement, are from
+epochs 80 / 70 / 95 / 90 (val regret 19.10 / 19.43 / 19.47 / 18.78 s), md5-identical before and after the cancel.
+The post-train checks (`joint_burst_v2_sidecheck.py` plus the plan_raw sidecar/weight asserts of
+`raw_plan_v1_train.sbatch`) were run by hand and passed on all four. W&B shows the four runs as killed.
+
+**Gate.** Phases `rawmlp` and `rawgnn` (job 821601), 576/576 runs each, driver rc 0, no failures. Read
+`scripts_cosim/raw_plan_v1_read.py --raw rawgnn rawmlp` → `raw_plan_v1/raw_plan_read.json`.
+
+| Contrast | ×2 | ×3 | ×5 |
+|---|---|---|---|
+| rawgnn vs rawmlp | −13.88 % (12/12) ✓ | −24.27 % (12/12) ✓ | −11.75 % (12/12) ✓ |
+| rawgnn vs CD | +26.05 % (0/12) | +53.02 % (0/12) | +23.86 % (0/12) |
+| rawgnn vs cdextr | +31.70 % (0/12) | +72.54 % (1/12) | +30.08 % (0/12) |
+| rawmlp vs CD | +44.17 % | +93.29 % | +39.80 % |
+| rawgnn vs xs1load | +40.52 % | +83.79 % | +32.41 % |
+| rawmlp vs xs1mpoff | +62.90 % | +156.67 % | +64.78 % |
+| rawgnn vs reactive | −12.92 % (n.s.) | −27.88 % (Holm .054) | −7.52 % ✓ |
+| rawgnn vs decima | −6.20 % ✓ | −1.77 % | +6.87 % |
+
+Mean latency / queue (s), ×2: rawgnn 29.3 / 25.3, rawmlp 33.2 / 28.6, xs1load 16.8 / 13.4, CD 24.2 / 20.6, cdextr
+19.7 / 16.1. The raw GNN's loss is queue: it co-locates nearly as well as CD (exchange 3.60 vs 3.24 s per task)
+but does not price committed load. Code read (not shown): the bipartite conv mean-aggregates, and the recipe
+inherits `NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO=1`, so the conv never sees exec time — the hypotheses
+`raw_plan_v2` tests.
 
 ### 2026-09-30 — registered
 
