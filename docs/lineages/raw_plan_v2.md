@@ -98,6 +98,23 @@ Anything less is reported by label.
 
 ## Record
 
+### 2026-10-01 — parity passed; training and Phase C screen launched
+
+- **Smoke.** All four 2-epoch smoke trainings (jobs 821802–821805) passed the sidecar and weight checks, including
+  `plan_raw_sum`, the `load_mlp.*` and `bip_convs.*` presence per arm, and the scorer width of 135.
+- **Train/serve parity** (job 821864, `raw_plan_v2_servesmoke.sbatch`). Each smoke checkpoint was served live on
+  9420 g0x20 with the dump instrument on; all four live runs finished. `raw_plan_v2_parity.py` then checked:
+  - **cache:** the serving model and the trainer model (built from the experiment YAML, not the sidecar) scored
+    20 cached graphs over a one-pass decode plus two self-refine passes. 600 steps per arm were bitwise identical.
+  - **replay:** 150 live-dumped encodes per arm, re-scored by the trainer model, were bitwise identical.
+  - It passed on all four arms.
+- **Training.** Jobs 821878 (rawE), 821879 (rawS), 821880 (rawES) and 821881 (rawStwin): 4 seeds, 100 epochs, no
+  early stop.
+- **Development gates.** Phases `rawE` / `rawS` / `rawES` / `rawStwin` (jobs 821894–821897) are queued
+  `afterok` on their arm's training.
+- **Phase C.** Job 821825 minted 9473–9520 and verified all 48 cells. The re-mint of 9409 and 9470 was
+  byte-identical, and no file used the range. It is screening 384 runs (reactive + batched, burst w0–w3, ×1).
+
 ### 2026-10-01 — registered
 
 Registered from the `raw_plan_v1` read, before any v2 code ran on data.
