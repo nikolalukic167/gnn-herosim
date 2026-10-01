@@ -40,14 +40,15 @@ CACHE = REPO / "simulation_data" / "graphs_cache_backlog_corpus_v1_psv4_inf"
 SPLIT = REPO / "experiments" / "backlog_corpus_v1_split.json"
 
 
-def _val_sweep(val_ids: set) -> Dict[str, Dict[tuple, float]]:
+def _val_sweep(val_ids: set, cache: Path = None) -> Dict[str, Dict[tuple, float]]:
     from non_unique_lib.cache_io import _rtt_chunks_meta
 
-    num_chunks, total = _rtt_chunks_meta(CACHE)
+    cache = cache or CACHE
+    num_chunks, total = _rtt_chunks_meta(cache)
     out: Dict[str, Dict[tuple, float]] = {}
     n = 0
     for i in range(num_chunks):
-        with open(CACHE / f"rtt_chunk_{i}.pkl", "rb") as f:
+        with open(cache / f"rtt_chunk_{i}.pkl", "rb") as f:
             chunk = pickle.load(f)
         for (ds, combo), rtt in chunk.items():
             n += 1
@@ -67,20 +68,23 @@ def main() -> int:
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--refine", type=int, choices=(0, 3), required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--cache", default=str(CACHE), help="graph cache (default: backlog_corpus_v1; small_batch_v1 passes its own)")
+    ap.add_argument("--split", default=str(SPLIT))
     a = ap.parse_args()
+    cache, split_path = Path(a.cache), Path(a.split)
     os.environ["GNN_PREFIX_SELF_REFINE"] = str(a.refine)
 
     from non_unique_lib.training_contract import canonical_parent_id, load_split_artifact
     from src.policy.gnn.prefix_serving import decode_prefix_conditioned, load_prefix_conditioned_gnn
 
-    graphs = pickle.load(open(CACHE / "graphs.pkl", "rb"))
-    ids = pickle.load(open(CACHE / "dataset_ids.pkl", "rb"))
-    opt_rtt = pickle.load(open(CACHE / "optimal_rtt.pkl", "rb"))
-    split, _ = load_split_artifact(SPLIT)
+    graphs = pickle.load(open(cache / "graphs.pkl", "rb"))
+    ids = pickle.load(open(cache / "dataset_ids.pkl", "rb"))
+    opt_rtt = pickle.load(open(cache / "optimal_rtt.pkl", "rb"))
+    split, _ = load_split_artifact(split_path)
     val_parents = set(split["val"])
     parent_of = [canonical_parent_id(getattr(g, "parent_dataset_id", None) or gid) for g, gid in zip(graphs, ids)]
     val = [(g, gid, p) for g, gid, p in zip(graphs, ids, parent_of) if p in val_parents]
-    sweep = _val_sweep({gid.split("@seq", 1)[0] for _, gid, _ in val})
+    sweep = _val_sweep({gid.split("@seq", 1)[0] for _, gid, _ in val}, cache)
     print(f"[diag] {len(val)} val graphs, {sum(len(v) for v in sweep.values()):,} sweep rows", flush=True)
 
     model, options, sidecar = load_prefix_conditioned_gnn(Path(a.ckpt), adopt_env=True)
