@@ -24,6 +24,7 @@
 #   sbatch --export=ALL,PHASE=peakmlp,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (peak_controls_v1 MP-OFF twin)
 #   sbatch --export=ALL,PHASE=w0mlp,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch     (peak_controls_v1 Am. 1)
 #   sbatch --export=ALL,PHASE=rawplan,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch   (raw_plan_v1; or PHASE=rawgnn / rawmlp)
+#   sbatch --export=ALL,PHASE=sb1dev,WT=<worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch      (small_batch_v1 B: sb1load / sb1mpoff)
 #   sbatch --export=ALL,PHASE=rawS,WT=<grounded worktree>,TIMEOUT=2700 backlog_corpus_v1_gate.sbatch      (raw_plan_v2 Phase D; rawE|rawS|rawES|rawStwin, or rp2dev for all four)
 #SBATCH --job-name=bc1-gate
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/%x-%j.out
@@ -61,15 +62,17 @@ mkdir -p "$IN/models" "$OUT"
 for d in cfg wl; do [ -e "$IN/$d" ] || ln -s "$FRESH/$d" "$IN/$d"; done
 cp -n "$FRESH/selected.json" "$FRESH/joint_burst_v2_split.json" "$IN/"
 cp -n "$WT/experiments/backlog_corpus_v1_split.json" "$IN/"
+[[ $PHASE == sb1dev ]] && { cp -n "$WT/experiments/small_batch_v1_split.json" "$IN/"; cmp "$WT/experiments/small_batch_v1_split.json" "$IN/small_batch_v1_split.json" || { echo "FAIL LOUD: stale small_batch split copy"; exit 1; }; for D in grounded grounded_x20 grounded_x30 grounded_x50; do [ -e "$IN/$D/small_batch_v1_split.json" ] || ln -s "$IN/small_batch_v1_split.json" "$IN/$D/small_batch_v1_split.json"; done; }
 cmp "$WT/experiments/backlog_corpus_v1_split.json" "$IN/backlog_corpus_v1_split.json" || { echo "FAIL LOUD: stale split copy"; exit 1; }
 RP2=0; [[ $PHASE == rp2dev || $PHASE == rawE || $PHASE == rawS || $PHASE == rawES || $PHASE == rawStwin ]] && RP2=1
 for s in 1 2 3 4; do
   EXTRA=()
   if [[ $PHASE == fc1 ]]; then EXTRA=("$WT/models/fullctx-refine-v1-fc1load-lr2e3-seed$s"); fi
-  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder || $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp || $PHASE == w0mlp || $RP2 == 1 ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
+  if [[ $PHASE == xs1 || $PHASE == xs1cd || $PHASE == ladder || $PHASE == jitsmoke || $PHASE == ladderjit || $PHASE == capacity || $PHASE == guard || $PHASE == x11confirm || $PHASE == grounded || $PHASE == x15fill || $PHASE == groundedx15 || $PHASE == groundedladder || $PHASE == peakctl || $PHASE == peakmlp || $PHASE == rawplan || $PHASE == rawgnn || $PHASE == rawmlp || $PHASE == w0mlp || $PHASE == sb1dev || $RP2 == 1 ]]; then EXTRA=("$WT/models/exchange-seconds-v1-xs1load-lr2e3-seed$s"); fi
   for A in rawE rawS rawES rawStwin; do
     if [[ $PHASE == "$A" || $PHASE == rp2dev ]]; then EXTRA+=("$WT/models/raw-plan-v2-$A-lr2e3-seed$s"); fi
   done
+  if [[ $PHASE == sb1dev ]]; then EXTRA+=("$WT/models/small-batch-v1-sb1load-lr2e3-seed$s" "$WT/models/small-batch-v1-sb1mpoff-lr2e3-seed$s"); fi
   if [[ $PHASE == w0mlp ]]; then EXTRA+=("$WT/models/peak-controls-v1-xs1mpoff-lr2e3-seed$s"); fi
   if [[ $PHASE == rawplan || $PHASE == rawgnn ]]; then EXTRA+=("$WT/models/raw-plan-v1-rawgnn-lr2e3-seed$s"); fi
   if [[ $PHASE == rawplan || $PHASE == rawmlp ]]; then EXTRA+=("$WT/models/raw-plan-v1-rawmlp-lr2e3-seed$s"); fi

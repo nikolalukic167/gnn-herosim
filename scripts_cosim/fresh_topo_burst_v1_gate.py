@@ -89,7 +89,8 @@ V4_KINDS = ("v4load", "v4twin")  # load_repr_v1: partial_state_v4, load columns 
 # rawmlp: raw_plan_v1; RAW_V2: raw_plan_v2 (rawStwin is the no-convolution twin). Same cache and split.
 RAW_V2 = ("rawE", "rawS", "rawES", "rawStwin")
 RAW_KINDS = ("rawgnn", "rawmlp") + RAW_V2
-BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KINDS
+SB1_KINDS = ("sb1load", "sb1mpoff")  # small_batch_v1: xs1load / xs1mpoff recipes trained on live-sized batches
+BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
 SERVICE_END = "service_end_v1"
@@ -191,6 +192,10 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         learned = tuple(dict.fromkeys((sel, twin, "rawmlp")))
         return [task(t, w, k) for k in ("cd", "cdextr", "reactive") for t in topos for w in gw] + \
                [task(t, w, f"{k}_selfref", s) for k in learned for s in (1, 2, 3, 4) for t in topos for w in gw]
+    if phase == "sb1dev":
+        # small_batch_v1 B: the xs1load / xs1mpoff recipes retrained on live-sized batches, on the development cells
+        gw = tuple(GROUNDED_LADDER)
+        return [task(t, w, f"{k}_selfref", s) for k in SB1_KINDS for s in (1, 2, 3, 4) for t in topos for w in gw]
     if phase == "rp2dev" or phase in RAW_V2:
         # raw_plan_v2 Phase D: the development cells; one phase per arm so arms are not held back by each other
         gw = tuple(GROUNDED_LADDER)
@@ -371,27 +376,30 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = f"raw-plan-v1-{base_kind}"
         elif base_kind in RAW_V2:
             stem = f"raw-plan-v2-{base_kind}"
+        elif base_kind in SB1_KINDS:
+            stem = f"small-batch-v1-{base_kind}"
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
         else:
             stem = f"joint-burst-v2-{base_kind}"
         ck = os.path.join(inputs, "models", f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
-        check_kind = "gnnedge0" if base_kind == "cdimit" else base_kind
-        split = "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS else "joint_burst_v2_split.json"
+        check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff"}.get(base_kind, base_kind)
+        split = ("small_batch_v1_split.json" if base_kind in SB1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
+                 else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
                                   os.path.join(inputs, split), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
-        if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "rawmlp", "rawStwin"):
+        if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "rawmlp", "rawStwin"):
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
         if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
                        PARTIAL_STATE_LOAD_SECONDS="0" if base_kind == "v4twin" else "1",
-                       PARTIAL_STATE_EXCHANGE_SECONDS="1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS else "0")
+                       PARTIAL_STATE_EXCHANGE_SECONDS="1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS else "0")
         if base_kind in BC1_KINDS or kind.endswith("_se"):
             env["HEROSIM_INFLIGHT_CAPTURE"] = SERVICE_END
         if kind.endswith("_spread"):
@@ -524,7 +532,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if out["env"].get("PARTIAL_STATE_LOAD_SECONDS", "") != want_ls:
             problems.append(f"served PARTIAL_STATE_LOAD_SECONDS={out['env'].get('PARTIAL_STATE_LOAD_SECONDS')!r}, "
                             f"{base_kind} needs {want_ls}")
-        want_xs = "1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS else "0"
+        want_xs = "1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS else "0"
         if out["env"].get("PARTIAL_STATE_EXCHANGE_SECONDS", "") != want_xs:
             problems.append(f"served PARTIAL_STATE_EXCHANGE_SECONDS={out['env'].get('PARTIAL_STATE_EXCHANGE_SECONDS')!r}, "
                             f"{base_kind} needs {want_xs}")
@@ -550,7 +558,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -562,7 +570,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
