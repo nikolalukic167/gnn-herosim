@@ -55,8 +55,11 @@ retrain changes the corpus size and seeds as well as the batches, so B is a bund
   - **Reading:** the 10-task-trained engineered-context arms beat the CD-replica offline at both sizes (ratio 0.35–0.66), so the
     batch-size shift does not break them; they lose a fifth of their margin over CD, not the margin. The signed bar's
     DEGRADES (> +25 %) was not met for any arm.
-  - **What it rules out:** batch size as the explanation of the live loss to CD. The same models beat the CD cost model offline
-    at both sizes and still lose to CD live (queue-dominated), which is the offline-to-live gap `cd_gap_v1` already named.
+  - **What it rules out:** the idea that the 10-task training breaks the learned arms. They beat the CD cost model offline at both
+    batch sizes. (2026-10-02: the first version also said the same models "still lose to CD live"; that was wrong. The
+    engineered arms beat CD live at ×2 / ×3 / ×5 (`peak_load_v1`, `peak_controls_v1`); only the raw arms lose to it. The
+    open question is whether retraining on live-sized batches improves the engineered arms' live win, which the `sb1dev`
+    gate measures.)
   - **Limits:** 3 validation cells (9213 lost to a hung capture), one VAL, no live read. The CD-replica is CD's cost model,
     not the live CD arm. The `sb1load` / `sb1mpoff` retraining and its live gate (B) are still to read.
 - 2026-10-01 — **Data built.** Capture (job 823068): 56 of 96 cell×window runs finished; the rest hung in the
