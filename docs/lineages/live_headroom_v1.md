@@ -6,10 +6,15 @@
 that hung dropped, mostly ×5) the CD cost model's plan is **5.6 / 5.0 / 5.6 %** above the single-batch optimum at ×2 / ×3 / ×5 —
 above the 5 % `CLOSED` line at two rungs, far below the 10 % `OPEN` line. The 10-task-trained engineered-context arms
 (`xs1load`, `xs1mpoff`, self-refine 3) are already at **2.1–2.5 %**, below that CD replica at every rung; the raw arms are at
-10.5–11.1 % (`rawgnn`) and 16–17 % (`rawmlp`). So the one-batch headroom beyond CD is about 5 % and the learned
-engineered arms already take more than half of it, yet they lose to CD live. Whatever separates them live is **not**
-single-batch plan quality. It is between batches (the queue a plan leaves behind), which this measure excludes by
-construction. Offline, replica not live CD, development topologies; no latency claim.
+10.5–11.1 % (`rawgnn`) and 16–17 % (`rawmlp`). So the one-batch headroom beyond CD is about 5 %
+and the engineered arms already take more than half of it; beyond them about 2.4 % of the batch RTT is left within a batch.
+This is consistent with the live record: the engineered arms beat CD live (`peak_controls_v1`: the MP-OFF twin −11 / −18.5 /
+−19.8 %), the raw arms lose to it. **Correction (2026-10-02):** an earlier version of this paragraph said the engineered arms
+"lose to CD live" and located the live gap between batches; that was wrong for the engineered arms (only the raw arms lose
+to CD) and the cross-batch inference is withdrawn. What the read does support: within a batch the pointwise arm equals the
+GNN and both are near the optimum, so a GNN-over-MLP margin inside a batch cannot exceed about 2 %; any such margin would
+have to come from planning across batches, which this measure excludes by construction. Offline, replica not live CD,
+development topologies; no latency claim.
 
 **Question.** The environment review (`raw_plan_v2` follow-up, 2026-10-01) judged the environment *likely closed* for a
 message-passing win: the cost is a pairwise sum plus a count-form queue, which a hand rule or a pointwise scorer expresses.
@@ -63,9 +68,11 @@ at every rung is unlikely (15 %).
   | `rawmlp` (refine 3) | 17.3 | 16.0 | 16.4 |
 
   - **Reading:** within a batch CD is about 5 % from optimal, the pointwise engineered arm (`xs1mpoff`) matches the GNN, and
-    both beat the CD replica offline. This agrees with the environment review (pairwise-sum cost, pointwise-expressible) and
-    with check A of `small_batch_v1`. It does **not** show that nothing can beat CD live: CD wins live while losing offline,
-    so the live gap sits outside what a single batch's regret sees.
+    both beat the CD replica offline — in line with their live wins over CD (`peak_controls_v1`) and with the raw arms'
+    losses (10–17 % offline, +24 to +53 % live in `raw_plan_v1`). Offline per-batch regret orders these arms the same way
+    live latency does. (2026-10-02: the first version of this bullet claimed the engineered arms lose to CD live; that was
+    wrong and is withdrawn.) The environment review's conclusion stands: nothing within a batch separates a graph scorer
+    from a pointwise one; the margin left for any learned arm over the pointwise twin is at most about 2 % of batch RTT.
   - **Limits:** one-batch optimum (a lower bound on joint headroom); CD replica, not the live CD arm; development topologies;
     hung units dropped; a single capture per unit.
 - 2026-10-01 — registered; capture submitted (job 823293, 12 topologies × 3 rungs × 4 windows).
