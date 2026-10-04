@@ -56,7 +56,8 @@ if [[ ${SMOKE:-0} == 1 ]]; then
       --selection "$IN/selected.json" --parallel 1 --mem 4G --timeout "$TIMEOUT" --no-scope
   done
   unset GNN_PLAN_RAW_DUMP GNN_PLAN_RAW_DUMP_N
-  python3 scripts_cosim/raw_plan_v2_parity.py replay --ckpt "$WT/models/local-features-v1-lf1gnn-lr2e3-seed1.pt" \
+  # the live runs score on one BLAS thread; an 8-thread replay differs in the 7th digit (4.8e-7, 2026-10-04)
+  OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 python3 scripts_cosim/raw_plan_v2_parity.py replay --ckpt "$WT/models/local-features-v1-lf1gnn-lr2e3-seed1.pt" \
     --config experiments/local_features_v1_lf1gnn.yaml --dump "$DUMP"
   N=$(ls "$LF/smoke"/*.summary.json 2>/dev/null | wc -l)
   [[ $N == 3 ]] || { echo "FAIL LOUD: smoke wrote $N/3 summaries"; exit 1; }
