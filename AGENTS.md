@@ -72,10 +72,8 @@ direction only; ~2/3 of that is any learned seed, not MP). Every burst-seat lear
 arrivals the learned arm leads CD by ~−11 % at admissible load, but not significantly** (×1.1, 4 seeds:
 −11.8 %, p=0.064, `x11_confirm_v1`). The blocker is one
 topology's collapse (a starved replica type), NOT fixed by a keep-warm guard (`replica_guard_v1` `FAILED`).
-**Alibaba-grounded, peak load: a learned scorer beats CD and CD+ext on unseen topologies, confirmed**
-(`small_batch_confirm_v1`, 19 topologies, 8 seeds, Holm: −9.7 / −35.2 / −17.0 % vs CD at ×2 / ×3 / ×5) once trained on
-live-sized batches (`small_batch_v1`) — **but the GNN ties its MP-OFF twin** (within 1 %), so it is a learned-scorer win,
-not an MP win. Raw-plan GNNs beat their twins and the MLP but lose to CD by 20–60 % (`raw_plan_v1`, `raw_plan_v2`).
+**Grounded peak load: a small-batch-trained scorer beats CD, CD+ext on new topologies**
+(`small_batch_confirm_v1`,−10/−35/−17%) **but ties its MP-OFF twin**.
 Negatives (`docs/hard-stops.md`): Decima's best baseline loses by 46–66 %; widening the choice
 set makes CD more optimal, not less.
 
