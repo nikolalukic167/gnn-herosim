@@ -52,4 +52,10 @@ scoped to "the GNN learns the relational structure the same-input MLP cannot", n
 
 ## Record
 
+- 2026-10-04 — **Smoke (job 826416).** Cached-graph train/serve parity bitwise for seed 1 of all three arms (237 scored
+  steps each); one live run per arm completed. The replay of `lf1gnn`'s 200 dumped live calls failed at 4.8e-7 under the
+  job's 8 BLAS threads and passed **bitwise** when re-run with one thread, as the live runs score (login node,
+  `OMP_NUM_THREADS=1`); the sbatch now pins it. The gate parts were launched by hand after this check. First training
+  run (826314) died with the home quota at its limit (all 24 tasks at one second, 17:59:43); rerun 826415 after
+  compressing old result files.
 - 2026-10-04 — Registered.
