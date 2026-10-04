@@ -6,13 +6,13 @@
 Statistic as peak_load_v1: per topology, the median paired % over (window, seed); learned arms pair on the seed, rules on
 their single run. Median over the 19 topologies, exact two-sided Wilcoxon over topologies.
 
-Primary family (Holm across all 12): lf1gnn vs {cd, cdextr, lf1mlp, sb1mpoff} x {x20, x30, x50}. Verdict, signed before data:
-- GNN-BEATS-ALL         the same >= 2 rungs at which all four are CONFIRMED (median <= -5 %, Holm p < 0.05), and no
+Primary family (Holm across all 9; Amendment 1, 2026-10-04, before any gate run): lf1gnn vs {cd, cdextr, lf1mlp} x
+{x20, x30, x50}. Verdict:
+- GNN-BEATS-MLP-AND-CD  the same >= 2 rungs at which all three are CONFIRMED (median <= -5 %, Holm p < 0.05), and no
                         reference Holm-confirmed faster at any rung;
-- GNN-BEATS-SAME-INPUT  cd, cdextr and lf1mlp CONFIRMED at the same >= 2 rungs, sb1mpoff not, nothing faster except
-                        possibly sb1mpoff;
 - NO-WIN                anything else.
-Descriptive: lf1gnn vs lf1twin (no-conv twin), sb1load, xs1load; lf1mlp and lf1twin vs cd.
+Descriptive, outside the verdict: lf1gnn vs sb1mpoff (engineered pointwise scorer), lf1twin (no-conv twin), sb1load,
+xs1load; lf1mlp and lf1twin vs cd.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from peak_load_v1_read import contrast, label  # noqa: E402
 GNN, TWIN, MLP = "lf1gnn_selfref", "lf1twin_selfref", "lf1mlp_selfref"
 SB1, SB1T, XS1 = "sb1load_selfref", "sb1mpoff_selfref", "xs1load_selfref"
 P.LEARNED = tuple(P.LEARNED) + (GNN, TWIN, MLP, SB1, SB1T, XS1)
-REFS = {"cd": "cd", "cdextr": "cdextr", "mlp": MLP, "sb1mpoff": SB1T}
+REFS = {"cd": "cd", "cdextr": "cdextr", "mlp": MLP}
 EIGHT = tuple(range(1, 9))
 
 
@@ -66,20 +66,14 @@ def read(s: Dict, topos: List[int]) -> dict:
     if not complete:
         verdict = "DESIGN-SHORT"
     else:
-        conf = lambda r, n: tests[f"{r}/{n}"]["label_holm"] == "CONFIRMED"  # noqa: E731
         faster = [k for k, c in tests.items() if c["label_holm"] == "REF-FASTER"]
-        same = [r for r in RUNGS if all(conf(r, n) for n in ("cd", "cdextr", "mlp"))]
-        everything = [r for r in same if conf(r, "sb1mpoff")]
-        if len(everything) >= 2 and not faster:
-            verdict = "GNN-BEATS-ALL"
-        elif len(same) >= 2 and all(k.endswith("/sb1mpoff") for k in faster):
-            verdict = "GNN-BEATS-SAME-INPUT"
-        else:
-            verdict = "NO-WIN"
+        win = [r for r in RUNGS if all(tests[f"{r}/{n}"]["label_holm"] == "CONFIRMED" for n in REFS)]
+        verdict = "GNN-BEATS-MLP-AND-CD" if len(win) >= 2 and not faster else "NO-WIN"
     desc = {}
     for r in RUNGS:
         ws = _windows(r)
         desc[r] = {
+            "lf1gnn_vs_sb1mpoff": _c(EIGHT, s, topos, ws, GNN, SB1T),
             "lf1gnn_vs_lf1twin": _c(EIGHT, s, topos, ws, GNN, TWIN),
             "lf1gnn_vs_sb1load": _c(EIGHT, s, topos, ws, GNN, SB1),
             "lf1gnn_vs_xs1load_s1to4": _c((1, 2, 3, 4), s, topos, ws, GNN, XS1),
