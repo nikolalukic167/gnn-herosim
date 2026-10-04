@@ -3,6 +3,7 @@
 # xs1mpoff recipes on the live-sized-batch cache. exchange_seconds_v1_train.sbatch with the arm, cache, split and worktree
 # swapped; 8 BLAS threads (32 was measured about 1.5x slower on these tiny graphs).
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/small_batch_v1_train.sbatch
+# SEED_OFFSET=4 trains seeds 5-8 (small_batch_confirm_v1).
 #SBATCH --job-name=sb1-train
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/sb1-train-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/sb1-train-%A_%a.err
@@ -32,7 +33,7 @@ echo "[CODE] $(git describe --dirty --always) at $WT"
 [[ -L models ]] || { echo "FAIL LOUD: models/ must be the symlink into ~/gnn-herosim/models" >&2; exit 1; }
 
 T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: SLURM_ARRAY_TASK_ID unset}
-if (( T < 4 )); then ARM=xs1load; NAME=sb1load; else ARM=xs1mpoff; NAME=sb1mpoff; fi; SEED=$(( T % 4 + 1 ))
+if (( T < 4 )); then ARM=xs1load; NAME=sb1load; else ARM=xs1mpoff; NAME=sb1mpoff; fi; SEED=$(( T % 4 + 1 + ${SEED_OFFSET:-0} ))
 CFG=experiments/small_batch_v1_${NAME}.yaml
 CACHE=simulation_data/graphs_cache_small_batch_v1_psv4_inf
 SPLIT=experiments/small_batch_v1_split.json
