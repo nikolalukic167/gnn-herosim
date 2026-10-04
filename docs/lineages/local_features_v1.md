@@ -1,7 +1,7 @@
 # local_features_v1 — with only per-candidate features, does the GNN beat CD, CD+ext, the same-input MLP and the engineered MLP?
 
 **Status:** `REGISTERED` (2026-10-04). Arms, topologies, statistic and verdict were fixed before any training run;
-Amendment 1 (below) narrowed the verdict before any gate run.
+Amendments 1–2 (below) narrowed the verdict and added completeness and robustness reads before any gate summary was read.
 
 **Amendment 1 (2026-10-04, before any lf1 gate run; only offline val regret and the three smoke runs had been seen).**
 The success claim is scoped to the same-input comparison: primary family `lf1gnn` vs {CD, `cdextr`, `lf1mlp`} × {×2, ×3,
@@ -10,6 +10,19 @@ rungs and no reference is Holm-confirmed faster anywhere; else **NO-WIN**. `sb1m
 which sees hand-computed relational columns this arm withholds from both models) moves to the descriptive reads and is
 still reported in this node. Reason: the question is whether the GNN learns the relational structure a same-input MLP
 cannot, and whether that suffices to beat the search rules. The original 12-test family is below, struck by this amendment.
+
+**Amendment 2 (2026-10-04, before any lf1 gate summary was read; after an outside design review).** (a) The verdict reads
+**INCOMPLETE** unless every primary test covers all 19 topologies with no dropped run; missing runs are rerun first.
+(b) Reported beside the verdict, never replacing it: the registered 12-test verdict (with `sb1mpoff`); every `lf1gnn`
+seed alone vs CD, `cdextr` and the median-over-seeds MLP; a seed-pairing-free contrast vs the MLP (per window, median
+over seeds against median over seeds), since seed i of one arm has no natural partner in seed i of another. (c) If the
+verdict is a win, the claim waits on an MLP learning-rate check: `lf1mlp` retrained at lr 5e-4 and 5e-3 (8 seeds each)
+and gated on the same cells; it stands only if `lf1gnn` also beats the best of the three MLP rates by the same bar.
+Disclosures: Amendment 1 was made knowing the offline val regrets and `sb1mpoff`'s live results on these 19 topologies
+(`small_batch_confirm_v1`), so dropping it from the family is a forking path and both verdicts are reported; this is
+the topologies' third confirmatory use (`raw_plan_v2` Phase C, `small_batch_confirm_v1`, here); a GNN–MLP win bundles
+the convs with the committed-load sum channel, and `lf1gnn` vs `lf1twin` says which; the learned arms serve with 3-pass
+self-refinement.
 
 **Question.** With the engineered context, the GNN ties its MP-OFF twin (`small_batch_confirm_v1`): the context's
 relational columns (exchange to placed partners, lookahead mass, batch-mates' committed service and occupancy) are a
