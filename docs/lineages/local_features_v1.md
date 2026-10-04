@@ -1,6 +1,15 @@
 # local_features_v1 — with only per-candidate features, does the GNN beat CD, CD+ext, the same-input MLP and the engineered MLP?
 
-**Status:** `REGISTERED` (2026-10-04). Arms, topologies, statistic and verdict were fixed before any training run.
+**Status:** `REGISTERED` (2026-10-04). Arms, topologies, statistic and verdict were fixed before any training run;
+Amendment 1 (below) narrowed the verdict before any gate run.
+
+**Amendment 1 (2026-10-04, before any lf1 gate run; only offline val regret and the three smoke runs had been seen).**
+The success claim is scoped to the same-input comparison: primary family `lf1gnn` vs {CD, `cdextr`, `lf1mlp`} × {×2, ×3,
+×5}, Holm across 9; **GNN-BEATS-MLP-AND-CD** iff all three are CONFIRMED (median ≤ −5 %, Holm p < 0.05) at the same ≥ 2
+rungs and no reference is Holm-confirmed faster anywhere; else **NO-WIN**. `sb1mpoff` (the engineered pointwise scorer,
+which sees hand-computed relational columns this arm withholds from both models) moves to the descriptive reads and is
+still reported in this node. Reason: the question is whether the GNN learns the relational structure a same-input MLP
+cannot, and whether that suffices to beat the search rules. The original 12-test family is below, struck by this amendment.
 
 **Question.** With the engineered context, the GNN ties its MP-OFF twin (`small_batch_confirm_v1`): the context's
 relational columns (exchange to placed partners, lookahead mass, batch-mates' committed service and occupancy) are a
@@ -30,7 +39,7 @@ has seen any of them; results of other arms on them were read, and only in aggre
 
 **Statistic.** Per topology, the median paired % over (window, seed); median over 19 topologies, exact Wilcoxon.
 
-**Primary family** (Holm across 12): `lf1gnn` vs {CD, `cdextr`, `lf1mlp`, `sb1mpoff`} × {×2, ×3, ×5}.
+**Primary family as registered (superseded by Amendment 1)** (Holm across 12): `lf1gnn` vs {CD, `cdextr`, `lf1mlp`, `sb1mpoff`} × {×2, ×3, ×5}.
 - **GNN-BEATS-ALL**: the same ≥ 2 rungs at which all four are CONFIRMED (median ≤ −5 %, Holm p < 0.05), none faster anywhere.
 - **GNN-BEATS-SAME-INPUT**: CD, `cdextr` and `lf1mlp` CONFIRMED at the same ≥ 2 rungs; `sb1mpoff` not beaten.
 - **NO-WIN** otherwise. (`scripts_cosim/local_features_v1_read.py`.)
