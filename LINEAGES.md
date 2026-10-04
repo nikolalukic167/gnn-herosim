@@ -37,7 +37,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | Lineage | Status | Outcome |
 |---|---|---|
 | [**local_features_v1**](docs/lineages/local_features_v1.md) | `REGISTERED` | Raw-plan GNN plus per-candidate-only features vs CD, CD+ext, the same-input MLP and the engineered MLP on 19 unseen topologies, 8 seeds, Holm over 12. |
-| [**scale_sweep_v1**](docs/lineages/scale_sweep_v1.md) | `REGISTERED` | Exploratory: GNN-vs-twin and vs CD at ~2× / ~4× tasks per batch and on 12-server cells, development topologies, descriptive. |
 | [**live_headroom_v1**](docs/lineages/live_headroom_v1.md) | `REGISTERED` | Offline single-batch headroom of CD on the live states it produces at ×2/×3/×5 (exhaustive sweep, no synthetic backlog): is the environment closed for any learned model? |
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
 | [**drainable_debug_v1**](docs/lineages/drainable_debug_v1.md) | `REGISTERED` | Why do both learned arms lose to reactive Knative at ρ ≈ 0.16? Bars signed before any datum exists; parents are `drainable_regime_v1` and `drainable_serving_config_v1`. |
@@ -52,6 +51,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**scale_sweep_v1**](docs/lineages/scale_sweep_v1.md) | `CLOSED` | **`SCALE-NOT-THE-LEVER`.** At ~2× / ~4× tasks per batch and on 12-server cells the GNN-vs-twin margin stays −2 to −4 % (10-task GNN loses to its twin); search-rule wins hold. |
 | [**small_batch_confirm_v1**](docs/lineages/small_batch_confirm_v1.md) | `CLOSED` | **`SEARCH-WIN-NOT-MP`.** 19 unseen topologies, 8 seeds: the small-batch GNN beats CD −10 / −35 / −17 % and CD+ext at every rung (Holm), but ties its MP-OFF twin (within 1 %). Learned-scorer win, not MP. |
 | [**small_batch_v1**](docs/lineages/small_batch_v1.md) | `CLOSED` | **`BATCH-SIZE-FIX-HELPS`.** Retraining on live-sized (~4-task) batches fixes the GNN's ×5 loss to its twin and adds 5–12 % at ×3 / ×5; the dev-topology twin margin did not replicate. |
 | [**raw_plan_v2**](docs/lineages/raw_plan_v2.md) | `CLOSED` | **`NO-WIN (CD-FASTER)`.** Raw-plan GNN with a load-sum channel (`rawS`) beats the MLP and its twin at ×2 / ×3 on unseen topologies but loses to CD +20 to +33 % and CD+ext; its twin is faster at ×5. |
