@@ -15,6 +15,12 @@ From the fan-out library (grounded_workload_v1_extract.py) and a pre-burst study
 Events are sorted by time (stable) and peer indices refer to the sorted order.
 
   grounded_workload_v1_mint.py --lib fanout_lib_0.json --base drainable_f4000_n50000.json --seed 11 --out g0.json
+
+--merge-k K (scale_sweep_v1): K consecutive library groups become one group, dispatched at the first one's arrival;
+each member keeps its request's raw ms lag behind that arrival plus its sibling offset (neither is stretched), so
+the task rate is unchanged and a decision batch holds ~K times the tasks. Partners are drawn over the merged group,
+and one bridging pair joins any components the draw leaves apart, so the batched seat's peer closure is the whole
+group. K = 1 is byte-identical to the original mint.
 """
 from __future__ import annotations
 
@@ -41,6 +47,18 @@ def _sha(path: str) -> str:
     return h.hexdigest()
 
 
+def merge_groups(groups: List[dict], k: int) -> List[dict]:
+    if k == 1:
+        return groups
+    out = []
+    for i in range(0, len(groups), k):
+        chunk = groups[i:i + k]
+        t0 = int(chunk[0]["t0_ms"])
+        offs = sorted(int(g["t0_ms"]) - t0 + int(o) for g in chunk for o in g["offsets_ms"])
+        out.append({"t0_ms": t0, "offsets_ms": offs})
+    return out
+
+
 def plan_groups(groups: List[dict], n_tasks: int) -> List[Tuple[int, List[int]]]:
     out: List[Tuple[int, List[int]]] = []
     placed = 0
@@ -53,8 +71,8 @@ def plan_groups(groups: List[dict], n_tasks: int) -> List[Tuple[int, List[int]]]
     raise SystemExit(f"FAIL LOUD: library holds only {placed} tasks < {n_tasks}")
 
 
-def mint(lib: dict, base: dict, seed: int, n_tasks: int) -> Tuple[dict, dict]:
-    plan = plan_groups(lib["groups"], n_tasks)
+def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1) -> Tuple[dict, dict]:
+    plan = plan_groups(merge_groups(lib["groups"], merge_k), n_tasks)
     bev = base["events"][:n_tasks]
     if len(bev) < n_tasks:
         raise SystemExit("FAIL LOUD: base window shorter than --n-tasks")
@@ -96,6 +114,22 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int) -> Tuple[dict, dict]:
                 key = (min(i, j), max(i, j))
                 if key not in pairs:
                     pairs[key] = X_SCALE_BYTES * (10.0 ** rng.uniform(-LOG10_SPREAD, LOG10_SPREAD))
+        if merge_k > 1 and len(members) > 1:
+            root = {m: m for m in members}
+
+            def find(x: int) -> int:
+                while root[x] != x:
+                    root[x] = root[root[x]]
+                    x = root[x]
+                return x
+            for (a, b) in pairs:
+                if a in root and b in root:
+                    root[find(a)] = find(b)
+            comps = sorted({find(m) for m in members})
+            for a, b in zip(comps, comps[1:]):
+                key = (min(a, b), max(a, b))
+                pairs[key] = X_SCALE_BYTES * (10.0 ** rng.uniform(-LOG10_SPREAD, LOG10_SPREAD))
+                root[find(a)] = find(b)
 
     sizes = [len(offs) for _t, offs in plan]
     spans = [offs[-1] for _t, offs in plan if len(offs) > 1]
@@ -110,6 +144,8 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int) -> Tuple[dict, dict]:
         "interleaved_boundaries": interleaved,
         "peer_rule": {"partners": PARTNERS, "x_scale_bytes": X_SCALE_BYTES, "log10_spread": LOG10_SPREAD},
     }
+    if merge_k > 1:
+        meta["merge_k"] = merge_k
     doc = {"rps": base["rps"], "duration": base["duration"], "events": events,
            "peer_exchange": [[i, j, b] for (i, j), b in sorted(pairs.items())]}
     return doc, meta
@@ -122,12 +158,15 @@ def main() -> int:
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--n-tasks", type=int, default=50000)
+    ap.add_argument("--merge-k", type=int, default=1)
     a = ap.parse_args()
     if os.path.exists(a.out):
         raise SystemExit(f"FAIL LOUD: {a.out} exists; a gate workload is frozen once minted")
     lib = json.load(gzip.open(a.lib, "rt") if a.lib.endswith(".gz") else open(a.lib))
     base = json.load(open(a.base))
-    doc, meta = mint(lib, base, a.seed, a.n_tasks)
+    if a.merge_k < 1:
+        raise SystemExit("FAIL LOUD: --merge-k must be >= 1")
+    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k)
     doc["grounded_workload_v1"] = {**meta, "library": os.path.basename(a.lib), "library_sha256": _sha(a.lib),
                                    "library_source": lib["source"], "base": os.path.basename(a.base),
                                    "base_sha256": _sha(a.base)}

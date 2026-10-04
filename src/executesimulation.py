@@ -645,6 +645,8 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             "plan_raw",
             # raw_plan_v2: the committed-load channel.
             "plan_raw_sum",
+            # local_features_v1: static per-candidate columns on the raw plan.
+            "plan_raw_local",
         )
         if key in payload
     }

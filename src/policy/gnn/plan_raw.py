@@ -12,6 +12,12 @@ exchange cost of a placement has to learn it: which partner sits where, through 
 edges, and which platforms share a node, through the same-node edges the encoder adds
 under ``plan_raw``. The MP-OFF twin sees only its own edge's two columns.
 
+local_features_v1 (``GNN_PLAN_RAW_LOCAL``, sidecar ``plan_raw_local``) appends PLAN_RAW_LOCAL_DIM columns that
+describe the candidate alone, never another task: log1p backlog seconds of the candidate replica, log1p the task's
+own service seconds there, the node's standing load / capacity, its headroom after this task, and the node rank.
+They are static per edge (independent of the committed set), so the relational part of the plan -- who sits where
+and what that costs -- still has to be learned through message passing.
+
 Because the facts live on every edge and feed message passing, the encode is recomputed
 for every distinct committed set (``make_partial_state_score_fn``'s shared-encode shortcut
 is invalid here). One closure serves the trainer's losses, the validation decoder and the
@@ -32,6 +38,12 @@ PLAN_RAW_DIM = 2
 PLAN_RAW_CONTRACT = "raw_plan_v1"
 PLAN_RAW_ENV = "GNN_PLAN_RAW"
 PLAN_RAW_SUM_ENV = "GNN_PLAN_RAW_SUM"
+PLAN_RAW_LOCAL_ENV = "GNN_PLAN_RAW_LOCAL"
+PLAN_RAW_LOCAL_DIM = 5
+
+
+def plan_raw_dim(local: bool) -> int:
+    return PLAN_RAW_DIM + (PLAN_RAW_LOCAL_DIM if local else 0)
 # raw_plan_v2 parity instrument: when set to a directory, the first GNN_PLAN_RAW_DUMP_N encodes are saved there
 # (graph, committed set, every task's logits) for scripts_cosim/raw_plan_v2_parity.py to replay offline.
 PLAN_RAW_DUMP_ENV = "GNN_PLAN_RAW_DUMP"
@@ -67,8 +79,47 @@ def _edge_platforms(data: Any) -> Tuple[List[int], Dict[int, int]]:
     return plat, reverse
 
 
-def plan_raw_edge_attr(data: Any, committed: Mapping[int, Any]) -> Tensor:
-    """The [E, 2] raw-plan block for ``committed`` = {task_idx: placement tuple}."""
+def plan_raw_local_block(data: Any) -> Tensor:
+    """The static [E, PLAN_RAW_LOCAL_DIM] per-candidate block (memoised on the graph)."""
+    memo = getattr(data, "_plan_raw_local", None)
+    if memo is not None:
+        return memo
+    import math
+    from src.policy.tabular.reduced_features import build_partial_state_context_from_graph
+    ctx = build_partial_state_context_from_graph(data)
+    if not ctx.backlog_s or not ctx.service_s:
+        raise ValueError("FAIL LOUD: plan_raw_local needs backlog_s and service_s in partial_state_ctx "
+                         "(a partial_state_v4 cache / live graph)")
+    rows = candidate_edge_rows(data)
+    _, reverse = _edge_platforms(data)
+    n_rank = len(ctx.node_rank)
+    attr = torch.zeros((int(data.edge_index.size(1)), PLAN_RAW_LOCAL_DIM), dtype=torch.float32)
+    tl = data.task_logit_to_placement
+    for t in range(int(data.n_tasks)):
+        for k, cand in enumerate(tl[t]):
+            key = tuple(int(v) for v in cand)
+            node = ctx.node_of[key]
+            if key not in ctx.backlog_s or (t, key) not in ctx.service_s:
+                raise ValueError(f"FAIL LOUD: plan_raw_local: no backlog/service for task {t} candidate {key}")
+            cap = float(ctx.node_caps.get(node, math.inf))
+            base = float((ctx.base_load or {}).get(node, 0.0))
+            d = float(ctx.demand[(t, key)])
+            finite = math.isfinite(cap) and cap > 0.0
+            r = int(ctx.node_rank[node])
+            vals = (math.log1p(float(ctx.backlog_s[key])), math.log1p(float(ctx.service_s[(t, key)])),
+                    base / cap if finite else 0.0, (cap - base - d) / cap if finite else 1.0,
+                    r / (n_rank - 1) if n_rank > 1 else 0.0)
+            row = rows[t][k]
+            attr[row] = torch.tensor(vals)
+            attr[reverse[row]] = attr[row]
+    attr = attr.to(data.edge_index.device)
+    setattr(data, "_plan_raw_local", attr)
+    return attr
+
+
+def plan_raw_edge_attr(data: Any, committed: Mapping[int, Any], local: bool = False) -> Tensor:
+    """The [E, 2] raw-plan block for ``committed`` = {task_idx: placement tuple}, plus the static
+    per-candidate block when ``local``."""
     rows = candidate_edge_rows(data)
     memo = getattr(data, "_plan_raw_layout", None)
     if memo is None:
@@ -94,7 +145,10 @@ def plan_raw_edge_attr(data: Any, committed: Mapping[int, Any]) -> Tensor:
         attr[reverse[r], 0] = 1.0
         count[plat_t[r]] += 1.0
     attr[:, 1] = count[plat_t]
-    return attr.to(data.edge_index.device)
+    attr = attr.to(data.edge_index.device)
+    if local:
+        attr = torch.cat([attr, plan_raw_local_block(data)], dim=-1)
+    return attr
 
 
 def _maybe_dump(data: Any, committed: Mapping[int, Any], logits: List[Tensor]) -> None:
@@ -114,10 +168,11 @@ def make_plan_raw_score_fn(model: Any, data: Any) -> Callable[[int, Mapping[int,
     """``(task_idx, committed) -> logits[task_idx]``, re-encoding per distinct committed set."""
     if not getattr(model, "plan_raw", False):
         raise ValueError("make_plan_raw_score_fn: the model was not built with plan_raw")
-    if int(getattr(model, "partial_state_edge_dim", 0)) != PLAN_RAW_DIM:
+    local = bool(getattr(model, "plan_raw_local", False))
+    if int(getattr(model, "partial_state_edge_dim", 0)) != plan_raw_dim(local):
         raise ValueError(
             f"make_plan_raw_score_fn: model.partial_state_edge_dim="
-            f"{int(getattr(model, 'partial_state_edge_dim', 0))}, raw_plan_v1 emits {PLAN_RAW_DIM}"
+            f"{int(getattr(model, 'partial_state_edge_dim', 0))}, raw_plan_v1 emits {plan_raw_dim(local)}"
         )
     cache: Dict[Tuple[Any, ...], List[Tensor]] = {}
 
@@ -125,7 +180,7 @@ def make_plan_raw_score_fn(model: Any, data: Any) -> Callable[[int, Mapping[int,
         key = tuple(sorted((int(j), tuple(int(v) for v in p)) for j, p in committed.items()))
         logits = cache.get(key)
         if logits is None:
-            data.partial_state_edge_attr = plan_raw_edge_attr(data, committed)
+            data.partial_state_edge_attr = plan_raw_edge_attr(data, committed, local)
             task_emb, platform_emb = model._encode(data)
             logits = model._score(task_emb, platform_emb, data)
             cache[key] = logits

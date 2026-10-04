@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """joint_burst_v2 gate helper: verify a checkpoint's sidecar before serving it in the gate.
-Called as: joint_burst_v2_sidecheck.py <contract.json> <arm: gnnedge0|mpoff|v4load|v4twin|bc1load|bc1mpoff|fc1load|xs1load|xs1mpoff|rawgnn|rawmlp|rawE|rawS|rawES|rawStwin> <split.json> <want_alpha>
+Called as: joint_burst_v2_sidecheck.py <contract.json> <arm: gnnedge0|mpoff|v4load|v4twin|bc1load|bc1mpoff|fc1load|xs1load|xs1mpoff|rawgnn|rawmlp|rawE|rawS|rawES|rawStwin|lf1gnn|lf1twin|lf1mlp> <split.json> <want_alpha>
 FAIL LOUD (exit 1) on any mismatch. Kept as a real file, not an inline heredoc, because the
 gate sbatch nests other heredocs and a `PY` terminator line collides across nesting levels.
 """
@@ -12,11 +12,15 @@ import sys
 
 
 RAW_V2 = ("rawE", "rawS", "rawES", "rawStwin")
+# local_features_v1: each arm is a raw-plan arm plus the static per-candidate columns
+LF1_BASE = {"lf1gnn": "rawS", "lf1twin": "rawStwin", "lf1mlp": "rawmlp"}
 
 
 def main() -> int:
     contract_path, arm, split, want_alpha = sys.argv[1:5]
     sc = json.load(open(contract_path))
+    local = arm in LF1_BASE
+    arm = LF1_BASE.get(arm, arm)
     raw = ("rawgnn", "rawmlp") + RAW_V2
     want = {
         "disable_message_passing": arm in ("mpoff", "bc1mpoff", "xs1mpoff", "rawmlp", "rawStwin"),
@@ -34,8 +38,12 @@ def main() -> int:
         # backlog_corpus_v1: v4load's recipe (and jb2 mpoff's swap) on the synthetic-backlog corpus
         want.update(partial_state_contract="partial_state_v4", partial_state_feature_dim=25, load_seconds=True)
     if arm in raw:
-        # raw_plan_v1: the engineered block is replaced by the 2 raw plan columns
-        want.update(partial_state_feature_dim=2, plan_raw=True)
+        # raw_plan_v1: the engineered block is replaced by the 2 raw plan columns (+5 local ones, local_features_v1)
+        want.update(partial_state_feature_dim=7 if local else 2, plan_raw=True)
+    if local:
+        want["plan_raw_local"] = True
+    elif sc.get("plan_raw_local"):
+        want["plan_raw_local"] = False
     elif sc.get("plan_raw"):
         want["plan_raw"] = False  # a raw-plan checkpoint served as an engineered-context arm
     # raw_plan_v2: the committed-load channel on rawS / rawES / rawStwin, absent everywhere else

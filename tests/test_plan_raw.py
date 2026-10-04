@@ -10,6 +10,7 @@ Pins what the arms depend on:
 """
 from __future__ import annotations
 
+import math
 import os
 
 import pytest
@@ -18,9 +19,10 @@ from torch_geometric.data import Data
 
 from src.policy.gnn.gnn_model import TaskPlacementGNN
 from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
-from src.policy.gnn.plan_raw import PLAN_RAW_DIM, plan_raw_edge_attr
+from src.policy.gnn.plan_raw import PLAN_RAW_DIM, PLAN_RAW_LOCAL_DIM, plan_raw_dim, plan_raw_edge_attr
 
-ENVS = ("GNN_DISABLE_MESSAGE_PASSING", "GNN_PLAN_RAW", "GNN_PLAN_RAW_SUM", "GNN_MP_NODE_EDGES")
+ENVS = ("GNN_DISABLE_MESSAGE_PASSING", "GNN_PLAN_RAW", "GNN_PLAN_RAW_SUM", "GNN_PLAN_RAW_LOCAL", "GNN_MP_NODE_EDGES",
+        "PARTIAL_STATE_CONTRACT")
 
 # platform positions 0,1 on node 0; 2,3 on node 1. (node_id, platform_id) placements.
 PLACEMENT = {0: (0, 10), 1: (0, 11), 2: (1, 20), 3: (1, 21)}
@@ -196,3 +198,67 @@ def test_plan_raw_sum_requires_plan_raw():
         TaskPlacementGNN(task_feature_dim=3, platform_feature_dim=14, task_type_onehot_dim=4,
                          mp_peer_edges=True, mp_bipartite_edge_conv=True,
                          partial_state_edge_dim=PLAN_RAW_DIM, plan_raw_sum=True)
+
+
+# local_features_v1: static per-candidate columns on the raw plan (plan_raw_local)
+
+def _local_graph() -> Data:
+    data = _graph()
+    cand_keys = {t: [PLACEMENT[p] for p in CANDS[t]] for t in CANDS}
+    data.partial_state_ctx = {
+        "node_caps": {0: 4.0, 1: 4.0}, "demand": {(t, k): 1.0 for t in cand_keys for k in cand_keys[t]},
+        "task_type_index": {0: 0, 1: 1, 2: 2}, "parents": {}, "route_hops_bneck": {}, "payload_bytes": 0.0,
+        "transfer_norm": 0.0, "node_rank": {0: 0, 1: 1}, "ingress_links": {}, "core_links": [],
+        "base_load": {0: 1.0, 1: 2.0},
+        "backlog_s": {PLACEMENT[p]: float(p) for p in PLACEMENT},
+        "service_s": {(t, k): 0.5 + t for t in cand_keys for k in cand_keys[t]},
+    }
+    return data
+
+
+def _local_model(*, mp: bool) -> TaskPlacementGNN:
+    if not mp:
+        os.environ["GNN_DISABLE_MESSAGE_PASSING"] = "1"
+    torch.manual_seed(1)
+    model = TaskPlacementGNN(
+        task_feature_dim=3, platform_feature_dim=14, task_type_onehot_dim=4,
+        mp_peer_edges=True, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True,
+        partial_state_edge_dim=plan_raw_dim(True), plan_raw=True, plan_raw_sum=True, plan_raw_local=True,
+    )
+    model.eval()
+    return model
+
+
+def test_local_block_is_per_candidate_and_independent_of_the_plan():
+    data = _local_graph()
+    a = plan_raw_edge_attr(data, {}, local=True)
+    b = plan_raw_edge_attr(data, {0: PLACEMENT[0], 2: PLACEMENT[3]}, local=True)
+    assert a.shape[1] == plan_raw_dim(True) == PLAN_RAW_DIM + PLAN_RAW_LOCAL_DIM
+    assert torch.equal(a[:, PLAN_RAW_DIM:], b[:, PLAN_RAW_DIM:])
+    ei = data.edge_index.t().tolist()
+    for (s, d), row in zip(ei, a.tolist()):
+        t, p = (s, d - 3) if s < 3 else (d, s - 3)
+        node = PLACEMENT[p][0]
+        assert row[2] == pytest.approx(math.log1p(float(p)))
+        assert row[3] == pytest.approx(math.log1p(0.5 + t))
+        assert row[4] == pytest.approx((1.0, 2.0)[node] / 4.0)
+        assert row[5] == pytest.approx((4.0 - (1.0, 2.0)[node] - 1.0) / 4.0)
+        assert row[6] == pytest.approx(float(node))
+
+
+def test_local_twin_still_blind_to_a_partner_elsewhere():
+    data, model = _local_graph(), _local_model(mp=False)
+    base = _logits(model, data, {}, 1)
+    assert torch.allclose(base, _logits(model, data, {0: PLACEMENT[0]}, 1))
+
+
+def test_local_gnn_sees_where_a_partner_went():
+    data, model = _local_graph(), _local_model(mp=True)
+    assert not torch.allclose(_logits(model, data, {0: PLACEMENT[0]}, 1), _logits(model, data, {0: PLACEMENT[2]}, 1))
+
+
+def test_plan_raw_local_requires_plan_raw():
+    with pytest.raises(ValueError, match="needs plan_raw"):
+        TaskPlacementGNN(task_feature_dim=3, platform_feature_dim=14, task_type_onehot_dim=4,
+                         mp_peer_edges=True, mp_bipartite_edge_conv=True,
+                         partial_state_edge_dim=plan_raw_dim(True), plan_raw_local=True)

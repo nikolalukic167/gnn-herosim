@@ -336,6 +336,7 @@ class TaskPlacementGNN(nn.Module):
         mp_bipartite_aggr: Optional[str] = None,
         plan_raw: Optional[bool] = None,
         plan_raw_sum: Optional[bool] = None,
+        plan_raw_local: Optional[bool] = None,
     ) -> None:
         super().__init__()
 
@@ -507,14 +508,18 @@ class TaskPlacementGNN(nn.Module):
         # message passing as well as the scorer, and same-node platform edges join the conv with a
         # type flag, so co-location is learnable rather than supplied. Weight-visible (the conv and
         # scorer widths change); recorded in the sidecar as `plan_raw`.
-        from src.policy.gnn.plan_raw import PLAN_RAW_DIM, PLAN_RAW_ENV
+        from src.policy.gnn.plan_raw import PLAN_RAW_ENV, PLAN_RAW_LOCAL_ENV, plan_raw_dim
         self.plan_raw = _env_flag(PLAN_RAW_ENV) if plan_raw is None else bool(plan_raw)
-        self._plan_raw_conv_extra = (PLAN_RAW_DIM + 1) if self.plan_raw else 0
+        # local_features_v1: static per-candidate columns appended to the raw plan (src/policy/gnn/plan_raw.py).
+        self.plan_raw_local = _env_flag(PLAN_RAW_LOCAL_ENV) if plan_raw_local is None else bool(plan_raw_local)
+        if self.plan_raw_local and not self.plan_raw:
+            raise ValueError("FAIL LOUD: plan_raw_local extends the raw plan; it needs plan_raw")
+        self._plan_raw_conv_extra = (plan_raw_dim(self.plan_raw_local) + 1) if self.plan_raw else 0
         if self.plan_raw:
-            if self.partial_state_edge_dim != PLAN_RAW_DIM:
+            if self.partial_state_edge_dim != plan_raw_dim(self.plan_raw_local):
                 raise ValueError(
-                    f"FAIL LOUD: plan_raw needs partial_state_edge_dim={PLAN_RAW_DIM} (the raw plan "
-                    f"columns), got {self.partial_state_edge_dim}"
+                    f"FAIL LOUD: plan_raw needs partial_state_edge_dim={plan_raw_dim(self.plan_raw_local)} (the raw "
+                    f"plan columns), got {self.partial_state_edge_dim}"
                 )
             if self.mp_node_edges:
                 raise ValueError("FAIL LOUD: plan_raw adds its own typed same-node edges; "

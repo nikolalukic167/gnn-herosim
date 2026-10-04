@@ -194,6 +194,7 @@ class NearRttConfig:
     plan_raw: bool = os.environ.get("NEAR_RTT_PLAN_RAW", "0") == "1"
     # raw_plan_v2: the committed-load channel (gnn_model.TaskPlacementGNN._committed_load)
     plan_raw_sum: bool = os.environ.get("NEAR_RTT_PLAN_RAW_SUM", "0") == "1"
+    plan_raw_local: bool = os.environ.get("NEAR_RTT_PLAN_RAW_LOCAL", "0") == "1"
     dag_alpha_key: str = os.environ.get("NEAR_RTT_DAG_ALPHA_KEY", "2.0")
     # 0 = use every tied-optimal plan. Any other value CHANGES THE LOSS DEFINITION, so
     # it is recorded in the sidecar and applied deterministically (first N in cache
@@ -436,8 +437,8 @@ def loss_original_ce(logits_per_task: List[Tensor], data: Data, device: torch.de
 
 def _prefix_block_dim() -> int:
     if NEAR_CFG.plan_raw:
-        from src.policy.gnn.plan_raw import PLAN_RAW_DIM
-        return PLAN_RAW_DIM
+        from src.policy.gnn.plan_raw import plan_raw_dim
+        return plan_raw_dim(NEAR_CFG.plan_raw_local)
     return partial_state_feature_dim(resolve_partial_state_contract())
 
 
@@ -2054,6 +2055,7 @@ model = TaskPlacementGNN(
     partial_state_edge_dim=(_prefix_block_dim() if NEAR_CFG.partial_state_edges else 0),
     plan_raw=NEAR_CFG.plan_raw,
     plan_raw_sum=NEAR_CFG.plan_raw_sum,
+    plan_raw_local=NEAR_CFG.plan_raw_local,
 ).to(DEVICE)
 if NEAR_CFG.plan_raw and not NEAR_CFG.partial_state_edges:
     raise ValueError("FAIL LOUD: NEAR_RTT_PLAN_RAW=1 rides the prefix path; set NEAR_RTT_PARTIAL_STATE_EDGES=1")
@@ -2217,6 +2219,7 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # the raw plan instead of the contract's columns.
                 "plan_raw": NEAR_CFG.plan_raw,
                 "plan_raw_sum": NEAR_CFG.plan_raw_sum,
+                "plan_raw_local": NEAR_CFG.plan_raw_local,
                 # Which capacity rung the labels AND the capacity columns came from —
                 # they move together, so this names both.
                 "dag_alpha_key": NEAR_CFG.dag_alpha_key if TEACHER_FORCED else None,
