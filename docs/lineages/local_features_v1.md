@@ -11,8 +11,12 @@ which sees hand-computed relational columns this arm withholds from both models)
 still reported in this node. Reason: the question is whether the GNN learns the relational structure a same-input MLP
 cannot, and whether that suffices to beat the search rules. The original 12-test family is below, struck by this amendment.
 
-**Amendment 2 (2026-10-04, before any lf1 gate summary was read; after an outside design review).** (a) The verdict reads
-**INCOMPLETE** unless every primary test covers all 19 topologies with no dropped run; missing runs are rerun first.
+**Amendment 2 (2026-10-04, before any lf1 gate summary was read; after an outside design review).** (a) Every run that timed
+out at 2700 s (lf1 arms, and the reused CD / `cdextr` runs) is rerun once at 8100 s (`datalab/local_features_v1_retry.sbatch`;
+the references rerun into `local_features_v1/ref_retry`, `small_batch_confirm_v1`'s directory untouched). A run that hangs
+again is dropped by name and listed. The verdict reads **INCOMPLETE** if a primary test has fewer than 19 topologies or a
+primary run is missing without that second failure record. Revised the same day after the failure list (names and
+timeouts only, 1–2 % of runs; no contrast computed) showed three CD timeouts that a rerun could not have been planned for.
 (b) Reported beside the verdict, never replacing it: the registered 12-test verdict (with `sb1mpoff`); every `lf1gnn`
 seed alone vs CD, `cdextr` and the median-over-seeds MLP; a seed-pairing-free contrast vs the MLP (per window, median
 over seeds against median over seeds), since seed i of one arm has no natural partner in seed i of another. (c) If the
