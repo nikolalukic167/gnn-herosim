@@ -32,7 +32,7 @@ sys.path.insert(0, REPO)
 
 from src.policy.gnn.gnn_model import TaskPlacementGNN  # noqa: E402
 from src.policy.gnn.partial_state_edges import make_partial_state_score_fn  # noqa: E402
-from src.policy.gnn.plan_raw import PLAN_RAW_DIM, plan_raw_edge_attr  # noqa: E402
+from src.policy.gnn.plan_raw import plan_raw_dim, plan_raw_edge_attr  # noqa: E402
 from src.policy.gnn.prefix_serving import load_prefix_conditioned_gnn  # noqa: E402
 
 
@@ -56,9 +56,10 @@ def trainer_model(ckpt: str, config: str) -> TaskPlacementGNN:
             mp_bipartite_edge_conv=_flag(env, "NEAR_RTT_MP_BIPARTITE_EDGE_CONV"),
             mp_bipartite_edge_attr_zero=_flag(env, "NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO"),
             task_type_onehot_dim=4 if _flag(env, "NEAR_RTT_TASK_TYPE_ONEHOT") else 0,
-            partial_state_edge_dim=PLAN_RAW_DIM,
+            partial_state_edge_dim=plan_raw_dim(_flag(env, "NEAR_RTT_PLAN_RAW_LOCAL")),
             plan_raw=_flag(env, "NEAR_RTT_PLAN_RAW"),
             plan_raw_sum=_flag(env, "NEAR_RTT_PLAN_RAW_SUM"),
+            plan_raw_local=_flag(env, "NEAR_RTT_PLAN_RAW_LOCAL"),
         )
     finally:
         if prev is None:
@@ -103,8 +104,8 @@ def run_cache(serving: Any, trainer: Any, cache: str, n_graphs: int) -> int:
         steps = [("decode", t) for t in range(n)] + [("refine", t) for _ in range(2) for t in range(n)]
         for phase, t in steps:
             committed = dict(plan) if phase == "decode" else {j: p for j, p in plan.items() if j != t}
-            attr_s = plan_raw_edge_attr(g, committed)
-            attr_t = plan_raw_edge_attr(g, committed)
+            attr_s = plan_raw_edge_attr(g, committed, bool(getattr(trainer, 'plan_raw_local', False)))
+            attr_t = plan_raw_edge_attr(g, committed, bool(getattr(trainer, 'plan_raw_local', False)))
             if not torch.equal(attr_s, attr_t):
                 _fail(f"graph {gi} {phase} t={t}: raw-plan block not deterministic")
             ls, lt = _scores(serving, g, committed), _scores(trainer, g, committed)
@@ -139,7 +140,7 @@ def main() -> int:
         serving, _, _ = load_prefix_conditioned_gnn(a.ckpt, adopt_env=True)
         if serving.state_dict().keys() != trainer.state_dict().keys():
             _fail("serving and trainer models have different parameter sets")
-        for flag in ("plan_raw", "plan_raw_sum", "mp_bipartite_edge_attr_zero", "_disable_mp", "mp_bipartite_aggr"):
+        for flag in ("plan_raw", "plan_raw_sum", "plan_raw_local", "mp_bipartite_edge_attr_zero", "_disable_mp", "mp_bipartite_aggr"):
             if getattr(serving, flag, None) != getattr(trainer, flag, None):
                 _fail(f"{flag}: serving {getattr(serving, flag, None)!r} != trainer {getattr(trainer, flag, None)!r}")
         n = run_cache(serving, trainer, a.cache, a.n_graphs)
