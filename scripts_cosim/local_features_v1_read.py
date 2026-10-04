@@ -11,7 +11,8 @@ Primary family (Holm across all 9; Amendment 1, 2026-10-04, before any gate run)
 - GNN-BEATS-MLP-AND-CD  the same >= 2 rungs at which all three are CONFIRMED (median <= -5 %, Holm p < 0.05), and no
                         reference Holm-confirmed faster at any rung;
 - NO-WIN                anything else;
-- INCOMPLETE            (Amendment 2) any primary test short of all 19 topologies or with a dropped run: rerun first.
+- INCOMPLETE            (Amendment 2) a primary test short of 19 topologies, or a primary run missing without a failure
+                        record from the one rerun at 3x the timeout (local_features_v1_retry.sbatch; --failed dirs).
 Robustness, outside the verdict (Amendment 2): the original 12-test verdict (with sb1mpoff); every lf1gnn seed alone vs
 CD, cdextr and the median-over-seeds MLP; a seed-pairing-free contrast vs the MLP (median over seeds per window).
 Descriptive, outside the verdict: lf1gnn vs sb1mpoff (engineered pointwise scorer), lf1twin (no-conv twin), sb1load,
@@ -20,6 +21,8 @@ xs1load; lf1mlp and lf1twin vs cd.
 from __future__ import annotations
 
 import argparse
+import glob
+import re
 import json
 import math
 import os
@@ -108,7 +111,23 @@ def robustness(s: Dict, topos: List[int], tests: Dict) -> dict:
             "mlp_unpaired": {r: unpaired(s, topos, _windows(r), GNN, EIGHT, MLP, EIGHT) for r in RUNGS}}
 
 
-def read(s: Dict, topos: List[int]) -> dict:
+def failed_keys(dirs: List[str]) -> set:
+    out = set()
+    for d in dirs:
+        for f in glob.glob(os.path.join(d, "*.failed.json")):
+            m = re.match(r"cc40s(\d+)__(\w+?)__(\w+)_s(\d+)\.failed\.json$", os.path.basename(f))
+            if m:
+                out.add((int(m[1]), m[2], m[3], int(m[4])))
+    return out
+
+
+def unexplained(s: Dict, topos: List[int], failed: set) -> List[str]:
+    want = [(GNN, sd) for sd in EIGHT] + [(MLP, sd) for sd in EIGHT] + [("cd", 0), ("cdextr", 0)]
+    return [f"{t}/{w}/{k}/s{sd}" for t in topos for r in RUNGS for w in _windows(r) for k, sd in want
+            if (t, w, k, sd) not in s and (t, w, k, sd) not in failed]
+
+
+def read(s: Dict, topos: List[int], failed: set = frozenset()) -> dict:
     tests, ps = {}, {}
     for r in RUNGS:
         for name, ref in REFS.items():
@@ -124,7 +143,7 @@ def read(s: Dict, topos: List[int]) -> dict:
             c["label_holm"] = label(c["median_pct"], adj[k])
     if not complete:
         verdict = "DESIGN-SHORT"
-    elif any(c["n_topologies"] != len(topos) or c["dropped"] for c in tests.values()):
+    elif any(c["n_topologies"] != len(topos) for c in tests.values()) or unexplained(s, topos, failed):
         verdict = "INCOMPLETE"
     else:
         faster = [k for k, c in tests.items() if c["label_holm"] == "REF-FASTER"]
@@ -143,20 +162,24 @@ def read(s: Dict, topos: List[int]) -> dict:
             "arms": {a: describe(s, topos, ws, a) for a in (GNN, TWIN, MLP, SB1, SB1T, "cd", "cdextr")},
         }
     return {"lineage": "local_features_v1", "topologies": topos, "tests": tests, "verdict": verdict, "descriptive": desc,
+            "unexplained_missing": unexplained(s, topos, failed),
+            "failed_twice": sorted(f"{t}/{w}/{k}/s{sd}" for t, w, k, sd in failed),
             "robustness": robustness(s, topos, tests) if complete else {}}
 
 
 def main(argv: List[str] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
-    ap.add_argument("--refs", required=True)
+    ap.add_argument("--refs", nargs="+", required=True, help="later dirs override earlier ones")
+    ap.add_argument("--failed", nargs="*", default=[], help="dirs whose *.failed.json record the 3x-timeout rerun")
     ap.add_argument("--selection", required=True)
     ap.add_argument("--out")
     a = ap.parse_args(argv)
     topos = json.load(open(a.selection))["topologies"]
-    s = F._summaries(a.refs)
-    s.update(F._summaries(a.gate))
-    res = read(s, topos)
+    s = {}
+    for d in a.refs + [a.gate]:
+        s.update(F._summaries(d))
+    res = read(s, topos, failed_keys(a.failed))
     for k, c in res["tests"].items():
         print(f"{k:14s} {c.get('median_pct', math.nan):+8.2f} %  p={c.get('p', math.nan):.4f}  "
               f"holm={c.get('p_holm', math.nan):.4f}  {c.get('faster')}/{c['n_topologies']}  "
@@ -175,6 +198,8 @@ def main(argv: List[str] = None) -> int:
         for sd, row in rb["per_seed_median_pct"].items():
             print(f"[robust] {sd} " + "  ".join(f"{r}:" + "/".join(f"{v:+.1f}" if v is not None else "nan"
                   for v in d.values()) for r, d in row.items()) + "   (cd/cdextr/mlp %)", file=sys.stderr)
+    print(f"[runs] failed twice: {len(res['failed_twice'])}  missing without a record: {len(res['unexplained_missing'])}",
+          file=sys.stderr)
     print(f"VERDICT: {res['verdict']}", file=sys.stderr)
     if a.out:
         with open(a.out + ".partial", "w") as fh:
