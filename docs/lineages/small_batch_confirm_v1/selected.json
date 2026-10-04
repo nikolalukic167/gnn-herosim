@@ -1,0 +1,6 @@
+{
+ "verdict": "DESIGN-READY",
+ "rule": "every topology raw_plan_v2's Phase C screen admitted (reactive queue share <= 0.8 and the batch path finishes, all 4 base-load windows; unknown is not a pass), ids 9473-9568",
+ "source": "simulation_data/raw_plan_v2/confirm/selected.json -> qualified",
+ "topologies": [9483, 9484, 9485, 9487, 9491, 9502, 9506, 9525, 9529, 9533, 9538, 9540, 9548, 9550, 9551, 9557, 9565, 9566, 9568]
+}

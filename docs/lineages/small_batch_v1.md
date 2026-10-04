@@ -1,6 +1,14 @@
 # small_batch_v1 — does training on live-sized batches change how the learned scorers compare with CD?
 
-**Status:** `REGISTERED` (2026-10-01). The offline check and its bar were fixed before any small-batch sweep was read.
+**Status:** `ACTIVE` (2026-10-04) — Phase D read; confirmation registered as `small_batch_confirm_v1`. Registered 2026-10-01;
+the offline check and its bar were fixed before any small-batch sweep was read.
+
+**Outcome so far (development topologies, descriptive).** Retrained on live-sized batches, the GNN `sb1load` beats CD
+−10.5 / −22.2 / −23.4 % and `cdextr` −6.6 / −17.5 / −22.8 % at ×2 / ×3 / ×5, ends `xs1load`'s ×5 loss to its twin
+(`sb1load` vs `xs1load` −18.6 % at ×5, 12/12), and is ahead of its own retrained MP-OFF twin `sb1mpoff` at every rung by a
+small margin (−0.8 / −2.7 / −3.6 %; 11 / 8 / 10 of 12). The twin improved too (−6.8 % vs `xs1mpoff` at ×5), so most of the
+gain is the batch-size fix, with a small MP edge on top. These 12 topologies informed the proposal; the claim is tested on
+unseen topologies in `small_batch_confirm_v1`.
 
 **Question.** Every learned checkpoint in the program was trained on aligned 10-task peer groups and is served on the
 grounded workload, whose groups average 3.5–4.1 tasks (`grounded_workload_v1`; `batch_size_strata_read.json` from the
@@ -38,6 +46,24 @@ retrain changes the corpus size and seeds as well as the batches, so B is a bund
 `queue_gap_diag_eval.py --cache --split`, `small_batch_rules_eval.py`, `batch_size_strata_read.py`.
 
 ## Record
+
+- 2026-10-04 — **Phase D live read (development, descriptive; `small_batch_v1/sb1dev_read.json`,
+  `scripts_cosim/small_batch_v1_dev_read.py`).** 1,151 of 1,152 runs (gate 825755, after the 2026-10-03 quota failure was
+  cleared: earlier attempts died with `rc=120` on `Disk quota exceeded`). Per-topology median over (window, seed), median
+  over the 12 topologies, exact Wilcoxon, no Holm (descriptive):
+
+  | contrast | ×2 | ×3 | ×5 |
+  |---|---|---|---|
+  | `sb1load` vs CD | −10.51 % (11/12) | −22.15 % (12/12) | −23.41 % (12/12) |
+  | `sb1load` vs `cdextr` | −6.59 % (11/12) | −17.49 % (11/12) | −22.81 % (12/12) |
+  | `sb1load` vs `sb1mpoff` | −0.77 % (11/12, p .009) | −2.71 % (8/12, p .077) | −3.56 % (10/12, p .043) |
+  | `sb1load` vs `xs1load` | +0.89 % (5/12) | −5.03 % (9/12, p .11) | −18.61 % (12/12) |
+  | `sb1mpoff` vs `xs1mpoff` | +0.60 % | −3.43 % (p .064) | −6.84 % (10/12) |
+  | `xs1load` vs `xs1mpoff` (reference) | −1.47 % | −2.18 % | +13.14 % (twin faster) |
+
+  - **Reading:** the retrain fixes the ×5 inversion and leaves the GNN ahead of its twin at every rung, by less than the
+    program's −5 % magnitude bar. No engineered pointwise MLP other than the MP-OFF twin exists in this seat: the twin *is*
+    the per-candidate MLP on the same engineered features (`peakmlp` was the twin's gate directory, not a separate MLP).
 
 - 2026-10-01 — **Check A read (offline, descriptive; `small_batch_v1/check_read.json`).** The 10-task-trained checkpoints on
   the small-batch VAL (981 graphs, mean 4.1 tasks) against the 10-task VAL restricted to the same cells (1,146 graphs, 10.0

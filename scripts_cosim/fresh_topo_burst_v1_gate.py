@@ -196,6 +196,18 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         # small_batch_v1 B: the xs1load / xs1mpoff recipes retrained on live-sized batches, on the development cells
         gw = tuple(GROUNDED_LADDER)
         return [task(t, w, f"{k}_selfref", s) for k in SB1_KINDS for s in (1, 2, 3, 4) for t in topos for w in gw]
+    if phase == "sbconf":
+        # small_batch_confirm_v1 on the 19 unseen admitted topologies: sb1load and its MP-OFF twin sb1mpoff at 8 seeds,
+        # the rules, and xs1load at its 4 seeds (descriptive). SBCONF_KINDS picks a subset so the parts run on separate
+        # nodes; every part reads the same selection and inputs.
+        gw = tuple(GROUNDED_LADDER)
+        parts = {"sb1load": [("sb1load_selfref", s) for s in range(1, 9)],
+                 "sb1mpoff": [("sb1mpoff_selfref", s) for s in range(1, 9)],
+                 "rules": [(k, 0) for k in ("cd", "cdextr", "reactive")] + [("xs1load_selfref", s) for s in (1, 2, 3, 4)]}
+        want = os.environ.get("SBCONF_KINDS", "sb1load,sb1mpoff,rules").split(",")
+        if not want or any(w not in parts for w in want):
+            raise SystemExit(f"FAIL LOUD: SBCONF_KINDS={want!r}; parts are {sorted(parts)}")
+        return [task(t, w, k, s) for p in want for k, s in parts[p] for t in topos for w in gw]
     if phase == "rp2dev" or phase in RAW_V2:
         # raw_plan_v2 Phase D: the development cells; one phase per arm so arms are not held back by each other
         gw = tuple(GROUNDED_LADDER)
@@ -558,7 +570,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -570,7 +582,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
