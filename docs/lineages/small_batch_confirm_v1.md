@@ -1,7 +1,13 @@
 # small_batch_confirm_v1 — does the small-batch GNN beat CD, CD+ext and its MP-OFF twin on unseen topologies?
 
-**Status:** `REGISTERED` (2026-10-04). Arms, topologies, statistic and verdict were fixed before any run of this gate,
-and before raw_plan_v2's Phase C read (which shares 12 of the 19 topologies).
+**Status:** `CLOSED` (2026-10-04) — **SEARCH-WIN-NOT-MP**. Registered 2026-10-04; arms, topologies, statistic and
+verdict were fixed before any run of this gate and before raw_plan_v2's Phase C read (which shares 12 of the 19 topologies).
+
+**Outcome.** On 19 unseen topologies with 8 seeds, the small-batch GNN `sb1load` **beats CD −9.7 / −35.2 / −17.0 % and
+`cdextr` −6.8 / −25.4 / −16.3 %** at ×2 / ×3 / ×5 (18–19 of 19 each, all Holm-confirmed) — the program's first confirmed win
+over the search rules on unseen topologies. It **ties its MP-OFF twin** (−0.18 / −0.68 / +0.94 %; Holm p 1.0 / 0.054 /
+1.0), and the twin beats CD by the same margins. It is a learned-scorer win from the engineered context and live-sized
+training batches, **not a message-passing win**; Phase D's −0.8 to −3.6 % twin margin did not replicate.
 
 **Question.** `small_batch_v1` Phase D (12 development topologies) put the retrained GNN `sb1load` ahead of CD, `cdextr`
 and its retrained MP-OFF twin `sb1mpoff` at ×2 / ×3 / ×5 — the twin by only −0.8 / −2.7 / −3.6 %. Those topologies informed
@@ -44,4 +50,20 @@ exist (checked at read time).
 
 ## Record
 
+- 2026-10-04 — **Gate read: SEARCH-WIN-NOT-MP** (`small_batch_confirm_v1/sbconf_read.json`; jobs 825927 training, 825929–31
+  gate, 825932 read). Summaries: CD 225, `cdextr` 225, reactive 227, `xs1load` 907, `sb1load` 1,817, `sb1mpoff` 1,819 of
+  228 / 228 / 228 / 912 / 1,824 / 1,824 (failures dropped, no topology short). Rule runs equal raw_plan_v2's on the 12
+  shared topologies to the digit (427/427).
+
+  | `sb1load` vs (Holm over 9) | ×2 | ×3 | ×5 |
+  |---|---|---|---|
+  | CD | −9.71 % (18/19) CONFIRMED | −35.24 % (19/19) CONFIRMED | −16.96 % (18/19) CONFIRMED |
+  | `cdextr` | −6.82 % (19/19) CONFIRMED | −25.40 % (18/19) CONFIRMED | −16.26 % (19/19) CONFIRMED |
+  | twin `sb1mpoff` | −0.18 % (10/19) NOT-SEPARATED | −0.68 % (15/19, Holm .054) NOT-SEPARATED | +0.94 % (8/19) NOT-SEPARATED |
+
+  Descriptive: `sb1mpoff` vs CD −9.1 / −35.8 / −15.6 %; `sb1load` vs reactive −43 / −84 / −41 %; `sb1load` vs `xs1load`
+  (seeds 1–4) −0.2 / −4.8 / −11.6 % (the small-batch retrain helps at ×3 and ×5).
+  - **Reading:** a learned scorer beats both search rules at every rung on unseen topologies, at 8 seeds and n = 19. The graph
+    contributes nothing measurable over the same features scored per candidate. Within one batch the pointwise twin already
+    equals the GNN's decisions (`live_headroom_v1`), which bounds any MP margin in this seat to about 2 % of batch RTT.
 - 2026-10-04 — Registered. Seeds 5–8 training and the gate are chained on datalab.

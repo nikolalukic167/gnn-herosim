@@ -1,7 +1,13 @@
 # raw_plan_v2 — can a raw-plan GNN beat CD, its no-convolution twin and the MLP?
 
-**Status:** `REGISTERED` (2026-10-01). Every read, the selection rule and the success bar below were fixed before
-any data.
+**Status:** `CLOSED` (2026-10-04) — **NO-WIN (CD-FASTER)**. Registered 2026-10-01; every read, the selection rule and
+the success bar below were fixed before any data.
+
+**Outcome.** The dev read selected `rawS` (pooled vs `cdextr`: `rawS` +29.4 %, `rawES` +31.6 %, `rawE` +36.6 %). On the 12
+unseen Phase C topologies `rawS` beats the plain MLP −15.5 / −33.3 / −13.5 % and its no-convolution twin −15.9 / −21.6 % at
+×2 / ×3, but **loses to CD +19.8 / +33.1 / +26.3 % and to `cdextr` +22.2 / +61.4 / +36.8 %**, and its twin is faster at ×5
+(+11.9 %); all Holm-confirmed. Neither the committed-load channel nor edge physics in the conv closes the raw arms' queue
+gap. The learned arms that beat CD are the engineered-context ones (`small_batch_confirm_v1`).
 
 **Question.** [`raw_plan_v1`](raw_plan_v1.md) found that, on the raw plan, the GNN beats its MP-OFF twin at every rung
 (−14 / −24 / −12 %) but loses to CD by +24 to +53 %. Most of the deficit is queue time: at ×2 the queue is 25.3 s,
@@ -97,6 +103,25 @@ Anything less is reported by label.
 [`fresh_topo_burst_v1`](fresh_topo_burst_v1.md).
 
 ## Record
+
+### 2026-10-04 — Phase C confirmation read: NO-WIN (`raw_plan_v2/rp2_conf_read.json`)
+
+- Dev read (`raw_plan_v2/rp2_dev_read.json`, gates 825751–825753 after the 2026-10-03 quota failure was cleared; `rawE`
+  575/576, others 576/576): every convolution arm loses to CD by +20 to +44 % and to `cdextr` by +23 to +64 % at every rung;
+  selection `rawS` (pooled vs `cdextr` +29.4 %), twin `rawStwin`.
+- Phase C (gate 825864, 12 topologies 9483–9540, Holm over 12):
+
+  | `rawS` vs | ×2 | ×3 | ×5 |
+  |---|---|---|---|
+  | CD | +19.77 % (0/12) REF-FASTER | +33.08 % (2/12) REF-FASTER | +26.29 % (0/12) REF-FASTER |
+  | `cdextr` | +22.22 % REF-FASTER | +61.42 % REF-FASTER | +36.82 % REF-FASTER |
+  | twin `rawStwin` | −15.85 % (12/12) CONFIRMED | −21.63 % (11/12) CONFIRMED | +11.94 % (0/12) REF-FASTER |
+  | `rawmlp` | −15.48 % CONFIRMED | −33.25 % CONFIRMED | −13.53 % CONFIRMED |
+
+- **Verdict NO-WIN.** The raw-plan GNN's message passing is worth 13–33 % over pointwise raw arms, but the raw family stays
+  20–60 % behind the search rules; the engineered context, not the graph, is what beats CD. The `rawStwin` dev gate ran at
+  HEAD aee0fd7 and the others at 8aa1dc8 (src identical). The rule runs on the 12 shared topologies equal
+  `small_batch_confirm_v1`'s to the digit (427/427).
 
 ### 2026-10-01 — queue-gap diagnostic (offline, descriptive; changes no registered read)
 

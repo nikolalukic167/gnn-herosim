@@ -1,14 +1,15 @@
 # small_batch_v1 — does training on live-sized batches change how the learned scorers compare with CD?
 
-**Status:** `ACTIVE` (2026-10-04) — Phase D read; confirmation registered as `small_batch_confirm_v1`. Registered 2026-10-01;
+**Status:** `CLOSED` (2026-10-04) — **BATCH-SIZE-FIX-HELPS**; confirmed on unseen topologies in `small_batch_confirm_v1`. Registered 2026-10-01;
 the offline check and its bar were fixed before any small-batch sweep was read.
 
 **Outcome so far (development topologies, descriptive).** Retrained on live-sized batches, the GNN `sb1load` beats CD
 −10.5 / −22.2 / −23.4 % and `cdextr` −6.6 / −17.5 / −22.8 % at ×2 / ×3 / ×5, ends `xs1load`'s ×5 loss to its twin
 (`sb1load` vs `xs1load` −18.6 % at ×5, 12/12), and is ahead of its own retrained MP-OFF twin `sb1mpoff` at every rung by a
 small margin (−0.8 / −2.7 / −3.6 %; 11 / 8 / 10 of 12). The twin improved too (−6.8 % vs `xs1mpoff` at ×5), so most of the
-gain is the batch-size fix, with a small MP edge on top. These 12 topologies informed the proposal; the claim is tested on
-unseen topologies in `small_batch_confirm_v1`.
+gain is the batch-size fix, with a small MP edge on top. These 12 topologies informed the proposal. On 19 unseen topologies
+(`small_batch_confirm_v1`) the CD / `cdextr` wins and the ×3 / ×5 gain over `xs1load` replicate; the twin margin does not
+(tie at every rung).
 
 **Question.** Every learned checkpoint in the program was trained on aligned 10-task peer groups and is served on the
 grounded workload, whose groups average 3.5–4.1 tasks (`grounded_workload_v1`; `batch_size_strata_read.json` from the
