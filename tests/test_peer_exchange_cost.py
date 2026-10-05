@@ -256,3 +256,15 @@ def test_scheduler_plans_the_whole_batch_from_forced_placements(peer_exchange_on
     sched.forced_placements = {0: (99, 1)}
     with pytest.raises(RuntimeError, match="not a node of this run"):
         DeterminedScheduler._plan_batch_nodes(sched, [FakeTask(0)])
+
+
+def test_route_features_read_a_one_way_route_in_reverse_like_the_fabric():
+    from src.placement.dag_workload import route_hops_and_bottleneck
+
+    routes = {"client_node0": {"node0": ["client_node0", "r0", "node0"]}}
+    links = {"client_node0|r0": {"bandwidth_mbps": 1000.0, "latency": 0.02},
+             "node0|r0": {"bandwidth_mbps": 250.0, "latency": 0.004}}
+    assert route_hops_and_bottleneck(routes, links, "node0", "client_node0") == \
+        route_hops_and_bottleneck(routes, links, "client_node0", "node0")
+    with pytest.raises(RuntimeError, match="no route"):
+        route_hops_and_bottleneck(routes, links, "node0", "client_node1")

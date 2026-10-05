@@ -102,6 +102,11 @@ def route_hops_and_bottleneck(
         return 0, math.inf
     path = (routes.get(src) or {}).get(dst)
     if not path:
+        # Routes are stored one way (client -> server); the fabric charges a transfer over the
+        # reversed path too (network_fabric._lookup_path), so the features must read it the same way.
+        reverse = (routes.get(dst) or {}).get(src)
+        path = list(reversed(reverse)) if reverse else None
+    if not path:
         raise RuntimeError(f"no route {src}->{dst} in link_topology")
     bneck = math.inf
     for a, b in zip(path, path[1:]):
