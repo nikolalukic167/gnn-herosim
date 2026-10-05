@@ -214,3 +214,20 @@ written from a CPU template will not.
 
 Cost: job 740198 (route_b fit-ceiling Phase 1, 2026-09-06) — 15/15 GNN tasks FAILED in
 0.5–3.5 min; the 7 MLP tasks completed and made the array look half-healthy.
+
+## 12. `/home` is a 250 GiB quota; bulk data goes to `/share/nikola.lukic`
+
+`df` shows terabytes free, but `/home/nikola.lukic` has a per-user Ceph quota of 250 GiB. At the limit, jobs die
+silently: rc 120 (stdout flush fails at exit), 0-byte `.failed.json` / `.summary.json`, training killed mid-epoch.
+`/share/nikola.lukic` has no per-user quota (~14 T free on the filesystem).
+
+```bash
+getfattr --only-values -n ceph.dir.rbytes /home/nikola.lukic      # bytes used; limit 268435456000
+```
+
+- **Before submitting** anything that writes per run, check usage, and multiply per-run output × parallelism × jobs.
+- **Raw per-run results go to node-local `/tmp`** (936 G free on CPU-amd): set `HEROSIM_RAW_DIR` in gate sbatches.
+  Three gates at 62 parallel × ~250 MB raw each filled home on 2026-10-05.
+- **Cold data:** `sbatch scripts_cosim/datalab/offload_to_share.sbatch simulation_data/<dir> ...` copies to
+  `/share/nikola.lukic`, verifies file count and bytes, then symlinks back (`LOGS=1` also archives old logs).
+- **After a quota hit:** delete records with rc 120, 0 bytes or unparseable JSON before rerunning. They are not outcomes.

@@ -162,6 +162,9 @@ md5 both sides after any binary sync.
 - **Large transfers**: dataset/model syncs reach 10+ GB. Check size first with
   `ssh datalab "du -sh <path>"`.
 - **Logs are purged after ~30 days** on datalab. To review an old job, sync its log now.
+- `/home` has a 250 GiB quota (`getfattr --only-values -n ceph.dir.rbytes /home/nikola.lukic`); check it before
+  submitting. Put raw per-run outputs on node-local `/tmp` (`HEROSIM_RAW_DIR`) and bulk data on `/share/nikola.lukic`.
+  rc 120 or 0-byte result files mean the quota filled — see `datalab-pitfalls` §12.
 - Submitting a SLURM job consumes shared cluster resources and can run for hours. State
   exactly what you are about to submit — script, partition, resource request, expected
   duration — and get explicit confirmation first, unless the user named the specific
