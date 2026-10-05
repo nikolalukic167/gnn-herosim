@@ -1,17 +1,17 @@
 # client_local_v1 — may a call run on its own client, and does the origin model matter?
 
-**Status:** `ACTIVE` (2026-10-05) — part A (rules, scattered origins) read on six of seven rules, local-first rerunning;
-part A2 (learned arms zero-shot) running; part B (single-origin groups) running. Exploratory: no bars were registered before the runs.
+**Status:** `ACTIVE` (2026-10-05) — part A (rules) read on all seven rules and found not to test local execution;
+part A2 (learned arms zero-shot) queued; part B (single-origin groups) running. Exploratory: no bars were registered before the runs.
 
-**Outcome so far.** With every client hosting one replica per function and allowed to run its own calls, the five rules
-read so far ran **1.3–1.6 % of calls locally at ×2, 0.4–0.7 % at ×3 and 0.1–0.3 % at ×5**, and enabling it **helped
-none of them**: Knative ties its server-only run at every rung, and CD, locality-first, self-predict and the one-pass
-greedy are 1–5 % *slower* (CD +4.8 % at ×2, p = 0.002). **That reading is conditional on a workload defect found the
-same day:** the grounded mint gives each task its own client, so **97 % of multi-task peer groups span several
-clients** (3.56 distinct clients per 4.09-task group), whereas in the Alibaba trace a group is one request from one
-caller. Running a call locally therefore usually separates it from its partners. Part B re-runs the rules with one
-origin per group. **Every grounded-workload result before 2026-10-05 was measured under scattered origins** — not
-wrong, but to be disclosed wherever it is quoted.
+**Outcome so far.** Part A **did not test local execution**: only **2–7 of the 20 issuing clients ever host a
+replica** (the rest have no hardware that runs `dnn1`/`dnn2`), and those few are scaled down like any replica. The
+local-first rule therefore behaves exactly like Knative (identical paired % vs CD to two decimals at ×2 and ×3), and
+every rule ran 0.1–1.6 % of calls locally. Enabling client replicas helped no rule (Knative ties; the search rules are
+1–5 % slower, plausibly from changed start-up seeding). **Separately, a workload defect:** the grounded mint gives each
+task its own client, so **97 % of multi-task peer groups span several clients** (3.56 per 4.09-task group), while in the
+Alibaba trace a group is one request from one caller. **Every grounded-workload result before 2026-10-05 was measured
+under scattered origins** — not wrong, but to be disclosed where quoted. Part B (single-origin groups) is running; a real
+local-execution test needs clients that can run the functions and a replica that is not scaled away (not yet built).
 
 **Question.** Every grounded gate ran with `HEROSIM_SERVER_ONLY_REPLICAS=1` and `replicas.*.per_client = 0`, so every
 call was offloaded. Is that hiding a gain from running a call on its own client (the own-device-or-offload choice of the
@@ -48,6 +48,13 @@ rewrite: `scripts_cosim/client_local_v1_single_origin.py`. Reader: `scripts_cosi
 
 ## Record
 
+- 2026-10-05 — **Part A read, all seven rules (gate 828478 + local-first rerun 828629); it does not test local
+  execution.** Local-first ran 1.42 / 0.39 / 0.13 % of calls locally, the same as Knative (1.41 / 0.35 / 0.11 %), and
+  its paired % vs client-enabled CD equals Knative's at ×2 (+56.27 %) and ×3 (+290.81 %); at ×5 +37.7 vs +34.5 %.
+  Cause, from the run logs: only 7 of the 20 issuing clients ever hold a replica on 9483 and 9502, 2 on 9550 (the
+  others have no platform that runs `dnn1`/`dnn2`), and the autoscaler removes those (590 client-replica removals in
+  9483 g0 ×2, 389 of them on client_node0). Always-offload vs CD: +46.2 / +768.4 / +195.4 %. Missing runs: five timeouts
+  (9538 g2 ×2 CD and one-pass greedy; 9568 g1–g3 ×2 one-pass greedy, which completes server-only).
 - 2026-10-05 — **Relaunch after three faults; nothing below had produced an outcome.** (1) `local_first_network` was
   registered in `simulation.py` but not in `model.scheduling_strategies`, so all 228 local-first runs died at start-up
   (KeyError); fixed, with `tests/test_policy_registry_names.py` checking every registered policy has a short name.
