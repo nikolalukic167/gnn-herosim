@@ -28,6 +28,8 @@ if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate gnn
 export HEROSIM_PY=python3 PYTHONPATH="$WT"
+export HEROSIM_RAW_DIR=/tmp/herosim_raw_${SLURM_JOB_ID:-$$}  # node-local: 62 x ~250 MB raw results stay off the home quota
+mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "HEAD $(git rev-parse HEAD)  node $(hostname)  P=$P  BUILD=${BUILD:-0} kinds=${CL1_KINDS_RUN:-all}"
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
