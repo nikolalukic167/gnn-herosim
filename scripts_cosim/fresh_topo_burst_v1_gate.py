@@ -47,12 +47,18 @@ RULE_POLICY = {
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
+    "drain": "drain_greedy_network",  # rule_baselines_v1: least-loaded (drain-time shortest queue, per arrival, no exchange term)
+    "locality": "peer_greedy_network_batch",  # rule_baselines_v1: locality-first (exchange term x LOCALITY_SCALE)
     "cdext": "peer_greedy_network_cd",  # peak_controls_v1: CD + the label's externality at the label's rate
     "cdextr": "peer_greedy_network_cd",  # peak_controls_v1: CD + the externality at the rung's offered rate
 }
 # peak_controls_v1: HEROSIM_PG_EXT_RATE for the externality arms. The label's constant (drift_label, 0.46/s)
 # is the study's x1 rate; cdextr multiplies it by the rung (1 / HEROSIM_POLICY_TIME_SCALE).
 EXT_LABEL_RATE = 0.46
+# rule_baselines_v1: the locality-first rule is the batched peer-greedy with its exchange term weighted 100x, so
+# co-locating with placed partners dominates and queue drain only breaks ties
+LOCALITY_SCALE = 100.0
+RB1_KINDS = ("random", "drain", "locality", "decima", "batched", "selfpredict")
 EXT_KINDS = ("cdext", "cdextr")
 # decima_rule_v1 tuning arms: Decima's tuned weighted fair at a fixed alpha (a0 = fair, a1 = naive weighted fair)
 DECIMA_TUNE_ALPHAS = {"decima_am2": -2.0, "decima_am1": -1.0, "decima_am05": -0.5, "decima_a0": 0.0,
@@ -215,6 +221,12 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         if not want or any(w not in parts for w in want):
             raise SystemExit(f"FAIL LOUD: SBCONF_KINDS={want!r}; parts are {sorted(parts)}")
         return [task(t, w, k, s) for p in want for k, s in parts[p] for t in topos for w in gw]
+    if phase == "rb1":
+        # rule_baselines_v1: six hand rules on small_batch_confirm_v1's 19 topologies, the grounded x2/x3/x5 ladder
+        kinds = os.environ.get("RB1_KINDS_RUN", ",".join(RB1_KINDS)).split(",")
+        if not kinds or any(k not in RB1_KINDS for k in kinds):
+            raise SystemExit(f"FAIL LOUD: RB1_KINDS_RUN={kinds!r}; kinds are {RB1_KINDS}")
+        return [task(t, w, k) for k in kinds for t in topos for w in tuple(GROUNDED_LADDER)]
     if phase == "scale":
         # scale_sweep_v1 (exploratory, development topologies): SCALE_CONDS_RUN picks the conditions of this part
         conds = os.environ.get("SCALE_CONDS_RUN", ",".join(SCALE_CONDS)).split(",")
@@ -459,8 +471,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "cd", "cd_blind", "cd_inflight", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
+        if kind == "locality":
+            env["HEROSIM_PG_EXCHANGE_SCALE"] = repr(LOCALITY_SCALE)
         if kind == "cdext":
             env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE)
         if kind == "cdextr":
@@ -545,8 +559,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("decima instrument off: decima_batches == 0")
         if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
             problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
-    if kind in ("batched", "cd", "cd_blind", "cd_slate", "cd_inflight", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
+    want_scale = repr(LOCALITY_SCALE) if kind == "locality" else None
+    if out["env"].get("HEROSIM_PG_EXCHANGE_SCALE") != want_scale:
+        problems.append(f"served HEROSIM_PG_EXCHANGE_SCALE={out['env'].get('HEROSIM_PG_EXCHANGE_SCALE')!r}, {kind} needs {want_scale!r}")
     if kind in EXT_KINDS:
         want_rate = repr(EXT_LABEL_RATE if kind == "cdext" else EXT_LABEL_RATE / time_scale)
         if out["env"].get("HEROSIM_PG_EXT_RATE") != want_rate:
@@ -601,7 +618,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -613,7 +630,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
