@@ -21,11 +21,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fresh_topo_burst_v1_read as F  # noqa: E402
 import local_features_v1_read as L  # noqa: E402
 from peak_controls_v1_read import RUNGS, describe  # noqa: E402
+import peak_load_v1_read as P  # noqa: E402
 from peak_load_v1_read import contrast  # noqa: E402
 
 D = "/home/nikola.lukic/gnn-herosim/simulation_data"
 RULES = ("reactive", "cd", "locality", "selfpredict", "batched", "offload", "localfirst")
 SERVER_ONLY = ("reactive", "cd", "locality", "selfpredict", "batched")
+LEARNED = ("sb1load_selfref", "sb1mpoff_selfref", "lf1gnn_selfref", "lf1mlp_selfref")
+P.LEARNED = tuple(P.LEARNED) + LEARNED + tuple(f"{k}@cl" for k in LEARNED)  # contrast() pairs these on the seed
+P.SEEDS = (1, 2, 3, 4)
+PAIRS = (("sb1load_selfref", "sb1mpoff_selfref"), ("lf1gnn_selfref", "lf1mlp_selfref"))
 
 
 def main() -> int:
@@ -34,24 +39,32 @@ def main() -> int:
     ap.add_argument("--out")
     a = ap.parse_args()
     s = {}
-    for d in (f"{D}/small_batch_confirm_v1/gate", f"{D}/local_features_v1/ref_retry", f"{D}/rule_baselines_v1/gate"):
+    for d in (f"{D}/small_batch_confirm_v1/gate", f"{D}/local_features_v1/ref_retry", f"{D}/rule_baselines_v1/gate",
+              f"{D}/local_features_v1/gate"):
         s.update(F._summaries(d))
     for (t, w, k, sd), r in F._summaries(a.gate).items():
         s[(t, w, f"{k}@cl", sd)] = r
     topos = json.load(open(f"{D}/small_batch_confirm_v1/inputs/selected.json"))["topologies"]
-    out = {"vs_server_only": {}, "vs_cd_client": {}, "local_share_pct": {}, "arms": {}}
+    learned = [k for k in LEARNED if any(kk == f"{k}@cl" for (_, _, kk, _) in s)]
+    out = {"vs_server_only": {}, "vs_cd_client": {}, "vs_reactive_client": {}, "vs_twin_client": {},
+           "local_share_pct": {}, "arms": {}}
     for r in RUNGS:
         ws = L._windows(r)
-        for k in SERVER_ONLY:
+        for k in SERVER_ONLY + tuple(learned):
             out["vs_server_only"][f"{r}/{k}"] = contrast(s, topos, ws, f"{k}@cl", k)
-        for k in RULES:
+        for k in learned:
+            out["vs_reactive_client"][f"{r}/{k}"] = contrast(s, topos, ws, f"{k}@cl", "reactive@cl")
+        for a, b in PAIRS:
+            if a in learned and b in learned:
+                out["vs_twin_client"][f"{r}/{a}"] = contrast(s, topos, ws, f"{a}@cl", f"{b}@cl")
+        for k in RULES + tuple(learned):
             if k != "cd":
                 out["vs_cd_client"][f"{r}/{k}"] = contrast(s, topos, ws, f"{k}@cl", "cd@cl")
             rows = [v for (t, w, kk, _), v in s.items() if kk == f"{k}@cl" and t in topos and w in ws]
             out["local_share_pct"][f"{r}/{k}"] = (median(100.0 - float(v.get("offloadingRate") or 100.0) for v in rows)
                                                   if rows else None)
-        out["arms"][r] = {x: describe(s, topos, ws, x) for x in [f"{k}@cl" for k in RULES] + list(SERVER_ONLY) + [L.SB1]}
-    for name in ("vs_server_only", "vs_cd_client"):
+        out["arms"][r] = {x: describe(s, topos, ws, x) for x in [f"{k}@cl" for k in RULES + tuple(learned)] + list(SERVER_ONLY) + list(LEARNED)}
+    for name in ("vs_server_only", "vs_cd_client", "vs_reactive_client", "vs_twin_client"):
         for k, c in out[name].items():
             print(f"[{name}] {k:22s} {c.get('median_pct', math.nan):+8.2f} %  p={c.get('p', math.nan):.4f}  "
                   f"{c.get('faster')}/{c['n_topologies']}  {c['label']}", file=sys.stderr)
