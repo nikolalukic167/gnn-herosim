@@ -1,7 +1,16 @@
 # local_features_v1 — with only per-candidate features, does the GNN beat CD, CD+ext, the same-input MLP and the engineered MLP?
 
-**Status:** `REGISTERED` (2026-10-04). Arms, topologies, statistic and verdict were fixed before any training run;
-Amendments 1–2 (below) narrowed the verdict and added completeness and robustness reads before any gate summary was read.
+**Status:** `CLOSED` (2026-10-05) — **NO-WIN: CD-FASTER, GNN-BEATS-MLP**. Registered 2026-10-04; arms, topologies,
+statistic and verdict were fixed before any training run, and Amendments 1–2 before any gate summary was read.
+
+**Outcome.** On 19 unseen topologies (8 seeds), the GNN with per-candidate-only features beats the same-input MLP at
+every rung — **−11.0 / −24.2 / −20.2 %** at ×2 / ×3 / ×5, 18–19 of 19 topologies, Holm-CONFIRMED, every seed alone and
+seed-pairing-free — and its no-conv twin −8 to −17 % (so the convs, not the sum channel, carry it). But **CD is faster at
+every rung: +14.0 / +34.0 / +6.2 %** (CD+ext +16 / +67 / +14 %), Holm REF-FASTER, so the verdict is NO-WIN. The gap is
+queue (×3: 61.7 s vs CD 41.4 s; exchange 3.7 vs 3.4 s). The engineered scorer stays far ahead (+24–121 %, descriptive).
+Learned relational aggregation is a real GNN-over-MLP win here and still not enough to beat search. Read without four MLP
+runs that never got their rerun (reader label `INCOMPLETE` for that reason only; they enter no CD test). Caveats: ~2 %
+of runs hang deterministically in all arms (45 recorded twice-failed); 9557 g0 ×2 loses all 8 MLP seeds to hangs.
 
 **Amendment 1 (2026-10-04, before any lf1 gate run; only offline val regret and the three smoke runs had been seen).**
 The success claim is scoped to the same-input comparison: primary family `lf1gnn` vs {CD, `cdextr`, `lf1mlp`} × {×2, ×3,
@@ -78,6 +87,21 @@ scoped to "the GNN learns the relational structure the same-input MLP cannot", n
 
 ## Record
 
+- 2026-10-05 — **Gate read: NO-WIN (CD faster at every rung; GNN beats the same-input MLP at every rung).**
+  Jobs 827015–827017 (8 seeds × 3 arms × 19 topologies × 4 windows × 3 rungs); one rerun at 8100 s (827433) of every
+  2700 s timeout. Every rerun hung again — simulation clock frozen at a fixed time in all arms, CD and CD+ext included —
+  and the rerun's 3–4 GB spin logs filled the home quota at 05:14; it was cancelled at 05:35, the logs compressed
+  losslessly, and 45 second-failure records written (`local_features_v1_record_hangs.py`, job 827561,
+  `local_features_v1/record-827561.json`). Four MLP runs the rerun never started were left out at the user's call; they
+  can enter only the GNN-vs-MLP tests, which are CONFIRMED at 18–19 / 19 with them dropped.
+  Primary (Holm over 9): vs CD +14.0 / +34.0 / +6.2 %, vs CD+ext +16.0 / +67.2 / +13.9 % (all REF-FASTER, 0–4 / 19
+  faster); vs `lf1mlp` −11.0 / −24.2 / −20.2 % (CONFIRMED). Registered 12-test verdict (with `sb1mpoff`): NO-WIN.
+  Robustness: seed-pairing-free vs MLP −11.1 / −22.2 / −19.8 %; each of the 8 seeds beats the MLP at every rung
+  (−7.9 to −32.9 %) and loses to CD at every rung (seed 8 at ×5 nearly ties, +0.5 %). Descriptive: vs `lf1twin`
+  −12.9 / −17.0 / −8.1 %; `lf1mlp` and `lf1twin` lose to CD by 18–73 %. Median latency / queue / exchange (s): ×3
+  `lf1gnn` 65.3 / 61.7 / 3.68, `lf1mlp` 93.5 / 89.5 / 3.98, CD 44.7 / 41.4 / 3.37, `sb1mpoff` 28.3 / 24.7 / 3.03.
+  Read: `local_features_v1/lf1_read_without4.json`. The MLP learning-rate check of Amendment 2(c) is not run: it is
+  conditional on a win.
 - 2026-10-04 — **Smoke (job 826416).** Cached-graph train/serve parity bitwise for seed 1 of all three arms (237 scored
   steps each); one live run per arm completed. The replay of `lf1gnn`'s 200 dumped live calls failed at 4.8e-7 under the
   job's 8 BLAS threads and passed **bitwise** when re-run with one thread, as the live runs score (login node,
