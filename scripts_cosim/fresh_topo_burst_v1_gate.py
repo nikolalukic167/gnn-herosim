@@ -63,6 +63,7 @@ LOCALITY_SCALE = 100.0
 RB1_KINDS = ("random", "drain", "locality", "decima", "batched", "selfpredict")
 # client_local_v1: clients host replicas and may run their own calls (cells carry "client_local_v1": true)
 CL1_KINDS = ("reactive", "cd", "locality", "selfpredict", "batched", "offload", "localfirst")
+CL1_LEARNED = ("sb1load", "sb1mpoff", "lf1gnn", "lf1mlp")  # served zero-shot: trained on server-only candidates
 EXT_KINDS = ("cdext", "cdextr")
 # decima_rule_v1 tuning arms: Decima's tuned weighted fair at a fixed alpha (a0 = fair, a1 = naive weighted fair)
 DECIMA_TUNE_ALPHAS = {"decima_am2": -2.0, "decima_am1": -1.0, "decima_am05": -0.5, "decima_a0": 0.0,
@@ -235,9 +236,12 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         return [task(t, w, f"{k}_selfref", s) for k in kinds for s in range(1, 9) for t in topos for w in tuple(GROUNDED_LADDER)]
     if phase == "cl1":
         kinds = os.environ.get("CL1_KINDS_RUN", ",".join(CL1_KINDS)).split(",")
-        if not kinds or any(k not in CL1_KINDS for k in kinds):
-            raise SystemExit(f"FAIL LOUD: CL1_KINDS_RUN={kinds!r}; kinds are {CL1_KINDS}")
-        return [task(t, w, k) for k in kinds for t in topos for w in tuple(GROUNDED_LADDER)]
+        if not kinds or any(k not in CL1_KINDS + CL1_LEARNED for k in kinds):
+            raise SystemExit(f"FAIL LOUD: CL1_KINDS_RUN={kinds!r}; kinds are {CL1_KINDS + CL1_LEARNED}")
+        seeds = [int(x) for x in os.environ.get("CL1_SEEDS", "1,2,3,4").split(",")]
+        gw = tuple(GROUNDED_LADDER)
+        return ([task(t, w, k) for k in kinds if k in CL1_KINDS for t in topos for w in gw] +
+                [task(t, w, f"{k}_selfref", s) for k in kinds if k in CL1_LEARNED for s in seeds for t in topos for w in gw])
     if phase == "rb1":
         # rule_baselines_v1: six hand rules on small_batch_confirm_v1's 19 topologies, the grounded x2/x3/x5 ladder
         kinds = os.environ.get("RB1_KINDS_RUN", ",".join(RB1_KINDS)).split(",")

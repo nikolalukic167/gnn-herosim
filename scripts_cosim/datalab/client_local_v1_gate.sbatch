@@ -71,7 +71,7 @@ python3 scripts_cosim/fresh_topo_burst_v1_gate.py cl1 --inputs "$IN" --out "$CL/
   --parallel "$P" --mem 4G --timeout "$TIMEOUT" --no-scope | grep -v "^\[skip"
 rc=${PIPESTATUS[0]}
 set -e
-echo "=== cl1: $(ls "$CL"/gate/*.summary.json 2>/dev/null | wc -l)/1596 summaries, $(ls "$CL"/gate/*.failed.json 2>/dev/null | wc -l) failed ==="
+echo "=== cl1: $(ls "$CL"/gate/*.summary.json 2>/dev/null | wc -l) summaries total, $(ls "$CL"/gate/*.failed.json 2>/dev/null | wc -l) failed ==="
 find "$CL/gate" -name "*.log" -size +50M -exec gzip -1 {} \;
 python3 scripts_cosim/client_local_v1_read.py --gate "$CL/gate" --out "$CL/cl1_read.json"
 echo "driver rc=$rc"
