@@ -657,3 +657,17 @@ train/serve parity check (`scripts_cosim/peer_affinity_live_serve_check.py`) on 
   learned headline by more than that, and it did not favour the rule arms.
 - **The general rule:** run the parity check whenever a decode rung, a contract or a serving flag
   changes. A seat change is a new serving path, even when the checkpoint is not new.
+
+## 2026-10-05 — `total_rtt_plus_inference` times the batch schedulers only, CD included
+
+Decision time is wall clock (`default_timer`) around the batch decision in `GNNScheduler._process_task_batch_prefix`
+(`src/policy/gnn/scheduler.py`), split per task into `gnn_decision_time` and summed by the orchestrator. Every policy
+that inherits that batch path is timed: the GNN and MLP arms **and** CD, `cdextr`, the one-pass greedy and
+locality-first (`PeerGreedyNetworkBatchScheduler` subclasses `GNNScheduler`). The per-arrival schedulers (Knative,
+self-predict, drain, random, Decima's rule) never set it and read 0.
+
+- **Measured on the 19 grounded topologies** (server-only gates, 62 simulations per node, single-threaded): per
+  50,000-task run CD takes 3.7 / 5.1 / 11.2 s at ×2 / ×3 / ×5, `sb1load` 92 / 93 / 102 s (8–24× CD, paired, 19/19),
+  `lf1gnn` 172–191 s, `lf1mlp` 66–80 s. Both are ≤ 0.02 % of total latency. Ratios are fair; absolute values are
+  inflated by the shared node.
+- **Rule:** a "latency + inference" contrast against a per-arrival rule charges only one side. Say which arms are timed.
