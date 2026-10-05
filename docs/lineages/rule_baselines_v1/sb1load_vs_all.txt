@@ -1,0 +1,30 @@
+x20/cd              -9.71 %  holm=0.0002  18/19  CONFIRMED
+x20/cdextr          -6.82 %  holm=0.0001  19/19  CONFIRMED
+x20/reactive       -43.42 %  holm=0.0001  19/19  CONFIRMED
+x20/random         -75.52 %  holm=0.0001  19/19  CONFIRMED
+x20/drain          -35.32 %  holm=0.0001  19/19  CONFIRMED
+x20/locality       -15.26 %  holm=0.0001  19/19  CONFIRMED
+x20/decima         -32.69 %  holm=0.0001  19/19  CONFIRMED
+x20/batched        -14.66 %  holm=0.0001  19/19  CONFIRMED
+x20/selfpredict     -8.11 %  holm=0.0056  16/18  CONFIRMED
+x30/cd             -35.24 %  holm=0.0001  19/19  CONFIRMED
+x30/cdextr         -25.40 %  holm=0.0008  18/19  CONFIRMED
+x30/reactive       -83.56 %  holm=0.0047  18/19  CONFIRMED
+x30/random         -94.36 %  holm=0.0001  19/19  CONFIRMED
+x30/drain          -81.42 %  holm=0.0047  18/19  CONFIRMED
+x30/locality       -18.34 %  holm=0.0047  18/19  CONFIRMED
+x30/decima         -69.79 %  holm=0.0001  19/19  CONFIRMED
+x30/batched        -37.56 %  holm=0.0001  19/19  CONFIRMED
+x30/selfpredict    -26.80 %  holm=0.0003  18/19  CONFIRMED
+x50/cd             -16.96 %  holm=0.0001  18/19  CONFIRMED
+x50/cdextr         -16.26 %  holm=0.0001  19/19  CONFIRMED
+x50/reactive       -40.81 %  holm=0.0001  19/19  CONFIRMED
+x50/random         -75.07 %  holm=0.0001  19/19  CONFIRMED
+x50/drain          -34.30 %  holm=0.0001  19/19  CONFIRMED
+x50/locality       -13.24 %  holm=0.0001  19/19  CONFIRMED
+x50/decima         -27.32 %  holm=0.0001  19/19  CONFIRMED
+x50/batched        -20.18 %  holm=0.0001  19/19  CONFIRMED
+x50/selfpredict    -17.40 %  holm=0.0001  19/19  CONFIRMED
+x20 sb1load:13/9  cd:14/11  cdextr:14/10  reactive:24/19  random:55/51  drain:20/16  locality:15/11  decima:20/15  batched:16/12  selfpredict:14/11
+x30 sb1load:28/24  cd:45/41  cdextr:35/32  reactive:168/164  random:454/449  drain:111/107  locality:31/28  decima:91/87  batched:50/47  selfpredict:39/36
+x50 sb1load:133/130  cd:160/156  cdextr:151/148  reactive:229/225  random:507/502  drain:200/196  locality:151/147  decima:194/190  batched:169/166  selfpredict:162/159
