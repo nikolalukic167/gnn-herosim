@@ -426,6 +426,7 @@ def attach_live_prefix_block(
             raise PrefixServingError(f"node_id {nid} maps to two names")
         name_by_node_id[nid] = nname
     network_map_by_name = {str(n.node_name): getattr(n, "network_map", {}) or {} for n in nodes}
+    node_by_name = {str(n.node_name): n for n in nodes}
 
     # demands + caps: the sweep-side rule (cap = alpha x the max single candidate demand
     # on the node), over this batch's candidate set
@@ -521,13 +522,20 @@ def attach_live_prefix_block(
                 node_exchange[(a, b)] = (0.0, 0.0)
                 continue
             h, bneck = route_hb[(a, b)]
-            entry = (network_map_by_name.get(name_by_node_id[a]) or {}).get(name_by_node_id[b])
-            if entry is None:
-                raise PrefixServingError(
-                    f"no network_map[{name_by_node_id[a]}][{name_by_node_id[b]}] — the exchange "
-                    "latency is undefined"
-                )
-            node_exchange[(a, b)] = (float(h) / (float(bneck) * 1024 * 1024), _latency(entry))
+            na, nb = name_by_node_id[a], name_by_node_id[b]
+            entry = (network_map_by_name.get(na) or {}).get(nb)
+            if entry is not None:
+                lat = _latency(entry)
+            else:
+                # No logical edge (a client and a node it does not reach directly, client_local_v1): the
+                # physics charges the backbone route's latency (Platform.peer_link_latency), so read the same.
+                fabric = getattr(node_by_name.get(na), "fabric", None)
+                if fabric is None or not fabric.has_route(na, nb):
+                    raise PrefixServingError(
+                        f"no network_map[{na}][{nb}] and no backbone route — the exchange latency is undefined"
+                    )
+                lat = fabric.route_latency(na, nb)
+            node_exchange[(a, b)] = (float(h) / (float(bneck) * 1024 * 1024), lat)
     if peer_pairs:
         peer_norm = (max(peer_pairs.values()) * max(pb for pb, _l in node_exchange.values())
                      + max(l for _pb, l in node_exchange.values()))
