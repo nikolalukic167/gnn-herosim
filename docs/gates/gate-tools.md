@@ -671,3 +671,15 @@ self-predict, drain, random, Decima's rule) never set it and read 0.
   `lf1gnn` 172–191 s, `lf1mlp` 66–80 s. Both are ≤ 0.02 % of total latency. Ratios are fair; absolute values are
   inflated by the shared node.
 - **Rule:** a "latency + inference" contrast against a per-arrival rule charges only one side. Say which arms are timed.
+
+## 2026-10-05 — Raw results on the home quota: three gates at once fill it
+
+`fresh_topo_burst_v1_gate.py` writes each simulation's ~250 MB raw result next to its summary and deletes it once
+summarised, so a gate at 62 parallel holds ~15 GB at any moment. Three such gates plus training reached the 250 G home
+quota at 19:09 on 2026-10-05: runs ended with rc 120 (Python's stdout flush failing at exit, no traceback) and training
+tasks died mid-epoch with nothing in their logs.
+
+- **Fix:** `HEROSIM_RAW_DIR` (default: the gate dir, so older sbatches are unchanged) moves the raw file to node-local
+  `/tmp` (936 G free on CPU-amd nodes); `client_local_v1_*.sbatch` and the newer gate sbatches set it.
+- **Rule:** rc 120, or a run whose log stops mid-simulation with no error, is the quota until shown otherwise; check
+  `du -sh ~` before rerunning, and remove those records — they are not outcomes.
