@@ -45,6 +45,14 @@ Decision time is not charged to any arm.
 
 ## Record
 
+- 2026-10-05 — **Descriptive addendum, read after the gate (not registered): the engineered GNN `sb1load`
+  (`small_batch_confirm_v1`, 8 seeds, same cells) beats every reference at every rung**, 27 / 27 Holm-CONFIRMED, 16–19 / 19
+  topologies (×2 / ×3 / ×5): CD −9.7 / −35.2 / −17.0 %, `cdextr` −6.8 / −25.4 / −16.3 %, self-predict −8.1 / −26.8 /
+  −17.4 %, locality −15.3 / −18.3 / −13.2 %, batched −14.7 / −37.6 / −20.2 %, decima −32.7 / −69.8 / −27.3 %, drain
+  −35.3 / −81.4 / −34.3 %, reactive −43.4 / −83.6 / −40.8 %, random −75.5 / −94.4 / −75.1 %. Median latency at ×3:
+  `sb1load` 28 s, locality 31, `cdextr` 35, self-predict 39, CD 45, reactive 168. Not a message-passing result:
+  `sb1load` ties its MP-OFF twin (`small_batch_confirm_v1`); its relational columns carry it.
+  (`scripts_cosim/rule_baselines_v1_sb1load_read.py`, output `rule_baselines_v1/sb1load_vs_all.txt`.)
 - 2026-10-05 — **Gate 827974 read** (1,359 / 1,368 runs; 9 timeouts dropped by name, the hangs seen in every arm).
   Holm over 18, `lf1gnn` vs rule (×2 / ×3 / ×5): random −66.0 / −85.2 / −66.4 % CONFIRMED; drain −18.8 / −37.0 / −15.3 %
   CONFIRMED; decima −15.2 / −20.5 / −11.6 % CONFIRMED; locality +6.5 / +78.4 / +14.9 % REF-FASTER; batched +5.3 / +20.5 %
