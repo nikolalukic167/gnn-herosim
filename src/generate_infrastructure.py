@@ -507,6 +507,33 @@ def build_core_backbone(
             network_maps[source_name][peer_name] = total
             network_maps[peer_name][source_name] = total
 
+    # Opt-in (`network.backbone.exchange_routes: all_pairs`): route every remaining node pair
+    # over the backbone too, so a peer exchange between two nodes with no logical edge (a task
+    # run on its own client and a partner elsewhere) has a path to be charged on. Only `routes`
+    # grows; `network_maps` -- and with it which replicas a task may use -- is unchanged.
+    exchange_routes = backbone_config.get('exchange_routes')
+    if exchange_routes not in (None, 'all_pairs'):
+        raise ValueError(
+            f"network.backbone.exchange_routes must be absent or 'all_pairs', got {exchange_routes!r}"
+        )
+    if exchange_routes == 'all_pairs':
+        names = [n['node_name'] for n in nodes]
+        for source_name in names:
+            paths = _dijkstra_paths(adjacency, source_name)
+            for peer_name in names:
+                if peer_name == source_name:
+                    continue
+                if peer_name in routes.get(source_name, {}) or source_name in routes.get(peer_name, {}):
+                    continue
+                path = paths.get(peer_name)
+                if path is None:
+                    raise RuntimeError(
+                        f"exchange_routes=all_pairs: no backbone path {source_name} -> {peer_name}"
+                    )
+                routes.setdefault(source_name, {})[peer_name] = path
+                for i in range(len(path) - 1):
+                    used_links.add(link_key(path[i], path[i + 1]))
+
     # Keep only links some route actually traverses: an untraversed pipe never contends,
     # and pruning keeps `link_keys` an honest denominator for the overlap pre-check.
     links = {key: attrs for key, attrs in links.items() if key in used_links}
@@ -523,6 +550,7 @@ def build_core_backbone(
             "bandwidth_mbps": bandwidth_mbps,
             "core_bandwidth_mbps": core_bandwidth_mbps,
             "rng_stream": rng_stream,
+            **({"exchange_routes": exchange_routes} if exchange_routes else {}),
         },
     }
 

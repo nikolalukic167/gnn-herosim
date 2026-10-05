@@ -149,6 +149,18 @@ class NetworkFabric:
             hops.append((key, self._bandwidth[key]))
         return hops
 
+    def has_route(self, src: str, dst: str) -> bool:
+        try:
+            _lookup_path(self._routes, src, dst)
+        except KeyError:
+            return False
+        return True
+
+    def route_latency(self, src: str, dst: str) -> float:
+        """Propagation latency (s) along the stored route: the sum of its links' latencies."""
+        links = self._link_topology.get("links") or {}
+        return sum(float(links[key]["latency"]) for key in route_links(self._routes, src, dst))
+
     def pipe(self, key: str) -> Resource:
         return self._pipes[key]
 

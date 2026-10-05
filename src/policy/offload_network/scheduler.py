@@ -56,5 +56,22 @@ class OffloadNetworkScheduler(KnativeScheduler):
             elif hasattr(node, "network_map") and task.node_name in node.network_map:
                 valid_replicas.append((node, platform))
 
+        # `replicas` is a set: sort so the order (and the shortest-queue tie-break) is reproducible.
+        valid_replicas.sort(key=lambda couple: (couple[0].id, couple[1].id))
         return valid_replicas
+
+
+class LocalFirstNetworkScheduler(KnativeScheduler):
+    """The edge baseline opposite to offload_network: run on the source client whenever a replica of
+    the task's function is there, otherwise Knative's shortest queue over the reachable replicas.
+    Only meaningful when clients host replicas (replicas.per_client > 0, HEROSIM_SERVER_ONLY_REPLICAS=0)."""
+
+    def _get_valid_replicas(
+        self,
+        replicas: Set[Tuple["Node", "Platform"]],
+        task: "Task",
+    ) -> List[Tuple["Node", "Platform"]]:
+        valid = super()._get_valid_replicas(replicas, task)
+        local = [(node, platform) for node, platform in valid if node.node_name == task.node_name]
+        return local or valid
 

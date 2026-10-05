@@ -103,7 +103,7 @@ from src.policy.knative_network_ect_pull.scheduler import (
     KnativeECTPullScheduler as KnativeNetworkECTPullScheduler,
 )
 from src.policy.knative_network_batch.scheduler import KnativeBatchScheduler as KnativeNetworkBatchScheduler
-from src.policy.offload_network.scheduler import OffloadNetworkScheduler
+from src.policy.offload_network.scheduler import LocalFirstNetworkScheduler, OffloadNetworkScheduler
 
 from src.policy.roundrobin_network.orchestrator import RoundRobinNetworkOrchestrator
 from src.policy.roundrobin_network.autoscaler import RoundRobinNetworkAutoscaler
@@ -744,6 +744,7 @@ def start_simulation(
         # decima_rule_v1: Decima's tuned weighted-fair baseline in the burst seat
         "decima_wfair_network_decima_wfair_network": (GNNOrchestrator, GNNAutoscaler, DecimaWeightedFairBatchScheduler),
         "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
+        "local_first_network_local_first_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, LocalFirstNetworkScheduler),
     }
 
     # Retrieve relevant Autoscaler and Scheduler classes
