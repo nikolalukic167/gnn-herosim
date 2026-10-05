@@ -98,7 +98,9 @@ RAW_KINDS = ("rawgnn", "rawmlp") + RAW_V2
 SB1_KINDS = ("sb1load", "sb1mpoff")  # small_batch_v1: xs1load / xs1mpoff recipes trained on live-sized batches
 # local_features_v1: rawS / rawStwin / rawmlp plus the static per-candidate columns (plan_raw_local), small-batch corpus
 LF1_KINDS = ("lf1gnn", "lf1twin", "lf1mlp")
-BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS
+# sum aggregation over the bipartite convs: sb1load's and lf1gnn's recipes with NEAR_RTT_MP_BIPARTITE_AGGR=sum
+AGG_KINDS = ("sb1sum", "lf1sum")
+BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS + AGG_KINDS
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
 SERVICE_END = "service_end_v1"
@@ -221,6 +223,12 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         if not want or any(w not in parts for w in want):
             raise SystemExit(f"FAIL LOUD: SBCONF_KINDS={want!r}; parts are {sorted(parts)}")
         return [task(t, w, k, s) for p in want for k, s in parts[p] for t in topos for w in gw]
+    if phase == "agg1":
+        # sum vs mean bipartite aggregation on the 19 topologies; the mean arms are sb1load / lf1gnn's existing runs
+        kinds = os.environ.get("AGG_KINDS_RUN", ",".join(AGG_KINDS)).split(",")
+        if not kinds or any(k not in AGG_KINDS for k in kinds):
+            raise SystemExit(f"FAIL LOUD: AGG_KINDS_RUN={kinds!r}; kinds are {AGG_KINDS}")
+        return [task(t, w, f"{k}_selfref", s) for k in kinds for s in range(1, 9) for t in topos for w in tuple(GROUNDED_LADDER)]
     if phase == "rb1":
         # rule_baselines_v1: six hand rules on small_batch_confirm_v1's 19 topologies, the grounded x2/x3/x5 ladder
         kinds = os.environ.get("RB1_KINDS_RUN", ",".join(RB1_KINDS)).split(",")
@@ -432,6 +440,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = f"small-batch-v1-{base_kind}"
         elif base_kind in LF1_KINDS:
             stem = f"local-features-v1-{base_kind}"
+        elif base_kind in AGG_KINDS:
+            stem = f"aggr-sum-v1-{base_kind}"
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
         else:
@@ -439,7 +449,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         ck = os.path.join(inputs, "models", f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff"}.get(base_kind, base_kind)
-        split = ("small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
+        split = ("small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
                                   os.path.join(inputs, split), "inf"], env=env, cwd=REPO)
@@ -453,7 +463,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
                        PARTIAL_STATE_LOAD_SECONDS="0" if base_kind == "v4twin" else "1",
-                       PARTIAL_STATE_EXCHANGE_SECONDS="1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS else "0")
+                       PARTIAL_STATE_EXCHANGE_SECONDS="1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS + AGG_KINDS else "0")
         if base_kind in BC1_KINDS or kind.endswith("_se"):
             env["HEROSIM_INFLIGHT_CAPTURE"] = SERVICE_END
         if kind.endswith("_spread"):
@@ -592,7 +602,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if out["env"].get("PARTIAL_STATE_LOAD_SECONDS", "") != want_ls:
             problems.append(f"served PARTIAL_STATE_LOAD_SECONDS={out['env'].get('PARTIAL_STATE_LOAD_SECONDS')!r}, "
                             f"{base_kind} needs {want_ls}")
-        want_xs = "1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS else "0"
+        want_xs = "1" if base_kind in ("xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS + AGG_KINDS else "0"
         if out["env"].get("PARTIAL_STATE_EXCHANGE_SECONDS", "") != want_xs:
             problems.append(f"served PARTIAL_STATE_EXCHANGE_SECONDS={out['env'].get('PARTIAL_STATE_EXCHANGE_SECONDS')!r}, "
                             f"{base_kind} needs {want_xs}")
@@ -618,7 +628,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -630,7 +640,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
