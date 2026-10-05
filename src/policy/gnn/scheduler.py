@@ -208,6 +208,11 @@ def _read_gnn_batch_timeout() -> float:
     return timeout
 
 
+# Starved-task retry (see GNNScheduler._starved_spin): after this many deferrals at one instant, wait before retrying.
+DEFER_SPIN_LIMIT = 50
+DEFER_RETRY_S = float(os.environ.get("HEROSIM_DEFER_RETRY_S", "1.0"))
+
+
 class GNNScheduler(Scheduler):
     # Snapshot "policy" field for live-audit capture; subclasses override.
     _live_audit_policy_name = "gnn"
@@ -228,6 +233,8 @@ class GNNScheduler(Scheduler):
         self.prefix_batches = 0
         self.prefix_tasks_decoded = 0
         self.prefix_tasks_deferred = 0
+        self._defer_spin: Dict[int, Tuple[float, int]] = {}
+        self.deferred_spin_waits = 0
         self.prefix_pairs_in_batch = 0
         self.prefix_peers_outside_batch = 0
         self.prefix_sibling_moves = 0
@@ -448,6 +455,38 @@ class GNNScheduler(Scheduler):
             print("[GNN Scheduler] Model set to eval mode", flush=True)
         
         print(f"[GNN Scheduler] After set_models: gnn_model is None = {self.gnn_model is None}", flush=True)
+
+    def _starved_spin(self, task: "Task") -> bool:
+        """True once `task` has been deferred more than DEFER_SPIN_LIMIT times at one simulated instant.
+
+        A deferred task goes straight back into the queue and the batch collector takes a ready task at once, so when
+        no replica can be created (every compatible platform the source reaches is occupied) the scheduler re-defers
+        the same task forever without the clock moving -- the frozen-clock hang. A run that completes resolves within
+        a few retries, so only the infinite loop crosses the limit.
+        """
+        prev, n = self._defer_spin.get(int(task.id), (None, 0))
+        n = n + 1 if prev == self.env.now else 1
+        self._defer_spin[int(task.id)] = (self.env.now, n)
+        return n > DEFER_SPIN_LIMIT
+
+    def _requeue_after(self, task: "Task", delay: float) -> Generator:
+        yield self.env.timeout(delay)
+        task.postponed_count += 1
+        yield self.tasks.put(task)
+
+    def _defer(self, task: "Task", system_state: SystemState) -> Generator:
+        if self._starved_spin(task):
+            self.deferred_spin_waits += 1
+            logging.warning(
+                f"[ {self.env.now} ] starved: no replica can be created for {task}; retrying in {DEFER_RETRY_S}s"
+            )
+            self.env.process(self._requeue_after(task, DEFER_RETRY_S))
+            return
+        task.postponed_count += 1
+        yield self.tasks.put(task)
+        yield self.env.process(
+            self.autoscaler.create_first_replica(system_state, task.type, source_node_name=task.node_name)
+        )
 
     def scheduler_process(self) -> Generator:
         if False:
@@ -676,18 +715,7 @@ class GNNScheduler(Scheduler):
                     f"[ {self.env.now} ] GNN Scheduler: no network-accessible replica for {task}"
                 )
                 
-                task.postponed_count += 1
-                yield self.tasks.put(task)
-
-                # Request replica from autoscaler
-                stop = yield self.env.process(
-                    self.autoscaler.create_first_replica(
-                        current_system_state, 
-                        task.type,
-                        source_node_name=task.node_name
-                    )
-                )
-                
+                yield from self._defer(task, current_system_state)
                 yield self.mutex.put(current_system_state)
                 continue
 
@@ -1124,13 +1152,7 @@ class GNNScheduler(Scheduler):
             logging.warning(
                 f"[ {self.env.now} ] GNN masked_topo: no network-accessible replica for {task}"
             )
-            task.postponed_count += 1
-            yield self.tasks.put(task)
-            yield self.env.process(
-                self.autoscaler.create_first_replica(
-                    current_system_state, task.type, source_node_name=task.node_name
-                )
-            )
+            yield from self._defer(task, current_system_state)
             yield self.mutex.put(current_system_state)
 
         for idx, task in enumerate(decodable):
