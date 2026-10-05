@@ -53,7 +53,7 @@ columns per (task, candidate) edge, independent of the committed set — log1p b
 task's own service seconds there, the node's standing load / capacity, headroom after this task, node rank (size-free).
 
 **Arms** (small-batch corpus, cache and split of `small_batch_v1`; 100 epochs, best validation checkpoint; 8 seeds each):
-- `lf1gnn`: `raw_plan_v2` `rawS` (raw plan, committed-load sum channel, two bipartite convs) + local block;
+- `lf1gnn`: `raw_plan_v2` `rawS` (raw plan, committed-load sum channel, a peer conv and three bipartite edge convs — `bip_convs.0–2` in every checkpoint; the config comment saying "two" is wrong) + local block;
 - `lf1twin`: the same with every conv skipped (keeps the sum channel) — descriptive;
 - `lf1mlp`: no message passing and no sum channel (the same-input pointwise control: a partner is invisible unless it
   lands on one of the task's own candidates) + local block.
