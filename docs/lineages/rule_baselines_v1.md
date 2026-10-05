@@ -1,6 +1,13 @@
 # rule_baselines_v1 — does the per-candidate-features GNN beat six standard hand placement rules?
 
-**Status:** `REGISTERED` (2026-10-05). Arms, topologies, statistic and labels fixed before any run.
+**Status:** `CLOSED` (2026-10-05) — **BEATS-NAIVE-RULES / CO-LOCATION-RULES-FASTER**. Registered the same day; arms,
+topologies, statistic and labels fixed before any run.
+
+**Outcome.** `lf1gnn` beats random (−66 / −85 / −66 %), least-loaded (−19 / −37 / −15 %) and Decima's weighted-fair
+heuristic (−15 / −21 / −12 %) at every rung, Holm-CONFIRMED, 18–19 / 19 topologies. Every rule with a co-location term
+is faster: locality-first +6 / +78 / +15 %, self-predict +14 / +64 / +6 %, one-pass greedy +5 / +20 % (×5 −2 %,
+NOT-SEPARATED). The co-location rules win on queue as well as exchange (×3 median queue 28–47 s vs the GNN's 62 s).
+The same-input MLP beats only random and least-loaded (×2 / ×3) and ties Decima's rule.
 
 **Question.** `local_features_v1`'s GNN (`lf1gnn`) beats its same-input MLP and the reactive Knative-style scheduler
 on 19 unseen topologies. The literature on learned schedulers (Decima, Placeto, L2D, EP-NCO) compares against a
@@ -38,4 +45,12 @@ Decision time is not charged to any arm.
 
 ## Record
 
+- 2026-10-05 — **Gate 827974 read** (1,359 / 1,368 runs; 9 timeouts dropped by name, the hangs seen in every arm).
+  Holm over 18, `lf1gnn` vs rule (×2 / ×3 / ×5): random −66.0 / −85.2 / −66.4 % CONFIRMED; drain −18.8 / −37.0 / −15.3 %
+  CONFIRMED; decima −15.2 / −20.5 / −11.6 % CONFIRMED; locality +6.5 / +78.4 / +14.9 % REF-FASTER; batched +5.3 / +20.5 %
+  REF-FASTER, −2.0 % NOT-SEPARATED; selfpredict +13.6 / +63.9 / +5.6 % REF-FASTER. `lf1mlp` (descriptive): random
+  −60 / −79 / −57 %, drain −8 / −11 / +4 %, decima −1 / +3 / +9 %, the co-location rules +19 to +181 %. Median latency /
+  queue / exchange per task at ×3 (s): `lf1gnn` 65 / 62 / 3.68, locality 31 / 28 / 3.04, selfpredict 39 / 36 / 3.23,
+  batched 50 / 47 / 3.47, decima 91 / 87 / 3.86, drain 111 / 107 / 4.03, random 454 / 449 / 4.53.
+  Read: `rule_baselines_v1/rb1_read.json`.
 - 2026-10-05 — Registered.
