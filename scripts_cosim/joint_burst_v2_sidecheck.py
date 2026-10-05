@@ -14,11 +14,15 @@ import sys
 RAW_V2 = ("rawE", "rawS", "rawES", "rawStwin")
 # local_features_v1: each arm is a raw-plan arm plus the static per-candidate columns
 LF1_BASE = {"lf1gnn": "rawS", "lf1twin": "rawStwin", "lf1mlp": "rawmlp"}
+# sum aggregation: the same recipe with mp_bipartite_aggr = "sum"
+AGG_BASE = {"sb1sum": "xs1load", "lf1sum": "lf1gnn"}
 
 
 def main() -> int:
     contract_path, arm, split, want_alpha = sys.argv[1:5]
     sc = json.load(open(contract_path))
+    aggr = "sum" if arm in AGG_BASE else "mean"
+    arm = AGG_BASE.get(arm, arm)
     local = arm in LF1_BASE
     arm = LF1_BASE.get(arm, arm)
     raw = ("rawgnn", "rawmlp") + RAW_V2
@@ -57,8 +61,8 @@ def main() -> int:
         want["exchange_seconds"] = True
     if arm in ("gnnedge0", "v4load", "v4twin", "bc1load", "fc1load", "xs1load", "rawgnn", "rawS"):
         want.update(mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True)
-        if "mp_bipartite_aggr" in sc:
-            want["mp_bipartite_aggr"] = "mean"
+        if "mp_bipartite_aggr" in sc or aggr != "mean":
+            want["mp_bipartite_aggr"] = aggr
     if arm in ("rawE", "rawES"):
         # raw_plan_v2: the conv sees the physics edge_attr
         want.update(mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=False)
