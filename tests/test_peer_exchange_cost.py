@@ -157,6 +157,68 @@ def test_unreachable_peer_node_fails_loud(peer_exchange_on):
         cost(a, tasks[0])
 
 
+def test_peer_without_a_logical_edge_is_charged_over_the_backbone_route(peer_exchange_on):
+    """exchange_routes: all_pairs -- a task on its own client and a partner on another client have
+    no network_map edge; the stored backbone route prices the exchange (hops x bytes / bottleneck +
+    the route's latency), and a logical edge still takes precedence when one exists."""
+    from src.placement.network_fabric import NetworkFabric
+
+    import simpy
+    env = simpy.Environment()
+    topo = {
+        "links": {"client_node0|core0": {"latency": 0.02, "bandwidth_mbps": 1000.0},
+                  "core0|core1": {"latency": 0.004, "bandwidth_mbps": 1000.0},
+                  "client_node1|core1": {"latency": 0.02, "bandwidth_mbps": 1000.0}},
+        "routes": {"client_node0": {"client_node1": ["client_node0", "core0", "core1", "client_node1"]}},
+    }
+    fabric = NetworkFabric(env, topo)
+    tasks: Dict[int, FakeTask] = {}
+    orch = FakeOrchestrator(build_peer_exchange_table([[0, 1, 5e6]]), tasks)
+    a = FakeNode("client_node0", {}, orch)
+    b = FakeNode("client_node1", {}, orch)
+    a.fabric = b.fabric = fabric
+    tasks[0] = FakeTask(0, a); tasks[1] = FakeTask(1, b)
+    want = 3 * 5e6 / (1000.0 * 1024 * 1024) + 0.044
+    assert cost(a, tasks[0]) == pytest.approx(want)
+    assert cost(b, tasks[1]) == pytest.approx(want)
+    a.network_map = {"client_node1": 0.5}
+    assert cost(a, tasks[0]) == pytest.approx(3 * 5e6 / (1000.0 * 1024 * 1024) + 0.5)
+
+
+def test_exchange_routes_all_pairs_adds_routes_and_leaves_reachability_alone():
+    import copy
+    import random
+    from src.generate_infrastructure import build_core_backbone
+    from src.placement.network_fabric import route_links
+
+    nodes = [{"node_name": f"client_node{i}"} for i in range(4)] + [{"node_name": f"node{i}"} for i in range(3)]
+    maps = {n["node_name"]: {} for n in nodes}
+    for c, srv in (("client_node0", "node0"), ("client_node1", "node1"), ("client_node2", "node2"), ("client_node3", "node0")):
+        maps[c][srv] = maps[srv][c] = 0.1
+    for i in range(3):
+        for j in range(3):
+            if i != j:
+                maps[f"node{i}"][f"node{j}"] = 0.05
+    cfg = {"network": {"server_mesh": True, "backbone": {"n_core": 4, "attach_degree": 1, "chord_count": 0,
+                                                          "bandwidth_mbps": 1000.0, "rng_stream": "independent_v1"}}}
+    off_maps, on_maps = copy.deepcopy(maps), copy.deepcopy(maps)
+    off = build_core_backbone(off_maps, nodes, cfg, random.Random(1), seed=7)
+    cfg_on = copy.deepcopy(cfg); cfg_on["network"]["backbone"]["exchange_routes"] = "all_pairs"
+    on = build_core_backbone(on_maps, nodes, cfg_on, random.Random(1), seed=7)
+    assert on_maps == off_maps
+    assert "exchange_routes" not in off["params"]
+    names = [n["node_name"] for n in nodes]
+    for a in names:
+        for b in names:
+            if a != b:
+                assert route_links(on["routes"], a, b)
+    for a, peers in off["routes"].items():
+        for b, path in peers.items():
+            assert on["routes"][a][b] == path
+    with pytest.raises(KeyError):
+        route_links(off["routes"], "client_node0", "client_node1")
+
+
 # 4. the table ------------------------------------------------------------------------------
 
 def test_table_is_symmetric_and_empty_without_triples():

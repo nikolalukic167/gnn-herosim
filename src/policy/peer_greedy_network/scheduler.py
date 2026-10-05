@@ -216,19 +216,12 @@ class _PeerGreedyCore:
         peers whose node is known -- the same method, not a re-derivation."""
         if not peer_nodes:
             return 0.0
-        network_map = getattr(node, "network_map", None) or {}
         total = 0.0
         for peer_node_name, payload in peer_nodes:
             if peer_node_name == node.node_name:
                 continue
-            entry = network_map.get(peer_node_name)
-            if entry is None:
-                raise RuntimeError(
-                    f"{node.node_name} has no network_map entry for {peer_node_name}; the "
-                    "physics would fail on this placement too (server mesh reachability)"
-                )
-            latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
-            total += platform._payload_transfer_time(peer_node_name, payload) + latency
+            total += platform._payload_transfer_time(peer_node_name, payload) + platform.peer_link_latency(
+                peer_node_name, context="peer-greedy estimate")
         return total
 
     def _pg_choose(

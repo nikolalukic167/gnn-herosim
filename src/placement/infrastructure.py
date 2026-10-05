@@ -1196,7 +1196,6 @@ class Platform:
         if not peers:
             return 0.0
 
-        network_map = getattr(self.node, "network_map", None) or {}
         total: SimTime = 0.0
         for peer_id in sorted(peers):
             payload = float(peers[peer_id])
@@ -1219,16 +1218,30 @@ class Platform:
                 )
             if peer_node_name == self.node.node_name:
                 continue
-            entry = network_map.get(peer_node_name)
-            if entry is None:
-                raise RuntimeError(
-                    f"HEROSIM_PEER_EXCHANGE=1 but {self.node.node_name} has no network_map "
-                    f"entry for {peer_node_name} (peer {peer_id} of task {task.id}); server "
-                    "mesh reachability is required -- see generate_infrastructure.build_server_mesh"
-                )
-            latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
-            total += self._payload_transfer_time(peer_node_name, payload) + latency
+            total += self._payload_transfer_time(peer_node_name, payload) + self.peer_link_latency(
+                peer_node_name, context=f"peer {peer_id} of task {task.id}")
         return total
+
+    def peer_link_latency(self, peer_node_name: str, context: str = "") -> SimTime:
+        """Propagation latency between this platform's node and a peer's node for a peer exchange.
+
+        The logical network_map edge when one exists (its latency is already the backbone path sum);
+        otherwise the backbone route a `network.backbone.exchange_routes: all_pairs` topology stores
+        for every node pair (a task run on its own client exchanging with a partner elsewhere).
+        Neither is a contract violation: charging 0.0 would make the placement look free.
+        """
+        network_map = getattr(self.node, "network_map", None) or {}
+        entry = network_map.get(peer_node_name)
+        if entry is not None:
+            return float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+        fabric = getattr(self.node, "fabric", None)
+        if fabric is not None and fabric.has_route(self.node.node_name, peer_node_name):
+            return fabric.route_latency(self.node.node_name, peer_node_name)
+        raise RuntimeError(
+            f"HEROSIM_PEER_EXCHANGE=1 but {self.node.node_name} has no network_map entry and no "
+            f"backbone route for {peer_node_name} ({context}); server mesh reachability is required "
+            "-- see generate_infrastructure.build_server_mesh, or exchange_routes: all_pairs"
+        )
 
     def platform_process(self):
         """

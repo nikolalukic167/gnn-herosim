@@ -49,6 +49,8 @@ RULE_POLICY = {
     "random": "random_network",
     "drain": "drain_greedy_network",  # rule_baselines_v1: least-loaded (drain-time shortest queue, per arrival, no exchange term)
     "locality": "peer_greedy_network_batch",  # rule_baselines_v1: locality-first (exchange term x LOCALITY_SCALE)
+    "offload": "offload_network",  # client_local_v1: never on the source client, shortest queue over reachable servers
+    "localfirst": "local_first_network",  # client_local_v1: the source client when it hosts a replica, else shortest queue
     "cdext": "peer_greedy_network_cd",  # peak_controls_v1: CD + the label's externality at the label's rate
     "cdextr": "peer_greedy_network_cd",  # peak_controls_v1: CD + the externality at the rung's offered rate
 }
@@ -59,6 +61,8 @@ EXT_LABEL_RATE = 0.46
 # co-locating with placed partners dominates and queue drain only breaks ties
 LOCALITY_SCALE = 100.0
 RB1_KINDS = ("random", "drain", "locality", "decima", "batched", "selfpredict")
+# client_local_v1: clients host replicas and may run their own calls (cells carry "client_local_v1": true)
+CL1_KINDS = ("reactive", "cd", "locality", "selfpredict", "batched", "offload", "localfirst")
 EXT_KINDS = ("cdext", "cdextr")
 # decima_rule_v1 tuning arms: Decima's tuned weighted fair at a fixed alpha (a0 = fair, a1 = naive weighted fair)
 DECIMA_TUNE_ALPHAS = {"decima_am2": -2.0, "decima_am1": -1.0, "decima_am05": -0.5, "decima_a0": 0.0,
@@ -229,6 +233,11 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         if not kinds or any(k not in AGG_KINDS for k in kinds):
             raise SystemExit(f"FAIL LOUD: AGG_KINDS_RUN={kinds!r}; kinds are {AGG_KINDS}")
         return [task(t, w, f"{k}_selfref", s) for k in kinds for s in range(1, 9) for t in topos for w in tuple(GROUNDED_LADDER)]
+    if phase == "cl1":
+        kinds = os.environ.get("CL1_KINDS_RUN", ",".join(CL1_KINDS)).split(",")
+        if not kinds or any(k not in CL1_KINDS for k in kinds):
+            raise SystemExit(f"FAIL LOUD: CL1_KINDS_RUN={kinds!r}; kinds are {CL1_KINDS}")
+        return [task(t, w, k) for k in kinds for t in topos for w in tuple(GROUNDED_LADDER)]
     if phase == "rb1":
         # rule_baselines_v1: six hand rules on small_batch_confirm_v1's 19 topologies, the grounded x2/x3/x5 ladder
         kinds = os.environ.get("RB1_KINDS_RUN", ",".join(RB1_KINDS)).split(",")
@@ -419,6 +428,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
                PYTHONHASHSEED="0", HEROSIM_GNN_DEVICE="cpu", SIM_FORCE_FULL_STATS="1", OMP_NUM_THREADS="1",
                MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", CUDA_VISIBLE_DEVICES="", PYTHONPATH=REPO)
+    client_local = bool(json.load(open(cfg)).get("client_local_v1"))
+    if client_local:
+        env["HEROSIM_SERVER_ONLY_REPLICAS"] = "0"
     base_kind = next((kind[:-len(s)] for s in SUFFIXES if kind.endswith(s)), kind)
     if base_kind in LEARNED_KINDS:
         # cd_gap_v1 A: the CD imitator is the gnnedge0 architecture on the jb2 corpus and split
@@ -523,7 +535,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     drift = queue_drift(st.get("taskResults"))
     out = {k: st.get(k) for k in ("num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime",
                                   "averageWaitTime", "totalPeerExchangeTime", "totalPeerRendezvousWait", "endTime",
-                                  "schedulerCounters")}
+                                  "schedulerCounters", "offloadingRate", "total_rtt_plus_inference")}
     c = out.get("schedulerCounters") or {}
     for k in ("residence_tasks", "residence_batches", "queue_range_records"):
         c.pop(k, None)
@@ -537,6 +549,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     n = out.get("num_tasks")
     problems = []
+    if out["env"].get("HEROSIM_SERVER_ONLY_REPLICAS") != ("0" if client_local else "1"):
+        problems.append(f"served HEROSIM_SERVER_ONLY_REPLICAS={out['env'].get('HEROSIM_SERVER_ONLY_REPLICAS')!r}, "
+                        f"cell client_local_v1={client_local}")
+    if kind == "offload" and float(out.get("offloadingRate") or 0.0) < 100.0:
+        problems.append(f"offload arm ran {100.0 - float(out.get('offloadingRate') or 0.0):.2f} % of tasks locally")
+    out["client_local_v1"] = client_local
     if time_scale != 1.0 and out["env"].get("HEROSIM_POLICY_TIME_SCALE") != repr(time_scale):
         problems.append(f"policy time scale not recorded: {out['env'].get('HEROSIM_POLICY_TIME_SCALE')!r}")
     if n is None or int(n) != N_TASKS:
@@ -628,7 +646,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "cl1") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -640,7 +658,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "cl1") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
