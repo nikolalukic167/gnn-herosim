@@ -64,9 +64,9 @@ def main() -> int:
             out["vs_server_only"][f"{r}/{k}"] = contrast(s, topos, ws, f"{k}@cl", k)
         for k in learned:
             out["vs_reactive_client"][f"{r}/{k}"] = contrast(s, topos, ws, f"{k}@cl", "reactive@cl")
-        for a, b in PAIRS:
-            if a in learned and b in learned:
-                out["vs_twin_client"][f"{r}/{a}"] = contrast(s, topos, ws, f"{a}@cl", f"{b}@cl")
+        for arm, twin in PAIRS:
+            if arm in learned and twin in learned:
+                out["vs_twin_client"][f"{r}/{arm}"] = contrast(s, topos, ws, f"{arm}@cl", f"{twin}@cl")
         for k in RULES + tuple(learned):
             if k != "cd":
                 out["vs_cd_client"][f"{r}/{k}"] = contrast(s, topos, ws, f"{k}@cl", "cd@cl")
