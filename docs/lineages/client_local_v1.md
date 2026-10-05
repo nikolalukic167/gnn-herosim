@@ -1,7 +1,7 @@
 # client_local_v1 — may a call run on its own client, and does the origin model matter?
 
-**Status:** `ACTIVE` (2026-10-05) — part A (rules, scattered origins) read on five of seven rules; part A2 (learned arms
-zero-shot) in smoke; part B (single-origin groups) building. Exploratory: no bars were registered before the runs.
+**Status:** `ACTIVE` (2026-10-05) — part A (rules, scattered origins) read on six of seven rules, local-first rerunning;
+part A2 (learned arms zero-shot) running; part B (single-origin groups) running. Exploratory: no bars were registered before the runs.
 
 **Outcome so far.** With every client hosting one replica per function and allowed to run its own calls, the five rules
 read so far ran **1.3–1.6 % of calls locally at ×2, 0.4–0.7 % at ×3 and 0.1–0.3 % at ×5**, and enabling it **helped
@@ -48,6 +48,16 @@ rewrite: `scripts_cosim/client_local_v1_single_origin.py`. Reader: `scripts_cosi
 
 ## Record
 
+- 2026-10-05 — **Relaunch after three faults; nothing below had produced an outcome.** (1) `local_first_network` was
+  registered in `simulation.py` but not in `model.scheduling_strategies`, so all 228 local-first runs died at start-up
+  (KeyError); fixed, with `tests/test_policy_registry_names.py` checking every registered policy has a short name.
+  (2) The home quota filled at 19:09 (three gates at 62 parallel, each holding ~250 MB raw results, plus training):
+  runs ended with rc 120 (stdout flush failed) or silently; those records were removed and the runs requeued. The
+  gate now writes raw results to node-local disk (`HEROSIM_RAW_DIR`, `docs/gates/gate-tools.md`). (3) The reader's
+  twin loop shadowed its arguments; fixed. Learned-arm smoke on 9483 (seed 1): all 12 `sb1load` runs served on the
+  client cells; the other failures in it were the quota. New hang caused by client execution: 9568 g1–g3 ×2 one-pass
+  greedy times out with client replicas and completes server-only. Jobs: local-first 828629, learned 828630 / 828631,
+  single-origin reruns queued after 828619.
 - 2026-10-05 — **Part B launched: single-origin groups.** `client_local_v1_single_origin.py` moves every task of a peer
   group to the client of the group's earliest task; nothing else changes. At x2 g0 it moves 34,563 of 50,000 tasks;
   the (client, type) pairs are identical before and after, so no client issues a type it could not before. The rules
