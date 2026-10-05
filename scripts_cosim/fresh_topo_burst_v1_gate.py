@@ -518,7 +518,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_BATCH_BLIND"] = "1"
         if kind == "cd_slate":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1", GNN_SERVE_CORPUS_SLATE="1")
-    raw = os.path.join(out_dir, name + ".raw.json")
+    # The ~250 MB per-task result is deleted once summarised; HEROSIM_RAW_DIR keeps it off the home quota (node-local).
+    raw = os.path.join(os.environ.get("HEROSIM_RAW_DIR") or out_dir, name + ".raw.json")
     log = os.path.join(out_dir, name + ".log")
     scope = [] if NO_SCOPE else ["systemd-run", "--scope", "-q", "-p", f"MemoryMax={mem}", "-p", "MemorySwapMax=0"]
     cmd = scope + ["timeout", str(timeout_s)] + PY + [os.path.join(REPO, "src/executesimulation.py"), "--config", cfg,
