@@ -49,4 +49,10 @@ gate to be added before the corpus is read.
 
 ## Record
 
+- 2026-10-06 — **Capture (job 832835): 64 of 96 runs finished, 16 of 24 cells.** The 8 cells whose four windows all hit
+  the 4 h limit (9205, 9210, 9212, 9213, 9216, 9218, 9219, 9222) were not frozen: a stack dump of 9205 g0 showed the
+  clock advancing about 100 simulated seconds in 3 h at 32,600 of 108,600 s, inside the batch collector with an 11 GB
+  queue — the one-pass greedy capture policy saturates on them. `small_batch_v1`'s capture lost 40 of 96 runs to the
+  starved-client hang; this one loses 32 to saturation, and the corpus step skips unfinished captures by design. Held-out
+  test cells are 9223 and 9224 only (9222 lost); validation cells 9207–9209 are complete. Corpus job 833174 launched.
 - 2026-10-06 — Registered. The three corpus sbatches take `CORPUS` / `WLDIR` (and the capture `HEROSIM_RAW_DIR`).
