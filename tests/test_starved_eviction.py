@@ -1,4 +1,4 @@
-"""evict_idle_for: a starved type may take the platform of one idle replica of another type (client_local_v1).
+"""evict_idle_for: a starved type may take the platform of one idle (or drained) replica of another type (client_local_v1).
 
 Under single-origin groups a type could starve forever: a new replica needs a free platform and nothing frees one
 held by another type's replica. The scheduler calls evict_idle_for only for a task it found starved.
@@ -38,6 +38,13 @@ def _setup(n_dnn1=3, busy=(), reach=("client_node2",)):
         replicas.add((node, _platform(env, 200 + i, idle_since=10.0 * (i + 1), busy=i in busy)))
     a = object.__new__(KnativeAutoscaler)
     a.env, a.data, a.scale_events = env, NS(task_types=TYPES), []
+    a.created = []
+
+    def create_first_replica(system_state, task_type, source_node_name=None):
+        a.created.append((task_type["name"], source_node_name))
+        yield env.timeout(0)
+
+    a.create_first_replica = create_first_replica
     state = NS(replicas={"dnn1": replicas, "dnn2": set()}, available_resources={n: set() for n in nodes},
                scheduler_state=NS(average_contention={"dnn1": {}}))
     return a, state, nodes
@@ -56,3 +63,24 @@ def test_never_takes_a_functions_last_replica_or_an_unreachable_one():
     assert a.evict_idle_for(state, TYPES["dnn2"], "client_node2") is None
     a, state, _ = _setup(reach=("client_node7",))
     assert a.evict_idle_for(state, TYPES["dnn2"], "client_node2") is None
+
+
+def test_drains_the_least_loaded_busy_replica_when_none_is_idle():
+    a, state, nodes = _setup(busy=(0, 1, 2))
+    for n, p in state.replicas["dnn1"]:
+        p.queue.items = [1, 1]
+    lightest = next(p for n, p in state.replicas["dnn1"] if n.id == 41)
+    lightest.queue.items = []
+    lightest.current_task = "running"
+    assert a.evict_idle_for(state, TYPES["dnn2"], "client_node2") is None
+    assert len(state.replicas["dnn1"]) == 2 and all(p is not lightest for _, p in state.replicas["dnn1"])
+    assert lightest not in state.available_resources[nodes[1]]  # held until it drains
+    assert a.evict_idle_for(state, TYPES["dnn2"], "client_node2") is None  # one drain per (type, source)
+    assert len(state.replicas["dnn1"]) == 2
+    a.env.run(until=1.0)
+    assert lightest not in state.available_resources[nodes[1]]
+    lightest.current_task = None
+    a.env.run(until=2.0)
+    assert lightest in state.available_resources[nodes[1]] and nodes[1].available_memory == 1.0
+    assert a.scale_events[-1]["action"] == "down" and not a._draining
+    assert a.created == [("dnn2", "client_node2")]

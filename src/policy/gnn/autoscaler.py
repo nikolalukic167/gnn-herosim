@@ -20,7 +20,7 @@ import logging
 import math
 import os
 
-from typing import Set, Tuple, TYPE_CHECKING, List, Optional
+from typing import Generator, Set, Tuple, TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node
@@ -100,18 +100,22 @@ class KnativeAutoscaler(Autoscaler):
     def evict_idle_for(
         self, system_state: SystemState, task_type: TaskType, source_node_name: str
     ) -> Optional[Tuple[Node, Platform]]:
-        """Free one idle replica of another function so a starved `task_type` can claim its platform.
+        """Free one replica of another function so a starved `task_type` can claim its platform.
 
         A new replica needs a platform that hosts no replica, and scale-down only removes a type's own surplus, so a
         type can starve forever while other types' replicas hold every compatible platform its source reaches (the
         scheduler detects this, GNNScheduler._starved_spin, and only then calls here). Scale-to-zero in Knative frees
-        such a pod; this does the same for one replica: idle (empty queue, no running task, initialised), on a node the
-        source reaches, on a platform `task_type` can run on with enough memory once freed, never a function's last
-        replica. Longest idle first; ties by (node id, platform id).
+        such a pod; this does the same for one replica: on a node the source reaches, on a platform `task_type` can run
+        on with enough memory once freed, never a function's last replica. An idle one (empty queue, no running task,
+        initialised) is released now, longest idle first, ties by (node id, platform id), and returned. When none is
+        idle, the least-loaded one is drained instead: it leaves `system_state.replicas` at once, so nothing new is
+        placed on it, and once its queue empties its platform is released and the starved type's replica is created there;
+        returns None meanwhile (the caller retries). At most
+        one drain per (starved type, source) at a time.
         """
         name = task_type["name"]
         server_only = os.environ.get("HEROSIM_SERVER_ONLY_REPLICAS", "0") == "1"
-        candidates = []
+        idle, busy = [], []
         for other, replicas in system_state.replicas.items():
             if other == name or len(replicas) < 2:
                 continue
@@ -127,21 +131,49 @@ class KnativeAutoscaler(Autoscaler):
                     or source_node_name not in (getattr(node, "network_map", None) or {})
                 ):
                     continue
-                if platform.queue.items or platform.current_task or not platform.initialized.triggered:
+                if not platform.initialized.triggered:
                     continue
                 if node.available_memory + mem_other[short] < task_type["memoryRequirements"][short]:
                     continue
-                candidates.append((platform.idle_since, node.id, platform.id, other, node, platform))
-        if not candidates:
-            return None
-        _, _, _, other, node, platform = min(candidates, key=lambda c: (c[0], c[1], c[2]))
+                load = len(platform.queue.items) + (1 if platform.current_task else 0)
+                if load == 0:
+                    idle.append((platform.idle_since, node.id, platform.id, other, node, platform))
+                else:
+                    busy.append((load, node.id, platform.id, other, node, platform))
         state = system_state.scheduler_state
+        if idle:
+            _, _, _, other, node, platform = min(idle, key=lambda c: (c[0], c[1], c[2]))
+            (getattr(state, "average_contention", {}).get(other) or {}).pop((node.id, platform.id), None)
+            released = self._release_replica(system_state, other, (node, platform))
+            if released:
+                self.starved_evictions = getattr(self, "starved_evictions", 0) + 1
+                print(f"[ {self.env.now} ] evicted: {released} ({other}) for starved {name} from {source_node_name}")
+            return released
+        draining = self.__dict__.setdefault("_draining", set())
+        if not busy or (name, source_node_name) in draining:
+            return None
+        load, _, _, other, node, platform = min(busy, key=lambda c: (c[0], c[1], c[2]))
+        system_state.replicas[other].remove((node, platform))
         (getattr(state, "average_contention", {}).get(other) or {}).pop((node.id, platform.id), None)
-        released = self._release_replica(system_state, other, (node, platform))
+        draining.add((name, source_node_name))
+        print(f"[ {self.env.now} ] draining: {(node, platform)} ({other}, load {load}) for starved {name} "
+              f"from {source_node_name}")
+        self.env.process(self._release_when_drained(system_state, other, (node, platform), (name, source_node_name)))
+        return None
+
+    def _release_when_drained(self, system_state, function_name, replica, key) -> Generator:
+        platform = replica[1]
+        while platform.queue.items or platform.current_task:
+            yield self.env.timeout(0.1)
+        released = self._release_replica(system_state, function_name, replica, already_removed=True)
+        self._draining.discard(key)
         if released:
             self.starved_evictions = getattr(self, "starved_evictions", 0) + 1
-            print(f"[ {self.env.now} ] evicted: {released} ({other}) for starved {name} from {source_node_name}")
-        return released
+            print(f"[ {self.env.now} ] evicted: {released} ({function_name}) drained for starved {key[0]} "
+                  f"from {key[1]}")
+            yield self.env.process(
+                self.create_first_replica(system_state, self.data.task_types[key[0]], source_node_name=key[1])
+            )
 
     def create_first_replica(
         self, 

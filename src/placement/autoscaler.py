@@ -386,13 +386,18 @@ class Autoscaler:
             system_state: SystemState,
             function_name: str,
             removed_replica: Tuple[Node, Platform],
+            already_removed: bool = False,
     ) -> Optional[Tuple[Node, Platform]]:
-        """Return a removed replica's platform and memory to the pool and record the scale-down event."""
+        """Return a removed replica's platform and memory to the pool and record the scale-down event.
+
+        `already_removed`: the replica left `system_state.replicas` earlier (a drain, see
+        GNN KnativeAutoscaler.evict_idle_for) and only its platform and memory are still held."""
         function_replicas = system_state.replicas[function_name]
         try:
             # Remove replica from function replicas
             # FIXME: Sometimes raises KeyError ... (double remove)
-            function_replicas.remove(removed_replica)
+            if not already_removed:
+                function_replicas.remove(removed_replica)
 
             # Reset platform to uninitialized state. An initialized event that never fired
             # already means "uninitialized" and may have a waiter (platform_process parks on
