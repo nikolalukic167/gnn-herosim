@@ -1,17 +1,19 @@
 # client_local_v1 — may a call run on its own client, and does the origin model matter?
 
-**Status:** `ACTIVE` (2026-10-05) — part A (rules) read on all seven rules and found not to test local execution;
-part A2 (learned arms zero-shot) read; part B (single-origin groups) blocked by an autoscaler starvation. Exploratory: no bars were registered before the runs.
+**Status:** `ACTIVE` (2026-10-06) — part A (rules) read and found not to test local execution; part A2 (learned arms
+zero-shot) read; part B (single-origin groups) blocked by an autoscaler starvation. Exploratory: no bars were registered before the runs.
 
-**Outcome so far.** Part A **did not test local execution**: only **2–7 of the 20 issuing clients ever host a
-replica** (the rest have no hardware that runs `dnn1`/`dnn2`), and those few are scaled down like any replica. The
-local-first rule therefore behaves exactly like Knative (identical paired % vs CD to two decimals at ×2 and ×3), and
-every rule ran 0.1–1.6 % of calls locally. Enabling client replicas helped no rule (Knative ties; the search rules are
-1–5 % slower, plausibly from changed start-up seeding). **Separately, a workload defect:** the grounded mint gives each
-task its own client, so **97 % of multi-task peer groups span several clients** (3.56 per 4.09-task group), while in the
-Alibaba trace a group is one request from one caller. **Every grounded-workload result before 2026-10-05 was measured
-under scattered origins** — not wrong, but to be disclosed where quoted. Part B (single-origin groups) is running; a real
-local-execution test needs clients that can run the functions and a replica that is not scaled away (not yet built).
+**Outcome so far (2026-10-06).** Part A **did not test local execution**: only **2–7 of the 20 issuing clients ever
+host a replica** (the rest have no hardware that runs `dnn1`/`dnn2`), and those few are scaled down like any replica, so
+local-first behaves exactly like Knative and every arm ran 0.1–1.6 % of calls locally. With client replicas enabled the
+server-only rankings carry over: the engineered `sb1load` beats client-enabled CD −10 / −32 / −20 % (×2 / ×3 / ×5, 18–19 /
+19) and Knative −42 / −86 / −39 %, but ties its MP-OFF twin; the raw-plan `lf1gnn` beats its same-input MLP −12 / −31 /
+−18 % and Knative −25 / −52 / −20 %, and loses to CD. **A workload defect:** the grounded mint gives each task its own
+client, so **97 % of multi-task peer groups span several clients**, while in the Alibaba trace a group is one request from
+one caller; **every grounded-workload result before 2026-10-05 was measured under scattered origins** — disclose where
+quoted. Single origin is not yet readable: the batch rules hang on it (a frozen-clock loop, now fixed and verified
+replay-identical, plus a real autoscaler starvation that remains — a type cannot claim a platform held by another type's
+replica). A real local-execution test needs clients that can run the functions and a replica that is not scaled away.
 
 **Question.** Every grounded gate ran with `HEROSIM_SERVER_ONLY_REPLICAS=1` and `replicas.*.per_client = 0`, so every
 call was offloaded. Is that hiding a gain from running a call on its own client (the own-device-or-offload choice of the
