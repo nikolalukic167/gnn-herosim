@@ -44,8 +44,10 @@ p < 0.05. Verdict, first that holds:
 Descriptive: `so1load` vs zero-shot `sb1load` (does retraining help), vs Knative, locality-first, one-pass greedy,
 self-predict.
 
-**Entry points.** Workload rewrite `scripts_cosim/client_local_v1_single_origin.py`; corpus sbatches above; training and
-gate to be added before the corpus is read.
+**Entry points.** Workload rewrite `scripts_cosim/client_local_v1_single_origin.py`; corpus sbatches above; training
+`small_batch_v1_train.sbatch` with `CORPUS=small_batch_so_v1 ARM_PREFIX=so1 SPLIT_SHA=<split sha>` (configs
+`experiments/small_batch_so_v1_{so1load,so1mpoff}.yaml`); gate phase `so1` of `fresh_topo_burst_v1_gate.py` on
+`client_local_v1/inputs_so_server`.
 
 ## Record
 

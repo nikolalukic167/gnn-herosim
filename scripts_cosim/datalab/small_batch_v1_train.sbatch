@@ -4,6 +4,7 @@
 # swapped; 8 BLAS threads (32 was measured about 1.5x slower on these tiny graphs).
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/small_batch_v1_train.sbatch
 # SEED_OFFSET=4 trains seeds 5-8 (small_batch_confirm_v1).
+# CORPUS=small_batch_so_v1 ARM_PREFIX=so1 SPLIT_SHA=<sha> trains so1load / so1mpoff on that corpus (small_batch_so_v1).
 #SBATCH --job-name=sb1-train
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/sb1-train-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/sb1-train-%A_%a.err
@@ -33,15 +34,16 @@ echo "[CODE] $(git describe --dirty --always) at $WT"
 [[ -L models ]] || { echo "FAIL LOUD: models/ must be the symlink into ~/gnn-herosim/models" >&2; exit 1; }
 
 T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: SLURM_ARRAY_TASK_ID unset}
-if (( T < 4 )); then ARM=xs1load; NAME=sb1load; else ARM=xs1mpoff; NAME=sb1mpoff; fi; SEED=$(( T % 4 + 1 + ${SEED_OFFSET:-0} ))
-CFG=experiments/small_batch_v1_${NAME}.yaml
-CACHE=simulation_data/graphs_cache_small_batch_v1_psv4_inf
-SPLIT=experiments/small_batch_v1_split.json
-CK="models/small-batch-v1-${NAME}-lr2e3-seed${SEED}.pt"
+CORPUS=${CORPUS:-small_batch_v1}; AP=${ARM_PREFIX:-sb1}
+if (( T < 4 )); then ARM=xs1load; NAME=${AP}load; else ARM=xs1mpoff; NAME=${AP}mpoff; fi; SEED=$(( T % 4 + 1 + ${SEED_OFFSET:-0} ))
+CFG=experiments/${CORPUS}_${NAME}.yaml
+CACHE=simulation_data/graphs_cache_${CORPUS}_psv4_inf
+SPLIT=experiments/${CORPUS}_split.json
+CK="models/${CORPUS//_/-}-${NAME}-lr2e3-seed${SEED}.pt"
 echo "[TASK $T] arm=$NAME (sidecheck $ARM) seed=$SEED cfg=$CFG -> $CK"
 [[ -f "$CFG" ]] || { echo "FAIL LOUD: $CFG missing" >&2; exit 1; }
 [[ -f "$CACHE/metadata.json" && -f "$CACHE/valid_combos_near_rtt_capped.pkl" ]] || { echo "FAIL LOUD: $CACHE incomplete" >&2; exit 1; }
-[[ "$(sha256sum "$SPLIT" | cut -d' ' -f1)" == a580315e5b8cfeb9135a57460399c2d575b7874c13a5340cb3a72e5489382fba ]] || { echo "FAIL LOUD: split sha mismatch" >&2; exit 1; }
+[[ "$(sha256sum "$SPLIT" | cut -d' ' -f1)" == ${SPLIT_SHA:-a580315e5b8cfeb9135a57460399c2d575b7874c13a5340cb3a72e5489382fba} ]] || { echo "FAIL LOUD: split sha mismatch" >&2; exit 1; }
 python3 - "$CACHE" <<'EOF2'
 import json, sys
 m = json.load(open(sys.argv[1] + "/metadata.json"))
