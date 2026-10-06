@@ -647,6 +647,8 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             "plan_raw_sum",
             # local_features_v1: static per-candidate columns on the raw plan.
             "plan_raw_local",
+            # hetero_conv_v1: per-relation / per-node-type weights in the bipartite stack.
+            "mp_bipartite_hetero",
         )
         if key in payload
     }
@@ -934,6 +936,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_bipartite_edge_conv=bool(mp_cfg.get("mp_bipartite_edge_conv", False)),
             mp_bipartite_edge_attr_zero=bool(mp_cfg.get("mp_bipartite_edge_attr_zero", False)),
             mp_bipartite_aggr=str(mp_cfg.get("mp_bipartite_aggr") or "mean"),
+            mp_bipartite_hetero=bool(mp_cfg.get("mp_bipartite_hetero", False)),
         )
         print(
             f"[GNN] message passing: residual={mp_residual} node_edges={mp_node_edges} "

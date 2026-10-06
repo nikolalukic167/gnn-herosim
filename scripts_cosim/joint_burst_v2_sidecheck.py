@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """joint_burst_v2 gate helper: verify a checkpoint's sidecar before serving it in the gate.
-Called as: joint_burst_v2_sidecheck.py <contract.json> <arm: gnnedge0|mpoff|v4load|v4twin|bc1load|bc1mpoff|fc1load|xs1load|xs1mpoff|rawgnn|rawmlp|rawE|rawS|rawES|rawStwin|lf1gnn|lf1twin|lf1mlp> <split.json> <want_alpha>
+Called as: joint_burst_v2_sidecheck.py <contract.json> <arm: gnnedge0|mpoff|v4load|v4twin|bc1load|bc1mpoff|fc1load|xs1load|xs1mpoff|rawgnn|rawmlp|rawE|rawS|rawES|rawStwin|lf1gnn|lf1twin|lf1mlp|sb1sum|lf1sum|lf1het> <split.json> <want_alpha>
 FAIL LOUD (exit 1) on any mismatch. Kept as a real file, not an inline heredoc, because the
 gate sbatch nests other heredocs and a `PY` terminator line collides across nesting levels.
 """
@@ -16,6 +16,8 @@ RAW_V2 = ("rawE", "rawS", "rawES", "rawStwin")
 LF1_BASE = {"lf1gnn": "rawS", "lf1twin": "rawStwin", "lf1mlp": "rawmlp"}
 # sum aggregation: the same recipe with mp_bipartite_aggr = "sum"
 AGG_BASE = {"sb1sum": "xs1load", "lf1sum": "lf1gnn"}
+# hetero_conv_v1: lf1gnn's recipe with per-relation / per-node-type bipartite weights
+HET_BASE = {"lf1het": "lf1gnn"}
 
 
 def main() -> int:
@@ -23,6 +25,8 @@ def main() -> int:
     sc = json.load(open(contract_path))
     aggr = "sum" if arm in AGG_BASE else "mean"
     arm = AGG_BASE.get(arm, arm)
+    hetero = arm in HET_BASE
+    arm = HET_BASE.get(arm, arm)
     local = arm in LF1_BASE
     arm = LF1_BASE.get(arm, arm)
     raw = ("rawgnn", "rawmlp") + RAW_V2
@@ -68,6 +72,8 @@ def main() -> int:
         want.update(mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=False)
         if "mp_bipartite_aggr" in sc:
             want["mp_bipartite_aggr"] = "mean"
+    if hetero or sc.get("mp_bipartite_hetero"):
+        want["mp_bipartite_hetero"] = hetero
     for k, v in want.items():
         if sc.get(k) != v:
             print(f"FAIL LOUD: sidecar {k}={sc.get(k)!r}, arm {arm} expects {v!r}", file=sys.stderr)
