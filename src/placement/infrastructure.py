@@ -23,6 +23,7 @@ import os
 from typing import Callable, Dict, List, Tuple, Optional, TypedDict, Any
 
 from src.placement.warmth import NODE_DISK_V2, sandbox_is_warm
+from src.placement.availability import ServiceState, begin_service, service_phase, end_service
 
 # network_contention_v1: the transfer-time formula is shared with the ECT cost model so
 # the two cannot drift apart, which is what produced the train/serve MP mismatch.
@@ -171,7 +172,6 @@ class Application:
         if not self.type or not self.tasks or not self.tasks[0].platform or not self.tasks[0].platform.type:
             raise ValueError(f"Application {self.id} is missing required attributes")
             
-        # Application total time
         self.elapsed_time = sum(task.elapsed_time for task in self.tasks)
         self.pull_time = sum(task.pull_time for task in self.tasks)
         self.cold_start_time = sum(task.cold_start_time for task in self.tasks)
@@ -228,7 +228,6 @@ class Task:
         self.node_name = node_name
         self.finished = False
 
-        # Timing metrics - using Optional for fields that start as None
         self.dispatched_time: Optional[SimTime] = None
         self.scheduled_time: Optional[SimTime] = None
         self.arrived_time: Optional[SimTime] = None
@@ -318,7 +317,6 @@ class Task:
             return False
 
         policies: Dict[str, Callable[[], bool]] = {
-            # First In, First Out
             "fifo": lambda: self.application.id < other.application.id,
             # Select task with the earliest worse-case deadline first
             "least_penalty": lambda: (
@@ -370,7 +368,6 @@ class Task:
 
         logging.info(f"[ {self.env.now} ] ✔️ {self} done")
 
-        # Dependencies management
         self.finished = True
 
         # FIXME:
@@ -381,15 +378,12 @@ class Task:
             assert self.platform is not None, \
                 f"Task {self.id} has node but platform is None"
 
-        # Save task metrics after completion
         # Task total time, including time to dispatch and task cold start (seconds)
         self.elapsed_time = self.done_time - self.dispatched_time
 
-        # Debug
         self.wait_time = self.scheduled_time - self.dispatched_time
         self.queue_time = self.arrived_time - self.scheduled_time
         self.initialization_time = self.started_time - self.arrived_time
-        # Actual task compute time (seconds)
         self.compute_time = self.done_time - self.started_time
 
         # Assert invariant
@@ -425,7 +419,6 @@ class Task:
             print(f"[ {self.env.now} ] Task {self.id} has no platform, energy set to 0 kWh")
 
     def result(self) -> TaskResult:
-        # Null check
         if (
             self.dispatched_time is None
             or self.scheduled_time is None
@@ -539,7 +532,6 @@ class Storage:
         # first_key = next(iter(self.functions_cache))
         # removed = self.functions_cache.pop(first_key)
 
-        # Pop oldest function image from functions cache
         try:
             removed_platform, removed_type = self.functions_cache.pop(0)
 
@@ -548,7 +540,6 @@ class Storage:
                 f" {self}"
             )
 
-            # Update disk usage
             self.used -= int(removed_type["imageSize"][removed_platform] * 1e9)
         except IndexError:
             raise CacheEvictionError(f"{self} function cache is already empty")
@@ -603,7 +594,6 @@ class Storage:
             self.functions_cache.append((platform, task_type))
             self.used += int(task_type["imageSize"][platform] * 1e9)
 
-            # Statistics
             self.writes += int(task_type["imageSize"][platform] * 1e9)
             self.cache_usage.append(
                 (self.env.now, (self.get_cache_volume() / self.type["capacity"]) * 100)
@@ -622,12 +612,10 @@ class Storage:
             )
             return False
 
-        # Update disk usage
         self.used -= int(task_type["imageSize"][platform] * 1e9)
 
         logging.info(f"[ {self.env.now} ] Removed {task_type['name']} from {self}")
 
-        # Statistics
         self.erases += int(task_type["imageSize"][platform] * 1e9)
         self.cache_usage.append(
             (self.env.now, (self.get_cache_volume() / self.type["capacity"]) * 100)
@@ -638,7 +626,6 @@ class Storage:
 
     def store_data(self, task: Task) -> bool:
         task_state = task.type["stateSize"][task.application.type["name"]]
-        # Cache eviction if disk capacity is reached
         while (self.used + task_state["output"]) * 1e-9 > self.type["capacity"]:
             # Same dead-`except` / infinite-loop defect as store_function above; same
             # fail-loud fix. Note this path evicts FUNCTION IMAGES to make room for task
@@ -651,10 +638,8 @@ class Storage:
                     f"cache is already empty. No eviction sequence can make room."
                 )
 
-        # Store data
         self.data_store[task.id] = task_state["output"]
 
-        # Update disk usage
         self.used += task_state["output"]
 
         logging.info(
@@ -662,7 +647,6 @@ class Storage:
             f" bytes for {task} on {self}"
         )
 
-        # Statistics
         self.writes += task_state["output"]
         self.data_usage.append(
             (self.env.now, (self.get_data_volume() / self.type["capacity"]) * 100)
@@ -680,7 +664,6 @@ class Storage:
             )
             return False
 
-        # Update disk usage
         task_state = task.type["stateSize"][task.application.type["name"]]
         self.used -= task_state["output"]
 
@@ -689,7 +672,6 @@ class Storage:
             f" bytes for {task} from {self}"
         )
 
-        # Statistics
         self.erases += task_state["output"]
         self.data_usage.append(
             (self.env.now, (self.get_data_volume() / self.type["capacity"]) * 100)
@@ -712,7 +694,6 @@ class Platform:
         self.node = node
 
         self.env = env
-        # Check if fast-forward warmup is enabled (from environment or infrastructure config)
         self.fast_forward_warmup = getattr(env, 'fast_forward_warmup', False)
         self.fast_forward_threshold = getattr(env, 'fast_forward_threshold', 100)
         self.run = env.process(self.platform_process())
@@ -726,6 +707,7 @@ class Platform:
 
         self.previous_task: Task | None = None
         self.current_task: Task | None = None
+        self.service_state = ServiceState()
         self.idle_since: SimTime = math.inf
 
         self.last_allocated: SimTime = math.inf
@@ -854,17 +836,14 @@ class Platform:
         """
         warm_function = sandbox_is_warm(self, task)
 
-        # Cold start duration
         cold_start = (
             task.type["coldStartDuration"][self.type["shortName"]]
             if not warm_function
             else 0.0
         )
-        
-        # Execution time
+
         execution = task.type["executionTime"][self.type["shortName"]]
-        
-        # Network latency (if remote)
+
         network = 0.0
         if task.node_name != self.node.node_name and task.node and task.node.network_map:
             if task.node_name in self.node.network_map:
@@ -945,23 +924,19 @@ class Platform:
         )
         
         for task in warmup_tasks:
-            # Check if warm (same type as previous task)
             warm_function = (
                 previous_task_type is not None
                 and previous_task_type == task.type["name"]
             )
-            
-            # Cold start (only for first task or when task type changes)
+
             cold_start = (
                 task.type["coldStartDuration"][self.type["shortName"]]
                 if not warm_function
                 else 0.0
             )
-            
-            # Execution time
+
             execution = task.type["executionTime"][self.type["shortName"]]
-            
-            # Network latency (if remote)
+
             network = 0.0
             if task.node_name != self.node.node_name and task.node and task.node.network_map:
                 if task.node_name in self.node.network_map:
@@ -1005,8 +980,7 @@ class Platform:
             read_time = (input_size / (input_speed * 1024 * 1024)) + read_latency if input_size > 0 else 0.0
             write_time = (output_size / (output_speed * 1024 * 1024)) + write_latency if output_size > 0 else 0.0
             comm = read_time + write_time
-            
-            # Total time for this task
+
             task_total = network + cold_start + execution + comm
             total_time += task_total
             
@@ -1216,32 +1190,29 @@ class Platform:
         """
         logging.info(f"[ {self.env.now} ] {self} started")
 
-        # Fast-forward warmup tasks if enabled
         fast_forwarded = False
         if self.fast_forward_warmup:
-            # Wait for initialization first
             yield self.initialized
-            
-            # Check if we have warmup tasks attached to this platform
+
             if hasattr(self, '_warmup_tasks') and self._warmup_tasks:
                 warmup_count = len(self._warmup_tasks)
-                
+
                 if warmup_count > self.fast_forward_threshold:
-                    # Calculate total time for all warmup tasks
                     total_time = self._calculate_warmup_total_time(self._warmup_tasks)
                     print(f"[FF] Fast-forwarding {warmup_count} warmup tasks on {self} (total time: {total_time:.3f}s)")
                     logging.info(f"[ {self.env.now} ] Fast-forwarding {warmup_count} warmup tasks on {self} "
                                f"(total time: {total_time:.3f}s)")
-                    
-                    # Fast-forward simulation time
+
+                    begin_service(self, virtual_seconds=total_time)
+                    self.service_state.pending.clear()
+                    service_phase(self, "fast_forward_warmup", seconds=total_time)
                     yield self.env.timeout(total_time)
-                    
+                    end_service(self)
+
                     # Mark all warmup tasks as completed
                     # We'll process them from the queue and skip execution
                     fast_forwarded_tasks = set(self._warmup_tasks)
-                    
-                    # Calculate per-task times for accurate metrics
-                    # Use the time before fast-forward as the base
+
                     fast_forward_start_time = self.env.now - total_time
                     cumulative_time = 0.0
                     previous_task_type = (
@@ -1255,12 +1226,11 @@ class Platform:
                             and previous_task_type == warmup_task.type["name"]
                         )
 
-                        # Calculate time for this task
                         task_time = self._calculate_single_warmup_time(warmup_task)
-                        
-                        task_duration = (task_time['network'] + task_time['cold_start'] + 
+
+                        task_duration = (task_time['network'] + task_time['cold_start'] +
                                         task_time['execution'] + task_time['comm'])
-                        
+
                         # Set timing metrics (absolute simulation time)
                         warmup_task.arrived_time = fast_forward_start_time + cumulative_time
                         warmup_task.started_time = fast_forward_start_time + cumulative_time
@@ -1274,11 +1244,9 @@ class Platform:
                         warmup_task.cache_hit = (task_time['cold_start'] == 0.0)
                         
                         cumulative_time += task_duration
-                        
-                        # Update platform cache for next task
+
                         previous_task_type = warmup_task.type["name"]
-                    
-                    # Update platform's previous_task to last warmup task
+
                     if self._warmup_tasks:
                         self.previous_task = self._warmup_tasks[-1]
                     
@@ -1289,6 +1257,7 @@ class Platform:
         # Doing this on first real queue pop shifts warmup delay to request time and
         # does not match the non-fast-forward timeline.
         if self.virtual_warmup_count > 0 and self.virtual_warmup_total_time > 0:
+            begin_service(self, virtual_seconds=self.virtual_warmup_total_time)
             # Under node_contention_v3 the seeded backlog is real work on the node's
             # shared slots, so draining it blocks co-located platforms. Without this the
             # backlog -- which is ~95% of RTT -- would bypass contention entirely and the
@@ -1296,10 +1265,13 @@ class Platform:
             if self.node.compute_slots is not None:
                 backlog_start = self.env.now
                 with self.node.compute_slots.request() as slot:
+                    service_phase(self, "virtual_slot_wait", event=slot, unresolved=("compute_slot",))
                     yield slot
                     self.node.contention_time += self.env.now - backlog_start
+                    service_phase(self, "virtual_backlog", seconds=self.virtual_warmup_total_time)
                     yield self.env.timeout(self.virtual_warmup_total_time)
             else:
+                service_phase(self, "virtual_backlog", seconds=self.virtual_warmup_total_time)
                 yield self.env.timeout(self.virtual_warmup_total_time)
             if self.virtual_warmup_task_type:
                 self.previous_task = type(
@@ -1308,9 +1280,9 @@ class Platform:
             self.virtual_warmup_count = 0
             self.virtual_warmup_total_time = 0.0
             self.virtual_warmup_task_type = None
+            end_service(self)
 
         while True:
-            # Wait for replica initialization (if not already done)
             if not fast_forwarded:
                 before_initialize = self.env.now
                 yield self.initialized
@@ -1321,10 +1293,8 @@ class Platform:
 
             # FIFO task selection in platform queue
             task: Task = yield self.queue.get()
-            
-            # Skip warmup tasks that were fast-forwarded
+
             if fast_forwarded and getattr(task, 'is_internal', False) and hasattr(self, '_warmup_tasks') and task in self._warmup_tasks:
-                # Task was already fast-forwarded, just trigger events and continue
                 if not task.arrived.processed:
                     task.arrived.succeed()
                 if not task.started.processed:
@@ -1333,14 +1303,17 @@ class Platform:
                     task.done.succeed()
                 continue
 
-            # Network latency for remote task execution
-            # Check if task is being executed on a different node than where it originated
+            begin_service(self, task)
+            self.service_state.pending["cold_start"] = (
+                float(task.type["coldStartDuration"][self.type["shortName"]])
+                if not sandbox_is_warm(self, task) else 0.0
+            )
             if task.node_name != self.node.node_name:
-                # Check platform's node network_map for connectivity to task's source
                 if hasattr(self.node, 'network_map') and self.node.network_map:
                     if task.node_name in self.node.network_map:
                         network_time = self.node.network_map[task.node_name]
                         task.network_latency = network_time
+                        service_phase(self, "ingress_latency", seconds=network_time)
                         yield self.env.timeout(network_time)
                         # network_contention_v1: propagation above is un-serialized and
                         # stays additive; the input transmission below is served through
@@ -1354,11 +1327,14 @@ class Platform:
                             if transfer_time > 0:
                                 wait_start = self.env.now
                                 with self.node.ingress_pipe.request() as pipe:
+                                    self.service_state.pending["ingress_transfer"] = transfer_time
+                                    service_phase(self, "ingress_wait", event=pipe, unresolved=("ingress_pipe",))
                                     yield pipe
                                     ingress_wait = self.env.now - wait_start
                                     task.ingress_wait_time = ingress_wait
                                     task.ingress_transfer_time = transfer_time
                                     self.node.ingress_wait_total += ingress_wait
+                                    service_phase(self, "ingress_transfer", seconds=transfer_time)
                                     yield self.env.timeout(transfer_time)
                         # link_contention_v1: the same transmission, but served hop by hop
                         # along the task's actual route instead of at one endpoint. Each
@@ -1376,12 +1352,15 @@ class Platform:
                                     continue
                                 wait_start = self.env.now
                                 with self.node.fabric.pipe(link_key_).request() as hop:
+                                    self.service_state.pending["link_transfer"] = hold
+                                    service_phase(self, "link_wait", event=hop, unresolved=("network_link",))
                                     yield hop
                                     link_wait = self.env.now - wait_start
                                     task.link_wait_time += link_wait
                                     task.link_transfer_time += hold
                                     task.link_hops += 1
                                     self.node.fabric.link_wait_total += link_wait
+                                    service_phase(self, "link_transfer", seconds=hold)
                                     yield self.env.timeout(hold)
                     else:
                         # No network connectivity - this should not happen if scheduler filters correctly
@@ -1395,28 +1374,23 @@ class Platform:
             #    yield self.env.timeout(task.gnn_decision_time)
             #    print(f"task timeout in queue: GNN decision time for {task} is {task.gnn_decision_time} seconds")
 
-            # Statistics (Task)
             task.cache_hit = after_initialize == before_initialize
             task.pull_time = (
                 after_initialize - before_initialize if not task.cache_hit else 0.0
             )
 
-            # Initialize the task
             yield task.arrived.succeed()
 
-            # Update platform cache
             self.current_task = task
 
             warm_function = sandbox_is_warm(self, task)
 
-            # Cold start penalty is not incurred if task sandbox was in cache
             initialization_duration = (
                 task.type["coldStartDuration"][self.type["shortName"]]
                 if not warm_function
                 else 0.0
             )
 
-            # Compute total cold start duration
             cold_start_duration: float = initialization_duration
 
             if cold_start_duration > 0:
@@ -1428,18 +1402,15 @@ class Platform:
                 )
 
             # Cold start timeout
+            service_phase(self, "cold_start", seconds=cold_start_duration)
             yield self.env.timeout(cold_start_duration)
             task.cold_start_time = cold_start_duration
 
-            # Retrieve input data
             input_storage: Storage
             output_storage: Storage
             local_dependencies = True
 
-            # Does the task have dependencies?
             if task.dependencies:
-                # If task dependencies were executed on the same node,
-                # local storage is used to retrieve input values
                 # FIXME: Check node storage to ensure data are indeed stored locally
                 local_dependencies = all(
                     [
@@ -1448,11 +1419,8 @@ class Platform:
                     ]
                 )
 
-            # Statistics (Platform)
             self.tasks_count += 1
-            # Statistics (Node)
             self.node.local_dependencies += local_dependencies
-            # Statistics (Task)
             task.local_dependencies = local_dependencies
 
             # FIXME: First task gets input data from remote storage
@@ -1460,7 +1428,7 @@ class Platform:
                 # Local storage
                 # We read input data from the output storage of the previous task
                 # FIXME: Support more complex application DAGs
-                input_storage = yield self.node.storage.get(
+                storage_request = self.node.storage.get(
                     # lambda storage: not storage.type["remote"]
                     lambda storage: storage
                     == task.dependencies[-1].storage["output"]
@@ -1470,15 +1438,16 @@ class Platform:
                 # logging.warning(
                 #     f"[ {self.env.now} ] {task} input fetched from remote storage"
                 # )
-                input_storage = yield self.node.storage.get(
+                storage_request = self.node.storage.get(
                     lambda storage: storage.type["remote"]
                 )
 
-            # Update task
+            service_phase(self, "input_storage_wait", event=storage_request, unresolved=("input_storage",))
+            input_storage = yield storage_request
+            service_phase(self, "input_preparation")
             task.storage["input"] = input_storage
             yield self.node.storage.put(input_storage)
 
-            # Process input
             # FIXME: First task of an application gets input from network!
             input_speed: SpeedMBps = (
                 (input_storage.type["throughput"]["read"])
@@ -1505,6 +1474,8 @@ class Platform:
             # existing corpus — all of which are single-task applications — is unaffected
             # whether it is set or not.
             input_duration += self._dependency_transfer_time(task)
+            self.service_state.pending["input_transfer"] = input_duration
+            self.service_state.unpriced_stages.discard("input_transfer")
 
             # peer_affinity_v1: pairwise-instance exchange with the task's peers, charged at
             # the same stage. Opt-in (HEROSIM_PEER_EXCHANGE=1) and inert without a
@@ -1518,6 +1489,7 @@ class Platform:
             # yields nothing here, so those stay bit-identical.
             rendezvous_started = self.env.now
             for peer_ready in self._peer_rendezvous_events(task):
+                service_phase(self, "peer_rendezvous", event=peer_ready, unresolved=("peer_rendezvous",))
                 yield peer_ready
             if self.env.now > rendezvous_started:
                 task.peer_rendezvous_wait = self.env.now - rendezvous_started
@@ -1528,14 +1500,14 @@ class Platform:
                 input_duration += peer_exchange_time
 
 
-            # Start the task
+            self.service_state.pending["input_transfer"] = input_duration
+            service_phase(self, "input_ready")
             yield task.started.succeed()
 
-            # Retrieve input data
+            service_phase(self, "input_transfer", seconds=input_duration)
             yield self.env.timeout(input_duration)
             # task.application.communications_time += input_duration
 
-            # Retrieve task duration according to platform hardware
             task_duration = task.type["executionTime"][self.type["shortName"]]
 
             logging.info(f"[ {self.env.now} ] {self} started {task} execution")
@@ -1544,42 +1516,52 @@ class Platform:
             # acquire one of the node's shared execution slots, so co-located platforms
             # serialize against each other; task.node_contention_time records that wait
             # separately from execution so RTT stays decomposable for analysis.
-            if self.node.compute_slots is not None:
+            if getattr(self.env, "mixed_execution", None) is not None:
+                task_duration = yield from self.env.mixed_execution.execute(self, task, task_duration)
+            elif self.node.compute_slots is not None:
                 contention_start = self.env.now
                 with self.node.compute_slots.request() as slot:
+                    service_phase(self, "execution_wait", event=slot, unresolved=("compute_slot",))
                     yield slot
                     contention_wait = self.env.now - contention_start
                     task.node_contention_time = contention_wait
                     self.node.contention_time += contention_wait
+                    service_phase(self, "execution", seconds=task_duration)
                     yield self.env.timeout(task_duration)
             else:
+                service_phase(self, "execution", seconds=task_duration)
                 yield self.env.timeout(task_duration)
             task.execution_time = task_duration
 
-            # Store output data
             # FIXME: Remote storage? Local node?
             if local_dependencies:
                 # Local storage
-                output_storage = yield self.node.storage.get(
+                storage_request = self.node.storage.get(
                     lambda storage: not storage.type["remote"]
                 )
             else:
                 # Remote storage
-                output_storage = yield self.node.storage.get(
+                storage_request = self.node.storage.get(
                     lambda storage: storage.type["remote"]
                 )
                 logging.info(
                     f"[ {self.env.now} ] {task} output stored in remote storage"
                 )
 
+            service_phase(self, "output_storage_wait", event=storage_request, unresolved=("output_storage",))
+            output_storage = yield storage_request
+            service_phase(self, "output_preparation")
             # TODO: Store output data
             output_stored = output_storage.store_data(task)
 
             if not output_stored:
                 # FIXME: Resort to remote storage
-                output_storage = yield self.node.storage.get(
+                storage_request = self.node.storage.get(
                     lambda storage: storage.type["remote"]
                 )
+                service_phase(self, "output_storage_wait", event=storage_request, unresolved=("output_storage",))
+                output_storage = yield storage_request
+                service_phase(self, "output_preparation")
                 pass
 
             # FIXME: Update task
@@ -1603,15 +1585,15 @@ class Platform:
             # Wait for I/O completion
             # It allows workflow_process() to dispatch next task in workflow
             # without checking for input data
+            service_phase(self, "output_transfer", seconds=output_duration)
             yield self.env.timeout(output_duration)
             # task.application.communications_time += output_duration
 
-            # Update platform cache
             self.previous_task = self.current_task
             self.current_task = None
+            end_service(self)
             self.idle_since = self.env.now
 
-            # Update platform load time
             self.load_time += cold_start_duration + task_duration
 
             # TODO: Update platform storage time
@@ -1619,7 +1601,6 @@ class Platform:
             task_storage_time = input_duration + output_duration
             self.storage_time += task_storage_time
 
-            # Statistics (Task)
             task.local_communications = all(
                 [
                     not storage.type["remote"] if storage is not None else False
@@ -1629,7 +1610,6 @@ class Platform:
             # task.storage_time = task_storage_time
             task.communications_time = task_storage_time
 
-            # Notify scheduler of task completion
             yield task.done.succeed()
 
             if DATASET_STATE_CAPTURE and (

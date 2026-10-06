@@ -58,39 +58,31 @@ class HRCScheduler(Scheduler):
 
             logging.info(f"[ {self.env.now} ] Scheduler woken up")
 
-            # Get available replicas
             system_state: SystemState = yield self.mutex.get()
             hrc_system_state: HRCSystemState = system_state  # type: ignore
             replicas: Set[Tuple[Node, Platform]] = hrc_system_state.replicas[task.type["name"]]
 
-            # Filter replicas based on network connectivity
             valid_replicas = self._get_valid_replicas(replicas, task)
 
-            # If no valid replicas, request autoscaling
             if not valid_replicas:
                 logging.warning(
                     f"[ {self.env.now} ] HRC Network Scheduler did not find network-accessible replica for"
                     f" {task} (total replicas: {len(replicas)})"
                 )
 
-                # Put task back in queue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request a new replica from the Autoscaler
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(
                         system_state, task.type, source_node_name=task.node_name
                     )
                 )
 
-                # Next event
                 self.env.step()
 
-                # Release mutex
                 yield self.mutex.put(system_state)
 
-                # Next step
                 continue
 
             # Capture state only when generating GNN training datasets (avoids OOM on large sims)
@@ -99,24 +91,19 @@ class HRCScheduler(Scheduler):
                 task.full_queue_snapshot = self._capture_full_queue_snapshot()
                 task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
-            # Measure wall-clock time for the scheduling decision
             from timeit import default_timer
             start = default_timer()
 
-            # Schedule tasks according to policy
             (sched_node, sched_platform) = yield self.env.process(
                 self.placement(system_state, task)
             )
 
-            # Store execution node/platform on task
             task.execution_node = sched_node.node_name
             task.execution_platform = str(sched_platform.id)
 
-            # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)
             task.node = node
             node.unused = False
-            # Update platform
             platform: Platform = yield node.platforms.get(
                 lambda platform: platform.id == sched_platform.id
             )
@@ -124,12 +111,10 @@ class HRCScheduler(Scheduler):
             # Update state - release mutex IMMEDIATELY after placement
             yield self.mutex.put(system_state)
 
-            # End wall-clock time measurement
             end = default_timer()
             elapsed_clock_time = end - start
             node.wall_clock_scheduling_time += elapsed_clock_time
 
-            # Put task in platform queue
             yield platform.queue.put(task)
             yield task.scheduled.succeed()
 
@@ -142,14 +127,12 @@ class HRCScheduler(Scheduler):
         if False:
             yield
 
-        # Cast to HRCSystemState for type safety
         hrc_system_state: HRCSystemState = system_state  # type: ignore
-        
+
         replicas: Set[Tuple[Node, Platform]] = hrc_system_state.replicas[task.type["name"]]
 
-        # Filter replicas based on network connectivity
         valid_replicas = self._get_valid_replicas(replicas, task)
-        
+
         # This should never be empty here since scheduler_process checks first
         if not valid_replicas:
             raise ValueError(f"No valid replicas with network connectivity for task {task.id}")
@@ -170,7 +153,6 @@ class HRCScheduler(Scheduler):
             
             if some_node_storage is None:
                 raise ValueError(f"No local storage available on node {node.node_name}")
-            # Current task cold start
             current_task_cold_start = (
                 platform.current_task.type["coldStartDuration"][
                     platform.type["shortName"]
@@ -181,7 +163,6 @@ class HRCScheduler(Scheduler):
                 and not hasattr(platform.current_task, "started_time")
                 else 0
             )
-            # Current task execution time
             current_task_execution_time = (
                 platform.current_task.type["executionTime"][platform.type["shortName"]]
                 - (self.env.now - (getattr(platform.current_task, "started_time", None) or 0))
@@ -189,7 +170,6 @@ class HRCScheduler(Scheduler):
                 else 0
             )
             # FIXME: We would need task storage to be fixed before task execution
-            # Current task communications time
             current_task_communications_time = (
                 platform.current_task.type["stateSize"][
                     platform.current_task.application.type["name"]
@@ -206,17 +186,14 @@ class HRCScheduler(Scheduler):
                 if queued_task.application.qos["maxDurationDeviation"]
                 >= task.application.qos["maxDurationDeviation"]
             )
-            # Next task cold start
             next_task_cold_start = (
                 task.type["coldStartDuration"][platform.type["shortName"]]
                 if not platform.current_task and not platform.previous_task
                 else 0
             )
-            # Next task execution time
             next_task_execution_time = task.type["executionTime"][
                 platform.type["shortName"]
             ]
-            # Next task communications time
             # FIXME: We would need task storage to be fixed before task scheduling
             next_task_communications_time = (
                 task.type["stateSize"][task.application.type["name"]]["input"]
@@ -231,7 +208,6 @@ class HRCScheduler(Scheduler):
             # Network latency for offloaded tasks
             next_task_network_latency = 0.0
             if node.node_name != task.node_name:
-                # Task is being offloaded - add network latency
                 if hasattr(node, 'network_map') and task.node_name in node.network_map:
                     next_task_network_latency = node.network_map[task.node_name]
                 # Fallback: find source node and check its network_map
@@ -246,7 +222,6 @@ class HRCScheduler(Scheduler):
                             next_task_network_latency = source_node.network_map[node.node_name]
             
             yield node.storage.put(some_node_storage)
-            # Task deadline
             task_deadline = (
                 max(task.type["executionTime"].values())
                 * task.application.qos["maxDurationDeviation"]
@@ -298,14 +273,12 @@ class HRCScheduler(Scheduler):
 
         # logging.error(f"scores = {scores}")
 
-        # Weights?
         weights: Dict[str, float] = {
             "penalty": 2 / 3,
             "energy_consumption": 0.5 / 6,
             "consolidation": 1.5 / 6,
         }
 
-        # Normalize scores?
         normalized_scores: Dict[str, Dict[Tuple[Node, Platform], float]] = dict(scores)
         for metric, values in scores.items():
             t_min = 1
@@ -410,15 +383,12 @@ class HRCScheduler(Scheduler):
         Returns:
             Dict with placement information
         """
-        # Calculate queue time
         queue_time = self.env.now - task.arrived_time if hasattr(task, 'arrived_time') else 0.0
-        
-        # Capture queue snapshots
+
         valid_replicas_set = set(valid_replicas)
         queue_snapshot_at_scheduling = self.state_capture.capture_queue_snapshot_for_replicas(valid_replicas_set)
         full_queue_snapshot = self.state_capture.capture_full_queue_snapshot()
-        
-        # Capture temporal state
+
         temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
         
         return self.state_capture.capture_task_placement(
@@ -478,7 +448,6 @@ class HRCScheduler(Scheduler):
             if platform.current_task is not None:
                 current_task = platform.current_task
                 
-                # Check if task is in cold start phase
                 if current_task.cold_started and not hasattr(current_task, "started_time"):
                     cold_start_duration = current_task.type["coldStartDuration"].get(
                         platform.type["shortName"], 0.0
@@ -486,7 +455,6 @@ class HRCScheduler(Scheduler):
                     elapsed_cold_start = now - current_task.arrived_time
                     cold_start_remaining = max(0.0, cold_start_duration - elapsed_cold_start)
                 
-                # Check if task is executing
                 if hasattr(current_task, "started_time") and current_task.started_time is not None:
                     exec_duration = current_task.type["executionTime"].get(
                         platform.type["shortName"], 0.0
@@ -494,7 +462,6 @@ class HRCScheduler(Scheduler):
                     elapsed_exec = now - current_task.started_time
                     current_task_remaining = max(0.0, exec_duration - elapsed_exec)
                     
-                    # Estimate communication remaining
                     if current_task.application:
                         state_size_map = current_task.type.get("stateSize", {})
                         app_name = current_task.application.type.get("name", "")

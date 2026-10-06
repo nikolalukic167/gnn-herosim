@@ -35,8 +35,8 @@ from src.placement.scheduler import Scheduler
 class HRCScheduler(Scheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.batch_size = 5  # Batch size for efficient processing
-        self.batch_timeout = 0.1  # Timeout for collecting batch
+        self.batch_size = 5
+        self.batch_timeout = 0.1
 
     def scheduler_process(self) -> Generator:
         if False:
@@ -73,7 +73,6 @@ class HRCScheduler(Scheduler):
         task: Task = yield self.tasks.get(task_filter)
         batch.append(task)
         
-        # Set deadline for collecting rest of batch
         batch_deadline = self.env.now + self.batch_timeout
         
         # Collect remaining tasks using polling (avoids dangling get events)
@@ -82,15 +81,12 @@ class HRCScheduler(Scheduler):
             if remaining_time <= 0:
                 break
             
-            # Check if there are any ready tasks in the queue
             ready_tasks = [t for t in self.tasks.items if task_filter(t)]
-            
+
             if ready_tasks:
-                # Get the first ready task immediately
                 task = yield self.tasks.get(task_filter)
                 batch.append(task)
             else:
-                # No ready tasks - wait a small step and check again
                 step_time = min(0.01, remaining_time)
                 yield self.env.timeout(step_time)
         
@@ -100,7 +96,6 @@ class HRCScheduler(Scheduler):
         """Process a batch of tasks using HRC placement strategy."""
         print(f"[ {self.env.now} ] HRC Network: Processing {len(batch_tasks)} tasks in batch")
         
-        # Track scheduling time for the batch
         batch_start = default_timer()
         
         system_state: Optional[SystemState] = yield self.mutex.get()
@@ -114,7 +109,6 @@ class HRCScheduler(Scheduler):
             task_start = default_timer()
             replicas: Set[Tuple[Node, Platform]] = hrc_system_state.replicas[task.type["name"]]
 
-            # Filter replicas based on network connectivity
             valid_replicas = self._get_valid_replicas(replicas, task)
 
             # If no valid replicas (either no replicas or none are network-reachable), request autoscaling
@@ -124,34 +118,28 @@ class HRCScheduler(Scheduler):
                     f" {task} (total replicas: {len(replicas)})"
                 )
 
-                # Put task back in queue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request a new replica from the Autoscaler
                 # Note: HRC autoscaler doesn't support source_node_name yet, but we can add it later
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(system_state, task.type)
                 )
 
-                # Continue to next task in batch
                 continue
 
             # Use parent's placement method which will call our placement() method
-            # Schedule tasks according to policy
             placement_result: Tuple[Node, Platform] = yield self.env.process(
                 self.placement(system_state, task)
             )
             sched_node, sched_platform = placement_result
 
-            # Update node
             node: Optional[Node] = yield self.nodes.get(lambda node: node.id == sched_node.id)
             if node is None:
                 logging.error(f"[ {self.env.now} ] HRC Network: Failed to get node {sched_node.id}")
                 continue
             task.node = node
             node.unused = False
-            # Update platform
             platform: Optional[Platform] = yield node.platforms.get(
                 lambda platform: platform.id == sched_platform.id
             )
@@ -161,12 +149,10 @@ class HRCScheduler(Scheduler):
                 continue
             task.platform = platform
 
-            # End wall-clock time measurement
             task_end = default_timer()
             elapsed_clock_time = task_end - task_start
             node.wall_clock_scheduling_time += elapsed_clock_time
 
-            # Put task in platform queue
             yield platform.queue.put(task)
             yield task.scheduled.succeed()
 
@@ -186,14 +172,12 @@ class HRCScheduler(Scheduler):
         if False:
             yield
 
-        # Cast to HRCSystemState for type safety
         hrc_system_state: HRCSystemState = system_state  # type: ignore
-        
+
         replicas: Set[Tuple[Node, Platform]] = hrc_system_state.replicas[task.type["name"]]
 
-        # Filter replicas based on network connectivity
         valid_replicas = self._get_valid_replicas(replicas, task)
-        
+
         # This should never be empty here since scheduler_process checks first
         if not valid_replicas:
             raise ValueError(f"No valid replicas with network connectivity for task {task.id}")
@@ -214,7 +198,6 @@ class HRCScheduler(Scheduler):
             
             if some_node_storage is None:
                 raise ValueError(f"No local storage available on node {node.node_name}")
-            # Current task cold start
             current_task_cold_start = (
                 platform.current_task.type["coldStartDuration"][
                     platform.type["shortName"]
@@ -225,7 +208,6 @@ class HRCScheduler(Scheduler):
                 and not hasattr(platform.current_task, "started_time")
                 else 0
             )
-            # Current task execution time
             current_task_execution_time = (
                 platform.current_task.type["executionTime"][platform.type["shortName"]]
                 - (self.env.now - (getattr(platform.current_task, "started_time", None) or 0))
@@ -233,7 +215,6 @@ class HRCScheduler(Scheduler):
                 else 0
             )
             # FIXME: We would need task storage to be fixed before task execution
-            # Current task communications time
             current_task_communications_time = (
                 platform.current_task.type["stateSize"][
                     platform.current_task.application.type["name"]
@@ -250,17 +231,14 @@ class HRCScheduler(Scheduler):
                 if queued_task.application.qos["maxDurationDeviation"]
                 >= task.application.qos["maxDurationDeviation"]
             )
-            # Next task cold start
             next_task_cold_start = (
                 task.type["coldStartDuration"][platform.type["shortName"]]
                 if not platform.current_task and not platform.previous_task
                 else 0
             )
-            # Next task execution time
             next_task_execution_time = task.type["executionTime"][
                 platform.type["shortName"]
             ]
-            # Next task communications time
             # FIXME: We would need task storage to be fixed before task scheduling
             next_task_communications_time = (
                 task.type["stateSize"][task.application.type["name"]]["input"]
@@ -275,7 +253,6 @@ class HRCScheduler(Scheduler):
             # Network latency for offloaded tasks
             next_task_network_latency = 0.0
             if node.node_name != task.node_name:
-                # Task is being offloaded - add network latency
                 if hasattr(node, 'network_map') and task.node_name in node.network_map:
                     next_task_network_latency = node.network_map[task.node_name]
                 # Fallback: find source node and check its network_map
@@ -290,7 +267,6 @@ class HRCScheduler(Scheduler):
                             next_task_network_latency = source_node.network_map[node.node_name]
             
             yield node.storage.put(some_node_storage)
-            # Task deadline
             task_deadline = (
                 max(task.type["executionTime"].values())
                 * task.application.qos["maxDurationDeviation"]
@@ -342,14 +318,12 @@ class HRCScheduler(Scheduler):
 
         # logging.error(f"scores = {scores}")
 
-        # Weights?
         weights: Dict[str, float] = {
             "penalty": 2 / 3,
             "energy_consumption": 0.5 / 6,
             "consolidation": 1.5 / 6,
         }
 
-        # Normalize scores?
         normalized_scores: Dict[str, Dict[Tuple[Node, Platform], float]] = dict(scores)
         for metric, values in scores.items():
             t_min = 1

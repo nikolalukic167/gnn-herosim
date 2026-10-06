@@ -1,6 +1,6 @@
 # scheduler_residence_v1 — where the learned arms' scheduler-side time actually goes
 
-**Status:** `REGISTERED` (2026-09-15). Every bar below is a module constant in
+**Status:** `CLOSED` (2026-09-16) — **RESIDENCE-IS-COLLECTION · LOPSIDEDNESS-DOES-NOT-REPLICATE**. Registered 2026-09-15; every bar below was a module constant in
 `scripts_cosim/scheduler_residence_v1_read.py`, committed **before** the arms it reads exist.
 Amend by dated amendment only.
 
@@ -462,3 +462,10 @@ over its own reactive arm, at the x4000 rung, on 15 independent topology draws f
 generator. **Not closed:** what *does* make one topology draw a disaster and another a win —
 the excess ranges from −29.2 s to +51.6 s across draws and nothing measured here explains it;
 and the descriptive pattern above, which is a new registration if pursued.
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- **CLOSED 2026-09-16 -- RESIDENCE-IS-COLLECTION, LOPSIDEDNESS-DOES-NOT-REPLICATE.** **R0 (n = 13-15, 0/3 cells): the registered claim is REFUTED and it restores the parent's original label.** The scheduler-side wait is **89 % peer-group collection** (6.10-6.13 s), **9-11 % head-of-line** (0.59-0.76 s against a 2.0 s bar), and **0.000 s placement** -- the decoder costs no simulated time, so none of the loss to reactive is inference.
+- **R0 read 2026-09-15: COLLECTION-DOMINATES -- the registered claim is REFUTED, and it restores its parent's original label.** Head-of-line blocking is **0.61-0.77 s**, 9-11 % of the scheduler-side wait, against a 2.0 s bar and a collection term **8-10x larger** (6.10-6.12 s); placement is **0.000 s**, so the decoder costs no simulated time.

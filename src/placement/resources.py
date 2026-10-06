@@ -80,7 +80,6 @@ class PriorityFilterStore(FilterStore):
         self, event: PriorityFilterStoreGet
     ) -> Optional[bool]:
         suitable = []
-        # Filter Get
         for item in self.items:
             if event.filter(item):
                 suitable.append(item)

@@ -18,7 +18,7 @@ Every number below is measured, not assumed. Method and date in the last column.
 
 | Tier | Axis | Measured impact | How it is checked | Measurement |
 |---|---|---|---|---|
-| **1** | **Application code** | up to **23.3%** of decisions | `verify_code_identity.py` (git sha + import-closure sha256) | dims 9–11 estimator bug, 2026-08-20 |
+| **1** | **Application code** | up to **23.3%** of decisions | `run_provenance.code` in the result JSON (`describe_code_provenance`: HEAD sha + working-tree `diff_sha256` over `CODE_PATHS`) | dims 9–11 estimator bug, 2026-08-20 |
 | **1** | **Topology / infrastructure** | catastrophic (train/serve mismatch) | `verify_live_infra_parity.py` | existing preflight |
 | **1** | **Contracts** (queue, topology, feature layout, network graph) | up to **12.4×** live RTT | checkpoint `.contract.json` sidecar, enforced in `load_gnn_model` | MP mismatch, 2026-08-16 |
 | **1** | **Warmth physics** | ~**100×** live total RTT | `require_explicit_warmth_physics` | pre-existing |
@@ -179,8 +179,12 @@ grep -rn '"pipenv"' --include='*.py' src/ scripts_cosim/          # argv-list fo
 git status --porcelain && git rev-parse HEAD
 ssh datalab 'cd ~/gnn-herosim && git status --porcelain && git rev-parse HEAD'
 
-# 1. same code actually reachable from the entry point (import closure, not a hand-list)
-pipenv run python3 scripts_cosim/verify_code_identity.py --policy gnn
+# 1. same code, commit AND working tree, on both sides
+#    There is no verify_code_identity.py -- that check became a stamp every run writes.
+#    Compare run_provenance.code between the two result JSONs: equal commit + equal
+#    diff_sha256 means identical code; equal commit + different diff_sha256 is the
+#    uncommitted-working-tree case that cost job 708549 a gate verdict.
+pipenv run python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['run_provenance']['code'])" <result>.json
 
 # 2. same topology as the training corpus
 pipenv run python3 scripts_cosim/verify_live_infra_parity.py --dataset <cell> -v

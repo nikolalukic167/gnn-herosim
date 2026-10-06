@@ -1,0 +1,14 @@
+{
+  "registered": "2026-09-22",
+  "reason": "Discovery suggests multiple gaps; challenge baseline initialization and search budget granularity before claiming mechanism-specific value",
+  "mechanisms": ["none", "setup", "locks", "power", "thermal", "maintenance", "deadlines", "carbon", "mixed"],
+  "calibration_seeds": [100000,100007],
+  "fresh_seeds": [102000,102015],
+  "starts": ["fastest", "load", "affinity", "ect"],
+  "searches": ["direct", "descent1", "descent2", "anneal64", "anneal128", "anneal192"],
+  "reference": "best of frozen control and anneal8192 from load and fastest; no optimum claim",
+  "budget_ms": 2.0,
+  "selection": "one fixed start/search pair per mechanism selected by calibration mean objective among p95<=2ms; no retuning on fresh seeds",
+  "reference_gate": "fresh median gain >=5pct, bootstrap lower bound >0, frozen control p95<=2ms",
+  "interpretation": "exploratory confirmation of budgeted planning headroom only, not GNN evidence; include no-new-physics negative control; all 24 timing trials and input identities retained"
+}

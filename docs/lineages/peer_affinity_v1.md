@@ -40,6 +40,16 @@ paper datasets in the on-disk format for the cross-check under
 `simulation_data/peer_affinity_paper_k8/` (not a training corpus; never registered in
 `REGISTRY.json`).
 
+**Standing answer (2026-09-13) — the +5.14 pp above is OFFLINE ONLY.** On matched production
+traces the sign reverses: `gnn` − `mpoff` reads +5.14 / +6.53 / +9.61 pp offline and
++2.37 / −4.42 / −10.67 % live across the three corpora ordered by peer-graph density, and the two
+venues are anti-correlated and monotone. The reversal and the platform cap's +21.9 % over Knative
+are both **contingent on the cluster's platform mix**: removing `xavierGpu`, a type that is a
+candidate in 0 of 516 training datasets, turns x800 p3 from POINTWISE-BETTER into a TIE and takes
+`gnn` vs Knative to −14.0 %, 0/16. At a defensible load (`drainable_regime_v1`) the contrast is
+−15.94 %. **Never quote a live number from this lineage without its load factor and its
+platform mix.**
+
 ## Record
 
 - [peer_affinity_v1 — PHASE 0 REGISTRATION (2026-09-09)](#peer-affinity-v1-phase-0-registration-2026-09-09)
@@ -1441,3 +1451,11 @@ batches therefore see a partial group, and the peers outside the batch are count
 reactive `knative_network` on the same trace the mismatched checkpoint still lands at **56.1 % of its
 total RTT** with 30 % less peer-exchange time, so the denser rung's live gate is not at risk of a serving
 failure.
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- The cap helps `mpoff` equally (+20.2%), so it is a serving fix, not evidence for MP: `gnn` vs `mpoff` live is still a tie (+2.37%, p=0.23).
+- **No single measurement has `gnn` beating both `mpoff` and Knative.** What holds everywhere: under the platform cap every learned arm beats reactive Knative 16/16 on every corpus (`gnn` +21.9/+20.6/+12.9%, `mpoff` +20.2/+25.6/+23.4%).
+- Re-running the capped gate with that type removed from every arm (`HEROSIM_REPLICA_PLATFORM_TYPES`, 102 arms, all COMPLETED): **the offline/live reversal disappears** — x800 p3 goes from POINTWISE-BETTER (-10.67 %, p=0.018) to a **TIE** (-0.28 %), x800 p2 from -4.42 % to +2.58 %, and x200 p2 becomes the lineage's first **GNN-NEEDED live** reading (+3.94 %, p=0.0076, 13/16) — **and the platform cap's win over Knative reverses with it**: `gnn` vs Knative goes +21.9/+20.6/+12.9 % to **-14.0/-10.9/-15.9 %, 0/16 seeds**, because removing the type costs Knative ~6 % and the concentrating graph arm ~55 %.

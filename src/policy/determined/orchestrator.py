@@ -31,13 +31,11 @@ class DeterminedOrchestrator(Orchestrator):
     def __init__(self, *args, **kwargs):
         logger = logging.getLogger('simulation')
         logger.info("DeterminedOrchestrator: Starting initialization")
-        # Extract infrastructure config if provided
         self.infrastructure = kwargs.pop('infrastructure', None) if 'infrastructure' in kwargs else None
         logger.info("DeterminedOrchestrator: Calling super().__init__")
         super().__init__(*args, **kwargs)
         logger.info("DeterminedOrchestrator: super().__init__ completed")
         
-        # Pass forced placements to scheduler if available
         if self.infrastructure and 'forced_placements' in self.infrastructure:
             logger.info(f"DeterminedOrchestrator: Passing {len(self.infrastructure['forced_placements'])} forced placements to scheduler")
             self.scheduler.forced_placements = self.infrastructure['forced_placements']
@@ -52,7 +50,6 @@ class DeterminedOrchestrator(Orchestrator):
             print(f"[ {self.env.now} ] DeterminedOrchestrator: No forced placements found in infrastructure")
             sys.exit(1)
         
-        # Pass scheduler config (batch_size, batch_timeout) if available
         if self.infrastructure and 'scheduler' in self.infrastructure:
             scheduler_config = self.infrastructure['scheduler']
             if 'batch_size' in scheduler_config:
@@ -70,7 +67,6 @@ class DeterminedOrchestrator(Orchestrator):
     def initialize_state(self) -> DeterminedSystemState:
         logger = logging.getLogger('simulation')
         logger.info("DeterminedOrchestrator: initialize_state called")
-        # Initialize scheduler state
         logger.info("DeterminedOrchestrator: Creating DeterminedSchedulerState")
         scheduler_state = DeterminedSchedulerState(
             average_contention={task_type: {} for task_type in self.data.task_types},
@@ -84,7 +80,6 @@ class DeterminedOrchestrator(Orchestrator):
                 for task_type in self.data.task_types
             },
         )
-        # Initialize available resources to all Tuple[Node, Platform]
         available_resources: Dict[Node, Set[Platform]] = {
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
@@ -97,13 +92,11 @@ class DeterminedOrchestrator(Orchestrator):
             for plat in reserved:
                 plats.discard(plat)
                 node.available_platforms -= 1
-        # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
-        
+
         # Todo: remove this after testing
-        # Seed initial replicas if provided
         logger.info(f"DeterminedOrchestrator: Checking initial_replicas (count: {len(self.initial_replicas) if self.initial_replicas else 0})")
         if self.initial_replicas:
             logger.info(f"DeterminedOrchestrator: Using {len(self.initial_replicas)} pre-seeded replica sets")
@@ -176,19 +169,15 @@ class DeterminedOrchestrator(Orchestrator):
             # Clear average using time-window bounds if necessary
             # FIXME: Implement panic mode (60- vs 6-second time windows)
             if step == 7:
-                # Store averages at the granularity of replicas
                 for function_name, function_replicas in replicas.items():
-                    # Accumulators
                     for node, platform in function_replicas:
                         # Knative policy
                         state.average_contention[function_name][
                             (node.id, platform.id)
                         ] = len(platform.queue.items)
 
-                # Update tick time
                 latest_window_start = self.env.now
             else:
-                # Update contention rolling means
                 for function_name, function_replicas in replicas.items():
                     for node, platform in function_replicas:
                         # Knative policy. A replica that appeared since the last
@@ -206,5 +195,4 @@ class DeterminedOrchestrator(Orchestrator):
 
             yield self.mutex.put(system_state)
 
-            # Wake Monitor up once per second
             yield self.env.timeout(1)

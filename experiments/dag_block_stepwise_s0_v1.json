@@ -1,0 +1,15 @@
+{
+  "status": "registered_before_measurement",
+  "question": "Do exact-scored DAG block and reservation proposals leave material improvement beyond a 250 ms hand search?",
+  "shapes": [[8, 6, 8], [16, 8, 12], [16, 16, 16], [24, 16, 24]],
+  "calibration_seeds": [161000, 161001],
+  "fresh_seeds": [161100, 161115],
+  "budget_ms": 250,
+  "candidate_limit_per_family": 96,
+  "reference_steps": 8192,
+  "headroom_bar_pct": 8,
+  "hand_capture_ceiling": 0.5,
+  "primary_control": "baseline plus same-budget compiled mixed-decoder search",
+  "reference": "best feasible broad candidate, multi-step candidate descent, and two-start 8192-step compiled searches",
+  "decision": "Only if headroom and search-hardness pass, test residual information before training. A failed finite recipe does not bound all DAG reservation policies."
+}

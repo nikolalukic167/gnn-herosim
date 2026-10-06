@@ -1,7 +1,13 @@
----
-name: route-b-preflight
-description: Preflight and arm-coverage discipline for the route_b_env_pivot_v1 screen — the 204-dataset 2×2×3×17 corpus where every defect so far has been an assumption that held on one arm and broke on a neighbouring one. Load before trusting, quoting, or acting on any number from a route_b rung; before editing score_route_b_contention.py, verify_route_b_scorer_agreement.py, route_b_coefficient_transfer.py or the co-sim skip/combination path; and before proposing any change to a registered threshold, bar, grid, α ladder or reading rule. Not a description of the screen (see docs/lineages/route_b_env_pivot_v1.md) — this is what has already gone wrong.
----
+# route_b preflight discipline (retired skill)
+
+> **Status:** `REFERENCE` (attachment of [`route_b_env_pivot_v1`](../route_b_env_pivot_v1.md), `PARKED`)
+>
+> This was a Claude Code skill under `.claude/skills/route-b-preflight/`. It was retired on
+> 2026-09-16: its lineage has been PARKED since 2026-08-28 and its corpora were deleted on
+> 2026-08-29, but every session still paid for its description in the system prompt.
+>
+> Kept verbatim because a signed amendment could resume the screen, and this is what has
+> already gone wrong on it. **Not current practice.**
 
 # route_b preflight
 

@@ -187,3 +187,9 @@ one 3k-event trace per arm per corpus plus one full-trace run per arm per corpus
 | S0 | diagnostic harness reproduces the offline sign | registered |
 | 1 | H1 herding · H2 queue sensitivity, 16 seeds × 3 corpora | registered |
 | 2 | one serving constraint per fired hypothesis, gated live | authorised only on GO |
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- **H1 herding: 0/3 corpora fire — the `gnn` arm SPREADS MORE than `mpoff` (repeat rate -0.083, entropy +0.062, both p<0.02 on x800p3).** **H2 queue insensitivity: 0/3 fire — `gnn` is 3-7x MORE load-responsive on every corpus, p<1e-4.** 192 live production runs, 16 seeds x 3 corpora x 2 arms.

@@ -1,0 +1,127 @@
+{
+  "audit": {
+    "all_arms_50000_tasks": true,
+    "all_arms_success": true,
+    "all_scale_events_zero": true,
+    "identical_pair_manifests": true,
+    "matching_checkpoint_contract_except_mp_flags": true,
+    "same_code_fingerprint": true
+  },
+  "checkpoint_contract_differences": {
+    "disable_message_passing": [
+      false,
+      true
+    ],
+    "mp_bipartite_edge_attr_zero": [
+      true,
+      false
+    ],
+    "mp_bipartite_edge_conv": [
+      true,
+      false
+    ]
+  },
+  "exact_one_sided_sign_p": 0.00390625,
+  "lineage": "gnn_seeded_cd_mp_ablation_v1",
+  "median_mpoff_advantage_over_gnn_pct": 1.683897377890159,
+  "median_mpoff_advantage_over_hand_pct": 3.5828377860036955,
+  "mpoff_checkpoint_sha256": "826108ba634f2fb993b5bf23064c475fe575023ef2ad3c1232ade2ac43783658",
+  "mpoff_sidecar_sha256": "50960bd256555b7a65e4e478e71ee4a0983e513044f704cbfce57a53894a0c04",
+  "mpoff_wins_over_gnn": 8,
+  "mpoff_wins_over_hand": 8,
+  "pairs": [
+    {
+      "gnn_elapsed_s_per_task": 2.8528008402348473,
+      "hand_elapsed_s_per_task": 2.8457041627394153,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 1.5295615151467712,
+      "mpoff_better_than_gnn_pct": 1.5263309097196753,
+      "mpoff_better_than_hand_pct": 1.2807551817589413,
+      "mpoff_elapsed_s_per_task": 2.8092576592176,
+      "mpoff_inference_s_total": 48.05186105892062,
+      "seed": 9303
+    },
+    {
+      "gnn_elapsed_s_per_task": 2.0077837639914273,
+      "hand_elapsed_s_per_task": 2.1121936447513394,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 2.1491855116587577,
+      "mpoff_better_than_gnn_pct": 2.143247004747828,
+      "mpoff_better_than_hand_pct": 6.980498521518341,
+      "mpoff_elapsed_s_per_task": 1.9647519986078679,
+      "mpoff_inference_s_total": 47.123029585927725,
+      "seed": 9304
+    },
+    {
+      "gnn_elapsed_s_per_task": 3.387132890693193,
+      "hand_elapsed_s_per_task": 3.567077164627764,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 2.2411656966943916,
+      "mpoff_better_than_gnn_pct": 2.2374932814035575,
+      "mpoff_better_than_hand_pct": 7.16920697236243,
+      "mpoff_elapsed_s_per_task": 3.3113460198317224,
+      "mpoff_inference_s_total": 47.76894977502525,
+      "seed": 9307
+    },
+    {
+      "gnn_elapsed_s_per_task": 3.4340455253231594,
+      "hand_elapsed_s_per_task": 3.4626282060212783,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 2.1826662640848093,
+      "mpoff_better_than_gnn_pct": 2.179790871526466,
+      "mpoff_better_than_hand_pct": 2.987259544738441,
+      "mpoff_elapsed_s_per_task": 3.3591905144381022,
+      "mpoff_inference_s_total": 47.43602252006531,
+      "seed": 9308
+    },
+    {
+      "gnn_elapsed_s_per_task": 3.0467099146492687,
+      "hand_elapsed_s_per_task": 3.1131577434140585,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 1.4621028121619806,
+      "mpoff_better_than_gnn_pct": 1.4585404692544213,
+      "mpoff_better_than_hand_pct": 3.561828053374949,
+      "mpoff_elapsed_s_per_task": 3.002272417563322,
+      "mpoff_inference_s_total": 47.28271562978625,
+      "seed": 9310
+    },
+    {
+      "gnn_elapsed_s_per_task": 5.246773564521899,
+      "hand_elapsed_s_per_task": 5.5307798397720696,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 1.8431418317551684,
+      "mpoff_better_than_gnn_pct": 1.8414638460606425,
+      "mpoff_better_than_hand_pct": 6.8819176418563615,
+      "mpoff_elapsed_s_per_task": 5.150156126246561,
+      "mpoff_inference_s_total": 48.460854433476925,
+      "seed": 9312
+    },
+    {
+      "gnn_elapsed_s_per_task": 4.636268373133021,
+      "hand_elapsed_s_per_task": 4.795479090880185,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 0.2956108908301336,
+      "mpoff_better_than_gnn_pct": 0.29357740710037605,
+      "mpoff_better_than_hand_pct": 3.6038475186324415,
+      "mpoff_elapsed_s_per_task": 4.622657336656962,
+      "mpoff_inference_s_total": 49.818156596273184,
+      "seed": 9313
+    },
+    {
+      "gnn_elapsed_s_per_task": 3.654022346884885,
+      "hand_elapsed_s_per_task": 3.6968509814184376,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "mpoff_better_than_gnn_inference_inclusive_pct": 0.536085125593122,
+      "mpoff_better_than_gnn_pct": 0.5329246705852997,
+      "mpoff_better_than_hand_pct": 1.685267309987637,
+      "mpoff_elapsed_s_per_task": 3.6345491603296356,
+      "mpoff_inference_s_total": 48.191537011414766,
+      "seed": 9314
+    }
+  ],
+  "parent_gate": "gnn_seeded_cd_fixed_v1",
+  "parent_gate_protocol_sha256": "530db3a2a2d9958021612b88d238b426398f27f0b4252670eda815cdacec8e3c",
+  "parent_gate_runner_sha256": "a5505923236bd832e61f18ade1ae2b9490b112951ff9c6dc779388dfd305f744",
+  "same_tracked_code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+  "scope_limit": "Exploratory ablation on eight topologies already opened for the GNN-vs-hand fixed-replica gate; a negative comparison for this checkpoint and seat, not a population claim about all message-passing models."
+}

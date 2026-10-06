@@ -1,0 +1,58 @@
+{
+  "arms": [
+    "gnn_seeded_cd",
+    "peer_greedy_network_cd"
+  ],
+  "audit_rules": [
+    "Both arms complete 50000 tasks",
+    "Both arms have zero scale events",
+    "Both arms use identical fixed-replica manifest",
+    "Checkpoint sidecar present and contract enforced",
+    "No candidate-coverage preflight failure among selected seeds"
+  ],
+  "base_config": "experiments/gnn_seeded_cd_fixed_v1_base.json",
+  "checkpoint_sha256": "d811cbc20d03a81529adee187691f8f2fa6f1dbdd185688e6ddc4a9ee2d41d2f",
+  "checkpoint_sidecar_sha256": "ec2dc3480b74aa5e070a4aa1be78291475dbdfa8760f02186b8255b652897b3d",
+  "date": "2026-09-22",
+  "fresh_seed_rule": "Take the first 8 topology seeds >=9301 that pass the replica-reachability preflight, before inspecting any policy outcome. Search at most 9340; report every rejected seed and reason.",
+  "gnn_checkpoint": "/tmp/jb2-gnnedge0-seed1.pt",
+  "ineligible_preflight_seeds": [
+    9301,
+    9302,
+    9305,
+    9306,
+    9309,
+    9311
+  ],
+  "lineage": "gnn_seeded_cd_fixed_v1",
+  "parity_check": "Final runner reproduced both opened 9106 weight-2 total RTTs bit-exactly: GNN 132346.20793916783 s; hand 143705.1737818597 s.",
+  "primary_metric": "For each topology, mean task elapsed seconds for GNN seed divided by hand seed minus 1; aggregate the eight paired percentages by median.",
+  "purpose": "Test whether the seed-1 bipartite GNN improves six-pass hand coordinate refinement when every policy sees the same fixed server replica set.",
+  "replica_pool_rule": "For each task type and server, choose the compatible platform with minimum SHA-256 digest of 9106:task_name:node_name:platform_id; initialize every chosen platform; disable autoscaler scaling; require every client to reach a replica for every task type.",
+  "replica_runner": "scripts_cosim/important/gnn_seeded_cd_fixed_v1.py",
+  "replica_runner_sha256": "a5505923236bd832e61f18ade1ae2b9490b112951ff9c6dc779388dfd305f744",
+  "scope_limit": "One fixed replica pool and one w0 burst workload; success does not establish dynamic-autoscaler or workload-window transfer.",
+  "selected_fresh_seeds": [
+    9303,
+    9304,
+    9307,
+    9308,
+    9310,
+    9312,
+    9313,
+    9314
+  ],
+  "shared_settings": {
+    "GNN_BATCH_BY_PEER_GROUP": "1",
+    "GNN_DECODE_MODE": "masked_topo",
+    "HEROSIM_PG_CD_PASSES": "6",
+    "HEROSIM_PG_EXCHANGE_SCALE": "2",
+    "arrival_count": 50000,
+    "queue_length": 100,
+    "warmth_physics": "node_disk_v2"
+  },
+  "status": "preregistered_before_fresh_seed_outcomes",
+  "success_rule": "At least 7 of 8 topologies favor GNN, median elapsed reduction >=2%, and GNN including measured inference remains faster than hand including measured inference in at least 7 of 8. This is a one-sided sign-test p<=0.0352 plus an effect floor.",
+  "workload": "/tmp/jb2-burst-f4000-n50000.json",
+  "workload_sha256": "ba8870707db73bcbbe07bc1ca40b95695227d456101190f27a1f9224f98a2416"
+}

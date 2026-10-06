@@ -497,3 +497,9 @@ screen: rule 6 was applied and the live gate agreed with the offline screen in d
 further in magnitude. What does NOT close: the warm corpus as a *pointwise* serving lever (side
 finding above), and the unexplained offline/live reversal of `peer_affinity_v1` (this lineage did not
 set out to explain it and does not).
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- **Side finding (descriptive):** the warm-trained *pointwise* arm beats Knative uncapped +11.3 %, 16/16, WARM-HELPS over cold `mpoff` +11.8 % (p = 0.002, 14/16), and finishes sooner (137.6k vs 159.2k s) — the first learned arm to win on both statistics without the cap; a new registration if pursued.

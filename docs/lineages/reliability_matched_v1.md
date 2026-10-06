@@ -108,6 +108,10 @@ comparison group is frozen material that no choice here can move.
 - Scorer: `scripts_cosim/important/score_reliability_matched_v1.py` — a sibling of
   `score_objective_pivot_phase1.py`, not an edit; its thresholds are this registration.
 
+**Standing answer (2026-09-04) — FAIL.** Matching the corpus removes 87 % of the MLP's collapse
+burden and the residual is not established at n = 16 (p = 0.113). No unconfounded model-class
+reliability claim survives anywhere in the program.
+
 ## Record
 
 ### Outcome — FAIL at the registered α, and the burden collapsed by 87% (2026-09-04)
@@ -163,3 +167,9 @@ because the decision to extend followed a look at them. Nothing here authorises 
 `simulation_data/reliability_matched_v1_verdict.json`, job 735692 (gate), 735555
 (training). First attempt 735581 died on the account's CephFS quota with no episodes
 scored (GATE TOOLS 2026-09-03); no number from it was ever read.
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- Primary +50%: matched-MLP counts `2,0,0,0,0,0,0,0,0,0,1,0,0,0,11,0` vs GNN all-zero, rank-sum **p = 0.1127** against α = 0.05; must-hold +100% p = 0.2414.

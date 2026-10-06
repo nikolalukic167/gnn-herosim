@@ -1,6 +1,6 @@
 # drainable_objective_v1 — does a label that charges the externality beat one that does not?
 
-**Status:** `REGISTERED` 2026-09-14 — every bar below is signed before any datum exists.
+**Status:** `CLOSED` (2026-09-15) — **OBJECTIVE-NOT-DELIVERED**. Registered 2026-09-14 — every bar below is signed before any datum exists.
 
 **Parent:** [`drainable_debug_v1`](drainable_debug_v1.md). Its D1 read fired H-MYOPIA on all three
 state sources: the T1b checkpoints make **better one-step plans than reactive Knative everywhere**

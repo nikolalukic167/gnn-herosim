@@ -1,0 +1,11 @@
+trainer: dispatch_priority
+lineage: mixed_dispatch_v1
+cache_dir: simulation_data/gnn_environment_search_v1/mixed_dispatch_corpus
+args:
+  arm: mlp_hand
+  epochs: 40
+  output-dir: simulation_data/gnn_environment_search_v1/mixed_dispatch_models
+path_args: [output-dir]
+wandb:
+  project: herosim-dispatch-priority
+  run_name: mixed-dispatch-v1-hand

@@ -177,11 +177,9 @@ class TaskPlacementGNN(nn.Module):
 class EvaluatorScheduler(Scheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Get batch size from policy or use default
         self.batch_size = getattr(self.policy, 'batch_size', 5)
         self.batch_timeout = getattr(self.policy, 'batch_timeout', 0.1)
-        
-        # Load GNN model
+
         self._load_gnn_model()
         
         # Task and platform type lists (from training)
@@ -223,10 +221,8 @@ class EvaluatorScheduler(Scheduler):
         
         # Load trained weights - load on CPU first to avoid CUDA initialization issues
         try:
-            # Load state dict on CPU first
             state_dict = torch.load(model_path, weights_only=True, map_location='cpu')
             self.gnn_model.load_state_dict(state_dict)
-            # Move model to appropriate device
             self.gnn_model = self.gnn_model.to(self.device)
             self.gnn_model.eval()
             print(f"✓ GNN model loaded from {model_path} on {self.device}")
@@ -255,14 +251,11 @@ class EvaluatorScheduler(Scheduler):
         )
 
         while True:
-            # Collect a batch of tasks
             batch_tasks = yield self.env.process(self._collect_task_batch())
-            
+
             if not batch_tasks:
-                # No tasks available, wait a bit and try again
                 yield self.env.timeout(0.1)
                 continue
-            # Process all tasks in the batch together
             yield self.env.process(self._process_task_batch(batch_tasks))
 
     def _collect_task_batch(self) -> Generator[Any, Any, List[Task]]:
@@ -271,10 +264,8 @@ class EvaluatorScheduler(Scheduler):
         
         print(f"[ {self.env.now} ] DEBUG: Starting batch collection (size={self.batch_size})")
         
-        # Try to get up to batch_size tasks
         for i in range(self.batch_size):
             try:
-                # Try to get a task (this will block until a task is available)
                 task: Task = yield self.tasks.get(
                     lambda queued_task: all(
                         dependency.finished for dependency in queued_task.dependencies
@@ -283,7 +274,6 @@ class EvaluatorScheduler(Scheduler):
                 batch.append(task)
                 # print(f"[ {self.env.now} ] DEBUG: Added task {task.id} to batch (size={len(batch)})")
             except:
-                # No more tasks available
                 print(f"[ {self.env.now} ] DEBUG: No more tasks available after {len(batch)} tasks")
                 break
         
@@ -308,8 +298,7 @@ class EvaluatorScheduler(Scheduler):
         # Get system state once for all tasks
         system_state: SystemState = yield self.mutex.get()
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
-        
-        # Process all tasks in the batch
+
         for task in batch_tasks:
             task_replicas = replicas[task.type["name"]]
 
@@ -320,73 +309,57 @@ class EvaluatorScheduler(Scheduler):
                     f" {task}"
                 )
 
-                # Put task back in queue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request a new replica from the Autoscaler
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(system_state, task.type)
                 )
 
-                # Next event
                 self.env.step()
                 continue
 
-            # Measure wall-clock time for the scheduling decision
             start = default_timer()
 
-            # Schedule task according to policy
             placement_result = yield self.env.process(
                 self.placement(system_state, task)
             )
 
-            # Check if placement was successful
             if placement_result is None:
-                # No valid replicas available - postpone task and request scaling
                 task.postponed_count += 1
                 yield self.tasks.put(task)
-                
-                # Request a new replica from the Autoscaler
+
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(system_state, task.type)
                 )
-                
-                # Next event
+
                 self.env.step()
                 continue
 
             sched_node, sched_platform = placement_result
 
-            # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)
             task.node = node
             node.unused = False
-            
-            # Update platform
+
             platform : Platform = yield node.platforms.get(lambda platform: platform.id == sched_platform.id)
             task.platform = platform
 
             # contention-based pre-exec delay removed; rely on queues and warmth only
 
-            # End wall-clock time measurement
             end = default_timer()
             elapsed_clock_time = end - start
             node.wall_clock_scheduling_time += elapsed_clock_time
 
-            # Queue the task for execution
             yield platform.queue.put(task)
             yield task.scheduled.succeed()
 
-            # Release platform
             yield node.platforms.put(platform)
 
-            # Node is released
             yield self.nodes.put(node)
-            
+
             # print(f"[ {self.env.now} ] DEBUG: Completed task {task.id} in batch")
 
-        # Release mutex after processing entire batch
         yield self.mutex.put(system_state)
         
         print(f"[ {self.env.now} ] DEBUG: Batch processing complete for {len(batch_tasks)} tasks")
@@ -411,30 +384,25 @@ class EvaluatorScheduler(Scheduler):
         try:
             total_start = default_timer()
 
-            # Build graph for this single task
             graph_start = default_timer()
             graph_data = self._build_graph_for_tasks([task], [valid_replicas], system_state)
             graph_duration = default_timer() - graph_start
-            
-            # Move graph data to the same device as the model
+
             graph_data = graph_data.to(self.device)
-            
-            # Run GNN inference
+
             inference_start = default_timer()
             with torch.no_grad():
                 logits_per_task = self.gnn_model(graph_data)
             inference_duration = default_timer() - inference_start
-            
-            # Extract prediction for this task
+
             decode_start = default_timer()
             if len(logits_per_task) == 0 or logits_per_task[0].numel() == 0:
                 raise ValueError("No logits returned from GNN")
-            
+
             task_logits = logits_per_task[0]
             best_platform_idx = task_logits.argmax().item()
             decode_duration = default_timer() - decode_start
-            
-            # Map back to actual Node/Platform tuple
+
             decision_start = default_timer()
             selected_replica = valid_replicas[best_platform_idx]
             decision_duration = default_timer() - decision_start
@@ -455,7 +423,6 @@ class EvaluatorScheduler(Scheduler):
             return selected_replica
             
         except Exception as e:
-            # Fallback to Least Connected
             print(f"[ {self.env.now} ] GNN failed for task {task.id}: {e}, using Least Connected")
             bounded_concurrency = min(valid_replicas, key=lambda couple: len(couple[1].queue.items))
             return bounded_concurrency
@@ -478,8 +445,7 @@ class EvaluatorScheduler(Scheduler):
             PyG Data object with task and platform features + edges
         """
         n_tasks = len(tasks)
-        
-        # Collect all unique platforms across all tasks
+
         all_platforms: List[Tuple[Node, Platform]] = []
         platform_to_idx: Dict[Tuple[int, int], int] = {}
         for replicas in valid_replicas_per_task:
@@ -518,7 +484,6 @@ class EvaluatorScheduler(Scheduler):
             platform_type = platform.type['shortName']
             plat_type_onehot = [1.0 if platform_type == pt else 0.0 for pt in self.platform_types]
             
-            # Check replica state for this platform
             has_dnn1 = 1.0 if (node, platform) in system_state.replicas.get('dnn1', set()) else 0.0
             has_dnn2 = 1.0 if (node, platform) in system_state.replicas.get('dnn2', set()) else 0.0
             
@@ -564,7 +529,6 @@ class EvaluatorScheduler(Scheduler):
             edge_index_tensor = torch.empty((2, 0), dtype=torch.long)
             edge_attr_tensor = torch.empty((0, 3), dtype=torch.float32)
         
-        # Create PyG Data object
         data = Data(
             edge_index=edge_index_tensor,
             n_tasks=n_tasks,
@@ -578,7 +542,6 @@ class EvaluatorScheduler(Scheduler):
 
     def _get_valid_replicas(self, replicas: Set[Tuple[Node, Platform]], task: Task) -> List[Tuple[Node, Platform]]:
         """Get valid replicas: task's source node + server nodes with network connectivity"""
-        # Debug header
         try:
             task_type_name = task.type["name"]
         except Exception:
@@ -594,13 +557,10 @@ class EvaluatorScheduler(Scheduler):
         skipped_no_connectivity = 0
 
         for node, platform in replicas:
-            # Include if it's the task's source node (local execution)
             if node.node_name == task.node_name:
                 valid_replicas.append((node, platform))
                 kept_local += 1
-            # Include if it's a server node AND has network connectivity to task source
             elif not node.node_name.startswith('client_node'):
-                # Check if this node has network connectivity to the task's source node
                 if hasattr(node, 'network_map') and task.node_name in node.network_map:
                     valid_replicas.append((node, platform))
                     kept_server_connected += 1
@@ -611,7 +571,6 @@ class EvaluatorScheduler(Scheduler):
         
         # Never fall back to client nodes - only allow source node or connected server nodes
         if not valid_replicas:
-            # If no valid replicas, only allow local execution on source node
             source_replicas = [(node, platform) for node, platform in replicas if node.node_name == task.node_name]
             if source_replicas:
                 print(
@@ -625,7 +584,6 @@ class EvaluatorScheduler(Scheduler):
                 # Last resort: return empty list (will cause scaling from zero)
                 return []
         
-        # Debug footer with a small sample of chosen nodes
         chosen_nodes = [n.node_name for (n, _) in valid_replicas]
         sample = chosen_nodes[:5]
         print(

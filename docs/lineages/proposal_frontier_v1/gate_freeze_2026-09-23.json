@@ -1,0 +1,46 @@
+{
+  "arms": [
+    "gnn",
+    "mpoff",
+    "handmulti"
+  ],
+  "artifacts": {
+    "/root/projects/my-herosim/experiments/gnn_seeded_cd_fixed_v1_base.json": "30669c84f8e8ca13dd643b9ab52f9f02af228c0ab35069ec69a9b1bcb33d3d3c",
+    "/root/projects/my-herosim/experiments/proposal_frontier_v1.json": "c7a9b665a7d6639c472abc30fac72917b47d45526534167f8a2ac79e00f59060",
+    "/root/projects/my-herosim/scripts_cosim/important/audit_proposal_frontier_v1.py": "9dd904adbf53febc8eba091d426064ec6a7bf9e48ba8c7a2bcb4aea24e41308d",
+    "/root/projects/my-herosim/scripts_cosim/important/proposal_frontier_preflight_v1.py": "d5eeea67eb451fee01d5a24785d9a4f785393a2b8a734e83e190d7cbf4b98d4d",
+    "/root/projects/my-herosim/scripts_cosim/important/proposal_frontier_v1.py": "86e024ec7f72dabc7f5354bdacf9f357eac737f2713e3fcbff8f72e5f1cd150f",
+    "/root/projects/my-herosim/scripts_cosim/important/run_proposal_frontier_gate_v1.py": "a8324b7c78f0c54f25db35ca556606e2cddf62ec627ed2943404e66f54d11f51",
+    "/root/projects/my-herosim/scripts_cosim/important/run_proposal_frontier_v1.sh": "f9417c7ccbe0d9eb74de2d985ac5247cb0ca09b9caac742b0a0a445c36107e6d",
+    "/tmp/fixed-g32-config-10301.json": "88aec2cd4ab6baf562d3a16233d1e2674d458edbf7996454e3ffcb517c10263a",
+    "/tmp/fixed-g32-config-10304.json": "189dbcea5e890e91791161fdc958ee0cb40e5e49bf7eb848c961ff2a8edd53bc",
+    "/tmp/fixed-g32-config-10305.json": "bd5e435ead465bb9bee2c2d55dd56e97b4328fd1737f30b7f67fda5914075b82",
+    "/tmp/fixed-g32-config-10307.json": "a4fde614bacf359af4b5063925b85a5ef68663bb827161a4f1e48a73dc41977a",
+    "/tmp/fixed-g32-config-10308.json": "860357c6e0d03bd64044a54dd9f0994c84d4da747122e3d2737ac486385eeb68",
+    "/tmp/fixed-g32-config-10309.json": "40918e83040ceca1a43a8d171d3ec79f7db75b650bc4c717f280e34242b67853",
+    "/tmp/fixed-g32-config-10310.json": "f3cfa340ed28d54c0f32a22efed94464e8b465a5097c882fdd94138e54da3d80",
+    "/tmp/fixed-g32-config-10311.json": "0ce6cf68f91d949b02062f7cf2140dde4e29d3c520e24a5fb0e9b0e183760417",
+    "/tmp/fixed-g32-weighted_bridge-5120.json": "d3439e73d098ab83d4ffa3bad0022d3d36b5ed8e8d7ba436d4bffdaa8fc04663",
+    "/tmp/g32train/models/g32-sampled-slate-v1-gnn-seed1-final.contract.json": "2c15545244dfefee9eac1e51627e4b5fae7837936b63396c91a54b811c8cfd57",
+    "/tmp/g32train/models/g32-sampled-slate-v1-gnn-seed1-final.pt": "be0fadd6dd9c08dd47116c95a90a68782d5e085447a08746a227b6e945057c45",
+    "/tmp/g32train/models/g32-sampled-slate-v1-mpoff-seed1-final.contract.json": "0bb0a104f0a099a6d23d4e84abc733c1a4e0ccce938d73f4dca8f71b53aa78f9",
+    "/tmp/g32train/models/g32-sampled-slate-v1-mpoff-seed1-final.pt": "f4459f86054dd6225ac0a5c543adfa92aa1b72f7d57640acd551a2a9361bfddb",
+    "/tmp/jb2-mpoff-seed1.contract.json": "50960bd256555b7a65e4e478e71ee4a0983e513044f704cbfce57a53894a0c04",
+    "/tmp/jb2-mpoff-seed1.pt": "826108ba634f2fb993b5bf23064c475fe575023ef2ad3c1232ade2ac43783658",
+    "/tmp/proposal_frontier_v1/preflight.json": "82f7dda5adb7c0ff627f8b05d627e7e42218518f329012dc95129a9f54cd4a65"
+  },
+  "contract": "proposal_frontier_v1_freeze",
+  "date": "2026-09-23",
+  "development_seed": 9303,
+  "seeds": [
+    10301,
+    10304,
+    10305,
+    10307,
+    10308,
+    10309,
+    10310,
+    10311
+  ],
+  "smoke_audit_sha256": "bccbdba80a6be87e6d01fa544886d4ca9e0c9783bc905499ad38e1ebdfda3c95"
+}

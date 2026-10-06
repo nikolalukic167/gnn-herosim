@@ -38,17 +38,14 @@ class RoundRobinNetworkOrchestrator(Orchestrator):
                 for task_type in self.data.task_types
             },
         )
-        # Initialize scheduled_count for round-robin scheduling
         scheduler_state.scheduled_count = {
             task_type: {} for task_type in self.data.task_types
         }
         
-        # Initialize available resources to all Tuple[Node, Platform]
         available_resources: Dict[Node, Set[Platform]] = {
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
         }
-        # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
@@ -67,11 +64,9 @@ class RoundRobinNetworkOrchestrator(Orchestrator):
                         if node in available_resources and platform in available_resources[node]:
                             available_resources[node].remove(platform)
                             node.available_platforms -= 1
-                            # Allocate memory for this replica
                             memory_required = self.data.task_types[task_type]["memoryRequirements"][platform.type["shortName"]]
                             node.available_memory -= memory_required
-                            
-                            # Initialize scheduled_count for this replica
+
                             scheduler_state.scheduled_count[task_type][(node.id, platform.id)] = 0
             print("=== Initial replicas integrated ===\n")
         

@@ -228,7 +228,6 @@ class TaskPlacementGNN(nn.Module):
         task_embeddings = self.task_encoder(data.task_features)
         platform_embeddings = self.platform_encoder(data.platform_features)
 
-        # Message passing
         x = torch.cat([task_embeddings, platform_embeddings], dim=0)
         x = self.gin(x, data.edge_index)
         x = self.post_gin_dropout(x)
@@ -236,7 +235,6 @@ class TaskPlacementGNN(nn.Module):
         task_emb = x[:n_tasks]
         platform_emb = x[n_tasks:]
 
-        # Score edges
         ei = data.edge_index
         if ei.numel() == 0:
             return [torch.empty(0, device=x.device) for _ in range(n_tasks)]
@@ -259,7 +257,6 @@ class TaskPlacementGNN(nn.Module):
                 e_attr = None
         edge_scores = self.edge_scorer(e_task, e_platform, e_attr)
 
-        # Split scores per task
         logits_per_task = []
         for t in range(n_tasks):
             mask_t = (ti == t)
@@ -774,7 +771,6 @@ def train_epoch(
                             
                 logits_per_task = model(data)
 
-                # Cross-entropy loss
                 loss_ce, valid_ce = loss_original_ce(logits_per_task, data, device)
                 if valid_ce > 0 and not (torch.isnan(loss_ce) or torch.isinf(loss_ce)):
                     loss_ce_total = loss_ce_total + loss_ce
@@ -792,7 +788,6 @@ def train_epoch(
                             if int(task_logits.argmax().item()) == int(target.item()):
                                 final_tasks_correct += 1
 
-                # Structured regret loss
                 loss_regret, valid_regret, stats = regret_criterion(
                     logits_per_task, data, device
                 )
@@ -805,14 +800,12 @@ def train_epoch(
             if n_graphs_ce == 0:
                 continue
 
-            # Average losses
             loss_ce_avg = loss_ce_total / n_graphs_ce
             if n_graphs_regret > 0:
                 loss_regret_avg = loss_regret_total / n_graphs_regret
             else:
                 loss_regret_avg = torch.zeros(1, device=device)
             
-            # Combined loss
             loss = ce_weight * loss_ce_avg + regret_weight * loss_regret_avg
 
             if torch.isnan(loss) or torch.isinf(loss):
@@ -1318,7 +1311,6 @@ print(f"  Train: {len(train_graphs)} datasets ({len(train_graphs)/len(graphs)*10
 print(f"  Val:   {len(val_graphs)} datasets ({len(val_graphs)/len(graphs)*100:.1f}%)")
 print(f"  Test:  {len(test_graphs)} datasets ({len(test_graphs)/len(graphs)*100:.1f}%)")
 
-# Print task count distribution per split if merged
 if IS_MERGED_CACHE:
     for split_name, split_graphs in [("Train", train_graphs), ("Val", val_graphs), ("Test", test_graphs)]:
         task_dist = {}
@@ -1367,7 +1359,7 @@ wandb.init(
         "sequential_counterfactual": bool(SEQUENTIAL_CACHE),
         "cache_mode": "merged" if IS_MERGED_CACHE else "single",
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
-        "non_unique_placements": True,  # Flag to indicate non-unique support
+        "non_unique_placements": True,
         "precompute_rtt_lookups": bool(PRECOMPUTE_RTT_LOOKUPS),
         "hard_negative_fraction": float(HARD_NEGATIVE_FRACTION),
         "stratified_negatives": bool(STRATIFIED_NEGATIVES),
@@ -1465,7 +1457,7 @@ if os.environ.get("WANDB_WATCH", "0") == "1":
 else:
     print("[INFO] wandb.watch disabled (set WANDB_WATCH=1 to log gradients)")
 
-best_val_regret = float('inf')  # Minimize regret
+best_val_regret = float('inf')
 best_val_acc = 0
 checkpoint_saved = False
 model_path = Path("models") / MODEL_FILENAME
@@ -1477,7 +1469,6 @@ test_loader = create_dataloader(test_dataset, shuffle=False, pin_memory=(DEVICE.
 for epoch in range(EPOCHS):
     is_last_epoch = (epoch == EPOCHS - 1)
     
-    # Train
     train_losses = train_epoch(
         model, train_loader, optimizer, DEVICE, epoch,
         regret_criterion=regret_criterion,
@@ -1486,7 +1477,6 @@ for epoch in range(EPOCHS):
         is_last_epoch=is_last_epoch
     )
     
-    # Evaluate
     val_metrics = evaluate(
         model, val_loader, DEVICE, RTT_LOOKUP_FOR_EVAL,
         is_last_epoch=is_last_epoch
@@ -1497,7 +1487,6 @@ for epoch in range(EPOCHS):
     loss_total = train_losses['total']
     regret_fraction = weighted_regret / loss_total if loss_total > 1e-12 else 0.0
 
-    # Wandb logging
     log_dict = {
         "train/loss_ce": safe_float(train_losses['ce']),
         "train/loss_ce_final": safe_float(train_losses.get('ce_final', 0.0)),
@@ -1529,7 +1518,6 @@ for epoch in range(EPOCHS):
         "lr": safe_float(optimizer.param_groups[0]["lr"]),
     }
     
-    # Add per-task-count statistics if merged cache
     if IS_MERGED_CACHE:
         per_task_stats = val_metrics.get('per_task_count_stats', {})
         for n_tasks, stats in per_task_stats.items():
@@ -1607,7 +1595,6 @@ final_metrics_log.update(prefix_metric_dict(train_metrics, "final/train"))
 final_metrics_log.update(prefix_metric_dict(val_metrics_final, "final/val"))
 final_metrics_log.update(prefix_metric_dict(test_metrics, "final/test"))
 
-# Add per-task-count statistics if merged cache
 if IS_MERGED_CACHE:
     for split_name, metrics in [("train", train_metrics), ("val", val_metrics_final), ("test", test_metrics)]:
         per_task_stats = metrics.get('per_task_count_stats', {})
@@ -1629,7 +1616,6 @@ wandb.summary["final_test_acc"] = float(test_metrics['acc'])
 wandb.summary["final_test_regret"] = float(test_metrics['regret'])
 wandb.summary["final_test_regret_pct"] = float(test_metrics['regret_pct'])
 
-# Add per-task-count summary if merged cache
 if IS_MERGED_CACHE:
     per_task_stats = test_metrics.get('per_task_count_stats', {})
     for n_tasks, stats in per_task_stats.items():

@@ -36,7 +36,7 @@ class DeterminedScheduler(Scheduler):
         super().__init__(*args, **kwargs)
         self.debug_enabled = os.environ.get("SIM_DEBUG_DETERMINED", "0") == "1"
         # Default batch size (can be overridden by orchestrator via infrastructure config)
-        self.batch_size = 3  # Default: process 2 tasks at once
+        self.batch_size = 3
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
         # Scheduling-time system snapshot (batch start, before placements mutate queues)
@@ -66,17 +66,14 @@ class DeterminedScheduler(Scheduler):
 
         while True:
             self._debug_info(f"DeterminedScheduler: Starting batch collection at time {self.env.now}")
-            # Collect a batch of tasks
             batch_tasks = yield self.env.process(self._collect_task_batch())
-            
+
             if not batch_tasks:
-                # No tasks available, wait a bit and try again
                 yield self.env.timeout(0.1)
                 continue
 
             self._debug(f"[ {self.env.now} ] DEBUG: Processing batch of {len(batch_tasks)} tasks simultaneously")
 
-            # Process all tasks in the batch together
             yield self.env.process(self._process_task_batch(batch_tasks))
 
     def _collect_task_batch(self) -> Generator[Any, Any, List[Task]]:
@@ -146,8 +143,7 @@ class DeterminedScheduler(Scheduler):
     def _process_task_batch(self, batch_tasks: List[Task]) -> Generator:
         """Process multiple tasks simultaneously in a single operation"""
         self._debug(f"[ {self.env.now} ] DEBUG: Processing {len(batch_tasks)} tasks in batch")
-        
-        # Get system state once for all tasks
+
         system_state: SystemState = yield self.mutex.get()
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
         
@@ -169,7 +165,6 @@ class DeterminedScheduler(Scheduler):
         if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") == "1" and self.forced_placements:
             self._plan_batch_nodes(batch_tasks)
 
-        # Process all tasks in the batch
         for task in batch_tasks:
             task_replicas = replicas[task.type["name"]]
 
@@ -180,39 +175,30 @@ class DeterminedScheduler(Scheduler):
                     f" {task}"
                 )
 
-                # Put task back in queue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request a new replica from the Autoscaler
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(system_state, task.type)
                 )
 
-                # Next event
                 self.env.step()
                 continue
 
-            # Measure wall-clock time for the scheduling decision
             start = default_timer()
 
-            # Schedule task according to policy
             placement_result = yield self.env.process(
                 self.placement(system_state, task)
             )
 
-            # Check if placement was successful
             if placement_result is None:
-                # No valid replicas available - postpone task and request scaling
                 task.postponed_count += 1
                 yield self.tasks.put(task)
-                
-                # Request a new replica from the Autoscaler
+
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(system_state, task.type)
                 )
-                
-                # Next event
+
                 self.env.step()
                 continue
 
@@ -232,15 +218,13 @@ class DeterminedScheduler(Scheduler):
                     )
                 )
 
-            # Set queue snapshot for this task (from the batch snapshot, filtered to valid replicas)
             task_replicas = replicas.get(task.type["name"], set())
             valid_replicas = self._get_valid_replicas(task_replicas, task)
             task.queue_snapshot_at_scheduling = {
                 f"{node.node_name}:{plat.id}": batch_queue_snapshot.get(f"{node.node_name}:{plat.id}", 0)
                 for node, plat in valid_replicas
             }
-            
-            # Capture full queue snapshot and temporal state for this task
+
             task.full_queue_snapshot = self._capture_full_queue_snapshot()
             valid_replicas_set = set(valid_replicas)
             task.temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(
@@ -250,35 +234,28 @@ class DeterminedScheduler(Scheduler):
                 self.state_capture.capture_full_temporal_state()
             )
 
-            # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)
             task.node = node
             node.unused = False
-            
-            # Update platform
+
             platform: Platform = yield node.platforms.get(lambda platform: platform.id == sched_platform.id)
             task.platform = platform
 
             # contention-based pre-exec delay removed; rely on queues and warmth only
 
-            # End wall-clock time measurement
             end = default_timer()
             elapsed_clock_time = end - start
             node.wall_clock_scheduling_time += elapsed_clock_time
 
-            # Queue the task for execution
             yield platform.queue.put(task)
             yield task.scheduled.succeed()
 
-            # Release platform
             yield node.platforms.put(platform)
 
-            # Node is released
             yield self.nodes.put(node)
             
             # print(f"[ {self.env.now} ] DEBUG: Completed task {task.id} in batch")
 
-        # Release mutex after processing entire batch
         yield self.mutex.put(system_state)
         
         self._debug(f"[ {self.env.now} ] DEBUG: Batch processing complete for {len(batch_tasks)} tasks")
@@ -287,11 +264,9 @@ class DeterminedScheduler(Scheduler):
         """Capture queue lengths for all platforms across all task types in the batch.
         This is done ONCE before any placements so all tasks see the same queue state."""
         queue_snapshot = {}
-        
-        # Get all unique task types in the batch
+
         task_types = set(task.type["name"] for task in batch_tasks)
-        
-        # Capture queue lengths for all replicas of all task types
+
         for task_type in task_types:
             replicas = system_state.replicas.get(task_type, set())
             for node, platform in replicas:
@@ -318,7 +293,6 @@ class DeterminedScheduler(Scheduler):
         if False:
             yield
 
-        # Check for forced placements first
         if self.forced_placements and task.id in self.forced_placements:
             forced_node_id, forced_platform_id = self.forced_placements[task.id]
             
@@ -329,7 +303,6 @@ class DeterminedScheduler(Scheduler):
                     f"Auto-resolving forced placement for task {task.id} ({task.type['name']}) at time {self.env.now}"
                 )
                 self._debug(f"[ {self.env.now} ] DEBUG: Auto-resolving forced placement for task {task.id} ({task.type['name']})")
-                # Get available replicas and auto-select one
                 replicas_for_task = system_state.replicas.get(task.type["name"], set())
                 self._debug_info(f"Found {len(replicas_for_task)} total replicas for task type {task.type['name']}")
                 if not replicas_for_task:
@@ -337,7 +310,6 @@ class DeterminedScheduler(Scheduler):
                     print(f"[ {self.env.now} ] ERROR: No replicas available for task {task.id} ({task.type['name']})")
                     return None
                 
-                # Get valid replicas (respecting network connectivity)
                 self._debug_info(f"Getting valid replicas for task {task.id} from source node {task.node_name}")
                 valid_replicas = self._get_valid_replicas(replicas_for_task, task)
                 self._debug_info(f"Found {len(valid_replicas)} valid replicas for task {task.id}")
@@ -346,7 +318,6 @@ class DeterminedScheduler(Scheduler):
                     print(f"[ {self.env.now} ] ERROR: No valid replicas for task {task.id} ({task.type['name']})")
                     return None
                 
-                # Select least loaded replica
                 target_node, target_platform = min(
                     valid_replicas, key=lambda couple: couple[1].queue_length()
                 )
@@ -362,7 +333,6 @@ class DeterminedScheduler(Scheduler):
                 f"node {forced_node_id}, platform {forced_platform_id}"
             )
             
-            # Find the node and platform by ID
             target_node = None
             target_platform = None
             
@@ -379,7 +349,6 @@ class DeterminedScheduler(Scheduler):
             if target_node is not None and target_platform is not None:
                 replicas_for_task = system_state.replicas.get(task.type["name"], set())
                 if (target_node, target_platform) not in replicas_for_task:
-                    # Collect some info information to help diagnose infra / placement mismatches
                     replica_ids = [(n.id, p.id) for (n, p) in replicas_for_task]
                     replica_names = [(n.node_name, p.id) for (n, p) in replicas_for_task]
                     print(
@@ -457,7 +426,6 @@ class DeterminedScheduler(Scheduler):
 
     def _get_valid_replicas(self, replicas: Set[Tuple[Node, Platform]], task: Task) -> List[Tuple[Node, Platform]]:
         """Get valid replicas: task's source node + server nodes with network connectivity"""
-        # Debug header
         try:
             task_type_name = task.type["name"]
         except Exception:
@@ -474,13 +442,10 @@ class DeterminedScheduler(Scheduler):
         skipped_no_connectivity = 0
 
         for node, platform in replicas:
-            # Include if it's the task's source node (local execution)
             if node.node_name == task.node_name:
                 valid_replicas.append((node, platform))
                 kept_local += 1
-            # Include if it's a server node AND has network connectivity to task source
             elif not node.node_name.startswith('client_node'):
-                # Check if this node has network connectivity to the task's source node
                 if hasattr(node, 'network_map') and task.node_name in node.network_map:
                     valid_replicas.append((node, platform))
                     kept_server_connected += 1
@@ -491,7 +456,6 @@ class DeterminedScheduler(Scheduler):
         
         # Never fall back to client nodes - only allow source node or connected server nodes
         if not valid_replicas:
-            # If no valid replicas, only allow local execution on source node
             source_replicas = [(node, platform) for node, platform in replicas if node.node_name == task.node_name]
             if source_replicas:
                 self._debug(
@@ -507,7 +471,6 @@ class DeterminedScheduler(Scheduler):
                 # Last resort: return empty list (will cause scaling from zero)
                 return []
         
-        # Debug footer with a small sample of chosen nodes
         chosen_nodes = [n.node_name for (n, _) in valid_replicas]
         sample = chosen_nodes[:5]
         self._debug(
@@ -557,15 +520,12 @@ class DeterminedScheduler(Scheduler):
         Returns:
             Dict with placement information
         """
-        # Calculate queue time
         queue_time = self.env.now - task.arrived_time if hasattr(task, 'arrived_time') else 0.0
-        
-        # Capture queue snapshots
+
         valid_replicas_set = set(valid_replicas)
         queue_snapshot_at_scheduling = self.state_capture.capture_queue_snapshot_for_replicas(valid_replicas_set)
         full_queue_snapshot = self.state_capture.capture_full_queue_snapshot()
-        
-        # Capture temporal state
+
         temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
 
         # Capture initialized snapshot (which platforms have completed image pull)

@@ -1,0 +1,22 @@
+{
+  "scope": "CPU joint-action control challenge under mixed_dispatch_v1; not a learned-model or GNN win",
+  "shape": [32,8,16],
+  "capacity_contract": "locks_equal_hosts_v1",
+  "base_plan": "affinity/descent1 placement and srpt:128 ordering, charged on every call",
+  "budget_ms": 250,
+  "calibration_fraction": 0.85,
+  "calibration_seeds": [142000,142003],
+  "fresh_seeds": [143000,143015],
+  "timing_repeats": 3,
+  "hand_modes": {"placement": [0,true], "ordering": [1,true], "joint_pair": [2,true], "joint_block": [3,true], "joint_greedy": [3,false]},
+  "wall_search": "continuous compiled annealing, temperature follows elapsed budget fraction; reserve twice the largest observed atomic step plus wrapper margin; retain best feasible plan and reject any measured overrun",
+  "reference_steps_per_start": 32768,
+  "reference_seeds": [17,29],
+  "reference_starts": ["selected_control", "fastest_srpt"],
+  "advance_median_headroom_pct": 8,
+  "advance_bootstrap_lower_pct": 0,
+  "claim": "Require reference headroom over the strongest eligible joint hand control, not merely over fixed-placement ordering. Pure placement and pure ordering controls are action ablations.",
+  "live_gate": "16 fresh inputs times baseline, calibration-selected control, reference: 48 runs regardless of screen outcome. All task placements and completion times must match independent replay.",
+  "future_gates": "A passing headroom screen still requires equal-budget hand-graph and nonlocal residual qualification before matched training. No GPU or training corpus from headroom alone.",
+  "no_cherry_picking": "Freeze the hand selector on calibration; report all fresh arm results and a posthoc per-environment strongest eligible arm envelope as a stricter diagnostic. Fresh arm outcomes cannot relax the 8% threshold."
+}

@@ -1,0 +1,19 @@
+trainer: mixed
+lineage: mixed_physics_learning_v1
+cache_dir: simulation_data/gnn_environment_search_v1/mixed_physics_corpus
+args:
+  arm: mlp_hand
+  epochs: 60
+  warmup-epochs: 15
+  patience: 20
+  batch-size: 32
+  learning-rate: 0.001
+  output-dir: simulation_data/gnn_environment_search_v1/mixed_physics_models
+path_args:
+- output-dir
+wandb:
+  project: herosim-mixed-physics
+  run_name: mixed-physics-v1-mlp_hand
+  tags:
+  - matched-model-controls
+  - mixed-execution-v1

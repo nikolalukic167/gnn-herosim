@@ -1,0 +1,20 @@
+{
+  "gnn": {
+    "seed": 303,
+    "checkpoint": "models/residency_mixed_v1/gnn_seed303.pt",
+    "sha256": "056c0744aaea7647b90be1a83107af41a942184d4a43780801dc33b346e3f02a",
+    "validation_regret": 0.17175176980191437
+  },
+  "mpoff": {
+    "seed": 101,
+    "checkpoint": "models/residency_mixed_v1/mpoff_seed101.pt",
+    "sha256": "5b4dc6cc4fccd20319e71d168592d88ad81e26f9cdfa87cccf94eae8cbc36cd6",
+    "validation_regret": 0.1316181447548631
+  },
+  "hand_mlp": {
+    "seed": 202,
+    "checkpoint": "models/residency_mixed_v1/hand_mlp_seed202.pt",
+    "sha256": "d018ff6224191b34d907980320dd0a3bf7685423c1a6339c681804fa7b65cccc",
+    "validation_regret": 2.38625040554509
+  }
+}

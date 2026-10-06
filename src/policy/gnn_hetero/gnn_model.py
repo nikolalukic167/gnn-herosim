@@ -158,7 +158,6 @@ class TaskPlacementGNN(nn.Module):
         task_emb = x_dict["task"]
         platform_emb = x_dict["platform"]
 
-        # Score edges
         ei = data[FORWARD_EDGE_TYPE].edge_index
         if ei.numel() == 0:
             return [torch.empty(0, device=task_emb.device) for _ in range(n_tasks)]
@@ -173,7 +172,6 @@ class TaskPlacementGNN(nn.Module):
             e_attr = data[FORWARD_EDGE_TYPE].edge_attr
         edge_scores = self.edge_scorer(e_task, e_platform, e_attr)
 
-        # Split scores per task
         logits_per_task = []
         for t in range(n_tasks):
             mask_t = (ti == t)

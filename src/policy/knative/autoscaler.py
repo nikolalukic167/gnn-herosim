@@ -83,7 +83,6 @@ class KnativeAutoscaler(Autoscaler):
             ]
         )
 
-        # Per-function concurrency level
         # Knative only allocates CPUs (baseline platform)
         in_system_concurrencies: PlatformVector = {
             platform_type["shortName"]: (
@@ -243,7 +242,6 @@ class KnativeAutoscaler(Autoscaler):
 
         platform.storage_time += retrieval_duration
 
-        # Update state
         # FIXME: Move to state update methods
         state: KnativeSchedulerState = system_state.scheduler_state
         # Knative policy
@@ -253,7 +251,6 @@ class KnativeAutoscaler(Autoscaler):
 
         # FIXME: Double initialize bug...
         try:
-            # Set platform to ready state
             yield platform.initialized.succeed()
         except RuntimeError:
             """
@@ -271,7 +268,6 @@ class KnativeAutoscaler(Autoscaler):
             """
             pass
 
-        # Statistics (Node)
         node.cache_hits += int(image_pull_disk_hit(physics, platform, node, task_type))
 
     def remove_replica(
@@ -285,7 +281,6 @@ class KnativeAutoscaler(Autoscaler):
         if False:
             yield
 
-        # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
             function_replicas,
             # Total key: the queue length alone ties for every eligible candidate
@@ -308,7 +303,6 @@ class KnativeAutoscaler(Autoscaler):
         )
 
         if removed_couple:
-            # Update state
             # FIXME: Move to state update methods
             state: SchedulerState = system_state.scheduler_state
             try:

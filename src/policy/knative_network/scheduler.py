@@ -50,7 +50,6 @@ class KnativeScheduler(Scheduler):
         )
 
         while True:
-            # Get task with satisfied dependencies
             task: Task = yield self.tasks.get(
                 lambda queued_task: all(
                     dependency.finished for dependency in queued_task.dependencies
@@ -59,11 +58,9 @@ class KnativeScheduler(Scheduler):
 
             logging.info(f"[ {self.env.now} ] Scheduler woken up")
 
-            # Get available replicas
             system_state: SystemState = yield self.mutex.get()
             replicas: Set[Tuple[Node, Platform]] = system_state.replicas[task.type["name"]]
 
-            # Filter replicas based on network connectivity
             valid_replicas = self._get_valid_replicas(replicas, task)
 
             # If no valid replicas (either no replicas or none are network-reachable), request autoscaling
@@ -73,19 +70,15 @@ class KnativeScheduler(Scheduler):
                     f" {task} (total replicas: {len(replicas)})"
                 )
 
-                # Put task back in queue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request a new replica from the Autoscaler
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(system_state, task.type, source_node_name=task.node_name)
                 )
 
-                # Release mutex
                 yield self.mutex.put(system_state)
 
-                # Next step
                 continue
 
             # Capture state only when generating GNN training datasets (avoids OOM on large sims)
@@ -98,7 +91,6 @@ class KnativeScheduler(Scheduler):
             from timeit import default_timer
             start = default_timer()
 
-            # Schedule tasks according to policy
             (sched_node, sched_platform) = yield self.env.process(
                 self.placement(system_state, task)
             )
@@ -124,28 +116,22 @@ class KnativeScheduler(Scheduler):
                 chosen_platform=sched_platform,
             )
 
-            # Store execution node/platform on task
             task.execution_node = sched_node.node_name
             task.execution_platform = str(sched_platform.id)
 
-            # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)
             task.node = node
             node.unused = False
-            # Update platform
             platform: Platform = yield node.platforms.get(
                 lambda platform: platform.id == sched_platform.id
             )
             task.platform = platform
-            # Update state
             yield self.mutex.put(system_state)
 
-            # End wall-clock time measurement
             end = default_timer()
             elapsed_clock_time = end - start
             node.wall_clock_scheduling_time += elapsed_clock_time
 
-            # Put task in platform queue
             yield platform.queue.put(task)
             yield task.scheduled.succeed()
 
@@ -160,7 +146,6 @@ class KnativeScheduler(Scheduler):
 
         replicas: Set[Tuple[Node, Platform]] = system_state.replicas[task.type["name"]]
 
-        # Filter replicas based on network connectivity
         valid_replicas = self._get_valid_replicas(replicas, task)
 
         # This should never be empty here since scheduler_process checks first
@@ -183,7 +168,6 @@ class KnativeScheduler(Scheduler):
         # Uninitialized replicas are still pulling images (30-78s)
         initialized_replicas = [r for r in valid_replicas if r[1].initialized.triggered]
         
-        # Use initialized replicas if available, otherwise fall back to all valid replicas
         # (scheduler_process already limits queue depth on uninitialized replicas)
         candidates = initialized_replicas if initialized_replicas else valid_replicas
         
@@ -215,7 +199,6 @@ class KnativeScheduler(Scheduler):
                 valid_replicas.append((node, platform))
             # Remote placement: check network connectivity
             else:
-                # Check if target node is in source's network_map
                 if source_node is not None and hasattr(source_node, 'network_map'):
                     if node.node_name in source_node.network_map:
                         valid_replicas.append((node, platform))
@@ -394,15 +377,12 @@ class KnativeScheduler(Scheduler):
         Returns:
             Dict with placement information
         """
-        # Calculate queue time
         queue_time = self.env.now - task.arrived_time if hasattr(task, 'arrived_time') else 0.0
-        
-        # Capture queue snapshots
+
         valid_replicas_set = set(valid_replicas)
         queue_snapshot_at_scheduling = self.state_capture.capture_queue_snapshot_for_replicas(valid_replicas_set)
         full_queue_snapshot = self.state_capture.capture_full_queue_snapshot()
-        
-        # Capture temporal state
+
         temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
         
         return self.state_capture.capture_task_placement(
@@ -462,7 +442,6 @@ class KnativeScheduler(Scheduler):
             if platform.current_task is not None:
                 current_task = platform.current_task
                 
-                # Check if task is in cold start phase
                 if current_task.cold_started and not hasattr(current_task, "started_time"):
                     cold_start_duration = current_task.type["coldStartDuration"].get(
                         platform.type["shortName"], 0.0
@@ -470,7 +449,6 @@ class KnativeScheduler(Scheduler):
                     elapsed_cold_start = now - current_task.arrived_time
                     cold_start_remaining = max(0.0, cold_start_duration - elapsed_cold_start)
                 
-                # Check if task is executing
                 if hasattr(current_task, "started_time") and current_task.started_time is not None:
                     exec_duration = current_task.type["executionTime"].get(
                         platform.type["shortName"], 0.0
@@ -478,7 +456,6 @@ class KnativeScheduler(Scheduler):
                     elapsed_exec = now - current_task.started_time
                     current_task_remaining = max(0.0, exec_duration - elapsed_exec)
                     
-                    # Estimate communication remaining
                     if current_task.application:
                         state_size_map = current_task.type.get("stateSize", {})
                         app_name = current_task.application.type.get("name", "")

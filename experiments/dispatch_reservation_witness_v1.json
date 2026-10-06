@@ -1,0 +1,13 @@
+{
+  "scope": "Constructed action-space counterexample after exploratory enumeration; neither preregistered discovery nor evidence of a GNN win",
+  "seed": 145900,
+  "durations": [[[12,18],[18,3]],[[18,3],[3,18]]],
+  "physics": "Two jobs of two operations, two eligible hosts per operation, setup type zero throughout, distinct per-job locks, two-host power domain with capacity two",
+  "objective": "Sum of both job completion times",
+  "nondelay_certificate": "Enumerate all 16 placements times all 24 operation-priority permutations; native and independent SimPy must agree for every plan",
+  "unrestricted_certificate": "Enumerate every placement and per-host operation sequence; reject cycles with job precedence and compute earliest starts in each remaining DAG. Under this fixture's nonbinding extra constraints, this covers an optimal nonpreemptive schedule.",
+  "live_gate": "Four runs: best historical non-delay plan, zero-reservation parity, certified reservation schedule, simple hand reservation. Audit all operation times and assignments.",
+  "hand_control": "Reserve host zero until the short job's second operation has completed at time six; defer only the long job's first operation",
+  "claim_limit": "A witness refutes completeness of the old action space, not effectiveness of a trained GNN. The hand reservation may tie the certified optimum.",
+  "training_allowed": false
+}

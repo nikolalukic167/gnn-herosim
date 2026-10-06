@@ -762,7 +762,6 @@ class TaskPlacementGNN(nn.Module):
 
         edge_scores = self.edge_scorer(e_task, e_platform, e_attr)
 
-        # Split scores per task
         logits_per_task = []
         for t in range(n_tasks):
             mask_t = (ti == t)

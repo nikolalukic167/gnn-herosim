@@ -13,6 +13,10 @@
 > pointer inside one may refer to a section that now lives in another node — the
 > **Related** links say which.
 
+**Standing answer (2026-09-08).** Phase 2's honest-selector retrain confirms a **TIE**: message
+passing is redundant with prefix conditioning, not harmful, and corpus size is not the lever.
+A draft registration for GNN (encoder, MP-OFF) vs MLP+prefix on held-out decode is open.
+
 ## Record
 
 Newest first; the sections themselves are in chronological order below.

@@ -1,0 +1,615 @@
+{
+  "all_manifests_equal_within_topology": true,
+  "artifacts_sha256": {
+    "/tmp/fixed-g32-weighted_bridge-5120.json": "d3439e73d098ab83d4ffa3bad0022d3d36b5ed8e8d7ba436d4bffdaa8fc04663",
+    "/tmp/fixed_g32_runner.py": "a9f42a10753bfec482ca32d8c190fc1457c7bf84d7fff7f7ac1c36d2b09da255",
+    "/tmp/fixed_g32_selector_runner.py": "5fd39a52de7bcce0a7ad9f1a4cef4f4fa0ca45faa92ac3c3561c3dec96dc9930",
+    "/tmp/jb2-gnnedge0-seed1.pt": "d811cbc20d03a81529adee187691f8f2fa6f1dbdd185688e6ddc4a9ee2d41d2f",
+    "/tmp/jb2-mpoff-seed1.pt": "826108ba634f2fb993b5bf23064c475fe575023ef2ad3c1232ade2ac43783658",
+    "/tmp/run_g32_hand_scale.sh": "d7e0beb2810de0df41d2a7c1096f53c9e1e7cabb8c2f1eff94930e0dfeacc02d",
+    "/tmp/run_g32_model_scale.sh": "b0820d01662be79c84a0f76a79f35effd353d5ac4e0a4be408d1e27d06003d98",
+    "/tmp/run_g32_selector.sh": "5579bdab44824e6a068e4cb3fb2addf0c5ca5d2ec16bb24c5238f17302c23398"
+  },
+  "code_commit_and_diff_sha256": [
+    "ba3538ebf63e6054d471391fe087145914eb74da",
+    "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da"
+  ],
+  "gate": "sealed_gate_v2",
+  "lineage": "gnn_proposal_selector_v1",
+  "run_count": 40,
+  "selector_group_count_each": 160,
+  "summary": {
+    "median_best_single_gain_percent": 11.047679077275161,
+    "median_gnn_proposal_gain_percent": 3.926028923518087,
+    "pass": true,
+    "positive_gnn_proposal_gain_topologies": 8
+  },
+  "task_count": 204800,
+  "topologies": [
+    {
+      "best_single_gain_percent": 33.0670549287511,
+      "config_sha256": "78ce6b432baad892c04f44daf73d409c81ae5344a1ee8e5575c2d00f6dbdafaf",
+      "gnn_proposal_gain_percent": 4.409891620630391,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.3522381541737536,
+          "inference_s_per_task": 0.0010571652703220025,
+          "inference_s_total": 5.412686184048653,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.5454018134037002,
+          "result_sha256": "662d00925c2cccb18806a82e2bb7cff19e6f99c8046feaea686731ab7335c98a"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 1.875855954816077,
+          "inference_s_per_task": 0.00017406502665835434,
+          "inference_s_total": 0.8912129364907742,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.40810261771704043,
+          "result_sha256": "ef3039dcf66977c17603e5031f42a0d3364e9be336bbb1843d3a28b25be96952"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.25186776595689,
+          "inference_s_per_task": 0.001016674373386195,
+          "inference_s_total": 5.205372791737318,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.5205218281847298,
+          "result_sha256": "964a36c819cd8fbb770089648735bd3ccc083f64de54aac2b3f49884f0d3c600"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 1.2555656358527965,
+          "groups": 160,
+          "inference_s_per_task": 0.0022999153632554227,
+          "inference_s_total": 11.775566659867764,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.1848595957342115,
+          "result_sha256": "e0c20e9c6f2dbb16ded7d3d6684f8e9f3490dcd9f9e70356741b7b0f10093d06",
+          "trace_sha256": "e2f176bb43e223222abf075486e3accaebbabb1e5198e1031ddd60006f01947e",
+          "winner_counts": {
+            "gnn": 36,
+            "hand": 101,
+            "mpoff": 23
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 1.313489080763271,
+          "groups": 160,
+          "inference_s_per_task": 0.001215987115574535,
+          "inference_s_total": 6.225854031741619,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.19356352979275468,
+          "result_sha256": "b5c0256070637bbce4361fdb9082618618527854dfb0e6cf0f05a49854585778",
+          "trace_sha256": "bcfef69c6f4c9a549805ae115d6921a352b12e1625c58293b7d1aa53e1d41a1d",
+          "winner_counts": {
+            "hand": 126,
+            "mpoff": 34
+          }
+        }
+      },
+      "topology_seed": 9502
+    },
+    {
+      "best_single_gain_percent": 11.276233489160981,
+      "config_sha256": "0e2350d6a8087deddd290a8d0a12208f1f8ea9082f26810580224e6d22c42277",
+      "gnn_proposal_gain_percent": 4.2885726866587355,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.801508536058811,
+          "inference_s_per_task": 0.0009731212387123378,
+          "inference_s_total": 4.9823807422071695,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.7568328859608379,
+          "result_sha256": "3632470f7a1b07d259d0f4861cc3777d81ca4eba504d5e67619c6c3f5b2a11fb"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.482313099012618,
+          "inference_s_per_task": 0.00014831270018476062,
+          "inference_s_total": 0.7593610249459743,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.6884646514978604,
+          "result_sha256": "d11a4192a0de10c47fd6ea375ddc749579c626ec897f63079468d42da710fabb"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.8456778558029026,
+          "inference_s_per_task": 0.0009705892462079646,
+          "inference_s_total": 4.969416940584779,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.7761792119298548,
+          "result_sha256": "5f32198c22232fdf6c52a66326e99d2ece66ada31a8bf579eaa4130027eec160"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.2024016780359275,
+          "groups": 160,
+          "inference_s_per_task": 0.0021083026305859674,
+          "inference_s_total": 10.794509468600154,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.5807824707715274,
+          "result_sha256": "0082557bd7aac77e06401272c2c15bd4a9ec4081d8b07dbd4439d4900fb52596",
+          "trace_sha256": "706096605643d37fadc34b3989b9558b4a2e595a3a28bc6cb6f585a30071dbd2",
+          "winner_counts": {
+            "gnn": 62,
+            "hand": 67,
+            "mpoff": 31
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.301085397907271,
+          "groups": 160,
+          "inference_s_per_task": 0.0011802250843174988,
+          "inference_s_total": 6.042752431705594,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.6143152353152134,
+          "result_sha256": "7e5949f972a3ce8dbde773bc7c6404946606addb6c0166028c967c1addf039cd",
+          "trace_sha256": "4708ef1e0d92b9f3e4755b8bef7b867284c8e41325b912b9e7483307c07a1301",
+          "winner_counts": {
+            "hand": 104,
+            "mpoff": 56
+          }
+        }
+      },
+      "topology_seed": 9503
+    },
+    {
+      "best_single_gain_percent": 8.858154300273542,
+      "config_sha256": "27df4453e191ba2271b4b32374b1aa8558c8c025c8827fd19db14f70ee4831c8",
+      "gnn_proposal_gain_percent": 3.5634851603774385,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 3.9721248045987876,
+          "inference_s_per_task": 0.0009977184803574347,
+          "inference_s_total": 5.108318619430065,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.2976324036015805,
+          "result_sha256": "b3c96fc1e0241157d45d63b30fc41635655ff39ad722de8e7641b80f1fcd98cf"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 4.189947035233617,
+          "inference_s_per_task": 0.0001717538671073271,
+          "inference_s_total": 0.8793797995895147,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.3624925711131812,
+          "result_sha256": "831814b5449374d845e786f666ac900ffd1a73d366be0194dbac447cfe3caf70"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 3.9053219683767986,
+          "inference_s_per_task": 0.000935468928219052,
+          "inference_s_total": 4.789600912481546,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.2400611996386557,
+          "result_sha256": "d5192b90c7b20107a9a3ba22ca05239e53b098fe3e45563360d061043722fc5c"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 3.559382522495502,
+          "groups": 160,
+          "inference_s_per_task": 0.002167283697417588,
+          "inference_s_total": 11.09649253077805,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.1376866814191637,
+          "result_sha256": "922a7409b6c03b742c8ff1233de08d1d320c57817dab0a96fa731720b88043d8",
+          "trace_sha256": "304b42b794d16d51db1497a244be454ba9cddb2b5244460dc6d3abd6376237fe",
+          "winner_counts": {
+            "gnn": 63,
+            "hand": 46,
+            "mpoff": 51
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 3.6909074621940503,
+          "groups": 160,
+          "inference_s_per_task": 0.0011411960855184588,
+          "inference_s_total": 5.842923957854509,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.1852228811462702,
+          "result_sha256": "72bbe3f29c956fb43970096a7928b677e61cadffb1a2cf5dd0f814d2080edc2d",
+          "trace_sha256": "89049d3e6e843c08124f16b08b3cc5e4c5565587917c94076c1c01e8b39806d2",
+          "winner_counts": {
+            "hand": 66,
+            "mpoff": 94
+          }
+        }
+      },
+      "topology_seed": 9504
+    },
+    {
+      "best_single_gain_percent": 10.81912466538934,
+      "config_sha256": "b468f86760b74443593d5a6ae63ce4b51b35b6e5e5ea6ac81e348605ef8dbfd1",
+      "gnn_proposal_gain_percent": 2.7257272540751822,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.005130131051713,
+          "inference_s_per_task": 0.0009448640143091324,
+          "inference_s_total": 4.837703753262758,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.4139113389852647,
+          "result_sha256": "2c718c6ebd3da914de16c0c240b19b31780a9ab7dd101754c87ee07a2c22f294"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 1.5946425246672014,
+          "inference_s_per_task": 9.105555436690338e-05,
+          "inference_s_total": 0.4662044383585453,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.2899549594343745,
+          "result_sha256": "aa6a9ba3bbf446ba342b0b0f46511f05fda0340e9d8a96f4508ef4eeec60b833"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.0164243329586746,
+          "inference_s_per_task": 0.0009073329318198375,
+          "inference_s_total": 4.645544610917568,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.401517923529166,
+          "result_sha256": "209fc75ab410f8d56d17be712c4a9b3befc0044f466cefc27f63ae556a03fc03"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 1.4221161619561449,
+          "groups": 160,
+          "inference_s_per_task": 0.0019677542401041136,
+          "inference_s_total": 10.074901709333062,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.22398024016561907,
+          "result_sha256": "2e9cb3d33619a2c19880465fa1b2fb648ee92cff4316e7674684f58d4e7d5780",
+          "trace_sha256": "9ef0ab83081630a2738cb434299ce7ce93cb8c34dc46b3eb31dd397cbd6c073c",
+          "winner_counts": {
+            "gnn": 91,
+            "hand": 53,
+            "mpoff": 16
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 1.4619653499447238,
+          "groups": 160,
+          "inference_s_per_task": 0.0010247498608805471,
+          "inference_s_total": 5.246719287708402,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.23465959447112478,
+          "result_sha256": "1b72e7ed820839203ae7d29eb93a8323302bee8db0a095790d022cdabab396a1",
+          "trace_sha256": "500485385ff04d1ca018e7d4af43c3bb64864aa96453d3ae5391d677f18a3d86",
+          "winner_counts": {
+            "hand": 121,
+            "mpoff": 39
+          }
+        }
+      },
+      "topology_seed": 9507
+    },
+    {
+      "best_single_gain_percent": 7.512054921466451,
+      "config_sha256": "50f07859110e931176d5ae742b28356aacf31a1c246084769e73eabc5dab8b96",
+      "gnn_proposal_gain_percent": 1.0491170331135633,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 4.644327294721185,
+          "inference_s_per_task": 0.0010109057366207708,
+          "inference_s_total": 5.175837371498346,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.3512993029205507,
+          "result_sha256": "d94c3b7101e64732b98585db1f35e94d16182b0cac9ffca1902e8d7a3620245c"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 4.752830448061488,
+          "inference_s_per_task": 0.0001774416261469014,
+          "inference_s_total": 0.9085011258721352,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.4723662113456288,
+          "result_sha256": "9f2da57fd4500b71d237ae8cc76cbe2ff76145befb79cb8e8a14a13b2f11bb8a"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 4.611534213710781,
+          "inference_s_per_task": 0.0009465097984502791,
+          "inference_s_total": 4.846130168065429,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.3141809916746643,
+          "result_sha256": "9c4079f87323117e9104004afc4638f7333d2e81272a55a76d7a288e4f90a2c3"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 4.265113230854611,
+          "groups": 160,
+          "inference_s_per_task": 0.0021879137901123615,
+          "inference_s_total": 11.20211860537529,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.2302646244108248,
+          "result_sha256": "089bc0415e01bbaa87215ea89df2ade483dc02324d223c153e16609b1d1e78af",
+          "trace_sha256": "b8a0ec1b62133bb3b3d7627249d5fb6965cea561a51fd2cb3d5e7bf029325dcb",
+          "winner_counts": {
+            "gnn": 59,
+            "hand": 56,
+            "mpoff": 45
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 4.310333675629672,
+          "groups": 160,
+          "inference_s_per_task": 0.0011247093956626487,
+          "inference_s_total": 5.758512105792761,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 1.2411612790396869,
+          "result_sha256": "4fc53fac8869eafe6fc941dc28edb3d622db27f9614d667381190044d77b74bc",
+          "trace_sha256": "184a5ef9fdbccc5c44d0f4b29d512f37f1f6fb9125edf47fc6e959b4671633e2",
+          "winner_counts": {
+            "hand": 76,
+            "mpoff": 84
+          }
+        }
+      },
+      "topology_seed": 9509
+    },
+    {
+      "best_single_gain_percent": 15.385107957509387,
+      "config_sha256": "21466bddc481e609100de6f662f1acb29e9a81043928cc3c9797b9ce0a19e359",
+      "gnn_proposal_gain_percent": 5.6528874302013286,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.4166336024101254,
+          "inference_s_per_task": 0.0010055685703264316,
+          "inference_s_total": 5.14851108007133,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.6077721790341453,
+          "result_sha256": "f468720756a87e533d602cef27bfcce502f8d1838832f423ba0e4c64033440eb"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.4549178150479074,
+          "inference_s_per_task": 0.00017054958698281553,
+          "inference_s_total": 0.8732138853520155,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.6261696953159241,
+          "result_sha256": "ca19daa53113f6d4f6f5834d983bdc537b7c020da7f018dc299b36352d215731"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.270395082419271,
+          "inference_s_per_task": 0.0009641255375754554,
+          "inference_s_total": 4.936322752386332,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.5007653158428346,
+          "result_sha256": "3af4bd1d33df19272d3d84aa715a6d495a1794f0e21d2944bf83e8c2b46d451e"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 1.921092347927082,
+          "groups": 160,
+          "inference_s_per_task": 0.002239212781569222,
+          "inference_s_total": 11.464769441634417,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.4160041673686211,
+          "result_sha256": "322505cc49470f9b06f76383e1c31899923ce72675d2d855171ee9eb119462cb",
+          "trace_sha256": "4f60a57bd20812c6b52d47771f2d997c7bac085c1d99f776b5d8a087f3273187",
+          "winner_counts": {
+            "gnn": 40,
+            "hand": 52,
+            "mpoff": 68
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.0361962285871167,
+          "groups": 160,
+          "inference_s_per_task": 0.001215077368033235,
+          "inference_s_total": 6.221196124330163,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.44405131037749956,
+          "result_sha256": "4da2e1b6b7c485e6175434a7a4e4f0b29c00c30b848208919f4c77be998a628d",
+          "trace_sha256": "1b0ba1c4a65e5f8109a73ea3951837cabaa62ce7911298848c58ae7de92fd19e",
+          "winner_counts": {
+            "hand": 62,
+            "mpoff": 98
+          }
+        }
+      },
+      "topology_seed": 9511
+    },
+    {
+      "best_single_gain_percent": 2.425628148424009,
+      "config_sha256": "400c1133a9b20c36881341d0745134cea9478a58d0b2883333677875dbe83620",
+      "gnn_proposal_gain_percent": 0.6513904270222014,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 9.728360370034151,
+          "inference_s_per_task": 0.0009614936552679865,
+          "inference_s_total": 4.922847514972091,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 2.6420412819728094,
+          "result_sha256": "a9fee3c2f7fee5e40c14f02449744ee0dc183a7c792fc6be02e0769ffd533d2c"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 9.675984355708113,
+          "inference_s_per_task": 0.00013927503241575323,
+          "inference_s_total": 0.7130881659686565,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 2.61925441727566,
+          "result_sha256": "a5b86b2c395fecef2d7968e92e444eb3d20faa4bcbd1d084c5f9d7e1f48ab46b"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 9.675384800426084,
+          "inference_s_per_task": 0.0008975164706498618,
+          "inference_s_total": 4.595284329727292,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 2.6186302007674023,
+          "result_sha256": "2c276d51621c37ce0fa0c79e5fb6d04201f9b2fb12ff186339a87e102fefe19d"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 9.44069594323861,
+          "groups": 160,
+          "inference_s_per_task": 0.00201811877086584,
+          "inference_s_total": 10.3327681068331,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 2.5387822642259725,
+          "result_sha256": "5638ce15dc9d345f28690679a1cd34521ad9ba6af737cb7400dc3e9956d209b0",
+          "trace_sha256": "03fb9b438a03155bd0c845b865909251e2bf0869f3be46eb43c513d3224e7ed5",
+          "winner_counts": {
+            "gnn": 88,
+            "hand": 45,
+            "mpoff": 27
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 9.502594936976774,
+          "groups": 160,
+          "inference_s_per_task": 0.0010665909121598816,
+          "inference_s_total": 5.460945470258594,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 2.559040270944693,
+          "result_sha256": "0f4bd12a07e5b4d860a8e309da1bdff847739049cbf9937eeb2b58d0fa7cf18e",
+          "trace_sha256": "eb02300baef7cf18196b6e7e1e80ecfe877c0d12e6afa0def18f66ab9c151d99",
+          "winner_counts": {
+            "hand": 95,
+            "mpoff": 65
+          }
+        }
+      },
+      "topology_seed": 9517
+    },
+    {
+      "best_single_gain_percent": 14.035299636474312,
+      "config_sha256": "f54e832205876b86f3df4d387ad891c8181086dae6b2b7a614b34a0ca9d4ac23",
+      "gnn_proposal_gain_percent": 7.1758814954176655,
+      "manifest_equal_across_arms": true,
+      "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+      "runs": {
+        "gnn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 3.2339456583399517,
+          "inference_s_per_task": 0.0010187832449446432,
+          "inference_s_total": 5.216170214116573,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.8469771940387982,
+          "result_sha256": "54bba402e4aa3d9efe46cba96282dc5909a9f9e8c5b29539ae55e7ce58fab1d3"
+        },
+        "hand": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 3.4141957757158927,
+          "inference_s_per_task": 0.00017726193327689544,
+          "inference_s_total": 0.9075810983777046,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.9658542257481784,
+          "result_sha256": "a39e09334de5db33bd380b6e2633ea0b1ee97d47ecd11a3216c0bfece5f44e05"
+        },
+        "mpoff": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 3.202871948926173,
+          "inference_s_per_task": 0.0009494570451352047,
+          "inference_s_total": 4.861220071092248,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.8114946651448314,
+          "result_sha256": "386b5e063511a7ba6aa171e669f690630dd18168f2207c4648e11c0a8c1552a0"
+        },
+        "selector_audit": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.7533392739218003,
+          "groups": 160,
+          "inference_s_per_task": 0.0022272019072261174,
+          "inference_s_total": 11.40327376499772,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.6569646681656336,
+          "result_sha256": "9f13ea968c6f61ca70d29009570eed5e1f3ab7a487f2181aa552faadb46974e6",
+          "trace_sha256": "fb5c70b1b22d7b3f38220537cde641bcc83416b5ffdd0da4736eedcb91612506",
+          "winner_counts": {
+            "gnn": 67,
+            "hand": 45,
+            "mpoff": 48
+          }
+        },
+        "selector_nognn": {
+          "code_commit": "ba3538ebf63e6054d471391fe087145914eb74da",
+          "code_diff_sha256": "5d99f4224f5819662516fedc299913ac05e4d3dcb90ba2795fe5a1345805f8da",
+          "elapsed_s_per_task": 2.9661895187142333,
+          "groups": 160,
+          "inference_s_per_task": 0.001164257825439563,
+          "inference_s_total": 5.961000066250563,
+          "manifest_sha256": "5afb8ba2dc4a32b833d4f12a957bafb8b11adf07ca304d84e8818fd5fc782e3e",
+          "peer_exchange_s_per_task": 0.7547599471994362,
+          "result_sha256": "a799ca14783eb91b22d1a2054d855c264b9b353e298490863754cdb742c29d60",
+          "trace_sha256": "6fe7bd25702538cf9ed297758d9d6b3d681198c0195908e5bb28340eaa35071e",
+          "winner_counts": {
+            "hand": 63,
+            "mpoff": 97
+          }
+        }
+      },
+      "topology_seed": 9518
+    }
+  ],
+  "valid": true
+}

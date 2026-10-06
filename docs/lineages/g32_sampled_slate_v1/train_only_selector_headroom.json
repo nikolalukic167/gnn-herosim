@@ -1,0 +1,2293 @@
+{
+  "9603": {
+    "groups": 16,
+    "selected_total": 889.1576432794276,
+    "proposal_oracle_total": 889.1576432794276,
+    "slate_oracle_total": 623.7727147328806,
+    "proposal_oracle_headroom_pct": 0.0,
+    "slate_oracle_headroom_pct": 42.54513259051309,
+    "median_group_headroom_pct": 0.0,
+    "positive_groups": 0,
+    "duplicate_group_count": 2,
+    "distinct_plan_counts": {
+      "3": 14,
+      "2": 2
+    },
+    "selected_counts": {
+      "gnn": 5,
+      "hand": 6,
+      "mpoff": 5
+    },
+    "oracle_counts": {
+      "gnn": 5,
+      "hand": 6,
+      "mpoff": 5
+    }
+  },
+  "9604": {
+    "groups": 16,
+    "selected_total": 542.3047365438136,
+    "proposal_oracle_total": 542.3047365438136,
+    "slate_oracle_total": 364.4136453509258,
+    "proposal_oracle_headroom_pct": 0.0,
+    "slate_oracle_headroom_pct": 48.81570530147985,
+    "median_group_headroom_pct": 0.0,
+    "positive_groups": 0,
+    "duplicate_group_count": 1,
+    "distinct_plan_counts": {
+      "3": 15,
+      "2": 1
+    },
+    "selected_counts": {
+      "hand": 15,
+      "gnn": 1
+    },
+    "oracle_counts": {
+      "hand": 15,
+      "gnn": 1
+    }
+  },
+  "9605": {
+    "groups": 16,
+    "selected_total": 1033.0271609416493,
+    "proposal_oracle_total": 998.2222962198011,
+    "slate_oracle_total": 991.8529227530407,
+    "proposal_oracle_headroom_pct": 3.4866847648716837,
+    "slate_oracle_headroom_pct": 4.151244327064463,
+    "median_group_headroom_pct": 0.0,
+    "positive_groups": 1,
+    "duplicate_group_count": 3,
+    "distinct_plan_counts": {
+      "3": 13,
+      "2": 2,
+      "1": 1
+    },
+    "selected_counts": {
+      "hand": 7,
+      "gnn": 7,
+      "mpoff": 2
+    },
+    "oracle_counts": {
+      "hand": 7,
+      "gnn": 6,
+      "mpoff": 3
+    }
+  },
+  "9608": {
+    "groups": 16,
+    "selected_total": 1839.4519025448353,
+    "proposal_oracle_total": 1839.4519025448353,
+    "slate_oracle_total": 1839.4519025448353,
+    "proposal_oracle_headroom_pct": 0.0,
+    "slate_oracle_headroom_pct": 0.0,
+    "median_group_headroom_pct": 0.0,
+    "positive_groups": 0,
+    "duplicate_group_count": 13,
+    "distinct_plan_counts": {
+      "1": 6,
+      "2": 7,
+      "3": 3
+    },
+    "selected_counts": {
+      "gnn": 10,
+      "hand": 5,
+      "mpoff": 1
+    },
+    "oracle_counts": {
+      "gnn": 10,
+      "hand": 5,
+      "mpoff": 1
+    }
+  },
+  "9609": {
+    "groups": 16,
+    "selected_total": 1477.1893122737529,
+    "proposal_oracle_total": 1414.6933499859756,
+    "slate_oracle_total": 1413.7127065898073,
+    "proposal_oracle_headroom_pct": 4.417633142079658,
+    "slate_oracle_headroom_pct": 4.490064027016172,
+    "median_group_headroom_pct": 0.0,
+    "positive_groups": 3,
+    "duplicate_group_count": 4,
+    "distinct_plan_counts": {
+      "2": 3,
+      "3": 12,
+      "1": 1
+    },
+    "selected_counts": {
+      "hand": 6,
+      "gnn": 5,
+      "mpoff": 5
+    },
+    "oracle_counts": {
+      "hand": 7,
+      "gnn": 6,
+      "mpoff": 3
+    }
+  },
+  "9624": {
+    "groups": 16,
+    "selected_total": 2620.114702657746,
+    "proposal_oracle_total": 2609.6151425323546,
+    "slate_oracle_total": 2592.842443688888,
+    "proposal_oracle_headroom_pct": 0.4023413243687157,
+    "slate_oracle_headroom_pct": 1.051828622878337,
+    "median_group_headroom_pct": 0.0,
+    "positive_groups": 1,
+    "duplicate_group_count": 8,
+    "distinct_plan_counts": {
+      "2": 8,
+      "3": 8
+    },
+    "selected_counts": {
+      "hand": 9,
+      "gnn": 4,
+      "mpoff": 3
+    },
+    "oracle_counts": {
+      "hand": 8,
+      "gnn": 5,
+      "mpoff": 3
+    }
+  },
+  "all": {
+    "groups": 96,
+    "selected_total": 8401.245458241225,
+    "proposal_oracle_total": 8293.445071106207,
+    "slate_oracle_total": 7826.046335660378,
+    "proposal_oracle_headroom_pct": 1.299826383496372,
+    "slate_oracle_headroom_pct": 7.349804715056174,
+    "median_group_headroom_pct": 0.0,
+    "positive_groups": 5,
+    "duplicate_group_count": 31,
+    "distinct_plan_counts": {
+      "3": 65,
+      "2": 23,
+      "1": 8
+    },
+    "selected_counts": {
+      "gnn": 32,
+      "hand": 48,
+      "mpoff": 16
+    },
+    "oracle_counts": {
+      "gnn": 33,
+      "hand": 48,
+      "mpoff": 15
+    }
+  },
+  "groups": [
+    {
+      "seed": 9603,
+      "sid": 0,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 19.9008999747677,
+      "oracle_rtt": 19.9008999747677,
+      "slate_oracle_rtt": 19.9008999747677,
+      "actual": {
+        "gnn": 19.9008999747677,
+        "mpoff": 58.45397667065159,
+        "hand": 61.462436362903496
+      },
+      "scores": {
+        "gnn": 7.400912311554191,
+        "mpoff": 48.6419215396044,
+        "hand": 54.763144402261936
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 1,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 66.84914173541176,
+      "oracle_rtt": 66.84914173541176,
+      "slate_oracle_rtt": 22.165029974767712,
+      "actual": {
+        "gnn": 77.72696026104619,
+        "mpoff": 70.05505787416698,
+        "hand": 66.84914173541176
+      },
+      "scores": {
+        "gnn": 75.86694934202967,
+        "mpoff": 64.83887984325318,
+        "hand": 57.99865866354449
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 201.5973441565911
+    },
+    {
+      "seed": 9603,
+      "sid": 2,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 93.21521988778582,
+      "oracle_rtt": 93.21521988778582,
+      "slate_oracle_rtt": 24.112481065968908,
+      "actual": {
+        "gnn": 93.21521988778582,
+        "mpoff": 100.73868113321723,
+        "hand": 107.71135867812849
+      },
+      "scores": {
+        "gnn": 89.20216900626636,
+        "mpoff": 97.87925208230958,
+        "hand": 102.0653626907997
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 286.584937621143
+    },
+    {
+      "seed": 9603,
+      "sid": 3,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 65.88466104621216,
+      "oracle_rtt": 65.88466104621216,
+      "slate_oracle_rtt": 22.165029974767712,
+      "actual": {
+        "gnn": 95.2789297551648,
+        "mpoff": 73.92530211560948,
+        "hand": 65.88466104621216
+      },
+      "scores": {
+        "gnn": 89.58302171258802,
+        "mpoff": 69.06237783617351,
+        "hand": 60.76793447464976
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 197.24598216746884
+    },
+    {
+      "seed": 9603,
+      "sid": 4,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 40.12383896798235,
+      "oracle_rtt": 40.12383896798235,
+      "slate_oracle_rtt": 20.059678882292108,
+      "actual": {
+        "gnn": 46.135806528157445,
+        "mpoff": 59.502664648128366,
+        "hand": 40.12383896798235
+      },
+      "scores": {
+        "gnn": 39.72402025980644,
+        "mpoff": 54.42006464392112,
+        "hand": 35.406275712004856
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 100.02233935759604
+    },
+    {
+      "seed": 9603,
+      "sid": 5,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 56.09451791267389,
+      "oracle_rtt": 56.09451791267389,
+      "slate_oracle_rtt": 19.905578315407954,
+      "actual": {
+        "gnn": 110.44844632961721,
+        "mpoff": 56.09451791267389,
+        "hand": 77.27041335680092
+      },
+      "scores": {
+        "gnn": 112.1437323429501,
+        "mpoff": 46.53377141466528,
+        "hand": 72.58668386527025
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 181.80300528748674
+    },
+    {
+      "seed": 9603,
+      "sid": 6,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 71.52712609070313,
+      "oracle_rtt": 71.52712609070313,
+      "slate_oracle_rtt": 19.9017788810177,
+      "actual": {
+        "gnn": 71.52712609070313,
+        "mpoff": 83.77411929455505,
+        "hand": 103.23728140464961
+      },
+      "scores": {
+        "gnn": 68.72319466646908,
+        "mpoff": 80.29938969758481,
+        "hand": 104.06657183565477
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 259.40066723847303
+    },
+    {
+      "seed": 9603,
+      "sid": 7,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 76.4312864009985,
+      "oracle_rtt": 76.4312864009985,
+      "slate_oracle_rtt": 76.4312864009985,
+      "actual": {
+        "gnn": 124.37779925731678,
+        "mpoff": 76.4312864009985,
+        "hand": 117.72418830153292
+      },
+      "scores": {
+        "gnn": 122.77849591325784,
+        "mpoff": 71.68768929903804,
+        "hand": 113.39827579011202
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 8,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 79.44201125603743,
+      "oracle_rtt": 79.44201125603743,
+      "slate_oracle_rtt": 79.44201125603743,
+      "actual": {
+        "gnn": 109.77543444141897,
+        "mpoff": 86.89343882966189,
+        "hand": 79.44201125603743
+      },
+      "scores": {
+        "gnn": 107.6450405515608,
+        "mpoff": 80.9813199206055,
+        "hand": 72.245402258511
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 9,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 60.06575627573243,
+      "oracle_rtt": 60.06575627573243,
+      "slate_oracle_rtt": 60.06575627573243,
+      "actual": {
+        "gnn": 111.73094535024194,
+        "mpoff": 60.06575627573243,
+        "hand": 75.68087567852263
+      },
+      "scores": {
+        "gnn": 109.65247326641165,
+        "mpoff": 53.53564791172888,
+        "hand": 70.14051306502614
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 10,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 19.285107384061046,
+      "oracle_rtt": 19.285107384061046,
+      "slate_oracle_rtt": 19.285107384061046,
+      "actual": {
+        "gnn": 19.285107384061046,
+        "mpoff": 19.285107384061046,
+        "hand": 171.465461988956
+      },
+      "scores": {
+        "gnn": 7.642374376428652,
+        "mpoff": 7.642374376428652,
+        "hand": 164.54814559108115
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 11,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 19.473500178839185,
+      "oracle_rtt": 19.473500178839185,
+      "slate_oracle_rtt": 19.473500178839185,
+      "actual": {
+        "gnn": 19.473500178839185,
+        "mpoff": 19.473500178839185,
+        "hand": 76.68409326163436
+      },
+      "scores": {
+        "gnn": 6.759487952696703,
+        "mpoff": 6.759487952696703,
+        "hand": 70.38238593862839
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 12,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 56.297262718286945,
+      "oracle_rtt": 56.297262718286945,
+      "slate_oracle_rtt": 56.297262718286945,
+      "actual": {
+        "gnn": 113.03458660376077,
+        "mpoff": 56.297262718286945,
+        "hand": 101.20027573682471
+      },
+      "scores": {
+        "gnn": 105.9781355013255,
+        "mpoff": 47.27136239342461,
+        "hand": 97.45426528130463
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 13,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 50.20841904868167,
+      "oracle_rtt": 50.20841904868167,
+      "slate_oracle_rtt": 50.20841904868167,
+      "actual": {
+        "gnn": 156.80376137250204,
+        "mpoff": 147.23240154759733,
+        "hand": 50.20841904868167
+      },
+      "scores": {
+        "gnn": 159.02572478021293,
+        "mpoff": 145.94877242478168,
+        "hand": 41.4983895359525
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 14,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 90.24939750727951,
+      "oracle_rtt": 90.24939750727951,
+      "slate_oracle_rtt": 90.24939750727951,
+      "actual": {
+        "gnn": 95.25691291340871,
+        "mpoff": 90.24939750727951,
+        "hand": 103.13717841915025
+      },
+      "scores": {
+        "gnn": 95.97932752764976,
+        "mpoff": 88.36752030817111,
+        "hand": 102.21252823840648
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9603,
+      "sid": 15,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 24.109496893974057,
+      "oracle_rtt": 24.109496893974057,
+      "slate_oracle_rtt": 24.109496893974057,
+      "actual": {
+        "gnn": 201.74782124528,
+        "mpoff": 129.74169578655528,
+        "hand": 24.109496893974057
+      },
+      "scores": {
+        "gnn": 195.33486228596124,
+        "mpoff": 121.08594570012173,
+        "hand": 11.3123817060111
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 0,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 21.56119247285868,
+      "oracle_rtt": 21.56119247285868,
+      "slate_oracle_rtt": 21.56119247285868,
+      "actual": {
+        "gnn": 67.84943726167847,
+        "mpoff": 66.53950722820163,
+        "hand": 21.56119247285868
+      },
+      "scores": {
+        "gnn": 69.38032306978629,
+        "mpoff": 62.856678564420754,
+        "hand": 7.589984766852809
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 1,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 23.825322472858684,
+      "oracle_rtt": 23.825322472858684,
+      "slate_oracle_rtt": 23.825322472858684,
+      "actual": {
+        "gnn": 85.20040041527076,
+        "mpoff": 84.51482198364944,
+        "hand": 23.825322472858684
+      },
+      "scores": {
+        "gnn": 86.03263548751477,
+        "mpoff": 79.28136722893237,
+        "hand": 10.004114766852808
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 2,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 25.867309791709186,
+      "oracle_rtt": 25.867309791709186,
+      "slate_oracle_rtt": 25.867309791709186,
+      "actual": {
+        "gnn": 161.9132249839886,
+        "mpoff": 70.27275605471664,
+        "hand": 25.867309791709186
+      },
+      "scores": {
+        "gnn": 164.63320269826528,
+        "mpoff": 65.0045673172456,
+        "hand": 11.065202969977808
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 3,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 23.825322472858684,
+      "oracle_rtt": 23.825322472858684,
+      "slate_oracle_rtt": 23.825322472858684,
+      "actual": {
+        "gnn": 92.99290025892819,
+        "mpoff": 97.9135264985108,
+        "hand": 23.825322472858684
+      },
+      "scores": {
+        "gnn": 87.9088466302937,
+        "mpoff": 103.85684914437888,
+        "hand": 10.004114766852808
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 4,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 21.67270326655843,
+      "oracle_rtt": 21.67270326655843,
+      "slate_oracle_rtt": 21.67270326655843,
+      "actual": {
+        "gnn": 41.70767151153414,
+        "mpoff": 63.00127001002418,
+        "hand": 21.67270326655843
+      },
+      "scores": {
+        "gnn": 34.69141439832218,
+        "mpoff": 58.978897966831966,
+        "hand": 8.266505665290307
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 5,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 21.536328242358522,
+      "oracle_rtt": 21.536328242358522,
+      "slate_oracle_rtt": 21.536328242358522,
+      "actual": {
+        "gnn": 84.463268230149,
+        "mpoff": 94.47177019977077,
+        "hand": 21.536328242358522
+      },
+      "scores": {
+        "gnn": 84.66054877498351,
+        "mpoff": 95.57684900783937,
+        "hand": 7.912221578376245
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 6,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 21.562071379108676,
+      "oracle_rtt": 21.562071379108676,
+      "slate_oracle_rtt": 21.562071379108676,
+      "actual": {
+        "gnn": 70.5187879594019,
+        "mpoff": 70.5187879594019,
+        "hand": 21.562071379108676
+      },
+      "scores": {
+        "gnn": 65.90755539304143,
+        "mpoff": 65.90755539304143,
+        "hand": 7.589984766852809
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 7,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 22.411792041583624,
+      "oracle_rtt": 22.411792041583624,
+      "slate_oracle_rtt": 22.411792041583624,
+      "actual": {
+        "gnn": 71.27356336094735,
+        "mpoff": 118.51623218531836,
+        "hand": 22.411792041583624
+      },
+      "scores": {
+        "gnn": 67.59374150024678,
+        "mpoff": 117.18367255313268,
+        "hand": 9.067540082943294
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 8,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 23.721487271555556,
+      "oracle_rtt": 23.721487271555556,
+      "slate_oracle_rtt": 23.721487271555556,
+      "actual": {
+        "gnn": 80.47669499640503,
+        "mpoff": 118.16583444699155,
+        "hand": 23.721487271555556
+      },
+      "scores": {
+        "gnn": 83.03353560097372,
+        "mpoff": 117.39957490545879,
+        "hand": 9.991250228638261
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 9,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 21.88214355846683,
+      "oracle_rtt": 21.88214355846683,
+      "slate_oracle_rtt": 21.88214355846683,
+      "actual": {
+        "gnn": 90.53359722206825,
+        "mpoff": 70.13322217340883,
+        "hand": 21.88214355846683
+      },
+      "scores": {
+        "gnn": 91.65948907503093,
+        "mpoff": 69.84244374214384,
+        "hand": 8.642729176140708
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 10,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 21.410226556896816,
+      "oracle_rtt": 21.410226556896816,
+      "slate_oracle_rtt": 21.410226556896816,
+      "actual": {
+        "gnn": 96.39975749149284,
+        "mpoff": 98.85482083489298,
+        "hand": 21.410226556896816
+      },
+      "scores": {
+        "gnn": 90.96041910011898,
+        "mpoff": 98.4051087777455,
+        "hand": 7.897519248988191
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 11,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 21.944206274116883,
+      "oracle_rtt": 21.944206274116883,
+      "slate_oracle_rtt": 21.944206274116883,
+      "actual": {
+        "gnn": 78.40211507294796,
+        "mpoff": 108.08112068465908,
+        "hand": 21.944206274116883
+      },
+      "scores": {
+        "gnn": 77.19892109505511,
+        "mpoff": 108.204044899797,
+        "hand": 7.026031745003
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9604,
+      "sid": 12,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 57.29395840682443,
+      "oracle_rtt": 57.29395840682443,
+      "slate_oracle_rtt": 21.422372733557427,
+      "actual": {
+        "gnn": 85.32286993052679,
+        "mpoff": 60.64657591387197,
+        "hand": 57.29395840682443
+      },
+      "scores": {
+        "gnn": 84.58729859770673,
+        "mpoff": 55.842239346675996,
+        "hand": 46.49300104036867
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 167.44917157134216
+    },
+    {
+      "seed": 9604,
+      "sid": 13,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 60.80036295544009,
+      "oracle_rtt": 60.80036295544009,
+      "slate_oracle_rtt": 22.932598696384318,
+      "actual": {
+        "gnn": 109.77527105208198,
+        "mpoff": 103.04273684573768,
+        "hand": 60.80036295544009
+      },
+      "scores": {
+        "gnn": 111.08408014888721,
+        "mpoff": 100.9904282019314,
+        "hand": 52.973405133320654
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 165.1263546726879
+    },
+    {
+      "seed": 9604,
+      "sid": 14,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 57.52157318934979,
+      "oracle_rtt": 57.52157318934979,
+      "slate_oracle_rtt": 21.885819140813844,
+      "actual": {
+        "gnn": 57.52157318934979,
+        "mpoff": 61.6857065186772,
+        "hand": 77.95471140778555
+      },
+      "scores": {
+        "gnn": 53.633961090814125,
+        "mpoff": 62.65816572564856,
+        "hand": 72.95269109378631
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 162.82577233803642
+    },
+    {
+      "seed": 9604,
+      "sid": 15,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 95.46873619126882,
+      "oracle_rtt": 95.46873619126882,
+      "slate_oracle_rtt": 26.952748979239637,
+      "actual": {
+        "gnn": 134.12193253721304,
+        "mpoff": 109.60721189040285,
+        "hand": 95.46873619126882
+      },
+      "scores": {
+        "gnn": 128.45756829918213,
+        "mpoff": 109.95099117276285,
+        "hand": 94.44788304685535
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 254.20778884114435
+    },
+    {
+      "seed": 9605,
+      "sid": 0,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 25.080084891715273,
+      "oracle_rtt": 25.080084891715273,
+      "slate_oracle_rtt": 25.080084891715273,
+      "actual": {
+        "gnn": 46.79728439852693,
+        "mpoff": 67.97397859436066,
+        "hand": 25.080084891715273
+      },
+      "scores": {
+        "gnn": 35.609452591834255,
+        "mpoff": 60.51382279071751,
+        "hand": 7.967275229142526
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 1,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 27.34421489171529,
+      "oracle_rtt": 27.34421489171529,
+      "slate_oracle_rtt": 27.34421489171529,
+      "actual": {
+        "gnn": 88.53790567663675,
+        "mpoff": 83.27483379642813,
+        "hand": 27.34421489171529
+      },
+      "scores": {
+        "gnn": 88.22938930682642,
+        "mpoff": 79.72042577905577,
+        "hand": 10.381405229142526
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 2,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 29.58656619171066,
+      "oracle_rtt": 29.58656619171066,
+      "slate_oracle_rtt": 29.58656619171066,
+      "actual": {
+        "gnn": 76.95232672814947,
+        "mpoff": 80.24954818978485,
+        "hand": 29.58656619171066
+      },
+      "scores": {
+        "gnn": 74.19304893658075,
+        "mpoff": 76.82222811967242,
+        "hand": 11.442493432267526
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 3,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 27.34421489171529,
+      "oracle_rtt": 27.34421489171529,
+      "slate_oracle_rtt": 27.34421489171529,
+      "actual": {
+        "gnn": 93.85350383622793,
+        "mpoff": 66.90587719915206,
+        "hand": 27.34421489171529
+      },
+      "scores": {
+        "gnn": 93.61009109770117,
+        "mpoff": 61.51911033137787,
+        "hand": 10.381405229142526
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 4,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 25.091413694842597,
+      "oracle_rtt": 25.091413694842597,
+      "slate_oracle_rtt": 25.091413694842597,
+      "actual": {
+        "gnn": 53.34597862854777,
+        "mpoff": 53.34597862854777,
+        "hand": 25.091413694842597
+      },
+      "scores": {
+        "gnn": 47.57526346226079,
+        "mpoff": 47.57526346226079,
+        "hand": 8.643796127580027
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 5,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 24.99260691710735,
+      "oracle_rtt": 24.99260691710735,
+      "slate_oracle_rtt": 24.99260691710735,
+      "actual": {
+        "gnn": 24.99260691710735,
+        "mpoff": 24.99260691710735,
+        "hand": 24.99260691710735
+      },
+      "scores": {
+        "gnn": 8.289512040665963,
+        "mpoff": 8.289512040665963,
+        "hand": 8.289512040665963
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 6,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 25.080963797965275,
+      "oracle_rtt": 25.080963797965275,
+      "slate_oracle_rtt": 25.080963797965275,
+      "actual": {
+        "gnn": 25.080963797965275,
+        "mpoff": 75.61089748553833,
+        "hand": 25.080963797965275
+      },
+      "scores": {
+        "gnn": 7.967275229142526,
+        "mpoff": 71.93648000953753,
+        "hand": 7.967275229142526
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 7,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 74.1752278123289,
+      "oracle_rtt": 74.1752278123289,
+      "slate_oracle_rtt": 72.46624101550503,
+      "actual": {
+        "gnn": 74.1752278123289,
+        "mpoff": 95.11545770532065,
+        "hand": 100.9721589812888
+      },
+      "scores": {
+        "gnn": 75.84359454108849,
+        "mpoff": 95.67097555947637,
+        "hand": 95.8398078399511
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 2.3583212995113234
+    },
+    {
+      "seed": 9605,
+      "sid": 8,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 91.24741578546796,
+      "oracle_rtt": 91.24741578546796,
+      "slate_oracle_rtt": 91.24741578546796,
+      "actual": {
+        "gnn": 91.24741578546796,
+        "mpoff": 113.39863676225609,
+        "hand": 100.43819855587532
+      },
+      "scores": {
+        "gnn": 95.72626304430236,
+        "mpoff": 112.01461284078333,
+        "hand": 104.93723892438172
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 9,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 65.17646789240379,
+      "oracle_rtt": 65.17646789240379,
+      "slate_oracle_rtt": 65.17646789240379,
+      "actual": {
+        "gnn": 74.36379869701196,
+        "mpoff": 65.17646789240379,
+        "hand": 76.88103343150318
+      },
+      "scores": {
+        "gnn": 73.69974353045582,
+        "mpoff": 67.25198475002748,
+        "hand": 80.60175176817268
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 10,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 35.928376258253785,
+      "oracle_rtt": 35.928376258253785,
+      "slate_oracle_rtt": 35.928376258253785,
+      "actual": {
+        "gnn": 35.928376258253785,
+        "mpoff": 126.47279339851418,
+        "hand": 121.54720189631792
+      },
+      "scores": {
+        "gnn": 35.49273060560204,
+        "mpoff": 129.35188486609118,
+        "hand": 125.55315628559087
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 11,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 102.86329285390171,
+      "oracle_rtt": 102.86329285390171,
+      "slate_oracle_rtt": 102.86329285390171,
+      "actual": {
+        "gnn": 124.07970491823066,
+        "mpoff": 150.6787512747786,
+        "hand": 102.86329285390171
+      },
+      "scores": {
+        "gnn": 110.19266666928755,
+        "mpoff": 145.92661835898886,
+        "hand": 104.9555421185825
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 12,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 97.80861084989651,
+      "oracle_rtt": 97.80861084989651,
+      "slate_oracle_rtt": 97.80861084989651,
+      "actual": {
+        "gnn": 134.5639766147054,
+        "mpoff": 97.80861084989651,
+        "hand": 134.7370826246864
+      },
+      "scores": {
+        "gnn": 127.1866273219988,
+        "mpoff": 102.4515664779999,
+        "hand": 137.0883701858027
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 13,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 95.05284308701717,
+      "oracle_rtt": 95.05284308701717,
+      "slate_oracle_rtt": 95.05284308701717,
+      "actual": {
+        "gnn": 118.39200857933555,
+        "mpoff": 153.62383030768845,
+        "hand": 95.05284308701717
+      },
+      "scores": {
+        "gnn": 119.86781827192635,
+        "mpoff": 144.13900175974507,
+        "hand": 98.19159696388937
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 14,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 82.27017220592568,
+      "oracle_rtt": 82.27017220592568,
+      "slate_oracle_rtt": 82.27017220592568,
+      "actual": {
+        "gnn": 82.27017220592568,
+        "mpoff": 83.16750261490864,
+        "hand": 90.13111068054265
+      },
+      "scores": {
+        "gnn": 77.88935041364465,
+        "mpoff": 85.17077446755937,
+        "hand": 92.12174215179749
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9605,
+      "sid": 15,
+      "selected": "gnn",
+      "oracle": "mpoff",
+      "selected_rtt": 203.98468891968196,
+      "oracle_rtt": 169.1798241978339,
+      "slate_oracle_rtt": 164.51943752789734,
+      "actual": {
+        "gnn": 203.98468891968196,
+        "mpoff": 169.1798241978339,
+        "hand": 174.04148578112276
+      },
+      "scores": {
+        "gnn": 165.10429663623654,
+        "mpoff": 167.8116814752273,
+        "hand": 176.7661691709112
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 20.572704154810005,
+      "slate_headroom_pct": 23.988199804714604
+    },
+    {
+      "seed": 9608,
+      "sid": 0,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 17.391621424814065,
+      "oracle_rtt": 17.391621424814065,
+      "slate_oracle_rtt": 17.391621424814065,
+      "actual": {
+        "gnn": 17.391621424814065,
+        "mpoff": 17.391621424814065,
+        "hand": 17.391621424814065
+      },
+      "scores": {
+        "gnn": 7.1151581706342055,
+        "mpoff": 7.1151581706342055,
+        "hand": 7.1151581706342055
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 1,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 19.655751424814074,
+      "oracle_rtt": 19.655751424814074,
+      "slate_oracle_rtt": 19.655751424814074,
+      "actual": {
+        "gnn": 19.655751424814074,
+        "mpoff": 19.655751424814074,
+        "hand": 19.655751424814074
+      },
+      "scores": {
+        "gnn": 9.529288170634207,
+        "mpoff": 9.529288170634207,
+        "hand": 9.529288170634207
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 2,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 21.46032544555527,
+      "oracle_rtt": 21.46032544555527,
+      "slate_oracle_rtt": 21.46032544555527,
+      "actual": {
+        "gnn": 21.46032544555527,
+        "mpoff": 21.46032544555527,
+        "hand": 21.46032544555527
+      },
+      "scores": {
+        "gnn": 10.590376373759206,
+        "mpoff": 10.590376373759206,
+        "hand": 10.590376373759206
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 3,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 19.655751424814074,
+      "oracle_rtt": 19.655751424814074,
+      "slate_oracle_rtt": 19.655751424814074,
+      "actual": {
+        "gnn": 19.655751424814074,
+        "mpoff": 19.655751424814074,
+        "hand": 19.655751424814074
+      },
+      "scores": {
+        "gnn": 9.529288170634207,
+        "mpoff": 9.529288170634207,
+        "hand": 9.529288170634207
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 4,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 17.62183886756847,
+      "oracle_rtt": 17.62183886756847,
+      "slate_oracle_rtt": 17.62183886756847,
+      "actual": {
+        "gnn": 17.62183886756847,
+        "mpoff": 17.62183886756847,
+        "hand": 17.62183886756847
+      },
+      "scores": {
+        "gnn": 7.791679069071705,
+        "mpoff": 7.791679069071705,
+        "hand": 7.791679069071705
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 5,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 17.44094884997307,
+      "oracle_rtt": 17.44094884997307,
+      "slate_oracle_rtt": 17.44094884997307,
+      "actual": {
+        "gnn": 46.5294539060171,
+        "mpoff": 17.44094884997307,
+        "hand": 17.44094884997307
+      },
+      "scores": {
+        "gnn": 41.45572162563374,
+        "mpoff": 7.437394982157642,
+        "hand": 7.437394982157642
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 6,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 17.392500331064067,
+      "oracle_rtt": 17.392500331064067,
+      "slate_oracle_rtt": 17.392500331064067,
+      "actual": {
+        "gnn": 17.392500331064067,
+        "mpoff": 17.392500331064067,
+        "hand": 17.392500331064067
+      },
+      "scores": {
+        "gnn": 7.1151581706342055,
+        "mpoff": 7.1151581706342055,
+        "hand": 7.1151581706342055
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 7,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 103.64220877136074,
+      "oracle_rtt": 103.64220877136074,
+      "slate_oracle_rtt": 103.64220877136074,
+      "actual": {
+        "gnn": 103.64220877136074,
+        "mpoff": 127.43722556179206,
+        "hand": 103.64220877136074
+      },
+      "scores": {
+        "gnn": 100.06697157636695,
+        "mpoff": 127.86857702347066,
+        "hand": 100.06697157636695
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 8,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 187.52411332325474,
+      "oracle_rtt": 187.52411332325474,
+      "slate_oracle_rtt": 187.52411332325474,
+      "actual": {
+        "gnn": 189.7951311662834,
+        "mpoff": 193.57670228130547,
+        "hand": 187.52411332325474
+      },
+      "scores": {
+        "gnn": 194.1467883420311,
+        "mpoff": 196.51136898364646,
+        "hand": 192.43013548101058
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 9,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 144.15150910792207,
+      "oracle_rtt": 144.15150910792207,
+      "slate_oracle_rtt": 144.15150910792207,
+      "actual": {
+        "gnn": 150.1814888404867,
+        "mpoff": 150.1814888404867,
+        "hand": 144.15150910792207
+      },
+      "scores": {
+        "gnn": 152.3407315830722,
+        "mpoff": 152.3407315830722,
+        "hand": 146.24725365708886
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 10,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 276.4682613706355,
+      "oracle_rtt": 276.4682613706355,
+      "slate_oracle_rtt": 276.4682613706355,
+      "actual": {
+        "gnn": 276.4682613706355,
+        "mpoff": 276.4682613706355,
+        "hand": 306.5751349197678
+      },
+      "scores": {
+        "gnn": 282.692505380438,
+        "mpoff": 282.692505380438,
+        "hand": 312.7075822471643
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 11,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 127.61974980463947,
+      "oracle_rtt": 127.61974980463947,
+      "slate_oracle_rtt": 127.61974980463947,
+      "actual": {
+        "gnn": 143.08866010722116,
+        "mpoff": 158.70546859381736,
+        "hand": 127.61974980463947
+      },
+      "scores": {
+        "gnn": 148.98956861434363,
+        "mpoff": 161.59960150981595,
+        "hand": 136.96537151006004
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 12,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 182.3890189890312,
+      "oracle_rtt": 182.3890189890312,
+      "slate_oracle_rtt": 182.3890189890312,
+      "actual": {
+        "gnn": 182.3890189890312,
+        "mpoff": 182.3890189890312,
+        "hand": 191.74565769136248
+      },
+      "scores": {
+        "gnn": 188.22480354406548,
+        "mpoff": 188.22480354406548,
+        "hand": 198.70611010116068
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 13,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 200.9004901198391,
+      "oracle_rtt": 200.9004901198391,
+      "slate_oracle_rtt": 200.9004901198391,
+      "actual": {
+        "gnn": 200.9004901198391,
+        "mpoff": 200.9004901198391,
+        "hand": 208.68201294625945
+      },
+      "scores": {
+        "gnn": 203.2590884995987,
+        "mpoff": 203.2590884995987,
+        "hand": 212.62537742204955
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 14,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 228.03016708743584,
+      "oracle_rtt": 228.03016708743584,
+      "slate_oracle_rtt": 228.03016708743584,
+      "actual": {
+        "gnn": 247.78449877460983,
+        "mpoff": 247.78449877460983,
+        "hand": 228.03016708743584
+      },
+      "scores": {
+        "gnn": 250.19608184283874,
+        "mpoff": 250.19608184283874,
+        "hand": 229.35310459918003
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9608,
+      "sid": 15,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 258.10764620211364,
+      "oracle_rtt": 258.10764620211364,
+      "slate_oracle_rtt": 258.10764620211364,
+      "actual": {
+        "gnn": 277.01458165658846,
+        "mpoff": 258.10764620211364,
+        "hand": 277.95664196804836
+      },
+      "scores": {
+        "gnn": 270.9577946872925,
+        "mpoff": 259.86026508707033,
+        "hand": 283.1055445580887
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 0,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 22.456135221804704,
+      "oracle_rtt": 22.456135221804704,
+      "slate_oracle_rtt": 22.456135221804704,
+      "actual": {
+        "gnn": 159.9411062074685,
+        "mpoff": 22.456135221804704,
+        "hand": 22.456135221804704
+      },
+      "scores": {
+        "gnn": 100.88492383851693,
+        "mpoff": 7.682524955344881,
+        "hand": 7.682524955344881
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 1,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 24.72026522180472,
+      "oracle_rtt": 24.72026522180472,
+      "slate_oracle_rtt": 24.72026522180472,
+      "actual": {
+        "gnn": 99.36087465954523,
+        "mpoff": 84.59309243287427,
+        "hand": 24.72026522180472
+      },
+      "scores": {
+        "gnn": 96.43688725120838,
+        "mpoff": 69.64900305580026,
+        "hand": 10.096654955344881
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 2,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 26.81321013490126,
+      "oracle_rtt": 26.81321013490126,
+      "slate_oracle_rtt": 26.81321013490126,
+      "actual": {
+        "gnn": 106.15485110808956,
+        "mpoff": 82.56915016675033,
+        "hand": 26.81321013490126
+      },
+      "scores": {
+        "gnn": 103.62448122473774,
+        "mpoff": 75.959621830988,
+        "hand": 11.15774315846988
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 3,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 24.72026522180472,
+      "oracle_rtt": 24.72026522180472,
+      "slate_oracle_rtt": 24.72026522180472,
+      "actual": {
+        "gnn": 105.13495578870359,
+        "mpoff": 90.74076974326206,
+        "hand": 24.72026522180472
+      },
+      "scores": {
+        "gnn": 91.96618570192079,
+        "mpoff": 80.67763476167013,
+        "hand": 10.096654955344881
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 4,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 22.54216721838144,
+      "oracle_rtt": 22.54216721838144,
+      "slate_oracle_rtt": 22.54216721838144,
+      "actual": {
+        "gnn": 97.4665801381735,
+        "mpoff": 22.54216721838144,
+        "hand": 22.54216721838144
+      },
+      "scores": {
+        "gnn": 85.23295943685525,
+        "mpoff": 8.35904585378238,
+        "hand": 8.35904585378238
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 5,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 22.415346743102663,
+      "oracle_rtt": 22.415346743102663,
+      "slate_oracle_rtt": 22.415346743102663,
+      "actual": {
+        "gnn": 22.415346743102663,
+        "mpoff": 22.415346743102663,
+        "hand": 22.415346743102663
+      },
+      "scores": {
+        "gnn": 8.004761766868318,
+        "mpoff": 8.004761766868318,
+        "hand": 8.004761766868318
+      },
+      "distinct_plans": 1,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 6,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 22.457014128054706,
+      "oracle_rtt": 22.457014128054706,
+      "slate_oracle_rtt": 22.457014128054706,
+      "actual": {
+        "gnn": 83.2580960552307,
+        "mpoff": 22.457014128054706,
+        "hand": 22.457014128054706
+      },
+      "scores": {
+        "gnn": 76.24083529759332,
+        "mpoff": 7.6825249553448804,
+        "hand": 7.6825249553448804
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 7,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 91.66632022082827,
+      "oracle_rtt": 91.66632022082827,
+      "slate_oracle_rtt": 91.66632022082827,
+      "actual": {
+        "gnn": 115.37166035146177,
+        "mpoff": 91.66632022082827,
+        "hand": 99.94128241421532
+      },
+      "scores": {
+        "gnn": 92.21508651656221,
+        "mpoff": 76.5067731141859,
+        "hand": 89.82266191170093
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 8,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 132.03569561977974,
+      "oracle_rtt": 132.03569561977974,
+      "slate_oracle_rtt": 132.03569561977974,
+      "actual": {
+        "gnn": 141.09616266771638,
+        "mpoff": 132.03569561977974,
+        "hand": 157.2415517029142
+      },
+      "scores": {
+        "gnn": 144.8683436170051,
+        "mpoff": 138.15235274088505,
+        "hand": 161.95029615426995
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 9,
+      "selected": "mpoff",
+      "oracle": "gnn",
+      "selected_rtt": 138.02331738419804,
+      "oracle_rtt": 121.11763407312527,
+      "slate_oracle_rtt": 121.11763407312527,
+      "actual": {
+        "gnn": 121.11763407312527,
+        "mpoff": 138.02331738419804,
+        "hand": 124.14845981767009
+      },
+      "scores": {
+        "gnn": 122.05237175834345,
+        "mpoff": 108.97853050725396,
+        "hand": 123.70739648258356
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 13.958069310424182,
+      "slate_headroom_pct": 13.958069310424182
+    },
+    {
+      "seed": 9609,
+      "sid": 10,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 179.15470809913043,
+      "oracle_rtt": 179.15470809913043,
+      "slate_oracle_rtt": 179.15470809913043,
+      "actual": {
+        "gnn": 179.15470809913043,
+        "mpoff": 194.62643168873169,
+        "hand": 221.56824898815188
+      },
+      "scores": {
+        "gnn": 165.36932296503417,
+        "mpoff": 189.40254307779878,
+        "hand": 221.8275230955449
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 11,
+      "selected": "gnn",
+      "oracle": "hand",
+      "selected_rtt": 167.07090207198343,
+      "oracle_rtt": 133.52779275855076,
+      "slate_oracle_rtt": 133.52779275855076,
+      "actual": {
+        "gnn": 167.07090207198343,
+        "mpoff": 151.15714177015542,
+        "hand": 133.52779275855076
+      },
+      "scores": {
+        "gnn": 99.0532203650852,
+        "mpoff": 146.4594284686287,
+        "hand": 123.83727350878635
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 25.12069481601211,
+      "slate_headroom_pct": 25.12069481601211
+    },
+    {
+      "seed": 9609,
+      "sid": 12,
+      "selected": "mpoff",
+      "oracle": "gnn",
+      "selected_rtt": 167.44437931899287,
+      "oracle_rtt": 155.397209655721,
+      "slate_oracle_rtt": 155.397209655721,
+      "actual": {
+        "gnn": 155.397209655721,
+        "mpoff": 167.44437931899287,
+        "hand": 166.60056893176775
+      },
+      "scores": {
+        "gnn": 150.23626021267438,
+        "mpoff": 149.41369895414903,
+        "hand": 165.17823163135242
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 7.752500633674231,
+      "slate_headroom_pct": 7.752500633674231
+    },
+    {
+      "seed": 9609,
+      "sid": 13,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 137.25374382407674,
+      "oracle_rtt": 137.25374382407674,
+      "slate_oracle_rtt": 137.25374382407674,
+      "actual": {
+        "gnn": 137.25374382407674,
+        "mpoff": 150.79470342678772,
+        "hand": 155.12112806640812
+      },
+      "scores": {
+        "gnn": 139.71183534272075,
+        "mpoff": 148.63777399725416,
+        "hand": 159.33157707926324
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9609,
+      "sid": 14,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 137.4492034398439,
+      "oracle_rtt": 137.4492034398439,
+      "slate_oracle_rtt": 136.46856004367567,
+      "actual": {
+        "gnn": 148.98543250800412,
+        "mpoff": 137.4492034398439,
+        "hand": 140.6562950160508
+      },
+      "scores": {
+        "gnn": 139.21018640970857,
+        "mpoff": 127.4856980962989,
+        "hand": 142.1113189727689
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.718585581803155
+    },
+    {
+      "seed": 9609,
+      "sid": 15,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 160.96663840506534,
+      "oracle_rtt": 160.96663840506534,
+      "slate_oracle_rtt": 160.96663840506534,
+      "actual": {
+        "gnn": 160.96663840506534,
+        "mpoff": 202.57749647689246,
+        "hand": 171.0996845083623
+      },
+      "scores": {
+        "gnn": 158.22425481021085,
+        "mpoff": 199.4195714336806,
+        "hand": 168.024725944478
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 0,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 26.74221017558444,
+      "oracle_rtt": 26.74221017558444,
+      "slate_oracle_rtt": 26.74221017558444,
+      "actual": {
+        "gnn": 161.56138617084878,
+        "mpoff": 26.74221017558444,
+        "hand": 26.74221017558444
+      },
+      "scores": {
+        "gnn": 166.26243538589804,
+        "mpoff": 8.156556400259296,
+        "hand": 8.156556400259296
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 1,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 29.006340175584448,
+      "oracle_rtt": 29.006340175584448,
+      "slate_oracle_rtt": 29.006340175584448,
+      "actual": {
+        "gnn": 178.59734241202742,
+        "mpoff": 81.28833367075175,
+        "hand": 29.006340175584448
+      },
+      "scores": {
+        "gnn": 177.82279153421536,
+        "mpoff": 68.0262153693413,
+        "hand": 10.570686400259298
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 2,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 31.343332061138202,
+      "oracle_rtt": 31.343332061138202,
+      "slate_oracle_rtt": 31.343332061138202,
+      "actual": {
+        "gnn": 206.07103190546232,
+        "mpoff": 107.85097033041399,
+        "hand": 31.343332061138202
+      },
+      "scores": {
+        "gnn": 202.6313146403153,
+        "mpoff": 99.69122605878931,
+        "hand": 11.631774603384297
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 3,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 29.006340175584448,
+      "oracle_rtt": 29.006340175584448,
+      "slate_oracle_rtt": 29.006340175584448,
+      "actual": {
+        "gnn": 143.70238325865748,
+        "mpoff": 29.006340175584448,
+        "hand": 29.006340175584448
+      },
+      "scores": {
+        "gnn": 138.09472298830536,
+        "mpoff": 10.570686400259298,
+        "hand": 10.570686400259298
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 4,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 26.70621868593257,
+      "oracle_rtt": 26.70621868593257,
+      "slate_oracle_rtt": 26.70621868593257,
+      "actual": {
+        "gnn": 81.38545815683781,
+        "mpoff": 26.70621868593257,
+        "hand": 26.70621868593257
+      },
+      "scores": {
+        "gnn": 72.49727346189599,
+        "mpoff": 8.833077298696798,
+        "hand": 8.833077298696798
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 5,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 26.62515701798952,
+      "oracle_rtt": 26.62515701798952,
+      "slate_oracle_rtt": 26.62515701798952,
+      "actual": {
+        "gnn": 105.46481414104139,
+        "mpoff": 26.62515701798952,
+        "hand": 26.62515701798952
+      },
+      "scores": {
+        "gnn": 105.02039188353041,
+        "mpoff": 8.478793211782735,
+        "hand": 8.478793211782735
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 6,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 26.74308908183444,
+      "oracle_rtt": 26.74308908183444,
+      "slate_oracle_rtt": 26.74308908183444,
+      "actual": {
+        "gnn": 108.46824829604374,
+        "mpoff": 26.74308908183444,
+        "hand": 26.74308908183444
+      },
+      "scores": {
+        "gnn": 107.1621762626824,
+        "mpoff": 8.156556400259298,
+        "hand": 8.156556400259298
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 7,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 135.68579525102578,
+      "oracle_rtt": 135.68579525102578,
+      "slate_oracle_rtt": 135.68579525102578,
+      "actual": {
+        "gnn": 135.68579525102578,
+        "mpoff": 135.68579525102578,
+        "hand": 159.79322017774996
+      },
+      "scores": {
+        "gnn": 137.80632224268876,
+        "mpoff": 137.80632224268876,
+        "hand": 157.6008850862086
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 8,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 244.27008381032357,
+      "oracle_rtt": 244.27008381032357,
+      "slate_oracle_rtt": 244.27008381032357,
+      "actual": {
+        "gnn": 244.27008381032357,
+        "mpoff": 263.29337415994337,
+        "hand": 261.6792843947172
+      },
+      "scores": {
+        "gnn": 251.58906470016018,
+        "mpoff": 269.15290047763153,
+        "hand": 268.8271483887486
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 9,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 187.5805385308731,
+      "oracle_rtt": 187.5805385308731,
+      "slate_oracle_rtt": 184.5781982330178,
+      "actual": {
+        "gnn": 191.08933975575232,
+        "mpoff": 187.5805385308731,
+        "hand": 211.4572598633686
+      },
+      "scores": {
+        "gnn": 197.880054792442,
+        "mpoff": 187.92782332287146,
+        "hand": 214.16093318948734
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 1.6265953003100853
+    },
+    {
+      "seed": 9624,
+      "sid": 10,
+      "selected": "hand",
+      "oracle": "gnn",
+      "selected_rtt": 331.97560895949357,
+      "oracle_rtt": 321.47604883410213,
+      "slate_oracle_rtt": 321.47604883410213,
+      "actual": {
+        "gnn": 321.47604883410213,
+        "mpoff": 328.7467155199975,
+        "hand": 331.97560895949357
+      },
+      "scores": {
+        "gnn": 332.187855148601,
+        "mpoff": 333.8073453027238,
+        "hand": 330.64587887702817
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 3.2660473971451998,
+      "slate_headroom_pct": 3.2660473971451998
+    },
+    {
+      "seed": 9624,
+      "sid": 11,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 315.4926291483669,
+      "oracle_rtt": 315.4926291483669,
+      "slate_oracle_rtt": 315.4926291483669,
+      "actual": {
+        "gnn": 316.7287968268406,
+        "mpoff": 315.4926291483669,
+        "hand": 332.9352571330614
+      },
+      "scores": {
+        "gnn": 325.5076286873206,
+        "mpoff": 324.29471009644385,
+        "hand": 339.58988281500615
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 12,
+      "selected": "mpoff",
+      "oracle": "mpoff",
+      "selected_rtt": 283.9842998359203,
+      "oracle_rtt": 283.9842998359203,
+      "slate_oracle_rtt": 283.9842998359203,
+      "actual": {
+        "gnn": 317.59847714238776,
+        "mpoff": 283.9842998359203,
+        "hand": 335.865861798728
+      },
+      "scores": {
+        "gnn": 321.6726483024305,
+        "mpoff": 290.1970902560925,
+        "hand": 331.36974999785673
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 13,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 301.83498038766515,
+      "oracle_rtt": 301.83498038766515,
+      "slate_oracle_rtt": 301.83498038766515,
+      "actual": {
+        "gnn": 301.83498038766515,
+        "mpoff": 309.6331546815715,
+        "hand": 309.6331546815715
+      },
+      "scores": {
+        "gnn": 307.3327477319559,
+        "mpoff": 321.59234672026673,
+        "hand": 321.59234672026673
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 14,
+      "selected": "hand",
+      "oracle": "hand",
+      "selected_rtt": 169.4817627624019,
+      "oracle_rtt": 169.4817627624019,
+      "slate_oracle_rtt": 169.4817627624019,
+      "actual": {
+        "gnn": 169.7849948355033,
+        "mpoff": 195.52143673559078,
+        "hand": 169.4817627624019
+      },
+      "scores": {
+        "gnn": 176.9190233205037,
+        "mpoff": 201.02532401845468,
+        "hand": 176.61579124740229
+      },
+      "distinct_plans": 3,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 0.0
+    },
+    {
+      "seed": 9624,
+      "sid": 15,
+      "selected": "gnn",
+      "oracle": "gnn",
+      "selected_rtt": 453.63631659802763,
+      "oracle_rtt": 453.63631659802763,
+      "slate_oracle_rtt": 439.8659580524164,
+      "actual": {
+        "gnn": 453.63631659802763,
+        "mpoff": 453.63631659802763,
+        "hand": 454.85827401846734
+      },
+      "scores": {
+        "gnn": 445.7174588749191,
+        "mpoff": 445.7174588749191,
+        "hand": 446.3960749109937
+      },
+      "distinct_plans": 2,
+      "headroom_pct": 0.0,
+      "slate_headroom_pct": 3.130580644745029
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "registered": "2026-09-22",
+  "parent": "radical_physics_v1",
+  "question": "Can selecting a two-operation perturbation followed by exact refinement improve on affordable hand search?",
+  "calibration_seeds": [113000, 113007],
+  "fresh_seeds": [114000, 114031],
+  "start": "affinity followed by up to 64 best-improvement single-flip rounds",
+  "candidates": "all unordered distinct operation pairs, flip both eligible hosts, then exactly two best-improvement single-flip rounds; retain incumbent",
+  "controls": ["anneal256", "local", "graph4", "graph8", "graph16", "random4", "random8", "random16"],
+  "graph_rank": "descending shared lock count, same job, same assigned host, then operation indices; no objective labels",
+  "random_rank": "fixed RNG 77 permutation of all pairs, no objective labels",
+  "selection": "lowest calibration mean objective among controls with p95 <=2ms; freeze before fresh cases",
+  "oracle": "best final refined outcome over every pair plus incumbent; unpriced perfect selector, never a deployable policy",
+  "gate": "fresh oracle median gain >=5%, bootstrap lower bound >0, frozen hand control p95<=2ms",
+  "timing_repeats": 5,
+  "budget_ms": 2.0,
+  "live_gate": "all fresh frozen-control, local-incumbent and oracle plans in real HeROsim plus independent SimPy, all task completion times checked even if offline screen fails",
+  "scope": "exploratory mechanism screen, not GNN evidence; no training unless sufficient headroom and an equal-information representation challenge are demonstrated"
+}

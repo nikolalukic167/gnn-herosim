@@ -1,0 +1,46 @@
+trainer: gnn
+description: Matched 32-task finite-slate CE pilot, peer message passing without bipartite stage; top-k diagnostic is k=1 to avoid a 5^32 Cartesian search.
+lineage: g32_sampled_slate_v1
+cache_dir: /tmp/g32-sampled-slate-cache-v2
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/g32_sampled_slate_v1_split_v2.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v3
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_DAG_EDGES: '0'
+  NEAR_RTT_MP_NODE_EDGES: '0'
+  NEAR_RTT_MP_NETWORK_ENTITIES: '0'
+  NEAR_RTT_MP_RESIDUAL: '0'
+  NEAR_RTT_MP_BIPARTITE_AGGR: mean
+  NEAR_RTT_MP_PLATFORM_EDGES: '0'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '0'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '0'
+  GNN_DISABLE_MESSAGE_PASSING: '0'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 60
+  patience: 12
+  min-epochs: 20
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: g32-sampled-slate-v1-peeronly
+  tags:
+  - g32-sampled-slate-v1
+  - weighted-bridge
+  - finite-slate
+  - edgeattrs-on
+  - peeronly

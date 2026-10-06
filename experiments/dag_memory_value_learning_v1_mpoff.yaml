@@ -1,0 +1,19 @@
+trainer: dag_memory
+lineage: dag_memory_value_learning_v1
+cache_dir: simulation_data/gnn_environment_search_v1/dag_memory_value_corpus_v1
+args:
+  wandb-mode: offline
+  arm: mpoff
+  epochs: 8
+  batch-size: 8
+  hidden: 64
+  layers: 2
+  learning-rate: 0.001
+  budget-ms: 250
+  output-dir: models/dag_memory_value_learning_v1
+path_args:
+- output-dir
+wandb:
+  project: herosim-dag-memory-value
+  run_name: dag-memory-value-mpoff
+  tags: [dag-memory-value-learning-v1, matched]

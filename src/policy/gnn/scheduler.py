@@ -385,7 +385,6 @@ class GNNScheduler(Scheduler):
         if 'dataset_id' in models:
             self.dataset_id = models['dataset_id']
         
-        # Put model in eval mode
         if self.gnn_model is not None:
             self.gnn_model.eval()
             print("[GNN Scheduler] Model set to eval mode", flush=True)
@@ -468,12 +467,9 @@ class GNNScheduler(Scheduler):
         def task_filter(queued_task):
             return all(dependency.finished for dependency in queued_task.dependencies)
         
-        # First task: wait indefinitely (blocking is expected)
         task: Task = yield self.tasks.get(task_filter)
         batch.append(task)
 
-        # Wait for batch_timeout to collect more tasks
-        # Use small increments to be responsive while still batching
         timeout_remaining = self.batch_timeout
         # `poll_interval` is a POLICY time constant, like `batch_timeout`, and the default 1 ms
         # is calibrated to the production trace's 0.02 s window (a ratio of 20 polls per
@@ -521,23 +517,18 @@ class GNNScheduler(Scheduler):
             return batch
 
         while len(batch) < self.batch_size and timeout_remaining > 0:
-            # Check if there are any ready tasks in the queue
             ready_tasks = [t for t in self.tasks.items if task_filter(t)]
-            
+
             if ready_tasks:
-                # Get the ready task immediately
                 task = yield self.tasks.get(task_filter)
                 batch.append(task)
             else:
-                # Wait a small interval for more tasks to arrive
                 wait_time = min(poll_interval, timeout_remaining)
                 yield self.env.timeout(wait_time)
                 timeout_remaining -= wait_time
-        
-        # Calculate actual wait time
+
         actual_wait_time = self.env.now - wait_start_time
-        
-        # Simple logging for batch size and wait time
+
         batch_size = len(batch)
         if batch_size == 2:
             print(f"[GNN Batch] Batch size: 2 tasks, wait time: {actual_wait_time*1000:.2f}ms", flush=True)
@@ -546,7 +537,6 @@ class GNNScheduler(Scheduler):
         else:
             print(f"[GNN Batch] Batch size: {batch_size} tasks, wait time: {actual_wait_time*1000:.2f}ms", flush=True)
         
-        # Log batch size for debugging
         if len(batch) >= MIN_BATCH_SIZE_FOR_GNN:
             logging.debug(f"[ {self.env.now} ] GNN: Collected batch of {len(batch)} tasks (will use GNN)")
         else:
@@ -570,7 +560,6 @@ class GNNScheduler(Scheduler):
             yield from self._process_task_batch_prefix(batch_tasks)
             return
 
-        # Get system state once for the entire batch
         system_state: SystemState = yield self.mutex.get()
 
         # Same oracle-audit capture the knative_network_batch arm has, so collapse-moment
@@ -583,13 +572,11 @@ class GNNScheduler(Scheduler):
         queue_snapshot = self._capture_full_queue_snapshot()
         temporal_state = self._capture_temporal_state_snapshot()
         
-        # Skip GNN for batches outside training range [2, 3]
         if batch_size < self.batch_min or batch_size > self.batch_max:
             placements = None  # Will trigger fallback to shortest queue
             inference_time = 0.0
             logging.info(f"[ {self.env.now} ] GNN: Batch size {batch_size} outside GNN range [{self.batch_min},{self.batch_max}], using fallback")
         else:
-            # Build graph and run GNN inference
             inference_start = default_timer()
             placements = self._gnn_inference(
                 batch_tasks, system_state, queue_snapshot, temporal_state
@@ -603,11 +590,9 @@ class GNNScheduler(Scheduler):
         # Release mutex before processing tasks (allows monitor/autoscaler to run)
         yield self.mutex.put(system_state)
         
-        # Process each task in batch
         for task_idx, task in enumerate(batch_tasks):
             task_start = default_timer()
-            
-            # Get fresh system state for this task
+
             current_system_state: SystemState = yield self.mutex.get()
             
             task_replicas = current_system_state.replicas.get(task.type["name"], set())
@@ -622,7 +607,6 @@ class GNNScheduler(Scheduler):
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request replica from autoscaler
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(
                         current_system_state, 
@@ -634,18 +618,15 @@ class GNNScheduler(Scheduler):
                 yield self.mutex.put(current_system_state)
                 continue
 
-            # Capture scheduling snapshots only when generating GNN training datasets.
             if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
                 task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
                 task.full_queue_snapshot = self._capture_full_queue_snapshot()
                 task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
-            # Select placement using GNN with fallback to shortest queue
             target_node, target_platform = self._select_placement_pure_gnn(
                 task, task_idx, placements, valid_replicas
             )
 
-            # Fallback to shortest queue if GNN placement is invalid
             if target_node is None or target_platform is None:
                 target_node, target_platform = min(
                     valid_replicas, key=lambda couple: len(couple[1].queue.items)
@@ -669,21 +650,17 @@ class GNNScheduler(Scheduler):
             task.execution_platform = str(target_platform.id)
             task.gnn_decision_time = inference_time / batch_size  # Amortized
 
-            # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == target_node.id)
             task.node = node
             node.unused = False
-            
-            # Update platform
+
             platform: Platform = yield node.platforms.get(lambda platform: platform.id == target_platform.id)
             task.platform = platform
 
-            # End wall-clock time measurement
             task_end = default_timer()
             elapsed_clock_time = task_end - task_start
             node.wall_clock_scheduling_time += elapsed_clock_time
 
-            # Put task in platform queue
             yield platform.queue.put(task)
             self._record_residence_placed(task)
             yield task.scheduled.succeed()
@@ -955,7 +932,6 @@ class GNNScheduler(Scheduler):
             return None
         
         try:
-            # Build graph from current system state
             graph, task_logit_to_placement = self._build_inference_graph(
                 batch_tasks, system_state, queue_snapshot, temporal_state
             )
@@ -1018,13 +994,11 @@ class GNNScheduler(Scheduler):
                     return None
                 return {t_idx: combo[t_idx] for t_idx in range(len(combo))}
 
-            # Move to device
             graph = move_graph_tensors_(graph, self.device)
-            
-            # Run inference
+
             with torch.no_grad():
                 logits_per_task = self.gnn_model(graph)
-            
+
             # Decode placements sequentially with live queue state (matches online scheduling)
             placements = self._decode_placements(
                 logits_per_task,
@@ -1256,8 +1230,7 @@ class GNNScheduler(Scheduler):
         Matches herocache_network logic: only servers (non-client nodes) can receive remote tasks.
         """
         valid_replicas = []
-        
-        # Find source node to check its network_map
+
         source_node = None
         for n in self.nodes.items:
             if n.node_name == task.node_name:
@@ -1265,12 +1238,9 @@ class GNNScheduler(Scheduler):
                 break
         
         for node, platform in replicas:
-            # Include if it's the task's source node (local execution)
             if node.node_name == task.node_name:
                 valid_replicas.append((node, platform))
-            # Include if it's a server node AND has network connectivity to task source
             elif not node.node_name.startswith('client_node'):
-                # Check if source node has network connectivity to this server
                 if source_node is not None and hasattr(source_node, 'network_map'):
                     if node.node_name in source_node.network_map:
                         valid_replicas.append((node, platform))
@@ -1313,20 +1283,17 @@ class GNNScheduler(Scheduler):
         This is the original logic, preserved when soft blending is disabled.
         """
         target_node, target_platform = None, None
-        
-        # Get GNN's placement decision
+
         gnn_placement = placements.get(task_idx) if placements else None
-        
+
         if gnn_placement:
             target_node_id, target_plat_id = gnn_placement
-            # Find the actual node/platform objects
             for node, plat in available_replicas:
                 if node.id == target_node_id and plat.id == target_plat_id:
                     target_node, target_platform = node, plat
                     self.gnn_pure_decisions += 1
                     break
-        
-        # Fallback to shortest queue if GNN placement is invalid
+
         if target_node is None or target_platform is None:
             print(f"[ {self.env.now} ] GNN: Fallback to shortest queue for task {task.id}")
             initialized_replicas = [
@@ -1378,15 +1345,12 @@ class GNNScheduler(Scheduler):
         Returns:
             Dict with placement information
         """
-        # Calculate queue time
         queue_time = self.env.now - task.arrived_time if hasattr(task, 'arrived_time') else 0.0
-        
-        # Capture queue snapshots
+
         valid_replicas_set = set(valid_replicas)
         queue_snapshot_at_scheduling = self.state_capture.capture_queue_snapshot_for_replicas(valid_replicas_set)
         full_queue_snapshot = self.state_capture.capture_full_queue_snapshot()
-        
-        # Capture temporal state
+
         temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
 
         # Capture initialized state for all platforms (hidden FilterStore pull state)

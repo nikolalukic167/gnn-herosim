@@ -1,0 +1,19 @@
+{
+  "sizes": [12,24,48],
+  "graph_seeds": [47300,47301,47302,47303],
+  "hosts": 3,
+  "extra_degree": 4,
+  "weight_max": 8,
+  "payload_unit_bytes": 104857600,
+  "bandwidth_mbps": 100.0,
+  "peer_latency_s": 0.01,
+  "execution_s": 0.1,
+  "message_rounds": [3,9],
+  "arrival_gap_s": 0.25,
+  "run_timeout_s": 10,
+  "total_timeout_s": 180,
+  "solver_timeout_s": 1.0,
+  "diagnostic_search_budget_ms": 50,
+  "baseline_contract": "availability_v2",
+  "information": "full_group_graph_and_domains_declared_before_first_arrival"
+}

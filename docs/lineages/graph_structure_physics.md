@@ -1,6 +1,6 @@
-# graph_structure_physics — ACTIVE
+# graph_structure_physics — CLOSED
 
-> **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-17 → 2026-08-17
+> **Status:** `CLOSED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-17 → 2026-08-17
 
 **Outcome.** **The co-sim target is pointwise-separable, so a pointwise MLP is the correctly specified model class and the GNN cannot beat it by training.** Additive R² 0.988 → 1.00000 across collections. Deep queues as a coupling lever: FALSIFIED — the lever runs backwards.
 

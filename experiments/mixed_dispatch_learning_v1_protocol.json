@@ -1,0 +1,20 @@
+{
+  "registered": "2026-09-22",
+  "parent": "mixed_dispatch_v1",
+  "budget_ms": 5,
+  "train_seeds": [129000, 129127],
+  "validation_seeds": [130000, 130031],
+  "test_seeds": [131000, 131031],
+  "training_draws": [401, 402, 403],
+  "arms": ["gnn", "mpoff", "mlp_hand"],
+  "placement": "Affinity plus descent64, fixed before priority prediction and charged to every arm",
+  "teacher": "Best final objective among srpt:128, spt:8192 and srpt:8192; feasible, not globally optimal",
+  "target": "Teacher priority rank normalized to [0,1], SmoothL1 over all 48 operations",
+  "architecture": "Two typed residual layers, hidden16 and scalar priority head; MP-OFF separately trained; hand arm receives fixed typed one/two-hop means",
+  "training": "AdamW lr0.001, batch16, 40 epochs, three seeds per arm; select minimum validation mean directly served objective including epoch0; no sweep",
+  "validation_bar": "At least 5 percent mean gain over frozen srpt:128 and full p95 <=5ms for every selected GNN draw",
+  "live_gate": "32 sealed workflows times nine models, srpt:128, teacher and plain srpt =384 actual HeROsim runs; all operation completions checked against independent SimPy",
+  "claim_bar": "GNN median paired gain >=5 percent against MP-OFF, hand-graph MLP and srpt:128, positive bootstrap lower bounds, all GNN draws <=5ms p95",
+  "logging": "Offline Weights and Biases, CPU only, retained checkpoints and contracts",
+  "scope": "Small fixed-placement priority pilot; no joint placement-order claim and no powered publication claim"
+}

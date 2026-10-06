@@ -213,8 +213,12 @@ class Orchestrator:
             "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
             # lookahead_mp_v1 P0: unarrived partners priced / left unpriced
             "pg_lookahead_priced", "pg_lookahead_blind",
+            "pg_unresolved_candidates",
         )
         out: Dict[str, Any] = {}
+        contract = getattr(self.scheduler, "pg_drain_contract", None)
+        if contract is not None:
+            out["pg_drain_contract"] = contract
         for name in names:
             value = getattr(self.scheduler, name, None)
             if isinstance(value, (int, float)):

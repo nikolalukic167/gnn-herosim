@@ -1,0 +1,9 @@
+{
+ "registered":"2026-09-22",
+ "stage":"after training started, before any held-out model evaluation",
+ "addition":"guard_only: choose the cheaper fastest/affinity start and apply the same single exact descent round, without neural inference",
+ "reason":"separate any learned contribution from shared decoder/search improvements",
+ "primary_bar_changed":false,
+ "selection_changed":false,
+ "test_cases_changed":false
+}

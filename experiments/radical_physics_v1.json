@@ -1,0 +1,17 @@
+{
+  "lineage": "radical_physics_v1",
+  "registered": "2026-09-22",
+  "scope": "Exploratory new-physics sandbox, not a claim of research novelty or production HeROsim validation",
+  "mechanisms": ["setup", "locks", "power", "thermal", "maintenance", "deadlines", "carbon", "mixed"],
+  "shape": [8,6,4],
+  "calibration_seeds": [100000,100007],
+  "screen_seeds": [101000,101015],
+  "planning_budget_ms": 2.0,
+  "controls": ["fastest", "load", "affinity", "descent", "anneal128", "anneal1024"],
+  "teacher": "best of controls and deterministic anneal8192; feasible reference, not a certified optimum",
+  "selection": "one hand algorithm per mechanism by calibration mean objective among p95 case-median timing <=2ms; no per-case free hindsight control",
+  "shortlist": "median paired reference gain >=5pct with bootstrap lower bound >0 and selected hand control screen p95<=2ms",
+  "validation": "All selected-control, teacher and fastest schedules replay in independent SimPy event simulator on every screen case; baseline-neutrality and mechanism-off ablation; actual-source fingerprints and input uniqueness before simulation",
+  "training": "No training on this discovery screen. Any survivor needs fresh confirmation, stronger graph/search controls, observability witness and separately registered training/test splits.",
+  "information": "all job routes, processing times, lock requests, setup classes, cooling graph, domain caps, deadlines, maintenance and tariff calendars announced equally to every arm; no hidden future used"
+}

@@ -1,0 +1,19 @@
+{
+  "registered": "2026-09-22",
+  "parent": "radical_physics_v1",
+  "reason": "Initial static priority screen shows 8.80 percent headroom; challenge with state-adaptive setup and lock-aware hand dispatch before considering training",
+  "calibration_seeds": [126000, 126015],
+  "fresh_seeds": [127000, 127031],
+  "starts": ["spt", "srpt", "type", "graph_tail", "dyn0", "dyn1", "dyn2", "dyn3", "dyn4", "dyn5", "dyn6", "dyn7", "dyn8"],
+  "dynamic_rules": "At each event recompute keys: dyn0 current exec+setup; dyn1/2/3 remaining exec plus 1/2/0.5 setup; dyn4 negative remaining exec+setup; dyn5 remaining+setup divided by 1+ready lock-overlap count; dyn6 setup first then remaining; dyn7 remaining+setup divided by suffix global lock pressure; dyn8 ready timestamp",
+  "materialization": "Replay deterministic adaptive rule to obtain realized start order, then serve equivalent static ranks; charge entire replay and verify equivalence; announced complete workflow, no unknown future arrivals",
+  "search_steps": [0, 64, 128, 256],
+  "budget_ms": 5,
+  "calibration_fraction": 0.85,
+  "timing_repeats": 7,
+  "placement": "Same fixed affinity plus descent64 placement as original ordering screen; charged to all controls",
+  "reference": "Best frozen control and spt/srpt priority-swap annealing8192; feasible reference only",
+  "gate": "Fresh reference median gain>=5 percent, bootstrap lower bound>0 and control p95<=5ms",
+  "live_gate": "96 real HeROsim runs with independent priority SimPy completion checks, including after a screen failure",
+  "scope": "Stronger-control exploratory follow-up on fresh cases, not a GNN result or a test of joint placement/order optimization"
+}

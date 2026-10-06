@@ -1,0 +1,11 @@
+{
+  "experiments/residency_placement_v1.json": "a00e7f0e7c962559f9a6836715cfe26fafe6c89b28534c8b2a692090c583a0e6",
+  "experiments/residency_exact_control_v1.json": "e6bebbf5f4e0fab1d376645e8d31d66536256e5c86ea6a49a2cf11f3d101ed08",
+  "src/placement/residency.py": "9028f1d82d302635a53e4aa8c252101fd4464d80b425c9805690bda950c23268",
+  "src/policy/residency/model.py": "c83ccfc276bb4803a8caa176d8ef3ee737255fc0029f312d855420f86e2d01bc",
+  "src/policy/residency/train.py": "a3ddbd9c24955b132882bf5896b335466bd53671b9f274ca4342e24833057203",
+  "scripts_cosim/residency_worker.py": "dd71760c6b1bac746fe618a2cc7fe9d888fa5db7ef39df24e48ac128662d5998",
+  "scripts_cosim/residency_study.py": "33c9fd1f33e12820631c9023948038052a46a06e2e1cb75eb21408750bb44408",
+  "scripts_cosim/evaluate_residency.py": "4bb1d61b7ce8c69c0074986e566d98511b2875c4d60dcf9ac26cf247fcd0bf10",
+  "scripts_cosim/audit_residency.py": "610765f0f35b9aba803ba437b038519e03524f676546db4a8b2506f56da7dfa9"
+}

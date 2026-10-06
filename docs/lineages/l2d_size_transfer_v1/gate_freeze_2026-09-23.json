@@ -1,0 +1,283 @@
+{
+  "arms": [
+    "gnn",
+    "mpoff",
+    "mlp_t1"
+  ],
+  "artifacts": {
+    "/root/projects/my-herosim/experiments/l2d_size_transfer_v1.json": {
+      "bytes": 1383,
+      "sha256": "d38711dcb1a93dd74540143e4a67d22357e5915c99c7e86f959aaa430be2cab2"
+    },
+    "/root/projects/my-herosim/scripts_reeval/l2d/arm_features.py": {
+      "bytes": 6428,
+      "sha256": "f660d39e90811ac1db1178864cf60b3fe7ae1cacfcae32f82f260dcfac006884"
+    },
+    "/root/projects/my-herosim/scripts_reeval/l2d/l2d_bridge.py": {
+      "bytes": 3205,
+      "sha256": "1188a92bc2d58e5984113ad1f484e3b7ffd827788bda2cde3403e0713a745fdd"
+    },
+    "/root/projects/my-herosim/scripts_reeval/l2d/pdr.py": {
+      "bytes": 1408,
+      "sha256": "1d76c8426583afd99754da5b6f935446b13c4cb7cfa9febdf067f3394f615ad2"
+    },
+    "/root/projects/my-herosim/scripts_reeval/l2d/prepare_transfer_test.py": {
+      "bytes": 1442,
+      "sha256": "55b8d4793c6d367bee032a608f045130f534f1cd4fffe4dffd303d29afb88470"
+    },
+    "/root/projects/my-herosim/scripts_reeval/l2d/train_arm.py": {
+      "bytes": 11438,
+      "sha256": "1ebc9911748a8175ff994e6ce4006420a05c6e99de46bf6fe291003153dd1d76"
+    },
+    "/root/projects/my-herosim/scripts_reeval/l2d/transfer_eval.py": {
+      "bytes": 5199,
+      "sha256": "fb477d560c7c0a987308c1ae26d58a17a877fae5547769a6135cab9a6ef4662b"
+    },
+    "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/test_10x10_seed301.npy": {
+      "bytes": 160128,
+      "sha256": "0da8fd2524be7685435421da4fbd5c1c116c85f6b08a2ead7ca154e6b716a7ab"
+    },
+    "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/test_15x15_seed301.npy": {
+      "bytes": 360128,
+      "sha256": "91628c9a146fba69427bf95f252b3b0e391c1eaeec44f75aff679678655a5fff"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s0/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "43dde426bbdc3c2643ad94cbe7cbd0b3ccc077860c2ebd4a86b8a7cf1a41ab53"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s0/best_val.pth.contract.json": {
+      "bytes": 554,
+      "sha256": "9183c4984dc4024d8d3979d9e2cad79fcf499bf1d86186613f9a59eb997a4110"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s1/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "d0bebe8b8c6e893c7093a59bebb63ea1382435b6bb66ce46bd1b491c329a0133"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s1/best_val.pth.contract.json": {
+      "bytes": 552,
+      "sha256": "effeadcb51f5547131dc7f14d94c4b54ea513ce57bac641066a7d661b80b1dac"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s2/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "7e75dd9991ad5d73a8eb634fe4f291a636b3800566d976bf75c150ffca7fdec1"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s2/best_val.pth.contract.json": {
+      "bytes": 554,
+      "sha256": "72e017eb3c2cb1b01ff03a85ef48c7b661978190717821b07d54d19a7c2c0a25"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s3/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "f6a9b7213ef7033d303b3193d4e3b4a24eee31280499fdc9b5efb8721bf41847"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s3/best_val.pth.contract.json": {
+      "bytes": 553,
+      "sha256": "fd89c883cc03b98f2c1e571573030a0777f6a89d53268fdde2e55d4bdfe3d70d"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s4/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "097f38f6334c9b8dab17a01f85d206ec67d0e915a09bed58436b281bf5d41646"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s4/best_val.pth.contract.json": {
+      "bytes": 553,
+      "sha256": "55168b22106f6758d788f8f114b5e3ccff5437f8599dd5160b29647a1403023c"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s5/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "195e6d8452352878028504df8388482e227b931567fc5b2d06d8817eac5d8fbf"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s5/best_val.pth.contract.json": {
+      "bytes": 553,
+      "sha256": "2a9c312e7a89d8e6ea09b1e1c8ad674e6d256119581100107db62ed4d86f992c"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s6/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "074b10378be9b132667b43afe819f6e037ac73526d0a2fd4b9598c141c343ee1"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s6/best_val.pth.contract.json": {
+      "bytes": 554,
+      "sha256": "b1a615dadece5c5ca551372d788d6e109912c5fc57eaa522044b7b703babb5b7"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s7/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "5b352f782435092e8260da94960a7619721f03633aac496c04b276c94fd3632c"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_gnn_lr0.0005_up30000_s7/best_val.pth.contract.json": {
+      "bytes": 552,
+      "sha256": "6a9d17ac8a95ae84e9fc2402906d0be2b889dd603a096f62539652adad69a209"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s0/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "7cdd70861d5b262b01d0f0ee15ff059be7f43539aa2ff559be9e4ee432ef28db"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s0/best_val.pth.contract.json": {
+      "bytes": 559,
+      "sha256": "c94e3e07ef71fd65a58dccb1dfed02a44573fbfb586334f37f0b34035cf9e40a"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s1/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "daa4a61750872dc49eb9ac12ee49cce9acbdcc5141d646de887cbd3288846eb8"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s1/best_val.pth.contract.json": {
+      "bytes": 559,
+      "sha256": "dcfaade11e7656893924f6a59e3128cba1a44a6b083f814199ecc783f07ce834"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s2/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "d7dd2c5f3b756e1dd2cdda258d0e9c3d72865c0222b180cc3b11d6291533a910"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s2/best_val.pth.contract.json": {
+      "bytes": 559,
+      "sha256": "9584b2dd9d84f1a1448639309871d10cc11184fb0ddb959da86345c7f260137f"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s3/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "578faf44498ff6f708257a657c70aba509a98de243f06310e6ddf69d085aac59"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s3/best_val.pth.contract.json": {
+      "bytes": 557,
+      "sha256": "8ae2090e0848c11b889d6e4a14dc2b22a6e70205056be9c052f680db436caff2"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s4/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "c7d6670ad493cb66d0e635c8da952b1aff28c97bd3f6eb67720465de991609cb"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s4/best_val.pth.contract.json": {
+      "bytes": 559,
+      "sha256": "2156f8dfbe8a2c5e1fd8f781c2109986921bfbfb40885159134f3ecf514cb812"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s5/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "61c93fd17c6ebe68122da40f7db9c772af98600b90e41f72bc96e11c4f5c0423"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s5/best_val.pth.contract.json": {
+      "bytes": 557,
+      "sha256": "f686a1600d7a6cfc9685418bb35f7fe2d07c78a65b65557cf1b84c1b74f203fd"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s6/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "b9e156c8437bd6e68b670cf73e7eec193ef76a53343957479e70a3e3ddf764de"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s6/best_val.pth.contract.json": {
+      "bytes": 557,
+      "sha256": "b2fdee79aa1630cc6eb628df9d5cf3e01a88e1270074bcd25420912e89e5f16a"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s7/best_val.pth": {
+      "bytes": 97042,
+      "sha256": "05c7c6648fb86786e800740675a49e8a7f8926322b8d54f8974269b8b90fb4dd"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mlp_t1_lr0.0005_up30000_s7/best_val.pth.contract.json": {
+      "bytes": 559,
+      "sha256": "250473d1f5e51db5d580077f3591a25195bc97c63989b7cb99425542da168f92"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s0/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "7ed26e6fc4fe5f4f437c44cfece58e9dfc759b403ba1bfb6fcc2f2e25a06db66"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s0/best_val.pth.contract.json": {
+      "bytes": 556,
+      "sha256": "ed0afc1f8c3b09a67fac1250f24dd01f940eb76df52bd5988d047a82c3904b0a"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s1/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "fec050e4a68046563442afa66999846d9a01a03e42e3a5bae9919d6691efd908"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s1/best_val.pth.contract.json": {
+      "bytes": 555,
+      "sha256": "c60c373a6f3f782064b62256d4b0857038bd66a8b1a2144dfa748018f125f8fb"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s2/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "34601d3c1ce9c5e6d5786e1f020a6a0ef94b4b0c4f486f8397b579217779b6e9"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s2/best_val.pth.contract.json": {
+      "bytes": 555,
+      "sha256": "248d807bdbe3a1d1197133a1e335a45937a1afc21d4bc9e538b2ee44074e0cc9"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s3/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "99870f53dfedcb1d5e3f6092ad26e1cbaf4e6fb4d221902c19ecb53e23d27bc5"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s3/best_val.pth.contract.json": {
+      "bytes": 556,
+      "sha256": "a829de23a9d9a856b27fe5c83a1f2967e74cfaa8109bb4c4e8cea43aa053a4a2"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s4/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "3d241ced543bc9487ab7023ab3b6e1c91a502835c66bf627a80406890aeb9ac8"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s4/best_val.pth.contract.json": {
+      "bytes": 557,
+      "sha256": "b489496a8621f20f00846b59b7818d8fef1936aee664917cf7bad0241f2c1303"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s5/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "0c11e5060b7fac02ffa235d97b13f45605baa782a2fca708cf80e1f60ebf0b2f"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s5/best_val.pth.contract.json": {
+      "bytes": 555,
+      "sha256": "df606d03a209bd0c06c48a189c38060f91058a806c536739d8c7ebe2591ea67d"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s6/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "52964ef164066186c1b25bec63a0c12f11c551a7d515bce89956dbfce5f89c7f"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s6/best_val.pth.contract.json": {
+      "bytes": 556,
+      "sha256": "525865bbd29ae51fc94409582e6117509210a45f866064ade0b5959151dd5658"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s7/best_val.pth": {
+      "bytes": 92434,
+      "sha256": "f7810b0dfea3be7d6d3be7473d08183613f8ea1ef6cb304b04c2a7aebc13f09b"
+    },
+    "/tmp/l2d_transfer_union/l2d_6x6_mpoff_lr0.0005_up30000_s7/best_val.pth.contract.json": {
+      "bytes": 556,
+      "sha256": "9e793222e322b571270be5a286f6e436a5a5556ff86e14bdae719a591de99852"
+    }
+  },
+  "contract": "l2d_size_transfer_v1_freeze",
+  "date": "2026-09-23",
+  "instances": 100,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "source_map": {
+    "gnn:0": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_gnn_lr0.0005_up30000_s0/best_val.pth",
+    "gnn:1": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_gnn_lr0.0005_up30000_s1/best_val.pth",
+    "gnn:2": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_gnn_lr0.0005_up30000_s2/best_val.pth",
+    "gnn:3": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_gnn_lr0.0005_up30000_s3/best_val.pth",
+    "gnn:4": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_gnn_lr0.0005_up30000_s4/best_val.pth",
+    "gnn:5": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_gnn_lr0.0005_up30000_s5/best_val.pth",
+    "gnn:6": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_gnn_lr0.0005_up30000_s6/best_val.pth",
+    "gnn:7": "/tmp/l2d_transfer_source_s7/l2d_6x6_gnn_lr0.0005_up30000_s7/best_val.pth",
+    "mlp_t1:0": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mlp_t1_lr0.0005_up30000_s0/best_val.pth",
+    "mlp_t1:1": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mlp_t1_lr0.0005_up30000_s1/best_val.pth",
+    "mlp_t1:2": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mlp_t1_lr0.0005_up30000_s2/best_val.pth",
+    "mlp_t1:3": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mlp_t1_lr0.0005_up30000_s3/best_val.pth",
+    "mlp_t1:4": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mlp_t1_lr0.0005_up30000_s4/best_val.pth",
+    "mlp_t1:5": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mlp_t1_lr0.0005_up30000_s5/best_val.pth",
+    "mlp_t1:6": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mlp_t1_lr0.0005_up30000_s6/best_val.pth",
+    "mlp_t1:7": "/tmp/l2d_transfer_source_s7/l2d_6x6_mlp_t1_lr0.0005_up30000_s7/best_val.pth",
+    "mpoff:0": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mpoff_lr0.0005_up30000_s0/best_val.pth",
+    "mpoff:1": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mpoff_lr0.0005_up30000_s1/best_val.pth",
+    "mpoff:2": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mpoff_lr0.0005_up30000_s2/best_val.pth",
+    "mpoff:3": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mpoff_lr0.0005_up30000_s3/best_val.pth",
+    "mpoff:4": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mpoff_lr0.0005_up30000_s4/best_val.pth",
+    "mpoff:5": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mpoff_lr0.0005_up30000_s5/best_val.pth",
+    "mpoff:6": "/root/projects/my-herosim/simulation_data/literature_reeval_v1/l2d/runs/l2d_6x6_mpoff_lr0.0005_up30000_s6/best_val.pth",
+    "mpoff:7": "/tmp/l2d_transfer_source_s7/l2d_6x6_mpoff_lr0.0005_up30000_s7/best_val.pth"
+  },
+  "source_size": 6,
+  "target_sizes": [
+    10,
+    15
+  ],
+  "upstream_clean": true,
+  "upstream_commit": "7b2efbb1ffc960260b16952f2bed68e500765bf0"
+}

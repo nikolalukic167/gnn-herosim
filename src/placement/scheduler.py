@@ -55,7 +55,6 @@ class Scheduler:
         self.nodes = nodes
         self.tasks = PriorityFilterStore(env)
         
-        # Optional GNN metrics tracking
         self.gnn_metrics: Optional[Dict[str, Any]] = None
         self.placement_decisions: Optional[List[Dict[str, Any]]] = None
         
@@ -83,7 +82,6 @@ class Scheduler:
 
             logging.info(f"[ {self.env.now} ] Scheduler woken up")
 
-            # Get available replicas
             system_state: SystemState = yield self.mutex.get()
             replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
             task_replicas = replicas[task.type["name"]]
@@ -96,11 +94,9 @@ class Scheduler:
                     f" {task}"
                 )
 
-                # Put task back in queue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request a new replica from the Autoscaler
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(system_state, task.type)
                 )
@@ -109,36 +105,27 @@ class Scheduler:
                 # if isinstance(stop, StopIteration):
                 # logging.error( ... )
 
-                # Next event
                 self.env.step()
 
-                # Release mutex
                 yield self.mutex.put(system_state)
 
-                # Next step
                 continue
 
-            # Measure wall-clock time for the scheduling decision
             start = default_timer()
 
-            # Schedule tasks according to policy
             (sched_node, sched_platform) = yield self.env.process(
                 self.placement(system_state, task)
             )
 
-            # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)
             task.node = node
             node.unused = False
-            # Update platform
             platform: Platform = yield node.platforms.get(
                 lambda platform: platform.id == sched_platform.id
             )
             task.platform = platform
-            # Update state
             yield self.mutex.put(system_state)
 
-            # End wall-clock time measurement
             end = default_timer()
             elapsed_clock_time = end - start
             node.wall_clock_scheduling_time += elapsed_clock_time
@@ -150,10 +137,8 @@ class Scheduler:
             yield platform.queue.put(task)
             yield task.scheduled.succeed()
 
-            # Release platform
             yield node.platforms.put(platform)
 
-            # Node is released
             yield self.nodes.put(node)
 
     @abstractmethod

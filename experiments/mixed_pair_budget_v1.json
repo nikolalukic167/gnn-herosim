@@ -1,0 +1,18 @@
+{
+  "registered": "2026-09-22",
+  "parent": "radical_physics_v1",
+  "question": "Does the deep pair-selector ceiling survive giving hand controls the same larger planning budget?",
+  "budgets_ms": [5, 10],
+  "calibration_seeds": [117000, 117015],
+  "fresh_seeds": [118000, 118031],
+  "starts": ["fastest", "load", "affinity"],
+  "anneal_steps": [256, 512, 768, 1024, 1280, 1536],
+  "descent_rounds": [4, 8, 64],
+  "pair_controls": ["graph1", "graph2", "graph4", "graph8", "random1", "random2", "random4", "random8"],
+  "selection": "Choose one control per budget by lowest calibration mean cost subject to p95 of per-case median full planning times <= budget; freeze before fresh evaluation",
+  "oracle": "Unchanged deep portfolio: affinity plus descent64; every unordered pair flipped then refined by two single-flip rounds; include incumbent",
+  "timing_repeats": 7,
+  "gate": "For each budget: oracle median gain >=5%, bootstrap lower bound >0, frozen hand control p95 <=budget, and free perfect-selector full-path p95 <=budget; no GNN-specific claim",
+  "live_gate": "32 fresh cases, control5, control10 and oracle; 96 real HeROsim runs with all completions independently checked against SimPy even if screen fails",
+  "scope": "Paired exploratory budget sensitivity, not independent replications; wall-clock planning excluded from simulated execution as in earlier gates; a positive screen still requires learnability and matched learned controls"
+}

@@ -421,6 +421,17 @@ end to end.
 ## Conventions
 
 - **Answer analysis questions in chat.** Do not write a markdown document unless asked.
+- **Keep edits scoped.** Before editing, identify the smallest files or functions needed for
+  the request. Leave unrelated changes in the working tree alone; include adjacent changes
+  only when they are necessary to make the requested work correct.
+- **Check claims at their source.** Verify a factual claim against the relevant code, test,
+  result, or lineage node before reporting it. Give a file path and line number, or a direct
+  URL, for claims whose source the reader may need to inspect.
+- **Clarify consequential ambiguity.** Ask a focused question when different reasonable
+  interpretations would materially change the result. Otherwise state the assumption and
+  proceed; do not turn routine implementation choices into a question round.
+- **Report briefly and concretely.** Status updates and final reports should say what
+  changed, what was verified, and what remains uncertain, without filler or apologies.
 - **Simulation is deterministic when seeded properly.** Tie-breaks over sets of objects are
   the classic leak — `PYTHONHASHSEED` does not pin them (it randomizes str/bytes only).
 - Dependencies: `Pipfile`. One env spec for cross-venue work: `envs/herosim-lock.txt`.

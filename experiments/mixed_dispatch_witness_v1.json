@@ -1,0 +1,11 @@
+{
+ "registered": "2026-09-22",
+ "seeds": [128000,128015],
+ "question": "Can distant operation order change the optimal first dispatch when engineered root features are identical?",
+ "fixture": "Two jobs of three operations, same mixed resources; fixed fastest-eligible-host assignments, independent of future type/lock permutation",
+ "transformation": "Reverse types and locks of operations1/2 within each job; preserve first operations, durations, per-job type/lock counts, global counts, all resources and assignments",
+ "enumeration": "All 720 operation-priority permutations per variant; retain every plan and cost; compare exact minimum conditioned on root0 or root1 starting first",
+ "representation": "Frozen-seed untrained PriorityNet with MP on/off and hand one/two-hop inputs; require identical base root features, strict optimum preference reversal and distinguishability; no trained performance claim",
+ "live": "For all16 pairs, both conditional optimum plans per variant in actual HeROsim, independent priority SimPy completion checks =64 runs",
+ "scope": "Constructive smaller ordering-seat witness, not identical placement-generation family to main gates and not proof that graph processing must be learned"
+}

@@ -37,7 +37,6 @@ class RandomAutoscaler(Autoscaler):
         if False:
             yield
 
-        # Select random platform
         found = random.randint(0, len(couples_suitable) - 1)
         random_couple = list(couples_suitable)[found]
 

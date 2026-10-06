@@ -90,12 +90,10 @@ def generate_network_topology_deterministic(
     topology_type = topology_config.get('type', 'sparse')
     connection_probability = topology_config.get('connection_probability', 0.85)
     custom_edges = topology_config.get('edges', [])
-    
-    # Separate clients and servers
+
     clients = [node for node in nodes if node['node_name'].startswith('client_node')]
     servers = [node for node in nodes if not node['node_name'].startswith('client_node')]
-    
-    # Initialize network maps
+
     network_maps = {node['node_name']: {} for node in nodes}
     
     def generate_latency(device_type1: str, device_type2: str) -> float:
@@ -141,7 +139,6 @@ def generate_network_topology_deterministic(
         _minimal_skew_connectivity_repair(network_maps, clients, servers, lat_core, k_core=k_core)
 
     elif topology_type == 'custom' and custom_edges:
-        # Use custom topology edges
         for edge in custom_edges:
             if len(edge) == 2:
                 client_name, server_name = edge
@@ -154,7 +151,6 @@ def generate_network_topology_deterministic(
                     network_maps[client_name][server_name] = latency
                     network_maps[server_name][client_name] = latency
     else:
-        # Generate connections based on connection probability
         for client in clients:
             client_name = client['node_name']
             client_type = client['type']
@@ -169,7 +165,6 @@ def generate_network_topology_deterministic(
                     network_maps[server_name][client_name] = latency
     
     if topology_type not in SKEW_TOPOLOGY_TYPES:
-        # Ensure minimum connectivity
         for node_name, connections in network_maps.items():
             if len(connections) == 0:
                 if node_name.startswith('client_node'):
@@ -194,9 +189,7 @@ def generate_network_topology_deterministic(
                         network_maps[client_name][node_name] = latency
     
     # Ensure platform-compatibility-aware connectivity for task types (dnn1 and dnn2)
-    # Check each client node to ensure it can execute tasks (either locally or remotely)
     if task_types_data and topology_type not in SKEW_TOPOLOGY_TYPES:
-        # Check both dnn1 and dnn2
         for task_type_name in ['dnn1', 'dnn2']:
             if task_type_name not in task_types_data:
                 continue
@@ -207,11 +200,9 @@ def generate_network_topology_deterministic(
             for client in clients:
                 client_name = client['node_name']
                 client_platforms = set(client.get('platforms', []))
-                
-                # Check if client has compatible platforms locally
+
                 has_local_support = bool(client_platforms & compatible_platforms)
-                
-                # Check if client is already connected to a server with compatible platforms
+
                 has_remote_support = False
                 for server_name in network_maps[client_name].keys():
                     server = next((s for s in servers if s['node_name'] == server_name), None)
@@ -221,9 +212,7 @@ def generate_network_topology_deterministic(
                             has_remote_support = True
                             break
                 
-                # If client lacks both local and remote support, add connection to a server with support
                 if not has_local_support and not has_remote_support:
-                    # Find servers with compatible platforms
                     compatible_servers = [
                         s for s in servers
                         if bool(set(s.get('platforms', [])) & compatible_platforms)
@@ -231,7 +220,6 @@ def generate_network_topology_deterministic(
                     ]
                     
                     if compatible_servers:
-                        # Connect to a random server with support
                         server = rng.choice(compatible_servers)
                         server_name = server['node_name']
                         server_type = server['type']
@@ -553,12 +541,10 @@ def generate_replica_placements_deterministic(
     """
     preinit_config = config.get('preinit', {})
     replicas_config = config.get('replicas', {})
-    
-    # Get preinit nodes
+
     all_client_nodes = [node for node in nodes if node.get('node_name', '').startswith('client_node')]
     all_server_nodes = [node for node in nodes if not node.get('node_name', '').startswith('client_node')]
-    
-    # Handle percentage-based configuration
+
     # NOTE: For replica placement (not preinit), we use higher percentages to ensure
     # replicas are spread across enough nodes for network reachability
     preinit_clients = preinit_config.get('clients', [])
@@ -599,7 +585,7 @@ def generate_replica_placements_deterministic(
         preinit_clients = [n['node_name'] for n in all_client_nodes]
     if preinit_servers == "all":
         preinit_servers = [n['node_name'] for n in all_server_nodes]
-    
+
     # Create node_id and platform_id mappings (same as simulation.py)
     node_id_map = {node['node_name']: i for i, node in enumerate(nodes)}
     platform_id = 0
@@ -615,7 +601,6 @@ def generate_replica_placements_deterministic(
             })
             platform_id += 1
     
-    # Generate replica placements
     replica_placements = {}
     task_types = sim_inputs.get('task_types', {})
 
@@ -639,7 +624,6 @@ def generate_replica_placements_deterministic(
 
         placements = []
 
-        # Create server replicas
         per_server = replica_config.get('per_server', 0)
         if per_server > 0:
             for node in all_server_nodes:
@@ -663,10 +647,9 @@ def generate_replica_placements_deterministic(
                             'platform_id': platform_info['platform_id'],
                             'platform_type': platform_info['platform_type']
                         })
-                        assigned_platforms.add(platform_key)  # Mark as assigned
+                        assigned_platforms.add(platform_key)
                         replicas_created += 1
 
-        # Create client replicas
         per_client = replica_config.get('per_client', 0)
         if per_client > 0:
             for node in all_client_nodes:
@@ -690,7 +673,7 @@ def generate_replica_placements_deterministic(
                             'platform_id': platform_info['platform_id'],
                             'platform_type': platform_info['platform_type']
                         })
-                        assigned_platforms.add(platform_key)  # Mark as assigned
+                        assigned_platforms.add(platform_key)
                         replicas_created += 1
 
         replica_placements[task_type_name] = placements
@@ -785,8 +768,7 @@ def generate_queue_distributions_deterministic(
             node_name = placement['node_name']
             platform_id = placement['platform_id']
             platform_key = f"{node_name}:{platform_id}"
-            
-            # Get queue distribution parameters
+
             initial_queue = task_prewarm.get('initial_queue', 0)
             
             if task_prewarm.get('queue_distribution') == 'statistical':
@@ -840,8 +822,7 @@ def generate_deterministic_infrastructure(
     
     nodes = []
     device_types = list(config['pci'].keys())
-    
-    # Generate client nodes
+
     for i in range(client_nodes_count):
         device_type = device_types[i % len(device_types)]
         device_specs = config['pci'][device_type]['specs']
@@ -849,8 +830,7 @@ def generate_deterministic_infrastructure(
         node_config['node_name'] = f"client_node{i}"
         node_config['type'] = device_type
         nodes.append(node_config)
-    
-    # Generate server nodes
+
     for i in range(server_nodes_count):
         device_type = device_types[i % len(device_types)]
         device_specs = config['pci'][device_type]['specs']
@@ -868,11 +848,9 @@ def generate_deterministic_infrastructure(
         with open(task_types_path, 'r') as f:
             task_types_data = json.load(f)
     
-    # 1. Generate network topology
     print("[infra-gen] Generating network topology...")
     network_maps = generate_network_topology_deterministic(nodes, config, rng, task_types_data=task_types_data)
-    
-    # 2. Generate replica placements
+
     print("[infra-gen] Generating replica placements...")
     replica_placements = generate_replica_placements_deterministic(
         nodes, config, sim_inputs, rng
@@ -880,13 +858,11 @@ def generate_deterministic_infrastructure(
     
     topology_type = config.get('network', {}).get('topology', {}).get('type', 'sparse')
 
-    # 2b. Ensure network connectivity to replica servers
     # After placing replicas, ensure every client can reach MULTIPLE servers
     # that have replicas for each task type (for uniqueness constraint)
     clients = [n for n in nodes if n['node_name'].startswith('client_node')]
     servers = [n for n in nodes if not n['node_name'].startswith('client_node')]
 
-    # Minimum number of replica servers each client should reach per task type
     MIN_REPLICA_SERVERS = 2
 
     skew_topo = config.get('network', {}).get('topology', {})
@@ -958,7 +934,6 @@ def generate_deterministic_infrastructure(
             f"{sum(len(v) for v in link_topology['routes'].values())} routes"
         )
 
-    # 3. Generate queue distributions
     print("[infra-gen] Generating queue distributions...")
     queue_distributions = generate_queue_distributions_deterministic(
         replica_placements, config, rng
@@ -1009,7 +984,6 @@ def generate_deterministic_infrastructure(
         }
     }
     
-    # Save to file
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:

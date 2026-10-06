@@ -1117,3 +1117,10 @@ closed-loop path is measured-negative at power. The GNN's *reliability* edge (Ph
 its *supervised latency* edge over Knative (`link_mp_v1`, and −44.8% again here) both
 stand. What does not stand, and is now measured rather than assumed, is that training
 against the live simulator improves on them.
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- **Phase 2 CLOSED 2026-09-01 — P3 fired on the letter, and the signal is CHAOS.** The registered pilot ran clean (300 snapshots × 256 plans at h=10 s, 76,800 mini co-sims, zero failures) and co-primary (b) fired: 21.7% of snapshots above 2% regret (bar 15%; binomial p = 1.5e-33 vs the 3.3% t=0 base rate), with **both** repair controls at ~0 (node-count 0.009, link 0.016) — the first mechanism in the program to escape both, and additive R² collapsed 0.988 → 0.049.
+- Primary CL-GNN minus Frozen-GNN over 16 training seeds: mean **+0.82%**, median **+0.27%**, **8/16** better, exact Wilcoxon **p = 0.372**, per-seed spread -11.5% to +10.8%.

@@ -51,7 +51,6 @@ class HRCScheduler(Scheduler):
             some_node_storage: Storage = yield node.storage.get(
                 lambda storage: not storage.type["remote"]
             )
-            # Current task cold start
             current_task_cold_start = (
                 platform.current_task.type["coldStartDuration"][
                     platform.type["shortName"]
@@ -62,7 +61,6 @@ class HRCScheduler(Scheduler):
                 and not hasattr(platform.current_task, "started_time")
                 else 0
             )
-            # Current task execution time
             current_task_execution_time = (
                 platform.current_task.type["executionTime"][platform.type["shortName"]]
                 - (self.env.now - getattr(platform.current_task, "started_time", 0))
@@ -70,7 +68,6 @@ class HRCScheduler(Scheduler):
                 else 0
             )
             # FIXME: We would need task storage to be fixed before task execution
-            # Current task communications time
             current_task_communications_time = (
                 platform.current_task.type["stateSize"][
                     platform.current_task.application.type["name"]
@@ -87,17 +84,14 @@ class HRCScheduler(Scheduler):
                 if queued_task.application.qos["maxDurationDeviation"]
                 >= task.application.qos["maxDurationDeviation"]
             )
-            # Next task cold start
             next_task_cold_start = (
                 task.type["coldStartDuration"][platform.type["shortName"]]
                 if not platform.current_task and not platform.previous_task
                 else 0
             )
-            # Next task execution time
             next_task_execution_time = task.type["executionTime"][
                 platform.type["shortName"]
             ]
-            # Next task communications time
             # FIXME: We would need task storage to be fixed before task scheduling
             next_task_communications_time = (
                 task.type["stateSize"][task.application.type["name"]]["input"]
@@ -109,7 +103,6 @@ class HRCScheduler(Scheduler):
                 + some_node_storage.type["latency"]["write"]
             )
             yield node.storage.put(some_node_storage)
-            # Task deadline
             task_deadline = (
                 max(task.type["executionTime"].values())
                 * task.application.qos["maxDurationDeviation"]
@@ -160,14 +153,12 @@ class HRCScheduler(Scheduler):
 
         # logging.error(f"scores = {scores}")
 
-        # Weights?
         weights: Dict[str, float] = {
             "penalty": 2 / 3,
             "energy_consumption": 0.5 / 6,
             "consolidation": 1.5 / 6,
         }
 
-        # Normalize scores?
         normalized_scores: Dict[str, Dict[Tuple[Node, Platform], float]] = dict(scores)
         for metric, values in scores.items():
             t_min = 1

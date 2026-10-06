@@ -1,0 +1,11 @@
+trainer: dispatch_state
+lineage: mixed_dispatch_state_v1
+cache_dir: simulation_data/gnn_environment_search_v1/mixed_dispatch_state_corpus
+args:
+  arm: mpoff
+  epochs: 30
+  output-dir: simulation_data/gnn_environment_search_v1/mixed_dispatch_state_models
+path_args: [output-dir]
+wandb:
+  project: herosim-dispatch-state
+  run_name: mixed-dispatch-state-v1-mpoff

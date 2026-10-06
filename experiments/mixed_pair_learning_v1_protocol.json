@@ -1,0 +1,21 @@
+{
+  "registered": "2026-09-22",
+  "parent": "radical_physics_v1",
+  "budget_ms": 5,
+  "train_seeds": [121000, 121127],
+  "validation_seeds": [122000, 122031],
+  "test_seeds": [123000, 123031],
+  "training_draws": [301, 302, 303],
+  "arms": ["gnn", "mpoff", "mlp_hand"],
+  "target": "softmax over negative final guarded candidate cost at temperature 1 percent incumbent cost; all 1128 pair moves plus unchanged incumbent; exhaustive candidate labels",
+  "architecture": "two typed residual message-passing layers, hidden16, symmetric pair head; MP-OFF separately trained on identical base inputs; hand model adds fixed one/two-hop typed means",
+  "features": "declared workflow and resources, computed incumbent assignment and its completion times; explicit shared locks, same job/host and operation separation for every pair; no teacher-derived inputs",
+  "training": "AdamW lr0.001 batch16 epochs30, three seeds per arm; select minimum mean validation served objective including epoch0; no hyperparameter sweep",
+  "hand_control": "frozen graph1 from mixed_pair_budget_margin_v1; no test calibration",
+  "advance": "validation mean improves at least 5 percent vs hand rule, all selected model full paths p95<=5ms; regardless of screening, frozen selected models receive live gate",
+  "live_gate": "32 fresh workflows times nine frozen models, graph1, oracle and incumbent =384 real HeROsim runs; independent SimPy task completion checks",
+  "claim_bar": "GNN median paired improvement>=5 percent versus MP-OFF, hand-graph model and graph1, positive bootstrap lower bounds, all GNN draws p95<=5ms; n32 pilot, no powered publication claim",
+  "timing": "seven repeats, full incumbent+features+inference+selected pair refinement+guard; exclude load/compile; report p95 of case medians",
+  "logging": "offline Weights and Biases; no upload; CPU only; preserve all weights and contracts",
+  "stop": "No scaling or additional architecture search on this holdout if pilot misses validation/live bars"
+}

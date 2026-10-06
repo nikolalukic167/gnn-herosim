@@ -90,13 +90,12 @@ class GNNScheduler(Scheduler):
         self.device = None
         self.task_types_data = None
         self.dataset_id = None
-        self.models_dict = None  # Store full models dict
-        
+        self.models_dict = None
+
         # === GNN Configuration ===
         # Use pure GNN with simple fallback (no soft blending)
         # Adaptive queue normalization will be calculated per batch
-        
-        # Stats tracking for debugging
+
         self.gnn_pure_decisions = 0
         self.fallback_decisions = 0
         self.decode_stats = reset_run_decode_stats()
@@ -152,8 +151,7 @@ class GNNScheduler(Scheduler):
         
         if 'dataset_id' in models:
             self.dataset_id = models['dataset_id']
-        
-        # Put model in eval mode
+
         if self.gnn_model is not None:
             self.gnn_model.eval()
             print("[GNN Scheduler] Model set to eval mode", flush=True)
@@ -195,33 +193,25 @@ class GNNScheduler(Scheduler):
         def task_filter(queued_task):
             return all(dependency.finished for dependency in queued_task.dependencies)
         
-        # First task: wait indefinitely (blocking is expected)
         task: Task = yield self.tasks.get(task_filter)
         batch.append(task)
-        
-        # Wait for batch_timeout to collect more tasks
-        # Use small increments to be responsive while still batching
+
         timeout_remaining = self.batch_timeout
         poll_interval = 0.001  # 1ms polling interval
-        
+
         while len(batch) < self.batch_size and timeout_remaining > 0:
-            # Check if there are any ready tasks in the queue
             ready_tasks = [t for t in self.tasks.items if task_filter(t)]
-            
+
             if ready_tasks:
-                # Get the ready task immediately
                 task = yield self.tasks.get(task_filter)
                 batch.append(task)
             else:
-                # Wait a small interval for more tasks to arrive
                 wait_time = min(poll_interval, timeout_remaining)
                 yield self.env.timeout(wait_time)
                 timeout_remaining -= wait_time
-        
-        # Calculate actual wait time
+
         actual_wait_time = self.env.now - wait_start_time
-        
-        # Simple logging for batch size and wait time
+
         batch_size = len(batch)
         if batch_size == 2:
             print(f"[GNN Batch] Batch size: 2 tasks, wait time: {actual_wait_time*1000:.2f}ms", flush=True)
@@ -230,7 +220,6 @@ class GNNScheduler(Scheduler):
         else:
             print(f"[GNN Batch] Batch size: {batch_size} tasks, wait time: {actual_wait_time*1000:.2f}ms", flush=True)
         
-        # Log batch size for debugging
         if len(batch) >= MIN_BATCH_SIZE_FOR_GNN:
             logging.debug(f"[ {self.env.now} ] GNN: Collected batch of {len(batch)} tasks (will use GNN)")
         else:
@@ -246,21 +235,18 @@ class GNNScheduler(Scheduler):
         """
         batch_start = default_timer()
         batch_size = len(batch_tasks)
-        
-        # Get system state once for the entire batch
+
         system_state: SystemState = yield self.mutex.get()
         
         # Full-infra queue + temporal snapshot at batch start (matches SSC/cache graph build)
         queue_snapshot = self._capture_full_queue_snapshot()
         temporal_state = self._capture_temporal_state_snapshot()
         
-        # Skip GNN for batches outside training range [2, 3]
         if batch_size < MIN_BATCH_SIZE_FOR_GNN or batch_size > MAX_BATCH_SIZE_FOR_GNN:
             placements = None  # Will trigger fallback to shortest queue
             inference_time = 0.0
             logging.info(f"[ {self.env.now} ] GNN: Batch size {batch_size} outside GNN range [{MIN_BATCH_SIZE_FOR_GNN},{MAX_BATCH_SIZE_FOR_GNN}], using fallback")
         else:
-            # Build graph and run GNN inference
             inference_start = default_timer()
             placements = self._gnn_inference(
                 batch_tasks, system_state, queue_snapshot, temporal_state
@@ -274,11 +260,9 @@ class GNNScheduler(Scheduler):
         # Release mutex before processing tasks (allows monitor/autoscaler to run)
         yield self.mutex.put(system_state)
         
-        # Process each task in batch
         for task_idx, task in enumerate(batch_tasks):
             task_start = default_timer()
-            
-            # Get fresh system state for this task
+
             current_system_state: SystemState = yield self.mutex.get()
             
             task_replicas = current_system_state.replicas.get(task.type["name"], set())
@@ -293,7 +277,6 @@ class GNNScheduler(Scheduler):
                 task.postponed_count += 1
                 yield self.tasks.put(task)
 
-                # Request replica from autoscaler
                 stop = yield self.env.process(
                     self.autoscaler.create_first_replica(
                         current_system_state, 
@@ -305,18 +288,15 @@ class GNNScheduler(Scheduler):
                 yield self.mutex.put(current_system_state)
                 continue
 
-            # Capture scheduling snapshots only when generating GNN training datasets.
             if os.environ.get("GNN_CAPTURE_DATASET_STATE", "0") == "1":
                 task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
                 task.full_queue_snapshot = self._capture_full_queue_snapshot()
                 task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
 
-            # Select placement using GNN with fallback to shortest queue
             target_node, target_platform = self._select_placement_pure_gnn(
                 task, task_idx, placements, valid_replicas
             )
 
-            # Fallback to shortest queue if GNN placement is invalid
             if target_node is None or target_platform is None:
                 target_node, target_platform = min(
                     valid_replicas, key=lambda couple: len(couple[1].queue.items)
@@ -327,21 +307,17 @@ class GNNScheduler(Scheduler):
             task.execution_platform = str(target_platform.id)
             task.gnn_decision_time = inference_time / batch_size  # Amortized
 
-            # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == target_node.id)
             task.node = node
             node.unused = False
-            
-            # Update platform
+
             platform: Platform = yield node.platforms.get(lambda platform: platform.id == target_platform.id)
             task.platform = platform
 
-            # End wall-clock time measurement
             task_end = default_timer()
             elapsed_clock_time = task_end - task_start
             node.wall_clock_scheduling_time += elapsed_clock_time
 
-            # Put task in platform queue
             yield platform.queue.put(task)
             yield task.scheduled.succeed()
 
@@ -367,20 +343,17 @@ class GNNScheduler(Scheduler):
             return None
         
         try:
-            # Build graph from current system state
             graph, task_logit_to_placement = self._build_inference_graph(
                 batch_tasks, system_state, queue_snapshot, temporal_state
             )
-            
+
             if graph is None:
                 return None
-            
+
             task_logit_to_queue_key = getattr(graph, "_task_logit_to_queue_key", None)
-            
-            # Move to device
+
             graph = graph.to(self.device)
-            
-            # Run inference
+
             with torch.no_grad():
                 logits_per_task = self.gnn_model(graph)
             
@@ -426,10 +399,8 @@ class GNNScheduler(Scheduler):
         percentile_idx = int(len(queue_values_sorted) * 0.9)
         percentile_90 = queue_values_sorted[percentile_idx] if percentile_idx < len(queue_values_sorted) else queue_values_sorted[-1]
         
-        # Use 90th percentile as normalization factor, with minimum of 1.0
-        # This ensures that even in high-load scenarios, queues are normalized appropriately
         adaptive_factor = max(1.0, percentile_90)
-        
+
         # Cap at reasonable maximum to avoid over-normalization
         # If queues are extremely large (e.g., 1000+), we still want some signal
         adaptive_factor = min(adaptive_factor, 100.0)
@@ -449,8 +420,7 @@ class GNNScheduler(Scheduler):
         Returns: (graph, task_logit_to_placement mapping)
         """
         n_tasks = len(batch_tasks)
-        
-        # Collect all platforms from nodes
+
         all_nodes = list(self.nodes.items)
         platforms_info = []  # List of (node, platform, node_id, plat_id, plat_type, node_name)
         
@@ -472,10 +442,8 @@ class GNNScheduler(Scheduler):
         }
         adaptive_queue_norm = self._calculate_adaptive_queue_norm(graph_queue_snapshot)
         
-        # Build node_name -> node_id mapping
         node_name_to_id = {node.node_name: node.id for node in all_nodes}
-        
-        # Build platform position lookup
+
         plat_pos_by_key = {}  # (node_id, plat_id) -> position in platforms_info
         for pos, (node, plat, node_id, plat_id, plat_type, node_name) in enumerate(platforms_info):
             plat_pos_by_key[(node_id, plat_id)] = pos
@@ -508,7 +476,6 @@ class GNNScheduler(Scheduler):
         #  target_concurrency(1), usage_ratio(1)]
         platform_types_vocab = ['rpiCpu', 'xavierCpu', 'xavierGpu', 'xavierDla', 'pynqFpga']
         
-        # Build replica lookup
         dnn1_replicas = set()
         dnn2_replicas = set()
         for node, plat in system_state.replicas.get('dnn1', set()):
@@ -518,12 +485,9 @@ class GNNScheduler(Scheduler):
         
         platform_features = []
         for node, plat, node_id, plat_id, plat_type, node_name in platforms_info:
-            # Type one-hot
             onehot = [1.0 if plat_type == t else 0.0 for t in platform_types_vocab]
-            # Replica flags
             has_dnn1 = 1.0 if (node_id, plat_id) in dnn1_replicas else 0.0
             has_dnn2 = 1.0 if (node_id, plat_id) in dnn2_replicas else 0.0
-            # Queue length (normalized using adaptive factor)
             queue_key = f"{node_name}:{plat_id}"
             queue_len_raw = queue_snapshot.get(queue_key, 0)
             queue_len = queue_len_raw / adaptive_queue_norm
@@ -588,14 +552,12 @@ class GNNScheduler(Scheduler):
             )
         
         platform_features_tensor = torch.tensor(platform_features, dtype=torch.float32)
-        
-        # Build edges: task -> compatible platforms
+
         edge_src, edge_dst = [], []
         edge_attrs = []
         task_logit_to_placement: Dict[int, List[Tuple[int, int]]] = {}
         task_logit_to_queue_key: Dict[int, List[str]] = {}
-        
-        # Build network map lookup
+
         network_maps = {}
         for node in all_nodes:
             if hasattr(node, 'network_map'):
@@ -611,24 +573,20 @@ class GNNScheduler(Scheduler):
             
             candidates = []
             for pos, (node, plat, node_id, plat_id, plat_type, node_name) in enumerate(platforms_info):
-                # Check compatibility
                 if plat_type not in compatible_types:
                     continue
-                
-                # Check network feasibility
+
                 is_local = (source_node == node_name)
                 is_server = not node_name.startswith('client_node')
-                
+
                 if not is_local:
                     if not is_server:
                         continue  # Can't place on other client nodes
-                    # Check network connectivity
                     if node_name not in network_maps:
                         continue
                     if source_node not in network_maps[node_name]:
                         continue
-                
-                # after network feasibility, before “Add edge”
+
                 if task_type == "dnn1" and (node_id, plat_id) not in dnn1_replicas:
                     continue
                 if task_type == "dnn2" and (node_id, plat_id) not in dnn2_replicas:
@@ -637,7 +595,6 @@ class GNNScheduler(Scheduler):
                 candidates.append((pos, node, plat, node_id, plat_id, plat_type, node_name, is_local))
 
             for pos, node, plat, node_id, plat_id, plat_type, node_name, is_local in sorted(candidates, key=lambda item: item[0]):
-                # Add edge
                 edge_src.append(t_idx)
                 edge_dst.append(pos)
                 
@@ -684,15 +641,13 @@ class GNNScheduler(Scheduler):
                             comm_time = read_time + write_time
 
                 edge_attrs.append([exec_time, latency, is_warm, energy, comm_time])
-                
-                # Store mapping for decoding
+
                 task_logit_to_placement[t_idx].append((node_id, plat_id))
                 task_logit_to_queue_key[t_idx].append(f"{node_name}:{plat_id}")
-        
+
         if not edge_src:
             return None, None
-        
-        # Build typed edge tensors
+
         edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long)
         edge_attr = torch.tensor(edge_attrs, dtype=torch.float32) if edge_attrs else torch.empty((0, 5), dtype=torch.float32)
 
@@ -775,21 +730,17 @@ class GNNScheduler(Scheduler):
         Matches herocache_network logic: only servers (non-client nodes) can receive remote tasks.
         """
         valid_replicas = []
-        
-        # Find source node to check its network_map
+
         source_node = None
         for n in self.nodes.items:
             if n.node_name == task.node_name:
                 source_node = n
                 break
-        
+
         for node, platform in replicas:
-            # Include if it's the task's source node (local execution)
             if node.node_name == task.node_name:
                 valid_replicas.append((node, platform))
-            # Include if it's a server node AND has network connectivity to task source
             elif not node.node_name.startswith('client_node'):
-                # Check if source node has network connectivity to this server
                 if source_node is not None and hasattr(source_node, 'network_map'):
                     if node.node_name in source_node.network_map:
                         valid_replicas.append((node, platform))
@@ -821,26 +772,23 @@ class GNNScheduler(Scheduler):
             
             for platform in node.platforms.items:
                 key = f"{node.node_name}:{platform.id}"
-                
-                # Initialize with zeros
+
                 current_task_remaining = 0.0
                 cold_start_remaining = 0.0
                 comm_remaining = 0.0
-                
+
                 if platform.current_task is not None:
                     current_task = platform.current_task
                     now = self.env.now
-                    
+
                     # Current task cold start remaining
                     if current_task.cold_started and not hasattr(current_task, "started_time"):
-                        # Task is still in cold start
                         cold_start_duration = current_task.type["coldStartDuration"][platform.type["shortName"]]
                         elapsed_cold_start = now - current_task.arrived_time
                         cold_start_remaining = max(0.0, cold_start_duration - elapsed_cold_start)
-                    
+
                     # Current task execution remaining
                     if hasattr(current_task, "started_time") and current_task.started_time is not None:
-                        # Task has started executing
                         exec_duration = current_task.type["executionTime"][platform.type["shortName"]]
                         elapsed_exec = now - current_task.started_time
                         current_task_remaining = max(0.0, exec_duration - elapsed_exec)
@@ -876,20 +824,17 @@ class GNNScheduler(Scheduler):
         This is the original logic, preserved when soft blending is disabled.
         """
         target_node, target_platform = None, None
-        
-        # Get GNN's placement decision
+
         gnn_placement = placements.get(task_idx) if placements else None
-        
+
         if gnn_placement:
             target_node_id, target_plat_id = gnn_placement
-            # Find the actual node/platform objects
             for node, plat in available_replicas:
                 if node.id == target_node_id and plat.id == target_plat_id:
                     target_node, target_platform = node, plat
                     self.gnn_pure_decisions += 1
                     break
-        
-        # Fallback to shortest queue if GNN placement is invalid
+
         if target_node is None or target_platform is None:
             print(f"[ {self.env.now} ] GNN: Fallback to shortest queue for task {task.id}")
             initialized_replicas = [
@@ -941,15 +886,12 @@ class GNNScheduler(Scheduler):
         Returns:
             Dict with placement information
         """
-        # Calculate queue time
         queue_time = self.env.now - task.arrived_time if hasattr(task, 'arrived_time') else 0.0
-        
-        # Capture queue snapshots
+
         valid_replicas_set = set(valid_replicas)
         queue_snapshot_at_scheduling = self.state_capture.capture_queue_snapshot_for_replicas(valid_replicas_set)
         full_queue_snapshot = self.state_capture.capture_full_queue_snapshot()
-        
-        # Capture temporal state
+
         temporal_state_at_scheduling = self.state_capture.capture_temporal_state_for_replicas(valid_replicas_set)
         
         return self.state_capture.capture_task_placement(
@@ -999,7 +941,7 @@ class GNNScheduler(Scheduler):
             
             if platform.current_task is not None:
                 current_task = platform.current_task
-                
+
                 # Check if task is in cold start phase
                 if current_task.cold_started and not hasattr(current_task, "started_time"):
                     cold_start_duration = current_task.type["coldStartDuration"].get(
@@ -1007,7 +949,7 @@ class GNNScheduler(Scheduler):
                     )
                     elapsed_cold_start = now - current_task.arrived_time
                     cold_start_remaining = max(0.0, cold_start_duration - elapsed_cold_start)
-                
+
                 # Check if task is executing
                 if hasattr(current_task, "started_time") and current_task.started_time is not None:
                     exec_duration = current_task.type["executionTime"].get(
