@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 
 from typing import Set, Tuple, TYPE_CHECKING, List, Optional
 
@@ -95,6 +96,52 @@ class KnativeAutoscaler(Autoscaler):
         }
 
         return concurrency_results
+
+    def evict_idle_for(
+        self, system_state: SystemState, task_type: TaskType, source_node_name: str
+    ) -> Optional[Tuple[Node, Platform]]:
+        """Free one idle replica of another function so a starved `task_type` can claim its platform.
+
+        A new replica needs a platform that hosts no replica, and scale-down only removes a type's own surplus, so a
+        type can starve forever while other types' replicas hold every compatible platform its source reaches (the
+        scheduler detects this, GNNScheduler._starved_spin, and only then calls here). Scale-to-zero in Knative frees
+        such a pod; this does the same for one replica: idle (empty queue, no running task, initialised), on a node the
+        source reaches, on a platform `task_type` can run on with enough memory once freed, never a function's last
+        replica. Longest idle first; ties by (node id, platform id).
+        """
+        name = task_type["name"]
+        server_only = os.environ.get("HEROSIM_SERVER_ONLY_REPLICAS", "0") == "1"
+        candidates = []
+        for other, replicas in system_state.replicas.items():
+            if other == name or len(replicas) < 2:
+                continue
+            mem_other = self.data.task_types[other]["memoryRequirements"]
+            for node, platform in replicas:
+                short = platform.type["shortName"]
+                if short not in task_type["platforms"] or not replica_platform_type_allowed(short):
+                    continue
+                if server_only and str(node.node_name).startswith("client_node"):
+                    continue
+                if node.node_name != source_node_name and (
+                    str(node.node_name).startswith("client_node")
+                    or source_node_name not in (getattr(node, "network_map", None) or {})
+                ):
+                    continue
+                if platform.queue.items or platform.current_task or not platform.initialized.triggered:
+                    continue
+                if node.available_memory + mem_other[short] < task_type["memoryRequirements"][short]:
+                    continue
+                candidates.append((platform.idle_since, node.id, platform.id, other, node, platform))
+        if not candidates:
+            return None
+        _, _, _, other, node, platform = min(candidates, key=lambda c: (c[0], c[1], c[2]))
+        state = system_state.scheduler_state
+        (getattr(state, "average_contention", {}).get(other) or {}).pop((node.id, platform.id), None)
+        released = self._release_replica(system_state, other, (node, platform))
+        if released:
+            self.starved_evictions = getattr(self, "starved_evictions", 0) + 1
+            print(f"[ {self.env.now} ] evicted: {released} ({other}) for starved {name} from {source_node_name}")
+        return released
 
     def create_first_replica(
         self, 

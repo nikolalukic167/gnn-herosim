@@ -476,6 +476,15 @@ class GNNScheduler(Scheduler):
 
     def _defer(self, task: "Task", system_state: SystemState) -> Generator:
         if self._starved_spin(task):
+            evict = getattr(self.autoscaler, "evict_idle_for", None)
+            if evict is not None and evict(system_state, task.type, task.node_name):
+                self._defer_spin.pop(int(task.id), None)
+                task.postponed_count += 1
+                yield self.tasks.put(task)
+                yield self.env.process(
+                    self.autoscaler.create_first_replica(system_state, task.type, source_node_name=task.node_name)
+                )
+                return
             self.deferred_spin_waits += 1
             logging.warning(
                 f"[ {self.env.now} ] starved: no replica can be created for {task}; retrying in {DEFER_RETRY_S}s"

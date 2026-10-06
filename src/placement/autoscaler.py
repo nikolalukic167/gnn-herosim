@@ -379,63 +379,73 @@ class Autoscaler:
             if removed_replica:
                 print(f"[ {self.env.now} ] removed: {removed_replica}")
 
-            try:
-                # Remove replica from function replicas
-                # FIXME: Sometimes raises KeyError ... (double remove)
-                function_replicas.remove(removed_replica)
+            return self._release_replica(system_state, function_name, removed_replica)
 
-                # Reset platform to uninitialized state. An initialized event that never fired
-                # already means "uninitialized" and may have a waiter (platform_process parks on
-                # it); replacing it would strand that waiter forever when scale-up fires the new
-                # one (selfpredict_burst_v1, 2026-09-24: 301 tasks queued behind a dead worker).
-                if removed_replica[1].initialized.triggered:
-                    removed_replica[1].initialized = removed_replica[1].env.event()
+    def _release_replica(
+            self,
+            system_state: SystemState,
+            function_name: str,
+            removed_replica: Tuple[Node, Platform],
+    ) -> Optional[Tuple[Node, Platform]]:
+        """Return a removed replica's platform and memory to the pool and record the scale-down event."""
+        function_replicas = system_state.replicas[function_name]
+        try:
+            # Remove replica from function replicas
+            # FIXME: Sometimes raises KeyError ... (double remove)
+            function_replicas.remove(removed_replica)
 
-                if getattr(self.env, "warmth_physics", None) == NODE_DISK_V2:
-                    removed_replica[1].previous_task = None
+            # Reset platform to uninitialized state. An initialized event that never fired
+            # already means "uninitialized" and may have a waiter (platform_process parks on
+            # it); replacing it would strand that waiter forever when scale-up fires the new
+            # one (selfpredict_burst_v1, 2026-09-24: 301 tasks queued behind a dead worker).
+            if removed_replica[1].initialized.triggered:
+                removed_replica[1].initialized = removed_replica[1].env.event()
 
-                # Release replica into available resources
-                available_resources: Dict[Node, Set[Platform]] = (
-                    system_state.available_resources
-                )
-                available_resources[removed_replica[0]].add(removed_replica[1])
+            if getattr(self.env, "warmth_physics", None) == NODE_DISK_V2:
+                removed_replica[1].previous_task = None
 
-                # Update node availability
-                removed_replica[0].available_platforms += 1
+            # Release replica into available resources
+            available_resources: Dict[Node, Set[Platform]] = (
+                system_state.available_resources
+            )
+            available_resources[removed_replica[0]].add(removed_replica[1])
 
-                # Reclaim node memory
-                removed_replica[0].available_memory += self.data.task_types[
-                    function_name
-                ]["memoryRequirements"][removed_replica[1].type["shortName"]]
+            # Update node availability
+            removed_replica[0].available_platforms += 1
 
-                # Statistics
-                removed_replica[1].last_removed = self.env.now
+            # Reclaim node memory
+            removed_replica[0].available_memory += self.data.task_types[
+                function_name
+            ]["memoryRequirements"][removed_replica[1].type["shortName"]]
 
-                event: ScaleEvent = {
-                    "name": function_name,
-                    "timestamp": self.env.now,
-                    "action": "down",
-                    "count": len(function_replicas),
-                    "average_queue_length": (
-                        sum(
-                            [
-                                replica[1].queue_length()
-                                for replica in function_replicas
-                            ]
-                        )
-                        / len(function_replicas)
-                        if function_replicas
-                        else 0.0
-                    ),
-                    "platform_type": removed_replica[1].type["shortName"]
-                }
-                self.scale_events.append(event)
-                return removed_replica
-            except KeyError:
-                logging.debug(
-                    f"[ {self.env.now} ] Replica {removed_replica} was already removed"
-                )
-                return None
+            # Statistics
+            removed_replica[1].last_removed = self.env.now
+
+            event: ScaleEvent = {
+                "name": function_name,
+                "timestamp": self.env.now,
+                "action": "down",
+                "count": len(function_replicas),
+                "average_queue_length": (
+                    sum(
+                        [
+                            replica[1].queue_length()
+                            for replica in function_replicas
+                        ]
+                    )
+                    / len(function_replicas)
+                    if function_replicas
+                    else 0.0
+                ),
+                "platform_type": removed_replica[1].type["shortName"]
+            }
+            self.scale_events.append(event)
+            return removed_replica
+        except KeyError:
+            logging.debug(
+                f"[ {self.env.now} ] Replica {removed_replica} was already removed"
+            )
+            return None
 
     @abstractmethod
     def scaling_level(
