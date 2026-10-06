@@ -232,6 +232,54 @@ class PeerConv(MessagePassing):
         return self.message_mlp(torch.cat([x_j, edge_attr], dim=-1))
 
 
+class HeteroBipartiteEdgeConv(nn.Module):
+    """hetero_conv_v1: BipartiteEdgeConv with weights per relation and per node type.
+
+    BipartiteEdgeConv runs ONE message MLP over every edge in the stack -- task->platform,
+    platform->task (the candidate edges are made undirected) and, on the raw-plan path,
+    platform<->platform same-node edges -- and ONE update MLP for tasks and platforms alike.
+    This conv gives each relation its own message MLP (mean over that relation's edges, as
+    BipartiteEdgeConv), sums the per-relation means at each node (PyG HeteroConv's default),
+    and gives each node type its own update MLP. Same message inputs, same depth, same width;
+    only the weight sharing changes. Node type is position: tasks are rows [0, n_tasks).
+    """
+
+    RELATIONS = ("t2p", "p2t", "p2p")
+
+    def __init__(self, embedding_dim: int, hidden_dim: int, edge_dim: int = 5, dropout_p: float = 0.1) -> None:
+        super().__init__()
+
+        def mlp(n_in: int) -> nn.Sequential:
+            return nn.Sequential(
+                nn.Linear(n_in, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout_p),
+                nn.Linear(hidden_dim, embedding_dim),
+            )
+
+        self.message_mlps = nn.ModuleDict({r: mlp(embedding_dim + edge_dim) for r in self.RELATIONS})
+        self.update_task = mlp(2 * embedding_dim)
+        self.update_platform = mlp(2 * embedding_dim)
+
+    def forward(self, x: Tensor, edge_index: Tensor, edge_attr: Tensor, n_tasks: int) -> Tensor:
+        src, dst = edge_index[0], edge_index[1]
+        src_task, dst_task = src < n_tasks, dst < n_tasks
+        masks = {"t2p": src_task & ~dst_task, "p2t": ~src_task & dst_task, "p2p": ~src_task & ~dst_task}
+        if bool((src_task & dst_task).any()):
+            raise ValueError("FAIL LOUD: task->task edges reached the bipartite stack (PeerConv owns them)")
+        out = torch.zeros_like(x)
+        for rel, mask in masks.items():
+            if not bool(mask.any()):
+                continue
+            s, d = src[mask], dst[mask]
+            msg = self.message_mlps[rel](torch.cat([x[s], edge_attr[mask]], dim=-1))
+            agg = torch.zeros_like(x).index_add_(0, d, msg)
+            cnt = torch.zeros(x.size(0), device=x.device, dtype=x.dtype).index_add_(
+                0, d, torch.ones_like(d, dtype=x.dtype))
+            out = out + agg / cnt.clamp(min=1.0).unsqueeze(-1)
+        h_task = self.update_task(torch.cat([x[:n_tasks], out[:n_tasks]], dim=-1))
+        h_plat = self.update_platform(torch.cat([x[n_tasks:], out[n_tasks:]], dim=-1))
+        return torch.cat([h_task, h_plat], dim=0)
+
+
 class BipartiteEdgeConv(MessagePassing):
     """bipartite_edge_v1: edge-attribute-aware message passing over the task<->platform edges.
 
@@ -334,6 +382,7 @@ class TaskPlacementGNN(nn.Module):
         mp_bipartite_edge_conv: Optional[bool] = None,
         mp_bipartite_edge_attr_zero: Optional[bool] = None,
         mp_bipartite_aggr: Optional[str] = None,
+        mp_bipartite_hetero: Optional[bool] = None,
         plan_raw: Optional[bool] = None,
         plan_raw_sum: Optional[bool] = None,
         plan_raw_local: Optional[bool] = None,
@@ -497,6 +546,17 @@ class TaskPlacementGNN(nn.Module):
                 "without mp_bipartite_edge_conv=True -- the GIN has its own aggregation and "
                 "this flag would silently describe a model it does not affect."
             )
+        # hetero_conv_v1: per-relation / per-node-type weights in the bipartite stack
+        # (HeteroBipartiteEdgeConv). Weight-visible (message_mlps.*, update_task/update_platform).
+        self.mp_bipartite_hetero = (
+            _env_flag("GNN_MP_BIPARTITE_HETERO") if mp_bipartite_hetero is None else bool(mp_bipartite_hetero)
+        )
+        if self.mp_bipartite_hetero and not self.mp_bipartite_edge_conv:
+            raise ValueError("FAIL LOUD: mp_bipartite_hetero replaces the bipartite edge conv; it needs "
+                             "mp_bipartite_edge_conv=True")
+        if self.mp_bipartite_hetero and self.mp_bipartite_aggr != "mean":
+            raise ValueError("FAIL LOUD: mp_bipartite_hetero aggregates by mean per relation; "
+                             f"mp_bipartite_aggr={self.mp_bipartite_aggr!r} would describe a model it does not run")
         if self.mp_bipartite_edge_attr_zero and not self.mp_bipartite_edge_conv:
             raise ValueError(
                 "FAIL LOUD: mp_bipartite_edge_attr_zero=True is meaningless without "
@@ -548,12 +608,19 @@ class TaskPlacementGNN(nn.Module):
                     "the bipartite stage is skipped entirely, so the conv would be "
                     "constructed and never run (that is the peeronly arm)."
                 )
-            self.bip_convs = nn.ModuleList(
-                BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim + self._plan_raw_conv_extra,
-                                  dropout_p=dropout,
-                                  aggr=self.mp_bipartite_aggr)
-                for _ in range(num_layers)
-            )
+            if self.mp_bipartite_hetero:
+                self.bip_convs = nn.ModuleList(
+                    HeteroBipartiteEdgeConv(embedding_dim, hidden_dim,
+                                            edge_dim=edge_dim + self._plan_raw_conv_extra, dropout_p=dropout)
+                    for _ in range(num_layers)
+                )
+            else:
+                self.bip_convs = nn.ModuleList(
+                    BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim + self._plan_raw_conv_extra,
+                                      dropout_p=dropout,
+                                      aggr=self.mp_bipartite_aggr)
+                    for _ in range(num_layers)
+                )
         if self.mp_peer_edges:
             if self.task_type_onehot_dim <= 0:
                 raise ValueError("FAIL LOUD: mp_peer_edges=True requires task_type_onehot_dim > 0")
@@ -786,7 +853,7 @@ class TaskPlacementGNN(nn.Module):
                         ea = torch.cat([ea, node_ea], dim=0)
                 h = x0
                 for conv in self.bip_convs:
-                    h = conv(h, mp_edge_index, ea)
+                    h = conv(h, mp_edge_index, ea, n_tasks) if self.mp_bipartite_hetero else conv(h, mp_edge_index, ea)
                 h = self.post_gin_dropout(h)
             else:
                 h = self.post_gin_dropout(self.gin(x0, mp_edge_index))

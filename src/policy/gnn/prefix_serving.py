@@ -316,6 +316,8 @@ def load_prefix_conditioned_gnn(
         # bipartite_aggr_v1. Absent means "mean", which is what every bipartite_edge_v1
         # checkpoint was trained with; a sum checkpoint served as mean is a silently wrong arm.
         mp_bipartite_aggr=str(sidecar.get("mp_bipartite_aggr") or "mean"),
+        # hetero_conv_v1: weight-visible, so a mismatch also fails the strict load below.
+        mp_bipartite_hetero=bool(sidecar.get("mp_bipartite_hetero", False)),
         task_type_onehot_dim=onehot_dim,
         partial_state_edge_dim=partial_dim,
         plan_raw=plan_raw,
