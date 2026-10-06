@@ -30,6 +30,13 @@ CD, Knative, locality-first, one-pass greedy, self-predict (`client_local_v1/gat
 (`client_local_v1/inputs_so_server`). Disclosure: these topologies have been read several times before, and the
 zero-shot result above was seen on these exact cells before this registration.
 
+**Amendment 1 (2026-10-06, before any training of these arms).** Adds the raw-plan pair, where message passing beats
+the same-input MLP (`local_features_v1`; zero-shot on the single-origin cells still −11 / −14 / −22 %, while CD is faster
++21 / +18 / +16 %): `so1lfgnn` and `so1lfmlp`, `local_features_v1_{lf1gnn,lf1mlp}.yaml` with this lineage's cache and split
+(`experiments/small_batch_so_v1_{so1lfgnn,so1lfmlp}.yaml`), 4 seeds, same cells and statistic. Own family, Holm across 6:
+`so1lfgnn` vs {CD, `so1lfmlp`} × rungs; **LF-BEATS-MLP-AND-CD** iff the same ≥ 2 rungs have both CONFIRMED and no
+reference is Holm-confirmed faster anywhere, else **NO-WIN** (INCOMPLETE as below). The primary verdict is unchanged.
+
 **Statistic.** Per topology, the median paired % over (window, seed); learned arms pair on the seed, rules on their single
 run. Median over the 19 topologies, exact two-sided Wilcoxon over topologies.
 

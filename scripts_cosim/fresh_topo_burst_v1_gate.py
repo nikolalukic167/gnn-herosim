@@ -108,7 +108,7 @@ AGG_KINDS = ("sb1sum", "lf1sum")
 # hetero_conv_v1: lf1gnn's recipe with per-relation / per-node-type bipartite weights (twin: lf1twin's existing runs)
 HET_KINDS = ("lf1het",)
 # small_batch_so_v1: sb1load / sb1mpoff's recipes retrained on the single-origin corpus
-SO1_KINDS = ("so1load", "so1mpoff")
+SO1_KINDS = ("so1load", "so1mpoff", "so1lfgnn", "so1lfmlp")  # so1lf*: lf1gnn / lf1mlp recipes (Amendment 1)
 BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
@@ -243,7 +243,10 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         smoke = os.environ.get("SO1_SMOKE", "")
         if smoke:
             return [task(topos[0], "g0x30", f"{smoke}_selfref", 1)]
-        return [task(t, w, f"{k}_selfref", s) for k in SO1_KINDS for s in (1, 2, 3, 4) for t in topos for w in tuple(GROUNDED_LADDER)]
+        kinds = os.environ.get("SO1_KINDS_RUN", "so1load,so1mpoff").split(",")
+        if not kinds or any(k not in SO1_KINDS for k in kinds):
+            raise SystemExit(f"FAIL LOUD: SO1_KINDS_RUN={kinds!r}; kinds are {SO1_KINDS}")
+        return [task(t, w, f"{k}_selfref", s) for k in kinds for s in (1, 2, 3, 4) for t in topos for w in tuple(GROUNDED_LADDER)]
     if phase == "het1":
         # hetero vs plain bipartite convs on the 19 topologies; lf1gnn / lf1twin / lf1mlp are local_features_v1's runs
         smoke = os.environ.get("HET_SMOKE", "")
@@ -484,7 +487,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = f"joint-burst-v2-{base_kind}"
         ck = os.path.join(inputs, "models", f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
-        check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff"}.get(base_kind, base_kind)
+        check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind)
         split = ("small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
@@ -493,7 +496,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
-        if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "so1mpoff", "rawmlp", "rawStwin", "lf1twin", "lf1mlp"):
+        if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "so1mpoff", "so1lfmlp", "rawmlp", "rawStwin", "lf1twin", "lf1mlp"):
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
         if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
