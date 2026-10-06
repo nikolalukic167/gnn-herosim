@@ -115,8 +115,11 @@ def slim_completed_task(task: "Task") -> None:
         task.system_state_snapshot = None
 
 from simpy.core import Environment, SimTime
+from simpy.exceptions import Interrupt
 from simpy.resources.resource import Resource
 from simpy.resources.store import FilterStore, Store
+
+STARVED_RENDEZVOUS = "starved_rendezvous"
 
 from src.placement.model import (
     ApplicationResult,
@@ -1551,8 +1554,20 @@ class Platform:
             # on the task. A fully-planned batch (every co-sim run, every forced replay)
             # yields nothing here, so those stay bit-identical.
             rendezvous_started = self.env.now
-            for peer_ready in self._peer_rendezvous_events(task):
-                yield peer_ready
+            rendezvous = self._peer_rendezvous_events(task)
+            if rendezvous:
+                # A peer can be starved (no replica it may use can be created); then only a drain of this platform
+                # frees one, and that waits on this task: GNN KnativeAutoscaler._release_when_drained plans the
+                # starved peers onto the node its replica will be created on and interrupts this wait.
+                self.rendezvous_task = task
+                try:
+                    for peer_ready in rendezvous:
+                        yield peer_ready
+                except Interrupt as interrupt:
+                    if interrupt.cause != STARVED_RENDEZVOUS:
+                        raise
+                finally:
+                    self.rendezvous_task = None
             if self.env.now > rendezvous_started:
                 task.peer_rendezvous_wait = self.env.now - rendezvous_started
 

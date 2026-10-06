@@ -41,6 +41,7 @@ from src.placement.model import (
 )
 
 from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
+from src.placement.infrastructure import STARVED_RENDEZVOUS
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
     image_pull_disk_hit,
@@ -161,9 +162,40 @@ class KnativeAutoscaler(Autoscaler):
         self.env.process(self._release_when_drained(system_state, other, (node, platform), (name, source_node_name)))
         return None
 
+    def _release_starved_rendezvous(self, replica, key) -> bool:
+        """Break the drain deadlock: the draining platform's task waits (rendezvous) for peers that are themselves the
+        starved type from the starved source, so neither can proceed. Plan those peers onto the drained node, where
+        their replica is created once the platform empties, and resume the wait; the exchange is charged against that
+        node. Only when every unplaced peer is such a starved task; otherwise the wait stays."""
+        node, platform = replica
+        task = getattr(platform, "rendezvous_task", None)
+        orchestrator = getattr(node, "orchestrator_ref", None)
+        if task is None or orchestrator is None:
+            return False
+        unplaced = []
+        for peer_id in sorted((orchestrator.peer_exchange or {}).get(task.id) or {}):
+            peer = orchestrator.task_by_id.get(peer_id)
+            if peer is None:
+                return False
+            if getattr(peer, "platform", None) is not None or getattr(peer, "planned_node_name", None) is not None:
+                continue
+            if peer.type["name"] != key[0] or peer.node_name != key[1]:
+                return False
+            unplaced.append(peer)
+        if not unplaced:
+            return False
+        for peer in unplaced:
+            peer.planned_node_name = node.node_name
+        platform.run.interrupt(STARVED_RENDEZVOUS)
+        self.starved_rendezvous_releases = getattr(self, "starved_rendezvous_releases", 0) + 1
+        print(f"[ {self.env.now} ] rendezvous released: task {task.id} on {platform} planned "
+              f"{[p.id for p in unplaced]} ({key[0]}) onto {node.node_name}")
+        return True
+
     def _release_when_drained(self, system_state, function_name, replica, key) -> Generator:
         platform = replica[1]
         while platform.queue.items or platform.current_task:
+            self._release_starved_rendezvous(replica, key)
             yield self.env.timeout(0.1)
         released = self._release_replica(system_state, function_name, replica, already_removed=True)
         self._draining.discard(key)

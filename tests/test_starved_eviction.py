@@ -84,3 +84,37 @@ def test_drains_the_least_loaded_busy_replica_when_none_is_idle():
     assert lightest in state.available_resources[nodes[1]] and nodes[1].available_memory == 1.0
     assert a.scale_events[-1]["action"] == "down" and not a._draining
     assert a.created == [("dnn2", "client_node2")]
+
+
+def test_drain_releases_a_rendezvous_on_the_starved_peer_and_plans_it_onto_the_drained_node():
+    """The drain deadlock: the draining platform's task waits for a peer that is the starved task itself."""
+    from simpy.exceptions import Interrupt
+    from src.placement.infrastructure import STARVED_RENDEZVOUS
+
+    a, state, nodes = _setup(busy=(0, 1, 2))
+    for _, p in state.replicas["dnn1"]:
+        p.queue.items = [1, 1]
+    node = nodes[1]
+    plat = next(p for n, p in state.replicas["dnn1"] if n is node)
+    plat.queue.items = []
+    waiter = NS(id=7, type=TYPES["dnn1"], node_name="client_node2", platform=plat, planned_node_name=None)
+    starved = NS(id=8, type=TYPES["dnn2"], node_name="client_node2", platform=None, planned_node_name=None)
+    node.orchestrator_ref = NS(peer_exchange={7: {8: 1e6}}, task_by_id={7: waiter, 8: starved})
+    log = []
+
+    def worker():
+        plat.current_task, plat.rendezvous_task = waiter, waiter
+        try:
+            yield a.env.event()  # the starved peer is never scheduled
+        except Interrupt as i:
+            log.append(i.cause)
+        plat.rendezvous_task = None
+        yield a.env.timeout(0.5)
+        plat.current_task = None
+
+    plat.run = a.env.process(worker())
+    a.env.run(until=0.01)
+    assert a.evict_idle_for(state, TYPES["dnn2"], "client_node2") is None
+    a.env.run(until=3.0)
+    assert log == [STARVED_RENDEZVOUS] and starved.planned_node_name == node.node_name
+    assert plat in state.available_resources[node] and a.created == [("dnn2", "client_node2")]
