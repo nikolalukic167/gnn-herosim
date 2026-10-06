@@ -7,6 +7,9 @@
 #
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/small_batch_v1_corpus.sbatch
 #
+# Reused by small_batch_so_v1: CORPUS (output tree and dataset names) and WLDIR (the workloads the capture replayed, read
+# here as --trace). Defaults = small_batch_v1.
+#
 #SBATCH --job-name=sb1-corpus
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/sb1-corpus-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/sb1-corpus-%A_%a.err
@@ -43,11 +46,13 @@ SEED=${SEEDS[$T]}
 for WI in 0 1 2 3; do
 WINDOW=${WINDOWS[$WI]}
 CELL="cc40s${SEED}"
-SB=simulation_data/small_batch_v1
-if (( SEED >= 9222 )); then OUT=$SB/gnn_datasets_small_batch_v1_heldout; else OUT=$SB/gnn_datasets_small_batch_v1_train; fi
+CORPUS=${CORPUS:-small_batch_v1}
+SB=simulation_data/$CORPUS
+if (( SEED >= 9222 )); then OUT=$SB/gnn_datasets_${CORPUS}_heldout; else OUT=$SB/gnn_datasets_${CORPUS}_train; fi
 START=$(( (T * 4 + WI) * 200 )); LIMIT=${LIMIT:-90}; TARGET=${TARGET:-20000}; WORKERS=$(( SLURM_CPUS_PER_TASK - 1 ))
 G=/home/nikola.lukic/gnn-herosim/simulation_data/peer_affinity_live_gate
-TRACE=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/inputs/grounded/wl/grounded_${WINDOW}_n50000.json
+WLDIR=${WLDIR:-/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/inputs/grounded/wl}
+TRACE=$WLDIR/grounded_${WINDOW}_n50000.json
 CFG=$G/configs/${CELL}.json
 SNAP=$SB/snapshots/${CELL}_${WINDOW}.jsonl
 RUNGS="${RUNGS:-0 3 8 20}"; BUSY="${BUSY:-0.5}"; TASKSEC="${TASKSEC:-4.5}"; BSEED=7001

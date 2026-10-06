@@ -36,6 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**small_batch_so_v1**](docs/lineages/small_batch_so_v1.md) | `REGISTERED` | Retrain `sb1load` and its MP-OFF twin on single-origin groups (zero-shot it no longer beats CD there: +12 / +4 / −7 %) and re-test vs CD on the 19 topologies. |
 | [**hetero_conv_v1**](docs/lineages/hetero_conv_v1.md) | `REGISTERED` | Raw-plan GNN (`lf1gnn`) with per-relation / per-node-type weights in its bipartite convs, vs its MP-OFF twin, plain `lf1gnn` and CD on the 19 topologies. |
 | [**client_local_v1**](docs/lineages/client_local_v1.md) | `ACTIVE` | Client execution untested so far: only 2–7 of 20 clients can host a replica, so local-first equals Knative. Found: 97 % of grounded peer groups span clients (trace: one origin per request); single-origin rerun in flight. |
 | [**live_headroom_v1**](docs/lineages/live_headroom_v1.md) | `REGISTERED` | Offline single-batch headroom of CD on the live states it produces at ×2/×3/×5 (exhaustive sweep, no synthetic backlog): is the environment closed for any learned model? |
