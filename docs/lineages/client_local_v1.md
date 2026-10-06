@@ -1,7 +1,7 @@
 # client_local_v1 — may a call run on its own client, and does the origin model matter?
 
 **Status:** `ACTIVE` (2026-10-05) — part A (rules) read on all seven rules and found not to test local execution;
-part A2 (learned arms zero-shot) queued; part B (single-origin groups) running. Exploratory: no bars were registered before the runs.
+part A2 (learned arms zero-shot) read; part B (single-origin groups) blocked by an autoscaler starvation. Exploratory: no bars were registered before the runs.
 
 **Outcome so far.** Part A **did not test local execution**: only **2–7 of the 20 issuing clients ever host a
 replica** (the rest have no hardware that runs `dnn1`/`dnn2`), and those few are scaled down like any replica. The
@@ -48,6 +48,22 @@ rewrite: `scripts_cosim/client_local_v1_single_origin.py`. Reader: `scripts_cosi
 
 ## Record
 
+- 2026-10-06 — **Part A2 read: learned arms zero-shot on the client-enabled cells** (seeds 1–4, 910–912 / 912 runs
+  each; same caveat as part A — clients barely host replicas, so this tests serving, not local execution). Median paired
+  % over 19 topologies, ×2 / ×3 / ×5, exact Wilcoxon unadjusted. Vs client-enabled CD: `sb1load` −10.1 / −31.9 / −20.4 %
+  (18–19 / 19), `sb1mpoff` −9.6 / −31.2 / −16.7 %, `lf1gnn` +14.3 / +35.7 / +8.9 %, `lf1mlp` +33.2 / +86.2 / +35.7 %.
+  Vs client-enabled Knative: `sb1load` −41.6 / −85.9 / −39.0 %, `lf1gnn` −25.1 / −51.8 / −19.8 %, `lf1mlp` −14.3 / −24.4 /
+  −2.8 % (×5 not separated). GNN vs twin: `lf1gnn` vs `lf1mlp` −12.3 / −30.7 / −18.4 % (18–19 / 19); `sb1load` vs
+  `sb1mpoff` −0.6 / −2.4 / −0.6 % (not a message-passing win, as server-only). Vs each arm's own server-only runs: within
+  −2 to +4 %. Local share 0.1–1.5 %. The server-only rankings carry over unchanged.
+- 2026-10-06 — **Hang cause found and partly fixed** (`src/policy/gnn/scheduler.py`, 7b2098d2): a deferred task went
+  straight back into the queue and the batch collector took it again at the same instant, so when no replica could be
+  created the batch rules (CD, locality, one-pass greedy, GNNs) looped forever with the clock frozen. After 50 deferrals
+  of one task at one instant it now waits 1 s (`HEROSIM_DEFER_RETRY_S`). Verified: 47 / 47 completed CD and locality runs
+  replay to the digit; the old 9538 g2 ×2 CD hang completes; 4 of 7 single-origin 9491 CD hangs complete. The other 3
+  are a real starvation: a new replica needs a platform hosting no replica and nothing evicts one, so under single
+  origin `dnn1` replicas hold every `dnn2`-capable platform client 2 reaches and its `dnn2` tasks never run. Part B's
+  server-only half lost 96–108 runs each of CD, locality and one-pass greedy to timeouts; not readable until resolved.
 - 2026-10-05 — **Part A read, all seven rules (gate 828478 + local-first rerun 828629); it does not test local
   execution.** Local-first ran 1.42 / 0.39 / 0.13 % of calls locally, the same as Knative (1.41 / 0.35 / 0.11 %), and
   its paired % vs client-enabled CD equals Knative's at ×2 (+56.27 %) and ×3 (+290.81 %); at ×5 +37.7 vs +34.5 %.
