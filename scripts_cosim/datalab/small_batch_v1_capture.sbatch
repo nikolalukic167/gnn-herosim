@@ -5,6 +5,9 @@
 #
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/small_batch_v1_capture.sbatch
 #
+# Reused by small_batch_so_v1 (single-origin workloads): CORPUS names the output tree simulation_data/$CORPUS, WLDIR the
+# workload directory, HEROSIM_RAW_DIR (node-local) takes the ~250 MB raw results off the home quota. Defaults = small_batch_v1.
+#
 #SBATCH --job-name=sb1-capture
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/sb1-capture-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/sb1-capture-%A_%a.err
@@ -30,8 +33,11 @@ export CUDA_VISIBLE_DEVICES=""
 echo "[CODE] $(git describe --dirty --always) at $WT"
 
 GATE=/home/nikola.lukic/gnn-herosim/simulation_data/peer_affinity_live_gate
-WLDIR=/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/inputs/grounded/wl
-SB=simulation_data/small_batch_v1
+WLDIR=${WLDIR:-/home/nikola.lukic/gnn-herosim/simulation_data/backlog_corpus_v1/gates/inputs/grounded/wl}
+CORPUS=${CORPUS:-small_batch_v1}
+SB=simulation_data/$CORPUS
+RAWDIR=${HEROSIM_RAW_DIR:-$SB/capture_summaries}; mkdir -p "$RAWDIR"
+echo "[CORPUS] $CORPUS  workloads $WLDIR  raw $RAWDIR"
 mkdir -p "$SB/snapshots" "$SB/capture_summaries"
 SEEDS=($(seq 9201 9224))
 T=${SLURM_ARRAY_TASK_ID}
@@ -55,7 +61,7 @@ unset GNN_MODEL_PATH GNN_DISABLE_MESSAGE_PASSING || true
 export LIVE_AUDIT_SNAPSHOT_PATH="$SNAP" LIVE_AUDIT_STRIDE=31 LIVE_AUDIT_MAX_SNAPSHOTS=300
 export LIVE_AUDIT_MIN_BATCH_SIZE=2 LIVE_AUDIT_MIN_CANDIDATES=1
 rm -f "$SNAP"
-RAW="$SB/capture_summaries/${CELL}_${WINDOW}.raw.json"
+RAW="$RAWDIR/${CELL}_${WINDOW}.raw.json"
 python3 src/executesimulation.py --config "$CFG" --workload "$WORKLOAD" --policy peer_greedy_network_batch --output "$RAW"
 python3 - "$RAW" "$SUMMARY" "$SNAP" "$CELL" "$WINDOW" <<'PY'
 import json, sys

@@ -4,6 +4,7 @@
 # drain table) with the label's backlog term on the SEEDED clock, so B_p is the backlog the co-sim
 # replayed. Then the near-RTT sidecar, the candidate guard, a cell-grouped split, and the audit
 # against the joint_burst_v2 twins.
+# Reused by small_batch_so_v1: CORPUS names the corpus, cache, split and quarantine (default small_batch_v1).
 #SBATCH --job-name=sb1-cache
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/sb1-cache-%j.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/sb1-cache-%j.err
@@ -29,11 +30,12 @@ export NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded
 echo "[CODE] $(git describe --dirty --always) at $WT"
 [[ -z "$(git status --porcelain -- src scripts_cosim | grep -v '^??' || true)" ]] || { echo "FAIL LOUD: worktree dirty" >&2; exit 1; }
 # dataset ids are relative to simulation_data/, so the two corpora are linked at its top level
-for c in train heldout; do ln -sfn small_batch_v1/gnn_datasets_small_batch_v1_$c simulation_data/gnn_datasets_small_batch_v1_$c; done
-TRAIN=simulation_data/gnn_datasets_small_batch_v1_train
-TEST=simulation_data/gnn_datasets_small_batch_v1_heldout
-CACHE=simulation_data/graphs_cache_small_batch_v1_psv4_inf
-SPLIT=experiments/small_batch_v1_split.json
+CORPUS=${CORPUS:-small_batch_v1}
+for c in train heldout; do ln -sfn $CORPUS/gnn_datasets_${CORPUS}_$c simulation_data/gnn_datasets_${CORPUS}_$c; done
+TRAIN=simulation_data/gnn_datasets_${CORPUS}_train
+TEST=simulation_data/gnn_datasets_${CORPUS}_heldout
+CACHE=simulation_data/graphs_cache_${CORPUS}_psv4_inf
+SPLIT=experiments/${CORPUS}_split.json
 DRAIN=simulation_data/drainable_objective_v1/drain_table.json
 RATE=0.46
 [[ -f "$SPLIT" ]] && { echo "FAIL LOUD: $SPLIT exists -- a split is frozen once runs depend on it"; exit 1; }
@@ -70,7 +72,7 @@ build_cache
 # backlog_corpus_v1 Amendment 2: a group whose candidates all sit on one node has peer_norm 0, and the v3/v4 prefix block
 # refuses it at train time. Small batches make this common, so those datasets move to a quarantine directory (listed, not
 # deleted) and the cache is rebuilt without them.
-python3 - "$CACHE" simulation_data/small_batch_v1/quarantine_single_node <<'PY'
+python3 - "$CACHE" simulation_data/$CORPUS/quarantine_single_node <<'PY'
 import os, pickle, shutil, sys
 cache, q = sys.argv[1:3]
 graphs = pickle.load(open(cache + "/graphs.pkl", "rb")); ids = pickle.load(open(cache + "/dataset_ids.pkl", "rb"))
@@ -106,10 +108,10 @@ echo "=== [3/5] near-RTT sidecar"
 python3 -u src/notebooks/prepare_graphs_cache_near_rtt.py --cache-dir "$CACHE" --skip-cache-build 2>&1 | grep -v "it/s\]" | tail -4
 [[ -f "$CACHE/valid_combos_near_rtt_capped.pkl" ]] || { echo "FAIL LOUD: no near-RTT sidecar"; exit 1; }
 echo "=== [4/5] candidate-not-in-sweep guard"
-python3 -u scripts_cosim/peer_only_v1_candidate_check.py --cache "$CACHE" --out simulation_data/small_batch_v1/candidate_check.json
+python3 -u scripts_cosim/peer_only_v1_candidate_check.py --cache "$CACHE" --out simulation_data/$CORPUS/candidate_check.json
 echo "=== [5/5] split artifact: held-out cells 9223/9224 = test, val = whole training cells"
 python3 scripts_cosim/make_peer_affinity_t1_split.py --cache-dir "$CACHE" \
-  --heldout-corpus "gnn_datasets_small_batch_v1_heldout" --val-group-by cell --val-cells 9207 9208 9209 --output "$SPLIT"
+  --heldout-corpus "gnn_datasets_${CORPUS}_heldout" --val-group-by cell --val-cells 9207 9208 9209 --output "$SPLIT"
 sha256sum "$SPLIT"
 du -sh "$CACHE" "$TRAIN" "$TEST"
 echo "=== cache done: rsync $SPLIT back and commit it before any training ==="
