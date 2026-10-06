@@ -1,0 +1,44 @@
+# small_batch_so_v1 -- so1load: small_batch_v1_sb1load.yaml with the single-origin cache and split (docs/lineages/small_batch_so_v1.md).
+# small_batch_v1 -- exchange_seconds_v1 xs1load recipe verbatim on the live-sized-batch corpus
+# (docs/lineages/small_batch_v1.md): same synthetic backlog, labels, partial_state_v4 block and full-context CE; only the
+# batches differ (whole peer groups of the grounded workload, 2..~12 tasks, instead of aligned 10-task groups).
+trainer: gnn
+lineage: small_batch_so_v1
+cache_dir: simulation_data/graphs_cache_small_batch_so_v1_psv4_inf
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/small_batch_so_v1_split.json
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v4
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.002
+wandb:
+  project: gnn-peer-affinity-v1
+  run_name: small-batch-so-v1-so1load
+  tags:
+  - small-batch-v1
+  - partial-state-v4
+  - sb1load
+  - lr2e3
