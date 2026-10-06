@@ -1,0 +1,11 @@
+trainer: dispatch_value
+lineage: mixed_dispatch_value_v1
+cache_dir: simulation_data/gnn_environment_search_v1/mixed_dispatch_value_corpus
+args:
+  arm: gnn
+  epochs: 30
+  output-dir: simulation_data/gnn_environment_search_v1/mixed_dispatch_value_models
+path_args: [output-dir]
+wandb:
+  project: herosim-dispatch-value
+  run_name: mixed-dispatch-value-v1-gnn

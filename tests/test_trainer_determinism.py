@@ -102,7 +102,7 @@ def _run_trainer(args, env_extra: Dict[str, str], cwd: Path = REPO_ROOT) -> None
     )
     env.update(env_extra)
     result = subprocess.run(
-        [sys.executable, *args], cwd=str(cwd), env=env, capture_output=True, text=True
+        [sys.executable, *args], cwd=str(cwd), env=env, capture_output=True, text=True, timeout=120
     )
     if result.returncode != 0:
         raise AssertionError(
@@ -171,6 +171,8 @@ def test_mlp_partial_state_flag_refuses_contractless_cache(tmp_path):
         "src/policy/tabular/train_mlp_ce_reduced.py",
         "src/policy/tabular/train_mlp_dim22_from_seq.py",
         "src/policy/tabular/train_mlp_dim22_from_batch.py",
+        "src/policy/workflow/train.py",
+        "src/policy/residency/train.py",
     ],
 )
 def test_every_mlp_trainer_seeds_torch(trainer):
@@ -202,6 +204,8 @@ def test_every_mlp_trainer_seeds_torch(trainer):
         "src/notebooks/train.py",
         "src/notebooks/train_ram.py",
         "src/notebooks/train_seq.py",
+        "src/policy/workflow/train.py",
+        "src/policy/residency/train.py",
     ],
 )
 def test_every_gnn_trainer_pins_deterministic_algorithms(trainer):
@@ -415,6 +419,8 @@ def _run_a1_via_run_experiment(
     cfg["cache_dir"] = "simulation_data/graphs_cache_route_b_smoke_s_dag"
     cfg["env"].pop("NEAR_RTT_SPLIT_ARTIFACT", None)
     cfg["args"]["epochs"] = 1
+    # This twelve-graph in-process cache needs no forked workers; fork-after-Torch can hang.
+    cfg["args"]["num-dataloader-workers"] = 0
     cfg.pop("wandb", None)  # WANDB_MODE=disabled (via _run_trainer's env) makes this moot
     config_path = tmp_path / "a1_smoke.yaml"
     config_path.write_text(yaml.dump(cfg))
@@ -424,16 +430,13 @@ def _run_a1_via_run_experiment(
     # train_near_rtt.py writes to Path("models") relative to CWD — run from tmp_path so
     # parallel test runs / repeated seeds never collide with real checkpoints.
     _run_trainer(
-        ["run_experiment.py", str(config_path), "--seed", str(seed)],
-        dict(env_extra or {}),
-        cwd=REPO_ROOT,
+        [str(REPO_ROOT / "run_experiment.py"), str(config_path), "--seed", str(seed)],
+        {"WANDB_CACHE_DIR": str(tmp_path / "wandb-cache"), "WANDB_DATA_DIR": str(tmp_path / "wandb-data"), **(env_extra or {})},
+        cwd=tmp_path,
     )
-    # The trainer writes models/{wandb.run.name}.pt relative to REPO_ROOT since we ran
-    # with cwd=REPO_ROOT; wandb.run.name falls back to a random wandb-generated name when
-    # WANDB_MODE=disabled and no run_name is set, so locate the newest checkpoint instead
-    # of guessing the name.
+    # Disabled W&B supplies a random run name; inspect only this test's isolated directory.
     candidates = sorted(
-        (REPO_ROOT / "models").glob("*.pt"),
+        models_dir.glob("*.pt"),
         key=lambda p: p.stat().st_mtime,
     )
     assert candidates, "no checkpoint written under models/"
@@ -514,3 +517,184 @@ def test_label_objective_env_does_not_break_determinism(tmp_path):
     assert set(first) == set(second)
     for key in first:
         assert torch.equal(first[key], second[key]), f"{key} differs between runs"
+
+@pytest.mark.parametrize('arm', ['gnn', 'mpoff', 'mlp_hand'])
+def test_workflow_trainer_same_seed_same_weights(arm):
+    from src.policy.workflow.train import seed_everything, train_epoch
+    from src.policy.workflow.model import features, WorkflowAssignmentNet
+    from src.placement.workflow_planning import instance, rollout, initial
+    import numpy as np
+    xs=[];es=[];ys=[]
+    for seed in (71,72,73,74):
+        p=instance(seed,jobs=2,ops=3,machines=3);x,e=features(p,arm=='mlp_hand');labels=np.zeros((2,3),dtype=np.int64)
+        for j,k,h in rollout(initial(p),p)[3]:labels[j,k]=h
+        xs.append(x);es.append(e);ys.append(labels)
+    x=torch.tensor(np.stack(xs));e=torch.tensor(np.stack(es));y=torch.tensor(np.stack(ys));runs=[]
+    for _ in range(2):
+        seed_everything(SEED)
+        model=WorkflowAssignmentNet(x.shape[-1],machines=3,hidden=16,layers=2,mp=arm=='gnn')
+        opt=torch.optim.AdamW(model.parameters(),lr=.001)
+        generator=torch.Generator().manual_seed(SEED)
+        for epoch in range(3):train_epoch(model,opt,x,e,y,2,generator)
+        runs.append({k:v.detach().clone() for k,v in model.state_dict().items()})
+    _assert_state_dicts_identical(runs[0],runs[1],f'workflow {arm}')
+
+@pytest.mark.parametrize('arm',['gnn','mpoff','mlp_hand'])
+def test_mixed_trainer_same_seed_same_weights(arm,tmp_path):
+    import numpy as np
+    from src.policy.mixed.train import train_epoch,seed_everything
+    from src.policy.mixed.model import MixedNet,features
+    from src.placement.radical.environment import problem,initial
+    from src.placement.radical.mixed import MixedNative
+    engine=MixedNative(tmp_path/'build');problems=[problem(s,jobs=2,ops=3) for s in (31,32,33,34)];data=[features(b,arm=='mlp_hand') for b in problems];x=torch.tensor(np.stack([r[0] for r in data]));e=torch.tensor(np.stack([r[1] for r in data]));adj=torch.tensor(np.stack([r[2] for r in data]));y=torch.tensor(np.stack([initial(b,'fastest').ravel() for b in problems]));states=[]
+    for _ in range(2):
+        seed_everything(SEED);model=MixedNet(x.shape[-1],hidden=8,layers=2,mp=arm=='gnn');opt=torch.optim.AdamW(model.parameters(),lr=.001);generator=torch.Generator().manual_seed(SEED)
+        for policy_gradient in (False,True):train_epoch(model,opt,x,e,adj,y,problems,engine,2,generator,policy_gradient)
+        states.append({k:v.detach().clone() for k,v in model.state_dict().items()})
+    _assert_state_dicts_identical(states[0],states[1],f'mixed {arm}')
+
+@pytest.mark.parametrize('arm',['gnn','mpoff','mlp_hand'])
+def test_pair_selector_trainer_is_deterministic(arm):
+    import numpy as np
+    from src.placement.radical.environment import problem,initial
+    from src.policy.pair_selector.model import PairNet,features
+    from src.policy.pair_selector.train import train_epoch
+    from src.policy.workflow.train import seed_everything
+    torch.set_num_threads(1)
+    b=problem(17,jobs=3,ops=3)
+    x,adj,pair=features(b,initial(b,'affinity'),np.zeros((3,3)),arm=='mlp_hand')
+    x=torch.from_numpy(x)[None];adj=torch.from_numpy(adj)[None];pair=torch.from_numpy(pair)[None]
+    costs=torch.arange(37).float()[None]+100.;states=[]
+    for _ in range(2):
+        seed_everything(SEED);model=PairNet(x.shape[-1],nodes=9,mp=arm=='gnn')
+        opt=torch.optim.AdamW(model.parameters(),lr=.001)
+        for _ in range(2):train_epoch(model,opt,x,adj,pair,costs,torch.Generator().manual_seed(SEED))
+        states.append({k:v.clone() for k,v in model.state_dict().items()})
+    _assert_state_dicts_identical(*states,'pair-selector-'+arm)
+
+
+@pytest.mark.parametrize('arm', ['gnn', 'mpoff', 'mlp_hand'])
+def test_dispatch_priority_trainer_is_deterministic(arm):
+    import numpy as np
+    from src.placement.radical.environment import initial, problem
+    from src.policy.dispatch_priority.model import PriorityNet, features
+    from src.policy.dispatch_priority.train import train_epoch
+    from src.policy.workflow.train import seed_everything
+
+    torch.set_num_threads(1)
+    physical = problem(29, jobs=3, ops=3)
+    x, adjacency = features(physical, initial(physical, 'affinity'), arm == 'mlp_hand')
+    x = torch.from_numpy(x)[None]
+    adjacency = torch.from_numpy(adjacency)[None]
+    target = torch.arange(9).float()[None] / 8
+    states = []
+    for _ in range(2):
+        seed_everything(SEED)
+        model = PriorityNet(x.shape[-1], hidden=8, layers=2, mp=arm == 'gnn')
+        optimizer = torch.optim.AdamW(model.parameters(), lr=.001)
+        generator = torch.Generator().manual_seed(SEED)
+        for _ in range(2):
+            train_epoch(model, optimizer, x, adjacency, target, generator)
+        states.append({key: value.clone() for key, value in model.state_dict().items()})
+    _assert_state_dicts_identical(*states, 'dispatch-priority-' + arm)
+
+
+@pytest.mark.parametrize('arm', ['gnn', 'mpoff', 'mlp_hand'])
+def test_dispatch_state_trainer_is_deterministic(arm):
+    import numpy as np
+    from src.placement.radical.dispatch_state import trace_priority
+    from src.placement.radical.environment import initial, problem
+    from src.policy.dispatch_priority.model import features
+    from src.policy.dispatch_state.model import ReadySetNet
+    from src.policy.dispatch_state.train import train_epoch
+    from src.policy.workflow.train import seed_everything
+
+    physical = problem(39, jobs=3, ops=3)
+    assignment = initial(physical, 'affinity')
+    x, adjacency = features(physical, assignment, arm == 'mlp_hand')
+    priority = np.arange(assignment.size).reshape(assignment.shape)
+    _, rows = trace_priority(physical, assignment, priority)
+    tensors = [torch.from_numpy(value)[None] for value in
+               (x, adjacency, np.stack([row['dynamic'] for row in rows]),
+                np.stack([row['feasible'] for row in rows]),
+                np.asarray([row['target'] for row in rows]))]
+    states = []
+    for _ in range(2):
+        seed_everything(SEED)
+        model = ReadySetNet(x.shape[-1], hidden=8, layers=2, mp=arm == 'gnn')
+        optimizer = torch.optim.AdamW(model.parameters(), lr=.001)
+        generator = torch.Generator().manual_seed(SEED)
+        for _ in range(2):
+            train_epoch(model, optimizer, tensors, generator)
+        states.append({key: value.clone() for key, value in model.state_dict().items()})
+    _assert_state_dicts_identical(*states, 'dispatch-state-' + arm)
+
+
+@pytest.mark.parametrize('arm', ['gnn', 'mpoff', 'mlp_hand'])
+def test_dispatch_value_trainer_is_deterministic(arm):
+    from src.policy.dispatch_value.model import ReadySetNet
+    from src.policy.dispatch_value.train import train_epoch
+    from src.policy.workflow.train import seed_everything
+
+    torch.manual_seed(SEED)
+    x = torch.randn(3, 6, 5)
+    adjacency = torch.randn(3, 4, 6, 6)
+    dynamic = torch.randn(3, 4, 6, 13)
+    feasible = torch.zeros(3, 4, 6, dtype=torch.bool)
+    feasible[..., :3] = True
+    costs = torch.full((3, 4, 6), float('nan'))
+    costs[..., :3] = torch.tensor([10.0, 12.0, 15.0])
+    rule = torch.full((3,), 15.0)
+    tensors = [x, adjacency, dynamic, feasible, costs, rule]
+    states = []
+    for _ in range(2):
+        seed_everything(SEED)
+        model = ReadySetNet(5, hidden=8, layers=2, mp=arm == 'gnn')
+        optimizer = torch.optim.AdamW(model.parameters(), lr=.001)
+        generator = torch.Generator().manual_seed(SEED)
+        for _ in range(2):
+            train_epoch(model, optimizer, tensors, generator)
+        states.append({key: value.clone() for key, value in model.state_dict().items()})
+    _assert_state_dicts_identical(*states, 'dispatch-value-' + arm)
+
+
+@pytest.mark.parametrize('arm', ['gnn', 'mpoff', 'hand_mlp'])
+def test_dag_memory_trainer_is_deterministic(arm):
+    from src.policy.dag_memory.model import MemoryValueNet
+    from src.policy.dag_memory.train import seed_everything, train_epoch
+
+    torch.manual_seed(SEED)
+    tensors = {'x': torch.randn(3, 8, 12),
+               'graph': torch.randn(3, 4, 8, 8),
+               'mask': torch.ones(3, 8),
+               'target': torch.randn(3, 8)}
+    states = []
+    for _ in range(2):
+        seed_everything(SEED)
+        model = MemoryValueNet(12, hidden=8, layers=2, arm=arm)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=.001)
+        generator = torch.Generator().manual_seed(SEED)
+        for _ in range(2):
+            train_epoch(model, optimizer, tensors, generator, 2)
+        states.append({key: value.detach().clone() for key, value in model.state_dict().items()})
+    _assert_state_dicts_identical(*states, 'dag-memory-' + arm)
+
+
+@pytest.mark.parametrize('arm', ['gnn', 'mpoff', 'hand_mlp'])
+def test_residency_trainer_is_deterministic(arm):
+    from src.policy.residency.model import ResidencyNet
+    from src.policy.residency.train import seed_everything, train_epoch
+
+    torch.manual_seed(SEED)
+    x = torch.randn(9, 8, 3, 20)
+    q = torch.rand(9, 3)
+    states = []
+    for _ in range(2):
+        seed_everything(SEED)
+        model = ResidencyNet(arm=arm, hidden=8, layers=2)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=.001)
+        generator = torch.Generator().manual_seed(SEED)
+        for _ in range(2):
+            train_epoch(model, optimizer, x, q, generator, batch_size=3)
+        states.append({key: value.detach().clone() for key, value in model.state_dict().items()})
+    _assert_state_dicts_identical(*states, 'residency-' + arm)

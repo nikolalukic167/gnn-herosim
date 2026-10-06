@@ -1,0 +1,21 @@
+trainer: dag_reservation
+lineage: dag_reservation_learning_v1
+cache_dir: simulation_data/gnn_environment_search_v1/dag_reservation_learning_smoke_v1
+args:
+  wandb-mode: offline
+  arm: gnn
+  epochs: 2
+  batch-size: 2
+  hidden: 32
+  layers: 2
+  learning-rate: 0.001
+  device: cpu
+  output-dir: models/dag_reservation_learning_smoke_v1
+path_args:
+- output-dir
+wandb:
+  project: herosim-dag-reservation
+  run_name: dag-reservation-learning-smoke
+  tags:
+  - dag-reservation-learning-v1
+  - smoke

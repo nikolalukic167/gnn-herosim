@@ -30,7 +30,6 @@ def sample_bounded_int(params: Dict[str, Any], rng: Optional[random.Random] = No
 
     dist_type = str(params.get("type", "poisson")).lower()
 
-    # bounds
     min_bound = params.get("min")
     max_bound = params.get("max")
 
@@ -71,7 +70,6 @@ def sample_bounded_int(params: Dict[str, Any], rng: Optional[random.Random] = No
             low, high = high, low
         x = rng.uniform(low, high)
     else:
-        # default to poisson with lambda=1
         lam = float(params.get("lambda", 1.0))
         if lam <= 30.0:
             L = math.exp(-lam)
@@ -84,9 +82,7 @@ def sample_bounded_int(params: Dict[str, Any], rng: Optional[random.Random] = No
         else:
             x = rng.gauss(lam, math.sqrt(lam))
 
-    # clamp and round
     x = _clamp(x, min_bound, max_bound)
-    # convert to int with floor, but ensure >= 0 after bounds
     value_int = int(math.floor(max(0.0, x)))
     # second clamp in case bounds are integers and floor overshoots
     if min_bound is not None:
@@ -108,7 +104,6 @@ def sample_replica_count(role: str, dist_cfg: Dict[str, Any], rng: Optional[rand
     if role not in ("server", "client"):
         return 0
 
-    # map fields
     if role == "server":
         mean = dist_cfg.get("mean_per_server")
         std = dist_cfg.get("stddev_per_server")

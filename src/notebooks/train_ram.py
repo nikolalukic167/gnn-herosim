@@ -208,7 +208,6 @@ class TaskPlacementGNN(nn.Module):
         task_embeddings = self.task_encoder(data.task_features)
         platform_embeddings = self.platform_encoder(data.platform_features)
 
-        # Message passing
         x = torch.cat([task_embeddings, platform_embeddings], dim=0)
         x = self.gin(x, data.edge_index)
         x = self.post_gin_dropout(x)
@@ -216,7 +215,6 @@ class TaskPlacementGNN(nn.Module):
         task_emb = x[:n_tasks]
         platform_emb = x[n_tasks:]
 
-        # Score edges
         ei = data.edge_index
         if ei.numel() == 0:
             return [torch.empty(0, device=x.device) for _ in range(n_tasks)]
@@ -239,7 +237,6 @@ class TaskPlacementGNN(nn.Module):
                 e_attr = None
         edge_scores = self.edge_scorer(e_task, e_platform, e_attr)
 
-        # Split scores per task
         logits_per_task = []
         for t in range(n_tasks):
             mask_t = (ti == t)
@@ -315,7 +312,6 @@ class StructuredRegretLoss(nn.Module):
         valid_combos = getattr(data, 'valid_combos', [])
         opt_rtt = getattr(data, 'opt_rtt', None)
         
-        # Get task_logit_to_placement mapping
         task_logit_to_placement = getattr(data, '_task_logit_to_placement', None)
         
         if not dataset_id or task_logit_to_placement is None or opt_rtt is None or not valid_combos:
@@ -323,14 +319,12 @@ class StructuredRegretLoss(nn.Module):
         
         n_tasks = int(data.n_tasks)
         
-        # Check all tasks have valid labels
         for t_idx in range(n_tasks):
             if data.y[t_idx].item() == -1:
                 return torch.tensor(0.0, device=device), 0, {}
             if t_idx not in task_logit_to_placement:
                 return torch.tensor(0.0, device=device), 0, {}
         
-        # 1. Calculate Score of Optimal Path (sum of logits for optimal indices)
         score_opt = torch.tensor(0.0, device=device)
         opt_indices = []
         
@@ -364,7 +358,6 @@ class StructuredRegretLoss(nn.Module):
             top_half = non_optimal_combos[:max(1, len(non_optimal_combos) // 2)]
             neg_combo, neg_rtt = random.choice(top_half)
 
-        # Map combo back to logit indices
         neg_indices = []
         placement_to_logit_by_task = getattr(data, '_placement_to_logit_by_task', None)
         for t_idx in range(n_tasks):
@@ -381,7 +374,6 @@ class StructuredRegretLoss(nn.Module):
                 return torch.tensor(0.0, device=device), 0, {}
             neg_indices.append(found_idx)
         
-        # 3. Calculate Score of Negative Path
         score_neg = torch.tensor(0.0, device=device)
         for t_idx in range(n_tasks):
             neg_idx = neg_indices[t_idx]
@@ -693,13 +685,11 @@ def train_epoch(
                             
                 logits_per_task = model(data)
 
-                # Cross-entropy loss
                 loss_ce, valid_ce = loss_original_ce(logits_per_task, data, device)
                 if valid_ce > 0 and not (torch.isnan(loss_ce) or torch.isinf(loss_ce)):
                     loss_ce_total = loss_ce_total + loss_ce
                     n_graphs_ce += 1
 
-                # Structured regret loss
                 loss_regret, valid_regret, stats = regret_criterion(
                     logits_per_task, data, device
                 )
@@ -710,11 +700,9 @@ def train_epoch(
             if n_graphs_ce == 0:
                 continue
 
-            # Average losses
             loss_ce_avg = loss_ce_total / n_graphs_ce
             loss_regret_avg = loss_regret_total / max(1, n_graphs_regret)
-            
-            # Combined loss
+
             loss = ce_weight * loss_ce_avg + regret_weight * loss_regret_avg
 
             if torch.isnan(loss) or torch.isinf(loss):
@@ -778,7 +766,6 @@ def decode_inference_placement(logits_per_task, data):
     if task_logit_to_placement is None:
         return None
 
-    # For each task, select the highest scoring platform (greedy per-task)
     combo_list = []
     for t_idx in range(n_tasks):
         if t_idx not in task_logit_to_placement:
@@ -788,7 +775,6 @@ def decode_inference_placement(logits_per_task, data):
         if logits_t.numel() == 0:
             return None
         
-        # Pick highest scoring platform for this task
         best_logit_idx = logits_t.argmax().item()
         
         if best_logit_idx >= len(task_logit_to_placement[t_idx]):
@@ -814,7 +800,6 @@ def evaluate(model, loader, device, is_last_epoch=False):
     sum_regret_pct = 0.0
     count_regret = 0
 
-    # Per-task-count statistics (for merged datasets)
     per_task_count_stats = {}  # {n_tasks: {correct: int, total: int, regret_sum: float, regret_count: int}}
 
     def _ensure_task_bucket(task_count: int) -> None:
@@ -894,7 +879,6 @@ def evaluate(model, loader, device, is_last_epoch=False):
             n_tasks = int(data.n_tasks)
             logits_per_task = model(data)
 
-            # CE loss
             loss_ce, valid_ce = loss_original_ce(logits_per_task, data, device)
             if valid_ce > 0:
                 total_loss_ce += loss_ce.item() * valid_ce
@@ -928,7 +912,6 @@ def evaluate(model, loader, device, is_last_epoch=False):
     print(f"  Per-task accuracy: {total_tasks_correct}/{total_tasks} ({total_tasks_correct/max(1,total_tasks)*100:.1f}%)")
     print(f"  Regret: {count_regret} samples, Avg: {regret:.4f}s ({regret_pct:.2f}%)")
     
-    # Print per-task-count statistics if merged cache
     if IS_MERGED_CACHE and len(per_task_count_stats) > 1:
         print(f"\n  Per-task-count breakdown:")
         for n_tasks in sorted(per_task_count_stats.keys()):
@@ -973,7 +956,6 @@ prepare_graphs_for_ram_training(
     hard_negative_fraction=HARD_NEGATIVE_FRACTION,
 )
 
-# Compute statistics
 ys = np.concatenate([g.y.numpy() for g in graphs])
 print("Valid labels:", np.sum(ys >= 0), "/", len(ys))
 print("Graphs with no edges:", sum([g.edge_index.numel() == 0 for g in graphs]), "/", len(graphs))
@@ -999,7 +981,6 @@ print(f"  Train: {len(train_graphs)} datasets ({len(train_graphs)/len(graphs)*10
 print(f"  Val:   {len(val_graphs)} datasets ({len(val_graphs)/len(graphs)*100:.1f}%)")
 print(f"  Test:  {len(test_graphs)} datasets ({len(test_graphs)/len(graphs)*100:.1f}%)")
 
-# Print task count distribution per split if merged
 if IS_MERGED_CACHE:
     for split_name, split_graphs in [("Train", train_graphs), ("Val", val_graphs), ("Test", test_graphs)]:
         task_dist = {}
@@ -1035,7 +1016,7 @@ wandb.init(
         "loss_type": "CE + StructuredRegret",
         "cache_mode": "merged" if IS_MERGED_CACHE else "single",
         "task_count_distribution": {str(k): int(v) for k, v in TASK_COUNT_DIST.items()} if TASK_COUNT_DIST else {},
-        "non_unique_placements": True,  # Flag to indicate non-unique support
+        "non_unique_placements": True,
         "rtt_backend": "embedded_in_graphs",
         "precompute_rtt_lookups": bool(PRECOMPUTE_RTT_LOOKUPS),
         "hard_negative_fraction": float(HARD_NEGATIVE_FRACTION),
@@ -1111,7 +1092,7 @@ print()
 
 wandb.watch(model, log="gradients", log_freq=100)
 
-best_val_regret = float('inf')  # Minimize regret
+best_val_regret = float('inf')
 best_val_acc = 0
 
 train_loader = create_dataloader(train_dataset, shuffle=True, pin_memory=(DEVICE.type == "cuda"))
@@ -1121,7 +1102,6 @@ test_loader = create_dataloader(test_dataset, shuffle=False, pin_memory=(DEVICE.
 for epoch in range(EPOCHS):
     is_last_epoch = (epoch == EPOCHS - 1)
     
-    # Train
     train_losses = train_epoch(
         model, train_loader, optimizer, DEVICE, epoch,
         regret_criterion=regret_criterion,
@@ -1130,13 +1110,11 @@ for epoch in range(EPOCHS):
         is_last_epoch=is_last_epoch
     )
     
-    # Evaluate
     val_metrics = evaluate(
         model, val_loader, DEVICE,
         is_last_epoch=is_last_epoch
     )
     
-    # Wandb logging
     log_dict = {
         "train/loss_ce": safe_float(train_losses['ce']),
         "train/loss_regret": safe_float(train_losses['regret_loss']),
@@ -1150,7 +1128,6 @@ for epoch in range(EPOCHS):
         "lr": safe_float(optimizer.param_groups[0]["lr"]),
     }
     
-    # Add per-task-count statistics if merged cache
     if IS_MERGED_CACHE:
         per_task_stats = val_metrics.get('per_task_count_stats', {})
         for n_tasks, stats in per_task_stats.items():
@@ -1213,7 +1190,6 @@ final_metrics_log.update(prefix_metric_dict(train_metrics, "final/train"))
 final_metrics_log.update(prefix_metric_dict(val_metrics_final, "final/val"))
 final_metrics_log.update(prefix_metric_dict(test_metrics, "final/test"))
 
-# Add per-task-count statistics if merged cache
 if IS_MERGED_CACHE:
     for split_name, metrics in [("train", train_metrics), ("val", val_metrics_final), ("test", test_metrics)]:
         per_task_stats = metrics.get('per_task_count_stats', {})
@@ -1235,7 +1211,6 @@ wandb.summary["final_test_acc"] = float(test_metrics['acc'])
 wandb.summary["final_test_regret"] = float(test_metrics['regret'])
 wandb.summary["final_test_regret_pct"] = float(test_metrics['regret_pct'])
 
-# Add per-task-count summary if merged cache
 if IS_MERGED_CACHE:
     per_task_stats = test_metrics.get('per_task_count_stats', {})
     for n_tasks, stats in per_task_stats.items():

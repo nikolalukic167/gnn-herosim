@@ -28,12 +28,10 @@ def execute_sim(simulation_data, infrastructure, cache_policy, keep_alive, polic
     )
     # if models is None and model_locations is not None:
     #    models = load_models(model_locations)
-    # Read time series
     time_series: TimeSeries = TimeSeries.from_dict(workload_trace)
     logger.info(f"execute_sim: Loaded time series with {len(time_series.events)} events")
     print(f"Number of events in time series (tasks): {len(time_series.events)}")
-    
-    # Run simulation
+
     logger.info("execute_sim: Calling start_simulation")
     stats = start_simulation(simulation_data, simulation_policy, infrastructure, time_series, workload_trace_name, models)
     logger.info("execute_sim: start_simulation completed")

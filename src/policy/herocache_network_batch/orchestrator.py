@@ -30,7 +30,6 @@ from src.placement.orchestrator import Orchestrator
 
 class HRCOrchestrator(Orchestrator):
     def initialize_state(self) -> HRCSystemState:
-        # Initialize scheduler state
         scheduler_state = HRCSchedulerState(
             average_hardware_contention={
                 task_type: {
@@ -47,7 +46,6 @@ class HRCOrchestrator(Orchestrator):
                 for task_type in self.data.task_types
             },
         )
-        # Initialize target concurrency levels for each task type
         for task_type_name, task_type in self.data.task_types.items():
             # TODO: documentation
             task_platform_values: Dict[str, PlatformVector[float]] = {
@@ -134,7 +132,6 @@ class HRCOrchestrator(Orchestrator):
             # FIXME
             baseline_concurrency_target = self.policy.queue_length
 
-            # Compute target concurrencies for all execution platforms
             # FIXME: Tasks are not implemented in all execution platforms!
             scheduler_state.target_concurrencies[task_type_name] = {
                 platform: (
@@ -156,12 +153,10 @@ class HRCOrchestrator(Orchestrator):
             )
             """
 
-        # Initialize available resources to all Tuple[Node, Platform]
         available_resources: Dict[Node, Set[Platform]] = {
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
         }
-        # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
@@ -176,11 +171,9 @@ class HRCOrchestrator(Orchestrator):
     def monitor_process(self):
         logging.info(f"[ {self.env.now} ] Orchestrator Monitor started")
 
-        # Initialize time-window average
         latest_window_start = self.env.now
 
         while True:
-            # Step
             step = math.floor(self.env.now - latest_window_start) + 1
 
             system_state: HRCSystemState = yield self.mutex.get()
@@ -199,13 +192,11 @@ class HRCOrchestrator(Orchestrator):
                     state.average_hardware_contention[function_name] = (
                         initial_contention
                     )
-                    # Accumulators
                     for node, platform in function_replicas:
                         # HRC policy
                         state.average_hardware_contention[function_name][
                             platform.type["shortName"]
                         ] += len(platform.queue.items)
-                    # Means
                     for hardware_short_name in state.average_hardware_contention[
                         function_name
                     ]:
@@ -221,12 +212,10 @@ class HRCOrchestrator(Orchestrator):
                             hardware_short_name
                         ] /= replicas_count
 
-                # Update tick time
                 latest_window_start = self.env.now
             else:
                 # Update contention rolling means
                 for function_name, function_replicas in replicas.items():
-                    # Accumulators
                     avg_acc: PlatformVector = {
                         platform: 0.0
                         for platform in self.data.task_types[function_name]["platforms"]
@@ -263,5 +252,4 @@ class HRCOrchestrator(Orchestrator):
 
             yield self.mutex.put(system_state)
 
-            # Wake Monitor up once per second
             yield self.env.timeout(1)

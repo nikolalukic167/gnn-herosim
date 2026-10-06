@@ -1,6 +1,6 @@
 # serving_stability_v1 — the learned arms place better and control worse
 
-**Status:** `REGISTERED` (2026-09-15). Every bar below is signed **before** its data. Amend by
+**Status:** `CLOSED` (2026-09-15) — **EARLY-ADVANTAGE-REAL · STABILITY-NOT-THE-LEVER**. Registered 2026-09-15; every bar below was signed **before** its data. Amend by
 dated amendment only.
 
 **Parents:** `drainable_regime_v1` (both learned arms lose to reactive at a defensible load),
@@ -287,3 +287,21 @@ a tuned `K` is a different experiment that must be registered as one.
 **Carried, unchanged:** one load rung; cells not traces; and no GNN-vs-pointwise claim — the
 pointwise twin gained at least as much as the graph arm throughout, exactly as the count
 theorem predicted before the gate ran.
+
+## What is NOT stopped
+
+Moved here from `docs/hard-stops.md`: that file records closed directions, and this
+is an open agenda.
+
+One of these is the most promising open question in the record:
+
+1. **Why the early advantage is lost.** The same lineage measured, on **3/3 cells and every one
+   of 91 learned arms**, that the arms beat reactive over the first fifth of the trace by
+   3.4–4.1 s of queue. That is the first learned-beats-reactive reading here that survives
+   replication. **Something destroys a real advantage**, and no measurement yet says what.
+2. **Any non-queue stabiliser** — admission control, load-aware batch sizing, or giving the
+   model a queue feature inside its trained range (the live column is ~300× out of range,
+   `legacy_v0`).
+3. **A tuned or adaptive K.** K = 3 was registered untuned and is a carried limitation; an
+   adaptive variant that no-ops where the arms are already stable is a different experiment
+   and needs its own registration.

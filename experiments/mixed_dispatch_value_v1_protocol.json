@@ -1,0 +1,18 @@
+{
+  "registered": "2026-09-22",
+  "parent": "mixed_dispatch_v1",
+  "train_seeds": [135000, 135127],
+  "validation_seeds": [136000, 136031],
+  "test_seeds": [137000, 137031],
+  "training_draws": [601, 602, 603],
+  "arms": ["gnn", "mpoff", "mlp_hand"],
+  "teacher": "Best of four SRPT-start searches with 8192 proposals; feasible, not certified optimal",
+  "states": "Teacher and srpt:128 trajectories for each physical workload",
+  "target": "Soft listwise action values from exact final costs after forcing each currently feasible action and retaining the trajectory continuation order",
+  "serving": "One static PyTorch encoder call; extracted NumPy dynamic head at every ready-set decision",
+  "training": "Hidden16, two layers, AdamW 0.001, 30 epochs, three seeds; actual served validation-cost selection every five epochs",
+  "validation_bar": "At least 5 percent mean gain over srpt:128 and p95 full decision time at or below 5 ms for every GNN draw",
+  "live_gate": "32 sealed workloads times nine learned arms, srpt:128, teacher and plain srpt = 384 actual HeROsim runs",
+  "claim_bar": "GNN paired median gain at least 5 percent over MP-OFF, hand-graph and srpt:128, positive bootstrap lower bounds, all GNN draws within 5 ms",
+  "stop": "Do not scale if outcome-aware GNN fails either the objective bar or both matched controls"
+}

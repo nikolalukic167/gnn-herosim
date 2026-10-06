@@ -1104,6 +1104,8 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
     require_explicit_warmth_physics(descriptor)
 
     provenance: Dict[str, Any] = dict(descriptor)
+    from src.placement.availability import drain_contract
+    provenance["pg_drain_contract"] = drain_contract()
     provenance["defer_cold_replica_init"] = space_config.get(
         "defer_cold_replica_init", _env_bool("HEROSIM_DEFER_COLD_REPLICA_INIT")
     )
@@ -1250,6 +1252,7 @@ def run_simulation(
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'gnn_seeded_cd',
         'offload_network',
         'xgboost_batch',
         'xgboost_single',
@@ -1261,7 +1264,7 @@ def run_simulation(
         )
         return False
 
-    if policy in ('gnn', 'gnn_hetero') and (gnn_model is None or task_types_data is None):
+    if policy in ('gnn', 'gnn_seeded_cd', 'gnn_hetero') and (gnn_model is None or task_types_data is None):
         logger.error(f"{policy} policy requires gnn_model and task_types_data")
         return False
 
@@ -1352,6 +1355,13 @@ def run_simulation(
             models = None
         elif policy == 'gnn':
             scheduling_strategy = 'gnn_gnn'
+            models = {
+                'gnn_model': gnn_model,
+                'device': gnn_device,
+                'task_types_data': task_types_data,
+            }
+        elif policy == 'gnn_seeded_cd':
+            scheduling_strategy = 'gnn_seeded_cd_gnn_seeded_cd'
             models = {
                 'gnn_model': gnn_model,
                 'device': gnn_device,
@@ -1495,7 +1505,7 @@ def run_simulation(
             "stats": stats,
         }
 
-        ml_policies = ("gnn", "gnn_hetero", "xgboost_batch", "xgboost_single", "mlp_batch")
+        ml_policies = ("gnn", "gnn_seeded_cd", "gnn_hetero", "xgboost_batch", "xgboost_single", "mlp_batch")
         if policy in ml_policies:
             try:
                 if policy == "gnn_hetero":
@@ -1760,6 +1770,7 @@ def main():
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'gnn_seeded_cd',
         'offload_network',
         'xgboost_batch',
         'xgboost_single',
@@ -1786,7 +1797,7 @@ def main():
     gnn_model = None
     gnn_device = None
     task_types_data = None
-    if policy == 'gnn':
+    if policy in ('gnn', 'gnn_seeded_cd'):
         if not gnn_model_path.exists():
             print(f"ERROR: GNN model not found at {gnn_model_path}")
             sys.exit(1)
@@ -1836,4 +1847,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

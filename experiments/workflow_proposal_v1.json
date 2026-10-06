@@ -1,0 +1,21 @@
+{
+  "lineage": "workflow_proposal_v1",
+  "date": "2026-09-22",
+  "hypothesis": "Exact whole-plan rescoring and incumbent-preserving local proposals recover value hidden by independent argmax decoding.",
+  "checkpoint_parent": "workflow_amortized_v1",
+  "training": "none; reuse all nine frozen validation-selected parent checkpoints",
+  "validation_seeds": [63000,63031],
+  "test_seeds": [88000,88031],
+  "training_draws": [101,102,103],
+  "proposal_counts": [0,4,8,16,32,64],
+  "proposal_flip_sizes": [1,1,2,4],
+  "hand_proposals": ["uniform","duration_softmax_4","duration_softmax_12"],
+  "planning_budget_ms": 2.0,
+  "timing_repeats": 3,
+  "selector": "minimum validation mean complete RTT among configurations with validation per-case-median p95 planning time <=2ms; if none qualify retain fastest and mark budget failure",
+  "hand_control": "all existing ECT/load/beam controls plus identically implemented hand proposal search; per-instance best timed control within budget",
+  "primary": "median over environments of paired percent GNN RTT gains averaged across training draws >=5 against both learned controls and best tested hand control within 2ms, positive hierarchical 95% interval, GNN p95 <=2ms",
+  "knative": "actual unmodified knative_network scheduling, same physical inputs; secondary information-asymmetric baseline",
+  "live_gate": "all nine selected learned configurations, best budget control, ECT, and actual Knative on all 32 fresh cases even if validation fails",
+  "interpretation": "decoder/search pilot only; no new trained-model or universal GNN claim; no retired test reuse"
+}

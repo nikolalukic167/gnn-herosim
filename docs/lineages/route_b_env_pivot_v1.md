@@ -32,6 +32,11 @@ Record as of parking: Screen registered 2026-08-27. `greedy_stuck` was measured 
 > pointer inside one may refer to a section that now lives in another node — the
 > **Related** links say which.
 
+**Attachment:** the screen's preflight and arm-coverage discipline, formerly the `route-b-preflight` skill, is at [`route_b_env_pivot_v1/preflight-discipline.md`](route_b_env_pivot_v1/preflight-discipline.md). Read it before resuming.
+
+**Standing answer (2026-08-29).** PARKED, and the corpora were deleted to free the cluster
+`/home` quota — a resume needs regeneration as well as a signed amendment.
+
 ## Record
 
 Newest first; the sections themselves are in chronological order below.

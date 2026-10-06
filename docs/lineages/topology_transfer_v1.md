@@ -19,6 +19,9 @@
 > pointer inside one may refer to a section that now lives in another node — the
 > **Related** links say which.
 
+**Standing answer (2026-09-01) — RETIRED.** The remaining ~14 GPU-h partial gate is cancelled
+on evidence: a non-binding backbone makes link features label-irrelevant.
+
 ## Record
 
 Newest first; the sections themselves are in chronological order below.

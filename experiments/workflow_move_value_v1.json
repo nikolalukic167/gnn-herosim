@@ -1,0 +1,16 @@
+{
+  "lineage": "workflow_move_value_v1",
+  "registered": "2026-09-22",
+  "proposed_learning_target": "complete-workflow RTT change from flipping one operation to its other eligible host in the current schedule",
+  "environment": "unchanged 8 jobs x 10 operations x 4 machines; 2 eligible hosts each",
+  "budget_ms": 2.0,
+  "validation_seeds": [63032,63063],
+  "fresh_live_seeds": [89000,89031],
+  "timing_repeats": 11,
+  "native_control": "compiled exact FIFO replay of all 80 single-flip neighbors; best-improvement descent up to 64 rounds",
+  "training_stop": "if p95 validation time including constructing the starting schedule and exactly scoring all 80 single-flip moves is <=2ms, stop move-value training: the exact same target and best move are already available within budget",
+  "otherwise": "require >=5pct validation full-plan gain opportunity over matched hand search before training GNN/MPoff/hand move-value scorers",
+  "live_gate": "always run 32 fresh cases with ECT, exact best single move, exact descent, three frozen parent GNNs with ECT guarding and actual Knative; complete task-record and scalar/native parity audits",
+  "scope": "single-flip ranking in this workflow family, not multi-move lookahead or larger workflows",
+  "fairness": "one CPU thread, shared objective and information; native compilation and model loading excluded from both steady-state timings; no fast-math; include wrapper, validation and data conversion overhead"
+}

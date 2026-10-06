@@ -195,10 +195,8 @@ class HRCAutoscaler(Autoscaler):
                 retrieval_speed: SpeedMBps = node.network["bandwidth"]
                 retrieval_duration += retrieval_size / (retrieval_speed / 1024)
 
-            # Storage (image pull time)
             task_times["pull_time"][(node, platform)] = retrieval_duration
 
-            # Storage (replica initialization)
             task_times["cold_start"][(node, platform)] = task_type["coldStartDuration"][
                 platform.type["shortName"]
             ]
@@ -275,7 +273,6 @@ class HRCAutoscaler(Autoscaler):
         # logging.error(f"{self.env.now} scores = {scores}")
         # pprint.pprint(scores)
 
-        # Normalize scores?
         normalized_scores: Dict[str, Dict[Tuple[Node, Platform], float]] = dict(scores)
         for metric, values in scores.items():
             t_min = 1
@@ -358,7 +355,6 @@ class HRCAutoscaler(Autoscaler):
                 retrieval_size: SizeGigabyte = task_type["imageSize"][
                     platform.type["shortName"]
                 ]
-                # Depends on network link speed
                 retrieval_speed: SpeedMBps = min(
                     node_storage.type["throughput"]["write"], node.network["bandwidth"]
                 )
@@ -389,13 +385,11 @@ class HRCAutoscaler(Autoscaler):
                         if task_type_name == task_type["name"]:
                             applications_of_task.add(application_type_name)
 
-                # List applications that include considered task type
                 for application_name in applications_of_task:
                     application = self.data.application_types[application_name]
                     for function_name in application["dag"]:
                         function = self.data.task_types[function_name]
 
-                        # Intersect task compatibility and node-available platforms
                         prefetch_function_platforms = set(function["platforms"])
                         prefetch_node_platforms = [
                             node_platform.type["name"]
@@ -422,7 +416,6 @@ class HRCAutoscaler(Autoscaler):
 
         # print(f"retrieval duration = {retrieval_duration}")
 
-        # Update state
         state: HRCSchedulerState = system_state.scheduler_state
         # HRC policy
         state.average_hardware_contention[task_type["name"]][
@@ -443,7 +436,6 @@ class HRCAutoscaler(Autoscaler):
 
         # FIXME: Double initialize bug...
         try:
-            # Set platform to ready state
             yield platform.initialized.succeed()
         except RuntimeError:
             """

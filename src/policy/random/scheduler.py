@@ -38,7 +38,6 @@ class RandomScheduler(Scheduler):
 
         replicas: Set[Tuple[Node, Platform]] = system_state.replicas[task.type["name"]]
 
-        # Select random platform
         found = random.randint(0, len(replicas) - 1)
         random_couple = list(replicas)[found]
 

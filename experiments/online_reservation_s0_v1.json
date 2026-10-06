@@ -1,0 +1,17 @@
+{
+  "lineage": "online_reservation_s0_v1",
+  "question": "Does a two-decision online reservation search improve over a hand future-rollout portfolio when background workflows arrive without advance notice?",
+  "physics": "Four irregular four-operation DAGs on three hosts, sequence-dependent setup, locks and power domains; three workflows announced at t=0 and one hidden until t=4..12 ms",
+  "calibration_seeds": [274000, 274003],
+  "qualification_seeds": [275000, 275015],
+  "retry_seeds": [276000, 276015],
+  "primary": "At each event, score up to 16 first actions with four hand continuations, then score second actions under top four first actions; at most 32 exact visible-workflow continuations per decision",
+  "matched_hand": "Same current state and revealed DAGs, same four continuation rules and exact simulator, at most 32 one-decision continuations per decision",
+  "retry": "If the primary fails, use four first actions chosen by diverse hand rules, including wait where feasible; score four continuations each, then use remaining cap on second actions. Run once on disjoint seeds with the same hand control and complete live replay.",
+  "weak_control": "Immediate short-job dispatch with no future rollout",
+  "objective": "Sum of all four workflow completion times; future background arrival is not visible to either planner",
+  "advancement_bar": "At least 3% median paired gain over the matched hand portfolio and at least 12 of 16 wins on fresh qualification seeds",
+  "live": "Replay every qualification arm in actual HeROsim with realized starts as reservations and actual staggered arrivals; audit every operation start, completion, host and setup event",
+  "scope_limit": "Materialized live replay verifies physical execution but is not an online policy callback; the screen does not train or test a GNN",
+  "training_allowed": false
+}

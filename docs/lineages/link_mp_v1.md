@@ -141,6 +141,10 @@ arm behavior (the sbatch files are read from HEAD in the main checkout and only 
 the pinned worktree, the mp_ablation pattern). Pinned worktree on datalab:
 `~/gnn-herosim-pin-8aef27a`.
 
+**Standing answer (2026-09-03).** The corpus, not the model class, was the lever. A
+corpus-matched MLP control trained on the same cache ties the GNN, so the −44.8 % vs −29.2 %
+gap this lineage was quoted for is a corpus difference and must never be cited as model class.
+
 ## Amendment 2 — corpus frozen at 1,675 datasets (2026-08-31, before any arm existed)
 
 User instruction (verbatim): "can we run the full pipeline (without my intervention) with
@@ -291,3 +295,10 @@ against this one — a 16-seed paired reliability gate on corpus-matched arms is
 registration this pilot licenses drafting. (3) Venue parity held to the last digit for the
 paired arms re-run locally (`frozen_gnn` cell01 5,840,709.06 and `frozen_mlp` cell01
 7,076,053.5 on both machines).
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- But S1: lgon beats old-graph MP by **+4.98 pp (p = .0046)**, and context: no-MP beats old-graph MP by **+4.50 pp (p = .0011)** — so **old-graph message passing is measurably harmful, the link graph repairs exactly that harm, and repaired MP ties the pointwise ceiling** — the outcome `program_verdict_v1` predicts for a pointwise-separable target.
+- **Exploration pilot 2026-09-03 (4 seeds, unregistered): the corpus-matched MLP this lineage never trained ties the promoted GNN on both bbrob fabrics** (core8: MLP seeds 4.42–5.02M vs GNN 4.95M; core4: −44…−52% vs GNN −49%; fabric-blind MLP −29%/−26%), zero collapse cells in 40 — the standing GNN-vs-MLP latency gap on those cells was the corpus.

@@ -1,6 +1,6 @@
 # offline_live_transfer_v1 — does the offline score have any resolving power over serving?
 
-**Status:** `REGISTERED` (2026-09-15). Bars below are signed **before** any registered family
+**Status:** `CLOSED` (2026-09-15) — **OFFLINE-SCORE-RESOLVES-WITHIN-RUN-ONLY**. Registered 2026-09-15; bars below are signed **before** any registered family
 is read. Nothing in this node may be edited after its data exists except by a dated
 amendment that says what changed and why.
 
@@ -499,3 +499,10 @@ family bar not checking sign, R3's share normaliser — are recorded above and i
 * **The excursion itself.** R3 measured that one exists and that it recovers. Its frequency,
   its trigger, and whether the learned arms' loss to reactive Knative is made of the same thing
   are three open questions, on n = 2 checkpoints and n = 1 trace.
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- **R4, the live gate** (rule 6; no retraining -- every run already saved its last epoch): the offline-selected checkpoint beats last-epoch by **+13.10 %** (`gnn`, 11/15, p = 0.028) and **+16.42 %** (`mpoff`, 14/16, p = 0.0005); the composite bar needs >= 12/16 in BOTH arms so it does **not** fire, recorded short-by-one-seed rather than rescored.
+- **R3**: two checkpoints of one recipe differing only in training seed serve the same trace **1.7x apart (43.99 s vs 74.76 s)**, and **50.5 % of that gap is ONE decile** (worst seed mean queue 185.1 s vs the best seed's 28.8 s), the first three deciles carry 0.2 %, and deciles 7-10 **recover** -- decile 8 is negative.

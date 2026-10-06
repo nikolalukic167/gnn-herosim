@@ -48,7 +48,6 @@ class GNNOrchestrator(Orchestrator):
         # Call parent init (which sets self.models = None since models not in kwargs)
         super().__init__(*args, **kwargs)
 
-        # Re-set self.models after parent init
         self.models = _models
         print(f"[GNN Orchestrator] After super().__init__, self.models restored: {self.models is not None}", flush=True)
         # Stub may set scheduler.batch_size=N for determined refs; GNN/MLP must stay
@@ -101,7 +100,6 @@ class GNNOrchestrator(Orchestrator):
     
     def initialize_state(self) -> KnativeSystemState:
         """Initialize system state - matches knative_network."""
-        # Initialize scheduler state
         scheduler_state = KnativeSchedulerState(
             average_contention={task_type: {} for task_type in self.data.task_types},
             panic_contention={task_type: {} for task_type in self.data.task_types},
@@ -113,12 +111,10 @@ class GNNOrchestrator(Orchestrator):
                 for task_type in self.data.task_types
             },
         )
-        # Initialize available resources to all Tuple[Node, Platform]
         available_resources: Dict[Node, Set[Platform]] = {
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
         }
-        # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
@@ -140,7 +136,6 @@ class GNNOrchestrator(Orchestrator):
             time_series=self.time_series
         )
 
-        # Pass models to scheduler if available
         print(f"[GNN Orchestrator] initialize_state called, models={self.models is not None}", flush=True)
         print(f"[GNN Orchestrator] scheduler has set_models: {hasattr(self.scheduler, 'set_models')}", flush=True)
         if self.models:
@@ -175,5 +170,4 @@ class GNNOrchestrator(Orchestrator):
 
             yield self.mutex.put(system_state)
 
-            # Wake Monitor up once per second
             yield self.env.timeout(1)

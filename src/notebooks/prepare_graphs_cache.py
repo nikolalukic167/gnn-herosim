@@ -444,7 +444,6 @@ def extract_dataset_to_dataframes(
                 f"{sorted(missing_fields)}"
             )
     
-    # NODES
     nodes_data = []
     for i, node in enumerate(infra_nodes):
         node_name = node.get("node_name", f"node_{i}")
@@ -461,7 +460,6 @@ def extract_dataset_to_dataframes(
     
     df_nodes = pd.DataFrame(nodes_data)
     
-    # TASKS
     placement_plan_task_ids = set()
     for k in placement_plan.keys():
         task_id = int(k)
@@ -742,8 +740,8 @@ def load_all_datasets(
                 all_datasets[unique_key] = {
                     **dataframes,
                     'dataset_dir': dataset_dir,
-                    'source_dir': base_dir.name,  # Track which directory this came from
-                    'num_tasks': len(dataframes['tasks']),  # Track task count
+                    'source_dir': base_dir.name,
+                    'num_tasks': len(dataframes['tasks']),
                     'queue_snapshot': extended_state.get('queue_snapshot', {}),
                     'temporal_state': extended_state.get('temporal_state', {}),
                     'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
@@ -777,7 +775,6 @@ def load_all_datasets(
                 "repair with scripts_cosim/refresh_optimal_full_stats.py --repair"
             )
     
-    # Print task count distribution
     task_counts = {}
     for ds_dict in all_datasets.values():
         n_tasks = ds_dict['num_tasks']
@@ -1033,13 +1030,11 @@ def build_graph(
         temporal_state: Dict mapping "node_name:platform_id" -> {current_task_remaining, ...}
     """
     
-    # Basic sizes / offsets
     n_tasks = len(df_tasks)
     n_platforms = len(df_platforms)
     task_offset = 0
     platform_offset = n_tasks
-    
-    # Precompute lookups
+
     first_idx_per_name = (
         df_nodes.reset_index()[['index', 'node_name']]
         .groupby('node_name', as_index=True)['index']
@@ -1128,7 +1123,6 @@ def build_graph(
     node_cold_count_arr = np.zeros(n_platforms, dtype=np.float64)
     estimated_pull_remaining_arr = np.zeros(n_platforms, dtype=np.float64)
     if initialized_snapshot:
-        # Group platform positions by physical node name
         node_platform_positions: Dict[str, List[int]] = {}
         for pos in range(n_platforms):
             name = str(plat_node_by_pos[pos])
@@ -1196,14 +1190,11 @@ def build_graph(
     
     # CONSOLIDATION METRICS (target concurrency and usage ratio)
     # Calculate target concurrency per platform (similar to HRC logic)
-    # Baseline: fastest platform for each task type
     target_concurrencies = np.zeros(n_platforms, dtype=np.float64)
     usage_ratios = np.zeros(n_platforms, dtype=np.float64)
     
-    # For each platform, calculate target concurrency based on task types it supports
     for pos in range(n_platforms):
         plat_type = str(plat_types_by_pos[pos])
-        # Find which task types can run on this platform
         supported_task_types = []
         for task_type in task_types_vocab:
             task_type_priors = task_priors.get(str(task_type), {})
@@ -1211,11 +1202,9 @@ def build_graph(
             if plat_type in platforms:
                 supported_task_types.append(str(task_type))
         
-        # Calculate target concurrency: average of baseline concurrency for supported task types
         # HRC uses baseline platform (fastest) as reference
         baseline_concurrency = 5.0  # Default target (can be tuned)
         if supported_task_types:
-            # Find fastest platform for each supported task type
             min_exec_times = []
             for task_type in supported_task_types:
                 task_type_priors = task_priors.get(task_type, {})
@@ -1250,11 +1239,9 @@ def build_graph(
             queue_lengths[pos], target_concurrencies[pos], queue_feature_contract
         )
     
-    # Normalize consolidation metrics
     target_concurrency_norm = (target_concurrencies / _safe_positive(20.0)).reshape(-1, 1)
     usage_ratio_norm = usage_ratios.reshape(-1, 1)
-    
-    # Concatenate all platform features
+
     platform_features = np.concatenate([
         plat_onehot,                    # dims 0-4  (5)
         has_dnn1, has_dnn2,             # dims 5-6  (2)
@@ -1285,7 +1272,6 @@ def build_graph(
             "platform_pos": int(pos),
         }
     
-    # Cache feasible platforms per source node
     feasible_plats_cache = {}
     def feasible_platform_positions(src_node_name: str) -> np.ndarray:
         """Get network-feasible platform positions."""
@@ -1301,7 +1287,6 @@ def build_graph(
         feasible_plats_cache[src_node_name] = arr
         return arr
     
-    # Compatibility filtering
     allowed_types_dnn1 = np.array(TASK_PLATFORM_COMPATIBILITY.get('dnn1', []))
     allowed_types_dnn2 = np.array(TASK_PLATFORM_COMPATIBILITY.get('dnn2', []))
     
@@ -1337,7 +1322,6 @@ def build_graph(
         compatible_mask = type_mask[network_feasible_plats]
         return network_feasible_plats[compatible_mask]
     
-    # EDGES + LABELS
     edge_src, edge_dst = [], []
     edge_attrs = []
     y_list = []
@@ -1348,7 +1332,6 @@ def build_graph(
     task_logit_to_placement: Dict[int, List[Tuple[int, int]]] = {}
     task_logit_to_queue_key: Dict[int, List[str]] = {}
     
-    # Build node_name -> node_id mapping
     node_name_to_id = {row.node_name: row.node_id for row in df_nodes.itertuples(index=False)}
     
     optimal_platform_ids = df_tasks['optimal_platform_id'].to_numpy()
@@ -1389,7 +1372,6 @@ def build_graph(
             dst_list = (platform_offset + compat_plats).tolist()
             edge_dst.extend(dst_list)
             
-            # Build logit_idx -> (node_id, platform_id) mapping for this task
             task_logit_to_placement[t_pos] = []
             task_logit_to_queue_key[t_pos] = []
             
@@ -1403,7 +1385,6 @@ def build_graph(
                 plat_id = int(plat_ids_arr[plat_pos])
                 node_id = node_name_to_id.get(plat_node_name, -1)
                 
-                # Store mapping: logit_idx -> (node_id, platform_id)
                 task_logit_to_placement[t_pos].append((node_id, plat_id))
                 task_logit_to_queue_key[t_pos].append(f"{plat_node_name}:{plat_id}")
                 
@@ -1411,7 +1392,6 @@ def build_graph(
                     _safe_float(exec_map.get(plat_type, 0.0), 0.0) if isinstance(exec_map, dict) else 0.0
                 )
                 
-                # Network latency
                 lat_entry = src_nm.get(plat_node_name, {}) if isinstance(src_nm, dict) else {}
                 if isinstance(lat_entry, dict):
                     latency = _safe_float(lat_entry.get('latency', 0.0), 0.0)
@@ -1470,7 +1450,6 @@ def build_graph(
         else:
             y_list.append(-1)
     
-    # Stack edges
     if edge_src:
         edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long)
         edge_attr_tensor = torch.tensor(edge_attrs, dtype=torch.float32) if edge_attrs else torch.empty((0, 5), dtype=torch.float32)
@@ -1488,7 +1467,6 @@ def build_graph(
     
     y = torch.tensor(y_list, dtype=torch.long)
     
-    # Create PyG Data
     data = Data(
         edge_index=edge_index,
         y=y,

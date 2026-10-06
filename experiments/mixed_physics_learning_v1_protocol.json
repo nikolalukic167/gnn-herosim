@@ -1,0 +1,18 @@
+{
+ "registered":"2026-09-22",
+ "parent":"radical_physics_v1",
+ "physics":"mixed_execution_v1, picosecond canonical event clock, announced complete workflows",
+ "data":{"train":[110000,110511],"validation":[111000,111063],"test":[112000,112063]},
+ "teacher":"best of 8192-step annealing from fastest and load plus frozen affinity:anneal256 control; every scored teacher placement retained",
+ "arms":["gnn","mpoff","mlp_hand"],
+ "seeds":[201,202,203],
+ "architecture":{"hidden":32,"layers":2,"typed_edges":["predecessor","successor","shared_locks","shared_power_domains"]},
+ "features":"same execution/eligibility/type/lock/suffix counts/setup/domain/global counts for GNN and MPoff; hand arm adds one- and two-step typed mean aggregation of those base features",
+ "training":{"epochs":60,"warmup_ce_epochs":15,"objective_after_warmup":"self-critical full-plan RTT policy gradient +0.1 teacher CE; cost includes one exact descent round; baseline is own greedy plan","batch_size":32,"learning_rate":0.001,"patience":20},
+ "serving":"construct features, infer assignment, compare its exact cost with fastest and affinity starts, refine the cheapest start for one exact descent round; same decoder for all learned arms",
+ "checkpoint_selection":"lowest mean validation served RTT, identical for all arms; never select on edge accuracy",
+ "primary_bar":"GNN improves median environment-paired RTT >=5pct against BOTH MPoff and hand-graph MLP and frozen affinity:anneal256 rule, bootstrap lower95>0 for all; p95 full planning time<=2ms for each GNN draw",
+ "test_gate":"64 fresh environments, all nine checkpoints and frozen rule through actual HeROsim, actual Knative diagnostic; source/checkpoint/uniqueness validation and every task completion time audited",
+ "scope":"single-family three-draw pilot, no distribution-transfer or production SLA claim",
+ "logging":"offline W&B with persistent checkpoints, contract sidecars and training curves; no external upload"
+}

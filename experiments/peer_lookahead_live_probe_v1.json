@@ -1,0 +1,18 @@
+{
+  "kind": "exploratory_live_probe_not_a_registered_model_gate",
+  "sources": ["ds_00000", "ds_00064", "ds_00128"],
+  "source_corpus": "simulation_data/gnn_datasets_dag4_route_b_pilot_v1_arm_b0",
+  "arrival_gaps_s": [0.1, 1.0],
+  "horizons_tasks": [8, 12, 16],
+  "task_types": ["dnn1", "dnn2", "rf", "cnn", "dnn2", "rf", "cnn", "dnn1"],
+  "cycles": [[0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 5, 4, 3, 6, 7]],
+  "payload_bytes": 200000000.0,
+  "seed": 43100,
+  "run_timeout_s": 30,
+  "material_regret_pct": 5.0,
+  "continuation_policy": "peer_greedy_network",
+  "decision_task_id": 0,
+  "information": "first_eight_tasks_manifest_and_current_replica_forecast_only",
+  "primary": "total_rtt_of_all_tasks_in_each_completed_horizon",
+  "secondary": "fixed_eight_task_group_rtt_and_channel_decomposition"
+}

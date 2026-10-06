@@ -1,8 +1,20 @@
 # throughline — SYNTHESIS
 
-> **Status:** `SYNTHESIS` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-18 → 2026-09-09
+> **Status:** `SYNTHESIS` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-18 → 2026-09-22
 
-**Outcome.** Cross-lineage synthesis: four mechanisms, one collapse. **In this simulator, coupling is either count-shaped or negligible** — and the negligible half is demonstrated, not assumed. **Closed as a question 2026-09-09:** a graph-reasoning win over a pointwise scorer is not available on this simulator's supervised targets — by the structure of what the simulator computes, not by a shortfall of data, epochs or architecture; the 2026-09-09 section below says why in plain language and what would change the answer.
+**Outcome (updated 2026-09-22).** The historical count-shaped-or-negligible
+conclusion describes the supervised targets and workload families measured in the
+sections below; it is not an impossibility theorem for every configuration of
+HeROsim. The later [complete-workflow pilot](workflow_amortized_v1.md) establishes
+material planning headroom under a declared timing budget, yet its trained GNN
+still fails the controlled live gate. A separate
+[fixed-replica burst gate](gnn_seeded_cd_fixed_v1.md) now establishes a live
+GNN-initialized search win over matched hand search. Its
+[matched MP-OFF ablation](gnn_seeded_cd_mp_ablation_v1.md) wins every paired live
+comparison, so the useful learned seed does not establish a message-passing
+advantage. Graph-dependent planning value, a useful learned seed, and a graph-specific
+gain remain separate claims. Read the linked nodes for their measurements and limits;
+the historical record below is retained.
 
 **Related:** [graph_structure_physics](graph_structure_physics.md) · [network_contention_v1](network_contention_v1.md) · [link_contention_v1](link_contention_v1.md) · [shallow_longexec_v1](shallow_longexec_v1.md)
 
@@ -10,6 +22,11 @@
 > 2026-08-27; the section bodies below are byte-for-byte as written. An *above* / *below*
 > pointer inside one may refer to a section that now lives in another node — the
 > **Related** links say which.
+
+**Standing answer (2026-09-22).** The complete-workflow and fixed-replica updates are linked above.
+The older peer-affinity exception remains qualified as follows: The measured exception recorded here on 2026-09-11 is
+**offline only, and it reverses live**. Read that section's supersession before citing the
+exception as a graph-reasoning win.
 
 ## Record
 

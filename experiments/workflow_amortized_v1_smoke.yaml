@@ -1,0 +1,22 @@
+trainer: workflow
+lineage: workflow_amortized_v1
+cache_dir: simulation_data/gnn_environment_search_v1/workflow_smoke
+args:
+  wandb-mode: offline
+  arm: gnn
+  epochs: 2
+  patience: 40
+  learning-rate: 0.001
+  batch-size: 32
+  hidden: 64
+  layers: 4
+  device: cpu
+  output-dir: models/workflow_amortized_v1_smoke
+path_args:
+- output-dir
+wandb:
+  project: herosim-workflow-amortized
+  run_name: workflow-amortized-v1-smoke
+  tags:
+  - workflow-amortized-v1
+  - matched-selector

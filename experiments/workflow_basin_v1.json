@@ -1,0 +1,20 @@
+{
+  "lineage": "workflow_basin_v1",
+  "registered": "2026-09-22",
+  "hypothesis": "A graph model can choose an initial schedule that leads exact local search to a better local optimum without paying for every restart.",
+  "budget_ms": 2.0,
+  "candidate_initializers": {"remaining_work_weights": [0,0.25,0.5,1.0], "ect_perturbations": {"rates": [0.1,0.25], "seeds": [0,1,2,3]}},
+  "calibration_seeds": [63000,63063],
+  "qualification_seeds": [63064,63127],
+  "fresh_live_seeds": [90000,90031],
+  "timing_repeats": 5,
+  "descent_rounds": 64,
+  "hand_selectors": ["fixed initializer selected on calibration", "minimum initial RTT", "best refined result from two lowest initial RTTs", "native ECT descent"],
+  "selector_registration": "Choose the best mean-RTT hand selector on calibration among those with p95 planning time <=2ms; freeze it before qualification. Freeze one globally best fixed initializer on calibration. No per-instance hindsight selection among hand methods.",
+  "oracle": "minimum final RTT across all twelve fully refined initializers, reported with actual full cost; a headroom ceiling only, not a deployable free selector",
+  "training_gate": "oracle median paired gain versus frozen deployable hand selector >=5pct and bootstrap median 95pct lower bound >0 on qualification; oracle is granted free selection for this necessary headroom test",
+  "if_pass": "cost-sensitive GNN selector versus MPoff and strong hand-feature selector; same search, features, data, validation selection, and total planning budget; fresh model test required",
+  "if_fail": "no training; still complete registered fresh live gate",
+  "live_gate": "32 fresh workflows: frozen hand selector, native ECT descent, oracle-best restart plan and actual Knative. Save all searched complete plans and audit real simulator agreement.",
+  "scope": "initializer selection for this finite portfolio and fixed workflow family, not arbitrary learned search"
+}

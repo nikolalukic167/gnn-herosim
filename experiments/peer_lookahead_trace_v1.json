@@ -1,0 +1,16 @@
+{
+  "kind": "exploratory_complete_synthetic_trace_comparison",
+  "sources": ["ds_00000", "ds_00064", "ds_00128"],
+  "source_corpus": "simulation_data/gnn_datasets_dag4_route_b_pilot_v1_arm_b0",
+  "arrival_gaps_s": [0.1, 1.0],
+  "task_types": ["dnn1", "dnn2", "rf", "cnn", "dnn2", "rf", "cnn", "dnn1"],
+  "cycles": [[0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 5, 4, 3, 6, 7]],
+  "payload_bytes": 200000000.0,
+  "seed": 43100,
+  "trace_tasks": 256,
+  "run_timeout_s": 60,
+  "arms": ["immediate", "committed_x2", "peer_mass", "two_hop", "group_first_two_hop"],
+  "manifest": "current_eight_task_group_declared_at_its_first_arrival",
+  "primary": "paired_total_rtt_over_complete_256_task_trace",
+  "regression": "original_16_task_single_group_plus_suffix_failure_case"
+}

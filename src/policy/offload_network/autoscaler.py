@@ -77,7 +77,6 @@ class KnativeAutoscaler(Autoscaler):
 
         replica_count = len(function_replicas)
 
-        # Per-function concurrency level
         # Use TOTAL concurrency across all replicas (not average per replica)
         # This matches Knative's autoscaling formula:
         #   desired_replicas = ceil(total_concurrency / target_concurrency_per_replica)
@@ -118,13 +117,10 @@ class KnativeAutoscaler(Autoscaler):
             source_node_name: Optional source node name to check network connectivity.
                             If provided, only creates replicas on nodes that can reach this node.
         """
-        # Filter available resources by network connectivity if source_node_name is provided
         available_hardware: Set[str] = set()
-        
-        # Find source node to check its network_map
+
         source_node = None
         if source_node_name:
-            # Search through all nodes in available_resources
             for node in system_state.available_resources.keys():
                 if node.node_name == source_node_name:
                     source_node = node
@@ -139,9 +135,7 @@ class KnativeAutoscaler(Autoscaler):
             else:
                 logging.info(f"[ {self.env.now} ] 🔍 Autoscaler: Creating replica for {task_type['name']} from {source_node_name}, source node network_map has {len(source_node.network_map)} connections")
         
-        # Filter available resources by network connectivity if source_node_name is provided
         for node, platforms in system_state.available_resources.items():
-            # If source_node_name is provided, only consider nodes reachable from source
             if source_node_name is not None:
                 is_reachable = False
                 
@@ -157,31 +151,25 @@ class KnativeAutoscaler(Autoscaler):
                     # For client nodes: can only use local resources or servers they can reach
                     # Don't allow placing replicas on other client nodes
                     elif source_node_name.startswith('client_node'):
-                        # Client can only reach servers in its network_map, not other clients
                         if node.node_name.startswith('client_node'):
-                            # This is another client node - clients can't reach each other
                             is_reachable = False
                         else:
                             # This is a server, but not in source's network_map - skip it
                             is_reachable = False
                     # For server-to-server: servers can reach each other (if not explicitly blocked)
                     elif not source_node_name.startswith('client_node') and not node.node_name.startswith('client_node'):
-                        # Server to server - allow (servers can communicate)
                         is_reachable = True
                 else:
                     # Source node not found - be conservative: only allow local placement
                     # or if source is a server, allow server-to-server
                     if source_node_name.startswith('client_node'):
-                        # Client source but node not found - only allow local
                         is_reachable = False
                     elif not node.node_name.startswith('client_node'):
-                        # Server to server - allow
                         is_reachable = True
                     else:
                         is_reachable = False
-                
+
                 if not is_reachable:
-                    # Skip unreachable nodes
                     logging.debug(f"[ {self.env.now} ] 🔍 Autoscaler: Skipping unreachable node {node.node_name} for task from {source_node_name}")
                     continue
             
@@ -231,14 +219,11 @@ class KnativeAutoscaler(Autoscaler):
         # while replicas on server nodes can be used by tasks from ALL clients.
         # This dramatically improves resource utilization.
         
-        # Separate server and client node candidates
         server_couples = [c for c in couples_suitable if not c[0].node_name.startswith('client_node')]
         client_couples = [c for c in couples_suitable if c[0].node_name.startswith('client_node')]
-        
-        # Prefer server nodes, fall back to client nodes only if no server capacity
+
         candidates = server_couples if server_couples else client_couples
-        
-        # Select the node with the most available platforms
+
         available_couple = max(
             candidates,
             key=lambda couple: couple[0].available_platforms,
@@ -294,7 +279,6 @@ class KnativeAutoscaler(Autoscaler):
 
         # print(f"retrieval duration = {retrieval_duration}")
 
-        # Update state
         # FIXME: Move to state update methods
         state: KnativeSchedulerState = system_state.scheduler_state
         # Knative policy
@@ -310,7 +294,6 @@ class KnativeAutoscaler(Autoscaler):
 
         # FIXME: Double initialize bug...
         try:
-            # Set platform to ready state
             yield platform.initialized.succeed()
         except RuntimeError:
             """
@@ -328,7 +311,6 @@ class KnativeAutoscaler(Autoscaler):
             """
             pass
 
-        # Statistics (Node)
         node.cache_hits += int(image_pull_disk_hit(physics, platform, node, task_type))
 
     def remove_replica(
@@ -342,7 +324,6 @@ class KnativeAutoscaler(Autoscaler):
         if False:
             yield
 
-        # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
             function_replicas, key=lambda couple: len(couple[1].queue.items)
         )
@@ -361,7 +342,6 @@ class KnativeAutoscaler(Autoscaler):
         )
 
         if removed_couple:
-            # Update state
             # FIXME: Move to state update methods
             state: SchedulerState = system_state.scheduler_state
             try:

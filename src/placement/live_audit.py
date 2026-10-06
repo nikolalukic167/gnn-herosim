@@ -45,7 +45,11 @@ def orchestrator_of(scheduler: Any) -> Any:
 def platform_queue_drain_seconds(
     platform: "Platform", orchestrator: Any, memo: Optional[Dict[str, float]] = None
 ) -> float:
-    """Seconds until `platform`'s backlog as it stands now has been served.
+    """Legacy queued-work estimate, including the seeded virtual aggregate.
+
+    Excludes the in-service task: snapshot replay adds temporal fields separately.
+    This is NOT time until the platform becomes available. Scheduling code that
+    needs in-service work must use availability.platform_availability instead.
 
     `memo` (queue_key -> seconds) makes one snapshot walk each busy queue once: a batch
     snapshot asks for every candidate of every task AND every replica, and a 16k-deep

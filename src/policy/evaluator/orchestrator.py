@@ -29,12 +29,10 @@ from src.placement.orchestrator import Orchestrator
 
 class EvaluatorOrchestrator(Orchestrator):
     def __init__(self, *args, **kwargs):
-        # Extract infrastructure config if provided
         self.infrastructure = kwargs.pop('infrastructure', None) if 'infrastructure' in kwargs else None
         super().__init__(*args, **kwargs)
-    
+
     def initialize_state(self) -> EvaluatorSystemState:
-        # Initialize scheduler state
         scheduler_state = EvaluatorSchedulerState(
             average_contention={task_type: {} for task_type in self.data.task_types},
             panic_contention={task_type: {} for task_type in self.data.task_types},
@@ -47,31 +45,26 @@ class EvaluatorOrchestrator(Orchestrator):
                 for task_type in self.data.task_types
             },
         )
-        # Initialize available resources to all Tuple[Node, Platform]
         available_resources: Dict[Node, Set[Platform]] = {
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
         }
-        # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
-        
+
         # Todo: remove this after testing
-        # Seed initial replicas if provided
         if self.initial_replicas:
             print(f"\n=== Using {len(self.initial_replicas)} pre-seeded replica sets ===")
             for task_type, replica_set in self.initial_replicas.items():
                 if task_type in replicas:
                     replicas[task_type] = replica_set.copy()
                     print(f"  {task_type}: {len(replica_set)} replicas")
-                    
-                    # Remove these platforms from available resources since they're now allocated
+
                     for node, platform in replica_set:
                         if node in available_resources and platform in available_resources[node]:
                             available_resources[node].remove(platform)
                             node.available_platforms -= 1
-                            # Allocate memory for this replica
                             memory_required = self.data.task_types[task_type]["memoryRequirements"][platform.type["shortName"]]
                             node.available_memory -= memory_required
                             # print(f"    Allocated {node.node_name}:{platform.id} for {task_type} (memory: {memory_required}GB)")
@@ -100,7 +93,6 @@ class EvaluatorOrchestrator(Orchestrator):
         latest_window_start = self.env.now
 
         while True:
-            # Step
             step = math.floor(self.env.now - latest_window_start) + 1
 
             system_state: EvaluatorSystemState = yield self.mutex.get()
@@ -110,19 +102,15 @@ class EvaluatorOrchestrator(Orchestrator):
             # Clear average using time-window bounds if necessary
             # FIXME: Implement panic mode (60- vs 6-second time windows)
             if step == 7:
-                # Store averages at the granularity of replicas
                 for function_name, function_replicas in replicas.items():
-                    # Accumulators
                     for node, platform in function_replicas:
                         # Knative policy
                         state.average_contention[function_name][
                             (node.id, platform.id)
                         ] = len(platform.queue.items)
 
-                # Update tick time
                 latest_window_start = self.env.now
             else:
-                # Update contention rolling means
                 for function_name, function_replicas in replicas.items():
                     for node, platform in function_replicas:
                         # Knative policy
@@ -139,5 +127,4 @@ class EvaluatorOrchestrator(Orchestrator):
 
             yield self.mutex.put(system_state)
 
-            # Wake Monitor up once per second
             yield self.env.timeout(1)

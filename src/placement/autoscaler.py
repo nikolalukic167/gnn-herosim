@@ -113,7 +113,6 @@ class Autoscaler:
         }
 
         while True:
-            # Per-function scaling decision
             system_state: SystemState = yield self.mutex.get()
             replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
 
@@ -129,7 +128,6 @@ class Autoscaler:
 
                 for hardware_target, hardware_scaling in scaling_difference.items():
                     if hardware_scaling < 0:
-                        # Scale down
                         count = abs(math.floor(hardware_scaling))
                         # logging.error(f"[ {self.env.now} ] Scaling down {function_name} by {count} (currently {len(function_replicas)})")
                         stop = yield self.env.process(
@@ -137,11 +135,9 @@ class Autoscaler:
                                 count, system_state, function_name, hardware_target
                             )
                         )
-                        # Do not force scale up
                         force_scale_up = False
 
                     elif hardware_scaling > 0:
-                        # Scale up
                         count = abs(math.ceil(hardware_scaling))
                         # logging.error(f"[ {self.env.now} ] Scaling up {function_name} by {count} (currently {len(function_replicas)})")
                         stop = yield self.env.process(
@@ -158,7 +154,6 @@ class Autoscaler:
                         force_scale_up = False
                         # pass
 
-                # Force scale up on any hardware type if necessary
                 if force_scale_up and (
                         (self.env.now - last_force_scale_up[function_name])
                         > self.policy.keep_alive
@@ -172,13 +167,10 @@ class Autoscaler:
 
             self.log_system_status(replicas)
 
-            # Release mutex
             yield self.mutex.put(system_state)
 
-            # Next event
             self.env.step()
 
-            # Wake Autoscaler up once per second
             yield self.env.timeout(self.reconcile_interval)
 
     def scale_up(
@@ -188,10 +180,8 @@ class Autoscaler:
             function_name: str,
             hardware_target: str,
     ) -> Generator:
-        # Get current function replicas
         function_replicas = system_state.replicas[function_name]
 
-        # Scale up by `count` replicas
         for _ in range(count):
             replicas_count = len(function_replicas)
             # Filter out nodes by task requirements
@@ -234,10 +224,8 @@ class Autoscaler:
                         continue
                     couples_suitable.add((node, platform))
 
-            # No suitable resources for replica creation
             if not couples_suitable:
                 # logging.error(state.average_hardware_contention[function_name])
-                # Next step
                 return StopIteration(
                     f"Autoscaler could not create a {hardware_target} replica for"
                     f" {function_name} (currently {replicas_count} replica)"
@@ -248,7 +236,6 @@ class Autoscaler:
                 f" {replicas_count})"
             )
 
-            # Resources selection (Node, Platform)
             new_replica: Tuple[Node, Platform]
             new_replica = yield self.env.process(
                 self.create_replica(
@@ -259,21 +246,16 @@ class Autoscaler:
             logging.info(f"[ {self.env.now} ] {new_replica}")
 
             try:
-                # Remove selected platform from available resources on the node
                 available_resources[new_replica[0]].remove(new_replica[1])
 
-                # Update node availability
                 new_replica[0].available_platforms -= 1
 
-                # Allocate task memory requirements from node's available memory
                 new_replica[0].available_memory -= self.data.task_types[function_name][
                     "memoryRequirements"
                 ][new_replica[1].type["shortName"]]
 
-                # Add function replica to the pool so it can be considered by the Scheduler
                 function_replicas.add(new_replica)
 
-                # Initialize replica (pull image) asynchronously
                 # The platform_process will wait on initialized event before processing tasks
                 self.env.process(
                     self.initialize_replica(
@@ -284,7 +266,6 @@ class Autoscaler:
                     )
                 )
 
-                # Statistics
                 new_replica[1].last_allocated = self.env.now
 
                 event: ScaleEvent = {
@@ -328,10 +309,8 @@ class Autoscaler:
             hardware_target: str,
     ) -> Generator[Any, Any, Optional[Union[StopIteration, Tuple[Node, Platform]]]]:
         """Scale down replicas for a given function"""
-        # Get current function replicas
         function_replicas = system_state.replicas[function_name]
 
-        # Filter replicas according to hardware target
         suitable_replicas = set(
             filter(
                 lambda replica: (replica[1].type["shortName"] == hardware_target or hardware_target == 'any'),
@@ -339,7 +318,6 @@ class Autoscaler:
             )
         )
 
-        # Scale down
         for _ in range(count):
             replicas_count = len(function_replicas)
             # print(f"[ {self.env.now} ] Attempting to scale down {function_name} (currently {replicas_count} replicas)")
@@ -380,7 +358,6 @@ class Autoscaler:
                 print(f"[ {self.env.now} ] removed: {removed_replica}")
 
             try:
-                # Remove replica from function replicas
                 # FIXME: Sometimes raises KeyError ... (double remove)
                 function_replicas.remove(removed_replica)
 
@@ -394,21 +371,17 @@ class Autoscaler:
                 if getattr(self.env, "warmth_physics", None) == NODE_DISK_V2:
                     removed_replica[1].previous_task = None
 
-                # Release replica into available resources
                 available_resources: Dict[Node, Set[Platform]] = (
                     system_state.available_resources
                 )
                 available_resources[removed_replica[0]].add(removed_replica[1])
 
-                # Update node availability
                 removed_replica[0].available_platforms += 1
 
-                # Reclaim node memory
                 removed_replica[0].available_memory += self.data.task_types[
                     function_name
                 ]["memoryRequirements"][removed_replica[1].type["shortName"]]
 
-                # Statistics
                 removed_replica[1].last_removed = self.env.now
 
                 event: ScaleEvent = {

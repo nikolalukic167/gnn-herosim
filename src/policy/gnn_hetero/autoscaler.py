@@ -111,21 +111,17 @@ class KnativeAutoscaler(Autoscaler):
             source_node_name: Optional source node name to check network connectivity.
                             If provided, only creates replicas on nodes that can reach this node.
         """
-        # Filter available resources by network connectivity if source_node_name is provided
         original_available_resources = system_state.available_resources
         filtered_resources = None
-        
+
         if source_node_name:
-            # Filter to only nodes that have network connectivity to the source
             nodes_with_connectivity: Set[Node] = set()
-            
+
             for node, platforms in system_state.available_resources.items():
                 can_reach_source = False
-                
-                # Local placement: same node as source (always valid)
+
                 if node.node_name == source_node_name:
                     can_reach_source = True
-                # Server node: check if it has network_map entry for source
                 elif not node.node_name.startswith('client_node'):
                     if hasattr(node, 'network_map') and source_node_name in node.network_map:
                         can_reach_source = True
@@ -134,13 +130,11 @@ class KnativeAutoscaler(Autoscaler):
                     nodes_with_connectivity.add(node)
             
             if nodes_with_connectivity:
-                # Create filtered resources dict
                 filtered_resources = {
-                    node: platforms 
+                    node: platforms
                     for node, platforms in system_state.available_resources.items()
                     if node in nodes_with_connectivity
                 }
-                # Temporarily replace available_resources
                 system_state.available_resources = filtered_resources
                 
                 logging.info(
@@ -155,7 +149,6 @@ class KnativeAutoscaler(Autoscaler):
                 )
         
         try:
-            # Collect available hardware types from (possibly filtered) resources
             available_hardware: Set[str] = set()
             resources_to_check = filtered_resources if filtered_resources else original_available_resources
             for _, platforms in resources_to_check.items():
@@ -173,7 +166,6 @@ class KnativeAutoscaler(Autoscaler):
                 )
 
             stop = None
-            # Try each available hardware type
             for platform_name in available_hardware:
                 stop = yield self.env.process(
                     self.scale_up(
@@ -185,12 +177,10 @@ class KnativeAutoscaler(Autoscaler):
                 )
 
                 if not isinstance(stop, StopIteration):
-                    # Resource found, stop iterating
                     break
 
             return stop
         finally:
-            # Always restore original available_resources
             if filtered_resources is not None:
                 system_state.available_resources = original_available_resources
 
@@ -220,7 +210,6 @@ class KnativeAutoscaler(Autoscaler):
         ]
         candidates = server_couples if server_couples else client_couples
 
-        # Select a replica on the most available node
         available_couple = max(
             candidates,
             key=lambda couple: couple[0].available_platforms,
@@ -280,17 +269,14 @@ class KnativeAutoscaler(Autoscaler):
 
         platform.storage_time += retrieval_duration
 
-        # Update state
         # FIXME: Move to state update methods
         state: KnativeSchedulerState = system_state.scheduler_state
-        # Knative policy
         state.average_contention[task_type["name"]][
             (new_replica[0].id, new_replica[1].id)
         ] = 1.0
 
         # FIXME: Double initialize bug...
         try:
-            # Set platform to ready state
             platform.initialized.succeed()
         except RuntimeError:
             """
@@ -308,7 +294,6 @@ class KnativeAutoscaler(Autoscaler):
             """
             pass
 
-        # Statistics (Node)
         node.cache_hits += int(image_pull_disk_hit(physics, platform, node, task_type))
 
     def remove_replica(
@@ -322,13 +307,10 @@ class KnativeAutoscaler(Autoscaler):
         if False:
             yield
 
-        # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
             function_replicas, key=lambda couple: len(couple[1].queue.items)
         )
 
-        # Mark replica for removal if its task queue is empty
-        # Return None if no replica can be removed
         removed_couple = next(
             (
                 replica
@@ -341,11 +323,9 @@ class KnativeAutoscaler(Autoscaler):
         )
 
         if removed_couple:
-            # Update state
             # FIXME: Move to state update methods
             state: SchedulerState = system_state.scheduler_state
             try:
-                # Knative policy
                 del state.average_contention[task_type["name"]][
                     (removed_couple[0].id, removed_couple[1].id)
                 ]

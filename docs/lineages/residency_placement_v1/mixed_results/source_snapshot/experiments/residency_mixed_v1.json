@@ -1,0 +1,60 @@
+{
+  "lineage": "residency_placement_v1",
+  "registered": "2026-10-01",
+  "contract": "resident_container_fifo_v1",
+  "image": "python@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e",
+  "attempts": [
+    {
+      "name": "mixed_backlog",
+      "cpu": [
+        0.5,
+        1.0,
+        2.0
+      ],
+      "slots": 2,
+      "trace_mode": "adjacent",
+      "mixed_probe": true
+    }
+  ],
+  "functions": 6,
+  "hosts": 3,
+  "requests_per_batch": 8,
+  "profile_repetitions": 3,
+  "profile_warm_requests": 5,
+  "train_cases_per_attempt": 64,
+  "validation_cases_per_attempt": 16,
+  "test_cases_per_attempt": 24,
+  "training_seeds": [
+    101,
+    202,
+    303
+  ],
+  "arms": [
+    "gnn",
+    "mpoff",
+    "hand_mlp"
+  ],
+  "epochs": 35,
+  "physical_cases_per_attempt": 2,
+  "physical_repetitions": 2,
+  "physical_batches": 2,
+  "physical_arms": [
+    "greedy",
+    "search",
+    "gnn",
+    "mpoff",
+    "hand_mlp"
+  ],
+  "qualification": "All three attempts receive small matched pilots and physical gates; no recipe selected by test results.",
+  "claim_rule": "Exploratory only: 2 physical cases per attempt cannot establish a publishable GNN win. Report every arm, seed, attempt, and timing error; never promote only a winning slice.",
+  "physics": "FIFO per host, real memory-resident processes in Docker; memory admission uses measured per-function reservations, eviction minimizes Greedy-Dual-style frequency*startup/bytes priority. Placement induces residency changes; eviction policy is shared and not learned.",
+  "labels": "Enumerate all 3^8 assignments of the observed batch; conditional best full-batch sum completion cost at prefixes. No future arrivals. Exhaustive only in this fixed FIFO/eviction decision space.",
+  "trace": "Azure 2019 day 1. Disjoint six-application blocks across splits; sampled minute counts determine batch composition. Scaling to eight requests and benchmark mapping are synthetic; no claim of native Azure sub-minute timestamps or hardware profiles.",
+  "sources": [
+    "https://www.usenix.org/conference/atc20/presentation/shahrad",
+    "https://homes.luddy.indiana.edu/prateeks/papers/faascache-asplos21.pdf",
+    "https://par.nsf.gov/servlets/purl/10355252",
+    "https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsDataset2019.md"
+  ],
+  "amendment": "Registered after original workload inspection: synthetic six-function burst, shared measured profiles, separate retraining; not production trace prevalence."
+}

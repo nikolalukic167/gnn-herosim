@@ -51,6 +51,7 @@ GUARD_SUFFIXES = {
 
 # live metric -> summary key holding the floor it should be read against.
 CHANCE_FLOOR = {
+    "val/pair_optimal_fraction": ("baseline/val_pair_optimal_fraction", "above"),
     "val/task_acc": ("baseline/val_chance_task_acc", "above"),
     "val/acc": ("baseline/val_chance_graph_acc", "above"),
     "val/ce": ("baseline/val_chance_ce", "below"),
@@ -89,6 +90,7 @@ def _read_wandb_dir(run_dir: Path) -> tuple[List[Dict[str, Any]], Dict[str, Any]
     # summary is read out of the transaction log as well. Without this the
     # reference lines silently read as "NONE RECORDED" on every unsynced run.
     summary: Dict[str, Any] = {}
+    config: Dict[str, Any] = {}
 
     def _items(items: Any) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
@@ -114,10 +116,13 @@ def _read_wandb_dir(run_dir: Path) -> tuple[List[Dict[str, Any]], Dict[str, Any]
             rows.append(_items(rec.history.item))
         elif kind == "summary":
             summary.update(_items(rec.summary.update))
+        elif kind == "run":
+            config.update(_items(rec.run.config.update))
+        elif kind == "config":
+            config.update(_items(rec.config.update))
     summary_path = run_dir / "files" / "wandb-summary.json"
     if summary_path.exists():
         summary.update(json.loads(summary_path.read_text()))
-    config: Dict[str, Any] = {}
     config_path = run_dir / "files" / "config.yaml"
     if config_path.exists():
         try:
@@ -152,6 +157,11 @@ def _series(rows: List[Dict[str, Any]], key: str) -> List[float]:
     return out
 
 
+def _epoch_label(rows: List[Dict[str, Any]], key: str, index: int) -> str:
+    matching = [row for row in rows if _series([row], key)]
+    return _fmt(float(matching[index].get("epoch", index)))
+
+
 def _fmt(x: float) -> str:
     if x == 0 or 1e-3 <= abs(x) < 1e6:
         return f"{x:,.4f}".rstrip("0").rstrip(".") or "0"
@@ -170,6 +180,45 @@ def main(argv: Optional[List[str]] = None) -> int:
         rows, summary, config = _read_wandb_dir(Path(args.run_dir))
     else:
         ap.error("give a wandb run directory or --csv")
+
+    if config.get("contract") in ("workflow_manifest_assignment_v1", "mixed_execution_assignment_v1"):
+        aliases = {
+            "train_ce": "train/ce",
+            "validation_accuracy": "val/task_acc",
+            "validation_mean_rtt_ms": "val/workflow_rtt_ms",
+            "validation_mean_served_rtt_ms": "val/workflow_rtt_ms",
+            "validation_raw_refined_rtt_ms": "val/raw_refined_rtt_ms",
+            "train_loss": "train/combined_loss",
+            "validation_teacher_regret_pct": "val/teacher_regret_pct",
+        }
+        rows = [{aliases.get(k, k): v for k, v in row.items()} for row in rows]
+        if "chance_accuracy" in config:
+            summary["baseline/val_chance_task_acc"] = config["chance_accuracy"]
+
+    if config.get("contract") == "mixed_pair_selector_v1":
+        floor = next((r["uniform_choice_oracle_fraction"] for r in rows
+                      if "uniform_choice_oracle_fraction" in r), None)
+        if floor is not None:
+            summary["baseline/val_pair_optimal_fraction"] = floor
+        if "uniform_ce_floor" in config:
+            summary["baseline/val_chance_ce"] = config["uniform_ce_floor"]
+        aliases = {"train_loss": "train/ce",
+                   "validation_mean_served_rtt_ms": "val/workflow_rtt_ms",
+                   "validation_optimal_fraction": "val/pair_optimal_fraction"}
+        rows = [{aliases.get(k, k): v for k, v in row.items()} for row in rows]
+
+    if config.get("contract") == "mixed_dispatch_priority_v1":
+        aliases = {
+            "train_loss": "train/rank_loss",
+            "validation_mean_served_rtt_ms": "val/workflow_rtt_ms",
+            "validation_rank_mae": "val/rank_mae",
+        }
+        rows = [{aliases.get(k, k): v for k, v in row.items()} for row in rows]
+
+    if config.get("contract") == "resident_container_fifo_v1":
+        aliases = {"train_soft_ce": "train/ce", "validation_regret": "val/residency_regret"}
+        rows = [{aliases.get(k, k): v for k, v in row.items()} for row in rows]
+        summary["baseline/val_chance_ce"] = config["chance_ce"]
 
     def _has(row: Dict[str, Any], prefix_: str) -> bool:
         return any(k.startswith(prefix_) and row[k] not in (None, "") for k in row)
@@ -241,7 +290,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         imin, imax = xs.index(min(xs)), xs.index(max(xs))
         print(
             f"    {key:40s} {_fmt(xs[0]):>11s} "
-            f"{_fmt(min(xs)) + '@' + str(imin):>15s} {_fmt(max(xs)) + '@' + str(imax):>15s} "
+            f"{_fmt(min(xs)) + '@' + _epoch_label(step_rows, key, imin):>15s} {_fmt(max(xs)) + '@' + _epoch_label(step_rows, key, imax):>15s} "
             f"{_fmt(xs[-1]):>11s}"
         )
 
@@ -269,13 +318,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             # `untrained` is the model before any step, when the trainer recorded it.
             u = floors.get(untrained_key(metric))
             u_txt = f"untrained={_fmt(float(u))} " if isinstance(u, (int, float)) else ""
-            print(f"    {metric:30s} {u_txt}after-ep1={_fmt(xs[0])} best={_fmt(max(xs) if direction == 'above' else min(xs))} chance={_fmt(floor)} -> {verdict}{tail}")
+            print(f"    {metric:30s} {u_txt}first-logged={_fmt(xs[0])} best={_fmt(max(xs) if direction == 'above' else min(xs))} chance={_fmt(floor)} -> {verdict}{tail}")
 
     # --- selection and overfit ----------------------------------------------
     print("\nSELECTION")
     sel_key = None
     constant_keys = {k for k, _ in constant}
-    for cand in ("val/regret_masked_topo", "val/regret_topk", "val/regret_greedy"):
+    for cand in ("val/residency_regret", "val/workflow_rtt_ms", "val/regret_masked_topo", "val/regret_topk", "val/regret_greedy"):
         # A selector that never moved is still the selector -- look past `live`.
         if cand in live or cand in constant_keys:
             sel_key = cand
@@ -291,7 +340,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             ys = _series(step_rows, key)
             if len(ys) != len(xs):
                 continue
-            better = max if key.endswith(("acc",)) else min
+            better = max if key.endswith(("acc", "pair_optimal_fraction")) else min
             peak = ys.index(better(ys))
             if abs(peak - sel) >= max(5, n_epochs // 20):
                 print(f"    NOTE {key} peaks at epoch {peak}, not {sel} -- the selector is not optimising it")

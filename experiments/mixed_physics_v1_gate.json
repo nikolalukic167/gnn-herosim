@@ -1,0 +1,17 @@
+{
+ "registered":"2026-09-22",
+ "parent":"radical_physics_v1",
+ "physics":"setup + atomic shared locks + overlapping power domains, unchanged from discovery",
+ "calibration_seeds":[105000,105015],
+ "fresh_seeds":[106000,106031],
+ "starts":["fastest","load","affinity","ect"],
+ "searches":["direct","descent2","descent4","descent8","descent64","anneal128","anneal256","anneal512","anneal1024"],
+ "budget_ms":2.0,
+ "timing_repeats":5,
+ "reference":"best of frozen hand control and 8192-step annealing from fastest and load; match prior reference effort, report no certified optimum",
+ "selection":"mean calibration objective among p95 case-median runtime <=2ms; freeze start/search before fresh data",
+ "advance":"fresh paired median reference improvement >=5pct, bootstrap median lower95>0, control p95<=2ms, full HeROsim/native agreement and unchanged legacy fixture",
+ "if_pass":"new typed operation/host/lock/domain graph; same base inputs in separately trained MP-OFF and hand-graph controls; training via configs with W&B; fresh model gate required",
+ "if_fail":"no training of this candidate, record the bound from tested reference; live gate still completed",
+ "serving_contract":"mixed_execution_v1 opt-in infrastructure field; atomic host/lock/domain reservation, FIFO machine heads, deterministic timestamp/job order, node-specific sequence-dependent setup; default unchanged"
+}

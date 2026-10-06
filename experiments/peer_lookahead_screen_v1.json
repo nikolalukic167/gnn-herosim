@@ -1,0 +1,23 @@
+{
+  "kind": "exploratory_screen_not_a_registered_live_gate",
+  "source_corpus": "simulation_data/gnn_datasets_dag4_route_b_pilot_v1_arm_b0",
+  "source_count": 24,
+  "source_stride": 8,
+  "paper_seed_start": 42100,
+  "tasks": 8,
+  "candidates": 3,
+  "payload_bytes": 200000000.0,
+  "cycles": [[0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 5, 4, 3, 6, 7]],
+  "message_rounds": [1, 2, 3, 8],
+  "cd_passes": 3,
+  "material_regret_pct": 5.0,
+  "capacity": "uncapped",
+  "decision": "task_0_only_with_oracle_completion",
+  "information": "declared_future_peer_graph_and_candidate_costs_at_current_snapshot",
+  "limitations": [
+    "Future task metadata and candidates require a new serving contract.",
+    "Frozen source costs are forecasts, not realized future queue states.",
+    "This paper objective has no arrival, rendezvous or queue-drain dynamics.",
+    "No trained model, live RTT claim, or statistical power claim."
+  ]
+}

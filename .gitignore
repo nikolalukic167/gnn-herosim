@@ -245,3 +245,20 @@ simulation_data/separability_warmth_1060_n150_spread.json
 
 # Professor summary build (figures, data copies, LaTeX outputs) — kept locally, not in git.
 paper/professor_summary/
+
+# Scratch outputs in the repo root.
+.tmp_out/
+.tmp_*.pkl
+
+# Lineage attachments >= 5 MB: kept out of git; copies at datalab:/share/nikola.lukic/local_backup_2026-10-06/ (md5-verified 2026-10-06).
+docs/lineages/g32_sampled_slate_v1/sealed_gate_raw_2026-09-23.tar
+docs/lineages/gnn_proposal_selector_v1/sealed_gate_v2_raw_results.tar.gz
+docs/lineages/g32_exact_val_selection_v1/sealed_live_gate_2026-09-23.tar.gz
+docs/lineages/g32_sampled_slate_v1/training_artifacts_2026-09-23.tar.gz
+docs/lineages/proposal_frontier_v1/repaired_live_gate_2026-09-23.tar.gz
+docs/lineages/g32_core_prefetch_s0_v1/core_prefetch_live_2026-09-23.tar.gz
+docs/lineages/g32_peer_prefetch_s0_v1/peer_prefetch_s0_2026-09-23.tar.gz
+docs/lineages/l2d_learning_efficiency_v1/sealed_gate_2026-09-23.tar.gz
+docs/lineages/g32_core_prefetch_s0_v1/core_prefetch_residual_2026-09-23.tar.gz
+docs/lineages/g32_peer_fabric_s0_v1/peer_fabric_s0_2026-09-23.tar.gz
+docs/lineages/g32_fourtype_move_s0_v1/residual_control_s0_2026-09-23.tar.gz

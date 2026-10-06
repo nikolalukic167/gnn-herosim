@@ -44,6 +44,42 @@ REPO_ROOT = Path(__file__).resolve().parent
 #   wandb_via_env : run name + tags are read from the environment
 #   wandb_via_cli : run name is passed as --wandb-run-name (no tag support)
 TRAINERS = {
+    "residency": {
+        "path": REPO_ROOT / "src" / "policy" / "residency" / "train.py",
+        "wandb": "env",
+    },
+    "dag_memory": {
+        "path": REPO_ROOT / "src" / "policy" / "dag_memory" / "train.py",
+        "wandb": "env",
+    },
+    "dag_reservation": {
+        "path": REPO_ROOT / "src" / "policy" / "dag_reservation" / "train.py",
+        "wandb": "env",
+    },
+    "dispatch_value": {
+        "path": REPO_ROOT / "src" / "policy" / "dispatch_value" / "train.py",
+        "wandb": "env",
+    },
+    "dispatch_state": {
+        "path": REPO_ROOT / "src" / "policy" / "dispatch_state" / "train.py",
+        "wandb": "env",
+    },
+    "dispatch_priority": {
+        "path": REPO_ROOT / "src" / "policy" / "dispatch_priority" / "train.py",
+        "wandb": "env",
+    },
+    "pair_selector": {
+        "path": REPO_ROOT / "src" / "policy" / "pair_selector" / "train.py",
+        "wandb": "env",
+    },
+    "mixed": {
+        "path": REPO_ROOT / "src" / "policy" / "mixed" / "train.py",
+        "wandb": "env",
+    },
+    "workflow": {
+        "path": REPO_ROOT / "src" / "policy" / "workflow" / "train.py",
+        "wandb": "env",
+    },
     "gnn": {
         "path": REPO_ROOT / "src" / "notebooks" / "train_near_rtt.py",
         "wandb": "env",
@@ -156,7 +192,9 @@ def resolve(
         )
 
     if seed is not None:
-        if cfg["trainer"] == "mlp":
+        if cfg["trainer"] in ("residency", "dag_memory", "dag_reservation", "workflow", "mixed", "pair_selector", "dispatch_priority", "dispatch_state", "dispatch_value"):
+            args["seed"] = seed
+        elif cfg["trainer"] == "mlp":
             # --random-state seeds init + batch order (and the drawn split, when no
             # --split-artifact pins it); a bare int here overrides whatever the config
             # set, matching argparse's last-flag-wins semantics.

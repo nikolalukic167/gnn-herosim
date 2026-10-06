@@ -1,0 +1,28 @@
+{
+  "lineage": "proposal_frontier_v1",
+  "phase": "sealed_gate",
+  "question": "Does a full GNN proposal improve the live quality versus CPU decision-time frontier of an existing MP-OFF plus hand selector?",
+  "design": {
+    "topologies": 8,
+    "seed_selection": "First eight coverage-eligible seeds in 10301..10340, no outcomes read",
+    "groups_per_topology": 160,
+    "tasks_per_group": 32,
+    "fixed_replicas": true,
+    "peer_exchange_scale": 4,
+    "coordinate_descent_passes": 6,
+    "selector": "Frozen deterministic base-plus-queue score, coefficient 1, name tie-break",
+    "arms": {
+      "gnn": ["final full GNN", "old MP-OFF", "hand at scale 4"],
+      "mpoff": ["final new MP-OFF", "old MP-OFF", "hand at scale 4"],
+      "handmulti": ["old MP-OFF", "hand at scales 0.5, 1, 2, 4, 8, 16"]
+    }
+  },
+  "metrics": {
+    "quality": "Live mean elapsed seconds per task, topology as paired unit",
+    "cost": "Measured total CPU inference seconds / completed tasks; report median and per-topology values",
+    "candidate_diversity": "Distinct plan count and selection frequency within each live arm; diagnostic only"
+  },
+  "pass_rule": "GNN is useful at this recipe only if its median paired quality gain is >=2% and positive on >=7/8 topologies versus each control whose median measured CPU cost is no greater than GNN. A slower arm is reported on the quality-time frontier but is not a time-feasible control. No message-passing-specific claim follows from a pass.",
+  "audit": ["8 topology pairs", "160 complete groups and 5120 tasks per arm", "same fixed-replica manifest per topology", "peer exchange enabled and measured", "checkpoint-sidecar and input hashes", "complete selector trace with all candidate plans", "matching code fingerprint", "measured inference time"],
+  "development_only_seed": 9303
+}

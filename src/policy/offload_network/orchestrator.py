@@ -28,7 +28,6 @@ from src.placement.orchestrator import Orchestrator
 
 class KnativeOrchestrator(Orchestrator):
     def initialize_state(self) -> KnativeSystemState:
-        # Initialize scheduler state
         scheduler_state = KnativeSchedulerState(
             average_contention={task_type: {} for task_type in self.data.task_types},
             panic_contention={task_type: {} for task_type in self.data.task_types},
@@ -41,12 +40,10 @@ class KnativeOrchestrator(Orchestrator):
                 for task_type in self.data.task_types
             },
         )
-        # Initialize available resources to all Tuple[Node, Platform]
         available_resources: Dict[Node, Set[Platform]] = {
             node: {platform for platform in set(node.platforms.items)}
             for node in set(self.nodes.items)
         }
-        # Initialize function replicas to empty sets
         replicas: Dict[str, Set[Tuple[Node, Platform]]] = {
             task_type: set() for task_type in self.data.task_types
         }
@@ -70,7 +67,6 @@ class KnativeOrchestrator(Orchestrator):
             replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
             state: KnativeSchedulerState = system_state.scheduler_state
 
-            # Count queue depth for autoscaling
             for function_name, function_replicas in replicas.items():
                 for node, platform in function_replicas:
                     state.average_contention[function_name][
@@ -79,5 +75,4 @@ class KnativeOrchestrator(Orchestrator):
 
             yield self.mutex.put(system_state)
 
-            # Wake Monitor up once per second
             yield self.env.timeout(1)

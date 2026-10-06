@@ -1,0 +1,19 @@
+{
+  "registered": "2026-09-22",
+  "parent": "radical_physics_v1",
+  "question": "Does choosing ready-operation order leave useful headroom over affordable hand dispatch/search?",
+  "calibration_seeds": [124000, 124015],
+  "fresh_seeds": [125000, 125031],
+  "placement": "Fixed affinity plus 64-round single-flip placement descent under original FIFO physics, identical across all ordering arms; its compute cost is charged",
+  "dispatch": "Globally sort ready operations by declared static operation priority, break ties by job; start each resource-feasible operation and bypass blocked candidates; no preemption; original setup/lock/domain physics",
+  "starts": ["spt", "srpt", "longest", "type", "lock_low", "lock_high", "graph_tail"],
+  "search_steps": [0, 64, 128, 256, 512],
+  "budget_ms": 5,
+  "calibration_fraction": 0.85,
+  "timing_repeats": 7,
+  "selection": "Best calibration mean among start/search controls with p95<=4.25ms, frozen before fresh outcomes",
+  "reference": "Best frozen control and 8192 priority-swap annealing proposals from spt and srpt; feasible reference, not certified optimum",
+  "gate": "Fresh median reference gain>=5 percent, positive bootstrap lower bound, control p95<=5ms",
+  "live_gate": "32 fresh cases times frozen control, reference and plain srpt =96 real HeROsim simulations; independent priority SimPy replay and every operation completion checked",
+  "scope": "New ordering seat with fixed placements, no learned policy yet, not an end-to-end joint placement/ordering result; no training unless headroom and representation/control challenges justify it"
+}

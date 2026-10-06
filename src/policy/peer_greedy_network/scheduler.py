@@ -43,6 +43,7 @@ import os
 from typing import Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
 from src.placement.live_audit import orchestrator_of, platform_queue_drain_seconds
+from src.placement.availability import AVAILABILITY, LEGACY, drain_contract, platform_availability
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.model import SystemState
 from src.placement.scheduling_cost import incoming_cold_start_time, network_latency_between
@@ -100,6 +101,10 @@ class _PeerGreedyCore:
         self.pg_cd_passes = 0
         self.pg_cd_moves = 0
         self.pg_exchange_scale = _pg_exchange_scale()
+        self.pg_drain_contract = drain_contract()
+        if self.pg_drain_contract != LEGACY and self._policy_label.startswith("peer_greedy_learned_"):
+            raise ValueError("availability_v2 is a rule-only contract; the rollout checkpoint uses backlog_only_v1")
+        self.pg_unresolved_candidates = 0
         # forced_placements: {task_id -> (node_id, platform_id)} injected by the orchestrator from
         # config["infrastructure"]["forced_placements"] (rollout_imitation_v1's label engine forces
         # one task to a candidate and lets the rule choose everything else). Empty = normal rule.
@@ -113,9 +118,17 @@ class _PeerGreedyCore:
         """Append one decision. `candidate_feature_rows` are pre-formatted rows built in _pg_choose:
         [node_id, plat_id, node_name, plat_str, drain, cold, exec, latency, exchange]."""
         import json as _json
-        rec = {"task_id": task_id, "candidates": candidate_feature_rows}
+        rec = {"task_id": task_id, "candidates": candidate_feature_rows,
+               "drain_contract": self.pg_drain_contract}
         with open(self._pg_capture_path, "a") as fh:
             fh.write(_json.dumps(rec) + "\n")
+
+    def _pg_drain(self, platform, orch, memo):
+        if self.pg_drain_contract == LEGACY:
+            return platform_queue_drain_seconds(platform, orch, memo), False
+        estimate = platform_availability(platform, orch, memo)
+        self.pg_unresolved_candidates += int(estimate.has_unresolved_wait)
+        return estimate.known_work_s, estimate.has_unresolved_wait
 
     def _pg_orchestrator(self):
         orch = orchestrator_of(self)
@@ -186,7 +199,8 @@ class _PeerGreedyCore:
         for node, platform in candidates:
             key = f"{node.node_name}:{platform.id}"
             plat_type = platform.type["shortName"]
-            drain = platform_queue_drain_seconds(platform, orch, memo) + committed_service.get(key, 0.0)
+            drain, unresolved = self._pg_drain(platform, orch, memo)
+            drain += committed_service.get(key, 0.0)
             exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0)
             cold = incoming_cold_start_time(task, platform)
             lat = network_latency_between(task.node_name, node, nodes)
@@ -195,13 +209,15 @@ class _PeerGreedyCore:
             if self._pg_capture_path:
                 feats.append([int(node.id), int(platform.id), node.node_name, str(platform.id),
                               float(drain), float(cold), float(exec_s), float(lat), float(exch)])
-            scored.append((base + self.pg_exchange_scale * exch, base, exch, exec_s + comm, node, platform))
-        best = min(scored, key=lambda s: (s[0], s[4].id, s[5].id))
+            scored.append((base + self.pg_exchange_scale * exch, base, exch, exec_s + comm, node, platform, unresolved))
+        # Unknown waits cannot be priced as zero. Prefer resolved candidates, but
+        # still place when all are blocked (placement itself can release a peer).
+        best = min(scored, key=lambda s: (s[6], s[0], s[4].id, s[5].id))
         if self._pg_capture_path and feats:
             self._pg_capture(int(task.id), feats)
         self.pg_decisions += 1
         if peer_nodes:
-            best_without = min(scored, key=lambda s: (s[1], s[4].id, s[5].id))
+            best_without = min(scored, key=lambda s: (s[6], s[1], s[4].id, s[5].id))
             if (best_without[4].id, best_without[5].id) != (best[4].id, best[5].id):
                 self.pg_moved_by_exchange += 1
             if any(pn == best[4].node_name for pn, _b in peer_nodes):

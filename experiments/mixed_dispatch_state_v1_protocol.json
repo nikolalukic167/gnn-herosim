@@ -1,0 +1,15 @@
+{
+  "registered": "2026-09-22",
+  "parent": "mixed_dispatch_v1",
+  "train_seeds": [132000, 132127],
+  "validation_seeds": [133000, 133031],
+  "test_seeds": [134000, 134031],
+  "arms": ["gnn", "mpoff", "mlp_hand"],
+  "placement": "Affinity plus descent64, fixed and charged to every arm",
+  "teacher": "Best of four independently seeded SRPT-start priority searches, 8192 proposals each",
+  "target": "Cross-entropy choice among operations that are feasible in the current ready set along the teacher trajectory",
+  "serving": "One static encoder pass followed by a small dynamic head at ready-set decisions; materialize and replay the resulting schedule",
+  "validation_bar": "At least 5 percent mean gain over srpt:128 with full p95 decision time at or below 5 ms",
+  "claim_bar": "At least 5 percent paired median gain over MP-OFF, hand-graph and srpt:128 with positive bootstrap lower bounds in a fresh live gate",
+  "stop": "Do not train if teacher decisions are almost always singleton, state labels fail exact replay, or the oracle teacher has under 5 percent validation headroom"
+}

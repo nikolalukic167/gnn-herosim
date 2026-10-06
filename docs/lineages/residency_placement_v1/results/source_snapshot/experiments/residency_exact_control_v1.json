@@ -1,0 +1,14 @@
+{
+  "registered": "2026-10-01",
+  "parent": "residency_placement_v1",
+  "reason": "Post-primary-gate timing read: vectorized exact 3^8 search is as fast as or faster than the learned decoder, so coordinate descent alone is not a sufficient serving bar.",
+  "timing_seen": "Parent exact median 7.88 ms versus GNN seed202 9.51 ms; mixed exact 9.07 ms versus GNN seed202 10.23 ms. These are observed timings, not preregistered expectations.",
+  "arms": ["exact", "gnn", "mpoff"],
+  "cases": [104, 105],
+  "repetitions": 2,
+  "order": "reverse on second repetition",
+  "families": ["residency_placement_v1", "residency_mixed_v1"],
+  "checkpoints": "Previously frozen validation-selected checkpoints; no retraining or reselection.",
+  "scope": "48 additional real-container runs, same physical cases, no new independent replication; compare arms within this follow-up, never pool runs as independent cases.",
+  "setup": "All 3^8 host tuples are cached at process initialization; this fixed combinatorial table is independent of the workload, analogous to loading model weights. Evaluation of every tuple on observed state is timed and charged."
+}

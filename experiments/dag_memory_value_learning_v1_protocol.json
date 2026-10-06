@@ -1,0 +1,18 @@
+{
+  "status": "registered_before_data_generation",
+  "parent": "dag_memory_lifetime_s0_v1",
+  "exception": "User explicitly requested a trained result despite the parent's failed 8% funding and under-half search-hardness bars.",
+  "shape": [8, 8, 8],
+  "train_seeds": [163000, 163063],
+  "validation_seeds": [163100, 163115],
+  "sealed_test_seeds": [163200, 163215],
+  "arms": ["gnn", "mpoff", "hand_mlp"],
+  "draws": [101, 102],
+  "epochs": 8,
+  "decision_budget_ms": 250,
+  "label": "exact change in full job-completion cost from flipping one output retention bit at visited hand states",
+  "selection": "lowest fully served mean job-completion cost on disjoint validation workflows, including epoch zero",
+  "controls": ["selected 250 ms memory-aware greedy search", "best five simple retention rules", "two-start 2048-step feasible reference"],
+  "live_gate": "16 sealed workflows by all six checkpoints, hand, simple and reference; every operation completion and memory event count audited",
+  "claim": "A GNN-specific win needs a positive paired interval over MP-OFF, hand-feature MLP and timed hand search while respecting 250 ms. This two-draw pilot is exploratory."
+}

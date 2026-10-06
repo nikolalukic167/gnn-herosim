@@ -1,0 +1,19 @@
+{
+  "status": "signed_before_fresh_workflows",
+  "parent": "dag_block_stepwise_s0_v1",
+  "question": "Can a widened critical-chain, lock-chain, setup-class and block-swap proposal space beat a strong 128-operation start beyond an equally budgeted hand proposer?",
+  "shape": [16, 8, 12],
+  "opened_calibration_seeds": [161200, 161201],
+  "fresh_seeds": [166000, 166015],
+  "common_start_budget_ms": 250,
+  "post_start_budget_ms": 250,
+  "post_start_exact_evaluation_cap": 512,
+  "candidate_limit_per_family": 1024,
+  "oracle_block_descent_rounds": 3,
+  "headroom_bar_pct": 8,
+  "hand_capture_ceiling": 0.5,
+  "hand_control": "one calibrated compiled mixed-decoder search, seed 79, at most 512 exact proposals and 250 ms after the same strong start",
+  "oracle": "best feasible plan from up to three exhaustive passes over the frozen block proposal families, starting from the same strong plan",
+  "live_gate": "initial calibration start and fresh start, hand and oracle plans in actual HeROsim; independent plan and completion audit even after offline NO-GO",
+  "decision": "Train no model unless median fresh oracle gain over strong start is at least 8 percent, median equal-budget hand capture is below 50 percent, and actionable graph residual survives strong hand features."
+}

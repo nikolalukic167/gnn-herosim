@@ -1,0 +1,19 @@
+{
+  "lineage": "l2d_size_transfer_v1",
+  "phase": "sealed_gate",
+  "source_size": "6x6",
+  "target_sizes": ["10x10", "15x15"],
+  "test_seed": 301,
+  "instances_per_target": 100,
+  "training_seeds": [0, 1, 2, 3, 4, 5, 6, 7],
+  "arms": ["gnn", "mpoff", "mlp_t1"],
+  "checkpoint_contract": "lr=5e-4, max_updates=30000, best validation on 6x6 only, source-size sidecars required",
+  "serving": "CPU, greedy decode, target-size policy shell with source checkpoint weights, upstream L2D unchanged",
+  "primary_metric": "Mean makespan over 100 paired target instances per training seed; training seed is independent unit",
+  "gain": "(control_mean - gnn_mean) / control_mean * 100, positive means GNN better",
+  "controls": ["mpoff", "mlp_t1"],
+  "pass_rule": "For BOTH target sizes and BOTH controls: median paired GNN gain >=1% and positive on >=7/8 training seeds",
+  "reference": "FDD/MWKR through the same target environment; report separately, not part of architecture pass",
+  "audit": ["source checkpoint and sidecar hashes", "target test-set hashes and shape", "upstream commit", "strict target-size policy load", "100 complete finite makespans per arm/seed", "same target instances across arms", "all eight training seeds", "no target-size training or target validation selection"],
+  "opened_smoke": "Old seed300 sets: 2 instances at 10x10 and 10 at 15x15; excluded from gate"
+}

@@ -1,0 +1,1130 @@
+{
+ "n_j": 6,
+ "n_m": 6,
+ "seed": 401,
+ "n_test": 16,
+ "upstream_commit": "7b2efbb1ffc960260b16952f2bed68e500765bf0",
+ "test_data_sha256": "7ad934b8a628677ea690fd60dec738e8e3c146adf338fca819cb89dfd52287d7",
+ "records": [
+  {
+   "case": 0,
+   "rules": {
+    "SPT": {
+     "makespan": 746.0,
+     "wall_ms": 4.748062
+    },
+    "MWKR": {
+     "makespan": 636.0,
+     "wall_ms": 4.861586
+    },
+    "FDD_MWKR": {
+     "makespan": 568.0,
+     "wall_ms": 4.992369
+    },
+    "MOPNR": {
+     "makespan": 601.0,
+     "wall_ms": 4.13334
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 568.0,
+   "portfolio_wall_ms": 18.735357,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 526.0,
+     "wall_ms": 2067.596812,
+     "candidate_rollouts": 796,
+     "incumbent_improvements": 2,
+     "actions": [
+      24,
+      18,
+      30,
+      19,
+      25,
+      0,
+      31,
+      1,
+      32,
+      2,
+      3,
+      12,
+      6,
+      26,
+      7,
+      8,
+      13,
+      20,
+      27,
+      9,
+      14,
+      33,
+      15,
+      10,
+      21,
+      28,
+      22,
+      16,
+      34,
+      11,
+      23,
+      4,
+      29,
+      35,
+      5,
+      17
+     ]
+    }
+   }
+  },
+  {
+   "case": 1,
+   "rules": {
+    "SPT": {
+     "makespan": 679.0,
+     "wall_ms": 4.078948
+    },
+    "MWKR": {
+     "makespan": 560.0,
+     "wall_ms": 4.446117
+    },
+    "FDD_MWKR": {
+     "makespan": 510.0,
+     "wall_ms": 4.732162
+    },
+    "MOPNR": {
+     "makespan": 516.0,
+     "wall_ms": 3.862462
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 510.0,
+   "portfolio_wall_ms": 17.119689,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 487.0,
+     "wall_ms": 1932.447865,
+     "candidate_rollouts": 800,
+     "incumbent_improvements": 2,
+     "actions": [
+      0,
+      18,
+      19,
+      20,
+      21,
+      12,
+      30,
+      6,
+      24,
+      1,
+      31,
+      13,
+      7,
+      2,
+      25,
+      8,
+      14,
+      3,
+      26,
+      32,
+      9,
+      27,
+      4,
+      15,
+      22,
+      33,
+      28,
+      10,
+      34,
+      23,
+      16,
+      5,
+      29,
+      11,
+      35,
+      17
+     ]
+    }
+   }
+  },
+  {
+   "case": 2,
+   "rules": {
+    "SPT": {
+     "makespan": 645.0,
+     "wall_ms": 4.179686
+    },
+    "MWKR": {
+     "makespan": 606.0,
+     "wall_ms": 4.504575
+    },
+    "FDD_MWKR": {
+     "makespan": 610.0,
+     "wall_ms": 4.867236
+    },
+    "MOPNR": {
+     "makespan": 629.0,
+     "wall_ms": 4.027361
+    }
+   },
+   "best_rule": "MWKR",
+   "best_rule_makespan": 606.0,
+   "portfolio_wall_ms": 17.578858,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 563.0,
+     "wall_ms": 1987.86121,
+     "candidate_rollouts": 776,
+     "incumbent_improvements": 5,
+     "actions": [
+      30,
+      24,
+      18,
+      19,
+      0,
+      6,
+      1,
+      31,
+      12,
+      25,
+      32,
+      2,
+      26,
+      33,
+      3,
+      4,
+      34,
+      20,
+      27,
+      13,
+      7,
+      21,
+      14,
+      8,
+      22,
+      15,
+      9,
+      35,
+      5,
+      16,
+      28,
+      23,
+      10,
+      17,
+      11,
+      29
+     ]
+    }
+   }
+  },
+  {
+   "case": 3,
+   "rules": {
+    "SPT": {
+     "makespan": 653.0,
+     "wall_ms": 4.393508
+    },
+    "MWKR": {
+     "makespan": 590.0,
+     "wall_ms": 4.502723
+    },
+    "FDD_MWKR": {
+     "makespan": 642.0,
+     "wall_ms": 4.878637
+    },
+    "MOPNR": {
+     "makespan": 642.0,
+     "wall_ms": 4.060031
+    }
+   },
+   "best_rule": "MWKR",
+   "best_rule_makespan": 590.0,
+   "portfolio_wall_ms": 17.834899,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 588.0,
+     "wall_ms": 2014.9638989999999,
+     "candidate_rollouts": 804,
+     "incumbent_improvements": 1,
+     "actions": [
+      30,
+      18,
+      0,
+      1,
+      12,
+      6,
+      24,
+      7,
+      13,
+      25,
+      31,
+      19,
+      8,
+      20,
+      14,
+      2,
+      26,
+      32,
+      15,
+      21,
+      9,
+      33,
+      27,
+      3,
+      16,
+      34,
+      10,
+      22,
+      4,
+      28,
+      11,
+      5,
+      23,
+      17,
+      35,
+      29
+     ]
+    }
+   }
+  },
+  {
+   "case": 4,
+   "rules": {
+    "SPT": {
+     "makespan": 758.0,
+     "wall_ms": 4.173594
+    },
+    "MWKR": {
+     "makespan": 556.0,
+     "wall_ms": 4.412733
+    },
+    "FDD_MWKR": {
+     "makespan": 548.0,
+     "wall_ms": 4.793598
+    },
+    "MOPNR": {
+     "makespan": 553.0,
+     "wall_ms": 3.971245
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 548.0,
+   "portfolio_wall_ms": 17.35117,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 546.0,
+     "wall_ms": 1992.8584309999999,
+     "candidate_rollouts": 804,
+     "incumbent_improvements": 1,
+     "actions": [
+      24,
+      25,
+      0,
+      6,
+      12,
+      18,
+      30,
+      1,
+      7,
+      13,
+      19,
+      31,
+      2,
+      8,
+      14,
+      20,
+      26,
+      32,
+      3,
+      9,
+      15,
+      21,
+      27,
+      33,
+      4,
+      10,
+      16,
+      22,
+      28,
+      34,
+      5,
+      11,
+      17,
+      23,
+      29,
+      35
+     ]
+    }
+   }
+  },
+  {
+   "case": 5,
+   "rules": {
+    "SPT": {
+     "makespan": 834.0,
+     "wall_ms": 4.099356
+    },
+    "MWKR": {
+     "makespan": 621.0,
+     "wall_ms": 4.527689
+    },
+    "FDD_MWKR": {
+     "makespan": 608.0,
+     "wall_ms": 4.830427
+    },
+    "MOPNR": {
+     "makespan": 591.0,
+     "wall_ms": 3.885524
+    }
+   },
+   "best_rule": "MOPNR",
+   "best_rule_makespan": 591.0,
+   "portfolio_wall_ms": 17.342996,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 504.0,
+     "wall_ms": 1980.685128,
+     "candidate_rollouts": 780,
+     "incumbent_improvements": 5,
+     "actions": [
+      24,
+      0,
+      6,
+      12,
+      13,
+      7,
+      1,
+      18,
+      19,
+      20,
+      21,
+      25,
+      26,
+      27,
+      8,
+      14,
+      2,
+      30,
+      3,
+      9,
+      15,
+      31,
+      10,
+      22,
+      4,
+      16,
+      32,
+      33,
+      11,
+      17,
+      28,
+      23,
+      5,
+      34,
+      29,
+      35
+     ]
+    }
+   }
+  },
+  {
+   "case": 6,
+   "rules": {
+    "SPT": {
+     "makespan": 813.0,
+     "wall_ms": 4.36821
+    },
+    "MWKR": {
+     "makespan": 571.0,
+     "wall_ms": 4.36294
+    },
+    "FDD_MWKR": {
+     "makespan": 548.0,
+     "wall_ms": 4.819466
+    },
+    "MOPNR": {
+     "makespan": 652.0,
+     "wall_ms": 3.89349
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 548.0,
+   "portfolio_wall_ms": 17.444106,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 512.0,
+     "wall_ms": 1903.178817,
+     "candidate_rollouts": 700,
+     "incumbent_improvements": 3,
+     "actions": [
+      18,
+      12,
+      19,
+      30,
+      24,
+      6,
+      31,
+      0,
+      7,
+      8,
+      20,
+      1,
+      2,
+      25,
+      32,
+      33,
+      34,
+      26,
+      27,
+      28,
+      29,
+      13,
+      14,
+      15,
+      16,
+      17,
+      21,
+      22,
+      23,
+      35,
+      9,
+      10,
+      11,
+      3,
+      4,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "case": 7,
+   "rules": {
+    "SPT": {
+     "makespan": 858.0,
+     "wall_ms": 4.028594
+    },
+    "MWKR": {
+     "makespan": 622.0,
+     "wall_ms": 4.611377
+    },
+    "FDD_MWKR": {
+     "makespan": 649.0,
+     "wall_ms": 4.910307
+    },
+    "MOPNR": {
+     "makespan": 617.0,
+     "wall_ms": 3.891316
+    }
+   },
+   "best_rule": "MOPNR",
+   "best_rule_makespan": 617.0,
+   "portfolio_wall_ms": 17.441594000000002,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 574.0,
+     "wall_ms": 1917.332868,
+     "candidate_rollouts": 760,
+     "incumbent_improvements": 4,
+     "actions": [
+      24,
+      0,
+      6,
+      12,
+      18,
+      30,
+      1,
+      7,
+      13,
+      19,
+      25,
+      31,
+      2,
+      8,
+      14,
+      20,
+      26,
+      32,
+      3,
+      4,
+      27,
+      9,
+      28,
+      29,
+      33,
+      10,
+      15,
+      21,
+      16,
+      11,
+      17,
+      34,
+      22,
+      23,
+      35,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "case": 8,
+   "rules": {
+    "SPT": {
+     "makespan": 730.0,
+     "wall_ms": 3.884042
+    },
+    "MWKR": {
+     "makespan": 540.0,
+     "wall_ms": 4.608672
+    },
+    "FDD_MWKR": {
+     "makespan": 487.0,
+     "wall_ms": 4.793518
+    },
+    "MOPNR": {
+     "makespan": 528.0,
+     "wall_ms": 3.905432
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 487.0,
+   "portfolio_wall_ms": 17.191664,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 485.0,
+     "wall_ms": 1974.0277469999999,
+     "candidate_rollouts": 788,
+     "incumbent_improvements": 1,
+     "actions": [
+      12,
+      24,
+      0,
+      6,
+      13,
+      30,
+      18,
+      7,
+      25,
+      1,
+      19,
+      2,
+      31,
+      14,
+      26,
+      3,
+      8,
+      15,
+      4,
+      32,
+      9,
+      27,
+      20,
+      21,
+      16,
+      10,
+      33,
+      5,
+      28,
+      22,
+      17,
+      34,
+      23,
+      11,
+      35,
+      29
+     ]
+    }
+   }
+  },
+  {
+   "case": 9,
+   "rules": {
+    "SPT": {
+     "makespan": 654.0,
+     "wall_ms": 4.236122
+    },
+    "MWKR": {
+     "makespan": 519.0,
+     "wall_ms": 4.644288
+    },
+    "FDD_MWKR": {
+     "makespan": 491.0,
+     "wall_ms": 4.795401
+    },
+    "MOPNR": {
+     "makespan": 499.0,
+     "wall_ms": 3.773646
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 491.0,
+   "portfolio_wall_ms": 17.449457,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 466.0,
+     "wall_ms": 1999.8979319999999,
+     "candidate_rollouts": 784,
+     "incumbent_improvements": 1,
+     "actions": [
+      30,
+      24,
+      0,
+      1,
+      18,
+      31,
+      12,
+      19,
+      32,
+      2,
+      13,
+      6,
+      20,
+      25,
+      7,
+      8,
+      33,
+      14,
+      3,
+      26,
+      15,
+      9,
+      4,
+      34,
+      10,
+      21,
+      27,
+      28,
+      5,
+      22,
+      35,
+      11,
+      29,
+      16,
+      23,
+      17
+     ]
+    }
+   }
+  },
+  {
+   "case": 10,
+   "rules": {
+    "SPT": {
+     "makespan": 621.0,
+     "wall_ms": 4.017222
+    },
+    "MWKR": {
+     "makespan": 544.0,
+     "wall_ms": 4.627997
+    },
+    "FDD_MWKR": {
+     "makespan": 475.0,
+     "wall_ms": 4.763601
+    },
+    "MOPNR": {
+     "makespan": 546.0,
+     "wall_ms": 3.981576
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 475.0,
+   "portfolio_wall_ms": 17.390396,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 467.0,
+     "wall_ms": 1925.943912,
+     "candidate_rollouts": 760,
+     "incumbent_improvements": 1,
+     "actions": [
+      24,
+      18,
+      0,
+      30,
+      6,
+      12,
+      25,
+      1,
+      19,
+      7,
+      31,
+      2,
+      20,
+      26,
+      13,
+      3,
+      8,
+      32,
+      21,
+      27,
+      4,
+      22,
+      14,
+      33,
+      9,
+      28,
+      23,
+      5,
+      15,
+      10,
+      34,
+      11,
+      35,
+      29,
+      16,
+      17
+     ]
+    }
+   }
+  },
+  {
+   "case": 11,
+   "rules": {
+    "SPT": {
+     "makespan": 729.0,
+     "wall_ms": 4.033052
+    },
+    "MWKR": {
+     "makespan": 685.0,
+     "wall_ms": 4.819025
+    },
+    "FDD_MWKR": {
+     "makespan": 652.0,
+     "wall_ms": 5.077691
+    },
+    "MOPNR": {
+     "makespan": 646.0,
+     "wall_ms": 3.908909
+    }
+   },
+   "best_rule": "MOPNR",
+   "best_rule_makespan": 646.0,
+   "portfolio_wall_ms": 17.838677,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 606.0,
+     "wall_ms": 2109.2137660000003,
+     "candidate_rollouts": 796,
+     "incumbent_improvements": 2,
+     "actions": [
+      6,
+      12,
+      18,
+      30,
+      31,
+      13,
+      0,
+      7,
+      19,
+      14,
+      32,
+      15,
+      1,
+      24,
+      8,
+      33,
+      9,
+      2,
+      25,
+      16,
+      20,
+      26,
+      3,
+      21,
+      34,
+      27,
+      28,
+      22,
+      23,
+      10,
+      4,
+      5,
+      17,
+      29,
+      11,
+      35
+     ]
+    }
+   }
+  },
+  {
+   "case": 12,
+   "rules": {
+    "SPT": {
+     "makespan": 836.0,
+     "wall_ms": 4.016531
+    },
+    "MWKR": {
+     "makespan": 736.0,
+     "wall_ms": 4.724328
+    },
+    "FDD_MWKR": {
+     "makespan": 658.0,
+     "wall_ms": 4.847008
+    },
+    "MOPNR": {
+     "makespan": 746.0,
+     "wall_ms": 3.947441
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 658.0,
+   "portfolio_wall_ms": 17.535308,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 597.0,
+     "wall_ms": 2012.495503,
+     "candidate_rollouts": 804,
+     "incumbent_improvements": 2,
+     "actions": [
+      6,
+      0,
+      1,
+      7,
+      30,
+      31,
+      12,
+      2,
+      8,
+      24,
+      25,
+      13,
+      26,
+      9,
+      3,
+      18,
+      19,
+      14,
+      20,
+      32,
+      15,
+      21,
+      27,
+      33,
+      4,
+      10,
+      16,
+      22,
+      28,
+      34,
+      5,
+      11,
+      17,
+      23,
+      29,
+      35
+     ]
+    }
+   }
+  },
+  {
+   "case": 13,
+   "rules": {
+    "SPT": {
+     "makespan": 861.0,
+     "wall_ms": 4.230402
+    },
+    "MWKR": {
+     "makespan": 582.0,
+     "wall_ms": 4.429695
+    },
+    "FDD_MWKR": {
+     "makespan": 611.0,
+     "wall_ms": 4.968977
+    },
+    "MOPNR": {
+     "makespan": 639.0,
+     "wall_ms": 3.963001
+    }
+   },
+   "best_rule": "MWKR",
+   "best_rule_makespan": 582.0,
+   "portfolio_wall_ms": 17.592075,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 537.0,
+     "wall_ms": 1954.884195,
+     "candidate_rollouts": 796,
+     "incumbent_improvements": 4,
+     "actions": [
+      6,
+      24,
+      18,
+      19,
+      0,
+      30,
+      12,
+      25,
+      1,
+      31,
+      7,
+      13,
+      14,
+      20,
+      26,
+      8,
+      27,
+      9,
+      21,
+      2,
+      15,
+      32,
+      28,
+      3,
+      22,
+      10,
+      16,
+      33,
+      29,
+      34,
+      4,
+      11,
+      23,
+      17,
+      35,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "case": 14,
+   "rules": {
+    "SPT": {
+     "makespan": 650.0,
+     "wall_ms": 4.087905
+    },
+    "MWKR": {
+     "makespan": 589.0,
+     "wall_ms": 4.530254
+    },
+    "FDD_MWKR": {
+     "makespan": 575.0,
+     "wall_ms": 4.916218
+    },
+    "MOPNR": {
+     "makespan": 603.0,
+     "wall_ms": 4.006682
+    }
+   },
+   "best_rule": "FDD_MWKR",
+   "best_rule_makespan": 575.0,
+   "portfolio_wall_ms": 17.541059,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 502.0,
+     "wall_ms": 1896.3386449999998,
+     "candidate_rollouts": 712,
+     "incumbent_improvements": 5,
+     "actions": [
+      6,
+      0,
+      7,
+      24,
+      25,
+      30,
+      1,
+      12,
+      26,
+      31,
+      32,
+      13,
+      18,
+      33,
+      19,
+      14,
+      34,
+      27,
+      28,
+      29,
+      8,
+      2,
+      15,
+      16,
+      3,
+      4,
+      35,
+      17,
+      20,
+      21,
+      22,
+      23,
+      9,
+      10,
+      11,
+      5
+     ]
+    }
+   }
+  },
+  {
+   "case": 15,
+   "rules": {
+    "SPT": {
+     "makespan": 783.0,
+     "wall_ms": 4.097252
+    },
+    "MWKR": {
+     "makespan": 557.0,
+     "wall_ms": 4.642705
+    },
+    "FDD_MWKR": {
+     "makespan": 561.0,
+     "wall_ms": 4.953228
+    },
+    "MOPNR": {
+     "makespan": 670.0,
+     "wall_ms": 4.002425
+    }
+   },
+   "best_rule": "MWKR",
+   "best_rule_makespan": 557.0,
+   "portfolio_wall_ms": 17.695610000000002,
+   "rollout": {
+    "PORTFOLIO": {
+     "makespan": 541.0,
+     "wall_ms": 2068.6900880000003,
+     "candidate_rollouts": 792,
+     "incumbent_improvements": 3,
+     "actions": [
+      30,
+      0,
+      18,
+      6,
+      19,
+      7,
+      24,
+      12,
+      20,
+      31,
+      8,
+      25,
+      21,
+      13,
+      1,
+      32,
+      26,
+      27,
+      2,
+      14,
+      3,
+      9,
+      22,
+      15,
+      4,
+      33,
+      10,
+      23,
+      34,
+      28,
+      16,
+      5,
+      17,
+      29,
+      11,
+      35
+     ]
+    }
+   }
+  }
+ ]
+}

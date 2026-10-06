@@ -152,8 +152,7 @@ class StateCaptureHelper:
         
         for node, platform in replicas:
             key = f"{node.node_name}:{platform.id}"
-            
-            # Initialize with zeros
+
             current_task_remaining = 0.0
             cold_start_remaining = 0.0
             comm_remaining = 0.0
@@ -161,7 +160,6 @@ class StateCaptureHelper:
             if platform.current_task is not None:
                 current_task = platform.current_task
                 
-                # Check if task is in cold start phase
                 if current_task.cold_started and not hasattr(current_task, "started_time"):
                     cold_start_duration = current_task.type["coldStartDuration"].get(
                         platform.type["shortName"], 0.0
@@ -169,7 +167,6 @@ class StateCaptureHelper:
                     elapsed_cold_start = now - current_task.arrived_time
                     cold_start_remaining = max(0.0, cold_start_duration - elapsed_cold_start)
                 
-                # Check if task is executing
                 if hasattr(current_task, "started_time") and current_task.started_time is not None:
                     exec_duration = current_task.type["executionTime"].get(
                         platform.type["shortName"], 0.0
@@ -177,14 +174,12 @@ class StateCaptureHelper:
                     elapsed_exec = now - current_task.started_time
                     current_task_remaining = max(0.0, exec_duration - elapsed_exec)
                     
-                    # Estimate communication remaining (output write time)
                     if current_task.application:
                         state_size_map = current_task.type.get("stateSize", {})
                         app_name = current_task.application.type.get("name", "")
                         if isinstance(state_size_map, dict) and app_name in state_size_map:
                             output_size = state_size_map[app_name].get("output", 0)
                             if isinstance(output_size, (int, float)) and output_size > 0:
-                                # Default storage parameters
                                 throughput = 100.0 * 1024 * 1024  # 100 MB/s
                                 latency = 0.001  # 1ms
                                 comm_remaining = (output_size / throughput) + latency
@@ -251,7 +246,6 @@ class StateCaptureHelper:
         for node in self.nodes.items:
             idle_platforms = []
             for platform in node.platforms.items:
-                # Platform is available if it has no current task and empty queue
                 if platform.current_task is None and platform.queue_length() == 0:
                     idle_platforms.append(platform.id)
             available[node.node_name] = idle_platforms
@@ -359,7 +353,6 @@ class StateCaptureHelper:
             if hasattr(ss, 'target_concurrencies'):
                 scheduler_state["target_concurrencies"] = dict(ss.target_concurrencies)
             if hasattr(ss, 'average_contention'):
-                # Convert tuple keys to string keys
                 avg_cont = {}
                 for task_type, contention_dict in ss.average_contention.items():
                     avg_cont[task_type] = {}

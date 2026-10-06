@@ -1,0 +1,21 @@
+{
+  "scope": "Optimistic perfect-region-selection CPU S0; no learned lineage or training authorization",
+  "shape": [32, 8, 16],
+  "seeds": [144000, 144003],
+  "budget_ms": 250,
+  "partial_start_budget_ms": 140,
+  "future_selector_reserve_ms": 10,
+  "timing_repeats": 3,
+  "regions_per_input": 128,
+  "region_size": 4,
+  "exact_repair": "All 16 eligible-host combinations crossed with all 24 permutations of the four existing priority ranks; all outside decisions fixed. Best feasible retained.",
+  "region_pool": "96 deterministic sampled connected mixed-precedence/resource regions plus 32 uniformly sampled distinct four-operation regions",
+  "control": "Prior calibration-selected compiled joint_greedy with full 250 ms, including common baseline; worst of three repeats",
+  "start": "Same joint_greedy limited to 140 ms, including common baseline; worst of three repeats",
+  "oracle": "Best of all 128 exact repairs of the fixed partial start and the full-budget control. Selection is free: an optimistic feasibility bound only within this finite pool and serving recipe.",
+  "advance_median_headroom_pct": 8,
+  "advance_timing": "Every repeated winning repair plus the partial start and pool construction plus 10 ms selector reserve must fit 250 ms",
+  "live_gate": "All four inputs times partial start, full-budget control, best repaired region: 12 live runs regardless of outcome; independently check every operation.",
+  "next_if_pass": "Fresh sixteen-input qualification with equal-budget hand region selectors and 1/2/4-hop nonlocal residual controls; no training from S0 alone.",
+  "next_if_fail": "Stop this four-operation finite-pool serving recipe; do not extrapolate to all larger-region repairs or the true optimum."
+}

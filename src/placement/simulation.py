@@ -98,6 +98,7 @@ from src.policy.peer_greedy_network.scheduler import (
     PeerGreedyNetworkCDScheduler,
     PeerGreedyNetworkScheduler,
 )
+from src.policy.peer_greedy_network.gnn_seeded_cd import GNNSeededCDScheduler
 from src.policy.knative_network_ect_pull.scheduler import (
     KnativeECTPullScheduler as KnativeNetworkECTPullScheduler,
 )
@@ -642,7 +643,15 @@ def start_simulation(
 
     logger = logging.getLogger('simulation')
 
-    env = Environment()
+    mixed_config = infrastructure.get("mixed_execution")
+    if mixed_config is not None:
+        if infrastructure.get("compute_slots_per_node") != 1:
+            raise ValueError("mixed_execution requires one compute slot per node")
+        from src.placement.radical.coordinator import MixedEnvironment, MixedExecution
+        env = MixedEnvironment()
+        env.mixed_execution = MixedExecution(env, mixed_config)
+    else:
+        env = Environment()
     finished = env.event()
 
     env.fast_forward_warmup = infrastructure.get('fast_forward_warmup', False)
@@ -740,6 +749,7 @@ def start_simulation(
         "peer_greedy_network_batch_peer_greedy_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkBatchScheduler),
         "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyLearnedNetworkBatchScheduler),
         "peer_greedy_network_cd_peer_greedy_network_cd": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDScheduler),
+        "gnn_seeded_cd_gnn_seeded_cd": (GNNOrchestrator, GNNAutoscaler, GNNSeededCDScheduler),
         "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
     }
 
@@ -780,6 +790,8 @@ def start_simulation(
     logging.info(f"[ {orchestrator.end_time} ] ✨ Simulation finished")
 
     stats = orchestrator.stats()
+    if mixed_config is not None:
+        stats["mixedExecution"] = env.mixed_execution.stats()
 
     logger.info("start_simulation: Simulation completed")
     return stats

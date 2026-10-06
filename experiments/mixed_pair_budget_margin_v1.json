@@ -1,0 +1,15 @@
+{
+  "registered": "2026-09-22",
+  "parent": "radical_physics_v1",
+  "reason": "Initial 5ms control measured 5.184ms on fresh cases despite 4.920ms calibration; preserve failed timing gate and precommit a 15 percent calibration margin on new inputs",
+  "calibration_source": "mixed_pair_budget_v1/calibration.json",
+  "selection": "Reuse only original 16 calibration cases; freeze best calibration mean control with p95 <=0.85*budget. No original fresh cases enter selection",
+  "budgets_ms": [5, 10],
+  "calibration_fraction": 0.85,
+  "fresh_seeds": [120000, 120031],
+  "timing_repeats": 7,
+  "oracle": "Unchanged deep pair portfolio and unpriced perfect selection; same as mixed_pair_budget_v1",
+  "gate": "Median gain >=5%, positive bootstrap lower bound, frozen control and free-selector p95 within actual requested budget; no GNN result",
+  "live_gate": "96 real HeROsim runs, three plans on 32 fresh cases, full independent SimPy completion check even if screen fails",
+  "scope": "Timing repair with new holdout, not a hidden replacement of failed initial gate; retain and report both attempts"
+}

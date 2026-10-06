@@ -1,0 +1,9 @@
+{
+ "registered":"2026-09-22",
+ "mechanisms":["setup","mixed"],
+ "seeds":[104000,104015],
+ "shape":[3,3,4],
+ "intervention":"permute types and lock requests among non-first operations; preserve all processing durations, first operations, deadlines and global attribute histograms",
+ "test":"enumerate every binary placement, compare uniquely preferred first-operation host and wrong-root regret; replay both optimal and opposite-root-optimal plans in independent SimPy",
+ "interpretation":"constructive nonlocal scheduling witness only; exact search is the control on these small cases; no GNN necessity or training claim"
+}

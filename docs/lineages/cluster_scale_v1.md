@@ -1,6 +1,6 @@
 # cluster_scale_v1 — the axis every load rung held fixed
 
-**Status:** `REGISTERED` (2026-09-16). Every bar below is a module constant in
+**Status:** `CLOSED` (2026-09-16) — **ASSEMBLY-IS-ARRIVAL-BOUND · REQUIRES-RETRAINED-REPRESENTATION**. Registered 2026-09-16; every bar below was a module constant in
 `scripts_cosim/cluster_scale_v1_read.py`, committed **before** any arm runs. Amend by dated
 amendment only.
 
@@ -340,3 +340,9 @@ of net latency improvement on the best cell. The constraint is structural: achie
 load-matched deployment requires ~80 servers, which takes the served candidate set 9.58× out
 of the corpus and exceeds the feature layout's hard cap of 6 hosting nodes. This axis's
 value — measured at ~5.37 s — is worth exactly as much as a new representation costs.
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- **CLOSED 2026-09-16 -- ASSEMBLY-IS-ARRIVAL-BOUND · REQUIRES-RETRAINED-REPRESENTATION.** S0.b (the primary, 9 arms on 3 rungs × 3 topologies, job 769426): peer-group collection falls **monotonically 6.099 → 2.198 → 0.729 s** as arrivals speed 0.460 → 1.842 → 6.139 /s (13.3× rate, 8.37× reduction, bar 2.0 s), batch completeness rises 61 → 96 → 99.6 %, head-of-line collapses 0.733 → 0.006 → 0.000 s, group splitting vanishes 1.78 → 1.05 → 1.00 batches per group, and cross-topology variance disappears (6.022–6.115 s → 0.729–0.729 s).

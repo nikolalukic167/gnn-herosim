@@ -1,0 +1,17 @@
+{
+  "status": "corrected_before_new_calibration_and_fresh_data",
+  "parent": "dag_memory_value_learning_v1",
+  "correction": "The first gate granted recompute-enabled parents' locks even when their outputs remained cached. Corrected replay and actual execution acquire those locks only when recomputation actually runs. Original artifacts are invalid for qualification and retained for diagnosis.",
+  "shape": [8, 8, 8],
+  "calibration_seeds": [164300, 164307],
+  "fresh_seeds": [164400, 164415],
+  "budget_ms": 250,
+  "hand_modes": ["greedy", "anneal"],
+  "reference_steps": 2048,
+  "headroom_bar_pct": 8,
+  "hand_capture_ceiling": 0.5,
+  "binding_fraction_bar": 0.5,
+  "remat_fraction_bar": 0.5,
+  "decision": "No model training or GPU allocation unless the new resource-accounted mechanism binds, the feasible reference gains at least 8 percent over the selected 250 ms hand control, hand captures under half of the simple-to-reference gain, and actual-HeROsim parity passes. Then test residual graph information before matched training.",
+  "scope": "One-level inline recomputation of a missing direct parent on the consumer host. It reads the parent's direct inputs from cache or durable storage, consumes that host for the declared parent execution duration, and holds the union of consumer and recomputed-parent locks only when recomputation happens. It does not recursively recompute grandparents or cache the recomputed output."
+}

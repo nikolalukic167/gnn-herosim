@@ -1,0 +1,12 @@
+trainer: residency
+lineage: residency_placement_v1
+cache_dir: simulation_data/residency_mixed_v1
+args:
+  arm: hand_mlp
+  epochs: 35
+  output-dir: models/residency_mixed_v1
+  wandb-mode: offline
+path_args: [output-dir]
+wandb:
+  project: herosim-residency-placement
+  run_name: residency-mixed-hand_mlp

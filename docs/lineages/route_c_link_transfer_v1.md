@@ -147,3 +147,9 @@ enumerable-sweep concurrency — the corpus (not the architecture) is the limit.
 `route_c_link_transfer_v1` name is NOT granted. Proceed to Branch A** (stage-2
 re-registration on the current corpus; recipe in
 `handover-route-b-stage2-or-env-pivot.md` §2).
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- Screen registered 2026-08-26, run to completion: does an environment where link waiting is a material share of RTT resist a fairly-armed pointwise competitor? **INVALID — FAIL-BY-EXHAUSTION (2026-08-26).** 4-task ladder (3 rungs × 24 datasets) and the 8-task concurrency contingency rung (24 datasets) both miss the 0.10 manipulation bar on their bandwidth-free ceiling (max 8.8% / 9.99%) — link waiting cannot be made a material share of RTT in this simulator family at enumerable-sweep concurrency; the corpus, not the architecture, is the limit.

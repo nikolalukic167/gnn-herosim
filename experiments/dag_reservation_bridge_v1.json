@@ -1,0 +1,29 @@
+{
+  "scope": "Fresh CPU successor with schedule-preserving decoder translation; predecessor outcomes unchanged",
+  "shape": [16,16,16],
+  "objective": "Summed terminal job completion, with raw summed task RTT reported separately",
+  "budget_ms": 250,
+  "calibration_fraction": 0.85,
+  "calibration_seeds": [149000,149003],
+  "fresh_seeds": [150000,150015],
+  "timing_repeats": 3,
+  "hand_modes": {
+    "nondelay_greedy": [0,0], "nondelay_cool": [0,0.001], "nondelay_anneal": [0,0.01],
+    "reservation_greedy": [1,0], "reservation_cool": [1,0.001], "reservation_anneal": [1,0.01],
+    "portfolio_greedy": [2,0], "portfolio_cool": [2,0.001], "portfolio_anneal": [2,0.01]
+  },
+  "initialization": "All prior hand starts plus chronological operation ranks from each non-delay schedule. Mapping must never worsen its feasible incumbent. Charge all construction and mapping work.",
+  "decoder_switch": "When proposing under another decoder, first translate the current schedule into chronological start order, then mutate. Pure reservation search also considers mapped non-delay initialization.",
+  "selection": "Lowest mean median-repeat cost among arms passing every calibration timing draw; frozen before fresh inputs",
+  "reference_starts": ["control","baseline"],
+  "reference_modes": [0,1,2],
+  "reference_temperatures": [0,0.001,0.01],
+  "reference_steps": 8192,
+  "reference_seed": 29,
+  "advance_median_headroom_pct": 8,
+  "advance_bootstrap_lower_pct": 0,
+  "live_gate": "Six small bridge parity runs, four calibration-selected runs, and 48 fresh baseline/control/reference runs, regardless of headroom outcome. Audit all operations and complete resource-event traces.",
+  "counting": "Proposal counts exclude the extra deterministic decoder-materialization calls; all such calls are charged in wall-time comparisons and reproduced in fixed-step audits.",
+  "future_gates": "Headroom alone cannot authorize training. Require a fresh stronger hand-reservation/lookahead and residual graph challenge, then matched training and a fresh live gate.",
+  "claim_limit": "This repairs a search representation mismatch, not physical parity or old numerical results. A finite reference does not bound all possible learning improvements. No GPU in this stage."
+}

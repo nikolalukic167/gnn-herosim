@@ -1,0 +1,22 @@
+{
+  "kind": "bounded_three_host_diagnostic_not_a_model_gate",
+  "hosts": 3,
+  "tasks": 9,
+  "anchors": {"6": 0, "7": 1, "8": 2},
+  "graph_seeds": [46200,46201,46202,46203,46204,46205,46206,46207,46208,46209,46210,46211,46212,46213,46214,46215],
+  "live_seeds": [46200,46201],
+  "edge_probability": 0.3,
+  "weight_max": 8,
+  "payload_unit_bytes": 104857600,
+  "bandwidth_mbps": 100.0,
+  "peer_latency_s": 0.01,
+  "execution_s": 0.1,
+  "message_rounds": [3,9],
+  "seed": 46200,
+  "arrival_gap_s": 0.25,
+  "run_timeout_s": 10,
+  "total_timeout_s": 120,
+  "diagnostic_search_budget_ms": 50,
+  "information": "complete_group_graph_and_candidate_domains_declared_before_first_arrival",
+  "baseline_contract": "availability_v2"
+}

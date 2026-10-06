@@ -1,0 +1,19 @@
+{
+  "registered": "2026-09-22",
+  "parent": "radical_physics_v1",
+  "reason": "The preceding deep pair selector showed 6.28% ceiling headroom but its starting descent alone exceeded 2ms; change the serving recipe before any training",
+  "calibration_seeds": [115000, 115007],
+  "fresh_seeds": [116000, 116031],
+  "start": "affinity followed by exactly two best-improvement single-flip rounds",
+  "candidates": "all unordered distinct operation pairs, flip both eligible hosts, then one best-improvement single-flip round; retain incumbent",
+  "controls": ["anneal256", "local", "graph1", "graph2", "graph4", "random1", "random2", "random4"],
+  "graph_rank": "descending shared lock count, same job, same assigned host, then indices; equivalent vectorized implementation, no labels",
+  "random_rank": "fixed RNG 77 permutation, no labels",
+  "selection": "lowest calibration mean objective among controls with p95<=2ms; frozen before fresh inputs are evaluated",
+  "oracle": "best final refined outcome over every pair plus incumbent; no cost or deployability claim",
+  "gate": "fresh oracle median gain>=5%, bootstrap lower bound>0, frozen control p95<=2ms; additionally inspect total cost of incumbent plus one selected pair before considering training",
+  "timing_repeats": 5,
+  "budget_ms": 2.0,
+  "live_gate": "32 fresh cases times frozen control, incumbent and oracle in real HeROsim, independently checked against SimPy even if screen fails",
+  "scope": "new exploratory screen after a serving-cost failure, not a replication or a GNN result; all previous holdouts remain retired"
+}

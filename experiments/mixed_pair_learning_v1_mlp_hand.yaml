@@ -1,0 +1,12 @@
+trainer: pair_selector
+lineage: radical_physics_v1
+cache_dir: simulation_data/gnn_environment_search_v1/mixed_pair_corpus
+args:
+  arm: mlp_hand
+  epochs: 30
+  output-dir: simulation_data/gnn_environment_search_v1/mixed_pair_models
+path_args:
+- output-dir
+wandb:
+  project: herosim-pair-selector
+  run_name: mixed-pair-v1-mlp_hand

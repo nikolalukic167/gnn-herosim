@@ -212,6 +212,16 @@ def test_seed_platform_state_formula_unchanged_without_measured_drain():
     assert p.virtual_warmup_total_time == pytest.approx(2 * 0.502)
 
 
+def test_snapshot_current_service_is_added_once_to_legacy_queued_work():
+    node = _Node("node0")
+    p = _Platform(4, node)
+    _seed_platform_state({("node0", 4): (node, p)}, SimpleNamespace(task_types=TASK_TYPES),
+                         {"node_name": "node0", "platform_id": 4, "queue_length": 2,
+                          "task_type_hint": "dnn1", "queue_drain_seconds": 7.,
+                          "current_task_remaining": 10., "comm_remaining": 3.})
+    assert p.virtual_warmup_total_time == 20.
+
+
 # ---------------------------------------------------------------------------------------
 # knative batch: peer-group batching flag + closure
 # ---------------------------------------------------------------------------------------

@@ -1,0 +1,11 @@
+{
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+  "platform": "Linux-6.8.0-111-generic-x86_64-with-glibc2.39",
+  "torch": "2.5.1+cu121",
+  "numpy": "2.3.0",
+  "scipy": "1.15.3",
+  "git_head": "8fc991f33a808f8d8e580a91b2436864e8b18261",
+  "docker_version": "29.4.3",
+  "image": "sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e",
+  "code_note": "Working tree was already dirty. Study source snapshots and SHA256 manifests are included; no claim that git HEAD alone reproduces these runs."
+}

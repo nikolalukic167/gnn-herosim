@@ -1,0 +1,27 @@
+==============================================================================
+TRAINING CURVE READ -- 36 epochs, 4 logged per-step metrics
+  
+==============================================================================
+
+DEAD (identically zero every epoch) -- 0
+  these cannot move under this run's objective; they are chart noise
+
+CONSTANT -- 1
+    chance_ce                                  = 1.0986
+
+GUARDS (expected fixed; drift here invalidates the regret curves) -- 0
+
+LIVE -- 3
+    metric                                         first          min@ep          max@ep        last
+    epoch                                              0             0@0           35@35          35
+    train/ce                                      4.1205       0.8888@35        4.1205@1      0.8888
+    val/residency_regret                         21.9697       3.3881@17       21.9697@0      4.3689
+
+REFERENCE LINES (from the run summary)
+    baseline/val_chance_ce                     = 1.0986
+    train/ce                       first-logged=4.1205 best=0.8888 chance=1.0986 -> beats chance
+
+SELECTION
+    checkpoint metric looks like val/residency_regret; best at epoch 17 of 36
+    18 epochs (50%) ran after the selected one
+

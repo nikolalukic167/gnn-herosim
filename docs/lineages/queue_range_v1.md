@@ -1,6 +1,6 @@
 # queue_range_v1 — the served queue column leaves the contract it was trained under
 
-**Status:** `REGISTERED` (2026-09-15). Every bar below is a module constant in
+**Status:** `CLOSED` (2026-09-15) — **QUEUE-RANGE-NOT-THE-LEVER**. Registered 2026-09-15; every bar below was a module constant in
 `scripts_cosim/queue_range_v1_read.py`, committed **before** the arms it reads exist. Amend by
 dated amendment only.
 
@@ -289,3 +289,9 @@ divisor measured at 1.0 in 100 % of batches. **Not closed:** the queue blow-up i
 2/3 cells, cause unknown), batch wait, `scale_invariant_v1` as a *training* contract, and any
 cell whose serving divisor is not 1.0 — none was observed here, so COMPRESSED remains untested
 rather than refuted.
+
+### Carried over from the index row
+
+A relocation, not a new finding: figures that lived only in `LINEAGES.md` when the index was compressed back to one line per lineage. Recorded here so nothing was lost in the move.
+
+- **Q0: the column DOES leave its trained range, on 2 of 3 cells, and the severity orders with the loss** -- per-decile out-of-range share peaks at 0.36 (s7901, deciles 4-5, dim7 38) and **0.83** (s9002, decile 7, dim7 **113**, peak 202) against **0.00 in every decile** on s9001, whose arms nearly tie reactive (-6.7 %);

@@ -1,0 +1,13 @@
+{
+  "status": "user-authorized exploratory training despite the prior 8% CPU funding gate failure",
+  "shape": [16, 16, 16],
+  "train_seeds": [160000, 160063],
+  "validation_seeds": [161000, 161015],
+  "sealed_test_seeds": [162000, 162015],
+  "teacher": "Best of full heuristic baseline and two 8192-step bridged searches from it: mixed-decoder and non-delay, temperature 0.001, seed 29. Labels are feasible observed schedules, not optimal schedules.",
+  "training": "Separately train GNN and MP-OFF from identical features and labels, two initialization seeds 101 and 102, 20 epochs CPU, offline W&B; choose epoch by validation complete-plan job completion.",
+  "features": "Both learned arms receive processing, eligibility, current host/rank, lock/type and fixed 1/2/4-hop hand-graph columns. GNN alone updates hidden states along predecessor, successor, lock and host edges.",
+  "serving": "A predicted complete placement/rank is planned under both non-delay and reservation decoders. Keep the better of model and full hand initialization, then run identical bridged search with the remaining portion of a 250 ms wall budget. Compare with hand search, MP-OFF and the unbudgeted finite reference.",
+  "claim": "A GNN win requires positive paired median and interval against each MP-OFF draw and the hand control, plus the whole learned decision path within 250 ms. Two training draws and sixteen test environments are exploratory and cannot establish a powered general model-class claim.",
+  "live_gate": "Run every selected GNN and MP-OFF plan, hand control and reference plan on all sixteen sealed test inputs in actual HeROsim: 96 runs, 24576 operations; independent operation and event audits must pass regardless of offline model quality."
+}

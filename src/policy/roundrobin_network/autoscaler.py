@@ -62,7 +62,6 @@ class RoundRobinNetworkAutoscaler(Autoscaler):
             task_type["name"]
         ]
 
-        # Calculate average queue length across all replicas
         queue_lengths = [
             len(platform.queue.items) for node, platform in function_replicas
         ]
@@ -74,7 +73,6 @@ class RoundRobinNetworkAutoscaler(Autoscaler):
         # Result > 0 means scaling up
         # Result < 0 means scaling down
         # Result == 0 means current scaling level is adequate
-        # Use average target concurrency across platforms
         avg_target = sum(target_concurrencies.values()) / len(target_concurrencies) if target_concurrencies else self.policy.queue_length
         
         concurrency_results: PlatformVector = {
@@ -195,12 +193,10 @@ class RoundRobinNetworkAutoscaler(Autoscaler):
 
         # FIXME: Double initialize bug...
         try:
-            # Set platform to ready state
             yield platform.initialized.succeed()
         except RuntimeError:
             pass
 
-        # Statistics (Node)
         node.cache_hits += int(image_pull_disk_hit(physics, platform, node, task_type))
 
     def remove_replica(
@@ -214,7 +210,6 @@ class RoundRobinNetworkAutoscaler(Autoscaler):
         if False:
             yield
 
-        # Sort function replicas by in-flight requests count
         sorted_replicas = sorted(
             function_replicas, key=lambda couple: len(couple[1].queue.items)
         )

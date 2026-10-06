@@ -1,0 +1,15 @@
+{
+  "status": "registered_before_calibration_and_fresh_screens",
+  "question": "Does capacity-limited identity-specific DAG output residency leave material, search-hard improvement over memory-aware hand controls?",
+  "physics": "durable_output_cache_v1; 32 MB per host; 8-24 MB outputs; store read 0.75 ms/MB; peer read 0.25 ms/MB; FIFO capacity eviction; input preparation occupies the destination host",
+  "shape": [8, 8, 8],
+  "calibration_seeds": [162100, 162107],
+  "fresh_seeds": [162200, 162215],
+  "budget_ms": 250,
+  "hand_modes": ["greedy", "anneal"],
+  "reference_steps": 2048,
+  "headroom_bar_pct": 8,
+  "hand_capture_ceiling": 0.5,
+  "binding_fraction_bar": 0.5,
+  "decision": "Train only after binding, headroom, search hardness, residual graph information, and a complete live audit all pass. A finite reference is not an optimum."
+}
