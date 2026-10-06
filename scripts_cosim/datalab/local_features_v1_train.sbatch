@@ -2,6 +2,8 @@
 # local_features_v1 (docs/lineages/local_features_v1.md) -- lf1gnn (tasks 0-7), lf1twin (8-15), lf1mlp (16-23), seeds 1-8,
 # on the small-batch cache and split: small_batch_v1_train.sbatch with the arms swapped for the raw-plan + local arms.
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/local_features_v1_train.sbatch
+# small_batch_so_v1 Amendment 1: CFG_PREFIX=small_batch_so_v1 CORPUS=small_batch_so_v1 LF_NAMES="so1lfgnn so1lfmlp" NSEEDS=4
+#   SPLIT_SHA=<sha> STEM=small-batch-so-v1 with --array=0-7 (the sidecheck arm is lf1<suffix>).
 #SBATCH --job-name=lf1-train
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/lf1-train-%A_%a.out
 #SBATCH --error=/home/nikola.lukic/gnn-herosim/logs/lf1-train-%A_%a.err
@@ -31,15 +33,17 @@ echo "[CODE] $(git describe --dirty --always) at $WT"
 [[ -L models ]] || { echo "FAIL LOUD: models/ must be the symlink into ~/gnn-herosim/models" >&2; exit 1; }
 
 T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: SLURM_ARRAY_TASK_ID unset}
-NAMES=(lf1gnn lf1twin lf1mlp); NAME=${NAMES[$(( T / 8 ))]}; ARM=$NAME; SEED=$(( T % 8 + 1 ))
-CFG=experiments/local_features_v1_${NAME}.yaml
-CACHE=simulation_data/graphs_cache_small_batch_v1_psv4_inf
-SPLIT=experiments/small_batch_v1_split.json
-CK="models/local-features-v1-${NAME}-lr2e3-seed${SEED}.pt"
+NAMES=(${LF_NAMES:-lf1gnn lf1twin lf1mlp}); NS=${NSEEDS:-8}; NAME=${NAMES[$(( T / NS ))]}; SEED=$(( T % NS + 1 ))
+if [[ $NAME == so1lf* ]]; then ARM=lf1${NAME#so1lf}; else ARM=$NAME; fi
+CORPUS=${CORPUS:-small_batch_v1}
+CFG=experiments/${CFG_PREFIX:-local_features_v1}_${NAME}.yaml
+CACHE=simulation_data/graphs_cache_${CORPUS}_psv4_inf
+SPLIT=experiments/${CORPUS}_split.json
+CK="models/${STEM:-local-features-v1}-${NAME}-lr2e3-seed${SEED}.pt"
 echo "[TASK $T] arm=$NAME (sidecheck $ARM) seed=$SEED cfg=$CFG -> $CK"
 [[ -f "$CFG" ]] || { echo "FAIL LOUD: $CFG missing" >&2; exit 1; }
 [[ -f "$CACHE/metadata.json" && -f "$CACHE/valid_combos_near_rtt_capped.pkl" ]] || { echo "FAIL LOUD: $CACHE incomplete" >&2; exit 1; }
-[[ "$(sha256sum "$SPLIT" | cut -d' ' -f1)" == a580315e5b8cfeb9135a57460399c2d575b7874c13a5340cb3a72e5489382fba ]] || { echo "FAIL LOUD: split sha mismatch" >&2; exit 1; }
+[[ "$(sha256sum "$SPLIT" | cut -d' ' -f1)" == ${SPLIT_SHA:-a580315e5b8cfeb9135a57460399c2d575b7874c13a5340cb3a72e5489382fba} ]] || { echo "FAIL LOUD: split sha mismatch" >&2; exit 1; }
 python3 - "$CACHE" <<'EOF2'
 import json, sys
 m = json.load(open(sys.argv[1] + "/metadata.json"))
