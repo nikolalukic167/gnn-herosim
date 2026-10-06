@@ -51,6 +51,11 @@ self-predict.
 
 ## Record
 
+- 2026-10-06 — **Corpus and cache (jobs 833174, 833201).** 4,851 train + 684 held-out complete sweeps; **1,003 of 5,535
+  datasets quarantined** for peer_norm 0 (every candidate on one node), against 35 in `small_batch_v1`: with one origin,
+  many groups reach a single node, and the recipe excludes those. Cache 4,532 graphs, candidate check 0 offenders, backlog
+  > 0 on 48.9 % of candidate replicas. Split `experiments/small_batch_so_v1_split.json` (sha `30ab0719…`): train 3,115,
+  val 841 (cells 9207–9209), test 576 (cells 9223–9224). `small_batch_v1`: 3,305 / 981 / 719.
 - 2026-10-06 — **Capture (job 832835): 64 of 96 runs finished, 16 of 24 cells.** The 8 cells whose four windows all hit
   the 4 h limit (9205, 9210, 9212, 9213, 9216, 9218, 9219, 9222) were not frozen: a stack dump of 9205 g0 showed the
   clock advancing about 100 simulated seconds in 3 h at 32,600 of 108,600 s, inside the batch collector with an 11 GB
