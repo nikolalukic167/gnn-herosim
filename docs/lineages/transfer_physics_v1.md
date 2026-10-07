@@ -59,6 +59,17 @@ single origin, server-only. Gate phase `tp1` of `scripts_cosim/fresh_topo_burst_
 - the ranking of the six arms;
 - every arm against CD.
 
+**Failures** (fixed 2026-10-07, before any condition result was read):
+- A run that fails gets one rerun at 3× the timeout (8,100 s).
+- A run that still fails counts as a failure **for its arm**. It is reported as a count per arm and condition, and
+  that (topology, window, seed) cell drops out of **that arm's** paired tests only. Other arms keep the cell; nothing
+  is imputed.
+- Sensitivity: every test is re-read with any topology that has a remaining failure excluded for **every** arm.
+- The failures so far are arm-specific, not topology-specific. All 16 first-try failures were Knative or
+  self-predict on topology 9485. Both run on `KnativeNetworkAutoscaler`, which lacks the starved-type eviction the
+  other arms' autoscaler has, and the same cell hung for the same arms under the default physics
+  (`client_local_v1`).
+
 **Replay check.** `TP1_COND=replay` reruns 24 runs (4 topologies × g0/g1 ×2 × CD, one-pass, Knative) at default
 physics on this commit. Each must reproduce its `gate_so_server` summary exactly, or nothing below is read.
 
@@ -85,6 +96,10 @@ link pipe. Testing contention is a separate later lineage, one change at a time.
 
 ## Record
 
+- 2026-10-07 — **Conditions run** (jobs 838361–838363, 1,596 runs each): 16 first-try failures, all Knative or
+  self-predict on 9485 (timeouts), rerun at 8,100 s (jobs 838555–838557). Replay 838353: 23 / 24 identical, field
+  for field; the 24th (Knative, 9485 g1 ×2) times out as it did in the original gate. Failure handling fixed above
+  before any read.
 - 2026-10-07 — Registered. Hop counts measured on the 19 topologies: server-to-server 2–8 hops, mean 4.96
   (client-to-server mean 4.98). Code: opt-in flags `HEROSIM_TRANSFER_MODEL` and `HEROSIM_REPLICA_RELEASE` (both
   recorded in `run_provenance.env`; the gate fails a run whose recorded physics differs from the driver's), tests
