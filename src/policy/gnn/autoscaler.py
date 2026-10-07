@@ -136,7 +136,7 @@ class KnativeAutoscaler(Autoscaler):
                     continue
                 if node.available_memory + mem_other[short] < task_type["memoryRequirements"][short]:
                     continue
-                load = len(platform.queue.items) + (1 if platform.current_task else 0)
+                load = len(platform.queue.items) + (1 if platform.current_task else 0) + len(getattr(platform, "inflight", ()))
                 if load == 0:
                     idle.append((platform.idle_since, node.id, platform.id, other, node, platform))
                 else:
@@ -168,9 +168,16 @@ class KnativeAutoscaler(Autoscaler):
         their replica is created once the platform empties, and resume the wait; the exchange is charged against that
         node. Only when every unplaced peer is such a starved task; otherwise the wait stays."""
         node, platform = replica
-        task = getattr(platform, "rendezvous_task", None)
+        waits = [(platform.rendezvous_task, platform.run)] if getattr(platform, "rendezvous_task", None) else []
+        waits += list((getattr(platform, "rendezvous_procs", None) or {}).items())  # HEROSIM_REPLICA_RELEASE=1
+        released = False
+        for task, proc in waits:
+            released |= self._release_one_rendezvous(node, platform, task, proc, key)
+        return released
+
+    def _release_one_rendezvous(self, node, platform, task, proc, key) -> bool:
         orchestrator = getattr(node, "orchestrator_ref", None)
-        if task is None or orchestrator is None:
+        if orchestrator is None:
             return False
         unplaced = []
         for peer_id in sorted((orchestrator.peer_exchange or {}).get(task.id) or {}):
@@ -186,7 +193,7 @@ class KnativeAutoscaler(Autoscaler):
             return False
         for peer in unplaced:
             peer.planned_node_name = node.node_name
-        platform.run.interrupt(STARVED_RENDEZVOUS)
+        proc.interrupt(STARVED_RENDEZVOUS)
         self.starved_rendezvous_releases = getattr(self, "starved_rendezvous_releases", 0) + 1
         print(f"[ {self.env.now} ] rendezvous released: task {task.id} on {platform} planned "
               f"{[p.id for p in unplaced]} ({key[0]}) onto {node.node_name}")
@@ -194,7 +201,7 @@ class KnativeAutoscaler(Autoscaler):
 
     def _release_when_drained(self, system_state, function_name, replica, key) -> Generator:
         platform = replica[1]
-        while platform.queue.items or platform.current_task:
+        while platform.queue.items or platform.current_task or getattr(platform, "inflight", None):
             self._release_starved_rendezvous(replica, key)
             yield self.env.timeout(0.1)
         released = self._release_replica(system_state, function_name, replica, already_removed=True)
@@ -456,6 +463,7 @@ class KnativeAutoscaler(Autoscaler):
                 for replica in sorted_replicas
                 if not replica[1].queue.items
                 and not replica[1].current_task
+                and not getattr(replica[1], "inflight", None)
                 and (self.env.now - replica[1].idle_since) > self.policy.keep_alive
             ),
             None,

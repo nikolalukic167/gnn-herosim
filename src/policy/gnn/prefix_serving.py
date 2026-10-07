@@ -44,7 +44,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import torch
 
 from src.placement.dag_workload import route_hops_and_bottleneck
-from src.placement.network_fabric import is_core_link, route_links
+from src.placement.network_fabric import is_core_link, route_links, transmission_hops
 from src.policy.gnn.gnn_model import TaskPlacementGNN
 from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
 from src.policy.gnn.seq_decode import GnnDecodeRunStats, decode_masked_topo_placement
@@ -537,7 +537,7 @@ def attach_live_prefix_block(
                         f"no network_map[{na}][{nb}] and no backbone route — the exchange latency is undefined"
                     )
                 lat = fabric.route_latency(na, nb)
-            node_exchange[(a, b)] = (float(h) / (float(bneck) * 1024 * 1024), lat)
+            node_exchange[(a, b)] = (transmission_hops(float(h)) / (float(bneck) * 1024 * 1024), lat)
     if peer_pairs:
         peer_norm = (max(peer_pairs.values()) * max(pb for pb, _l in node_exchange.values())
                      + max(l for _pb, l in node_exchange.values()))
