@@ -67,6 +67,20 @@ self-predict.
 
 ## Record
 
+- 2026-10-07 — **Exploratory, after the close: CD refine seeded by the learned plan (`_cdapply`), NO-WIN.** Bar
+  stated in the session before the runs, not registered in this node: the seeded arm beats every rule only if it
+  is CONFIRMED (≤ −5 %, Holm p < 0.05) against CD, locality-first and the one-pass greedy at the same ≥ 2 rungs, with
+  no rule Holm-faster. Gates 838300 (`so1load` / `so1mpoff` seeds, 1,824 runs) and 838302 (`so1lfgnn` seed, 912
+  runs), 0 failed, single-origin server cells, default physics.
+  - `so1load` seed vs CD: +2.85 (3/19) / +3.18 (6/19) / +4.95 % (4/19). CD is Holm-faster at ×2 and ×3.
+  - vs locality-first: −5.70 % (19/19, CONFIRMED at ×2), −7.06 / +7.90 % not separated.
+  - vs the one-pass greedy: −4.05 / −3.36 % (direction only), +1.39 %.
+  - Descriptive: the `so1load` seed vs the `so1mpoff` seed +0.96 / +0.58 / +0.89 %. The `so1lfgnn` seed vs CD
+    +3.9 / +3.6 / +8.2 %. Seeding vs the unseeded `so1load` −8.1 / −4.9 / +9.5 %.
+  - Under single origin, no learned plan helps CD as a seed. The scattered-origin gain (`seeded_cd_xs1_v1`,
+    −3.7 %) does not carry over.
+  - Reader `simulation_data/small_batch_so_v1/cdapply_read.py` on datalab. Gate phase `so1` with
+    `SO1_SUFFIX=_cdapply` (fe71b457).
 - 2026-10-07 — **Read; CLOSED NO-WIN (Amendment 1 NO-WIN).** Training 833205 (`so1load`/`so1mpoff`, ~1 h each) and 833337
   (`so1lfgnn`/`so1lfmlp`, 1.3–7.2 h); gates 833214 and 833338, 1,824 runs per pair, 0 failed, 0 unexplained missing.
   Primary, median paired % over 19 topologies, Holm across 6: vs CD +13.10 (0/19, REF-FASTER) / +7.30 (3/19, REF-FASTER) /
