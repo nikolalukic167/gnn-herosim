@@ -857,7 +857,7 @@ added, both in seconds) so that it cannot be tuned into or out of a win. See
 Three levers were registered to move the exchange-vs-queue ratio (payload ×3 / ×10, a 4× slower
 backbone, burst arrivals). Every one of them also moved reactive Knative's load, and at the
 study's operating point (6 servers, 0.46 arrivals/s, reactive queue share 0.43–0.63) there was
-no headroom: payload ×3 and the 250 Mbps backbone put reactive at a queue share of 0.95–0.99 on
+no headroom: payload ×3 and the 250 MB/s backbone put reactive at a queue share of 0.95–0.99 on
 every candidate cell, and bursts of 10 hung reactive on 22 of 48 cells and the batch path on a
 topology reactive survived. Only the levers that *lowered* service time (payload ×0.1) or moved
 structure without service time (bursts, barely) produced a readable design.

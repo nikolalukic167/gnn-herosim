@@ -49,7 +49,7 @@ awareness — the same physics with the queue in seconds ties Knative.
 
 **Carry.** The rule's queue term is `platform_queue_drain_seconds`, which charges known-peer
 transfers of queued tasks and not their rendezvous; it is a better shortest-queue, not an
-oracle. Every number here is at 200 MB payload scale on a 1 Gbps backbone
+oracle. Every number here is at 200 MB payload scale on a 1000 MB/s backbone
 (`payload_scale_v1`, `backbone_sparsity_v1` move that) and with groups spread over 13.8 s
 (`burst_groups_v1`). The batched rule inherits the learned arms' end-of-trace hang on one cell
 (deterministic; 48 and 96 GB) — a property of the batch path, not of any model.

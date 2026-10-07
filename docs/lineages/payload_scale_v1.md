@@ -37,7 +37,7 @@ exchange per task at 200 MB), [`peer_greedy_live_v1`](peer_greedy_live_v1.md) (t
 k = 1 point of this sweep), [`unsaturated_edge_v1`](unsaturated_edge_v1.md).
 
 **Question.** Every peer effect in the record is at one payload scale: 200 MB × 10^U(−1, 1)
-per pair over a 1 Gbps backbone, ~5.4 s of exchange per task. That scale is an assumption of
+per pair over a 1000 MB/s backbone, ~5.4 s of exchange per task. That scale is an assumption of
 the synthetic peer augmentation, not a measurement. Scaling every payload by **k ∈ {0.1, 10}**
 (20 MB and 2 GB scales; k = 1 is the study itself) moves the exchange-vs-queue ratio directly:
 at 2 GB exchange is tens of seconds per task and co-location should dwarf concentration; at
