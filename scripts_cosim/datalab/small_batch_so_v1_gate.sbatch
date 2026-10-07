@@ -15,7 +15,8 @@ WT=${WT:-/home/nikola.lukic/gnn-herosim-wt/sbso}
 TIMEOUT=${TIMEOUT:-2700}
 D=/home/nikola.lukic/gnn-herosim/simulation_data
 IN=$D/client_local_v1/inputs_so_server
-OUT=$D/small_batch_so_v1/gate
+OUT=${OUT:-$D/small_batch_so_v1/gate}
+SUFFIX=${SO1_SUFFIX:-_selfref}  # _cdapply: seeded CD (OUT=$D/small_batch_so_v1/gate_cdapply)
 SPLIT=experiments/small_batch_so_v1_split.json
 P=${PAR:-$(( ${SLURM_CPUS_PER_TASK:-64} - 2 ))}
 KINDS=${SO1_KINDS_RUN:-so1load,so1mpoff}  # Amendment 1: so1lfgnn,so1lfmlp
@@ -45,12 +46,12 @@ for R in x20 x30 x50; do
 done
 mkdir -p "$OUT"
 set +e
-SO1_KINDS_RUN=$KINDS python3 scripts_cosim/fresh_topo_burst_v1_gate.py so1 --inputs "$IN" --out "$OUT" \
+SO1_KINDS_RUN=$KINDS SO1_SUFFIX=$SUFFIX SO1_SMOKE=${SO1_SMOKE:-} python3 scripts_cosim/fresh_topo_burst_v1_gate.py so1 --inputs "$IN" --out "$OUT" \
   --selection "$IN/selected.json" --parallel "$P" --mem 4G --timeout "$TIMEOUT" --no-scope | grep -v "^\[skip"
 rc=${PIPESTATUS[0]}
 set -e
 echo "=== so1 ($KINDS): $(ls "$OUT"/*.summary.json 2>/dev/null | wc -l) summaries, $(ls "$OUT"/*.failed.json 2>/dev/null | wc -l) failed ==="
 find "$OUT" -name "*.log" -size +50M -exec gzip -1 {} \;
-python3 scripts_cosim/small_batch_so_v1_read.py --gate "$OUT" --refs "$D/client_local_v1/gate_so_server" \
+[[ "$SUFFIX" == "_selfref" ]] && python3 scripts_cosim/small_batch_so_v1_read.py --gate "$OUT" --refs "$D/client_local_v1/gate_so_server" \
   --failed "$D/small_batch_so_v1/retry_records" --selection "$IN/selected.json" --out "$D/small_batch_so_v1/so1_read.json"
 echo "driver rc=$rc"

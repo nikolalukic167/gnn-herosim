@@ -242,11 +242,15 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         # small_batch_so_v1 on the single-origin cells (--inputs client_local_v1/inputs_so_server), seeds 1-4
         smoke = os.environ.get("SO1_SMOKE", "")
         if smoke:
-            return [task(topos[0], "g0x30", f"{smoke}_selfref", 1)]
+            return [task(topos[0], "g0x30", f"{smoke}{os.environ.get('SO1_SUFFIX', '_selfref')}", 1)]
         kinds = os.environ.get("SO1_KINDS_RUN", "so1load,so1mpoff").split(",")
         if not kinds or any(k not in SO1_KINDS for k in kinds):
             raise SystemExit(f"FAIL LOUD: SO1_KINDS_RUN={kinds!r}; kinds are {SO1_KINDS}")
-        return [task(t, w, f"{k}_selfref", s) for k in kinds for s in (1, 2, 3, 4) for t in topos for w in tuple(GROUNDED_LADDER)]
+        # _cdapply: CD's refine passes started from the learned plan (seeded_cd_xs1_v1's arm, single origin)
+        suffix = os.environ.get("SO1_SUFFIX", "_selfref")
+        if suffix not in ("_selfref", "_cdapply"):
+            raise SystemExit(f"FAIL LOUD: SO1_SUFFIX={suffix!r}")
+        return [task(t, w, f"{k}{suffix}", s) for k in kinds for s in (1, 2, 3, 4) for t in topos for w in tuple(GROUNDED_LADDER)]
     if phase == "het1":
         # hetero vs plain bipartite convs on the 19 topologies; lf1gnn / lf1twin / lf1mlp are local_features_v1's runs
         smoke = os.environ.get("HET_SMOKE", "")
