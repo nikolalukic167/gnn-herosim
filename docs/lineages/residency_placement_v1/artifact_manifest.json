@@ -1,0 +1,238 @@
+{
+  "models/residency_placement_v1/gnn_seed202.pt": {
+    "sha256": "d78f7d54f5b48c2b36760fa70c8b49c27e224666b6c7a679dba121706337fe57",
+    "bytes": 83250
+  },
+  "models/residency_placement_v1/mpoff_seed202.pt": {
+    "sha256": "e092616ee0f55e7bae0fb4ffadc9ed2da5bbc2720435cc61ca9fed66196c08c0",
+    "bytes": 83282
+  },
+  "models/residency_placement_v1/mpoff_seed303.training.json": {
+    "sha256": "f5b552a94e978cd18dcbd635c4cb6b7d0daffdc814f7ef1758dddd409a421571",
+    "bytes": 5864
+  },
+  "models/residency_placement_v1/hand_mlp_seed101.pt": {
+    "sha256": "e3cd951c32a73a6d2f4680509c5ddb04cbd0d01a90ec4f5c83fde4963d0e72bb",
+    "bytes": 327522
+  },
+  "models/residency_placement_v1/hand_mlp_seed303.contract.json": {
+    "sha256": "a4144da0dd2d84065a4a5beaa25eb1b735bea2cb2f18208da280b88b889215b5",
+    "bytes": 820
+  },
+  "models/residency_placement_v1/gnn_seed303.contract.json": {
+    "sha256": "e75a010b0aa230760daffac0bc44c36da4847cbb7b92f8fe6bcc7c5d05cec234",
+    "bytes": 817
+  },
+  "models/residency_placement_v1/hand_mlp_seed101.training.json": {
+    "sha256": "d09381679a6fc7f950310c5f33178f0ea1ea88c7e9073a7633bf41ac3e3c7496",
+    "bytes": 5786
+  },
+  "models/residency_placement_v1/mpoff_seed303.contract.json": {
+    "sha256": "c202418fea4d8adcb09c899cece996c5a65c34249aa40e1dff672696f9d8ab31",
+    "bytes": 820
+  },
+  "models/residency_placement_v1/gnn_seed303.pt": {
+    "sha256": "7d875f67c6a4e3b2659f4261abca942fde6a42e7ab1b33aa370ae36424570b30",
+    "bytes": 83250
+  },
+  "models/residency_placement_v1/hand_mlp_seed303.training.json": {
+    "sha256": "e33cf8bbbf136fe2a45106db7a7d7536329ad425c0a9e86726eb185f0b3e3040",
+    "bytes": 5784
+  },
+  "models/residency_placement_v1/gnn_seed101.contract.json": {
+    "sha256": "edeb82e419904f39c924c38ad5fa7622028034a10b2bfb0249d53cad338f00d5",
+    "bytes": 816
+  },
+  "models/residency_placement_v1/hand_mlp_seed202.training.json": {
+    "sha256": "8100379e9ce004c1f2eddc2305a7d64deeef02d6e871b5a2ffce6627ee342065",
+    "bytes": 5780
+  },
+  "models/residency_placement_v1/hand_mlp_seed202.pt": {
+    "sha256": "679e7e0efab3957d1673eae43853e85597ae20c616cf4aadf98dee0d6ab45218",
+    "bytes": 327522
+  },
+  "models/residency_placement_v1/mpoff_seed202.training.json": {
+    "sha256": "adf575adc09038cba7c33592bfbc7c6368a77955acc7385f40fabca67258a4db",
+    "bytes": 5840
+  },
+  "models/residency_placement_v1/gnn_seed202.contract.json": {
+    "sha256": "faa20be30fa864e17f6a08642f25e9ff3933c7c207c309c5bf3c27068586e612",
+    "bytes": 818
+  },
+  "models/residency_placement_v1/mpoff_seed202.contract.json": {
+    "sha256": "932006460710f3aaba49938ded52bb855d4d9f981514a14a90c61c5c920fdf14",
+    "bytes": 820
+  },
+  "models/residency_placement_v1/gnn_seed202.training.json": {
+    "sha256": "d7c4ef7bc288fb48142408b589447d1cb5f8b05c6a1d4e40954c7b343a6898c2",
+    "bytes": 5857
+  },
+  "models/residency_placement_v1/hand_mlp_seed101.contract.json": {
+    "sha256": "6ce269cb1eacbaafbd96810f383444ea184de8f05b8263457cb6eb6d4575509c",
+    "bytes": 819
+  },
+  "models/residency_placement_v1/gnn_seed101.pt": {
+    "sha256": "24701de3f8f7257c4f621321cc667905698413f880f9f8b541c08ba0a10a6f07",
+    "bytes": 83250
+  },
+  "models/residency_placement_v1/gnn_seed303.training.json": {
+    "sha256": "84c36d52c4770d62c28509fb97ccdbd427b6699d17d020035104a044bd17acdd",
+    "bytes": 5843
+  },
+  "models/residency_placement_v1/mpoff_seed101.training.json": {
+    "sha256": "9f8f4e3da5a4146aa41d8d6c79790f38b5cd0f177ae8c4c0c8ee792fb9896224",
+    "bytes": 5854
+  },
+  "models/residency_placement_v1/hand_mlp_seed202.contract.json": {
+    "sha256": "b4c262aeb01e0261a654853743d1ada0a239b595b249fe97d9d225e24d70379d",
+    "bytes": 820
+  },
+  "models/residency_placement_v1/hand_mlp_seed303.pt": {
+    "sha256": "d09d269d85b081d86bad879670bdaf42c0d9c08bf71cef280d99e572dafef8b7",
+    "bytes": 327522
+  },
+  "models/residency_placement_v1/gnn_seed101.training.json": {
+    "sha256": "c36abbbcd42cc25f160d4ffe665c9dd01e4cc06c0aded2ac2bf9bb1baf5a337b",
+    "bytes": 5845
+  },
+  "models/residency_placement_v1/mpoff_seed303.pt": {
+    "sha256": "39cf92f6646a44aabac939a7b9424fa9363d576e12fdaac767e77b18ea52c1f3",
+    "bytes": 83282
+  },
+  "models/residency_placement_v1/mpoff_seed101.pt": {
+    "sha256": "d9d56d5e1af4349e21829e274ef10936132388d69ff466f1587109bf72a0eed1",
+    "bytes": 83282
+  },
+  "models/residency_placement_v1/mpoff_seed101.contract.json": {
+    "sha256": "4a42c66da664332817f445912bd69348b6988d5da204b8ce0299ed944d6b1424",
+    "bytes": 820
+  },
+  "models/residency_mixed_v1/gnn_seed202.pt": {
+    "sha256": "8b53d2a779a208f385f716a10cec3fc70db57e82058ca606fa6918d33f3bdcdd",
+    "bytes": 83250
+  },
+  "models/residency_mixed_v1/mpoff_seed202.pt": {
+    "sha256": "92036cd0b7d82837f5d6e08b93112883b3425b5d5e05a06c7a1bf3521cc624e5",
+    "bytes": 83282
+  },
+  "models/residency_mixed_v1/mpoff_seed303.training.json": {
+    "sha256": "ae607e921f6200ce2e909128120d34a095689dc873f39bbb13aa6cd698a3cda9",
+    "bytes": 5819
+  },
+  "models/residency_mixed_v1/hand_mlp_seed101.pt": {
+    "sha256": "e01b1512c4321a451db98332a706e93cc28b5a57195ca995aea76ce5e9be9adc",
+    "bytes": 327522
+  },
+  "models/residency_mixed_v1/hand_mlp_seed303.contract.json": {
+    "sha256": "4118d2d7ae9dbc6d4194f8aa3b5965b55fa817048a8ea0645c85546cbc128c71",
+    "bytes": 820
+  },
+  "models/residency_mixed_v1/gnn_seed303.contract.json": {
+    "sha256": "6c32debadac87b95b695ea29f40ed5f5ce9ce94967d6ebec9b07650bf23f0b15",
+    "bytes": 817
+  },
+  "models/residency_mixed_v1/hand_mlp_seed101.training.json": {
+    "sha256": "e632c20705c7fe4274e559c7d4ef7ac7f93ba300b40a8f5386be5fa990191fe4",
+    "bytes": 5786
+  },
+  "models/residency_mixed_v1/mpoff_seed303.contract.json": {
+    "sha256": "5c216a130ed8c4fa8dde5f417e7fa68c15d1e579869eb5aabd84585b70bc1a5a",
+    "bytes": 818
+  },
+  "models/residency_mixed_v1/gnn_seed303.pt": {
+    "sha256": "056c0744aaea7647b90be1a83107af41a942184d4a43780801dc33b346e3f02a",
+    "bytes": 83250
+  },
+  "models/residency_mixed_v1/hand_mlp_seed303.training.json": {
+    "sha256": "a857cc0e9d78c1731da282cd28c865e67e7bdbfd9b9abafe431665428073bdf1",
+    "bytes": 5783
+  },
+  "models/residency_mixed_v1/gnn_seed101.contract.json": {
+    "sha256": "1b596679378a3e32bd8104fd4776e8222f10132cf739679343706ebcabdd9a3f",
+    "bytes": 817
+  },
+  "models/residency_mixed_v1/hand_mlp_seed202.training.json": {
+    "sha256": "fbd72de5c94f686e410a01bf9606fdd0c84746508ca56228e06c950dde3ca850",
+    "bytes": 5788
+  },
+  "models/residency_mixed_v1/hand_mlp_seed202.pt": {
+    "sha256": "d018ff6224191b34d907980320dd0a3bf7685423c1a6339c681804fa7b65cccc",
+    "bytes": 327522
+  },
+  "models/residency_mixed_v1/mpoff_seed202.training.json": {
+    "sha256": "fe91ae42195d573d6af28765f821630e55ac175775069cc3ab3d285aaf22afdf",
+    "bytes": 5812
+  },
+  "models/residency_mixed_v1/gnn_seed202.contract.json": {
+    "sha256": "a50c39f0b42db0841133b55306a7af02de695b27d36b4a658c53aebc08a4ac3b",
+    "bytes": 817
+  },
+  "models/residency_mixed_v1/mpoff_seed202.contract.json": {
+    "sha256": "2f560b6e8721a02a2d181d18e54dc068662c93ca0f7f981ef9070a69adf1c54d",
+    "bytes": 818
+  },
+  "models/residency_mixed_v1/gnn_seed202.training.json": {
+    "sha256": "d8d8ef752e9a1be71020aec136f962609a4756eda9e656cc144898831b292269",
+    "bytes": 5799
+  },
+  "models/residency_mixed_v1/hand_mlp_seed101.contract.json": {
+    "sha256": "dda3fd93572278f6e724c0e44b531b133b95ad1f447fbf2a2d69a036a6f67026",
+    "bytes": 821
+  },
+  "models/residency_mixed_v1/gnn_seed101.pt": {
+    "sha256": "65aa1c20ed64390da947e2301e12c4d64da015d327ba22e7d9310ab0de0e0a6c",
+    "bytes": 83250
+  },
+  "models/residency_mixed_v1/gnn_seed303.training.json": {
+    "sha256": "c2c64fc98556c69a5252e03b85804846a9b4e8c980773fab619d4a3c1967beff",
+    "bytes": 5804
+  },
+  "models/residency_mixed_v1/mpoff_seed101.training.json": {
+    "sha256": "87df34c41ec34ed608cd6c1bcc3cad972b017e5958cbf2e3ac8e9b93bc83ae16",
+    "bytes": 5810
+  },
+  "models/residency_mixed_v1/hand_mlp_seed202.contract.json": {
+    "sha256": "ef72693d185ed16046e2eaf47e1782d84167f612bc372e9fce90c16a690b355d",
+    "bytes": 819
+  },
+  "models/residency_mixed_v1/hand_mlp_seed303.pt": {
+    "sha256": "795835d7f807b2852c1e9a71e0b46e690ab41e5db357787778b2a75d2396721b",
+    "bytes": 327522
+  },
+  "models/residency_mixed_v1/gnn_seed101.training.json": {
+    "sha256": "00699ce66f146b65b84510970789308831a87314ec3386a3fcb98eb7cd07ed19",
+    "bytes": 5804
+  },
+  "models/residency_mixed_v1/mpoff_seed303.pt": {
+    "sha256": "fad4a23d8e70636e4d7f3fd7dd68db99a3ea240f9d292df68a6bde1db13b1594",
+    "bytes": 83282
+  },
+  "models/residency_mixed_v1/mpoff_seed101.pt": {
+    "sha256": "5b4dc6cc4fccd20319e71d168592d88ad81e26f9cdfa87cccf94eae8cbc36cd6",
+    "bytes": 83282
+  },
+  "models/residency_mixed_v1/mpoff_seed101.contract.json": {
+    "sha256": "06e066429680159410970fba4e66ac861b0adc7cad0bc8146c4cff982e7fe0ea",
+    "bytes": 818
+  },
+  "simulation_data/residency_placement_v1/fixtures/records_96000.json": {
+    "sha256": "b83bdb83827c21123d1772c9b9d9162a40124efa06f451a38626ee2dc9ea0c4b",
+    "bytes": 9592267
+  },
+  "simulation_data/residency_placement_v1/fixtures/records_24000.json": {
+    "sha256": "378de4a2336a56ecb8766653758bf747ac1c9772883ee6b5fb7c42aaeb165e41",
+    "bytes": 2389621
+  },
+  "simulation_data/residency_placement_v1/METADATA.json": {
+    "sha256": "6400123db857775bb4cad03e1548c90a07af428be2965bbcf816fa4fc9c77d56",
+    "bytes": 2268
+  },
+  "simulation_data/residency_mixed_v1/METADATA.json": {
+    "sha256": "2aa9af7bf42dc3ee16c88b763aec4bdd869ee43c3bf5c067f8a1e5eb39fd4152",
+    "bytes": 2268
+  },
+  "simulation_data/residency_placement_v1/profiles.json": {
+    "sha256": "756cd0d6267da9d64fb4904c3f0fdf78a9098647e181c7953a4f22df53b46ca8",
+    "bytes": 68463
+  }
+}

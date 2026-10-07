@@ -1,0 +1,665 @@
+{
+  "id": 105,
+  "attempt": "equal_tight",
+  "arm": "mpoff",
+  "repetition": 0,
+  "waves": [
+    {
+      "wave": 0,
+      "snapshot": {
+        "id": 105,
+        "attempt": "equal_tight",
+        "contract": "resident_container_fifo_v1",
+        "cpu": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "apps": [
+          [
+            "2494f1c45009a130ba90a7beeb6d320ce4134e61547baceb53a2734cca12ddf0",
+            "79e645dc4e8e8aac609379e85ea3825752ab95cdac2e6f4e2f5288ae6c5b6c05"
+          ],
+          [
+            "0826857a23be91e5c8654a6fb5554f75d3611a2714bdaa77c3534132d3be8f3e",
+            "9938b012a40426aefbceb3f5b77997b91e3ff1b5654a03af39eec91e3fd80dea"
+          ],
+          [
+            "1de811835f0664aed83f0539ddeb33775cedc69fdd81b6509cec419d68132a7f",
+            "9709f2b8874d04218c158f94f811f0f979b854d2a20d786bc8d5dd10c573f998"
+          ],
+          [
+            "7e822fa16a75c32b66cb0dd0d79a13e95edf422d02af5362d50a3d54fc8e9be1",
+            "67d9e569dc9993fe1da5d06cdbc362d0cf68796c90a0e962a75145aa0bd4d8ad"
+          ],
+          [
+            "7e822fa16a75c32b66cb0dd0d79a13e95edf422d02af5362d50a3d54fc8e9be1",
+            "7179f2733bca50efb526cae1cc8012530771427d5bfae678238b48ae86c1bb26"
+          ],
+          [
+            "7e822fa16a75c32b66cb0dd0d79a13e95edf422d02af5362d50a3d54fc8e9be1",
+            "44c5c55c18d99a10bd467e01d522d59318b1be8c08c33fe7a8e88f765f1a9f35"
+          ]
+        ],
+        "trace_functions": [
+          "d11aad1d9f9f9a91eee1cb7a19898c5d11e081fceede56b39cd2db75accc8725",
+          "d732ca0626e2c690f584febd8489a708a34f3dc95aa3950cf4cb032227ab03a5",
+          "efba591e35890503667d1ca797ef942e93103b2fb89b1bd3617d458530aaaa76",
+          "c0873083ee8e2351555e0665e2b88ba9a1d7fec227057d533608921740fce902",
+          "6677bfa1a5e293b51626b42578b3a76946c98c7ea8c6b2fa98263220f33fb874",
+          "5e1c028d5ecf240ca313c2d20df1c3350a4f1e9fc950288cd1c33449fc869056"
+        ],
+        "requests": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ],
+        "frequency": [
+          1282.0,
+          29.0,
+          14.0,
+          141.0,
+          1808.0,
+          2.0
+        ],
+        "cold_s": [
+          [
+            0.2842117603868246,
+            0.2842117603868246,
+            0.2842117603868246
+          ],
+          [
+            0.3811799604445696,
+            0.3811799604445696,
+            0.3811799604445696
+          ],
+          [
+            0.28446205891668797,
+            0.28446205891668797,
+            0.28446205891668797
+          ],
+          [
+            0.37822094559669495,
+            0.37822094559669495,
+            0.37822094559669495
+          ],
+          [
+            0.30806831642985344,
+            0.30806831642985344,
+            0.30806831642985344
+          ],
+          [
+            0.4712351802736521,
+            0.4712351802736521,
+            0.4712351802736521
+          ]
+        ],
+        "exec_s": [
+          [
+            0.00408397801220417,
+            0.00408397801220417,
+            0.00408397801220417
+          ],
+          [
+            0.003972100093960762,
+            0.003972100093960762,
+            0.003972100093960762
+          ],
+          [
+            0.0019693616777658463,
+            0.0019693616777658463,
+            0.0019693616777658463
+          ],
+          [
+            0.006670139729976654,
+            0.006670139729976654,
+            0.006670139729976654
+          ],
+          [
+            0.001375436782836914,
+            0.001375436782836914,
+            0.001375436782836914
+          ],
+          [
+            0.004288865253329277,
+            0.004288865253329277,
+            0.004288865253329277
+          ]
+        ],
+        "memory_mib": [
+          41,
+          90,
+          41,
+          90,
+          47,
+          114
+        ],
+        "capacity_mib": [
+          137.0,
+          137.0,
+          137.0
+        ],
+        "resident": [
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true
+          ]
+        ],
+        "stop_s": [
+          0.11374213732779026,
+          0.11374213732779026,
+          0.11374213732779026
+        ]
+      },
+      "plan": [
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1
+      ],
+      "planning_s": 0.010564988479018211,
+      "predicted_cost_s": 3.4865122735500336,
+      "predicted_cold": 2,
+      "predicted_evictions": 2,
+      "actual_cost_s": 3.7898061126470566,
+      "events": [
+        {
+          "request": 0,
+          "function": 4,
+          "host": 0,
+          "cold": true,
+          "evicted": [
+            5
+          ],
+          "used_mib": 47,
+          "cold_s": 0.3415223155170679,
+          "stop_s": 0.1152345035225153,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0010092630982398987,
+            "rss_kib": 31392,
+            "rpc_s": 0.0017239227890968323
+          },
+          "completion_s": 0.47050334326922894
+        },
+        {
+          "request": 1,
+          "function": 4,
+          "host": 1,
+          "cold": true,
+          "evicted": [
+            5
+          ],
+          "used_mib": 47,
+          "cold_s": 0.34441939927637577,
+          "stop_s": 0.11405440047383308,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009849760681390762,
+            "rss_kib": 31784,
+            "rpc_s": 0.0016358103603124619
+          },
+          "completion_s": 0.47253095731139183
+        },
+        {
+          "request": 2,
+          "function": 4,
+          "host": 0,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009331107139587402,
+            "rss_kib": 31392,
+            "rpc_s": 0.0014791842550039291
+          },
+          "completion_s": 0.4720734991133213
+        },
+        {
+          "request": 3,
+          "function": 4,
+          "host": 1,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009342916309833527,
+            "rss_kib": 31784,
+            "rpc_s": 0.0013887640088796616
+          },
+          "completion_s": 0.47407737746834755
+        },
+        {
+          "request": 4,
+          "function": 4,
+          "host": 0,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009374767541885376,
+            "rss_kib": 31392,
+            "rpc_s": 0.0013832040131092072
+          },
+          "completion_s": 0.47348931431770325
+        },
+        {
+          "request": 5,
+          "function": 4,
+          "host": 1,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009297039359807968,
+            "rss_kib": 31784,
+            "rpc_s": 0.001326369121670723
+          },
+          "completion_s": 0.47544606402516365
+        },
+        {
+          "request": 6,
+          "function": 4,
+          "host": 0,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009367391467094421,
+            "rss_kib": 31392,
+            "rpc_s": 0.001369338482618332
+          },
+          "completion_s": 0.47491360642015934
+        },
+        {
+          "request": 7,
+          "function": 4,
+          "host": 1,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009196028113365173,
+            "rss_kib": 31784,
+            "rpc_s": 0.001301521435379982
+          },
+          "completion_s": 0.4767719507217407
+        }
+      ]
+    },
+    {
+      "wave": 1,
+      "snapshot": {
+        "id": 105,
+        "attempt": "equal_tight",
+        "contract": "resident_container_fifo_v1",
+        "cpu": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "apps": [
+          [
+            "2494f1c45009a130ba90a7beeb6d320ce4134e61547baceb53a2734cca12ddf0",
+            "79e645dc4e8e8aac609379e85ea3825752ab95cdac2e6f4e2f5288ae6c5b6c05"
+          ],
+          [
+            "0826857a23be91e5c8654a6fb5554f75d3611a2714bdaa77c3534132d3be8f3e",
+            "9938b012a40426aefbceb3f5b77997b91e3ff1b5654a03af39eec91e3fd80dea"
+          ],
+          [
+            "1de811835f0664aed83f0539ddeb33775cedc69fdd81b6509cec419d68132a7f",
+            "9709f2b8874d04218c158f94f811f0f979b854d2a20d786bc8d5dd10c573f998"
+          ],
+          [
+            "7e822fa16a75c32b66cb0dd0d79a13e95edf422d02af5362d50a3d54fc8e9be1",
+            "67d9e569dc9993fe1da5d06cdbc362d0cf68796c90a0e962a75145aa0bd4d8ad"
+          ],
+          [
+            "7e822fa16a75c32b66cb0dd0d79a13e95edf422d02af5362d50a3d54fc8e9be1",
+            "7179f2733bca50efb526cae1cc8012530771427d5bfae678238b48ae86c1bb26"
+          ],
+          [
+            "7e822fa16a75c32b66cb0dd0d79a13e95edf422d02af5362d50a3d54fc8e9be1",
+            "44c5c55c18d99a10bd467e01d522d59318b1be8c08c33fe7a8e88f765f1a9f35"
+          ]
+        ],
+        "trace_functions": [
+          "d11aad1d9f9f9a91eee1cb7a19898c5d11e081fceede56b39cd2db75accc8725",
+          "d732ca0626e2c690f584febd8489a708a34f3dc95aa3950cf4cb032227ab03a5",
+          "efba591e35890503667d1ca797ef942e93103b2fb89b1bd3617d458530aaaa76",
+          "c0873083ee8e2351555e0665e2b88ba9a1d7fec227057d533608921740fce902",
+          "6677bfa1a5e293b51626b42578b3a76946c98c7ea8c6b2fa98263220f33fb874",
+          "5e1c028d5ecf240ca313c2d20df1c3350a4f1e9fc950288cd1c33449fc869056"
+        ],
+        "requests": [
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ],
+        "frequency": [
+          1282.0,
+          29.0,
+          14.0,
+          141.0,
+          1816.0,
+          2.0
+        ],
+        "cold_s": [
+          [
+            0.2842117603868246,
+            0.2842117603868246,
+            0.2842117603868246
+          ],
+          [
+            0.3811799604445696,
+            0.3811799604445696,
+            0.3811799604445696
+          ],
+          [
+            0.28446205891668797,
+            0.28446205891668797,
+            0.28446205891668797
+          ],
+          [
+            0.37822094559669495,
+            0.37822094559669495,
+            0.37822094559669495
+          ],
+          [
+            0.30806831642985344,
+            0.30806831642985344,
+            0.30806831642985344
+          ],
+          [
+            0.4712351802736521,
+            0.4712351802736521,
+            0.4712351802736521
+          ]
+        ],
+        "exec_s": [
+          [
+            0.00408397801220417,
+            0.00408397801220417,
+            0.00408397801220417
+          ],
+          [
+            0.003972100093960762,
+            0.003972100093960762,
+            0.003972100093960762
+          ],
+          [
+            0.0019693616777658463,
+            0.0019693616777658463,
+            0.0019693616777658463
+          ],
+          [
+            0.006670139729976654,
+            0.006670139729976654,
+            0.006670139729976654
+          ],
+          [
+            0.001375436782836914,
+            0.001375436782836914,
+            0.001375436782836914
+          ],
+          [
+            0.004288865253329277,
+            0.004288865253329277,
+            0.004288865253329277
+          ]
+        ],
+        "memory_mib": [
+          41,
+          90,
+          41,
+          90,
+          47,
+          114
+        ],
+        "capacity_mib": [
+          137.0,
+          137.0,
+          137.0
+        ],
+        "resident": [
+          [
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true
+          ]
+        ],
+        "stop_s": [
+          0.11374213732779026,
+          0.11374213732779026,
+          0.11374213732779026
+        ]
+      },
+      "plan": [
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1
+      ],
+      "planning_s": 0.009871235117316246,
+      "predicted_cost_s": 0.10647861659526825,
+      "predicted_cold": 0,
+      "predicted_evictions": 0,
+      "actual_cost_s": 0.12033583037555218,
+      "events": [
+        {
+          "request": 0,
+          "function": 4,
+          "host": 0,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0010390598326921463,
+            "rss_kib": 31392,
+            "rpc_s": 0.0015911869704723358
+          },
+          "completion_s": 0.012591047212481499
+        },
+        {
+          "request": 1,
+          "function": 4,
+          "host": 1,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0011124685406684875,
+            "rss_kib": 31784,
+            "rpc_s": 0.001736389473080635
+          },
+          "completion_s": 0.013261014595627785
+        },
+        {
+          "request": 2,
+          "function": 4,
+          "host": 0,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009184218943119049,
+            "rss_kib": 31392,
+            "rpc_s": 0.0013140849769115448
+          },
+          "completion_s": 0.013940820470452309
+        },
+        {
+          "request": 3,
+          "function": 4,
+          "host": 1,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009347330778837204,
+            "rss_kib": 31784,
+            "rpc_s": 0.0013533178716897964
+          },
+          "completion_s": 0.01464930735528469
+        },
+        {
+          "request": 4,
+          "function": 4,
+          "host": 0,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009349174797534943,
+            "rss_kib": 31392,
+            "rpc_s": 0.0012530423700809479
+          },
+          "completion_s": 0.015220120549201965
+        },
+        {
+          "request": 5,
+          "function": 4,
+          "host": 1,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009383801370859146,
+            "rss_kib": 31784,
+            "rpc_s": 0.001401251181960106
+          },
+          "completion_s": 0.016076745465397835
+        },
+        {
+          "request": 6,
+          "function": 4,
+          "host": 0,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009354427456855774,
+            "rss_kib": 31392,
+            "rpc_s": 0.0014920607209205627
+          },
+          "completion_s": 0.016748515889048576
+        },
+        {
+          "request": 7,
+          "function": 4,
+          "host": 1,
+          "cold": false,
+          "evicted": [],
+          "used_mib": 47,
+          "cold_s": 0.0,
+          "stop_s": 0.0,
+          "rpc": {
+            "result": "8f1f321f1ad88dacccf2078b67c7810eeae9146bf0c99ec42848293ed60c6581",
+            "exec_s": 0.0009549520909786224,
+            "rss_kib": 31784,
+            "rpc_s": 0.00174674391746521
+          },
+          "completion_s": 0.017848258838057518
+        }
+      ]
+    }
+  ],
+  "metadata_sha256": "6400123db857775bb4cad03e1548c90a07af428be2965bbcf816fa4fc9c77d56"
+}

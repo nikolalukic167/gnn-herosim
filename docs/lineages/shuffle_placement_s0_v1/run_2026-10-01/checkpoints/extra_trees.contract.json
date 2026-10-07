@@ -1,0 +1,17 @@
+{
+  "features": 126,
+  "measurement_sha256": "86c0e5672b1c5f1bc6243d98ea57c9a7575b35200473a18a97c8b580c7b0ac08",
+  "model_sha256": "a6d84057aaf5fdea82474643130af2cb4f0b93a6f226b66e32b06478f5a121d7",
+  "protocol_sha256": "b0dabd294bdd07eeec56884a0f660973d5dd59787863ef12cd9126bcc85b4d97",
+  "schema": "shuffle_plan_v1",
+  "training_topologies": [
+    31001,
+    31002,
+    31003,
+    31004,
+    31005,
+    31006,
+    31007,
+    31008
+  ]
+}

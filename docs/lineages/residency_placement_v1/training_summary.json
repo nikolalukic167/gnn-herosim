@@ -1,0 +1,200 @@
+[
+  {
+    "corpus": "residency_placement_v1",
+    "model": "gnn_seed101.contract",
+    "selected_epoch": 9,
+    "validation_regret": 0.01567056828496566,
+    "initial_validation_regret": 32.00224240692762,
+    "final_ce": 0.9363410307301415,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/gnn_seed101.training.json",
+    "checkpoint": "models/residency_placement_v1/gnn_seed101.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "gnn_seed202.contract",
+    "selected_epoch": 14,
+    "validation_regret": 0.005451134706478285,
+    "initial_validation_regret": 44.040100551836126,
+    "final_ce": 0.9932175510459476,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/gnn_seed202.training.json",
+    "checkpoint": "models/residency_placement_v1/gnn_seed202.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "gnn_seed303.contract",
+    "selected_epoch": 11,
+    "validation_regret": 0.03618018948017426,
+    "initial_validation_regret": 5.554883112975463,
+    "final_ce": 0.9111922217739953,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/gnn_seed303.training.json",
+    "checkpoint": "models/residency_placement_v1/gnn_seed303.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "hand_mlp_seed101.contract",
+    "selected_epoch": 17,
+    "validation_regret": 3.38811052996831,
+    "initial_validation_regret": 21.969700884696977,
+    "final_ce": 0.8887922035323249,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/hand_mlp_seed101.training.json",
+    "checkpoint": "models/residency_placement_v1/hand_mlp_seed101.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "hand_mlp_seed202.contract",
+    "selected_epoch": 5,
+    "validation_regret": 2.8198206573539824,
+    "initial_validation_regret": 22.98587120508468,
+    "final_ce": 0.8886378126011955,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/hand_mlp_seed202.training.json",
+    "checkpoint": "models/residency_placement_v1/hand_mlp_seed202.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "hand_mlp_seed303.contract",
+    "selected_epoch": 9,
+    "validation_regret": 3.4111022027783306,
+    "initial_validation_regret": 22.052373497244286,
+    "final_ce": 0.8907036152150896,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/hand_mlp_seed303.training.json",
+    "checkpoint": "models/residency_placement_v1/hand_mlp_seed303.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "mpoff_seed101.contract",
+    "selected_epoch": 27,
+    "validation_regret": 0.009783409565927015,
+    "initial_validation_regret": 35.78011407318288,
+    "final_ce": 0.9350389424297545,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/mpoff_seed101.training.json",
+    "checkpoint": "models/residency_placement_v1/mpoff_seed101.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "mpoff_seed202.contract",
+    "selected_epoch": 31,
+    "validation_regret": 0.016707940356284146,
+    "initial_validation_regret": 43.17554072381762,
+    "final_ce": 0.9551377246777216,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/mpoff_seed202.training.json",
+    "checkpoint": "models/residency_placement_v1/mpoff_seed202.pt"
+  },
+  {
+    "corpus": "residency_placement_v1",
+    "model": "mpoff_seed303.contract",
+    "selected_epoch": 12,
+    "validation_regret": 0.009448794314336336,
+    "initial_validation_regret": 5.027340967425305,
+    "final_ce": 0.9313640859391954,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_placement_v1/mpoff_seed303.training.json",
+    "checkpoint": "models/residency_placement_v1/mpoff_seed303.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "gnn_seed101.contract",
+    "selected_epoch": 29,
+    "validation_regret": 0.17944760787328684,
+    "initial_validation_regret": 7.007996837208912,
+    "final_ce": 1.1393407980600994,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/gnn_seed101.training.json",
+    "checkpoint": "models/residency_mixed_v1/gnn_seed101.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "gnn_seed202.contract",
+    "selected_epoch": 32,
+    "validation_regret": 0.23046236739935572,
+    "initial_validation_regret": 7.505443930325921,
+    "final_ce": 1.4365037282307942,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/gnn_seed202.training.json",
+    "checkpoint": "models/residency_mixed_v1/gnn_seed202.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "gnn_seed303.contract",
+    "selected_epoch": 30,
+    "validation_regret": 0.17175176980191437,
+    "initial_validation_regret": 1.2861886464096872,
+    "final_ce": 1.7824435879786809,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/gnn_seed303.training.json",
+    "checkpoint": "models/residency_mixed_v1/gnn_seed303.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "hand_mlp_seed101.contract",
+    "selected_epoch": 17,
+    "validation_regret": 2.8768305372846363,
+    "initial_validation_regret": 4.850324065098082,
+    "final_ce": 0.7795821925004324,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/hand_mlp_seed101.training.json",
+    "checkpoint": "models/residency_mixed_v1/hand_mlp_seed101.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "hand_mlp_seed202.contract",
+    "selected_epoch": 33,
+    "validation_regret": 2.38625040554509,
+    "initial_validation_regret": 3.9242725495804427,
+    "final_ce": 0.9363222718238831,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/hand_mlp_seed202.training.json",
+    "checkpoint": "models/residency_mixed_v1/hand_mlp_seed202.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "hand_mlp_seed303.contract",
+    "selected_epoch": 32,
+    "validation_regret": 2.793549912850458,
+    "initial_validation_regret": 3.5247954075306542,
+    "final_ce": 0.7661010126272837,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/hand_mlp_seed303.training.json",
+    "checkpoint": "models/residency_mixed_v1/hand_mlp_seed303.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "mpoff_seed101.contract",
+    "selected_epoch": 26,
+    "validation_regret": 0.1316181447548631,
+    "initial_validation_regret": 7.41997869595677,
+    "final_ce": 1.665191079179446,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/mpoff_seed101.training.json",
+    "checkpoint": "models/residency_mixed_v1/mpoff_seed101.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "mpoff_seed202.contract",
+    "selected_epoch": 21,
+    "validation_regret": 0.1546373300407065,
+    "initial_validation_regret": 8.224105568283738,
+    "final_ce": 1.2716159174839656,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/mpoff_seed202.training.json",
+    "checkpoint": "models/residency_mixed_v1/mpoff_seed202.pt"
+  },
+  {
+    "corpus": "residency_mixed_v1",
+    "model": "mpoff_seed303.contract",
+    "selected_epoch": 33,
+    "validation_regret": 0.1529944582192444,
+    "initial_validation_regret": 0.9448065674373229,
+    "final_ce": 1.4146780719359715,
+    "uniform_ce": 1.0986122886681098,
+    "history_file": "models/residency_mixed_v1/mpoff_seed303.training.json",
+    "checkpoint": "models/residency_mixed_v1/mpoff_seed303.pt"
+  }
+]

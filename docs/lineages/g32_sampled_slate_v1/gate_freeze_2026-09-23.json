@@ -1,0 +1,187 @@
+{
+  "lineage": "g32_sampled_slate_v1",
+  "freeze_stage": "before_sealed_live_outcomes",
+  "date_utc": "2026-09-23",
+  "gate_topology_seeds": [
+    9701,
+    9702,
+    9705,
+    9706,
+    9707,
+    9708,
+    9710,
+    9711
+  ],
+  "selected_checkpoint_candidate": {
+    "gnn": "trainer_selected_epoch_0",
+    "peeronly": "trainer_selected_epoch_0",
+    "mpoff": "trainer_selected_epoch_0"
+  },
+  "files": [
+    {
+      "path": "/tmp/fixed-g32-weighted_bridge-5120.json",
+      "sha256": "d3439e73d098ab83d4ffa3bad0022d3d36b5ed8e8d7ba436d4bffdaa8fc04663",
+      "bytes": 1439809
+    },
+    {
+      "path": "/tmp/jb2-mpoff-seed1.pt",
+      "sha256": "826108ba634f2fb993b5bf23064c475fe575023ef2ad3c1232ade2ac43783658",
+      "bytes": 278930
+    },
+    {
+      "path": "/tmp/jb2-mpoff-seed1.contract.json",
+      "sha256": "50960bd256555b7a65e4e478e71ee4a0983e513044f704cbfce57a53894a0c04",
+      "bytes": 1821
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9701.json",
+      "sha256": "22b74e11b4b05a0413e8d5fe5d830dddac96154a1e174567e727dce2c66bb91d",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9702.json",
+      "sha256": "718e084330fa9c16123d86a38bd6c145d8904309f7e48a9371c969ca3e4fe540",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9705.json",
+      "sha256": "e7ba88a1303289e2eb709a497c73a985cd9c1d452fe4c9d83cdade4edc8de415",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9706.json",
+      "sha256": "61a2c99c22834a54b8997732bbfe133058f4c55e3143bfa059d7307bab480a48",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9707.json",
+      "sha256": "25bff22e60529794fda0266b5b4f79743054e485b52ed2e9d1b30c7765b6eca5",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9708.json",
+      "sha256": "5eca52a69deeebb8a857b252b9c717137bc407f1c20effe7bba925332e88935e",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9710.json",
+      "sha256": "101f8f73e75ac11abe4b71106479ca258e09c8d39fd78f8e5856b9828b84bfaf",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/fixed-g32-config-9711.json",
+      "sha256": "edc8a229d000db7da0b060bb8a8196383905f2fbe17c2d8ea4eb1bde638b549b",
+      "bytes": 5785
+    },
+    {
+      "path": "/tmp/g32train/models/g32-sampled-slate-v1-gnn-seed1.pt",
+      "sha256": "6328ee15efa16f4de5398ba8077a8ea9ee7615638bde3ea4149dd25dfbc477ec",
+      "bytes": 542238
+    },
+    {
+      "path": "/tmp/g32train/models/g32-sampled-slate-v1-gnn-seed1.contract.json",
+      "sha256": "2c15545244dfefee9eac1e51627e4b5fae7837936b63396c91a54b811c8cfd57",
+      "bytes": 1615
+    },
+    {
+      "path": "/tmp/g32-val-gnn.json",
+      "sha256": "303114d86a5a01960d8b8278d286293039d23118b4f246c7ada1da2347e7762c",
+      "bytes": 2646
+    },
+    {
+      "path": "/tmp/g32train/models/g32-sampled-slate-v1-peeronly-seed1.pt",
+      "sha256": "49c6c7eaa6073ad0255e58ba3d5997ec338603cb3ffec938b482c2bf9cc58db3",
+      "bytes": 279893
+    },
+    {
+      "path": "/tmp/g32train/models/g32-sampled-slate-v1-peeronly-seed1.contract.json",
+      "sha256": "c7b70fd3df8c0585fd167b4a9bea6bb8e89b7317bbd09b85daf9221c228e121d",
+      "bytes": 1617
+    },
+    {
+      "path": "/tmp/g32-val-peeronly.json",
+      "sha256": "149239a3e80ddf3ada057a2ed90f759ab26b13286b5545f2b9d536122598c8b6",
+      "bytes": 2663
+    },
+    {
+      "path": "/tmp/g32train/models/g32-sampled-slate-v1-mpoff-seed1.pt",
+      "sha256": "1ebcedd3366552d32ed58860a4158bfa8f511b55385acbdfa0246daf0cdcba78",
+      "bytes": 542372
+    },
+    {
+      "path": "/tmp/g32train/models/g32-sampled-slate-v1-mpoff-seed1.contract.json",
+      "sha256": "0bb0a104f0a099a6d23d4e84abc733c1a4e0ccce938d73f4dca8f71b53aa78f9",
+      "bytes": 1614
+    },
+    {
+      "path": "/tmp/g32-val-mpoff.json",
+      "sha256": "2e4aebb60d4291a863d35fc8b7769d7f75d89e88ffd03280266c162a4fe6708d",
+      "bytes": 2652
+    },
+    {
+      "path": "/tmp/run_g32_slate_direct.sh",
+      "sha256": "3bea06c9945a5e25eb6ccca1066481262a99d25cded615ccb2873187fa8e7322",
+      "bytes": 1517
+    },
+    {
+      "path": "/tmp/run_g32_slate_portfolio.sh",
+      "sha256": "6c1716d61535f20e850112d1a503e062a181c4fff2fd929f9ceb78eecfce1556",
+      "bytes": 1700
+    },
+    {
+      "path": "/tmp/run_g32_slate_hand.sh",
+      "sha256": "1d0d822c71de0aabe030a544460cbb541e58b67e8882bf22d88ed568d806cb90",
+      "bytes": 1224
+    },
+    {
+      "path": "/tmp/run_g32_sealed_seed.sh",
+      "sha256": "d3c0d4a4827a5617ca0f6d5886001e7bfd1b6e1595240b550d3848c7ba8bf5c6",
+      "bytes": 555
+    },
+    {
+      "path": "/tmp/g32_slate_portfolio_runner.py",
+      "sha256": "972003419fe681ce4e58a9370ba615536a5554df260c4369435a68025327928c",
+      "bytes": 8640
+    },
+    {
+      "path": "/tmp/fixed_g32_runner.py",
+      "sha256": "a9f42a10753bfec482ca32d8c190fc1457c7bf84d7fff7f7ac1c36d2b09da255",
+      "bytes": 3730
+    },
+    {
+      "path": "/tmp/audit_g32_slate_live_seed.py",
+      "sha256": "4ed3e9e511826aabf3e59b7d5772d8dfeeea4b3ed933e70e0f040e5a780754d3",
+      "bytes": 9022
+    },
+    {
+      "path": "/tmp/audit_g32_slate_hand.py",
+      "sha256": "49b6f494d82cbff4846008f949896a0c71a5d8e2e0cb059812be36876de5fe59",
+      "bytes": 2058
+    },
+    {
+      "path": "/root/projects/my-herosim/experiments/g32_sampled_slate_v1_gnn.yaml",
+      "sha256": "5f80d8a0bf01a58484acf8bdd713b1b1ef8580d08bce361f4d4db82c112dd549",
+      "bytes": 1375
+    },
+    {
+      "path": "/root/projects/my-herosim/experiments/g32_sampled_slate_v1_peeronly.yaml",
+      "sha256": "3b87407136aa059e4ec68cf24d7049ea7aa4c04fb15837a19d548c520f11a8ac",
+      "bytes": 1383
+    },
+    {
+      "path": "/root/projects/my-herosim/experiments/g32_sampled_slate_v1_mpoff.yaml",
+      "sha256": "dbab68789aace1d2da9016f5bcc8e26498a4e07a5952eaef6c45d5f42129e92f",
+      "bytes": 1361
+    },
+    {
+      "path": "/root/projects/my-herosim/experiments/g32_sampled_slate_v1_split_v2.json",
+      "sha256": "b151885a3096a1478d721ab2a3bcceb538f154274d276f5d061dfc85c16e4065",
+      "bytes": 5481
+    },
+    {
+      "path": "/root/projects/my-herosim/scripts_cosim/important/generate_sampled_slate_snapshots.py",
+      "sha256": "b1ebf7b283f1dea80d34c1923368b17e15789e1cae8955652efc9dc8f26e2252",
+      "bytes": 20079
+    }
+  ]
+}
