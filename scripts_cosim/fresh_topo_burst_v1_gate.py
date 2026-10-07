@@ -601,9 +601,21 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     n = out.get("num_tasks")
     problems = []
-    for k, default in (("HEROSIM_TRANSFER_MODEL", "store_forward"), ("HEROSIM_REPLICA_RELEASE", "0")):
+    for k, default in (("HEROSIM_TRANSFER_MODEL", "store_forward"), ("HEROSIM_REPLICA_RELEASE", "0"),
+                       ("HEROSIM_SCALEOUT", "legacy")):
         if out["env"].get(k, default) != os.environ.get(k, default):
             problems.append(f"physics not recorded as driven: {k}={out['env'].get(k)!r}, driver {os.environ.get(k)!r}")
+    # kpa_scaleout_v1: the autoscaler's own record of the rule it ran; legacy runs carry none
+    out["scaleOut"] = st.get("scaleOut")
+    if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
+        want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
+                "panic_window_s": 6.0 * time_scale, "panic_threshold": 2.0}
+        got = {k: (out["scaleOut"] or {}).get(k) for k in want}
+        if any(not isinstance(got[k], (int, float)) or abs(got[k] - v) > 1e-9 for k, v in want.items() if k != "mode") \
+                or got["mode"] != "kpa":
+            problems.append(f"kpa scale-out not served as registered: {got}, want {want}")
+    elif out["scaleOut"] is not None:
+        problems.append(f"legacy run carries a scaleOut block: {out['scaleOut']}")
     if out["env"].get("HEROSIM_SERVER_ONLY_REPLICAS") != ("0" if client_local else "1"):
         problems.append(f"served HEROSIM_SERVER_ONLY_REPLICAS={out['env'].get('HEROSIM_SERVER_ONLY_REPLICAS')!r}, "
                         f"cell client_local_v1={client_local}")

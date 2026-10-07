@@ -52,6 +52,7 @@ class KnativeAutoscaler(Autoscaler):
 
 
     def scaling_level(self, system_state: KnativeSystemState, task_type: TaskType):
+        # HEROSIM_SCALEOUT=legacy only; kpa sizes replicas in Autoscaler._kpa_autoscaler_process
         # Scheduling functions called in a Simpy Process must be Generators
         # No-op as per https://stackoverflow.com/a/68628599/9568489
         if False:
