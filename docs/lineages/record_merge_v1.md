@@ -1,7 +1,14 @@
 # record_merge_v1 — records-only merge of `local-record-2026-10-06`
 
-**Status:** `REGISTERED` (no runs). Kind: housekeeping. Can run in parallel with `kpa_scaleout_v1`,
-but not while any node is writing to `LINEAGES.md`.
+**Status:** `CLOSED` (2026-10-07) — **MERGED**. Registered 2026-10-08 (plan date), run before any other node.
+Kind: housekeeping.
+
+**Outcome.** The 41 nodes that existed only on `local-record-2026-10-06`, with their attachment folders and index
+rows, are on `reference-physics` at `e448a8d5` (299 files, all additions). Each carries the banner
+`Produced on local-record-2026-10-06 at afea04bd; code not merged; old physics.` The 24 nodes that differ between
+the branches were left as on `reference-physics`. All three checks pass: hygiene 15 → 14 failures (the AGENTS.md
+entry-point check now resolves; the other 14 predate the merge); `src/`, `tests/` and `experiments/` unchanged;
+every node the programme cites resolves.
 
 ## Goal
 Every lineage cited by the paper resolves to a node file on the working branch, with its attachments, and no
@@ -24,3 +31,10 @@ simulator code changes from the other branch enter silently.
 ## Separate job (not this node)
 A code merge of the other branch requires a replay of every registered gate's default path and is its own
 lineage if ever needed.
+
+## Record
+
+### 2026-10-07 — merged
+Merged by a separate session on branch `rp/record-merge` (`e448a8d5`), reviewed and fast-forwarded into
+`reference-physics` by the coordinator: diff is additions only, under `docs/lineages/` and `LINEAGES.md`; banner present
+on all 41 nodes. Tests were run with the main checkout's interpreter (the worktree's pipenv env is empty).
