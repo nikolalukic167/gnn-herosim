@@ -1,9 +1,18 @@
 # small_batch_so_v1 — retrained on single-origin groups, does the engineered GNN beat CD again?
 
-**Status:** `REGISTERED` (2026-10-06). The corpus recipe, arms, topologies, statistic and verdict below were fixed before
-any capture ran.
+**Status:** `CLOSED` (2026-10-07) — **NO-WIN** (Amendment 1: **NO-WIN**). Registered 2026-10-06; the corpus recipe,
+arms, topologies, statistic and verdict were fixed before any capture ran, Amendment 1 before its arms trained.
 
-**Outcome.** None yet.
+**Outcome.** Retrained on single-origin groups, the engineered GNN `so1load` still does not beat CD on the single-origin
+cells: **+13.1 / +7.3 %** at ×2 / ×3 (CD Holm-faster, 0/19 and 3/19) and **−3.5 %** at ×5 (not separated); it ties its
+MP-OFF twin (+0.8 / −0.4 / −2.0 %) and matches the scattered-origin checkpoint served zero-shot (+1.2 / +1.7 / +2.1 %), so
+retraining recovers nothing. It still beats Knative −40 / −54 / −68 % and self-predict −26 to −30 %, and ties
+locality-first and the one-pass greedy. Amendment 1, the raw-plan pair: `so1lfgnn` beats its same-input MLP −10.2 / −7.2 %
+(×2 / ×3, CONFIRMED; ×5 −2.5 %, not separated) and loses to CD at every rung, +19.4 / +17.7 / +13.4 % (Holm). **The
+grounded-workload win over CD (`small_batch_confirm_v1`, −10 / −35 / −17 %) depends on scattered request origins.**
+Caveats: the 19 topologies were read many times before, the zero-shot result was seen before registration, 1,003 of 5,535
+corpus datasets (single-node groups) were quarantined by the recipe's rule, and 8 of 24 training cells were lost to capture
+saturation.
 
 **Why.** [`client_local_v1`](client_local_v1.md) found that the grounded mint scatters a peer group's tasks over clients
 (97 % of multi-task groups), while a trace request has one caller. With every group given one origin, the rules run 26–82 %
@@ -58,6 +67,15 @@ self-predict.
 
 ## Record
 
+- 2026-10-07 — **Read; CLOSED NO-WIN (Amendment 1 NO-WIN).** Training 833205 (`so1load`/`so1mpoff`, ~1 h each) and 833337
+  (`so1lfgnn`/`so1lfmlp`, 1.3–7.2 h); gates 833214 and 833338, 1,824 runs per pair, 0 failed, 0 unexplained missing.
+  Primary, median paired % over 19 topologies, Holm across 6: vs CD +13.10 (0/19, REF-FASTER) / +7.30 (3/19, REF-FASTER) /
+  −3.51 % (11/19, p_holm 0.34); vs `so1mpoff` +0.77 / −0.38 / −2.03 % (all NOT-SEPARATED). Descriptive vs the zero-shot
+  `sb1load`: +1.2 / +1.7 / +2.1 %. Amendment 1 (Holm across 6): `so1lfgnn` vs CD +19.37 / +17.67 / +13.43 % (REF-FASTER at
+  all three); vs `so1lfmlp` −10.18 (18/19) / −7.24 (16/19) / −2.50 % (10/19, NOT-SEPARATED). Retraining vs zero-shot:
+  `so1lfgnn` −1.2 / −0.4 / +0.8 %, `so1lfmlp` −2.1 / −5.7 / −13.9 % (the MLP gains most). `so1lfgnn` vs `so1load`
+  +6.6 / +9.2 / +14.7 %. Reader `scripts_cosim/small_batch_so_v1_read.py`, output `simulation_data/small_batch_so_v1/so1_read.json`
+  on datalab.
 - 2026-10-06 — **Corpus and cache (jobs 833174, 833201).** 4,851 train + 684 held-out complete sweeps; **1,003 of 5,535
   datasets quarantined** for peer_norm 0 (every candidate on one node), against 35 in `small_batch_v1`: with one origin,
   many groups reach a single node, and the recipe excludes those. Cache 4,532 graphs, candidate check 0 offenders, backlog

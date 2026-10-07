@@ -344,3 +344,14 @@ has the same corpus, labels, `partial_state_v4` context and self-refine. It beat
 features.
 Qualifier (`raw_plan_v1`, 2026-10-01): with the raw plan instead of those features MP does beat its twin
 (−12 to −24 %, 12/12), but both raw arms lose to CD by +24 to +53 %.
+
+## Retraining the engineered GNN on single-origin groups to recover the win over CD (2026-10-07)
+
+**Closed by:** `small_batch_so_v1` (gates 833214, 833338) on the 19 single-origin topologies, ×2 / ×3 / ×5.
+
+**Direction:** "the GNN lost to CD on single-origin groups only because it was trained on scattered origins; retrain it
+on the right workload."
+
+**Measurement:** retrained, `so1load` vs CD +13.1 / +7.3 % (CD Holm-faster) and −3.5 % (not separated), within 1–2 % of the
+scattered-trained checkpoint served zero-shot; the raw-plan GNN retrained the same way loses to CD +19 / +18 / +13 %.
+Revive only with a different input or objective, not with more of the same corpus.

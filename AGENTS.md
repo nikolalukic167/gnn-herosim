@@ -41,103 +41,35 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-10-04).**
+**Where the research question stands (rewritten 2026-10-07).**
 
-**The bar is a hand rule, and in one seat a learned arm clears it.** Per arrival, the self-predict
-rule (`selfpredict_bar_v1`: the peer-greedy rule plus a price for each unarrived partner at the node
-the rule would give it now) beats healthy reactive Knative **−19.4 % / −21.4 %** (16/16), the old rule
-−6.2 / −8.5 % and the CD greedy −7.8 / −8.9 %; every learned arm served per arrival loses to the old rule. **In the
-burst seat, uncapped `gnnedge0` beat it −7.25 % on 4 topologies (`selfpredict_burst_v1`), but on 11
-fresh topologies that win does not replicate** (`fresh_topo_burst_v1`: −1.2 %, p = 0.70). What does
-replicate there is a **message-passing direction**: `gnnedge0` beats its MP-OFF twin −4.2 % on
-11/11 fresh topologies (p = 0.001, under the 5 % magnitude bar), and the MP-OFF twin alone loses to
-self-predict (+2.8 %, 2/11). So MP is what lifts the learned arm to parity with the rule. **The ceiling in that seat is the coordinate-descent
-greedy**, ahead of `gnnedge0` +12.5 % and of self-predict +21.3 %. **`cd_gap_v1` places that gap in the
-learned score, which cannot load-balance** (CD scores queue drain in seconds plus in-batch committed
-service). A CD-trained imitator ties `gnnedge0` (+0.6 %) and trails CD +13.6 %. Neither
-self-revision on the model's score nor half the arrival rate (+13.8 %) closes it, and out-of-batch
-blindness is worth ~3.4 %. **Giving the model those load terms closes about half of it**
-(`load_repr_v1`, `partial_state_v4`). `v4load` beats its zeroed twin −5.3 % (11/11) and trails CD
-+6.7 % (gnnedge0: +12.4 %). It **beats self-predict −8.5 % (10/11, p = 0.005)** on the fresh study,
-the first learned arm to clear the hand-rule bar there at a quotable magnitude (4 seeds, one corpus,
-jb2 1,629 groups). Used as a seed for CD's refine passes, the GNN plan beats CD −3.8 % (10/10,
-direction only; ~2/3 of that is any learned seed, not MP). Every burst-seat learned number before
-721d44f was served a node rank it was not trained on (uncapped rung, fixed). The fix costs `gnnedge0`
-+1.4 %, so no earlier learned headline is inflated by more than that.
+**On the faithful workload, no learned arm beats coordinate-descent search (CD); the earlier "beats CD" headline was an
+artifact of scattered request origins.** The setting is the Alibaba-grounded workload at ×2 / ×3 / ×5 on 19 unseen
+topologies (`grounded_workload_v1` → `peak_load_v1` → `small_batch_confirm_v1`). The grounded mint gave each task of a peer
+group its own client (97 % of groups span clients); a trace request has one caller (`client_local_v1`). With one origin
+per group every rule runs 26–82 % faster, and:
 
-**Three fixes narrowed the gap further; none separates from CD** (`backlog_corpus_v1` →
-`fullctx_refine_v1` → `exchange_seconds_v1`, `CLOSED`: median +1.5 % → −1.8 % → −0.94 %, p ≥ 0.76).
-**CD's refine seeded by the strongest checkpoint beats CD**, −3.74 %
-(10/10, direction, `seeded_cd_xs1_v1`). **In bursty
-arrivals the learned arm leads CD by ~−11 % at admissible load, but not significantly** (×1.1, 4 seeds:
-−11.8 %, p=0.064, `x11_confirm_v1`). The blocker is one
-topology's collapse (a starved replica type), NOT fixed by a keep-warm guard (`replica_guard_v1` `FAILED`).
-**Grounded peak load: a small-batch-trained scorer beats CD, CD+ext on new topologies**
-(`small_batch_confirm_v1`,−10/−35/−17%) **but ties its MP-OFF twin**.
-Negatives (`docs/hard-stops.md`): Decima's best baseline loses by 46–66 %; widening the choice
-set makes CD more optimal, not less.
+- **The engineered GNN `sb1load` no longer beats CD**, zero-shot or retrained on a single-origin corpus
+  (`small_batch_so_v1`, NO-WIN): +13.1 / +7.3 % (CD faster) and −3.5 % (not separated); retraining moves it 1–2 %. It
+  still beats Knative −40 / −54 / −68 % and self-predict ~−27 %, ties locality-first and the one-pass greedy, and ties its
+  MP-OFF twin. Under scattered origins it had beaten CD −10 / −35 / −17 % — **quote that only with the origin model named.**
+- **Message passing is real but small, and never where it beats search.** The raw-plan GNN beats its same-input MLP
+  (`local_features_v1` −11 / −24 / −20 %; retrained single-origin −10 / −7 % at ×2 / ×3, ×5 not separated) and its no-conv
+  twin, but CD is faster at every rung (+13 to +19 %). Per-relation weights (`hetero_conv_v1`) add up to −7 % at ×5 and
+  nothing else; edge physics in the convs (`raw_plan_v2`) and sum aggregation were worse or tied. Where a learned arm has
+  beaten CD it was the engineered pointwise context, never the convolutions (`small_batch_confirm_v1`, `peak_controls_v1`).
+- **Client execution does not pay** (`client_local_v1`): 2–7 of 20 clients can host the functions at all, and local
+  execution is 0.1–2 % of calls under every policy.
 
-`gnnedge0` got there by training on
-exactly the served decision and serving UNCAPPED (`joint_burst_v2`: −11.9 % vs the one-pass greedy;
-v1's +16.8 % loss was the serving cap). The lever to reach CD, `rollout_imitation_v1`, **CLOSED
-`RULE-FASTER-LIVE`**: −12.7 % offline, +14–28 % slower live. **The served GNN never sees a partner
-outside its batch**, and the one graph-specific lever left, lookahead over unarrived partners, **CLOSED
-`HAND-COORDINATION-RECOVERS`** (`lookahead_mp_v1`): the self-predict rule gets 93–95 % of an oracle's
-−6.6 / −8.2 %.
+**Earlier settings, still true:** per arrival the self-predict rule is the bar (`selfpredict_bar_v1`); in the 6-server burst
+seat uncapped `gnnedge0` beats the one-pass greedy and loses to CD (`joint_burst_v2`); the co-sim single-batch target is
+pointwise-separable (`program_verdict_v1`); rollout imitation and lookahead are closed (`rollout_imitation_v1`,
+`lookahead_mp_v1`). Every client-rung "vs reactive" number before 2026-09-20 flips sign when paired.
 
-- **The rule** (`peer_greedy_live_v1`, 2026-09-20): Knative's candidate set scored in seconds as
-  queue drain + cold + exec + latency + exchange to partners already placed, per arrival, no
-  constant. On the 16 admissible environments per rung: **−12.96 % (C40) / −16.01 % (C80) vs
-  reactive, 16/16 each**; −22.6 / −21.1 % vs random; the same rule with the exchange term off
-  ties Knative, so the margin IS co-location (exchange 5.40 → 3.91 s per task and the queue
-  *shorter*, 8.66 → 7.80 s). Served in `gnnedge0`'s seat (16 s peer-group batching, greedy in id
-  order) it still beats `gnnedge0` −13.2 % (16/16, C80; −8.3 % disclosed at C40) and the
-  no-wait flavour beats the batched one −8.3 %.
-- **The 6-server headline was never there** (`unsaturated_edge_v1`): "gnnedge0 −20.8 % (15/16)"
-  was an unpaired ratio of medians over 4 cells, 2 saturated; paired per cell +4.6 / +75.8 /
-  +9.7 / −36.8 %. On 16 environments with the paired statistic: C40 `gnnedge0` +6.68 % (0/14,
-  disclosed), `peeronly` +8.36 %, `mpoff` +11.53 %, `gnn` +9.24 %; C80 `gnnedge0` +14.40 %
-  (0/16). Every client-rung "vs reactive" number before 2026-09-20 flips sign when paired; the
-  arm-vs-arm contrasts stand: `gnnedge0` beats its MP-OFF twin −6.82 % (14/14) at C40
-  (`bipartite_aggr_v1`: use `mean`, never `sum`, over a variable-sized candidate set; name both
-  corpora, 1670 and 516, in every model-class quote).
-- **Batching relocates waiting** (`batch_window_edge_v1`): a 2 s window cuts the 7.1 s wait to
-  1.7 s and the queue and rendezvous rise by the same amount (`WINDOW-NOT-THE-LEVER`). ECT loses
-  +12.8 % to shortest-queue because its queue term is `len × exec` (0.1 s per queued task),
-  not because physics awareness hurts.
-- **Reactive's capacity does not grow with the cluster** (`unsaturated_scale_v1`): a cell
-  enters a study only at reactive queue share ≤ 0.80, **unknown is not a pass**; 15 of 48
-  6-server cells hang in the starved-client spin regardless of load; **w0** is the burstiest of
-  the four arrival windows and every saturated cell is a w0 cell.
-- **The environment levers** (`burst_groups_v1`, `payload_scale_v1`, `backbone_sparsity_v1`,
-  2026-09-20). **Bursts** (groups dispatched together) remove the 7 s wait entirely (0.001 s) and
-  Knative's rendezvous with it (Knative 17.9 → 8.3 s per task): `gnnedge0` then TIES Knative
-  (−2.2 %, 11/16) while the rule reads **−26 %** (8/8) and beats `gnnedge0` +25 % (16/16) — 8
-  environments, two signed amendments, disclosed; the wait was never the whole deficit. **Payload
-  ×0.1** (20 MB): the rule ties Knative, every batching arm pays its wait (+15–16 %); **×3, ×10
-  and a 250 Mbps backbone saturate reactive on every cell** — above the 200 MB scale every lever
-  is a load lever at 0.46 arrivals/s on 6 servers. Regime: peer-aware placement pays from ×1 for
-  the rule, at no measured scale for `gnnedge0`.
-- **Trained on the served decision, `gnnedge0` beats the one-pass greedy in its own seat — the
-  first learned win over a rule with the model's information** (`joint_burst_v1` → `joint_burst_v2`,
-  2026-09-20/21): whole peer groups as bursts, from loaded states, labelled by the group optimum,
-  16 seeds. v1 (capped) beat reactive −12.47 % (15/15) and its cold twin −7.82 % (J5) but lost the
-  greedy's seat +16.83 %. v2 found that loss was the **serving cap** blocking the label's
-  co-location move: served UNCAPPED, `gnnedge0` beats the one-pass greedy **−11.9 % (13/13)**,
-  reactive −34.7 %, random ~−48 %; uncapping the v1 weights alone already clears the greedy (K6
-  −8.8 %, 16/16) and the loaded-state corpus adds nothing beyond it (K5 CORPUS-NEUTRAL). It **loses
-  to the coordinate-descent greedy +12.5 % (0/13)** — the honest ceiling.
-- **What survives from before:** the offline positive (`peer_affinity_v1`: MP beats its twin
-  +5.14 pp offline, inverts live at a defensible load); a 150× trainability asymmetry
-  (optimisation, never latency); `serving_stability_v1`'s early-trace positive; both model-class
-  edges over the MLP fell to corpus matching (`link_mp_v1`, `reliability_matched_v1`);
-  `partial_state_v3`'s size-free block is what lets 6-server checkpoints serve 80 at all.
-
-**Pair on the environment before you take a median; quote a DIRECTION from a small design and a
-MAGNITUDE only from a large one; a rule with the model's information is the bar, never Knative
-alone.** Never a `peer_affinity` live number without its load factor, never a client-rung "vs
-reactive" number from before 2026-09-20, never an arm comparison without both corpora. Start at
-`docs/lineages/peer_greedy_live_v1.md`, `joint_burst_v2.md` and `throughline.md`.
+**Pair on the environment before you take a median; quote a DIRECTION from a small design and a MAGNITUDE only from a
+large one; a rule with the model's information is the bar, never Knative alone; name the origin model with any grounded
+number.** Never a `peer_affinity` live number without its load factor, never an arm comparison without its corpus. Start at
+`docs/lineages/small_batch_so_v1.md`, `client_local_v1.md`, `local_features_v1.md` and `throughline.md`.
 
 ## Current research entry points
 

@@ -1,8 +1,14 @@
 # hetero_conv_v1 — do relation-specific weights let the raw-plan GNN close its gap to CD?
 
-**Status:** `REGISTERED` (2026-10-06). Arms, topologies, statistic and verdict below were fixed before any training run.
+**Status:** `CLOSED` (2026-10-07) — **NO-GAIN** (reader label `INCOMPLETE`; see below). Registered 2026-10-06; arms,
+topologies, statistic and verdict were fixed before any training run.
 
-**Outcome.** None yet.
+**Outcome.** Per-relation weights do not close the raw-plan GNN's gap to CD. `lf1het` beats its MP-OFF twin
+−12.4 / −24.2 / −14.9 % (CONFIRMED) but **CD is Holm-faster at ×2 and ×3 (+15.4 / +23.7 %)**, ×5 −2.6 % not separated; vs
+plain `lf1gnn` +0.9 % (`lf1gnn` Holm-faster) / −4.8 % (direction only) / −7.1 % (CONFIRMED). The reader returns
+`INCOMPLETE` because 28 reused reference runs (14 `lf1gnn`, 11 `lf1twin`, 3 CD, from earlier gates) have neither a summary
+nor a failure record; no completion of those can pass either bar, since CD is already Holm-faster at two rungs and
+`lf1gnn` at ×2. Scattered-origin workload, as every arm it is compared with.
 
 **Question.** `lf1gnn` ([`local_features_v1`](local_features_v1.md)) is the one arm where message passing clearly beats
 the same-input MLP (−11 / −24 / −20 %) and its no-conv twin (−13 / −17 / −8 %), but CD is faster at every rung
@@ -51,5 +57,10 @@ Descriptive only: `lf1het` vs `lf1mlp`, `cdextr`, `sb1load`, `sb1mpoff`.
 
 ## Record
 
+- 2026-10-07 — **Read; CLOSED NO-GAIN.** Training 832780 (8 seeds, all sidecars ok), gate 833168: 1,824 / 1,824 runs, 0
+  failed. Primary (Holm across 9): vs `lf1twin` −12.40 (19/19) / −24.18 (18/19) / −14.93 % (19/19), CONFIRMED; vs `lf1gnn`
+  +0.88 (3/19, REF-FASTER) / −4.75 (15/19, DIRECTION-ONLY) / −7.05 % (19/19, CONFIRMED); vs CD +15.38 (0/19, REF-FASTER) /
+  +23.74 (2/19, REF-FASTER) / −2.57 % (13/19, NOT-SEPARATED). Descriptive: vs `lf1mlp` −11.1 / −28.2 / −23.8 %, vs `cdextr`
+  +17.1 / +51.2 / +6.4 %, vs `sb1load` +24.9 / +94.0 / +16.2 %. Output `simulation_data/hetero_conv_v1/het_read.json` on datalab.
 - 2026-10-06 — Registered. Code, config, training script, gate phase and reader written; unit tests and
   `test_trainer_determinism.py` pass. Nothing trained yet.

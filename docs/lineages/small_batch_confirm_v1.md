@@ -8,6 +8,8 @@ verdict were fixed before any run of this gate and before raw_plan_v2's Phase C 
 over the search rules on unseen topologies. It **ties its MP-OFF twin** (−0.18 / −0.68 / +0.94 %; Holm p 1.0 / 0.054 /
 1.0), and the twin beats CD by the same margins. It is a learned-scorer win from the engineered context and live-sized
 training batches, **not a message-passing win**; Phase D's −0.8 to −3.6 % twin margin did not replicate.
+**Superseded as a claim about the trace (2026-10-07):** it was measured under scattered request origins; with one
+origin per peer group CD is faster or tied, zero-shot and retrained ([`small_batch_so_v1`](small_batch_so_v1.md)).
 
 **Question.** `small_batch_v1` Phase D (12 development topologies) put the retrained GNN `sb1load` ahead of CD, `cdextr`
 and its retrained MP-OFF twin `sb1mpoff` at ×2 / ×3 / ×5 — the twin by only −0.8 / −2.7 / −3.6 %. Those topologies informed
