@@ -31,6 +31,9 @@ KPA_TARGET = 0.7
 KPA_STABLE_WINDOW_S = 60.0
 KPA_PANIC_WINDOW_S = 6.0
 KPA_PANIC_THRESHOLD = 2.0
+# amendment A2 (2026-10-07): max-scale-up-rate 1000, max-scale-down-rate 2.0 (at most halve per decision)
+KPA_MAX_SCALE_UP_RATE = 1000.0
+KPA_MAX_SCALE_DOWN_RATE = 2.0
 
 
 def scaleout_mode() -> str:
@@ -62,6 +65,8 @@ class KpaConfig:
     stable_window: float
     panic_window: float
     panic_threshold: float = KPA_PANIC_THRESHOLD
+    max_scale_up_rate: float = KPA_MAX_SCALE_UP_RATE
+    max_scale_down_rate: float = KPA_MAX_SCALE_DOWN_RATE
 
     @classmethod
     def from_env(cls, target: float) -> "KpaConfig":
@@ -73,7 +78,18 @@ class KpaConfig:
     def describe(self) -> Dict[str, Any]:
         return {"mode": KPA, "target": self.target, "stable_window_s": self.stable_window,
                 "panic_window_s": self.panic_window, "panic_threshold": self.panic_threshold,
+                "max_scale_up_rate": self.max_scale_up_rate, "max_scale_down_rate": self.max_scale_down_rate,
                 "policy_time_scale": policy_time_scale()}
+
+
+def pending_in_flight(pending: Any) -> int:
+    """Amendment A1 (2026-10-07): tasks that arrived and are not yet on any replica -- held in a batching
+    scheduler's peer-group buffer or postponed for want of a reachable replica -- count as demand for their
+    type, as Knative's activator reports the requests it buffers. Prunes placed tasks in place."""
+    if not pending:
+        return 0
+    pending[:] = [t for t in pending if not t.scheduled.triggered]
+    return len(pending)
 
 
 def platform_in_flight(platform: Any) -> int:
@@ -137,8 +153,14 @@ class KpaScaler:
         st = self.functions.setdefault(function_name, KpaFunctionState())
         stable_avg = self._average(st, now, cfg.stable_window)
         panic_avg = self._average(st, now, cfg.panic_window)
-        desired_stable = math.ceil(stable_avg / cfg.target - 1e-9)
-        desired_panic = math.ceil(panic_avg / cfg.target - 1e-9)
+        raw_stable = math.ceil(stable_avg / cfg.target - 1e-9)
+        raw_panic = math.ceil(panic_avg / cfg.target - 1e-9)
+        # rate limits (A2): the panic test reads the unclamped demand; both counts are then held in
+        # [floor(ready / max_scale_down_rate), ceil(max_scale_up_rate * max(1, ready))]
+        lo = math.floor(ready / cfg.max_scale_down_rate)
+        hi = math.ceil(cfg.max_scale_up_rate * max(1, ready))
+        desired_stable = min(max(raw_stable, lo), hi)
+        desired_panic = min(max(raw_panic, lo), hi)
 
         over = (panic_avg / cfg.target) / max(1, ready) >= cfg.panic_threshold
         entered = False

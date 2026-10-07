@@ -746,6 +746,7 @@ class Platform:
         self.current_task: Task | None = None
         # popped from the queue, still in network/ingress transfer before service (read by HEROSIM_SCALEOUT=kpa)
         self.admitted: Task | None = None
+        self.last_started: SimTime = -math.inf
         # HEROSIM_REPLICA_RELEASE=1: tasks past cold start whose I/O or compute is still running
         self.inflight: List[Task] = []
         self.rendezvous_procs: Dict[Task, Any] = {}
@@ -1396,6 +1397,7 @@ class Platform:
                 continue
 
             self.admitted = task
+            self.last_started = self.env.now
 
             # Network latency for remote task execution
             # Check if task is being executed on a different node than where it originated

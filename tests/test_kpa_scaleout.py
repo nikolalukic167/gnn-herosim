@@ -325,3 +325,67 @@ def test_family_legacy_carries_nothing_kpa(monkeypatch, family):
     assert all("cause" not in e for e in autoscaler.scale_events)
     # legacy checks total, not free, node memory: it overcommits, as every run before 2026-10-07 did
     assert min(n.available_memory for n in nodes) < 0
+
+
+# --- amendments A1-A3 (2026-10-07) ---------------------------------------------------------------
+
+
+def test_a2_scale_down_at_most_halves_per_decision():
+    s = KpaScaler(CFG)
+    _feed(s, "f", [(t, 0.0) for t in range(0, 200)])
+    assert s.decide("f", 199.0, current=8, ready=8).desired == 4
+    assert s.decide("f", 199.0, current=3, ready=3).desired == 1
+    # one ready replica: floor(1 / 2) = 0, so the quiet-window rule alone governs the last replica
+    assert s.decide("f", 199.0, current=1, ready=1).desired == 0
+    assert CFG.max_scale_down_rate == 2.0 and CFG.max_scale_up_rate == 1000.0
+
+
+def test_a1_pending_tasks_count_until_scheduled_and_are_pruned():
+    env = simpy.Environment()
+    tasks = [SimpleNamespace(scheduled=env.event()) for _ in range(3)]
+    pending = list(tasks)
+    assert scaleout.pending_in_flight(pending) == 3
+    tasks[0].scheduled.succeed()
+    assert scaleout.pending_in_flight(pending) == 2 and len(pending) == 2
+    assert scaleout.pending_in_flight(None) == 0
+
+
+@pytest.mark.parametrize("family", sorted(FAMILIES))
+def test_a1_orchestrator_arrivals_feed_kpa_demand(monkeypatch, family):
+    monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
+    monkeypatch.delenv("HEROSIM_POLICY_TIME_SCALE", raising=False)
+    env, autoscaler, state, nodes, task_type = _world(monkeypatch, family)
+    held = [SimpleNamespace(type={"name": "f"}, scheduled=env.event()) for _ in range(5)]
+    for t in held:
+        autoscaler.kpa_note_arrival(t)
+    seen = []
+    observe = autoscaler.kpa.observe
+    autoscaler.kpa.observe = lambda fn, now, v: (seen.append(v), observe(fn, now, v))
+    state.replicas["f"] = set()
+    env.process(autoscaler.create_first_replica(state, task_type, source_node_name="node0"))
+    env.process(autoscaler.autoscaler_process())
+    env.run(until=3)
+    assert seen and seen[-1] == 5  # no replica holds anything; all demand is the held batch
+
+
+@pytest.mark.parametrize("family", sorted(FAMILIES))
+def test_a3_never_served_reachability_replica_is_not_idle(monkeypatch, family):
+    monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
+    monkeypatch.delenv("HEROSIM_POLICY_TIME_SCALE", raising=False)
+    env, autoscaler, state, nodes, task_type = _world(monkeypatch, family)
+
+    def scenario():
+        yield env.process(autoscaler.create_first_replica(state, task_type, source_node_name="node0"))
+        (node, plat), = state.replicas["f"]
+        yield plat.initialized.succeed() if not plat.initialized.triggered else env.timeout(0)
+        plat.idle_since = env.now
+        yield env.timeout(10)
+        yield env.process(autoscaler._kpa_scale_down(1, state, "f"))
+        assert len(state.replicas["f"]) == 1  # protected: it has not started a task
+        plat.last_started = env.now
+        yield env.process(autoscaler._kpa_scale_down(1, state, "f"))
+        assert state.replicas["f"] == set()
+
+    env.process(scenario())
+    env.run(until=50)
+    assert autoscaler.scaleout_summary()["scale_downs"] == 1

@@ -451,6 +451,11 @@ class Orchestrator:
         check_serializable(result, "stats")
         return result
 
+    def _kpa_note_arrival(self, task: "Task") -> None:
+        note = getattr(self.autoscaler, "kpa_note_arrival", None)
+        if note is not None:
+            note(task)
+
     def _scaleout_fields(self) -> Dict[str, Any]:
         """`scaleOut` (kpa_scaleout_v1) only when HEROSIM_SCALEOUT=kpa, so legacy stats keep their keys."""
         summary = getattr(self.autoscaler, "scaleout_summary", lambda: None)()
@@ -917,6 +922,7 @@ class Orchestrator:
                 continue
 
             child.dispatched.succeed()
+            self._kpa_note_arrival(child)
             yield self.scheduler.tasks.put(child)
             self.env.process(self.workflow_process(child))
 
@@ -988,6 +994,7 @@ class Orchestrator:
 
             # Tasks are stored in a queue to be scheduled on execution platforms
             # See scheduler_process()
+            self._kpa_note_arrival(first_task)
             yield self.scheduler.tasks.put(first_task)
 
         print(f"[ {self.env.now} ] Gateway: All {len(self.task_archive)} tasks from {len(self.application_archive)} applications have been dispatched")

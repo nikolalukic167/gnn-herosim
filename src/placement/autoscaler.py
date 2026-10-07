@@ -35,6 +35,7 @@ from src.placement.scaleout import (
     KpaConfig,
     KpaScaler,
     new_scaleout_stats,
+    pending_in_flight,
     platform_in_flight,
     scaleout_mode,
 )
@@ -116,9 +117,17 @@ class Autoscaler:
         self.kpa: Optional[KpaScaler] = None
         self.scaleout_stats: Optional[Dict[str, Any]] = None
         self._replica_born: Dict[Tuple[str, int, int], SimTime] = {}
+        self._replica_cause: Dict[Tuple[str, int, int], str] = {}
+        # A1: arrived, not yet placed tasks per type (fed by the orchestrator's gateway)
+        self._kpa_pending: Dict[str, List[Any]] = {}
         if self.scaleout == KPA:
             self.kpa = KpaScaler(KpaConfig.from_env(policy.queue_length))
             self.scaleout_stats = new_scaleout_stats()
+
+    def kpa_note_arrival(self, task: Any) -> None:
+        """Called by the orchestrator for every task it hands to the scheduler (kpa only)."""
+        if getattr(self, "kpa", None) is not None:
+            self._kpa_pending.setdefault(task.type["name"], []).append(task)
 
     def scaleout_summary(self) -> Optional[Dict[str, Any]]:
         """The `scaleOut` block of a kpa run's stats; None under legacy so its stats are unchanged."""
@@ -224,7 +233,8 @@ class Autoscaler:
                 self.kpa.observe(
                     function_name,
                     now,
-                    sum(platform_in_flight(platform) for _, platform in function_replicas),
+                    sum(platform_in_flight(platform) for _, platform in function_replicas)
+                    + pending_in_flight(self._kpa_pending.get(function_name)),
                 )
                 current = len(function_replicas)
                 ready = sum(
@@ -271,6 +281,17 @@ class Autoscaler:
         def idle_reference(platform: Platform) -> SimTime:
             return platform.idle_since if math.isfinite(platform.idle_since) else platform.last_allocated
 
+        def protected(node: Node, platform: Platform) -> bool:
+            # A3: a reachability-created replica that has not started a task since its creation is waiting
+            # for the postponed task that created it; it is not idle. Bounded by one stable window.
+            key = (function_name, node.id, platform.id)
+            born = self._replica_born.get(key)
+            if born is None or self._replica_cause.get(key) != "reachability":
+                return False
+            if getattr(platform, "last_started", -math.inf) >= born:
+                return False
+            return self.env.now - born < self.kpa.config.stable_window
+
         candidates = sorted(
             (
                 (node, platform)
@@ -278,6 +299,7 @@ class Autoscaler:
                 if platform.initialized.triggered
                 and platform_in_flight(platform) == 0
                 and not getattr(platform, "rendezvous_procs", None)
+                and not protected(node, platform)
             ),
             key=lambda c: (idle_reference(c[1]), c[0].id, c[1].id),
         )
@@ -433,9 +455,9 @@ class Autoscaler:
                 if kpa:
                     event["cause"] = cause
                     self.scaleout_stats["scale_ups_by_cause"][cause] += 1
-                    self._replica_born[
-                        (function_name, new_replica[0].id, new_replica[1].id)
-                    ] = self.env.now
+                    born_key = (function_name, new_replica[0].id, new_replica[1].id)
+                    self._replica_born[born_key] = self.env.now
+                    self._replica_cause[born_key] = cause
                 self.scale_events.append(event)
             except KeyError:
                 """
@@ -566,9 +588,9 @@ class Autoscaler:
             # Statistics
             removed_replica[1].last_removed = self.env.now
             if getattr(self, "kpa", None) is not None:
-                born = self._replica_born.pop(
-                    (function_name, removed_replica[0].id, removed_replica[1].id), None
-                )
+                born_key = (function_name, removed_replica[0].id, removed_replica[1].id)
+                born = self._replica_born.pop(born_key, None)
+                self._replica_cause.pop(born_key, None)
                 if born is not None:
                     self.scaleout_stats["replica_lifetimes_closed"] += 1
                     if self.env.now - born < self.kpa.config.stable_window:

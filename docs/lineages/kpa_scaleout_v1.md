@@ -3,6 +3,23 @@
 **Status:** `REGISTERED` (no runs). Depends on: `transfer_physics_v1` (read, `e76862a2`).
 Plan: [`reference_physics_programme.md`](reference_physics_programme.md) (shared rules apply).
 
+
+**Pre-run amendments (2026-10-07, before any `kpa` cell; decided by the coordinator).** Three elements the factor
+table left out, added for fidelity to Knative and not chosen by any outcome:
+- **A1 buffered demand.** Tasks that arrived and are not yet on a replica (held in a batching scheduler's peer-group
+  buffer, or postponed for want of a reachable replica) count as in-flight demand for their type, as Knative's
+  activator reports the requests it buffers. Without it CD and the batched arms hide up to 16 s of demand.
+- **A2 rate limits.** Knative's defaults `max-scale-down-rate` 2.0 (at most halve per decision) and
+  `max-scale-up-rate` 1000. Recorded in `scaleOut`.
+- **A3 a never-served replica is not idle.** A reachability-created replica that has not started a task since its
+  creation is not a scale-down candidate, for at most one stable window (in Knative the request that triggers a pod
+  is already in flight, so the pod cannot be removed before serving it).
+
+Implementation and checks: `src/placement/scaleout.py`, `src/placement/autoscaler.py`; `tests/test_kpa_scaleout.py`
+(16 tests). Local legacy replay on `cc40s9001` (4 arms, 4,000 events) identical after the amendments. A one-cell
+smoke (not a result, not the test workload) moved short-lived replicas from 66 % to 46 % for CD and 37 % to 34 % for
+reactive; CD's reachability creations still outnumber load creations (2,191 : 1,017).
+
 ## Question
 Does replacing the current scale-out rule (target 100, queued-only concurrency, reachability-driven
 replica creation) with a Knative-faithful autoscaler change queue share, rankings or the gap of every
