@@ -1,0 +1,228 @@
+{
+  "adaptive_route_decisions_differing_from_static": 112,
+  "byte_timing_and_aggregation_pass": true,
+  "bytes": 18432000000,
+  "calibration": [
+    {
+      "median_absolute_relative_error": 0.16047618775814043,
+      "per_pattern_median_error": {
+        "disjoint_access": 0.18911191851353804,
+        "local_tcp": 0.7606931361938379,
+        "shared_core": 0.13729543170672845,
+        "shared_receiver": 0.10151302804187252,
+        "single_access": 0.13841900661478665,
+        "single_core": 0.2580611929682122
+      },
+      "seed": 31201
+    },
+    {
+      "median_absolute_relative_error": 0.5111025325187224,
+      "per_pattern_median_error": {
+        "disjoint_access": 0.16614475833165684,
+        "local_tcp": 0.8498661250375495,
+        "shared_core": 0.4575157644668314,
+        "shared_receiver": 0.5191194247594847,
+        "single_access": 0.4898743542657872,
+        "single_core": 0.619103945902328
+      },
+      "seed": 31202
+    },
+    {
+      "median_absolute_relative_error": 0.21301851336860617,
+      "per_pattern_median_error": {
+        "disjoint_access": 0.15229256122910884,
+        "local_tcp": 0.866369681873694,
+        "shared_core": 0.0899682313299702,
+        "shared_receiver": 0.1086891639425845,
+        "single_access": 0.48741940359229313,
+        "single_core": 0.26153800802083055
+      },
+      "seed": 31203
+    },
+    {
+      "median_absolute_relative_error": 0.16540945803295784,
+      "per_pattern_median_error": {
+        "disjoint_access": 0.12260291230153811,
+        "local_tcp": 0.8436700120912941,
+        "shared_core": 0.44295215992943066,
+        "shared_receiver": 0.13690244308809343,
+        "single_access": 0.12335075873291583,
+        "single_core": 0.21680023674239124
+      },
+      "seed": 31204
+    }
+  ],
+  "decision_median_s": {
+    "adaptive_route": 0.007336882874369621,
+    "adaptive_search": 0.035487065091729164,
+    "static_route": 0.0073957862332463264
+  },
+  "decision_replay_and_causality_pass": true,
+  "flows": 9216,
+  "gnn_training_qualified": false,
+  "jobs": 576,
+  "paired": [
+    {
+      "arm": "adaptive_route",
+      "configurations_faster": 2,
+      "interval_s": 0.25,
+      "median_paired_percent": 0.03870219295828703,
+      "per_configuration": [
+        {
+          "median_paired_percent": 0.8537670834764699,
+          "repeat_percent": [
+            -0.8198419720058747,
+            2.5273761389588145
+          ],
+          "seed": 31201
+        },
+        {
+          "median_paired_percent": -0.2813985730943602,
+          "repeat_percent": [
+            0.13779878350961283,
+            -0.7005959296983333
+          ],
+          "seed": 31202
+        },
+        {
+          "median_paired_percent": -0.19622490895007672,
+          "repeat_percent": [
+            -1.3380036092240144,
+            0.945553791323861
+          ],
+          "seed": 31203
+        },
+        {
+          "median_paired_percent": 0.2736292948666508,
+          "repeat_percent": [
+            -0.745348166813975,
+            1.2926067565472765
+          ],
+          "seed": 31204
+        }
+      ]
+    },
+    {
+      "arm": "adaptive_search",
+      "configurations_faster": 3,
+      "interval_s": 0.25,
+      "median_paired_percent": -1.377730683441078,
+      "per_configuration": [
+        {
+          "median_paired_percent": -0.8023655315552658,
+          "repeat_percent": [
+            -0.5977743149742087,
+            -1.0069567481363229
+          ],
+          "seed": 31201
+        },
+        {
+          "median_paired_percent": -1.9530958353268901,
+          "repeat_percent": [
+            -1.6210476937659757,
+            -2.2851439768878046
+          ],
+          "seed": 31202
+        },
+        {
+          "median_paired_percent": 0.07761092267546954,
+          "repeat_percent": [
+            -0.9252196059750362,
+            1.0804414513259752
+          ],
+          "seed": 31203
+        },
+        {
+          "median_paired_percent": -2.0155150101679453,
+          "repeat_percent": [
+            -0.35070852497034455,
+            -3.680321495365546
+          ],
+          "seed": 31204
+        }
+      ]
+    },
+    {
+      "arm": "adaptive_route",
+      "configurations_faster": 0,
+      "interval_s": 0.1,
+      "median_paired_percent": 4.098333073142863,
+      "per_configuration": [
+        {
+          "median_paired_percent": 8.1152523701688,
+          "repeat_percent": [
+            7.506192380282828,
+            8.724312360054775
+          ],
+          "seed": 31201
+        },
+        {
+          "median_paired_percent": 5.438588224173413,
+          "repeat_percent": [
+            4.494083057041909,
+            6.383093391304917
+          ],
+          "seed": 31202
+        },
+        {
+          "median_paired_percent": 2.039981651583367,
+          "repeat_percent": [
+            1.6982608484557904,
+            2.3817024547109433
+          ],
+          "seed": 31203
+        },
+        {
+          "median_paired_percent": 2.758077922112312,
+          "repeat_percent": [
+            4.024895732018985,
+            1.491260112205639
+          ],
+          "seed": 31204
+        }
+      ]
+    },
+    {
+      "arm": "adaptive_search",
+      "configurations_faster": 3,
+      "interval_s": 0.1,
+      "median_paired_percent": -0.5199208680685102,
+      "per_configuration": [
+        {
+          "median_paired_percent": -0.23775109701631436,
+          "repeat_percent": [
+            -0.22018686462282888,
+            -0.25531532940979984
+          ],
+          "seed": 31201
+        },
+        {
+          "median_paired_percent": -0.8020906391207061,
+          "repeat_percent": [
+            -0.15153540534216248,
+            -1.4526458728992497
+          ],
+          "seed": 31202
+        },
+        {
+          "median_paired_percent": 0.9060128814049495,
+          "repeat_percent": [
+            -0.4862396802564506,
+            2.2982654430663496
+          ],
+          "seed": 31203
+        },
+        {
+          "median_paired_percent": -1.4752624188622718,
+          "repeat_percent": [
+            -5.202474309837079,
+            2.2519494721125355
+          ],
+          "seed": 31204
+        }
+      ]
+    }
+  ],
+  "runs": 48,
+  "statistical_scope": "four network configurations, repeated runs are not independent; exploratory directions, not a significance claim"
+}
