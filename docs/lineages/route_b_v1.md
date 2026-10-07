@@ -1344,7 +1344,7 @@ unconstrained optimum becomes "everything on one node" in 20/20 datasets — rou
 What it raises is the *cap-constrained* registered contention statistic
 (`score_route_b_contention.py` at α = 2.0: firing >5% 30% → 50% of datasets, median r_exact
 0 → 4–5%), at the cost of the queue axis of the grid becoming inert (the three queue
-siblings of a seed take near-identical values). (ii) backbone 1000 → 100 Mbps or node write
+siblings of a seed take near-identical values). (ii) backbone 1000 → 100 MB/s or node write
 25 MiB/s: degenerate — non-additivity rises only by collapsing the optimum onto one node.
 (iii) 8 tasks / 2 clients: joint share unchanged (R² 0.78 vs 0.77; §9d already measured no
 gain). (iv) memory cap inside the simulator: either equals the label-time mask or is the

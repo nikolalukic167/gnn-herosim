@@ -133,7 +133,7 @@ and excluded from the median, never silently dropped); row count vs 2 × n_param
 
 **Cells.** x_scale ∈ {50, 200, 800} MB × α ∈ {1.5, 2.0} × (k, n_cand) ∈ {(8,3), (8,4), (10,3),
 (10,4), (12,3)} × partners ∈ {2, 3} = 60 cells. Link bandwidth is the stored 1000 (the A2 grid's
-100 Mbps backbone is, for the transfer part, the 800 MB row at 1000).
+100 MB/s backbone is, for the transfer part, the 800 MB row at 1000).
 
 **Decision rule.** GO ⇔ at least one cell passes S0a, S0b, B0, B1, B2, B3, B4, B5 and C1. The GO
 cell carried to A2 is the passing cell with the smallest x_scale, then the largest k.
@@ -910,7 +910,7 @@ Tests: `tests/test_prefix_serving.py` (loader, ranges, v2 context, rendezvous, a
 and the parity pin on two held-out datasets).
 
 **Registered production gate (before any run).** Cell `cell_s7901`: the corpus space config verbatim
-(20 clients / 6 servers / sparse / conn 0.6 / server mesh / backbone 1 Gbps) at an unseen topology
+(20 clients / 6 servers / sparse / conn 0.6 / server mesh / backbone 1000 MB/s) at an unseen topology
 seed, live-regeneration parity PASS (`scripts_cosim/make_peer_affinity_gate_cell.py`). Workload:
 `workload-150-150.json` — the real 450,729-event production trace (rps 150, 20 clients, dnn1/dnn2 only)
 with the corpus's peer structure put on it by `scripts_cosim/make_peer_affinity_production_workload.py`

@@ -423,6 +423,7 @@ def build_core_backbone(
     access_latency = float(backbone_config.get('access_link_latency_ms', 20.0)) / 1000.0
     latency_jitter = float(backbone_config.get('access_latency_jitter', 0.3))
 
+    # MB/s despite the name: every charge divides bytes by value * 1024**2 (docs/gates/gate-tools.md, 2026-10-07)
     bandwidth_mbps = backbone_config.get('bandwidth_mbps')
     if bandwidth_mbps is None or float(bandwidth_mbps) <= 0:
         raise ValueError(

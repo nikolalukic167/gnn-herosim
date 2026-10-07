@@ -7,7 +7,7 @@ the screens, which are live gates whose registered consequence was "recorded, no
 Registered 2026-09-20 as the weakest of the three levers, with both confounds named in advance —
 and both fired. Shares its apparatus with `burst_groups_v1` and `payload_scale_v1`.
 
-**Outcome.** **`bw250`** (backbone 1000 → 250 Mbps): reactive Knative's queue share is 0.944–0.985
+**Outcome.** **`bw250`** (backbone 1000 → 250 MB/s): reactive Knative's queue share is 0.944–0.985
 on every finished candidate cell (33 finish, 14 hang, 1 OOM) — a 4× slower fabric multiplies every
 remote exchange by four, which at 0.46 arrivals/s on 6 servers saturates reactive exactly as
 payload ×3 did. **`p04`** (connection probability 0.6 → 0.4): **39 of 48 reactive arms hang** in
@@ -21,7 +21,7 @@ reachability defect the record already carries (`docs/lessons.md`, the starved-c
 **Carry.** A readable distance lever needs either a matched-load design (bandwidth) or a
 reachability repair (sparsity: a client must keep at least one reachable server per task type),
 and both are changes to the apparatus, not levers on it. The paper says "co-location pays at the
-200 MB scale over a 1 Gbps backbone at 60 % connectivity" and nothing about distance.
+200 MB scale over a 1000 MB/s backbone at 60 % connectivity" and nothing about distance.
 
 **Parents:** [`payload_scale_v1`](payload_scale_v1.md) (the same ratio through payload),
 [`peer_greedy_live_v1`](peer_greedy_live_v1.md), [`unsaturated_edge_v1`](unsaturated_edge_v1.md).
@@ -30,7 +30,7 @@ and both are changes to the apparatus, not levers on it. The paper says "co-loca
 through bytes, and distance scales it through hops and bandwidth — the genuinely pairwise part.
 Two one-field variants of the study cells: **p04** (client-server connection probability
 0.6 → 0.4: fewer reachable servers per client, longer routes) and **bw250** (backbone
-1000 → 250 Mbps: every remote exchange 4× slower). Does peer-aware placement pay under either?
+1000 → 250 MB/s: every remote exchange 4× slower). Does peer-aware placement pay under either?
 
 **Caveats registered in advance.** (1) `p04` regenerates the topology from the same seed with a
 different probability, so it is a *different* topology with the same label, and reachability

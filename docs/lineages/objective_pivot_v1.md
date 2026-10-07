@@ -258,7 +258,7 @@ judged on ~300k-event workloads, two thirds of whose cells carry a network backb
 training corpus never contained.
 
 **The 30 cells are not one environment.** 20 carry an explicit backbone
-(`n_core` 4 or 8, access link 20 ms, core link 4 ms, finite bandwidth 0.5 or 1.5 Mbps,
+(`n_core` 4 or 8, access link 20 ms, core link 4 ms, finite bandwidth 0.5 or 1.5 MB/s,
 44–48 links, 20 routes); 10 are flat (`link_topology: None`, i.e. the pre-network shape).
 
 **Mean margin vs same-cell Knative, split on that axis:**

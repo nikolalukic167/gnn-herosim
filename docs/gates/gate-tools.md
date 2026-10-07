@@ -10,6 +10,20 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-10-07 — `bandwidth_mbps` is MB/s, and transfers are store-and-forward
+
+`network.backbone.bandwidth_mbps` (and `core_bandwidth_mbps`, `network.bandwidth`, `--link-bandwidth-mbps`,
+`HEROSIM_LINK_BANDWIDTH_MBPS`) is read as **megabytes per second**: every charge divides bytes by
+`value × 1024²` (`src/placement/scheduling_cost.py`, `transfer_time`; `Platform._payload_transfer_time`).
+The grounded cells' `1000` is therefore about 8.4 Gbps per link, not 1 Gbps. The record described it as
+"1 Gbps" until 2026-10-07; those lines now say MB/s. The key keeps its name because every config and corpus
+uses it. **Write any new link rate in MB/s**: a 100 Mbps Wi-Fi uplink is `12.5`, not `100`.
+
+A multi-hop transfer is charged **store-and-forward** by default: hops × size ÷ slowest link, plus the route
+latency. On `small_batch_confirm_v1`'s 19 topologies a server-to-server route is 2–8 hops, mean 4.96, so an
+exchange costs about 5× a pipelined transfer. `HEROSIM_TRANSFER_MODEL=pipelined` (size ÷ bottleneck) is opt-in
+from 2026-10-07 (`transfer_physics_v1`). Quote every exchange number with its transfer model.
+
 ## 2026-09-23 — Assert peer physics in mini co-sim screens
 
 The 32-task pair/triple/block move screens in
