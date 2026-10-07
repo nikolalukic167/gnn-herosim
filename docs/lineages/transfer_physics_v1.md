@@ -1,10 +1,25 @@
 # transfer_physics_v1 — do the transfer model and replica holding decide the single-origin ranking?
 
-**Status:** `REGISTERED` (2026-10-07). Exploratory, with no verdict bars. The conditions, arms, cells, statistic and
-expected directions below were written before any condition run was read; only the 24-run replay check and three
-smoke runs had been submitted.
+**Status:** `ACTIVE` (2026-10-07). The 2×2 is read; the third factor (autoscaler scale-out target) is the next
+amendment. Registered 2026-10-07, exploratory with no verdict bars. Conditions, arms, cells, statistic and expected
+directions were written before any condition run was read.
 
-**Outcome.** None yet.
+**Outcome (2×2, read 2026-10-07).**
+- **CD is fastest in every condition, at every rung, on every topology.** No other arm is faster than CD on any of
+  the 19 topologies in any of the 9 new condition × rung cells.
+- **The rule order holds across physics:** CD, then locality-first and the one-pass greedy (+2.6 to +12 %), then
+  self-predict, then Knative.
+- **Replica holding is what made queues dominate:**
+  - releasing the replica cuts queue share from 0.78–0.96 to **0.05–0.08**;
+  - pipelining alone leaves it at **0.69–0.78** (absolute queue about 2 s instead of 6.7–55 s).
+- **Absolute latency falls 4–70×** (CD at ×2: 8.62 s → 2.89 s pipelined, 1.99 s released, 0.97 s both).
+- **Knative's gap to CD shrinks** from +90 / +126 / +151 % to +15–72 %.
+- **`so1load`, zero-shot, falls further behind CD** (+12.7 / +7.4 / −3.3 % → +17 to +27 %); it exchanges more than
+  every rule except Knative.
+- **The load ladder no longer orders load:** under the new physics latency *falls* from ×2 to ×5 (pipelined CD 2.89 →
+  2.18 s), so the ×N multipliers must be recalibrated before any comparison under new physics.
+- Excluding 9485 for every arm moves every new-condition paired median by ≤ 2.1 points. In the default-physics reference, Knative at ×5 moves from +151 to +163 % and self-predict at ×5 from +8 to +12 %. No sign or ranking changes. All of this is under the default scale-out
+  target (100 per replica), which `transfer_physics_v1` has not yet varied.
 
 **Why.** Two modelling choices sit under every grounded number, and neither was stated:
 - **Transfers are charged store-and-forward.** `Platform._payload_transfer_time` charges hops × size ÷ slowest link.
@@ -96,6 +111,45 @@ link pipe. Testing contention is a separate later lineage, one change at a time.
 
 ## Record
 
+- 2026-10-07 — **Read (2×2).** Reader `scripts_cosim/transfer_physics_v1_read.py`; output
+  `simulation_data/transfer_physics_v1/tp1_read.json` (and `tp1_read_excl.json` with `TP1_EXCLUDE=9485`) on datalab.
+  - **Failures.** The 16 Knative / self-predict runs on 9485 were marked hung after about 57 min of their 8,100 s
+    rerun (jobs cancelled on the user's instruction, not at the registered 3× limit) and enter as arm failures under
+    the rule above.
+  - **CD median latency (s) and queue share, ×2 / ×3 / ×5:**
+
+    | condition | ×2 | ×3 | ×5 |
+    |---|---|---|---|
+    | store-and-forward, held | 8.62 (0.78) | 13.32 (0.84) | 56.99 (0.96) |
+    | pipelined | 2.89 (0.69) | 2.38 (0.70) | 2.18 (0.74) |
+    | released | 1.99 (0.07) | 1.92 (0.07) | 1.94 (0.08) |
+    | both | 0.97 (0.15) | 0.86 (0.17) | 0.78 (0.20) |
+
+  - **Paired % vs CD** (median over 19 topologies; 0/19 faster than CD in every new cell):
+
+    | arm | pipelined | released | both |
+    |---|---|---|---|
+    | one-pass greedy | +2.6 / +3.6 / +5.8 | +11.8 / +11.2 / +11.2 | +4.4 / +5.4 / +5.6 |
+    | locality-first | +6.9 / +7.4 / +8.4 | +8.0 / +8.3 / +6.5 | +3.6 / +3.6 / +4.6 |
+    | `so1load` (zero-shot) | +16.6 / +19.1 / +22.8 | +23.9 / +26.7 / +23.2 | +18.3 / +22.6 / +26.6 |
+    | self-predict | +28.2 / +34.7 / +43.8 | +35.4 / +39.1 / +35.2 | +8.5 / +15.1 / +19.7 |
+    | Knative | +29.6 / +38.3 / +52.4 | +67.3 / +71.7 / +70.0 | +15.0 / +22.5 / +29.1 |
+
+    Default physics, for reference: greedy +7.5 / +6.3 / −3.3, locality +9.8 / +7.3 / +1.0, `so1load`
+    +12.7 / +7.4 / −3.3, self-predict +52.2 / +53.6 / +8.1, Knative +90.4 / +126.2 / +151.4.
+  - **Against the expected directions:**
+    1. `pipe`: queue share falls (0.78 → 0.69 at ×2) but only modestly (**weaker than expected**). The spread among
+       CD / locality / greedy narrows at ×2–×3 but **widens at ×5**. `so1load`'s deficit **grows** (expected to
+       narrow). Knative is last, as expected.
+    2. `release`: queue share collapses to 0.05–0.08 (**as expected**). CD and locality-first lead (as expected).
+       `so1load` falls further behind (as expected). Knative's relative gap **shrinks** from +90–151 % to +67–72 %
+       (expected to grow).
+    3. `pipe_release`: latencies converge to 0.8–1.2 s and CD / locality-first lead (as expected). Queue share is
+       0.15–0.20, not "nearly gone": with exchange small, the remaining queue is a larger share.
+  - **Sensitivity** (9485 excluded for every arm, n = 18):
+    - new conditions: every paired median moves by ≤ 2.1 points;
+    - default-physics reference: Knative ×5 +151.4 → +162.6 %, self-predict ×5 +8.1 → +12.4 %;
+    - no sign or ranking changes.
 - 2026-10-07 — **Conditions run** (jobs 838361–838363, 1,596 runs each): 16 first-try failures, all Knative or
   self-predict on 9485 (timeouts), rerun at 8,100 s (jobs 838555–838557). Replay 838353: 23 / 24 identical, field
   for field; the 24th (Knative, 9485 g1 ×2) times out as it did in the original gate. Failure handling fixed above
