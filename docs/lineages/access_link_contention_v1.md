@@ -3,6 +3,11 @@
 **Status:** `REGISTERED` as hypothesis (no runs). Conditional on: nodes 1–5 read, using the W3 link classes from
 `workload_fix_v1` (WF1). Runs alone (never with `replica_placement_v1`). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 
+
+**Pre-run amendment (2026-10-07).** The W3 classes sit on every node's access links, servers included (see
+`workload_fix_v1`), so the precondition measures link wait on the server links that carry peer exchange. With classes
+on client links only, exchange would never cross a slow link and the precondition could not pass.
+
 ## Hypothesis
 When peer exchanges take capacity on shared links (instead of being a computed delay), placements that each
 look cheap in isolation can collide on one slow access link. A plan that accounts for these interactions

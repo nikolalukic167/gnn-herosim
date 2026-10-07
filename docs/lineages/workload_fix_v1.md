@@ -3,6 +3,25 @@
 **Status:** `REGISTERED` (no runs). Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
+
+**Pre-run amendments (2026-10-07, decided by the coordinator from a code check).**
+- **W3 applies to every node's access links, servers included.** Peer exchange runs server to server
+  (`Platform._peer_exchange_time`, `src/placement/infrastructure.py`), and replicas are server-only, so a client's
+  access link carries only the ingress input (12.8–153.6 KB per task, `data/nofs-ids/task-types.json`): at 4 MB/s
+  about 0.04 s, against about 1 s of latency. Classes on client links alone could not move exchange. Each node
+  (server or client) draws its class once per topology, mix 40 / 40 / 20 %. Our servers are Raspberry Pi and Jetson
+  Xavier edge devices, so wireless edge servers are in scope.
+- **Cellular is directional:** 4 MB/s out of the node, 75 MB/s into it. Links today carry one bandwidth for both
+  directions (`network_fabric.link_key`), so the fabric gains a per-direction bandwidth; uniform-link topologies are
+  unchanged.
+- **Prediction 2 reworded:** exchange is under 10 % of latency for pairs whose two servers are both wired, and not
+  when either server is Wi-Fi or cellular.
+- **W2 scale, stated before the read:** mean payload per pair falls from about 430 MB to about 27 MB, and about 72 %
+  of the new bytes sit in the heavy tier, so co-location value will come mostly from heavy pairs and route latency.
+- **W4 cause found:** the generator's reachability repair skips any type with no initial replica placement
+  (`src/generate_infrastructure.py`, `if not replica_servers: continue`), so `rf` / `cnn` can be unreachable. The fix
+  repairs every type the workload uses; the static check then runs over all test and calibration topologies.
+
 ## Question
 Which classical rankings on R1 survive replacing the synthetic payloads, uniform links and two-type task mix with
 grounded or explicitly labelled values? The result fixes workload **WF1**, on which all learned arms are trained.

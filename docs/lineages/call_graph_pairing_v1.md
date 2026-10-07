@@ -3,6 +3,23 @@
 **Status:** `REGISTERED` (no runs). Depends on: `r1_attribution_v1` (read). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W1 of the withdrawn draft `workload_redesign_v1` (never committed).
 
+
+**Pre-run amendment (2026-10-07, decided by the coordinator).** The registered rule cannot select partners: our peer
+groups already *are* fan-outs, calls of one trace sharing an rpcid parent (`scripts_cosim/grounded_workload_v1_extract.py`),
+so every pair in a group "shares a caller within 2 levels". Measured on the first 6 M rows of `MSCallGraph_0.csv`
+(128,665 traces, one fan-out drawn per trace): fan-out size mean 3.78, median 3; **33 %** have ≥ 4 siblings, the only
+groups where a 2-partner cap leaves a choice; 77 % of siblings are leaves; 42 % have a sibling calling the same
+service; 13 % share a downstream service with a sibling.
+- **Source:** the same raw `cluster-trace-microservices-v2021` shard rows that built the fan-out library (same trace
+  ids), so group membership and sizes are unchanged and partner identity is the only change. **Casper is not used**:
+  its repairs change group membership (connected traces 58.32 % → 83.82 %, Huye et al., ICPE'24), and the Dataverse
+  copy (doi 10.7910/DVN/RXIC9Z, 22.6 GB, CC0) is shuffled, with trace-id correspondence unchecked. A Casper-rebuilt
+  library would be its own node, labelled as a group-membership change.
+- **Rule:** within a fan-out, rank each task's candidate partners by (1) same callee service (`dm`), (2) a shared
+  downstream service in the two calls' subtrees, (3) dispatch-time proximity; keep the top 2. Report the share of
+  tasks whose partner set differs from today's random draw, by the tier that decided it.
+- **Expected size:** prediction 2 is near-guaranteed by construction; this node can only show a small effect.
+
 ## Labelling (must appear wherever this workload is described)
 **Trace-derived pairing, synthetic exchange semantics.** The Alibaba trace records caller→callee calls. This node uses
 the reconstructed call graph only to decide *which* sibling tasks of a request exchange data and *how many* partners
