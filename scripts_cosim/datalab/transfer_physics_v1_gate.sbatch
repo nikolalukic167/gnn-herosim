@@ -18,7 +18,13 @@ TIMEOUT=${TIMEOUT:-2700}
 COND=${TP1_COND:?FAIL LOUD: set TP1_COND}
 D=/home/nikola.lukic/gnn-herosim/simulation_data
 IN=$D/client_local_v1/inputs_so_server
-OUT=${OUT:-$D/transfer_physics_v1/gate_$COND}
+# kpa_scaleout_v1: HEROSIM_SCALEOUT=kpa runs the same condition under KPA scale-out into its own directory
+export HEROSIM_SCALEOUT=${HEROSIM_SCALEOUT:-legacy}
+case "$HEROSIM_SCALEOUT" in
+  legacy) OUT=${OUT:-$D/transfer_physics_v1/gate_$COND} ;;
+  kpa) OUT=${OUT:-$D/kpa_scaleout_v1/gate_${COND}_kpa} ;;
+  *) echo "FAIL LOUD: HEROSIM_SCALEOUT=$HEROSIM_SCALEOUT"; exit 1 ;;
+esac
 SPLIT=experiments/small_batch_so_v1_split.json
 P=${PAR:-$(( ${SLURM_CPUS_PER_TASK:-64} - 2 ))}
 case "$COND" in
@@ -36,7 +42,7 @@ export HEROSIM_PY=python3 PYTHONPATH="$WT"
 export HEROSIM_RAW_DIR=/tmp/herosim_raw_${SLURM_JOB_ID:-$$}
 mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
-echo "HEAD $(git rev-parse HEAD)  node $(hostname)  P=$P  cond=$COND transfer=$HEROSIM_TRANSFER_MODEL release=$HEROSIM_REPLICA_RELEASE"
+echo "HEAD $(git rev-parse HEAD)  node $(hostname)  P=$P  cond=$COND transfer=$HEROSIM_TRANSFER_MODEL release=$HEROSIM_REPLICA_RELEASE scaleout=$HEROSIM_SCALEOUT"
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
 for R in x20 x30 x50; do
   [[ -f "$IN/grounded_$R/.built" ]] || { echo "FAIL LOUD: $IN/grounded_$R not built"; exit 1; }

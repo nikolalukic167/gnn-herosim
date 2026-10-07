@@ -432,6 +432,7 @@ class Orchestrator:
             "taskResultsOmittedReason": reason,
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
+            **self._scaleout_fields(),
             "averageNetworkLatency": sum_network / n_tasks,
             "averageLinkWaitTime": sum_link_wait / n_tasks,
             "totalLinkWaitTime": sum_link_wait,
@@ -449,6 +450,11 @@ class Orchestrator:
         }
         check_serializable(result, "stats")
         return result
+
+    def _scaleout_fields(self) -> Dict[str, Any]:
+        """`scaleOut` (kpa_scaleout_v1) only when HEROSIM_SCALEOUT=kpa, so legacy stats keep their keys."""
+        summary = getattr(self.autoscaler, "scaleout_summary", lambda: None)()
+        return {} if summary is None else {"scaleOut": summary}
 
     def _fabric_link_wait_total(self) -> float:
         """Total wait accumulated on shared backbone links, all tasks (incl. internal)."""
@@ -744,6 +750,7 @@ class Orchestrator:
             ),
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
+            **self._scaleout_fields(),
             "averageNetworkLatency": average_network_latency,
             "averageLinkWaitTime": sum_link_wait / num_tasks,
             "totalLinkWaitTime": sum_link_wait,

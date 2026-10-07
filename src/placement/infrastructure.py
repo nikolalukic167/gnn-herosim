@@ -744,6 +744,8 @@ class Platform:
 
         self.previous_task: Task | None = None
         self.current_task: Task | None = None
+        # popped from the queue, still in network/ingress transfer before service (read by HEROSIM_SCALEOUT=kpa)
+        self.admitted: Task | None = None
         # HEROSIM_REPLICA_RELEASE=1: tasks past cold start whose I/O or compute is still running
         self.inflight: List[Task] = []
         self.rendezvous_procs: Dict[Task, Any] = {}
@@ -1393,6 +1395,8 @@ class Platform:
                     task.done.succeed()
                 continue
 
+            self.admitted = task
+
             # Network latency for remote task execution
             # Check if task is being executed on a different node than where it originated
             if task.node_name != self.node.node_name:
@@ -1490,6 +1494,7 @@ class Platform:
             # Update platform cache
             if not REPLICA_RELEASE:
                 self.current_task = task
+                self.admitted = None
 
             warm_function = sandbox_is_warm(self, task)
 
@@ -1519,6 +1524,7 @@ class Platform:
                 # the sandbox now holds this function: tasks popped while this one is still in flight start warm
                 self.previous_task = task
                 self.inflight.append(task)
+                self.admitted = None
                 self.env.process(self._serve_task(task, cold_start_duration, release=True))
                 continue
             yield from self._serve_task(task, cold_start_duration)

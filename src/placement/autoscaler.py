@@ -30,6 +30,14 @@ from simpy.resources.store import Store
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform
 
+from src.placement.scaleout import (
+    KPA,
+    KpaConfig,
+    KpaScaler,
+    new_scaleout_stats,
+    platform_in_flight,
+    scaleout_mode,
+)
 from src.placement.warmth import NODE_DISK_V2
 from src.placement.model import (
     PlatformVector,
@@ -102,7 +110,27 @@ class Autoscaler:
         self.system_status_events: List[SystemEvent] = []
         self.run: Process
 
+        # kpa_scaleout_v1: HEROSIM_SCALEOUT. Legacy paths read these with getattr so an autoscaler built
+        # without __init__ (tests) stays on legacy.
+        self.scaleout = scaleout_mode()
+        self.kpa: Optional[KpaScaler] = None
+        self.scaleout_stats: Optional[Dict[str, Any]] = None
+        self._replica_born: Dict[Tuple[str, int, int], SimTime] = {}
+        if self.scaleout == KPA:
+            self.kpa = KpaScaler(KpaConfig.from_env(policy.queue_length))
+            self.scaleout_stats = new_scaleout_stats()
+
+    def scaleout_summary(self) -> Optional[Dict[str, Any]]:
+        """The `scaleOut` block of a kpa run's stats; None under legacy so its stats are unchanged."""
+        if getattr(self, "kpa", None) is None:
+            return None
+        return {**self.kpa.config.describe(), **self.scaleout_stats}
+
     def autoscaler_process(self):
+        if getattr(self, "scaleout", None) == KPA:
+            yield from self._kpa_autoscaler_process()
+            return
+
         logging.info(
             f"[ {self.env.now} ] Orchestrator Autoscaler started with policy"
             f" {self.policy}"
@@ -181,15 +209,99 @@ class Autoscaler:
             # Wake Autoscaler up once per second
             yield self.env.timeout(self.reconcile_interval)
 
+    def _kpa_autoscaler_process(self) -> Generator:
+        """KPA reconcile (HEROSIM_SCALEOUT=kpa): sample in-flight concurrency per function every tick,
+        size it to the stable/panic decision on any hardware type. Same tick, mutex and status
+        logging as the legacy loop; the legacy forced first-replica fallback is not used, because
+        reachability-triggered creation still runs from the schedulers."""
+        stats = self.scaleout_stats
+        while True:
+            system_state: SystemState = yield self.mutex.get()
+            replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
+
+            for function_name, function_replicas in replicas.items():
+                now = self.env.now
+                self.kpa.observe(
+                    function_name,
+                    now,
+                    sum(platform_in_flight(platform) for _, platform in function_replicas),
+                )
+                current = len(function_replicas)
+                ready = sum(
+                    1 for _, platform in function_replicas if platform.initialized.triggered
+                )
+                decision = self.kpa.decide(function_name, now, current, ready)
+                stats["panic_entries"] += int(decision.entered_panic)
+                stats["panic_ticks"] += int(decision.panicking)
+
+                if decision.desired > current:
+                    yield self.env.process(
+                        self.scale_up(
+                            decision.desired - current,
+                            system_state,
+                            function_name,
+                            "any",
+                            cause="load",
+                        )
+                    )
+                elif decision.desired < current:
+                    yield self.env.process(
+                        self._kpa_scale_down(
+                            current - decision.desired, system_state, function_name
+                        )
+                    )
+
+            self.log_system_status(replicas)
+
+            yield self.mutex.put(system_state)
+
+            self.env.step()
+
+            yield self.env.timeout(self.reconcile_interval)
+
+    def _kpa_scale_down(
+            self, count: int, system_state: SystemState, function_name: str
+    ) -> Generator:
+        """Remove up to `count` idle, initialised replicas, longest idle first. The decision already
+        holds the last replica until a full stable window without traffic, so no keep-alive applies."""
+        if False:
+            yield
+        function_replicas = system_state.replicas[function_name]
+
+        def idle_reference(platform: Platform) -> SimTime:
+            return platform.idle_since if math.isfinite(platform.idle_since) else platform.last_allocated
+
+        candidates = sorted(
+            (
+                (node, platform)
+                for node, platform in function_replicas
+                if platform.initialized.triggered
+                and platform_in_flight(platform) == 0
+                and not getattr(platform, "rendezvous_procs", None)
+            ),
+            key=lambda c: (idle_reference(c[1]), c[0].id, c[1].id),
+        )
+        contention = getattr(system_state.scheduler_state, "average_contention", None) or {}
+        for node, platform in candidates[:count]:
+            (contention.get(function_name) or {}).pop((node.id, platform.id), None)
+            if self._release_replica(system_state, function_name, (node, platform)):
+                self.scaleout_stats["scale_downs"] += 1
+                if not function_replicas:
+                    self.scaleout_stats["scale_to_zero"] += 1
+
     def scale_up(
             self,
             count: int,
             system_state: SystemState,
             function_name: str,
             hardware_target: str,
+            cause: str = "reachability",
     ) -> Generator:
+        """`cause` is recorded under kpa only: "load" from the KPA decision, "reachability" from every
+        create_first_replica path (a task's source reaches no replica of its type)."""
         # Get current function replicas
         function_replicas = system_state.replicas[function_name]
+        kpa = getattr(self, "scaleout", None) == KPA
 
         # Scale up by `count` replicas
         for _ in range(count):
@@ -209,6 +321,7 @@ class Autoscaler:
             # what a 2,650-arrival/s production trace does within its first second.
             # Off by default; every other run is bit-identical.
             server_only = os.environ.get("HEROSIM_SERVER_ONLY_REPLICAS", "0") == "1"
+            memory_refused = 0
             for node, platforms in available_resources.items():
                 if server_only and str(node.node_name).startswith("client_node"):
                     continue
@@ -232,10 +345,26 @@ class Autoscaler:
                     ]
                     ):
                         continue
+                    # kpa: a replica is only placed where the node's free memory holds it
+                    if kpa and (
+                            node.available_memory
+                            < self.data.task_types[function_name]["memoryRequirements"][
+                        platform.type["shortName"]
+                    ]
+                    ):
+                        memory_refused += 1
+                        continue
                     couples_suitable.add((node, platform))
+
+            if kpa:
+                self.scaleout_stats["memory_cap_refusals"] += memory_refused
 
             # No suitable resources for replica creation
             if not couples_suitable:
+                if kpa:
+                    self.scaleout_stats["scale_up_failures_by_cause"][cause] += 1
+                    if memory_refused:
+                        self.scaleout_stats["memory_cap_blocked"] += 1
                 # logging.error(state.average_hardware_contention[function_name])
                 # Next step
                 return StopIteration(
@@ -269,6 +398,11 @@ class Autoscaler:
                 new_replica[0].available_memory -= self.data.task_types[function_name][
                     "memoryRequirements"
                 ][new_replica[1].type["shortName"]]
+                if kpa and new_replica[0].available_memory < 0:
+                    raise RuntimeError(
+                        f"kpa: {new_replica} for {function_name} overcommits node memory "
+                        f"(available {new_replica[0].available_memory})"
+                    )
 
                 # Add function replica to the pool so it can be considered by the Scheduler
                 function_replicas.add(new_replica)
@@ -296,6 +430,12 @@ class Autoscaler:
                         [replica[1].queue_length() for replica in function_replicas]
                     ) / len(function_replicas),
                 }
+                if kpa:
+                    event["cause"] = cause
+                    self.scaleout_stats["scale_ups_by_cause"][cause] += 1
+                    self._replica_born[
+                        (function_name, new_replica[0].id, new_replica[1].id)
+                    ] = self.env.now
                 self.scale_events.append(event)
             except KeyError:
                 """
@@ -425,6 +565,14 @@ class Autoscaler:
 
             # Statistics
             removed_replica[1].last_removed = self.env.now
+            if getattr(self, "kpa", None) is not None:
+                born = self._replica_born.pop(
+                    (function_name, removed_replica[0].id, removed_replica[1].id), None
+                )
+                if born is not None:
+                    self.scaleout_stats["replica_lifetimes_closed"] += 1
+                    if self.env.now - born < self.kpa.config.stable_window:
+                        self.scaleout_stats["replica_lifetimes_within_stable_window"] += 1
 
             event: ScaleEvent = {
                 "name": function_name,

@@ -21,11 +21,12 @@ Usage:
 
 import json
 import logging
+import math
 import os
 import random
 import sys
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 
 from src.generate_infrastructure import (
     apply_degree_skew_core_server_device_types,
@@ -33,6 +34,7 @@ from src.generate_infrastructure import (
     generate_network_topology_deterministic,
 )
 from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
+from src.placement.scaleout import KPA, KPA_TARGET, SCALEOUT_ENV, policy_time_scale, scaleout_mode
 from src.placement.executor import execute_sim
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.placement.network_graph import (
@@ -1169,6 +1171,8 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # transfer_physics_v1: transmission model and replica release during I/O
             "HEROSIM_TRANSFER_MODEL",
             "HEROSIM_REPLICA_RELEASE",
+            # kpa_scaleout_v1: scale-out rule (legacy | kpa); kpa's resolved target and windows are in stats.scaleOut
+            SCALEOUT_ENV,
             "INFERENCE_FEATURE_LAYOUT",
             "KNATIVE_BATCH_SIZE",
             "KNATIVE_BATCH_TIMEOUT",
@@ -1216,30 +1220,25 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
     return provenance
 
 
-def _resolve_queue_length(explicit: Optional[int] = None) -> int:
-    """Target concurrency per platform for Knative-family autoscaling."""
+def _target_concurrency(value: Union[int, float, str]) -> Union[int, float]:
+    """An integral target stays an int (every legacy run); anything else is a float, e.g. kpa's 0.7."""
+    number = float(value)
+    if not (number > 0 and math.isfinite(number)):
+        raise ValueError(f"target concurrency / queue_length={value!r} must be a finite number > 0")
+    return int(number) if number == int(number) else number
+
+
+def _resolve_queue_length(explicit: Optional[Union[int, float]] = None) -> Union[int, float]:
+    """Target concurrency per platform for Knative-family autoscaling: explicit, else HEROSIM_QUEUE_LENGTH,
+    else QUEUE_LENGTH (100) under HEROSIM_SCALEOUT=legacy and KPA_TARGET (0.7) under kpa."""
     if explicit is not None:
-        return int(explicit)
+        return _target_concurrency(explicit)
     env_raw = os.environ.get("HEROSIM_QUEUE_LENGTH")
     if env_raw is not None and env_raw.strip() != "":
-        return int(env_raw)
+        return _target_concurrency(env_raw)
+    if scaleout_mode() == KPA:
+        return KPA_TARGET
     return int(QUEUE_LENGTH)
-
-
-def _resolve_policy_time_scale() -> float:
-    """HEROSIM_POLICY_TIME_SCALE multiplies keep_alive and the reconcile interval, so a workload whose
-    timestamps were stretched by a factor keeps every policy time constant in proportion (the
-    `drainable_regime_v1` rule; cd_gap_v1 B stretched arrivals and left these two unscaled)."""
-    raw = (os.environ.get("HEROSIM_POLICY_TIME_SCALE") or "").strip()
-    if not raw:
-        return 1.0
-    try:
-        scale = float(raw)
-    except ValueError:
-        raise ValueError(f"HEROSIM_POLICY_TIME_SCALE={raw!r} is not a number") from None
-    if not scale > 0:
-        raise ValueError(f"HEROSIM_POLICY_TIME_SCALE={raw!r} must be > 0")
-    return scale
 
 
 def _resolve_keep_alive(time_scale: float):
@@ -1271,7 +1270,7 @@ def run_simulation(
         task_types_data: Optional[Dict[str, Any]] = None,
         xgb_model_path: Optional[Path] = None,
         mlp_model_path: Optional[Path] = None,
-        queue_length: Optional[int] = None,
+        queue_length: Optional[Union[int, float]] = None,
 ) -> bool:
     """
     Run simulation with the specified policy.
@@ -1521,7 +1520,7 @@ def run_simulation(
             f"(queue_length={resolved_queue_length})..."
         )
 
-        time_scale = _resolve_policy_time_scale()
+        time_scale = policy_time_scale()
         # at 1.0 the unscaled ints are passed so the default path stays bit-identical
         result = execute_simulation(
             full_config,
@@ -1734,13 +1733,13 @@ def main():
     output_file = None
     xgb_model_path = None
     mlp_model_path = None
-    queue_length: Optional[int] = None
+    queue_length: Optional[Union[int, float]] = None
 
     if '--queue-length' in sys.argv:
         idx = sys.argv.index('--queue-length')
         if idx + 1 < len(sys.argv):
             try:
-                queue_length = int(sys.argv[idx + 1])
+                queue_length = _target_concurrency(sys.argv[idx + 1])
             except ValueError:
                 print(f"ERROR: Invalid --queue-length value: {sys.argv[idx + 1]}")
                 sys.exit(1)
