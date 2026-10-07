@@ -266,7 +266,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         smoke = os.environ.get("TP1_SMOKE", "")
         if smoke:
             return [task(topos[0], "g0x20", k, 1 if k.endswith("_selfref") else 0) for k in smoke.split(",")]
-        if cond == "replay":
+        # kpa_scaleout_v1: under kpa the store-and-forward / held cell is a new condition and runs in full
+        if cond == "replay" and os.environ.get("HEROSIM_SCALEOUT", "legacy") == "legacy":
             return [task(t, w, k, 0) for t in topos[:4] for w in ("g0x20", "g1x20") for k in ("cd", "batched", "reactive")]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
         return ([task(t, w, k, 0) for k in rules for t in topos for w in tuple(GROUNDED_LADDER)]
