@@ -45,7 +45,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | [**workload_fix_v1**](docs/lineages/workload_fix_v1.md) | `REGISTERED` | Classical arms only: log-normal payloads (median 4 MB + heavy tier), wired / Wi-Fi / cellular access links, all four task types, staged on R1; freezes WF1. |
 | [**load_recalibration_v1**](docs/lineages/load_recalibration_v1.md) | `REGISTERED` | Light / moderate / heavy rungs on R1 + WF1 defined by CD queue share, bisected on 4 held-out calibration topologies; no policy comparison read. |
 | [**r1_attribution_v1**](docs/lineages/r1_attribution_v1.md) | `REGISTERED` | Retrain once on R1 + WF1 (pruned brute-force labels, equal HP budget, 3 seeds); best learned vs CD at 3 rungs; MP / feature / set-context attribution; seeded-CD controls. |
-| [**record_merge_v1**](docs/lineages/record_merge_v1.md) | `REGISTERED` | Housekeeping: records-only merge of the 41 nodes only on local-record-2026-10-06, with attachments and rows; src/ diff must be empty. |
 | [**call_graph_pairing_v1**](docs/lineages/call_graph_pairing_v1.md) | `REGISTERED` | Trace-derived pairing, synthetic exchange semantics: Casper call graphs decide which siblings exchange (2 partners kept); learned arms zero-shot. |
 | [**replica_placement_v1**](docs/lineages/replica_placement_v1.md) | `REGISTERED` | Hypothesis: where a new replica goes under KPA; precondition cold starts ≥ 10 % of latency; offline snapshot labels vs an analytic rule. |
 | [**access_link_contention_v1**](docs/lineages/access_link_contention_v1.md) | `REGISTERED` | Hypothesis: peer exchange through shared access-link pipes; precondition link wait ≥ 15 % of exchange; best learned vs contention-aware CD. |
@@ -63,6 +62,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**record_merge_v1**](docs/lineages/record_merge_v1.md) | `CLOSED` | MERGED: 41 old-physics nodes from local-record-2026-10-06 brought over records-only, with banners; no code changed. |
 | [**residency_placement_v1**](docs/lineages/residency_placement_v1.md) | `CLOSED` | Four attempts, 18 checkpoints and 128 audited container runs: no established MP benefit; both learned arms lose to exact on the mixed probe. Fixed eviction; two physical blocks only. |
 | [**shuffle_placement_s0_v1**](docs/lineages/shuffle_placement_s0_v1.md) | `CLOSED` | 48 real-TCP streams audit; adaptive search has small exploratory gains, fluid timing validation fails on 2/4 configurations. No GNN training qualification. |
 | [**online_reservation_s0_v1**](docs/lineages/online_reservation_s0_v1.md) | `CLOSED` | Hidden-arrival two-decision search gains 0% median over a matched hand rollout portfolio in both fresh phases; 96 materialized HeROsim runs audit, and no GNN is trained. |
