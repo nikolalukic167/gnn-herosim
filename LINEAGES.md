@@ -36,9 +36,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**small_batch_so_v1**](docs/lineages/small_batch_so_v1.md) | `REGISTERED` | Retrain `sb1load` and its MP-OFF twin on single-origin groups (zero-shot it no longer beats CD there: +12 / +4 / −7 %) and re-test vs CD on the 19 topologies. |
-| [**hetero_conv_v1**](docs/lineages/hetero_conv_v1.md) | `REGISTERED` | Raw-plan GNN (`lf1gnn`) with per-relation / per-node-type weights in its bipartite convs, vs its MP-OFF twin, plain `lf1gnn` and CD on the 19 topologies. |
-| [**client_local_v1**](docs/lineages/client_local_v1.md) | `ACTIVE` | Client execution untested so far: only 2–7 of 20 clients can host a replica, so local-first equals Knative. Found: 97 % of grounded peer groups span clients (trace: one origin per request); single-origin rerun in flight. |
 | [**live_headroom_v1**](docs/lineages/live_headroom_v1.md) | `REGISTERED` | Offline single-batch headroom of CD on the live states it produces at ×2/×3/×5 (exhaustive sweep, no synthetic backlog): is the environment closed for any learned model? |
 | [**joint_burst_v2**](docs/lineages/joint_burst_v2.md) | `CLOSED` | GNN-BEATS-GREEDY / CD-STILL-AHEAD: uncapped, gnnedge0 beats the 1-pass greedy in its own seat (K1 −11.9%, 13/13), reactive (−34.7%) and random (~−48%) — v1's +16.8% loss was the SERVING CAP (K6 uncap-alone −8.8%; K5 corpus-neutral), not the model. Loses to CD greedy (K2 +12.5%); ties the MLP twin (K4). Next: rollout_imitation_v1. |
 | [**drainable_debug_v1**](docs/lineages/drainable_debug_v1.md) | `REGISTERED` | Why do both learned arms lose to reactive Knative at ρ ≈ 0.16? Bars signed before any datum exists; parents are `drainable_regime_v1` and `drainable_serving_config_v1`. |
@@ -53,6 +50,9 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**small_batch_so_v1**](docs/lineages/small_batch_so_v1.md) | `CLOSED` | **`NO-WIN`.** Retrained on single-origin groups the engineered GNN still loses or ties CD (+13 / +7 / −4 %); the raw-plan GNN beats its MLP at ×2/×3 but CD is faster (+13–19 %). |
+| [**hetero_conv_v1**](docs/lineages/hetero_conv_v1.md) | `CLOSED` | **`NO-GAIN`.** Per-relation bipartite weights: beats the MP-OFF twin −12 to −24 %, plain `lf1gnn` only at ×5 (−7 %); CD faster at ×2/×3 (+15 / +24 %). |
+| [**client_local_v1**](docs/lineages/client_local_v1.md) | `CLOSED` | **`CLIENT-EXECUTION-NO-GAIN / ORIGIN-MODEL-MATTERS`.** Clients barely host replicas (0.1–2 % local). One origin per group: rules 26–82 % faster and no learned arm beats CD. |
 | [**scale_sweep_v1**](docs/lineages/scale_sweep_v1.md) | `CLOSED` | **`SCALE-NOT-THE-LEVER`.** At ~2× / ~4× tasks per batch and on 12-server cells the GNN-vs-twin margin stays −2 to −4 % (10-task GNN loses to its twin); search-rule wins hold. |
 | [**rule_baselines_v1**](docs/lineages/rule_baselines_v1.md) | `CLOSED` | **`BEATS-NAIVE-RULES / CO-LOCATION-RULES-FASTER`.** `lf1gnn` beats random, least-loaded and Decima's weighted fair at every rung (−12 to −85 %); locality-first, self-predict and one-pass greedy are faster (up to +78 %). |
 | [**local_features_v1**](docs/lineages/local_features_v1.md) | `CLOSED` | **`NO-WIN`.** Per-candidate-only features, 19 unseen topologies: the GNN beats the same-input MLP −11 / −24 / −20 % (Holm, every seed) but CD is faster at every rung (+14 / +34 / +6 %). The gap is queue. |

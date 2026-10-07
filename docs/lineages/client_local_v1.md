@@ -1,19 +1,20 @@
 # client_local_v1 — may a call run on its own client, and does the origin model matter?
 
-**Status:** `ACTIVE` (2026-10-06) — part A (rules) read and found not to test local execution; part A2 (learned arms
-zero-shot) read; part B (single-origin groups) blocked by an autoscaler starvation. Exploratory: no bars were registered before the runs.
+**Status:** `CLOSED` (2026-10-07) — **CLIENT-EXECUTION-NO-GAIN / ORIGIN-MODEL-MATTERS**. Exploratory: no bars were
+registered before the runs; the follow-up retrain was registered as `small_batch_so_v1`.
 
-**Outcome so far (2026-10-06).** Part A **did not test local execution**: only **2–7 of the 20 issuing clients ever
-host a replica** (the rest have no hardware that runs `dnn1`/`dnn2`), and those few are scaled down like any replica, so
-local-first behaves exactly like Knative and every arm ran 0.1–1.6 % of calls locally. With client replicas enabled the
-server-only rankings carry over: the engineered `sb1load` beats client-enabled CD −10 / −32 / −20 % (×2 / ×3 / ×5, 18–19 /
-19) and Knative −42 / −86 / −39 %, but ties its MP-OFF twin; the raw-plan `lf1gnn` beats its same-input MLP −12 / −31 /
-−18 % and Knative −25 / −52 / −20 %, and loses to CD. **A workload defect:** the grounded mint gives each task its own
-client, so **97 % of multi-task peer groups span several clients**, while in the Alibaba trace a group is one request from
-one caller; **every grounded-workload result before 2026-10-05 was measured under scattered origins** — disclose where
-quoted. Single origin is not yet readable: the batch rules hang on it (a frozen-clock loop, now fixed and verified
-replay-identical, plus a real autoscaler starvation that remains — a type cannot claim a platform held by another type's
-replica). A real local-execution test needs clients that can run the functions and a replica that is not scaled away.
+**Outcome.** (1) **Client execution does not pay.** Only 2–7 of the 20 issuing clients can host `dnn1`/`dnn2` at all and
+the autoscaler scales those replicas away, so every policy ran 0.1–2 % of calls locally; client-enabled cells are 2–15 %
+slower than server-only for the rules (ties at ×5) and within −2 to +4 % for the learned arms, and local-first equals
+Knative. (2) **The origin model matters a great deal.** The grounded mint scatters a peer group over clients (97 % of
+multi-task groups; a trace request has one caller). With one origin per group every rule runs 26–82 % faster, CD remains
+the strongest rule (locality-first and the one-pass greedy tie it at ×5), and the learned arms trained on scattered
+origins lose their lead: `sb1load` vs CD +12.2 / +3.8 / −7.0 % (×2 CD faster, 0/19), still −41 / −54 / −65 % vs Knative;
+`lf1gnn` vs CD +21 / +18 / +16 % while beating `lf1mlp` −11 / −14 / −22 %. Retraining on single-origin groups does not
+recover the win (`small_batch_so_v1`). **Every grounded-workload result before 2026-10-05 was measured under scattered
+origins** — name the origin model wherever one is quoted. (3) Running single origin needed three simulator fixes, each
+verified replay-identical on every previously completed run (119–120 / 119–120): the frozen-clock deferral loop, a
+starved-type eviction (idle, then drain), and release of a rendezvous on a starved peer.
 
 **Question.** Every grounded gate ran with `HEROSIM_SERVER_ONLY_REPLICAS=1` and `replicas.*.per_client = 0`, so every
 call was offloaded. Is that hiding a gain from running a call on its own client (the own-device-or-offload choice of the
@@ -50,6 +51,20 @@ rewrite: `scripts_cosim/client_local_v1_single_origin.py`. Reader: `scripts_cosi
 
 ## Record
 
+- 2026-10-07 — **Part B read; CLOSED.** Rules on single-origin cells (server-only 1,138 / 1,140 runs, client-enabled
+  1,596 / 1,596; the two missing are Knative and self-predict on 9485 g1 ×2, which time out at 2,700 s and again at
+  10,800 s): single origin vs original −26 to −82 % for every rule, 18–19 / 19; client-enabled vs server-only under single
+  origin +2 to +15 % (×2 / ×3, Holm REF-FASTER), ties at ×5; vs single-origin CD: locality-first +9.8 / +7.3 / +1.0 %,
+  one-pass greedy +7.5 / +6.3 / −3.3 %, self-predict +52 / +54 / +8 %, Knative +90 / +126 / +151 %. Learned arms zero-shot
+  on single-origin server cells (seeds 1–4, 1,824 runs per pair, 0 failed): `sb1load` vs CD +12.15 (0/19) / +3.79 (5/19) /
+  −6.99 % (13/19); vs twin −0.1 / +0.4 / −1.4 %; `lf1gnn` vs CD +21.1 / +18.0 / +15.7 %, vs `lf1mlp` −11.1 / −13.6 / −22.1 %.
+- 2026-10-06 — **Starved-type eviction, drain and rendezvous release** (`src/policy/gnn/autoscaler.py`
+  `evict_idle_for` / `_release_when_drained` / `_release_starved_rendezvous`, `src/placement/infrastructure.py`
+  `STARVED_RENDEZVOUS`; commits a4fe061c, 8fe4a51f, dd456b5d; `tests/test_starved_eviction.py`). Reached only from the
+  starved-spin path. Idle-only eviction left one 9491 run starved (four `dnn1` replicas on the only reachable node were
+  never idle); the drain then deadlocked on a `dnn1` task waiting for its starved `dnn2` partner, which the release
+  resolves by planning that partner onto the drained node. Verified: 119 / 119 completed reference runs identical at each
+  commit, 36 / 36 single-origin 9491 runs complete; a merged hidden_exec_s0_v1 commit later replayed 120 / 120 identical.
 - 2026-10-06 — **Part A2 read: learned arms zero-shot on the client-enabled cells** (seeds 1–4, 910–912 / 912 runs
   each; same caveat as part A — clients barely host replicas, so this tests serving, not local execution). Median paired
   % over 19 topologies, ×2 / ×3 / ×5, exact Wilcoxon unadjusted. Vs client-enabled CD: `sb1load` −10.1 / −31.9 / −20.4 %
