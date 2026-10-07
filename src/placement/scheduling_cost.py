@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional, TYPE_CHECKING
 
+from src.placement.network_fabric import transfer_model
+
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
 
@@ -213,10 +215,10 @@ def link_transfer_cost(
     """
     if fabric is None or source_name == node.node_name:
         return 0.0
-    return sum(
-        transfer_time(task, bandwidth)
-        for _key, bandwidth in fabric.hops(source_name, node.node_name)
-    )
+    route = fabric.hops(source_name, node.node_name)
+    if route and transfer_model() == "pipelined":
+        return transfer_time(task, min(bandwidth for _key, bandwidth in route))
+    return sum(transfer_time(task, bandwidth) for _key, bandwidth in route)
 
 
 def link_wait(
@@ -242,12 +244,12 @@ def link_wait(
     """
     if fabric is None or not added_on_links or source_name == node.node_name:
         return 0.0
-    total = 0.0
-    for key, bandwidth in fabric.hops(source_name, node.node_name):
-        crossing = int(added_on_links.get(key, 0))
-        if crossing > 0:
-            total += crossing * transfer_time(task, bandwidth)
-    return total
+    terms = [int(added_on_links.get(key, 0)) * transfer_time(task, bandwidth)
+             for key, bandwidth in fabric.hops(source_name, node.node_name)]
+    if transfer_model() == "pipelined":
+        # one transmission holding every link: the wait is set by the most-crossed link
+        return max(terms, default=0.0)
+    return sum(terms)
 
 
 def expected_completion_for_candidate(

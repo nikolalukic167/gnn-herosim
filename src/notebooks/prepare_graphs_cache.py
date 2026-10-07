@@ -91,7 +91,7 @@ from src.placement.dag_workload import (
     parents_map,
     route_hops_and_bottleneck,
 )
-from src.placement.network_fabric import is_core_link, route_links
+from src.placement.network_fabric import is_core_link, route_links, transmission_hops
 from src.policy.tabular.reduced_features import (
     PARTIAL_STATE_CONTRACT_V4,
     krank_node_order,
@@ -1861,7 +1861,7 @@ def attach_dag_partial_state_block(
                     raise RuntimeError(f"{ds.name}: no network_maps[{name_by_node_id[a]}]"
                                        f"[{name_by_node_id[b]}] — the exchange latency is undefined")
                 lat = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
-                node_exchange[(a, b)] = (float(h) / (float(bneck) * 1024 * 1024), lat)
+                node_exchange[(a, b)] = (transmission_hops(float(h)) / (float(bneck) * 1024 * 1024), lat)
         peer_norm = (max(peer_pairs.values()) * max(pb for pb, _l in node_exchange.values())
                      + max(l for _pb, l in node_exchange.values()))
         cand_nodes = {t: [int(c[0]) for c in graph.task_logit_to_placement[t]] for t in range(n_tasks)}

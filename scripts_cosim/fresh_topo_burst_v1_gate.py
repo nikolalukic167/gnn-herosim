@@ -108,6 +108,8 @@ AGG_KINDS = ("sb1sum", "lf1sum")
 # hetero_conv_v1: lf1gnn's recipe with per-relation / per-node-type bipartite weights (twin: lf1twin's existing runs)
 HET_KINDS = ("lf1het",)
 # small_batch_so_v1: sb1load / sb1mpoff's recipes retrained on the single-origin corpus
+TP1_CONDS = {"replay": ("store_forward", "0"), "pipe": ("pipelined", "0"), "release": ("store_forward", "1"),
+             "pipe_release": ("pipelined", "1")}
 SO1_KINDS = ("so1load", "so1mpoff", "so1lfgnn", "so1lfmlp")  # so1lf*: lf1gnn / lf1mlp recipes (Amendment 1)
 BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS
 LOAD_KINDS = V4_KINDS + BC1_KINDS
@@ -251,6 +253,24 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         if suffix not in ("_selfref", "_cdapply"):
             raise SystemExit(f"FAIL LOUD: SO1_SUFFIX={suffix!r}")
         return [task(t, w, f"{k}{suffix}", s) for k in kinds for s in (1, 2, 3, 4) for t in topos for w in tuple(GROUNDED_LADDER)]
+    if phase == "tp1":
+        # transfer_physics_v1: rules + zero-shot so1load on the single-origin server cells under one physics
+        # condition (TP1_COND); the driver's env carries HEROSIM_TRANSFER_MODEL / HEROSIM_REPLICA_RELEASE
+        cond = os.environ.get("TP1_COND", "")
+        want = TP1_CONDS.get(cond)
+        if want is None:
+            raise SystemExit(f"FAIL LOUD: TP1_COND={cond!r}; conditions are {sorted(TP1_CONDS)}")
+        got = (os.environ.get("HEROSIM_TRANSFER_MODEL", "store_forward"), os.environ.get("HEROSIM_REPLICA_RELEASE", "0"))
+        if got != want:
+            raise SystemExit(f"FAIL LOUD: TP1_COND={cond} needs (transfer, release)={want}, env has {got}")
+        smoke = os.environ.get("TP1_SMOKE", "")
+        if smoke:
+            return [task(topos[0], "g0x20", k, 1 if k.endswith("_selfref") else 0) for k in smoke.split(",")]
+        if cond == "replay":
+            return [task(t, w, k, 0) for t in topos[:4] for w in ("g0x20", "g1x20") for k in ("cd", "batched", "reactive")]
+        rules = ("reactive", "selfpredict", "locality", "batched", "cd")
+        return ([task(t, w, k, 0) for k in rules for t in topos for w in tuple(GROUNDED_LADDER)]
+                + [task(t, w, "so1load_selfref", s) for s in (1, 2) for t in topos for w in tuple(GROUNDED_LADDER)])
     if phase == "het1":
         # hetero vs plain bipartite convs on the 19 topologies; lf1gnn / lf1twin / lf1mlp are local_features_v1's runs
         smoke = os.environ.get("HET_SMOKE", "")
@@ -581,6 +601,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     n = out.get("num_tasks")
     problems = []
+    for k, default in (("HEROSIM_TRANSFER_MODEL", "store_forward"), ("HEROSIM_REPLICA_RELEASE", "0")):
+        if out["env"].get(k, default) != os.environ.get(k, default):
+            problems.append(f"physics not recorded as driven: {k}={out['env'].get(k)!r}, driver {os.environ.get(k)!r}")
     if out["env"].get("HEROSIM_SERVER_ONLY_REPLICAS") != ("0" if client_local else "1"):
         problems.append(f"served HEROSIM_SERVER_ONLY_REPLICAS={out['env'].get('HEROSIM_SERVER_ONLY_REPLICAS')!r}, "
                         f"cell client_local_v1={client_local}")
@@ -678,7 +701,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)

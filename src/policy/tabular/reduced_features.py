@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
+from src.placement.network_fabric import transmission_hops
 from src.placement.topology_features import build_source_feature_context
 from src.policy.tabular.graph_extraction import (
     TabularEdgeRow,
@@ -686,7 +687,7 @@ def partial_state_columns(
                 h, bneck = ctx.route_hops_bneck[pair]
                 hops.append(float(h))
                 if h > 0:
-                    transfer += float(h) * ctx.payload_bytes / float(bneck)
+                    transfer += transmission_hops(float(h)) * ctx.payload_bytes / float(bneck)
             out[i, 7] = min(hops)
             out[i, 8] = max(hops)
             out[i, 9] = (

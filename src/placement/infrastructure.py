@@ -30,7 +30,7 @@ from src.placement.warmth import NODE_DISK_V2, sandbox_is_warm
 from src.placement.scheduling_cost import (
     transfer_time as _transfer_time,
 )
-from src.placement.network_fabric import NetworkFabric
+from src.placement.network_fabric import NetworkFabric, transfer_model, transmission_hops
 
 # network_contention_v1 spelling, kept where the ingress pipe is charged.
 _ingress_transfer_time = _transfer_time
@@ -120,6 +120,11 @@ from simpy.resources.resource import Resource
 from simpy.resources.store import FilterStore, Store
 
 STARVED_RENDEZVOUS = "starved_rendezvous"
+# Replica release during I/O (opt-in; every run before 2026-10-07 holds the replica from cold start to output).
+_release_env = os.environ.get("HEROSIM_REPLICA_RELEASE", "0")
+if _release_env not in ("0", "1"):
+    raise ValueError(f"HEROSIM_REPLICA_RELEASE={_release_env!r}; expected 0 or 1")
+REPLICA_RELEASE = _release_env == "1"
 
 from src.placement.model import (
     ApplicationResult,
@@ -739,6 +744,10 @@ class Platform:
 
         self.previous_task: Task | None = None
         self.current_task: Task | None = None
+        # HEROSIM_REPLICA_RELEASE=1: tasks past cold start whose I/O or compute is still running
+        self.inflight: List[Task] = []
+        self.rendezvous_procs: Dict[Task, Any] = {}
+        self.compute_lock = Resource(env, capacity=1)
         self.executing: bool = False
         self.idle_since: SimTime = math.inf
 
@@ -1070,7 +1079,7 @@ class Platform:
             if hops:
                 bottleneck = min(bandwidth for _key, bandwidth in hops)
                 if bottleneck > 0:
-                    return len(hops) * payload_bytes / (bottleneck * seconds_per_hop_divisor)
+                    return transmission_hops(len(hops)) * payload_bytes / (bottleneck * seconds_per_hop_divisor)
 
         bandwidth_mbps = float(self.node.network.get("bandwidth", 0.0) or 0.0)
         if bandwidth_mbps <= 0.0:
@@ -1418,7 +1427,30 @@ class Platform:
                         # — a fact about the path structure, not about any one node's
                         # occupancy. Store-and-forward: hold each hop for the full
                         # transmission before moving to the next.
-                        if self.node.fabric is not None:
+                        if self.node.fabric is not None and transfer_model() == "pipelined":
+                            # Pipelined: the transfer holds every link on its route at once for one
+                            # transmission at the bottleneck. Pipes are taken in key order so two
+                            # routes crossing the same links cannot deadlock.
+                            route = self.node.fabric.hops(task.node_name, self.node.node_name)
+                            hold = _transfer_time(task, min(bw for _k, bw in route)) if route else 0.0
+                            if hold > 0:
+                                wait_start = self.env.now
+                                requests = []
+                                try:
+                                    for link_key_ in sorted({k for k, _bw in route}):
+                                        req = self.node.fabric.pipe(link_key_).request()
+                                        requests.append((link_key_, req))
+                                        yield req
+                                    link_wait = self.env.now - wait_start
+                                    task.link_wait_time += link_wait
+                                    task.link_transfer_time += hold
+                                    task.link_hops += len(route)
+                                    self.node.fabric.link_wait_total += link_wait
+                                    yield self.env.timeout(hold)
+                                finally:
+                                    for link_key_, req in requests:
+                                        self.node.fabric.pipe(link_key_).release(req)
+                        elif self.node.fabric is not None:
                             for link_key_, bandwidth in self.node.fabric.hops(
                                 task.node_name, self.node.node_name
                             ):
@@ -1456,7 +1488,8 @@ class Platform:
             yield task.arrived.succeed()
 
             # Update platform cache
-            self.current_task = task
+            if not REPLICA_RELEASE:
+                self.current_task = task
 
             warm_function = sandbox_is_warm(self, task)
 
@@ -1482,239 +1515,270 @@ class Platform:
             yield self.env.timeout(cold_start_duration)
             task.cold_start_time = cold_start_duration
 
-            # Retrieve input data
-            input_storage: Storage
-            output_storage: Storage
-            local_dependencies = True
+            if REPLICA_RELEASE:
+                # the sandbox now holds this function: tasks popped while this one is still in flight start warm
+                self.previous_task = task
+                self.inflight.append(task)
+                self.env.process(self._serve_task(task, cold_start_duration, release=True))
+                continue
+            yield from self._serve_task(task, cold_start_duration)
 
-            # Does the task have dependencies?
-            if task.dependencies:
-                # If task dependencies were executed on the same node,
-                # local storage is used to retrieve input values
-                # FIXME: Check node storage to ensure data are indeed stored locally
-                local_dependencies = all(
-                    [
-                        dependency.storage["output"] in self.node.storage.items
-                        for dependency in task.dependencies
-                    ]
-                )
+    def _serve_task(self, task: "Task", cold_start_duration: float, release: bool = False):
+        """Input stage, rendezvous, peer exchange, execution and output of one task. ``release``
+        (HEROSIM_REPLICA_RELEASE=1): the replica is not held while the task waits for its peers or moves
+        their data; only execution and output take the replica's compute lock, so other queued tasks start
+        their I/O meanwhile. The sandbox stays warm (same container)."""
+        # Retrieve input data
+        input_storage: Storage
+        output_storage: Storage
+        local_dependencies = True
 
-            # Statistics (Platform)
-            self.tasks_count += 1
-            # Statistics (Node)
-            self.node.local_dependencies += local_dependencies
-            # Statistics (Task)
-            task.local_dependencies = local_dependencies
-
-            # FIXME: First task gets input data from remote storage
-            if task.dependencies and local_dependencies:
-                # Local storage
-                # We read input data from the output storage of the previous task
-                # FIXME: Support more complex application DAGs
-                input_storage = yield self.node.storage.get(
-                    # lambda storage: not storage.type["remote"]
-                    lambda storage: storage
-                    == task.dependencies[-1].storage["output"]
-                )
-            else:
-                # Remote storage
-                # logging.warning(
-                #     f"[ {self.env.now} ] {task} input fetched from remote storage"
-                # )
-                input_storage = yield self.node.storage.get(
-                    lambda storage: storage.type["remote"]
-                )
-
-            # Update task
-            task.storage["input"] = input_storage
-            yield self.node.storage.put(input_storage)
-
-            # Process input
-            # FIXME: First task of an application gets input from network!
-            input_speed: SpeedMBps = (
-                (input_storage.type["throughput"]["read"])
-                if not input_storage.type["remote"]
-                else min(
-                    input_storage.type["throughput"]["read"],
-                    self.node.network["bandwidth"],
-                )
-            )
-            input_duration: SimTime = (
-                task.type["stateSize"][task.application.type["name"]]["input"]
-                / (input_speed * 1024 * 1024)
-                + input_storage.type["latency"]["read"]
-            )
-
-            # route_a: data locality. A child reads its parents' output, and if a parent ran
-            # somewhere else that read crosses the network. The branch above prices the
-            # STORAGE tier only — its remote arm charges a constant `someRemote` latency,
-            # blind to where the parent actually ran — so without this term a child's cost
-            # is a function of its own placement alone, and the whole plan is separable.
-            # This is the one term that makes f_child depend on p_parent.
-            #
-            # Opt-in (`HEROSIM_DATA_LOCALITY=1`) and inert without dependencies, so every
-            # existing corpus — all of which are single-task applications — is unaffected
-            # whether it is set or not.
-            input_duration += self._dependency_transfer_time(task)
-
-            # peer_affinity_v1: pairwise-instance exchange with the task's peers, charged at
-            # the same stage. Opt-in (HEROSIM_PEER_EXCHANGE=1) and inert without a
-            # `peer_exchange` table, so every existing corpus is unaffected either way.
-            # peer_affinity_v1 stage 3 (2026-09-11): live, a peer can be neither placed
-            # nor planned when this input stage starts (it arrived later, or the batch
-            # scheduler deferred it for a replica). That is a rendezvous, not an error:
-            # wait for the peer to be scheduled, then charge the exchange against where
-            # it actually runs. The wait elapses on the simulation clock and is recorded
-            # on the task. A fully-planned batch (every co-sim run, every forced replay)
-            # yields nothing here, so those stay bit-identical.
-            rendezvous_started = self.env.now
-            rendezvous = self._peer_rendezvous_events(task)
-            if rendezvous:
-                # A peer can be starved (no replica it may use can be created); then only a drain of this platform
-                # frees one, and that waits on this task: GNN KnativeAutoscaler._release_when_drained plans the
-                # starved peers onto the node its replica will be created on and interrupts this wait.
-                self.rendezvous_task = task
-                try:
-                    for peer_ready in rendezvous:
-                        yield peer_ready
-                except Interrupt as interrupt:
-                    if interrupt.cause != STARVED_RENDEZVOUS:
-                        raise
-                finally:
-                    self.rendezvous_task = None
-            if self.env.now > rendezvous_started:
-                task.peer_rendezvous_wait = self.env.now - rendezvous_started
-
-            peer_exchange_time = self._peer_exchange_time(task)
-            if peer_exchange_time:
-                task.peer_exchange_time = peer_exchange_time
-                input_duration += peer_exchange_time
-
-
-            # backlog_corpus_v1: when this task's service will end, known here to within the
-            # node-slot wait. Bookkeeping only (read by live_audit under
-            # HEROSIM_INFLIGHT_CAPTURE=service_end_v1); nothing in the simulation reads it.
-            self.inflight_service_end = (
-                self.env.now + input_duration
-                + float(task.type["executionTime"][self.type["shortName"]])
-                + _output_estimate_seconds(task)
-            )
-
-            # Start the task
-            yield task.started.succeed()
-
-            # Retrieve input data
-            yield self.env.timeout(input_duration)
-            # task.application.communications_time += input_duration
-
-            # Retrieve task duration according to platform hardware
-            task_duration = task.type["executionTime"][self.type["shortName"]]
-
-            logging.info(f"[ {self.env.now} ] {self} started {task} execution")
-
-            # Run the task to completion. Under node_contention_v3 the platform must first
-            # acquire one of the node's shared execution slots, so co-located platforms
-            # serialize against each other; task.node_contention_time records that wait
-            # separately from execution so RTT stays decomposable for analysis.
-            if self.node.compute_slots is not None:
-                contention_start = self.env.now
-                with self.node.compute_slots.request() as slot:
-                    yield slot
-                    contention_wait = self.env.now - contention_start
-                    task.node_contention_time = contention_wait
-                    self.node.contention_time += contention_wait
-                    task_duration = yield from self._execute(task, task_duration)
-            else:
-                task_duration = yield from self._execute(task, task_duration)
-            task.execution_time = task_duration
-
-            # Store output data
-            # FIXME: Remote storage? Local node?
-            if local_dependencies:
-                # Local storage
-                output_storage = yield self.node.storage.get(
-                    lambda storage: not storage.type["remote"]
-                )
-            else:
-                # Remote storage
-                output_storage = yield self.node.storage.get(
-                    lambda storage: storage.type["remote"]
-                )
-                logging.info(
-                    f"[ {self.env.now} ] {task} output stored in remote storage"
-                )
-
-            # TODO: Store output data
-            output_stored = output_storage.store_data(task)
-
-            if not output_stored:
-                # FIXME: Resort to remote storage
-                output_storage = yield self.node.storage.get(
-                    lambda storage: storage.type["remote"]
-                )
-                pass
-
-            # FIXME: Update task
-            task.storage["output"] = output_storage
-            yield self.node.storage.put(output_storage)
-
-            # FIXME: Network link performance!
-            output_speed: SpeedMBps = (
-                (output_storage.type["throughput"]["write"])
-                if not input_storage.type["remote"]
-                else min(
-                    output_storage.type["throughput"]["write"],
-                    self.node.network["bandwidth"],
-                )
-            )
-            output_duration: SimTime = (
-                task.type["stateSize"][task.application.type["name"]]["output"]
-                / (output_speed * 1024 * 1024)
-                + output_storage.type["latency"]["write"]
-            )
-            # Wait for I/O completion
-            # It allows workflow_process() to dispatch next task in workflow
-            # without checking for input data
-            yield self.env.timeout(output_duration)
-            # task.application.communications_time += output_duration
-
-            # Update platform cache
-            self.previous_task = self.current_task
-            self.current_task = None
-            self.inflight_service_end = None
-            self.idle_since = self.env.now
-
-            # Update platform load time
-            self.load_time += cold_start_duration + task_duration
-
-            # TODO: Update platform storage time
-            # task_storage_time = retrieval_duration + input_duration + output_duration
-            task_storage_time = input_duration + output_duration
-            self.storage_time += task_storage_time
-
-            # Statistics (Task)
-            task.local_communications = all(
+        # Does the task have dependencies?
+        if task.dependencies:
+            # If task dependencies were executed on the same node,
+            # local storage is used to retrieve input values
+            # FIXME: Check node storage to ensure data are indeed stored locally
+            local_dependencies = all(
                 [
-                    not storage.type["remote"] if storage is not None else False
-                    for storage in task.storage.values()
+                    dependency.storage["output"] in self.node.storage.items
+                    for dependency in task.dependencies
                 ]
             )
-            # task.storage_time = task_storage_time
-            task.communications_time = task_storage_time
 
-            # Notify scheduler of task completion
-            yield task.done.succeed()
+        # Statistics (Platform)
+        self.tasks_count += 1
+        # Statistics (Node)
+        self.node.local_dependencies += local_dependencies
+        # Statistics (Task)
+        task.local_dependencies = local_dependencies
 
-            if DATASET_STATE_CAPTURE and (
-                hasattr(self.node, 'orchestrator_ref')
-                and self.node.orchestrator_ref
-                and not getattr(task, 'is_internal', False)
-            ):
-                system_state = yield self.node.orchestrator_ref.mutex.get()
-                task.system_state_snapshot = system_state.result(self.env.now)
-                yield self.node.orchestrator_ref.mutex.put(system_state)
-            elif not getattr(task, 'is_internal', False):
-                slim_completed_task(task)
+        # FIXME: First task gets input data from remote storage
+        if task.dependencies and local_dependencies:
+            # Local storage
+            # We read input data from the output storage of the previous task
+            # FIXME: Support more complex application DAGs
+            input_storage = yield self.node.storage.get(
+                # lambda storage: not storage.type["remote"]
+                lambda storage: storage
+                == task.dependencies[-1].storage["output"]
+            )
+        else:
+            # Remote storage
+            # logging.warning(
+            #     f"[ {self.env.now} ] {task} input fetched from remote storage"
+            # )
+            input_storage = yield self.node.storage.get(
+                lambda storage: storage.type["remote"]
+            )
+
+        # Update task
+        task.storage["input"] = input_storage
+        yield self.node.storage.put(input_storage)
+
+        # Process input
+        # FIXME: First task of an application gets input from network!
+        input_speed: SpeedMBps = (
+            (input_storage.type["throughput"]["read"])
+            if not input_storage.type["remote"]
+            else min(
+                input_storage.type["throughput"]["read"],
+                self.node.network["bandwidth"],
+            )
+        )
+        input_duration: SimTime = (
+            task.type["stateSize"][task.application.type["name"]]["input"]
+            / (input_speed * 1024 * 1024)
+            + input_storage.type["latency"]["read"]
+        )
+
+        # route_a: data locality. A child reads its parents' output, and if a parent ran
+        # somewhere else that read crosses the network. The branch above prices the
+        # STORAGE tier only — its remote arm charges a constant `someRemote` latency,
+        # blind to where the parent actually ran — so without this term a child's cost
+        # is a function of its own placement alone, and the whole plan is separable.
+        # This is the one term that makes f_child depend on p_parent.
+        #
+        # Opt-in (`HEROSIM_DATA_LOCALITY=1`) and inert without dependencies, so every
+        # existing corpus — all of which are single-task applications — is unaffected
+        # whether it is set or not.
+        input_duration += self._dependency_transfer_time(task)
+
+        # peer_affinity_v1: pairwise-instance exchange with the task's peers, charged at
+        # the same stage. Opt-in (HEROSIM_PEER_EXCHANGE=1) and inert without a
+        # `peer_exchange` table, so every existing corpus is unaffected either way.
+        # peer_affinity_v1 stage 3 (2026-09-11): live, a peer can be neither placed
+        # nor planned when this input stage starts (it arrived later, or the batch
+        # scheduler deferred it for a replica). That is a rendezvous, not an error:
+        # wait for the peer to be scheduled, then charge the exchange against where
+        # it actually runs. The wait elapses on the simulation clock and is recorded
+        # on the task. A fully-planned batch (every co-sim run, every forced replay)
+        # yields nothing here, so those stay bit-identical.
+        rendezvous_started = self.env.now
+        rendezvous = self._peer_rendezvous_events(task)
+        if rendezvous:
+            if release:
+                # released replica: the wait runs in this task's own process; GNN KnativeAutoscaler
+                # interrupts that process instead of platform.run
+                self.rendezvous_procs[task] = self.env.active_process
+            # A peer can be starved (no replica it may use can be created); then only a drain of this platform
+            # frees one, and that waits on this task: GNN KnativeAutoscaler._release_when_drained plans the
+            # starved peers onto the node its replica will be created on and interrupts this wait.
+            if not release:
+                self.rendezvous_task = task
+            try:
+                for peer_ready in rendezvous:
+                    yield peer_ready
+            except Interrupt as interrupt:
+                if interrupt.cause != STARVED_RENDEZVOUS:
+                    raise
+            finally:
+                if release:
+                    self.rendezvous_procs.pop(task, None)
+                else:
+                    self.rendezvous_task = None
+        if self.env.now > rendezvous_started:
+            task.peer_rendezvous_wait = self.env.now - rendezvous_started
+
+        peer_exchange_time = self._peer_exchange_time(task)
+        if peer_exchange_time:
+            task.peer_exchange_time = peer_exchange_time
+            input_duration += peer_exchange_time
+
+
+        # backlog_corpus_v1: when this task's service will end, known here to within the
+        # node-slot wait. Bookkeeping only (read by live_audit under
+        # HEROSIM_INFLIGHT_CAPTURE=service_end_v1); nothing in the simulation reads it.
+        self.inflight_service_end = (
+            self.env.now + input_duration
+            + float(task.type["executionTime"][self.type["shortName"]])
+            + _output_estimate_seconds(task)
+        )
+
+        # Start the task
+        yield task.started.succeed()
+
+        # Retrieve input data
+        yield self.env.timeout(input_duration)
+        # task.application.communications_time += input_duration
+
+        # Retrieve task duration according to platform hardware
+        task_duration = task.type["executionTime"][self.type["shortName"]]
+
+        logging.info(f"[ {self.env.now} ] {self} started {task} execution")
+
+        if release:
+            # I/O overlapped with other tasks; compute and output run one at a time on the replica
+            compute = self.compute_lock.request()
+            yield compute
+            self.current_task = task
+
+        # Run the task to completion. Under node_contention_v3 the platform must first
+        # acquire one of the node's shared execution slots, so co-located platforms
+        # serialize against each other; task.node_contention_time records that wait
+        # separately from execution so RTT stays decomposable for analysis.
+        if self.node.compute_slots is not None:
+            contention_start = self.env.now
+            with self.node.compute_slots.request() as slot:
+                yield slot
+                contention_wait = self.env.now - contention_start
+                task.node_contention_time = contention_wait
+                self.node.contention_time += contention_wait
+                task_duration = yield from self._execute(task, task_duration)
+        else:
+            task_duration = yield from self._execute(task, task_duration)
+        task.execution_time = task_duration
+
+        # Store output data
+        # FIXME: Remote storage? Local node?
+        if local_dependencies:
+            # Local storage
+            output_storage = yield self.node.storage.get(
+                lambda storage: not storage.type["remote"]
+            )
+        else:
+            # Remote storage
+            output_storage = yield self.node.storage.get(
+                lambda storage: storage.type["remote"]
+            )
+            logging.info(
+                f"[ {self.env.now} ] {task} output stored in remote storage"
+            )
+
+        # TODO: Store output data
+        output_stored = output_storage.store_data(task)
+
+        if not output_stored:
+            # FIXME: Resort to remote storage
+            output_storage = yield self.node.storage.get(
+                lambda storage: storage.type["remote"]
+            )
+            pass
+
+        # FIXME: Update task
+        task.storage["output"] = output_storage
+        yield self.node.storage.put(output_storage)
+
+        # FIXME: Network link performance!
+        output_speed: SpeedMBps = (
+            (output_storage.type["throughput"]["write"])
+            if not input_storage.type["remote"]
+            else min(
+                output_storage.type["throughput"]["write"],
+                self.node.network["bandwidth"],
+            )
+        )
+        output_duration: SimTime = (
+            task.type["stateSize"][task.application.type["name"]]["output"]
+            / (output_speed * 1024 * 1024)
+            + output_storage.type["latency"]["write"]
+        )
+        # Wait for I/O completion
+        # It allows workflow_process() to dispatch next task in workflow
+        # without checking for input data
+        yield self.env.timeout(output_duration)
+        # task.application.communications_time += output_duration
+
+        # Update platform cache
+        self.previous_task = self.current_task
+        self.current_task = None
+        self.inflight_service_end = None
+        if release:
+            self.compute_lock.release(compute)
+            self.inflight.remove(task)
+        if not self.inflight:
+            self.idle_since = self.env.now
+
+        # Update platform load time
+        self.load_time += cold_start_duration + task_duration
+
+        # TODO: Update platform storage time
+        # task_storage_time = retrieval_duration + input_duration + output_duration
+        task_storage_time = input_duration + output_duration
+        self.storage_time += task_storage_time
+
+        # Statistics (Task)
+        task.local_communications = all(
+            [
+                not storage.type["remote"] if storage is not None else False
+                for storage in task.storage.values()
+            ]
+        )
+        # task.storage_time = task_storage_time
+        task.communications_time = task_storage_time
+
+        # Notify scheduler of task completion
+        yield task.done.succeed()
+
+        if DATASET_STATE_CAPTURE and (
+            hasattr(self.node, 'orchestrator_ref')
+            and self.node.orchestrator_ref
+            and not getattr(task, 'is_internal', False)
+        ):
+            system_state = yield self.node.orchestrator_ref.mutex.get()
+            task.system_state_snapshot = system_state.result(self.env.now)
+            yield self.node.orchestrator_ref.mutex.put(system_state)
+        elif not getattr(task, 'is_internal', False):
+            slim_completed_task(task)
 
 
 class Node:

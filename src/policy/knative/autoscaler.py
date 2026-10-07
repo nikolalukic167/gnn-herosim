@@ -302,6 +302,7 @@ class KnativeAutoscaler(Autoscaler):
                 for replica in sorted_replicas
                 if not replica[1].queue.items
                 and not replica[1].current_task
+                and not getattr(replica[1], "inflight", None)
                 and (self.env.now - replica[1].idle_since) > self.policy.keep_alive
             ),
             None,

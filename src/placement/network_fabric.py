@@ -33,6 +33,7 @@ corpus replays bit-identically.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from simpy import Resource
@@ -43,6 +44,28 @@ LINK_SEP = "|"
 # stay additive. The prefix is how every consumer tells the two apart without needing the
 # topology config -- the diagnostic and the pre-check both rely on it.
 CORE_PREFIX = "core"
+
+
+TRANSFER_MODEL_ENV = "HEROSIM_TRANSFER_MODEL"
+TRANSFER_MODELS = ("store_forward", "pipelined")
+
+
+def transfer_model() -> str:
+    """How a payload crosses a multi-hop route. ``store_forward`` (default, every run before 2026-10-07): each hop
+    carries the whole payload in turn, n_hops x size / bottleneck. ``pipelined``: the payload streams through every
+    hop at once, size / bottleneck, as a packet network moves a large transfer. Propagation latency is charged
+    separately either way."""
+    model = os.environ.get(TRANSFER_MODEL_ENV, "store_forward")
+    if model not in TRANSFER_MODELS:
+        raise ValueError(f"{TRANSFER_MODEL_ENV}={model!r}; expected one of {TRANSFER_MODELS}")
+    return model
+
+
+def transmission_hops(n_hops: float) -> float:
+    """Multiplier on size / bottleneck for a route of ``n_hops`` links under the active transfer model."""
+    if transfer_model() == "pipelined":
+        return 1.0 if n_hops > 0 else 0.0
+    return n_hops
 
 
 def link_key(a: str, b: str) -> str:
