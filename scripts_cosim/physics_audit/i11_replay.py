@@ -182,7 +182,7 @@ def summarize(results: List[Dict[str, Any]]) -> None:
               f"p95|err|={p95:8.2%} within1%={within1:5.1%} within5%={within5:5.1%}")
 
     line("all", results)
-    for stratum in ("uniform", "targeted"):
+    for stratum in ("uniform", "targeted", "late"):
         line("stratum:" + stratum, [r for r in results if r.get("stratum") == stratum])
     for tag in ("clean", "inflight", "queued", "uninit_replica", "kpa_panic", "links_busy"):
         line(tag, [r for r in results if tag in r["tags"]])
@@ -214,6 +214,10 @@ def main() -> int:
     ap.add_argument("--snapshots")
     ap.add_argument("--out")
     ap.add_argument("--n", type=int, default=40, help="uniformly spaced states")
+    ap.add_argument("--tmin", type=float, default=0.0, help="uniform states are drawn only from decisions at t >= tmin")
+    ap.add_argument("--late-after", type=int, default=0, help="arrival index (batch task id) from which the --late-n states are drawn; "
+                    "the uniform states are then drawn from before it")
+    ap.add_argument("--late-n", type=int, default=0, help="extra uniformly spaced states with every batch task id >= --late-after")
     ap.add_argument("--targeted", type=int, default=0, help="extra states drawn from the hard-state tags")
     ap.add_argument("--summarize", default="", help="summarize existing result jsonl files (comma list) and exit")
     ap.add_argument("--only", default="", help="comma list of batch[0] task ids to replay instead of sampling")
@@ -252,7 +256,13 @@ def main() -> int:
         want = {int(x) for x in args.only.split(",")}
         chosen = [dict(s, stratum="only") for s in states if s["batch"][0] in want]
     else:
-        chosen = select_states(states, args.n, args.targeted)
+        early = [s for s in states if s["t"] >= args.tmin and (not args.late_after or max(s["batch"]) < args.late_after)]
+        chosen = select_states(early, args.n, args.targeted)
+        if args.late_n:
+            late = [s for s in states if min(s["batch"]) >= args.late_after]
+            step = max(1, len(late) // args.late_n)
+            chosen += [dict(s, stratum="late") for s in late[::step][:args.late_n]]
+            print(f"{len(early)} early and {len(late)} late (task id >= {args.late_after}) replayable states", flush=True)
     print(f"{len(states)} replayable states, replaying {len(chosen)} (params={args.params})", flush=True)
 
     if args.replay == "original":
