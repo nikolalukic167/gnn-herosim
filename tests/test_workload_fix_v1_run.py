@@ -296,3 +296,28 @@ def test_cap_setting_comes_from_the_environment(monkeypatch):
     assert C.cap_bytes() is None
     monkeypatch.setenv(C.CAP_ENV, "1.5")
     assert C.cap_bytes() == int(1.5 * 1024 * 1024)
+
+
+def test_tune_counts_a_hung_run_as_infinite_and_picks_the_geometric_mean_minimum():
+    inf = float("inf")
+    ok, bad = {}, {}
+    lat = {(1, "lo"): 3.0, (2, "lo"): 2.0, (4, "lo"): 2.5, (1, "hi"): 0.5, (2, "hi"): 0.6, (4, "hi"): 0.4}
+    for (w, rung), v in lat.items():
+        for t in (1, 2):
+            for g in R.WINDOWS:
+                if (w, rung, t, g) == (4, "hi", 2, "g3"):
+                    bad[(t, f"{g}{rung}b{w}", "cd")] = {}
+                    continue
+                ok[(t, f"{g}{rung}b{w}", "cd")] = _row(t, f"{g}{rung}b{w}", "cd", v)
+    res = R.tune(ok, bad, [1, 2], ["lo", "hi"], [1, 2, 4])
+    assert res["table"][1]["geomean"] == pytest.approx((3.0 * 0.5) ** 0.5)
+    assert res["table"][2]["geomean"] == pytest.approx((2.0 * 0.6) ** 0.5)
+    assert res["table"][4]["hi"]["n_hung"] == 1 and res["table"][4]["hi"]["median_latency"] == pytest.approx(0.4)
+    assert res["table"][4]["geomean"] == pytest.approx((2.5 * 0.4) ** 0.5)
+    assert res["best_window_s"] == 4 and res["tie"] is None  # one hung cell of eight does not move the median
+    # when half the cells of a window hang its median is infinite and it cannot win
+    for g in R.WINDOWS[:2]:
+        for t in (1, 2):
+            ok.pop((t, f"{g}hib4", "cd"))
+    res = R.tune(ok, bad, [1, 2], ["lo", "hi"], [1, 2, 4])
+    assert res["table"][4]["geomean"] == inf and res["best_window_s"] == 2
