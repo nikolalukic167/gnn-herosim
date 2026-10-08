@@ -1,6 +1,6 @@
 # physics_audit_v1 — scrutinise and freeze reference physics R1
 
-**Status:** `REGISTERED` (no runs). Depends on: `kpa_scaleout_v1` (read). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — audit pass 1 read; R1 **not frozen** (I12 fails by construction, fixed by amendment B1; pass 2 runs at the fixed time scale). Registered 2026-10-08. Depends on: `kpa_scaleout_v1` (read). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Revision 2026-10-08 (before any run): added I11, I12 and the I5 fallback.
 
 ## Question
@@ -55,3 +55,65 @@ mean; saturation predicts most replicas high. Report both; no bar.
 
 ## Cost
 Instrumented runs on 6 topologies × 3 rungs × CD and Knative, plus I8 duplicates and 200 I11 replays.
+
+
+## Record (newest first)
+
+### 2026-10-08 — audit pass 1 read; amendments B1–B4 before pass 2
+
+Code: `rp/audit` merged at `2366ad31` (opt-in trace `HEROSIM_AUDIT_TRACE`, snapshot fidelity block
+`HEROSIM_SNAPSHOT_FIDELITY=1`, checkers `scripts_cosim/physics_audit/check_invariants.py`, I11 harness
+`scripts_cosim/physics_audit/i11_replay.py`, 29 tests in `tests/test_physics_audit.py`, each checker with a
+seeded-defect negative control). Default path unchanged: 36/36 R1 cells and 6/6 legacy cells identical to
+`99fac565` (wall clock masked); trace on, and trace + snapshots + fidelity on, identical to trace off; repo suite
+26 failures before and after.
+
+Pass 1 ran candidate R1 with the per-rung time scale the gates used (0.5 / 0.333 / 0.2 on ×2/×3/×5): 6 topologies
+(9483, 9491, 9506, 9533, 9550, 9568) × 3 rungs × {CD, reactive}, 12,000 arrivals each, workload g0; I8 on 12 cells × 2.
+
+| # | Pass 1 | Note |
+|---|---|---|
+| I1 | PASS 36/36 | counter vs task rows pointwise, 0 violations; L = λW worst gap 0.75 % |
+| I2 | PASS 36/36 | 1,000 ingress transfers per run, max error 3e-11 |
+| I3, I7, I9 | PASS 36/36 | |
+| I4 | PASS 36/36 | 0 compute overlaps; ~3,200 overlapping I/O pairs per run |
+| I5 | **FAIL** | load-caused share CD median 0.44 (8/18 runs > 0.5; 10 FAIL-WITH-CAUSE), reactive 0.77; Spearman vs in-flight (10 s bins) CD −0.09, reactive +0.12 |
+| I6 | PASS 36/36 | peak 4.5 % of node memory, no refusal: **refusal path untested** |
+| I8 | PASS 12/12 | another `PYTHONHASHSEED` also identical |
+| I10 | PASS 36/36 | on the two instrumented scheduler paths only; others NOT-TESTED |
+| I11 | **PASS** after the fix | 216 states (6 topologies × 3 rungs × 12, CD, first 3,000 arrivals): 0 failed, median 0.00 %, p95 0.08 %, max 0.98 %. The pre-fix replay on the same states: 93/216 failed, median 95.7 % |
+| I12 | **FAIL** | time scale differs per rung by construction |
+
+**I11, what was wrong.** The old snapshot had no KPA history or tick phase, replayed with target 100 against 0.7
+live, dropped tasks held by released replicas, marked every replica ready and warm, compressed queued tasks into a
+backlog, dropped partners outside the batch, and seeded free platforms as initialised. All nine are in the fidelity
+block. Not independent draws: start-up states repeat across cells. CD only; 5 states with a busy link pipe; no state
+with an unplaced partner.
+
+**I11, a property of R1.** Under released replicas a placed batch's latency depends on later arrivals (a task holds
+the compute lock, then waits in output for node storage an image pull holds). Against the continuing live run the
+same replays miss > 1 % in 36/216 states, all in the first 27 s; from 300 s on all 104 states match it (max 0.59 %).
+
+**I12's anomaly (CD faster at ×5).** Pass-1 cells: CD 0.678 / 0.649 / 0.650 s; cold starts per task 0.229 / 0.206 /
+0.182, exchange 0.319 / 0.272 / 0.235 s, queueing flat. Consistent with the rung-scaled constants and rising warmth;
+not settled (12,000 arrivals, 6 topologies).
+
+**Amendments (coordinator, 2026-10-08, after pass 1 and before pass 2; B3 is post-data and labelled so).**
+- **B1 — one time scale: `HEROSIM_POLICY_TIME_SCALE=1.0` on every rung.** Knative's keep-alive, windows and tick are
+  wall-clock constants that do not change with load; scaling them with the rung tied policy constants to the load
+  ladder. Value recorded for R1. Results measured at the per-rung scale (`kpa_scaleout_v1`) stand as measured and are
+  not R1 numbers.
+- **B2 — I11 reference.** The reference is the live run cut at the decision (no later arrivals), which is what "the
+  same plan executed live from that state" and a co-sim label mean; the continuing-run error is a second column,
+  reported, not scored. Labels for `r1_attribution_v1` come only from decisions at t ≥ 2× the latest continuing-run
+  miss in pass 2, rounded up to the minute (pass 1 would give 60 s).
+- **B3 — I5 (post-data).** The verdict stays as registered. The in-flight clause compares replicas with
+  instantaneous concurrency; KPA, like Knative, scales on its stable-window average, against which pass 1 reads
+  ρ +0.64 (CD) / +0.72 (reactive). I treat that clause as mis-specified for the modelled system, not as a physics
+  bug, so I5 failing on it alone does not block the freeze; both forms are reported. The load-share clause keeps its
+  registered fallback, scored on CD (the arm `replica_placement_v1` holds fixed): CD's median load-caused share over
+  the pass-2 runs ≤ 0.50 → FAIL-WITH-CAUSE and `replica_placement_v1` closes NO-LEVER, as registered.
+- **B4 — pass 2 scope.** Rerun I1–I12 and the 216-state I11 at B1; add a reduced-memory cell so I6's refusal path
+  fires; produce the descriptive outputs and the concentration-vs-saturation check (both missing from pass 1); add
+  P95/P99 latency and replica counts over time to gate summaries. Freeze if every check passes apart from I5's
+  in-flight clause (B3).
