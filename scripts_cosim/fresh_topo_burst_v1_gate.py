@@ -17,7 +17,9 @@ and joint_burst_v2_split.json, all md5-verified against datalab before use.
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
+import math
 import os
 import shlex
 import subprocess
@@ -156,6 +158,52 @@ def queue_drift(task_results: Optional[List[dict]]) -> Optional[Dict[str, object
     means = [sum(x for _, x in part) / len(part) if part else 0.0 for part in q]
     return {"quarter_mean_queue": means,
             "last_over_first": (means[3] / means[0]) if means[0] > 0 else None}
+
+
+def latency_percentiles(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """physics_audit_v1: P50 / P95 / P99 / max of the per-task latency (done - dispatched, the quantity whose mean is
+    averageElapsedTime), nearest-rank. Recorded so the tail can be read after the raw per-task file is deleted."""
+    if not task_results:
+        return None
+    lat = sorted(float(r["doneTime"]) - float(r["dispatchedTime"]) for r in task_results
+                 if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    n = len(lat)
+    if not n:
+        return None
+
+    def rank(q: float) -> float:
+        return lat[min(n - 1, max(0, math.ceil(q * n) - 1))]
+
+    return {"n": n, "p50": rank(0.50), "p95": rank(0.95), "p99": rank(0.99), "max": lat[-1]}
+
+
+def replica_count_series(system_events: Optional[List[dict]], end_time: Optional[float],
+                         points: int = 120) -> Optional[Dict[str, object]]:
+    """physics_audit_v1: live replicas per function and in total on a uniform grid over the run, from the autoscaler's
+    one-second systemEvents, plus the time-mean and peak of the total. None when the run has no such record."""
+    if not system_events or not end_time or end_time <= 0:
+        return None
+    by_fn: Dict[str, List[tuple]] = {}
+    for e in system_events:
+        by_fn.setdefault(str(e["name"]), []).append((float(e["timestamp"]), int(e["count"])))
+    for v in by_fn.values():
+        v.sort(key=lambda x: x[0])
+    grid = [float(end_time) * i / points for i in range(points + 1)]
+    series: Dict[str, List[int]] = {}
+    for fn, v in by_fn.items():
+        times = [x[0] for x in v]
+        series[fn] = [v[i - 1][1] if (i := bisect.bisect_right(times, g)) > 0 else 0 for g in grid]
+    total = [sum(series[fn][i] for fn in series) for i in range(len(grid))]
+    # time-mean on the one-second record itself, not on the coarse grid
+    last = {fn: 0 for fn in by_fn}
+    area, prev_t, cur = 0.0, 0.0, 0
+    for t, fn, c in sorted((t, fn, c) for fn, v in by_fn.items() for t, c in v):
+        area += cur * (t - prev_t)
+        cur += c - last[fn]
+        last[fn] = c
+        prev_t = t
+    area += cur * max(0.0, float(end_time) - prev_t)
+    return {"t": grid, "total": total, "by_function": series, "peak": max(total), "time_mean": area / float(end_time)}
 
 
 def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
@@ -617,6 +665,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["scaleOut"] = st.get("scaleOut")
     # reference_physics_programme metrics: cold-start share (percent of tasks) travels with every summary
     out["cold_start_pct"] = st.get("coldStartProportion")
+    out["latency_percentiles"] = latency_percentiles(st.get("taskResults"))
+    out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
         want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
                 "panic_window_s": 6.0 * time_scale, "panic_threshold": 2.0}

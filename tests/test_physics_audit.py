@@ -381,3 +381,35 @@ def test_default_path_and_trace_identity(tmp_path):
     assert compare(off, on) == []
     assert compare(off, full) == []
     assert (tmp_path / "s.jsonl").stat().st_size > 0
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# gate summaries: latency percentiles and replica-count series (physics_audit_v1 pass 2)
+# ---------------------------------------------------------------------------------------------------------------
+def _gate():
+    import importlib
+
+    return importlib.import_module("scripts_cosim.fresh_topo_burst_v1_gate")
+
+
+def test_latency_percentiles_nearest_rank_and_filters_warmup_rows():
+    g = _gate()
+    rows = [{"taskId": i, "dispatchedTime": 0.0, "doneTime": float(i + 1)} for i in range(100)]
+    rows.append({"taskId": -1, "dispatchedTime": 0.0, "doneTime": 1e6})  # a non-workload row must not count
+    got = g.latency_percentiles(rows)
+    assert got == {"n": 100, "p50": 50.0, "p95": 95.0, "p99": 99.0, "max": 100.0}
+    assert g.latency_percentiles([]) is None and g.latency_percentiles(None) is None
+
+
+def test_replica_count_series_matches_the_event_record():
+    g = _gate()
+    ev = []
+    for t in range(0, 11):
+        ev.append({"name": "a", "timestamp": t, "count": 0 if t < 2 else (2 if t < 6 else 1)})
+        ev.append({"name": "b", "timestamp": t, "count": 1 if t >= 4 else 0})
+    got = g.replica_count_series(ev, 10.0, points=10)
+    assert got["total"] == [0, 0, 2, 2, 3, 3, 2, 2, 2, 2, 2]
+    assert got["peak"] == 3
+    # a: 0 on [0,2), 2 on [2,6), 1 on [6,10) = 12 replica-seconds; b: 1 on [4,10) = 6
+    assert abs(got["time_mean"] - (2 * 4 + 1 * 4 + 6) / 10.0) < 1e-9
+    assert g.replica_count_series(None, 10.0) is None and g.replica_count_series(ev, 0) is None
