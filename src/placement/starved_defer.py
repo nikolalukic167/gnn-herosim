@@ -64,24 +64,21 @@ class StarvedDeferMixin:
 
     def _init_starved_defer(self) -> None:
         self._defer_spin: Dict[int, Tuple[float, int]] = {}
-        self._starved_tasks: set = set()
+        self._starved_tasks: set = set()  # counted once per task, never read by the placement logic
         self.deferred_spin_waits = 0
 
     def _starved_spin(self, task: "Task") -> bool:
-        """True once `task` has been deferred more than DEFER_SPIN_LIMIT times at one simulated instant, and on every
-        later retry of that task: it has proved starved, so a retry goes straight to the eviction attempt instead of
-        spinning another DEFER_SPIN_LIMIT times (about 50 error lines per task per simulated second)."""
+        """True once `task` has been deferred more than DEFER_SPIN_LIMIT times at one simulated instant."""
         tid = int(task.id)
-        if tid in self._starved_tasks:
-            return True
         prev, n = self._defer_spin.get(tid, (None, 0))
         n = n + 1 if prev == self.env.now else 1
         self._defer_spin[tid] = (self.env.now, n)
         if n > DEFER_SPIN_LIMIT:
-            self._starved_tasks.add(tid)
-            count = getattr(self.autoscaler, "count_starved", None)
-            if count is not None:
-                count("starved_tasks")
+            if tid not in self._starved_tasks:
+                self._starved_tasks.add(tid)
+                count = getattr(self.autoscaler, "count_starved", None)
+                if count is not None:
+                    count("starved_tasks")
             return True
         return False
 
@@ -105,18 +102,8 @@ class StarvedDeferMixin:
         yield self.tasks.put(task)
 
     def _defer(self, task: "Task", system_state: "SystemState") -> Generator:
-        retry = int(task.id) in self._starved_tasks
         if self._starved_spin(task):
             self._check_servable(task)
-            if retry:
-                # a starved task's retry skipped the spin that used to attempt creation: capacity may have freed
-                made = yield self.env.process(
-                    self.autoscaler.create_first_replica(system_state, task.type, source_node_name=task.node_name)
-                )
-                if not isinstance(made, StopIteration):
-                    task.postponed_count += 1
-                    yield self.tasks.put(task)
-                    return
             evict = getattr(self.autoscaler, "evict_idle_for", None)
             if evict is not None and evict(system_state, task.type, task.node_name):
                 self._defer_spin.pop(int(task.id), None)
