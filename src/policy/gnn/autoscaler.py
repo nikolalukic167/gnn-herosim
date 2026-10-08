@@ -41,7 +41,7 @@ from src.placement.model import (
 )
 
 from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
-from src.placement.infrastructure import FIDELITY, STARVED_RENDEZVOUS
+from src.placement.infrastructure import FIDELITY, STARVED_RENDEZVOUS, interrupt_if_waiting
 from src.placement.starved_defer import log_starved
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
@@ -150,13 +150,16 @@ class KnativeAutoscaler(Autoscaler):
                 if not platform.initialized.triggered:
                     continue
                 if (node.id, platform.id) in self.__dict__.get("_reserved_targets", ()):
+                    self.count_starved("evictions_skipped_reserved")
                     continue
                 if node.available_memory + mem_other[short] < task_type["memoryRequirements"][short]:
                     continue
                 load = len(platform.queue.items) + (1 if platform.current_task else 0) + len(getattr(platform, "inflight", ()))
                 if load == 0:
                     idle.append((platform.idle_since, node.id, platform.id, other, node, platform))
-                elif not self._drain_blocked(node, platform, (name, source_node_name)):
+                elif self._drain_blocked(node, platform, (name, source_node_name)):
+                    self.count_starved("victims_skipped_blocked")
+                else:
                     busy.append((load, node.id, platform.id, other, node, platform))
         state = system_state.scheduler_state
         if idle:
@@ -164,6 +167,7 @@ class KnativeAutoscaler(Autoscaler):
             (getattr(state, "average_contention", {}).get(other) or {}).pop((node.id, platform.id), None)
             released = self._release_replica(system_state, other, (node, platform))
             if released:
+                self.count_starved("evictions_idle")
                 self.starved_evictions = getattr(self, "starved_evictions", 0) + 1
                 print(f"[ {self.env.now} ] evicted: {released} ({other}) for starved {name} from {source_node_name}")
             return released
@@ -174,6 +178,8 @@ class KnativeAutoscaler(Autoscaler):
         system_state.replicas[other].remove((node, platform))
         (getattr(state, "average_contention", {}).get(other) or {}).pop((node.id, platform.id), None)
         draining.add((name, source_node_name))
+        self.__dict__.setdefault("draining_platforms", set()).add((node.node_name, platform.id))
+        self.count_starved("drains_started")
         print(f"[ {self.env.now} ] draining: {(node, platform)} ({other}, load {load}) for starved {name} "
               f"from {source_node_name}")
         self.env.process(self._release_when_drained(system_state, other, (node, platform), (name, source_node_name)))
@@ -221,10 +227,14 @@ class KnativeAutoscaler(Autoscaler):
         unplaced = self._releasable_peers(node, task, key)
         if not unplaced:
             return False
+        if not interrupt_if_waiting(proc, STARVED_RENDEZVOUS):
+            return False
         for peer in unplaced:
             peer.planned_node_name = node.node_name
-        proc.interrupt(STARVED_RENDEZVOUS)
         self.starved_rendezvous_releases = getattr(self, "starved_rendezvous_releases", 0) + 1
+        self.count_starved("rendezvous_releases")
+        if any(peer.node_name != key[1] for peer in unplaced):
+            self.count_starved("cross_source_releases")
         print(f"[ {self.env.now} ] rendezvous released: task {task.id} on {platform} planned "
               f"{[p.id for p in unplaced]} ({key[0]}) onto {node.node_name}")
         return True
@@ -253,6 +263,7 @@ class KnativeAutoscaler(Autoscaler):
             yield self.env.timeout(0.1)
         released = self._release_replica(system_state, function_name, replica, already_removed=True)
         self._draining.discard(key)
+        self.__dict__.get("draining_platforms", set()).discard((replica[0].node_name, platform.id))
         if released:
             self.starved_evictions = getattr(self, "starved_evictions", 0) + 1
             print(f"[ {self.env.now} ] evicted: {released} ({function_name}) drained for starved {key[0]} "
@@ -262,6 +273,22 @@ class KnativeAutoscaler(Autoscaler):
             )
 
     def create_first_replica(
+        self,
+        system_state: SystemState,
+        task_type: TaskType,
+        source_node_name: Optional[str] = None,
+    ):
+        """Counts calls that overlap in simulated time: the old filtered-pool swap leaked exactly then."""
+        self.count_starved("create_calls")
+        if self.__dict__.get("_creating", 0):
+            self.count_starved("create_overlap")
+        self._creating = self.__dict__.get("_creating", 0) + 1
+        try:
+            return (yield from self._create_first_replica(system_state, task_type, source_node_name))
+        finally:
+            self._creating -= 1
+
+    def _create_first_replica(
         self, 
         system_state: SystemState, 
         task_type: TaskType,

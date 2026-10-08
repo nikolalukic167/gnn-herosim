@@ -79,6 +79,9 @@ class StarvedDeferMixin:
         self._defer_spin[tid] = (self.env.now, n)
         if n > DEFER_SPIN_LIMIT:
             self._starved_tasks.add(tid)
+            count = getattr(self.autoscaler, "count_starved", None)
+            if count is not None:
+                count("starved_tasks")
             return True
         return False
 

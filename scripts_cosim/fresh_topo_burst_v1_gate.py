@@ -647,7 +647,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     drift = queue_drift(st.get("taskResults"))
     out = {k: st.get(k) for k in ("num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime",
                                   "averageWaitTime", "totalPeerExchangeTime", "totalPeerRendezvousWait", "endTime",
-                                  "schedulerCounters", "offloadingRate", "total_rtt_plus_inference")}
+                                  "schedulerCounters", "offloadingRate", "total_rtt_plus_inference",
+                                  "requestFailures", "requestTimeoutS")}
     c = out.get("schedulerCounters") or {}
     for k in ("residence_tasks", "residence_batches", "queue_range_records"):
         c.pop(k, None)
