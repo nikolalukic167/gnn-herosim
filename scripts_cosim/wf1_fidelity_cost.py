@@ -56,6 +56,7 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
     base_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
     row: Dict[str, Any] = {"dataset": job["dataset"], "plan_index": job["plan_index"]}
     t0 = time.perf_counter()
+    sink = io.StringIO()
     try:
         snap = job["snapshot"]
         fid = snap["fidelity"]
@@ -76,7 +77,6 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
         infra["scheduler"] = {"batch_size": max(len(wl["events"]), 1), "batch_timeout": 0.02}
         kw = snapshot_fidelity.live_run_params()
         sim_inputs = load_simulation_inputs(Path(job["sim_input"]))
-        sink = io.StringIO()
         with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
             res = execute_simulation({"infrastructure": infra, "workload": wl}, sim_inputs,
                                      scheduling_strategy="determined_determined", cache_policy="fifo",
@@ -95,6 +95,7 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
 
         row["error"] = f"{type(exc).__name__}: {str(exc)[:240]}"
         row["traceback"] = traceback.format_exc()[-1500:]
+        row["output_tail"] = "\n".join(l for l in sink.getvalue().splitlines() if "ERROR" in l)[-2500:]
     row["seconds"] = time.perf_counter() - t0
     row["rss_mb"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
     row["rss_over_import_mb"] = row["rss_mb"] - base_rss
