@@ -1161,6 +1161,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             task_start = default_timer()
             current_system_state = yield self.mutex.get()
             target_node_id, target_plat_id = placements[idx]
+            reserved_target = placements[idx]  # what reserve() took; a re-decode below moves placements[idx]
             task_replicas = current_system_state.replicas.get(task.type["name"], set())
             match = [
                 (node, plat) for node, plat in task_replicas
@@ -1172,6 +1173,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                     # every network-accessible replica of the type was evicted since the decode: the task is
                     # deferred behind an autoscaler request, as one with no replica at decode time is
                     self.prefix_tasks_deferred += 1
+                    if reserve is not None:
+                        self.autoscaler.unreserve_target(reserved_target)
                     yield from self._defer(task, current_system_state)
                     yield self.mutex.put(current_system_state)
                     continue
@@ -1223,7 +1226,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             node.wall_clock_scheduling_time += default_timer() - task_start
             yield platform.queue.put(task)
             if reserve is not None:
-                self.autoscaler.unreserve_target(placements[idx])
+                self.autoscaler.unreserve_target(reserved_target)
             self._record_residence_placed(task)
             yield task.scheduled.succeed()
             yield node.platforms.put(platform)
