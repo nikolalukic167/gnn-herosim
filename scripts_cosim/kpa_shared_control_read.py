@@ -56,10 +56,11 @@ def paired(a, b, arm_a, arm_b, ws):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out")
+    ap.add_argument("--suffix", default="", help="appended to the shared and kpa directory names (R1.1 re-measure: _r11); the legacy references are never suffixed")
     a = ap.parse_args()
     out = {}
     for cond in LEGACY:
-        leg, sh, kp = load(LEGACY[cond]), load([SHARED[cond]]), load([KPA[cond]])
+        leg, sh, kp = load(LEGACY[cond]), load([SHARED[cond] + a.suffix]), load([KPA[cond] + a.suffix])
         out[cond] = {}
         for rung in ("20", "30", "50"):
             ws = [f"g{i}x{rung}" for i in range(4)]
