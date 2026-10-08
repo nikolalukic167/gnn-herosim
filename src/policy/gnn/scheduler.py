@@ -1054,6 +1054,28 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             out[idx] = (node_id, best.id)
         return out
 
+    def _redecode_stale_placement(self, task: Task, system_state: SystemState) -> Optional[Tuple[int, int]]:
+        """Decode ``task`` again, alone, on the current state, or ``None`` when it has no valid replica left.
+
+        Reached only where the batch path used to raise: between the batch decode and this task's turn, the
+        mutex was released and a starved task type's scale-up evicted the decoded replica (workload_fix_v1 W4:
+        with four types sharing a node's platforms, the eviction is routine). The same decoder runs on the same
+        policy inputs, so this is a fresh decision, not a fallback; the task's own planned node follows it.
+        """
+        replicas = system_state.replicas.get(task.type["name"], set())
+        if not self._get_valid_replicas(replicas, task):
+            return None
+        placements = self._prefix_inference(
+            [task], system_state, self._capture_full_queue_snapshot(), self._capture_temporal_state_snapshot()
+        )
+        node_id, plat_id = placements[0]
+        task.planned_node_name = next(n.node_name for n in self.nodes.items if n.id == node_id)
+        logging.warning(
+            f"[ {self.env.now} ] GNN masked_topo: stale placement re-decoded for task {task.id} "
+            f"({task.type['name']}) -> ({node_id}, {plat_id})"
+        )
+        return node_id, plat_id
+
     def _process_task_batch_prefix(self, batch_tasks: List[Task]) -> Generator:
         """masked_topo batch path.
 
@@ -1143,6 +1165,15 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 (node, plat) for node, plat in task_replicas
                 if node.id == target_node_id and plat.id == target_plat_id
             ]
+            if not match:
+                redecoded = self._redecode_stale_placement(task, current_system_state)
+                if redecoded is not None:
+                    placements[idx] = redecoded
+                    target_node_id, target_plat_id = redecoded
+                    match = [
+                        (node, plat) for node, plat in task_replicas
+                        if node.id == target_node_id and plat.id == target_plat_id
+                    ]
             if not match:
                 raise RuntimeError(
                     f"masked_topo: decoded placement ({target_node_id}, {target_plat_id}) for "
