@@ -102,6 +102,16 @@ in which **any** arm still doesn't finish is excluded for **every** arm and list
 diagnosed as a simulator defect (`rp/starve`), not scored as an arm's latency. If more than 2 of the 19 topologies lose a
 cell at a rung, that rung is labelled `HANG-LIMITED` in the read.
 
+**Diagnosis (S5, same day, local repro of 9565 g2 heavy locality on S7's `f8a2d075`):** slow, not frozen. Cause 3 is
+re-forming faster than the timeout clears it. Client_node13 and client_node0 reach only node3's four rpi platforms, and all four
+are draining, each holding placed tasks in the rendezvous whose arrived-but-unplaced partners are another type. That makes a
+dnn2 → cnn → rf → dnn2 cycle, and a drain releases only its own type. R1.1-T already covers the blockers: about one cycle
+breaks per 300 s while new ones form at once. No leak; I13 holds. The cost is wall time: each starved task re-spins 50 times
+per simulated second (11.5 M deferrals by t ≈ 5,000 of ~9,400 s). **Decision:** no code change. The registered 3× wall-time
+rerun (8,100 s) is the test, and the rule above applies to whatever still doesn't finish. Request failures per arm are
+reported next to latency for those cells. A cheaper spin (would need identity again) and a drain-victim rule (a physics
+change) are deferred.
+
 ### 2026-10-08 — W3 (access-link classes) on R1.1: the stage read
 
 Job 843086, code `rp/wf1-w3-r11` `ebd673e9`, 760/760 runs, 0 failed, 0 hung, **0 request failures**. Read by S4's reader
