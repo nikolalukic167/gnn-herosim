@@ -60,7 +60,12 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
         snap = job["snapshot"]
         fid = snap["fidelity"]
         wl, forced, ids = snapshot_fidelity.replay_workload(fid)
-        batch_local = [ids[int(r["gid"])] for r in fid["batch"]]
+        # the dataset's task i is not the snapshot's i-th batch task: make_warm_corpus orders events by application
+        # (stable within a type), so match each dataset event to the next unused batch record of its type
+        by_type: Dict[str, List[int]] = {}
+        for r in sorted(fid["batch"], key=lambda r: int(r["gid"])):
+            by_type.setdefault(r["fn"], []).append(int(r["gid"]))
+        batch_local = [ids[by_type[t].pop(0)] for t in job["dataset_types"]]
         forced = dict(forced)
         forced.update({batch_local[i]: tuple(p) for i, p in job["plan"].items()})
         infra = deepcopy(job["base_infra"])
@@ -131,6 +136,8 @@ def main() -> int:
         snap = new
         cfg = json.loads(Path(prov["cell_config"]).read_text())
         base_infra = prepare_infrastructure_for_real_simulation(cfg, seed=None, sim_input_path=Path(a.sim_input))
+        wl_ds = json.loads((d / "workload.json").read_text())
+        dataset_types = [next(iter(e["application"]["dag"])) for e in wl_ds["events"]]
         rows = [json.loads(l) for l in open(d / "placements" / "placements.jsonl") if l.strip()]
         plans = [{int(k): tuple(int(x) for x in v) for k, v in r["placement_plan"].items()} for r in rows]
         idx = list(range(len(plans)))
@@ -140,7 +147,8 @@ def main() -> int:
                                 "queued_tasks": len(new["fidelity"]["queued"]), "batch_tasks": len(new["fidelity"]["batch"])}
         for i in idx:
             jobs.append({"dataset": d.name, "plan_index": i, "plan": plans[i], "snapshot": snap,
-                         "base_infra": base_infra, "sim_input": a.sim_input})
+                         "base_infra": base_infra, "sim_input": a.sim_input,
+                         "dataset_types": dataset_types})
     print(f"{len(jobs)} plan replays over {len(summary_meta)} datasets, {a.workers} workers", flush=True)
     ctx = mp.get_context("spawn")
     results: List[Dict[str, Any]] = []
