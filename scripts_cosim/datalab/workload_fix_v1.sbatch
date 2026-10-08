@@ -100,7 +100,7 @@ case "$JOB" in
   w3build)
     R=${WF1_ROOT:?FAIL LOUD: set WF1_ROOT}
     mkdir -p "$R"
-    python3 scripts_cosim/workload_fix_v1_w3_build.py --w2-inputs "$W/inputs_w2" --tags ${WF1_TAGNAMES:-lo hi} \
+    python3 scripts_cosim/workload_fix_v1_w3_build.py --w2-inputs "${WF1_W2_IN:-$W/inputs_w2}" --tags ${WF1_TAGNAMES:-lo hi} \
       --out "$R/inputs" --diff-out "$R/w3_vs_w2_diff.json"
     ;;
   w3smoke)
