@@ -3,6 +3,7 @@
 # (neither has a default: a job must name the code it runs, and the worktree is never moved while jobs run).
 #   verify  the legacy build chain reproduces client_local_v1/wl_so/grounded_x20 byte for byte
 #   replay  TP1 smoke arms on R1, for comparison between two worktrees (OUT names the directory)
+#   calcheck  CD and Knative on the calibration topologies at one multiplier (admission look)
 #   bisect  provisional load on the calibration topologies (workload_fix_v1_bisect.py)
 #   stage   build the stage's rungs (WF1_SAMPLER) and run the five classical arms on the 19 test topologies
 #SBATCH --job-name=wf1
@@ -51,6 +52,15 @@ case "$JOB" in
     TP1_COND=pipe_release TP1_SMOKE=${TP1_SMOKE:-cd,batched,reactive,selfpredict,locality} \
       python3 scripts_cosim/fresh_topo_burst_v1_gate.py tp1 --inputs "$IN" --out "$OUT" --selection "$IN/selected.json" \
       --parallel 5 --mem 4G --timeout 5400 --no-scope | grep -v "^\[skip"
+    ;;
+  calcheck)
+    # admission look at the calibration topologies: CD and Knative at one multiplier, short timeout
+    M=${WF1_M:-2}; tag=m${M//./p}
+    python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" \
+      --topologies 9601 9602 9603 9604 --rung "$tag=$(python3 -c "print(repr(1.0/$M))")" --payload-sampler legacy --out "$W/calcheck/$tag"
+    WF1_RUNGS=$tag WF1_TOPOS=9601,9602,9603,9604 WF1_CAL_WINDOWS=g0,g1,g2,g3 WF1_CAL_KINDS=cd,reactive \
+      python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$W/calcheck/$tag" --out "$W/calcheck/$tag/gate" \
+      --parallel "$P" --mem 4G --timeout "${TIMEOUT:-900}" --no-scope | grep -v "^\[skip"
     ;;
   bisect)
     python3 scripts_cosim/workload_fix_v1_bisect.py --work "$W/bisect" --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" \

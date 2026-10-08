@@ -237,7 +237,10 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             wins = [w for w in os.environ.get("WF1_CAL_WINDOWS", "g0,g1").split(",") if w]
             if not cal:
                 raise SystemExit("FAIL LOUD: wf1cal needs WF1_TOPOS")
-            return [task(t, f"{w}{tag}", "cd") for tag in WF1_TAGS for t in cal for w in wins]
+            kinds = [k for k in os.environ.get("WF1_CAL_KINDS", "cd").split(",") if k]
+            if any(k not in ("cd", "reactive") for k in kinds):
+                raise SystemExit(f"FAIL LOUD: WF1_CAL_KINDS={kinds!r}")
+            return [task(t, f"{w}{tag}", k) for tag in WF1_TAGS for t in cal for w in wins for k in kinds]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
         return [task(t, w, k) for k in rules for t in selection["topologies"] for w in WF1_LADDER]
     topos = selection["topologies"]
