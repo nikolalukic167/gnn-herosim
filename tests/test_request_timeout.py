@@ -13,7 +13,7 @@ class NS:
         self.__dict__.update(kw)
 
 
-def _platform(env, peers_ready_at=None):
+def _platform(env, peers_ready_at=None, partner=None):
     """A Platform whose rendezvous waits on an event that fires at `peers_ready_at` (never when None)."""
     storage = NS(type={"remote": True, "throughput": {"read": 1.0, "write": 1.0}, "latency": {"read": 0.0, "write": 0.0}})
     node = NS(storage=FilterStore(env), network={"bandwidth": 1.0}, local_dependencies=0,
@@ -29,6 +29,9 @@ def _platform(env, peers_ready_at=None):
 
         def _peer_exchange_time(self, task):
             return 0.0
+
+        def _unplaced_peers(self, task):
+            return [partner]
 
         def _peer_rendezvous_events(self, task):
             ready = env.event()
@@ -68,25 +71,46 @@ def _serve(env, platform, task):
     return done_at
 
 
-def test_a_task_whose_peer_never_arrives_fails_300_s_after_placement(monkeypatch):
+def test_a_partner_that_arrived_but_stays_unplaced_times_out_300_s_after_the_later_of_placement_and_arrival(monkeypatch):
     monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
     env = simpy.Environment()
-    platform, node = _platform(env)
+    partner = NS(dispatched_time=50.0)  # arrived 30 s after the task was placed (t = 20) and is never placed
+    platform, node = _platform(env, partner=partner)
     task = _task(env, scheduled_time=20.0)
     env.run(until=20.0)
     done_at = _serve(env, platform, task)
     env.run(until=1000)
     assert task.failed and task.failure_reason == infra.REQUEST_TIMEOUT
-    assert len(done_at) == 1 and 20.0 + REQUEST_TIMEOUT_S <= done_at[0] < 20.0 + REQUEST_TIMEOUT_S + 1.0 + 1e-6
+    assert len(done_at) == 1 and 50.0 + REQUEST_TIMEOUT_S <= done_at[0] < 50.0 + REQUEST_TIMEOUT_S + 1.0 + 1e-6
     assert platform.inflight == [] and platform.idle_since == done_at[0]
     assert node.orchestrator_ref.request_failures == 1
     assert task.started.triggered and not platform.rendezvous_procs
 
 
+def test_a_partner_that_has_not_arrived_never_times_out(monkeypatch):
+    monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
+    for partner in (None, NS(dispatched_time=None)):  # no task object yet / created but not dispatched
+        env = simpy.Environment()
+        platform, node = _platform(env, partner=partner)
+        task = _task(env, scheduled_time=0.0)
+        _serve(env, platform, task)
+        env.run(until=5000)
+        assert not task.failed and not task.done.triggered and platform.inflight == [task]
+        assert node.orchestrator_ref.request_failures == 0
+
+
+def test_the_clock_starts_when_the_late_partner_arrives(monkeypatch):
+    from src.placement.request_timeout import request_deadline
+    assert request_deadline(10.0, [NS(dispatched_time=4.0), NS(dispatched_time=90.0)]) == 90.0 + REQUEST_TIMEOUT_S
+    assert request_deadline(10.0, [NS(dispatched_time=4.0)]) == 10.0 + REQUEST_TIMEOUT_S
+    assert request_deadline(10.0, [NS(dispatched_time=4.0), None]) is None
+    assert request_deadline(10.0, []) is None
+
+
 def test_a_wait_that_ends_in_time_is_untouched_and_the_stale_deadline_does_nothing(monkeypatch):
     monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
     env = simpy.Environment()
-    platform, node = _platform(env, peers_ready_at=100.0)
+    platform, node = _platform(env, peers_ready_at=100.0, partner=NS(dispatched_time=0.0))
     task = _task(env)
     _serve(env, platform, task)
     env.run(until=1000)  # the deadline passes at 300 s while the task sleeps in its input stage
@@ -120,7 +144,7 @@ def test_a_drain_held_by_a_starved_peer_completes_when_the_request_times_out(mon
 
     monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
     env = simpy.Environment()
-    platform, node = _platform(env)
+    platform, node = _platform(env, partner=NS(dispatched_time=0.0))
     platform.queue = NS(items=[])
     platform.current_task = None
     task = _task(env)
