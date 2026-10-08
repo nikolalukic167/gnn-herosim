@@ -1,6 +1,6 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `ACTIVE` (2026-10-08) — W2 read on R1.1 (heavy: self-predict −6.1 % vs CD, 19/19; light: CD first). R1.1 accepted; `kpa_scaleout_v1` gates being re-measured on it. W3, W4 run, read next in order. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — W2 and W3 read on R1.1. W3 makes exchange the dominant cost; CD then leads at light and the batching arms at heavy, and self-predict's heavy lead shrinks to −2.9 % (DIRECTION). `kpa_scaleout_v1` gates are being re-measured on R1.1; W4 is read next. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
 
@@ -90,6 +90,28 @@ of which arm benefits.
 
 
 ## Record (newest first)
+
+### 2026-10-08 — W3 (access-link classes) on R1.1: the stage read
+
+Job 843086, code `rp/wf1-w3-r11` `ebd673e9`, 760/760 runs, 0 failed, 0 hung, **0 request failures**. Read by S4's reader
+(`0ebeca16`) through S6's wrapper (`rp/wf1-w3-r11-read` `79d381ef`): [`w23_r11_read.json`](workload_fix_v1/w23_r11_read.json).
+Paired % vs CD, median over 19 topologies, Holm over 6:
+
+| rung | CD latency | self-predict | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| light ×0.2666 | 4.29 s | +11.9 % (0/19, CD-FASTER) | +2.4 % (0/19, CD-FASTER) | +2.4 % (0/19, CD-FASTER) | +22.1 % |
+| heavy ×11.61 | 0.94 s | −2.9 % (16/19, Holm 0.0039, DIRECTION) | +22.4 % (0/19, CD-FASTER) | +22.8 % (0/19, CD-FASTER) | +120.4 % |
+
+- **Prediction 2 holds** (pooled descriptive): transfers between two wired servers cost about 0.25 s each and come to 1.3 / 2.6 %
+  of summed task time; any non-wired pair costs 2.5–3.0 s per transfer (cellular–cellular 5–6 s) and comes to 49 / 65 %. The
+  denominator is summed elapsed time, not a strict share, because a task can make several transfers.
+- **W3 makes exchange the dominant cost.** CD at light: exchange 1.99 of 4.29 s per task, rendezvous 1.75. At heavy: exchange 0.52
+  of 0.94. W3 minus W2 (paired): every arm is slower on 19/19 topologies, CD least (+70 / +90 %), reactive most (+106 / +289 %).
+- **Against W2:** self-predict's heavy-load lead over CD shrinks from −6.1 % (CONFIRMED) to −2.9 % (DIRECTION), and it loses
+  +11.9 % at light. The batching arms fall 22 % behind CD at heavy. CD's joint search gains the most from the new link
+  heterogeneity.
+- Wired+wired share of each arm's transfers: 21–25 % at light and 23–35 % at heavy (reactive 22.7 %, self-predict 35.4 %, CD 31.3 %).
+  Whether any arm routes around slow links needs the share a random placement would give; requested.
 
 ### 2026-10-08 — W2 on R1.1: the stage read (window 1 s)
 
