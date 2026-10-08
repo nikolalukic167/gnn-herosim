@@ -22,6 +22,11 @@ Revision 2026-10-08 (before any run): calibration now runs on the fixed workload
     below that it's a ratio of small integers, so it's reported, not applied.
   - The backlog guard replaces a queue-time-only version that would have missed the unplaced wait. The job that used it
     (843483) was cancelled after about 10 minutes, and 843490 before any evaluation (the in-system rule must steer the search, not only the read). Bisection job: 843494, code `0f6e7832` (only the bisect script and its test differ from `8286024c`).
+  - **Bracket amendment (2026-10-09, after the first context evaluation and before any midpoint).** ×11.61 gives a CD
+    median share of 0.104 (Knative 0.0003), so every rung lies at about ×10 or above. The ×0.05 end costs hours (simulated time
+    grows as 1/m) without moving any rung. The lower end becomes the already-evaluated ×0.2666, and ×11.61 for
+    moderate and heavy, whose bands sit above 0.104. The upper end stays ×64, and no midpoint below ×5 is evaluated
+    unless the bracket requires it. Rung definitions, guards and the step cap are unchanged.
 
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
