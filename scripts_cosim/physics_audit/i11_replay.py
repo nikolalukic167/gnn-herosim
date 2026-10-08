@@ -188,6 +188,22 @@ def summarize(results: List[Dict[str, Any]]) -> None:
         line(tag, [r for r in results if tag in r["tags"]])
     line("open_peers>0", [r for r in results if r.get("open_peers")])
     line("open_peers=0", [r for r in results if not r.get("open_peers")])
+    summarize_continuing(results)
+
+
+def summarize_continuing(results: List[Dict[str, Any]], tol: float = 0.01) -> None:
+    """The second column, reported and not scored: the replay against the live run that kept going (later arrivals
+    included). Also the time of the latest state it misses by more than `tol` (labels are cut from twice that)."""
+    rs = [r for r in results if r.get("rel_err_continuing") is not None]
+    if not rs:
+        return
+    e = sorted(abs(r["rel_err_continuing"]) for r in rs)
+    failed = len(results) - len(rs)
+    p95 = e[min(len(e) - 1, math.ceil(0.95 * len(e)) - 1)]
+    miss = [r for r in rs if abs(r["rel_err_continuing"]) > tol]
+    print(f"continuing-run reference (reported, not scored): n={len(results)} unreplayed={failed} "
+          f"median|err|={statistics.median(e):.2%} p95|err|={p95:.2%} max|err|={e[-1]:.2%} "
+          f"misses>{tol:.0%}: {len(miss)}; latest miss at t={max((r['t'] for r in miss), default=float('nan')):.1f}s")
 
 
 def main() -> int:
@@ -357,6 +373,8 @@ def main() -> int:
                 row["error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
             if "replay" in row:
                 row["rel_err"] = (row["replay"] - row["live"]) / row["live"] if row["live"] > 0 else None
+                row["rel_err_continuing"] = ((row["replay"] - row["live_continuing"]) / row["live_continuing"]
+                                             if row["live_continuing"] > 0 else None)
             fout.write(json.dumps(row) + "\n")
             fout.flush()
             results.append(row)
