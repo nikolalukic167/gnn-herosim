@@ -752,6 +752,11 @@ def start_simulation(
     orchestrator_type, autoscaler_type, scheduler_type = policies[
         simulation_policy.scheduling
     ]
+    # kpa_scaleout_v1 A4: under kpa every arm runs the GNN-family autoscaler (starved-type eviction and
+    # rendezvous release), so arms differ only in their scheduler. Legacy keeps the historical pairing.
+    from src.placement.scaleout import KPA, scaleout_mode
+    if scaleout_mode() == KPA and autoscaler_type is KnativeNetworkAutoscaler:
+        autoscaler_type = GNNAutoscaler
 
     orchestrator_args = {
         'env': env,

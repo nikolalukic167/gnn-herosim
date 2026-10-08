@@ -31,13 +31,18 @@ from src.placement.live_audit import (
 )
 from src.placement.model import SystemState
 
+from src.placement.scaleout import KPA, scaleout_mode
 from src.placement.scheduler import Scheduler
+from src.placement.starved_defer import StarvedDeferMixin
 from src.policy.state_capture import StateCaptureHelper
 
 
-class KnativeScheduler(Scheduler):
+class KnativeScheduler(StarvedDeferMixin, Scheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # kpa_scaleout_v1 A4: under kpa a starved task is deferred as in the GNN family (evict, then timed retry)
+        self._kpa_defer = scaleout_mode() == KPA
+        self._init_starved_defer()
         # State capture helper (initialized lazily when env/nodes are available)
         self._state_capture: Optional[StateCaptureHelper] = None
         self._audit_snapshots_written = 0
@@ -72,6 +77,11 @@ class KnativeScheduler(Scheduler):
                     f"[ {self.env.now} ] Scheduler did not find network-accessible replica for"
                     f" {task} (total replicas: {len(replicas)})"
                 )
+
+                if self._kpa_defer:
+                    yield from self._defer(task, system_state)
+                    yield self.mutex.put(system_state)
+                    continue
 
                 # Put task back in queue
                 task.postponed_count += 1
