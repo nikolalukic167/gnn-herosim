@@ -109,6 +109,17 @@ Each arm vs CD, paired, under `kpa`.
 
 ## Record
 
+### 2026-10-08 — re-measure on R1.1: pipe_release unchanged
+
+Required by `workload_fix_v1`'s R1.1 rule (the free-pool leak touched completed runs). Run at the published settings
+(per-rung policy time scale), code `rp/kpa-r11` `16f2dcc7` (`src/` identical to R1.1 `252b45aa`), job 843075, output
+`gate_pipe_release_kpa_r11`: 1,596/1,596, 0 failed, 0 hung, 0 request failures. **1 of 1,596 cells differs**: CD on cc40s9529 g2
+×5, 0.8953 → 0.8899 s (−0.61 %, a replica-pool difference consistent with the leak, not traced). Every vs-CD row and label
+matches the published table to the printed digit; self-predict is −8.8 / −9.2 / −9.5 % at ×2 / ×3 / ×5, CONFIRMED 19/19.
+The r11 Holm runs over this condition's 15 tests and the published one over 60; both are in
+[`kpa_r11_pipe_release_read.json`](kpa_scaleout_v1/kpa_r11_pipe_release_read.json). **The R1 headline stands on R1.1.**
+The other three conditions and the four controls are running.
+
 ### 2026-10-08 — read (code `71d9cbcb`; control `38cd802f`)
 - **Replay.** Legacy scale-out at `71d9cbcb` reproduces `transfer_physics_v1` field for field: 23 / 23, 1,589 / 1,589,
   1,592 / 1,592, 1,591 / 1,591 (only the runs that failed in the original gate are absent;
