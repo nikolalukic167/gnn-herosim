@@ -206,6 +206,9 @@ def main() -> int:
     ap.add_argument("--truth", choices=("isolated", "continuing"), default="isolated",
                     help="isolated: the live run truncated after the batch (the label's meaning); continuing: the "
                          "full live run, later arrivals included")
+    ap.add_argument("--replay", choices=("fidelity", "original"), default="fidelity",
+                    help="original: the replay as live_snapshot_cosim_oracle builds it (batch-only workload, no fidelity "
+                         "block, KEEP_ALIVE / QUEUE_LENGTH) -- the before of the before/after")
     ap.add_argument("--policy", default="peer_greedy_network_cd")
     ap.add_argument("--workers", type=int, default=4, help="parallel isolated live runs")
     ap.add_argument("--future", choices=("live", "none"), default="live",
@@ -236,6 +239,14 @@ def main() -> int:
         chosen = select_states(states, args.n, args.targeted)
     print(f"{len(states)} replayable states, replaying {len(chosen)} (params={args.params})", flush=True)
 
+    if args.replay == "original":
+        args.params = "oracle"
+        from scripts_cosim.live_snapshot_cosim_oracle import build_workload_from_snapshot
+
+        # the oracle context defaults to seed=101, which builds a different topology from the live cell's (a 101-seeded
+        # replay of cell 9483 has 316 routes against the live 328, and the simulator exits on a missing connection);
+        # the live run's seed (None: the config's own) is used so the comparison isolates what the snapshot lacks
+        base_infra = prepare_infrastructure_for_real_simulation(space_config, seed=None, sim_input_path=Path(args.sim_input))
     if args.params == "live":
         kw = snapshot_fidelity.live_run_params()
     else:
@@ -271,16 +282,25 @@ def main() -> int:
     with open(args.out, "w") as fout:
         for st in chosen:
             snap = snaps[skey(st)]
-            fid = snap["fidelity"]
-            open_peers = sum(1 for rows in fid["peers"].values() for r in rows if r[1] is None)
-            if args.future == "live" and open_peers:
-                fid = dict(fid, future={
-                    str(r[0]): [future[r[0]]["scheduled"] - st["t"], future[r[0]]["node"]]
-                    for rows in fid["peers"].values() for r in rows if r[1] is None and r[0] in future})
-                snap = dict(snap, fidelity=fid)
-            wl, forced, ids = snapshot_fidelity.replay_workload(fid)
-            batch_local = [ids[g] for g in st["batch"]]
-            forced.update({batch_local[i]: tuple(p) for i, p in st["plan"].items()})
+            if args.replay == "original":
+                # the oracle's own construction: the batch alone, from the snapshot's task list
+                snap = {k: v for k, v in snap.items() if k != "fidelity"}
+                wl = build_workload_from_snapshot(snap["tasks"])
+                batch_local = list(range(len(st["batch"])))
+                forced = {i: tuple(p) for i, p in st["plan"].items()}
+                fid = {"queued": [], "peers": {}}
+                open_peers = 0
+            else:
+                fid = snap["fidelity"]
+                open_peers = sum(1 for rows in fid["peers"].values() for r in rows if r[1] is None)
+                if args.future == "live" and open_peers:
+                    fid = dict(fid, future={
+                        str(r[0]): [future[r[0]]["scheduled"] - st["t"], future[r[0]]["node"]]
+                        for rows in fid["peers"].values() for r in rows if r[1] is None and r[0] in future})
+                    snap = dict(snap, fidelity=fid)
+                wl, forced, ids = snapshot_fidelity.replay_workload(fid)
+                batch_local = [ids[g] for g in st["batch"]]
+                forced.update({batch_local[i]: tuple(p) for i, p in st["plan"].items()})
             infra = deepcopy(base_infra)
             infra["live_snapshot_seed"] = build_live_snapshot_seed(snap)
             infra["forced_placements"] = forced
@@ -333,7 +353,7 @@ def main() -> int:
                     row["replay_tasks"] = [{k: trs[i].get(k) for k in keep} for i in batch_local]
                 row["scaleout_target"] = (stats.get("scaleOut") or {}).get("target")
                 row["replay_cold"] = sum(bool(trs[i]["coldStarted"]) for i in batch_local)
-            except Exception as exc:  # a failed replay is a result, recorded by name
+            except (Exception, SystemExit) as exc:  # a failed replay (or a sys.exit inside the simulator) is a result, recorded by name
                 row["error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
             if "replay" in row:
                 row["rel_err"] = (row["replay"] - row["live"]) / row["live"] if row["live"] > 0 else None

@@ -137,10 +137,11 @@ class AuditRecorder:
     # ---- transfers (I2, I3) ----------------------------------------------------------------------------------
     def transfer(self, env: Any, kind: str, task: Any, src: str, dst: str, size_bytes: float,
                  route: Iterable, model: str, charged: float, latency: Optional[float] = None,
-                 wait: Optional[float] = None, store_forward: bool = False) -> None:
+                 wait: Optional[float] = None, store_forward: bool = False,
+                 route_latency: Optional[float] = None) -> None:
         self.emit("xfer", env.now, kind=kind, task=int(task.id), src=src, dst=dst, bytes=_f(size_bytes),
                   route=[[k, _f(bw)] for k, bw in route], model=model, charged=_f(charged), latency=_f(latency),
-                  wait=_f(wait), sf=bool(store_forward))
+                  wait=_f(wait), sf=bool(store_forward), route_latency=_f(route_latency))
 
     # ---- replicas (I4-I6, I9) --------------------------------------------------------------------------------
     def replica_up(self, env: Any, function_name: str, node: Any, platform: Any, cause: str,
@@ -169,10 +170,12 @@ class AuditRecorder:
 
     # ---- KPA (I5) --------------------------------------------------------------------------------------------
     def kpa_tick(self, env: Any, function_name: str, observed: float, current: int, ready: int, decision: Any,
-                 load_live: int) -> None:
+                 load_live: int, occupancy: Dict[str, int]) -> None:
+        """`occupancy`: tasks each of the function's replicas holds right now (queued, admitted, in flight, running);
+        the I1 check compares its time average with lambda x W from the task rows."""
         self.emit("kpa", env.now, fn=function_name, obs=_f(observed), cur=int(current), ready=int(ready),
                   desired=int(decision.desired), panic=bool(decision.panicking), stable=_f(decision.stable_avg),
-                  load_live=int(load_live))
+                  load_live=int(load_live), occ=dict(occupancy))
 
     # ---- decisions (I10) -------------------------------------------------------------------------------------
     def decision(self, env: Any, sim_before: float, sim_after: float, wall_s: float, n_tasks: int,
