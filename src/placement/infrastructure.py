@@ -123,6 +123,7 @@ def slim_completed_task(task: "Task") -> None:
     if hasattr(task, "system_state_snapshot"):
         task.system_state_snapshot = None
 
+from src.placement.request_timeout import REQUEST_TIMEOUT, REQUEST_TIMEOUT_S, expire_requests, interrupt_if_waiting  # noqa: F401
 from simpy.core import Environment, SimTime
 from simpy.exceptions import Interrupt
 from simpy.resources.resource import Resource
@@ -259,6 +260,8 @@ class Task:
         self.policy = policy
         self.node_name = node_name
         self.finished = False
+        self.failed = False
+        self.failure_reason: Optional[str] = None
 
         # Timing metrics - using Optional for fields that start as None
         self.dispatched_time: Optional[SimTime] = None
@@ -1616,6 +1619,34 @@ class Platform:
                 continue
             yield from self._serve_task(task, cold_start_duration)
 
+    def _fail_task(self, task: "Task", release: bool, reason: str):
+        """The request fails: it leaves the replica without executing and enters latency at its elapsed time. The
+        replica is free for the tasks queued behind it (and, when it was the last one in flight, to drain)."""
+        from src.placement.starved_defer import log_starved
+        task.failed = True
+        task.failure_reason = reason
+        self.inflight_service_end = None
+        if release:
+            self.inflight.remove(task)
+        else:
+            self.previous_task = task
+            self.current_task = None
+        if not self.inflight:
+            self.idle_since = self.env.now
+        orchestrator = getattr(self.node, "orchestrator_ref", None)
+        if orchestrator is not None:
+            orchestrator.request_failures += 1
+        log_starved(self, self.env.now, ("request-timeout", task.type["name"], task.node_name),
+                    f"[ {self.env.now} ] {task} from {task.node_name} failed on {self} after "
+                    f"{self.env.now - (task.scheduled_time or self.env.now):.1f}s without its peers ({reason})")
+        if _AUDIT is not None:
+            _AUDIT.failed(self.env, task, self, reason)
+        if not task.started.triggered:
+            yield task.started.succeed()
+        yield task.done.succeed()
+        if not getattr(task, "is_internal", False):
+            slim_completed_task(task)
+
     def _serve_task(self, task: "Task", cold_start_duration: float, release: bool = False):
         """Input stage, rendezvous, peer exchange, execution and output of one task. ``release``
         (HEROSIM_REPLICA_RELEASE=1): the replica is not held while the task waits for its peers or moves
@@ -1722,19 +1753,32 @@ class Platform:
             # starved peers onto the node its replica will be created on and interrupts this wait.
             if not release:
                 self.rendezvous_task = task
+            # The one wait on a placed task with no bound of its own (a peer can stay unplaced forever). Its deadline is
+            # registered, not scheduled: the autoscaler tick calls expire_requests(). An extra SimPy event would shift
+            # the event each tick's env.step() consumes and change every run.
+            deadline = (task.scheduled_time if task.scheduled_time is not None else rendezvous_started) + REQUEST_TIMEOUT_S
+            self.env.__dict__.setdefault("request_waits", {})[task] = (
+                deadline, self.env.active_process if release else self.run)
+            timed_out = False
             try:
                 for peer_ready in rendezvous:
                     yield peer_ready
             except Interrupt as interrupt:
-                if interrupt.cause != STARVED_RENDEZVOUS:
+                if interrupt.cause == REQUEST_TIMEOUT:
+                    timed_out = True
+                elif interrupt.cause != STARVED_RENDEZVOUS:
                     raise
             finally:
+                self.env.request_waits.pop(task, None)
                 if release:
                     self.rendezvous_procs.pop(task, None)
                 else:
                     self.rendezvous_task = None
         if self.env.now > rendezvous_started:
             task.peer_rendezvous_wait = self.env.now - rendezvous_started
+        if rendezvous and timed_out:
+            yield from self._fail_task(task, release, REQUEST_TIMEOUT)
+            return
 
         if _AUDIT is not None:
             task._audit_rendezvous_end = self.env.now

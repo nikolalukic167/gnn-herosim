@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""physics_audit_v1 -- invariant checkers I1-I10 and I12, over traces written with HEROSIM_AUDIT_TRACE.
+"""physics_audit_v1 -- invariant checkers I1-I10, I12 and I13, over traces written with HEROSIM_AUDIT_TRACE.
 
 (I11 is `i11_replay.py`.) Every checker returns a dict
     {"id", "name", "status", "bar", "numbers", "detail"}
@@ -387,7 +387,8 @@ def i7_conservation(tr: Trace) -> Dict[str, Any]:
     arrive = {r["task"] for r in tr["arrive"]}
     done = {r["task"] for r in tr["svc"]}
     if not ends:
-        return result("I7", "Conservation", "NOT-TESTED", bar, {"arrived": len(arrive), "completed": len(done)}, "no end row (run did not finish)")
+        return result("I7", "Conservation", "FAIL", bar, {"arrived": len(arrive), "completed": len(done)},
+                      "no end row: the run did not finish, so its tasks are neither completed nor logged failed")
     e = ends[-1]
     failed = set(e["failed_ids"])
     silent = sorted(arrive - done - failed)
@@ -397,6 +398,32 @@ def i7_conservation(tr: Trace) -> Dict[str, Any]:
     ok = (e["dispatched"] == e["done"] + e["failed"] and not silent and not e["undispatched_ids"] and not e["not_done_ids"]
           and e["created"] == e["dispatched"])
     return result("I7", "Conservation", "PASS" if ok else "FAIL", bar, dict(numbers, examples=silent[:5]))
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# I13 pool conservation
+# ---------------------------------------------------------------------------------------------------------------
+def i13_pool_conservation(tr: Trace) -> Dict[str, Any]:
+    """Every platform is free, owned by a replica, or being drained: free + owned + draining equals the node's
+    platform count at every KPA tick, and the free count equals the node's own `available_platforms` counter. A
+    platform that is none of them has leaked out of the pool and no starved task can ever claim it."""
+    bar = "free + owned + draining = platforms on every node at every KPA tick"
+    rows = tr["pool"]
+    if not rows:
+        return result("I13", "Pool conservation", "NOT-TESTED", bar, {"ticks": 0}, "no pool rows in the trace")
+    total = {n["node"]: int(n["platforms"]) for n in tr.header["nodes"]}
+    bad, first = 0, []
+    for r in rows:
+        seen = r["nodes"]
+        for name, count in total.items():
+            free, owned, draining, avail = seen.get(name, [0, 0, 0, None])
+            if free + owned + draining != count or (avail is not None and avail != free):
+                bad += 1
+                if len(first) < 5:
+                    first.append({"t": r["t"], "node": name, "free": free, "owned": owned, "draining": draining,
+                                  "platforms": count, "available_platforms": avail})
+    return result("I13", "Pool conservation", "PASS" if not bad else "FAIL", bar,
+                  {"ticks": len(rows), "violations": bad, "first": first})
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -524,7 +551,7 @@ def run_trace_checks(trace_path: str, result_path: Optional[str] = None) -> List
     res = json.load(open(result_path)) if result_path else None
     return [i1_littles_law(tr), i2_transfer_time(tr), i3_no_store_and_forward(tr), i4_released_replicas(tr),
             i5_scaleout_causality(tr), i6_memory(tr, res), i7_conservation(tr), i9_cold_start_accounting(tr),
-            i10_decision_time(tr, res)]
+            i10_decision_time(tr, res), i13_pool_conservation(tr)]
 
 
 def print_table(results: Sequence[Dict[str, Any]], title: str = "") -> None:

@@ -81,6 +81,9 @@ def good_rows():
         in_system = sum(1 for j in range(N_TASKS) if j <= t < j + 1.9)  # ties counted inclusively (upper bound)
         rows.append({"k": "kpa", "t": float(t), "fn": "f", "obs": float(round(wave)), "cur": 4, "ready": 4, "desired": 4,
                      "panic": False, "stable": wave, "load_live": int(round(wave)), "occ": {Q: in_system}})
+    for t in range(0, N_TASKS, 1):  # 4 platforms: 3 owned (one of them draining from t = 200), the rest free
+        draining = 1 if t >= 200 else 0
+        rows.append({"k": "pool", "t": float(t), "nodes": {NODE: [1, 3 - draining, draining, 1]}})
     rows.append({"k": "end", "t": float(N_TASKS + 2), "created": N_TASKS, "dispatched": N_TASKS, "done": N_TASKS, "failed": 0,
                  "failed_ids": [], "not_done_ids": [], "undispatched_ids": []})
     return rows
@@ -115,7 +118,8 @@ def rows():
 def test_good_trace_passes_everything(tmp_path, rows):
     tr = ci.Trace(write(tmp_path, rows))
     for check in (ci.i1_littles_law, ci.i2_transfer_time, ci.i3_no_store_and_forward, ci.i4_released_replicas,
-                  ci.i6_memory, ci.i7_conservation, ci.i9_cold_start_accounting, ci.i10_decision_time):
+                  ci.i6_memory, ci.i7_conservation, ci.i9_cold_start_accounting, ci.i10_decision_time,
+                  ci.i13_pool_conservation):
         r = check(tr)
         assert r["status"] == "PASS", (r["id"], r["status"], r["detail"], r["numbers"])
     assert ci.i5_scaleout_causality(tr)["status"] == "PASS"
@@ -237,6 +241,38 @@ def test_i7_logged_failure_is_not_a_drop(tmp_path, rows):
         e = next(r for r in rs if r["k"] == "end")
         e["done"], e["failed"], e["failed_ids"] = N_TASKS - 1, 1, [77]
     assert status(ci.i7_conservation, tmp_path, mutated(rows, failed)) == "PASS"
+
+
+def test_i7_unfinished_run_fails(tmp_path, rows):
+    def unfinished(rs):
+        rs.remove(next(r for r in rs if r["k"] == "end"))
+    assert status(ci.i7_conservation, tmp_path, mutated(rows, unfinished)) == "FAIL"
+
+
+def test_i13_leaked_platform_fails(tmp_path, rows):
+    """The free-pool leak: a platform neither free, owned nor draining (free + owned + draining = 3 of 4)."""
+    def leak(rs):
+        for r in rs:
+            if r["k"] == "pool" and r["t"] >= 120.0:
+                r["nodes"][NODE][0] = 0
+                r["nodes"][NODE][3] = 0
+    assert status(ci.i13_pool_conservation, tmp_path, mutated(rows, leak)) == "FAIL"
+
+
+def test_i13_counter_that_disagrees_with_the_pool_fails(tmp_path, rows):
+    def drift(rs):
+        next(r for r in rs if r["k"] == "pool" and r["t"] == 50.0)["nodes"][NODE][3] = 0
+    assert status(ci.i13_pool_conservation, tmp_path, mutated(rows, drift)) == "FAIL"
+
+
+def test_i13_platform_counted_twice_fails(tmp_path, rows):
+    def twice(rs):
+        next(r for r in rs if r["k"] == "pool" and r["t"] == 250.0)["nodes"][NODE][2] += 1
+    assert status(ci.i13_pool_conservation, tmp_path, mutated(rows, twice)) == "FAIL"
+
+
+def test_i13_without_pool_rows_is_not_tested(tmp_path, rows):
+    assert status(ci.i13_pool_conservation, tmp_path, [r for r in rows if r["k"] != "pool"]) == "NOT-TESTED"
 
 
 def test_i9_warm_start_charged_fails(tmp_path, rows):
@@ -413,3 +449,33 @@ def test_replica_count_series_matches_the_event_record():
     # a: 0 on [0,2), 2 on [2,6), 1 on [6,10) = 12 replica-seconds; b: 1 on [4,10) = 6
     assert abs(got["time_mean"] - (2 * 4 + 1 * 4 + 6) / 10.0) < 1e-9
     assert g.replica_count_series(None, 10.0) is None and g.replica_count_series(ev, 0) is None
+
+
+def test_i13_emitter_reports_a_pool_that_lost_a_platform(tmp_path):
+    """Through the real AuditRecorder.pool: the state the filtered-pool swap left behind (a node's free set gone from
+    `available_resources`, its platforms owned by nobody) fails I13; the same state intact passes."""
+    import simpy
+    from types import SimpleNamespace as NS
+    from src.placement.physics_audit import AuditRecorder
+
+    class H:  # hashable, like Node / Platform
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    env = simpy.Environment()
+    node = H(node_name=NODE, available_platforms=2)
+    owned = {(node, H(id=1)), (node, H(id=2))}
+    free = {H(id=3), H(id=4)}
+
+    def trace(available):
+        path = tmp_path / "pool.jsonl"
+        rec = AuditRecorder(str(path))
+        rec.emit("header", 0.0, env={}, nodes=[{"node": NODE, "id": 0, "memory": 1.0, "available_memory": 1.0, "platforms": 4}])
+        rec.pool(env, NS(available_resources=available, replicas={"f": owned}), ())
+        rec.close()
+        return ci.Trace(str(path))
+
+    assert ci.i13_pool_conservation(trace({node: free}))["status"] == "PASS"
+    node.available_platforms = 0
+    leaked = ci.i13_pool_conservation(trace({}))
+    assert leaked["status"] == "FAIL" and leaked["numbers"]["first"][0]["free"] == 0
