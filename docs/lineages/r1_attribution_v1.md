@@ -4,6 +4,15 @@
 `workload_fix_v1` (WF1), `load_recalibration_v1` (rungs). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Revision 2026-10-08 (before any run): trains on WF1 instead of today's workload; candidate pruning declared.
 
+**Precondition met (2026-10-08, before any run): I11 holds on R1.1 + WF1.** S5, job 843489, `rp/i11-wf1` `ac1915b1`
+(audit drivers only on `97269192`). The replay builds the live topology, with W3's directional links and access classes, and
+replays per-task types (W4). Cells: calibration 9601/9602/9607/9608 × ×0.2666 / ×11.61, CD, window g0, 6,000 arrivals each;
+12 states from t ≥ 360 s in the first 3,000 arrivals plus 20 beyond them. **255 of 256 states: median 0.000 %, p95 0.126 %,
+max 0.656 %, none above 5 %**; beyond 3,000 arrivals the p95 is 0.105 %. One miss is on the truth side (the isolated live run
+scheduled the tasks at another instant) and stays in the denominator. Limits: one window; at ×11.61 the states reach only
+t ≤ 1,059 s. Re-check 20 states at the recalibrated heavy rung, late in the trace, before labels are built there. Per-state rows:
+datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
+
 ## Questions
 - Q1 (performance): does any learned arm, trained on R1 + WF1, beat CD there?
 - Q2 (attribution): where learned arms differ, is it message passing, relational features, or set context?
