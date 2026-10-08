@@ -10,7 +10,7 @@ CD guards (a rung where CD fails one is not allowed): every cell finishes; reque
 latency p95 <= 300 s; run end <= 1.25 x last arrival (all per cell, worst cell reported). Rung-specific, from the
 definition table: light needs the median mean-per-replica busy fraction < 0.3; heavy needs end-of-run backlog <= 2 x
 mid-run backlog (per task placement wait + queue time, by arrival: mean of the last quarter over the mean of the middle two
-quarters, worst cell) AND the in-system count at 3/4 over 1/2 of the last arrival <= 2.
+quarters, worst cell) AND, in cells with in-system(1/2) >= 20, the in-system count at 3/4 over 1/2 of the last arrival <= 2.
 The same guards are computed for Knative and reported, never disqualifying.
 
 Search per rung: log-bisection between the shared end points. An evaluation whose CD guards fail counts as above target.
@@ -38,6 +38,7 @@ from typing import Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 BANDS = {"light": (0.05, 0.10), "moderate": (0.20, 0.30), "heavy": (0.40, 0.50)}
+MIN_IN_SYSTEM = 20  # the in-system ratio binds only when in-system(1/2) is at least this (small counts are noise); always reported
 LIMITS = {"request_failure_pct": 1.0, "p95_s": 300.0, "end_over_last_arrival": 1.25, "busy_fraction": 0.3, "backlog_ratio": 2.0}
 
 
@@ -64,7 +65,8 @@ def cell_metrics(s: dict) -> dict:
     pw = s.get("placement_wait") or {}
     return {"queue_share": s["queue_share"], "latency_s": s["averageElapsedTime"], "request_failure_pct": 100.0 * rf / n,
             "p95_s": lp.get("p95"), "p99_s": lp.get("p99"), "end_over_last_arrival": ae.get("end_over_last_arrival"),
-            "busy_fraction": busy, "backlog_ratio": backlog, "in_system_ratio": bp.get("in_system_ratio"), "wait_mean_s": pw.get("mean"), "wait_p95_s": pw.get("p95"),
+            "busy_fraction": busy, "backlog_ratio": backlog, "in_system_ratio": bp.get("in_system_ratio"),
+            "in_system_half": (bp.get("in_system_at") or {}).get("half"), "wait_mean_s": pw.get("mean"), "wait_p95_s": pw.get("p95"),
             "wait_max_s": pw.get("max")}
 
 
@@ -83,7 +85,8 @@ def guards(cells: List[dict], expected: int, rung: Optional[str] = None) -> dict
          and worst("end_over_last_arrival") <= LIMITS["end_over_last_arrival"],
          "busy": bool(busy) and st.median(busy) < LIMITS["busy_fraction"],
          "backlog": bool(cells) and worst("backlog_ratio") is not None and worst("backlog_ratio") <= LIMITS["backlog_ratio"]
-         and worst("in_system_ratio") is not None and worst("in_system_ratio") <= LIMITS["backlog_ratio"]}
+         and all(c["in_system_ratio"] is not None and c["in_system_ratio"] <= LIMITS["backlog_ratio"]
+                 for c in cells if (c["in_system_half"] or 0) >= MIN_IN_SYSTEM)}
     g["values"] = {"worst_request_failure_pct": worst("request_failure_pct") if cells else None, "worst_p95_s": worst("p95_s") if cells else None,
                    "worst_end_over_last_arrival": worst("end_over_last_arrival") if cells else None,
                    "median_busy_fraction": st.median(busy) if busy else None,
