@@ -22,6 +22,21 @@ Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (n
   (`src/generate_infrastructure.py`, `if not replica_servers: continue`), so `rf` / `cnn` can be unreachable. The fix
   repairs every type the workload uses; the static check then runs over all test and calibration topologies.
 
+
+**Implementation and W4 precondition (2026-10-08, before any W4 run).** Code at `28411eb3` (all opt-in; with the
+flags off, 96 of 96 configs and the minter replay byte for byte): `src/placement/workload_payloads.py` (W2,
+`--payload-sampler wf1_v1` on `grounded_workload_v1_mint.py` only), per-node access classes and direction-aware
+bandwidth in `src/placement/network_fabric.py` (W3; every bandwidth reader, including CD's cost model and the GNN
+features, goes through `fabric.hops` or `route_hops_and_bottleneck`), and `network.reachability_repair` (W4), which
+fails loud on a used type with no server replica instead of skipping it. Static check
+(`scripts_cosim/workload_fix_v1_reachability_check.py`): **19 / 19 test topologies pass without the repair**
+([`reach_19.json`](workload_fix_v1/reach_19.json)) and 96 / 96 configs of the pool pass with it
+([`reach_all_repair.json`](workload_fix_v1/reach_all_repair.json)), so the `rf` / `cnn` defect is latent in these
+configs; the 4 calibration topologies are checked when minted. W3 draws on the 96 configs: 40.1 / 40.5 / 19.4 %.
+**Calibration topologies: ids 9601–9604**, minted with the same generator and config template as the 9473–9568
+pool (unused anywhere in `simulation_data/` or the record, checked 2026-10-08). The 77 non-admitted ids of that pool
+are not used: they failed admission under old physics.
+
 ## Question
 Which classical rankings on R1 survive replacing the synthetic payloads, uniform links and two-type task mix with
 grounded or explicitly labelled values? The result fixes workload **WF1**, on which all learned arms are trained.

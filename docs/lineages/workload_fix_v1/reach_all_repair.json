@@ -1,0 +1,775 @@
+{
+ "repair": true,
+ "n": 96,
+ "n_bad": 0,
+ "rows": [
+  {
+   "topology": "cc40s9473",
+   "seed": 9473,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9474",
+   "seed": 9474,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9475",
+   "seed": 9475,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9476",
+   "seed": 9476,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9477",
+   "seed": 9477,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9478",
+   "seed": 9478,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9479",
+   "seed": 9479,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9480",
+   "seed": 9480,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9481",
+   "seed": 9481,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9482",
+   "seed": 9482,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9483",
+   "seed": 9483,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9484",
+   "seed": 9484,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9485",
+   "seed": 9485,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9486",
+   "seed": 9486,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9487",
+   "seed": 9487,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9488",
+   "seed": 9488,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9489",
+   "seed": 9489,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9490",
+   "seed": 9490,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9491",
+   "seed": 9491,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9492",
+   "seed": 9492,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9493",
+   "seed": 9493,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9494",
+   "seed": 9494,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9495",
+   "seed": 9495,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9496",
+   "seed": 9496,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9497",
+   "seed": 9497,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9498",
+   "seed": 9498,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9499",
+   "seed": 9499,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9500",
+   "seed": 9500,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9501",
+   "seed": 9501,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9502",
+   "seed": 9502,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9503",
+   "seed": 9503,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9504",
+   "seed": 9504,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9505",
+   "seed": 9505,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9506",
+   "seed": 9506,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9507",
+   "seed": 9507,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9508",
+   "seed": 9508,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9509",
+   "seed": 9509,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9510",
+   "seed": 9510,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9511",
+   "seed": 9511,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9512",
+   "seed": 9512,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9513",
+   "seed": 9513,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9514",
+   "seed": 9514,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9515",
+   "seed": 9515,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9516",
+   "seed": 9516,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9517",
+   "seed": 9517,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9518",
+   "seed": 9518,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9519",
+   "seed": 9519,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9520",
+   "seed": 9520,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9521",
+   "seed": 9521,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9522",
+   "seed": 9522,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9523",
+   "seed": 9523,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9524",
+   "seed": 9524,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9525",
+   "seed": 9525,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9526",
+   "seed": 9526,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9527",
+   "seed": 9527,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9528",
+   "seed": 9528,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9529",
+   "seed": 9529,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9530",
+   "seed": 9530,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9531",
+   "seed": 9531,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9532",
+   "seed": 9532,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9533",
+   "seed": 9533,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9534",
+   "seed": 9534,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9535",
+   "seed": 9535,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9536",
+   "seed": 9536,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9537",
+   "seed": 9537,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9538",
+   "seed": 9538,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9539",
+   "seed": 9539,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9540",
+   "seed": 9540,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9541",
+   "seed": 9541,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9542",
+   "seed": 9542,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9543",
+   "seed": 9543,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9544",
+   "seed": 9544,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9545",
+   "seed": 9545,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9546",
+   "seed": 9546,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9547",
+   "seed": 9547,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9548",
+   "seed": 9548,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9549",
+   "seed": 9549,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9550",
+   "seed": 9550,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9551",
+   "seed": 9551,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9552",
+   "seed": 9552,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9553",
+   "seed": 9553,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9554",
+   "seed": 9554,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9555",
+   "seed": 9555,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9556",
+   "seed": 9556,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9557",
+   "seed": 9557,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9558",
+   "seed": 9558,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9559",
+   "seed": 9559,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9560",
+   "seed": 9560,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9561",
+   "seed": 9561,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9562",
+   "seed": 9562,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9563",
+   "seed": 9563,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9564",
+   "seed": 9564,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9565",
+   "seed": 9565,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9566",
+   "seed": 9566,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9567",
+   "seed": 9567,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9568",
+   "seed": 9568,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  }
+ ]
+}

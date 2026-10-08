@@ -1,0 +1,159 @@
+{
+ "repair": false,
+ "n": 19,
+ "n_bad": 0,
+ "rows": [
+  {
+   "topology": "cc40s9483",
+   "seed": 9483,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9484",
+   "seed": 9484,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9485",
+   "seed": 9485,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9487",
+   "seed": 9487,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9491",
+   "seed": 9491,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9502",
+   "seed": 9502,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9506",
+   "seed": 9506,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9525",
+   "seed": 9525,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9529",
+   "seed": 9529,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9533",
+   "seed": 9533,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9538",
+   "seed": 9538,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9540",
+   "seed": 9540,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9548",
+   "seed": 9548,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9550",
+   "seed": 9550,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9551",
+   "seed": 9551,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9557",
+   "seed": 9557,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9565",
+   "seed": 9565,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9566",
+   "seed": 9566,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  },
+  {
+   "topology": "cc40s9568",
+   "seed": 9568,
+   "ok": true,
+   "no_server_replica": [],
+   "unreachable_clients": {},
+   "n_clients": 40
+  }
+ ]
+}

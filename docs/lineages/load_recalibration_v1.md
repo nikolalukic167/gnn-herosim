@@ -18,6 +18,7 @@ CD is the reference because it is the strongest fixed policy; once fixed, a rung
 
 ## Calibration protocol
 - 4 calibration topologies **not** among the 19 test topologies (same generator, different seeds), 2 windows each.
+  **Named 2026-10-08 (before any run): ids 9601–9604**, minted with the 9473–9568 generator and template; see `workload_fix_v1`.
   The 19 test topologies are never used for calibration.
 - Bisection on the arrival multiplier (inter-arrival gaps scaled; burst shape and sibling offsets preserved), max 8
   steps per rung. Policy time scale stays at the R1 value for every rung (invariant I12).
