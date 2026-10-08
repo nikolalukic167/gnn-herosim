@@ -54,6 +54,18 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
   fails discards its dataset, and the discard rate is reported. Before any label is built, I11 is re-checked on 20 states
   with the change, and must show no change. Pruning out candidates and silently discarding were rejected: the first biases the
   plan space, the second the snapshots.
+- **Amended the same day: the corpus co-sim must run the autoscaler I11 validated.** S6 found three differences between
+  the recipe and `i11_replay --params live`:
+  - KPA target 100 (the legacy constant) against 0.7;
+  - tick interval 1e12 (stretched for cost) against 1 s × time scale;
+  - no `HEROSIM_SNAPSHOT_FIDELITY` at capture, so there's no KPA window history and no tick phase.
+
+  A label made under other autoscaler settings is a different physics, and isn't covered by I11. **Decision:** captures set
+  `HEROSIM_SNAPSHOT_FIDELITY=1`, and co-sim episodes use `live_run_params()` (target 0.7, 1 s ticks, keep-alive, start
+  phase from `next_wake`). That replaces the t0 rule above. Its cost is measured on the smoke sets and the B2 dry run before the
+  capture. If 5,000 batches don't fit in about 2 days of datalab, the episode is cut once the batch's last task completes,
+  and that cut is itself checked against live, I11-style (20 states, p95 ≤ 1 %), before it's used. The stretched, frozen-autoscaler
+  variant is rejected.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
