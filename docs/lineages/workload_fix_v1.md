@@ -1,6 +1,6 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `ACTIVE` (2026-10-08) — W2 read at the tuned 1 s window (provisional until the R1.1 identity check); the starved-replica hang has three causes, two fixed, R1.1 pending. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — R1.1 identity: audit cells identical, W2 sample not (timeout rescoped to arrived partners, R1.1-T; leak → R1 numbers since `kpa_scaleout_v1` re-measured). W2 read provisional until rerun on R1.1. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
 
@@ -143,6 +143,34 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
   If (b) fails, every R1 number since `kpa_scaleout_v1` is re-measured. Audit pass 3 reruns I1–I12 on R1.1, with I7
   judging an unfinished run as FAIL, and a new **I13 pool conservation** (free + owned + draining = platforms, per node,
   at every KPA tick).
+
+**Identity result and amendment R1.1-T (coordinator, 2026-10-08, after S5's identity data; `rp/starve` `8e835eef`).**
+- (a) passes: 42/42 identical (36 audit + 6 legacy: physics-old on 9483, 9506, 9568 at ×20, CD and reactive); the
+  timeout fired 0 times; 7 CD cells reach the starved path and are identical. Audit pass 3 on the final code: I1–I4,
+  I6, I7, I9, I10, I13 PASS 36/36; I8 12/12; I11 216 states, worst p95 0.1 %; I12 12/12; I5 as in pass 2.
+- (b) fails, for two separate reasons, over 200 W2 cells (5 topologies × 5 arms × 2 rungs × 4 windows): 123 identical.
+  **Timeout, 75 cells** (every arm, ×0.2666, g1–g3): 105–136 failed tasks per cell, the same for every arm, all
+  tasks whose partner *arrives* more than 300 s later (137 such tasks in g1; up to 1,095 s, the rung's 3.75× time
+  stretch). Mean latency drops 45–49 %. **Leak, 2 cells** (9550 g2 ×11.61, batched −1.0 %, CD +0.41 %): one drain
+  release per cell landed during the old filtered-pool swap; restoring only the swap reproduces the old numbers bit for bit.
+- **Amendment R1.1-T: the timeout covers a wait on a partner that has arrived, never on one that hasn't.** The timeout
+  exists to break hold-and-wait, which needs both tasks in the system; a partner not yet arrived holds nothing. Failing
+  those 137 tasks measured the workload's stretch, not any arm (identical counts across arms), and erased the wait
+  every arm pays. The clock starts at the later of placement and the partner's arrival. Recorded before the
+  rescoped code exists; it's judged by the same gates: the 75 timeout cells must return to identical, W4 9565 g2 CD
+  must still complete, and the 42 identity cells must stay identical.
+- **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
+  pre-R1.1 and re-measured on R1.1. Expected size from the sample: 2 of 200 cells, ≤ 1 %; that expectation doesn't
+  replace the re-measure. Order: W2 at 1 s on R1.1 first (it replaces the provisional W2 read), then the
+  `kpa_scaleout_v1` gates. `physics_audit_v1` needs no rerun (42/42 identical; pass 3 ran on the final code).
+- **Live-topology feasibility (S4, `rp/wf1-run` `7437a0f1`, `workload_fix_v1_reachability_live.py`):** built through
+  `prepare_infrastructure_for_real_simulation` (no replica plan, no repair). Infeasible: 9603, 9604, 9605, 9606, every
+  window (one sending client per topology reaches no dnn2-capable server platform; the dnn repair counts the client's
+  own rpi). All 19 test topologies pass, 76/76 cells; calibration 9601, 9602, 9607–9610 pass. S5's other unreachable
+  clients (9484, 9548, 9568, 9607, 9610) never send. **Decision:** the rule applies as written; 9603–9606 stay out,
+  no repair is added to the live generator (it would change topologies, and the calibration set needs none of them).
+  A pass means no structural block, not that a run completes: the 9565/9538 starvation is dynamic, and that's what
+  the timeout handles.
 
 ### 2026-10-08 — W2 rerun under amendment WB; amendment WB2 (tuned window); the starved-replica hang
 
