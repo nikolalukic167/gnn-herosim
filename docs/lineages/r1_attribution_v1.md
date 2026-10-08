@@ -27,9 +27,13 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
   `reduced_features.py`, and the same in `prefix_serving.py`). The simulator charges the task the pull peer → candidate and
   the partner the reverse. On 9601 a cellular candidate reads 4 MB/s in the feature against 75 MB/s pulled (18.75×). Fix:
   carry both directions under a new partial-state contract version; train/serve parity is required before any training.
-- **F3, four task types visible to every learned arm.** The legacy task block and the tabular vocabulary know only
-  dnn1/dnn2, so rf/cnn rows are silent zeros. Widen them under the same new contract, so that MLP-same and the twins can't
-  differ from the GNN arms merely by type visibility.
+- **F3, four task types visible to every learned arm.** Corrected by S6 the same day: under partial_state v3/v4 the
+  task's own type is recoverable from the krank block (`KRANK_TYPES=4`), and graph arms also get `task_type_onehot4`.
+  What is blind: the legacy 3-dim task block (rf/cnn rows all zero) and the platform replica flags (has_dnn1/has_dnn2
+  only). Both are widened, with columns appended so no index moves.
+- **The new contract, `partial_state_v5`** (S6's design, accepted): v4's 25 columns, with columns 7–8 = the pull peer →
+  candidate in seconds (log1p) and column 23 (committed service) on the pull direction; plus 2 appended columns, the reverse
+  candidate → peer committed exchange and peer mass (width 27). Old contracts stay byte-identical.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
