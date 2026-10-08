@@ -67,6 +67,7 @@ except ImportError:
 from src.eventgenerator import increase_events_of_app
 from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH
 from src.placement.executor import execute_sim
+from src.placement import fidelity_replay
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.sample_loader import load_primary_sample_and_mapping
 
@@ -2655,17 +2656,34 @@ def process_placement_fast(
         }
 
         # Execute simulation
-        result = execute_simulation(
-            full_config,
-            sim_inputs,
-            'determined_determined',
-            model_locations={},
-            models={},
-            cache_policy='fifo',
-            task_priority='fifo',
-            keep_alive=cosim_keep_alive(),
-            queue_length=QUEUE_LENGTH,
-        )
+        seed = (sim_config or {}).get('live_snapshot_seed')
+        fr_spec = fidelity_replay.spec_of(seed)
+        if fr_spec is not None:
+            # r1_attribution_v1: the plan is replayed as i11_replay replays a live decision; the result is cut down to
+            # the batch (src/placement/fidelity_replay.py), so everything below sees an ordinary dataset
+            fr = _worker_shared_data.get('_fidelity_replay')
+            if fr is None:
+                fr = fidelity_replay.FidelityReplay(
+                    fr_spec,
+                    [next(iter(e['application']['dag'])) for e in workload_ref['events']],
+                    {t: [(sp['node_name'], sp['platform_id']) for sp in specs if sp.get('candidate', True)]
+                     for t, specs in seed['replicas_by_type'].items()},
+                )
+                _worker_shared_data['_fidelity_replay'] = fr
+            result = fr.cut_to_batch(fr.run(placement_plan))
+            result['config'] = full_config
+        else:
+            result = execute_simulation(
+                full_config,
+                sim_inputs,
+                'determined_determined',
+                model_locations={},
+                models={},
+                cache_policy='fifo',
+                task_priority='fifo',
+                keep_alive=cosim_keep_alive(),
+                queue_length=QUEUE_LENGTH,
+            )
         
         # Minimal result metadata (avoid storing large redundant data)
         result['sample'] = {
@@ -2912,7 +2930,17 @@ def execute_brute_force_optimized(
 
     # Phase 1: Capture system state (optional fast path for deterministic cold start)
     active_replicas = None
-    if deterministic_cold_start_mode:
+    fidelity_spec = fidelity_replay.spec_of(sim_config.get('live_snapshot_seed'))
+    if fidelity_spec is not None:
+        # r1_attribution_v1: the snapshot IS the state. The slate the sweep enumerates is the seed's candidate replicas;
+        # the state capture simulation (one task, compressed backlog) is not run, and every plan is replayed the way
+        # i11_replay replays a live decision (src/placement/fidelity_replay.py).
+        _log("\n[Phase 1] Fidelity replay: slate taken from the snapshot, no state capture simulation")
+        active_replicas = {
+            t: [(str(sp['node_name']), int(sp['platform_id'])) for sp in specs if sp.get('candidate', True)]
+            for t, specs in sim_config['live_snapshot_seed']['replicas_by_type'].items()
+        }
+    elif deterministic_cold_start_mode:
         _log("\n[Phase 1] Skipping system state capture (deterministic cold-start mode)")
     else:
         _log("\n[Phase 1] Capturing system state...")
@@ -2930,7 +2958,7 @@ def execute_brute_force_optimized(
 
     # Persist phase-1 metadata to dataset directory (queue + temporal snapshots)
     capture_output_dir = final_dataset_dir or output_dir
-    if not deterministic_cold_start_mode:
+    if not deterministic_cold_start_mode and fidelity_spec is None:
         try:
             capture_sim_path = output_dir / "first_task_state_capture_simulation.json"
             if capture_sim_path.exists():
@@ -3281,6 +3309,9 @@ def execute_brute_force_optimized(
                         "worker_exception": worker_exception_count,
                         "early_terminated": early_terminated,
                         "timeout_per_placement_s": timeout_per_placement,
+                        **({"fidelity_replay": {k: fidelity_spec[k] for k in
+                                                ("label", "live_run_params", "queued_tasks", "batch_tasks")}}
+                           if fidelity_spec is not None else {}),
                         "sweep_complete": (
                             num_written == num_placements and not early_terminated
                         ),
