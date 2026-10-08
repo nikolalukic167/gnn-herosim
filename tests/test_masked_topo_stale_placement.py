@@ -61,6 +61,7 @@ def _prefix_batch_harness(evict_after_decode):
     sched.nodes = SimpleNamespace(items=[node])
     sched._live_audit_policy_name = "test"
     sched.prefix_batches = sched.prefix_tasks_decoded = sched.prefix_tasks_deferred = 0
+    sched.autoscaler = None
     sched._capture_full_queue_snapshot = lambda: {}
     sched._capture_temporal_state_snapshot = lambda: None
     sched._get_valid_replicas = lambda reps, task: sorted(reps, key=lambda r: r[0].id)
