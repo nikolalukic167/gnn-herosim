@@ -72,14 +72,17 @@ case "$JOB" in
     STAGE=${WF1_STAGE:?FAIL LOUD: set WF1_STAGE (w2)}
     SAMPLER=${WF1_SAMPLER:?FAIL LOUD: set WF1_SAMPLER}
     TAGS=${WF1_TAGS:?FAIL LOUD: set WF1_TAGS (tag=multiplier,...)}
-    IN=$W/inputs_$STAGE
-    OUT=$W/gate_$STAGE
+    if [[ -n "${WF1_OUTROOT:-}" ]]; then IN=${WF1_IN:-$WF1_OUTROOT/inputs}; OUT=$WF1_OUTROOT/${WF1_GATE:-gate}
+    else IN=${WF1_IN:-$W/inputs_$STAGE}; OUT=$W/gate_$STAGE; fi
+    SELECT=${WF1_SELECT:-$SELECT}
+    BT_FLAG=""; [[ -n "${WF1_BATCH_FIXED:-}" ]] && BT_FLAG="--batch-timeout-fixed $WF1_BATCH_FIXED"
+    export WF1_ARMS=${WF1_ARMS:-}
     RUNGS=""
     for spec in ${TAGS//,/ }; do
       tag=${spec%%=*}; m=${spec##*=}
       [[ -d "$IN/wf1_$tag" ]] || python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" \
         --cfg-dir $D/small_batch_confirm_v1/inputs/cfg --topologies $(python3 -c "import json;print(*json.load(open('$SELECT'))['topologies'])") \
-        --rung "$tag=$(python3 -c "print(repr(1.0/$m))")" --payload-sampler "$SAMPLER" --out "$IN/_b_$tag"
+        --rung "$tag=$(python3 -c "print(repr(1.0/$m))")" --payload-sampler "$SAMPLER" $BT_FLAG --out "$IN/_b_$tag"
       [[ -d "$IN/wf1_$tag" ]] || { mkdir -p "$IN"; mv "$IN/_b_$tag/wf1_$tag" "$IN/wf1_$tag"; cp "$IN/_b_$tag/manifest.json" "$IN/manifest_$tag.json"; rm -rf "$IN/_b_$tag"; }
       RUNGS="$RUNGS,$tag"
     done

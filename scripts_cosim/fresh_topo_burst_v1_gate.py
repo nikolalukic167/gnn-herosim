@@ -242,7 +242,10 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
                 raise SystemExit(f"FAIL LOUD: WF1_CAL_KINDS={kinds!r}")
             return [task(t, f"{w}{tag}", k) for tag in WF1_TAGS for t in cal for w in wins for k in kinds]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
-        return [task(t, w, k) for k in rules for t in selection["topologies"] for w in WF1_LADDER]
+        only = [k for k in os.environ.get("WF1_ARMS", "").split(",") if k]  # amendment WB reruns only the batching arms
+        if any(k not in rules for k in only):
+            raise SystemExit(f"FAIL LOUD: WF1_ARMS={only!r}; arms are {rules}")
+        return [task(t, w, k) for k in rules if not only or k in only for t in selection["topologies"] for w in WF1_LADDER]
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
@@ -671,6 +674,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out = {k: st.get(k) for k in ("num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime",
                                   "averageWaitTime", "totalPeerExchangeTime", "totalPeerRendezvousWait", "endTime",
                                   "schedulerCounters", "offloadingRate", "total_rtt_plus_inference")}
+    if WF1_LADDER:  # workload_fix_v1: the latency decomposition needs the stage times; other phases keep their keys
+        for k in ("averageColdStartTime", "averageInitializationTime", "averagePullTime", "averageExecutionTime",
+                  "averageComputeTime", "averageCommunicationsTime", "averageNetworkLatency"):
+            out[k] = st.get(k)
     for k in ("peerExchangeByAccessClass", "accessClasses"):  # workload_fix_v1 W3 telemetry; absent otherwise
         if k in st:
             out[k] = st[k]
