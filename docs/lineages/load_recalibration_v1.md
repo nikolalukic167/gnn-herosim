@@ -21,7 +21,7 @@ Revision 2026-10-08 (before any run): calibration now runs on the fixed workload
     arrival ÷ tasks in the system at 1/2 must be ≤ 2. The ratio binds only when at least 20 tasks are in the system at 1/2;
     below that it's a ratio of small integers, so it's reported, not applied.
   - The backlog guard replaces a queue-time-only version that would have missed the unplaced wait. The job that used it
-    (843483) was cancelled after about 10 minutes. Bisection job: 843490.
+    (843483) was cancelled after about 10 minutes, and 843490 before any evaluation (the in-system rule must steer the search, not only the read). Bisection job: 843494, code `0f6e7832` (only the bisect script and its test differ from `8286024c`).
 
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
