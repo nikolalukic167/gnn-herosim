@@ -1,6 +1,6 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `REGISTERED` (no runs). Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — W2 read; W2+W3 and W2+W3+W4 cells running (not opened); CD's batching window fixed by amendment before W3 is read. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
 
@@ -87,3 +87,44 @@ CD vs each other classical arm at each stage and provisional rung (Holm within s
 ## Outcomes
 Rankings that survive all stages are reported as robust; flips are sensitivity findings. WF1 is frozen regardless
 of which arm benefits.
+
+
+## Record (newest first)
+
+### 2026-10-08 — stage W2 read; calibration set; provisional rungs; amendment WB (batching window)
+
+Run code `f22b2e7e` (`rp/wf1-run`; `src/` identical to the replay-tested `f44cf9cf`), R1 with
+`GATE_FIXED_POLICY_TIME_SCALE=1.0`. Default path: 5 R1 cells identical to `690ba384` on every simulated field; the
+legacy build chain reproduces `grounded_x20` byte for byte. Report: [`w2_report.md`](workload_fix_v1/w2_report.md),
+read: [`w2_read.json`](workload_fix_v1/w2_read.json).
+
+**Calibration set: 9601, 9602, 9607, 9608.** 9603 and 9604 time out on every cell at ×2 for CD and Knative ("No
+compatible hardware available" for one client). That's a runtime capacity hang that the static W4 check passes. Replaced
+by the first ids from 9605–9610 that finish all 8 screen cells; 9605 and 9606 hang too (4 of 10 minted ids). The screen
+covers ×2 only.
+
+**Provisional rungs** (CD median queue share, 4 calibration topologies × g0/g1, legacy payloads): **×11.61 → 0.3007**
+(8 steps); **×0.2666 → 0.1001**. The registered bracket [×0.5, ×24] did not reach 0.1 (0.117 at ×0.5), so a labelled
+8-step extension on [×0.1, ×0.5] found it. On W2 payloads CD reads 0.09 / 0.37, as expected of provisional rungs.
+
+**Stage W2** (`wf1_v1` payloads: mean per pair 27.2 MB against 429.2, median 4.8 MB, 70 % of pairs < 10 MB; pair graph
+and events unchanged): 19 topologies × 2 rungs × 4 windows × 5 arms, 760/760, 0 failed.
+
+| rung | CD latency | self-predict vs CD | locality vs CD | one-pass greedy vs CD | reactive (context) |
+|---|---|---|---|---|---|
+| ×0.2666 | 2.85 s | −14.9 % (19/19, Holm 2e-5) | +0.6 % (CD-FASTER) | +0.1 % (CD-FASTER) | −14.9 % |
+| ×11.61 | 0.50 s | −6.1 % (19/19, Holm 2e-5) | +1.4 % (CD-FASTER) | +0.9 % (CD-FASTER) | +4.4 % |
+
+Prediction 1 (CD first at every stage) **fails at W2**: self-predict is first at both rungs. Exchange is 3.9 % / 10.5 %
+of CD's latency; the wired/wireless split of prediction 2 needs W3.
+
+**Amendment WB (coordinator, 2026-10-08, after the W2 read: post-data, labelled).** The ladder protocol scales the
+cells' `batch_timeout` with the rung: 16 s × 3.75 = **60 s** at ×0.2666 and 1.4 s at ×11.61. That's a 43× change in a
+policy constant across rungs. B1 (`physics_audit_v1`) froze one set of policy constants in wall-clock seconds on every
+rung, and the batching window is one of them; I12 didn't list it, so it slipped through. CD's latency is 2.85 s at the
+light rung against 0.50 s at the heavy one, and reactive (no batching) ties self-predict there, so the 60 s window
+plausibly explains much of CD's light-rung loss. For WF1 and every later node, **`batch_timeout` is 16 s (its ×1 value) at
+every rung**. The fix isn't obviously in CD's favour: at ×11.61 the window grows from 1.4 s to 16 s. The W2 read above
+stays recorded as run. The batching arms (CD, one-pass greedy, and any other arm that reads `batch_timeout`) are rerun on
+W2, W3 and W4 with the fixed window; arms that don't read it stand. The W2 primary family is re-read on the rerun, with a
+decomposition of CD's latency (batching wait, queue, exchange, cold start) under both windows.
