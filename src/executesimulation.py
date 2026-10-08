@@ -781,8 +781,31 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         # different layout than every deployed-checkpoint gate (which served dim22 from a
         # sidecar), with nothing in the result but an easily-missed banner line. For that
         # ambiguous shape, refuse to guess.
+        # partial_state_v5 checkpoints carry rf / cnn columns APPENDED to the task and platform blocks
+        # (placement/four_type_features.py): the layout is chosen on the legacy widths underneath them, and the
+        # contract must match the run's, or the live builder would serve a differently-shaped graph.
+        from src.placement.four_type_features import PLATFORM_EXTRA_DIM, TASK_EXTRA_DIM
+        from src.policy.tabular.reduced_features import (
+            FOUR_TYPE_CONTRACTS,
+            require_matching_partial_state_contract,
+            resolve_partial_state_contract,
+        )
+
+        _trained_psc = _read_checkpoint_sidecar(model_path).get("partial_state_contract")
+        _four_type = str(_trained_psc) in FOUR_TYPE_CONTRACTS
+        if _four_type:
+            require_matching_partial_state_contract(
+                str(_trained_psc), resolve_partial_state_contract(), model_label=model_path.name
+            )
+        elif resolve_partial_state_contract() in FOUR_TYPE_CONTRACTS:
+            raise ValueError(
+                f"{model_path.name}: this run resolves PARTIAL_STATE_CONTRACT={resolve_partial_state_contract()} "
+                f"(four-type feature blocks) but the checkpoint declares {_trained_psc!r}"
+            )
+        layout_task_dim = task_feature_dim - (TASK_EXTRA_DIM if _four_type else 0)
+        layout_plat_dim = platform_feature_dim - (PLATFORM_EXTRA_DIM if _four_type else 0)
         declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip()
-        if not declared_layout and task_feature_dim == 3 and platform_feature_dim == 14:
+        if not declared_layout and layout_task_dim == 3 and layout_plat_dim == 14:
             raise ValueError(
                 f"{model_path.name}: task_dim=3 / platform_dim=14 is served under either "
                 f"'atomic21' or 'dim22', and this run declares neither — the checkpoint has "
@@ -793,41 +816,41 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                 f"retrain with a trainer that records it in the sidecar."
             )
         layout = (declared_layout or "atomic21").lower()
-        if task_feature_dim == 3 and platform_feature_dim == 6:
+        if layout_task_dim == 3 and layout_plat_dim == 6:
             os.environ["INFERENCE_FEATURE_LAYOUT"] = "ce_reduced"
             print(
                 f"Using ce_reduced inference layout "
-                f"(task_dim={task_feature_dim}, platform_dim={platform_feature_dim}, edge_dim={edge_dim})",
+                f"(task_dim={layout_task_dim}, platform_dim={layout_plat_dim}, edge_dim={edge_dim})",
                 flush=True,
             )
-        elif task_feature_dim == 3 and platform_feature_dim == 16:
+        elif layout_task_dim == 3 and layout_plat_dim == 16:
             os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim24"
             print(
                 f"Using dim24 pull-observable inference layout "
-                f"(task_dim={task_feature_dim}, platform_dim={platform_feature_dim})",
+                f"(task_dim={layout_task_dim}, platform_dim={layout_plat_dim})",
                 flush=True,
             )
         elif layout in ("dim22", "legacy", "22") or (
-            task_feature_dim == 3
-            and platform_feature_dim == 14
+            layout_task_dim == 3
+            and layout_plat_dim == 14
             and layout not in ("atomic21", "21", "ce_reduced", "dim24", "24")
         ):
             os.environ["INFERENCE_FEATURE_LAYOUT"] = "dim22"
             print(
                 f"Using legacy dim22 inference layout "
-                f"(task_dim={task_feature_dim}, platform_dim={platform_feature_dim})",
+                f"(task_dim={layout_task_dim}, platform_dim={layout_plat_dim})",
                 flush=True,
             )
-        elif task_feature_dim != TASK_FEATURE_DIM or platform_feature_dim != PLATFORM_FEATURE_DIM:
-            if not (task_feature_dim == 3 and layout in ("atomic21", "21")):
+        elif layout_task_dim != TASK_FEATURE_DIM or layout_plat_dim != PLATFORM_FEATURE_DIM:
+            if not (layout_task_dim == 3 and layout in ("atomic21", "21")):
                 raise ValueError(
-                    f"Checkpoint dims task={task_feature_dim} platform={platform_feature_dim} "
+                    f"Checkpoint dims task={layout_task_dim} platform={layout_plat_dim} "
                     f"do not match current constants "
                     f"task={TASK_FEATURE_DIM} platform={PLATFORM_FEATURE_DIM}"
                 )
             print(
-                f"Using atomic21 inference layout with task_dim={task_feature_dim} checkpoint "
-                f"(platform_dim={platform_feature_dim})",
+                f"Using atomic21 inference layout with task_dim={layout_task_dim} checkpoint "
+                f"(platform_dim={layout_plat_dim})",
                 flush=True,
             )
 

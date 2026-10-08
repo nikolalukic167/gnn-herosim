@@ -92,8 +92,14 @@ from src.placement.dag_workload import (
     route_hops_and_bottleneck,
 )
 from src.placement.network_fabric import is_core_link, route_links, transmission_hops
+from src.placement.four_type_features import (
+    four_type_enabled,
+    platform_extra_columns,
+    task_extra_columns,
+    widen_graph,
+)
 from src.policy.tabular.reduced_features import (
-    PARTIAL_STATE_CONTRACT_V4,
+    LOAD_SECONDS_CONTRACTS,
     krank_node_order,
     resolve_partial_state_contract,
 )
@@ -1079,6 +1085,8 @@ def build_graph(
     task_features = np.concatenate([task_onehot, src_feat], axis=1)
     _require_finite_feature_array("task_features", task_features)
     task_features_tensor = torch.from_numpy(task_features).to(torch.float32)
+    # partial_state_v5: rf / cnn type columns are appended by `widen_four_type` after the platform block is final
+    four_type_task_extra = task_extra_columns(task_type_arr) if four_type_enabled() else None
     
     # PLATFORM FEATURES (16 dims: 5 type + 2 replica + 1 queue + 1 shared-fate + 3 temporal
     # + 2 consolidation + node_cold_count + estimated_pull_remaining_sec/100)
@@ -1272,6 +1280,11 @@ def build_graph(
         )
     _require_finite_feature_array("platform_features", platform_features)
     platform_features_tensor = torch.from_numpy(platform_features).to(torch.float32)
+    four_type_platform_extra = None
+    if four_type_enabled():
+        if 'replica_task_types' not in df_platforms.columns:
+            raise ValueError("partial_state_v5 needs the replica_task_types column (an older extraction has none)")
+        four_type_platform_extra = platform_extra_columns(replica_types_arr)
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
     for pos, row in enumerate(df_platforms.itertuples(index=False)):
         node_name = str(row.node_name)
@@ -1499,6 +1512,10 @@ def build_graph(
         platform_features=platform_features_tensor,
     )
     data.edge_attr = edge_attr_tensor
+    if four_type_task_extra is not None:
+        # held apart until the platform block is final (main truncates it), then `widen_graph` appends them
+        data.four_type_task_extra = torch.from_numpy(four_type_task_extra).to(torch.float32)
+        data.four_type_platform_extra = torch.from_numpy(four_type_platform_extra).to(torch.float32)
     # Same-node platform<->platform edges for GIN message passing (node aggregation).
     # Lets the GNN propagate contention/co-location signal between platforms that share a
     # physical node (shared FilterStore pulls / node bandwidth) — relational structure a
@@ -1873,7 +1890,7 @@ def attach_dag_partial_state_block(
         cand_nodes = {}
 
     load_block = {}
-    if resolve_partial_state_contract() == PARTIAL_STATE_CONTRACT_V4:
+    if resolve_partial_state_contract() in LOAD_SECONDS_CONTRACTS:
         load_block = _v4_load_seconds_block(ds, graph, dag["task_type_names"], sim_inputs,
                                             ptype_by_pid, name_by_node_id)
 
@@ -1928,7 +1945,7 @@ def _v4_load_seconds_block(
         seed = (json.load(fh).get("live_snapshot_seed") or {})
     platforms = seed.get("platforms")
     if not platforms:
-        raise RuntimeError(f"{ds.name}: partial_state_v4 needs infrastructure.json "
+        raise RuntimeError(f"{ds.name}: {resolve_partial_state_contract()} needs infrastructure.json "
                            "live_snapshot_seed.platforms (a warm-snapshot corpus)")
     spec_by_key = {(str(p["node_name"]), int(p["platform_id"])): p for p in platforms}
     task_types = sim_inputs.get("task_types") or {}
@@ -2066,6 +2083,8 @@ def main():
                         graph.platform_features = graph.platform_features[
                             :, : config.platform_feature_dim
                         ]
+                    if four_type_enabled():
+                        widen_graph(graph)
                     if config.dag_partial_state:
                         attach_dag_partial_state_block(
                             graph,

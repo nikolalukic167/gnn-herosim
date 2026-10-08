@@ -20,6 +20,12 @@ if TYPE_CHECKING:
     from src.placement.model import SystemState
 
 from src.policy.tabular.constants import FEATURE_DIM
+from src.placement.four_type_features import (
+    four_type_enabled,
+    platform_extra_columns,
+    replica_types_from_system_state,
+    task_extra_columns,
+)
 from src.placement.queue_features import (
     queue_depth_norm,
     apply_serve_clamp,
@@ -113,6 +119,10 @@ class InferenceFeatureBundle:
     queue_norm_divisor: float = 1.0
     dim7_clamp: Optional[float] = None
     dim13_clamp: Optional[float] = None
+    # partial_state_v5 (placement/four_type_features.py): rf / cnn columns appended to the task and platform blocks by
+    # build_pyg_inference_graph; None under every earlier contract, so those graphs are byte-identical.
+    four_type_task_extra: Optional[np.ndarray] = None
+    four_type_platform_extra: Optional[np.ndarray] = None
 
 
 _warned_layout_fallback = False
@@ -595,9 +605,20 @@ def build_inference_feature_bundle(
     if edge_attr_directed.shape[1] != 5:
         raise ValueError(f"Expected 5 edge attrs, got {edge_attr_directed.shape[1]}")
 
+    four_task_extra = four_platform_extra = None
+    if four_type_enabled():
+        four_task_extra = task_extra_columns(str(t.type["name"]) for t in batch_tasks)
+        four_platform_extra = platform_extra_columns(
+            replica_types_from_system_state(
+                system_state, [(info.node_id, info.platform_id) for info in platforms_info]
+            )
+        )
+
     return InferenceFeatureBundle(
         n_tasks=n_tasks,
         n_platforms=n_platforms,
+        four_type_task_extra=four_task_extra,
+        four_type_platform_extra=four_platform_extra,
         task_features=task_features_arr,
         platform_features=platform_features_arr,
         edge_attr_directed=edge_attr_directed,
@@ -778,6 +799,11 @@ def build_pyg_inference_graph(
                 directed_ei, directed, num_nodes=num_nodes
             )
     data.edge_attr = edge_attr
+    if bundle.four_type_task_extra is not None:
+        data.task_features = torch.cat(
+            [data.task_features, torch.tensor(bundle.four_type_task_extra, dtype=torch.float32)], dim=1)
+        data.platform_features = torch.cat(
+            [data.platform_features, torch.tensor(bundle.four_type_platform_extra, dtype=torch.float32)], dim=1)
 
     # Same-node platform<->platform edges (GIN co-location signal). Cache always
     # sets this; live must too or train/serve topology diverges.

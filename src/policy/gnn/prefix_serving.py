@@ -51,7 +51,7 @@ from src.policy.gnn.seq_decode import GnnDecodeRunStats, decode_masked_topo_plac
 from src.placement.live_snapshot_seed import _approx_comm
 from src.policy.tabular.reduced_features import (
     PARTIAL_STATE_CONTRACT_ENV,
-    PARTIAL_STATE_CONTRACT_V4,
+    LOAD_SECONDS_CONTRACTS,
     PARTIAL_STATE_FEATURE_DIM,
     partial_state_feature_dim,
     PARTIAL_STATE_EXCHANGE_SECONDS_ENV,
@@ -233,8 +233,8 @@ def load_prefix_conditioned_gnn(
                 f"{label}: sidecar load_seconds={bool(trained_load_seconds)} but "
                 f"{PARTIAL_STATE_LOAD_SECONDS_ENV} resolves to {load_seconds_enabled()}"
             )
-    elif str(trained_contract) == "partial_state_v4":
-        raise PrefixServingError(f"{label}: a partial_state_v4 sidecar must record load_seconds")
+    elif str(trained_contract) in LOAD_SECONDS_CONTRACTS:
+        raise PrefixServingError(f"{label}: a {trained_contract} sidecar must record load_seconds")
     # exchange_seconds_v1: sidecars before it carry no key and were trained with the flag off.
     trained_exchange_seconds = bool(sidecar.get("exchange_seconds") or False)
     _adopt_or_verify_env(
@@ -581,9 +581,9 @@ def attach_live_prefix_block(
     # load_repr_v1 (partial_state_v4): the same two ingredients the cache builds
     # (prepare_graphs_cache._v4_load_seconds_block), from the live replicas.
     load_block: Dict[str, Any] = {}
-    if resolve_partial_state_contract() == PARTIAL_STATE_CONTRACT_V4:
+    if resolve_partial_state_contract() in LOAD_SECONDS_CONTRACTS:
         if backlog_seconds is None:
-            raise PrefixServingError("partial_state_v4 serving needs backlog_seconds per candidate")
+            raise PrefixServingError(f"{resolve_partial_state_contract()} serving needs backlog_seconds per candidate")
         service_s: Dict[Tuple[int, Tuple[int, int]], float] = {}
         backlog_s: Dict[Tuple[int, int], float] = {}
         for t, task in enumerate(batch_tasks):
