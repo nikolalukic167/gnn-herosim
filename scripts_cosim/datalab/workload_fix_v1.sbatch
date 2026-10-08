@@ -103,12 +103,15 @@ case "$JOB" in
     SELECT=${WF1_SELECT:-$SELECT}
     BT_FLAG=""; [[ -n "${WF1_BATCH_FIXED:-}" ]] && BT_FLAG="--batch-timeout-fixed $WF1_BATCH_FIXED"
     export WF1_ARMS=${WF1_ARMS:-}
+    # stage W2+W3+W4: WF1_CFG the topology configs (access classes, repair), WF1_TASK_MIX the W4 relabel;
+    # WF1_WINDOWS (read by the gate) subsets a smoke run
+    CFG=${WF1_CFG:-$D/small_batch_confirm_v1/inputs/cfg}
     RUNGS=""
     for spec in ${TAGS//,/ }; do
       tag=${spec%%=*}; m=${spec##*=}
       [[ -d "$IN/wf1_$tag" ]] || python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" \
-        --cfg-dir $D/small_batch_confirm_v1/inputs/cfg --topologies $(python3 -c "import json;print(*json.load(open('$SELECT'))['topologies'])") \
-        --rung "$tag=$(python3 -c "print(repr(1.0/$m))")" --payload-sampler "$SAMPLER" $BT_FLAG --out "$IN/_b_$tag"
+        --cfg-dir "$CFG" --topologies $(python3 -c "import json;print(*json.load(open('$SELECT'))['topologies'])") \
+        --rung "$tag=$(python3 -c "print(repr(1.0/$m))")" --payload-sampler "$SAMPLER" $BT_FLAG --task-mix "${WF1_TASK_MIX:-none}" --out "$IN/_b_$tag"
       [[ -d "$IN/wf1_$tag" ]] || { mkdir -p "$IN"; mv "$IN/_b_$tag/wf1_$tag" "$IN/wf1_$tag"; cp "$IN/_b_$tag/manifest.json" "$IN/manifest_$tag.json"; rm -rf "$IN/_b_$tag"; }
       RUNGS="$RUNGS,$tag"
     done

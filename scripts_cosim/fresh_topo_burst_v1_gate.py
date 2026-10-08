@@ -247,7 +247,12 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         only = [k for k in os.environ.get("WF1_ARMS", "").split(",") if k]  # amendment WB reruns only the batching arms
         if any(k not in rules for k in only):
             raise SystemExit(f"FAIL LOUD: WF1_ARMS={only!r}; arms are {rules}")
-        return [task(t, w, k) for k in rules if not only or k in only for t in selection["topologies"] for w in WF1_LADDER]
+        # opt-in window subset for smoke runs (windows "g0,g1"); unset = the full registered grid
+        only_w = [x for x in os.environ.get("WF1_WINDOWS", "").split(",") if x]
+        ladder = [w for w in WF1_LADDER if not only_w or w[:2] in only_w]
+        if not ladder:
+            raise SystemExit(f"FAIL LOUD: WF1_WINDOWS={only_w!r} selects no window")
+        return [task(t, w, k) for k in rules if not only or k in only for t in selection["topologies"] for w in ladder]
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
