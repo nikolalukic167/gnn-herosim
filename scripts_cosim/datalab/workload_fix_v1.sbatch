@@ -6,6 +6,8 @@
 #   calcheck  CD and Knative on the calibration topologies at one multiplier (admission look)
 #   tune  amendment WB2: CD at fixed batching windows 1,2,4,8,16 s on the calibration topologies
 #   bisect  provisional load on the calibration topologies (workload_fix_v1_bisect.py)
+#   w3build  W3 inputs from built W2 rungs (access_classes added) plus the field-level W2-vs-W3 topology diff
+#   w3smoke  CD and reactive on 4 W3 topologies, 1 rung, 1 window (WF1_ROOT = the W2+W3 output root)
 #   stage   build the stage's rungs (WF1_SAMPLER) and run the five classical arms on the 19 test topologies
 #SBATCH --job-name=wf1
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/wf1-%j.out
@@ -93,6 +95,20 @@ case "$JOB" in
     BDIR=${BISECT_NAME:-bisect}
     python3 scripts_cosim/workload_fix_v1_bisect.py --work "$W/$BDIR" --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" \
       --topologies $CAL_TOPOS --windows g0 g1 --parallel "$P" --log "$W/${BDIR}_steps.json" ${BISECT_ARGS:-}
+    ;;
+  w3build)
+    R=${WF1_ROOT:?FAIL LOUD: set WF1_ROOT}
+    mkdir -p "$R"
+    python3 scripts_cosim/workload_fix_v1_w3_build.py --w2-inputs "$W/inputs_w2" --tags ${WF1_TAGNAMES:-lo hi} \
+      --out "$R/inputs" --diff-out "$R/w3_vs_w2_diff.json"
+    ;;
+  w3smoke)
+    R=${WF1_ROOT:?FAIL LOUD: set WF1_ROOT}
+    TOPOS=$(python3 -c "import json;print(','.join(map(str,json.load(open('$SELECT'))['topologies'][:4])))")
+    WF1_RUNGS=lo WF1_TOPOS=$TOPOS WF1_CAL_WINDOWS=g0 WF1_CAL_KINDS=cd,reactive \
+      python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$R/inputs" --out "$R/smoke" \
+      --parallel "$P" --mem 4G --timeout "${TIMEOUT:-2700}" --no-scope | grep -v "^\[skip"
+    echo "=== smoke: $(ls "$R"/smoke/*.summary.json 2>/dev/null | wc -l) summaries, $(ls "$R"/smoke/*.failed.json 2>/dev/null | wc -l) failed ==="
     ;;
   stage)
     STAGE=${WF1_STAGE:?FAIL LOUD: set WF1_STAGE (w2)}
