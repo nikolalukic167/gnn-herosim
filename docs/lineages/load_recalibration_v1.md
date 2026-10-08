@@ -3,6 +3,18 @@
 **Status:** `REGISTERED` (no runs). Depends on: `workload_fix_v1` (WF1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Revision 2026-10-08 (before any run): calibration now runs on the fixed workload WF1, not today's payloads.
 
+**Pre-run amendments (2026-10-08, coordinator, before any run; from the `workload_fix_v1` close).**
+- **Calibration set: 9601, 9602, 9607, 9608** (9603–9606 are infeasible on the live topology; `workload_fix_v1`). This
+  replaces "9601–9604" below.
+- **Code and workload:** R1.1 + the reservation fix (`rp/starve-w4fix` `97269192`), WF1 (W2 + W3 + W4), window 1 s.
+- **Guard additions, every rung, every arm run for the guard (CD and Knative):** request failures ≤ 1 % of tasks, **p95
+  per-task latency ≤ 300 s**, and the run ends within 1.25× the last arrival time. Under WF1 at ×11.61, Knative's queue
+  share was 0.001 while its p95 was 5,366 s, so queue share alone can't see a pre-execution collapse. A rung where
+  Knative fails a guard is still allowed (Knative is context), but the failure is reported with the rung. A rung where CD
+  fails one isn't allowed.
+- **Instrumentation first:** add an arrival-to-placement time per task (mean, p95, max) to the gate summary, behind an
+  identity check on 3 cells. Without it, the guard can't attribute a pre-execution wait.
+
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
 measure rather than the old ×2/×3/×5 ladder?
