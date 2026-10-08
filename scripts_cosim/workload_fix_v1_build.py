@@ -33,6 +33,9 @@ sys.path.insert(0, str(ROOT / "scripts_cosim"))
 from src.placement.workload_payloads import (  # noqa: E402
     PAYLOAD_SAMPLERS, payload_sampler_meta, require_sampler, resample_peer_exchange,
 )
+from src.placement.workload_task_mix import (  # noqa: E402
+    TASK_MIXES, defined_application_types, relabel_events, require_task_mix, task_mix_meta,
+)
 
 WINDOWS = tuple(f"grounded_g{i}_n50000.json" for i in range(4))
 
@@ -45,20 +48,29 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def apply_sampler(src: Path, dst: Path, sampler: str) -> dict:
-    """Copy the four x1 windows to ``dst``, resampling payloads when the sampler asks for it."""
+def apply_sampler(src: Path, dst: Path, sampler: str, task_mix: str = "none") -> dict:
+    """Copy the four x1 windows to ``dst``, resampling payloads when the sampler asks for it and relabelling the
+    task types when ``task_mix`` is not ``none`` (W4). Both default to the untouched path."""
     require_sampler(sampler)
+    require_task_mix(task_mix)
+    applications = defined_application_types() if task_mix != "none" else None
     dst.mkdir(parents=True, exist_ok=True)
     seeds = {}
     for name in WINDOWS:
         wl = json.loads((src / name).read_text())
         seed = int(wl["grounded_workload_v1"]["seed"])
         seeds[name] = seed
-        if sampler == "legacy":
+        if sampler == "legacy" and task_mix == "none":
             shutil.copyfile(src / name, dst / name)  # byte copy: build_b records the source's sha256
             continue
-        wl["peer_exchange"] = resample_peer_exchange(wl["peer_exchange"], seed)
-        wl["workload_fix_v1"] = {**payload_sampler_meta(), "seed": seed, "source_sha256": sha256(src / name)}
+        meta = {"seed": seed, "source_sha256": sha256(src / name)}
+        if sampler != "legacy":
+            wl["peer_exchange"] = resample_peer_exchange(wl["peer_exchange"], seed)
+            meta = {**payload_sampler_meta(), **meta}
+        if applications is not None:
+            wl["events"] = relabel_events(wl["events"], seed, applications)
+            meta["task_mix"] = task_mix_meta(applications)
+        wl["workload_fix_v1"] = meta
         with open(dst / name, "w") as fh:
             json.dump(wl, fh)
     return seeds
@@ -123,6 +135,8 @@ def main() -> int:
     ap.add_argument("--batch-timeout-fixed", type=float, default=None, metavar="SECONDS",
                     help="amendment WB: keep scheduler.batch_timeout at this value on every rung "
                          "(timestamps still scale); absent = the ladder protocol's scaled value")
+    ap.add_argument("--task-mix", choices=TASK_MIXES, default="none",
+                    help="none: the trace's two types. wf1_v1: W4, all defined types in an equal mix (labels only)")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--verify-against", type=Path, help="existing single-origin rung wl dir; its factor must be the only --rung")
     a = ap.parse_args()
@@ -138,8 +152,10 @@ def main() -> int:
     x1 = a.out / "_x1_windows"
     if x1.exists():
         shutil.rmtree(x1)
-    seeds = apply_sampler(a.grounded_wl, x1, a.payload_sampler)
+    seeds = apply_sampler(a.grounded_wl, x1, a.payload_sampler, a.task_mix)
     manifest = {"payload_sampler": a.payload_sampler, "batch_timeout_fixed_s": a.batch_timeout_fixed, "window_seeds": seeds, "topologies": a.topologies, "rungs": {}}
+    if a.task_mix != "none":
+        manifest["task_mix"] = a.task_mix
     for tag, factor in rungs.items():
         d = build_rung(x1, a.cfg_dir, a.out, tag, factor, a.topologies, a.batch_timeout_fixed)
         manifest["rungs"][tag] = {"factor": factor, "multiplier": 1.0 / factor,
