@@ -27,6 +27,9 @@ Revision 2026-10-08 (before any run): calibration now runs on the fixed workload
     grows as 1/m) without moving any rung. The lower end becomes the already-evaluated ×0.2666, and ×11.61 for
     moderate and heavy, whose bands sit above 0.104. The upper end stays ×64, and no midpoint below ×5 is evaluated
     unless the bracket requires it. Rung definitions, guards and the step cap are unchanged.
+    Job 843586, `rp/recal` `64a545cd`, with linear midpoints and the cached ends read from disk. ×11.61: CD 8/8, share 0.1045, all guards pass.
+    ×0.2666: CD 7/8 (the 8th, 9608 g1, hit the wall limit and its rerun was cancelled), share 0.0251. A seeded end places the
+    bracket by its share alone and can never be the answer (accepted).
 
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
