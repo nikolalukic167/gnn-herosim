@@ -54,9 +54,11 @@ def apply_sampler(src: Path, dst: Path, sampler: str) -> dict:
         wl = json.loads((src / name).read_text())
         seed = int(wl["grounded_workload_v1"]["seed"])
         seeds[name] = seed
-        if sampler == "wf1_v1":
-            wl["peer_exchange"] = resample_peer_exchange(wl["peer_exchange"], seed)
-            wl["workload_fix_v1"] = {**payload_sampler_meta(), "seed": seed, "source_sha256": sha256(src / name)}
+        if sampler == "legacy":
+            shutil.copyfile(src / name, dst / name)  # byte copy: build_b records the source's sha256
+            continue
+        wl["peer_exchange"] = resample_peer_exchange(wl["peer_exchange"], seed)
+        wl["workload_fix_v1"] = {**payload_sampler_meta(), "seed": seed, "source_sha256": sha256(src / name)}
         with open(dst / name, "w") as fh:
             json.dump(wl, fh)
     return seeds
