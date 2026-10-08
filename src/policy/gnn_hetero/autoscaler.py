@@ -98,6 +98,22 @@ class KnativeAutoscaler(Autoscaler):
         return concurrency_results
 
     def create_first_replica(
+        self,
+        system_state: SystemState,
+        task_type: TaskType,
+        source_node_name: Optional[str] = None,
+    ):
+        """Counts calls that overlap in simulated time: the old filtered-pool swap leaked exactly then."""
+        self.count_starved("create_calls")
+        if self.__dict__.get("_creating", 0):
+            self.count_starved("create_overlap")
+        self._creating = self.__dict__.get("_creating", 0) + 1
+        try:
+            return (yield from self._create_first_replica(system_state, task_type, source_node_name))
+        finally:
+            self._creating -= 1
+
+    def _create_first_replica(
         self, 
         system_state: SystemState, 
         task_type: TaskType,

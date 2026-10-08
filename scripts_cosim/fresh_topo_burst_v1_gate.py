@@ -674,7 +674,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     drift = queue_drift(st.get("taskResults"))
     out = {k: st.get(k) for k in ("num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime",
                                   "averageWaitTime", "totalPeerExchangeTime", "totalPeerRendezvousWait", "endTime",
-                                  "schedulerCounters", "offloadingRate", "total_rtt_plus_inference")}
+                                  "schedulerCounters", "offloadingRate", "total_rtt_plus_inference",
+                                  "requestFailures", "requestTimeoutS")}
     if WF1_LADDER:  # workload_fix_v1: the latency decomposition needs the stage times; other phases keep their keys
         for k in ("averageColdStartTime", "averageInitializationTime", "averagePullTime", "averageExecutionTime",
                   "averageComputeTime", "averageCommunicationsTime", "averageNetworkLatency"):

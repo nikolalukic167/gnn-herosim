@@ -135,6 +135,11 @@ class AuditRecorder:
         )
 
     # ---- transfers (I2, I3) ----------------------------------------------------------------------------------
+    def failed(self, env: Any, task: Any, platform: Any, reason: str) -> None:
+        self.emit("fail", env.now, task=int(task.id), type=task.type["name"],
+                  q=f"{platform.node.node_name}:{platform.id}", reason=reason,
+                  scheduled=_f(getattr(task, "scheduled_time", None)), dispatched=_f(getattr(task, "dispatched_time", None)))
+
     def transfer(self, env: Any, kind: str, task: Any, src: str, dst: str, size_bytes: float,
                  route: Iterable, model: str, charged: float, latency: Optional[float] = None,
                  wait: Optional[float] = None, store_forward: bool = False,
@@ -176,6 +181,24 @@ class AuditRecorder:
         self.emit("kpa", env.now, fn=function_name, obs=_f(observed), cur=int(current), ready=int(ready),
                   desired=int(decision.desired), panic=bool(decision.panicking), stable=_f(decision.stable_avg),
                   load_live=int(load_live), occ=dict(occupancy))
+
+    # ---- pool conservation (I13) -----------------------------------------------------------------------------
+    def pool(self, env: Any, system_state: Any, draining: Any) -> None:
+        """Per node at a KPA tick: [free platforms, platforms owned by a replica, platforms being drained, the node's own
+        `available_platforms` counter]. With the node's platform count (header) the three must add up."""
+        names = {}
+        def slot(node):
+            return names.setdefault(node.node_name, [0, 0, 0, None])
+        for node, platforms in system_state.available_resources.items():
+            row = slot(node)
+            row[0] = len(platforms)
+            row[3] = int(node.available_platforms)
+        for replicas in system_state.replicas.values():
+            for node, _platform in replicas:
+                slot(node)[1] += 1
+        for node_name, _pid in draining:
+            names.setdefault(node_name, [0, 0, 0, None])[2] += 1
+        self.emit("pool", env.now, nodes=names)
 
     # ---- decisions (I10) -------------------------------------------------------------------------------------
     def decision(self, env: Any, sim_before: float, sim_after: float, wall_s: float, n_tasks: int,
