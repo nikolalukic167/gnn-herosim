@@ -91,7 +91,10 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
         row["stats_mb"] = len(json.dumps(stats, default=str)) / 1e6
         row["captured_output_mb"] = len(sink.getvalue()) / 1e6
     except (Exception, SystemExit) as exc:  # a failed replay is a result, recorded by name
+        import traceback
+
         row["error"] = f"{type(exc).__name__}: {str(exc)[:240]}"
+        row["traceback"] = traceback.format_exc()[-1500:]
     row["seconds"] = time.perf_counter() - t0
     row["rss_mb"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
     row["rss_over_import_mb"] = row["rss_mb"] - base_rss
