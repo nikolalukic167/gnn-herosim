@@ -66,7 +66,8 @@ def diff_infra(w3: dict, w4: dict) -> dict:
         for b in row:
             if b not in w3["network_maps"].get(a, {}) and a < b:
                 added_edges.append([a, b])
-    differing = sorted(k for k in set(w3) | set(w4) if json.dumps(w3.get(k), sort_keys=True) != json.dumps(w4.get(k), sort_keys=True))
+    # `metadata` is the generation timestamp and the temp config path, which differ on every call
+    differing = sorted(k for k in set(w3) | set(w4) if k != "metadata" and json.dumps(w3.get(k), sort_keys=True) != json.dumps(w4.get(k), sort_keys=True))
     replica_diff = json.dumps(w3["replica_placements"], sort_keys=True) != json.dumps(w4["replica_placements"], sort_keys=True)
     access_same = json.dumps((w3.get("link_topology") or {}).get("access_classes"), sort_keys=True) == \
         json.dumps((w4.get("link_topology") or {}).get("access_classes"), sort_keys=True)

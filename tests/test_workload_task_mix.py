@@ -128,3 +128,20 @@ def test_unknown_mix_and_non_single_node_events_fail_loud(tmp_path, x1):
 def _load_after(dst, x1, sampler, mix):
     B.apply_sampler(x1, dst, sampler, mix)
     return _load(dst)
+
+
+def test_w4_config_differs_from_w3_only_by_the_repair_block():
+    import workload_fix_v1_stage_topologies as T
+
+    cfg = json.loads((ROOT / "tests" / "fixtures" / "workload_fix_v1" / "cc40s9473.json").read_text())
+    c3 = T.w3_config(cfg)
+    c4 = T.w4_config(c3)
+    assert c3["network"]["backbone"]["access_classes"]["mix"] == {"wired": 0.4, "wifi": 0.4, "cellular": 0.2}
+    assert {k: v for k, v in c4["network"].items() if k != "reachability_repair"} == c3["network"]
+    assert {k: v for k, v in c4.items() if k != "network"} == {k: v for k, v in c3.items() if k != "network"}
+    assert c4["network"]["reachability_repair"] == {"task_types": "all"}
+    with pytest.raises(SystemExit, match="already carries"):
+        T.w3_config(c3)
+    d = T.diff_infra(T.generate(c3, ROOT / "data" / "nofs-ids"), T.generate(c4, ROOT / "data" / "nofs-ids"))
+    assert d["access_classes_identical"] and not d["replica_placements_differ"]
+    assert d["added_edges"] == [] and d["keys_differing"] == []  # the repair has nothing to add on this config
