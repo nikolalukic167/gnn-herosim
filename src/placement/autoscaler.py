@@ -40,6 +40,7 @@ from src.placement.scaleout import (
     scaleout_mode,
 )
 from src.placement.warmth import NODE_DISK_V2
+from src.placement.physics_audit import AUDIT as _AUDIT
 from src.placement.model import (
     PlatformVector,
     ScaleEvent,
@@ -241,6 +242,11 @@ class Autoscaler:
                     1 for _, platform in function_replicas if platform.initialized.triggered
                 )
                 decision = self.kpa.decide(function_name, now, current, ready)
+                if _AUDIT is not None:
+                    _AUDIT.kpa_tick(self.env, function_name, self.kpa.functions[function_name].samples[-1][1],
+                                    current, ready, decision,
+                                    sum(1 for (fn, _n, _p), c in self._replica_cause.items()
+                                        if fn == function_name and c == "load"))
                 stats["panic_entries"] += int(decision.entered_panic)
                 stats["panic_ticks"] += int(decision.panicking)
 
@@ -380,6 +386,8 @@ class Autoscaler:
 
             if kpa:
                 self.scaleout_stats["memory_cap_refusals"] += memory_refused
+            if _AUDIT is not None and memory_refused:
+                _AUDIT.memory_refusal(self.env, function_name, memory_refused)
 
             # No suitable resources for replica creation
             if not couples_suitable:
@@ -459,6 +467,10 @@ class Autoscaler:
                     self._replica_born[born_key] = self.env.now
                     self._replica_cause[born_key] = cause
                 self.scale_events.append(event)
+                if _AUDIT is not None:
+                    _AUDIT.replica_up(self.env, function_name, new_replica[0], new_replica[1], cause,
+                                      self.data.task_types[function_name]["memoryRequirements"][
+                                          new_replica[1].type["shortName"]])
             except KeyError:
                 """
                 logging.error(
@@ -587,6 +599,11 @@ class Autoscaler:
 
             # Statistics
             removed_replica[1].last_removed = self.env.now
+            if _AUDIT is not None:
+                _AUDIT.replica_down(self.env, function_name, removed_replica[0], removed_replica[1],
+                                    self.data.task_types[function_name]["memoryRequirements"][
+                                        removed_replica[1].type["shortName"]],
+                                    already_removed, platform_in_flight(removed_replica[1]))
             if getattr(self, "kpa", None) is not None:
                 born_key = (function_name, removed_replica[0].id, removed_replica[1].id)
                 born = self._replica_born.pop(born_key, None)

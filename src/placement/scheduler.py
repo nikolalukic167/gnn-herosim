@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 from src.placement.model import SimulationData, SimulationPolicy, SystemState
 from src.placement.resources import PriorityFilterStore
+from src.placement.physics_audit import AUDIT as _AUDIT
 
 
 class Scheduler:
@@ -120,11 +121,16 @@ class Scheduler:
 
             # Measure wall-clock time for the scheduling decision
             start = default_timer()
+            if _AUDIT is not None:
+                _AUDIT.i11_probe(self, system_state, [task])
+                audit_t0 = self.env.now
 
             # Schedule tasks according to policy
             (sched_node, sched_platform) = yield self.env.process(
                 self.placement(system_state, task)
             )
+            if _AUDIT is not None:
+                _AUDIT.decision(self.env, audit_t0, self.env.now, default_timer() - start, 1, type(self).__name__)
 
             # Update node
             node: Node = yield self.nodes.get(lambda node: node.id == sched_node.id)

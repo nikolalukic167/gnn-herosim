@@ -46,6 +46,7 @@ from src.placement.model import (
     SystemStateResult,
 )
 from src.placement.scheduler import Scheduler
+from src.placement.physics_audit import AUDIT as _AUDIT
 
 
 def check_serializable(obj, path=""):
@@ -872,6 +873,9 @@ class Orchestrator:
         self.monitor = self.env.process(self.monitor_process())
         self.autoscaler.run = self.env.process(self.autoscaler.autoscaler_process())
         self.scheduler.run = self.env.process(self.scheduler.scheduler_process())
+        if _AUDIT is not None:
+            _AUDIT.header(self)
+            _AUDIT.initial_replicas(self.env, system_state, self.data)
 
     @abstractmethod
     def monitor_process(self) -> Generator:
@@ -923,6 +927,8 @@ class Orchestrator:
 
             child.dispatched.succeed()
             self._kpa_note_arrival(child)
+            if _AUDIT is not None:
+                _AUDIT.arrive(self.env, child)
             yield self.scheduler.tasks.put(child)
             self.env.process(self.workflow_process(child))
 
@@ -995,6 +1001,8 @@ class Orchestrator:
             # Tasks are stored in a queue to be scheduled on execution platforms
             # See scheduler_process()
             self._kpa_note_arrival(first_task)
+            if _AUDIT is not None:
+                _AUDIT.arrive(self.env, first_task)
             yield self.scheduler.tasks.put(first_task)
 
         print(f"[ {self.env.now} ] Gateway: All {len(self.task_archive)} tasks from {len(self.application_archive)} applications have been dispatched")
@@ -1076,4 +1084,6 @@ class Orchestrator:
         self.system_state_results.append(state_result)
         yield self.mutex.put(system_state)
         self.end_time = self.env.now
+        if _AUDIT is not None:
+            _AUDIT.end(self.env, self.task_archive)
         yield self.end_event.succeed()

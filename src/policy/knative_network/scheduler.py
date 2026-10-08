@@ -30,6 +30,7 @@ from src.placement.live_audit import (
     platform_queue_drain_seconds as _platform_queue_drain_seconds,
 )
 from src.placement.model import SystemState
+from src.placement.physics_audit import AUDIT as _AUDIT
 
 from src.placement.scaleout import shared_autoscaler
 from src.placement.scheduler import Scheduler
@@ -107,11 +108,16 @@ class KnativeScheduler(StarvedDeferMixin, Scheduler):
             # Use parent's placement method which will call our placement() method
             from timeit import default_timer
             start = default_timer()
+            if _AUDIT is not None:
+                _AUDIT.i11_probe(self, system_state, [task])
+                audit_t0 = self.env.now
 
             # Schedule tasks according to policy
             (sched_node, sched_platform) = yield self.env.process(
                 self.placement(system_state, task)
             )
+            if _AUDIT is not None:
+                _AUDIT.decision(self.env, audit_t0, self.env.now, default_timer() - start, 1, type(self).__name__)
 
             # Deferred cold replicas: start image pull when task is placed
             # (needed for scarce-preinit live stubs; matches determined path).

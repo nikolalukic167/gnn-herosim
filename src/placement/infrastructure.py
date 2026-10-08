@@ -31,6 +31,7 @@ from src.placement.scheduling_cost import (
     transfer_time as _transfer_time,
 )
 from src.placement.network_fabric import NetworkFabric, transfer_model, transmission_hops
+from src.placement.physics_audit import AUDIT as _AUDIT
 
 # network_contention_v1 spelling, kept where the ingress pipe is charged.
 _ingress_transfer_time = _transfer_time
@@ -103,6 +104,14 @@ def _output_estimate_seconds(task: "Task") -> float:
     state = (task.type.get("stateSize") or {}).get(task.application.type.get("name", ""))
     size = float((state or {}).get("output", 0) or 0) if isinstance(state, dict) else 0.0
     return size / (100.0 * 1024.0 * 1024.0) + 0.001 if size > 0 else 0.0
+
+
+def _audit_input_bytes(task: "Task") -> float:
+    """Input payload the ingress transfer carries, as scheduling_cost.transfer_time reads it."""
+    if not task.application:
+        return 0.0
+    state = (task.type.get("stateSize") or {}).get(task.application.type.get("name", ""), {})
+    return float((state or {}).get("input", 0) or 0) if isinstance(state, dict) else 0.0
 
 
 def slim_completed_task(task: "Task") -> None:
@@ -365,6 +374,8 @@ class Task:
 
         yield self.scheduled
         self.scheduled_time = self.env.now
+        if _AUDIT is not None and self.platform is not None:
+            _AUDIT.enqueue(self.env, self, self.platform)
 
         logging.info(
             f"[ {self.env.now} ] ⏲️ {self} scheduled on {self.node}, {self.platform}"
@@ -1150,6 +1161,8 @@ class Platform:
             latency = float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
 
             payload = float(dependency.type["stateSize"][app_name]["output"])
+            if _AUDIT is not None:
+                self._audit_payload("dependency", task, parent_node_name, payload, latency)
             total += self._payload_transfer_time(parent_node_name, payload) + latency
 
         return total
@@ -1247,9 +1260,23 @@ class Platform:
                 )
             if peer_node_name == self.node.node_name:
                 continue
+            if _AUDIT is not None:
+                self._audit_payload("peer", task, peer_node_name, payload, self.peer_link_latency(
+                    peer_node_name, context=f"peer {peer_id} of task {task.id}"))
             total += self._payload_transfer_time(peer_node_name, payload) + self.peer_link_latency(
                 peer_node_name, context=f"peer {peer_id} of task {task.id}")
         return total
+
+    def _audit_payload(self, kind: str, task: "Task", src_node_name: str, payload: float, latency: float) -> None:
+        fabric = getattr(self.node, "fabric", None)
+        try:
+            route = fabric.hops(src_node_name, self.node.node_name) if fabric is not None else []
+        except Exception:
+            route = []
+        model = transfer_model()
+        _AUDIT.transfer(self.env, kind, task, src_node_name, self.node.node_name, payload, route, model,
+                        self._payload_transfer_time(src_node_name, payload), latency,
+                        store_forward=model != "pipelined" and len(route) > 1)
 
     def peer_link_latency(self, peer_node_name: str, context: str = "") -> SimTime:
         """Propagation latency between this platform's node and a peer's node for a peer exchange.
@@ -1398,6 +1425,9 @@ class Platform:
 
             self.admitted = task
             self.last_started = self.env.now
+            if _AUDIT is not None:
+                task._audit_pop = self.env.now
+                task._audit_inflight_at_pop = len(self.inflight)
 
             # Network latency for remote task execution
             # Check if task is being executed on a different node than where it originated
@@ -1426,6 +1456,12 @@ class Platform:
                                     task.ingress_transfer_time = transfer_time
                                     self.node.ingress_wait_total += ingress_wait
                                     yield self.env.timeout(transfer_time)
+                                if _AUDIT is not None:
+                                    _AUDIT.transfer(self.env, "ingress_pipe", task, task.node_name,
+                                                    self.node.node_name, _audit_input_bytes(task),
+                                                    [["ingress", self.node.ingress_bandwidth_mbps]],
+                                                    transfer_model(), transfer_time, network_time,
+                                                    task.ingress_wait_time)
                         # link_contention_v1: the same transmission, but served hop by hop
                         # along the task's actual route instead of at one endpoint. Each
                         # link is a capacity-1 pipe shared by every path that crosses it,
@@ -1456,7 +1492,17 @@ class Platform:
                                 finally:
                                     for link_key_, req in requests:
                                         self.node.fabric.pipe(link_key_).release(req)
+                                if _AUDIT is not None:
+                                    _AUDIT.transfer(self.env, "ingress", task, task.node_name, self.node.node_name,
+                                                    _audit_input_bytes(task), route, "pipelined", hold,
+                                                    network_time, link_wait)
                         elif self.node.fabric is not None:
+                            if _AUDIT is not None:
+                                _audit_route = self.node.fabric.hops(task.node_name, self.node.node_name)
+                                _audit_held = sum(_transfer_time(task, bw) for _k, bw in _audit_route)
+                                _AUDIT.transfer(self.env, "ingress", task, task.node_name, self.node.node_name,
+                                                _audit_input_bytes(task), _audit_route, "store_forward",
+                                                _audit_held, network_time, None, store_forward=True)
                             for link_key_, bandwidth in self.node.fabric.hops(
                                 task.node_name, self.node.node_name
                             ):
@@ -1499,6 +1545,11 @@ class Platform:
                 self.admitted = None
 
             warm_function = sandbox_is_warm(self, task)
+            if _AUDIT is not None:
+                task._audit_warm = warm_function
+                task._audit_prev_type = (
+                    self.previous_task.type.get("name") if self.previous_task is not None else None)
+                task._audit_incarnation = getattr(self, "_audit_incarnation", None)
 
             # Cold start penalty is not incurred if task sandbox was in cache
             initialization_duration = (
@@ -1521,6 +1572,8 @@ class Platform:
             # Cold start timeout
             yield self.env.timeout(cold_start_duration)
             task.cold_start_time = cold_start_duration
+            if _AUDIT is not None:
+                task._audit_cold_end = self.env.now
 
             if REPLICA_RELEASE:
                 # the sandbox now holds this function: tasks popped while this one is still in flight start warm
@@ -1540,6 +1593,8 @@ class Platform:
         input_storage: Storage
         output_storage: Storage
         local_dependencies = True
+        if _AUDIT is not None:
+            task._audit_io_start = self.env.now
 
         # Does the task have dependencies?
         if task.dependencies:
@@ -1667,6 +1722,8 @@ class Platform:
 
         # Retrieve input data
         yield self.env.timeout(input_duration)
+        if _AUDIT is not None:
+            task._audit_io_end = self.env.now
         # task.application.communications_time += input_duration
 
         # Retrieve task duration according to platform hardware
@@ -1679,6 +1736,8 @@ class Platform:
             compute = self.compute_lock.request()
             yield compute
             self.current_task = task
+        if _AUDIT is not None:
+            task._audit_compute_start = self.env.now
 
         # Run the task to completion. Under node_contention_v3 the platform must first
         # acquire one of the node's shared execution slots, so co-located platforms
@@ -1695,6 +1754,8 @@ class Platform:
         else:
             task_duration = yield from self._execute(task, task_duration)
         task.execution_time = task_duration
+        if _AUDIT is not None:
+            task._audit_exec_end = self.env.now
 
         # Store output data
         # FIXME: Remote storage? Local node?
@@ -1773,6 +1834,9 @@ class Platform:
         )
         # task.storage_time = task_storage_time
         task.communications_time = task_storage_time
+
+        if _AUDIT is not None:
+            _AUDIT.served(self.env, task, self, release)
 
         # Notify scheduler of task completion
         yield task.done.succeed()
