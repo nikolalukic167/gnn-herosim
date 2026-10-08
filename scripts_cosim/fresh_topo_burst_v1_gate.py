@@ -183,6 +183,27 @@ def latency_percentiles(task_results: Optional[List[dict]]) -> Optional[Dict[str
     return {"n": n, "p50": rank(0.50), "p95": rank(0.95), "p99": rank(0.99), "max": lat[-1]}
 
 
+def placement_wait(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """load_recalibration_v1: arrival-to-placement time per task (scheduledTime - dispatchedTime, the quantity whose mean is
+    averageWaitTime): mean, p95 (nearest-rank) and max. A queue share cannot see a wait that happens before execution."""
+    if not task_results:
+        return None
+    w = sorted(float(r["scheduledTime"]) - float(r["dispatchedTime"]) for r in task_results
+               if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    n = len(w)
+    if not n:
+        return None
+    return {"n": n, "mean": sum(w) / n, "p95": w[min(n - 1, max(0, math.ceil(0.95 * n) - 1))], "max": w[-1]}
+
+
+def arrival_end(workload_path: str, end_time: Optional[float]) -> Optional[Dict[str, object]]:
+    """load_recalibration_v1: the run's end time against the last arrival in its workload file."""
+    last = max(float(e["timestamp"]) for e in json.load(open(workload_path))["events"])
+    if end_time is None:
+        return None
+    return {"last_arrival_s": last, "end_time_s": float(end_time), "end_over_last_arrival": float(end_time) / last if last > 0 else None}
+
+
 def replica_count_series(system_events: Optional[List[dict]], end_time: Optional[float],
                          points: int = 120) -> Optional[Dict[str, object]]:
     """physics_audit_v1: live replicas per function and in total on a uniform grid over the run, from the autoscaler's
@@ -710,6 +731,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     # reference_physics_programme metrics: cold-start share (percent of tasks) travels with every summary
     out["cold_start_pct"] = st.get("coldStartProportion")
     out["latency_percentiles"] = latency_percentiles(st.get("taskResults"))
+    out["placement_wait"] = placement_wait(st.get("taskResults"))
+    out["arrival_end"] = arrival_end(wl, st.get("endTime"))
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
         want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
