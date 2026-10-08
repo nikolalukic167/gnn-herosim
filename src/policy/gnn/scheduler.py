@@ -1055,7 +1055,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         return out
 
     def _redecode_stale_placement(self, task: Task, system_state: SystemState) -> Optional[Tuple[int, int]]:
-        """Decode ``task`` again, alone, on the current state, or ``None`` when it has no valid replica left.
+        """Decode ``task`` again, alone, on the current state, or ``None`` when it has no valid replica left
+        (the caller defers it).
 
         Reached only where the batch path used to raise: between the batch decode and this task's turn, the
         mutex was released and a starved task type's scale-up evicted the decoded replica (workload_fix_v1 W4:
@@ -1167,13 +1168,19 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             ]
             if not match:
                 redecoded = self._redecode_stale_placement(task, current_system_state)
-                if redecoded is not None:
-                    placements[idx] = redecoded
-                    target_node_id, target_plat_id = redecoded
-                    match = [
-                        (node, plat) for node, plat in task_replicas
-                        if node.id == target_node_id and plat.id == target_plat_id
-                    ]
+                if redecoded is None:
+                    # every network-accessible replica of the type was evicted since the decode: the task is
+                    # deferred behind an autoscaler request, as one with no replica at decode time is
+                    self.prefix_tasks_deferred += 1
+                    yield from self._defer(task, current_system_state)
+                    yield self.mutex.put(current_system_state)
+                    continue
+                placements[idx] = redecoded
+                target_node_id, target_plat_id = redecoded
+                match = [
+                    (node, plat) for node, plat in task_replicas
+                    if node.id == target_node_id and plat.id == target_plat_id
+                ]
             if not match:
                 raise RuntimeError(
                     f"masked_topo: decoded placement ({target_node_id}, {target_plat_id}) for "
