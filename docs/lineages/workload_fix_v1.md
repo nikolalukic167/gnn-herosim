@@ -37,6 +37,17 @@ configs; the 4 calibration topologies are checked when minted. W3 draws on the 9
 pool (unused anywhere in `simulation_data/` or the record, checked 2026-10-08). The 77 non-admitted ids of that pool
 are not used: they failed admission under old physics.
 
+
+**Pre-run amendment (2026-10-08, coordinator, before any W2+W3 or W2+W3+W4 cell): stages run in parallel, and
+are read in order.** The W2+W3 and W2+W3+W4 cells may run while W2 is running. The registered order still governs
+reading. No arm comparison of a stage is opened before the previous stage is read. Before that, only completion,
+failure and hang counts may be looked at. If reading an earlier stage forces a change to shared code, configs or rungs,
+every later stage's cells are discarded and rerun. All stages use the same provisional rungs (from the W2 bisection) and
+the same 19 test topologies. Each stage writes to its own directory under `simulation_data/workload_fix_v1/`.
+Reason: W3 and W4 add new code paths (direction-aware links; `rf`/`cnn`), and hangs surfaced as stuck cells on
+calibration topologies 9603/9604. Finding such failures while W2 runs costs nothing in attribution, since each
+stage still differs from the previous one by one factor and is read after it.
+
 ## Question
 Which classical rankings on R1 survive replacing the synthetic payloads, uniform links and two-type task mix with
 grounded or explicitly labelled values? The result fixes workload **WF1**, on which all learned arms are trained.
