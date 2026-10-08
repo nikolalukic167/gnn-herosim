@@ -19,6 +19,14 @@ Implementation and checks: `src/placement/scaleout.py`, `src/placement/autoscale
 (16 tests). Local legacy replay on `cc40s9001` (4 arms, 4,000 events) identical after the amendments. A one-cell
 smoke (not a result, not the test workload) moved short-lived replicas from 66 % to 46 % for CD and 37 % to 34 % for
 reactive; CD's reachability creations still outnumber load creations (2,191 : 1,017).
+- **A4 one autoscaler for every arm (2026-10-08, before any read).** The first `kpa` launch (`c9e5ed6c`) timed out
+  only on `reactive` and `selfpredict`, the two arms on the `knative_network` autoscaler: 40–310 runs per condition,
+  every topology, rising with load. A trace of `9483 g2 ×5 selfpredict` showed the clock frozen at 4,900 s with no
+  memory refusal and no unplaced task. Under `kpa` every arm now runs the GNN-family autoscaler (starved-type eviction,
+  rendezvous release), and the starved-task defer is shared (`src/placement/starved_defer.py`), so arms differ only in
+  their scheduler. The traced cell then completes in 55 s. Legacy keeps the historical pairing (local replay
+  identical). The `c9e5ed6c` outputs are kept as `*_c9e5` and are not read; every condition and the legacy replay
+  rerun at `71d9cbcb`.
 
 ## Question
 Does replacing the current scale-out rule (target 100, queued-only concurrency, reachability-driven
