@@ -12,7 +12,9 @@ two servers differ (`Platform._peer_exchange_time` skips a co-located peer), so 
 and the baseline share is the sum of the second over pairs divided by the sum of the first. Observed: an arm's
 `wired+wired` transfers over all its transfers, pooled over the topology's four windows, from the summaries'
 `peerExchangeByAccessClass`. Per arm and rung: observed minus baseline per topology (percentage points), the median
-over topologies and the number of topologies above the baseline. Descriptive; no test.
+over topologies and the number of topologies above, below and tied with the baseline; also over the topologies whose
+baseline is strictly between 0 and 1 (a topology with no wired pair, or only wired servers, ties every arm).
+Descriptive; no test.
 
   workload_fix_v1_w3_wired_baseline.py --inputs <stage_w23 inputs> --gate-dir <gate> --selected <selected.json> --out <json>
 """
@@ -122,8 +124,13 @@ def main() -> int:
         summary = {}
         for arm in R.ARMS:
             diffs = [100 * (per_topo[t]["arms"][arm]["observed_share"] - per_topo[t]["baseline_share"]) for t in topos]
-            summary[arm] = {"median_diff_pp": st.median(diffs), "n_above": sum(d > 0 for d in diffs), "n": len(diffs),
-                            "median_observed": st.median(per_topo[t]["arms"][arm]["observed_share"] for t in topos)}
+            inf = [100 * (per_topo[t]["arms"][arm]["observed_share"] - per_topo[t]["baseline_share"])
+                   for t in topos if 0.0 < per_topo[t]["baseline_share"] < 1.0]
+            summary[arm] = {"median_diff_pp": st.median(diffs), "n_above": sum(d > 0 for d in diffs),
+                            "n_below": sum(d < 0 for d in diffs), "n_tied": sum(d == 0 for d in diffs), "n": len(diffs),
+                            "median_observed": st.median(per_topo[t]["arms"][arm]["observed_share"] for t in topos),
+                            "informative": {"median_diff_pp": st.median(inf), "n_above": sum(d > 0 for d in inf),
+                                            "n_below": sum(d < 0 for d in inf), "n": len(inf)}}
         res["rungs"][rung] = {"median_baseline": st.median(per_topo[t]["baseline_share"] for t in topos),
                               "min_baseline": min(per_topo[t]["baseline_share"] for t in topos),
                               "max_baseline": max(per_topo[t]["baseline_share"] for t in topos),
@@ -132,7 +139,8 @@ def main() -> int:
     for rung, r in res["rungs"].items():
         print(f"== {rung}: baseline wired+wired share median {100 * r['median_baseline']:.1f}% (range {100 * r['min_baseline']:.1f}-{100 * r['max_baseline']:.1f}%)")
         for arm, s in r["arms"].items():
-            print(f"  {arm:12s} observed median {100 * s['median_observed']:.1f}%  observed-baseline {s['median_diff_pp']:+.1f} pp  above in {s['n_above']}/{s['n']}")
+            print(f"  {arm:12s} observed median {100 * s['median_observed']:.1f}%  observed-baseline {s['median_diff_pp']:+.1f} pp  above/below/tied {s['n_above']}/{s['n_below']}/{s['n_tied']} of {s['n']}"
+                  f" | topologies with 0<baseline<1: {s['informative']['median_diff_pp']:+.1f} pp, above {s['informative']['n_above']}/{s['informative']['n']}")
     return 0
 
 
