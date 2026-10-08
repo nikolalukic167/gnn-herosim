@@ -12,7 +12,8 @@ import sys
 from pathlib import Path
 
 NEW = {"placement_wait", "arrival_end"}
-BOOKKEEPING = {"wallclock_s", "code"}
+# total_rtt_plus_inference adds the measured inference wall time (not simulated; total_rtt is compared)
+BOOKKEEPING = {"wallclock_s", "code", "total_rtt_plus_inference"}
 
 
 def compare(before: Path, after: Path) -> list:
