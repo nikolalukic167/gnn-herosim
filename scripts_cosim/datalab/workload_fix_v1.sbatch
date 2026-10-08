@@ -8,6 +8,7 @@
 #   bisect  provisional load on the calibration topologies (workload_fix_v1_bisect.py)
 #   w3build  W3 inputs from built W2 rungs (access_classes added) plus the field-level W2-vs-W3 topology diff
 #   w3smoke  CD and reactive on 4 W3 topologies, 1 rung, 1 window (WF1_ROOT = the W2+W3 output root)
+#   w3replay  default path (W2 inputs, no access classes) on 3 reactive cells, to compare with the finished W2 gate summaries
 #   stage   build the stage's rungs (WF1_SAMPLER) and run the five classical arms on the 19 test topologies
 #SBATCH --job-name=wf1
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/wf1-%j.out
@@ -109,6 +110,12 @@ case "$JOB" in
       python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$R/inputs" --out "$R/smoke" \
       --parallel "$P" --mem 4G --timeout "${TIMEOUT:-2700}" --no-scope | grep -v "^\[skip"
     echo "=== smoke: $(ls "$R"/smoke/*.summary.json 2>/dev/null | wc -l) summaries, $(ls "$R"/smoke/*.failed.json 2>/dev/null | wc -l) failed ==="
+    ;;
+  w3replay)
+    R=${WF1_ROOT:?FAIL LOUD: set WF1_ROOT}
+    WF1_RUNGS=lo WF1_TOPOS=9483,9484,9485 WF1_CAL_WINDOWS=g0 WF1_CAL_KINDS=reactive \
+      python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$W/inputs_w2" --out "$R/replay_default" \
+      --parallel 3 --mem 4G --timeout "${TIMEOUT:-2700}" --no-scope | grep -v "^\[skip"
     ;;
   stage)
     STAGE=${WF1_STAGE:?FAIL LOUD: set WF1_STAGE (w2)}
