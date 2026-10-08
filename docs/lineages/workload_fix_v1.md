@@ -122,6 +122,9 @@ batch reservation of the original target, so that target would stay unevictable.
 "stale placement re-decoded" warning appears 0 times in the 755 completed W4 logs (largest 258 KB, not capped; WARNING
 lines present in 451). So the W4 data is unaffected. Fix it (unreserve the original target on both paths) before that branch
 is used again. A spin made cheaper without changing event order (cached reachability, indexed collector) is deferred.
+**Fixed the same day:** `rp/starve-w4fix` `97269192` (one commit on `f8a2d075`, `scheduler.py` +4/−1) releases the target
+`reserve()` took on both paths. Its tests fail on the unfixed scheduler and pass with the fix. 3 W4 cells are bit-identical
+(the branch is unreached). This is the code base for every node after WF1.
 
 ### 2026-10-08 — W3 (access-link classes) on R1.1: the stage read
 
