@@ -1,6 +1,6 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `ACTIVE` (2026-10-08) — W2 read under two batching windows; the batching arms' window is now tuned once on the calibration topologies (WB2); a starved-replica hang blocks W4. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — W2 read at the tuned 1 s window (provisional until the R1.1 identity check); the starved-replica hang has three causes, two fixed, R1.1 pending. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
 
@@ -90,6 +90,59 @@ of which arm benefits.
 
 
 ## Record (newest first)
+
+### 2026-10-08 — WB2: window 1 s; W2 re-read; the hang's three causes; decisions for R1.1
+
+**WB2 tuning** (CD, calibration 9601/9602/9607/9608 × 2 rungs × 4 windows, W2; 160 runs, 0 hung). Median CD latency
+light / heavy, geometric mean: 1 s 2.772 / 0.541, 1.225; 2 s 2.774 / 0.547, 1.232; 4 s 1.294; 8 s 1.513; 16 s 2.153.
+**Window = 1 s** for CD, batched and locality at every rung and stage. No hang touches the top two. It's the grid edge;
+the batching wait left at 1 s is 0.035 s (light) and 0.011 s (heavy), about 1.5 % and 2 % of CD's latency, which bounds
+what a smaller window could still gain. Report: [`wf1_wb2_report.md`](workload_fix_v1/wf1_wb2_report.md).
+
+**W2 at 1 s** (456 batching-arm runs, 0 hung; reactive and self-predict from the first run):
+
+| rung | CD | self-predict vs CD | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| ×0.2666 | 2.36 s | +2.4 % (CD-FASTER) | +0.7 % (CD-FASTER) | +0.1 % (CD-FASTER) | +2.5 % |
+| ×11.61 | 0.50 s | −6.1 % (19/19, CONFIRMED) | +1.5 % (CD-FASTER) | +0.5 % (CD-FASTER) | +5.6 % |
+
+CD is first at the light rung, and self-predict at the heavy one. Self-predict's lead exceeds the bound on what a smaller
+window could give CD. CD at 1 s: batching wait 0.035 s, rendezvous 1.75 s (light). The light-rung order moved with the
+window (60 s −14.9 %, 16 s tie, 1 s +2.4 %). **Provisional:** the free-pool leak below may affect completed runs,
+so this read stands only if the R1.1 identity check shows the W2 cells unchanged.
+
+**The hang's causes** (S5, `rp/starve` `2b701c73`, single local cells, log-capped):
+1. **Free-pool leak.** `create_first_replica` in both GNN-family autoscalers (KPA's shared autoscaler, so every arm)
+   swapped `available_resources` for a filtered dict across a `yield`. Overlapping calls restored each other's
+   copy, and nodes dropped out of the free pool for good. Fixed: `scale_up(reachable_nodes=…)`, no swap.
+2. **Cross-source drain cycle.** A drain released only rendezvous peers matching its own source. Fixed: it also
+   releases starved same-type peers from other sources, and skips victims whose tasks it can't release.
+3. **Mixed-type hold-and-wait (open; W4 9565 g2).** Draining platforms hold tasks waiting on unplaced peers of
+   other types that need those platforms.
+4. **Infeasible cells.** On the live topology, 9603–9607 and test topologies 9484, 9548, 9568 each have a client with
+   no reachable compatible server for some type. The static check validated a different generator
+   (`generate_deterministic_infrastructure`), not the live one. 9603 under Knative spun silently (710k deferrals).
+
+Also fixed: batch-decoded targets reserved against eviction (a latent race); per-(type, source) rate limit on the
+starvation lines (log 487 MB → 10 KB); a task that can never reach a compatible platform raises `StarvedForeverError`.
+W2-WB 9565 g2 CD now completes 50,000 events. 11 tests (`tests/test_starved_eviction.py`). Eviction succeeded 3
+times in 14,770 calls before the fix; A1/A3 protection played no part. **Audit gap:** I7 returns NOT-TESTED for a run with
+no end row, so a hung run was never judged; no invariant checked pool conservation.
+
+**Decisions (coordinator, 2026-10-08; R1.1, before any W3/W4 read):**
+- **Cause 3: a request timeout of 300 s** (Knative's default revision `timeoutSeconds`), from the moment a task is
+  placed on its platform. A timed-out task fails, frees its platform and is logged. It enters latency at its elapsed
+  time, and failures per arm are reported next to every latency. Chosen because it's the mechanism the modelled system
+  has, and it breaks any hold-and-wait cycle without choosing which one. A rendezvous that doesn't hold the platform
+  would be a new physics; un-draining doesn't free capacity for other types.
+- **Feasibility rule for cells.** A (topology, window) cell is infeasible if, **on the live topology**, a client the
+  window uses can't reach a compatible server for a type it sends. Infeasible cells are excluded for every arm (paired)
+  and listed; the static check moves onto the live generator.
+- **R1.1 = R1 + the fixes above + the timeout.** It's accepted only if (a) the default path is identical on the 36 audit
+  and 6 legacy cells wherever no starved state or timeout occurs, and (b) a sample of completed W2 cells is identical.
+  If (b) fails, every R1 number since `kpa_scaleout_v1` is re-measured. Audit pass 3 reruns I1–I12 on R1.1, with I7
+  judging an unfinished run as FAIL, and a new **I13 pool conservation** (free + owned + draining = platforms, per node,
+  at every KPA tick).
 
 ### 2026-10-08 — W2 rerun under amendment WB; amendment WB2 (tuned window); the starved-replica hang
 
