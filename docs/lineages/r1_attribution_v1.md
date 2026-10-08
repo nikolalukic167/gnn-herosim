@@ -34,6 +34,26 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
 - **The new contract, `partial_state_v5`** (S6's design, accepted): v4's 25 columns, with columns 7–8 = the pull peer →
   candidate in seconds (log1p) and column 23 (committed service) on the pull direction; plus 2 appended columns, the reverse
   candidate → peer committed exchange and peer mass (width 27). Old contracts stay byte-identical.
+- **`partial_state_v5` built and checked (S6, `rp/r1a-features` `95e6cea6`).**
+  - v3/v4 are byte-identical on 400 real graphs and on whole smoke caches, and the test failure set is unchanged.
+  - 11 tests pass, among them the real 9601 W3 pair: pull 75 MB/s, push 4 MB/s.
+  - The loader refuses a contract mismatch in both directions.
+  - Train/serve parity holds on 6 WF1 smoke datasets. The only differences are in `peer_norm` on single-node candidate sets, and v5 doesn't use it.
+  - Not yet exercised: training. Missing: v5 arm configs and gate kinds, and an MLP-same layout. **MLP-same and Set-transformer have no implementation in the tree; both must be built before the gate.**
+- **Physics env in the cache (decided).** `node_exchange` depends on `HEROSIM_TRANSFER_MODEL` (hops counted once under pipelined),
+  and the cache recorded neither. A first v5 cache built without the R1 env had exchange 3–4× off, caught only by parity.
+  From now on the cache writes TRANSFER_MODEL, REPLICA_RELEASE and SCALEOUT into its metadata, and the trainer and serving refuse a
+  mismatch.
+- **Single-candidate-node batches are filtered at corpus build** (there's nothing to decide, and `PartialStateContext` raises on them),
+  and they're counted in the B2 dry run.
+- **B3 cause: KPA's first pass in a co-sim episode.** The KPA process runs its scale-down pass before its first wait, so at
+  t0 of every episode it removes idle replicas that are candidates in the forced plans. That made 3,542 of 5,600 plans fail on ds_00002;
+  under legacy scale-out it's 5,600/5,600. A live decision is made before the next tick, so this is a restart-order artifact.
+  **Decision:** a co-sim episode starts KPA at the live tick phase carried by the snapshot (or, if the snapshot lacks it, at
+  one reconcile interval), never with a pass at t0, under the same autoscaler settings I11 validated. A plan that still
+  fails discards its dataset, and the discard rate is reported. Before any label is built, I11 is re-checked on 20 states
+  with the change, and must show no change. Pruning out candidates and silently discarding were rejected: the first biases the
+  plan space, the second the snapshots.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
