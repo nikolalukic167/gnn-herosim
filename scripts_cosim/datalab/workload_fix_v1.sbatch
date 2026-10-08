@@ -22,6 +22,7 @@ D=/home/nikola.lukic/gnn-herosim/simulation_data
 W=$D/workload_fix_v1
 X1=$D/small_batch_confirm_v1/inputs/grounded/wl
 SELECT=$D/small_batch_confirm_v1/inputs/selected.json
+CAL_TOPOS=${CAL_TOPOS:-9601 9602 9603 9604}
 P=${PAR:-$(( ${SLURM_CPUS_PER_TASK:-64} - 2 ))}
 cd "$WT"
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
@@ -57,14 +58,14 @@ case "$JOB" in
     # admission look at the calibration topologies: CD and Knative at one multiplier, short timeout
     M=${WF1_M:-2}; tag=m${M//./p}
     python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" \
-      --topologies 9601 9602 9603 9604 --rung "$tag=$(python3 -c "print(repr(1.0/$M))")" --payload-sampler legacy --out "$W/calcheck/$tag"
-    WF1_RUNGS=$tag WF1_TOPOS=9601,9602,9603,9604 WF1_CAL_WINDOWS=g0,g1,g2,g3 WF1_CAL_KINDS=cd,reactive \
+      --topologies $CAL_TOPOS --rung "$tag=$(python3 -c "print(repr(1.0/$M))")" --payload-sampler legacy --out "$W/calcheck/$tag"
+    WF1_RUNGS=$tag WF1_TOPOS=${CAL_TOPOS// /,} WF1_CAL_WINDOWS=g0,g1,g2,g3 WF1_CAL_KINDS=cd,reactive \
       python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$W/calcheck/$tag" --out "$W/calcheck/$tag/gate" \
       --parallel "$P" --mem 4G --timeout "${TIMEOUT:-900}" --no-scope | grep -v "^\[skip"
     ;;
   bisect)
     python3 scripts_cosim/workload_fix_v1_bisect.py --work "$W/bisect" --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" \
-      --topologies 9601 9602 9603 9604 --windows g0 g1 --parallel "$P" --log "$W/bisect_steps.json"
+      --topologies $CAL_TOPOS --windows g0 g1 --parallel "$P" --log "$W/bisect_steps.json"
     ;;
   stage)
     STAGE=${WF1_STAGE:?FAIL LOUD: set WF1_STAGE (w2)}
