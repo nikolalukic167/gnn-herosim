@@ -44,6 +44,7 @@ from src.policy.gnn.seq_decode import (
 )
 from src.policy.tabular.feature_builder import build_pyg_inference_graph
 from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot
+from src.placement.physics_audit import AUDIT as _AUDIT
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -1072,6 +1073,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         maybe_capture_batch_live_audit_snapshot(
             self, system_state, batch_tasks, self._live_audit_policy_name
         )
+        audit_t0 = self.env.now
+        if _AUDIT is not None:
+            _AUDIT.i11_probe(self, system_state, batch_tasks)
         queue_snapshot = self._capture_full_queue_snapshot()
         temporal_state = self._capture_temporal_state_snapshot()
 
@@ -1101,6 +1105,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             if keepwarm is not None:
                 placements = self._keep_replicas_warm(decodable, placements, system_state, *keepwarm)
             inference_time = default_timer() - inference_start
+            if _AUDIT is not None:
+                _AUDIT.decision(self.env, audit_t0, self.env.now, inference_time, len(decodable),
+                                self._live_audit_policy_name)
             node_by_id = {node.id: node for node in self.nodes.items}
             for idx, task in enumerate(decodable):
                 task.planned_node_name = node_by_id[placements[idx][0]].node_name
