@@ -321,3 +321,17 @@ def test_tune_counts_a_hung_run_as_infinite_and_picks_the_geometric_mean_minimum
             ok.pop((t, f"{g}hib4", "cd"))
     res = R.tune(ok, bad, [1, 2], ["lo", "hi"], [1, 2, 4])
     assert res["table"][4]["geomean"] == inf and res["best_window_s"] == 2
+
+
+def test_reader_reports_request_failures_next_to_latency():
+    topos = [1, 2, 3]
+    ok = _store({"cd": 1.0, "selfpredict": 1.1}, topos, [f"{w}lo" for w in R.WINDOWS])
+    assert R.compute(ok, {}, topos, ["lo"])["lo"]["cd"]["request_failures"] == {"available": False}  # pre-R1.1 summaries
+    for w in R.WINDOWS:
+        for t in topos:
+            ok[(t, f"{w}lo", "cd")]["requestFailures"] = 0
+            ok[(t, f"{w}lo", "selfpredict")]["requestFailures"] = 0
+    ok[(2, "g1lo", "selfpredict")]["requestFailures"] = 5
+    row = R.compute(ok, {}, topos, ["lo"])["lo"]
+    assert row["cd"]["request_failures"] == {"available": True, "tasks": 0, "runs_with_failure": 0, "n_runs": 12}
+    assert row["selfpredict"]["request_failures"] == {"available": True, "tasks": 5, "runs_with_failure": 1, "n_runs": 12}
