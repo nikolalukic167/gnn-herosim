@@ -13,6 +13,32 @@ scheduled the tasks at another instant) and stays in the denominator. Limits: on
 t ≤ 1,059 s. Re-check 20 states at the recalibrated heavy rung, late in the trace, before labels are built there. Per-state rows:
 datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
 
+**Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
+`rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
+- **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
+  `small_batch_v1_capture` pattern). It carries WF1 with the inputs: single origin, wf1_v1 payloads, directional access
+  links, four types, the R1.1 physics env, and the 300 s timeout in the stats. `generate_gnn_datasets_fast.py` grids aren't used:
+  they have no live snapshot seed, no arrival process, no WF1 payloads or access classes, and draw origins per task.
+- **Label: the plain brute-force optimum (default label) for every arm.** The `rtt_drift` shaping reads
+  `drainable_objective_v1/drain_table.json`, measured on 2026-09-14 physics, with no entries for rf/cnn. Re-measuring it would
+  add a second calibrated object, and the node's label was always the brute-force optimum.
+- **F1, a feature-direction bug under W3, fixed before training.** The partial-state exchange columns price the
+  candidate → peer transfer (`prepare_graphs_cache` node_exchange via `route_hops_and_bottleneck(a, b)`, read in
+  `reduced_features.py`, and the same in `prefix_serving.py`). The simulator charges the task the pull peer → candidate and
+  the partner the reverse. On 9601 a cellular candidate reads 4 MB/s in the feature against 75 MB/s pulled (18.75×). Fix:
+  carry both directions under a new partial-state contract version; train/serve parity is required before any training.
+- **F3, four task types visible to every learned arm.** The legacy task block and the tabular vocabulary know only
+  dnn1/dnn2, so rf/cnn rows are silent zeros. Widen them under the same new contract, so that MLP-same and the twins can't
+  differ from the GNN arms merely by type visibility.
+- **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
+  registered arm reads the link graph; otherwise that's recorded as a limit.
+- **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
+  one node with zero exchange. A 100-dataset dry run, from the recalibrated rungs once they exist, reports the share of
+  optima with zero exchange or one node and the distribution of plan counts. **If more than 80 % of optima are
+  single-node with zero exchange, the node pauses before training,** because the label would then teach one move that
+  a hand rule already makes. The dry run also diagnoses the incomplete sweep (B3: 2,058 of 5,600 rows) and checks queue
+  seeding under R1.1.
+
 ## Questions
 - Q1 (performance): does any learned arm, trained on R1 + WF1, beat CD there?
 - Q2 (attribution): where learned arms differ, is it message passing, relational features, or set context?
