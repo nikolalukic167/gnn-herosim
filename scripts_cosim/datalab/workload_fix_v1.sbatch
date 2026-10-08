@@ -64,8 +64,9 @@ case "$JOB" in
       --parallel "$P" --mem 4G --timeout "${TIMEOUT:-900}" --no-scope | grep -v "^\[skip"
     ;;
   bisect)
-    python3 scripts_cosim/workload_fix_v1_bisect.py --work "$W/bisect" --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" \
-      --topologies $CAL_TOPOS --windows g0 g1 --parallel "$P" --log "$W/bisect_steps.json"
+    BDIR=${BISECT_NAME:-bisect}
+    python3 scripts_cosim/workload_fix_v1_bisect.py --work "$W/$BDIR" --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" \
+      --topologies $CAL_TOPOS --windows g0 g1 --parallel "$P" --log "$W/${BDIR}_steps.json" ${BISECT_ARGS:-}
     ;;
   stage)
     STAGE=${WF1_STAGE:?FAIL LOUD: set WF1_STAGE (w2)}
