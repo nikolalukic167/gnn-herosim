@@ -1,6 +1,6 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `ACTIVE` (2026-10-08) — R1.1 accepted (timeout on arrived partners only); the leak moved 2 of 200 W2 cells by ≤ 1 %, so W2 and the `kpa_scaleout_v1` gates are being re-measured on R1.1. W2 read provisional until then. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — W2 read on R1.1 (heavy: self-predict −6.1 % vs CD, 19/19; light: CD first). R1.1 accepted; `kpa_scaleout_v1` gates being re-measured on it. W3, W4 run, read next in order. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
 
@@ -90,6 +90,24 @@ of which arm benefits.
 
 
 ## Record (newest first)
+
+### 2026-10-08 — W2 on R1.1: the stage read (window 1 s)
+
+Job 843070, code `rp/wf1-r11` `1021c310` (on `rp/starve-gate` `252b45aa`): 760/760 runs, 0 failed, 0 hung, 0 missing, no
+reruns; **0 request failures** in every arm × rung group. Read: [`w2_r11_read.json`](workload_fix_v1/w2_r11_read.json)
+(with the request-failure column; reader `0ebeca16`), [`w2_r11_request_failures.json`](workload_fix_v1/w2_r11_request_failures.json).
+Paired % vs CD, median over 19 topologies, Holm over 6:
+
+| rung | CD latency | self-predict | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| light ×0.2666 | 2.36 s | +2.4 % (0/19, CD-FASTER) | +0.7 % (0/19) | +0.1 % (1/19) | +2.5 % |
+| heavy ×11.61 | 0.50 s | **−6.1 % (19/19, Holm 2.3e-5, CONFIRMED)** | +1.3 % (5/19, Holm 0.0013, CD-FASTER) | +0.5 % (4/19, Holm 0.032, CD-FASTER) | +5.6 % |
+
+This replaces the provisional 1 s read. Only locality at heavy moved (+1.5 → +1.3 %), as the 2/200 leak sample predicted.
+**W2 under R1.1: at light load CD leads, and every other arm sits within 2.5 %. At heavy load self-predict beats CD by 6 % on
+every topology, and the batching arms trail CD by about 1 %.** CD by stage (s per task; latency / batching wait / queue /
+exchange / rendezvous / cold): light 2.362 / 0.035 / 0.182 / 0.075 / 1.745 / 0.211, where rendezvous (waiting for a partner
+to arrive) dominates; heavy 0.498 / 0.011 / 0.188 / 0.051 / 0.037 / 0.033. W3 (S6) and W4 (S7) are read next, in order.
 
 ### 2026-10-08 — WB2: window 1 s; W2 re-read; the hang's three causes; decisions for R1.1
 
