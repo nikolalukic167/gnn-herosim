@@ -1,10 +1,16 @@
 # replica_placement_v1 — where new replicas go, under eager scale-out (hypothesis)
 
-**Status:** `REGISTERED` as hypothesis (no runs). Conditional on: nodes 1–5 read; closed as NO-LEVER if
+**Status:** `CLOSED` (2026-10-08) — **NO-LEVER**, by the registered rule. Registered 2026-10-08; never run.
 `physics_audit_v1` records I5 as FAIL-WITH-CAUSE. Runs alone (never with `access_link_contention_v1`).
 Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Revision 2026-10-08 (before any run): the live one-step lookahead is replaced by offline snapshot labels plus an
 analytic rule (SimPy has no state fork; a live lookahead is not deployable).
+
+
+**Outcome (2026-10-08).** Closed without running, by the rule registered before any data: `physics_audit_v1`
+recorded I5 as FAIL-WITH-CAUSE. Under R1 only 22 % of CD's replica creations are load-caused (0.14–0.39 over 18 runs).
+The rest are reachability creations, so a rule for where load-caused replicas go acts on about a fifth of them. The
+cold-start precondition was not reached (cold start is 7–13 % of CD latency on the audit cells).
 
 ## Hypothesis
 Under KPA scale-out on R1 + WF1, choosing **which node receives a new replica** (trading cold-start cost against future
@@ -45,3 +51,10 @@ RP-learned vs RP-analytic and vs best of {RP-least-loaded, RP-partner}, at moder
 ## Outcomes
 Any win is reported as its own finding on this node's bars; it does not reopen task-placement claims. A
 "near-oracle quality at lower decision time" claim must be made against RP-analytic, the deployable rule.
+
+
+## Record (newest first)
+
+### 2026-10-08 — closed NO-LEVER by the registered condition
+`physics_audit_v1` pass 2 (code `033811d6`): I5 FAIL-WITH-CAUSE, CD median load-caused share 0.217. Nothing trained or
+run under this node.

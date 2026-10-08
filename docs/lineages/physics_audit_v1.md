@@ -1,7 +1,18 @@
 # physics_audit_v1 — scrutinise and freeze reference physics R1
 
-**Status:** `ACTIVE` (2026-10-08) — audit pass 1 read; R1 **not frozen** (I12 fails by construction, fixed by amendment B1; pass 2 runs at the fixed time scale). Registered 2026-10-08. Depends on: `kpa_scaleout_v1` (read). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `CLOSED` (2026-10-08) — **R1-FROZEN**. Registered 2026-10-08; amendments B1–B4 signed after pass 1 and before pass 2 (B3 post-data, labelled). R1 = code `033811d6`, gate pin `242d0ea6`.
 Revision 2026-10-08 (before any run): added I11, I12 and the I5 fallback.
+
+
+**Outcome (2026-10-08).** R1 is frozen: `HEROSIM_TRANSFER_MODEL=pipelined`, `HEROSIM_REPLICA_RELEASE=1`,
+`HEROSIM_SCALEOUT=kpa`, `HEROSIM_POLICY_TIME_SCALE=1.0` on every rung (gates: `GATE_FIXED_POLICY_TIME_SCALE=1.0`),
+peer exchange on, single origin, server-only replicas. At that time scale every invariant passes except I5, which is
+FAIL-WITH-CAUSE: on CD only 22 % of replica creations are load-caused (the rest reachability), and replica counts do
+not follow instantaneous load under either arm. **Quote R1 replica counts as partly reachability-driven.** I11 (the
+co-simulation reproduces live) passes on 216 states: median 0.00 %, p95 0.15 %, one state 4.3 % undiagnosed. **Labels
+under R1 come only from decisions at t ≥ 360 s**, and that range is validated only to 3,000 arrivals. I11 covers the
+CD arm; I6's refusal path is checked only on a reduced-memory cell. `replica_placement_v1` closed NO-LEVER as
+registered.
 
 ## Question
 Does the candidate reference physics behave like the system it claims to model, checked by invariants that do
@@ -58,6 +69,43 @@ Instrumented runs on 6 topologies × 3 rungs × CD and Knative, plus I8 duplicat
 
 
 ## Record (newest first)
+
+### 2026-10-08 — audit pass 2 at time scale 1.0: R1 frozen
+
+Code `033811d6` (`rp/audit2`, from `b4ed6c32`). Same design as pass 1 at `HEROSIM_POLICY_TIME_SCALE=1.0`: 36 runs
+(6 topologies × ×2/×3/×5 × {CD, reactive}, 12,000 arrivals), I8 on 12 cells × 2, I11 on 216 states. Trace on equals
+trace off on 12 cells, and with snapshots and fidelity on as well, on 3. Full report:
+[`physics_audit_v1/pass2_report.md`](physics_audit_v1/pass2_report.md) (pass 1: [`pass1_report.md`](physics_audit_v1/pass1_report.md)).
+
+| # | Pass 2 |
+|---|---|
+| I1–I4, I7, I9, I10 | PASS 36/36 (I10 on the two instrumented scheduler paths) |
+| I6 | PASS 36/36; reduced-memory cell (9483 ×3, 1 GB nodes): refusals logged equal the counter (CD 324, reactive 506), no node over memory, peak 55 % |
+| I8 | PASS 12/12 |
+| I12 | PASS 12/12 |
+| I11 | cut-at-decision reference: 0 failed, median 0.00 %, p95 0.15 %, 215/216 within 1 %, 216/216 within 5 % (bar median ≤ 1 %, p95 ≤ 5 %): **PASS**. One state at 4.32 % (9491 ×2, t = 140 s, batch behind an image pull) undiagnosed. Continuing-run reference (reported): 30/216 miss > 1 %, latest at 165.7 s; from 360 s on, 100/100 within 0.68 %. 3 states with a busy link pipe |
+| I5 | **FAIL-WITH-CAUSE.** CD load-caused share 0.217 (0.14–0.39), 18/18 runs ≤ 0.5; reactive 0.52 (10/18 > 0.5). Spearman vs instantaneous in-flight: CD −0.22, reactive +0.01 (0/18 each ≥ 0.5); vs KPA's stable-window average: CD 0.45 (4/18), reactive 0.54 (10/18) |
+
+**Freeze decision (by B3/B4).** Every check passes except I5. The load-share clause takes the registered fallback
+(FAIL-WITH-CAUSE on CD), and the in-flight clause does not block (B3). R1 freezes. Note that on CD even the
+stable-window form stays below 0.5: CD's load-caused replicas are too few for their count to track demand. Label
+cut-off by B2: 2 × 165.7 s, rounded up to the minute, is **360 s**. `r1_attribution_v1` adds a 20-state I11 spot check
+on its own label states beyond 3,000 arrivals before training on them.
+
+**Descriptive outputs for R1 (by rung, CD and reactive).** Per-replica busy fraction (replicas alive ≥ 60 s): median
+0.03–0.09, p90 0.12–0.26, max 0.34–0.57, ≤ 0.3 % of replicas above 0.5. Latency shares: exchange 42–67 %, queue
+11–16 %, CD cold start 12.6 → 7.2 % (×2 → ×5). Live replicas 2–11 over run deciles; CD time-mean 4.5 / 5.6 / 7.1.
+
+**Concentration vs saturation.** R1 shows neither: low mean busy fraction, nothing near 1, top 10 % of replicas carry
+~42 % of busy seconds. Old physics (store-and-forward, held, legacy scale-out, scale 1.0): reactive saturates (median
+0.77 at ×5, about half of replicas above 0.8); old CD in between.
+
+**I12's anomaly.** At one time scale CD still gets faster with load: 0.661 → 0.612 → 0.569 s. From ×2 to ×5 cold start
+−0.042 s per task (cold starts per task 0.216 → 0.115) and exchange −0.086 s, other +0.040 s. So the per-rung time scale
+was not the cause; warmth and exchange are. Not decomposed further.
+
+**Gate summaries** now carry `latency_percentiles` (p50/p95/p99/max), `replica_count_series` and `policy_time_scale`;
+unit-tested, not yet through a full gate.
 
 ### 2026-10-08 — audit pass 1 read; amendments B1–B4 before pass 2
 
