@@ -21,6 +21,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+from src.placement import snapshot_fidelity
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.scheduling_cost import network_latency_between
 
@@ -328,6 +329,9 @@ def maybe_capture_batch_live_audit_snapshot(
                 system_state, orchestrator_of(scheduler), scheduler._drain_memo
             ),
         }
+        if snapshot_fidelity.enabled():
+            # physics_audit_v1 I11: the state a replay needs that the fields above do not carry
+            snapshot["fidelity"] = snapshot_fidelity.capture(scheduler, system_state, batch_tasks)
     finally:
         scheduler._drain_memo = None
 

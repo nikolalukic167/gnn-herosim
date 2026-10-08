@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
+from src.placement import snapshot_fidelity
+
 if False:  # TYPE_CHECKING
     from simpy import Environment
 
@@ -144,16 +146,27 @@ def build_live_snapshot_seed(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
             specs.append(spec)
         replicas_payload[task_type] = specs
 
-    return {
+    seed = {
         "replicas_by_type": replicas_payload,
         "platforms": list(platform_info.values()),
     }
+    if snapshot.get("fidelity") is not None:
+        seed["fidelity"] = snapshot["fidelity"]
+        # the fidelity block replays queued and in-flight tasks as tasks; the compressed backlog would count
+        # them a second time (and, under released replicas, block the pop loop for their whole drain)
+        for spec in seed["platforms"] + [x for specs in replicas_payload.values() for x in specs]:
+            for field in ("queue_length", "queue_drain_seconds", "current_task_remaining", "comm_remaining",
+                          "cold_start_remaining"):
+                if field in spec:
+                    spec[field] = 0 if field == "queue_length" else 0.0
+    return seed
 
 
 def _seed_platform_state(
     plat_map: Dict[Tuple[str, int], Tuple[Any, Any]],
     simulation_data: Any,
     spec: Mapping[str, Any],
+    uninitialized: Optional[Set[Tuple[str, int]]] = None,
 ) -> None:
     node_name = str(spec.get("node_name", ""))
     platform_id = int(spec.get("platform_id", -1))
@@ -162,7 +175,7 @@ def _seed_platform_state(
         return
 
     _node, plat = plat_map[key]
-    if not plat.initialized.triggered:
+    if not plat.initialized.triggered and key not in (uninitialized or ()):
         plat.initialized.succeed()
     if bool(spec.get("initialized", True)):
         task_type_name = str(spec.get("task_type_hint", "dnn1"))
@@ -296,11 +309,13 @@ def apply_live_snapshot_seed(
     seed_data: Mapping[str, Any],
 ) -> Dict[str, Set[Tuple[Any, Any]]]:
     """Create replicas and queue/temporal backlog from a live snapshot."""
-    del env, simulation_policy  # reserved for future temporal task materialization
+    del simulation_policy  # reserved for future temporal task materialization
 
     initial_replicas: Dict[str, Set[Tuple[Any, Any]]] = {
         task_type: set() for task_type in simulation_data.task_types
     }
+    fidelity = seed_data.get("fidelity")
+    uninitialized = snapshot_fidelity.uninitialized_keys(fidelity)
     plat_map: Dict[Tuple[str, int], Tuple[Any, Any]] = {}
     for node in nodes.items:
         for plat in node.platforms.items:
@@ -321,7 +336,7 @@ def apply_live_snapshot_seed(
                 plat.snapshot_reserved = True
             else:
                 initial_replicas[task_type].add((node, plat))
-            if not plat.initialized.triggered:
+            if not plat.initialized.triggered and key not in uninitialized:
                 plat.initialized.succeed()
             if bool(spec.get("initialized", True)):
                 plat.previous_task = type("Task", (), {"type": {"name": task_type}})()
@@ -334,6 +349,9 @@ def apply_live_snapshot_seed(
         if key in seen:
             continue
         seen.add(key)
-        _seed_platform_state(plat_map, simulation_data, spec)
+        _seed_platform_state(plat_map, simulation_data, spec, uninitialized)
+
+    if fidelity is not None:
+        snapshot_fidelity.apply_platforms(plat_map, simulation_data, env, fidelity)
 
     return initial_replicas

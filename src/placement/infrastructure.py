@@ -134,6 +134,12 @@ _release_env = os.environ.get("HEROSIM_REPLICA_RELEASE", "0")
 if _release_env not in ("0", "1"):
     raise ValueError(f"HEROSIM_REPLICA_RELEASE={_release_env!r}; expected 0 or 1")
 REPLICA_RELEASE = _release_env == "1"
+# physics_audit_v1 I11: stage markers a live snapshot needs to resume a task held by a released replica.
+# Bookkeeping only (nothing reads it unless a snapshot is captured); off, no attribute is written.
+_fidelity_env = os.environ.get("HEROSIM_SNAPSHOT_FIDELITY", "0")
+if _fidelity_env not in ("0", "1"):
+    raise ValueError(f"HEROSIM_SNAPSHOT_FIDELITY={_fidelity_env!r}; expected 0 or 1")
+FIDELITY = _fidelity_env == "1"
 
 from src.placement.model import (
     ApplicationResult,
@@ -1202,6 +1208,8 @@ class Platform:
         duration = nominal * factor
         task.exec_factor = factor
         self.executing = True
+        if FIDELITY and getattr(task, "_fid", None) is not None:
+            task._fid["compute_end"] = self.env.now + duration
         try:
             yield self.env.timeout(duration)
         finally:
@@ -1375,6 +1383,13 @@ class Platform:
                     fast_forwarded = True
                     logging.info(f"[ {self.env.now} ] Fast-forward complete for {self}")
         
+        # physics_audit_v1 I11: a task a live snapshot caught between pop and its release resumes here, ahead of
+        # any seeded backlog (it was popped first). None unless a fidelity snapshot seeded it.
+        resume = getattr(self, "_fid_resume", None)
+        if resume is not None:
+            self._fid_resume = None
+            yield from resume(self)
+
         # Compressed warmup backlog: consume aggregate busy period once at startup.
         # Doing this on first real queue pop shifts warmup delay to request time and
         # does not match the non-fast-forward timeline.
@@ -1428,6 +1443,8 @@ class Platform:
             if _AUDIT is not None:
                 task._audit_pop = self.env.now
                 task._audit_inflight_at_pop = len(self.inflight)
+            if FIDELITY:
+                task._fid = {"pop": self.env.now, "link_stage": "done"}
 
             # Network latency for remote task execution
             # Check if task is being executed on a different node than where it originated
@@ -1437,6 +1454,10 @@ class Platform:
                     if task.node_name in self.node.network_map:
                         network_time = self.node.network_map[task.node_name]
                         task.network_latency = network_time
+                        if FIDELITY:
+                            task._fid.update(link_stage="net", net_end=self.env.now + network_time,
+                                             unsupported=self.node.ingress_pipe is not None
+                                             or (self.node.fabric is not None and transfer_model() != "pipelined"))
                         yield self.env.timeout(network_time)
                         # network_contention_v1: propagation above is un-serialized and
                         # stays additive; the input transmission below is served through
@@ -1475,6 +1496,8 @@ class Platform:
                             # routes crossing the same links cannot deadlock.
                             route = self.node.fabric.hops(task.node_name, self.node.node_name)
                             hold = _transfer_time(task, min(bw for _k, bw in route)) if route else 0.0
+                            if FIDELITY:
+                                task._fid.update(link_stage="wait", route=[k for k, _bw in route], hold=hold)
                             if hold > 0:
                                 wait_start = self.env.now
                                 requests = []
@@ -1488,10 +1511,14 @@ class Platform:
                                     task.link_transfer_time += hold
                                     task.link_hops += len(route)
                                     self.node.fabric.link_wait_total += link_wait
+                                    if FIDELITY:
+                                        task._fid.update(link_stage="hold", hold_end=self.env.now + hold)
                                     yield self.env.timeout(hold)
                                 finally:
                                     for link_key_, req in requests:
                                         self.node.fabric.pipe(link_key_).release(req)
+                            if FIDELITY:
+                                task._fid["link_stage"] = "done"
                                 if _AUDIT is not None:
                                     _AUDIT.transfer(self.env, "ingress", task, task.node_name, self.node.node_name,
                                                     _audit_input_bytes(task), route, "pipelined", hold,
@@ -1570,6 +1597,8 @@ class Platform:
                 )
 
             # Cold start timeout
+            if FIDELITY:
+                task._fid["cold_end"] = self.env.now + cold_start_duration
             yield self.env.timeout(cold_start_duration)
             task.cold_start_time = cold_start_duration
             if _AUDIT is not None:
@@ -1637,6 +1666,8 @@ class Platform:
         # Update task
         task.storage["input"] = input_storage
         yield self.node.storage.put(input_storage)
+        if _AUDIT is not None:
+            task._audit_storage_got = self.env.now
 
         # Process input
         # FIXME: First task of an application gets input from network!
@@ -1702,6 +1733,8 @@ class Platform:
         if self.env.now > rendezvous_started:
             task.peer_rendezvous_wait = self.env.now - rendezvous_started
 
+        if _AUDIT is not None:
+            task._audit_rendezvous_end = self.env.now
         peer_exchange_time = self._peer_exchange_time(task)
         if peer_exchange_time:
             task.peer_exchange_time = peer_exchange_time
@@ -1721,6 +1754,8 @@ class Platform:
         yield task.started.succeed()
 
         # Retrieve input data
+        if FIDELITY:
+            task._fid["io_end"] = self.env.now + input_duration
         yield self.env.timeout(input_duration)
         if _AUDIT is not None:
             task._audit_io_end = self.env.now
