@@ -4,6 +4,7 @@
 #   verify  the legacy build chain reproduces client_local_v1/wl_so/grounded_x20 byte for byte
 #   replay  TP1 smoke arms on R1, for comparison between two worktrees (OUT names the directory)
 #   calcheck  CD and Knative on the calibration topologies at one multiplier (admission look)
+#   tune  amendment WB2: CD at fixed batching windows 1,2,4,8,16 s on the calibration topologies
 #   bisect  provisional load on the calibration topologies (workload_fix_v1_bisect.py)
 #   stage   build the stage's rungs (WF1_SAMPLER) and run the five classical arms on the 19 test topologies
 #SBATCH --job-name=wf1
@@ -62,6 +63,31 @@ case "$JOB" in
     WF1_RUNGS=$tag WF1_TOPOS=${CAL_TOPOS// /,} WF1_CAL_WINDOWS=g0,g1,g2,g3 WF1_CAL_KINDS=cd,reactive \
       python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$W/calcheck/$tag" --out "$W/calcheck/$tag/gate" \
       --parallel "$P" --mem 4G --timeout "${TIMEOUT:-900}" --no-scope | grep -v "^\[skip"
+    ;;
+  tune)
+    # amendment WB2: CD at each fixed batching window on the calibration topologies, both provisional rungs, W2 workload
+    TR=$W/stage_w2_wb2/tune; IN=$TR/inputs; mkdir -p "$IN"
+    TAGS_ALL=""
+    for spec in lo=0.2666 hi=11.6139; do
+      rung=${spec%%=*}; m=${spec##*=}
+      for bw in ${WF1_WINDOWS:-1 2 4 8 16}; do
+        tag=${rung}b${bw}
+        if [[ ! -d "$IN/wf1_$tag" ]]; then
+          python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" --cfg-dir "$W/inputs/cfg_cal" --topologies $CAL_TOPOS \
+            --rung "$tag=$(python3 -c "print(repr(1.0/$m))")" --payload-sampler wf1_v1 --batch-timeout-fixed "$bw" --out "$IN/_b_$tag"
+          mv "$IN/_b_$tag/wf1_$tag" "$IN/wf1_$tag"; cp "$IN/_b_$tag/manifest.json" "$IN/manifest_$tag.json"; rm -rf "$IN/_b_$tag"
+        fi
+        TAGS_ALL="$TAGS_ALL,$tag"
+      done
+    done
+    TAGS_ALL=${TAGS_ALL#,}
+    mkdir -p "$TR/gate"
+    set +e
+    WF1_RUNGS=$TAGS_ALL WF1_TOPOS=${CAL_TOPOS// /,} WF1_CAL_WINDOWS=g0,g1,g2,g3 WF1_CAL_KINDS=cd \
+      python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$IN" --out "$TR/gate" --parallel "$P" --mem 4G \
+      --timeout "${TIMEOUT:-1800}" --no-scope | grep -v "^\[skip"
+    set -e
+    echo "=== tune: $(ls "$TR"/gate/*.summary.json 2>/dev/null | wc -l) summaries, $(ls "$TR"/gate/*.failed.json 2>/dev/null | wc -l) failed ==="
     ;;
   bisect)
     BDIR=${BISECT_NAME:-bisect}
