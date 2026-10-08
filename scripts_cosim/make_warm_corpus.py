@@ -61,6 +61,7 @@ from scripts_cosim.generate_gnn_datasets_fast import (  # noqa: E402
     generate_single_dataset,
     json_dumps_pretty,
 )
+from src.placement import fidelity_replay  # noqa: E402
 from src.placement.live_snapshot_seed import build_live_snapshot_seed, inject_synthetic_backlog  # noqa: E402
 
 REQUIRED_ENV = {"HEROSIM_PEER_EXCHANGE": "1"}
@@ -562,6 +563,12 @@ def main() -> int:
     ap.add_argument("--synthetic-backlog-task-seconds", type=float, default=4.5,
                     help="mean drain of one fake queued task (live execution + peer exchange scale)")
     ap.add_argument("--synthetic-backlog-seed", type=int, default=7001)
+    ap.add_argument("--fidelity", action="store_true",
+                    help="r1_attribution_v1: every snapshot must carry the HEROSIM_SNAPSHOT_FIDELITY=1 block (and the "
+                         "environment must export it). The dataset is still the batch alone, but each plan is replayed "
+                         "as physics_audit/i11_replay.py replays a live decision: queued tasks are state, the label is "
+                         "the sum over the batch of (done - scheduled), under live_run_params. Incompatible with the "
+                         "synthetic backlog, which the replayed queue replaces.")
     args = ap.parse_args()
     if args.synthetic_backlog_rungs is not None and (
         not 0.0 < args.synthetic_backlog_busy_prob <= 1.0 or args.synthetic_backlog_task_seconds <= 0.0
@@ -635,7 +642,21 @@ def main() -> int:
                     "task_seconds": args.synthetic_backlog_task_seconds,
                 })
                 provenance["synthetic_backlog_seed"] = args.synthetic_backlog_seed
-            infra = build_infrastructure(base_infra, flagged, provenance, synthetic)
+            if args.fidelity:
+                if snap.get("fidelity") is None:
+                    raise SnapshotRejected("--fidelity but the snapshot carries no fidelity block")
+                if synthetic is not None:
+                    raise SystemExit("FAIL LOUD: --fidelity replays the real queue; drop --synthetic-backlog-*")
+                # the standard seed (flagged candidates, backlog fields intact) serves the sweep's enumeration and the
+                # cache's features; the replay runs from the raw snapshot carried beside it
+                infra = build_infrastructure(base_infra, {k: v for k, v in flagged.items() if k != "fidelity"},
+                                             provenance, synthetic)
+                infra["live_snapshot_seed"][fidelity_replay.SPEC_KEY] = fidelity_replay.build_spec(
+                    {k: v for k, v in snap.items() if not k.startswith("_")}, args.cell_config, args.sim_input)
+                provenance["fidelity_replay"] = {k: v for k, v in infra["live_snapshot_seed"][fidelity_replay.SPEC_KEY].items()
+                                                 if k != "snapshot"}
+            else:
+                infra = build_infrastructure(base_infra, flagged, provenance, synthetic)
         except SnapshotRejected as exc:
             entry["status"] = "rejected"
             entry["reason"] = str(exc)
@@ -684,6 +705,10 @@ def main() -> int:
                 infrastructure_override=infra_path,
             )
             entry.update({"status": status, "rtt": rtt, "seconds": secs})
+            if args.fidelity:
+                (out_dir / "fidelity_replay.json").write_text(json.dumps(
+                    {"fidelity": True, **provenance["fidelity_replay"], "snapshot_id": sid,
+                     "snapshot_time": float(snap.get("time", 0.0))}, indent=1))
             if not args.quiet:
                 print(f"[warm] {dataset_id} <- snapshot {sid} (t={snap.get('time'):.1f}s, "
                       f"{record['num_combos']} combos): {status} rtt={rtt:.1f} in {secs:.0f}s", flush=True)
