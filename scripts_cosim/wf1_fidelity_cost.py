@@ -126,7 +126,9 @@ def main() -> int:
         if new is None or new.get("fidelity") is None:
             summary_meta[d.name] = {"error": f"no fidelity snapshot for task ids {key[0]} at t={key[1]}"}
             continue
-        snap = dict(old, fidelity=new["fidelity"])
+        # the captured snapshot itself, every replica a candidate: the fidelity block replays queued tasks onto the
+        # replicas they were live-placed on, which the sweep's offered subset (candidate=False) would remove
+        snap = new
         cfg = json.loads(Path(prov["cell_config"]).read_text())
         base_infra = prepare_infrastructure_for_real_simulation(cfg, seed=None, sim_input_path=Path(a.sim_input))
         rows = [json.loads(l) for l in open(d / "placements" / "placements.jsonl") if l.strip()]
