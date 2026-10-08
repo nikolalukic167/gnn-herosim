@@ -171,6 +171,14 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
   no repair is added to the live generator (it would change topologies, and the calibration set needs none of them).
   A pass means no structural block, not that a run completes: the 9565/9538 starvation is dynamic, and that's what
   the timeout handles.
+- **Scope of the re-measure (coordinator, 2026-10-08).** Its question is whether the published numbers survive the
+  R1.1 code, so each gate reruns at its **published settings**, with only the code changed: the `kpa_scaleout_v1` gates
+  keep the per-rung policy time scale (0.5 / 0.33 / 0.2), and the result pairs directly with `kpa_read.json`.
+  Measurements at a time scale of 1.0 on the new ladder belong to `load_recalibration_v1`, not here. Outputs go to new `*_r11`
+  directories with `OUT` passed explicitly; the published directories are never written. Order:
+  W2 at 1 s on R1.1 (`rp/wf1-r11` `1021c310`), then `gate_pipe_release_kpa` (R1's condition), then the other three
+  conditions, then the four `*_legacy_shared` controls (they use the changed GNN-family autoscaler). The `legacy_replay_*`
+  identity checks are not rerun, because the legacy path's cells were identical.
 
 ### 2026-10-08 — W2 rerun under amendment WB; amendment WB2 (tuned window); the starved-replica hang
 
