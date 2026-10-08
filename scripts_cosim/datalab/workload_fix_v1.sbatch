@@ -104,7 +104,7 @@ case "$JOB" in
     BT_FLAG=""; [[ -n "${WF1_BATCH_FIXED:-}" ]] && BT_FLAG="--batch-timeout-fixed $WF1_BATCH_FIXED"
     export WF1_ARMS=${WF1_ARMS:-}
     # stage W2+W3+W4: WF1_CFG the topology configs (access classes, repair), WF1_TASK_MIX the W4 relabel;
-    # WF1_WINDOWS (read by the gate) subsets a smoke run
+    # WF1_ARRIVAL_WINDOWS (read by the gate) subsets a smoke run
     CFG=${WF1_CFG:-$D/small_batch_confirm_v1/inputs/cfg}
     RUNGS=""
     for spec in ${TAGS//,/ }; do
