@@ -77,6 +77,69 @@ def link_key(a: str, b: str) -> str:
     return f"{a}{LINK_SEP}{b}" if a <= b else f"{b}{LINK_SEP}{a}"
 
 
+# workload_fix_v1 W3: per-node access-link classes, MB/s (the unit every charge divides by, 1024**2 per MB).
+# ``out`` leaves the node, ``in`` enters it. Wi-Fi draws one symmetric rate per node from ``range``.
+ACCESS_CLASSES: Dict[str, Dict[str, Any]] = {
+    "wired": {"out": 117.0, "in": 117.0},
+    "wifi": {"range": (7.0, 14.0)},
+    "cellular": {"out": 4.0, "in": 75.0},
+}
+DEFAULT_ACCESS_MIX: Dict[str, float] = {"wired": 0.4, "wifi": 0.4, "cellular": 0.2}
+
+
+def draw_access_classes(
+    node_names: Sequence[str], seed: int, mix: Optional[Mapping[str, float]] = None
+) -> Dict[str, Dict[str, Any]]:
+    """One class per node, drawn once per topology from a stream derived from the topology seed alone.
+
+    Returns ``{node: {"class", "out_mbps", "in_mbps"}}``. The stream is dedicated, so enabling classes never
+    shifts any other draw of the generator.
+    """
+    import random
+
+    mix = dict(DEFAULT_ACCESS_MIX if mix is None else mix)
+    unknown = sorted(set(mix) - set(ACCESS_CLASSES))
+    if unknown:
+        raise ValueError(f"access_classes.mix names unknown class(es) {unknown}; known: {sorted(ACCESS_CLASSES)}")
+    total = sum(float(v) for v in mix.values())
+    if any(float(v) < 0 for v in mix.values()) or abs(total - 1.0) > 1e-9:
+        raise ValueError(f"access_classes.mix must be non-negative and sum to 1, got {mix} (sum {total})")
+    names = [name for name in ACCESS_CLASSES if mix.get(name, 0.0) > 0]
+    rng = random.Random(f"{seed}:access_classes_v1")
+    drawn: Dict[str, Dict[str, Any]] = {}
+    for node_name in node_names:
+        u = rng.random()
+        acc = 0.0
+        chosen = names[-1]
+        for name in names:
+            acc += float(mix[name])
+            if u < acc:
+                chosen = name
+                break
+        spec = ACCESS_CLASSES[chosen]
+        if "range" in spec:
+            rate = rng.uniform(*spec["range"])
+            out_mbps = in_mbps = rate
+        else:
+            out_mbps, in_mbps = spec["out"], spec["in"]
+        drawn[node_name] = {"class": chosen, "out_mbps": out_mbps, "in_mbps": in_mbps}
+    return drawn
+
+
+def directed_bandwidth(attrs: Mapping[str, Any], frm: str, to: str) -> float:
+    """Bandwidth of one link traversed ``frm`` -> ``to``. A link with no ``access_node`` is symmetric and returns
+    ``bandwidth_mbps`` exactly as before; a directional access link returns the access node's out rate when
+    traversed away from it and its in rate when traversed toward it."""
+    node = attrs.get("access_node")
+    if node is None:
+        return float(attrs["bandwidth_mbps"])
+    if frm == node:
+        return float(attrs["bandwidth_out_mbps"])
+    if to == node:
+        return float(attrs["bandwidth_in_mbps"])
+    raise KeyError(f"access link of {node!r} traversed {frm!r}->{to!r}, which touches neither end")
+
+
 def is_core_link(key: str) -> bool:
     """True when both endpoints are core routers, i.e. the link is genuinely shared."""
     left, _, right = key.partition(LINK_SEP)
@@ -143,6 +206,13 @@ class NetworkFabric:
                     f"set, got {bandwidth}"
                 )
             self._bandwidth[key] = float(bandwidth)
+            if attrs.get("access_node") is not None:
+                for field in ("bandwidth_out_mbps", "bandwidth_in_mbps"):
+                    if attrs.get(field) is None or float(attrs[field]) <= 0:
+                        raise ValueError(
+                            f"link_contention_v1: directional link {key!r} {field} must be > 0, "
+                            f"got {attrs.get(field)}"
+                        )
 
         self._pipes: Dict[str, Resource] = {
             key: Resource(env, capacity=1) for key in links
@@ -161,15 +231,23 @@ class NetworkFabric:
         return self._link_topology
 
     def hops(self, src: str, dst: str) -> List[Tuple[str, float]]:
-        """``[(link_key, bandwidth_mbps)]`` along the route, in traversal order."""
+        """``[(link_key, bandwidth_mbps)]`` along the route, in traversal order. The bandwidth is the one for the
+        direction of travel when the link is a directional access link."""
         hops: List[Tuple[str, float]] = []
-        for key in route_links(self._routes, src, dst):
+        links = self._link_topology.get("links") or {}
+        path = _lookup_path(self._routes, src, dst)
+        for a, b in zip(path, path[1:]):
+            key = link_key(a, b)
             if key not in self._bandwidth:
                 raise KeyError(
                     f"link_contention_v1: route {src!r}->{dst!r} traverses link {key!r} "
                     f"which has no capacity entry in link_topology.links"
                 )
-            hops.append((key, self._bandwidth[key]))
+            attrs = links[key]
+            bandwidth = (
+                directed_bandwidth(attrs, a, b) if attrs.get("access_node") is not None else self._bandwidth[key]
+            )
+            hops.append((key, bandwidth))
         return hops
 
     def has_route(self, src: str, dst: str) -> bool:

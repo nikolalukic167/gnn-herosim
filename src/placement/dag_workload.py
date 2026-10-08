@@ -100,6 +100,8 @@ def route_hops_and_bottleneck(
     Missing route or link on a dataset that has a fabric: fail loud."""
     if src == dst:
         return 0, math.inf
+    from src.placement.network_fabric import directed_bandwidth
+
     path = (routes.get(src) or {}).get(dst)
     if not path:
         # Routes are stored one way (client -> server); the fabric charges a transfer over the
@@ -114,5 +116,5 @@ def route_hops_and_bottleneck(
         link = links.get(key)
         if link is None:
             raise RuntimeError(f"route {src}->{dst} uses link {key} absent from links")
-        bneck = min(bneck, float(link["bandwidth_mbps"]))
+        bneck = min(bneck, directed_bandwidth(link, a, b))
     return len(path) - 1, bneck

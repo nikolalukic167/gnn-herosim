@@ -34,6 +34,10 @@ import random
 import statistics as st
 from typing import Dict, List, Tuple
 
+from src.placement.workload_payloads import (
+    PAYLOAD_SAMPLERS, payload_rng, payload_sampler_meta, require_sampler, sample_payload_bytes,
+)
+
 PARTNERS = 2
 X_SCALE_BYTES = 200e6
 LOG10_SPREAD = 1.0
@@ -71,7 +75,9 @@ def plan_groups(groups: List[dict], n_tasks: int) -> List[Tuple[int, List[int]]]
     raise SystemExit(f"FAIL LOUD: library holds only {placed} tasks < {n_tasks}")
 
 
-def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1) -> Tuple[dict, dict]:
+def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
+         payload_sampler: str = "legacy") -> Tuple[dict, dict]:
+    require_sampler(payload_sampler)
     plan = plan_groups(merge_groups(lib["groups"], merge_k), n_tasks)
     bev = base["events"][:n_tasks]
     if len(bev) < n_tasks:
@@ -79,6 +85,14 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1) -> Tu
     bts = [float(e["timestamp"]) for e in bev]
     rate = n_tasks / (bts[-1] - bts[0])
     rng = random.Random(seed)
+    payload_rng_ = payload_rng(seed) if payload_sampler == "wf1_v1" else None
+
+    def payload() -> float:
+        legacy = X_SCALE_BYTES * (10.0 ** rng.uniform(-LOG10_SPREAD, LOG10_SPREAD))
+        # wf1_v1 still consumes the legacy draw so the partner draws after it do not move: the stages differ in
+        # payloads only, on an identical pair graph.
+        return legacy if payload_rng_ is None else sample_payload_bytes(payload_rng_)
+
     # The trace stores whole milliseconds; a stretch of ~4000x would put every arrival on a ~4 s lattice and
     # dispatch same-millisecond requests at one instant. Spread each arrival uniformly inside its millisecond.
     t0s = sorted(t0 + rng.random() for t0, _offs in plan)
@@ -113,7 +127,7 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1) -> Tu
             for j in (rng.sample([m for m in members if m != i], p) if p > 0 else []):
                 key = (min(i, j), max(i, j))
                 if key not in pairs:
-                    pairs[key] = X_SCALE_BYTES * (10.0 ** rng.uniform(-LOG10_SPREAD, LOG10_SPREAD))
+                    pairs[key] = payload()
         if merge_k > 1 and len(members) > 1:
             root = {m: m for m in members}
 
@@ -128,7 +142,7 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1) -> Tu
             comps = sorted({find(m) for m in members})
             for a, b in zip(comps, comps[1:]):
                 key = (min(a, b), max(a, b))
-                pairs[key] = X_SCALE_BYTES * (10.0 ** rng.uniform(-LOG10_SPREAD, LOG10_SPREAD))
+                pairs[key] = payload()
                 root[find(a)] = find(b)
 
     sizes = [len(offs) for _t, offs in plan]
@@ -146,6 +160,8 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1) -> Tu
     }
     if merge_k > 1:
         meta["merge_k"] = merge_k
+    if payload_sampler != "legacy":
+        meta["payload_sampler"] = payload_sampler_meta()
     doc = {"rps": base["rps"], "duration": base["duration"], "events": events,
            "peer_exchange": [[i, j, b] for (i, j), b in sorted(pairs.items())]}
     return doc, meta
@@ -159,6 +175,8 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--n-tasks", type=int, default=50000)
     ap.add_argument("--merge-k", type=int, default=1)
+    ap.add_argument("--payload-sampler", choices=PAYLOAD_SAMPLERS, default="legacy",
+                    help="legacy: 200 MB * 10**U(-1,1). wf1_v1: workload_fix_v1 W2 (log-normal 4 MB + heavy tier)")
     a = ap.parse_args()
     if os.path.exists(a.out):
         raise SystemExit(f"FAIL LOUD: {a.out} exists; a gate workload is frozen once minted")
@@ -166,7 +184,7 @@ def main() -> int:
     base = json.load(open(a.base))
     if a.merge_k < 1:
         raise SystemExit("FAIL LOUD: --merge-k must be >= 1")
-    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k)
+    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k, a.payload_sampler)
     doc["grounded_workload_v1"] = {**meta, "library": os.path.basename(a.lib), "library_sha256": _sha(a.lib),
                                    "library_source": lib["source"], "base": os.path.basename(a.base),
                                    "base_sha256": _sha(a.base)}

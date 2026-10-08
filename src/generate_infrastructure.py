@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
-from src.placement.network_fabric import CORE_PREFIX, link_key
+from src.placement.network_fabric import CORE_PREFIX, draw_access_classes, link_key
 from src.utils.distributions import sample_bounded_int, sample_replica_count
 
 SKEW_TOPOLOGY_TYPES = frozenset({"degree_skewed_core"})
@@ -439,15 +439,40 @@ def build_core_backbone(
             f"network.backbone.core_bandwidth_mbps must be > 0, got {core_bandwidth_mbps}"
         )
 
+    # workload_fix_v1 W3 (opt-in): per-node access-link classes. Absent, every access link carries
+    # `bandwidth_mbps` and nothing below changes.
+    access_classes_config = backbone_config.get('access_classes')
+    node_access: Optional[Dict[str, Dict[str, Any]]] = None
+    if access_classes_config is not None:
+        if seed is None:
+            raise ValueError(
+                "network.backbone.access_classes requires the topology seed to derive its dedicated "
+                "stream, but no seed was passed"
+            )
+        if not isinstance(access_classes_config, dict):
+            raise ValueError(
+                f"network.backbone.access_classes must be an object, got {access_classes_config!r}"
+            )
+        extra = sorted(set(access_classes_config) - {'mix'})
+        if extra:
+            raise ValueError(f"network.backbone.access_classes has unknown key(s) {extra}")
+        node_access = draw_access_classes(
+            [n['node_name'] for n in nodes], seed, access_classes_config.get('mix')
+        )
+
     core_names = [f"{CORE_PREFIX}{i}" for i in range(n_core)]
     links: Dict[str, Dict[str, float]] = {}
     adjacency: Dict[str, Dict[str, float]] = {name: {} for name in core_names}
 
-    def _add_link(a: str, b: str, latency: float, bandwidth: float) -> None:
+    def _add_link(
+        a: str, b: str, latency: float, bandwidth: float, directional: Optional[Dict[str, float]] = None
+    ) -> None:
         links[link_key(a, b)] = {
             "latency": latency,
             "bandwidth_mbps": bandwidth,
         }
+        if directional is not None:
+            links[link_key(a, b)].update(directional)
         adjacency.setdefault(a, {})[b] = latency
         adjacency.setdefault(b, {})[a] = latency
 
@@ -469,7 +494,18 @@ def build_core_backbone(
         attachments[node_name] = chosen
         for core_name in chosen:
             jitter = 1.0 + draw_rng.uniform(-latency_jitter, latency_jitter)
-            _add_link(node_name, core_name, access_latency * jitter, bandwidth_mbps)
+            if node_access is None:
+                _add_link(node_name, core_name, access_latency * jitter, bandwidth_mbps)
+                continue
+            cls = node_access[node_name]
+            out_mbps, in_mbps = float(cls['out_mbps']), float(cls['in_mbps'])
+            # `bandwidth_mbps` stays the conservative single number for consumers that read one value
+            # (graph features, offline scorers); the fabric and dag_workload use the directional pair.
+            directional = (
+                None if out_mbps == in_mbps else
+                {"access_node": node_name, "bandwidth_out_mbps": out_mbps, "bandwidth_in_mbps": in_mbps}
+            )
+            _add_link(node_name, core_name, access_latency * jitter, min(out_mbps, in_mbps), directional)
 
     # Route every logical edge and rewrite its latency as the path sum.
     routes: Dict[str, Dict[str, List[str]]] = {}
@@ -552,8 +588,42 @@ def build_core_backbone(
             "core_bandwidth_mbps": core_bandwidth_mbps,
             "rng_stream": rng_stream,
             **({"exchange_routes": exchange_routes} if exchange_routes else {}),
+            **({"access_classes": access_classes_config} if node_access is not None else {}),
         },
+        **({"access_classes": node_access} if node_access is not None else {}),
     }
+
+
+class ReachabilityRepairError(RuntimeError):
+    """A task type the workload uses has no server replica to make reachable.
+
+    Raised only under ``network.reachability_repair`` (workload_fix_v1 W4). Without it the repair loop skips
+    such a type silently and the run hangs on its tasks.
+    """
+
+
+def resolve_reachability_repair_types(
+    config: Dict[str, Any], task_types_data: Optional[Dict[str, Any]]
+) -> Optional[List[str]]:
+    """Task types the reachability repair must cover, or ``None`` when ``network.reachability_repair`` is absent
+    (the repair then covers only types that happen to have a server replica, as before)."""
+    block = config.get('network', {}).get('reachability_repair')
+    if block is None:
+        return None
+    if not isinstance(block, dict) or set(block) != {'task_types'}:
+        raise ValueError(
+            f"network.reachability_repair must be {{'task_types': 'all' | [names]}}, got {block!r}"
+        )
+    wanted = block['task_types']
+    if wanted == 'all':
+        if not task_types_data:
+            raise ValueError("network.reachability_repair.task_types='all' needs task-types.json in the sim inputs")
+        return list(task_types_data)
+    if not isinstance(wanted, list) or not wanted or not all(isinstance(t, str) for t in wanted):
+        raise ValueError(
+            f"network.reachability_repair.task_types must be 'all' or a non-empty list of names, got {wanted!r}"
+        )
+    return list(wanted)
 
 
 class ReplicaStarvationError(RuntimeError):
@@ -938,6 +1008,15 @@ def generate_deterministic_infrastructure(
             return skew_lat_core if server_name in skew_core_servers else skew_lat_periphery
         return config.get('network', {}).get('latency', {}).get('base_latency', 0.1)
 
+    repair_types = resolve_reachability_repair_types(config, task_types_data)
+    if repair_types is not None:
+        missing = [t for t in repair_types if t not in replica_placements]
+        if missing:
+            raise ReachabilityRepairError(
+                f"task type(s) {missing} are used by the workload but have no entry in the replicas config "
+                f"(configured: {sorted(replica_placements)}); they would have no replica to reach"
+            )
+
     for task_type_name, placements in replica_placements.items():
         # Get servers that have replicas for this task type
         replica_servers = set(
@@ -945,6 +1024,12 @@ def generate_deterministic_infrastructure(
         )
 
         if not replica_servers:
+            if repair_types is not None and task_type_name in repair_types:
+                raise ReachabilityRepairError(
+                    f"task type {task_type_name!r} is used by the workload but has no replica on any server "
+                    f"({len(placements)} placements, all client-hosted or none): nothing to make reachable. "
+                    f"Raise replicas.{task_type_name}.per_server or enable preinit.replica_overlap."
+                )
             continue
 
         for client in clients:
