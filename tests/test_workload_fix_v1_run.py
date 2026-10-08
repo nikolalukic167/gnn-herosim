@@ -254,3 +254,45 @@ def test_decomposition_sums_to_latency_with_an_explicit_remainder():
     assert sum(d[k] for k in R.COMPONENTS) + d["other"] == pytest.approx(d["latency"])
     old = {(1, f"{w}lo", "cd"): _row(1, f"{w}lo", "cd", 3.0) for w in R.WINDOWS}
     assert R.decompose(old, [1], ["lo"])["available"] is False  # missing field is reported, not zero
+
+
+def _emit(n_lines, width=100):
+    return [sys.executable, "-c", f"import sys\nfor i in range({n_lines}):\n    print('line%07d ' % i + 'x' * {width - 12})"]
+
+
+def test_log_cap_keeps_head_and_tail_and_counts_the_dropped_bytes(tmp_path):
+    import capped_log as C
+
+    log = tmp_path / "run.log"
+    total = 20000 * 101  # 100 characters and a newline per line
+    rc = C.run_logged(_emit(20000), os.environ, str(tmp_path), str(log), cap=500_000)
+    text = log.read_bytes()
+    assert rc == 0 and len(text) < 500_000 + 200
+    assert text.startswith(b"line0000000") and b"line0019999" in text[-200:]
+    note = text[text.index(b"\n[log capped"):].split(b"\n")[1].decode()
+    dropped = int(note.split("bytes: ")[1].split(" bytes dropped")[0])
+    kept = len(text) - len(note) - 2
+    assert kept + dropped == total  # nothing unaccounted for
+
+
+def test_log_under_the_cap_is_complete_and_uncapped_mode_is_the_old_behaviour(tmp_path):
+    import capped_log as C
+
+    small, plain = tmp_path / "small.log", tmp_path / "plain.log"
+    C.run_logged(_emit(100), os.environ, str(tmp_path), str(small), cap=1_000_000)
+    C.run_logged(_emit(100), os.environ, str(tmp_path), str(plain), cap=None)
+    assert small.read_bytes() == plain.read_bytes() and b"log capped" not in small.read_bytes()
+    assert C.run_logged([sys.executable, "-c", "import sys; print('e', file=sys.stderr); sys.exit(3)"],
+                        os.environ, str(tmp_path), str(small), cap=1000) == 3
+    assert b"e" in small.read_bytes()
+
+
+def test_cap_setting_comes_from_the_environment(monkeypatch):
+    import capped_log as C
+
+    monkeypatch.delenv(C.CAP_ENV, raising=False)
+    assert C.cap_bytes() == 50 * 1024 * 1024
+    monkeypatch.setenv(C.CAP_ENV, "0")
+    assert C.cap_bytes() is None
+    monkeypatch.setenv(C.CAP_ENV, "1.5")
+    assert C.cap_bytes() == int(1.5 * 1024 * 1024)
