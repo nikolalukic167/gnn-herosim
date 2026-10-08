@@ -202,6 +202,13 @@ def load_prefix_conditioned_gnn(
             adopt=adopt_env, default="0",
         )
 
+    # The physics environment the training cache was built under (transfer model, replica release, scale-out).
+    from src.placement.cache_physics import require_matching_physics_env
+
+    try:
+        require_matching_physics_env(sidecar.get("physics_env"), what=label)
+    except ValueError as exc:
+        raise PrefixServingError(str(exc)) from exc
     # Contracts: partial-state column meaning, peer-mass column.
     trained_contract = sidecar.get("partial_state_contract")
     if not trained_contract:

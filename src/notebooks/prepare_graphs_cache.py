@@ -92,6 +92,7 @@ from src.placement.dag_workload import (
     route_hops_and_bottleneck,
 )
 from src.placement.network_fabric import is_core_link, route_links, transmission_hops
+from src.placement.cache_physics import current_physics_env
 from src.placement.four_type_features import (
     four_type_enabled,
     platform_extra_columns,
@@ -2191,6 +2192,8 @@ def main():
         # the trainer can read it from the cache instead of trusting its own shell — the
         # same bug class the inference_feature_layout confound (40.8% of total_rtt) had.
         'topology_feature_contract': resolve_topology_feature_contract(),
+        # the transfer model / replica release / scale-out the exchange seconds and candidate sets were built under
+        'physics_env': current_physics_env(),
         # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk
         # trainer refuses a cache without partial_state_contract, so a legacy cache
         # can never silently serve a stage-2 arm.

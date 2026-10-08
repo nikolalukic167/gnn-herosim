@@ -792,6 +792,9 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         )
 
         _trained_psc = _read_checkpoint_sidecar(model_path).get("partial_state_contract")
+        from src.placement.cache_physics import require_matching_physics_env
+
+        require_matching_physics_env(_read_checkpoint_sidecar(model_path).get("physics_env"), what=model_path.name)
         _four_type = str(_trained_psc) in FOUR_TYPE_CONTRACTS
         if _four_type:
             require_matching_partial_state_contract(
