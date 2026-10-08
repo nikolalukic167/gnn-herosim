@@ -333,6 +333,7 @@ class Autoscaler:
             function_name: str,
             hardware_target: str,
             cause: str = "reachability",
+            reachable_nodes: Optional[Set["Node"]] = None,
     ) -> Generator:
         """`cause` is recorded under kpa only: "load" from the KPA decision, "reachability" from every
         create_first_replica path (a task's source reaches no replica of its type)."""
@@ -360,6 +361,8 @@ class Autoscaler:
             server_only = os.environ.get("HEROSIM_SERVER_ONLY_REPLICAS", "0") == "1"
             memory_refused = 0
             for node, platforms in available_resources.items():
+                if reachable_nodes is not None and node not in reachable_nodes:
+                    continue
                 if server_only and str(node.node_name).startswith("client_node"):
                     continue
                 for platform in platforms:

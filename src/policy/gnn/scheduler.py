@@ -1118,6 +1118,12 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 f"({len(decodable)} decoded, {len(deferred)} deferred) in {inference_time*1000:.2f}ms"
             )
         self.prefix_tasks_deferred += len(deferred)
+        # Deferred tasks below may evict or drain a replica (autoscaler.evict_idle_for) before the decoded tasks are
+        # enqueued; the decoded targets are off limits until their task is on the platform's queue.
+        reserve = getattr(self.autoscaler, "reserve_target", None)
+        if reserve is not None:
+            for idx in range(len(decodable)):
+                reserve(placements[idx])
         yield self.mutex.put(system_state)
 
         for task in deferred:
@@ -1178,6 +1184,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             task.platform = platform
             node.wall_clock_scheduling_time += default_timer() - task_start
             yield platform.queue.put(task)
+            if reserve is not None:
+                self.autoscaler.unreserve_target(placements[idx])
             self._record_residence_placed(task)
             yield task.scheduled.succeed()
             yield node.platforms.put(platform)

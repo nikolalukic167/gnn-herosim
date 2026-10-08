@@ -42,6 +42,7 @@ from src.placement.model import (
 
 from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
 from src.placement.infrastructure import FIDELITY, STARVED_RENDEZVOUS
+from src.placement.starved_defer import log_starved
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
     image_pull_disk_hit,
@@ -100,6 +101,18 @@ class KnativeAutoscaler(Autoscaler):
 
         return concurrency_results
 
+    def reserve_target(self, target: Tuple[int, int]) -> None:
+        reserved = self.__dict__.setdefault("_reserved_targets", {})
+        reserved[tuple(target)] = reserved.get(tuple(target), 0) + 1
+
+    def unreserve_target(self, target: Tuple[int, int]) -> None:
+        reserved = self.__dict__.setdefault("_reserved_targets", {})
+        left = reserved.get(tuple(target), 0) - 1
+        if left > 0:
+            reserved[tuple(target)] = left
+        else:
+            reserved.pop(tuple(target), None)
+
     def evict_idle_for(
         self, system_state: SystemState, task_type: TaskType, source_node_name: str
     ) -> Optional[Tuple[Node, Platform]]:
@@ -136,12 +149,14 @@ class KnativeAutoscaler(Autoscaler):
                     continue
                 if not platform.initialized.triggered:
                     continue
+                if (node.id, platform.id) in self.__dict__.get("_reserved_targets", ()):
+                    continue
                 if node.available_memory + mem_other[short] < task_type["memoryRequirements"][short]:
                     continue
                 load = len(platform.queue.items) + (1 if platform.current_task else 0) + len(getattr(platform, "inflight", ()))
                 if load == 0:
                     idle.append((platform.idle_since, node.id, platform.id, other, node, platform))
-                else:
+                elif not self._drain_blocked(node, platform, (name, source_node_name)):
                     busy.append((load, node.id, platform.id, other, node, platform))
         state = system_state.scheduler_state
         if idle:
@@ -177,20 +192,33 @@ class KnativeAutoscaler(Autoscaler):
             released |= self._release_one_rendezvous(node, platform, task, proc, key)
         return released
 
-    def _release_one_rendezvous(self, node, platform, task, proc, key) -> bool:
+    @staticmethod
+    def _releasable_peers(node, task, key):
+        """The unplaced peers of `task` a drain for `key` = (starved type, source) can plan onto `node`, or None when
+        some unplaced peer cannot be: it is not the starved type, or `node` is out of its source's reach. A peer of
+        the starved key's own source qualifies as before; a starved (already deferred) peer of the same type from
+        another source qualifies when that source reaches `node`: its replica is the one this drain creates. Without
+        that, drains started for different sources each wait for the others' peers (a cycle) and nothing frees."""
         orchestrator = getattr(node, "orchestrator_ref", None)
         if orchestrator is None:
-            return False
+            return None
+        reach = getattr(node, "network_map", None) or {}
         unplaced = []
         for peer_id in sorted((orchestrator.peer_exchange or {}).get(task.id) or {}):
             peer = orchestrator.task_by_id.get(peer_id)
             if peer is None:
-                return False
+                return None
             if getattr(peer, "platform", None) is not None or getattr(peer, "planned_node_name", None) is not None:
                 continue
-            if peer.type["name"] != key[0] or peer.node_name != key[1]:
-                return False
+            if peer.type["name"] != key[0]:
+                return None
+            if peer.node_name != key[1] and not (getattr(peer, "postponed_count", 0) > 0 and peer.node_name in reach):
+                return None
             unplaced.append(peer)
+        return unplaced
+
+    def _release_one_rendezvous(self, node, platform, task, proc, key) -> bool:
+        unplaced = self._releasable_peers(node, task, key)
         if not unplaced:
             return False
         for peer in unplaced:
@@ -200,6 +228,23 @@ class KnativeAutoscaler(Autoscaler):
         print(f"[ {self.env.now} ] rendezvous released: task {task.id} on {platform} planned "
               f"{[p.id for p in unplaced]} ({key[0]}) onto {node.node_name}")
         return True
+
+    def _drain_blocked(self, node, platform, key) -> bool:
+        """True when a task on `platform` waits in rendezvous for a starved peer that a drain for `key` cannot
+        release: draining it would wait forever, and a victim whose drain never ends holds the platform for good."""
+        waits = [platform.rendezvous_task] if getattr(platform, "rendezvous_task", None) else []
+        waits += list((getattr(platform, "rendezvous_procs", None) or {}))
+        for task in waits:
+            orchestrator = getattr(node, "orchestrator_ref", None)
+            if orchestrator is None:
+                continue
+            for peer_id in (orchestrator.peer_exchange or {}).get(task.id) or {}:
+                peer = orchestrator.task_by_id.get(peer_id)
+                if (peer is not None and getattr(peer, "postponed_count", 0) > 0 and getattr(peer, "platform", None) is None
+                        and getattr(peer, "planned_node_name", None) is None
+                        and self._releasable_peers(node, task, key) is None):
+                    return True
+        return False
 
     def _release_when_drained(self, system_state, function_name, replica, key) -> Generator:
         platform = replica[1]
@@ -234,6 +279,7 @@ class KnativeAutoscaler(Autoscaler):
         # Filter available resources by network connectivity if source_node_name is provided
         original_available_resources = system_state.available_resources
         filtered_resources = None
+        reachable_nodes: Optional[Set[Node]] = None
         
         if source_node_name:
             # Filter to only nodes that have network connectivity to the source
@@ -254,14 +300,16 @@ class KnativeAutoscaler(Autoscaler):
                     nodes_with_connectivity.add(node)
             
             if nodes_with_connectivity:
+                reachable_nodes = nodes_with_connectivity
                 # Create filtered resources dict
                 filtered_resources = {
                     node: platforms 
                     for node, platforms in system_state.available_resources.items()
                     if node in nodes_with_connectivity
                 }
-                # Temporarily replace available_resources
-                system_state.available_resources = filtered_resources
+                # The shared `system_state.available_resources` is never swapped for this view: this method yields,
+                # and two overlapping calls would restore each other's filtered dict, dropping every node outside
+                # it from the free pool for good. scale_up filters by `reachable_nodes` instead.
                 
                 logging.info(
                     f"[ {self.env.now} ] Creating {task_type['name']} replica: "
@@ -274,49 +322,46 @@ class KnativeAutoscaler(Autoscaler):
                     f"for {task_type['name']} replica creation"
                 )
         
-        try:
-            # Collect available hardware types from (possibly filtered) resources
-            available_hardware: Set[str] = set()
-            resources_to_check = filtered_resources if filtered_resources else original_available_resources
-            for _, platforms in resources_to_check.items():
-                for platform in platforms:
-                    if platform.type["shortName"] in task_type["platforms"]:
-                        if not replica_platform_type_allowed(platform.type["shortName"]):
-                            continue
-                        available_hardware.add(platform.type["shortName"])
+        # Collect available hardware types from (possibly filtered) resources
+        available_hardware: Set[str] = set()
+        resources_to_check = filtered_resources if filtered_resources else original_available_resources
+        for _, platforms in resources_to_check.items():
+            for platform in platforms:
+                if platform.type["shortName"] in task_type["platforms"]:
+                    if not replica_platform_type_allowed(platform.type["shortName"]):
+                        continue
+                    available_hardware.add(platform.type["shortName"])
 
-            if not available_hardware:
-                logging.error(
-                    f"[ {self.env.now} ] No compatible hardware available for {task_type['name']} "
-                    f"on nodes with connectivity to {source_node_name if source_node_name else 'any node'}"
+        if not available_hardware:
+            log_starved(
+                self, self.env.now, ("no-hardware", task_type["name"], source_node_name or ""),
+                f"[ {self.env.now} ] No compatible hardware available for {task_type['name']} "
+                f"on nodes with connectivity to {source_node_name if source_node_name else 'any node'}"
+            )
+            return StopIteration(
+                f"No compatible hardware for {task_type['name']} on connected nodes"
+            )
+
+        stop = None
+        # Try each available hardware type. `available_hardware` is a set, so its
+        # iteration order is not reproducible across processes (PYTHONHASHSEED) —
+        # sort so which hardware type gets scaled up first is deterministic.
+        for platform_name in sorted(available_hardware):
+            stop = yield self.env.process(
+                self.scale_up(
+                    1,
+                    system_state,
+                    task_type["name"],
+                    self.data.platform_types[platform_name]["shortName"],
+                    reachable_nodes=reachable_nodes,
                 )
-                return StopIteration(
-                    f"No compatible hardware for {task_type['name']} on connected nodes"
-                )
+            )
 
-            stop = None
-            # Try each available hardware type. `available_hardware` is a set, so its
-            # iteration order is not reproducible across processes (PYTHONHASHSEED) —
-            # sort so which hardware type gets scaled up first is deterministic.
-            for platform_name in sorted(available_hardware):
-                stop = yield self.env.process(
-                    self.scale_up(
-                        1,
-                        system_state,
-                        task_type["name"],
-                        self.data.platform_types[platform_name]["shortName"],
-                    )
-                )
+            if not isinstance(stop, StopIteration):
+                # Resource found, stop iterating
+                break
 
-                if not isinstance(stop, StopIteration):
-                    # Resource found, stop iterating
-                    break
-
-            return stop
-        finally:
-            # Always restore original available_resources
-            if filtered_resources is not None:
-                system_state.available_resources = original_available_resources
+        return stop
 
     def create_replica(
         self, couples_suitable: Set[Tuple[Node, Platform]], task_type: TaskType
