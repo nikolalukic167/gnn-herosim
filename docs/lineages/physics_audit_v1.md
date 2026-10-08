@@ -81,8 +81,8 @@ FAIL. **I13 pool conservation** is new: free + owned + draining = platforms on e
 `available_platforms`. Its seeded-defect tests include the old filtered-pool swap fed through the real emitter.
 Identity and the timeout's scope are recorded in [`workload_fix_v1`](workload_fix_v1.md) (R1.1-T, accepted). **Caveat:**
 pass 3 ran on `8e835eef` (timeout over the whole wait), not on `665c9142` (R1.1-T). Both commits are identical to `d4aeb7ca` on all
-42 cells, and the timeout fired 0 times at each, so the simulated runs are the same, but the invariants themselves weren't rerun at
-`665c9142`. A rerun is requested.
+42 cells, and the timeout fired 0 times at each. **Closed the same day:** pass 3 rerun at `665c9142` (I1–I10, I12, I13 on
+the 36 cells; I8 12/12; the reduced-memory cell) changes no verdict or number on any cell; I11 wasn't rerun.
 
 ### 2026-10-08 — audit pass 2 at time scale 1.0: R1 frozen
 
