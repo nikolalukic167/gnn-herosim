@@ -389,3 +389,17 @@ def test_a3_never_served_reachability_replica_is_not_idle(monkeypatch, family):
     env.process(scenario())
     env.run(until=50)
     assert autoscaler.scaleout_summary()["scale_downs"] == 1
+
+
+def test_a4_shared_autoscaler_flag(monkeypatch):
+    monkeypatch.delenv("HEROSIM_SCALEOUT", raising=False)
+    monkeypatch.delenv("HEROSIM_SHARED_AUTOSCALER", raising=False)
+    assert scaleout.shared_autoscaler() is False
+    monkeypatch.setenv("HEROSIM_SHARED_AUTOSCALER", "1")
+    assert scaleout.shared_autoscaler() is True
+    monkeypatch.setenv("HEROSIM_SHARED_AUTOSCALER", "0")
+    monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
+    assert scaleout.shared_autoscaler() is True
+    monkeypatch.setenv("HEROSIM_SHARED_AUTOSCALER", "yes")
+    with pytest.raises(ValueError):
+        scaleout.shared_autoscaler()

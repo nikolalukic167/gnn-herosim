@@ -1171,6 +1171,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # transfer_physics_v1: transmission model and replica release during I/O
             "HEROSIM_TRANSFER_MODEL",
             "HEROSIM_REPLICA_RELEASE",
+            "HEROSIM_SHARED_AUTOSCALER",
             # kpa_scaleout_v1: scale-out rule (legacy | kpa); kpa's resolved target and windows are in stats.scaleOut
             SCALEOUT_ENV,
             "INFERENCE_FEATURE_LAYOUT",
