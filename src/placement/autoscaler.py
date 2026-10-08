@@ -254,7 +254,8 @@ class Autoscaler:
                     _AUDIT.kpa_tick(self.env, function_name, self.kpa.functions[function_name].samples[-1][1],
                                     current, ready, decision,
                                     sum(1 for (fn, _n, _p), c in self._replica_cause.items()
-                                        if fn == function_name and c == "load"))
+                                        if fn == function_name and c == "load"),
+                                    {f"{n.node_name}:{p.id}": platform_in_flight(p) for n, p in function_replicas})
                 stats["panic_entries"] += int(decision.entered_panic)
                 stats["panic_ticks"] += int(decision.panicking)
 

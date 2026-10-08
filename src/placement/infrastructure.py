@@ -1498,6 +1498,7 @@ class Platform:
                             hold = _transfer_time(task, min(bw for _k, bw in route)) if route else 0.0
                             if FIDELITY:
                                 task._fid.update(link_stage="wait", route=[k for k, _bw in route], hold=hold)
+                            link_wait = 0.0
                             if hold > 0:
                                 wait_start = self.env.now
                                 requests = []
@@ -1519,10 +1520,12 @@ class Platform:
                                         self.node.fabric.pipe(link_key_).release(req)
                             if FIDELITY:
                                 task._fid["link_stage"] = "done"
-                                if _AUDIT is not None:
-                                    _AUDIT.transfer(self.env, "ingress", task, task.node_name, self.node.node_name,
-                                                    _audit_input_bytes(task), route, "pipelined", hold,
-                                                    network_time, link_wait)
+                            if _AUDIT is not None:
+                                _AUDIT.transfer(self.env, "ingress", task, task.node_name, self.node.node_name,
+                                                _audit_input_bytes(task), route, "pipelined", hold,
+                                                network_time, link_wait,
+                                                route_latency=self.node.fabric.route_latency(
+                                                    task.node_name, self.node.node_name))
                         elif self.node.fabric is not None:
                             if _AUDIT is not None:
                                 _audit_route = self.node.fabric.hops(task.node_name, self.node.node_name)
