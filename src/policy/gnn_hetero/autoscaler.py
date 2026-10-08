@@ -23,6 +23,7 @@ from typing import Set, Tuple, TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node
+from src.placement.starved_defer import log_starved
 
 from src.policy.gnn_hetero.model import KnativeSchedulerState, KnativeSystemState
 
@@ -114,6 +115,7 @@ class KnativeAutoscaler(Autoscaler):
         # Filter available resources by network connectivity if source_node_name is provided
         original_available_resources = system_state.available_resources
         filtered_resources = None
+        reachable_nodes: Optional[Set[Node]] = None
         
         if source_node_name:
             # Filter to only nodes that have network connectivity to the source
@@ -134,14 +136,16 @@ class KnativeAutoscaler(Autoscaler):
                     nodes_with_connectivity.add(node)
             
             if nodes_with_connectivity:
+                reachable_nodes = nodes_with_connectivity
                 # Create filtered resources dict
                 filtered_resources = {
                     node: platforms 
                     for node, platforms in system_state.available_resources.items()
                     if node in nodes_with_connectivity
                 }
-                # Temporarily replace available_resources
-                system_state.available_resources = filtered_resources
+                # The shared `system_state.available_resources` is never swapped for this view: this method yields,
+                # and two overlapping calls would restore each other's filtered dict, dropping every node outside
+                # it from the free pool for good. scale_up filters by `reachable_nodes` instead.
                 
                 logging.info(
                     f"[ {self.env.now} ] Creating {task_type['name']} replica: "
@@ -154,45 +158,42 @@ class KnativeAutoscaler(Autoscaler):
                     f"for {task_type['name']} replica creation"
                 )
         
-        try:
-            # Collect available hardware types from (possibly filtered) resources
-            available_hardware: Set[str] = set()
-            resources_to_check = filtered_resources if filtered_resources else original_available_resources
-            for _, platforms in resources_to_check.items():
-                for platform in platforms:
-                    if platform.type["shortName"] in task_type["platforms"]:
-                        available_hardware.add(platform.type["shortName"])
+        # Collect available hardware types from (possibly filtered) resources
+        available_hardware: Set[str] = set()
+        resources_to_check = filtered_resources if filtered_resources else original_available_resources
+        for _, platforms in resources_to_check.items():
+            for platform in platforms:
+                if platform.type["shortName"] in task_type["platforms"]:
+                    available_hardware.add(platform.type["shortName"])
 
-            if not available_hardware:
-                logging.error(
-                    f"[ {self.env.now} ] No compatible hardware available for {task_type['name']} "
-                    f"on nodes with connectivity to {source_node_name if source_node_name else 'any node'}"
+        if not available_hardware:
+            log_starved(
+                self, self.env.now, ("no-hardware", task_type["name"], source_node_name or ""),
+                f"[ {self.env.now} ] No compatible hardware available for {task_type['name']} "
+                f"on nodes with connectivity to {source_node_name if source_node_name else 'any node'}"
+            )
+            return StopIteration(
+                f"No compatible hardware for {task_type['name']} on connected nodes"
+            )
+
+        stop = None
+        # Try each available hardware type
+        for platform_name in available_hardware:
+            stop = yield self.env.process(
+                self.scale_up(
+                    1,
+                    system_state,
+                    task_type["name"],
+                    self.data.platform_types[platform_name]["shortName"],
+                    reachable_nodes=reachable_nodes,
                 )
-                return StopIteration(
-                    f"No compatible hardware for {task_type['name']} on connected nodes"
-                )
+            )
 
-            stop = None
-            # Try each available hardware type
-            for platform_name in available_hardware:
-                stop = yield self.env.process(
-                    self.scale_up(
-                        1,
-                        system_state,
-                        task_type["name"],
-                        self.data.platform_types[platform_name]["shortName"],
-                    )
-                )
+            if not isinstance(stop, StopIteration):
+                # Resource found, stop iterating
+                break
 
-                if not isinstance(stop, StopIteration):
-                    # Resource found, stop iterating
-                    break
-
-            return stop
-        finally:
-            # Always restore original available_resources
-            if filtered_resources is not None:
-                system_state.available_resources = original_available_resources
+        return stop
 
     def create_replica(
         self, couples_suitable: Set[Tuple[Node, Platform]], task_type: TaskType
