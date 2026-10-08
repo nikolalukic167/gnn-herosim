@@ -118,7 +118,10 @@ Required by `workload_fix_v1`'s R1.1 rule (the free-pool leak touched completed 
 matches the published table to the printed digit; self-predict is −8.8 / −9.2 / −9.5 % at ×2 / ×3 / ×5, CONFIRMED 19/19.
 The r11 Holm runs over this condition's 15 tests and the published one over 60; both are in
 [`kpa_r11_pipe_release_read.json`](kpa_scaleout_v1/kpa_r11_pipe_release_read.json). **The R1 headline stands on R1.1.**
-The other three conditions and the four controls are running.
+The other three conditions ([`kpa_r11_other_read.json`](kpa_scaleout_v1/kpa_r11_other_read.json)) also reproduce:
+1,596/1,596 each, 0 failures, every vs-CD value, count and label unchanged to the printed digit. Cells that differ: pipe 1
+(CD ×5, ≤ 0.25 %), release 3 (batched, CD, locality ×5, ≤ 1.21 %), replay 2 (batched ×5, ≤ 1.95 %). All are at ×5, untraced, and
+none changes a label. The four `*_legacy_shared_r11` controls are running.
 
 ### 2026-10-08 — read (code `71d9cbcb`; control `38cd802f`)
 - **Replay.** Legacy scale-out at `71d9cbcb` reproduces `transfer_physics_v1` field for field: 23 / 23, 1,589 / 1,589,
