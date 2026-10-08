@@ -14,7 +14,7 @@
 set -euo pipefail
 WT=${WT:?FAIL LOUD: set WT}
 CORP=${CORP:?FAIL LOUD: set CORP}
-SAMPLE=${SAMPLE:-60}
+SAMPLE=${SAMPLE:-0}
 ALL=${ALL:-}
 TOPOS=${TOPOS:-"9601 9607"}
 OUT=${OUT:-$CORP/fidelity_cost}
@@ -47,4 +47,4 @@ for T in $TOPOS; do wc -l "$OUT/snapshots/cc40s${T}_g0.jsonl"; ls -la "$OUT/snap
 [[ $rc == 0 ]] || { echo "FAIL LOUD: capture failed"; tail -5 "$OUT"/capture_*.log; exit 1; }
 echo "=== [2/2] plan replays under fidelity"
 python3 -u scripts_cosim/wf1_fidelity_cost.py --datasets "$CORP/gnn_datasets_wf1_smoke_b" \
-  --snapshots "$OUT"/snapshots/*.jsonl --sample "$SAMPLE" ${ALL:+--also-all $ALL} --workers 28 --out "$OUT/cost.jsonl"
+  --snapshots "$OUT"/snapshots/*.jsonl --enumerate --sample "$SAMPLE" ${ALL:+--also-all $ALL} --workers 28 --out "$OUT/cost.jsonl"

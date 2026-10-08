@@ -45,8 +45,23 @@ def _read_snapshots(paths: List[str]) -> Dict[str, Dict[Tuple[Tuple[int, ...], f
     return out
 
 
+_CTX: Dict[str, Dict[str, Any]] = {}
+
+
+def _init(ctx: Dict[str, Dict[str, Any]]) -> None:
+    """Pool initializer: each worker holds the datasets' snapshots once; a job carries only (dataset, plan)."""
+    _CTX.update(ctx)
+
+
+def _rss_mb() -> float:
+    with open("/proc/self/statm") as fh:
+        return int(fh.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 1e6
+
+
 def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
-    """One replay in a fresh process (maxtasksperchild=1), so ru_maxrss belongs to this plan."""
+    """One replay in a long-lived worker. rss_delta_mb is the resident-set change over the plan (what it adds
+    before the interpreter frees it); rss_peak_mb is the worker's high-water mark so far."""
+    job = dict(job, **_CTX[job["dataset"]])
     import contextlib
     import io
 
@@ -57,7 +72,7 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
     from src.placement import snapshot_fidelity
     from src.placement.live_snapshot_seed import build_live_snapshot_seed
 
-    base_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    base_rss = _rss_mb()
     row: Dict[str, Any] = {"dataset": job["dataset"], "plan_index": job["plan_index"]}
     t0 = time.perf_counter()
     sink = io.StringIO()
@@ -103,8 +118,8 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
         row["traceback"] = traceback.format_exc()[-1500:]
         row["output_tail"] = "\n".join(l for l in sink.getvalue().splitlines() if "ERROR" in l)[-2500:]
     row["seconds"] = time.perf_counter() - t0
-    row["rss_mb"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
-    row["rss_over_import_mb"] = row["rss_mb"] - base_rss
+    row["rss_peak_mb"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    row["rss_delta_mb"] = _rss_mb() - base_rss
     row["import_seconds"] = t0 - t_import
     return row
 
@@ -116,6 +131,9 @@ def main() -> int:
     ap.add_argument("--only", default="", help="comma list of dataset ids (default: all)")
     ap.add_argument("--sample", type=int, default=60, help="plans per dataset (0 = every plan)")
     ap.add_argument("--also-all", default="", help="comma list of dataset ids replayed in full regardless of --sample")
+    ap.add_argument("--enumerate", action="store_true",
+                    help="replay the full product of the offered candidates (what the sweep was meant to cover) "
+                         "instead of the plans that completed in placements.jsonl")
     ap.add_argument("--workers", type=int, default=24)
     ap.add_argument("--sim-input", default=str(REPO / "data" / "nofs-ids"))
     ap.add_argument("--out", type=Path, required=True)
@@ -129,6 +147,7 @@ def main() -> int:
     want = {x for x in a.only.split(",") if x}
     full = {x for x in a.also_all.split(",") if x}
     jobs: List[Dict[str, Any]] = []
+    ctx_all: Dict[str, Dict[str, Any]] = {}
     summary_meta: Dict[str, Any] = {}
     rng = random.Random(7)
     for d in sorted(a.datasets.glob("ds_*")):
@@ -152,22 +171,37 @@ def main() -> int:
         base_infra = prepare_infrastructure_for_real_simulation(cfg, seed=None, sim_input_path=Path(a.sim_input))
         wl_ds = json.loads((d / "workload.json").read_text())
         dataset_types = [next(iter(e["application"]["dag"])) for e in wl_ds["events"]]
-        rows = [json.loads(l) for l in open(d / "placements" / "placements.jsonl") if l.strip()]
-        plans = [{int(k): tuple(int(x) for x in v) for k, v in r["placement_plan"].items()} for r in rows]
+        if a.enumerate:
+            import itertools
+
+            offered = prov["candidate_draw"]["subset"]
+            by_gid = {int(t["task_id"]): t for t in snap["tasks"]}
+            order: Dict[str, List[int]] = {}
+            for g in sorted(by_gid):
+                order.setdefault(by_gid[g]["task_type"], []).append(g)
+            lists = []
+            for ty in dataset_types:
+                t = by_gid[order[ty].pop(0)]
+                lists.append([(int(c["node_id"]), int(c["platform_id"])) for c in t["candidates"]
+                              if c["queue_key"] in set(offered.get(ty, []))])
+            plans = [dict(enumerate(combo)) for combo in itertools.product(*lists)]
+        else:
+            rows = [json.loads(l) for l in open(d / "placements" / "placements.jsonl") if l.strip()]
+            plans = [{int(k): tuple(int(x) for x in v) for k, v in r["placement_plan"].items()} for r in rows]
         idx = list(range(len(plans)))
         if a.sample and len(idx) > a.sample and d.name not in full:
             idx = sorted(rng.sample(idx, a.sample))
         summary_meta[d.name] = {"plans_in_sweep": len(plans), "plans_replayed": len(idx),
                                 "queued_tasks": len(new["fidelity"]["queued"]), "batch_tasks": len(new["fidelity"]["batch"])}
+        ctx_all[d.name] = {"snapshot": snap, "base_infra": base_infra, "sim_input": a.sim_input,
+                           "dataset_types": dataset_types}
         for i in idx:
-            jobs.append({"dataset": d.name, "plan_index": i, "plan": plans[i], "snapshot": snap,
-                         "base_infra": base_infra, "sim_input": a.sim_input,
-                         "dataset_types": dataset_types})
+            jobs.append({"dataset": d.name, "plan_index": i, "plan": plans[i]})
     print(f"{len(jobs)} plan replays over {len(summary_meta)} datasets, {a.workers} workers", flush=True)
     ctx = mp.get_context("spawn")
     results: List[Dict[str, Any]] = []
-    with ctx.Pool(a.workers, maxtasksperchild=1) as pool, open(a.out, "w") as fh:
-        for row in pool.imap_unordered(_one_plan, jobs, chunksize=1):
+    with ctx.Pool(a.workers, initializer=_init, initargs=(ctx_all,), maxtasksperchild=500) as pool, open(a.out, "w") as fh:
+        for row in pool.imap_unordered(_one_plan, jobs, chunksize=4):
             fh.write(json.dumps(row) + "\n")
             fh.flush()
             results.append(row)
@@ -183,8 +217,8 @@ def main() -> int:
         sec = sorted(r["seconds"] for r in rs)
         p95 = sec[min(len(sec) - 1, int(0.95 * len(sec)))]
         line = (f"  {name}: {len(rs)} plans of {meta['plans_in_sweep']}, failed {len(rs) - len(ok)}, "
-                f"{st.median(sec):.1f}/{p95:.1f}/{sec[-1]:.1f} s, rss {st.median(r['rss_mb'] for r in rs):.0f}/"
-                f"{max(r['rss_mb'] for r in rs):.0f} MB")
+                f"{st.median(sec):.1f}/{p95:.1f}/{sec[-1]:.1f} s, rss delta {st.median(r['rss_delta_mb'] for r in rs):.1f} MB median, peak "
+                f"{max(r['rss_peak_mb'] for r in rs):.0f} MB")
         if ok:
             line += (f", stats {st.median(r['stats_mb'] for r in ok):.1f} MB, horizon {st.median(r['end_time'] for r in ok):.0f}/"
                      f"{max(r['end_time'] for r in ok):.0f} s, scale_downs>0 in {sum(1 for r in ok if (r['scale_downs'] or 0) > 0)}")
