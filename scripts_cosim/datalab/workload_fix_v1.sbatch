@@ -119,7 +119,8 @@ case "$JOB" in
       --parallel "$P" --mem 4G --timeout "${TIMEOUT:-2700}" --no-scope | grep -v "^\[skip"
     rc=${PIPESTATUS[0]}
     # registered failure rule (transfer_physics_v1): one rerun of a failed run at 3x the timeout; a second failure stands
-    if ls "$OUT"/*.failed.json >/dev/null 2>&1; then
+    # WF1_NO_RERUN=1 (amendment WB2, until S5's starvation fix lands): failed runs are reported as hung, not rerun
+    if [[ -z "${WF1_NO_RERUN:-}" ]] && ls "$OUT"/*.failed.json >/dev/null 2>&1; then
       echo "=== first pass: $(ls "$OUT"/*.failed.json | wc -l) failed; rerunning once at 3x timeout ==="
       mkdir -p "$OUT/first_pass_failed" && mv "$OUT"/*.failed.json "$OUT/first_pass_failed/"
       WF1_RUNGS=$RUNGS python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1 --inputs "$IN" --out "$OUT" --selection "$SELECT" \
