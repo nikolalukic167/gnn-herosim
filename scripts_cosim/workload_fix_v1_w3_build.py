@@ -34,6 +34,8 @@ from src.executesimulation import prepare_infrastructure_for_real_simulation  # 
 from src.generate_infrastructure import generate_deterministic_infrastructure  # noqa: E402
 from src.placement.network_fabric import DEFAULT_ACCESS_MIX  # noqa: E402
 
+# generator bookkeeping that differs between any two calls: a temp-file path and a timestamp, not topology
+VOLATILE_METADATA = {"generator.metadata.config_file", "generator.metadata.generation_time"}
 ALLOWED_LINK_FIELDS = {"bandwidth_mbps", "access_node", "bandwidth_out_mbps", "bandwidth_in_mbps"}
 
 
@@ -68,7 +70,7 @@ def allowed(entry: Dict[str, Any]) -> bool:
     if ".access_classes" in p:
         return True
     parts = p.split(".")
-    return ".links." in p and parts[-1] in ALLOWED_LINK_FIELDS
+    return (".links." in p and parts[-1] in ALLOWED_LINK_FIELDS) or p in VOLATILE_METADATA
 
 
 def live_infra(cfg: Dict[str, Any], sim_input: Path) -> Dict[str, Any]:
@@ -114,7 +116,7 @@ def compare_topology(cfg2: Dict[str, Any], cfg3: Dict[str, Any], sim_input: Path
             "n_links": len(links3),
             "n_links_changed": len({e["path"].split(".links.")[1].split(".")[0] for e in entries if ".links." in e["path"]}),
             "fields_changed": sorted({e["path"].rsplit(".", 1)[1] for e in entries if ".links." in e["path"]}),
-            "other_fields_changed": sorted({e["path"] for e in entries if ".links." not in e["path"] and "access_classes" not in e["path"]}),
+            "other_fields_changed": sorted({e["path"] for e in entries if ".links." not in e["path"] and "access_classes" not in e["path"]} - VOLATILE_METADATA),
         }
         if name == "generator":
             res[name]["replica_placements_equal"] = a.get("replica_placements") == b.get("replica_placements")
@@ -151,6 +153,7 @@ def main() -> int:
                 raise SystemExit(f"FAIL LOUD: copy of {tag}/{name} differs from the W2 file")
         rows = {}
         shares = {"wired": 0, "wifi": 0, "cellular": 0}
+        by_role = {"client": dict(shares), "server": dict(shares)}
         for cfg_path in sorted((src / "cfg").glob("*.json")):
             cfg2 = json.loads(cfg_path.read_text())
             cfg3 = copy.deepcopy(cfg2)
@@ -163,13 +166,15 @@ def main() -> int:
             row = compare_topology(cfg2, cfg3, a.sim_input)
             row["cfg_diff"] = [e["path"] for e in diff_cfg]
             rows[cfg_path.stem] = row
-            for spec in (row["live"]["classes"] or {}).values():
+            for node, spec in (row["live"]["classes"] or {}).items():
                 shares[spec["class"]] += 1
+                by_role["client" if node.startswith("client_node") else "server"][spec["class"]] += 1
         n_nodes = sum(shares.values())
         report["rungs"][tag] = {
             "topologies": rows,
             "class_counts": shares,
             "class_shares": {k: v / n_nodes for k, v in shares.items()},
+            "class_counts_by_role": by_role,
             "wl_sha256": shas,
         }
         shutil.copyfile(a.w2_inputs / f"manifest_{tag}.json", a.out / f"manifest_{tag}.json")
