@@ -191,16 +191,19 @@ CAL_CFG = Path("/home/nikola.lukic/gnn-herosim/simulation_data/workload_fix_v1/i
 
 @pytest.mark.skipif(not CAL_CFG.exists(), reason="calibration config only on datalab")
 def test_topology_9601_with_w3_reads_75_on_the_pull_side():
+    import contextlib
+    import copy
+    import io
     import json
-    import sys
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts_cosim"))
-    import workload_fix_v1_w3_build as B
+    from src.executesimulation import prepare_infrastructure_for_real_simulation
     from src.placement.network_fabric import DEFAULT_ACCESS_MIX
 
     cfg = json.loads(CAL_CFG.read_text())
     cfg["network"]["backbone"]["access_classes"] = {"mix": dict(DEFAULT_ACCESS_MIX)}
-    inf = B.jsonable(B.live_infra(cfg, Path(__file__).resolve().parents[1] / "data" / "nofs-ids"))
+    with contextlib.redirect_stdout(io.StringIO()):
+        inf = json.loads(json.dumps(prepare_infrastructure_for_real_simulation(
+            copy.deepcopy(cfg), None, Path(__file__).resolve().parents[1] / "data" / "nofs-ids"), default=str))
     lt = inf["link_topology"]
     classes = {n: s["class"] for n, s in lt["access_classes"].items()}
     cell = next(n for n in classes if not n.startswith("client_node") and classes[n] == "cellular")
