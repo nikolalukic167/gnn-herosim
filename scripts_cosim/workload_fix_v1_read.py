@@ -183,8 +183,12 @@ def main() -> int:
     failing = sorted({t for (t, w, k) in bad if t in topos})
     result["_sensitivity_excluding_failed_topologies"] = compute(ok, bad, topos, rungs, failing) if failing else None
     if a.decompose:
-        result["_cd_decomposition"] = {"ladder_window": decompose(load(a.decompose[0])[0], topos, rungs),
-                                       "fixed_window": decompose(load(a.decompose[1])[0], topos, rungs)}
+        d_ladder, d_fixed = load(a.decompose[0])[0], load(a.decompose[1])[0]
+        complete = [t for t in topos if t not in failing]
+        result["_cd_decomposition"] = {"ladder_window": decompose(d_ladder, topos, rungs),
+                                       "fixed_window": decompose(d_fixed, topos, rungs),
+                                       "ladder_window_excluding_failed_topologies": decompose(d_ladder, complete, rungs),
+                                       "fixed_window_excluding_failed_topologies": decompose(d_fixed, complete, rungs)}
         for which, per in result["_cd_decomposition"].items():
             for rung, d in per.items():
                 print(f"-- CD latency, {which}, {rung}: " + (", ".join(f"{k} {d[k]:.3f}" for k in ("latency",) + COMPONENTS + ("other",))
