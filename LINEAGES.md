@@ -59,7 +59,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**physics_audit_v1**](docs/lineages/physics_audit_v1.md) | `CLOSED` | R1-FROZEN: pipelined + release + KPA at time scale 1.0; all invariants pass but I5 (reachability-driven replicas); co-sim reproduces live (216 states, p95 0.15 %); labels from t ≥ 360 s. |
+| [**physics_audit_v1**](docs/lineages/physics_audit_v1.md) | `CLOSED` | R1-FROZEN: pipelined + release + KPA at time scale 1.0; all invariants pass but I5 (reachability-driven replicas); co-sim reproduces live (216 states, p95 0.15 %); labels from t ≥ 360 s. R1.1 (leak fix + 300 s timeout) passes pass 3. |
 | [**replica_placement_v1**](docs/lineages/replica_placement_v1.md) | `CLOSED` | NO-LEVER by the registered rule: under R1 only 22 % of CD's replica creations are load-caused; never run. |
 | [**kpa_scaleout_v1**](docs/lineages/kpa_scaleout_v1.md) | `CLOSED` | SELFPREDICT-BEATS-CD-UNDER-RELEASE: under KPA scale-out with released replicas self-predict beats CD −6.5 to −9.5 % (19/19, Holm); CD first elsewhere; KPA, not the autoscaler swap, causes it; enters candidate R1. |
 | [**record_merge_v1**](docs/lineages/record_merge_v1.md) | `CLOSED` | MERGED: 41 old-physics nodes from local-record-2026-10-06 brought over records-only, with banners; no code changed. |
