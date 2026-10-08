@@ -77,7 +77,7 @@ def test_v5_is_valid_27_wide_and_has_no_mlp_layout():
 
 def test_v5_on_uniform_links_is_v4_in_seconds_plus_a_repeat(monkeypatch):
     monkeypatch.delenv("PARTIAL_STATE_LOAD_SECONDS", raising=False)
-    committed = {0: ("n0", 0), 1: ("n1", 1)}
+    committed = {0: ("n0", 0)}  # task 1, also a partner of task 2, is still unplaced: the peer-mass column is live
     monkeypatch.setenv("PARTIAL_STATE_EXCHANGE_SECONDS", "1")
     v4 = partial_state_columns(_ctx(PARTIAL_STATE_CONTRACT_V4), 2, REPLICAS, committed)
     monkeypatch.delenv("PARTIAL_STATE_EXCHANGE_SECONDS")
