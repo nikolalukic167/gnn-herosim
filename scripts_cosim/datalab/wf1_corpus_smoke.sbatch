@@ -12,7 +12,7 @@
 set -euo pipefail
 WT=${WT:?FAIL LOUD: set WT}
 EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}
-OUT=${OUT:?FAIL LOUD: set OUT (a directory under simulation_data/workload_fix_v1/)}
+OUT=${OUT:?FAIL LOUD: set OUT (under $WT/simulation_data/; the generator writes relative to its repo root)}
 cd "$WT"
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
@@ -28,7 +28,7 @@ export HEROSIM_PEER_EXCHANGE=1 HEROSIM_RETAIN_TASK_TIMES=1 HEROSIM_RETAIN_PEER_S
 export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000 GNN_CAPTURE_DATASET_STATE=0 COSIM_SUPPRESS_SIM_PRINTS=1
 export HEROSIM_TRACE_DATASET_ERRORS=1
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
-SUB=${OUT#/home/nikola.lukic/gnn-herosim/simulation_data/}
+SUB=${OUT#$WT/simulation_data/}
 python3 -u scripts_cosim/wf1_corpus_smoke.py --no-quiet --grid wf1_corpus_smoke --num-tasks "${NUM_TASKS:-6}" \
   --max-datasets 5 --allow-non-unique-replicas --warmth-physics node_disk_v2 --output-subdir "$SUB" \
   --progress-log-name progress_wf1_corpus_smoke.txt --workers 30
