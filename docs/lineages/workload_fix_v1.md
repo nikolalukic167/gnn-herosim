@@ -1,7 +1,21 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `ACTIVE` (2026-10-08) — W2 and W3 read on R1.1. W3 makes exchange the dominant cost; CD then leads at light and the batching arms at heavy, and self-predict's heavy lead shrinks to −2.9 % (DIRECTION). `kpa_scaleout_v1` gates are being re-measured on R1.1; W4 is read next. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `CLOSED` (2026-10-08) — **WF1-FROZEN**. Registered 2026-10-07; the stages ran in parallel and were read in order; every amendment is dated, and the post-data ones are labelled. Depends on: `physics_audit_v1` (R1.1). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
+
+**Outcome (2026-10-08).** **WF1** = W2 payloads (`wf1_v1`) + W3 access-link classes on every node + W4 all four task types,
+on R1.1 with batching window 1 s. Code: `rp/starve-w4fix` `97269192`, with the builders on `rp/wf1-w4`; infeasible
+calibration topologies 9603–9606 are excluded. Read on 19 topologies, paired % vs CD (Holm over 6):
+- **W2:** CD is first at light load; self-predict −6.1 % at heavy (19/19, CONFIRMED).
+- **W3:** exchange becomes the dominant cost, and CD's lead grows; self-predict −2.9 % at heavy (DIRECTION).
+- **W2+W3+W4 (= WF1): CD is first at both rungs.** Every arm is CD-FASTER: self-predict +8.6 / +2.4 %, locality
+  +2.6 / +19.9 %, batched +2.4 / +12.1 % at light / heavy.
+- **Reactive is saturated at the heavy rung under WF1:** p50 1 s but p95 5,366 s, and runs end at about twice the trace length.
+  The wait is before execution, and queue share (0.001) misses it. Quote it as a collapse, never as a latency.
+
+The provisional rungs (×0.2666 / ×11.61) were set on W2. `load_recalibration_v1` re-sets them on WF1. **The bar for every
+learned arm under WF1 is CD.** Self-predict's lead didn't survive realistic links and task mix. 4 heavy cells (9538 g2, 9565 g0–g2)
+are excluded as non-finishing, a cost growth from recurring cause-3 cycles. Request failures are ≤ 0.93 % per run.
 
 
 **Pre-run amendments (2026-10-07, decided by the coordinator from a code check).**
@@ -90,6 +104,34 @@ of which arm benefits.
 
 
 ## Record (newest first)
+
+### 2026-10-08 — W4 (all four task types) on R1.1: the stage read; WF1 frozen
+
+Job 843084 (`f8a2d075`; the extra commits can't reach any W2/W3-shaped run, and the later reservation fix `97269192` leaves
+3 W4 cells identical). 755/760 finished, and 4 heavy cells are excluded for every arm under the rule, so 740 runs are read:
+[`w234_r11_read.json`](workload_fix_v1/w234_r11_read.json) (S7's wrapper `rp/wf1-w4` `96e77022` on S4's reader `0ebeca16`).
+Paired % vs CD, median over 19 topologies:
+
+| rung | CD latency | self-predict | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| light ×0.2666 | 5.50 s | +8.6 % (0/19, CD-FASTER) | +2.6 % (0/19, CD-FASTER) | +2.4 % (0/19, CD-FASTER) | +13.1 % |
+| heavy ×11.61 | 2.23 s | +2.4 % (4/19, Holm 0.0082, CD-FASTER) | +19.9 % (1/19, CD-FASTER) | +12.1 % (1/19, CD-FASTER) | 602 s mean, saturated |
+
+- **W4 minus W3** (paired): every arm is slower on 19/19 topologies: light +20 to +31 %, heavy +108 to +158 %, reactive +29,000 %.
+  CD by stage at heavy (latency / batching wait / queue / exchange / rendezvous / cold / other, s): 2.229 / 0.017 / 0.339 /
+  0.817 / 0.042 / 0.028 / 0.952.
+- **Request failures** (tasks over all runs): heavy CD 543 (2 runs), batched 305 (1), locality 17 (1); light 2–4 per arm;
+  reactive and self-predict 0. The largest per run is 0.93 % (9565 g3 heavy CD).
+- **Reactive at heavy (S7, from summaries and logs; no new runs).** Of 602.2 s, 598.5 s is "other". `averageComputeTime` is
+  about 577 s, while execution is 0.59 s. Per run: p50 1.06 s, p95 5,366 s, p99 8,505 s, max 9,358 s. All 19 topologies are
+  affected, with window means between 171 and 1,367 s. The last arrival is at about 9,354 s, while runs end at a median of 18,677 s
+  (range 12,134–25,639). The logs show first-replica starvation for rf and dnn2, with replicas traded between types by eviction,
+  and no request timeouts. So a few % of tasks wait thousands of seconds before execution, outside every measured stage, and
+  the 300 s rule doesn't cover them (they're unplaced). Which pre-execution wait it is isn't proven: summaries don't
+  record arrival-to-placement time.
+- **Decision:** WF1 is frozen as W2+W3+W4. Reactive heavy is labelled saturated. The heavy rung is re-set on WF1 by
+  `load_recalibration_v1`, with a guard that sees this wait (amendment there). Extending the timeout to unplaced tasks
+  is a physics change and isn't made. If it's needed, it's R1.2, with its own identity check.
 
 ### 2026-10-08 — W4 on R1.1: the read rule for runs that don't finish (before the W4 read)
 

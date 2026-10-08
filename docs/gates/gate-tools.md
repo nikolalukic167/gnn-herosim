@@ -10,6 +10,14 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-10-08 — Queue share misses pre-execution starvation; read p95 and run end too
+
+Under WF1 at ×11.61, Knative's queue share was 0.001 while its mean latency was 602 s: p50 1 s, p95 5,366 s, and runs ending at
+about 2× the last arrival (`workload_fix_v1`). The wait sits before execution and outside the queue, exchange and
+rendezvous stages the summaries measure. The 300 s request timeout doesn't cover it, because the tasks are unplaced. A
+stability or admission guard that reads queue share alone passes a collapsed arm. Read p95 per-task latency and the run's
+end time against its last arrival as well.
+
 ## 2026-10-08 — The autoscaler loops call `env.step()`: any extra scheduled event is a physics change
 
 `Autoscaler.autoscaler_process` and `_kpa_autoscaler_process` (`src/placement/autoscaler.py`) end every iteration
