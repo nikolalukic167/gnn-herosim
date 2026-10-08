@@ -130,6 +130,10 @@ X15_FILL_RULES = ("random", "batched", "decima")
 # ASPLOS'19), built the same way into <inputs>/grounded_x20 etc.
 GROUNDED_RUNGS = {"x20": 0.5, "x30": 1 / 3, "x50": 0.2}
 GROUNDED_LADDER = {f"g{i}{r}": (f"grounded_g{i}_n50000", f"grounded_{r}") for r in GROUNDED_RUNGS for i in range(4)}
+# workload_fix_v1: rungs at arbitrary multipliers, built by workload_fix_v1_build.py into <inputs>/wf1_<tag>;
+# WF1_RUNGS="tagA,tagB" names them and the window label is g<i><tag>. Empty unless the env is set.
+WF1_TAGS = [t for t in os.environ.get("WF1_RUNGS", "").split(",") if t]
+WF1_LADDER = {f"g{i}{t}": (f"grounded_g{i}_n50000", f"wf1_{t}") for t in WF1_TAGS for i in range(4)}
 # scale_sweep_v1: the ladder at x3 / x5 with ~2x / ~4x tasks per decision batch (m2 / m4: grounded_workload_v1_mint.py
 # --merge-k, cell batch_size 16) and on 12-server cells (s12), each built into <inputs>/grounded_<rung><cond>
 SCALE_CONDS = ("m2", "m4", "s12")
@@ -220,6 +224,22 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     if phase == "decimatune":
         return [task(t, w, k) for k in DECIMA_TUNE_ALPHAS for t in DECIMA_TUNE_TOPOS for w in WINDOWS] + \
                [task(t, w, "cd") for t in DECIMA_TUNE_TOPOS for w in WINDOWS]
+    if phase in ("wf1", "wf1cal"):
+        # workload_fix_v1: classical arms only. wf1cal: CD alone on the calibration topologies (WF1_TOPOS) at the
+        # windows in WF1_CAL_WINDOWS; wf1: the five rules on the selection's topologies at every WF1_RUNGS rung.
+        if not WF1_LADDER:
+            raise SystemExit("FAIL LOUD: phase %s needs WF1_RUNGS" % phase)
+        if os.environ.get("HEROSIM_TRANSFER_MODEL") != "pipelined" or os.environ.get("HEROSIM_REPLICA_RELEASE") != "1" \
+                or os.environ.get("HEROSIM_SCALEOUT") != "kpa" or os.environ.get("GATE_FIXED_POLICY_TIME_SCALE") != "1.0":
+            raise SystemExit("FAIL LOUD: workload_fix_v1 runs on R1 (pipelined, release, kpa, time scale 1.0)")
+        if phase == "wf1cal":
+            cal = [int(x) for x in os.environ.get("WF1_TOPOS", "").split(",") if x]
+            wins = [w for w in os.environ.get("WF1_CAL_WINDOWS", "g0,g1").split(",") if w]
+            if not cal:
+                raise SystemExit("FAIL LOUD: wf1cal needs WF1_TOPOS")
+            return [task(t, f"{w}{tag}", "cd") for tag in WF1_TAGS for t in cal for w in wins]
+        rules = ("reactive", "selfpredict", "locality", "batched", "cd")
+        return [task(t, w, k) for k in rules for t in selection["topologies"] for w in WF1_LADDER]
     topos = selection["topologies"]
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
@@ -495,8 +515,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
     wl_dir = None
-    if window in GROUNDED_LADDER or window in SCALE_LADDER:
-        wl_name, sub = GROUNDED_LADDER.get(window) or SCALE_LADDER[window]
+    if window in GROUNDED_LADDER or window in SCALE_LADDER or window in WF1_LADDER:
+        wl_name, sub = GROUNDED_LADDER.get(window) or SCALE_LADDER.get(window) or WF1_LADDER[window]
         inputs = os.path.join(inputs, sub)
     elif window in GROUNDED_X15:
         wl_name = GROUNDED_X15[window]
@@ -648,6 +668,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out = {k: st.get(k) for k in ("num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime",
                                   "averageWaitTime", "totalPeerExchangeTime", "totalPeerRendezvousWait", "endTime",
                                   "schedulerCounters", "offloadingRate", "total_rtt_plus_inference")}
+    for k in ("peerExchangeByAccessClass", "accessClasses"):  # workload_fix_v1 W3 telemetry; absent otherwise
+        if k in st:
+            out[k] = st[k]
     c = out.get("schedulerCounters") or {}
     for k in ("residence_tasks", "residence_batches", "queue_range_records"):
         c.pop(k, None)
@@ -780,7 +803,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "wf1cal") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -792,7 +815,7 @@ def main() -> int:
     global NO_SCOPE
     NO_SCOPE = a.no_scope
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

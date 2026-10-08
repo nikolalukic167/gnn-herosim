@@ -434,6 +434,7 @@ class Orchestrator:
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
+            **self._access_class_fields(),
             "averageNetworkLatency": sum_network / n_tasks,
             "averageLinkWaitTime": sum_link_wait / n_tasks,
             "totalLinkWaitTime": sum_link_wait,
@@ -461,6 +462,18 @@ class Orchestrator:
         """`scaleOut` (kpa_scaleout_v1) only when HEROSIM_SCALEOUT=kpa, so legacy stats keep their keys."""
         summary = getattr(self.autoscaler, "scaleout_summary", lambda: None)()
         return {} if summary is None else {"scaleOut": summary}
+
+    def _access_class_fields(self) -> Dict[str, Any]:
+        """`peerExchangeByAccessClass` (workload_fix_v1 W3) only on a topology with access classes, so every other
+        run keeps its stats keys."""
+        for node in self.nodes.items:
+            fabric = getattr(node, "fabric", None)
+            if fabric is not None:
+                if not fabric.access_classes:
+                    return {}
+                return {"peerExchangeByAccessClass": fabric.exchange_by_class,
+                        "accessClasses": fabric.access_classes}
+        return {}
 
     def _fabric_link_wait_total(self) -> float:
         """Total wait accumulated on shared backbone links, all tasks (incl. internal)."""
@@ -757,6 +770,7 @@ class Orchestrator:
             "scaleEvents": self.autoscaler.scale_events,
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
+            **self._access_class_fields(),
             "averageNetworkLatency": average_network_latency,
             "averageLinkWaitTime": sum_link_wait / num_tasks,
             "totalLinkWaitTime": sum_link_wait,

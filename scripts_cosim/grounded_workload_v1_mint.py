@@ -88,10 +88,9 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
     payload_rng_ = payload_rng(seed) if payload_sampler == "wf1_v1" else None
 
     def payload() -> float:
-        legacy = X_SCALE_BYTES * (10.0 ** rng.uniform(-LOG10_SPREAD, LOG10_SPREAD))
         # wf1_v1 still consumes the legacy draw so the partner draws after it do not move: the stages differ in
-        # payloads only, on an identical pair graph.
-        return legacy if payload_rng_ is None else sample_payload_bytes(payload_rng_)
+        # payloads only, on an identical pair graph. Its own values are drawn in a post-pass (below).
+        return X_SCALE_BYTES * (10.0 ** rng.uniform(-LOG10_SPREAD, LOG10_SPREAD))
 
     # The trace stores whole milliseconds; a stretch of ~4000x would put every arrival on a ~4 s lattice and
     # dispatch same-millisecond requests at one instant. Spread each arrival uniformly inside its millisecond.
@@ -144,6 +143,12 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
                 key = (min(a, b), max(a, b))
                 pairs[key] = payload()
                 root[find(a)] = find(b)
+
+    if payload_rng_ is not None:
+        # sorted pair order = the order of the written `peer_exchange`, so resampling a legacy file with the same
+        # seed (workload_payloads.resample_peer_exchange) gives these exact bytes
+        for key in sorted(pairs):
+            pairs[key] = sample_payload_bytes(payload_rng_)
 
     sizes = [len(offs) for _t, offs in plan]
     spans = [offs[-1] for _t, offs in plan if len(offs) > 1]
