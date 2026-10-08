@@ -47,7 +47,8 @@ def tag_for(m: float) -> str:
 
 
 def next_multiplier(lo: float, hi: float) -> float:
-    return round(math.exp(0.5 * (math.log(lo) + math.log(hi))), 4)
+    """Linear midpoint (amendment 2026-10-09: every rung sits above x5, so no log-midpoint below it is worth its wall time)."""
+    return round(0.5 * (lo + hi), 4)
 
 
 def cell_metrics(s: dict) -> dict:
@@ -100,20 +101,23 @@ def allowed(g: dict, rung: str) -> bool:
     return bool(base and (g["busy"] if rung == "light" else g["backlog"] if rung == "heavy" else True))
 
 
-def search(rung: str, evaluate, m_lo: float, m_hi: float, max_steps: int) -> dict:
-    """``evaluate(m)`` -> (share, allowed). Returns the step list and the rung's answer."""
+def search(rung: str, evaluate, m_lo: float, m_hi: float, max_steps: int, seeded: tuple = ()) -> dict:
+    """``evaluate(m)`` -> (share, allowed). ``seeded`` are end points read from earlier runs, used to place the bracket
+    even if their guards are not all met. Returns the step list and the rung's answer."""
     band_lo, band_hi = BANDS[rung]
     target = (band_lo + band_hi) / 2
     steps: List[dict] = []
 
-    def step(m: float) -> str:
+    def step(m: float, end: bool = False) -> str:
         share, ok = evaluate(m)
-        pos = "inf" if share is None or not ok else "low" if share < band_lo else "high" if share > band_hi else "in"
+        # a bracket end only has to say which side of the band it is on; whether it passes the guards matters for the answer
+        pos = "inf" if share is None or not (ok or (end and m in seeded)) else "low" if share < band_lo \
+            else "high" if share > band_hi else "in"
         steps.append({"step": len(steps) + 1, "m": m, "share": share, "allowed": ok, "position": pos})
         return pos
 
     lo, hi = m_lo, m_hi
-    p_lo, p_hi = step(lo), step(hi)
+    p_lo, p_hi = step(lo, True), step(hi, True)
     out: dict = {"rung": rung, "band": [band_lo, band_hi], "target": target, "steps": steps}
     if p_lo == "in" or p_hi == "in":
         out["status"] = "BRACKET-END-IN-BAND"
@@ -164,11 +168,22 @@ class Evaluator:
     def run(self, m: float) -> dict:
         a, tag = self.a, tag_for(m)
         env = {**os.environ, "PYTHONPATH": str(ROOT)}
+        if m in a.seed:  # earlier evaluation of this run: read what finished, run nothing
+            return self.read(m)
+        if (a.work / tag / f"wf1_{tag}").exists():  # a built rung is frozen; the gate skips cells that already have a summary
+            return self.read(m, run_missing=True)
         subprocess.run([sys.executable, str(ROOT / "scripts_cosim/workload_fix_v1_build.py"), "--grounded-wl", str(a.grounded_wl),
                         "--cfg-dir", str(a.cfg_dir), "--topologies", *map(str, a.topologies), "--rung", f"{tag}={1.0 / m!r}",
                         "--payload-sampler", "wf1_v1", "--task-mix", "wf1_v1", "--batch-timeout-fixed", "1.0",
                         "--out", str(a.work / tag)], check=True, cwd=ROOT, env=env)
+        return self.read(m, run_missing=True)
+
+    def read(self, m: float, run_missing: bool = False) -> dict:
+        a, tag = self.a, tag_for(m)
+        env = {**os.environ, "PYTHONPATH": str(ROOT)}
         out = a.work / tag / "gate"
+        if not run_missing:
+            return self.collect(m, out)
         genv = {**env, "WF1_RUNGS": tag, "WF1_TOPOS": ",".join(map(str, a.topologies)), "WF1_CAL_WINDOWS": ",".join(a.windows),
                 "WF1_CAL_KINDS": "cd,reactive"}
         cmd = [sys.executable, str(ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py"), "wf1cal", "--inputs", str(a.work / tag),
@@ -180,6 +195,10 @@ class Evaluator:
             for f in failed:
                 shutil.move(str(f), str(out / "first_pass_failed" / f.name))
             subprocess.run(cmd + ["--timeout", str(3 * a.timeout)], check=False, cwd=ROOT, env=genv, stdout=subprocess.DEVNULL)
+        return self.collect(m, out)
+
+    def collect(self, m: float, out: Path) -> dict:
+        a, tag = self.a, tag_for(m)
         arms: Dict[str, list] = {"cd": [], "reactive": []}
         names = []
         for t in a.topologies:
@@ -198,11 +217,21 @@ class Evaluator:
               f"Knative {len(arms['reactive'])}/{self.expected}, median share {rec['reactive_median_share']}", flush=True)
         return rec
 
-    def for_rung(self, rung: str):
+    def for_rung(self, rung: str):  # noqa: D401
         def evaluate(m: float):
             r = self.record(m)
             return r["cd_median_share"], allowed(r["guards"]["cd"], rung)
         return evaluate
+
+
+def a_ends(rung: str, a: argparse.Namespace) -> tuple:
+    """Bracket ends for a rung: --ends RUNG=LO,HI overrides --m-lo / --m-hi."""
+    for spec in a.ends:
+        name, rng = spec.split("=")
+        if name == rung:
+            lo, hi = (float(x) for x in rng.split(","))
+            return lo, hi
+    return a.m_lo, a.m_hi
 
 
 def main() -> int:
@@ -215,7 +244,9 @@ def main() -> int:
     ap.add_argument("--m-lo", type=float, default=0.05)
     ap.add_argument("--m-hi", type=float, default=64.0)
     ap.add_argument("--max-steps", type=int, default=8)
+    ap.add_argument("--ends", nargs="*", default=[], help="per-rung bracket ends, RUNG=LO,HI")
     ap.add_argument("--rungs", nargs="+", default=list(BANDS))
+    ap.add_argument("--seed", type=float, nargs="*", default=[], help="multipliers evaluated by an earlier run in --work: read, never run")
     ap.add_argument("--map", type=float, nargs="*", default=[], help="multipliers evaluated as context (the provisional rungs)")
     ap.add_argument("--parallel", type=int, default=16)
     ap.add_argument("--timeout", type=int, default=2700)
@@ -228,7 +259,7 @@ def main() -> int:
     a.work.mkdir(parents=True, exist_ok=True)
     ev = Evaluator(a)
     with ThreadPoolExecutor(max_workers=len(a.rungs) + len(a.map)) as ex:
-        searches = [ex.submit(search, r, ev.for_rung(r), a.m_lo, a.m_hi, a.max_steps) for r in a.rungs]
+        searches = [ex.submit(search, r, ev.for_rung(r), *a_ends(r, a), a.max_steps, tuple(a.seed)) for r in a.rungs]
         mapped = [ex.submit(ev.record, m) for m in a.map]
         results = [f.result() for f in searches]
         for f in mapped:

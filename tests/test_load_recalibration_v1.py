@@ -78,3 +78,17 @@ def test_backlog_profile_counts_unplaced_wait_and_tasks_in_system():
     assert bp["quarter_mean_backlog"] == [0.0, 0.0, 0.0, 10.0] and bp["last_over_mid"] == math.inf  # middle quarters are 0
     assert bp["in_system_at"] == {"half": 1, "three_quarter": 1}  # t=3.5: task 3 in system; t=5.25: task 5
     assert backlog_profile([]) is None
+
+
+def test_linear_midpoint_and_seeded_end_places_bracket_despite_guards():
+    from scripts_cosim.load_recalibration_v1_bisect import next_multiplier
+
+    assert next_multiplier(0.2666, 11.6139) == 5.9402
+    # light: the low end (seeded, 7/8 cells so its guards fail) is below the band, the high end above it
+    def ev(m):
+        return {0.2666: (0.025, False), 11.6139: (0.104, True)}.get(m, (0.0085 * m, True))
+    r = search("light", ev, 0.2666, 11.6139, 8, seeded=(0.2666, 11.6139))
+    assert r["status"] == "BRACKETED" and r["steps"][0]["position"] == "low"
+    assert r["answer"]["kind"] == "IN-BAND" and r["answer"]["m"] > 5
+    # without the seed, a failing end counts as above target
+    assert search("light", ev, 0.2666, 11.6139, 8)["status"] == "UNBRACKETED-LOW"
