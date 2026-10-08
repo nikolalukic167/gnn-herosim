@@ -83,6 +83,8 @@ def main() -> int:
     ap.add_argument("--m-lo", type=float, default=0.5)
     ap.add_argument("--m-hi", type=float, default=24.0)
     ap.add_argument("--max-steps", type=int, default=8)
+    ap.add_argument("--targets", type=float, nargs="+", default=list(TARGETS),
+                    help="queue-share targets to search (an extension re-runs one target on a wider bracket)")
     ap.add_argument("--min-cells", type=int, default=6)
     ap.add_argument("--parallel", type=int, default=16)
     ap.add_argument("--timeout", type=int, default=5400)
@@ -125,8 +127,8 @@ def main() -> int:
         return cache[m]
 
     # The targets are searched one after the other; an evaluation both need (the bracket ends) runs once.
-    results = [search(t, evaluate, a.m_lo, a.m_hi, a.max_steps) for t in TARGETS]
-    doc = {"targets": list(TARGETS), "topologies": a.topologies, "windows": a.windows, "m_range": [a.m_lo, a.m_hi],
+    results = [search(t, evaluate, a.m_lo, a.m_hi, a.max_steps) for t in a.targets]
+    doc = {"targets": list(a.targets), "topologies": a.topologies, "windows": a.windows, "m_range": [a.m_lo, a.m_hi],
            "max_steps": a.max_steps, "min_cells": a.min_cells, "results": results, "evaluations": cells}
     a.log.write_text(json.dumps(doc, indent=1, default=str))
     for r in results:
