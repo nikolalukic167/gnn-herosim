@@ -31,14 +31,17 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 
-def _read_snapshots(paths: List[str]) -> Dict[Tuple[Tuple[int, ...], float], Dict[str, Any]]:
-    out = {}
+def _read_snapshots(paths: List[str]) -> Dict[str, Dict[Tuple[Tuple[int, ...], float], Dict[str, Any]]]:
+    """{capture file stem: {(batch task ids, instant): snapshot}}. Two topologies replay the same trace, so the same
+    task ids at the same instant occur in both captures with different cluster states: never merge the files."""
+    out: Dict[str, Dict[Tuple[Tuple[int, ...], float], Dict[str, Any]]] = {}
     for p in paths:
+        per = out.setdefault(Path(p).stem, {})
         with open(p) as fh:
             for line in fh:
                 if line.strip():
                     s = json.loads(line)
-                    out[(tuple(int(t["task_id"]) for t in s["tasks"]), round(float(s["time"]), 6))] = s
+                    per[(tuple(int(t["task_id"]) for t in s["tasks"]), round(float(s["time"]), 6))] = s
     return out
 
 
@@ -83,6 +86,8 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
                                      task_priority="fifo", **kw)
         stats = res["stats"]
         trs = {tr["taskId"]: tr for tr in stats["taskResults"] if tr.get("taskId", -1) >= 0}
+        row["n_task_results"] = len(trs)
+        row["missing_batch"] = [i for i in batch_local if i not in trs]
         row["batch_latency"] = sum(trs[i]["doneTime"] - trs[i]["scheduledTime"] for i in batch_local)
         row["end_time"] = float(stats.get("endTime") or 0.0)
         row["n_tasks"] = len(wl["events"])
@@ -131,7 +136,11 @@ def main() -> int:
         ws = json.loads((d / "warm_snapshot.json").read_text())
         old, prov = ws["snapshot"], ws["provenance"]
         key = (tuple(int(t["task_id"]) for t in old["tasks"]), round(float(old["time"]), 6))
-        new = caps.get(key)
+        stems = [st_ for st_ in caps if str(prov["source_tag"]).endswith(st_)]
+        if len(stems) != 1:
+            summary_meta[d.name] = {"error": f"source_tag {prov['source_tag']!r} matches capture files {stems}"}
+            continue
+        new = caps[stems[0]].get(key)
         if new is None or new.get("fidelity") is None:
             summary_meta[d.name] = {"error": f"no fidelity snapshot for task ids {key[0]} at t={key[1]}"}
             continue
