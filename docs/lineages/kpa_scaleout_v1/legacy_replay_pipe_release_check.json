@@ -1,0 +1,24 @@
+{
+ "old": "transfer_physics_v1/gate_pipe_release",
+ "new": "kpa_scaleout_v1/legacy_replay_pipe_release",
+ "common": 1591,
+ "identical": 1591,
+ "differ": {},
+ "env_differ": {},
+ "only_old": [],
+ "only_new": [],
+ "failed_old": [
+  "cc40s9485__g1x20__reactive_s0.failed.json",
+  "cc40s9485__g1x20__selfpredict_s0.failed.json",
+  "cc40s9485__g1x30__reactive_s0.failed.json",
+  "cc40s9485__g1x30__selfpredict_s0.failed.json",
+  "cc40s9485__g1x50__selfpredict_s0.failed.json"
+ ],
+ "failed_new": [
+  "cc40s9485__g1x20__reactive_s0.failed.json",
+  "cc40s9485__g1x20__selfpredict_s0.failed.json",
+  "cc40s9485__g1x30__reactive_s0.failed.json",
+  "cc40s9485__g1x30__selfpredict_s0.failed.json",
+  "cc40s9485__g1x50__selfpredict_s0.failed.json"
+ ]
+}

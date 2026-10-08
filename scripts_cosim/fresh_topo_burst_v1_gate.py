@@ -615,6 +615,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append(f"physics not recorded as driven: {k}={out['env'].get(k)!r}, driver {os.environ.get(k)!r}")
     # kpa_scaleout_v1: the autoscaler's own record of the rule it ran; legacy runs carry none
     out["scaleOut"] = st.get("scaleOut")
+    # reference_physics_programme metrics: cold-start share (percent of tasks) travels with every summary
+    out["cold_start_pct"] = st.get("coldStartProportion")
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
         want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
                 "panic_window_s": 6.0 * time_scale, "panic_threshold": 2.0}

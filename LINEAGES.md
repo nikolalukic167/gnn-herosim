@@ -40,7 +40,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
 | [**transfer_physics_v1**](docs/lineages/transfer_physics_v1.md) | `ACTIVE` | 2×2 read: CD is fastest in every condition and topology; held replicas made queues dominate (released: queue share 0.05–0.08); Knative's gap shrinks; zero-shot GNN falls further behind. Scale-out factor registered as kpa_scaleout_v1. |
 | [**reference_physics_programme**](docs/lineages/reference_physics_programme.md) | `REGISTERED` | Programme plan (9 nodes): KPA scale-out → audit and freeze R1 → fix workload WF1 → recalibrate load → train once and attribute; stopping rule after nodes 1–5. |
-| [**kpa_scaleout_v1**](docs/lineages/kpa_scaleout_v1.md) | `REGISTERED` | Third physics factor: Knative-faithful scale-out (target 0.7, in-flight signal, 60 s / 6 s windows) × the transfer_physics_v1 2×2; 60-test Holm family, 7 predictions. |
 | [**physics_audit_v1**](docs/lineages/physics_audit_v1.md) | `REGISTERED` | Invariants I1–I12 (Little's law, transfer analytic, release, scale-out causality, co-sim fidelity I11, fixed time scale I12) on candidate R1; freezes R1. |
 | [**workload_fix_v1**](docs/lineages/workload_fix_v1.md) | `REGISTERED` | Classical arms only: log-normal payloads (median 4 MB + heavy tier), wired / Wi-Fi / cellular access links, all four task types, staged on R1; freezes WF1. |
 | [**load_recalibration_v1**](docs/lineages/load_recalibration_v1.md) | `REGISTERED` | Light / moderate / heavy rungs on R1 + WF1 defined by CD queue share, bisected on 4 held-out calibration topologies; no policy comparison read. |
@@ -62,6 +61,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**kpa_scaleout_v1**](docs/lineages/kpa_scaleout_v1.md) | `CLOSED` | SELFPREDICT-BEATS-CD-UNDER-RELEASE: under KPA scale-out with released replicas self-predict beats CD −6.5 to −9.5 % (19/19, Holm); CD first elsewhere; KPA, not the autoscaler swap, causes it; enters candidate R1. |
 | [**record_merge_v1**](docs/lineages/record_merge_v1.md) | `CLOSED` | MERGED: 41 old-physics nodes from local-record-2026-10-06 brought over records-only, with banners; no code changed. |
 | [**residency_placement_v1**](docs/lineages/residency_placement_v1.md) | `CLOSED` | Four attempts, 18 checkpoints and 128 audited container runs: no established MP benefit; both learned arms lose to exact on the mixed probe. Fixed eviction; two physical blocks only. |
 | [**shuffle_placement_s0_v1**](docs/lineages/shuffle_placement_s0_v1.md) | `CLOSED` | 48 real-TCP streams audit; adaptive search has small exploratory gains, fluid timing validation fails on 2/4 configurations. No GNN training qualification. |

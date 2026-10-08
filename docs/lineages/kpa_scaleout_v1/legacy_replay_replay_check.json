@@ -1,0 +1,16 @@
+{
+ "old": "transfer_physics_v1/gate_replay",
+ "new": "kpa_scaleout_v1/legacy_replay_replay",
+ "common": 23,
+ "identical": 23,
+ "differ": {},
+ "env_differ": {},
+ "only_old": [],
+ "only_new": [],
+ "failed_old": [
+  "cc40s9485__g1x20__reactive_s0.failed.json"
+ ],
+ "failed_new": [
+  "cc40s9485__g1x20__reactive_s0.failed.json"
+ ]
+}

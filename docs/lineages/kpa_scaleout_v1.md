@@ -1,7 +1,28 @@
 # kpa_scaleout_v1 — Knative-faithful scale-out as the third physics factor
 
-**Status:** `REGISTERED` (no runs). Depends on: `transfer_physics_v1` (read, `e76862a2`).
+**Status:** `CLOSED` (2026-10-08) — **SELFPREDICT-BEATS-CD-UNDER-RELEASE**. Registered 2026-10-07; amendments A1–A4 were
+made before any `kpa` cell was read. Depends on: `transfer_physics_v1` (read, `e76862a2`).
 Plan: [`reference_physics_programme.md`](reference_physics_programme.md) (shared rules apply).
+
+**Outcome (read 2026-10-08, code `71d9cbcb`, 4 × 1,596 runs, 0 failed).**
+- **Under KPA scale-out with released replicas, the self-predict rule beats CD**: −6.5 to −9.5 %, faster on 19 / 19
+  topologies, Holm-confirmed at all 3 rungs of both `release` and `pipe_release` (6 of the 60 tests). It is the first
+  cell in this programme where CD is not first. Mechanism: per task, self-predict now exchanges as little as CD
+  (1.06 vs 1.11 s at ×2, `release`) and pays none of CD's 0.11 s peer-group batching wait.
+- **Elsewhere CD stays first**: 50 tests CD-FASTER, 4 NOT-SEPARATED (self-predict at `sf_held` ×5 and `pipe` ×3 / ×5;
+  zero-shot `so1load` at `sf_held` ×5). Locality-first and the one-pass greedy trail CD by 3.0–11.9 % everywhere.
+- **KPA, not the autoscaler swap, causes the shift.** A control with legacy scale-out and every arm on the shared
+  autoscaler moves reactive and self-predict by ≤ 1.2 % and leaves `transfer_physics_v1`'s "CD first everywhere"
+  intact; KPA itself speeds self-predict up by 15–96 %, more than CD.
+- **Scale-out still behaves partly like reachability, and churns.** Load-caused creations for CD are 33–75 % (below
+  half in `pipe` ×2 and `pipe_release` ×2 / ×3); 26–61 % of replicas die within one stable window.
+- **Predictions:** 1 FAIL, 2 PARTIAL (latency −64 %, queue share 0.56 not < 0.5), 3 FAIL on queue share (cold starts
+  not in the gate summaries, unscored), 4 FAIL (CD not first; self-predict now above locality and greedy), 5 holds in
+  11 / 12 cells (Knative's gap grows at `release` ×5), 6 FAIL (oscillation 26–61 %, not < 10 %), 7 holds in `pipe` and
+  `pipe_release`, fails in `sf_held` and `release`. Excluding 9485 changes no label.
+- **Decision:** KPA enters candidate R1 for `physics_audit_v1` (the legacy target of 100 per replica is known to be
+  unfaithful); I5 there decides how the reachability share is reported, and the churn is a stated property, not tuned
+  away (Knative's `scale-down-delay` default is 0). For learned arms under R1 the bar is CD **and** self-predict.
 
 
 **Pre-run amendments (2026-10-07, before any `kpa` cell; decided by the coordinator).** Three elements the factor
@@ -85,3 +106,31 @@ Each arm vs CD, paired, under `kpa`.
 
 ## Cost
 4 new conditions × (arms × cells × seeds) as in `transfer_physics_v1` (~1,600 runs each), plus replay.
+
+## Record
+
+### 2026-10-08 — read (code `71d9cbcb`; control `38cd802f`)
+- **Replay.** Legacy scale-out at `71d9cbcb` reproduces `transfer_physics_v1` field for field: 23 / 23, 1,589 / 1,589,
+  1,592 / 1,592, 1,591 / 1,591 (only the runs that failed in the original gate are absent;
+  [`legacy_replay_*_check.json`](kpa_scaleout_v1/)). Checker: `scripts_cosim/kpa_legacy_replay_check.py`.
+- **First launch discarded unread.** At `c9e5ed6c` the two arms on the `knative_network` autoscaler froze the clock
+  (A4). Outputs kept on datalab as `kpa_scaleout_v1/*_c9e5`.
+- **Read.** `scripts_cosim/kpa_scaleout_v1_read.py` → [`kpa_read.json`](kpa_scaleout_v1/kpa_read.json), sensitivity
+  without 9485 → [`kpa_read_no9485.json`](kpa_scaleout_v1/kpa_read_no9485.json). Family: reactive, self-predict,
+  locality, batched and zero-shot `so1load` vs CD × 3 rungs × 4 conditions = 60, Holm (the registered "5 rule/Knative
+  arms" counts the zero-shot arm as the fifth; it is labelled zero-shot and makes no claim).
+
+| CD latency (s), queue share | ×2 | ×3 | ×5 | self-predict vs CD ×2 / ×3 / ×5 |
+|---|---|---|---|---|
+| `sf_held` | 3.06, 0.56 | 2.70, 0.58 | 2.29, 0.61 | +4.5 / +3.5 / +1.0 % (n.s.) |
+| `pipe` | 1.69, 0.57 | 1.37, 0.58 | 1.12, 0.60 | +1.3 / +0.8 (n.s.) / −0.9 % (n.s.) |
+| `release` | 1.75, 0.09 | 1.52, 0.11 | 1.31, 0.13 | **−7.4 / −7.5 / −6.5 %**, 19 / 19 |
+| `pipe_release` | 0.99, 0.17 | 0.85, 0.20 | 0.73, 0.24 | **−8.8 / −9.2 / −9.5 %**, 19 / 19 |
+
+Legacy CD latency for comparison: `sf_held` 8.62 / 13.32 / 56.99 s, `pipe_release` 0.97 / 0.86 / 0.78 s. Latency still
+falls from ×2 to ×5 under every condition, so the old ladder does not order load (`load_recalibration_v1`).
+- **Control.** `scripts_cosim/kpa_shared_control_read.py` → [`shared_control_read.json`](kpa_scaleout_v1/shared_control_read.json):
+  `HEROSIM_SHARED_AUTOSCALER=1` under legacy scale-out, reactive and self-predict only (4 × 456 runs, 0 failed).
+- **Not measured.** Cold starts per task, P95 / P99 and replica counts over time are not in the gate summaries; the
+  gate summary should carry them before the audit's runs.
+
