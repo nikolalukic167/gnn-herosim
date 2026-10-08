@@ -1,6 +1,6 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `ACTIVE` (2026-10-08) — R1.1 identity: audit cells identical, W2 sample not (timeout rescoped to arrived partners, R1.1-T; leak → R1 numbers since `kpa_scaleout_v1` re-measured). W2 read provisional until rerun on R1.1. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — R1.1 accepted (timeout on arrived partners only); the leak moved 2 of 200 W2 cells by ≤ 1 %, so W2 and the `kpa_scaleout_v1` gates are being re-measured on R1.1. W2 read provisional until then. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
 
@@ -179,6 +179,10 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
   W2 at 1 s on R1.1 (`rp/wf1-r11` `1021c310`), then `gate_pipe_release_kpa` (R1's condition), then the other three
   conditions, then the four `*_legacy_shared` controls (they use the changed GNN-family autoscaler). The `legacy_replay_*`
   identity checks are not rerun, because the legacy path's cells were identical.
+- **R1.1 ACCEPTED (2026-10-08), at `rp/starve` `665c9142` / `rp/starve-gate` `252b45aa`.** With R1.1-T, the 42
+  audit/legacy cells are identical to `d4aeb7ca` (0 timeouts). 198 of 200 W2 sample cells are identical, including all 75
+  cells the first timeout moved. The 2 that differ are the leak cells (9550 g2 ×11.61: batched −1.00 %, CD +0.40 %, 0
+  failures). W4 9565 g2 CD completes 50,000 tasks with 5 failed requests. The re-measure above proceeds on this code.
 
 ### 2026-10-08 — W2 rerun under amendment WB; amendment WB2 (tuned window); the starved-replica hang
 
