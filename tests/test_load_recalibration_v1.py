@@ -44,8 +44,10 @@ def test_guards_per_rung():
     assert not allowed(guards([c], 2), "moderate")  # a cell did not finish
     drift = guards([cell_metrics(_summary(backlog_profile={"last_over_mid": 3.0, "in_system_ratio": 3.0}))], 1)
     assert allowed(drift, "moderate") and not allowed(drift, "heavy")
-    crowd = guards([cell_metrics(_summary(backlog_profile={"last_over_mid": 1.0, "in_system_ratio": 2.5}))], 1)
+    crowd = guards([cell_metrics(_summary(backlog_profile={"last_over_mid": 1.0, "in_system_ratio": 2.5, "in_system_at": {"half": 40, "three_quarter": 100}}))], 1)
     assert allowed(crowd, "moderate") and not allowed(crowd, "heavy")
+    few = guards([cell_metrics(_summary(backlog_profile={"last_over_mid": 1.0, "in_system_ratio": 2.5, "in_system_at": {"half": 2, "three_quarter": 5}}))], 1)
+    assert allowed(few, "heavy")  # in-system(1/2) < 20: reported, not applied
     busy = guards([cell_metrics(_summary(averageExecutionTime=3.0))], 1)
     assert not allowed(busy, "light") and allowed(busy, "heavy")
 
