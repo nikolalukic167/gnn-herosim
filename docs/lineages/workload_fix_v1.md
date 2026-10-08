@@ -91,6 +91,17 @@ of which arm benefits.
 
 ## Record (newest first)
 
+### 2026-10-08 — W4 on R1.1: the read rule for runs that don't finish (before the W4 read)
+
+Job 843084 (`stage_w234_r11`). Live feasibility passed 76/76 cells per rung. First pass: 754/760, request failures ≤ 0.61 %
+per run. Six runs are outstanding: locality 9565 g0/g2 heavy timed out at 2,700 s in the `create_first_replica` "no compatible
+hardware for cnn" spin, and CD 9538 g2 plus 9565 g1–g3 heavy are still in the first pass with empty logs. The 300 s timeout
+covers only placed tasks, so a task that can never get a first replica is a hang it doesn't touch.
+**Decision (coordinator, before any W4 arm number is seen):** after the registered 3× rerun, a (topology, window, rung) cell
+in which **any** arm still doesn't finish is excluded for **every** arm and listed with its arm and cause. The hang is
+diagnosed as a simulator defect (`rp/starve`), not scored as an arm's latency. If more than 2 of the 19 topologies lose a
+cell at a rung, that rung is labelled `HANG-LIMITED` in the read.
+
 ### 2026-10-08 — W3 (access-link classes) on R1.1: the stage read
 
 Job 843086, code `rp/wf1-w3-r11` `ebd673e9`, 760/760 runs, 0 failed, 0 hung, **0 request failures**. Read by S4's reader
