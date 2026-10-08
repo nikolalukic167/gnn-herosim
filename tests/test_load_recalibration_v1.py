@@ -1,3 +1,7 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts_cosim"))
 import math
 
 from scripts_cosim.load_recalibration_v1_bisect import allowed, cell_metrics, guards, search
