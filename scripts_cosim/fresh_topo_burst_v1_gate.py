@@ -525,7 +525,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
-    time_scale = float((json.load(open(cfg)).get("cd_gap_v1_rate_scale") or {}).get("factor", 1.0))
+    rate_scale = float((json.load(open(cfg)).get("cd_gap_v1_rate_scale") or {}).get("factor", 1.0))
+    # physics_audit_v1 B1: R1 runs one policy time scale on every rung; GATE_FIXED_POLICY_TIME_SCALE pins it
+    # (the cell's rate factor still sets cdextr's per-rung label rate)
+    fixed = os.environ.get("GATE_FIXED_POLICY_TIME_SCALE")
+    time_scale = float(fixed) if fixed else rate_scale
     if time_scale != 1.0:
         env["HEROSIM_POLICY_TIME_SCALE"] = repr(time_scale)
     env.update(HEROSIM_PEER_EXCHANGE="1", HEROSIM_SERVER_ONLY_REPLICAS="1", HEROSIM_WARMTH_PHYSICS="node_disk_v2",
@@ -607,7 +611,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if kind == "cdext":
             env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE)
         if kind == "cdextr":
-            env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / time_scale)
+            env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / rate_scale)
         if kind == "cd_inflight":
             env["HEROSIM_PG_INFLIGHT"] = "1"
         if kind in DECIMA_TUNE_ALPHAS:
@@ -684,6 +688,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["client_local_v1"] = client_local
     if time_scale != 1.0 and out["env"].get("HEROSIM_POLICY_TIME_SCALE") != repr(time_scale):
         problems.append(f"policy time scale not recorded: {out['env'].get('HEROSIM_POLICY_TIME_SCALE')!r}")
+    if time_scale == 1.0 and out["env"].get("HEROSIM_POLICY_TIME_SCALE") not in (None, "1.0"):
+        problems.append(f"policy time scale should be 1.0, served {out['env'].get('HEROSIM_POLICY_TIME_SCALE')!r}")
+    out["policy_time_scale"] = time_scale
     if n is None or int(n) != N_TASKS:
         problems.append(f"num_tasks={n!r}")
     want_ka = CAP_KEEP_ALIVE if window in KA_WINDOWS else None
@@ -720,7 +727,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if out["env"].get("HEROSIM_PG_EXCHANGE_SCALE") != want_scale:
         problems.append(f"served HEROSIM_PG_EXCHANGE_SCALE={out['env'].get('HEROSIM_PG_EXCHANGE_SCALE')!r}, {kind} needs {want_scale!r}")
     if kind in EXT_KINDS:
-        want_rate = repr(EXT_LABEL_RATE if kind == "cdext" else EXT_LABEL_RATE / time_scale)
+        want_rate = repr(EXT_LABEL_RATE if kind == "cdext" else EXT_LABEL_RATE / rate_scale)
         if out["env"].get("HEROSIM_PG_EXT_RATE") != want_rate:
             problems.append(f"served HEROSIM_PG_EXT_RATE={out['env'].get('HEROSIM_PG_EXT_RATE')!r}, {kind} needs {want_rate}")
         if int(c.get("pg_ext_batches") or 0) != int(c.get("pg_batches") or 0) or int(c.get("pg_ext_charged") or 0) == 0:
