@@ -50,6 +50,7 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
     import contextlib
     import io
 
+    os.environ["SIM_FORCE_FULL_STATS"] = "1"  # taskResults are dropped above 20 tasks otherwise (orchestrator.py:736)
     t_import = time.perf_counter()
     from src.executecosimulation import rtt_from_stats  # noqa: F401  (logging set-up order, as i11_replay)
     from src.executesimulation import execute_simulation, load_simulation_inputs, prepare_infrastructure_for_real_simulation
