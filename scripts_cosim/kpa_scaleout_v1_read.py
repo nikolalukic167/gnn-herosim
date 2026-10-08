@@ -52,11 +52,12 @@ def holm(ps):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out")
+    ap.add_argument("--suffix", default="", help="appended to each gate directory name (R1.1 re-measure: _r11); default reads the published directories")
     a = ap.parse_args()
     legacy = json.load(open(B + "transfer_physics_v1/tp1_read.json"))
     out, tests = {}, []
     for cond, d in CONDS.items():
-        s = load(d)
+        s = load(d + a.suffix)
         out[cond] = {}
         for rung in RUNGS:
             ws = [f"g{i}x{rung}" for i in range(4)]
