@@ -28,6 +28,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
 
+from capped_log import cap_bytes, run_logged
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOWS = ("w0", "w1", "w2", "w3")
 SEEDS = (1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 14, 15, 16)
@@ -658,8 +660,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     cmd = scope + ["timeout", str(timeout_s)] + PY + [os.path.join(REPO, "src/executesimulation.py"), "--config", cfg,
                                                       "--workload", wl, "--policy", policy, "--output", raw]
     start = time.time()
-    with open(log, "w") as fh:
-        rc = subprocess.run(cmd, env=env, cwd=REPO, stdout=fh, stderr=subprocess.STDOUT).returncode
+    rc = run_logged(cmd, env, REPO, log, cap_bytes())  # capped: a hung run's log used to reach several GB
     wall = int(time.time() - start)
     if rc != 0 or not os.path.exists(raw):
         json.dump({"arm": name, "returncode": rc, "wallclock_s": wall,
