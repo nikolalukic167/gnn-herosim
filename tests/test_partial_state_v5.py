@@ -237,3 +237,49 @@ def test_widen_graph_appends_and_removes_the_held_apart_columns():
     assert torch.equal(g.task_features[:, :3], torch.ones(4, 3))
     with pytest.raises(ValueError, match="no four_type extras"):
         widen_graph(Data(task_features=torch.ones(1, 3), platform_features=torch.ones(1, 14)))
+
+
+# ---- serving refuses a contract mismatch -----------------------------------------------------------------------------
+
+def _write_checkpoint(tmp_path, contract):
+    import json
+
+    import torch
+
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+
+    four = contract == PARTIAL_STATE_CONTRACT_V5
+    model = TaskPlacementGNN(task_feature_dim=5 if four else 3, platform_feature_dim=16 if four else 14,
+                             embedding_dim=64, hidden_dim=64, num_layers=3, edge_dim=5)
+    path = tmp_path / "m.pt"
+    torch.save(model.state_dict(), path)
+    path.with_suffix(".contract.json").write_text(json.dumps({
+        "partial_state_contract": contract, "inference_feature_layout": "dim22",
+        "queue_feature_contract": "legacy_v0", "queue_norm_mode": "scheduler_adaptive",
+        "topology_feature_contract": "src_index_v0",
+    }))
+    return path
+
+
+def test_loader_refuses_a_v5_checkpoint_under_another_contract(tmp_path, monkeypatch):
+    from src.executesimulation import load_gnn_model
+
+    path = _write_checkpoint(tmp_path, PARTIAL_STATE_CONTRACT_V5)
+    monkeypatch.delenv("PARTIAL_STATE_CONTRACT", raising=False)
+    with pytest.raises(Exception, match="partial_state_v5"):
+        load_gnn_model(path)
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", "partial_state_v4")
+    with pytest.raises(Exception, match="partial_state_v5"):
+        load_gnn_model(path)
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", PARTIAL_STATE_CONTRACT_V5)
+    model, _device = load_gnn_model(path)  # matching contract: widths 5 / 16 are accepted under the dim22 layout
+    assert model.task_encoder.net[0].in_features == 5
+
+
+def test_loader_refuses_a_legacy_checkpoint_under_a_v5_run(tmp_path, monkeypatch):
+    from src.executesimulation import load_gnn_model
+
+    path = _write_checkpoint(tmp_path, PARTIAL_STATE_CONTRACT_V3)
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", PARTIAL_STATE_CONTRACT_V5)
+    with pytest.raises(ValueError, match="four-type feature blocks"):
+        load_gnn_model(path)
