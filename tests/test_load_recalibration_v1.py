@@ -28,7 +28,7 @@ def test_unbracketed_when_ends_do_not_bracket():
 def _summary(**kw):
     s = {"num_tasks": 50000, "requestFailures": 0, "queue_share": 0.1, "averageElapsedTime": 5.0, "endTime": 1000.0,
          "averageExecutionTime": 1.0, "latency_percentiles": {"p95": 10.0, "p99": 20.0},
-         "arrival_end": {"end_over_last_arrival": 1.01}, "queue_drift": {"quarter_mean_queue": [1.0, 1.0, 1.0, 1.5]},
+         "arrival_end": {"end_over_last_arrival": 1.01}, "backlog_profile": {"last_over_mid": 1.5, "in_system_ratio": 1.0},
          "replica_count_series": {"time_mean": 400.0}, "placement_wait": {"mean": 0.5, "p95": 1.0, "max": 3.0}}
     s.update(kw)
     return s
@@ -42,8 +42,10 @@ def test_guards_per_rung():
     bad = guards([cell_metrics(_summary(latency_percentiles={"p95": 301.0, "p99": 1.0}))], 1)
     assert not allowed(bad, "moderate")
     assert not allowed(guards([c], 2), "moderate")  # a cell did not finish
-    drift = guards([cell_metrics(_summary(queue_drift={"quarter_mean_queue": [1, 1, 1, 3]}))], 1)
+    drift = guards([cell_metrics(_summary(backlog_profile={"last_over_mid": 3.0, "in_system_ratio": 3.0}))], 1)
     assert allowed(drift, "moderate") and not allowed(drift, "heavy")
+    crowd = guards([cell_metrics(_summary(backlog_profile={"last_over_mid": 1.0, "in_system_ratio": 2.5}))], 1)
+    assert allowed(crowd, "moderate") and not allowed(crowd, "heavy")
     busy = guards([cell_metrics(_summary(averageExecutionTime=3.0))], 1)
     assert not allowed(busy, "light") and allowed(busy, "heavy")
 
@@ -58,3 +60,15 @@ def test_identity_compare(tmp_path):
     assert compare(b, a) == []
     (a / "c.summary.json").write_text(json.dumps({**old, "nested": {"y": [1, 3]}, "placement_wait": {}, "arrival_end": {}}))
     assert compare(b, a) == ["c.summary.json: nested differs"]
+
+
+def test_backlog_profile_counts_unplaced_wait_and_tasks_in_system():
+    from scripts_cosim.fresh_topo_burst_v1_gate import backlog_profile
+
+    # 8 tasks arriving at t=0..7; the last two wait 10 s before placement, none queues; each runs 1 s after placement
+    tr = [{"taskId": i, "dispatchedTime": float(i), "scheduledTime": i + (10.0 if i >= 6 else 0.0), "queueTime": 0.0,
+           "doneTime": i + (10.0 if i >= 6 else 0.0) + 1.0} for i in range(8)]
+    bp = backlog_profile(tr)
+    assert bp["quarter_mean_backlog"] == [0.0, 0.0, 0.0, 10.0] and bp["last_over_mid"] == math.inf  # middle quarters are 0
+    assert bp["in_system_at"] == {"half": 1, "three_quarter": 1}  # t=3.5: task 3 in system; t=5.25: task 5
+    assert backlog_profile([]) is None
