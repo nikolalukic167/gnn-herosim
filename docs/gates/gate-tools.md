@@ -10,6 +10,19 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-10-08 — The autoscaler loops call `env.step()`: any extra scheduled event is a physics change
+
+`Autoscaler.autoscaler_process` and `_kpa_autoscaler_process` (`src/placement/autoscaler.py`) end every iteration
+with `self.env.step()`, which processes the **next queued event, whatever it is**, and moves the clock to it. So
+what each loop iteration consumes depends on everything else in the event queue: adding a SimPy process that
+reads and writes nothing can still change a run, and autoscaler ticks are not `last_tick + interval`.
+Measured (`physics_audit_v1`, 2026-10-08): `scripts_cosim/physics_audit/env_step_repro.py` changes job completion
+times with one extra `Timeout` in a standalone model; in the simulator (2,000 arrivals) 0, 1 or 100 idle timeouts
+leave total RTT at 1288.517 s, 1,000 give 1311.277 s (+1.8 %), and a 0.1 s occupancy sampler gave 1077.7 s
+(−16 %). **Instrumentation must schedule nothing** (`HEROSIM_AUDIT_TRACE` does not), and a new process in a run
+needs a replay-identity check like any physics change. A snapshot replay must read the next tick from the
+Timeout the autoscaler is suspended on, not compute it.
+
 ## 2026-10-07 — `bandwidth_mbps` is MB/s, and transfers are store-and-forward
 
 `network.backbone.bandwidth_mbps` (and `core_bandwidth_mbps`, `network.bandwidth`, `--link-bandwidth-mbps`,
