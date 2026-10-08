@@ -88,3 +88,22 @@ def test_candidate_nodes_counts_only_what_the_sweep_offers():
     assert candidate_nodes(snap, {"rf": {"node0:1"}, "cnn": {"node0:3"}}) == {"node0"}
     assert candidate_nodes(snap, {"rf": {"node0:1", "node1:2"}, "cnn": {"node0:3"}}) == {"node0", "node1"}
     assert SINGLE_NODE_REASON == "single_candidate_node"
+
+
+def test_trainer_refuses_a_cache_built_under_other_physics(tmp_path):
+    """train_near_rtt reads metadata.json first and stops before touching any graph."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    pytest.importorskip("torch_geometric")
+    (tmp_path / "metadata.json").write_text(json.dumps(
+        {"version": "5.7", "physics_env": {"transfer_model": "store_forward", "replica_release": "0", "scaleout": "legacy"}}))
+    repo = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, PYTHONPATH=f"{repo}:{repo}/src/notebooks", WANDB_MODE="disabled",
+               HEROSIM_TRANSFER_MODEL="pipelined", HEROSIM_REPLICA_RELEASE="1", HEROSIM_SCALEOUT="kpa")
+    proc = subprocess.run([sys.executable, str(repo / "src/notebooks/train_near_rtt.py"), "--cache-dir", str(tmp_path)],
+                          capture_output=True, text=True, env=env, timeout=240, cwd=repo)
+    assert proc.returncode != 0
+    assert "physics environment mismatch" in proc.stderr
