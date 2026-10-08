@@ -122,7 +122,13 @@ Paired % vs CD, median over 19 topologies, Holm over 6:
   +11.9 % at light. The batching arms fall 22 % behind CD at heavy. CD's joint search gains the most from the new link
   heterogeneity.
 - Wired+wired share of each arm's transfers: 21–25 % at light and 23–35 % at heavy (reactive 22.7 %, self-predict 35.4 %, CD 31.3 %).
-  Whether any arm routes around slow links needs the share a random placement would give; requested.
+  **Against random placement** ([`w23_r11_wired_baseline.json`](workload_fix_v1/w23_r11_wired_baseline.json), exact count;
+  each task's server is uniform over the servers compatible with its type; memory not modelled). The baseline median is 19.2 %. On the 15
+  topologies where the baseline is strictly between 0 and 1, observed minus baseline, in points: at light, reactive +0.9 (9/15 above)
+  and the planning arms +3 to +4 (11–14/15). At heavy, self-predict +20.7 (13/15), CD +14.3 (13/15), locality +14.1, batched
+  +10.6, reactive −1.7 (6/15). So the planning arms do route toward wired pairs under load, and reactive doesn't. These are
+  transfer counts, and wired pairs still hold only 2–6 % of exchange seconds, so the slow non-wired transfers can't all be
+  avoided on 6 servers. Descriptive, no test.
 
 ### 2026-10-08 — W2 on R1.1: the stage read (window 1 s)
 
