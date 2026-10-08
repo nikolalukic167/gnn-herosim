@@ -20,6 +20,7 @@ from src.executesimulation import (
     prepare_infrastructure_for_real_simulation,
 )
 from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH
+from src.placement import snapshot_fidelity
 from src.placement.live_snapshot_seed import build_live_snapshot_seed
 
 Choice = Dict[str, Any]
@@ -298,14 +299,19 @@ class CosimOracleContext:
         os.environ["GNN_CAPTURE_DATASET_STATE"] = "0"
         try:
             with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+                # physics_audit_v1 I11: a fidelity replay runs the live autoscaler settings, not 30 s / 100
+                params = (
+                    snapshot_fidelity.live_run_params()
+                    if snapshot_fidelity.enabled()
+                    else {"keep_alive": KEEP_ALIVE, "queue_length": QUEUE_LENGTH}
+                )
                 result = execute_simulation(
                     config,
                     self._sim_inputs,
                     scheduling_strategy="determined_determined",
                     cache_policy="fifo",
                     task_priority="fifo",
-                    keep_alive=KEEP_ALIVE,
-                    queue_length=QUEUE_LENGTH,
+                    **params,
                 )
         except RuntimeError:
             return float("inf")

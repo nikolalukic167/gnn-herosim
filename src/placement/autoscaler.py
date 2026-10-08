@@ -225,6 +225,14 @@ class Autoscaler:
         logging as the legacy loop; the legacy forced first-replica fallback is not used, because
         reachability-triggered creation still runs from the schedulers."""
         stats = self.scaleout_stats
+        # I11 replay: a snapshot's tick phase. The first tick waits for the scheduler's first decision (the live
+        # tick waited on the mutex behind it), then for what is left of the captured phase.
+        gate = getattr(self, "_kpa_start_gate", None)
+        if gate is not None:
+            yield gate
+        start_at = getattr(self, "_kpa_start_delay", None)
+        if start_at is not None and start_at > self.env.now:
+            yield self.env.timeout(start_at - self.env.now)
         while True:
             system_state: SystemState = yield self.mutex.get()
             replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas

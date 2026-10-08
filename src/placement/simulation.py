@@ -24,7 +24,7 @@ import sys
 from datetime import datetime
 from typing import Dict, Tuple, Type, Set, Any, List, Optional
 
-from src.placement.infrastructure import Node, Platform, Storage, Application, Task
+from src.placement.infrastructure import FIDELITY, Node, Platform, Storage, Application, Task
 from src.placement.network_fabric import build_fabric
 
 from simpy.core import Environment  # type: ignore[import-not-found]
@@ -186,6 +186,10 @@ def create_nodes(
             )
 
             storage_id += 1
+
+        if FIDELITY:
+            # a pull checks its storage out of the FilterStore for its whole duration; keep the full list
+            current_node._fid_storages = list(storage_store.items)
 
         node_id += 1
 
@@ -757,6 +761,10 @@ def start_simulation(
     from src.placement.scaleout import shared_autoscaler
     if shared_autoscaler() and autoscaler_type is KnativeNetworkAutoscaler:
         autoscaler_type = GNNAutoscaler
+    # physics_audit_v1 I11: a fidelity replay runs the autoscaler the live run used (no-op unless
+    # HEROSIM_SNAPSHOT_FIDELITY=1)
+    from src.placement import snapshot_fidelity
+    autoscaler_type = snapshot_fidelity.swap_autoscaler(autoscaler_type)
 
     orchestrator_args = {
         'env': env,
@@ -785,6 +793,11 @@ def start_simulation(
             print(f"[simulation.py] models keys: {list(models.keys())}", flush=True)
     
     orchestrator = orchestrator_type(**orchestrator_args)
+    if live_snapshot_seed and live_snapshot_seed.get("fidelity") is not None:
+        snapshot_fidelity.apply_autoscaler(orchestrator.autoscaler, live_snapshot_seed["fidelity"])
+        if snapshot_fidelity.apply_orchestrator(orchestrator, live_snapshot_seed["fidelity"]):
+            raise RuntimeError("fidelity replay: a partner the live run had not placed yet has no placement time "
+                               "(snapshot['fidelity']['future']); the replay would wait on it for ever")
     env.run(until=finished)
     logging.info(f"[ {orchestrator.end_time} ] ✨ Simulation finished")
 

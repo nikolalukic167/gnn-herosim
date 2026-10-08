@@ -280,7 +280,12 @@ class DeterminedScheduler(Scheduler):
 
         # Release mutex after processing entire batch
         yield self.mutex.put(system_state)
-        
+        # physics_audit_v1 I11 replay: the autoscaler's first tick waits for this decision, as it waited on the mutex
+        # in the live run (None unless a fidelity snapshot seeded it)
+        gate = getattr(self.autoscaler, "_kpa_start_gate", None)
+        if gate is not None and not gate.triggered:
+            gate.succeed()
+
         self._debug(f"[ {self.env.now} ] DEBUG: Batch processing complete for {len(batch_tasks)} tasks")
 
     def _capture_batch_queue_snapshot(self, system_state: SystemState, batch_tasks: List[Task]) -> Dict[str, int]:
@@ -405,7 +410,8 @@ class DeterminedScheduler(Scheduler):
 
                 # Safety 2: platform must be initialized unless cold pulls are deferred
                 allow_deferred = bool(getattr(self, "defer_cold_replica_init", False))
-                if not target_platform.initialized.triggered and not allow_deferred:
+                if (not target_platform.initialized.triggered and not allow_deferred
+                        and not getattr(target_platform, "_fid_pull_pending", False)):
                     print(
                         f"[ {self.env.now} ] ERROR: Forced placement for task {task.id} "
                         f"({task.type['name']}) targets platform {forced_platform_id} on "

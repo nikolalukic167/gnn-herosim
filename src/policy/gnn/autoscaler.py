@@ -41,7 +41,7 @@ from src.placement.model import (
 )
 
 from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
-from src.placement.infrastructure import STARVED_RENDEZVOUS
+from src.placement.infrastructure import FIDELITY, STARVED_RENDEZVOUS
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
     image_pull_disk_hit,
@@ -369,6 +369,14 @@ class KnativeAutoscaler(Autoscaler):
 
         # warmth: skip entire pull branch when needs_image_pull is False.
         # Hold FilterStore for the full pull timeout (determined parity).
+        if FIDELITY:
+            # one record per call, not per platform: this function can run twice for one platform (the
+            # "double initialize" below) and both calls queue for the node's storage
+            pull_call = {"platform": platform, "fn": task_type["name"], "init_start": self.env.now,
+                         "end": None, "done": False}
+            calls = node.__dict__.setdefault("_fid_pull_calls", [])
+            calls[:] = [c for c in calls if not c["done"]]
+            calls.append(pull_call)
         if needs_image_pull(physics, platform, node, task_type):
             node_storage = yield node.storage.get(
                 lambda storage: not storage.type["remote"]
@@ -399,6 +407,8 @@ class KnativeAutoscaler(Autoscaler):
                         f" cache image for {self}"
                     )
 
+                if FIDELITY:
+                    pull_call["end"] = self.env.now + retrieval_duration
                 yield self.env.timeout(retrieval_duration)
             yield node.storage.put(node_storage)
         else:
@@ -436,6 +446,8 @@ class KnativeAutoscaler(Autoscaler):
 
         # Statistics (Node)
         node.cache_hits += int(image_pull_disk_hit(physics, platform, node, task_type))
+        if FIDELITY:
+            pull_call["done"] = True
 
     def remove_replica(
         self,
