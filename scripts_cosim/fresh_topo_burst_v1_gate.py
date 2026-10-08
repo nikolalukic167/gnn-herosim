@@ -248,10 +248,10 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         if any(k not in rules for k in only):
             raise SystemExit(f"FAIL LOUD: WF1_ARMS={only!r}; arms are {rules}")
         # opt-in window subset for smoke runs (windows "g0,g1"); unset = the full registered grid
-        only_w = [x for x in os.environ.get("WF1_WINDOWS", "").split(",") if x]
+        only_w = [x for x in os.environ.get("WF1_ARRIVAL_WINDOWS", "").split(",") if x]
         ladder = [w for w in WF1_LADDER if not only_w or w[:2] in only_w]
         if not ladder:
-            raise SystemExit(f"FAIL LOUD: WF1_WINDOWS={only_w!r} selects no window")
+            raise SystemExit(f"FAIL LOUD: WF1_ARRIVAL_WINDOWS={only_w!r} selects no window")
         return [task(t, w, k) for k in rules if not only or k in only for t in selection["topologies"] for w in ladder]
     topos = selection["topologies"]
     if phase == "d1":
