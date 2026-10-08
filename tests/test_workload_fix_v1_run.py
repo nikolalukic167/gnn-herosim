@@ -321,3 +321,18 @@ def test_tune_counts_a_hung_run_as_infinite_and_picks_the_geometric_mean_minimum
             ok.pop((t, f"{g}hib4", "cd"))
     res = R.tune(ok, bad, [1, 2], ["lo", "hi"], [1, 2, 4])
     assert res["table"][4]["geomean"] == inf and res["best_window_s"] == 2
+
+
+def test_placement_wait_and_arrival_end(tmp_path):
+    import json
+    from scripts_cosim.fresh_topo_burst_v1_gate import arrival_end, placement_wait
+
+    tr = [{"taskId": i, "dispatchedTime": 10.0 * i, "scheduledTime": 10.0 * i + w}
+          for i, w in enumerate([1.0, 2.0, 3.0, 4.0])] + [{"taskId": -1, "dispatchedTime": 0.0, "scheduledTime": 99.0}]
+    pw = placement_wait(tr)
+    assert pw == {"n": 4, "mean": 2.5, "p95": 4.0, "max": 4.0}
+    assert placement_wait([]) is None
+    f = tmp_path / "wl.json"
+    f.write_text(json.dumps({"events": [{"timestamp": 5.0}, {"timestamp": 40.0}, {"timestamp": 12.0}]}))
+    assert arrival_end(str(f), 50.0) == {"last_arrival_s": 40.0, "end_time_s": 50.0, "end_over_last_arrival": 1.25}
+    assert arrival_end(str(f), None) is None
