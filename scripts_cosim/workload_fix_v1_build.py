@@ -64,7 +64,25 @@ def apply_sampler(src: Path, dst: Path, sampler: str) -> dict:
     return seeds
 
 
-def build_rung(x1_dir: Path, cfg_dir: Path, out: Path, tag: str, factor: float, topologies: list) -> Path:
+def fix_batch_timeout(cfg_dir: Path, seconds: float) -> int:
+    """workload_fix_v1 amendment WB: hold ``scheduler.batch_timeout`` at ``seconds`` on a rung whose timestamps were
+    scaled. The ladder value stays on record next to the fixed one. Returns the number of cells rewritten."""
+    if seconds <= 0:
+        raise SystemExit(f"FAIL LOUD: --batch-timeout-fixed must be > 0, got {seconds}")
+    n = 0
+    for path in sorted(cfg_dir.glob("cc40s*.json")):
+        cfg = json.loads(path.read_text())
+        ladder = float(cfg["scheduler"]["batch_timeout"])
+        cfg["scheduler"]["batch_timeout"] = float(seconds)
+        cfg["workload_fix_v1_batch_timeout"] = {"fixed_s": float(seconds), "ladder_value_s": ladder}
+        with open(path, "w") as fh:
+            json.dump(cfg, fh, indent=1)
+        n += 1
+    return n
+
+
+def build_rung(x1_dir: Path, cfg_dir: Path, out: Path, tag: str, factor: float, topologies: list,
+               batch_timeout_fixed: float = None) -> Path:
     rung_dir = out / f"wf1_{tag}"
     if rung_dir.exists():
         raise SystemExit(f"FAIL LOUD: {rung_dir} exists; a built rung is frozen")
@@ -80,6 +98,8 @@ def build_rung(x1_dir: Path, cfg_dir: Path, out: Path, tag: str, factor: float, 
     subprocess.run([sys.executable, str(ROOT / "scripts_cosim" / "client_local_v1_single_origin.py"),
                     str(scattered / "wl"), str(rung_dir / "wl")], check=True, cwd=ROOT)
     shutil.copytree(scattered / "cfg", rung_dir / "cfg")
+    if batch_timeout_fixed is not None:
+        fix_batch_timeout(rung_dir / "cfg", batch_timeout_fixed)
     shutil.rmtree(scattered)
     shutil.rmtree(src)
     return rung_dir
@@ -100,6 +120,9 @@ def main() -> int:
     ap.add_argument("--topologies", type=int, nargs="+", required=True)
     ap.add_argument("--rung", action="append", required=True, metavar="TAG=FACTOR")
     ap.add_argument("--payload-sampler", choices=PAYLOAD_SAMPLERS, default="legacy")
+    ap.add_argument("--batch-timeout-fixed", type=float, default=None, metavar="SECONDS",
+                    help="amendment WB: keep scheduler.batch_timeout at this value on every rung "
+                         "(timestamps still scale); absent = the ladder protocol's scaled value")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--verify-against", type=Path, help="existing single-origin rung wl dir; its factor must be the only --rung")
     a = ap.parse_args()
@@ -116,9 +139,9 @@ def main() -> int:
     if x1.exists():
         shutil.rmtree(x1)
     seeds = apply_sampler(a.grounded_wl, x1, a.payload_sampler)
-    manifest = {"payload_sampler": a.payload_sampler, "window_seeds": seeds, "topologies": a.topologies, "rungs": {}}
+    manifest = {"payload_sampler": a.payload_sampler, "batch_timeout_fixed_s": a.batch_timeout_fixed, "window_seeds": seeds, "topologies": a.topologies, "rungs": {}}
     for tag, factor in rungs.items():
-        d = build_rung(x1, a.cfg_dir, a.out, tag, factor, a.topologies)
+        d = build_rung(x1, a.cfg_dir, a.out, tag, factor, a.topologies, a.batch_timeout_fixed)
         manifest["rungs"][tag] = {"factor": factor, "multiplier": 1.0 / factor,
                                   "wl_sha256": {n: sha256(d / "wl" / n) for n in WINDOWS}}
         if a.verify_against:

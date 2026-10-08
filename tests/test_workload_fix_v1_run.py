@@ -192,3 +192,65 @@ def test_bisection_reports_an_unbracketed_target_and_treats_failed_cells_as_over
     hang = X.search(0.3, lambda m: 0.1 if m < 6 else math.inf, 0.5, 24.0, 8)
     assert hang["status"] == "BRACKETED" and hang["bracket"][1] <= 6.5
     assert X.tag_for(1.4142) == "m1p4142"
+
+
+def test_fixed_batch_window_changes_only_batch_timeout(tmp_path, x1):
+    d, cfg = x1
+    default = _build(tmp_path, d, cfg, "legacy", factor=0.25, tag="a")
+    out = tmp_path / "out_fixed"
+    B.apply_sampler(d, out / "_x1_windows", "legacy")
+    fixed = B.build_rung(out / "_x1_windows", cfg, out, "a", 0.25, [9601], batch_timeout_fixed=16.0)
+    for name in B.WINDOWS:  # timestamps still scale, workload bytes untouched
+        assert (default / "wl" / name).read_bytes() == (fixed / "wl" / name).read_bytes()
+    a = json.loads((default / "cfg" / "cc40s9601.json").read_text())
+    b = json.loads((fixed / "cfg" / "cc40s9601.json").read_text())
+    assert a["scheduler"]["batch_timeout"] == 4.0 and b["scheduler"]["batch_timeout"] == 16.0
+    assert b["workload_fix_v1_batch_timeout"] == {"fixed_s": 16.0, "ladder_value_s": 4.0}
+    for k in set(a) | set(b):
+        if k not in ("scheduler", "workload_fix_v1_batch_timeout"):
+            assert a.get(k) == b.get(k)
+    assert {k: v for k, v in b["scheduler"].items() if k != "batch_timeout"} == {k: v for k, v in a["scheduler"].items() if k != "batch_timeout"}
+    assert "workload_fix_v1_batch_timeout" not in a
+
+
+def test_default_build_has_no_fixed_window_record(tmp_path, x1):
+    d, cfg = x1
+    rung = _build(tmp_path, d, cfg, "legacy")
+    assert "workload_fix_v1_batch_timeout" not in json.loads((rung / "cfg" / "cc40s9601.json").read_text())
+    with pytest.raises(SystemExit, match="> 0"):
+        B.fix_batch_timeout(rung / "cfg", 0)
+
+
+def test_driver_arm_filter(monkeypatch):
+    import importlib
+
+    import fresh_topo_burst_v1_gate as G
+    monkeypatch.setenv("WF1_RUNGS", "a")
+    for k, v in (("HEROSIM_TRANSFER_MODEL", "pipelined"), ("HEROSIM_REPLICA_RELEASE", "1"), ("HEROSIM_SCALEOUT", "kpa"),
+                 ("GATE_FIXED_POLICY_TIME_SCALE", "1.0"), ("WF1_ARMS", "cd,batched,locality")):
+        monkeypatch.setenv(k, v)
+    importlib.reload(G)
+    tasks = G.tasks_for("wf1", {"topologies": [1, 2]})
+    assert {t["kind"] for t in tasks} == {"cd", "batched", "locality"} and len(tasks) == 3 * 2 * 4
+    monkeypatch.setenv("WF1_ARMS", "cd,bogus")
+    with pytest.raises(SystemExit, match="WF1_ARMS"):
+        G.tasks_for("wf1", {"topologies": [1]})
+    monkeypatch.delenv("WF1_RUNGS")
+    monkeypatch.delenv("WF1_ARMS")
+    importlib.reload(G)
+
+
+def _full(topo, window, arm, lat, wait, queue, ex, rv, cold):
+    r = _row(topo, window, arm, lat, ex=ex)
+    r.update(averageWaitTime=wait, averageQueueTime=queue, totalPeerRendezvousWait=rv * 100, averageColdStartTime=cold)
+    return r
+
+
+def test_decomposition_sums_to_latency_with_an_explicit_remainder():
+    ok = {(t, f"{w}lo", "cd"): _full(t, f"{w}lo", "cd", 3.0, 1.0, 0.5, 0.25, 0.25, 0.5) for t in (1, 2) for w in R.WINDOWS}
+    d = R.decompose(ok, [1, 2], ["lo"])["lo"]
+    assert d["batching_wait"] == 1.0 and d["queue"] == 0.5 and d["exchange"] == 0.25 and d["cold_start"] == 0.5
+    assert d["other"] == pytest.approx(3.0 - 2.5)
+    assert sum(d[k] for k in R.COMPONENTS) + d["other"] == pytest.approx(d["latency"])
+    old = {(1, f"{w}lo", "cd"): _row(1, f"{w}lo", "cd", 3.0) for w in R.WINDOWS}
+    assert R.decompose(old, [1], ["lo"])["available"] is False  # missing field is reported, not zero

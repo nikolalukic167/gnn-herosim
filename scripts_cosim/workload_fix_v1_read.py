@@ -53,6 +53,40 @@ def load(gate_dir: str) -> Tuple[Dict[Tuple[int, str, str], dict], Dict[Tuple[in
     return ok, bad
 
 
+COMPONENTS = ("batching_wait", "queue", "exchange", "rendezvous", "cold_start")
+
+
+def decompose(ok: dict, topos: Sequence[int], rungs: Sequence[str], arm: str = "cd") -> Dict[str, Any]:
+    """Mean seconds per task of one arm's latency by stage, per rung (median over topologies of per-topology means).
+
+    batching_wait = averageWaitTime (dispatch -> scheduled: peer-group assembly and the decision), queue =
+    averageQueueTime (scheduled -> on the replica's queue), exchange / rendezvous = the peer totals per task,
+    cold_start = averageColdStartTime; other = latency minus those. Needs the stage times that the wf1 summaries
+    carry (averageColdStartTime), so a summary without it is reported as missing, not zero."""
+    out: Dict[str, Any] = {}
+    for rung in rungs:
+        per_topo: List[Dict[str, float]] = []
+        for t in topos:
+            rs = [ok[(t, f"{w}{rung}", arm)] for w in WINDOWS if (t, f"{w}{rung}", arm) in ok]
+            if not rs:
+                continue
+            if any(r.get("averageColdStartTime") is None for r in rs):
+                return {"available": False, "reason": "summaries lack averageColdStartTime (run before the wf1 stage fields)"}
+            comp = {
+                "latency": st.mean(r["averageElapsedTime"] for r in rs),
+                "batching_wait": st.mean(r["averageWaitTime"] for r in rs),
+                "queue": st.mean(r["averageQueueTime"] for r in rs),
+                "exchange": st.mean(r["totalPeerExchangeTime"] / r["num_tasks"] for r in rs),
+                "rendezvous": st.mean(r["totalPeerRendezvousWait"] / r["num_tasks"] for r in rs),
+                "cold_start": st.mean(r["averageColdStartTime"] for r in rs),
+            }
+            comp["other"] = comp["latency"] - sum(comp[k] for k in COMPONENTS)
+            per_topo.append(comp)
+        out[rung] = {"available": True, "n_topologies": len(per_topo),
+                     **{k: st.median(c[k] for c in per_topo) for k in ("latency",) + COMPONENTS + ("other",)}} if per_topo else None
+    return out
+
+
 def exchange_share_by_class(rows: Sequence[dict]) -> Dict[str, Any]:
     with_classes = [r for r in rows if r.get("peerExchangeByAccessClass") is not None]
     if not with_classes:
@@ -127,6 +161,10 @@ def compute(ok: dict, bad: dict, topos: Sequence[int], rungs: Sequence[str], exc
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate-dir", required=True)
+    ap.add_argument("--override-dir", action="append", default=[],
+                    help="amendment WB: summaries here replace --gate-dir's for the arms they contain (repeatable)")
+    ap.add_argument("--decompose", nargs=2, metavar=("LADDER_DIR", "FIXED_DIR"),
+                    help="CD latency by stage under the ladder window (LADDER_DIR) and the fixed window (FIXED_DIR)")
     ap.add_argument("--selected", required=True)
     ap.add_argument("--rungs", required=True, help="comma-separated rung tags, as in WF1_RUNGS")
     ap.add_argument("--out")
@@ -134,9 +172,23 @@ def main() -> int:
     topos = json.load(open(a.selected))["topologies"]
     rungs = [r for r in a.rungs.split(",") if r]
     ok, bad = load(a.gate_dir)
+    for d in a.override_dir:
+        o_ok, o_bad = load(d)
+        arms = {k[2] for k in o_ok} | {k[2] for k in o_bad}
+        ok = {k: v for k, v in ok.items() if k[2] not in arms}
+        bad = {k: v for k, v in bad.items() if k[2] not in arms}
+        ok.update(o_ok)
+        bad.update(o_bad)
     result = compute(ok, bad, topos, rungs)
     failing = sorted({t for (t, w, k) in bad if t in topos})
     result["_sensitivity_excluding_failed_topologies"] = compute(ok, bad, topos, rungs, failing) if failing else None
+    if a.decompose:
+        result["_cd_decomposition"] = {"ladder_window": decompose(load(a.decompose[0])[0], topos, rungs),
+                                       "fixed_window": decompose(load(a.decompose[1])[0], topos, rungs)}
+        for which, per in result["_cd_decomposition"].items():
+            for rung, d in per.items():
+                print(f"-- CD latency, {which}, {rung}: " + (", ".join(f"{k} {d[k]:.3f}" for k in ("latency",) + COMPONENTS + ("other",))
+                                                           if d and d.get("available") else str(d)))
     if a.out:
         with open(a.out, "w") as fh:
             json.dump(result, fh, indent=1)
