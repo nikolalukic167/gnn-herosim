@@ -1204,6 +1204,20 @@ class Platform:
             events.append(ready(peer_id))
         return events
 
+    def _unplaced_peers(self, task: "Task") -> List[Any]:
+        """The peers `task` still waits for, as Task objects; None for one that has not arrived (no task object yet)."""
+        orchestrator = getattr(self.node, "orchestrator_ref", None)
+        peers = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id) or {}
+        by_id = getattr(orchestrator, "task_by_id", {})
+        out = []
+        for peer_id in sorted(peers):
+            peer = by_id.get(peer_id)
+            if peer is None:
+                out.append(None)
+            elif getattr(peer, "platform", None) is None and getattr(peer, "planned_node_name", None) is None:
+                out.append(peer)
+        return out
+
     def _execute(self, task: "Task", nominal: SimTime):
         from src.placement.exec_physics import realized_factor
 
@@ -1757,12 +1771,12 @@ class Platform:
             # starved peers onto the node its replica will be created on and interrupts this wait.
             if not release:
                 self.rendezvous_task = task
-            # The one wait on a placed task with no bound of its own (a peer can stay unplaced forever). Its deadline is
-            # registered, not scheduled: the autoscaler tick calls expire_requests(). An extra SimPy event would shift
-            # the event each tick's env.step() consumes and change every run.
-            deadline = (task.scheduled_time if task.scheduled_time is not None else rendezvous_started) + REQUEST_TIMEOUT_S
+            # The one wait on a placed task with no bound of its own. Its deadline is evaluated by expire_requests() on the
+            # autoscaler tick, not scheduled: an extra SimPy event would shift the event each tick's env.step() consumes
+            # and change every run. The clock covers a partner that has arrived but stays unplaced (R1.1-T).
+            placed_at = task.scheduled_time if task.scheduled_time is not None else rendezvous_started
             self.env.__dict__.setdefault("request_waits", {})[task] = (
-                deadline, self.env.active_process if release else self.run)
+                placed_at, self.env.active_process if release else self.run, lambda _t=task: self._unplaced_peers(_t))
             timed_out = False
             try:
                 for peer_ready in rendezvous:
