@@ -66,6 +66,16 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
   capture. If 5,000 batches don't fit in about 2 days of datalab, the episode is cut once the batch's last task completes,
   and that cut is itself checked against live, I11-style (20 states, p95 ≤ 1 %), before it's used. The stretched, frozen-autoscaler
   variant is rejected.
+- **Cost measured: no cut needed.** S6 recaptured the 6 smoke sets with fidelity and replayed the full candidate product
+  under `live_run_params()`: 21,989 plans in 3.5 min on 28 workers, 0 failures, ds_00002 5,600/5,600. Each plan takes 0.07–0.24 s
+  (p95 ≤ 0.5 s), over a horizon of 77–214 s. That projects to about 1,070 core-hours for 5,000 batches (about 17 h on 62 cores). Measured on
+  the ×11.61 snapshots only.
+- **Dataset structure and label (decided).** With fidelity, the snapshot carries the already-queued tasks (28–114 per
+  snapshot against 4–6 batch tasks). They are **state, not decisions**: their placements stay as captured. The decision is
+  the batch's placement, and **the label is I11's quantity, Σ over the batch's tasks of (done − scheduled)**. Arrival to
+  decision is the same for every plan, so this ranks plans exactly as end-to-end latency does, and it is the quantity I11
+  validated (median 0.000 %, p95 0.126 %). The corpus replay must call the same code path as `i11_replay --params live`.
+  If it does, S5's I11 run covers it and no separate 20-state check is needed.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
