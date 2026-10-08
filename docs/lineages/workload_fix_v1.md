@@ -112,6 +112,17 @@ rerun (8,100 s) is the test, and the rule above applies to whatever still doesn'
 reported next to latency for those cells. A cheaper spin (would need identity again) and a drain-victim rule (a physics
 change) are deferred.
 
+**Probe (S5, same day) — retraction and cost.** No zero-time loop. An earlier "clock frozen at t = 5,223" came from S5's
+own diagnostic writer, which stopped updating; the clock keeps advancing. The cost per simulated second grows instead:
+40 k events per sim-s at t 3,000–4,000, 274 k at t 5,180–5,250 (0.1 sim-s per wall-s). That comes from 420–550 starved tasks,
+each re-spinning 50 deferrals per 1 s requeue. The cell would need about 41,000 s more wall time, so it falls under the
+exclusion rule. The same spin runs in completed cells and costs wall time only. **A latent defect, found by reading
+the code:** S7's stale-placement branch (`8d1eb559`) rewrites `placements[idx]` and, on its defer path, never releases the
+batch reservation of the original target, so that target would stay unevictable. **It never fired in W4:** the
+"stale placement re-decoded" warning appears 0 times in the 755 completed W4 logs (largest 258 KB, not capped; WARNING
+lines present in 451). So the W4 data is unaffected. Fix it (unreserve the original target on both paths) before that branch
+is used again. A spin made cheaper without changing event order (cached reachability, indexed collector) is deferred.
+
 ### 2026-10-08 — W3 (access-link classes) on R1.1: the stage read
 
 Job 843086, code `rp/wf1-w3-r11` `ebd673e9`, 760/760 runs, 0 failed, 0 hung, **0 request failures**. Read by S4's reader
