@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""workload_fix_v1 read (docs/lineages/workload_fix_v1.md): CD against each other classical arm, one stage.
+
+Per rung and arm: latency, queue share, exchange per task and exchange share of latency (median over topologies of
+per-topology means over windows). Against CD: the paired % per topology (median over windows of
+100 * (arm / CD - 1) on averageElapsedTime), the median over topologies, an exact two-sided Wilcoxon over
+topologies (as kpa_scaleout_v1_read.py), Holm within the stage.
+
+Family = {selfpredict, locality, batched} x rungs. Knative (`reactive`) is context only: reported with its paired %
+and unadjusted p, outside the Holm family. A run that failed drops out of that arm's paired tests only; the
+sensitivity block re-reads with every topology that has a remaining failure excluded for every arm.
+
+Exchange share by access-class pair (for the W3 stage): the summed exchange seconds of each unordered class pair of
+the two servers (`wired+wired`, `wifi+wired`, `cellular+wifi`, ...) over the summed latency seconds of the rung's
+tasks, pooled over topologies and windows. Present only when the summaries carry `peerExchangeByAccessClass`
+(topologies with `network.backbone.access_classes`); on uniform links it is reported as unavailable, not zero.
+
+  workload_fix_v1_read.py --gate-dir <dir> --selected <selected.json> --rungs lo,hi [--out read.json]
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import statistics as st
+from typing import Any, Dict, List, Sequence, Tuple
+
+from scipy.stats import wilcoxon
+
+ARMS = ("reactive", "selfpredict", "locality", "batched", "cd")
+FAMILY = ("selfpredict", "locality", "batched")
+WINDOWS = ("g0", "g1", "g2", "g3")
+
+
+def holm(ps: Sequence[float]) -> List[float]:
+    order = sorted(range(len(ps)), key=lambda i: ps[i])
+    adj, run = [0.0] * len(ps), 0.0
+    for rank, i in enumerate(order):
+        run = max(run, min(1.0, (len(ps) - rank) * ps[i]))
+        adj[i] = run
+    return adj
+
+
+def load(gate_dir: str) -> Tuple[Dict[Tuple[int, str, str], dict], Dict[Tuple[int, str, str], dict]]:
+    """(summaries, failures) keyed (topology, window label, arm kind)."""
+    def key(arm: str) -> Tuple[int, str, str]:
+        cell, window, kind = arm.split("__")
+        return int(cell[len("cc40s"):]), window, kind.rsplit("_s", 1)[0]
+
+    ok = {key(json.load(open(f))["arm"]): json.load(open(f)) for f in glob.glob(os.path.join(gate_dir, "*.summary.json"))}
+    bad = {key(json.load(open(f))["arm"]): json.load(open(f)) for f in glob.glob(os.path.join(gate_dir, "*.failed.json"))}
+    return ok, bad
+
+
+def exchange_share_by_class(rows: Sequence[dict]) -> Dict[str, Any]:
+    with_classes = [r for r in rows if r.get("peerExchangeByAccessClass") is not None]
+    if not with_classes:
+        return {"available": False, "reason": "no access classes on these topologies (uniform links)"}
+    latency_s = sum(r["num_tasks"] * r["averageElapsedTime"] for r in with_classes)
+    pairs: Dict[str, Dict[str, float]] = {}
+    for r in with_classes:
+        for pair, v in r["peerExchangeByAccessClass"].items():
+            slot = pairs.setdefault(pair, {"seconds": 0.0, "transfers": 0})
+            slot["seconds"] += v["seconds"]
+            slot["transfers"] += v["transfers"]
+    return {"available": True, "n_runs": len(with_classes), "latency_seconds": latency_s,
+            "by_pair": {p: {**v, "share_of_latency": v["seconds"] / latency_s} for p, v in sorted(pairs.items())}}
+
+
+def compute(ok: dict, bad: dict, topos: Sequence[int], rungs: Sequence[str], excluded: Sequence[int] = ()) -> dict:
+    topos = [t for t in topos if t not in set(excluded)]
+    out: Dict[str, Any] = {}
+    tests: List[Tuple[str, str]] = []
+    for rung in rungs:
+        ws = [f"{w}{rung}" for w in WINDOWS]
+        rows: Dict[str, Any] = {}
+        for arm in ARMS:
+            lat, qs, ex, exs, cold, runs = [], [], [], [], [], []
+            for t in topos:
+                rs = [ok[(t, w, arm)] for w in ws if (t, w, arm) in ok]
+                if not rs:
+                    continue
+                runs += rs
+                lat.append(st.mean(r["averageElapsedTime"] for r in rs))
+                qs.append(st.mean(r["queue_share"] for r in rs))
+                ex.append(st.mean(r["totalPeerExchangeTime"] / r["num_tasks"] for r in rs))
+                exs.append(st.mean(r["totalPeerExchangeTime"] / r["num_tasks"] / r["averageElapsedTime"] for r in rs))
+                cold.append(st.mean(r["cold_start_pct"] for r in rs if r.get("cold_start_pct") is not None) if any(
+                    r.get("cold_start_pct") is not None for r in rs) else None)
+            row: Dict[str, Any] = {
+                "n_topologies": len(lat), "n_runs": len(runs),
+                "n_failed": sum(1 for t in topos for w in ws if (t, w, arm) in bad),
+                "lat": st.median(lat) if lat else None, "qshare": st.median(qs) if qs else None,
+                "exch_per_task": st.median(ex) if ex else None, "exch_share": st.median(exs) if exs else None,
+                "cold_start_pct": st.median([c for c in cold if c is not None]) if any(c is not None for c in cold) else None,
+                "exchange_by_access_class": exchange_share_by_class(runs),
+            }
+            if arm != "cd":
+                pc = []
+                for t in topos:
+                    p = [100 * (ok[(t, w, arm)]["averageElapsedTime"] / ok[(t, w, "cd")]["averageElapsedTime"] - 1)
+                         for w in ws if (t, w, arm) in ok and (t, w, "cd") in ok]
+                    if p:
+                        pc.append(st.median(p))
+                if pc:
+                    row.update(vs_cd=st.median(pc), faster=sum(x < 0 for x in pc), n_pc=len(pc),
+                               p=float(wilcoxon(pc).pvalue) if any(pc) else 1.0)
+                    if arm in FAMILY:
+                        tests.append((rung, arm))
+            rows[arm] = row
+        lats = {a: r["lat"] for a, r in rows.items() if r["lat"] is not None}
+        rows["_cd_first"] = bool(lats) and min(lats, key=lats.get) == "cd"
+        out[rung] = rows
+    adj = holm([out[r][a]["p"] for r, a in tests])
+    for (r, a), pa in zip(tests, adj):
+        row = out[r][a]
+        row["p_holm"] = pa
+        row["label"] = ("CONFIRMED" if row["vs_cd"] <= -5 and pa < 0.05 else
+                        "CD-FASTER" if row["vs_cd"] > 0 and pa < 0.05 else
+                        "DIRECTION" if pa < 0.05 else "NOT-SEPARATED")
+    out["_meta"] = {"family": list(FAMILY), "family_size": len(tests), "context_only": ["reactive"],
+                    "topologies": list(topos), "excluded": sorted(excluded)}
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gate-dir", required=True)
+    ap.add_argument("--selected", required=True)
+    ap.add_argument("--rungs", required=True, help="comma-separated rung tags, as in WF1_RUNGS")
+    ap.add_argument("--out")
+    a = ap.parse_args()
+    topos = json.load(open(a.selected))["topologies"]
+    rungs = [r for r in a.rungs.split(",") if r]
+    ok, bad = load(a.gate_dir)
+    result = compute(ok, bad, topos, rungs)
+    failing = sorted({t for (t, w, k) in bad if t in topos})
+    result["_sensitivity_excluding_failed_topologies"] = compute(ok, bad, topos, rungs, failing) if failing else None
+    if a.out:
+        with open(a.out, "w") as fh:
+            json.dump(result, fh, indent=1)
+    for rung in rungs:
+        print(f"== {rung}  (CD first: {result[rung]['_cd_first']})")
+        for arm in ARMS:
+            r = result[rung][arm]
+            vs = (f"vs CD {r['vs_cd']:+6.1f}% ({r['faster']}/{r['n_pc']} faster, p {r['p']:.2g}"
+                  + (f", Holm {r['p_holm']:.2g}, {r['label']})" if "p_holm" in r else ", context)")) if "vs_cd" in r else ""
+            print(f"  {arm:12s} n={r['n_topologies']:2d} fail={r['n_failed']:2d} lat {r['lat'] or float('nan'):7.2f} "
+                  f"q {r['qshare'] or float('nan'):.2f} exch/task {r['exch_per_task'] or float('nan'):.2f}s "
+                  f"({100 * (r['exch_share'] or 0):.1f}% of latency) {vs}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

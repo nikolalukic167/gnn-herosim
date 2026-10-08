@@ -1,0 +1,194 @@
+"""workload_fix_v1 run tooling: input builder, class-split exchange telemetry, the stage reader."""
+import json
+import os
+import sys
+from pathlib import Path
+
+import pytest
+import simpy
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts_cosim"))
+import workload_fix_v1_build as B  # noqa: E402
+import workload_fix_v1_read as R  # noqa: E402
+
+from src.placement.network_fabric import NetworkFabric  # noqa: E402
+
+
+def _window(i, n=40):
+    events = [{"timestamp": 10.0 * k + (0.001 * (k % 4)), "peer_group": k // 4, "node_name": f"client_node{(k * 3) % 7}",
+               "application": {"name": "nofs-dnn1"}} for k in range(n)]
+    pairs = [[a, a + 1, 1e8 + a] for a in range(0, n - 1, 2)]
+    return {"rps": 1, "duration": 1, "events": events, "peer_exchange": pairs,
+            "grounded_workload_v1": {"seed": 7400 + i}}
+
+
+@pytest.fixture()
+def x1(tmp_path):
+    d = tmp_path / "x1"
+    d.mkdir()
+    for i, name in enumerate(B.WINDOWS):
+        (d / name).write_text(json.dumps(_window(i)))
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    (cfg / "cc40s9601.json").write_text(json.dumps({"scheduler": {"batch_timeout": 16.0}}))
+    return d, cfg
+
+
+def _build(tmp_path, x1_dir, cfg, sampler, factor=0.5, tag="a"):
+    out = tmp_path / f"out_{sampler}"
+    seeds = B.apply_sampler(x1_dir, out / "_x1_windows", sampler)
+    assert set(seeds.values()) == {7400, 7401, 7402, 7403}
+    return B.build_rung(out / "_x1_windows", cfg, out, tag, factor, [9601])
+
+
+def test_builder_changes_payloads_and_rate_only(tmp_path, x1):
+    d, cfg = x1
+    legacy = _build(tmp_path, d, cfg, "legacy")
+    new = _build(tmp_path, d, cfg, "wf1_v1")
+    for name in B.WINDOWS:
+        a, b = json.loads((legacy / "wl" / name).read_text()), json.loads((new / "wl" / name).read_text())
+        assert a["events"] == b["events"]
+        assert [p[:2] for p in a["peer_exchange"]] == [p[:2] for p in b["peer_exchange"]]
+        assert [p[2] for p in a["peer_exchange"]] != [p[2] for p in b["peer_exchange"]]
+        assert b["workload_fix_v1"]["sampler"] == "wf1_v1" and "workload_fix_v1" not in a
+        ts = [e["timestamp"] for e in a["events"]]
+        assert ts[1] == pytest.approx(10.0 * 0.5 + 0.001 * 0.5)  # factor scales every timestamp
+        assert len({e["node_name"] for e in a["events"] if e["peer_group"] == 0}) == 1  # single origin
+    cfg_new = json.loads((new / "cfg" / "cc40s9601.json").read_text())
+    assert cfg_new["scheduler"]["batch_timeout"] == 8.0 and cfg_new["cd_gap_v1_rate_scale"]["factor"] == 0.5
+
+
+def test_legacy_build_is_deterministic_and_verifiable(tmp_path, x1):
+    d, cfg = x1
+    first = _build(tmp_path, d, cfg, "legacy")
+    second_out = tmp_path / "again"
+    B.apply_sampler(d, second_out / "_x1_windows", "legacy")
+    second = B.build_rung(second_out / "_x1_windows", cfg, second_out, "a", 0.5, [9601])
+    assert all(r["identical"] for r in B.verify_against(first, second / "wl").values())
+
+
+def test_a_built_rung_is_frozen(tmp_path, x1):
+    d, cfg = x1
+    _build(tmp_path, d, cfg, "legacy")
+    with pytest.raises(SystemExit, match="frozen"):
+        B.build_rung(tmp_path / "out_legacy" / "_x1_windows", cfg, tmp_path / "out_legacy", "a", 0.5, [9601])
+
+
+def test_fabric_records_exchange_by_class_pair():
+    lt = {"links": {"core0|n0": {"latency": 0.01, "bandwidth_mbps": 100.0}, "core0|n1": {"latency": 0.01, "bandwidth_mbps": 100.0}},
+          "routes": {"n0": {"n1": ["n0", "core0", "n1"]}},
+          "access_classes": {"n0": {"class": "wired"}, "n1": {"class": "cellular"}}}
+    fabric = NetworkFabric(simpy.Environment(), lt)
+    fabric.record_exchange("n0", "n1", 2.0)
+    fabric.record_exchange("n1", "n0", 3.0)
+    assert fabric.exchange_by_class == {"cellular+wired": {"seconds": 5.0, "transfers": 2}}
+    plain = NetworkFabric(simpy.Environment(), {k: v for k, v in lt.items() if k != "access_classes"})
+    assert plain.access_classes == {} and plain.exchange_by_class == {}
+
+
+def _row(topo, window, arm, lat, q=0.1, ex=1.0, classes=None):
+    r = {"arm": f"cc40s{topo}__{window}__{arm}_s0", "num_tasks": 100, "averageElapsedTime": lat, "queue_share": q,
+         "totalPeerExchangeTime": ex * 100, "cold_start_pct": 5.0}
+    if classes is not None:
+        r["peerExchangeByAccessClass"] = classes
+    return r
+
+
+def _store(arms, topos, windows, classes=None):
+    ok = {}
+    for t in topos:
+        for w in windows:
+            for arm, lat in arms.items():
+                ok[(t, w, arm)] = _row(t, w, arm, lat, classes=classes)
+    return ok
+
+
+def test_reader_pairs_on_topology_and_holm_within_family():
+    topos = list(range(1, 11))
+    ok = _store({"cd": 1.0, "selfpredict": 1.1, "locality": 1.2, "batched": 1.3, "reactive": 2.0}, topos,
+                [f"{w}lo" for w in R.WINDOWS])
+    res = R.compute(ok, {}, topos, ["lo"])
+    assert res["lo"]["_cd_first"] is True
+    assert res["lo"]["selfpredict"]["vs_cd"] == pytest.approx(10.0)
+    assert res["lo"]["selfpredict"]["label"] == "CD-FASTER" and res["lo"]["selfpredict"]["faster"] == 0
+    assert "p_holm" not in res["lo"]["reactive"]  # context only, outside the family
+    assert res["_meta"]["family_size"] == 3
+
+
+def test_reader_failure_drops_only_that_arms_cell_and_sensitivity_excludes_topology():
+    topos = [1, 2, 3, 4, 5, 6]
+    ok = _store({"cd": 1.0, "selfpredict": 1.1, "locality": 1.2, "batched": 1.3, "reactive": 2.0}, topos,
+                [f"{w}lo" for w in R.WINDOWS])
+    for w in R.WINDOWS:
+        del ok[(6, f"{w}lo", "reactive")]
+    bad = {(6, f"{w}lo", "reactive"): {} for w in R.WINDOWS}
+    res = R.compute(ok, bad, topos, ["lo"])
+    assert res["lo"]["reactive"]["n_failed"] == 4 and res["lo"]["reactive"]["n_topologies"] == 5
+    assert res["lo"]["cd"]["n_topologies"] == 6
+    sens = R.compute(ok, bad, topos, ["lo"], excluded=[6])
+    assert sens["lo"]["cd"]["n_topologies"] == 5
+
+
+def test_reader_exchange_split_by_access_class():
+    classes = {"wired+wired": {"seconds": 5.0, "transfers": 10}, "cellular+wired": {"seconds": 45.0, "transfers": 4}}
+    ok = _store({"cd": 1.0}, [1, 2], ["g0lo"], classes=classes)
+    split = R.compute(ok, {}, [1, 2], ["lo"])["lo"]["cd"]["exchange_by_access_class"]
+    assert split["available"] and split["latency_seconds"] == pytest.approx(2 * 100 * 1.0)
+    assert split["by_pair"]["wired+wired"]["share_of_latency"] == pytest.approx(10.0 / 200.0)
+    assert split["by_pair"]["cellular+wired"]["share_of_latency"] == pytest.approx(90.0 / 200.0)
+    plain = R.compute(_store({"cd": 1.0}, [1], ["g0lo"]), {}, [1], ["lo"])["lo"]["cd"]["exchange_by_access_class"]
+    assert plain["available"] is False
+
+
+def test_driver_refuses_a_non_r1_environment(monkeypatch):
+    monkeypatch.setenv("WF1_RUNGS", "a")
+    import importlib
+    import fresh_topo_burst_v1_gate as G
+    importlib.reload(G)
+    for k in ("HEROSIM_TRANSFER_MODEL", "HEROSIM_REPLICA_RELEASE", "HEROSIM_SCALEOUT", "GATE_FIXED_POLICY_TIME_SCALE"):
+        monkeypatch.delenv(k, raising=False)
+    with pytest.raises(SystemExit, match="R1"):
+        G.tasks_for("wf1cal", None)
+    monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
+    monkeypatch.setenv("HEROSIM_REPLICA_RELEASE", "1")
+    monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
+    monkeypatch.setenv("GATE_FIXED_POLICY_TIME_SCALE", "1.0")
+    monkeypatch.setenv("WF1_TOPOS", "9601,9602")
+    cal = G.tasks_for("wf1cal", None)
+    assert {t["kind"] for t in cal} == {"cd"} and len(cal) == 4 and {t["window"] for t in cal} == {"g0a", "g1a"}
+    full = G.tasks_for("wf1", {"topologies": [1, 2]})
+    assert len(full) == 5 * 2 * 4  # five rules x topologies x four windows at one rung
+    monkeypatch.delenv("WF1_RUNGS")
+    importlib.reload(G)
+
+
+def test_bisection_finds_the_multiplier_and_stops_at_eight_steps():
+    import math
+
+    import workload_fix_v1_bisect as X
+
+    calls = []
+
+    def share(m):
+        calls.append(m)
+        return 0.1 + 0.076 * math.log(m)
+
+    r = X.search(0.3, share, 0.5, 24.0, 8)
+    assert r["status"] == "BRACKETED" and len(r["steps"]) == 8
+    assert abs(r["closest"]["share"] - 0.3) < 0.02
+    assert r["steps"][0]["m"] == 0.5 and r["steps"][1]["m"] == 24.0 and r["steps"][2]["m"] == X.next_multiplier(0.5, 24.0)
+
+
+def test_bisection_reports_an_unbracketed_target_and_treats_failed_cells_as_overload():
+    import math
+
+    import workload_fix_v1_bisect as X
+
+    flat = X.search(0.3, lambda m: 0.05, 0.5, 24.0, 8)
+    assert flat["status"] == "UNBRACKETED-HIGH" and len(flat["steps"]) == 2
+    low = X.search(0.1, lambda m: 0.2, 0.5, 24.0, 8)
+    assert low["status"] == "UNBRACKETED-LOW"
+    hang = X.search(0.3, lambda m: 0.1 if m < 6 else math.inf, 0.5, 24.0, 8)
+    assert hang["status"] == "BRACKETED" and hang["bracket"][1] <= 6.5
+    assert X.tag_for(1.4142) == "m1p4142"

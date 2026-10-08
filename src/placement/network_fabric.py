@@ -224,6 +224,12 @@ class NetworkFabric:
         self._link_topology = link_topology
         # Telemetry, mirroring Node.ingress_wait_total.
         self.link_wait_total: float = 0.0
+        # workload_fix_v1 W3: per-node access class, and peer-exchange seconds by the classes of the two servers.
+        # Empty on every topology without `access_classes`, which then records nothing.
+        self.access_classes: Dict[str, str] = {
+            name: str(spec["class"]) for name, spec in (link_topology.get("access_classes") or {}).items()
+        }
+        self.exchange_by_class: Dict[str, Dict[str, float]] = {}
 
     @property
     def link_topology(self) -> Mapping[str, Any]:
@@ -249,6 +255,13 @@ class NetworkFabric:
             )
             hops.append((key, bandwidth))
         return hops
+
+    def record_exchange(self, node_a: str, node_b: str, seconds: float) -> None:
+        """Add one peer exchange to its unordered class pair, e.g. ``cellular+wired``."""
+        pair = "+".join(sorted((self.access_classes[node_a], self.access_classes[node_b])))
+        slot = self.exchange_by_class.setdefault(pair, {"seconds": 0.0, "transfers": 0})
+        slot["seconds"] += float(seconds)
+        slot["transfers"] += 1
 
     def has_route(self, src: str, dst: str) -> bool:
         try:

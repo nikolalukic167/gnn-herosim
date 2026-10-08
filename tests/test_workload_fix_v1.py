@@ -165,6 +165,14 @@ def test_wf1_mint_changes_payloads_only(merge_k):
     assert again == new
 
 
+@pytest.mark.parametrize("merge_k", [1, 3])
+def test_minting_wf1_equals_resampling_the_legacy_file(merge_k):
+    lib, base = _lib_base()
+    old, _ = M.mint(lib, base, seed=5, n_tasks=100, merge_k=merge_k)
+    new, _ = M.mint(lib, base, seed=5, n_tasks=100, merge_k=merge_k, payload_sampler="wf1_v1")
+    assert new["peer_exchange"] == WP.resample_peer_exchange(old["peer_exchange"], seed=5)
+
+
 def test_resample_peer_exchange_keeps_structure():
     pairs = [[0, 1, 5.0], [1, 2, 6.0], [0, 2, 7.0]]
     out = WP.resample_peer_exchange(pairs, seed=4)

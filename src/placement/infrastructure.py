@@ -1271,8 +1271,12 @@ class Platform:
             if _AUDIT is not None:
                 self._audit_payload("peer", task, peer_node_name, payload, self.peer_link_latency(
                     peer_node_name, context=f"peer {peer_id} of task {task.id}"))
-            total += self._payload_transfer_time(peer_node_name, payload) + self.peer_link_latency(
+            term = self._payload_transfer_time(peer_node_name, payload) + self.peer_link_latency(
                 peer_node_name, context=f"peer {peer_id} of task {task.id}")
+            total += term
+            fabric = getattr(self.node, "fabric", None)
+            if fabric is not None and fabric.access_classes:
+                fabric.record_exchange(peer_node_name, self.node.node_name, term)
         return total
 
     def _audit_payload(self, kind: str, task: "Task", src_node_name: str, payload: float, latency: float) -> None:
