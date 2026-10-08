@@ -298,8 +298,8 @@ def partial_state_mlp_layout(contract: Optional[str] = None):
     c = resolve_partial_state_contract(contract)
     if c in KRANK_ONEHOT_CONTRACTS:
         return DIM63CRK_FEATURE_DIM, DIM63CRK_FEATURE_COLUMN_NAMES, "dim63crk"
-    if c == PARTIAL_STATE_CONTRACT_V4:
-        raise ValueError("partial_state_v4 has no MLP layout (dim47crk is the v3 width)")
+    if c in LOAD_SECONDS_CONTRACTS:
+        raise ValueError(f"{c} has no MLP layout (dim47crk is the v3 width)")
     return DIM47CRK_FEATURE_DIM, DIM47CRK_FEATURE_COLUMN_NAMES, "dim47crk"
 _PARTIAL_STATE_EPS = 1e-12  # the scorer's feasibility EPS, kept in agreement
 
@@ -326,13 +326,32 @@ PARTIAL_STATE_CONTRACT_V3 = "partial_state_v3"
 # $PARTIAL_STATE_LOAD_SECONDS=0 zeroes all three (the disabled twin); recorded in the sidecar.
 PARTIAL_STATE_CONTRACT_V4 = "partial_state_v4"
 LOAD_SECONDS_DIM = 3
+# partial_state_v5 (2026-10-09, docs/lineages/r1_attribution_v1.md): v4's 25 columns, with the exchange priced in the
+# direction the simulator charges it, plus the other direction. On W3 topologies (directional access links) a transfer
+# peer->candidate and candidate->peer run at different bandwidths (cellular: 4 MB/s out, 75 in). A task is charged the
+# PULL from each peer at its own input stage (Platform._peer_exchange_time: fabric.hops(peer_node, self_node)); the
+# PUSH candidate->peer is what its partner pays at the partner's input stage. v4 read the push direction for the
+# first and omitted the pull. v5:
+#   7, 8   log1p seconds of the committed-peer exchange and the peer-mass lookahead, PULL direction (always seconds)
+#   23     committed batch-mates' service, each mate's transfer priced PULL (as the platform charges it)
+#   25, 26 log1p seconds of the committed-peer exchange and the peer-mass lookahead, PUSH direction
+# Every other column is v4's byte for byte; on uniform links pull == push and 25-26 repeat 7-8.
+# The four-type widening of the legacy task / platform blocks (FOUR_TYPE_CONTRACTS) rides the same version.
+PARTIAL_STATE_CONTRACT_V5 = "partial_state_v5"
+EXCHANGE_PUSH_DIM = 2
 VALID_PARTIAL_STATE_CONTRACTS = frozenset(
     {PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
-     PARTIAL_STATE_CONTRACT_V4}
+     PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5}
 )
 # Contracts whose columns 7-9 carry the peer block (and that therefore need a peer corpus).
 PEER_BLOCK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
-                                  PARTIAL_STATE_CONTRACT_V4})
+                                  PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5})
+# Contracts that carry the three load columns (and need backlog_s / service_s).
+LOAD_SECONDS_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5})
+# Contracts that price the exchange pull peer->candidate and add the push columns.
+BOTH_DIRECTION_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5})
+# Contracts whose legacy task block and platform replica flags cover all four task types.
+FOUR_TYPE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5})
 # Contracts whose krank block is the fixed-width one-hot; only these pad (and raise).
 KRANK_ONEHOT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2})
 
@@ -344,9 +363,10 @@ def krank_feature_dim(contract: Optional[str] = None) -> int:
 
 
 def partial_state_feature_dim(contract: Optional[str] = None) -> int:
-    """Width of the whole partial-state block under a contract: 38 for v1/v2, 22 for v3, 25 for v4."""
+    """Width of the whole partial-state block under a contract: 38 for v1/v2, 22 for v3, 25 for v4, 27 for v5."""
     c = resolve_partial_state_contract(contract)
-    extra = LOAD_SECONDS_DIM if c == PARTIAL_STATE_CONTRACT_V4 else 0
+    extra = LOAD_SECONDS_DIM if c in LOAD_SECONDS_CONTRACTS else 0
+    extra += EXCHANGE_PUSH_DIM if c in BOTH_DIRECTION_CONTRACTS else 0
     return PARTIAL_STATE_BASE_DIM + krank_feature_dim(contract) + LINKRANK_FEATURE_DIM + extra
 PARTIAL_STATE_PEER_MASS_ENV = "PARTIAL_STATE_PEER_MASS"
 PARTIAL_STATE_LOAD_SECONDS_ENV = "PARTIAL_STATE_LOAD_SECONDS"
@@ -510,6 +530,9 @@ class PartialStateContext:
         self.service_s = dict(service_s or {})
         self.load_seconds = load_seconds_enabled()
         self.exchange_seconds = exchange_seconds_enabled()
+        self.both_directions = resolve_partial_state_contract(contract) in BOTH_DIRECTION_CONTRACTS
+        if self.both_directions:
+            self.exchange_seconds = True  # v5 always carries seconds; the env switch is a v4 option
         self.peer_pairs = dict(peer_pairs or {})
         self.node_exchange = dict(node_exchange or {})
         self.peer_norm = float(peer_norm)
@@ -530,12 +553,12 @@ class PartialStateContext:
             if any(parents.get(t) for t in parents):
                 raise ValueError(f"{self.contract} cannot be used on a corpus with DAG edges: "
                                  "columns 7-9 carry the peer block there")
-        if self.exchange_seconds and self.contract != PARTIAL_STATE_CONTRACT_V4:
+        if self.exchange_seconds and self.contract not in LOAD_SECONDS_CONTRACTS:
             raise ValueError(f"{PARTIAL_STATE_EXCHANGE_SECONDS_ENV}=1 is defined only under "
-                             f"{PARTIAL_STATE_CONTRACT_V4}, not {self.contract}")
-        if self.contract == PARTIAL_STATE_CONTRACT_V4 and (backlog_s is None or service_s is None):
-            raise ValueError("partial_state_v4 needs backlog_s and service_s (a v4 cache or a v4 "
-                             "live prefix block); refusing to serve the load columns as zeros")
+                             f"{PARTIAL_STATE_CONTRACT_V4} or {PARTIAL_STATE_CONTRACT_V5}, not {self.contract}")
+        if self.contract in LOAD_SECONDS_CONTRACTS and (backlog_s is None or service_s is None):
+            raise ValueError(f"{self.contract} needs backlog_s and service_s (a {self.contract} cache or a live "
+                             "prefix block); refusing to serve the load columns as zeros")
         # peer_affinity_v1 stage 3 (2026-09-11): standing load already on a node when the
         # decode starts. The cache builder and every offline read leave this empty, so the
         # committed prefix is the only load -- byte-identical to before. A LIVE decode may
@@ -610,7 +633,14 @@ def partial_state_columns(
 
     load_base = linkrank_base + LINKRANK_FEATURE_DIM
     committed_s: Dict[Any, float] = {}
-    if ctx.contract == PARTIAL_STATE_CONTRACT_V4 and ctx.load_seconds:
+    both = ctx.both_directions
+
+    def _xchg(frm, to, b):
+        """Seconds of moving `b` bytes frm -> to (node_exchange is keyed by traversal direction)."""
+        pb, lat = ctx.node_exchange[(frm, to)]
+        return b * pb + (lat if pb > 0.0 else 0.0)
+
+    if ctx.contract in LOAD_SECONDS_CONTRACTS and ctx.load_seconds:
         # a committed batch-mate's service on its replica is what the platform will charge it:
         # execution + storage I/O (service_s) plus the peer transfer it pays to every committed
         # partner on another node -- the CD greedy's `exec + comm + exch`, and the per-task charge
@@ -623,8 +653,11 @@ def partial_state_columns(
                 b = ctx.peer_pairs.get((t, j))
                 if b is None or j == t:
                     continue
-                pb, lat = ctx.node_exchange[(node_t, ctx.node_of[cand_j])]
-                exch += b * pb + (lat if pb > 0.0 else 0.0)
+                if both:
+                    exch += _xchg(ctx.node_of[cand_j], node_t, b)  # t pulls from j
+                else:
+                    pb, lat = ctx.node_exchange[(node_t, ctx.node_of[cand_j])]
+                    exch += b * pb + (lat if pb > 0.0 else 0.0)
             committed_s[key] = committed_s.get(key, 0.0) + float(ctx.service_s[(t, key)]) + exch
 
     for i, cand in enumerate(candidates):
@@ -649,12 +682,18 @@ def partial_state_columns(
         if ctx.contract in PEER_BLOCK_CONTRACTS:
             committed_x = 0.0
             mass = 0.0
+            push_x = 0.0
+            push_mass = 0.0
             for j, cand_j in committed.items():
                 b = ctx.peer_pairs.get((task_id, j))
                 if b is None:
                     continue
-                pb, lat = ctx.node_exchange[(node, ctx.node_of[cand_j])]
-                committed_x += b * pb + (lat if pb > 0.0 else 0.0)
+                if both:
+                    committed_x += _xchg(ctx.node_of[cand_j], node, b)
+                    push_x += _xchg(node, ctx.node_of[cand_j], b)
+                else:
+                    pb, lat = ctx.node_exchange[(node, ctx.node_of[cand_j])]
+                    committed_x += b * pb + (lat if pb > 0.0 else 0.0)
             if ctx.peer_mass:
                 for (i_, j), b in ctx.peer_pairs.items():
                     if i_ != task_id or j in committed or j == task_id:
@@ -663,10 +702,19 @@ def partial_state_columns(
                     if not nodes_j:
                         continue
                     acc = 0.0
+                    acc_push = 0.0
                     for nj in nodes_j:
-                        pb, lat = ctx.node_exchange[(node, nj)]
-                        acc += b * pb + (lat if pb > 0.0 else 0.0)
+                        if both:
+                            acc += _xchg(nj, node, b)
+                            acc_push += _xchg(node, nj, b)
+                        else:
+                            pb, lat = ctx.node_exchange[(node, nj)]
+                            acc += b * pb + (lat if pb > 0.0 else 0.0)
                     mass += acc / len(nodes_j)
+                    push_mass += acc_push / len(nodes_j)
+            if both:
+                out[i, load_base + LOAD_SECONDS_DIM + 0] = _math.log1p(push_x)
+                out[i, load_base + LOAD_SECONDS_DIM + 1] = _math.log1p(push_mass)
             if ctx.exchange_seconds:
                 out[i, 7] = _math.log1p(committed_x)
                 out[i, 8] = _math.log1p(mass)
@@ -724,7 +772,7 @@ def partial_state_columns(
                 out[i, base + 2] = float(max(c + 1 for c in core))
                 out[i, base + 3] = float(sum(1 for c in core if c >= 1))
 
-        if ctx.contract == PARTIAL_STATE_CONTRACT_V4 and ctx.load_seconds:
+        if ctx.contract in LOAD_SECONDS_CONTRACTS and ctx.load_seconds:
             key = tuple(cand) if isinstance(cand, list) else cand
             if key not in ctx.backlog_s:
                 raise ValueError(f"partial_state_columns: no backlog for candidate {key!r}")

@@ -782,11 +782,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         under any other contract, so every pre-v4 checkpoint serves exactly as before."""
         from src.placement.live_audit import candidate_backlog_seconds
         from src.policy.tabular.reduced_features import (
-            PARTIAL_STATE_CONTRACT_V4,
+            LOAD_SECONDS_CONTRACTS,
             resolve_partial_state_contract,
         )
 
-        if resolve_partial_state_contract() != PARTIAL_STATE_CONTRACT_V4:
+        if resolve_partial_state_contract() not in LOAD_SECONDS_CONTRACTS:
             return None
         replica_by_key = {
             (int(node.id), int(platform.id)): (node, platform)
@@ -801,7 +801,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 if key in out:
                     continue
                 if key not in replica_by_key:
-                    raise RuntimeError(f"partial_state_v4: candidate {key} is not a live replica")
+                    raise RuntimeError(f"{resolve_partial_state_contract()}: candidate {key} is not a live replica")
                 node, platform = replica_by_key[key]
                 out[key] = candidate_backlog_seconds(self, node, platform, memo)
         self.v4_backlog_batches += 1
