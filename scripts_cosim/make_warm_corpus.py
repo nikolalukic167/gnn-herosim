@@ -67,6 +67,9 @@ REQUIRED_ENV = {"HEROSIM_PEER_EXCHANGE": "1"}
 WARM_SNAPSHOT_FILE = "warm_snapshot.json"
 
 
+SINGLE_NODE_REASON = "single_candidate_node"
+
+
 class SnapshotRejected(ValueError):
     """The snapshot cannot become a dataset; the message says why (recorded, never hidden)."""
 
@@ -379,6 +382,16 @@ def choose_candidates(
     return subset, record
 
 
+def candidate_nodes(snapshot: Dict[str, Any], subset: Dict[str, Set[str]]) -> Set[str]:
+    """Physical nodes holding any candidate the sweep offers a batch task (the snapshot's own queue keys are
+    ``<node>:<platform_id>``)."""
+    nodes: Set[str] = set()
+    for t in snapshot["tasks"]:
+        offered = subset.get(str(t["task_type"]), set())
+        nodes.update(str(c["queue_key"]).rsplit(":", 1)[0] for c in t.get("candidates", []) if c["queue_key"] in offered)
+    return nodes
+
+
 def flag_candidates(snapshot: Dict[str, Any], subset: Dict[str, Set[str]]) -> Dict[str, Any]:
     """A copy of the snapshot whose replicas_by_type specs carry `candidate`, and whose
     task candidate lists are restricted to the chosen subset (so build_live_snapshot_seed
@@ -601,6 +614,11 @@ def main() -> int:
                 demands=None if args.no_cap_filter else demands,
                 force_keys=force_keys, min_choice_fraction=args.min_choice_fraction,
             )
+            nodes = candidate_nodes(snap, subset)
+            if len(nodes) < 2:
+                # every offered candidate sits on ONE node: no peer transfer can differ between plans, the cache's
+                # peer_norm is 0 and every peer-block contract refuses the dataset (r1_attribution_v1 B2 dry run)
+                raise SnapshotRejected(f"{SINGLE_NODE_REASON}: all offered candidates are on {sorted(nodes)}")
             flagged = flag_candidates(snap, subset)
             provenance = {
                 "source_tag": args.source_tag, "snapshot_id": sid, "snapshot_time": float(snap.get("time", 0.0)),
@@ -685,6 +703,19 @@ def main() -> int:
         idx += 1
         made += 1
     print(f"[warm] done: {made} dataset(s) in {time.time() - t0:.0f}s -> {args.output_dir}", flush=True)
+    # per-run counts, so a dry run reports the rejection rate by reason (the single-candidate-node share in particular)
+    mine = [json.loads(l) for l in open(manifest_path) if l.strip()] if manifest_path.exists() else []
+    mine = [e for e in mine if e.get("source_tag") == args.source_tag]
+    reasons: Dict[str, int] = {}
+    for e in mine:
+        if e.get("status") == "rejected":
+            key = str(e.get("reason", "")).split(":")[0]
+            reasons[key] = reasons.get(key, 0) + 1
+    summary = {"source_tag": args.source_tag, "offered": len(mine), "made": sum(1 for e in mine if e.get("status") != "rejected"),
+               "rejected": sum(reasons.values()), "rejected_by_reason": reasons,
+               "single_candidate_node": reasons.get(SINGLE_NODE_REASON, 0)}
+    (args.output_dir / f"warm_summary_{args.source_tag}.json").write_text(json.dumps(summary, indent=1))
+    print(f"[warm] {summary}", flush=True)
     return 0
 
 

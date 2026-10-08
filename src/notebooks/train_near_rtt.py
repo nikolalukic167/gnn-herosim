@@ -318,6 +318,7 @@ _required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").s
 # drainable_objective_v1: default for a cache with no metadata.json at all -- every such
 # cache predates the shaped label and is one-step "rtt" by construction.
 _cache_label_objective = "rtt"
+_cache_physics_env = None
 _metadata_path = CACHE_CTX.cache_dir / "metadata.json"
 if _metadata_path.exists():
     with open(_metadata_path, "r", encoding="utf-8") as _mf:
@@ -326,6 +327,11 @@ if _metadata_path.exists():
     # drainable_objective_v1: which label this cache's targets were built on. Absent on
     # every cache built before 2026-09-14, which are all one-step "rtt" by construction.
     _cache_label_objective = str(_cache_meta.get("label_objective") or "rtt")
+    # the physics environment the cache was built under must be this process's (placement/cache_physics.py)
+    _cache_physics_env = _cache_meta.get("physics_env")
+    from src.placement.cache_physics import require_matching_physics_env
+    from src.placement.four_type_features import four_type_enabled
+    require_matching_physics_env(_cache_physics_env, what=f"cache {CACHE_CTX.cache_dir}", require=four_type_enabled())
     # Caches older than CACHE_VERSION 5.7 predate the field and are legacy_v0 by construction.
     _queue_feature_contract = validate_queue_feature_contract(
         _cache_meta.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
@@ -2234,6 +2240,7 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # otherwise claim "rtt". Serving reads this through
                 # executesimulation.checkpoint_mp_config.
                 "label_objective": _cache_label_objective,
+                "physics_env": _cache_physics_env,
                 "tied_label_mode": (
                     "any_of_k_marginalized" if TEACHER_FORCED else None
                 ),
