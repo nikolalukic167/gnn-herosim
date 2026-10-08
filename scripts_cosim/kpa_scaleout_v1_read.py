@@ -53,10 +53,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out")
     ap.add_argument("--suffix", default="", help="appended to each gate directory name (R1.1 re-measure: _r11); default reads the published directories")
+    ap.add_argument("--conds", nargs="*", choices=sorted(CONDS), help="restrict to these conditions; Holm then runs over the restricted family, not the registered 60")
     a = ap.parse_args()
+    conds = {c: d for c, d in CONDS.items() if not a.conds or c in a.conds}
     legacy = json.load(open(B + "transfer_physics_v1/tp1_read.json"))
     out, tests = {}, []
-    for cond, d in CONDS.items():
+    for cond, d in conds.items():
         s = load(d + a.suffix)
         out[cond] = {}
         for rung in RUNGS:
@@ -108,7 +110,7 @@ def main() -> int:
     text = json.dumps(out, indent=1)
     if a.out:
         open(a.out, "w").write(text)
-    for cond in CONDS:
+    for cond in conds:
         for rung in RUNGS:
             print(f"== {cond} x{rung[0]}.{rung[1]}")
             for arm, r in out[cond][rung].items():
