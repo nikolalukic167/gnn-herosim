@@ -88,6 +88,12 @@ def jsonable(x: Any) -> Any:
     return json.loads(json.dumps(x, default=str))
 
 
+def _node_names(infra: Dict[str, Any]) -> List[str]:
+    if "nodes" in infra:
+        return [n["node_name"] for n in infra["nodes"]]
+    return sorted(infra["network_maps"])
+
+
 def compare_topology(cfg2: Dict[str, Any], cfg3: Dict[str, Any], sim_input: Path) -> Dict[str, Any]:
     seed = int(cfg2["network"]["topology"]["seed"])
     res: Dict[str, Any] = {"seed": seed}
@@ -104,7 +110,7 @@ def compare_topology(cfg2: Dict[str, Any], cfg3: Dict[str, Any], sim_input: Path
             "unexpected": bad[:20],
             "links_same_keys": sorted(links2) == sorted(links3),
             "routes_equal": (a.get("link_topology") or {}).get("routes") == (b.get("link_topology") or {}).get("routes"),
-            "node_names_equal": [n["node_name"] for n in a["nodes"]] == [n["node_name"] for n in b["nodes"]],
+            "node_names_equal": _node_names(a) == _node_names(b),
             "n_links": len(links3),
             "n_links_changed": len({e["path"].split(".links.")[1].split(".")[0] for e in entries if ".links." in e["path"]}),
             "fields_changed": sorted({e["path"].rsplit(".", 1)[1] for e in entries if ".links." in e["path"]}),
