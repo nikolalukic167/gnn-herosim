@@ -14,6 +14,14 @@ Revision 2026-10-08 (before any run): calibration now runs on the fixed workload
   fails one isn't allowed.
 - **Instrumentation first:** add an arrival-to-placement time per task (mean, p95, max) to the gate summary, behind an
   identity check on 3 cells. Without it, the guard can't attribute a pre-execution wait.
+- **Guard definitions (2026-10-08, before the bisection's data; code `rp/recal` `8286024c`, identity 4/4 cells).**
+  - **Busy fraction:** total execution time ÷ (time-mean replicas × end time).
+  - **Heavy stability:** per-task backlog = arrival-to-placement wait + queue time, by arrival quarter. The worst cell's
+    last-quarter mean must be ≤ 2× the mean of the middle two quarters, **and** tasks in the system at 3/4 of the last
+    arrival ÷ tasks in the system at 1/2 must be ≤ 2. The ratio binds only when at least 20 tasks are in the system at 1/2;
+    below that it's a ratio of small integers, so it's reported, not applied.
+  - The backlog guard replaces a queue-time-only version that would have missed the unplaced wait. The job that used it
+    (843483) was cancelled after about 10 minutes. Bisection job: 843490.
 
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
