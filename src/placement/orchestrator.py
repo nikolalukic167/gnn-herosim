@@ -154,6 +154,7 @@ class Orchestrator:
         self.trace_file = trace_file
         self.initial_event_count = len(time_series.events)
         self.system_state_results: List[SystemStateResult] = []
+        self.request_failures = 0
         
         # Set orchestrator reference on all nodes for system state capture
         for node in self.nodes.items:
@@ -435,6 +436,7 @@ class Orchestrator:
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
             **self._access_class_fields(),
+            **self._failure_fields(),
             "averageNetworkLatency": sum_network / n_tasks,
             "averageLinkWaitTime": sum_link_wait / n_tasks,
             "totalLinkWaitTime": sum_link_wait,
@@ -457,6 +459,11 @@ class Orchestrator:
         note = getattr(self.autoscaler, "kpa_note_arrival", None)
         if note is not None:
             note(task)
+
+    def _failure_fields(self) -> Dict[str, Any]:
+        """Requests that timed out on a replica (Platform._fail_task); they are in the latency at their elapsed time."""
+        from src.placement.infrastructure import REQUEST_TIMEOUT_S
+        return {"requestFailures": self.request_failures, "requestTimeoutS": REQUEST_TIMEOUT_S}
 
     def _scaleout_fields(self) -> Dict[str, Any]:
         """`scaleOut` (kpa_scaleout_v1) only when HEROSIM_SCALEOUT=kpa, so legacy stats keep their keys."""
@@ -771,6 +778,7 @@ class Orchestrator:
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
             **self._access_class_fields(),
+            **self._failure_fields(),
             "averageNetworkLatency": average_network_latency,
             "averageLinkWaitTime": sum_link_wait / num_tasks,
             "totalLinkWaitTime": sum_link_wait,

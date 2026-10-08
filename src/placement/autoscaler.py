@@ -41,6 +41,7 @@ from src.placement.scaleout import (
 )
 from src.placement.warmth import NODE_DISK_V2
 from src.placement.physics_audit import AUDIT as _AUDIT
+from src.placement.request_timeout import expire_requests
 from src.placement.model import (
     PlatformVector,
     ScaleEvent,
@@ -130,11 +131,17 @@ class Autoscaler:
         if getattr(self, "kpa", None) is not None:
             self._kpa_pending.setdefault(task.type["name"], []).append(task)
 
+    def count_starved(self, name: str, n: int = 1) -> None:
+        """Counters of the starved-task path (create_first_replica overlap, evictions, drains, releases, ...)."""
+        counters = self.__dict__.setdefault("starved_counters", {})
+        counters[name] = counters.get(name, 0) + n
+
     def scaleout_summary(self) -> Optional[Dict[str, Any]]:
         """The `scaleOut` block of a kpa run's stats; None under legacy so its stats are unchanged."""
         if getattr(self, "kpa", None) is None:
             return None
-        return {**self.kpa.config.describe(), **self.scaleout_stats}
+        return {**self.kpa.config.describe(), **self.scaleout_stats,
+                "starved": dict(sorted(self.__dict__.get("starved_counters", {}).items()))}
 
     def autoscaler_process(self):
         if getattr(self, "scaleout", None) == KPA:
@@ -153,6 +160,7 @@ class Autoscaler:
         while True:
             # Per-function scaling decision
             system_state: SystemState = yield self.mutex.get()
+            expire_requests(self.env)
             replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
 
             for function_name, function_replicas in replicas.items():
@@ -235,8 +243,11 @@ class Autoscaler:
             yield self.env.timeout(start_at - self.env.now)
         while True:
             system_state: SystemState = yield self.mutex.get()
+            expire_requests(self.env)
             replicas: Dict[str, Set[Tuple[Node, Platform]]] = system_state.replicas
 
+            if _AUDIT is not None:
+                _AUDIT.pool(self.env, system_state, self.__dict__.get("draining_platforms", ()))
             for function_name, function_replicas in replicas.items():
                 now = self.env.now
                 self.kpa.observe(
