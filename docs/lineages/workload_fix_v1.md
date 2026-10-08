@@ -1,6 +1,6 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `ACTIVE` (2026-10-08) — W2 read; W2+W3 and W2+W3+W4 cells running (not opened); CD's batching window fixed by amendment before W3 is read. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `ACTIVE` (2026-10-08) — W2 read under two batching windows; the batching arms' window is now tuned once on the calibration topologies (WB2); a starved-replica hang blocks W4. Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
 
@@ -90,6 +90,43 @@ of which arm benefits.
 
 
 ## Record (newest first)
+
+### 2026-10-08 — W2 rerun under amendment WB; amendment WB2 (tuned window); the starved-replica hang
+
+Builder `b401b656` (`--batch-timeout-fixed 16`). Arms that read `batch_timeout`: CD, batched, locality (one
+peer-group batching scheduler, `gnn/orchestrator.py`). Reactive and self-predict never read it: 48 spot-check runs
+are identical on every field. The ladder-window CD rerun (152) reproduces the first run exactly. Report:
+[`wb_report.md`](workload_fix_v1/wb_report.md), read: [`wb_read.json`](workload_fix_v1/wb_read.json). 453/456 finished; **3 hung**
+(CD and batched on 9565 ×11.61 g2, locality on 9538 ×11.61 g2). The same cells finished under the 1.4 s window.
+
+| rung | window | CD latency | batching wait | rendezvous | self-predict vs CD | locality | batched |
+|---|---|---|---|---|---|---|---|
+| ×0.2666 | 60 s (ladder) | 2.85 s | 0.70 | 1.58 | −14.9 % | +0.6 % | +0.1 % |
+| ×0.2666 | 16 s | 2.42 s | 0.15 | 1.69 | +0.2 % (not separated; CD-FASTER without the hung topologies) | +0.7 % | +0.1 % |
+| ×11.61 | 1.4 s (ladder) | 0.50 s | 0.02 | 0.04 | −6.1 % | +1.4 % | +0.9 % |
+| ×11.61 | 16 s | 1.35 s | 0.93 | 0.01 | −67 % | +0.5 % | +0.5 % |
+
+**The W2 ranking depends on the batching window, in both directions.** The 60 s window cost CD its light-rung place,
+and 16 s costs it the heavy rung. Self-predict's lead is real at the ladder's heavy window (−6.1 %, 1.4 s), the best
+window CD has had at that rung.
+
+**Amendment WB2 (coordinator, 2026-10-08, post-data, labelled; supersedes WB's value, keeps its rule).** The
+window is a hyperparameter of the batching policies, not a platform constant, and the W2 ranking turns on it. The bar
+is CD at its own best single wall-clock window. That value is chosen **once**, on the calibration topologies (9601,
+9602, 9607, 9608; never the 19 test topologies), from {1, 2, 4, 8, 16} s, at both provisional rungs, 4 windows, on
+the W2 workload. It minimises the geometric mean over the two rungs of CD's median latency; a hung run counts as
+infinite latency. The same value serves batched and locality (same scheduler) and every later stage, and any later
+learned arm that batches gets the same protocol. The W2 family is re-read with it; the 60 s and 16 s reads stay
+recorded as run.
+
+**Starved-replica hang (blocks W4; an R1 defect).** Every stuck run (W2-WB: 3; W2+W3-WB: at least 1 so far; W4: most
+of the unfinished cells, under both windows; calibration ids 9603–9606) loops in `create_first_replica()`: "No
+compatible hardware available for <type> on nodes with connectivity to <client>". It logs about 900 lines per
+simulated second while the clock creeps or stops. The static reachability check passes these topologies, so the cause
+is runtime capacity: no free eligible platform, and nothing frees one. The W4 logs reached ~45 GB and threatened the
+`/home` quota. The coordinator cancelled S7's four W4 jobs (main pass 710/760 summaries written) and cut 41 logs to
+1 MB head + tail excerpts. `physics_audit_v1`'s I7 passed because no audit cell reached this state. The W4 stage
+waits for a diagnosis and fix, and a fix to R1 code needs the audit's default-path identity check.
 
 ### 2026-10-08 — stage W2 read; calibration set; provisional rungs; amendment WB (batching window)
 
