@@ -20,8 +20,9 @@ D=/home/nikola.lukic/gnn-herosim/simulation_data
 IN=$D/client_local_v1/inputs_so_server
 # kpa_scaleout_v1: HEROSIM_SCALEOUT=kpa runs the same condition under KPA scale-out into its own directory
 export HEROSIM_SCALEOUT=${HEROSIM_SCALEOUT:-legacy}
+export HEROSIM_SHARED_AUTOSCALER=${HEROSIM_SHARED_AUTOSCALER:-0} TP1_ARMS=${TP1_ARMS:-}
 case "$HEROSIM_SCALEOUT" in
-  legacy) OUT=${OUT:-$D/transfer_physics_v1/gate_$COND} ;;
+  legacy) if [ "$HEROSIM_SHARED_AUTOSCALER" = 1 ]; then OUT=${OUT:-$D/kpa_scaleout_v1/gate_${COND}_legacy_shared}; else OUT=${OUT:-$D/transfer_physics_v1/gate_$COND}; fi ;;
   kpa) OUT=${OUT:-$D/kpa_scaleout_v1/gate_${COND}_kpa} ;;
   *) echo "FAIL LOUD: HEROSIM_SCALEOUT=$HEROSIM_SCALEOUT"; exit 1 ;;
 esac

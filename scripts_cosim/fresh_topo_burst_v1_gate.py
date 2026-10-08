@@ -267,11 +267,18 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
         if smoke:
             return [task(topos[0], "g0x20", k, 1 if k.endswith("_selfref") else 0) for k in smoke.split(",")]
         # kpa_scaleout_v1: under kpa the store-and-forward / held cell is a new condition and runs in full
-        if cond == "replay" and os.environ.get("HEROSIM_SCALEOUT", "legacy") == "legacy":
+        shared = os.environ.get("HEROSIM_SHARED_AUTOSCALER", "0") == "1"
+        if cond == "replay" and os.environ.get("HEROSIM_SCALEOUT", "legacy") == "legacy" and not shared:
             return [task(t, w, k, 0) for t in topos[:4] for w in ("g0x20", "g1x20") for k in ("cd", "batched", "reactive")]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
-        return ([task(t, w, k, 0) for k in rules for t in topos for w in tuple(GROUNDED_LADDER)]
-                + [task(t, w, "so1load_selfref", s) for s in (1, 2) for t in topos for w in tuple(GROUNDED_LADDER)])
+        # kpa_scaleout_v1 A4 control: TP1_ARMS restricts the arms (e.g. the two that changed autoscaler)
+        only = [k for k in os.environ.get("TP1_ARMS", "").split(",") if k]
+        if any(k not in rules + ("so1load_selfref",) for k in only):
+            raise SystemExit(f"FAIL LOUD: TP1_ARMS={only!r}")
+        keep = (lambda k: k in only) if only else (lambda k: True)
+        return ([task(t, w, k, 0) for k in rules if keep(k) for t in topos for w in tuple(GROUNDED_LADDER)]
+                + [task(t, w, "so1load_selfref", s) for s in (1, 2) if keep("so1load_selfref") for t in topos
+                   for w in tuple(GROUNDED_LADDER)])
     if phase == "het1":
         # hetero vs plain bipartite convs on the 19 topologies; lf1gnn / lf1twin / lf1mlp are local_features_v1's runs
         smoke = os.environ.get("HET_SMOKE", "")
@@ -603,7 +610,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     n = out.get("num_tasks")
     problems = []
     for k, default in (("HEROSIM_TRANSFER_MODEL", "store_forward"), ("HEROSIM_REPLICA_RELEASE", "0"),
-                       ("HEROSIM_SCALEOUT", "legacy")):
+                       ("HEROSIM_SCALEOUT", "legacy"), ("HEROSIM_SHARED_AUTOSCALER", "0")):
         if out["env"].get(k, default) != os.environ.get(k, default):
             problems.append(f"physics not recorded as driven: {k}={out['env'].get(k)!r}, driver {os.environ.get(k)!r}")
     # kpa_scaleout_v1: the autoscaler's own record of the rule it ran; legacy runs carry none

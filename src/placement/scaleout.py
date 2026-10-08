@@ -43,6 +43,19 @@ def scaleout_mode() -> str:
     return raw
 
 
+SHARED_AUTOSCALER_ENV = "HEROSIM_SHARED_AUTOSCALER"
+
+
+def shared_autoscaler() -> bool:
+    """kpa_scaleout_v1 A4: every arm on the GNN-family autoscaler and the shared starved-task defer. Always on under
+    kpa; HEROSIM_SHARED_AUTOSCALER=1 turns it on under legacy (the control that separates the autoscaler swap from
+    KPA). Default off under legacy, so every earlier run replays."""
+    raw = (os.environ.get(SHARED_AUTOSCALER_ENV) or "0").strip()
+    if raw not in ("0", "1"):
+        raise ValueError(f"{SHARED_AUTOSCALER_ENV}={raw!r}; expected 0 or 1")
+    return scaleout_mode() == KPA or raw == "1"
+
+
 def policy_time_scale() -> float:
     """HEROSIM_POLICY_TIME_SCALE multiplies keep_alive and the reconcile interval, so a workload whose
     timestamps were stretched by a factor keeps every policy time constant in proportion (the
