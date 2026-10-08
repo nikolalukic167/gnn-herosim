@@ -164,6 +164,9 @@ class KnativeBatchScheduler(KnativeNetworkScheduler):
                 logging.warning(
                     f"[ {self.env.now} ] Knative batch: no network-accessible replica for {task}"
                 )
+                if getattr(self, "_kpa_defer", False):
+                    yield from self._defer(task, system_state)
+                    continue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
                 yield self.env.process(
