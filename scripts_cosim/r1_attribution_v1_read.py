@@ -12,7 +12,7 @@ A cell that failed (failed.json) drops out of that arm's tests only; failures ar
 with every topology that has any remaining failure excluded for every arm (`sensitivity`). Per arm and rung it also reports the
 median effective queue share, p95 and run end over last arrival.
 
-  r1_attribution_v1_read.py --gate <dir with *.summary.json> --best-arm ra_gnn_eng --out read.json
+  r1_attribution_v1_read.py --gate <dir with *.summary.json> [<more dirs>] --best-arm ra_gnn_eng --out read.json
 """
 from __future__ import annotations
 
@@ -38,10 +38,16 @@ DESCRIPTIVE = ("cd_declared", "reactive")  # reported against CD, in no family
 CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 
 
-def load(gate: str) -> Tuple[dict, dict]:
-    """cells[(kind, seed, topo, win, rung)] = summary dict; failed[(kind, seed, topo, win, rung)] = failed.json dict."""
+def load(gate) -> Tuple[dict, dict]:
+    """cells[(kind, seed, topo, win, rung)] = summary dict; failed[(kind, seed, topo, win, rung)] = failed.json dict.
+    ``gate`` is a directory or a list of directories (classical and per-arm learned results); a cell in two of them is an error."""
     cells, failed = {}, {}
-    for f in glob.glob(os.path.join(gate, "*.summary.json")) + glob.glob(os.path.join(gate, "*.failed.json")):
+    gates = [gate] if isinstance(gate, str) else list(gate)
+    files = [f for g in gates for f in glob.glob(os.path.join(g, "*.summary.json")) + glob.glob(os.path.join(g, "*.failed.json"))]
+    names = [os.path.basename(f) for f in files]
+    if len(set(names)) != len(names):
+        raise SystemExit("FAIL LOUD: the same cell appears in two gate directories")
+    for f in files:
         base = os.path.basename(f).rsplit(".", 2)[0]
         m = NAME.match(base)
         if not m:
@@ -173,7 +179,7 @@ def families(cells: dict, topos: List[int], best_arm: Optional[str]) -> dict:
     return fam
 
 
-def read(gate: str, best_arm: Optional[str]) -> dict:
+def read(gate, best_arm: Optional[str]) -> dict:
     cells, failed = load(gate)
     topos = sorted({k[2] for k in list(cells) + list(failed)})
     expected: Dict[str, int] = {}
@@ -208,7 +214,7 @@ def print_report(r: dict) -> None:
 def main() -> int:
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `| head` ends the report quietly
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--gate", required=True)
+    ap.add_argument("--gate", nargs="+", required=True, help="one or more result directories (classical + per-arm learned)")
     ap.add_argument("--best-arm", default=None, help="the best learned arm, declared from validation topologies before any test read")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
