@@ -246,10 +246,7 @@ def capture(scheduler: Any, system_state: Any, batch_tasks: List[Any]) -> Dict[s
                     pairs.append([gid, int(other), float(payload)])
                 continue
             peer = by_id.get(other)
-            node_name = None
-            if peer is not None:
-                node_name = (peer.platform.node.node_name if getattr(peer, "platform", None) is not None
-                             else getattr(peer, "planned_node_name", None))
+            node_name = peer_node_name(peer)
             outside.append([int(other), node_name, float(payload)])
         if outside:
             peers[str(gid)] = outside
@@ -527,6 +524,20 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
         else:
             plat.inflight.append(ghost)
             env.process(_serve(plat, ghost))
+
+
+def peer_node_name(peer: Any) -> Optional[str]:
+    """Where a partner outside the snapshot runs, or None when the live rendezvous still waits on it: a partner the batch path planned
+    and then deferred (planned_node_name set, no platform, postponed) is unplaced (infrastructure.peer_is_placed), so the replay's stub
+    must wait for it as the live run did, and the corpus build rejects a batch that cannot say when (unplaced_partner)."""
+    if peer is None:
+        return None
+    platform = getattr(peer, "platform", None)
+    if platform is not None:
+        return platform.node.node_name
+    from src.placement.infrastructure import peer_is_placed
+
+    return getattr(peer, "planned_node_name", None) if peer_is_placed(peer) else None
 
 
 class PeerStub:

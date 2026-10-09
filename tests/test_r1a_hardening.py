@@ -69,3 +69,17 @@ def test_plan_combo_orders_by_task_index_then_node_platform():
 
     assert _plan_combo({"10": [1, 0], "2": [0, 3]}) == ((0, 3), (1, 0))
     assert _plan_combo({"0": [1, 0]}) > _plan_combo({"0": [0, 9]})
+
+
+def test_planned_then_deferred_partner_is_unplaced_in_the_snapshot():
+    from types import SimpleNamespace as NS
+
+    from src.placement.snapshot_fidelity import peer_node_name
+
+    node = NS(node_name="n3")
+    assert peer_node_name(None) is None
+    assert peer_node_name(NS(platform=NS(node=node), planned_node_name="n9")) == "n3"
+    assert peer_node_name(NS(platform=None, planned_node_name="n9", postponed_count=0)) == "n9"
+    assert peer_node_name(NS(platform=None, planned_node_name="n9")) == "n9"
+    assert peer_node_name(NS(platform=None, planned_node_name="n9", postponed_count=2)) is None
+    assert peer_node_name(NS(platform=None, planned_node_name=None)) is None
