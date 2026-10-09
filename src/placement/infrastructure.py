@@ -268,6 +268,10 @@ class Task:
         self.scheduled_time: Optional[SimTime] = None
         self.arrived_time: Optional[SimTime] = None
         self.started_time: Optional[SimTime] = None
+        # load_recalibration_v1: `started` is stamped before the input stage and, under replica release, before the wait for
+        # the replica's compute lock; these two bound that wait (compute_start_time - io_end_time). Bookkeeping only.
+        self.io_end_time: Optional[SimTime] = None
+        self.compute_start_time: Optional[SimTime] = None
         self.done_time: Optional[SimTime] = None
         self.pull_time: DurationSecond = 0.0
         self.cold_start_time: DurationSecond = 0.0
@@ -481,6 +485,8 @@ class Task:
             "scheduledTime": self.scheduled_time,
             "arrivedTime": self.arrived_time,
             "startedTime": self.started_time,
+            "ioEndTime": self.io_end_time,
+            "computeStartTime": self.compute_start_time,
             "doneTime": self.done_time,
             "applicationType": self.application.type,
             "taskType": self.type,
@@ -734,6 +740,15 @@ class Storage:
         self.total_usage.append((self.env.now, self.get_usage() * 100))
 
         return True
+
+
+def peer_is_placed(peer: Any) -> bool:
+    """A peer that is on a platform, or planned by a batch pre-pass that has not deferred it. A task the batch path planned and then
+    deferred (its replica was evicted before its turn, or none was left) keeps `planned_node_name` with no platform: it is waiting for
+    hardware, not placed, and the rendezvous of its partners must see it as unplaced or their request timeout never starts."""
+    if getattr(peer, "platform", None) is not None:
+        return True
+    return getattr(peer, "planned_node_name", None) is not None and not getattr(peer, "postponed_count", 0)
 
 
 class Platform:
@@ -1196,10 +1211,7 @@ class Platform:
         events = []
         for peer_id in sorted(peers):
             peer = getattr(orchestrator, "task_by_id", {}).get(peer_id)
-            if peer is not None and (
-                getattr(peer, "platform", None) is not None
-                or getattr(peer, "planned_node_name", None) is not None
-            ):
+            if peer is not None and peer_is_placed(peer):
                 continue
             events.append(ready(peer_id))
         return events
@@ -1214,7 +1226,7 @@ class Platform:
             peer = by_id.get(peer_id)
             if peer is None:
                 out.append(None)
-            elif getattr(peer, "platform", None) is None and getattr(peer, "planned_node_name", None) is None:
+            elif not peer_is_placed(peer):
                 out.append(peer)
         return out
 
@@ -1822,6 +1834,7 @@ class Platform:
         if FIDELITY:
             task._fid["io_end"] = self.env.now + input_duration
         yield self.env.timeout(input_duration)
+        task.io_end_time = self.env.now
         if _AUDIT is not None:
             task._audit_io_end = self.env.now
         # task.application.communications_time += input_duration
@@ -1836,6 +1849,7 @@ class Platform:
             compute = self.compute_lock.request()
             yield compute
             self.current_task = task
+        task.compute_start_time = self.env.now
         if _AUDIT is not None:
             task._audit_compute_start = self.env.now
 
