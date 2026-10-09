@@ -2831,6 +2831,8 @@ def _completed_or_stalled(futures, stall_timeout, stall, watchdog=None, poll_s=3
             last_done = now
             finished += len(done)
         verdict = watchdog.update(now - t0, finished) if watchdog is not None else None
+        for f in done:
+            yield f
         if verdict is not None or (not done and stall_timeout is not None and now - last_done >= stall_timeout):
             stall["pending"] = len(pending)
             if verdict is not None:
@@ -2838,8 +2840,6 @@ def _completed_or_stalled(futures, stall_timeout, stall, watchdog=None, poll_s=3
             for f in pending:
                 f.cancel()
             return
-        for f in done:
-            yield f
 
 
 def _plan_combo(placement_plan: Dict[Any, Any]) -> Tuple[Tuple[int, int], ...]:
