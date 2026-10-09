@@ -6,6 +6,7 @@ env: run from a worktree with the R1 flags exported (see ranking.sbatch)."""
 import sys, os, json, bisect, random, subprocess, math, glob, argparse
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from src.placement.sweep_status import sweep_complete
 
 ap = argparse.ArgumentParser()
 ap.add_argument("out"); ap.add_argument("roots")
@@ -13,6 +14,7 @@ ap.add_argument("--select", default="", help="file with 'root/ds_id' per line; d
 ap.add_argument("--max", type=int, default=0); ap.add_argument("--workers", type=int, default=16)
 ap.add_argument("--next", type=int, default=3); ap.add_argument("--random", type=int, default=2)
 ap.add_argument("--policy", default="peer_greedy_network_batch")
+ap.add_argument("--quota", default="", help="rung substring:count[,..] e.g. hi:20,mid:10; round-robin over topologies, multi-node optima first")
 ap.add_argument("--gate-only", action="store_true", help="only isolated runs (gate 3)")
 args = ap.parse_args()
 OUT = Path(args.out); OUT.mkdir(parents=True, exist_ok=True)
@@ -80,6 +82,39 @@ dss = []
 if args.select: dss = [Path(l.strip()) for l in open(args.select) if l.strip()]
 else:
     for r in args.roots.split(","): dss += sorted(Path(r).glob("ds_*"))
+dss = [d for d in dss if sweep_complete(d)]   # a half-finished sweep has the wrong argmin
+if args.quota:
+    def info(d):
+        prov, plans, _ = load(d)
+        order = sorted(range(len(plans)), key=lambda i: plans[i][1])
+        return prov["cell_config"], prov.get("cell_seed"), len({v[0] for v in plans[order[0]][0].values()}) == 1
+    cand = {}
+    for d in dss:
+        try: cfgp, seed, single = info(d)
+        except Exception as e: print("skip", d, e); continue
+        cand.setdefault(cfgp, []).append((d, seed, single))
+    picked = []
+    for q in args.quota.split(","):
+        sub, n = q.split(":"); n = int(n)
+        pool = [x for c, xs in cand.items() if sub in c for x in xs]
+        by_seed = {}
+        for x in pool: by_seed.setdefault(x[1], []).append(x)
+        multi = []; single = []
+        for seed in sorted(by_seed):
+            multi.append([x for x in by_seed[seed] if not x[2]]); single.append([x for x in by_seed[seed] if x[2]])
+        def rr(lists):
+            out = []; i = 0
+            while any(lists):
+                for l in lists:
+                    if l: out.append(l.pop(0))
+            return out
+        m, s_ = rr(multi), rr(single); sel = []
+        while len(sel) < n and (m or s_):
+            if m: sel.append(m.pop(0))
+            if len(sel) < n and s_: sel.append(s_.pop(0))
+        print("quota", sub, "wanted", n, "got", len(sel), "multi-node", sum(1 for x in sel if not x[2]), "topologies", len({x[1] for x in sel}), flush=True)
+        picked += [x[0] for x in sel]
+    dss = picked
 jobs = []; meta = {}
 for ds in dss:
     try: prov, plans, fid = load(ds)
