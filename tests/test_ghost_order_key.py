@@ -66,3 +66,17 @@ def test_equal_net_end_ghosts_request_in_ghost_order_not_platform_start_order():
     who[pb], who[pa] = 1238, 1236
     env.run(until=1)
     assert order[:2] == [1236, 1238]
+
+
+def test_a_same_instant_ghost_is_due_exactly_when_a_batch_task_with_the_same_latency_is():
+    from src.placement.snapshot_fidelity import net_due
+
+    class N:
+        network_map = {"client_node15": 0.045069}
+
+    latency = N.network_map["client_node15"]
+    rec = {"src": "client_node15", "pop": 0.0, "net_remaining": latency + 3e-17}   # (pop + latency) - now, rounded
+    assert net_due(N(), rec) == latency
+    rec2 = {"src": "client_node15", "pop": -0.0143, "net_remaining": latency - 0.0143}
+    assert abs(net_due(N(), rec2) - rec2["net_remaining"]) < 1e-12
+    assert net_due(N(), {"src": "elsewhere", "pop": 0.0, "net_remaining": 0.5}) == 0.5

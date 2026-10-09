@@ -474,6 +474,19 @@ def _serve(platform: Any, ghost: GhostTask) -> Generator:
         platform.idle_since = env.now
 
 
+def net_due(node: Any, rec: Dict[str, Any]) -> float:
+    """When a net-stage ghost's propagation ends, relative to the snapshot instant. The capture stores `net_remaining` = (pop + latency) - now, which for a
+    ghost popped in the snapshot's own instant (pop - now == 0.0) differs from the latency by float rounding, so it could fire before or after a batch
+    task whose propagation (0 + latency) ends at the same live instant. Live fires such ties in task order; deriving the due time as pop + latency
+    makes it bit-equal to the batch's, and the creation order then decides, as live's event order did."""
+    latency = (getattr(node, "network_map", None) or {}).get(rec["src"])
+    if latency is not None:
+        due = float(rec["pop"]) + float(latency)
+        if abs(due - float(rec["net_remaining"])) < 1e-9:
+            return due
+    return float(rec["net_remaining"])
+
+
 def ghost_order_key(g: Dict[str, Any]) -> Tuple:
     """The order ghosts are created in, which is the order their first events are scheduled, and so the order ties between them fire.
     Hold-stage pipes first, then wait-stage in pop order: the order the live pipe queues had. Ghosts popped at the same instant
@@ -528,7 +541,7 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
             if rec["stage"] == "ingress" and rec["link_stage"] == "net" and rec["net_remaining"] > 0:
                 # The platform processes start in platform order, so a timeout created there fires ties in platform order. Two net-stage
                 # ghosts with equal net_end must request the shared link in ghost order (task id): create the timers here, in that order.
-                ghost.net_timer = env.timeout(rec["net_remaining"])
+                ghost.net_timer = env.timeout(net_due(node, rec))
             if rec["stage"] == "ingress" and rec["link_stage"] in ("hold", "wait") and rec["hold"] > 0:
                 keys = sorted(set(rec["route"]))
                 for key in (keys if rec["link_stage"] == "hold" else keys[:1]):
