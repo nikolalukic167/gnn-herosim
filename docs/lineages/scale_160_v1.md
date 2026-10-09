@@ -54,6 +54,8 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
   on 16101 passed as a pipeline test: 53 datasets, re-simulated plans match to ≤ 4e-15).
   - **Ruling (coordinator):** moderate is m = 16.42453489 (factor 0.06088452468), the value CD was calibrated on. The
     rounded 16.4245 differs by 3.5e-6 relative. Heavy ×23.2278 is byte-identical to S5's calibration inputs.
+  - Arrival check (S5's corrected figures): heavy g0 last arrival 4,676.8 s at 10.69/s; moderate g0 6,614.0 s at
+    7.56/s. S5's earlier "402.7 s, 124/s" was a wrong check note; the inputs themselves were right.
   - Pool 16101–16170, extending in order to 16200 if fewer than 58 seeds are feasible. Launch waits on (a).
 - 2026-10-10 — **(b) binding I11 at the calibrated heavy rung: PASS** (S5, 855148; seed 9905, g0, ×23.2278, CD capture,
   40 of 40 states replayed). Median 0.000 %, p95 0.057 %, max 0.091 % (a 3-task batch, 1.2730 s vs 1.2742 s). It passes
@@ -78,7 +80,7 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
     - **Ruling (coordinator):** scale_160_v1 keeps R1.1 as registered. Changing replica placement is new physics
       (recalibration, I11, new labels), so it would be a separate lineage, decided after this gate.
 - 2026-10-10 — **(c) PASS: rungs calibrated** (S5, 855146/855147; seeds 9905–9908, g0 + g1, CD-steered).
-  - **Heavy ×23.2278** (CD effective share 0.415, step 3). **Moderate ×16.4245** (0.284, step 4). m is the final
+  - **Heavy ×23.2278** (CD effective share 0.415, step 3). **Moderate ×16.4245**, exactly 11.6139·√2 = 16.42453489 (0.284, step 4); heavy is exactly 2 × 11.6139. m is the final
     multiplier on the ×1 windows, with factor 1/m.
   - Every CD cell passed every guard at every step, except the ×185.8 bracket end (8/8 guard failures, as expected).
   - **Ruling (coordinator): (c) PASS.** S5 attaches the step table under `scale_160_v1/`. These are the rungs for the
