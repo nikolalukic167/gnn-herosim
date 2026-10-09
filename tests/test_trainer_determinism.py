@@ -533,3 +533,19 @@ def test_full_context_ce_is_reproducible_and_changes_the_fit():
         w0 = _run_a1_via_run_experiment(4242, Path(d3))
     _assert_state_dicts_identical(w1, w2, "A1 + full-context CE 0.5 (twice)")
     assert any(not torch.equal(w1[k], w0[k]) for k in w0), "full-context CE did not change the weights"
+
+
+# --------------------------------------------------------------------------------------
+# r1_attribution_v1 graph-free arms (src/policy/gnn/arm_models.py): trained by train_near_rtt.py with NEAR_RTT_ARM set, so the
+# trainer's seeding and deterministic-algorithm pin are the ones already tested above; this pins that their MODELS (attention,
+# LayerNorm, dropout, the flat MLP) add no unseeded draw or order-dependent op. The end-to-end run, through run_experiment.py and
+# the real trainer on S6's smoke cache, is scripts_cosim/datalab/r1a_arms_smoke.sbatch.
+# --------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("kind", ["mlp_same", "set_transformer"])
+def test_graph_free_arms_train_bit_identically_at_a_fixed_seed(kind):
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_r1a_arms import train_arm_once
+
+    first, second = train_arm_once(kind, SEED), train_arm_once(kind, SEED)
+    _assert_state_dicts_identical(first, second, f"r1_attribution_v1 {kind}")
