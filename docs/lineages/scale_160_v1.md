@@ -50,6 +50,11 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Corpus staged; moderate multiplier pinned exactly** (S6, `rp/scale160` cbada10e; dry run 855139–855142
+  on 16101 passed as a pipeline test: 53 datasets, re-simulated plans match to ≤ 4e-15).
+  - **Ruling (coordinator):** moderate is m = 16.42453489 (factor 0.06088452468), the value CD was calibrated on. The
+    rounded 16.4245 differs by 3.5e-6 relative. Heavy ×23.2278 is byte-identical to S5's calibration inputs.
+  - Pool 16101–16170, extending in order to 16200 if fewer than 58 seeds are feasible. Launch waits on (a).
 - 2026-10-10 — **(b) binding I11 at the calibrated heavy rung: PASS** (S5, 855148; seed 9905, g0, ×23.2278, CD capture,
   40 of 40 states replayed). Median 0.000 %, p95 0.057 %, max 0.091 % (a 3-task batch, 1.2730 s vs 1.2742 s). It passes
   cleanly, so no cause is needed. The PASS-WITH-CAUSE condition is discharged. Only (a) remains for GO.
