@@ -295,6 +295,15 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
     - the 24 CD rung finals cells keep every guard and their bands (changed cells listed);
     - the heavy hung-cell rate falls below 5 %;
     - an I11 spot check on a changed cell.
+  - **As built (`rp/r11t-fix` `c8eb73c2`; 4 new tests, 13 in all pass).**
+    - `peer_is_placed()`: a peer counts as placed if it has a platform, or if it is planned and was never deferred
+      (`postponed_count == 0`).
+    - **Accepted deviation from the pure platform rule.** The pure rule would make planned, not-yet-enqueued batch-mates
+      rendezvous with each other. That would add zero-time events, which `env.step()` turns into a physics change in
+      runs that never deferred. So a run with no deferral is unchanged by construction.
+    - B2 9103 g0 confirms the mechanism: 7 of 214 unready edges point at planned-then-deferred peers.
+    - Validation jobs: 849747 (repros plus 64 rung cells, CD and Knative) and 849748 (9 heavy spin cells, capture
+      policy).
 - **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
   pre-R1.1 and re-measured on R1.1. Expected size from the sample: 2 of 200 cells, ≤ 1 %; that expectation doesn't
   replace the re-measure. Order: W2 at 1 s on R1.1 first (it replaces the provisional W2 read), then the
