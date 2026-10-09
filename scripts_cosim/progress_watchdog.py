@@ -1,9 +1,9 @@
-"""Progress-rate watchdog and rung pause line for the r1_attribution_v1 gate.
+"""Gate-side wiring of the shared progress-rate rule (src/placement/progress_watchdog.py, S6) for the r1_attribution_v1 gate.
 
-Replaces fixed 3x reruns. A cell reports its simulated time (src/placement/progress.py). After ``grace_s`` of wall time the
-projected finish is ``last_arrival / (sim_now / elapsed)`` (the run ends at about its last arrival; a collapsing cell
-overruns that, and the hard timeout catches it). A cell projected past ``limit_s``, or whose simulated clock has not moved for
-``stall_s`` (the starved-client spin), is killed and counted as failed.
+Each cell reports its simulated time (src/placement/progress.py); progress = simulated time out of the workload's last arrival (the run ends
+at about its last arrival; a collapsing cell overruns it, and the hard limit catches that). The rule kills a cell whose clock has not moved for
+300 s, or, after 600 s, whose projected finish (rate over the last 300 s) exceeds 1.5 x the limit. A killed cell is counted as failed.
+Also the 5 % rung pause line, read from the shared output directory.
 """
 from __future__ import annotations
 
@@ -15,61 +15,42 @@ import threading
 import time
 from typing import Callable, Dict, List, Optional
 
-GRACE_S = 600.0
-STALL_S = 600.0
+from src.placement.progress_watchdog import ProgressWatchdog
+
 POLL_S = 15.0
 PAUSE_SHARE = 0.05  # production pauses for a rung when more than 5 % of its decided cells hang
 PAUSE_MIN_CELLS = 40  # ... once at least this many are decided (one failure in a handful is not a rate)
 
 
-def decide(elapsed_s: float, sim_now: Optional[float], last_arrival_s: float, limit_s: float, stalled_s: float,
-           grace_s: float = GRACE_S, stall_s: float = STALL_S) -> Optional[Dict[str, object]]:
-    """None to keep running, or the reason to kill: {"reason", "projected_s", ...}."""
-    if elapsed_s < grace_s:
-        return None
-    if stalled_s >= stall_s:
-        return {"reason": "stall", "projected_s": None, "sim_now": sim_now, "elapsed_s": elapsed_s, "stalled_s": stalled_s}
-    if not sim_now or sim_now <= 0:
-        return {"reason": "no-progress", "projected_s": None, "sim_now": sim_now, "elapsed_s": elapsed_s, "stalled_s": stalled_s}
-    projected = last_arrival_s * elapsed_s / sim_now
-    if projected > limit_s:
-        return {"reason": "projected", "projected_s": projected, "sim_now": sim_now, "elapsed_s": elapsed_s, "stalled_s": stalled_s}
-    return None
-
-
 class Watchdog:
-    """Polls one cell's progress file; kills the cell's process group when ``decide`` says so. ``verdict`` is set on a kill."""
+    """Polls one cell's progress file; kills the cell's process group when the shared rule says so. ``verdict`` is set on a kill."""
 
-    def __init__(self, path: str, last_arrival_s: float, limit_s: float, grace_s: float = GRACE_S, stall_s: float = STALL_S,
-                 poll_s: float = POLL_S, clock: Callable[[], float] = time.time):
-        self.path, self.last_arrival_s, self.limit_s = path, last_arrival_s, limit_s
-        self.grace_s, self.stall_s, self.poll_s, self.clock = grace_s, stall_s, poll_s, clock
+    def __init__(self, path: str, last_arrival_s: float, limit_s: float, poll_s: float = POLL_S, clock: Callable[[], float] = time.time,
+                 **rule):
+        self.path, self.last_arrival_s, self.limit_s, self.poll_s, self.clock = path, last_arrival_s, limit_s, poll_s, clock
+        self.rule = ProgressWatchdog(last_arrival_s, limit_s, **rule)
         self.verdict: Optional[Dict[str, object]] = None
-        self.last_sim: Optional[float] = None
-        self.last_sim_moved = None
         self.start = None
         self._stop = threading.Event()
         self._thread = None
 
     def attach(self, proc) -> None:
         self.start = self.clock()
-        self.last_sim_moved = self.start
         self._thread = threading.Thread(target=self._loop, args=(proc,), daemon=True)
         self._thread.start()
 
-    def read(self) -> Optional[float]:
+    def read(self) -> float:
         try:
             return float(json.load(open(self.path))["sim_now"])
         except (OSError, ValueError, KeyError):
-            return None
+            return 0.0
 
     def step(self) -> Optional[Dict[str, object]]:
-        now = self.clock()
-        sim = self.read()
-        if sim is not None and sim != self.last_sim:
-            self.last_sim, self.last_sim_moved = sim, now
-        return decide(now - self.start, self.last_sim, self.last_arrival_s, self.limit_s, now - self.last_sim_moved,
-                      self.grace_s, self.stall_s)
+        t, sim = self.clock() - self.start, self.read()
+        kind = self.rule.update(t, sim)
+        if not kind:
+            return None
+        return {"reason": kind, "detail": self.rule.reason, "projected_s": self.rule.projected_finish(), "sim_now": sim, "elapsed_s": t}
 
     def _loop(self, proc) -> None:
         while not self._stop.wait(self.poll_s):

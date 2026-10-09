@@ -1,6 +1,7 @@
 #!/bin/bash
 # r1_attribution_v1 live gate DRY RUN: 1 test topology x 3 rungs x window g0 x every arm (15), served from the smoke checkpoints (seed 1), plus
-#   (a) the watchdog: Knative at the heavy rung with a 60 s limit and a 20 s grace must be killed and counted (failed.json "watchdog: ..."),
+#   (a) the watchdog: a learned-arm cell at the heavy rung with a 20 s limit (rule: 5 s warm-up, 2 s polls) must be killed and counted
+#       (failed.json "watchdog: ..."); DRY_PARTS=watchdog runs only this,
 #   (b) identity: one CD cell run through the watchdog path and through the old wf1cal path (no progress file): every simulated field equal.
 #   sbatch --export=ALL,WT=<pinned worktree>,EXPECT_HEAD=<sha>,IN=<inputs from r1a_gate_inputs>,OUT=<new dir> r1a_gate_dry.sbatch
 #SBATCH --job-name=r1a-dry
@@ -34,8 +35,9 @@ SEL=$D/small_batch_confirm_v1/inputs/selected.json
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 G="python3 scripts_cosim/fresh_topo_burst_v1_gate.py"
 # (a) watchdog on Knative at heavy, in the background
-( WF1_RUNGS=heavy R1A_TOPOS=$TOPO R1A_WINDOWS=g0 R1A_ARMS=reactive R1A_GRACE_S=20 \
-  $G r1a --inputs "$OUT/in" --out "$OUT/watchdog" --selection "$SEL" --parallel 1 --mem 8G --timeout 60 --no-scope > "$OUT/watchdog.log" 2>&1 ) &
+( WF1_RUNGS=heavy R1A_TOPOS=$TOPO R1A_WINDOWS=g0 R1A_ARMS=ra_gnn_eng R1A_SEEDS=1 R1A_GRACE_S=5 R1A_POLL_S=2 \
+  $G r1a --inputs "$OUT/in" --out "$OUT/watchdog" --selection "$SEL" --parallel 1 --mem 8G --timeout 20 --no-scope > "$OUT/watchdog.log" 2>&1 ) &
+if [[ "${DRY_PARTS:-all}" == watchdog ]]; then wait; echo "== watchdog =="; cat "$OUT/watchdog.log"; cat "$OUT"/watchdog/*.failed.json; echo; exit 0; fi
 # (b) the old path for the identity cell, in the background
 ( WF1_RUNGS=moderate WF1_TOPOS=$TOPO WF1_CAL_WINDOWS=g0 WF1_CAL_KINDS=cd \
   $G wf1cal --inputs "$OUT/in" --out "$OUT/identity_old" --parallel 1 --mem 8G --timeout 7200 --no-scope > "$OUT/identity_old.log" 2>&1 ) &
@@ -43,7 +45,7 @@ G="python3 scripts_cosim/fresh_topo_burst_v1_gate.py"
 WF1_RUNGS=light,moderate,heavy R1A_TOPOS=$TOPO R1A_WINDOWS=g0 R1A_SEEDS=1 \
   $G r1a --inputs "$OUT/in" --out "$OUT/gate" --selection "$SEL" --parallel "${PAR:-30}" --mem 8G --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip"
 wait
-echo "== watchdog =="; cat "$OUT/watchdog.log"; cat "$OUT"/watchdog/*.failed.json 2>/dev/null; echo
+echo "== watchdog =="; cat "$OUT/watchdog.log"; cat "$OUT"/watchdog/*.failed.json 2>/dev/null || true; echo
 echo "== identity =="
 python3 - "$OUT" "$TOPO" <<'PY'
 import json, sys

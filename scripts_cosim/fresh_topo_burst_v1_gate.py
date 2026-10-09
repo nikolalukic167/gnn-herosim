@@ -808,8 +808,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         env["HEROSIM_PROGRESS_FILE"] = prog
         if wl not in _LAST_ARRIVAL:
             _LAST_ARRIVAL[wl] = max(float(e["timestamp"]) for e in json.load(open(wl))["events"])
-        dog = pw.Watchdog(prog, _LAST_ARRIVAL[wl], float(timeout_s), grace_s=float(os.environ.get("R1A_GRACE_S", pw.GRACE_S)),
-                          stall_s=float(os.environ.get("R1A_STALL_S", pw.STALL_S)))
+        rule = {k: float(os.environ[e]) for k, e in (("warmup_s", "R1A_GRACE_S"), ("stall_s", "R1A_STALL_S")) if e in os.environ}
+        dog = pw.Watchdog(prog, _LAST_ARRIVAL[wl], float(timeout_s), poll_s=float(os.environ.get("R1A_POLL_S", pw.POLL_S)), **rule)
+        if "R1A_POLL_S" in os.environ:  # a test run with short cells: report as often as the watchdog polls
+            env["HEROSIM_PROGRESS_INTERVAL_S"] = os.environ["R1A_POLL_S"]
     rc = run_logged(cmd, env, REPO, log, cap_bytes(), on_start=dog.attach if dog else None)  # capped: a hung run's log used to reach several GB
     wall = int(time.time() - start)
     if dog:
