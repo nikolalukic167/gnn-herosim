@@ -558,11 +558,7 @@ No line trips.
     - The production corpus and the running training stay as they are.
     - F (`58364ab0`) becomes the replay for any *future* build, because it is the live mechanism.
   - Disclosure: E mis-times exposed same-instant link requests (up to 9.5 % on ds_16401).
-  - Its effect on the production labels is measured: E-vs-F argmin changes on a stratified sample of 600 production
-    datasets (200 per rung, train and held-out).
-    - At most 1 %: disclose only.
-    - 1–5 %: disclose, and add an F-relabelled robustness read beside the primary read.
-    - Over 5 %: rebuild at F and retrain, with the E training discarded.
+  - **Closed (2026-10-09, user):** the F-relabel sample is withdrawn, and there is no further variant work.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
