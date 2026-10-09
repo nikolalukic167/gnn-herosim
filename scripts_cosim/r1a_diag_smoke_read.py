@@ -47,25 +47,31 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--arm", default="gnn_eng")
-    ap.add_argument("--topos", default="9101,9103")
+    ap.add_argument("--cells", required=True, help="space-separated <snapshot>:<topology>")
+    ap.add_argument("--classical-extra", type=Path, default=None, help="an earlier classical/ directory holding other topologies")
     a = ap.parse_args()
     print("DESCRIPTIVE ONLY -- mid-training checkpoint, training topologies; not a result.\n")
+    print("effective share = (queue + lock wait) / elapsed (the summary's effective_queue_share); plain queue share is the second number\n")
     print(f"{'cell':18s} {'arm lat':>8s} {'CD lat':>8s} {'react':>8s} {'%vsCD':>7s} {'%vsReact':>9s} {'q-share arm/CD/react':>22s} | spread  nodes/batch  coloc  batches  refine  sibling")
-    for T in a.topos.split(","):
+    for cell in a.cells.split():
+        SNAP, T = cell.split(":")
         for R in ("light", "moderate", "heavy"):
             tag = f"cc40s{T}__g0{R}"
+
             def one(pattern):
-                fs = glob.glob(str(a.out / pattern))
+                fs = glob.glob(str(a.out / pattern)) or (glob.glob(str(a.classical_extra / pattern.split("/", 1)[1])) if a.classical_extra and pattern.startswith("classical/") else [])
                 return load_summary(fs[0]) if fs else None
-            arm = one(f"learned_{T}_{R}/{tag}__ra_{a.arm}_s0.summary.json")
+            arm = one(f"learned_{SNAP}_{T}_{R}/{tag}__ra_{a.arm}_s0.summary.json")
             cd = one(f"classical/{tag}__cd_s0.summary.json")
             re = one(f"classical/{tag}__reactive_s0.summary.json")
+            label = f"{SNAP} {T}/{R}"
             if not (arm and cd and re):
-                print(f"{T}/{R:9s} MISSING summaries: arm={bool(arm)} cd={bool(cd)} reactive={bool(re)}")
+                print(f"{label:22s} MISSING summaries: arm={bool(arm)} cd={bool(cd)} reactive={bool(re)}")
                 continue
             la, lc, lr = (float(x["averageElapsedTime"]) for x in (arm, cd, re))
+            eff = "/".join(f"{float(x.get('effective_queue_share') or (x.get('lock_wait') or {}).get('effective_queue_share') or 0):.2f}" for x in (arm, cd, re))
             qs = "/".join(f"{float(x.get('queue_share') or 0):.2f}" for x in (arm, cd, re))
-            recs = traces(a.out / f"trace_{T}_{R}.pkl")
+            recs = traces(a.out / f"trace_{SNAP}_{T}_{R}.pkl")
             spread = per = coloc = None
             if recs:
                 nodes = [len({int(c[0]) for c in r["combo"]}) for r in recs]
@@ -83,11 +89,11 @@ def main() -> int:
                 coloc = None if not tot else hit / tot
             sc = arm.get("schedulerCounters") or {}
             f = lambda v: "n/a" if v is None else f"{v:.3f}"
-            print(f"{T}/{R:9s}      {la:8.3f} {lc:8.3f} {lr:8.3f} {100 * (la - lc) / lc:+7.1f} {100 * (la - lr) / lr:+9.1f} {qs:>22s} | {f(spread):>6s} {f(per):>11s} {f(coloc):>6s} {len(recs):7d} "
+            print(f"{label:22s} {la:8.3f} {lc:8.3f} {lr:8.3f} {100 * (la - lc) / lc:+7.1f} {100 * (la - lr) / lr:+9.1f}  eff {eff:>14s}  q {qs:>14s} | {f(spread):>6s} {f(per):>11s} {f(coloc):>6s} {len(recs):7d} "
                   f"{int(sc.get('prefix_self_refine_moves') or 0):6d} {int(sc.get('prefix_sibling_moves') or 0):7d}")
             ccd = cd.get("schedulerCounters") or {}
             if ccd.get("pg_partners_known"):
-                print(f"{'':18s} CD joined a known partner's node on {int(ccd.get('pg_joined_partner') or 0)} of {int(ccd.get('pg_decisions') or 0)} decisions "
+                print(f"{'':22s} CD joined a known partner's node on {int(ccd.get('pg_joined_partner') or 0)} of {int(ccd.get('pg_decisions') or 0)} decisions "
                       f"({int(ccd.get('pg_partners_known'))} known partners), CD refine moves {int(ccd.get('pg_cd_moves') or 0)}")
     return 0
 
