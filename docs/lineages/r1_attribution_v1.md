@@ -387,6 +387,11 @@ No line trips.
       failures.
     - **The production build starts speculatively at E** into a commit-tagged directory. It is discarded if another
       variant wins. No cache is built and no training starts before the verdict.
+- **Downstream dry runs on early production pieces (2026-10-09 18:40, coordinator), in scratch locations only:**
+  - **S7:** cache → 2-epoch train of every arm → servesmoke, on the first finished build pieces, plus cost projections.
+  - **S4:** gate driver configured for every arm, cell and rung, with a progress-rate watchdog replacing the 3× reruns;
+    a dry run (1 topology × 3 rungs); the pre-registered reader exercised on it; and the gate cost.
+  - Nothing is read for performance.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
