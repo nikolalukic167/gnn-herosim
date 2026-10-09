@@ -96,3 +96,18 @@ def test_exposure_flags_a_net_stage_ingress_ghost_on_a_candidate_node():
     assert e["net_ingress_ghosts_total"] == 1 and e["candidate_nodes"] == 2
     assert not exposure(snap, [{"node_name": "n2"}, {"node_name": "n3"}])["net_ingress_ghost_on_candidate_node"]
     assert not exposure({"fidelity": {}}, cands)["net_ingress_ghost_on_candidate_node"]
+
+
+def test_manifest_read_skips_another_tasks_half_written_line(tmp_path):
+    import json
+
+    from scripts_cosim.make_warm_corpus import _own_manifest_entries
+
+    p = tmp_path / "warm_manifest.jsonl"
+    p.write_text(json.dumps({"source_tag": "a", "status": "success"}) + "\n" + json.dumps({"source_tag": "b"}) + "\n" + '{"source_tag": "b", "sta')
+    assert [e["status"] for e in _own_manifest_entries(p, "a")] == ["success"]
+    p.write_text(json.dumps({"source_tag": "a"}) + "\n" + '{"source_tag": "a", "sta')
+    import pytest
+
+    with pytest.raises(json.JSONDecodeError):
+        _own_manifest_entries(p, "a")

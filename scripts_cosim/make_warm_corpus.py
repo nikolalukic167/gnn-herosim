@@ -559,6 +559,26 @@ def load_snapshots(paths: Sequence[Path]) -> List[Dict[str, Any]]:
     return out
 
 
+def _own_manifest_entries(path: Path, source_tag: str) -> List[Dict[str, Any]]:
+    """This run's manifest entries. The manifest is shared by every concurrent build task of a split, each appending whole lines, so a read can
+    land on another task's half-written last line: a line that does not parse is skipped when it is not ours (ours were written whole before)."""
+    out: List[Dict[str, Any]] = []
+    if not path.exists():
+        return out
+    for line in open(path):
+        if not line.strip():
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            if f'"source_tag": "{source_tag}"' in line:
+                raise
+            continue
+        if e.get("source_tag") == source_tag:
+            out.append(e)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--snapshots", type=Path, nargs="+", required=True, help="live-audit JSONL file(s)")
@@ -884,8 +904,7 @@ def main() -> int:
         made += 1
     print(f"[warm] done: {made} dataset(s) in {time.time() - t0:.0f}s -> {args.output_dir}", flush=True)
     # per-run counts, so a dry run reports the rejection rate by reason (the single-candidate-node share in particular)
-    mine = [json.loads(l) for l in open(manifest_path) if l.strip()] if manifest_path.exists() else []
-    mine = [e for e in mine if e.get("source_tag") == args.source_tag]
+    mine = _own_manifest_entries(manifest_path, args.source_tag)
     reasons: Dict[str, int] = {}
     for e in mine:
         if e.get("status") == "rejected":
