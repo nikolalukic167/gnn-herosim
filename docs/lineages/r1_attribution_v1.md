@@ -542,6 +542,27 @@ No line trips.
   - Against CD-declared (+0.50 / +4.03 / +4.28), most of the gap is the declared slate, not the random start. The start
     costs +0.9 / +0.2 points at light and moderate, and gains 0.4 at heavy.
   - CD←random is the reference that CD←GNN's start has to beat.
+- **Variant verdict (2026-10-09 21:00; S5, jobs 854263 + 854270; coordinator decision).**
+  - Dataset half, valid rows only: 404 plans. 17 invalid rows were dropped (decided at another instant: ds_00800 5,
+    ds_06401 6, ds_14203 6), and ds_10000 plan 10 is excluded as an artifact.
+  - On the untuned 393 plans:
+    - D, E and F are identical: p95 0.0335 %, max 0.333 %.
+    - A max 3.09 %, B 3.34 %, C 0.69 %.
+  - The earlier "E loses on ds_00800 / ds_06401" came from invalid rows.
+  - Argmin changes between any two variants: 0 of 86.
+  - The I11 half: E = F (max 0.076 %).
+  - **The signed rule ties E and F** on both max and p95. F differs only on the tuned ds_16401 (F max 0.333 %; D/E
+    9.48 %).
+  - **Decision: E stands.**
+    - A switch needs a strict win under the rule, and F's only advantage is on a state excluded by design.
+    - The production corpus and the running training stay as they are.
+    - F (`58364ab0`) becomes the replay for any *future* build, because it is the live mechanism.
+  - Disclosure: E mis-times exposed same-instant link requests (up to 9.5 % on ds_16401).
+  - Its effect on the production labels is measured: E-vs-F argmin changes on a stratified sample of 600 production
+    datasets (200 per rung, train and held-out).
+    - At most 1 %: disclose only.
+    - 1–5 %: disclose, and add an F-relabelled robustness read beside the primary read.
+    - Over 5 %: rebuild at F and retrain, with the E training discarded.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
