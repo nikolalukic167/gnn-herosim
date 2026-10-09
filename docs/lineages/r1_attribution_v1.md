@@ -262,6 +262,13 @@ No line trips.
 - **Open question, before any option is chosen:** is the co-sim plan space the same as live serving's candidate set,
   with or without on-demand replica creation? S7 is checking the code. The label build stays held, and the production
   capture continues, since it doesn't depend on the label.
+- **Answered (S7, code and data read, `0699a0e0`): train and serve candidate sets are identical.**
+  - Both use existing reachable replicas, the top 5 under declared pruning.
+  - The co-sim slate is the snapshot's own `candidates`, and 16,784 sampled rows have 0 placements outside them.
+  - Serving draws its edges from `system_state.replicas` with the same top 5 and sub-batch cut. CD uses the same set.
+  - The 154 "non-replica" plans are most likely a harness task-order mapping error: dataset task order differs from
+    snapshot batch order in 425 of 604 datasets, and the mis-mapping reproduces a 70.5 % rate.
+  - S5 fixes the mapping and reruns gate 3. ds_03200's 12 % miss is rechecked under the corrected mapping first.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
