@@ -480,6 +480,16 @@ No line trips.
 - **Classical gate (S4, 853934 + 854009 at 335abdd1):** 1,366 of 1,368 cells done. 5 were killed by the watchdog (9565
   and 9538, moderate and heavy), counted with no rerun. 07b0acba vs classical_335abdd1: 18/18 overlapping cells
   identical, so the learned arms and CD←random run at 07b0acba.
+- **Forced-live set was partly invalid (S5, probes 854264–854266).**
+  - `forced_live_plans.py` did not check the decision instant. In ds_00800 and ds_06401 the forced batch was scheduled
+    0.72 s and 0.85 s before the snapshot, so those values belong to a different experiment. The reported E-vs-D loss on
+    exposed plans is unreliable until the set is regenerated.
+  - The script now rejects any run decided more than 1e-6 s from the snapshot instant (`692a934d`). The set is being
+    rerun as 854270. The I11 half (854263) is unaffected, because its truth runs check the instant.
+  - ds_10000 plan 10 is a **forced-live artifact**. The forced run's target platforms had been idle 200–560 s, against
+    1–10 s in the capture, so its history diverged before the snapshot. It is excluded and disclosed. Why only this run
+    diverged is unknown.
+  - F's gates pass: heavy 9601 error 1.3e-12, ds_03200 13/13 exact, live no-op 3/3 identical.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
