@@ -50,9 +50,14 @@ def tag_for(m: float) -> str:
     return "m" + f"{m:.4f}".replace(".", "p")
 
 
+MIDPOINT = "log"
+
+
 def next_multiplier(lo: float, hi: float) -> float:
-    """Linear midpoint (amendment 2026-10-09: every rung sits above x5, so no log-midpoint below it is worth its wall time)."""
-    return round(0.5 * (lo + hi), 4)
+    """Log midpoint by default (the protocol); --midpoint linear for the 2026-10-09 steering of rungs above x5."""
+    if MIDPOINT == "linear":
+        return round(0.5 * (lo + hi), 4)
+    return round(math.exp(0.5 * (math.log(lo) + math.log(hi))), 4)
 
 
 def cell_metrics(s: dict) -> dict:
@@ -65,7 +70,7 @@ def cell_metrics(s: dict) -> dict:
     busy = None
     if rc.get("time_mean") and s.get("endTime") and s.get("averageExecutionTime") is not None:
         busy = float(s["averageExecutionTime"]) * n / (float(rc["time_mean"]) * float(s["endTime"]))
-    bp = s.get("backlog_profile") or {}
+    bp = s.get("backlog_profile_v2") or s.get("backlog_profile") or {}  # v2: backlog includes the compute-lock wait
     backlog = bp.get("last_over_mid")
     pw = s.get("placement_wait") or {}
     lw = s.get("lock_wait")
@@ -188,12 +193,13 @@ class Evaluator:
         self.gate(m, "cd", a.timeout)
         return self.collect(m, a.work / tag / "gate")
 
-    def gate(self, m: float, kinds: str, timeout: int) -> None:
+    def gate(self, m: float, kinds: str, timeout: int, root: Optional[Path] = None) -> None:
         a, tag = self.a, tag_for(m)
+        root = root or a.work / tag
         genv = {**os.environ, "PYTHONPATH": str(ROOT), "WF1_RUNGS": tag, "WF1_TOPOS": ",".join(map(str, a.topologies)),
                 "WF1_CAL_WINDOWS": ",".join(a.windows), "WF1_CAL_KINDS": kinds}
-        subprocess.run([sys.executable, str(ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py"), "wf1cal", "--inputs", str(a.work / tag),
-                        "--out", str(a.work / tag / "gate"), "--parallel", str(a.parallel), "--mem", "4G", "--no-scope",
+        subprocess.run([sys.executable, str(ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py"), "wf1cal", "--inputs", str(root),
+                        "--out", str(root / "gate"), "--parallel", str(a.parallel), "--mem", "4G", "--no-scope",
                         "--timeout", str(timeout)], check=False, cwd=ROOT, env=genv, stdout=subprocess.DEVNULL)
 
     def finalize(self, m: float) -> dict:
@@ -203,15 +209,20 @@ class Evaluator:
             lock = self.locks.setdefault(("final", m), threading.Lock())
         with lock:
             if m not in self.final:
+                # a fresh directory: every cell runs under the code and guards of the final stage, none is inherited
                 a, tag = self.a, tag_for(m)
-                out = a.work / tag / "gate"
-                self.gate(m, "cd,reactive", a.timeout)
+                root = a.work / "final" / tag
+                out = root / "gate"
+                root.mkdir(parents=True, exist_ok=True)
+                if not (root / f"wf1_{tag}").exists():
+                    (root / f"wf1_{tag}").symlink_to((a.work / tag / f"wf1_{tag}").resolve())
+                self.gate(m, "cd,reactive", a.timeout, root)
                 failed = sorted(out.glob("*.failed.json"))
                 if failed:
                     (out / "first_pass_failed").mkdir(exist_ok=True)
                     for f in failed:
                         shutil.move(str(f), str(out / "first_pass_failed" / f.name))
-                    self.gate(m, "cd,reactive", 3 * a.timeout)
+                    self.gate(m, "cd,reactive", 3 * a.timeout, root)
                 self.final[m] = self.collect(m, out)
                 r = self.final[m]
                 print(f"[final] m={m} {tag}: CD {len(r['cells']['cd'])}/{self.expected}, Knative {len(r['cells']['reactive'])}/{self.expected}, "
@@ -255,7 +266,7 @@ def choose_final(result: dict, ev: "Evaluator") -> dict:
     answer = result["answer"]
     if answer is None:
         return {"rung": rung, "chosen": None, "tried": []}
-    others = sorted({s["m"] for s in result["steps"] if s["allowed"] and s["share"] is not None and s["m"] != answer["m"]}, reverse=True)
+    others = sorted({s["m"] for s in result["steps"] if s["allowed"] and s["share"] is not None and s["m"] < answer["m"]}, reverse=True)
     tried = []
     for m in [answer["m"]] + others:
         rec = ev.finalize(m)
@@ -266,6 +277,23 @@ def choose_final(result: dict, ev: "Evaluator") -> dict:
             return {"rung": rung, "chosen": {"m": m, "cd_median_share": rec["cd_median_share"], "kind": answer["kind"] if m == answer["m"] else "FALLBACK-HIGHEST-PASSING"},
                     "tried": tried}
     return {"rung": rung, "chosen": None, "tried": tried}
+
+
+def fixed_result(rung: str, m: float, ev: "Evaluator") -> dict:
+    """A rung whose answer is an evaluated point: the earlier measurement put it in the band, the final stage decides the rest."""
+    band_lo, band_hi = BANDS[rung]
+    steps = []
+    for pm in sorted(ev.a.readonly + ev.a.seed):
+        r = ev.record(pm)
+        ok = allowed(r["guards"]["cd"], rung)
+        share = r["cd_median_share"]
+        steps.append({"step": len(steps) + 1, "m": pm, "share": share, "allowed": ok,
+                      "position": "inf" if share is None or not ok else "low" if share < band_lo else "high" if share > band_hi else "in"})
+    answer = next(s for s in steps if s["m"] == m)
+    if not band_lo <= answer["share"] <= band_hi:
+        raise SystemExit(f"FAIL LOUD: --fixed {rung}={m}: share {answer['share']} is outside {BANDS[rung]}")
+    return {"rung": rung, "band": [band_lo, band_hi], "status": "FIXED-FROM-MEASUREMENT", "steps": steps,
+            "answer": {**answer, "kind": "IN-BAND"}}
 
 
 def a_ends(rung: str, a: argparse.Namespace) -> tuple:
@@ -291,6 +319,9 @@ def main() -> int:
     ap.add_argument("--readonly", type=float, nargs="*", default=[], help="multipliers evaluated by an earlier run: read, never run, "
                     "end points not exempt from the guards")
     ap.add_argument("--points", type=float, nargs="*", default=[], help="evaluate these multipliers (steering mode) and stop; no search")
+    ap.add_argument("--midpoint", choices=("log", "linear"), default="log")
+    ap.add_argument("--fixed", nargs="*", default=[], help="RUNG=M: the rung's answer is an evaluated point (in band by the earlier "
+                    "measurement); it goes straight to the final stage")
     ap.add_argument("--ends", nargs="*", default=[], help="per-rung bracket ends, RUNG=LO,HI")
     ap.add_argument("--rungs", nargs="+", default=list(BANDS))
     ap.add_argument("--seed", type=float, nargs="*", default=[], help="multipliers evaluated by an earlier run in --work: read, never run")
@@ -299,6 +330,8 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=2700)
     ap.add_argument("--log", type=Path, required=True)
     a = ap.parse_args()
+    global MIDPOINT
+    MIDPOINT = a.midpoint
     for k, v in (("HEROSIM_TRANSFER_MODEL", "pipelined"), ("HEROSIM_REPLICA_RELEASE", "1"), ("HEROSIM_SCALEOUT", "kpa"),
                  ("GATE_FIXED_POLICY_TIME_SCALE", "1.0")):
         if os.environ.get(k) != v:
@@ -318,9 +351,11 @@ def main() -> int:
         results = [f.result() for f in searches]
         for f in mapped:
             f.result()
+        results += [fixed_result(spec.split("=")[0], float(spec.split("=")[1]), ev) for spec in a.fixed]
         finals = list(ex.map(lambda r: choose_final(r, ev), results))
+        list(ex.map(ev.finalize, a.map))  # the mapped provisional multipliers get the full treatment too (context)
     doc = {"topologies": a.topologies, "windows": a.windows, "m_range": [a.m_lo, a.m_hi], "max_steps": a.max_steps,
-           "bands": BANDS, "limits": LIMITS, "results": results, "final": finals, "mapped": [ev.cache[m] for m in a.map],
+           "bands": BANDS, "limits": LIMITS, "results": results, "final": finals, "mapped": [ev.cache[m] for m in a.map], "final_records": {tag_for(m): r for m, r in ev.final.items()},
            "evaluations": {r["tag"]: r for r in ev.cache.values()}}
     a.log.write_text(json.dumps(doc, indent=1, default=str))
     for r, f in zip(results, finals):

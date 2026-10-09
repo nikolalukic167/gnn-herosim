@@ -87,11 +87,12 @@ case "$JOB" in
     ;;
   bisect)
     # LRC_RESUME=1 (amendment 2026-10-09): continue in the existing $R/bisect; built rungs and finished cells are reused
-    [[ -n "${LRC_RESUME:-}" || ( ! -e "$R/bisect" && ! -e "$R/bisect_steps.json" ) ]] || { echo "FAIL LOUD: $R/bisect exists"; exit 1; }
+    BW=${LRC_WORK:-bisect}
+    [[ -n "${LRC_RESUME:-}" || ( ! -e "$R/$BW" && ! -e "$R/${BW}_steps.json" ) ]] || { echo "FAIL LOUD: $R/$BW exists"; exit 1; }
     [[ -d "$R/cfg/cfg_w4" ]] || { echo "FAIL LOUD: run the cfg job first"; exit 1; }
-    python3 scripts_cosim/load_recalibration_v1_bisect.py --work "$R/bisect" --grounded-wl "$X1" --cfg-dir "$R/cfg/cfg_w4" \
-      --topologies $CAL_TOPOS --windows g0 g1 --parallel "${LRC_PAR:-12}" --map 0.2666 11.6139 --log "$R/bisect_steps.json" ${LRC_ARGS:-}
-    find "$R/bisect" -name "*.log" -size +50M -exec gzip -1 {} \;
+    python3 scripts_cosim/load_recalibration_v1_bisect.py --work "$R/$BW" --grounded-wl "$X1" --cfg-dir "$R/cfg/cfg_w4" \
+      --topologies $CAL_TOPOS --windows g0 g1 --parallel "${LRC_PAR:-12}" --map 0.2666 11.6139 --log "$R/${BW}_steps.json" ${LRC_ARGS:-}
+    find "$R/$BW" -name "*.log" -size +50M -exec gzip -1 {} \;
     ;;
   *) echo "FAIL LOUD: LRC_JOB=$JOB"; exit 1 ;;
 esac
