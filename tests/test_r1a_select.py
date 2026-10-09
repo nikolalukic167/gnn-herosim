@@ -102,7 +102,7 @@ def test_per_arm_selection_picks_what_the_all_arms_run_picks(tmp_path):
         finally:
             sys.argv = old
         picks[arm] = json.loads((out_dir / f"selection_{arm}.json").read_text())["arms"][arm]["config"]
-    argv = ["x", "--models-dir", str(models), "--inputs-dir", str(tmp_path / "inputs_all"), "--split", str(split), "--out", str(out_dir / "selection.json")]
+    argv = ["x", "--models-dir", str(models), "--inputs-dir", str(tmp_path / "inputs_all"), "--split", str(split), "--out", str(out_dir / "selection.json"), "--arms", *arms]
     old, sys.argv = sys.argv, argv
     try:
         assert sel.main() == 0
