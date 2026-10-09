@@ -651,9 +651,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
     wl_dir = None
+    inputs_root = inputs
     if window in GROUNDED_LADDER or window in SCALE_LADDER or window in WF1_LADDER:
         wl_name, sub = GROUNDED_LADDER.get(window) or SCALE_LADDER.get(window) or WF1_LADDER[window]
-        inputs = os.path.join(inputs, sub)
+        inputs_root, inputs = inputs, os.path.join(inputs, sub)
     elif window in GROUNDED_X15:
         wl_name = GROUNDED_X15[window]
         inputs = os.path.join(inputs, "grounded_x15")
@@ -727,13 +728,15 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = "r1-attribution-v1-" + base_kind[3:].replace("_", "-")
         else:
             stem = f"joint-burst-v2-{base_kind}"
-        ck = os.path.join(inputs, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
+        # checkpoints and the split file sit at the inputs root (r1a: one set for every rung); an older layout kept them in the rung directory
+        mroot = inputs_root if os.path.isdir(os.path.join(inputs_root, "models")) else inputs
+        ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind)
         split = ("r1_attribution_v1_split.json" if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
-                                  os.path.join(inputs, split), "inf"], env=env, cwd=REPO)
+                                  os.path.join(mroot, split), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
