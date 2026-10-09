@@ -179,6 +179,15 @@ arrivals after the snapshot, exactly.
   - **If a rung's single-node zero-exchange share exceeds 80 %, production pauses for that rung** and the coordinator
     decides, recorded before production, whether it stays in the corpus.
 
+**Pipeline at the R1.1-T fix (2026-10-09; S6, `rp/r1a-features` `d28d1bb0` = merge `a5806044` + a snapshot change).**
+- **Tests:** 44 pass. Determinism A/B (job 850069): 0 differences, and a resubmit builds 0.
+- **Snapshot change.** `snapshot_fidelity` records a planned-then-deferred partner as unplaced (`peer_node_name` uses
+  `peer_is_placed`), so the replay matches the live rendezvous state.
+- **S7 accepts it.** It can't mark a placed partner unplaced. `unplaced_partner` rejections rise by exactly the batches
+  with such a partner; the size is measured per rung in the extended B2, against the 10 % line.
+- **Extended B2** is ready: 12 topologies × 3 rungs, PER_CELL=4, target 576. It waits for S5's I11 spot check at
+  `d28d1bb0`.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
