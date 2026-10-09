@@ -279,7 +279,8 @@ if NEAR_CFG.full_context_ce_weight < 0.0 or (NEAR_CFG.full_context_ce_weight > 0
         f"NEAR_RTT_FULL_CONTEXT_CE_WEIGHT={NEAR_CFG.full_context_ce_weight} needs the teacher-forced "
         "prefix objective (NEAR_RTT_PARTIAL_STATE_EDGES=1) and a non-negative weight"
     )
-if TEACHER_FORCED and not (NEAR_CFG.mp_dag_edges or NEAR_CFG.mp_peer_edges):
+# The graph-free arms (r1_attribution_v1) are pointwise/set scorers by design and say so in arm_kind and the sidecar.
+if TEACHER_FORCED and NEAR_CFG.arm_kind == "gnn" and not (NEAR_CFG.mp_dag_edges or NEAR_CFG.mp_peer_edges):
     raise ValueError(
         "NEAR_RTT_PARTIAL_STATE_EDGES=1 without NEAR_RTT_MP_DAG_EDGES=1 is arm A3 "
         "(pointwise scoring under a masked decoder) wearing A1's name — the model would "
