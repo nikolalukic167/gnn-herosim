@@ -322,7 +322,7 @@ def main() -> int:
             infra["forced_placements"] = forced
             infra["fast_forward_warmup"] = True
             infra["fast_forward_threshold"] = 1
-            infra["scheduler"] = {"batch_size": max(len(wl["events"]), 1), "batch_timeout": 0.02}
+            infra["scheduler"] = {"batch_size": max(len(wl["events"]), 1), "batch_timeout": 0.02, "exact_batch": True}
             row = {"t": st["t"], "batch": st["batch"], "tags": bucket_of(st["i11"]),
                    "stratum": st.get("stratum", "only"), "cell": args.cell, "n_queued": len(fid["queued"]),
                    "open_peers": open_peers,
