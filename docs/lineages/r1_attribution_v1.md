@@ -380,6 +380,13 @@ No line trips.
   - **Amendment, before any comparison numbers are read:** a fifth variant, **E**, creates same-instant timers in
     task-id order with exact time arithmetic. The pool and the rule are unchanged, with 5 candidates.
   - Jobs: 853585 (I11 pool, A–D), 853587 and 853578 (relabels), 853590 (forced-live on the 86 datasets).
+  - **Variant E (`8894a088`) passes its gates** (jobs 853594, 853593, 853595).
+    - The heavy state is reproduced to 1.3e-12 (A −0.43 %, B −33 %). All 13 ds_03200 plans match at 0.000 %. Live
+      no-op: 3 of 3 identical.
+    - The five-variant pool (853598, on new captures) decides; E is the only variant tuned against the two observed
+      failures.
+    - **The production build starts speculatively at E** into a commit-tagged directory. It is discarded if another
+      variant wins. No cache is built and no training starts before the verdict.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
