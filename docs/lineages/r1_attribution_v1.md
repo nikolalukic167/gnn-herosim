@@ -362,6 +362,18 @@ No line trips.
     - Light last third peaks at 3.4 %, inside the bar.
     - Job 853571 replays that state at `e384e732`, `f7711324` and `d28d1bb0` to find whether the fix caused it. The
       production build submit is held about 1 h.
+  - **The −33 % state is caused by `exact_batch`** (job 853571). The same state reads −0.43 % at `d28d1bb0` (with the
+    poll) and −32.99 % at both `f7711324` and `e384e732`. So the 1 ms poll was not simply an artifact: it reproduces
+    some states, and exact_batch reproduces others, such as ds_03200.
+  - The earlier "0 of 50 unexposed changed" figure compared `e384e732` against `f7711324`, not against `d28d1bb0`, so it
+    says nothing about exact_batch.
+  - **Decision, signed before the data:**
+    - Compare exact_batch {0, 1} × tie-fix {off, on} over a pool: ds_03200's 13 plans, the heavy state, the ~210 states
+      from 853521, and the 86 ext datasets.
+    - Production uses the combination with the lowest max error, provided it meets I11 (p95 ≤ 1 %, max ≤ 5 %). A tie
+      goes to the lower p95.
+    - If none meets I11, production stays held, and the fix becomes a principled reproduction of live's same-instant
+      event order (link probe, job 853576).
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
