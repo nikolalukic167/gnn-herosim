@@ -29,5 +29,11 @@ while [[ $off -lt $N ]]; do
 done
 while [[ $(( $(q) + 1 )) -gt $CAP ]]; do sleep 120; done
 dep=$(IFS=:; echo "${ids[*]}")
-chk=$(sub <<<"sbatch --parsable --dependency=afterany:$dep --export=ALL,WT='$WT',ROOT='$ROOT',BATCHES_TARGET=$BATCHES_TARGET '$D/wf1_corpus_prod_check.sbatch'")
+# the check's volume target excludes cells the capture marked hung or failed: CHECK_PER_CELL x (cells with an ok sentinel)
+CHECK_TARGET=$BATCHES_TARGET
+if [[ -n "${CHECK_PER_CELL:-}" ]]; then
+  ok=$(sub <<<"cat $ROOT/snapshots/*.done | grep -c '\"status\": \"ok\"'"); CHECK_TARGET=$(( CHECK_PER_CELL * ok ))
+  echo "check target: $CHECK_PER_CELL x $ok ok cells = $CHECK_TARGET"
+fi
+chk=$(sub <<<"sbatch --parsable --dependency=afterany:$dep --export=ALL,WT='$WT',ROOT='$ROOT',BATCHES_TARGET=$CHECK_TARGET '$D/wf1_corpus_prod_check.sbatch'")
 echo "check -> $chk (afterany:$dep)"
