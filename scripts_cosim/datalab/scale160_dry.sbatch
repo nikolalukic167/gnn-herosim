@@ -83,13 +83,13 @@ PY
   RN=$(python3 -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['wandb']['run_name'])" "$OUT/cfg/$ARM.yaml")-seed1
   rm -f models/$RN.pt models/$RN.contract.json models/$RN.val.json models/$RN-final.pt models/$RN-final.contract.json
   T3=$(date +%s.%N)
-  /usr/bin/time -v python3 -u run_experiment.py "$OUT/cfg/$ARM.yaml" --seed 1 2> "$OUT/ckpt/$ARM.time" | python3 -c "
+  python3 -c "import resource,subprocess,sys; rc=subprocess.call(sys.argv[1:]); print('MAXRSS_KB', resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss, file=sys.stderr); sys.exit(rc)" python3 -u run_experiment.py "$OUT/cfg/$ARM.yaml" --seed 1 2> "$OUT/ckpt/$ARM.time" | python3 -c "
 import sys, time
 for l in sys.stdin:
     sys.stdout.write(f'{time.time():.2f} ' + l); sys.stdout.flush()" > "$OUT/ckpt/$ARM.log"
   rc=${PIPESTATUS[0]}
   T4=$(date +%s.%N)
-  grep -E "Maximum resident|Elapsed \(wall" "$OUT/ckpt/$ARM.time" | sed "s/^/[$ARM] /"
+  grep -E "MAXRSS_KB" "$OUT/ckpt/$ARM.time" | sed "s/^/[$ARM] /"
   if [[ $rc -ne 0 || ! -f models/$RN.contract.json ]]; then echo "[$ARM] FAILED rc=$rc"; tail -15 "$OUT/ckpt/$ARM.log" | cut -c1-250; fail=$((fail+1)); continue; fi
   python3 scripts_cosim/joint_burst_v2_sidecheck.py models/$RN.contract.json "ra_$ARM" "$OUT/split.json" inf && SC=ok || SC=FAIL
   echo "[$ARM] rc=$rc wall $(python3 -c "print(round($T4-$T3,1))")s sidecheck=$SC"
