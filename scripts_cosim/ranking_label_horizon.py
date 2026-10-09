@@ -7,6 +7,7 @@ import sys, os, json, bisect, random, subprocess, math, glob, argparse
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from src.placement.sweep_status import sweep_complete
+from scripts_cosim.ranking_mapping import plan_task_ids
 
 ap = argparse.ArgumentParser()
 ap.add_argument("out"); ap.add_argument("roots")
@@ -22,7 +23,10 @@ REPO = Path(".").resolve()
 
 def load(ds):
     ds = Path(ds)
-    prov = json.load(open(ds / "warm_snapshot.json"))["provenance"]
+    ws = json.load(open(ds / "warm_snapshot.json")); prov = ws["provenance"]
+    # plan index i is the dataset's i-th task (workload.json order), not the snapshot's batch[i]
+    prov["snapshot_task_ids"] = list(prov["task_ids"])
+    prov["task_ids"] = plan_task_ids(json.load(open(ds / "workload.json"))["events"], ws["snapshot"]["fidelity"]["batch"])
     plans = []
     for i, l in enumerate(open(ds / "placements" / "placements.jsonl")):
         r = json.loads(l)
@@ -149,7 +153,12 @@ def q(v, p): v = sorted(v); return v[min(len(v) - 1, math.ceil(p * len(v)) - 1)]
 print("GATE3: evaluated %d, failed to run/match %d, forced-iso vs label: median %.4f%% p95 %.4f%% max %.4f%%" % (len(g3), len(bad), 100 * q(g3, .5), 100 * q(g3, .95), 100 * max(g3) if g3 else float("nan")))
 for r in sorted([r for r in rows if "iso" in r], key=lambda r: -rel(r["iso"], r["label"]))[:5]:
     print("   worst", Path(r["ds"]).name, r["plan_idx"], "label %.4f iso %.4f abs miss %.4f" % (r["label"], r["iso"], abs(r["iso"] - r["label"])))
-for r in bad[:8]: print("   FAIL", Path(r["ds"]).name, r["plan_idx"], r.get("iso_error"))
+import re, collections
+cat = collections.Counter(("sub-batch (forced plan names part of the live batch)" if "forced plan names tasks" in r["iso_error"] else
+                           "not a valid replica" if "not a valid replica" in r["iso_error"] else
+                           "different instant" if "different instant" in r["iso_error"] else "other") for r in bad)
+print("   failure classes:", dict(cat))
+for r in bad[:8]: print("   FAIL", Path(r["ds"]).name, r["plan_idx"], r.get("iso_error")[:200])
 json.dump(dict(gate3_median=q(g3, .5), gate3_p95=q(g3, .95), gate3_max=max(g3) if g3 else None, failed=len(bad)), open(OUT / "gate3.json", "w"))
 if args.gate_only: sys.exit(0)
 
