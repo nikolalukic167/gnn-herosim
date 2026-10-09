@@ -58,7 +58,9 @@ for d in "$HOME" "$ROOT"; do
   [[ "$g" -ge "$GUARD_GB" ]] || { echo "FAIL LOUD: only ${g} GB free for $d, below the ${GUARD_GB} GB guard"; exit 1; }
 done
 SPLIT=train; for h in $HELDOUT_TOPOS; do [[ "$h" == "$SEED" ]] && SPLIT=heldout; done
-OUT="$ROOT/gnn_datasets_wf1_$SPLIT"; mkdir -p "$OUT" "$ROOT/build_logs"
+# OUT_TAG: a code variant's own datasets and build logs beside another variant's (gnn_datasets_wf1_<split>_<tag>, build_logs_<tag>)
+OUT_TAG=${OUT_TAG:-}; BLOGS="$ROOT/build_logs${OUT_TAG:+_$OUT_TAG}"
+OUT="$ROOT/gnn_datasets_wf1_${SPLIT}${OUT_TAG:+_$OUT_TAG}"; mkdir -p "$OUT" "$BLOGS"
 NR=$(echo $TAGS | wc -w); NW=$(echo $WINDOWS | wc -w); NT=$(echo $TOPOS_ALL | wc -w)
 PER_CELL=$(( (BATCHES_TARGET + NT * NR * NW - 1) / (NT * NR * NW) ))
 echo "target $BATCHES_TARGET batches over $NT topologies x $NR rungs x $NW windows = $PER_CELL batches per cell"
@@ -81,11 +83,11 @@ for R in $TAGS; do
       --output-dir "$OUT" --source-tag "wf1p_${CELL}_${R}_${W}" --start-index "$START" --limit-batches "$PER_CELL" --require-limit-batches \
       --min-time "$MIN_TIME" --target-combos "$TARGET" \
       --workers $(( SLURM_CPUS_PER_TASK - 1 )) --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity --require-connected-batch \
-      > "$ROOT/build_logs/${CELL}_${R}_${W}.log" 2>&1 || { echo "[$CELL $R $W] SHORTFALL or error (rc=$?), see build_logs"; shortfall=$((shortfall+1)); }
+      > "$BLOGS/${CELL}_${R}_${W}.log" 2>&1 || { echo "[$CELL $R $W] SHORTFALL or error (rc=$?), see build_logs"; shortfall=$((shortfall+1)); }
     wi=$((wi+1))
   done
   ri=$((ri+1))
 done
 echo "=== topology $SEED ($SPLIT): $(ls -d "$OUT"/ds_* 2>/dev/null | wc -l) datasets in $OUT (all sources of this split so far); capture-not-ok cells:${cells_not_ok:- none}; cap-hit cells:${cap_cells:- none}; shortfall cells: $shortfall"
-echo "{\"topology\": $SEED, \"split\": \"$SPLIT\", \"cells_not_ok\": \"${cells_not_ok# }\", \"cap_hit_cells\": \"${cap_cells# }\", \"shortfall_cells\": $shortfall}" > "$ROOT/build_logs/topology_${SEED}.json"
+echo "{\"topology\": $SEED, \"split\": \"$SPLIT\", \"cells_not_ok\": \"${cells_not_ok# }\", \"cap_hit_cells\": \"${cap_cells# }\", \"shortfall_cells\": $shortfall}" > "$BLOGS/topology_${SEED}.json"
 [[ $shortfall -eq 0 ]] || exit 1
