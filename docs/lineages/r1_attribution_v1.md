@@ -497,6 +497,19 @@ No line trips.
   - Chunk 2 is reordered so that gnn_eng, twin_eng and mlp_same finish first.
   - Diagnostics (S7, read-only): architecture audit, permutation feature importance on the validation split, and an
     epoch-10/30 checkpoint smoke on train-split topologies only. These are descriptive and never a result.
+- **Gate test set vs corpus: disjoint (S4).** The 19 gate topologies (`small_batch_confirm_v1/inputs/selected.json`,
+  9483–9568) intersect neither the corpus's 86 train nor its 17 held-out topologies. The 17 held-out are for model
+  selection, and the 19 are test. The check is at topology level only.
+- **Classical arms, descriptive (S4, 335abdd1, `classical_read.json`).**
+  - 1,362 of 1,368 cells done. 6 were killed by rate and counted (5 at 9565, 1 at 9538 Knative).
+  - CD median effective share: 0.105 / 0.273 / 0.449.
+  - Paired % vs CD, median over 19 topologies (light / moderate / heavy):
+    - CD-declared: +0.50 / +4.03 / +4.28
+    - locality-first: +7.2 / +15.0 / +19.8
+    - one-pass greedy: +5.7 / +12.7 / +10.9
+    - self-predict: +0.68 / −0.54 / +2.72 (ahead of CD in 13/19 topologies at moderate)
+    - Knative: +25.9 % at light; it collapses at moderate and heavy (share 0.98 / 0.99)
+  - Dropping 9538 and 9565 changes no arm by more than 0.5 points, except Knative.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
