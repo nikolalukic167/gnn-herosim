@@ -664,8 +664,15 @@ No line trips.
   - vs CD←random: +2.7 / +3.2 / +2.5 %.
 - **Plain random arm (S4, array 854916 at ec6c8777, which differs from 263dd915 in the driver only; descriptive).**
   - Of 131 decided cells, 114 were killed for stalling (70 light, 36 moderate). The sim clock stops advancing.
-  - Decision: the pause line applies with no rerun, and it is reported as N of M hung per rung. One diagnostic cell
-    classifies the stall (starved-client spin vs a random_network defect).
+  - Decision: the pause line applies with no rerun, and it is reported as N of M hung per rung.
+  - **Result: not measurable under this physics.** Hung: light 135 / 152, moderate 138 / 152 (14 skipped by the pause
+    line), heavy 151 / 152. 18 of 456 cells finished.
+  - Diagnostic job 855008: a zero-simulated-time loop in the starved-client family.
+    - The postponed branch re-queues the task and calls `create_first_replica` with no delay
+      (`src/policy/random/scheduler.py`; stack at `gnn/autoscaler.py:377`).
+    - The process later segfaulted, with no backtrace.
+    - Knative's legacy branch (`knative_network/scheduler.py:89–101`) has the same hazard.
+  - The 18 surviving cells are the easy ones and are not a quality read. Light: +27.8 % vs CD.
 - **More selections:** set_transformer (23:41), g1, val regret 0.901 ± 0.034 s.
 - **Trio reads, partial and descriptive (S4; 451–455 of 456 cells each; Holm and the family not yet run).** Paired %
   over 19 topologies, light / moderate / heavy:
