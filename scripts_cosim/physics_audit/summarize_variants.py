@@ -20,14 +20,20 @@ for f in glob.glob(f"{O}/*_*/replay_[ABCDE]_*.jsonl"):
             r["_fail"] = True
         r["_cell"] = cell
         rows.setdefault(var, []).append(r)
-for var in "ABCDE":
-    rs = rows.get(var, [])
-    ok = [r for r in rs if not r.get("_fail")]
-    e = [abs(r["rel_err"]) for r in ok]
-    print(f"== {NAMES[var]}: states {len(rs)}, scored {len(ok)}, unscored {len(rs) - len(ok)}: median {100 * st.median(e):.3f}% p95 {100 * q(e, .95):.3f}% max {100 * max(e):.3f}%")
-    for rung in "zlmh":
-        e2 = [abs(r["rel_err"]) for r in ok if r["_cell"].endswith("_" + rung)]
-        if e2:
-            print(f"     rung {rung}: n {len(e2)} median {100 * st.median(e2):.3f}% p95 {100 * q(e2, .95):.3f}% max {100 * max(e2):.3f}%")
-    for r in sorted(ok, key=lambda r: -abs(r["rel_err"]))[:4]:
-        print(f"     worst {r['_cell']} t={r['t']:.1f} err={100 * r['rel_err']:.3f}% live={r['live']:.4f} replay={r['replay']:.4f} abs miss {abs(r['replay'] - r['live']):.4f}")
+def tuned(r):   # the state variant E was tuned on (heavy 9601, t = 2146.6 s)
+    return r["_cell"] == "9601_h" and abs(r["t"] - 2146.6251535539013) < 1e-3
+
+
+for label, keep in (("ALL STATES", lambda r: True), ("UNTUNED (excludes the heavy 9601 t=2146.6 s state E was tuned on)  <- decides", lambda r: not tuned(r))):
+    print("#####", label)
+    for var in "ABCDE":
+        rs = [r for r in rows.get(var, []) if keep(r)]
+        ok = [r for r in rs if not r.get("_fail")]
+        e = [abs(r["rel_err"]) for r in ok]
+        print(f"== {NAMES[var]}: states {len(rs)}, scored {len(ok)}, unscored {len(rs) - len(ok)}: median {100 * st.median(e):.3f}% p95 {100 * q(e, .95):.3f}% max {100 * max(e):.3f}%")
+        for rung in "zlmh":
+            e2 = [abs(r["rel_err"]) for r in ok if r["_cell"].endswith("_" + rung)]
+            if e2:
+                print(f"     rung {rung}: n {len(e2)} median {100 * st.median(e2):.3f}% p95 {100 * q(e2, .95):.3f}% max {100 * max(e2):.3f}%")
+        for r in sorted(ok, key=lambda r: -abs(r["rel_err"]))[:4]:
+            print(f"     worst {r['_cell']} t={r['t']:.1f} err={100 * r['rel_err']:.3f}% live={r['live']:.4f} replay={r['replay']:.4f} abs miss {abs(r['replay'] - r['live']):.4f}")
