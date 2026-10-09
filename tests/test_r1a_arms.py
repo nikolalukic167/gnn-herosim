@@ -365,3 +365,15 @@ def test_sidecheck_accepts_each_arm_and_refuses_its_neighbours(tmp_path, arm):
     others = [a for a in ("gnn_eng", "twin_eng", "mlp_same", "gnn_raw", "twin_raw", "gnn_eng_physmp", "set_transformer") if a != arm]
     for other in others:
         assert sc_mod.check_ra(good, f"ra_{other}", str(split), "inf") == 1, f"a {arm} sidecar passed as {other}"
+
+
+def test_loader_refuses_an_inflight_capture_mismatch(tmp_path, monkeypatch):
+    from src.policy.gnn.prefix_serving import PrefixServingError, load_prefix_conditioned_gnn
+
+    for name in ("GNN_DISABLE_MESSAGE_PASSING", "GNN_ARM_KIND", "PARTIAL_STATE_CONTRACT", "HEROSIM_INFLIGHT_CAPTURE"):
+        monkeypatch.delenv(name, raising=False)
+    ckpt = _write_checkpoint(tmp_path, ARM_MLP_SAME, make_arm(ARM_MLP_SAME))
+    load_prefix_conditioned_gnn(ckpt, device=torch.device("cpu"))  # legacy sidecar, legacy run: fine
+    monkeypatch.setenv("HEROSIM_INFLIGHT_CAPTURE", "service_end_v1")
+    with pytest.raises(PrefixServingError, match="inflight_capture"):
+        load_prefix_conditioned_gnn(ckpt, device=torch.device("cpu"))
