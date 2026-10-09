@@ -490,6 +490,13 @@ No line trips.
     1–10 s in the capture, so its history diverged before the snapshot. It is excluded and disclosed. Why only this run
     diverged is unknown.
   - F's gates pass: heavy 9601 error 1.3e-12, ds_03200 13/13 exact, live no-op 3/3 identical.
+- **Per-arm gating (2026-10-09 21:20, coordinator, before any checkpoint exists).**
+  - Each arm is selected (validation only, same rule) and live-gated as soon as all 6 configs × 3 seeds of that arm
+    finish. CD←GNN and CD←Twin follow their source arm, and CD←random runs now.
+  - Each arm is read descriptively on arrival. The primary family is read once, when all its arms are in.
+  - Chunk 2 is reordered so that gnn_eng, twin_eng and mlp_same finish first.
+  - Diagnostics (S7, read-only): architecture audit, permutation feature importance on the validation split, and an
+    epoch-10/30 checkpoint smoke on train-split topologies only. These are descriptive and never a result.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
