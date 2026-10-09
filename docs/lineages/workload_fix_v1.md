@@ -310,9 +310,10 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
       - The "deferred once, then re-planned" window is real but zero sim time.
       - Identity, job 849832: 10 `stage_w23_wb2` cells with 545–1,008 deferred tasks each are identical at `54fddd0d` and
         at `c8eb73c2`.
-    - **Hang check (job 849748, capture policy, full 50,000 events).** 7 of the 9 previously spinning cells now finish in
-      33–380 s. **9103 g0 and 9105 g3 still spin** (t ≈ 989 s and t ≈ 2,213 s). The fix is **not complete**; the remaining
-      cause is under diagnosis, by dump only.
+    - **Hang check (job 849748, capture policy, full 50,000 events).** **All 9 previously spinning cells finish (0 of 9
+      hung)**: 7 in 33–380 s, while 9105 g3 and 9103 g0 creep through a slowed spin for 2,856 s and 4,241 s, inside
+      production's 7,200 s capture timeout. The residual slowdown is under diagnosis, by dump only (job 849880). Rung
+      identity is being rerun as job 849879.
     - **Rung-finals identity, job 849747:** it died in its preflight while `/home` was at quota, before any simulation ran.
       It is resubmitted once space is freed.
 - **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
