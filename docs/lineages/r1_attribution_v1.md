@@ -124,6 +124,13 @@ arrivals after the snapshot, exactly.
 - **Two new defects, to fix before production:**
   - resume doesn't count skipped datasets toward `--limit-batches` (confirmed: a second pass built 2 more);
   - cap-hit cells are used silently.
+- **Fixed in `31d8620b`** (resume pass 845772: a resubmitted cell builds 0; determinism file passed, 4/4 graphs,
+  0 differences). Cap-hit cells now fail the volume check.
+- **`2a7c85c9` adds a selection rule, `unplaced_partner`.** It rejects a batch whose out-of-batch peer partner was not
+  placed at capture, because the replay refuses it (`simulation.py:799`). That was the cause of B2 9101 ds_00400's
+  empty "skipped" sweep.
+- **Threshold, signed now:** if more than 10 % of offered batches at any rung are rejected as `unplaced_partner`,
+  production pauses and the rule is revisited. Serving still sees those batches.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
