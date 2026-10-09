@@ -356,6 +356,12 @@ No line trips.
   - **Decision:** production builds at `e384e732`, merged with the per-task manifests, with no relabel step. The ext
     exposed datasets are rebuilt for the ranking rerun.
   - Pending: I11 sets at `e384e732` (853521) and live no-op (853522).
+  - **Results (853521, 853522).** Live no-op: 3 of 3 identical.
+    - I11 on new captures at all four rungs: every set within 5 % except **one heavy state, 9601 at t = 2,146.6 s:
+      −33.0 %**. Live 0.469 s against replay 0.314 s; the replay is 0.0774 s per task faster.
+    - Light last third peaks at 3.4 %, inside the bar.
+    - Job 853571 replays that state at `e384e732`, `f7711324` and `d28d1bb0` to find whether the fix caused it. The
+      production build submit is held about 1 h.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
