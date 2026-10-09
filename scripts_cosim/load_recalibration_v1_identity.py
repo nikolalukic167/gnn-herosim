@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-NEW = {"placement_wait", "arrival_end", "backlog_profile", "lock_wait", "effective_queue_share"}  # fields a later instrumentation adds
+NEW = {"placement_wait", "arrival_end", "backlog_profile", "lock_wait", "effective_queue_share", "backlog_profile_v2"}  # fields a later instrumentation adds
 # total_rtt_plus_inference adds the measured inference wall time (not simulated; total_rtt is compared)
 BOOKKEEPING = {"wallclock_s", "code", "total_rtt_plus_inference"}
 
