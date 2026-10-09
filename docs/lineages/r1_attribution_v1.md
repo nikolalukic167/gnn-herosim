@@ -219,6 +219,17 @@ arrivals after the snapshot, exactly.
   - a 0.55 s `backlog_s` diff in ds_01800 (feature bug or replay artifact?);
   - ds_02201 splits a 4-task batch into 2 in replay (real batching divergence?);
   - the suite rerun at head.
+- **Resolved at `0699a0e0`** (suite: 1,798 pass, the same 26 pre-existing failures).
+  - **Capture mode:** `physics_env.inflight_capture` is now read off the datasets; mixed-mode caches are refused, and so
+    is a serving or training mismatch.
+  - **The 0.55 s backlog diff** (ds_02000, not ds_01800) is a replay-harness blind spot. A replayed ghost is not
+    `platform.current_task`, so the replay side reads 0. The cache and serving use the same capture function, and a new
+    test pins that.
+  - **ds_02201 is a harness artifact.** Live serving collects the whole peer group and cuts it with the same
+    `declared_slate.sub_batches`. Parity job 850834: 14 of 14 clean.
+  - **Accepted, and disclosed:** later sub-batches don't see earlier sub-batch placements, on either the train or the
+    serve side, which is consistent.
+  - **Verdict: the arms are gate-ready**, pending only the production cache.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
