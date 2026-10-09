@@ -693,6 +693,10 @@ No line trips.
     - Random already sampled only existing, reachable replicas, so restricting its candidates was not the fix.
     - Tested on 4 cells (jobs 855096/855097): all completed, with reactive and CD identical to 6 decimals.
     - The full random arm is rerun at the fix into a new directory. The old random results are discarded.
+  - **Random at the fix (S4, array 855099; 453 of 456 cells, 0 failed; partial and descriptive).**
+    - vs CD: +32.8 / +119.6 / +154.9 %, faster in 0 / 0 / 0 of 19 topologies.
+    - vs self-predict: about the same as vs CD.
+    - vs Knative: +4.6 % at light. At moderate and heavy it is −97 / −99 %, only because Knative collapses there.
 - **More selections:** set_transformer (23:41), g1, val regret 0.901 ± 0.034 s.
 - **Trio reads, partial and descriptive (S4; 451–455 of 456 cells each; Holm and the family not yet run).** Paired %
   over 19 topologies, light / moderate / heavy:
