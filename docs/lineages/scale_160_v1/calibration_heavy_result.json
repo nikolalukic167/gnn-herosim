@@ -1,0 +1,2114 @@
+{
+ "tag": "heavy",
+ "band": [
+  0.4,
+  0.5
+ ],
+ "bracket": [
+  11.6139,
+  185.8224
+ ],
+ "steps": 4,
+ "fallback": false,
+ "multiplier": 23.2278,
+ "median_effective_share": 0.4148108634815944,
+ "chosen": {
+  "m": 23.2278,
+  "tag": "m23p2278",
+  "policy": "peer_greedy_network_cd",
+  "median_effective_share": 0.4148108634815944,
+  "median_plain_share": 0.10155003765923512,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 61,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.814101045637204,
+    "plain_share": 0.08064759859125088,
+    "effective_share": 0.3696208260930298,
+    "lock_wait_mean": 0.8131998616739137,
+    "p95": 10.634853509507593,
+    "request_failures": 0,
+    "end_time": 4722.108809273887,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0096825454548795,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.5796087661979215,
+      0.1878887829925868,
+      0.2137338159669501,
+      0.19251206645174107
+     ],
+     "last_over_mid": 0.9586714838780099,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 13
+     },
+     "in_system_ratio": 1.0833333333333333
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 56,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.837700340773686,
+    "plain_share": 0.11806065592081565,
+    "effective_share": 0.35854413332595436,
+    "lock_wait_mean": 0.6824200457830032,
+    "p95": 10.39406111773934,
+    "request_failures": 0,
+    "end_time": 4794.2461867210795,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0249344544931203,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.5532906488129528,
+      0.2095014714030994,
+      0.18996886308501235,
+      0.20301929101477767
+     ],
+     "last_over_mid": 1.0164423912725842,
+     "in_system_at": {
+      "half": 19,
+      "three_quarter": 24
+     },
+     "in_system_ratio": 1.263157894736842
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 48,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.687278243811612,
+    "plain_share": 0.08045232172461987,
+    "effective_share": 0.35883599975608615,
+    "lock_wait_mean": 0.7480944014062159,
+    "p95": 8.8102508321399,
+    "request_failures": 0,
+    "end_time": 4751.796959816965,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0160304735990409,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.2826653729265067,
+      0.19524180866578178,
+      0.20710815607244498,
+      0.18513593990265406
+     ],
+     "last_over_mid": 0.9202731757320048,
+     "in_system_at": {
+      "half": 21,
+      "three_quarter": 27
+     },
+     "in_system_ratio": 1.2857142857142858
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 49,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.715612557472916,
+    "plain_share": 0.12003974608013619,
+    "effective_share": 0.4362090781115183,
+    "lock_wait_mean": 0.8585934083522453,
+    "p95": 8.34859988624558,
+    "request_failures": 0,
+    "end_time": 4770.322710364767,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0198199913984316,
+    "backlog": {
+     "quarter_mean_backlog": [
+      4.118703233575837,
+      0.2747209046170391,
+      0.22496531060420052,
+      0.2063951271546774
+     ],
+     "last_over_mid": 0.8260989431669413,
+     "in_system_at": {
+      "half": 14,
+      "three_quarter": 21
+     },
+     "in_system_ratio": 1.5
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 61,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.5491293098809202,
+    "plain_share": 0.08384596395639643,
+    "effective_share": 0.41879785253441193,
+    "lock_wait_mean": 0.8538356765741874,
+    "p95": 8.116816501433732,
+    "request_failures": 0,
+    "end_time": 4730.0717616206375,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0113851860164464,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.503252572208478,
+      0.2519140253444339,
+      0.18465753733668655,
+      0.3439243061296766
+     ],
+     "last_over_mid": 1.5755689812571918,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 1.4166666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 53,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.4982462538869243,
+    "plain_share": 0.13130323525640689,
+    "effective_share": 0.41515182780597254,
+    "lock_wait_mean": 0.7091236830080284,
+    "p95": 8.219722252741576,
+    "request_failures": 0,
+    "end_time": 4710.885270532387,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0071132013007933,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.510678271799984,
+      0.22644659632430034,
+      0.268662497794807,
+      0.22802230819612732
+     ],
+     "last_over_mid": 0.9210992522842754,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 15
+     },
+     "in_system_ratio": 1.25
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 49,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.651020728383591,
+    "plain_share": 0.0850394193976546,
+    "effective_share": 0.41446989915721627,
+    "lock_wait_mean": 0.873327030403949,
+    "p95": 9.209042634068737,
+    "request_failures": 0,
+    "end_time": 4688.025064712246,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0023947502435437,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.899689802736146,
+      0.17047059302144302,
+      0.1775791522554808,
+      0.16031620441798897
+     ],
+     "last_over_mid": 0.921225810927885,
+     "in_system_at": {
+      "half": 15,
+      "three_quarter": 16
+     },
+     "in_system_ratio": 1.0666666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 57,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.47698276580556,
+    "plain_share": 0.13705219171307112,
+    "effective_share": 0.43642718389432533,
+    "lock_wait_mean": 0.7415466961461409,
+    "p95": 7.61479278924071,
+    "request_failures": 0,
+    "end_time": 4770.6017216180135,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0198796396174645,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.8513222419409523,
+      0.1948431755598796,
+      0.1834267898346668,
+      0.17952830829290028
+     ],
+     "last_over_mid": 0.9492073107398158,
+     "in_system_at": {
+      "half": 20,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 0.85
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   }
+  ],
+  "step": 3
+ },
+ "cd_profiled": {
+  "m": 23.2278,
+  "tag": "m23p2278",
+  "policy": "peer_greedy_network_cd",
+  "median_effective_share": 0.4148108634815944,
+  "median_plain_share": 0.10155003765923512,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 49,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.814101045637204,
+    "plain_share": 0.08064759859125088,
+    "effective_share": 0.3696208260930298,
+    "lock_wait_mean": 0.8131998616739137,
+    "p95": 10.634853509507593,
+    "request_failures": 0,
+    "end_time": 4722.108809273887,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0096825454548795,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.5796087661979215,
+      0.1878887829925868,
+      0.2137338159669501,
+      0.19251206645174107
+     ],
+     "last_over_mid": 0.9586714838780099,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 13
+     },
+     "in_system_ratio": 1.0833333333333333
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 40659.993083695685,
+     "tasks_with_lock_wait": 5998,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.529,
+      "rf": 0.176,
+      "dnn2": 0.184,
+      "dnn1": 0.11
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.082,
+      "xavierCpu": 0.896,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.0,
+      "xavierDla": 0.022
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 57,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.837700340773686,
+    "plain_share": 0.11806065592081565,
+    "effective_share": 0.35854413332595436,
+    "lock_wait_mean": 0.6824200457830032,
+    "p95": 10.39406111773934,
+    "request_failures": 0,
+    "end_time": 4794.2461867210795,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0249344544931203,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.5532906488129528,
+      0.2095014714030994,
+      0.18996886308501235,
+      0.20301929101477767
+     ],
+     "last_over_mid": 1.0164423912725842,
+     "in_system_at": {
+      "half": 19,
+      "three_quarter": 24
+     },
+     "in_system_ratio": 1.263157894736842
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 34121.00228915016,
+     "tasks_with_lock_wait": 5975,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.239,
+      "cnn": 0.423,
+      "dnn1": 0.163,
+      "rf": 0.175
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.169,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.826,
+      "xavierDla": 0.005
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 48,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.687278243811612,
+    "plain_share": 0.08045232172461987,
+    "effective_share": 0.35883599975608615,
+    "lock_wait_mean": 0.7480944014062159,
+    "p95": 8.8102508321399,
+    "request_failures": 0,
+    "end_time": 4751.796959816965,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0160304735990409,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.2826653729265067,
+      0.19524180866578178,
+      0.20710815607244498,
+      0.18513593990265406
+     ],
+     "last_over_mid": 0.9202731757320048,
+     "in_system_at": {
+      "half": 21,
+      "three_quarter": 27
+     },
+     "in_system_ratio": 1.2857142857142858
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 37404.720070310796,
+     "tasks_with_lock_wait": 5888,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.518,
+      "rf": 0.223,
+      "dnn2": 0.203,
+      "dnn1": 0.056
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.02,
+      "xavierCpu": 0.98,
+      "pynqFpga": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 49,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.715612557472916,
+    "plain_share": 0.12003974608013619,
+    "effective_share": 0.4362090781115183,
+    "lock_wait_mean": 0.8585934083522453,
+    "p95": 8.34859988624558,
+    "request_failures": 0,
+    "end_time": 4770.322710364767,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0198199913984316,
+    "backlog": {
+     "quarter_mean_backlog": [
+      4.118703233575837,
+      0.2747209046170391,
+      0.22496531060420052,
+      0.2063951271546774
+     ],
+     "last_over_mid": 0.8260989431669413,
+     "in_system_at": {
+      "half": 14,
+      "three_quarter": 21
+     },
+     "in_system_ratio": 1.5
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 42929.670417612266,
+     "tasks_with_lock_wait": 6015,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.2,
+      "cnn": 0.45,
+      "dnn1": 0.114,
+      "rf": 0.236
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.041,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.957,
+      "xavierGpu": 0.002
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 54,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.5491293098809202,
+    "plain_share": 0.08384596395639643,
+    "effective_share": 0.41879785253441193,
+    "lock_wait_mean": 0.8538356765741874,
+    "p95": 8.116816501433732,
+    "request_failures": 0,
+    "end_time": 4730.0717616206375,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0113851860164464,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.503252572208478,
+      0.2519140253444339,
+      0.18465753733668655,
+      0.3439243061296766
+     ],
+     "last_over_mid": 1.5755689812571918,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 1.4166666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 42691.78382870937,
+     "tasks_with_lock_wait": 6422,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.524,
+      "rf": 0.197,
+      "dnn2": 0.235,
+      "dnn1": 0.045
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.011,
+      "xavierCpu": 0.989,
+      "pynqFpga": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 53,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.4982462538869243,
+    "plain_share": 0.13130323525640689,
+    "effective_share": 0.41515182780597254,
+    "lock_wait_mean": 0.7091236830080284,
+    "p95": 8.219722252741576,
+    "request_failures": 0,
+    "end_time": 4710.885270532387,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0071132013007933,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.510678271799984,
+      0.22644659632430034,
+      0.268662497794807,
+      0.22802230819612732
+     ],
+     "last_over_mid": 0.9210992522842754,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 15
+     },
+     "in_system_ratio": 1.25
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 35456.18415040142,
+     "tasks_with_lock_wait": 5992,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.241,
+      "cnn": 0.459,
+      "dnn1": 0.145,
+      "rf": 0.155
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.127,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.873
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 49,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.651020728383591,
+    "plain_share": 0.0850394193976546,
+    "effective_share": 0.41446989915721627,
+    "lock_wait_mean": 0.873327030403949,
+    "p95": 9.209042634068737,
+    "request_failures": 0,
+    "end_time": 4688.025064712246,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0023947502435437,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.899689802736146,
+      0.17047059302144302,
+      0.1775791522554808,
+      0.16031620441798897
+     ],
+     "last_over_mid": 0.921225810927885,
+     "in_system_at": {
+      "half": 15,
+      "three_quarter": 16
+     },
+     "in_system_ratio": 1.0666666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 43666.35152019745,
+     "tasks_with_lock_wait": 5568,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.549,
+      "rf": 0.217,
+      "dnn2": 0.158,
+      "dnn1": 0.076
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.031,
+      "xavierCpu": 0.969,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 52,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.47698276580556,
+    "plain_share": 0.13705219171307112,
+    "effective_share": 0.43642718389432533,
+    "lock_wait_mean": 0.7415466961461409,
+    "p95": 7.61479278924071,
+    "request_failures": 0,
+    "end_time": 4770.6017216180135,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0198796396174645,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.8513222419409523,
+      0.1948431755598796,
+      0.1834267898346668,
+      0.17952830829290028
+     ],
+     "last_over_mid": 0.9492073107398158,
+     "in_system_at": {
+      "half": 20,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 0.85
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 37077.334807307045,
+     "tasks_with_lock_wait": 5741,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.213,
+      "cnn": 0.438,
+      "dnn1": 0.179,
+      "rf": 0.169
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.207,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.793
+     }
+    },
+    "pass": true
+   }
+  ]
+ },
+ "peer_greedy_network_batch": {
+  "m": 23.2278,
+  "tag": "m23p2278",
+  "policy": "peer_greedy_network_batch",
+  "median_effective_share": 0.338001771854187,
+  "median_plain_share": 0.08697174923289754,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 43,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.3154852863995057,
+    "plain_share": 0.06796114392927967,
+    "effective_share": 0.2908925315389678,
+    "lock_wait_mean": 0.7391257354965461,
+    "p95": 14.908916551316452,
+    "request_failures": 0,
+    "end_time": 4743.905604809975,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0143431419994602,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.3673353556820205,
+      0.1693072834526241,
+      0.1665300424946032,
+      0.16760952793827052
+     ],
+     "last_over_mid": 0.9981590191949556,
+     "in_system_at": {
+      "half": 20,
+      "three_quarter": 25
+     },
+     "in_system_ratio": 1.25
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 36956.286774827306,
+     "tasks_with_lock_wait": 5328,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.547,
+      "rf": 0.176,
+      "dnn2": 0.195,
+      "dnn1": 0.082
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.08,
+      "xavierCpu": 0.92,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 47,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.2286740710442525,
+    "plain_share": 0.10603610573017244,
+    "effective_share": 0.3017242817487275,
+    "lock_wait_mean": 0.6318133399210525,
+    "p95": 13.819259038554605,
+    "request_failures": 0,
+    "end_time": 4781.484064378452,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0222061133959015,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.435117543877812,
+      0.20419096447508264,
+      0.17290996556772553,
+      0.169323420686119
+     ],
+     "last_over_mid": 0.8980270648863027,
+     "in_system_at": {
+      "half": 27,
+      "three_quarter": 16
+     },
+     "in_system_ratio": 0.5925925925925926
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 31590.666996052623,
+     "tasks_with_lock_wait": 5418,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.243,
+      "cnn": 0.452,
+      "dnn1": 0.135,
+      "rf": 0.169
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.177,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.823
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 44,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.2018835525547034,
+    "plain_share": 0.06609516607240756,
+    "effective_share": 0.3132770318217153,
+    "lock_wait_mean": 0.7914475504324932,
+    "p95": 14.447439537246282,
+    "request_failures": 0,
+    "end_time": 4751.798439203751,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0160307899219116,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.486373598362534,
+      0.18943715272466116,
+      0.18065983572303554,
+      0.1688182921259064
+     ],
+     "last_over_mid": 0.9122921687851797,
+     "in_system_at": {
+      "half": 23,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 0.7391304347826086
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 39572.37752162466,
+     "tasks_with_lock_wait": 5428,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.501,
+      "rf": 0.192,
+      "dnn2": 0.246,
+      "dnn1": 0.06
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.024,
+      "xavierCpu": 0.976,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 48,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.2712086288318876,
+    "plain_share": 0.09937351736635537,
+    "effective_share": 0.34540928723002245,
+    "lock_wait_mean": 0.8048343333793244,
+    "p95": 13.301503470243006,
+    "request_failures": 0,
+    "end_time": 4794.245219555362,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0249342477282966,
+    "backlog": {
+     "quarter_mean_backlog": [
+      4.020723681742114,
+      0.23071019944658766,
+      0.17248783462920647,
+      0.18056608190464796
+     ],
+     "last_over_mid": 0.8956694559215272,
+     "in_system_at": {
+      "half": 30,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 0.5666666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 40241.71666896622,
+     "tasks_with_lock_wait": 5346,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.21,
+      "cnn": 0.445,
+      "dnn1": 0.099,
+      "rf": 0.247
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.037,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.961,
+      "xavierGpu": 0.002
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 47,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.837863497142199,
+    "plain_share": 0.07400651287512533,
+    "effective_share": 0.3485451289715436,
+    "lock_wait_mean": 0.7791031171759613,
+    "p95": 11.06831800887866,
+    "request_failures": 0,
+    "end_time": 4734.814717329438,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0123993260514317,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.4511916684936654,
+      0.18287272462421547,
+      0.16356657917796066,
+      0.1718455987681232
+     ],
+     "last_over_mid": 0.9920675678660901,
+     "in_system_at": {
+      "half": 16,
+      "three_quarter": 32
+     },
+     "in_system_ratio": 2.0
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 38955.15585879806,
+     "tasks_with_lock_wait": 5680,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.517,
+      "rf": 0.174,
+      "dnn2": 0.266,
+      "dnn1": 0.043
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.024,
+      "xavierCpu": 0.976,
+      "pynqFpga": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 55,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.931726878811575,
+    "plain_share": 0.11269431307290652,
+    "effective_share": 0.3305942564783516,
+    "lock_wait_mean": 0.6388231209732643,
+    "p95": 12.017902178215081,
+    "request_failures": 0,
+    "end_time": 4725.668515280405,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0102736265900525,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.442108069517886,
+      0.17233791555888295,
+      0.16194362313828653,
+      0.18532309683865866
+     ],
+     "last_over_mid": 1.1087845147592525,
+     "in_system_at": {
+      "half": 22,
+      "three_quarter": 19
+     },
+     "in_system_ratio": 0.8636363636363636
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 31941.156048663215,
+     "tasks_with_lock_wait": 5573,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.262,
+      "cnn": 0.444,
+      "dnn1": 0.125,
+      "rf": 0.168
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.145,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.853,
+      "xavierGpu": 0.001
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 44,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.94659338591728,
+    "plain_share": 0.0745699810994397,
+    "effective_share": 0.36483591278981653,
+    "lock_wait_mean": 0.8552956744759813,
+    "p95": 14.539282261943299,
+    "request_failures": 0,
+    "end_time": 4683.933961265248,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0015199894303302,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.817734885959379,
+      0.1632609249626639,
+      0.1681673083439091,
+      0.16391180762402688
+     ],
+     "last_over_mid": 0.989123986141564,
+     "in_system_at": {
+      "half": 29,
+      "three_quarter": 28
+     },
+     "in_system_ratio": 0.9655172413793104
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 42764.78372379907,
+     "tasks_with_lock_wait": 5366,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.544,
+      "rf": 0.199,
+      "dnn2": 0.181,
+      "dnn1": 0.076
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.031,
+      "xavierCpu": 0.967,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.002
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 47,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.8276893847387905,
+    "plain_share": 0.1162548171640366,
+    "effective_share": 0.3478980176537574,
+    "lock_wait_mean": 0.6550150190717029,
+    "p95": 12.72259668114657,
+    "request_failures": 0,
+    "end_time": 4756.019665550066,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0167622253047024,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.470833163279894,
+      0.19948472247291552,
+      0.1840344617904404,
+      0.1655023726820129
+     ],
+     "last_over_mid": 0.8630721980695772,
+     "in_system_at": {
+      "half": 21,
+      "three_quarter": 24
+     },
+     "in_system_ratio": 1.1428571428571428
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 32750.750953585142,
+     "tasks_with_lock_wait": 5167,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.219,
+      "cnn": 0.448,
+      "dnn1": 0.176,
+      "rf": 0.156
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.187,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.813,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   }
+  ]
+ },
+ "peer_greedy_selfpredict_network": {
+  "m": 23.2278,
+  "tag": "m23p2278",
+  "policy": "peer_greedy_selfpredict_network",
+  "median_effective_share": 0.4379549620137092,
+  "median_plain_share": 0.09964571084724022,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 37,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.205029190365401,
+    "plain_share": 0.07265058933789358,
+    "effective_share": 0.4700557006679842,
+    "lock_wait_mean": 1.2736949822133523,
+    "p95": 14.2524496020269,
+    "request_failures": 0,
+    "end_time": 4731.585106532302,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0117087698228084,
+    "backlog": {
+     "quarter_mean_backlog": [
+      5.222851038596163,
+      0.24923614781473197,
+      0.24168880877062396,
+      0.31239297177268366
+     ],
+     "last_over_mid": 1.2726709758067418,
+     "in_system_at": {
+      "half": 17,
+      "three_quarter": 21
+     },
+     "in_system_ratio": 1.2352941176470589
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 63684.74911066762,
+     "tasks_with_lock_wait": 7950,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.668,
+      "rf": 0.126,
+      "dnn2": 0.165,
+      "dnn1": 0.041
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.037,
+      "xavierCpu": 0.962,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 42,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.958978525704324,
+    "plain_share": 0.10656995321594136,
+    "effective_share": 0.4080794824070371,
+    "lock_wait_mean": 0.8921602221716733,
+    "p95": 12.114538519736925,
+    "request_failures": 0,
+    "end_time": 4787.548143638798,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0235025181958721,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.9482512067251148,
+      0.286203115861229,
+      0.2982017288013139,
+      0.2973376495041759
+     ],
+     "last_over_mid": 1.0175742115069895,
+     "in_system_at": {
+      "half": 18,
+      "three_quarter": 30
+     },
+     "in_system_ratio": 1.6666666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 44608.01110858367,
+     "tasks_with_lock_wait": 8290,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.165,
+      "cnn": 0.575,
+      "dnn1": 0.11,
+      "rf": 0.15
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.156,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.59,
+      "xavierGpu": 0.002,
+      "xavierDla": 0.253
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 34,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.6694254407098286,
+    "plain_share": 0.08687321039875286,
+    "effective_share": 0.40887668586682874,
+    "lock_wait_mean": 0.8595642694114648,
+    "p95": 8.192444432668708,
+    "request_failures": 0,
+    "end_time": 4722.9837323562,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0098696217380627,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.6125010884749384,
+      0.25065573444664735,
+      0.2518992778124701,
+      0.25080720873007734
+     ],
+     "last_over_mid": 0.9981283744545009,
+     "in_system_at": {
+      "half": 16,
+      "three_quarter": 28
+     },
+     "in_system_ratio": 1.75
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 42978.21347057324,
+     "tasks_with_lock_wait": 7548,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.512,
+      "rf": 0.231,
+      "dnn2": 0.212,
+      "dnn1": 0.045
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.016,
+      "xavierCpu": 0.983,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.001
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 35,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.660871940558947,
+    "plain_share": 0.12508082846166985,
+    "effective_share": 0.43449681335511486,
+    "lock_wait_mean": 0.8233163121633789,
+    "p95": 9.221166369394396,
+    "request_failures": 0,
+    "end_time": 4701.788841717711,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0051685278439255,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.850909052688331,
+      0.2757328519792567,
+      0.23526996285226062,
+      0.26264964815576386
+     ],
+     "last_over_mid": 1.027977304752664,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 25
+     },
+     "in_system_ratio": 2.0833333333333335
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 41165.815608168945,
+     "tasks_with_lock_wait": 7591,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.208,
+      "cnn": 0.472,
+      "dnn1": 0.113,
+      "rf": 0.206
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.149,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.851,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 35,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.5409792068699684,
+    "plain_share": 0.08233211601697049,
+    "effective_share": 0.46357904444523745,
+    "lock_wait_mean": 0.9687405178192694,
+    "p95": 8.886527584584428,
+    "request_failures": 0,
+    "end_time": 4751.812787291317,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0160338578337627,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.8369198381987157,
+      0.2957306632045619,
+      0.25877732710833284,
+      0.32035102219237865
+     ],
+     "last_over_mid": 1.1554424022334204,
+     "in_system_at": {
+      "half": 11,
+      "three_quarter": 22
+     },
+     "in_system_ratio": 2.0
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 48437.02589096347,
+     "tasks_with_lock_wait": 8209,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.591,
+      "rf": 0.151,
+      "dnn2": 0.194,
+      "dnn1": 0.064
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.019,
+      "xavierCpu": 0.981,
+      "pynqFpga": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 43,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.4381008863820477,
+    "plain_share": 0.1289015517191925,
+    "effective_share": 0.45507795223153874,
+    "lock_wait_mean": 0.7952509712060573,
+    "p95": 7.59857934563297,
+    "request_failures": 0,
+    "end_time": 4753.855261167496,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0162995096787724,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.63803054281755,
+      0.26686274391438264,
+      0.26520693250898175,
+      0.2680036155936525
+     ],
+     "last_over_mid": 1.0074004494870097,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 18
+     },
+     "in_system_ratio": 1.5
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 39762.548560302865,
+     "tasks_with_lock_wait": 7926,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.192,
+      "cnn": 0.489,
+      "dnn1": 0.134,
+      "rf": 0.185
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.178,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.822,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 35,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.384736701148629,
+    "plain_share": 0.09272146847853907,
+    "effective_share": 0.40660539489495573,
+    "lock_wait_mean": 0.7485305192258644,
+    "p95": 8.465466362562665,
+    "request_failures": 0,
+    "end_time": 4680.35623549755,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 1.0007549991672988,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.33070623133711,
+      0.17014060447318735,
+      0.1801164016955737,
+      0.19762399485825793
+     ],
+     "last_over_mid": 1.1284513450277058,
+     "in_system_at": {
+      "half": 18,
+      "three_quarter": 9
+     },
+     "in_system_ratio": 0.5
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 37426.52596129322,
+     "tasks_with_lock_wait": 6230,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.481,
+      "rf": 0.262,
+      "dnn2": 0.229,
+      "dnn1": 0.028
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.023,
+      "xavierCpu": 0.976,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.002
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 35,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.431502954162616,
+    "plain_share": 0.13594166596276352,
+    "effective_share": 0.44141311067230354,
+    "lock_wait_mean": 0.7427547202235687,
+    "p95": 8.57680815876165,
+    "request_failures": 0,
+    "end_time": 4734.785796050886,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 1.0122227578672147,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.606225608186714,
+      0.23008873740185232,
+      0.23374873561758414,
+      0.2231260492171124
+     ],
+     "last_over_mid": 0.9620872059544125,
+     "in_system_at": {
+      "half": 8,
+      "three_quarter": 16
+     },
+     "in_system_ratio": 2.0
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 37137.73601117844,
+     "tasks_with_lock_wait": 7538,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.168,
+      "cnn": 0.498,
+      "dnn1": 0.168,
+      "rf": 0.166
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.203,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.797,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   }
+  ]
+ },
+ "knative": {
+  "m": 23.2278,
+  "tag": "m23p2278",
+  "policy": "knative_network",
+  "median_effective_share": 0.9954052193204779,
+  "median_plain_share": 0.00034262012936488043,
+  "cells_finished": 8,
+  "cells_pass": 0,
+  "cells": [
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 1001.6452256116066,
+    "plain_share": 0.00023836669502947205,
+    "effective_share": 0.9957413326276181,
+    "lock_wait_mean": 997.1407929085714,
+    "p95": 9432.748442662858,
+    "request_failures": 0,
+    "end_time": 20010.31437919256,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 4.278610674547814,
+    "backlog": {
+     "quarter_mean_backlog": [
+      266.49241072192905,
+      757.6810388516092,
+      1218.0554921687246,
+      1747.2892653401066
+     ],
+     "last_over_mid": 1.7687472372014605,
+     "in_system_at": {
+      "half": 2556,
+      "three_quarter": 3787
+     },
+     "in_system_ratio": 1.4816118935837246
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 33,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 918.7488328587231,
+    "plain_share": 0.00037725550895236946,
+    "effective_share": 0.9962234101458753,
+    "lock_wait_mean": 914.9324922795205,
+    "p95": 8774.017401033618,
+    "request_failures": 0,
+    "end_time": 19284.430078336147,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 4.122707940467323,
+    "backlog": {
+     "quarter_mean_backlog": [
+      235.28507751161158,
+      684.8983882612907,
+      1145.7243830096766,
+      1595.2085325696612
+     ],
+     "last_over_mid": 1.7428042058737612,
+     "in_system_at": {
+      "half": 2431,
+      "three_quarter": 3621
+     },
+     "in_system_ratio": 1.4895104895104896
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 33,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 687.949620476056,
+    "plain_share": 0.00034254068676981583,
+    "effective_share": 0.992573870872788,
+    "lock_wait_mean": 682.6051670259234,
+    "p95": 6759.565950544613,
+    "request_failures": 0,
+    "end_time": 17145.00556102108,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 3.6659495907193462,
+    "backlog": {
+     "quarter_mean_backlog": [
+      120.40088350286292,
+      481.80042779146333,
+      870.5243762228287,
+      1258.6375835283827
+     ],
+     "last_over_mid": 1.8614427241032558,
+     "in_system_at": {
+      "half": 1937,
+      "three_quarter": 3042
+     },
+     "in_system_ratio": 1.570469798657718
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 39,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 814.2335296652275,
+    "plain_share": 0.00045123582456098646,
+    "effective_share": 0.9950691060133378,
+    "lock_wait_mean": 809.8512191119188,
+    "p95": 7928.49610023539,
+    "request_failures": 0,
+    "end_time": 18299.25678106774,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 3.9120933794517208,
+    "backlog": {
+     "quarter_mean_backlog": [
+      208.40279872107797,
+      611.1439717280952,
+      999.4033018357458,
+      1421.9244495153312
+     ],
+     "last_over_mid": 1.7657655541757273,
+     "in_system_at": {
+      "half": 2290,
+      "three_quarter": 3363
+     },
+     "in_system_ratio": 1.4685589519650655
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 33,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 956.1899154160247,
+    "plain_share": 0.00022620017425584575,
+    "effective_share": 0.9949562432374482,
+    "lock_wait_mean": 951.1508357383726,
+    "p95": 9058.37055373135,
+    "request_failures": 0,
+    "end_time": 19703.493250906435,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 4.213006100337481,
+    "backlog": {
+     "quarter_mean_backlog": [
+      204.25137660264716,
+      671.6125653403121,
+      1124.4478484699616,
+      1805.1567138425248
+     ],
+     "last_over_mid": 2.0101291693334007,
+     "in_system_at": {
+      "half": 2372,
+      "three_quarter": 3573
+     },
+     "in_system_ratio": 1.5063237774030354
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": false,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 40,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 1020.8368623205657,
+    "plain_share": 0.000342699571959945,
+    "effective_share": 0.9959127351441152,
+    "lock_wait_mean": 1016.3145913338528,
+    "p95": 9620.190984048764,
+    "request_failures": 0,
+    "end_time": 20182.960622198978,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 4.314799643094156,
+    "backlog": {
+     "quarter_mean_backlog": [
+      265.9957000142779,
+      745.0483408858591,
+      1303.1938285368817,
+      1752.4198573214253
+     ],
+     "last_over_mid": 1.7111451794934114,
+     "in_system_at": {
+      "half": 2553,
+      "three_quarter": 3865
+     },
+     "in_system_ratio": 1.5139052095573835
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 33,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 943.3821234434183,
+    "plain_share": 0.00024220724101007128,
+    "effective_share": 0.993471537669461,
+    "lock_wait_mean": 936.9947948058766,
+    "p95": 8950.567515124832,
+    "request_failures": 0,
+    "end_time": 19490.85266894795,
+    "last_arrival": 4676.825236338513,
+    "end_over_arrival": 4.167539235271349,
+    "backlog": {
+     "quarter_mean_backlog": [
+      248.3538615724733,
+      708.6675503815497,
+      1130.6328672938287,
+      1661.2388759010046
+     ],
+     "last_over_mid": 1.8063812305339233,
+     "in_system_at": {
+      "half": 2486,
+      "three_quarter": 3657
+     },
+     "in_system_ratio": 1.4710378117457763
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m23p2278",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 36,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 854.8296726355806,
+    "plain_share": 0.00044097798134167194,
+    "effective_share": 0.9960929818235681,
+    "lock_wait_mean": 851.1128765034102,
+    "p95": 8156.32593956305,
+    "request_failures": 0,
+    "end_time": 18577.722317059503,
+    "last_arrival": 4677.612471416103,
+    "end_over_arrival": 3.971624932716,
+    "backlog": {
+     "quarter_mean_backlog": [
+      212.0348693242531,
+      639.930151122156,
+      1082.6715281019656,
+      1471.3228017189851
+     ],
+     "last_over_mid": 1.7082565510811354,
+     "in_system_at": {
+      "half": 2439,
+      "three_quarter": 3616
+     },
+     "in_system_ratio": 1.4825748257482574
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   }
+  ]
+ }
+}

@@ -1,0 +1,2111 @@
+{
+ "tag": "moderate",
+ "band": [
+  0.2,
+  0.3
+ ],
+ "bracket": [
+  5.80695,
+  92.9112
+ ],
+ "steps": 5,
+ "fallback": false,
+ "multiplier": 16.42453489204489,
+ "median_effective_share": 0.2843253794207511,
+ "chosen": {
+  "m": 16.42453489204489,
+  "tag": "m16p4245",
+  "policy": "peer_greedy_network_cd",
+  "median_effective_share": 0.2843253794207511,
+  "median_plain_share": 0.08395683416947418,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.883431483125868,
+    "plain_share": 0.06479064595646415,
+    "effective_share": 0.2273963248158985,
+    "lock_wait_mean": 0.46886233375834735,
+    "p95": 10.301633689009577,
+    "request_failures": 0,
+    "end_time": 6674.557484564804,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0091514265027772,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.094601087463454,
+      0.18717244795444685,
+      0.18202779094612156,
+      0.17329636493241313
+     ],
+     "last_over_mid": 0.9387662665033358,
+     "in_system_at": {
+      "half": 9,
+      "three_quarter": 19
+     },
+     "in_system_ratio": 2.111111111111111
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.117307109297302,
+    "plain_share": 0.09360411754818576,
+    "effective_share": 0.27106834042296596,
+    "lock_wait_mean": 0.5532104836134731,
+    "p95": 11.991459561386165,
+    "request_failures": 0,
+    "end_time": 6694.531378212677,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.01200100763525,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.8762451308888792,
+      0.19232571243987334,
+      0.19148535246857867,
+      0.18904378596093302
+     ],
+     "last_over_mid": 0.9850877332367914,
+     "in_system_at": {
+      "half": 15,
+      "three_quarter": 21
+     },
+     "in_system_ratio": 1.4
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.7926965147818827,
+    "plain_share": 0.06683451864790381,
+    "effective_share": 0.23245961162656564,
+    "lock_wait_mean": 0.4625406199219343,
+    "p95": 9.415325288325334,
+    "request_failures": 0,
+    "end_time": 6651.8037561665005,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0057112048065067,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.051070107110085,
+      0.19887682395185002,
+      0.1775866128858738,
+      0.18258856216360472
+     ],
+     "last_over_mid": 0.9700201628999647,
+     "in_system_at": {
+      "half": 25,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 0.68
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.071035829195049,
+    "plain_share": 0.08983918119193186,
+    "effective_share": 0.2975824184185362,
+    "lock_wait_mean": 0.6379869247958687,
+    "p95": 10.866128490628398,
+    "request_failures": 0,
+    "end_time": 6698.139602554236,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0125464568180436,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.1406341526868684,
+      0.20661384721485082,
+      0.191863150653658,
+      0.1850042384389843
+     ],
+     "last_over_mid": 0.9285566766894425,
+     "in_system_at": {
+      "half": 6,
+      "three_quarter": 22
+     },
+     "in_system_ratio": 3.6666666666666665
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.3732505492928926,
+    "plain_share": 0.0780744871470165,
+    "effective_share": 0.3059631987460871,
+    "lock_wait_mean": 0.5408370099801437,
+    "p95": 7.05568587937114,
+    "request_failures": 0,
+    "end_time": 6665.793437617845,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.00782635731296,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.353411454401919,
+      0.1919099463084239,
+      0.17966845079386046,
+      0.1931817394092954
+     ],
+     "last_over_mid": 1.039789938897434,
+     "in_system_at": {
+      "half": 14,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 1.2142857142857142
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.580379773681275,
+    "plain_share": 0.10633323091554421,
+    "effective_share": 0.34256368312816976,
+    "lock_wait_mean": 0.6095642808170397,
+    "p95": 8.160752364770815,
+    "request_failures": 0,
+    "end_time": 6666.701053076626,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0077939443638517,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.017435130060154,
+      0.1887986249570095,
+      0.20716257131710417,
+      0.19160747718497492
+     ],
+     "last_over_mid": 0.96780936610935,
+     "in_system_at": {
+      "half": 19,
+      "three_quarter": 11
+     },
+     "in_system_ratio": 0.5789473684210527
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.4822298657787543,
+    "plain_share": 0.07314250380040847,
+    "effective_share": 0.2604896885228942,
+    "lock_wait_mean": 0.46503877718772324,
+    "p95": 8.521645858427291,
+    "request_failures": 0,
+    "end_time": 6617.808782935556,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.000571377063729,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.109196073950121,
+      0.16673491614697938,
+      0.1622408744937245,
+      0.16157210466285293
+     ],
+     "last_over_mid": 0.9822735244327838,
+     "in_system_at": {
+      "half": 8,
+      "three_quarter": 6
+     },
+     "in_system_ratio": 0.75
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 44,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.5408319289392156,
+    "plain_share": 0.11811892469589474,
+    "effective_share": 0.31957390320668855,
+    "lock_wait_mean": 0.5118632416439883,
+    "p95": 8.50223065260434,
+    "request_failures": 0,
+    "end_time": 6638.772785034614,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0035720752286936,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.81018888063244,
+      0.17740714886178638,
+      0.16860487579624026,
+      0.16112420644575579
+     ],
+     "last_over_mid": 0.9313214279474787,
+     "in_system_at": {
+      "half": 9,
+      "three_quarter": 5
+     },
+     "in_system_ratio": 0.5555555555555556
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": true
+   }
+  ],
+  "step": 4
+ },
+ "cd_profiled": {
+  "m": 16.42453489204489,
+  "tag": "m16p4245",
+  "policy": "peer_greedy_network_cd",
+  "median_effective_share": 0.2843253794207511,
+  "median_plain_share": 0.08395683416947418,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.883431483125868,
+    "plain_share": 0.06479064595646415,
+    "effective_share": 0.2273963248158985,
+    "lock_wait_mean": 0.46886233375834735,
+    "p95": 10.301633689009577,
+    "request_failures": 0,
+    "end_time": 6674.557484564804,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0091514265027772,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.094601087463454,
+      0.18717244795444685,
+      0.18202779094612156,
+      0.17329636493241313
+     ],
+     "last_over_mid": 0.9387662665033358,
+     "in_system_at": {
+      "half": 9,
+      "three_quarter": 19
+     },
+     "in_system_ratio": 2.111111111111111
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 23443.11668791737,
+     "tasks_with_lock_wait": 4956,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.466,
+      "rf": 0.203,
+      "dnn2": 0.192,
+      "dnn1": 0.138
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.062,
+      "xavierCpu": 0.938,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.117307109297302,
+    "plain_share": 0.09360411754818576,
+    "effective_share": 0.27106834042296596,
+    "lock_wait_mean": 0.5532104836134731,
+    "p95": 11.991459561386165,
+    "request_failures": 0,
+    "end_time": 6694.531378212677,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.01200100763525,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.8762451308888792,
+      0.19232571243987334,
+      0.19148535246857867,
+      0.18904378596093302
+     ],
+     "last_over_mid": 0.9850877332367914,
+     "in_system_at": {
+      "half": 15,
+      "three_quarter": 21
+     },
+     "in_system_ratio": 1.4
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 27660.52418067366,
+     "tasks_with_lock_wait": 5043,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.269,
+      "cnn": 0.405,
+      "dnn1": 0.146,
+      "rf": 0.18
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.211,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.789
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.7926965147818827,
+    "plain_share": 0.06683451864790381,
+    "effective_share": 0.23245961162656564,
+    "lock_wait_mean": 0.4625406199219343,
+    "p95": 9.415325288325334,
+    "request_failures": 0,
+    "end_time": 6651.8037561665005,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0057112048065067,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.051070107110085,
+      0.19887682395185002,
+      0.1775866128858738,
+      0.18258856216360472
+     ],
+     "last_over_mid": 0.9700201628999647,
+     "in_system_at": {
+      "half": 25,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 0.68
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 23127.030996096713,
+     "tasks_with_lock_wait": 5101,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.504,
+      "rf": 0.202,
+      "dnn2": 0.185,
+      "dnn1": 0.11
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.061,
+      "xavierCpu": 0.935,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.004
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 44,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.071035829195049,
+    "plain_share": 0.08983918119193186,
+    "effective_share": 0.2975824184185362,
+    "lock_wait_mean": 0.6379869247958687,
+    "p95": 10.866128490628398,
+    "request_failures": 0,
+    "end_time": 6698.139602554236,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0125464568180436,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.1406341526868684,
+      0.20661384721485082,
+      0.191863150653658,
+      0.1850042384389843
+     ],
+     "last_over_mid": 0.9285566766894425,
+     "in_system_at": {
+      "half": 6,
+      "three_quarter": 22
+     },
+     "in_system_ratio": 3.6666666666666665
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 31899.346239793435,
+     "tasks_with_lock_wait": 5354,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.241,
+      "cnn": 0.44,
+      "dnn1": 0.096,
+      "rf": 0.223
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.04,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.96,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.3732505492928926,
+    "plain_share": 0.0780744871470165,
+    "effective_share": 0.3059631987460871,
+    "lock_wait_mean": 0.5408370099801437,
+    "p95": 7.05568587937114,
+    "request_failures": 0,
+    "end_time": 6665.793437617845,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.00782635731296,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.353411454401919,
+      0.1919099463084239,
+      0.17966845079386046,
+      0.1931817394092954
+     ],
+     "last_over_mid": 1.039789938897434,
+     "in_system_at": {
+      "half": 14,
+      "three_quarter": 17
+     },
+     "in_system_ratio": 1.2142857142857142
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 27041.85049900719,
+     "tasks_with_lock_wait": 5283,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.527,
+      "rf": 0.209,
+      "dnn2": 0.203,
+      "dnn1": 0.061
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.051,
+      "xavierCpu": 0.944,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.005
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.580379773681275,
+    "plain_share": 0.10633323091554421,
+    "effective_share": 0.34256368312816976,
+    "lock_wait_mean": 0.6095642808170397,
+    "p95": 8.160752364770815,
+    "request_failures": 0,
+    "end_time": 6666.701053076626,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0077939443638517,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.017435130060154,
+      0.1887986249570095,
+      0.20716257131710417,
+      0.19160747718497492
+     ],
+     "last_over_mid": 0.96780936610935,
+     "in_system_at": {
+      "half": 19,
+      "three_quarter": 11
+     },
+     "in_system_ratio": 0.5789473684210527
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 30478.214040851988,
+     "tasks_with_lock_wait": 5520,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.245,
+      "cnn": 0.431,
+      "dnn1": 0.161,
+      "rf": 0.162
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.214,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.786
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.4822298657787543,
+    "plain_share": 0.07314250380040847,
+    "effective_share": 0.2604896885228942,
+    "lock_wait_mean": 0.46503877718772324,
+    "p95": 8.521645858427291,
+    "request_failures": 0,
+    "end_time": 6617.808782935556,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.000571377063729,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.109196073950121,
+      0.16673491614697938,
+      0.1622408744937245,
+      0.16157210466285293
+     ],
+     "last_over_mid": 0.9822735244327838,
+     "in_system_at": {
+      "half": 8,
+      "three_quarter": 6
+     },
+     "in_system_ratio": 0.75
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 23251.938859386162,
+     "tasks_with_lock_wait": 4805,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.467,
+      "rf": 0.269,
+      "dnn2": 0.22,
+      "dnn1": 0.044
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.09,
+      "xavierCpu": 0.909,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.001
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_network_cd",
+    "rc": 0,
+    "wall_s": 45,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.5408319289392156,
+    "plain_share": 0.11811892469589474,
+    "effective_share": 0.31957390320668855,
+    "lock_wait_mean": 0.5118632416439883,
+    "p95": 8.50223065260434,
+    "request_failures": 0,
+    "end_time": 6638.772785034614,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0035720752286936,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.81018888063244,
+      0.17740714886178638,
+      0.16860487579624026,
+      0.16112420644575579
+     ],
+     "last_over_mid": 0.9313214279474787,
+     "in_system_at": {
+      "half": 9,
+      "three_quarter": 5
+     },
+     "in_system_ratio": 0.5555555555555556
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 25593.16208219942,
+     "tasks_with_lock_wait": 4640,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.26,
+      "cnn": 0.414,
+      "dnn1": 0.163,
+      "rf": 0.164
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.194,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.806
+     }
+    },
+    "pass": true
+   }
+  ]
+ },
+ "peer_greedy_network_batch": {
+  "m": 16.42453489204489,
+  "tag": "m16p4245",
+  "policy": "peer_greedy_network_batch",
+  "median_effective_share": 0.2410868443716056,
+  "median_plain_share": 0.07061311479457028,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 41,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.390865916148178,
+    "plain_share": 0.05433730034457589,
+    "effective_share": 0.1813786112079566,
+    "lock_wait_mean": 0.4307800509494229,
+    "p95": 15.519822288619253,
+    "request_failures": 0,
+    "end_time": 6659.914998655792,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.006937574037382,
+    "backlog": {
+     "quarter_mean_backlog": [
+      1.984387062642432,
+      0.16544768102517687,
+      0.16197528599206518,
+      0.16161127941283282
+     ],
+     "last_over_mid": 0.9871713086291982,
+     "in_system_at": {
+      "half": 24,
+      "three_quarter": 27
+     },
+     "in_system_ratio": 1.125
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 21539.002547471144,
+     "tasks_with_lock_wait": 4506,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.462,
+      "rf": 0.181,
+      "dnn2": 0.236,
+      "dnn1": 0.121
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.066,
+      "xavierCpu": 0.933,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.001
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 41,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.400529262329031,
+    "plain_share": 0.08273417968507073,
+    "effective_share": 0.23580557474510908,
+    "lock_wait_mean": 0.5205237581271878,
+    "p95": 14.932011420788967,
+    "request_failures": 0,
+    "end_time": 6696.787447507366,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0123420538221346,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.7538697995175454,
+      0.1845717677100976,
+      0.16577172336275825,
+      0.17170359329472223
+     ],
+     "last_over_mid": 0.9802014175797291,
+     "in_system_at": {
+      "half": 24,
+      "three_quarter": 19
+     },
+     "in_system_ratio": 0.7916666666666666
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 26026.187906359388,
+     "tasks_with_lock_wait": 4833,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.279,
+      "cnn": 0.412,
+      "dnn1": 0.149,
+      "rf": 0.16
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.204,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.796
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 41,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.404295553853122,
+    "plain_share": 0.05416265531499183,
+    "effective_share": 0.18547118079433383,
+    "lock_wait_mean": 0.44701302947233335,
+    "p95": 15.083110483572455,
+    "request_failures": 0,
+    "end_time": 6659.912282854951,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.006937163425248,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.042667504541732,
+      0.16760045532074935,
+      0.17081886392117432,
+      0.15788714721959812
+     ],
+     "last_over_mid": 0.9330858981294169,
+     "in_system_at": {
+      "half": 24,
+      "three_quarter": 28
+     },
+     "in_system_ratio": 1.1666666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 22350.65147361667,
+     "tasks_with_lock_wait": 4593,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.467,
+      "rf": 0.198,
+      "dnn2": 0.214,
+      "dnn1": 0.121
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.031,
+      "xavierCpu": 0.962,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.007
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 41,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.6271786003393545,
+    "plain_share": 0.07397376675950591,
+    "effective_share": 0.2463681139981021,
+    "lock_wait_mean": 0.6253050871233079,
+    "p95": 16.159704959706687,
+    "request_failures": 0,
+    "end_time": 6696.543664343798,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0123052015328202,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.1135941616043668,
+      0.1897667246569074,
+      0.16674316329504832,
+      0.17284240936409528
+     ],
+     "last_over_mid": 0.9696359916243783,
+     "in_system_at": {
+      "half": 24,
+      "three_quarter": 25
+     },
+     "in_system_ratio": 1.0416666666666667
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 31265.254356165395,
+     "tasks_with_lock_wait": 4777,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.27,
+      "cnn": 0.424,
+      "dnn1": 0.077,
+      "rf": 0.229
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.03,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.97
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 39,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.7137554396145775,
+    "plain_share": 0.06725246282963462,
+    "effective_share": 0.2512053816851313,
+    "lock_wait_mean": 0.499203234177083,
+    "p95": 10.40336452455631,
+    "request_failures": 0,
+    "end_time": 6630.811401266443,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.002537291787998,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.217107743815093,
+      0.17099665739645112,
+      0.17272834533257406,
+      0.17982941045309206
+     ],
+     "last_over_mid": 1.0463562966052846,
+     "in_system_at": {
+      "half": 9,
+      "three_quarter": 19
+     },
+     "in_system_ratio": 2.111111111111111
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 24960.16170885415,
+     "tasks_with_lock_wait": 5080,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.544,
+      "rf": 0.167,
+      "dnn2": 0.235,
+      "dnn1": 0.055
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.055,
+      "xavierCpu": 0.945,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.001
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 41,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.0277074434123596,
+    "plain_share": 0.0915198219811225,
+    "effective_share": 0.26959477016037386,
+    "lock_wait_mean": 0.5391588460875895,
+    "p95": 12.574313168465935,
+    "request_failures": 0,
+    "end_time": 6695.789239435765,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0121911563929917,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.809363671851913,
+      0.17730836282566784,
+      0.1700417829277006,
+      0.17696582315174514
+     ],
+     "last_over_mid": 1.0189477408620262,
+     "in_system_at": {
+      "half": 18,
+      "three_quarter": 14
+     },
+     "in_system_ratio": 0.7777777777777778
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 26957.942304379474,
+     "tasks_with_lock_wait": 4849,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.28,
+      "cnn": 0.432,
+      "dnn1": 0.157,
+      "rf": 0.131
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.155,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.845
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 39,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.80450459222713,
+    "plain_share": 0.06510674495905391,
+    "effective_share": 0.2180256950808265,
+    "lock_wait_mean": 0.4288618978550626,
+    "p95": 13.170544737557975,
+    "request_failures": 0,
+    "end_time": 6615.714532924925,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0002547395352384,
+    "backlog": {
+     "quarter_mean_backlog": [
+      1.982881138791701,
+      0.16200745830700375,
+      0.16846647254507863,
+      0.14576028908607563
+     ],
+     "last_over_mid": 0.8821288185137777,
+     "in_system_at": {
+      "half": 13,
+      "three_quarter": 14
+     },
+     "in_system_ratio": 1.0769230769230769
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 21443.09489275313,
+     "tasks_with_lock_wait": 4416,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.473,
+      "rf": 0.298,
+      "dnn2": 0.216,
+      "dnn1": 0.013
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.075,
+      "xavierCpu": 0.921,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.005
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_network_batch",
+    "rc": 0,
+    "wall_s": 41,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.0306133424686394,
+    "plain_share": 0.09666056050921107,
+    "effective_share": 0.2632099774546499,
+    "lock_wait_mean": 0.5047468851752196,
+    "p95": 14.092685615903008,
+    "request_failures": 0,
+    "end_time": 6712.6082218614565,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.014733653574735,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.7627355805078286,
+      0.17022512155537747,
+      0.16576801120736834,
+      0.16048382023004124
+     ],
+     "last_over_mid": 0.9552803589194984,
+     "in_system_at": {
+      "half": 18,
+      "three_quarter": 7
+     },
+     "in_system_ratio": 0.3888888888888889
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 25237.34425876098,
+     "tasks_with_lock_wait": 4493,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.264,
+      "cnn": 0.409,
+      "dnn1": 0.172,
+      "rf": 0.155
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.192,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.808,
+      "xavierGpu": 0.0
+     }
+    },
+    "pass": true
+   }
+  ]
+ },
+ "peer_greedy_selfpredict_network": {
+  "m": 16.42453489204489,
+  "tag": "m16p4245",
+  "policy": "peer_greedy_selfpredict_network",
+  "median_effective_share": 0.3141521982571175,
+  "median_plain_share": 0.08689114691037822,
+  "cells_finished": 8,
+  "cells_pass": 8,
+  "cells": [
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.123732794661084,
+    "plain_share": 0.06511006963828993,
+    "effective_share": 0.28810914538763327,
+    "lock_wait_mean": 0.696589526097335,
+    "p95": 11.841176785477273,
+    "request_failures": 0,
+    "end_time": 6620.182577999281,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0009302800592195,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.9607996743576415,
+      0.22401623885872535,
+      0.20563806358269007,
+      0.20944996675745578
+     ],
+     "last_over_mid": 0.974969716664317,
+     "in_system_at": {
+      "half": 12,
+      "three_quarter": 15
+     },
+     "in_system_ratio": 1.25
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 34829.47630486675,
+     "tasks_with_lock_wait": 6501,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.508,
+      "rf": 0.214,
+      "dnn2": 0.229,
+      "dnn1": 0.049
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.025,
+      "xavierCpu": 0.975,
+      "pynqFpga": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 3.030590813488009,
+    "plain_share": 0.09573095627788658,
+    "effective_share": 0.3076056041401118,
+    "lock_wait_mean": 0.6421053614222666,
+    "p95": 12.076056759538005,
+    "request_failures": 0,
+    "end_time": 6646.121380891759,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0046829500595054,
+    "backlog": {
+     "quarter_mean_backlog": [
+      3.0971195749228455,
+      0.2109823360713008,
+      0.21682907380387295,
+      0.20397588753978846
+     ],
+     "last_over_mid": 0.9535785293772518,
+     "in_system_at": {
+      "half": 18,
+      "three_quarter": 15
+     },
+     "in_system_ratio": 0.8333333333333334
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 32105.268071113333,
+     "tasks_with_lock_wait": 6711,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.228,
+      "cnn": 0.471,
+      "dnn1": 0.17,
+      "rf": 0.131
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.204,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.723,
+      "xavierDla": 0.073
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.828069183262278,
+    "plain_share": 0.06838471344398687,
+    "effective_share": 0.29934109402788955,
+    "lock_wait_mean": 0.6531606226071294,
+    "p95": 9.825365523747166,
+    "request_failures": 0,
+    "end_time": 6657.252533739244,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0065350259621335,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.7349289533151917,
+      0.20916564287944348,
+      0.22703473951495126,
+      0.21509995750757444
+     ],
+     "last_over_mid": 0.9862437823958153,
+     "in_system_at": {
+      "half": 14,
+      "three_quarter": 15
+     },
+     "in_system_ratio": 1.0714285714285714
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 32658.03113035647,
+     "tasks_with_lock_wait": 6321,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.5,
+      "rf": 0.222,
+      "dnn2": 0.23,
+      "dnn1": 0.048
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.053,
+      "xavierCpu": 0.946,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.001
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.863719032336208,
+    "plain_share": 0.09390631753530189,
+    "effective_share": 0.30689942042440094,
+    "lock_wait_mean": 0.609952402499857,
+    "p95": 10.478398263222516,
+    "request_failures": 0,
+    "end_time": 6721.045193151569,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0160090562824993,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.8771483488993654,
+      0.21537167513650424,
+      0.20448874264715983,
+      0.21848607844620405
+     ],
+     "last_over_mid": 1.0407557806927181,
+     "in_system_at": {
+      "half": 11,
+      "three_quarter": 9
+     },
+     "in_system_ratio": 0.8181818181818182
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 30497.620124992853,
+     "tasks_with_lock_wait": 6643,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.247,
+      "cnn": 0.445,
+      "dnn1": 0.091,
+      "rf": 0.217
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.146,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.811,
+      "xavierDla": 0.043
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.356345430743192,
+    "plain_share": 0.07594324117861764,
+    "effective_share": 0.3285461609656087,
+    "lock_wait_mean": 0.5952197358324653,
+    "p95": 6.77818483687588,
+    "request_failures": 0,
+    "end_time": 6659.885376212926,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0069330953089353,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.4239933907225257,
+      0.23673596800239263,
+      0.21184742820907748,
+      0.2240961937841209
+     ],
+     "last_over_mid": 0.9991283479359009,
+     "in_system_at": {
+      "half": 8,
+      "three_quarter": 20
+     },
+     "in_system_ratio": 2.5
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 29760.98679162327,
+     "tasks_with_lock_wait": 6929,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.571,
+      "rf": 0.197,
+      "dnn2": 0.228,
+      "dnn1": 0.005
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.04,
+      "xavierCpu": 0.96,
+      "pynqFpga": 0.0
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.4619358320480957,
+    "plain_share": 0.11260368263889675,
+    "effective_share": 0.3338490513774727,
+    "lock_wait_mean": 0.5446919009721939,
+    "p95": 7.312120145595145,
+    "request_failures": 0,
+    "end_time": 6721.059093636414,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0160111575953283,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.6113040875607276,
+      0.21505189022131227,
+      0.22741254818902853,
+      0.23389124235479497
+     ],
+     "last_over_mid": 1.0572205223773696,
+     "in_system_at": {
+      "half": 11,
+      "three_quarter": 16
+     },
+     "in_system_ratio": 1.4545454545454546
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 27234.595048609695,
+     "tasks_with_lock_wait": 7020,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.168,
+      "cnn": 0.525,
+      "dnn1": 0.203,
+      "rf": 0.104
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.17,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.827,
+      "xavierGpu": 0.003
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.431451196092679,
+    "plain_share": 0.07987597628545454,
+    "effective_share": 0.3206987923741232,
+    "lock_wait_mean": 0.5855489242252007,
+    "p95": 8.738480740057412,
+    "request_failures": 0,
+    "end_time": 6659.132088043671,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 1.0068192028400593,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.482229618317878,
+      0.21274131806360064,
+      0.20670625941535692,
+      0.21737665341732246
+     ],
+     "last_over_mid": 1.0364902080199885,
+     "in_system_at": {
+      "half": 14,
+      "three_quarter": 10
+     },
+     "in_system_ratio": 0.7142857142857143
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 29277.44621126003,
+     "tasks_with_lock_wait": 6472,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "cnn": 0.574,
+      "rf": 0.191,
+      "dnn2": 0.178,
+      "dnn1": 0.058
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.046,
+      "xavierCpu": 0.95,
+      "pynqFpga": 0.0,
+      "xavierGpu": 0.004
+     }
+    },
+    "pass": true
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "peer_greedy_selfpredict_network",
+    "rc": 0,
+    "wall_s": 32,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 2.5670579331073076,
+    "plain_share": 0.11378810464363723,
+    "effective_share": 0.33338068908115215,
+    "lock_wait_mean": 0.563706885931859,
+    "p95": 9.334271552990685,
+    "request_failures": 0,
+    "end_time": 6645.507032211591,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 1.0045900800065852,
+    "backlog": {
+     "quarter_mean_backlog": [
+      2.812516514434951,
+      0.20453179184519701,
+      0.20630376242584225,
+      0.19987810189621907
+     ],
+     "last_over_mid": 0.973032152735029,
+     "in_system_at": {
+      "half": 13,
+      "three_quarter": 18
+     },
+     "in_system_ratio": 1.3846153846153846
+    },
+    "guards": {
+     "failures": true,
+     "p95": true,
+     "end": true,
+     "backlog": true,
+     "finished": true
+    },
+    "lock_profile": {
+     "total_lock_wait_s": 28185.34429659295,
+     "tasks_with_lock_wait": 6528,
+     "n_tasks": 50000,
+     "by_task_type": {
+      "dnn2": 0.24,
+      "cnn": 0.436,
+      "dnn1": 0.15,
+      "rf": 0.174
+     },
+     "by_platform_type": {
+      "rpiCpu": 0.141,
+      "pynqFpga": 0.0,
+      "xavierCpu": 0.858,
+      "xavierGpu": 0.001
+     }
+    },
+    "pass": true
+   }
+  ]
+ },
+ "knative": {
+  "m": 16.42453489204489,
+  "tag": "m16p4245",
+  "policy": "knative_network",
+  "median_effective_share": 0.9937884159867629,
+  "median_plain_share": 0.0003020820512355196,
+  "cells_finished": 8,
+  "cells_pass": 0,
+  "cells": [
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 918.9276109434612,
+    "plain_share": 0.00022569364820664007,
+    "effective_share": 0.9941793772841262,
+    "lock_wait_mean": 913.3714838920083,
+    "p95": 8587.617106386168,
+    "request_failures": 0,
+    "end_time": 20381.36892896379,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 3.081535753689634,
+    "backlog": {
+     "quarter_mean_backlog": [
+      244.87082829293837,
+      700.0012104510882,
+      1115.1579837573188,
+      1594.2854975664945
+     ],
+     "last_over_mid": 1.756634352131042,
+     "in_system_at": {
+      "half": 2311,
+      "three_quarter": 3401
+     },
+     "in_system_ratio": 1.4716572912159238
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9905,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 850.9989699981402,
+    "plain_share": 0.0003511654340105387,
+    "effective_share": 0.9950089983746339,
+    "lock_wait_mean": 846.4527913330527,
+    "p95": 8042.156767582109,
+    "request_failures": 0,
+    "end_time": 19752.517099987435,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 2.9859546664574235,
+    "backlog": {
+     "quarter_mean_backlog": [
+      232.22823788719305,
+      637.1102536001683,
+      1056.256393033813,
+      1461.411646501604
+     ],
+     "last_over_mid": 1.726042791035893,
+     "in_system_at": {
+      "half": 2217,
+      "three_quarter": 3271
+     },
+     "in_system_ratio": 1.4754172304916553
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 30,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 662.0296224160344,
+    "plain_share": 0.00030137497363109294,
+    "effective_share": 0.9924887373876728,
+    "lock_wait_mean": 656.8574249049291,
+    "p95": 6422.468901065549,
+    "request_failures": 0,
+    "end_time": 17958.782233995105,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 2.7152557681313554,
+    "backlog": {
+     "quarter_mean_backlog": [
+      150.4758163452351,
+      484.15639786615657,
+      823.7153024271068,
+      1169.8802596212122
+     ],
+     "last_over_mid": 1.7889832150338454,
+     "in_system_at": {
+      "half": 1831,
+      "three_quarter": 2790
+     },
+     "in_system_ratio": 1.5237575095576188
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9906,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 682.5818562403916,
+    "plain_share": 0.0004389770446116074,
+    "effective_share": 0.9935184292441218,
+    "lock_wait_mean": 677.8580158765329,
+    "p95": 6675.1768671233,
+    "request_failures": 0,
+    "end_time": 18174.802637723365,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 2.7474542344827175,
+    "backlog": {
+     "quarter_mean_backlog": [
+      147.24968717850447,
+      502.4803086825455,
+      850.7982747277549,
+      1212.1023439811586
+     ],
+     "last_over_mid": 1.7913567226145357,
+     "in_system_at": {
+      "half": 1892,
+      "three_quarter": 2840
+     },
+     "in_system_ratio": 1.5010570824524312
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 869.3470392653676,
+    "plain_share": 0.0002093849049686933,
+    "effective_share": 0.9939766078600217,
+    "lock_wait_mean": 863.9285929949418,
+    "p95": 8175.177077975114,
+    "request_failures": 0,
+    "end_time": 20069.611990773887,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 3.0344000507424305,
+    "backlog": {
+     "quarter_mean_backlog": [
+      186.2403252860625,
+      606.282086349584,
+      1017.2265819619226,
+      1646.6934909710035
+     ],
+     "last_over_mid": 2.0285613783431287,
+     "in_system_at": {
+      "half": 2101,
+      "three_quarter": 3174
+     },
+     "in_system_ratio": 1.5107091861018562
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": false,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9907,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 941.30794687629,
+    "plain_share": 0.0003027891288399462,
+    "effective_share": 0.9947409476013918,
+    "lock_wait_mean": 936.0725412472365,
+    "p95": 8808.866689658204,
+    "request_failures": 0,
+    "end_time": 20589.77444585099,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 3.112521446086164,
+    "backlog": {
+     "quarter_mean_backlog": [
+      247.97906326238171,
+      690.1433193391431,
+      1197.5029359001978,
+      1609.8049177400426
+     ],
+     "last_over_mid": 1.7056213930675588,
+     "in_system_at": {
+      "half": 2315,
+      "three_quarter": 3491
+     },
+     "in_system_ratio": 1.5079913606911448
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g0",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 863.8742969762768,
+    "plain_share": 0.00023365113455479857,
+    "effective_share": 0.9935727520781814,
+    "lock_wait_mean": 858.1201174867223,
+    "p95": 8112.592844792677,
+    "request_failures": 0,
+    "end_time": 19884.45148579329,
+    "last_arrival": 6614.029678078679,
+    "end_over_arrival": 3.006404938232687,
+    "backlog": {
+     "quarter_mean_backlog": [
+      233.86081485262363,
+      653.0068888796093,
+      1030.3189090337414,
+      1516.1012380193197
+     ],
+     "last_over_mid": 1.801316465177065,
+     "in_system_at": {
+      "half": 2216,
+      "three_quarter": 3256
+     },
+     "in_system_ratio": 1.4693140794223827
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   },
+   {
+    "tag": "m16p4245",
+    "seed": 9908,
+    "window": "g1",
+    "policy": "knative_network",
+    "rc": 0,
+    "wall_s": 31,
+    "finished": true,
+    "num_tasks": 50000,
+    "elapsed": 779.1716656025743,
+    "plain_share": 0.00041004184082058084,
+    "effective_share": 0.9936002241135041,
+    "lock_wait_mean": 773.8656485815312,
+    "p95": 7477.563521595299,
+    "request_failures": 0,
+    "end_time": 19073.979895983615,
+    "last_arrival": 6615.142996602184,
+    "end_over_arrival": 2.883381342743583,
+    "backlog": {
+     "quarter_mean_backlog": [
+      196.2919950568167,
+      585.5046713102001,
+      983.8490243208246,
+      1331.0948755745992
+     ],
+     "last_over_mid": 1.6963605836979616,
+     "in_system_at": {
+      "half": 2093,
+      "three_quarter": 3124
+     },
+     "in_system_ratio": 1.4925943621595796
+    },
+    "guards": {
+     "failures": true,
+     "p95": false,
+     "end": false,
+     "backlog": true,
+     "finished": true
+    },
+    "pass": false
+   }
+  ]
+ }
+}
