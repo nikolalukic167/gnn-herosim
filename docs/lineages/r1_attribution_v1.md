@@ -633,6 +633,15 @@ No line trips.
   - vs CD: +3.60 / +5.61 / +6.22 %, with twin_eng faster in 1 / 0 / 2 of 19 topologies.
   - vs self-predict: +2.59 / +6.25 / +2.35 %, faster in 2 / 0 / 5 (heavy p = .066).
   - Effective share: .112 / .292 / .451.
+- **CD←Twin (ra_twin_eng_cdapply), partial and descriptive (S4, array 854640; 453 of 456 cells, 3 killed by rate;
+  `twin_cdapply_read.json`).**
+  - Paired % vs CD: **−0.42 / −1.20 / −1.64 %**, with 15 / 18 / 17 of 19 topologies faster. These are the first
+    learned-seeded results ahead of CD at every rung, though not by much.
+  - vs self-predict: −1.6 / −1.4 / −4.0 %. vs the unseeded twin: −4.1 / −5.6 / −7.2 %.
+  - For reference, CD←random is +1.35 / +4.28 / +3.91 %, so the learned start is worth about 2–5 points over a random
+    start.
+  - Caveat: a heavier tail (worst p95 178 s vs CD's 59 s). The sensitivity read is pending.
+  - This is an MP-off seed, so it is not a message-passing result.
 - **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
   - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
     - ps_exchange_push: +4.1 / +4.3 / +4.6
