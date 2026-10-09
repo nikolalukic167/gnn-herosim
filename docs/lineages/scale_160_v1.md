@@ -50,6 +50,16 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Out-of-distribution check at 80c × 12s** (S6, jobs 855114/855128; one topology from seed 9101,
+  multiplier ×servers/6 and uncalibrated; the 40 × 6 checkpoints at 263dd915; descriptive, direction only).
+  - All 32 of 32 cells finished, and the checkpoints served at 12 servers with no contract refusal.
+  - Median vs CD at moderate / heavy:
+    - gnn_eng: +3.5 / +11.4 %
+    - physmp: +5.5 / +11.3 %
+    - self-predict: +3.5 / +7.0 %
+    - CD←GNN: **−4.9** / −0.5 %
+  - CD's effective share is 0.23–0.27 / 0.44–0.49, close to the 40 × 6 bands. So ×servers/6 scaling held at 80 × 12,
+    which supports the double-scaling explanation of (c) at 160 × 24.
 - 2026-10-10 — **Possible double scaling in (c)** (S4, from reading `scale_probe_cd_bisect.sbatch` at a084cb46): m0 =
   11.6139 × 24/6 may be multiplied again by 6/(m × servers), giving an effective ×185.8, 4× the probe capture's load.
   If confirmed, the "CD saturated at m0" entry below is retracted. The calibration is held until S5 verifies.
