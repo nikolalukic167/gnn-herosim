@@ -24,7 +24,7 @@ while [[ $off -lt $N ]]; do
     [[ $missing -eq 0 && $(( $(q) + n )) -le $CAP ]] && break
     echo "$(date +%H:%M) piece offset=$off: $missing topologies still capturing, or queue full"; sleep 120
   done
-  id=$(sub <<<"sbatch --parsable --array=0-$((n-1)) --export=ALL,WT='$WT',ROOT='$ROOT',TOPOS='$TOPOS',TOPO_OFFSET=$off,TAGS='$TAGS',HELDOUT_TOPOS='$HELDOUT_TOPOS',BATCHES_TARGET=$BATCHES_TARGET '$D/wf1_corpus_prod_build.sbatch'")
+  id=$(sub <<<"sbatch --parsable --array=0-$((n-1)) --export=ALL,WT='$WT',ROOT='$ROOT',TOPOS='$TOPOS',TOPO_OFFSET=$off,TAGS='$TAGS',HELDOUT_TOPOS='$HELDOUT_TOPOS',BATCHES_TARGET=$BATCHES_TARGET,OUT_TAG='${OUT_TAG:-}' '$D/wf1_corpus_prod_build.sbatch'")
   echo "build piece offset=$off n=$n -> $id"; ids+=("$id"); off=$((off+n))
 done
 while [[ $(( $(q) + 1 )) -gt $CAP ]]; do sleep 120; done
@@ -35,5 +35,5 @@ if [[ -n "${CHECK_PER_CELL:-}" ]]; then
   ok=$(sub <<<"cat $ROOT/snapshots/*.done | grep -c '\"status\": \"ok\"'"); CHECK_TARGET=$(( CHECK_PER_CELL * ok ))
   echo "check target: $CHECK_PER_CELL x $ok ok cells = $CHECK_TARGET"
 fi
-chk=$(sub <<<"sbatch --parsable --dependency=afterany:$dep --export=ALL,WT='$WT',ROOT='$ROOT',BATCHES_TARGET=$CHECK_TARGET '$D/wf1_corpus_prod_check.sbatch'")
+chk=$(sub <<<"sbatch --parsable --dependency=afterany:$dep --export=ALL,WT='$WT',ROOT='$ROOT',BATCHES_TARGET=$CHECK_TARGET,OUT_TAG='${OUT_TAG:-}' '$D/wf1_corpus_prod_check.sbatch'")
 echo "check -> $chk (afterany:$dep)"

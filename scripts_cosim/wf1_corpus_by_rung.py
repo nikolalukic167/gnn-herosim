@@ -16,12 +16,13 @@ from scripts_cosim.wf1_manifest import read_manifests
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, required=True)
+    ap.add_argument("--tag", default="", help="OUT_TAG of the build: gnn_datasets_wf1_<split>_<tag>")
     ap.add_argument("--out", type=Path)
     a = ap.parse_args()
     rows = defaultdict(list)
     counts = defaultdict(lambda: defaultdict(int))
     for split in ("train", "heldout"):
-        base = a.root / f"gnn_datasets_wf1_{split}"
+        base = a.root / f"gnn_datasets_wf1_{split}{'_' + a.tag if a.tag else ''}"
         if not base.is_dir():
             continue
         for f in sorted(base.glob("warm_summary_*.json")):
