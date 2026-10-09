@@ -248,3 +248,11 @@ The job sits at 0 % CPU with no output and never reaches its first real step. Wr
 A RUNNING state is not progress.
 
 Cost: jobs 849747 and 853598 (r1_attribution_v1 I11 variant pool, 2026-10-09), ~2 h lost.
+
+## 15. `--dependency=afterok:<id>` on a long-finished job is refused
+
+Once a completed job is purged from the controller, a new submission depending on it fails with
+`Job dependency problem`. A waiter that submits later must depend only on jobs still in `squeue`, and check finished
+ones through `sacct` (require COMPLETED, else fail loud).
+
+Cost: waiter 854330 (r1_attribution_v1 training chunk 2, 2026-10-09) died on its first sub-array.
