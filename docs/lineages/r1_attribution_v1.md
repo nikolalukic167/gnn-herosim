@@ -510,6 +510,20 @@ No line trips.
     - self-predict: +0.68 / −0.54 / +2.72 (ahead of CD in 13/19 topologies at moderate)
     - Knative: +25.9 % at light; it collapses at moderate and heavy (share 0.98 / 0.99)
   - Dropping 9538 and 9565 changes no arm by more than 0.5 points, except Knative.
+- **Six-variant I11 pool (S5, job 854263, `i11_variants2/summary.txt`).** 180 states (4 rungs × 9601/9602/9607/9608,
+  g0), all scored. On the 179 untuned states:
+
+  | Variant | p95 | Max |
+  |---|---|---|
+  | A | 0.140 % | 1.897 % |
+  | B | 0.076 % | 3.358 % |
+  | C | 0.107 % | 1.771 % |
+  | D | 0.060 % | 3.358 % |
+  | **E** | **0.053 %** | **0.076 %** |
+  | **F** | **0.053 %** | **0.076 %** |
+
+  - All six meet I11. By the signed rule (lowest max), D, B, A and C are out, and the D hedge is moot.
+  - E and F are identical on every pool state. The tie goes to the dataset half, recomputed from valid rows (854270).
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
