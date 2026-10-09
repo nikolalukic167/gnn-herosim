@@ -50,6 +50,14 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **(b) I11 at 160 × 24** (S5, 855120; seed 9101, heavy at the uncalibrated ×46.46, 40 states, all
+  replayed).
+  - Median 0.000 %, p95 0.082 %, max 6.58 %. That is one state (a 3-task sub-second batch, absolute miss 0.061 s). The
+    next worst is −2.44 % (0.70 s on a backlogged batch, inside the bar).
+  - **Ruling (coordinator): PASS-WITH-CAUSE.** This is the same shape as the i11_m24 exceedance ruled on 2026-10-09: a
+    sub-second batch, a few hundredths of a second absolute, on a relative bar.
+  - Condition: the **binding** I11 check reruns at the calibrated heavy rung with the same bars. That rerun must pass
+    on max as well, or the cause must be shown to be the same sub-second class, before any label is used.
 - 2026-10-10 — **Double scaling confirmed; "CD saturated at m0" RETRACTED** (S5, from the minted timestamps).
   - The (c) inputs ran at ×185.8 (85.5 arrivals/s), 4× the probe capture's ×46.46 (21.4 arrivals/s).
   - Nothing is known yet about CD at ×46.46, and no CD defect is indicated. (a) and (b) are unaffected.
