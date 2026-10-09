@@ -339,6 +339,14 @@ No line trips.
     - The fix breaks `pop` ties by task id. That order is inferred, so S5 is checking it on 3 or more more ties against
       live traces.
     - Measurement: jobs 853509 and 853510 relabel 36 exposed plus 50 unexposed datasets at `64e754cc` and at `f7711324`.
+- **Production capture (S6).**
+  - 8 spinning heavy cells were killed by user preference and are not rerun: 9103 g0, 9237 g2, 9277 g2, 9293 g0/g2/g3,
+    9296 g0, 9306 g1.
+  - Hung by rung: light 0 of 412, moderate 0 of 412, heavy 8 of 412 (1.9 %), against the 5 % line.
+  - The volume target is 5 × the number of ok cells.
+- **Build bug:** concurrent appends to the shared `warm_manifest.jsonl` crashed 4 ext-rebuild tasks on a half-written
+  line. Decision: per-task manifests read as a union, with a counted skip-on-read fail-safe, before the production build
+  submits. The determinism A/B at the merged head (853493) passes.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
