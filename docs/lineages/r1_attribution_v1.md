@@ -169,6 +169,15 @@ arrivals after the snapshot, exactly.
 - **Single-node, zero-exchange optima:** 11 of 14 (78.6 %, n tiny); the per-rung split is requested.
 - **Fidelity check:** 0 problems.
 - **unplaced_partner:** 0.42–0.59 % per rung.
+- **Per rung, single-node zero-exchange:** light 4/4, moderate 4/4, heavy 3/6. no_choice: light 1/5, moderate 3/8,
+  heavy 0/6. n is 4–6, so these are not readings.
+- **Hung path proven** (jobs 849836–849838, CAPTURE_TIMEOUT_S=300): the sentinel reads hung, the build runs afterany and
+  skips the cell, and the volume check lists it.
+- **Decision (2026-10-09, before any light or moderate B2 data):**
+  - The B2 dry run extends to light and moderate on the same 12 topologies and the same lines, at the merged R1.1-T-fix
+    code, with heavy re-run there too.
+  - **If a rung's single-node zero-exchange share exceeds 80 %, production pauses for that rung** and the coordinator
+    decides, recorded before production, whether it stays in the corpus.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
