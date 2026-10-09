@@ -313,6 +313,14 @@ No line trips.
     explicitly.
   - **Gates:** ds_03200's 13 plans; all earlier I11 sets rerun; live no-op identity; and the label and argmin delta on
     the 36 exposed datasets.
+  - **As built:** `rp/fidelity-net` `f7711324`/`c6c4bde2`, with `exact_batch` collection by a blocking `store.get` and no
+    scheduled event.
+    - It applies only to the fidelity replays (corpus builder, I11, cost). `HEROSIM_REPLAY_EXACT_BATCH=0` restores the
+      poll.
+    - Gate jobs: 853469 (ds_03200 plus the 36-dataset relabel delta), 853470 (all I11 sets, 3–6 h), 853482 (live
+      identity).
+  - **Release plan (coordinator):** the production build and the ext rebuild start once 853469 and 853482 pass. 853470
+    runs alongside, and if it fails, the build is discarded.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
