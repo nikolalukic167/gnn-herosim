@@ -1,6 +1,32 @@
 # r1_attribution_v1 — train on R1 + WF1 and run the attribution battery
 
-**Status:** `REGISTERED` (no runs). Depends on: `physics_audit_v1` (R1, including I11 pass),
+**Status:** `CLOSED` (2026-10-10) — **CD-FASTER**. Registered 2026-10-08; every bar below was signed before its data.
+
+**Outcome.** On R1.1 + WF1 at 40c × 6s, no learned arm beats CD, which matches prediction 1. The stopping rule applies.
+- **Primary family.** The best learned arm, gnn_eng_physmp (declared on validation), against CD on 19 test topologies:
+  +3.42 / +5.90 / +5.14 % (light / moderate / heavy). It is faster in only 1 / 1 / 2 of 19 topologies, Holm p .0001 /
+  <.0001 / .018, so CD is Holm-confirmed faster at every rung.
+- **Message passing does not separate from its twin.** gnn_eng vs twin_eng: −0.19 / −0.07 / +1.00 %, not separated.
+  gnn_eng vs set_transformer: also not separated.
+- **Physics columns inside message passing help a little.** physMP vs gnn_eng: −0.04 / −0.72 / −1.91 %, Holm-confirmed
+  at moderate and heavy.
+- **Against the same-input MLP, the GNN wins at light and loses at heavy:** −0.74 % at light, +1.68 % at heavy.
+- **Seeded search wins, but MP is not the reason.**
+  - CD←GNN beats CD: −0.38 / −1.87 / −1.66 %, all Holm-confirmed.
+  - CD←GNN ties CD←Twin, so this is a learned-seed win, not a message-passing win.
+  - CD←random is slower than CD: +1.35 / +4.28 / +3.91 %.
+- **Other arms:**
+  - Random placement (fixed, 453 of 456 cells): +33 / +120 / +155 %.
+  - Knative: +26 % at light and collapses at moderate and heavy.
+  - CD decides 10× faster than any learned arm (prediction 7).
+- **Open: gnn_raw.** It was removed from best-arm candidacy by the user's ruling: its twin, twin_raw, is
+  +16.6 / +26.3 / +30.3 % vs CD. Its S1 contrast (GNN-raw vs Twin-raw) is read when its gate lands, as an addendum that
+  cannot change the verdict.
+- **Successor:** `scale_160_v1` tests the same question at 160c × 24s.
+- **Read:** `r1_attribution_v1/gate_read_primary_2026-10-10.json`, from S4's `rp/r1a-gate` a6713375. 5,444 summaries;
+  28 failed (rate- or projection-killed, excluded and counted).
+
+Depends on: `physics_audit_v1` (R1, including I11 pass),
 `workload_fix_v1` (WF1), `load_recalibration_v1` (rungs). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Revision 2026-10-08 (before any run): trains on WF1 instead of today's workload; candidate pruning declared.
 
@@ -647,6 +673,8 @@ No line trips.
   - Refine moves per batch: CD 0.2–0.35; with a learned or random start, 0.5–1.9.
 - **Learned-arm gate seeds (2026-10-09 22:00, coordinator).** Seeds 1 and 2 are gated, as registered (matching
   CD←random). The third trained seed is staged but not gated.
+- **Primary read, CLOSED CD-FASTER (2026-10-10; S4, a6713375; Holm over 3 / 15 / 9).** The numbers are in the head;
+  the JSON is in the attachment directory. gnn_raw vs twin_raw is NOT RUN (p = 1 in S1) and is pending as an addendum.
 - **Best learned arm declared: gnn_eng_physmp (2026-10-10 02:00, coordinator, on the user's ruling).**
   - **Rule:** the lowest validation regret among the selected arms. physMP 0.8305 s; gnn_eng 0.861; set_transformer
     0.901; twin_eng 0.930; mlp_same 1.148; twin_raw 4.198.
