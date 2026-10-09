@@ -332,6 +332,13 @@ No line trips.
     - Each dataset carries an exposure flag (a net-stage ghost on a candidate node).
     - If S5's residual fix lands, only the exposed subset is relabelled, and about 50 unexposed datasets are checked to
       be unchanged.
+  - **Residual found (S5, `rp/fidelity-net` `64e754cc`).** The cause is a ghost-creation tie-break.
+    - Ghosts 1236 and 1238 have bit-identical `pop` and `net_remaining`. The replay ordered them by platform name;
+      live, 1236 went first.
+    - That delayed queued task 1239 by 0.0306 s and removed 1242's live link wait.
+    - The fix breaks `pop` ties by task id. That order is inferred, so S5 is checking it on 3 or more more ties against
+      live traces.
+    - Measurement: jobs 853509 and 853510 relabel 36 exposed plus 50 unexposed datasets at `64e754cc` and at `f7711324`.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
