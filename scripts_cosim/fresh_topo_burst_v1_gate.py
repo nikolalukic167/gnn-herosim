@@ -321,7 +321,7 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             if not cal:
                 raise SystemExit("FAIL LOUD: wf1cal needs WF1_TOPOS")
             kinds = [k for k in os.environ.get("WF1_CAL_KINDS", "cd").split(",") if k]
-            if any(k not in ("cd", "reactive") for k in kinds):
+            if any(k not in ("cd", "reactive") + RA_KINDS for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
                 raise SystemExit(f"FAIL LOUD: WF1_CAL_KINDS={kinds!r}")
             return [task(t, f"{w}{tag}", k) for tag in WF1_TAGS for t in cal for w in wins for k in kinds]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
