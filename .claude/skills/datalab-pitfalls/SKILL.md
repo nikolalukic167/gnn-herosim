@@ -256,3 +256,10 @@ Once a completed job is purged from the controller, a new submission depending o
 ones through `sacct` (require COMPLETED, else fail loud).
 
 Cost: waiter 854330 (r1_attribution_v1 training chunk 2, 2026-10-09) died on its first sub-array.
+
+## 16. The login node reaps background processes, even `setsid nohup`
+
+A watcher loop left on `slurm-head-1` died within minutes (and a `setsid nohup` relaunch within ~10 s), silently. Run
+any long-lived watcher as a 1-CPU `sbatch` job with a long time limit; one queue slot is cheaper than a missed hand-off.
+
+Cost: r1_attribution_v1 gate watcher (pid 3011515, 2026-10-09) — a staged arm sat unsubmitted for 15 min.
