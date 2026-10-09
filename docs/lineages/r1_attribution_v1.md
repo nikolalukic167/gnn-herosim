@@ -288,6 +288,13 @@ No line trips.
   - **Decision:** S5 fixes it on `rp/fidelity-net`, and first says whether the fix is replay-side only, so the current
     captures stay valid, or needs new captured fields, which means recapture. The label build stays held. The corrected
     ranking rerun (job 853413, mapping fix `c76edaee`) measures how widespread the miss is.
+- **CD-declared built** (S7, `rp/r1a-arms` `63babf3b`).
+  - It gates only the batch scheduler's `_prefix_inference` on `declared_slate.serving_slate()`. Sub-batches are
+    decided independently, as the learned arms do; that is accepted, so the arm measures exactly the slate-plus-cut
+    constraint.
+  - Identity, job 853416: 6 cells identical on every simulated field.
+  - Servesmoke, job 853417: passes.
+  - Suite: 1,802 pass, the same 26 pre-existing failures.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
