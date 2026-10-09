@@ -347,6 +347,15 @@ No line trips.
 - **Build bug:** concurrent appends to the shared `warm_manifest.jsonl` crashed 4 ext-rebuild tasks on a half-written
   line. Decision: per-task manifests read as a union, with a counted skip-on-read fail-safe, before the production build
   submits. The determinism A/B at the merged head (853493) passes.
+- **Replay fix complete at `rp/fidelity-net` `e384e732` (S5).**
+  - `64e754cc` did not work: the timer creation order was set by platform process start.
+  - `e384e732` creates net-stage timers in ghost order. All 13 ds_03200 plans now match live at 0.000 %.
+  - **The tie rule (task-id order) is confirmed on 8 of 8 independent live ties.**
+  - Relabel against `f7711324`: 9 of 36 exposed datasets change (574 of 2,053 plans, max 0.11 s), with 0 of 36 argmins
+    changing. Unexposed sample: 0 of 50 datasets and 0 of 4,931 plans change.
+  - **Decision:** production builds at `e384e732`, merged with the per-task manifests, with no relabel step. The ext
+    exposed datasets are rebuilt for the ranking rerun.
+  - Pending: I11 sets at `e384e732` (853521) and live no-op (853522).
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
