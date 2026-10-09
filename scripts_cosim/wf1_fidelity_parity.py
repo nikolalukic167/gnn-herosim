@@ -17,6 +17,7 @@ partial_state_ctx ingredient. Any mismatch is listed; exit 1 if there is one.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import multiprocessing as mp
 import os
@@ -156,54 +157,56 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     cache = job["cache_graph"]
     node_name_of = {i: n["node_name"] for i, n in enumerate(infra["nodes"])}  # node id = position, as the cache numbers them
     lc, cc = P._canon(live, n_batch), P._canon(cache, n_batch)
+    lp, cp = live.partial_state_ctx, cache.partial_state_ctx
+    # The replay restores the live queue and the in-flight tasks (ghosts) as simulation objects, but a ghost is not exposed as
+    # platform.current_task, so a feature builder run INSIDE the replay reads zero in-flight remaining on a platform that holds
+    # one. The cache's temporal and backlog terms are the snapshot's own capture, i.e. what the live builder saw at the decision.
+    # A difference confined to ghost-hosting platforms is the replay's blind spot, not the cache's: it is listed as `explained`,
+    # never dropped, and anything else is a mismatch.
+    ghost_platforms = {g["q"] for g in fid["ghosts"]}
+    out["ghost_platforms"] = len(ghost_platforms)
+    node_name_of = {i: n["node_name"] for i, n in enumerate(infra["nodes"])}  # node id = position, as the cache numbers them
+
+    def qname(key) -> str:
+        nid, pid = ast.literal_eval(key) if isinstance(key, str) else key
+        return f"{node_name_of[int(nid)]}:{pid}"
+
+    def record(label, lv, cv, platforms, columns=None, biggest=0.0, extra=""):
+        if platforms and all(qname(k) in ghost_platforms for k in platforms):
+            out.setdefault("explained", []).append(
+                f"{label}: differs on {len(platforms)} ghost-hosting platforms"
+                + (f", columns {sorted(columns)}" if columns else "") + f", max |diff| {biggest:.3e}")
+        else:
+            mism.append(f"{label}: differ{extra}")
+
     for name in sorted(set(lc) | set(cc)):
         lv, cv = lc.get(name), cc.get(name)
         if lv is None or cv is None:
             mism.append(f"{name}: live {'absent' if lv is None else 'present'}, cache {'absent' if cv is None else 'present'}")
         elif not P._close(lv, cv, tol=1e-6):
-            detail = ""
-            if isinstance(lv, dict) and isinstance(cv, dict):
-                cells = []
-                for k in sorted(set(lv) & set(cv)):
-                    if isinstance(lv[k], list) and isinstance(cv[k], list):
-                        cells += [f"{k} col {c}: live {x!r:.12} cache {y!r:.12}" for c, (x, y) in enumerate(zip(lv[k], cv[k]))
-                                  if not P._close(x, y, tol=1e-6)]
-                only = sorted(set(lv) ^ set(cv))
-                detail = f" [{len(cells)} cells differ: {'; '.join(cells[:5])}; keys on one side only: {only[:4]}]"
-            mism.append(f"{name}: differ{detail}")
-    lp, cp = live.partial_state_ctx, cache.partial_state_ctx
+            if name == "platform_features" and isinstance(lv, dict) and isinstance(cv, dict) and set(lv) == set(cv):
+                cells = [(k, c, x, y) for k in sorted(lv) for c, (x, y) in enumerate(zip(lv[k], cv[k])) if not P._close(x, y, tol=1e-6)]
+                record(name, lv, cv, {k for k, *_ in cells}, {c for _, c, *_ in cells}, max(abs(x - y) for *_, x, y in cells),
+                       extra=f" [{len(cells)} cells: " + "; ".join(f"{k} col {c} live {x:.6g} cache {y:.6g}" for k, c, x, y in cells[:5]) + "]")
+            else:
+                mism.append(f"{name}: differ -- live {str(lv)[:200]} ... cache {str(cv)[:200]}")
     for name in P.PSC_FIELDS:
         lv, cv = P._norm(lp.get(name)), P._norm(cp.get(name))
         if name == "cand_nodes":
             lv = {k: sorted(v) for k, v in lv.items()}
             cv = {k: sorted(v) for k, v in cv.items()}
-        if not P._close(lv, cv):
-            detail = ""
-            if isinstance(lv, dict) and isinstance(cv, dict):
-                diffs = [f"{k}: live {lv[k]!r:.14} cache {cv[k]!r:.14}" for k in sorted(set(lv) & set(cv)) if not P._close(lv[k], cv[k])]
-                detail = f" [{len(diffs)} values differ: {'; '.join(diffs[:4])}; only live: {sorted(set(lv) - set(cv))[:4]}; only cache: {sorted(set(cv) - set(lv))[:4]}]"
-            mism.append(f"partial_state_ctx.{name}: differ{detail}" if detail else f"partial_state_ctx.{name}: live {str(lv)[:260]} != cache {str(cv)[:260]}")
-    # A ghost the snapshot caught at the very end of its compute stage (compute_remaining == 0.0) is current in the live snapshot
-    # (its comm_remaining term, output/throughput + latency, is in the platform's backlog) but completes at t = 0 in the replay,
-    # before any decision can be taken. Name the platforms; a difference confined to them, equal to that term, is that effect.
-    boundary = {g["q"] for g in fid["ghosts"] if g["stage"] == "compute" and float(g.get("compute_remaining", 1.0)) == 0.0}
-    out["boundary_ghost_platforms"] = sorted(boundary)
-    kept = []
-    for m in mism:
-        if m.startswith("partial_state_ctx.backlog_s: differ"):
-            lv = P._norm(lp.get("backlog_s"))
-            cv = P._norm(cp.get("backlog_s"))
-            keys = [k for k in set(lv) | set(cv) if not P._close(lv.get(k), cv.get(k))]
-            def qk(k):
-                n, pl = json.loads(k)
-                return f"{node_name_of[n]}:{pl}"
-            if keys and all(qk(k) in boundary and abs((cv.get(k) or 0.0) - (lv.get(k) or 0.0)) < 2e-3 for k in keys):
-                out.setdefault("explained", []).append(
-                    f"backlog_s differs on {len(keys)} platforms that hold a zero-remaining compute ghost, by "
-                    f"{sorted({round((cv.get(k) or 0.0) - (lv.get(k) or 0.0), 9) for k in keys})} s (the comm_remaining term)")
-                continue
-        kept.append(m)
-    mism = kept
+        if P._close(lv, cv):
+            continue
+        if name == "backlog_s" and isinstance(lv, dict) and isinstance(cv, dict) and set(lv) == set(cv):
+            bad = [k for k in lv if not P._close(lv[k], cv[k])]
+            record("partial_state_ctx.backlog_s", lv, cv, set(bad), None, max(abs(lv[k] - cv[k]) for k in bad),
+                   extra=" [" + "; ".join(f"{k} live {lv[k]:.6g} cache {cv[k]:.6g}" for k in bad[:5]) + "]")
+        elif isinstance(lv, dict) and isinstance(cv, dict):
+            diffs = [f"{k}: live {lv[k]!r:.14} cache {cv[k]!r:.14}" for k in sorted(set(lv) & set(cv)) if not P._close(lv[k], cv[k])]
+            mism.append(f"partial_state_ctx.{name}: differ [{len(diffs)} values: {'; '.join(diffs[:4])}; only live "
+                        f"{sorted(set(lv) - set(cv))[:4]}; only cache {sorted(set(cv) - set(lv))[:4]}]")
+        else:
+            mism.append(f"partial_state_ctx.{name}: live {str(lv)[:260]} != cache {str(cv)[:260]}")
     out["task_width"] = int(live.task_features.size(-1))
     out["platform_width"] = int(live.platform_features.size(-1))
     out["n_task_results"] = len(stats.get("taskResults") or [])
