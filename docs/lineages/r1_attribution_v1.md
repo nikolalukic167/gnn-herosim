@@ -620,6 +620,17 @@ No line trips.
     - So queue is not a signal in this corpus, and ps_load is the only load channel the models use.
     - Open (S7): where the 28–114 in-flight tasks of the fidelity snapshot enter the features; whether the live queue
       column is non-zero at serving (train/serve skew); and why queues are empty at capture.
+  - **Answered (S7): in-flight load is invisible to the features.**
+    - Under R1 release, work waits in `inflight` (lock_wait, input_io, rendezvous, compute), not in the FIFO
+      (`infrastructure.py:1461–1647`).
+    - Col 7 counts the FIFO only (`:806–808`). ps_load backlog counts the FIFO plus one current task per platform
+      (`live_audit.py:94–110`, `gnn/scheduler.py:1765–1811`).
+    - So a platform with many in-flight tasks looks idle, while the label's replay includes them as ghosts (median 5,
+      p90 17 per snapshot).
+    - The same holds live, so this is not train/serve skew: col 7 is effectively dead in both (0.04 % of rows in the
+      cache, 0.08–0.36 % live).
+    - **Known representation gap for this run.** No change to the registered arms. A per-platform in-flight
+      count/drain feature is the candidate for a successor contract.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
