@@ -686,6 +686,13 @@ No line trips.
     - The process later segfaulted, with no backtrace.
     - Knative's legacy branch (`knative_network/scheduler.py:89–101`) has the same hazard.
   - The 18 surviving cells are the easy ones and are not a quality read. Light: +27.8 % vs CD.
+  - **Cause found and fixed (S6, `rp/r1a-random-defer` 5e9266e8): a policy bug, not physics.**
+    - RandomNetworkScheduler was the only network scheduler without `StarvedDeferMixin`
+      (`src/placement/starved_defer.py`), so a starved task was retried at the same instant forever.
+    - Knative starved in 220 of 227 cells tonight and always left through the defer.
+    - Random already sampled only existing, reachable replicas, so restricting its candidates was not the fix.
+    - Tested on 4 cells (jobs 855096/855097): all completed, with reactive and CD identical to 6 decimals.
+    - The full random arm is rerun at the fix into a new directory. The old random results are discarded.
 - **More selections:** set_transformer (23:41), g1, val regret 0.901 ± 0.034 s.
 - **Trio reads, partial and descriptive (S4; 451–455 of 456 cells each; Holm and the family not yet run).** Paired %
   over 19 topologies, light / moderate / heavy:
