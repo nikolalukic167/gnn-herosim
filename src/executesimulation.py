@@ -25,6 +25,7 @@ import math
 import os
 import random
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 
@@ -36,6 +37,7 @@ from src.generate_infrastructure import (
 from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
 from src.placement.scaleout import KPA, KPA_TARGET, SCALEOUT_ENV, policy_time_scale, scaleout_mode
 from src.placement.executor import execute_sim
+from src.placement.decision_timing import set_model_load
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.placement.network_graph import (
     NETWORK_GRAPH_CONTRACT_ENV,
@@ -1928,9 +1930,11 @@ def main():
         # corpus-compatibility check needs it before the model is constructed.
         with open(config_file, 'r') as _f:
             space_config_for_checkpoint = json.load(_f)
+        _load_t0 = time.perf_counter()
         gnn_model, gnn_device = load_gnn_model(
             gnn_model_path, space_config=space_config_for_checkpoint
         )
+        set_model_load(time.perf_counter() - _load_t0)
         task_types_data = load_task_types_data(sim_input_path)
     elif policy == 'gnn_hetero':
         if not gnn_hetero_model_path.exists():

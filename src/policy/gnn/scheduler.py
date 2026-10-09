@@ -45,6 +45,7 @@ from src.policy.gnn.seq_decode import (
 from src.policy.tabular.feature_builder import build_pyg_inference_graph
 from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot
 from src.placement.physics_audit import AUDIT as _AUDIT
+from src.placement.decision_timing import log_of
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -1154,6 +1155,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         placements: Dict[int, Tuple[int, int]] = {}
         inference_time = 0.0
         if decodable:
+            moves_before = int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0))
             inference_start = default_timer()
             decode_state = self._corpus_slate_view(decodable, system_state) if _corpus_slate_on() else system_state
             placements = self._prefix_inference(
@@ -1168,6 +1170,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             if keepwarm is not None:
                 placements = self._keep_replicas_warm(decodable, placements, system_state, *keepwarm)
             inference_time = default_timer() - inference_start
+            log_of(self).add(len(decodable), inference_time,
+                             int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0)) - moves_before)
             if _AUDIT is not None:
                 _AUDIT.decision(self.env, audit_t0, self.env.now, inference_time, len(decodable),
                                 self._live_audit_policy_name)

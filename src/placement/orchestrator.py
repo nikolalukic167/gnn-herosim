@@ -29,6 +29,7 @@ from simpy.core import Environment, SimTime
 from simpy.events import Event, Process
 from simpy.resources.store import Store, FilterStore
 
+from src.placement.decision_timing import log_of
 from src.placement.autoscaler import Autoscaler
 from src.placement.infrastructure import Application, Task
 from src.placement.model import (
@@ -196,6 +197,10 @@ class Orchestrator:
             "tasks_with_inference": float(n_with),
             "averageGNNDecisionTime": avg,
         }
+
+    def _decision_timing(self) -> Dict[str, Any]:
+        """Wall time of the scheduler's decisions (src/placement/decision_timing.py); measurement only."""
+        return log_of(self.scheduler).summary()
 
     def _scheduler_counters(self) -> Dict[str, Any]:
         """Policy-side counters a gate report needs alongside the totals (stage 3: how
@@ -429,6 +434,7 @@ class Orchestrator:
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
             "schedulerCounters": self._scheduler_counters(),
+            "decisionTiming": self._decision_timing(),
             "num_tasks": n_tasks,
             **inference_agg,
             "statsSchemaVersion": "v2_streaming",
@@ -770,6 +776,7 @@ class Orchestrator:
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
             "schedulerCounters": self._scheduler_counters(),
+            "decisionTiming": self._decision_timing(),
             "num_tasks": num_tasks,
             "statsSchemaVersion": "v2_task_metrics",
             "taskResultsIncluded": task_results_included,
