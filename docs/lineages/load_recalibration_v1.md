@@ -18,8 +18,8 @@ run, and every amendment below is dated before the data it governs. Depends on: 
   - Prediction 2 ("heavy unreachable or unstable") is FALSIFIED: heavy is reachable and stable for CD.
 - **Not quotable without:** "effective" next to any share; the queue share of any earlier R1 read is understated
   wherever replicas saturate.
-- **Old ladder on WF1:** ×2 ≈ 0.10 and ×3 ≈ 0.14 (between light and moderate); ×5 ≈ 0.23 (moderate). ×0.2666 at full
-  treatment is pending.
+- **Old ladder on WF1:** ×2 ≈ 0.10 and ×3 ≈ 0.14 (between light and moderate); ×5 ≈ 0.23 (moderate). ×0.2666 gives
+  0.046 (CD 7/8). Addenda complete.
 
 **Pre-run amendments (2026-10-08, coordinator, before any run; from the `workload_fix_v1` close).**
 - **Calibration set: 9601, 9602, 9607, 9608** (9603–9606 are infeasible on the live topology; `workload_fix_v1`). This
@@ -151,7 +151,12 @@ Job 843900, code `5d52cd49`. CD only, the same 8 cells, 2,700 s steering limit, 
 - At ×5, the 9607 g1 cell is labelled **stalled, not a guard result**: a 43 min busy loop against 44–54 s for its
   siblings, with an empty log. It is the spin under diagnosis in `r1_attribution_v1`. The cell finishes at ×5.94.
 - The old ×2/×3/×5 ladder is therefore light-to-moderate on WF1. No old rung reaches heavy.
-- ×0.2666 at full treatment is still to come.
+- **×0.2666 at full treatment** (job 843742, `54fddd0d`):
+  - CD 7/8, effective share 0.046, just below light. Knative 8/8 at 0.065.
+  - Every CD guard passes apart from finished.
+  - CD 9608 g1 timed out at 1× and at 3× (8,100 s) and ends in request-timeout starvation. It is unfinished, not a measured
+    collapse; a likely case of the R1.1-T hole, rechecked under the fix by job 849879.
+  - The point is supplementary. The light rung stays ×1.2584.
 
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
