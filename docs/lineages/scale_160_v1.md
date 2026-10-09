@@ -50,6 +50,18 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **(c) at m0 = 46.46: CD is saturated** (S5, 855121; seeds 9901–9904, g0).
+  - Effective share 0.97 (plain 0.045), 37–41 s per task, run end 2.0–2.5× the last arrival, 0 request failures.
+  - The batched-greedy capture policy was healthy at the same multiplier (3.6–4.6 s per task), so the
+    "throughput ∝ servers" scaling fails for CD here. The CD-vs-greedy gap at scale is unexplained.
+  - **Amendment (coordinator, before any calibration data):** (c) was specified as "two steps toward the band" on the
+    assumption that the band lies above m0. That bracket was wrong.
+    - The downward calibration is the continuation: heavy in [m0/16, m0], moderate in [m0/32, m0/2], CD-steered on the
+      effective share, 8 steps each.
+    - (c) passes if both bands are reached with no guard failure, and fails otherwise.
+    - The corpus is captured at the calibrated rungs, not at m0.
+    - At the final rungs, the capture policy (batched greedy) and self-predict also run, with CD's lock-wait profile,
+      to explain the gap. These are descriptive.
 - 2026-10-10 — Rung calibration plan (S5, accepted before data).
   - Calibration topologies are seeds 9905–9908, windows g0 + g1.
   - CD-steered log bisection on the effective share (queue + lock wait) / elapsed, at most 8 steps per rung. Bands:
