@@ -43,6 +43,9 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     # the decision must happen at the snapshot instant: no batch-collection wait (every task of the replay arrives at t = 0, so
     # nothing is waited for; a positive window would still tick once per queued batch whose partners lie outside the snapshot),
     # and a batch cap that holds the largest corpus group (the default cap of 4 splits a 6-task peer group)
+    # the collection loop waits min(poll, remaining) and exits when `remaining` reaches 0 WITHOUT a last look at the queue, so a
+    # window shorter than two polls misses a member that arrives during the first wait: both are made nanoseconds long
+    os.environ["GNN_BATCH_POLL_INTERVAL"] = "1e-9"
     os.environ.pop("GNN_BATCH_TIMEOUT", None)  # the cell config's scheduler block names them (the loader refuses both)
     os.environ.pop("GNN_BATCH_SIZE", None)
     from src.policy.gnn.scheduler import _gnn_batch_range
@@ -77,7 +80,7 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     infra["forced_placements"] = {}
     infra["fast_forward_warmup"] = True
     infra["fast_forward_threshold"] = 1
-    infra["scheduler"] = {"batch_size": _gnn_batch_range()[1], "batch_timeout": 1e-9}
+    infra["scheduler"] = {"batch_size": _gnn_batch_range()[1], "batch_timeout": 4e-9}
     kw = SF.live_run_params()
 
     orig = GNNScheduler._prefix_inference
@@ -151,6 +154,7 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
         return out
     live = rec[0]["graph"]
     cache = job["cache_graph"]
+    node_name_of = {i: n["node_name"] for i, n in enumerate(infra["nodes"])}  # node id = position, as the cache numbers them
     lc, cc = P._canon(live, n_batch), P._canon(cache, n_batch)
     for name in sorted(set(lc) | set(cc)):
         lv, cv = lc.get(name), cc.get(name)
@@ -179,6 +183,27 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
                 diffs = [f"{k}: live {lv[k]!r:.14} cache {cv[k]!r:.14}" for k in sorted(set(lv) & set(cv)) if not P._close(lv[k], cv[k])]
                 detail = f" [{len(diffs)} values differ: {'; '.join(diffs[:4])}; only live: {sorted(set(lv) - set(cv))[:4]}; only cache: {sorted(set(cv) - set(lv))[:4]}]"
             mism.append(f"partial_state_ctx.{name}: differ{detail}" if detail else f"partial_state_ctx.{name}: live {str(lv)[:260]} != cache {str(cv)[:260]}")
+    # A ghost the snapshot caught at the very end of its compute stage (compute_remaining == 0.0) is current in the live snapshot
+    # (its comm_remaining term, output/throughput + latency, is in the platform's backlog) but completes at t = 0 in the replay,
+    # before any decision can be taken. Name the platforms; a difference confined to them, equal to that term, is that effect.
+    boundary = {g["q"] for g in fid["ghosts"] if g["stage"] == "compute" and float(g.get("compute_remaining", 1.0)) == 0.0}
+    out["boundary_ghost_platforms"] = sorted(boundary)
+    kept = []
+    for m in mism:
+        if m.startswith("partial_state_ctx.backlog_s: differ"):
+            lv = P._norm(lp.get("backlog_s"))
+            cv = P._norm(cp.get("backlog_s"))
+            keys = [k for k in set(lv) | set(cv) if not P._close(lv.get(k), cv.get(k))]
+            def qk(k):
+                n, pl = json.loads(k)
+                return f"{node_name_of[n]}:{pl}"
+            if keys and all(qk(k) in boundary and abs((cv.get(k) or 0.0) - (lv.get(k) or 0.0)) < 2e-3 for k in keys):
+                out.setdefault("explained", []).append(
+                    f"backlog_s differs on {len(keys)} platforms that hold a zero-remaining compute ghost, by "
+                    f"{sorted({round((cv.get(k) or 0.0) - (lv.get(k) or 0.0), 9) for k in keys})} s (the comm_remaining term)")
+                continue
+        kept.append(m)
+    mism = kept
     out["task_width"] = int(live.task_features.size(-1))
     out["platform_width"] = int(live.platform_features.size(-1))
     out["n_task_results"] = len(stats.get("taskResults") or [])
@@ -213,6 +238,8 @@ def main() -> int:
     for r in results:
         if r.get("decisions"):
             print(f"     decision instants {[round(x['t'], 9) for x in r['decisions']][-3:]}, last batch dispatched {r['decisions'][-1]['dispatched']}")
+        for e in r.get("explained") or []:
+            print("     explained:", e)
         print(f"  {r['dataset']}: queued {r.get('queued')}, batch {r.get('batch')}, widths task {r.get('task_width')} platform "
               f"{r.get('platform_width')}, scheduler batches {len(r.get('scheduler_batches') or [])}, "
               f"{'identical' if not r['mismatches'] else str(len(r['mismatches'])) + ' mismatches'}")
