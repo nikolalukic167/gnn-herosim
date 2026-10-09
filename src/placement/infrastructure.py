@@ -742,6 +742,15 @@ class Storage:
         return True
 
 
+def peer_is_placed(peer: Any) -> bool:
+    """A peer that is on a platform, or planned by a batch pre-pass that has not deferred it. A task the batch path planned and then
+    deferred (its replica was evicted before its turn, or none was left) keeps `planned_node_name` with no platform: it is waiting for
+    hardware, not placed, and the rendezvous of its partners must see it as unplaced or their request timeout never starts."""
+    if getattr(peer, "platform", None) is not None:
+        return True
+    return getattr(peer, "planned_node_name", None) is not None and not getattr(peer, "postponed_count", 0)
+
+
 class Platform:
     def __init__(
         self,
@@ -1202,10 +1211,7 @@ class Platform:
         events = []
         for peer_id in sorted(peers):
             peer = getattr(orchestrator, "task_by_id", {}).get(peer_id)
-            if peer is not None and (
-                getattr(peer, "platform", None) is not None
-                or getattr(peer, "planned_node_name", None) is not None
-            ):
+            if peer is not None and peer_is_placed(peer):
                 continue
             events.append(ready(peer_id))
         return events
@@ -1220,7 +1226,7 @@ class Platform:
             peer = by_id.get(peer_id)
             if peer is None:
                 out.append(None)
-            elif getattr(peer, "platform", None) is None and getattr(peer, "planned_node_name", None) is None:
+            elif not peer_is_placed(peer):
                 out.append(peer)
         return out
 
