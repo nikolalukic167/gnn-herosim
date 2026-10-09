@@ -4,8 +4,9 @@
 # the same flag and refuses a snapshot without the block). One array task per topology; its rungs x windows in parallel.
 # Behaviour policy as small_batch_v1_capture.sbatch (the batched rule in the decoder's seat), R1.1 environment.
 # Every cell ends with a sentinel <cell>_<rung>_<window>.done (JSON: status ok | hung | failed, snapshots, last trigger task id,
-# cap_hit). Resume tests the sentinel, not a non-empty file; a run is killed after CAPTURE_TIMEOUT_S (a starved-client spin hangs
-# some cells whatever the load) and recorded as hung. The snapshot cap is 600: at stride 31 a cap of 300 stopped at task ~38,000 of
+# cap_hit). Resume tests the sentinel, not a non-empty file; a run is killed (SIGKILL, rc 137; rc 124 at the hard limit) and recorded as hung when scripts_cosim/watchdog_run.py (src/placement/progress_watchdog.py)
+# says it cannot finish in 1.5 x CAPTURE_TIMEOUT_S at its measured rate, or makes no progress for 5 min, or reaches CAPTURE_TIMEOUT_S (a starved-client spin hangs
+# some cells whatever the load). Each cell leaves <cell>_<rung>_<window>.timeline.jsonl (t, progress, rate) to calibrate the margin. The snapshot cap is 600: at stride 31 a cap of 300 stopped at task ~38,000 of
 # 50,000, so the last fifth of the trace was never offered; a cell that still reaches the cap is recorded cap_hit and fails loud.
 #   sbatch --array=0-<n_topologies-1> --export=ALL,WT=...,ROOT=...,TOPOS="...",TAGS="light moderate heavy" wf1_corpus_prod_capture.sbatch
 #SBATCH --job-name=wf1p-cap
@@ -57,7 +58,7 @@ for R in $TAGS; do
     [[ -s "$DONE" ]] && { echo "[$CELL $R $W] done already: $(cat "$DONE")"; continue; }
     ( export LIVE_AUDIT_SNAPSHOT_PATH="$SNAP"; rm -f "$SNAP" "$DONE"
       rc=0
-      timeout --kill-after=60 "$CAPTURE_TIMEOUT_S" python3 src/executesimulation.py --config "$ROOT/inputs/wf1_$R/cfg/$CELL.json" --workload "$ROOT/inputs/wf1_$R/wl/grounded_${W}_n50000.json" \
+      python3 scripts_cosim/watchdog_run.py --progress-file "$SNAP" --progress-key trigger_task_id --total 50000 --limit "$CAPTURE_TIMEOUT_S" --timeline "$ROOT/capture_logs/${CELL}_${R}_${W}.timeline.jsonl" -- python3 src/executesimulation.py --config "$ROOT/inputs/wf1_$R/cfg/$CELL.json" --workload "$ROOT/inputs/wf1_$R/wl/grounded_${W}_n50000.json" \
         --policy peer_greedy_network_batch --output "$HEROSIM_RAW_DIR/${CELL}_${R}_${W}.raw.json" > "$ROOT/capture_logs/${CELL}_${R}_${W}.log" 2>&1 || rc=$?
       n=0; [[ -f "$SNAP" ]] && n=$(wc -l < "$SNAP")
       status=ok; [[ $rc -eq 124 || $rc -eq 137 ]] && status=hung; [[ $rc -ne 0 && $status == ok ]] && status=failed
