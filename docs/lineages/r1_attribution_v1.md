@@ -631,6 +631,11 @@ No line trips.
       cache, 0.08–0.36 % live).
     - **Known representation gap for this run.** No change to the registered arms. A per-platform in-flight
       count/drain feature is the candidate for a successor contract.
+    - **CD is equally blind (S7).** Its score is drain (FIFO plus committed service) + cold + exec + latency + exchange
+      (`peer_greedy_network/scheduler.py:265–322`). Its in-flight term exists only in the off-by-default `cd_inflight`
+      kind.
+    - So CD and the learned arms share the same load information. The gate's CD-vs-learned contrast is representation
+      and search, not information access.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
