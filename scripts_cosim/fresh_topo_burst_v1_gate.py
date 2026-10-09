@@ -49,6 +49,7 @@ RULE_POLICY = {
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
+    "cd_declared": "peer_greedy_network_cd",  # r1_attribution_v1: CD over the learned arms' declared slate (GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1); descriptive
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
     "drain": "drain_greedy_network",  # rule_baselines_v1: least-loaded (drain-time shortest queue, per arrival, no exchange term)
@@ -321,7 +322,7 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             if not cal:
                 raise SystemExit("FAIL LOUD: wf1cal needs WF1_TOPOS")
             kinds = [k for k in os.environ.get("WF1_CAL_KINDS", "cd").split(",") if k]
-            if any(k not in ("cd", "reactive") + RA_KINDS for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
+            if any(k not in ("cd", "reactive", "cd_declared") + RA_KINDS for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
                 raise SystemExit(f"FAIL LOUD: WF1_CAL_KINDS={kinds!r}")
             return [task(t, f"{w}{tag}", k) for tag in WF1_TAGS for t in cal for w in wins for k in kinds]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
@@ -727,8 +728,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_declared", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
+        if kind == "cd_declared":
+            env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
         if kind == "locality":
             env["HEROSIM_PG_EXCHANGE_SCALE"] = repr(LOCALITY_SCALE)
         if kind == "cdext":
@@ -856,8 +859,15 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("decima instrument off: decima_batches == 0")
         if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
             problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
-    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
+    # cd_declared: the slate must have been applied to every batch, and nowhere else
+    declared = int(c.get("pg_declared_batches") or 0)
+    if kind == "cd_declared":
+        if out["env"].get("GNN_SERVE_CANDIDATE_SLATE") != "declared_pruning_v1" or declared == 0 or int(c.get("pg_declared_groups") or 0) < declared:
+            problems.append("declared-slate instrument off: GNN_SERVE_CANDIDATE_SLATE not served or no batch went through declared_slate")
+    elif declared and not kind.startswith("ra_"):
+        problems.append("a non-declared arm applied the declared slate")
     want_scale = repr(LOCALITY_SCALE) if kind == "locality" else None
     if out["env"].get("HEROSIM_PG_EXCHANGE_SCALE") != want_scale:
         problems.append(f"served HEROSIM_PG_EXCHANGE_SCALE={out['env'].get('HEROSIM_PG_EXCHANGE_SCALE')!r}, {kind} needs {want_scale!r}")

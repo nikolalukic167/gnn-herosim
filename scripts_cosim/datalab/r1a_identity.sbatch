@@ -34,7 +34,7 @@ out, ref = sys.argv[1:3]
 SKIP = {"wallclock_s", "code", "env", "run_provenance", "corpus", "arm", "cell", "checkpoint_seed", "policy_name", "traceFile"}
 def flat(d, p=""):
     for k, v in d.items():
-        if k in SKIP: continue
+        if k in SKIP or k.startswith("pg_declared_"): continue  # pg_declared_*: cd_declared counters, 0 and absent from older runs
         if isinstance(v, dict): yield from flat(v, p + k + ".")
         elif isinstance(v, (int, float)) and not isinstance(v, bool): yield p + k, v
 n = bad = 0
