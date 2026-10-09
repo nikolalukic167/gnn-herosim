@@ -793,6 +793,8 @@ def main() -> int:
                 spec["task_candidates"] = [[[int(c["node_id"]), int(c["platform_id"])] for c in by_gid[int(g)]["candidates"]]
                                            for g in workload["trace_task_ids"]]
                 spec["slate"] = {k: v for k, v in record.items() if k != "task_ids"}
+                spec["exposure"] = fidelity_replay.exposure(
+                    snap, [c for g in workload["trace_task_ids"] for c in by_gid[int(g)]["candidates"]])
                 infra["live_snapshot_seed"][fidelity_replay.SPEC_KEY] = spec
                 provenance["fidelity_replay"] = {k: v for k, v in infra["live_snapshot_seed"][fidelity_replay.SPEC_KEY].items()
                                                  if k != "snapshot"}
