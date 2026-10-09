@@ -32,6 +32,14 @@ for X in A B; do
     --workers 15 --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity --require-connected-batch &
 done
 wait
+# resume: the same cell resubmitted into the same directory must build nothing new
+before=$(ls -d "$OUT/A/gnn_datasets"/ds_* | wc -l)
+python3 scripts_cosim/make_warm_corpus.py --snapshots "$OUT/shard.jsonl" --trace "$TRACE" --cell-config "$CELLCFG" \
+  --output-dir "$OUT/A/gnn_datasets" --source-tag det --limit-batches "$BATCHES" --require-limit-batches --min-time 360 --target-combos 20000 \
+  --workers 15 --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity --require-connected-batch
+after=$(ls -d "$OUT/A/gnn_datasets"/ds_* | wc -l)
+echo "resume: datasets before $before after $after"
+[[ "$before" -eq "$after" ]] || { echo "FAIL LOUD: a resumed cell built $((after-before)) new dataset(s)"; exit 1; }
 export DAG_PRIMARY_ALPHA_KEY=inf PARTIAL_STATE_CONTRACT=partial_state_v5 NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded
 for X in A B; do
   python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$OUT/$X/gnn_datasets" --rewrite-ssc | tail -1
@@ -60,6 +68,6 @@ for i, (x, y) in enumerate(zip(ga, gb)):
             print("graph", i, k, "identical" if same else "DIFFERS")
 ok = not bad and len(ga) == len(gb)
 print("graphs", len(ga), len(gb), "DIFFERENCES:", bad)
-(o / "determinism_result.json").write_text(json.dumps({"passed": ok, "graphs": [len(ga), len(gb)], "differences": bad}))
+(o / "determinism_result.json").write_text(json.dumps({"passed": ok, "resume_new_datasets": 0, "graphs": [len(ga), len(gb)], "differences": bad}))
 sys.exit(0 if ok else 1)
 PY

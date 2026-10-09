@@ -50,12 +50,13 @@ echo "target $BATCHES_TARGET batches over $NT topologies x $NR rungs x $NW windo
 # count check: the capture must have left one sentinel per cell of this topology
 have=$(ls "$ROOT"/snapshots/cc40s${SEED}_*.done 2>/dev/null | wc -l) || true
 [[ "$have" -eq $(( NR * NW )) ]] || { echo "FAIL LOUD: topology $SEED has $have capture sentinels, expected $(( NR * NW )) (capture unfinished or crashed)"; exit 1; }
-ri=0; shortfall=0; cells_not_ok=""
+ri=0; shortfall=0; cells_not_ok=""; cap_cells=""
 for R in $TAGS; do
   wi=0
   for W in $WINDOWS; do
     CELL=cc40s${SEED}; SNAP="$ROOT/snapshots/${CELL}_${R}_${W}.jsonl"; DONE="$ROOT/snapshots/${CELL}_${R}_${W}.done"
     START=$(( ((T * NR + ri) * NW + wi) * STRIDE ))
+    if grep -q '"cap_hit": true' "$DONE"; then cap_cells="$cap_cells ${R}_${W}"; echo "[$CELL $R $W] CAP HIT: the capture stopped at the snapshot cap, the late trace was never offered"; fi
     if ! grep -q '"status": "ok"' "$DONE"; then
       echo "[$CELL $R $W] capture $(cat "$DONE"); no corpus from this cell"; cells_not_ok="$cells_not_ok ${R}_${W}"; wi=$((wi+1)); continue
     fi
@@ -70,6 +71,6 @@ for R in $TAGS; do
   done
   ri=$((ri+1))
 done
-echo "=== topology $SEED ($SPLIT): $(ls -d "$OUT"/ds_* 2>/dev/null | wc -l) datasets in $OUT (all sources of this split so far); capture-not-ok cells:${cells_not_ok:- none}; shortfall cells: $shortfall"
-echo "{\"topology\": $SEED, \"split\": \"$SPLIT\", \"cells_not_ok\": \"${cells_not_ok# }\", \"shortfall_cells\": $shortfall}" > "$ROOT/build_logs/topology_${SEED}.json"
+echo "=== topology $SEED ($SPLIT): $(ls -d "$OUT"/ds_* 2>/dev/null | wc -l) datasets in $OUT (all sources of this split so far); capture-not-ok cells:${cells_not_ok:- none}; cap-hit cells:${cap_cells:- none}; shortfall cells: $shortfall"
+echo "{\"topology\": $SEED, \"split\": \"$SPLIT\", \"cells_not_ok\": \"${cells_not_ok# }\", \"cap_hit_cells\": \"${cap_cells# }\", \"shortfall_cells\": $shortfall}" > "$ROOT/build_logs/topology_${SEED}.json"
 [[ $shortfall -eq 0 ]] || exit 1
