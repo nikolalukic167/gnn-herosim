@@ -625,6 +625,8 @@ No line trips.
 - **Selections (validation only; `selection_<arm>.json` in `/share/nikola.lukic/r1a_prod/20261009_190117/`).**
   - twin_eng (22:01): g5 (w128, lr 2e-3), val regret 0.930 ± 0.010 s. The other configs are 0.937–0.967, so the grid is
     flat within seed noise.
+  - gnn_eng_physmp (23:01): val regret 0.8305 s.
+  - mlp_same (23:21): g4, val regret 1.148 ± 0.022 s.
 - **twin_eng gate, partial and descriptive (S4, array 854587 at 263dd915; 452 of 456 cells, 3 killed by rate at heavy;
   `twin_partial_read.json`).** Paired % (positive = twin slower), median over 19 topologies:
   - vs CD: +3.60 / +5.61 / +6.22 %, with twin_eng faster in 1 / 0 / 2 of 19 topologies.
