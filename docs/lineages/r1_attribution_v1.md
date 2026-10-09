@@ -146,6 +146,14 @@ arrivals after the snapshot, exactly.
 - **Plan counts:** median 75, p90 27,648, max 100,000.
 - **Thin:** 11 topologies, heavy only, the first 75–80 % of each trace. Light and moderate come from the smoke.
 
+**Final fix check (S7, job 846492, `2a7c85c9`): all three accepted, no new defect.**
+- **Resume:** the second pass builds 0.
+- **Cap-hit:** a cap-hit cell fails the volume check (exit 1).
+- **`unplaced_partner`:** agrees exactly with the replay guard on 12,073 B2 heavy snapshots; 1.4 % of snapshots
+  (S6's 0.46 % uses offered batches as the denominator).
+- **Pipeline code is cleared for production** at `2a7c85c9`. The capture still waits for the spin diagnosis (the heavy
+  hung-cell rate is 17 %, against the 5 % line).
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
