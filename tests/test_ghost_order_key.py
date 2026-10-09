@@ -80,3 +80,14 @@ def test_a_same_instant_ghost_is_due_exactly_when_a_batch_task_with_the_same_lat
     rec2 = {"src": "client_node15", "pop": -0.0143, "net_remaining": latency - 0.0143}
     assert abs(net_due(N(), rec2) - rec2["net_remaining"]) < 1e-12
     assert net_due(N(), {"src": "elsewhere", "pop": 0.0, "net_remaining": 0.5}) == 0.5
+
+
+def test_wait_stage_ghosts_are_ordered_by_request_time_then_task_id():
+    # ds_16401: 36205/36206/36207 (node1) and 36201 (node4), all popped at -0.2404, request the link at different times because the
+    # latency to their platform's node differs: 201 requests 1.5 ms later and queues behind them, whatever its task id
+    ghosts = [(_g(36201, "node4:227", pop=-0.2404, link="wait"), -0.2404 + 0.0537),
+              (_g(36205, "node1:203", pop=-0.2404, link="wait"), -0.2404 + 0.0522),
+              (_g(36206, "node1:205", pop=-0.2404, link="wait"), -0.2404 + 0.0522),
+              (_g(36207, "node1:211", pop=-0.2404, link="wait"), -0.2404 + 0.0522)]
+    order = sorted(ghosts, key=lambda x: ghost_order_key(x[0], x[1]))
+    assert [g["tid"] for g, _ in order] == [36205, 36206, 36207, 36201]
