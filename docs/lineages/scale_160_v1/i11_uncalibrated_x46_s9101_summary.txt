@@ -1,0 +1,7 @@
+states 40 with truth 40 unreplayed 0
+median 0.000% p95 0.082% max 6.577%
+  t= 1842.8 err=-6.577% live=0.9283 replay=0.8672
+  t=  852.2 err=-2.442% live=28.5081 replay=27.8120
+  t=  556.8 err=0.082% live=55.4935 replay=55.5389
+  t=  455.0 err=0.081% live=77.2806 replay=77.3435
+  t=  949.4 err=0.070% live=9.9837 replay=9.9907
