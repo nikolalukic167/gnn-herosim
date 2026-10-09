@@ -231,6 +231,21 @@ arrivals after the snapshot, exactly.
     serve side, which is consistent.
   - **Verdict: the arms are gate-ready**, pending only the production cache.
 
+**Extended B2 read (2026-10-09; S6, capture 850131, build 850132, check 853176, `d28d1bb0`; `corpus_b2_ext/by_rung.json`).**
+No line trips.
+
+| Rung | Datasets | Single-node zero-exchange | Sub-batched | no_choice (of offered) | unplaced_partner | Median plans |
+|---|---|---|---|---|---|---|
+| light | 197 | 51.8 % | 2.1 % | 29.5 % | 0 % | 8 |
+| moderate | 198 | 79.3 % | 2.1 % | 10.9 % | 0 % | 25 |
+| heavy | 209 | 79.4 % | 7.4 % | 6.2 % | 0.4 % | 32 |
+
+- **Hung:** 1 of 144 cells (0.7 %), 9103 heavy g0, stopped by user decision and not rerun. The volume target became 572.
+- **Discards:** 0. The fidelity check found 0 problems.
+- **Moderate and heavy sit 0.6 points under the 80 % line.** The corpus will be mostly single-node optima at those rungs;
+  quote that with any model-class result.
+- **Decision:** the production capture launches now. The label build waits for the ranking test, per the signed rule.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
