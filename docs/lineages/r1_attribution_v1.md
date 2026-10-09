@@ -278,6 +278,16 @@ No line trips.
   - The primary bar stays CD with its full candidate set, as registered. Pruning is the learned arms' own constraint.
   - A descriptive arm, **CD-declared** (CD restricted to the same top-5 slate), is added to measure what pruning costs.
     It is not in the primary family.
+- **ds_03200 miss is a replay defect, and it is not ranking-neutral** (S5, jobs 853409, 853414, 853415).
+  - The delay is link wait: the replay adds one transfer unit (0.0152 s) per task bound for nodes 41 and 44 and removes
+    about 0.005 s per task on node 45.
+  - Suspected, unproven: the order of recreated `net`-stage ingress ghosts on the shared link. They have no stored
+    route, and there is a 1 ms tie.
+  - Within the state, plans 82 and 17 swap order (label 0.505 < 0.524; live 0.521 > 0.479). The argmin is unchanged in
+    this dataset.
+  - **Decision:** S5 fixes it on `rp/fidelity-net`, and first says whether the fix is replay-side only, so the current
+    captures stay valid, or needs new captured fields, which means recapture. The label build stays held. The corrected
+    ranking rerun (job 853413, mapping fix `c76edaee`) measures how widespread the miss is.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
