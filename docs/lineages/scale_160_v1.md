@@ -50,6 +50,17 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **(c) PASS: rungs calibrated** (S5, 855146/855147; seeds 9905–9908, g0 + g1, CD-steered).
+  - **Heavy ×23.2278** (CD effective share 0.415, step 3). **Moderate ×16.4245** (0.284, step 4). m is the final
+    multiplier on the ×1 windows, with factor 1/m.
+  - Every CD cell passed every guard at every step, except the ×185.8 bracket end (8/8 guard failures, as expected).
+  - **Ruling (coordinator): (c) PASS.** S5 attaches the step table under `scale_160_v1/`. These are the rungs for the
+    corpus capture and the gate. The descriptive finals (CD lock profile, batched greedy, self-predict, Knative) are
+    pending.
+  - Note: the moderate/heavy ratio is 0.71, against 0.51 at 40 × 6. CD's share is not linear in load at this size.
+    This is disclosed, and no bar depends on it.
+  - S6's dry run (855140–855142) ran at the uncalibrated ×23.76 / ×46.46, so it is a pipeline test only and its batches
+    are not corpus.
 - 2026-10-10 — **(b) I11 at 160 × 24** (S5, 855120; seed 9101, heavy at the uncalibrated ×46.46, 40 states, all
   replayed).
   - Median 0.000 %, p95 0.082 %, max 6.58 %. That is one state (a 3-task sub-second batch, absolute miss 0.061 s). The
