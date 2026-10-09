@@ -524,6 +524,17 @@ No line trips.
 
   - All six meet I11. By the signed rule (lowest max), D, B, A and C are out, and the D hedge is moot.
   - E and F are identical on every pool state. The tie goes to the dataset half, recomputed from valid rows (854270).
+- **Decision cost (2026-10-09 21:00, user-approved, before any learned-arm gate data).**
+  - Simulated latency charges no arm for scheduler compute. Only the GNN's wall-clock decision time is recorded
+    (`gnn_decision_time`, `orchestrator.py:185`); CD's search cost is unmeasured.
+  - Added as a **secondary, descriptive** measure, outside the primary family: wall-clock per scheduling call, for every
+    arm.
+  - The instrument must leave all simulated fields bit-identical (identity check vs 07b0acba).
+  - Classical arms: a timing side study of 1 topology × 3 rungs × g0, on dedicated CPUs.
+- **Epoch-10 smoke (S7, job 854401; gnn_eng g0 seed2, topology 9101 in the train split, g0; descriptive).**
+  - Latency vs CD: +0.8 / +2.1 / −0.3 %.
+  - Co-location of in-batch peer pairs: 66 / 79 / 84 %. No refine moves (CD: 3.9–6.4 k per run).
+  - Topology 9103 did not run (the `--export` comma split).
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
