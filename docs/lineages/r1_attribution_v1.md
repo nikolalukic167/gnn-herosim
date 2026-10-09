@@ -434,6 +434,22 @@ No line trips.
   - Single-node zero-exchange optima: light 49.8 %, moderate 74.8 %, heavy 76.7 %, all under the 80 % line. Sub-batched
     at most 5.1 %, and unplaced_partner at most 0.16 %. 9 heavy cells hung, 2.2 % against the 5 % line.
   - Ext-E check 853916 passed: 403 train and 201 held-out datasets, for S5's ranking test.
+- **Request-order probes (S5, jobs 854017–854020, 854148; outcomes registered before reading).**
+  - Live has no static tie order. In ds_16401, a ghost's link request happens at pop + its node's latency, so tied ghosts
+    split by about 1.5 ms. B matches only by luck, and D and E are wrong.
+  - ds_00800 and ds_06401 logged no live events, so there is no live order for them. ds_00800 puts the batch before a
+    lower-id ghost at an exact tie, which is unexplained.
+  - ds_10000: the policy's own unforced choice replays within +0.14 %. The 36.9 % miss is only on forced plan 10. Its
+    classification is open.
+  - Ranking on ext-E submitted as job 854202, gate 3 first.
+- **Amendment (2026-10-09 20:45, coordinator, before 853598 is read).**
+  - The signed rule for A–E stands.
+  - One mechanism variant, **F**, may join, but only if it reproduces live's mechanism: link requests issued at
+    pop + latency, then id. A fitted static order does not qualify.
+  - The states used to design F are tuned and are excluded from the choice: ds_16401, heavy 9601 and ds_03200.
+  - F must pass its unit gates and enter the same pool comparison without extending the verdict past 853598. If it
+    can't, it is dropped and the tie-order gap is recorded as a known label limitation.
+  - Label use is decided by the ranking test (854202 on E; rerun at the winner), not by per-plan timing alone.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
