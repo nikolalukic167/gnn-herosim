@@ -321,6 +321,17 @@ No line trips.
       identity).
   - **Release plan (coordinator):** the production build and the ext rebuild start once 853469 and 853482 pass. 853470
     runs alongside, and if it fails, the build is discarded.
+  - **First gate results (jobs 853469, 853482).**
+    - Live identity: 3 of 3 cells identical.
+    - ds_03200 at the fix: 10 of 13 plans match live to ≤ 0.01 %, including the whole argmin group. The 82/17 flip is
+      gone. Plans 53, 112 and 82 still miss by one transfer unit (−2.4 to −4.0 %, the replay now faster than live).
+    - The 36-dataset relabel: 352 of 2,053 plans change by more than 0.1 % (19 by more than 5 %; max 0.061 s); 0 of 36
+      argmins change among the sampled plans.
+  - **Decision (amending the release condition, 2026-10-09):**
+    - Release the production build at the fix, since it strictly improves and the argmins are stable.
+    - Each dataset carries an exposure flag (a net-stage ghost on a candidate node).
+    - If S5's residual fix lands, only the exposed subset is relabelled, and about 50 unexposed datasets are checked to
+      be unchanged.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
