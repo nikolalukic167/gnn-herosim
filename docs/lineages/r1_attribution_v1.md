@@ -74,6 +74,21 @@ silent drops, cost).
   - The continuing-vs-isolated gap recurs, up to 5 % (14.09 against 13.38 s). S5 is testing whether it's the label
     horizon, meaning post-snapshot arrivals.
 
+**Fixes committed (2026-10-09; S6, `rp/r1a-features` `c1fb0185`; 29/29 tests).**
+- **Sweeps:** a truncated or failed sweep is discarded and counted. One `sweep_status.py` (which requires
+  `sweep_complete` and rows = `num_placements`) gates resume, cache and check.
+- **Capture:** a `.done` sentinel, a per-run timeout, and a sentinel check before the build.
+- **Volume:** 5 batches per cell (about 6,180), with sub-batches counting toward their parent, top-up, and fail-loud on
+  a shortfall.
+- **Determinism:** plan-lexicographic tie-breaks and sorted platform rows.
+- **Build window and timeout:** `--min-time 360`; a stall watchdog for the placement timeout.
+- **End check:** volume, discards ≤ 2 % and fidelity.
+- **New finding:** the 300-snapshot cap at stride 31 stopped at task 37–41k of 50k in the B2 heavy captures, so the last
+  fifth of each trace went unsampled. The cap is now 600 and fails loud when reached. The B2 heavy dry run (843881)
+  predates the fix, so its read is disclosed as covering about the first 80 % of each trace.
+- **Pending:** determinism A/B (843932), a 2-topology × 3-rung smoke (843934–843937), and S7's review. Production
+  waits for all of them.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
