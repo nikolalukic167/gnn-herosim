@@ -23,7 +23,21 @@ if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate gnn
 echo "waiter for chunk 2 | worktree $(git rev-parse HEAD) | scripts $SCRIPTS"
-NEXT=21; LAST=41; SUBS=""; SEL_SUBMITTED=0; DONE=""
+NEXT=${NEXT_INIT:-21}; LAST=41; SUBS="${SUBS_INIT:-}"; SEL_SUBMITTED=0; DONE=""   # NEXT_INIT/SUBS_INIT: resume after a restart (SUBS_INIT=":jobA:jobB")
+
+# The jobs the selection must wait for. A finished job id is purged from the controller and `afterok` on it is refused ("Job dependency problem"), so
+# only jobs still in the queue go into the dependency; every finished one must be COMPLETED in the accounting database (every task), else this fails loudly.
+selection_dep() {
+  local dep="" j st
+  for j in "$CHUNK1_JOB" ${SUBS//:/ }; do
+    if [[ -n "$(squeue -h -j "$j" 2>/dev/null)" ]]; then dep="$dep:$j"
+    else
+      st=$(sacct -j "$j" -X -n -o State 2>/dev/null | tr -d ' ' | sort -u | tr '\n' ' ')
+      [[ "$st" == "COMPLETED " ]] || { echo "FAIL LOUD: finished job $j is not entirely COMPLETED (states: '$st'); not submitting the selection" >&2; return 1; }
+    fi
+  done
+  echo "$dep"
+}
 export PYTHONPATH="$WT"
 while true; do
   # (a) the second half goes in as explicit, logged sub-arrays in index order, each as large as the room under the limit allows (>= 3 elements,
@@ -44,9 +58,10 @@ while true; do
       echo "$(date +%T) $n jobs queued, room $room < 3 for indices $NEXT-$LAST; waiting"
     fi
   elif (( SEL_SUBMITTED == 0 )); then
-    SEL=$(sbatch --parsable --dependency=afterok:"$CHUNK1_JOB$SUBS" --export=ALL,WT="$WT",INPUTS="$INPUTS",OUT="$SEL_OUT" "$SCRIPTS/r1a_prod_select.sbatch" 2>&1)
-    [[ "$SEL" =~ ^[0-9]+$ ]] || { echo "FAIL LOUD: selection submission refused: $SEL (sub-arrays$SUBS)"; exit 1; }
-    echo "all of 21-41 submitted as sub-arrays$SUBS; selection = $SEL (afterok first half $CHUNK1_JOB$SUBS)"; SEL_SUBMITTED=1
+    DEP=$(selection_dep) || exit 1
+    SEL=$(sbatch --parsable ${DEP:+--dependency=afterok$DEP} --export=ALL,WT="$WT",INPUTS="$INPUTS",OUT="$SEL_OUT" "$SCRIPTS/r1a_prod_select.sbatch" 2>&1)
+    [[ "$SEL" =~ ^[0-9]+$ ]] || { echo "FAIL LOUD: selection submission refused: $SEL (sub-arrays$SUBS, dependency '$DEP')"; exit 1; }
+    echo "all of 21-41 submitted as sub-arrays$SUBS; selection = $SEL (dependency: ${DEP:-none, everything finished and COMPLETED})"; SEL_SUBMITTED=1
   fi
   # (b) per-arm selection as arms complete
   left_arms=0
