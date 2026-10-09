@@ -1,7 +1,21 @@
 # workload_fix_v1 — payloads, access-link classes and task types on R1 (freeze workload WF1)
 
-**Status:** `REGISTERED` (no runs). Depends on: `physics_audit_v1` (R1 frozen). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
+**Status:** `CLOSED` (2026-10-08) — **WF1-FROZEN**. Registered 2026-10-07; the stages ran in parallel and were read in order; every amendment is dated, and the post-data ones are labelled. Depends on: `physics_audit_v1` (R1.1). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
+
+**Outcome (2026-10-08).** **WF1** = W2 payloads (`wf1_v1`) + W3 access-link classes on every node + W4 all four task types,
+on R1.1 with batching window 1 s. Code: `rp/starve-w4fix` `97269192`, with the builders on `rp/wf1-w4`; infeasible
+calibration topologies 9603–9606 are excluded. Read on 19 topologies, paired % vs CD (Holm over 6):
+- **W2:** CD is first at light load; self-predict −6.1 % at heavy (19/19, CONFIRMED).
+- **W3:** exchange becomes the dominant cost, and CD's lead grows; self-predict −2.9 % at heavy (DIRECTION).
+- **W2+W3+W4 (= WF1): CD is first at both rungs.** Every arm is CD-FASTER: self-predict +8.6 / +2.4 %, locality
+  +2.6 / +19.9 %, batched +2.4 / +12.1 % at light / heavy.
+- **Reactive is saturated at the heavy rung under WF1:** p50 1 s but p95 5,366 s, and runs end at about twice the trace length.
+  The wait is before execution, and queue share (0.001) misses it. Quote it as a collapse, never as a latency.
+
+The provisional rungs (×0.2666 / ×11.61) were set on W2. `load_recalibration_v1` re-sets them on WF1. **The bar for every
+learned arm under WF1 is CD.** Self-predict's lead didn't survive realistic links and task mix. 4 heavy cells (9538 g2, 9565 g0–g2)
+are excluded as non-finishing, a cost growth from recurring cause-3 cycles. Request failures are ≤ 0.93 % per run.
 
 
 **Pre-run amendments (2026-10-07, decided by the coordinator from a code check).**
@@ -36,6 +50,17 @@ configs; the 4 calibration topologies are checked when minted. W3 draws on the 9
 **Calibration topologies: ids 9601–9604**, minted with the same generator and config template as the 9473–9568
 pool (unused anywhere in `simulation_data/` or the record, checked 2026-10-08). The 77 non-admitted ids of that pool
 are not used: they failed admission under old physics.
+
+
+**Pre-run amendment (2026-10-08, coordinator, before any W2+W3 or W2+W3+W4 cell): stages run in parallel, and
+are read in order.** The W2+W3 and W2+W3+W4 cells may run while W2 is running. The registered order still governs
+reading. No arm comparison of a stage is opened before the previous stage is read. Before that, only completion,
+failure and hang counts may be looked at. If reading an earlier stage forces a change to shared code, configs or rungs,
+every later stage's cells are discarded and rerun. All stages use the same provisional rungs (from the W2 bisection) and
+the same 19 test topologies. Each stage writes to its own directory under `simulation_data/workload_fix_v1/`.
+Reason: W3 and W4 add new code paths (direction-aware links; `rf`/`cnn`), and hangs surfaced as stuck cells on
+calibration topologies 9603/9604. Finding such failures while W2 runs costs nothing in attribution, since each
+stage still differs from the previous one by one factor and is read after it.
 
 ## Question
 Which classical rankings on R1 survive replacing the synthetic payloads, uniform links and two-type task mix with
@@ -76,3 +101,332 @@ CD vs each other classical arm at each stage and provisional rung (Holm within s
 ## Outcomes
 Rankings that survive all stages are reported as robust; flips are sensitivity findings. WF1 is frozen regardless
 of which arm benefits.
+
+
+## Record (newest first)
+
+### 2026-10-08 — W4 (all four task types) on R1.1: the stage read; WF1 frozen
+
+Job 843084 (`f8a2d075`; the extra commits can't reach any W2/W3-shaped run, and the later reservation fix `97269192` leaves
+3 W4 cells identical). 755/760 finished, and 4 heavy cells are excluded for every arm under the rule, so 740 runs are read:
+[`w234_r11_read.json`](workload_fix_v1/w234_r11_read.json) (S7's wrapper `rp/wf1-w4` `96e77022` on S4's reader `0ebeca16`).
+Paired % vs CD, median over 19 topologies:
+
+| rung | CD latency | self-predict | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| light ×0.2666 | 5.50 s | +8.6 % (0/19, CD-FASTER) | +2.6 % (0/19, CD-FASTER) | +2.4 % (0/19, CD-FASTER) | +13.1 % |
+| heavy ×11.61 | 2.23 s | +2.4 % (4/19, Holm 0.0082, CD-FASTER) | +19.9 % (1/19, CD-FASTER) | +12.1 % (1/19, CD-FASTER) | 602 s mean, saturated |
+
+- **W4 minus W3** (paired): every arm is slower on 19/19 topologies: light +20 to +31 %, heavy +108 to +158 %, reactive +29,000 %.
+  CD by stage at heavy (latency / batching wait / queue / exchange / rendezvous / cold / other, s): 2.229 / 0.017 / 0.339 /
+  0.817 / 0.042 / 0.028 / 0.952.
+- **Request failures** (tasks over all runs): heavy CD 543 (2 runs), batched 305 (1), locality 17 (1); light 2–4 per arm;
+  reactive and self-predict 0. The largest per run is 0.93 % (9565 g3 heavy CD).
+- **Reactive at heavy (S7, from summaries and logs; no new runs).** Of 602.2 s, 598.5 s is "other". `averageComputeTime` is
+  about 577 s, while execution is 0.59 s. Per run: p50 1.06 s, p95 5,366 s, p99 8,505 s, max 9,358 s. All 19 topologies are
+  affected, with window means between 171 and 1,367 s. The last arrival is at about 9,354 s, while runs end at a median of 18,677 s
+  (range 12,134–25,639). The logs show first-replica starvation for rf and dnn2, with replicas traded between types by eviction,
+  and no request timeouts. So a few % of tasks wait thousands of seconds before execution, outside every measured stage, and
+  the 300 s rule doesn't cover them (they're unplaced). Which pre-execution wait it is isn't proven: summaries don't
+  record arrival-to-placement time.
+- **Decision:** WF1 is frozen as W2+W3+W4. Reactive heavy is labelled saturated. The heavy rung is re-set on WF1 by
+  `load_recalibration_v1`, with a guard that sees this wait (amendment there). Extending the timeout to unplaced tasks
+  is a physics change and isn't made. If it's needed, it's R1.2, with its own identity check.
+
+### 2026-10-08 — W4 on R1.1: the read rule for runs that don't finish (before the W4 read)
+
+Job 843084 (`stage_w234_r11`). Live feasibility passed 76/76 cells per rung. First pass: 754/760, request failures ≤ 0.61 %
+per run. Six runs are outstanding: locality 9565 g0/g2 heavy timed out at 2,700 s in the `create_first_replica` "no compatible
+hardware for cnn" spin, and CD 9538 g2 plus 9565 g1–g3 heavy are still in the first pass with empty logs. The 300 s timeout
+covers only placed tasks, so a task that can never get a first replica is a hang it doesn't touch.
+**Decision (coordinator, before any W4 arm number is seen):** after the registered 3× rerun, a (topology, window, rung) cell
+in which **any** arm still doesn't finish is excluded for **every** arm and listed with its arm and cause. The hang is
+diagnosed as a simulator defect (`rp/starve`), not scored as an arm's latency. If more than 2 of the 19 topologies lose a
+cell at a rung, that rung is labelled `HANG-LIMITED` in the read.
+
+**Diagnosis (S5, same day, local repro of 9565 g2 heavy locality on S7's `f8a2d075`):** slow, not frozen. Cause 3 is
+re-forming faster than the timeout clears it. Client_node13 and client_node0 reach only node3's four rpi platforms, and all four
+are draining, each holding placed tasks in the rendezvous whose arrived-but-unplaced partners are another type. That makes a
+dnn2 → cnn → rf → dnn2 cycle, and a drain releases only its own type. R1.1-T already covers the blockers: about one cycle
+breaks per 300 s while new ones form at once. No leak; I13 holds. The cost is wall time: each starved task re-spins 50 times
+per simulated second (11.5 M deferrals by t ≈ 5,000 of ~9,400 s). **Decision:** no code change. The registered 3× wall-time
+rerun (8,100 s) is the test, and the rule above applies to whatever still doesn't finish. Request failures per arm are
+reported next to latency for those cells. A cheaper spin (would need identity again) and a drain-victim rule (a physics
+change) are deferred.
+
+**Probe (S5, same day) — retraction and cost.** No zero-time loop. An earlier "clock frozen at t = 5,223" came from S5's
+own diagnostic writer, which stopped updating; the clock keeps advancing. The cost per simulated second grows instead:
+40 k events per sim-s at t 3,000–4,000, 274 k at t 5,180–5,250 (0.1 sim-s per wall-s). That comes from 420–550 starved tasks,
+each re-spinning 50 deferrals per 1 s requeue. The cell would need about 41,000 s more wall time, so it falls under the
+exclusion rule. The same spin runs in completed cells and costs wall time only. **A latent defect, found by reading
+the code:** S7's stale-placement branch (`8d1eb559`) rewrites `placements[idx]` and, on its defer path, never releases the
+batch reservation of the original target, so that target would stay unevictable. **It never fired in W4:** the
+"stale placement re-decoded" warning appears 0 times in the 755 completed W4 logs (largest 258 KB, not capped; WARNING
+lines present in 451). So the W4 data is unaffected. Fix it (unreserve the original target on both paths) before that branch
+is used again. A spin made cheaper without changing event order (cached reachability, indexed collector) is deferred.
+**Fixed the same day:** `rp/starve-w4fix` `97269192` (one commit on `f8a2d075`, `scheduler.py` +4/−1) releases the target
+`reserve()` took on both paths. Its tests fail on the unfixed scheduler and pass with the fix. 3 W4 cells are bit-identical
+(the branch is unreached). This is the code base for every node after WF1.
+
+### 2026-10-08 — W3 (access-link classes) on R1.1: the stage read
+
+Job 843086, code `rp/wf1-w3-r11` `ebd673e9`, 760/760 runs, 0 failed, 0 hung, **0 request failures**. Read by S4's reader
+(`0ebeca16`) through S6's wrapper (`rp/wf1-w3-r11-read` `79d381ef`): [`w23_r11_read.json`](workload_fix_v1/w23_r11_read.json).
+Paired % vs CD, median over 19 topologies, Holm over 6:
+
+| rung | CD latency | self-predict | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| light ×0.2666 | 4.29 s | +11.9 % (0/19, CD-FASTER) | +2.4 % (0/19, CD-FASTER) | +2.4 % (0/19, CD-FASTER) | +22.1 % |
+| heavy ×11.61 | 0.94 s | −2.9 % (16/19, Holm 0.0039, DIRECTION) | +22.4 % (0/19, CD-FASTER) | +22.8 % (0/19, CD-FASTER) | +120.4 % |
+
+- **Prediction 2 holds** (pooled descriptive): transfers between two wired servers cost about 0.25 s each and come to 1.3 / 2.6 %
+  of summed task time; any non-wired pair costs 2.5–3.0 s per transfer (cellular–cellular 5–6 s) and comes to 49 / 65 %. The
+  denominator is summed elapsed time, not a strict share, because a task can make several transfers.
+- **W3 makes exchange the dominant cost.** CD at light: exchange 1.99 of 4.29 s per task, rendezvous 1.75. At heavy: exchange 0.52
+  of 0.94. W3 minus W2 (paired): every arm is slower on 19/19 topologies, CD least (+70 / +90 %), reactive most (+106 / +289 %).
+- **Against W2:** self-predict's heavy-load lead over CD shrinks from −6.1 % (CONFIRMED) to −2.9 % (DIRECTION), and it loses
+  +11.9 % at light. The batching arms fall 22 % behind CD at heavy. CD's joint search gains the most from the new link
+  heterogeneity.
+- Wired+wired share of each arm's transfers: 21–25 % at light and 23–35 % at heavy (reactive 22.7 %, self-predict 35.4 %, CD 31.3 %).
+  **Against random placement** ([`w23_r11_wired_baseline.json`](workload_fix_v1/w23_r11_wired_baseline.json), exact count;
+  each task's server is uniform over the servers compatible with its type; memory not modelled). The baseline median is 19.2 %. On the 15
+  topologies where the baseline is strictly between 0 and 1, observed minus baseline, in points: at light, reactive +0.9 (9/15 above)
+  and the planning arms +3 to +4 (11–14/15). At heavy, self-predict +20.7 (13/15), CD +14.3 (13/15), locality +14.1, batched
+  +10.6, reactive −1.7 (6/15). So the planning arms do route toward wired pairs under load, and reactive doesn't. These are
+  transfer counts, and wired pairs still hold only 2–6 % of exchange seconds, so the slow non-wired transfers can't all be
+  avoided on 6 servers. Descriptive, no test.
+
+### 2026-10-08 — W2 on R1.1: the stage read (window 1 s)
+
+Job 843070, code `rp/wf1-r11` `1021c310` (on `rp/starve-gate` `252b45aa`): 760/760 runs, 0 failed, 0 hung, 0 missing, no
+reruns; **0 request failures** in every arm × rung group. Read: [`w2_r11_read.json`](workload_fix_v1/w2_r11_read.json)
+(with the request-failure column; reader `0ebeca16`), [`w2_r11_request_failures.json`](workload_fix_v1/w2_r11_request_failures.json).
+Paired % vs CD, median over 19 topologies, Holm over 6:
+
+| rung | CD latency | self-predict | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| light ×0.2666 | 2.36 s | +2.4 % (0/19, CD-FASTER) | +0.7 % (0/19) | +0.1 % (1/19) | +2.5 % |
+| heavy ×11.61 | 0.50 s | **−6.1 % (19/19, Holm 2.3e-5, CONFIRMED)** | +1.3 % (5/19, Holm 0.0013, CD-FASTER) | +0.5 % (4/19, Holm 0.032, CD-FASTER) | +5.6 % |
+
+This replaces the provisional 1 s read. Only locality at heavy moved (+1.5 → +1.3 %), as the 2/200 leak sample predicted.
+**W2 under R1.1: at light load CD leads, and every other arm sits within 2.5 %. At heavy load self-predict beats CD by 6 % on
+every topology, and the batching arms trail CD by about 1 %.** CD by stage (s per task; latency / batching wait / queue /
+exchange / rendezvous / cold): light 2.362 / 0.035 / 0.182 / 0.075 / 1.745 / 0.211, where rendezvous (waiting for a partner
+to arrive) dominates; heavy 0.498 / 0.011 / 0.188 / 0.051 / 0.037 / 0.033. W3 (S6) and W4 (S7) are read next, in order.
+
+### 2026-10-08 — WB2: window 1 s; W2 re-read; the hang's three causes; decisions for R1.1
+
+**WB2 tuning** (CD, calibration 9601/9602/9607/9608 × 2 rungs × 4 windows, W2; 160 runs, 0 hung). Median CD latency
+light / heavy, geometric mean: 1 s 2.772 / 0.541, 1.225; 2 s 2.774 / 0.547, 1.232; 4 s 1.294; 8 s 1.513; 16 s 2.153.
+**Window = 1 s** for CD, batched and locality at every rung and stage. No hang touches the top two. It's the grid edge;
+the batching wait left at 1 s is 0.035 s (light) and 0.011 s (heavy), about 1.5 % and 2 % of CD's latency, which bounds
+what a smaller window could still gain. Report: [`wf1_wb2_report.md`](workload_fix_v1/wf1_wb2_report.md).
+
+**W2 at 1 s** (456 batching-arm runs, 0 hung; reactive and self-predict from the first run):
+
+| rung | CD | self-predict vs CD | locality | batched | reactive (context) |
+|---|---|---|---|---|---|
+| ×0.2666 | 2.36 s | +2.4 % (CD-FASTER) | +0.7 % (CD-FASTER) | +0.1 % (CD-FASTER) | +2.5 % |
+| ×11.61 | 0.50 s | −6.1 % (19/19, CONFIRMED) | +1.5 % (CD-FASTER) | +0.5 % (CD-FASTER) | +5.6 % |
+
+CD is first at the light rung, and self-predict at the heavy one. Self-predict's lead exceeds the bound on what a smaller
+window could give CD. CD at 1 s: batching wait 0.035 s, rendezvous 1.75 s (light). The light-rung order moved with the
+window (60 s −14.9 %, 16 s tie, 1 s +2.4 %). **Provisional:** the free-pool leak below may affect completed runs,
+so this read stands only if the R1.1 identity check shows the W2 cells unchanged.
+
+**The hang's causes** (S5, `rp/starve` `2b701c73`, single local cells, log-capped):
+1. **Free-pool leak.** `create_first_replica` in both GNN-family autoscalers (KPA's shared autoscaler, so every arm)
+   swapped `available_resources` for a filtered dict across a `yield`. Overlapping calls restored each other's
+   copy, and nodes dropped out of the free pool for good. Fixed: `scale_up(reachable_nodes=…)`, no swap.
+2. **Cross-source drain cycle.** A drain released only rendezvous peers matching its own source. Fixed: it also
+   releases starved same-type peers from other sources, and skips victims whose tasks it can't release.
+3. **Mixed-type hold-and-wait (open; W4 9565 g2).** Draining platforms hold tasks waiting on unplaced peers of
+   other types that need those platforms.
+4. **Infeasible cells.** On the live topology, 9603–9607 and test topologies 9484, 9548, 9568 each have a client with
+   no reachable compatible server for some type. The static check validated a different generator
+   (`generate_deterministic_infrastructure`), not the live one. 9603 under Knative spun silently (710k deferrals).
+
+Also fixed: batch-decoded targets reserved against eviction (a latent race); per-(type, source) rate limit on the
+starvation lines (log 487 MB → 10 KB); a task that can never reach a compatible platform raises `StarvedForeverError`.
+W2-WB 9565 g2 CD now completes 50,000 events. 11 tests (`tests/test_starved_eviction.py`). Eviction succeeded 3
+times in 14,770 calls before the fix; A1/A3 protection played no part. **Audit gap:** I7 returns NOT-TESTED for a run with
+no end row, so a hung run was never judged; no invariant checked pool conservation.
+
+**Decisions (coordinator, 2026-10-08; R1.1, before any W3/W4 read):**
+- **Cause 3: a request timeout of 300 s** (Knative's default revision `timeoutSeconds`), from the moment a task is
+  placed on its platform. A timed-out task fails, frees its platform and is logged. It enters latency at its elapsed
+  time, and failures per arm are reported next to every latency. Chosen because it's the mechanism the modelled system
+  has, and it breaks any hold-and-wait cycle without choosing which one. A rendezvous that doesn't hold the platform
+  would be a new physics; un-draining doesn't free capacity for other types.
+- **Feasibility rule for cells.** A (topology, window) cell is infeasible if, **on the live topology**, a client the
+  window uses can't reach a compatible server for a type it sends. Infeasible cells are excluded for every arm (paired)
+  and listed; the static check moves onto the live generator.
+- **R1.1 = R1 + the fixes above + the timeout.** It's accepted only if (a) the default path is identical on the 36 audit
+  and 6 legacy cells wherever no starved state or timeout occurs, and (b) a sample of completed W2 cells is identical.
+  If (b) fails, every R1 number since `kpa_scaleout_v1` is re-measured. Audit pass 3 reruns I1–I12 on R1.1, with I7
+  judging an unfinished run as FAIL, and a new **I13 pool conservation** (free + owned + draining = platforms, per node,
+  at every KPA tick).
+
+**Identity result and amendment R1.1-T (coordinator, 2026-10-08, after S5's identity data; `rp/starve` `8e835eef`).**
+- (a) passes: 42/42 identical (36 audit + 6 legacy: physics-old on 9483, 9506, 9568 at ×20, CD and reactive); the
+  timeout fired 0 times; 7 CD cells reach the starved path and are identical. Audit pass 3 on the final code: I1–I4,
+  I6, I7, I9, I10, I13 PASS 36/36; I8 12/12; I11 216 states, worst p95 0.1 %; I12 12/12; I5 as in pass 2.
+- (b) fails, for two separate reasons, over 200 W2 cells (5 topologies × 5 arms × 2 rungs × 4 windows): 123 identical.
+  **Timeout, 75 cells** (every arm, ×0.2666, g1–g3): 105–136 failed tasks per cell, the same for every arm, all
+  tasks whose partner *arrives* more than 300 s later (137 such tasks in g1; up to 1,095 s, the rung's 3.75× time
+  stretch). Mean latency drops 45–49 %. **Leak, 2 cells** (9550 g2 ×11.61, batched −1.0 %, CD +0.41 %): one drain
+  release per cell landed during the old filtered-pool swap; restoring only the swap reproduces the old numbers bit for bit.
+- **Amendment R1.1-T: the timeout covers a wait on a partner that has arrived, never on one that hasn't.** The timeout
+  exists to break hold-and-wait, which needs both tasks in the system; a partner not yet arrived holds nothing. Failing
+  those 137 tasks measured the workload's stretch, not any arm (identical counts across arms), and erased the wait
+  every arm pays. The clock starts at the later of placement and the partner's arrival. Recorded before the
+  rescoped code exists; it's judged by the same gates: the 75 timeout cells must return to identical, W4 9565 g2 CD
+  must still complete, and the 42 identity cells must stay identical.
+- **R1.1-T implementation hole (2026-10-09, coordinator; found by S5 in `r1_attribution_v1`'s spin diagnosis).**
+  - **The hole.** `_unplaced_peers` (`infrastructure.py:1213`) counts a partner as placed when it has a
+    `planned_node_name` (set by the batch pre-pass) even if it has no platform. An arrived partner, deferred for lack
+    of hardware, therefore never starts the 300 s clock.
+  - **Consequence: deadlock.** The group's other tasks hold the only compatible platforms in rendezvous and wait
+    forever. Dump at 9607 g1 ×5 (CD, job 849135): 734 s of waiting and still going.
+  - **Not a scope change.** The partner has arrived, so R1.1-T as registered covers it.
+  - **Fix:** a peer counts as placed only when `platform is not None`; branch `rp/r11t-fix` off `54fddd0d`.
+  - **Gates:**
+    - the 9607 g1 ×5 and 9608 g1 ×0.2666 repros finish;
+    - the 24 CD rung finals cells keep every guard and their bands (changed cells listed);
+    - the heavy hung-cell rate falls below 5 %;
+    - an I11 spot check on a changed cell.
+  - **As built (`rp/r11t-fix` `c8eb73c2`; 4 new tests, 13 in all pass).**
+    - `peer_is_placed()`: a peer counts as placed if it has a platform, or if it is planned and was never deferred
+      (`postponed_count == 0`).
+    - **Accepted deviation from the pure platform rule.** The pure rule would make planned, not-yet-enqueued batch-mates
+      rendezvous with each other. That would add zero-time events, which `env.step()` turns into a physics change in
+      runs that never deferred. So a run with no deferral is unchanged by construction.
+    - B2 9103 g0 confirms the mechanism: 7 of 214 unready edges point at planned-then-deferred peers.
+    - Validation jobs: 849747 (repros plus 64 rung cells, CD and Knative) and 849748 (9 heavy spin cells, capture
+      policy).
+    - **S7 review: accepted.**
+      - `peer_is_placed` is used only in the two rendezvous and timeout functions.
+      - No other `planned_node_name` reader treats it as placed for rendezvous or timeout.
+      - The "deferred once, then re-planned" window is real but zero sim time.
+      - Identity, job 849832: 10 `stage_w23_wb2` cells with 545–1,008 deferred tasks each are identical at `54fddd0d` and
+        at `c8eb73c2`.
+    - **Hang check (job 849748, capture policy, full 50,000 events).** **All 9 previously spinning cells finish (0 of 9
+      hung)**: 7 in 33–380 s, while 9105 g3 and 9103 g0 creep through a slowed spin for 2,856 s and 4,241 s, inside
+      production's 7,200 s capture timeout. The residual slowdown is under diagnosis, by dump only (job 849880). Rung
+      identity is being rerun as job 849879.
+    - **Validation results (2026-10-09; S5, jobs 849879, 849748 and 849880).**
+      - **Repros finish.** CD 9607 g1 ×5 in 71 s; 9608 g1 ×0.2666 in 68 s (previously over the wall limit).
+      - **Identity against `54fddd0d`:** 25 of 62 cells identical, 37 changed.
+        - CD's largest change in elapsed per rung: lo +3.3 %, light +0.9 %, **moderate +21.5 %** (9602 g0, request failures
+          0 → 27 of 50,000), heavy +3.1 %.
+        - Knative changes in 6 of 32 cells.
+      - **Spin cells:** 0 of 9 hang. The dumps show no deadlocked holder (all waits ≤ 320 s), so the deadlock becomes churn
+        paced by the 300 s timeout. 9103 g0 and 9105 g3 finish in 48–71 min with 1.0–1.6 % request failures.
+      - **Pending:** guards and bands on `r11t_fix/` (S4); an I11 spot check on moderate 9602 g0 (S5). The merge waits for
+        both.
+      - **Rungs stand at the fix** (S4, `finals_report_r11tfix.json`, script `1a746783`). CD effective share is light 0.079,
+        moderate 0.266 and heavy 0.442, every CD guard passes at every rung, and the worst request failure is 0.054 %
+        (moderate 9602 g0). Knative is unchanged in kind: healthy at light, collapsed at moderate and heavy.
+      - **Decision:** the fix is accepted into the reference physics (R1.1 + `c8eb73c2`) and merged into the node-5
+        pipeline. Corpora captured before it don't match and aren't used for production.
+    - **Rung-finals identity, job 849747:** it died in its preflight while `/home` was at quota, before any simulation ran.
+      It is resubmitted once space is freed.
+- **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
+  pre-R1.1 and re-measured on R1.1. Expected size from the sample: 2 of 200 cells, ≤ 1 %; that expectation doesn't
+  replace the re-measure. Order: W2 at 1 s on R1.1 first (it replaces the provisional W2 read), then the
+  `kpa_scaleout_v1` gates. `physics_audit_v1` needs no rerun (42/42 identical; pass 3 ran on the final code).
+- **Live-topology feasibility (S4, `rp/wf1-run` `7437a0f1`, `workload_fix_v1_reachability_live.py`):** built through
+  `prepare_infrastructure_for_real_simulation` (no replica plan, no repair). Infeasible: 9603, 9604, 9605, 9606, every
+  window (one sending client per topology reaches no dnn2-capable server platform; the dnn repair counts the client's
+  own rpi). All 19 test topologies pass, 76/76 cells; calibration 9601, 9602, 9607–9610 pass. S5's other unreachable
+  clients (9484, 9548, 9568, 9607, 9610) never send. **Decision:** the rule applies as written; 9603–9606 stay out,
+  no repair is added to the live generator (it would change topologies, and the calibration set needs none of them).
+  A pass means no structural block, not that a run completes: the 9565/9538 starvation is dynamic, and that's what
+  the timeout handles.
+- **Scope of the re-measure (coordinator, 2026-10-08).** Its question is whether the published numbers survive the
+  R1.1 code, so each gate reruns at its **published settings**, with only the code changed: the `kpa_scaleout_v1` gates
+  keep the per-rung policy time scale (0.5 / 0.33 / 0.2), and the result pairs directly with `kpa_read.json`.
+  Measurements at a time scale of 1.0 on the new ladder belong to `load_recalibration_v1`, not here. Outputs go to new `*_r11`
+  directories with `OUT` passed explicitly; the published directories are never written. Order:
+  W2 at 1 s on R1.1 (`rp/wf1-r11` `1021c310`), then `gate_pipe_release_kpa` (R1's condition), then the other three
+  conditions, then the four `*_legacy_shared` controls (they use the changed GNN-family autoscaler). The `legacy_replay_*`
+  identity checks are not rerun, because the legacy path's cells were identical.
+- **R1.1 ACCEPTED (2026-10-08), at `rp/starve` `665c9142` / `rp/starve-gate` `252b45aa`.** With R1.1-T, the 42
+  audit/legacy cells are identical to `d4aeb7ca` (0 timeouts). 198 of 200 W2 sample cells are identical, including all 75
+  cells the first timeout moved. The 2 that differ are the leak cells (9550 g2 ×11.61: batched −1.00 %, CD +0.40 %, 0
+  failures). W4 9565 g2 CD completes 50,000 tasks with 5 failed requests. The re-measure above proceeds on this code.
+
+### 2026-10-08 — W2 rerun under amendment WB; amendment WB2 (tuned window); the starved-replica hang
+
+Builder `b401b656` (`--batch-timeout-fixed 16`). Arms that read `batch_timeout`: CD, batched, locality (one
+peer-group batching scheduler, `gnn/orchestrator.py`). Reactive and self-predict never read it: 48 spot-check runs
+are identical on every field. The ladder-window CD rerun (152) reproduces the first run exactly. Report:
+[`wb_report.md`](workload_fix_v1/wb_report.md), read: [`wb_read.json`](workload_fix_v1/wb_read.json). 453/456 finished; **3 hung**
+(CD and batched on 9565 ×11.61 g2, locality on 9538 ×11.61 g2). The same cells finished under the 1.4 s window.
+
+| rung | window | CD latency | batching wait | rendezvous | self-predict vs CD | locality | batched |
+|---|---|---|---|---|---|---|---|
+| ×0.2666 | 60 s (ladder) | 2.85 s | 0.70 | 1.58 | −14.9 % | +0.6 % | +0.1 % |
+| ×0.2666 | 16 s | 2.42 s | 0.15 | 1.69 | +0.2 % (not separated; CD-FASTER without the hung topologies) | +0.7 % | +0.1 % |
+| ×11.61 | 1.4 s (ladder) | 0.50 s | 0.02 | 0.04 | −6.1 % | +1.4 % | +0.9 % |
+| ×11.61 | 16 s | 1.35 s | 0.93 | 0.01 | −67 % | +0.5 % | +0.5 % |
+
+**The W2 ranking depends on the batching window, in both directions.** The 60 s window cost CD its light-rung place,
+and 16 s costs it the heavy rung. Self-predict's lead is real at the ladder's heavy window (−6.1 %, 1.4 s), the best
+window CD has had at that rung.
+
+**Amendment WB2 (coordinator, 2026-10-08, post-data, labelled; supersedes WB's value, keeps its rule).** The
+window is a hyperparameter of the batching policies, not a platform constant, and the W2 ranking turns on it. The bar
+is CD at its own best single wall-clock window. That value is chosen **once**, on the calibration topologies (9601,
+9602, 9607, 9608; never the 19 test topologies), from {1, 2, 4, 8, 16} s, at both provisional rungs, 4 windows, on
+the W2 workload. It minimises the geometric mean over the two rungs of CD's median latency; a hung run counts as
+infinite latency. The same value serves batched and locality (same scheduler) and every later stage, and any later
+learned arm that batches gets the same protocol. The W2 family is re-read with it; the 60 s and 16 s reads stay
+recorded as run.
+
+**Starved-replica hang (blocks W4; an R1 defect).** Every stuck run (W2-WB: 3; W2+W3-WB: at least 1 so far; W4: most
+of the unfinished cells, under both windows; calibration ids 9603–9606) loops in `create_first_replica()`: "No
+compatible hardware available for <type> on nodes with connectivity to <client>". It logs about 900 lines per
+simulated second while the clock creeps or stops. The static reachability check passes these topologies, so the cause
+is runtime capacity: no free eligible platform, and nothing frees one. The W4 logs reached ~45 GB and threatened the
+`/home` quota. The coordinator cancelled S7's four W4 jobs (main pass 710/760 summaries written) and cut 41 logs to
+1 MB head + tail excerpts. `physics_audit_v1`'s I7 passed because no audit cell reached this state. The W4 stage
+waits for a diagnosis and fix, and a fix to R1 code needs the audit's default-path identity check.
+
+### 2026-10-08 — stage W2 read; calibration set; provisional rungs; amendment WB (batching window)
+
+Run code `f22b2e7e` (`rp/wf1-run`; `src/` identical to the replay-tested `f44cf9cf`), R1 with
+`GATE_FIXED_POLICY_TIME_SCALE=1.0`. Default path: 5 R1 cells identical to `690ba384` on every simulated field; the
+legacy build chain reproduces `grounded_x20` byte for byte. Report: [`w2_report.md`](workload_fix_v1/w2_report.md),
+read: [`w2_read.json`](workload_fix_v1/w2_read.json).
+
+**Calibration set: 9601, 9602, 9607, 9608.** 9603 and 9604 time out on every cell at ×2 for CD and Knative ("No
+compatible hardware available" for one client). That's a runtime capacity hang that the static W4 check passes. Replaced
+by the first ids from 9605–9610 that finish all 8 screen cells; 9605 and 9606 hang too (4 of 10 minted ids). The screen
+covers ×2 only.
+
+**Provisional rungs** (CD median queue share, 4 calibration topologies × g0/g1, legacy payloads): **×11.61 → 0.3007**
+(8 steps); **×0.2666 → 0.1001**. The registered bracket [×0.5, ×24] did not reach 0.1 (0.117 at ×0.5), so a labelled
+8-step extension on [×0.1, ×0.5] found it. On W2 payloads CD reads 0.09 / 0.37, as expected of provisional rungs.
+
+**Stage W2** (`wf1_v1` payloads: mean per pair 27.2 MB against 429.2, median 4.8 MB, 70 % of pairs < 10 MB; pair graph
+and events unchanged): 19 topologies × 2 rungs × 4 windows × 5 arms, 760/760, 0 failed.
+
+| rung | CD latency | self-predict vs CD | locality vs CD | one-pass greedy vs CD | reactive (context) |
+|---|---|---|---|---|---|
+| ×0.2666 | 2.85 s | −14.9 % (19/19, Holm 2e-5) | +0.6 % (CD-FASTER) | +0.1 % (CD-FASTER) | −14.9 % |
+| ×11.61 | 0.50 s | −6.1 % (19/19, Holm 2e-5) | +1.4 % (CD-FASTER) | +0.9 % (CD-FASTER) | +4.4 % |
+
+Prediction 1 (CD first at every stage) **fails at W2**: self-predict is first at both rungs. Exchange is 3.9 % / 10.5 %
+of CD's latency; the wired/wireless split of prediction 2 needs W3.
+
+**Amendment WB (coordinator, 2026-10-08, after the W2 read: post-data, labelled).** The ladder protocol scales the
+cells' `batch_timeout` with the rung: 16 s × 3.75 = **60 s** at ×0.2666 and 1.4 s at ×11.61. That's a 43× change in a
+policy constant across rungs. B1 (`physics_audit_v1`) froze one set of policy constants in wall-clock seconds on every
+rung, and the batching window is one of them; I12 didn't list it, so it slipped through. CD's latency is 2.85 s at the
+light rung against 0.50 s at the heavy one, and reactive (no batching) ties self-predict there, so the 60 s window
+plausibly explains much of CD's light-rung loss. For WF1 and every later node, **`batch_timeout` is 16 s (its ×1 value) at
+every rung**. The fix isn't obviously in CD's favour: at ×11.61 the window grows from 1.4 s to 16 s. The W2 read above
+stays recorded as run. The batching arms (CD, one-pass greedy, and any other arm that reads `batch_timeout`) are rerun on
+W2, W3 and W4 with the fixed window; arms that don't read it stand. The W2 primary family is re-read on the rerun, with a
+decomposition of CD's latency (batching wait, queue, exchange, cold start) under both windows.

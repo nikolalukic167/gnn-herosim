@@ -1239,6 +1239,11 @@ def prepare_simulation_config(
     if deterministic_data is None and infrastructure_file:
         deterministic_data = load_deterministic_infrastructure_data(original_config, infrastructure_file)
 
+    from src.generate_infrastructure import require_generated_replicas_for_rule
+    require_generated_replicas_for_rule(original_config, deterministic_data)
+    _rule = (original_config.get('preinit') or {}).get('replica_placement_rule', 'first_compatible')
+    if _rule != 'first_compatible':
+        infrastructure_config['replica_placement_rule'] = _rule  # accel_replica_v1: simulation.py applies it to the precreate fallback and the autoscaler
     # Load pre-generated infrastructure if available
     if deterministic_data is not None:
         infrastructure_config['nodes'] = deepcopy(deterministic_data['nodes'])

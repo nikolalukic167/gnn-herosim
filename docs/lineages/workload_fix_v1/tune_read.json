@@ -1,0 +1,95 @@
+{
+ "rungs": [
+  "lo",
+  "hi"
+ ],
+ "table": {
+  "1": {
+   "lo": {
+    "median_latency": 2.7719912603304673,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 2.360097237221749
+   },
+   "hi": {
+    "median_latency": 0.5414366408306448,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 0.5302961887219606
+   },
+   "geomean": 1.2250949499549957
+  },
+  "2": {
+   "lo": {
+    "median_latency": 2.774117560916444,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 2.361876442022886
+   },
+   "hi": {
+    "median_latency": 0.5472149349659357,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 0.5407674956482902
+   },
+   "geomean": 1.2320870751228388
+  },
+  "4": {
+   "lo": {
+    "median_latency": 2.7784411079143525,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 2.365006694447587
+   },
+   "hi": {
+    "median_latency": 0.602645720280919,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 0.5834760876908217
+   },
+   "geomean": 1.2939921339549014
+  },
+  "8": {
+   "lo": {
+    "median_latency": 2.7958914136819315,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 2.377012150916509
+   },
+   "hi": {
+    "median_latency": 0.8192041681471733,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 0.7509834222194338
+   },
+   "geomean": 1.5134087021605007
+  },
+  "16": {
+   "lo": {
+    "median_latency": 2.84212708820973,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 2.4151653243060816
+   },
+   "hi": {
+    "median_latency": 1.6306330125515751,
+    "n_cells": 16,
+    "n_hung": 0,
+    "n_missing_not_failed": 0,
+    "mean_latency_finite": 1.3910090346027264
+   },
+   "geomean": 2.152781051547479
+  }
+ },
+ "best_window_s": 1,
+ "tie": null
+}
