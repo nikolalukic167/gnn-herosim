@@ -613,6 +613,13 @@ No line trips.
   - Shuffling everything gives about 12.5 s, the random level.
   - platform_queue, temporal, usage and ps_capacity score exactly 0.00 in all three. Whether they are dead columns or by
     design is being checked.
+  - **Why (S6):**
+    - ps_capacity is constant by design under alpha = inf (`reduced_features.py:675–684`).
+    - The platform queue columns are near-constant because the cached `queue_snapshot` is almost always empty: 67
+      non-zero of 184,345 platform rows (0.04 %; `prepare_graphs_cache.py:1153–1171`).
+    - So queue is not a signal in this corpus, and ps_load is the only load channel the models use.
+    - Open (S7): where the 28–114 in-flight tasks of the fidelity snapshot enter the features; whether the live queue
+      column is non-zero at serving (train/serve skew); and why queues are empty at capture.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
