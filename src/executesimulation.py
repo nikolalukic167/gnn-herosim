@@ -208,6 +208,10 @@ def prepare_infrastructure_for_real_simulation(
     infrastructure_config.update(
         _regime_b_infrastructure_overrides(space_config)
     )
+    from src.placement.replica_rule import FIRST as _RULE_FIRST, validate as _validate_rule
+    _rule = _validate_rule((space_config.get('preinit') or {}).get('replica_placement_rule', _RULE_FIRST))
+    if _rule != _RULE_FIRST:
+        infrastructure_config['replica_placement_rule'] = _rule  # accel_replica_v1; absent = first_compatible, every earlier run
 
     return infrastructure_config
 
@@ -1119,6 +1123,8 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
 
     provenance.update(describe_exec_physics())
     provenance["pg_exec_knowledge"] = os.environ.get("HEROSIM_PG_EXEC_KNOWLEDGE", "table") or "table"
+    if (space_config.get("preinit") or {}).get("replica_placement_rule", "first_compatible") != "first_compatible":
+        provenance["replica_placement_rule"] = space_config["preinit"]["replica_placement_rule"]
     provenance["defer_cold_replica_init"] = space_config.get(
         "defer_cold_replica_init", _env_bool("HEROSIM_DEFER_COLD_REPLICA_INIT")
     )

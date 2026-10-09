@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
+from src.placement.replica_rule import order_platforms, validate as validate_rule
 from src.placement.network_fabric import CORE_PREFIX, draw_access_classes, link_key
 from src.utils.distributions import sample_bounded_int, sample_replica_count
 
@@ -744,11 +745,7 @@ def generate_replica_placements_deterministic(
     # existing grid. fastest_compatible takes the platform with the lowest task_types[type]["executionTime"],
     # ties by platform id; per_client replicas are unchanged. The flag lives in `preinit`, not `replicas`:
     # executecosimulation.py reads every key of `replicas` as a task-type name.
-    placement_rule = preinit_config.get('replica_placement_rule', 'first_compatible')
-    if placement_rule not in ('first_compatible', 'fastest_compatible'):
-        raise ValueError(
-            f"preinit.replica_placement_rule must be 'first_compatible' or 'fastest_compatible', got {placement_rule!r}"
-        )
+    placement_rule = validate_rule(preinit_config.get('replica_placement_rule', 'first_compatible'))
 
     assigned_platforms = set()  # Set of (node_name, platform_id) tuples
 
@@ -773,18 +770,9 @@ def generate_replica_placements_deterministic(
                         and (replica_overlap
                              or (node_name, p['platform_id']) not in assigned_platforms)
                     ]
-                    if placement_rule == 'fastest_compatible':
-                        exec_s = task_type.get('executionTime') or {}
-                        missing = sorted({p['platform_type'] for p in suitable_platforms} - set(exec_s))
-                        if missing:
-                            raise ValueError(
-                                f"replica_placement_rule=fastest_compatible: task type {task_type_name!r} has no "
-                                f"executionTime for platform(s) {missing}"
-                            )
-                        suitable_platforms = sorted(
-                            suitable_platforms,
-                            key=lambda p: (float(exec_s[p['platform_type']]), p['platform_id']),
-                        )
+                    suitable_platforms = order_platforms(
+                        task_type, suitable_platforms, lambda p: p['platform_type'], lambda p: p['platform_id'], placement_rule
+                    )
 
                     replicas_created = 0
                     for platform_info in suitable_platforms:

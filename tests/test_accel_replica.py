@@ -85,3 +85,53 @@ def test_the_legacy_path_is_refused_under_a_non_default_rule():
     guard({"preinit": {}}, None)                                # default rule: the legacy path is what it always was
     guard({"preinit": {"replica_placement_rule": "first_compatible"}}, None)
 
+
+
+def _precreated(rule):
+    """The replicas the simulator creates from the `replicas` config alone (precreate_replicas' fallback branch) on the same nodes."""
+    from simpy.core import Environment
+
+    from src.executecosimulation import load_simulation_inputs
+    from src.placement import replica_rule
+    from src.placement.model import PriorityPolicy, SimulationData, SimulationPolicy
+    from src.placement.simulation import create_nodes, precreate_replicas
+
+    sim_inputs = load_simulation_inputs(REPO / "data/nofs-ids")
+    sdata = SimulationData(platform_types=sim_inputs["platform_types"], storage_types=sim_inputs["storage_types"], qos_types=sim_inputs["qos_types"],
+                           application_types=sim_inputs["application_types"], task_types=sim_inputs["task_types"])
+    nodes = [{"node_name": f"server{i}", "type": "xavier", "memory": 32, "platforms": list(SERVER), "storage": ["flashCard", "someRemote"],
+              "network_map": {}} for i in range(3)]
+    policy = SimulationPolicy(priority=PriorityPolicy(tasks="fifo"), scheduling="x", cache="fifo", keep_alive=1, queue_length=1, short_name="x", reconcile_interval=1)
+    env = Environment()
+    store = create_nodes(env=env, simulation_data=sdata, simulation_policy=policy, infrastructure={"nodes": nodes, "network": {"bandwidth": 100.0}})
+    replica_rule.set_rule(rule)
+    try:
+        plan = {"preinit_clients": [], "preinit_servers": [n["node_name"] for n in nodes], "preinit_task_types": list(TASK_TYPES),
+                "replicas_config": {t: {"per_client": 0, "per_server": 1} for t in TASK_TYPES}, "replica_overlap": False}
+        got = precreate_replicas(store, sdata, plan, env, policy)
+    finally:
+        replica_rule.set_rule(None)
+    return {t: sorted((n.node_name, p.id, p.type["shortName"]) for n, p in reps) for t, reps in got.items()}
+
+
+@pytest.mark.parametrize("rule", ["first_compatible", "fastest_compatible"])
+def test_precreated_replicas_equal_the_generated_placements_under_both_rules(rule):
+    # overlap off: the fallback branch of precreate_replicas succeed()s a shared platform's event twice under overlap (it never runs there; production
+    # overlap cells take the deterministic branch)
+    gen = _gen(rule, overlap=False)
+    want = {t: sorted((p["node_name"], p["platform_id"], p["platform_type"]) for p in ps) for t, ps in gen.items()}
+    assert _precreated(rule) == want
+
+
+def test_autoscaler_walk_is_alphabetical_by_default_and_fastest_first_under_the_rule():
+    from src.placement import replica_rule as rr
+
+    cnn = TASK_TYPES["cnn"]
+    avail = {"xavierDla", "rpiCpu", "xavierGpu", "xavierCpu"}
+    assert rr.order_platform_types(cnn, avail, "first_compatible") == ["rpiCpu", "xavierCpu", "xavierDla", "xavierGpu"]
+    assert rr.order_platform_types(cnn, avail, "fastest_compatible") == ["xavierGpu", "xavierDla", "xavierCpu", "rpiCpu"]
+    cands = [("n0", "rpiCpu"), ("n1", "xavierGpu"), ("n2", "xavierCpu"), ("n3", "xavierGpu")]
+    assert rr.restrict_to_fastest(cnn, cands, lambda c: c[1], "first_compatible") == cands
+    assert rr.restrict_to_fastest(cnn, cands, lambda c: c[1], "fastest_compatible") == [("n1", "xavierGpu"), ("n3", "xavierGpu")]
+    with pytest.raises(ValueError):
+        rr.set_rule("slowest")
