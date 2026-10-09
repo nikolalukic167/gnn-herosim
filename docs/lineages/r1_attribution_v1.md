@@ -572,6 +572,16 @@ No line trips.
     - task_acc and greedy score an empty prefix (`train_near_rtt.py:1210–1219`), which is out of distribution for an
       arm that leans on the prefix columns. This explanation is not tested directly.
     - Selection uses the served decode, so it is unaffected.
+- **Offline headroom screen (S5, job 854508; production E train split, 5,321 datasets; descriptive, orders work only;
+  `headroom_E/headroom.jsonl`).**
+  - Joint headroom: regret of the additive pointwise plan (program_verdict_v1's definition,
+    `separability_diagnostic.py:283–289`, re-implemented and not diffed) vs the joint optimum.
+    - Scored datasets have plans ≥ params + 2; 1,845 underdetermined datasets are excluded.
+    - Medians: 0.57 / 1.14 / 0.62 %. Datasets with more than 1 %: 47 / 50 / 49 %. The p90 is over 200 %.
+    - **Not pointwise-separable on about half the states, unlike route 1**, but the median stake is about 1 %.
+  - Label sharpness: the median best-vs-second gap is 2.2 / 0.02 / 0.00 %. 46 / 56 / 67 % of datasets have a gap under
+    1 %, mostly exact ties.
+  - CD vs label: not measurable offline.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
