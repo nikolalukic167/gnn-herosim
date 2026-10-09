@@ -50,6 +50,9 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **(b) binding I11 at the calibrated heavy rung: PASS** (S5, 855148; seed 9905, g0, ×23.2278, CD capture,
+  40 of 40 states replayed). Median 0.000 %, p95 0.057 %, max 0.091 % (a 3-task batch, 1.2730 s vs 1.2742 s). It passes
+  cleanly, so no cause is needed. The PASS-WITH-CAUSE condition is discharged. Only (a) remains for GO.
 - 2026-10-10 — **Calibration finals** (S5, 855146/855147; `rp/scale-probe` 462a411d,
   `scale_160_v1/calibration_{heavy,moderate}_{steps,result}.json`; 8 cells per arm, median).
   - Elapsed seconds per task, heavy / moderate:
