@@ -37,6 +37,7 @@ from src.placement.model import (
 )
 
 from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
+from src.placement.replica_rule import order_platform_types, restrict_to_fastest
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
     image_pull_disk_hit,
@@ -46,6 +47,7 @@ from src.placement.warmth import (
 
 
 class KnativeAutoscaler(Autoscaler):
+    supports_replica_rule = True  # accel_replica_v1: create_first_replica / create_replica follow replica_rule
 
 
 
@@ -207,7 +209,7 @@ class KnativeAutoscaler(Autoscaler):
             logging.info(f"[ {self.env.now} ] 🔍 Autoscaler: Found {len(available_hardware)} available hardware types for {task_type['name']}: {list(available_hardware)}")
         # `available_hardware` is a set, so its iteration order is not reproducible
         # across processes (PYTHONHASHSEED) — sort for a deterministic tie-break.
-        for platform_name in sorted(available_hardware):
+        for platform_name in order_platform_types(task_type, available_hardware):
             stop = yield self.env.process(
                 self.scale_up(
                     1,
@@ -242,6 +244,7 @@ class KnativeAutoscaler(Autoscaler):
         
         # Prefer server nodes, fall back to client nodes only if no server capacity
         candidates = server_couples if server_couples else client_couples
+        candidates = restrict_to_fastest(task_type, candidates, lambda couple: couple[1].type["shortName"])
         
         # Select the node with the most available platforms. `couples_suitable` is a set,
         # so `candidates`' order is not reproducible across processes (PYTHONHASHSEED) —
