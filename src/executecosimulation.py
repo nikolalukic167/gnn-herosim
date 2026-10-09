@@ -2765,13 +2765,15 @@ def process_placement_fast(
             current_best = best_rtt_value.value
             
             # Only acquire lock if we might have a better result (reduces contention)
-            if rtt_value < current_best:
+            # `<=`: a plan tied with the current best also writes its file, so the parent can pick the
+            # lexicographically smallest tied plan regardless of which worker finished first
+            if rtt_value <= current_best:
                 # Now acquire lock for atomic check-and-update
                 with best_rtt_lock:
                     # Re-check after acquiring lock (double-check pattern)
                     # Another worker might have updated it while we waited
                     current_best = best_rtt_value.value
-                    if rtt_value < current_best:
+                    if rtt_value <= current_best:
                         best_rtt_value.value = rtt_value
                         should_write = True
         else:
@@ -2810,6 +2812,25 @@ def process_placement_fast(
         if not QUIET_MODE:
             print(f"[worker] Error in simulation: {str(e)}")
         return None, float('inf'), None, None, None
+
+
+def _completed_or_stalled(futures, stall_timeout, stall):
+    """concurrent.futures.as_completed, plus: when nothing finishes for `stall_timeout` seconds, record how many futures are
+    still pending in stall["pending"], cancel them and stop yielding."""
+    pending = set(futures)
+    while pending:
+        done, pending = concurrent.futures.wait(pending, timeout=stall_timeout, return_when=concurrent.futures.FIRST_COMPLETED)
+        if not done:
+            stall["pending"] = len(pending)
+            for f in pending:
+                f.cancel()
+            return
+        for f in done:
+            yield f
+
+
+def _plan_combo(placement_plan: Dict[Any, Any]) -> Tuple[Tuple[int, int], ...]:
+    return tuple((int(v[0]), int(v[1])) for _, v in sorted(placement_plan.items(), key=lambda kv: int(kv[0])))
 
 
 def execute_brute_force_optimized(
@@ -3062,16 +3083,22 @@ def execute_brute_force_optimized(
             # Sims take ~10ms; the default 2s gives a 200x margin. Overridable because a
             # truncated sweep silently changes the "optimum" (WS0.2, 2026-08-23).
             timeout_per_placement = float(os.environ.get("COSIM_PLACEMENT_TIMEOUT_S", "2"))
+            # future.result(timeout=...) below runs on futures as_completed has already finished, so it never fires. The
+            # enforced timeout is a stall watchdog: no placement completed for this long. Only when the variable is set
+            # explicitly -- the unset default of 2 s was never enforced and would truncate slow-start sweeps of other pipelines.
+            stall_timeout = timeout_per_placement if "COSIM_PLACEMENT_TIMEOUT_S" in os.environ else None
             timed_out_count = 0
             worker_failed_count = 0  # worker returned (None, inf, None): row NOT in placements.jsonl
             worker_exception_count = 0  # future.result() raised: row NOT in placements.jsonl
             early_terminated = False
+            best_file_key = None  # (rtt, plan) of best_file: ties broken by plan, lexicographically
             
             # Calculate update interval once
             update_interval = max(1, min(1000, num_placements // 100))
             progress_dir = final_dataset_dir if final_dataset_dir else output_dir
             
-            for future in concurrent.futures.as_completed(futures):
+            stall = {"pending": 0}
+            for future in _completed_or_stalled(futures, stall_timeout, stall):
                 completed += 1
                 placement_idx = futures[future]
                 
@@ -3110,9 +3137,12 @@ def execute_brute_force_optimized(
                     if result_file is not None:
                         # This is guaranteed to be better than previous best (worker checked)
                         # Update our local tracking
+                        file_key = (cur_rtt, _plan_combo(placement_plan))
+                        if best_file_key is None or file_key < best_file_key:
+                            best_file_key = file_key
+                            best_file = str(result_file)
                         if cur_rtt < best_rtt:
                             best_rtt = cur_rtt
-                            best_file = str(result_file)
                             
                             # Early termination: stop if we found a "good enough" RTT
                             if early_termination_rtt is not None and best_rtt <= early_termination_rtt:
@@ -3206,6 +3236,14 @@ def execute_brute_force_optimized(
                     elapsed = time.time() - time_started
                     rate = completed / elapsed if elapsed > 0 else 0
                     _log(f"  Progress: {completed}/{num_placements} ({100*completed/num_placements:.1f}%) - {rate:.1f} sim/s - best RTT: {best_rtt:.3f}s")
+        
+            if stall["pending"]:
+                timed_out_count += stall["pending"]
+                _log(f"  Sweep stalled: no placement finished for {stall_timeout}s; {stall['pending']} unfinished placement(s) "
+                     f"counted as timed out, workers killed", force=True)
+                logger.warning(f"Sweep stalled: {stall['pending']} placements timed out after {stall_timeout}s without progress")
+                for proc in list(getattr(executor, "_processes", {}).values()):
+                    proc.kill()
         
         elapsed_time = time.time() - time_started
     

@@ -50,6 +50,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from non_unique_lib.training_contract import load_sweep_minimum
+from src.placement.sweep_status import sweep_status
 from scripts_cosim.drift_label import (
     DRAIN_TABLE_ENV,
     LABEL_ARRIVAL_RATE_ENV,
@@ -567,6 +568,8 @@ def extract_dataset_to_dataframes(
                 'replica_task_types': frozenset(replica_task_types),
             })
     
+    # row order must not depend on the order the result lists nodes and platforms in (two builds of one dataset must be identical)
+    platforms_data.sort(key=lambda r: (int(r['node_id']), int(r['platform_id'])))
     df_platforms = pd.DataFrame(platforms_data)
     df_metrics = pd.DataFrame([{'dataset_id': dataset_id, 'total_rtt': float(opt_rtt)}])
     
@@ -721,6 +724,8 @@ def load_all_datasets(
     """
     all_datasets = {}
     failed_queue_data: List[str] = []
+    incomplete_sweeps: List[str] = []
+    load_errors: List[str] = []
     
     for base_dir in base_dirs:
         if not base_dir.exists():
@@ -738,6 +743,13 @@ def load_all_datasets(
                 continue
             if not jsonl_path.is_file():
                 # Excluded / incomplete sweeps are archived away from placements.jsonl.
+                continue
+            # A truncated sweep still has a placements.jsonl and a best.json; its minimum is not the optimum. Fidelity datasets
+            # (r1_attribution_v1) must prove completeness; an older dataset is skipped when its metadata says it is not complete.
+            strict = (dataset_dir / "fidelity_replay.json").is_file()
+            complete, why = sweep_status(dataset_dir)
+            if not complete and (strict or why == "sweep_complete is not true"):
+                incomplete_sweeps.append(f"{base_dir.name}/{dataset_dir.name}: {why}")
                 continue
             
             try:
@@ -779,6 +791,7 @@ def load_all_datasets(
                     **_declared_slate_of(dataset_dir),
                 }
             except Exception as e:
+                load_errors.append(f"{base_dir.name}/{dataset_dir.name}: {e}")
                 tqdm.write(f"  Error loading {dataset_dir.name}: {e}")
         
         elapsed = time.perf_counter() - start_time
@@ -790,6 +803,13 @@ def load_all_datasets(
         )
     
     logger.info("\nTotal datasets loaded: %s", len(all_datasets))
+    logger.info("  incomplete sweeps skipped: %s; per-dataset load errors: %s", len(incomplete_sweeps), len(load_errors))
+    for entry in incomplete_sweeps[:10]:
+        logger.warning("    incomplete sweep: %s", entry)
+    if load_errors and os.environ.get("PREPARE_CACHE_ALLOW_LOAD_ERRORS", "0") != "1":
+        raise RuntimeError(
+            f"{len(load_errors)} dataset(s) failed to load (first: {load_errors[0]}); fix them or export "
+            f"PREPARE_CACHE_ALLOW_LOAD_ERRORS=1 to drop them knowingly")
     if failed_queue_data:
         logger.warning(
             "  %s datasets missing valid system_state_captured_unique.json",

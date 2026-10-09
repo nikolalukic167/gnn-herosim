@@ -1,12 +1,16 @@
 #!/bin/bash
-# r1_attribution_v1 PRODUCTION corpus, step 3 of 3 -- PREPARED, NOT SUBMITTED (rungs come from S4).
+# r1_attribution_v1 PRODUCTION corpus, step 3 of 3 -- submit only on the coordinator's word, afterany on the capture array.
 # make_warm_corpus --fidelity over the step-2 snapshots: every candidate plan replayed as i11_replay replays a live decision (queued
-# tasks are state, label = sum over the batch of done - scheduled). HEROSIM_SNAPSHOT_FIDELITY=1 at build as at capture. One array task per
-# training topology. Train / heldout by topology (HELDOUT_TOPOS). Single-candidate-node batches are rejected and counted in
-# warm_summary_<tag>.json; no synthetic backlog (the replayed queue is the state).
-#   NOT IMPLEMENTED HERE: the node's declared candidate pruning (top 5 per task by standalone cost, sub-batches <= 4 tasks above
-#   100,000 plans). make_warm_corpus draws its slate with choose_candidates (balanced subset, <= TARGET plans); see the hand-off.
-#   sbatch --array=0-<n-1> --export=ALL,WT=...,ROOT=...,TOPOS="...",TAGS="lo hi",HELDOUT_TOPOS="..." wf1_corpus_prod_build.sbatch
+# tasks are state, label = sum over the batch of done - scheduled). HEROSIM_SNAPSHOT_FIDELITY=1 at build as at capture. One array task
+# per topology. Train / heldout by topology (HELDOUT_TOPOS). The node's declared pruning (top 5 candidates per task by standalone cost,
+# sub-batches of <= 4 tasks above 100,000 plans; src/placement/declared_slate.py) decides each batch's candidate sets. Single-candidate-node,
+# disconnected, no-choice and no-peer-pair batches are rejected and counted in warm_summary_<tag>.json; a truncated or failed sweep is
+# archived to <split>_discarded and counted. No synthetic backlog (the replayed queue is the state).
+# Volume: BATCHES_TARGET (5,000) BATCHES over TOPOS_ALL x rungs x windows cells. A sub-batch counts toward its parent batch. Each cell
+# offers every eligible snapshot in a spread order (wf1_shard_snapshots.py) and stops at its share, so a rejection is replaced by the
+# next snapshot of the same spread; a cell whose snapshots run out is a shortfall and fails the task at the end. Snapshots before
+# t = 360 s are dropped (I11 validated t >= 360 s).
+#   sbatch --dependency=afterany:<capture> --array=0-<n-1> --export=ALL,WT=...,ROOT=...,TOPOS="...",TAGS="light moderate heavy",HELDOUT_TOPOS="..." wf1_corpus_prod_build.sbatch
 #SBATCH --job-name=wf1p-bld
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/wf1p-bld-%A_%a.out
 #SBATCH --partition=CPU-amd
@@ -22,10 +26,12 @@ TOPOS=${TOPOS:?FAIL LOUD: set TOPOS}
 TAGS=${TAGS:?FAIL LOUD: set TAGS}
 HELDOUT_TOPOS=${HELDOUT_TOPOS:-}
 WINDOWS=${WINDOWS:-"g0 g1 g2 g3"}
-LIMIT=${LIMIT:-90}; TARGET=${TARGET:-20000}; STRIDE=${STRIDE:-200}
+TARGET=${TARGET:-20000}; STRIDE=${STRIDE:-200}; MIN_TIME=${MIN_TIME:-360}
+BATCHES_TARGET=${BATCHES_TARGET:-5000}; TOPOS_ALL=${TOPOS_ALL:-$TOPOS}
 T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array}
 TOPO_ARR=($TOPOS); SEED=${TOPO_ARR[$T]:?FAIL LOUD: array index beyond TOPOS}
 cd "$WT"
+for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate gnn
@@ -37,34 +43,33 @@ export HEROSIM_SNAPSHOT_FIDELITY=1
 export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000 GNN_CAPTURE_DATASET_STATE=0 COSIM_SUPPRESS_SIM_PRINTS=1 HEROSIM_RETAIN_TASK_TIMES=1 HEROSIM_RETAIN_PEER_STATS=1
 export COSIM_PLACEMENT_TIMEOUT_S=${COSIM_PLACEMENT_TIMEOUT_S:-120}
 SPLIT=train; for h in $HELDOUT_TOPOS; do [[ "$h" == "$SEED" ]] && SPLIT=heldout; done
-OUT="$ROOT/gnn_datasets_wf1_$SPLIT"; mkdir -p "$OUT"
-NR=$(echo $TAGS | wc -w); NW=$(echo $WINDOWS | wc -w)
-ri=0
+OUT="$ROOT/gnn_datasets_wf1_$SPLIT"; mkdir -p "$OUT" "$ROOT/build_logs"
+NR=$(echo $TAGS | wc -w); NW=$(echo $WINDOWS | wc -w); NT=$(echo $TOPOS_ALL | wc -w)
+PER_CELL=$(( (BATCHES_TARGET + NT * NR * NW - 1) / (NT * NR * NW) ))
+echo "target $BATCHES_TARGET batches over $NT topologies x $NR rungs x $NW windows = $PER_CELL batches per cell"
+# count check: the capture must have left one sentinel per cell of this topology
+have=$(ls "$ROOT"/snapshots/cc40s${SEED}_*.done 2>/dev/null | wc -l) || true
+[[ "$have" -eq $(( NR * NW )) ]] || { echo "FAIL LOUD: topology $SEED has $have capture sentinels, expected $(( NR * NW )) (capture unfinished or crashed)"; exit 1; }
+ri=0; shortfall=0; cells_not_ok=""
 for R in $TAGS; do
   wi=0
   for W in $WINDOWS; do
-    CELL=cc40s${SEED}; SNAP="$ROOT/snapshots/${CELL}_${R}_${W}.jsonl"
+    CELL=cc40s${SEED}; SNAP="$ROOT/snapshots/${CELL}_${R}_${W}.jsonl"; DONE="$ROOT/snapshots/${CELL}_${R}_${W}.done"
     START=$(( ((T * NR + ri) * NW + wi) * STRIDE ))
-    if [[ ! -s "$SNAP" ]]; then echo "[$CELL $R $W] no snapshots (capture hung or failed); skipped"; wi=$((wi+1)); continue; fi
-    python3 - "$SNAP" "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" "$(( LIMIT * 3 / 2 ))" <<'PY'
-import json, sys
-from scripts_cosim.make_warm_corpus import SnapshotRejected, check_consecutive_batch
-src, dst, want = sys.argv[1], sys.argv[2], int(sys.argv[3])
-ok = []
-for line in open(src):
-    if line.strip():
-        try: check_consecutive_batch(json.loads(line), 2); ok.append(line)
-        except SnapshotRejected: pass
-step = max(1, len(ok) // want)
-open(dst, "w").writelines(ok[::step][:want])
-print(f"[shard] {len(ok)} eligible snapshots, offering {len(ok[::step][:want])}")
-PY
+    if ! grep -q '"status": "ok"' "$DONE"; then
+      echo "[$CELL $R $W] capture $(cat "$DONE"); no corpus from this cell"; cells_not_ok="$cells_not_ok ${R}_${W}"; wi=$((wi+1)); continue
+    fi
+    python3 scripts_cosim/wf1_shard_snapshots.py --snapshots "$SNAP" --out "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" --min-time "$MIN_TIME"
     python3 scripts_cosim/make_warm_corpus.py --snapshots "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" \
       --trace "$ROOT/inputs/wf1_$R/wl/grounded_${W}_n50000.json" --cell-config "$ROOT/inputs/wf1_$R/cfg/$CELL.json" \
-      --output-dir "$OUT" --source-tag "wf1p_${CELL}_${R}_${W}" --start-index "$START" --limit "$LIMIT" --target-combos "$TARGET" \
-      --workers $(( SLURM_CPUS_PER_TASK - 1 )) --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity --require-connected-batch
+      --output-dir "$OUT" --source-tag "wf1p_${CELL}_${R}_${W}" --start-index "$START" --limit-batches "$PER_CELL" --require-limit-batches \
+      --min-time "$MIN_TIME" --target-combos "$TARGET" \
+      --workers $(( SLURM_CPUS_PER_TASK - 1 )) --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity --require-connected-batch \
+      > "$ROOT/build_logs/${CELL}_${R}_${W}.log" 2>&1 || { echo "[$CELL $R $W] SHORTFALL or error (rc=$?), see build_logs"; shortfall=$((shortfall+1)); }
     wi=$((wi+1))
   done
   ri=$((ri+1))
 done
-echo "=== topology $SEED ($SPLIT): $(ls -d "$OUT"/ds_* 2>/dev/null | wc -l) datasets in $OUT (all sources of this split so far)"
+echo "=== topology $SEED ($SPLIT): $(ls -d "$OUT"/ds_* 2>/dev/null | wc -l) datasets in $OUT (all sources of this split so far); capture-not-ok cells:${cells_not_ok:- none}; shortfall cells: $shortfall"
+echo "{\"topology\": $SEED, \"split\": \"$SPLIT\", \"cells_not_ok\": \"${cells_not_ok# }\", \"shortfall_cells\": $shortfall}" > "$ROOT/build_logs/topology_${SEED}.json"
+[[ $shortfall -eq 0 ]] || exit 1

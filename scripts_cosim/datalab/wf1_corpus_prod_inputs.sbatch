@@ -1,12 +1,12 @@
 #!/bin/bash
-# r1_attribution_v1 PRODUCTION corpus, step 1 of 3 -- PREPARED, NOT SUBMITTED (rungs come from S4).
-# Builds the WF1 inputs (W2 payloads, W4 mix, single origin, 1 s window, then W3 access classes) for the TRAINING topologies at the
-# given rungs, into $ROOT/inputs. One job, run once.
-#   RUNGS="lo=0.2666,hi=11.6139"-style list of tag=multiplier from S4 (no default: fail loud)
-#   TOPOS="9201 9202 ..."  training topologies (the 19 test topologies are excluded by the caller)
+# r1_attribution_v1 PRODUCTION corpus, step 1 of 3 -- submit only on the coordinator's word.
+# Builds the WF1 inputs (W2 payloads, W4 mix, single origin, 1 s window, then W3 access classes) for the corpus topologies (train and held-out) at the
+# three load rungs (light x1.2584, moderate x5.9402, heavy x11.6139), into $ROOT/inputs. One job, run once.
+#   RUNGS="light=1.2584,moderate=5.9402,heavy=11.6139"  tag=multiplier list (no default: fail loud); export it in the shell, not via --export
+#   TOPOS="9201 9202 ..."  corpus topologies (the 19 test topologies are excluded by the caller)
 #   CFGDIR                 directory of cc40s<seed>.json cell configs for those topologies
 #   ROOT                   output root, must not exist
-#   sbatch --export=ALL,WT=...,ROOT=...,CFGDIR=...,TOPOS="...",RUNGS="lo=...,hi=..." wf1_corpus_prod_inputs.sbatch
+#   sbatch --export=ALL,WT=...,ROOT=...,CFGDIR=...,TOPOS="...",RUNGS="light=...,moderate=...,heavy=..." wf1_corpus_prod_inputs.sbatch
 #SBATCH --job-name=wf1p-in
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/wf1p-in-%j.out
 #SBATCH --partition=CPU-amd
