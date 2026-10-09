@@ -69,6 +69,7 @@ WARM_SNAPSHOT_FILE = "warm_snapshot.json"
 
 
 SINGLE_NODE_REASON = "single_candidate_node"
+DISCONNECTED_REASON = "disconnected_batch"
 
 
 class SnapshotRejected(ValueError):
@@ -383,6 +384,22 @@ def choose_candidates(
     return subset, record
 
 
+def batch_peer_components(workload: Dict[str, Any]) -> int:
+    """Connected components of the batch's peer table (dataset task indices). A batch the peer-group scheduler serves is ONE."""
+    n = len(workload["events"])
+    parent = list(range(n))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for i, j, _ in workload.get("peer_exchange") or []:
+        parent[find(int(i))] = find(int(j))
+    return len({find(i) for i in range(n)})
+
+
 def candidate_nodes(snapshot: Dict[str, Any], subset: Dict[str, Set[str]]) -> Set[str]:
     """Physical nodes holding any candidate the sweep offers a batch task (the snapshot's own queue keys are
     ``<node>:<platform_id>``)."""
@@ -563,6 +580,9 @@ def main() -> int:
     ap.add_argument("--synthetic-backlog-task-seconds", type=float, default=4.5,
                     help="mean drain of one fake queued task (live execution + peer exchange scale)")
     ap.add_argument("--synthetic-backlog-seed", type=int, default=7001)
+    ap.add_argument("--require-connected-batch", action="store_true",
+                    help="reject (and count) a batch whose peer table is not one connected group: the peer-group scheduler would "
+                         "serve it as several batches")
     ap.add_argument("--fidelity", action="store_true",
                     help="r1_attribution_v1: every snapshot must carry the HEROSIM_SNAPSHOT_FIDELITY=1 block (and the "
                          "environment must export it). The dataset is still the batch alone, but each plan is replayed "
@@ -621,6 +641,12 @@ def main() -> int:
                 demands=None if args.no_cap_filter else demands,
                 force_keys=force_keys, min_choice_fraction=args.min_choice_fraction,
             )
+            if args.require_connected_batch:
+                comps = batch_peer_components(workload)
+                if comps != 1:
+                    # a batch the capture policy formed from several peer groups is never one scheduler batch under
+                    # peer-group batching (the serving seat); its label is a sum of independent group labels
+                    raise SnapshotRejected(f"{DISCONNECTED_REASON}: the batch's peer table has {comps} components")
             nodes = candidate_nodes(snap, subset)
             if len(nodes) < 2:
                 # every offered candidate sits on ONE node: no peer transfer can differ between plans, the cache's
@@ -738,7 +764,8 @@ def main() -> int:
             reasons[key] = reasons.get(key, 0) + 1
     summary = {"source_tag": args.source_tag, "offered": len(mine), "made": sum(1 for e in mine if e.get("status") != "rejected"),
                "rejected": sum(reasons.values()), "rejected_by_reason": reasons,
-               "single_candidate_node": reasons.get(SINGLE_NODE_REASON, 0)}
+               "single_candidate_node": reasons.get(SINGLE_NODE_REASON, 0),
+               "disconnected_batch": reasons.get(DISCONNECTED_REASON, 0)}
     (args.output_dir / f"warm_summary_{args.source_tag}.json").write_text(json.dumps(summary, indent=1))
     print(f"[warm] {summary}", flush=True)
     return 0

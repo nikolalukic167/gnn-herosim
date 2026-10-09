@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from scripts_cosim.make_warm_corpus import SINGLE_NODE_REASON, candidate_nodes
+from scripts_cosim.make_warm_corpus import SINGLE_NODE_REASON, batch_peer_components, candidate_nodes
 from src.placement.cache_physics import current_physics_env, require_matching_physics_env
 
 
@@ -107,3 +107,10 @@ def test_trainer_refuses_a_cache_built_under_other_physics(tmp_path):
                           capture_output=True, text=True, env=env, timeout=240, cwd=repo)
     assert proc.returncode != 0
     assert "physics environment mismatch" in proc.stderr
+
+
+def test_batch_peer_components():
+    ev = [{}] * 4
+    assert batch_peer_components({"events": ev, "peer_exchange": [[0, 1, 1.0], [1, 2, 1.0], [2, 3, 1.0]]}) == 1
+    assert batch_peer_components({"events": ev, "peer_exchange": [[0, 1, 1.0], [2, 3, 1.0]]}) == 2
+    assert batch_peer_components({"events": ev}) == 4

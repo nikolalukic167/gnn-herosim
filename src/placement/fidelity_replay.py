@@ -139,5 +139,20 @@ class FidelityReplay:
         stats["fidelity_replay"] = every
         cap = stats.get("schedulingStateCapture")
         if cap:
-            cap["replicas"] = deepcopy(self.offered)
+            cap["replicas"] = self.scheduling_replicas()
         return result
+
+    def scheduling_replicas(self) -> Dict[str, List[List[Any]]]:
+        """The replica table the cache reads (SSC `replicas`): the offered slate for the types the batch asks for, and every
+        live replica for the others. That is what a live scheduler serving over the corpus slate
+        (GNN_SERVE_CORPUS_SLATE=1, `GNNScheduler._corpus_slate_view`, which limits only the batch's types) hands the feature
+        builder, so the platform replica flags (has_dnn1 / has_dnn2 and the four-type flags) mean the same in training and in
+        serving. The slate itself is the sweep's sampling device: it is not what a live cluster offers."""
+        batch_types = {rec["fn"] for rec in self.snap["fidelity"]["batch"]}
+        out: Dict[str, List[List[Any]]] = {}
+        for t, specs in (self.snap.get("replicas_by_type") or {}).items():
+            if t in batch_types:
+                out[t] = deepcopy(self.offered.get(t, []))
+            else:
+                out[t] = [[str(sp["node_name"]), int(sp["platform_id"])] for sp in specs]
+        return out
