@@ -45,10 +45,13 @@ o = Path(sys.argv[1]); bad = 0
 def h(p): return hashlib.sha1(Path(p).read_bytes()).hexdigest()
 for a in sorted((o / "A/gnn_datasets").glob("ds_*")):
     b = o / "B/gnn_datasets" / a.name
-    for f in ("placements/placements.jsonl", "best.json", "optimal_result.json", "system_state_captured_unique.json"):
-        same = h(a / f) == h(b / f)
-        bad += not same
-        print(a.name, f, "identical" if same else "DIFFERS")
+    ra = sorted(l for l in open(a / "placements/placements.jsonl") if l.strip()); rb = sorted(l for l in open(b / "placements/placements.jsonl") if l.strip())
+    same = ra == rb; bad += not same
+    print(a.name, "placements (as a set of rows; file order is completion order)", "identical" if same else "DIFFERS")
+    same = h(a / "best.json") == h(b / "best.json"); bad += not same
+    print(a.name, "best.json", "identical" if same else "DIFFERS")
+    for f in ("optimal_result.json", "system_state_captured_unique.json"):  # informational: wall-clock schedulingTime and set-order lists
+        print(a.name, f, "byte-identical" if h(a / f) == h(b / f) else "bytes differ (informational; the cache tensors below are the criterion)")
 ga = pickle.load(open(o / "A/cache/graphs.pkl", "rb")); gb = pickle.load(open(o / "B/cache/graphs.pkl", "rb"))
 for i, (x, y) in enumerate(zip(ga, gb)):
     for k in ("task_features", "platform_features", "edge_index", "edge_attr", "y"):
