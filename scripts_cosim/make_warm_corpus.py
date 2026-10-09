@@ -62,6 +62,7 @@ from scripts_cosim.generate_gnn_datasets_fast import (  # noqa: E402
     json_dumps_pretty,
 )
 from src.placement import declared_slate, fidelity_replay  # noqa: E402
+from src.placement.sweep_status import sweep_complete, sweep_status  # noqa: E402
 from src.placement.live_snapshot_seed import build_live_snapshot_seed, inject_synthetic_backlog  # noqa: E402
 
 REQUIRED_ENV = {"HEROSIM_PEER_EXCHANGE": "1"}
@@ -71,6 +72,7 @@ WARM_SNAPSHOT_FILE = "warm_snapshot.json"
 SINGLE_NODE_REASON = "single_candidate_node"
 DISCONNECTED_REASON = "disconnected_batch"
 NO_CHOICE_REASON = "no_choice"
+NO_PEER_PAIRS_REASON = "no_peer_pairs"
 
 
 class SnapshotRejected(ValueError):
@@ -176,7 +178,7 @@ def build_batch_workload(
     if outside:
         raise SnapshotRejected(f"{outside} peer pair(s) reach outside the batch")
     if not pairs:
-        raise SnapshotRejected("batch carries no peer pairs")
+        raise SnapshotRejected(f"{NO_PEER_PAIRS_REASON}: batch carries no peer pairs")
     return {
         "rps": len(events), "duration": 1, "events": events, "peer_exchange": pairs,
         # co-sim task id -> trace task id, so a row of this dataset can be traced back
@@ -462,7 +464,12 @@ def cell_base_infrastructure(cell_config: Path, sim_input: Path, seed: int, scra
     runs on; replica/queue tables are the snapshot's (live_snapshot_seed)."""
     from src.executesimulation import prepare_infrastructure_for_real_simulation
 
-    out = scratch / f"cell_s{seed}_live_infrastructure.json"
+    # keyed by what the infrastructure is built from (config content, seed, sim inputs): one output directory holds several rungs
+    # and windows of the same topology seed, whose configs differ
+    import hashlib
+
+    key = hashlib.sha1(b"|".join([Path(cell_config).read_bytes(), str(seed).encode(), str(Path(sim_input).resolve()).encode()])).hexdigest()[:12]
+    out = scratch / f"cell_s{seed}_{key}_live_infrastructure.json"
     if not out.exists():
         space = json.loads(Path(cell_config).read_text())
         live = prepare_infrastructure_for_real_simulation(space, seed=seed, sim_input_path=sim_input)
@@ -565,6 +572,10 @@ def main() -> int:
                          "snapshot's own); default keeps the aligned fixed --group-size check")
     ap.add_argument("--start-index", type=int, default=0, help="first dataset number (ds_XXXXX)")
     ap.add_argument("--limit", type=int, default=None, help="stop after this many datasets")
+    ap.add_argument("--limit-batches", type=int, default=None,
+                    help="stop after this many BATCHES (snapshots with a dataset made); a batch's sub-batches count toward it once")
+    ap.add_argument("--require-limit-batches", action="store_true",
+                    help="exit non-zero when the snapshots run out before --limit-batches batches were made (fail loud on a shortfall)")
     ap.add_argument("--min-time", type=float, default=0.0, help="skip snapshots captured before this sim time")
     ap.add_argument("--target-combos", type=int, default=20000)
     ap.add_argument("--max-combos", type=int, default=100000)
@@ -637,6 +648,7 @@ def main() -> int:
 
     manifest_path = args.output_dir / "warm_manifest.jsonl"
     made = 0
+    batches_made: Set[Tuple[Any, int]] = set()
     idx = args.start_index
     t0 = time.time()
     def work():
@@ -644,6 +656,8 @@ def main() -> int:
         pruning (src/placement/declared_slate.py) decides whether the batch is one dataset or several sub-batches."""
         for snap0 in snapshots:
             if args.limit is not None and made >= args.limit:
+                return
+            if args.limit_batches is not None and len(batches_made) >= args.limit_batches:
                 return
             sid0 = int(snap0.get("snapshot_id", -1))
             entry0: Dict[str, Any] = {
@@ -786,12 +800,14 @@ def main() -> int:
 
         dataset_id = f"ds_{idx:05d}"
         out_dir = args.output_dir / dataset_id
-        if (out_dir / "placements" / "placements.jsonl").is_file() and (out_dir / "best.json").is_file():
+        if out_dir.exists() and sweep_complete(out_dir):
             if not args.quiet:
                 print(f"[warm] {dataset_id} exists, skipping", flush=True)
             idx += 1
             made += 1
             continue
+        if out_dir.exists():  # a half-written dataset from an earlier run is not resumable: start it over
+            shutil.rmtree(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         infra_path = scratch / f"{dataset_id}_infrastructure.json"
         infra_path.write_text(json_dumps_pretty(infra))
@@ -830,19 +846,28 @@ def main() -> int:
             if not args.quiet:
                 print(f"[warm] {dataset_id} <- snapshot {sid} (t={snap.get('time'):.1f}s, "
                       f"{record['num_combos']} combos): {status} rtt={rtt:.1f} in {secs:.0f}s", flush=True)
+        if entry["status"] == "success":
+            complete, why = sweep_status(out_dir)
+            if not complete:
+                entry["status"] = f"incomplete: {why}"
+        if entry["status"] not in ("success", "dry-run"):
+            # A truncated or failed sweep's best.json is not a label (2026-09-13: 81 of 95 datasets came back with 3-30 % of
+            # their plans). It must not stop the topology's other snapshots, and it must not stay in the corpus: archive the
+            # dataset out of the corpus directory and count it. `discarded` in the summary is the evidence.
+            archive = args.output_dir.parent / f"{args.output_dir.name}_discarded"
+            archive.mkdir(parents=True, exist_ok=True)
+            target = archive / f"{args.source_tag}_{dataset_id}"
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.move(str(out_dir), str(target))
+            entry["discarded_to"] = str(target)
+            with open(manifest_path, "a") as fh:
+                fh.write(json.dumps({**entry, "status": "discarded", "discard_reason": entry["status"]}) + "\n")
+            print(f"[warm] {dataset_id} (snapshot {sid}): generation status {entry['status']!r} -- discarded to {target}", flush=True)
+            continue
         with open(manifest_path, "a") as fh:
             fh.write(json.dumps(entry) + "\n")
-        if entry["status"] not in ("success", "dry-run"):
-            # Fail loud (CLAUDE.md rule 4). generate_single_dataset already refines the
-            # engine's 'success' into 'truncated' when placement_metadata.json says the
-            # sweep lost rows (2026-09-13: 81 of 95 W0 datasets came back with 3-30 % of
-            # their plans after the worker pool was OOM-killed, and the manifest said
-            # done). A truncated sweep's best.json is not a label; stop here so the
-            # array task fails instead of the read discovering it.
-            raise RuntimeError(
-                f"{dataset_id} (snapshot {sid}): generation status {entry['status']!r} "
-                f"-- see {out_dir / 'placement_metadata.json'}"
-            )
+        batches_made.add((entry.get("source_file"), sid))
         idx += 1
         made += 1
     print(f"[warm] done: {made} dataset(s) in {time.time() - t0:.0f}s -> {args.output_dir}", flush=True)
@@ -854,12 +879,18 @@ def main() -> int:
         if e.get("status") == "rejected":
             key = str(e.get("reason", "")).split(":")[0]
             reasons[key] = reasons.get(key, 0) + 1
-    summary = {"source_tag": args.source_tag, "offered": len(mine), "made": sum(1 for e in mine if e.get("status") != "rejected"),
+    discarded = [e for e in mine if e.get("status") == "discarded"]
+    summary = {"source_tag": args.source_tag, "offered": len(mine), "batches_made": len(batches_made),
+               "limit_batches": args.limit_batches, "snapshots_offered": len(snapshots),
+               "made": sum(1 for e in mine if e.get("status") in ("success", "dry-run")),
+               "discarded": len(discarded), "discarded_by_status": {st: sum(1 for e in discarded if e.get("discard_reason") == st)
+                                                                     for st in sorted({e.get("discard_reason") for e in discarded})},
                "rejected": sum(reasons.values()), "rejected_by_reason": reasons,
                "single_candidate_node": reasons.get(SINGLE_NODE_REASON, 0),
                "disconnected_batch": reasons.get(DISCONNECTED_REASON, 0),
-               "no_choice": reasons.get(NO_CHOICE_REASON, 0)}
-    made_entries = [e for e in mine if e.get("status") != "rejected"]
+               "no_choice": reasons.get(NO_CHOICE_REASON, 0),
+               "no_peer_pairs": reasons.get(NO_PEER_PAIRS_REASON, 0)}
+    made_entries = [e for e in mine if e.get("status") in ("success", "dry-run")]
     slated = [e["slate"] for e in made_entries if e.get("slate")]
     if slated:
         snaps_made = {e["snapshot_id"] for e in made_entries}
@@ -873,6 +904,9 @@ def main() -> int:
         }
     (args.output_dir / f"warm_summary_{args.source_tag}.json").write_text(json.dumps(summary, indent=1))
     print(f"[warm] {summary}", flush=True)
+    if args.require_limit_batches and args.limit_batches is not None and len(batches_made) < args.limit_batches:
+        print(f"[warm] FAIL LOUD: {len(batches_made)} of {args.limit_batches} batches made; the {len(snapshots)} snapshots are exhausted", flush=True)
+        return 3
     return 0
 
 
