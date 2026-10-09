@@ -33,7 +33,7 @@ CORPUS="$OUT/gnn_datasets_wf1_fidelity"; i=0
 for T in $TOPOS; do
   python3 scripts_cosim/make_warm_corpus.py --snapshots "$CORP/fidelity_cost/snapshots/cc40s${T}_g0.jsonl" --trace "$CORP/inputs/wf1_hi/wl/grounded_g0_n50000.json" \
     --cell-config "$CORP/inputs/wf1_hi/cfg/cc40s${T}.json" --output-dir "$CORPUS" --source-tag "wf1fid_cc40s${T}_g0" --start-index $(( i * 100 )) --limit 3 \
-    --target-combos 20000 --workers 30 --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity
+    --target-combos 20000 --workers 30 --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity --require-connected-batch
   i=$(( i + 1 ))
 done
 echo "datasets: $(ls -d "$CORPUS"/ds_* | wc -l), with placements.jsonl: $(ls "$CORPUS"/ds_*/placements/placements.jsonl | wc -l)"

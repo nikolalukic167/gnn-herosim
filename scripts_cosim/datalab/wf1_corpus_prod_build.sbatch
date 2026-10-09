@@ -62,7 +62,7 @@ PY
     python3 scripts_cosim/make_warm_corpus.py --snapshots "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" \
       --trace "$ROOT/inputs/wf1_$R/wl/grounded_${W}_n50000.json" --cell-config "$ROOT/inputs/wf1_$R/cfg/$CELL.json" \
       --output-dir "$OUT" --source-tag "wf1p_${CELL}_${R}_${W}" --start-index "$START" --limit "$LIMIT" --target-combos "$TARGET" \
-      --workers $(( SLURM_CPUS_PER_TASK - 1 )) --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity
+      --workers $(( SLURM_CPUS_PER_TASK - 1 )) --no-cap-filter --min-choice-fraction 0.2 --quiet --variable-group-min 2 --fidelity --require-connected-batch
     wi=$((wi+1))
   done
   ri=$((ri+1))
