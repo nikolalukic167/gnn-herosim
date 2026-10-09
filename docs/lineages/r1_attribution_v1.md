@@ -251,6 +251,18 @@ No line trips.
   - Production ROOT goes on `/share/nikola.lukic`, because /home has about 56 GB free against a capture of about 47 GB
     plus the build.
 
+**Ranking test, gate 3 FAILS (2026-10-09; S5, job 853231, `rp/forced-batch-d28` `bdea4592`, `corpus_b2_ext`).**
+- **Ran:** only 34 of 223 plan evaluations (6 of 40 datasets). 30 match their label exactly, and 4 (ds_03200) miss by
+  12 % (0.381 against 0.335 s). No ranking was read, per the signed rule.
+- **Refused:**
+  - 154 plans place a task on a (node, platform) that is not an existing replica at that instant. The co-sim creates
+    replicas on demand, and the forced live hook refuses them.
+  - 30 are batch mismatches: the dataset's batch is a sub-batch of the live decision's batch.
+  - 5 are timing mismatches.
+- **Open question, before any option is chosen:** is the co-sim plan space the same as live serving's candidate set,
+  with or without on-demand replica creation? S7 is checking the code. The label build stays held, and the production
+  capture continues, since it doesn't depend on the label.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
