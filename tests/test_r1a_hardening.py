@@ -83,3 +83,54 @@ def test_planned_then_deferred_partner_is_unplaced_in_the_snapshot():
     assert peer_node_name(NS(platform=None, planned_node_name="n9")) == "n9"
     assert peer_node_name(NS(platform=None, planned_node_name="n9", postponed_count=2)) is None
     assert peer_node_name(NS(platform=None, planned_node_name=None)) is None
+
+
+def test_exposure_flags_a_net_stage_ingress_ghost_on_a_candidate_node():
+    from src.placement.fidelity_replay import exposure
+
+    ghost = lambda q, stage, ls: {"q": q, "stage": stage, "link_stage": ls}
+    snap = {"fidelity": {"ghosts": [ghost("n1:0", "ingress", "net"), ghost("n2:1", "ingress", "hold"), ghost("n3:0", "compute", None)]}}
+    cands = [{"node_name": "n1"}, {"node_name": "n4"}]
+    e = exposure(snap, cands)
+    assert e["net_ingress_ghost_on_candidate_node"] and e["net_ingress_ghost_nodes_on_candidates"] == ["n1"]
+    assert e["net_ingress_ghosts_total"] == 1 and e["candidate_nodes"] == 2
+    assert not exposure(snap, [{"node_name": "n2"}, {"node_name": "n3"}])["net_ingress_ghost_on_candidate_node"]
+    assert not exposure({"fidelity": {}}, cands)["net_ingress_ghost_on_candidate_node"]
+
+
+def test_manifest_read_skips_and_counts_another_tasks_half_written_line(tmp_path):
+    import json
+
+    import pytest
+
+    from scripts_cosim.make_warm_corpus import _own_manifest_entries
+
+    p = tmp_path / "warm_manifest.jsonl"
+    p.write_text(json.dumps({"source_tag": "a", "status": "success"}) + "\n" + json.dumps({"source_tag": "b"}) + "\n" + '{"source_tag": "b", "sta')
+    entries, skipped = _own_manifest_entries(p, "a")
+    assert [e["status"] for e in entries] == ["success"] and skipped == 1
+    p.write_text(json.dumps({"source_tag": "a"}) + "\n" + '{"source_tag": "a", "sta')
+    with pytest.raises(json.JSONDecodeError):
+        _own_manifest_entries(p, "a")
+    q = tmp_path / "warm_manifest.a.jsonl"  # per-source: one writer, a bad line is always ours
+    q.write_text(json.dumps({"source_tag": "a"}) + "\n" + 'garbled')
+    with pytest.raises(json.JSONDecodeError):
+        _own_manifest_entries(q, "a")
+
+
+def test_manifest_union_reads_every_per_source_file_and_fails_on_a_garbled_line(tmp_path):
+    import json
+
+    import pytest
+
+    from scripts_cosim.wf1_manifest import read_manifests
+
+    (tmp_path / "warm_manifest.t1_light_g0.jsonl").write_text(json.dumps({"source_tag": "t1_light_g0", "dataset_id": "ds_0"}) + "\n")
+    (tmp_path / "warm_manifest.t2_heavy_g1.jsonl").write_text(json.dumps({"source_tag": "t2_heavy_g1", "dataset_id": "ds_1"}) + "\n")
+    entries, skipped = read_manifests(tmp_path)
+    assert sorted(e["dataset_id"] for e in entries) == ["ds_0", "ds_1"] and skipped == 0
+    (tmp_path / "warm_manifest.t2_heavy_g1.jsonl").write_text('{"source_tag": "t2_hea')
+    with pytest.raises(ValueError, match="garbled"):
+        read_manifests(tmp_path)
+    entries, skipped = read_manifests(tmp_path, strict=False)
+    assert len(entries) == 1 and skipped == 1
