@@ -324,6 +324,11 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
         paced by the 300 s timeout. 9103 g0 and 9105 g3 finish in 48–71 min with 1.0–1.6 % request failures.
       - **Pending:** guards and bands on `r11t_fix/` (S4); an I11 spot check on moderate 9602 g0 (S5). The merge waits for
         both.
+      - **Rungs stand at the fix** (S4, `finals_report_r11tfix.json`, script `1a746783`). CD effective share is light 0.079,
+        moderate 0.266 and heavy 0.442, every CD guard passes at every rung, and the worst request failure is 0.054 %
+        (moderate 9602 g0). Knative is unchanged in kind: healthy at light, collapsed at moderate and heavy.
+      - **Decision:** the fix is accepted into the reference physics (R1.1 + `c8eb73c2`) and merged into the node-5
+        pipeline. Corpora captured before it don't match and aren't used for production.
     - **Rung-finals identity, job 849747:** it died in its preflight while `/home` was at quota, before any simulation ran.
       It is resubmitted once space is freed.
 - **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
