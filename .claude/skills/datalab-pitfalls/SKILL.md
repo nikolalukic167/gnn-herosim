@@ -231,3 +231,10 @@ getfattr --only-values -n ceph.dir.rbytes /home/nikola.lukic      # bytes used; 
 - **Cold data:** `sbatch scripts_cosim/datalab/offload_to_share.sbatch simulation_data/<dir> ...` copies to
   `/share/nikola.lukic`, verifies file count and bytes, then symlinks back (`LOGS=1` also archives old logs).
 - **After a quota hit:** delete records with rc 120, 0 bytes or unparseable JSON before rerunning. They are not outcomes.
+
+## 13. `sbatch --export=ALL,VAR=a,b,c` splits at the commas
+
+A list-valued variable passed that way becomes `VAR=a` plus variables named `b` and `c`; the job runs with the first element only and says nothing.
+Export the variable in the submitting shell (`VAR=a,b,c sbatch --export=ALL,... script`) or use a non-comma separator.
+
+Cost: job 853934 (r1_attribution_v1 classical gate, 2026-10-10) ran CD alone — 228 of 1,368 cells — and the other five arms needed a second array.
