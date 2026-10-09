@@ -53,7 +53,10 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 - 2026-10-10 — **(a) PASS; GO for the Phase 1 captures; labels held for a re-screen** (S5, 855119; top-5, fresh seeds,
   2 rungs × 2 windows × 12 batches; 16/16 captures per seed ok, 0 hung).
   - Share of scored batches above 1 % joint regret: 9901 70 %, 9903 60 %, 9904 73 % (median regret 19–30 %). 9902 is
-    still pending and can only add. The bar of at least 3 of 4 is met.
+    still pending and can only add. The bar of at least 3 of 4 is met. **Final: 9902 is 69 %, so 4 of 4 pass**, with
+    0 of 16 captures hung.
+  - Per probe rung, ×23.2 / ×46.5: 68 % / 67 % of scored batches. The probe's lower rung (×23.2) is the calibrated
+    heavy multiplier itself, so heavy is covered. Calibrated moderate (×16.42) is not covered.
   - Ties within 1 %: 48–59 %. Multi-node optima: 20–31 %.
   - **Caveat:** the probe captured at its uncalibrated multipliers ×23.76 / ×46.46, above the calibrated rungs.
   - **Ruling (coordinator):** (a) passes as registered, so all three go/no-go checks pass, and S6 has GO for the Phase 1
