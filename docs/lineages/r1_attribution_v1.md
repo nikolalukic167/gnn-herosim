@@ -301,6 +301,18 @@ No line trips.
   - Only ds_03200's tied argmin group (4 plans, 0.0457 s) exceeds 1 %; ds_10400 shows 0.55 %.
   - Not run: 30 sub-batch datasets and 5 timing mismatches.
   - **The ranking stays unread**, per the signed rule, until the rerun after the `rp/fidelity-net` fix.
+- **Cause found, and it is replay-side (S5, jobs 853420 and 853441).**
+  - The replay's determined scheduler (`DeterminedScheduler._collect_task_batch`, `src/policy/determined/scheduler.py:112-120`)
+    sleeps one 1 ms poll before it processes the batch, so the replay schedules the batch at t0 + 0.001 s. Live
+    schedules it at t0.
+  - In ds_03200 that hands the shared core link to a net-stage ghost whose request came 0.94 ms after the batch's.
+  - Ghost timing itself is captured correctly. **The production captures stay valid; only the build changes.**
+  - Exposure: 36 of 604 ext datasets (6 %) carry a net-stage ingress ghost on a candidate node. The 1 ms window makes the
+    true affected count smaller.
+  - **Fix approved:** collect the batch at t0 without a poll, with the `env.step()` event-sequence caveat handled
+    explicitly.
+  - **Gates:** ds_03200's 13 plans; all earlier I11 sets rerun; live no-op identity; and the label and argmin delta on
+    the 36 exposed datasets.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
