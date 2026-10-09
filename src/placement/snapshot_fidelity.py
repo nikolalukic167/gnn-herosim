@@ -368,6 +368,7 @@ class GhostTask:
         self.node_name = rec["src"]
         self.rec = rec
         self.held: List[Tuple[str, Any]] = []  # (link key, request) already taken at apply time
+        self.net_timer: Any = None  # a net-stage ghost's propagation timeout, created at apply time in ghost order
         # what state_capture / scheduling_cost read off a platform's current_task
         self.cold_started = False
         self.started_time = None
@@ -399,7 +400,9 @@ def _ingress(platform: Any, ghost: GhostTask) -> Generator:
     fabric = platform.node.fabric
     stage = rec["link_stage"]
     if stage == "net":
-        if rec["net_remaining"] > 0:
+        if ghost.net_timer is not None:
+            yield ghost.net_timer
+        elif rec["net_remaining"] > 0:
             yield env.timeout(rec["net_remaining"])
         route = fabric.hops(rec["src"], platform.node.node_name) if fabric is not None else []
         keys = sorted({k for k, _bw in route})
@@ -522,6 +525,10 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
                 raise RuntimeError(f"fidelity apply: two admitted tasks on {rec['q']}")
             plat.admitted = ghost
             plat._fid_resume = _resume_admitted(ghost)
+            if rec["stage"] == "ingress" and rec["link_stage"] == "net" and rec["net_remaining"] > 0:
+                # The platform processes start in platform order, so a timeout created there fires ties in platform order. Two net-stage
+                # ghosts with equal net_end must request the shared link in ghost order (task id): create the timers here, in that order.
+                ghost.net_timer = env.timeout(rec["net_remaining"])
             if rec["stage"] == "ingress" and rec["link_stage"] in ("hold", "wait") and rec["hold"] > 0:
                 keys = sorted(set(rec["route"]))
                 for key in (keys if rec["link_stage"] == "hold" else keys[:1]):
