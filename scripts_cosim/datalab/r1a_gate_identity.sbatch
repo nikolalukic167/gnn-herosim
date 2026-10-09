@@ -45,4 +45,4 @@ echo "== identity vs $BASE =="
 python3 scripts_cosim/r1a_gate_identity.py "$BASE" "$OUT/gate" || echo "IDENTITY-FAILED"
 echo "== new kind =="
 ls "$OUT"/new/*.failed.json 2>/dev/null && cat "$OUT"/new/*.failed.json
-python3 scripts_cosim/r1_attribution_v1_read.py --gate "$OUT/new" | head -12
+python3 scripts_cosim/r1_attribution_v1_read.py --gate "$OUT/new" | head -12 || true  # head closes the pipe: SIGPIPE under pipefail is not a failure
