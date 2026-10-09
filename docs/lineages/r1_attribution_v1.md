@@ -598,6 +598,22 @@ No line trips.
   - **CD is about 13–18× cheaper per decision than the GNN arm**; the "the GNN thinks faster" hypothesis does not hold
     here.
   - The dedicated-CPU side study follows.
+- **Decision-cost side study (S4, job 854584; 263dd915, exclusive node, single-threaded, 9483 g0, 50k tasks per cell;
+  smoke weights).** Median µs per task decided, light / moderate / heavy:
+  - Knative: 2–3
+  - CD: 40 / 40 / 50
+  - CD-declared: 50–70
+  - CD←random: 60–100
+  - MLP-same and Twin-eng: about 710–810
+  - GNN-eng and physMP: 840–970
+  - Set-transformer: about 1,050
+  - GNN-raw: about 1,400
+  - CD←GNN: 910–1,010
+  - **Prediction 7 holds:** CD is at least 10× faster than every learned arm. Twin-eng is 15.6–18.5× at the median and
+    10.4× at the heavy p95.
+  - The MLP costs nearly as much as the GNN, so the cost is mostly graph construction and framework overhead, not
+    message passing. This is an inference, not measured.
+  - Refine moves per batch: CD 0.2–0.35; with a learned or random start, 0.5–1.9.
 - **Learned-arm gate seeds (2026-10-09 22:00, coordinator).** Seeds 1 and 2 are gated, as registered (matching
   CD←random). The third trained seed is staged but not gated.
 - **Selections (validation only; `selection_<arm>.json` in `/share/nikola.lukic/r1a_prod/20261009_190117/`).**
