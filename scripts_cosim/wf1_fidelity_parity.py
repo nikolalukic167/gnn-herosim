@@ -151,11 +151,24 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
         nid, pid = ast.literal_eval(key) if isinstance(key, str) else key
         return f"{node_name_of[int(nid)]}:{pid}"
 
+    ghost_stages: Dict[str, List[str]] = {}
+    for g in fid["ghosts"]:
+        ghost_stages.setdefault(g["q"], []).append(str(g.get("stage")))
+
     def record(label, lv, cv, platforms, columns=None, biggest=0.0, extra=""):
         if platforms and all(qname(k) in ghost_platforms for k in platforms):
             out.setdefault("explained", []).append(
                 f"{label}: differs on {len(platforms)} ghost-hosting platforms"
                 + (f", columns {sorted(columns)}" if columns else "") + f", max |diff| {biggest:.3e}")
+            # the numbers behind the claim: each differing platform's live and cache value and the stages of the ghosts it hosts
+            detail = []
+            for k in sorted(platforms, key=str):
+                if label == "platform_features":
+                    a_, b_ = [lv[k][c] for c in sorted(columns)], [cv[k][c] for c in sorted(columns)]
+                else:
+                    a_, b_ = lv[k], cv[k]
+                detail.append({"platform": qname(k), "live": a_, "cache": b_, "ghost_stages": ghost_stages.get(qname(k))})
+            out.setdefault("explained_detail", []).append({"label": label, "platforms": detail})
         else:
             mism.append(f"{label}: differ{extra}")
 
@@ -201,7 +214,9 @@ def main() -> int:
     ap.add_argument("--checkpoint", type=Path, required=True)
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--only", default="", help="comma-separated dataset names to run (default: all)")
     a = ap.parse_args()
+    only = {x for x in a.only.split(",") if x}
     if os.environ.get("HEROSIM_SNAPSHOT_FIDELITY") != "1":
         raise SystemExit("FAIL LOUD: export HEROSIM_SNAPSHOT_FIDELITY=1, PARTIAL_STATE_CONTRACT=partial_state_v5 and the R1 environment")
     ids = pickle.load(open(a.cache_dir / "dataset_ids.pkl", "rb"))
@@ -209,6 +224,8 @@ def main() -> int:
     index = {str(i): k for k, i in enumerate(ids)}
     jobs = []
     for d in sorted(a.datasets.glob("ds_*")):
+        if only and d.name not in only:
+            continue
         key = f"{a.datasets.name}/{d.name}"
         if key not in index:
             raise SystemExit(f"{key} is not in the cache {a.cache_dir}")
