@@ -419,6 +419,10 @@ No line trips.
   - On the dataset half, D leads E by the rule. Speculative training at E continues, because it costs compute only. It is
     discarded if the full verdict is not E.
   - The 65 failed forced-live plans are counted and classified before the verdict.
+- **Gate commit for CD←random and the learned arms: `07b0acba` (S4, job 853947; decided 2026-10-09 20:00).**
+  - Identity: 24/24 existing-kind cells match on every simulated field, against the baf340e2 dry run.
+  - The diff from 335abdd1 only adds the new kind and its provenance keys; no physics or serving path changes.
+  - Re-checked against `classical_335abdd1` once array 854009 completes. Any difference voids this choice.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
