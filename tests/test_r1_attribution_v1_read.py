@@ -48,3 +48,15 @@ def test_reader_pairs_on_the_same_cell_and_seed(tmp_path):
     assert rep["arms"]["ra_gnn_eng|heavy"]["failed"] == 1 and rep["arms"]["ra_gnn_eng|heavy"]["failed_why"] == {"watchdog": 1}
     assert rep["sensitivity"]["excluded_topologies"] == [9500]
     assert rep["sensitivity"]["families"]["primary"]["tests"]["heavy"]["n_topologies"] == 11
+
+
+def test_reader_merges_gate_directories_and_refuses_duplicates(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir(); b.mkdir()
+    _write(a, "cd", 0, 9500, "g0", "light", 2.0)
+    _write(b, "ra_gnn_eng", 1, 9500, "g0", "light", 1.8)
+    rep = R.read([str(a), str(b)], "ra_gnn_eng")
+    assert rep["main"]["primary"]["tests"]["light"]["median_pct"] == pytest.approx(-10.0)
+    _write(b, "cd", 0, 9500, "g0", "light", 2.0)
+    with pytest.raises(SystemExit):
+        R.load([str(a), str(b)])
