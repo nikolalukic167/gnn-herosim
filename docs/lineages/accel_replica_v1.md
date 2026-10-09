@@ -25,7 +25,8 @@ node's list order (`src/generate_infrastructure.py:745–765`).
 ## Worth-it screen (all must pass before any corpus build)
 
 - **W1, the change takes effect.** Under CD at the calibrated heavy rung, at least 20 % of tasks execute on an
-  accelerator (xavierGpu, xavierDla or pynqFpga), and at least one task type uses each of xavierGpu and xavierDla.
+  accelerator (xavierGpu, xavierDla or pynqFpga), and xavierGpu hosts at least one type. Amended 2026-10-10 before any
+  data: the original also required xavierDla, which the rule cannot satisfy.
 - **W2, headroom.** S5's probe (`scale_probe`) on 4 fresh seeds (9909–9912), at the calibrated rungs: at least 3 of 4
   seeds have more than 50 % of batches above 1 % joint (non-pointwise) regret. The pooled share is also reported against
   `scale_160_v1`'s 69 %. This is descriptive and does not gate.
@@ -48,5 +49,27 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Amendment before any data (coordinator, on S7's step-1 audit).**
+  - **Where the platform is chosen.** It is chosen in three places, and the rule must apply in all three:
+    - (i) the generator (`generate_infrastructure.py:745–765`), which feeds co-sim capture and replay through
+      `replica_placements`;
+    - (ii) **live t = 0 preinit** (`src/placement/simulation.py:395–418`), which re-derives the replicas from the
+      same `replicas` config by the same first-suitable rule over `node.platforms`. It does not read
+      `infrastructure.json`. So live does create t = 0 replicas; S7's "live doesn't place replicas" covered only the
+      network-generation path;
+    - (iii) autoscaler scale-out (`create_first_replica` / `scale_up`, `sorted(available_hardware)`, alphabetical,
+      e.g. `knative_network/autoscaler.py:210`).
+  - **Ruling:** option 1. One shared helper orders compatible platforms by `preinit.replica_placement_rule`
+    (`first_compatible` reproduces today's order at each site; `fastest_compatible` uses exec time, ties by name). It
+    is used at (i), at (ii), and at (iii) in every autoscaler the gate arms use.
+    - The flag lives in `preinit`, not `replicas`, because a string key in `replicas` would be read as a task type
+      (`executecosimulation.py:1328`).
+    - Required before calibration:
+      - default-rule bit-identity of one live run per arm family against R1.1;
+      - a test that capture-precreated and live-preinit replica sets are equal under both rules;
+      - the run JSON's t = 0 platform mix under each rule.
+  - **W1 amended.** Under `fastest_compatible` with overlap on, the exec table sends dnn1 to pynqFpga, dnn2 to
+    xavierCpu, and rf and cnn to xavierGpu. xavierDla hosts no type, so "DLA used" cannot hold. W1 is now: at least
+    20 % of CD's tasks run on an accelerator, **and** xavierGpu hosts at least one type. DLA use is descriptive.
 - 2026-10-10 — Registered on the user's request ("send this study now … check if it's worth and then do if yes").
   Owner: S7.
