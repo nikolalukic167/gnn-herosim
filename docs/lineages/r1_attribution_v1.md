@@ -374,6 +374,12 @@ No line trips.
       goes to the lower p95.
     - If none meets I11, production stays held, and the fix becomes a principled reproduction of live's same-instant
       event order (link probe, job 853576).
+  - **Link probe (job 853576):** live orders same-instant link requests by **ascending task id**, across ghosts and
+    batch tasks alike. Exact_batch reverses that at the heavy state, because of 1e-17 float differences in
+    `net_remaining`. The poll matches it there only by its 1 ms offset.
+  - **Amendment, before any comparison numbers are read:** a fifth variant, **E**, creates same-instant timers in
+    task-id order with exact time arithmetic. The pool and the rule are unchanged, with 5 candidates.
+  - Jobs: 853585 (I11 pool, A–D), 853587 and 853578 (relabels), 853590 (forced-live on the 86 datasets).
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
