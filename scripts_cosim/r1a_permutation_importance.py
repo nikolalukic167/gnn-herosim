@@ -79,6 +79,7 @@ def main() -> int:
     meta = json.loads((a.cache_dir / "metadata.json").read_text())
     ids = pickle.load(open(a.cache_dir / "dataset_ids.pkl", "rb"))
     graphs = pickle.load(open(a.cache_dir / "graphs.pkl", "rb"))
+    opt_map = pickle.load(open(a.cache_dir / "optimal_rtt.pkl", "rb"))
     base = {Path(d).name: Path(d) for d in meta["base_dirs"]}
     items = [(i, g) for i, (i, g) in enumerate(zip(ids, graphs)) if str(i).split("@")[0] in val_parents]
     if a.limit:
@@ -148,7 +149,7 @@ def main() -> int:
             tab = tables[did]
             key = tuple(tuple(int(x) for x in p) for p in plan)
             if key in tab:
-                reg.append(tab[key] - float(g.opt_rtt))
+                reg.append(tab[key] - float(opt_map.get(str(did), opt_map.get(str(did).split("@")[0]))))
             else:
                 unmapped += 1
         return float(np.mean(reg)), unmapped, len(reg)
