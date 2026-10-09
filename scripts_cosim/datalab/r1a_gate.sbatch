@@ -35,7 +35,8 @@ echo "HEAD $HEAD node $(hostname) job=${SLURM_JOB_ID:-} task=${SLURM_ARRAY_TASK_
 # a wedged Ceph client can hang `git status` (datalab-pitfalls 14): bounded `git diff --quiet`, a warning rather than a stop
 rc=0; timeout 300 git diff --quiet HEAD -- src scripts_cosim experiments run_experiment.py || rc=$?
 [[ $rc == 0 ]] || echo "WARN: worktree check rc=$rc (1 = tracked files differ from HEAD, 124 = timed out after 300 s)"
-for r in light moderate heavy; do [[ -d "$IN/wf1_$r" ]] || { echo "FAIL LOUD: $IN/wf1_$r missing"; exit 1; }; done
+RUNGS_CHECK=${RUNGS_IN:-light,moderate,heavy}
+for r in ${RUNGS_CHECK//,/ }; do [[ -d "$IN/wf1_$r" ]] || { echo "FAIL LOUD: $IN/wf1_$r missing"; exit 1; }; done
 mkdir -p "$OUT"
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 export WF1_RUNGS=${RUNGS_IN:-light,moderate,heavy}
