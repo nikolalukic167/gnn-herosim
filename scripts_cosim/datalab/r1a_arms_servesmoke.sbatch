@@ -24,8 +24,8 @@ echo "HEAD $(git rev-parse HEAD) node $(hostname)"
 [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 export WF1_RUNGS=moderate WF1_TOPOS=$TOPO WF1_CAL_WINDOWS=g0
-export WF1_CAL_KINDS=ra_gnn_eng,ra_twin_eng,ra_mlp_same,ra_gnn_raw,ra_twin_raw,ra_gnn_eng_physmp,ra_set_transformer
-python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$IN" --out "$OUT" --parallel 7 --mem 8G --timeout 7200 --no-scope
+export WF1_CAL_KINDS=${KINDS:-ra_gnn_eng,ra_twin_eng,ra_mlp_same,ra_gnn_raw,ra_twin_raw,ra_gnn_eng_physmp,ra_set_transformer}  # KINDS=cd_declared for the CD-declared smoke
+python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$IN" --out "$OUT" --parallel ${PAR:-7} --mem 8G --timeout 7200 --no-scope
 python3 - "$OUT" <<'PY'
 import glob, json, sys
 bad = 0
