@@ -15,16 +15,9 @@
 set -uo pipefail
 ulimit -n 65536 2>/dev/null || true
 WT=${WT:?}
-# Array index T -> (arm, config), longest first so the slowest runs bound the wall time from the start: cost = measured CPU epoch seconds
-# of the arm (r1a dry run, 859 train datasets) x 1.8 for the width-128 configs g3-g5 (assumed, unmeasured).
+# Array index T -> (arm, config): scripts_cosim/r1a_task_order.py (indices 0-20 the slowest pairs, longest first; 21-41 the engineered trio first).
 T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array 0-41}; SEEDS=${SEEDS:-"1 2 3"}
-read -r ARM G < <(python3 - "$T" <<'PY'
-import sys
-EPOCH_S = {"gnn_eng": 10.6, "twin_eng": 8.9, "mlp_same": 9.5, "gnn_raw": 42.0, "twin_raw": 13.5, "gnn_eng_physmp": 10.8, "set_transformer": 16.5}
-order = sorted(((a, g) for a in EPOCH_S for g in range(6)), key=lambda ag: (-EPOCH_S[ag[0]] * (1.8 if ag[1] >= 3 else 1.0), list(EPOCH_S).index(ag[0]), ag[1]))
-t = int(sys.argv[1]); assert 0 <= t < len(order), f"array index {t} beyond {len(order) - 1}"
-print(*order[t])
-PY
+read -r ARM G < <(python3 "${ORDER_PY:-$WT/scripts_cosim/r1a_task_order.py}" "$T"
 ) || { echo "FAIL LOUD: could not map array index $T"; exit 1; }
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE)'); do unset "$v"; done
