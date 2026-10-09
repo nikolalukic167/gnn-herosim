@@ -1,5 +1,6 @@
 #!/bin/bash
 # r1_attribution_v1 PRODUCTION corpus, step 4 of 4 -- the end-of-build check. Submit afterany on the build array.
+# The build array is chained aftercorr on the capture; scancel any build task left DependencyNeverSatisfied before this check can run.
 #   sbatch --dependency=afterany:<build> --export=ALL,WT=...,ROOT=... wf1_corpus_prod_check.sbatch
 # 1. wf1_corpus_volume_check.py: batches vs the 5,000 target, filter and discard rates, capture-not-ok cells.
 # 2. wf1_fidelity_corpus_check.py on each split: sweep complete, best.json == min(rows), independent re-simulation of sampled plans.

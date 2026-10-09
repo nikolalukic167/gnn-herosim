@@ -1,5 +1,5 @@
 #!/bin/bash
-# r1_attribution_v1 PRODUCTION corpus, step 3 of 3 -- submit only on the coordinator's word, afterany on the capture array.
+# r1_attribution_v1 PRODUCTION corpus, step 3 of 3 -- submit only on the coordinator's word, aftercorr on the capture array (see the run procedure below).
 # make_warm_corpus --fidelity over the step-2 snapshots: every candidate plan replayed as i11_replay replays a live decision (queued
 # tasks are state, label = sum over the batch of done - scheduled). HEROSIM_SNAPSHOT_FIDELITY=1 at build as at capture. One array task
 # per topology. Train / heldout by topology (HELDOUT_TOPOS). The node's declared pruning (top 5 candidates per task by standalone cost,
@@ -10,7 +10,12 @@
 # offers every eligible snapshot in a spread order (wf1_shard_snapshots.py) and stops at its share, so a rejection is replaced by the
 # next snapshot of the same spread; a cell whose snapshots run out is a shortfall and fails the task at the end. Snapshots before
 # t = 360 s are dropped (I11 validated t >= 360 s).
-#   sbatch --dependency=afterany:<capture> --array=0-<n-1> --export=ALL,WT=...,ROOT=...,TOPOS="...",TAGS="light moderate heavy",HELDOUT_TOPOS="..." wf1_corpus_prod_build.sbatch
+# Run procedure: chain the build with --dependency=aftercorr:<capture> and the SAME --array range, so topology t builds as soon as capture
+# task t ends instead of waiting for the slowest topology. aftercorr needs the matching capture task to exit 0: a hung or failed CELL does
+# not fail the task (it is a sentinel the build counts), a cap-hit cell does (exit 1). A capture task that fails leaves its build task
+# DependencyNeverSatisfied; scancel it (squeue -u $USER -t PD -o "%i %r" | grep DependencyNeverSatisfied), because the afterany check on
+# the whole build waits for it otherwise. The check (wf1_corpus_prod_check.sbatch) stays --dependency=afterany:<build>.
+#   sbatch --dependency=aftercorr:<capture> --array=0-<n-1> --export=ALL,WT=...,ROOT=...,TOPOS="...",TAGS="light moderate heavy",HELDOUT_TOPOS="..." wf1_corpus_prod_build.sbatch
 #SBATCH --job-name=wf1p-bld
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/wf1p-bld-%A_%a.out
 #SBATCH --partition=CPU-amd
