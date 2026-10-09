@@ -99,6 +99,15 @@ def test_r1a_cell_list(r1a_env, monkeypatch):
     assert len(shard) == len(cells) // 4 and shard[0] == cells[1]
 
 
+def test_r1a_random_arm_is_opt_in_and_seeded(r1a_env, monkeypatch):
+    sel = {"topologies": list(range(19))}
+    assert not [c for c in G.r1a_tasks(sel) if c["kind"] == "random"]
+    monkeypatch.setenv("R1A_ARMS", "random")
+    cells = G.r1a_tasks(sel)
+    assert len(cells) == 19 * 3 * 4 * 2 and {c["seed"] for c in cells} == {1, 2}
+    assert G.RULE_POLICY["random"] == "random_network"
+
+
 def test_r1a_refuses_other_physics(r1a_env, monkeypatch):
     monkeypatch.setenv("HEROSIM_SCALEOUT", "legacy")
     with pytest.raises(SystemExit):

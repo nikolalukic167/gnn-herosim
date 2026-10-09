@@ -129,7 +129,8 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD
+R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
 _LAST_ARRIVAL: Dict[str, float] = {}
@@ -318,7 +319,7 @@ def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
         raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
     topos = [int(x) for x in os.environ.get("R1A_TOPOS", "").split(",") if x] or list(selection["topologies"])
     wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
-    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(R1A_ARMS)).split(",") if k]
+    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM)).split(",") if k]
     seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
     unknown = [k for k in arms if k not in R1A_ARMS]
     if unknown:
