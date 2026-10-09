@@ -32,6 +32,10 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
 (W3 diff passes; access classes wired 0.40, wifi 0.39, cellular 0.21); capture job 843881 and build job 843882 (afterok, LIMIT=4),
 with fidelity capture, `--require-connected-batch` and declared pruning. Moderate (×5.94) is held until its finals finish.
 
+**Pre-production gate (2026-10-09, coordinator).** The ~17 h production capture launches only after two things: the B2 dry-run
+read, and an independent read-only bug audit of the pipeline by S7 (label, physics flags, train/serve parity, determinism,
+silent drops, cost).
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
