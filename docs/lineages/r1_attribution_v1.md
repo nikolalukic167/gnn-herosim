@@ -535,6 +535,12 @@ No line trips.
   - Latency vs CD: +0.8 / +2.1 / −0.3 %.
   - Co-location of in-batch peer pairs: 66 / 79 / 84 %. No refine moves (CD: 3.9–6.4 k per run).
   - Topology 9103 did not run (the `--export` comma split).
+- **Epoch-10 vs epoch-30 smoke (S7, job 854580; gnn_eng g0 seed2; train-split 9101 and 9103, g0; descriptive).**
+  - Latency vs CD at epoch 30 (9101 light / moderate / heavy; 9103 light / moderate): +0.6 / +4.9 / −2.2 %;
+    +1.8 / −24.9 %. 9103 moderate was +204 % at epoch 10.
+  - Spread and co-location are unchanged between epochs.
+  - The 9103 heavy cell runs slowly for the learned arm, CD and reactive alike, so it's the cell, not the model. It hits
+    the 2 h timeout and is not rerun.
 - **CD←random, descriptive (S4, array 854323, 07b0acba, `cdrandom_read.json`).**
   - 453 of 456 cells done. 3 heavy cells at 9565 were killed by rate and counted.
   - Paired % vs CD: +1.35 / +4.28 / +3.91 %. CD is ahead in 18 / 18 / 16 of 19 topologies. Dropping 9538 and 9565
