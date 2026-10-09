@@ -4,7 +4,10 @@
 Registered protocol (docs/lineages/load_recalibration_v1.md and its 2026-10-08 pre-run amendments): the calibration
 topologies x two windows, WF1 (W2 payloads, W3 access classes, W4 mix and repair), batching window 1 s, R1 flags with policy
 time scale 1.0, at most 8 evaluated multipliers per rung. A multiplier m scales the x1 arrival rate (timestamps by 1/m).
-Every evaluation runs CD and Knative (reactive) on every cell; the statistic is the median CD queue share.
+Steering evaluations run CD alone (2,700 s limit, no rerun: a CD cell that hits the limit is unfinished and the step fails the
+"finished" guard). The chosen rung of each search is then run in full: CD and Knative on every cell, one rerun at 3x the
+timeout for a cell that hit the limit; if it then fails a CD guard the rung moves to the highest step that passed.
+The statistic is the median CD queue share.
 
 CD guards (a rung where CD fails one is not allowed): every cell finishes; request failures <= 1 % of tasks; per-task
 latency p95 <= 300 s; run end <= 1.25 x last arrival (all per cell, worst cell reported). Rung-specific, from the
@@ -153,7 +156,8 @@ class Evaluator:
     def __init__(self, a: argparse.Namespace):
         self.a = a
         self.cache: Dict[float, dict] = {}
-        self.locks: Dict[float, threading.Lock] = {}
+        self.final: Dict[float, dict] = {}
+        self.locks: Dict[object, threading.Lock] = {}
         self.guard = threading.Lock()
         self.expected = len(a.topologies) * len(a.windows)
 
@@ -166,36 +170,48 @@ class Evaluator:
             return self.cache[m]
 
     def run(self, m: float) -> dict:
+        """A steering evaluation (amendment 2026-10-09): CD alone, 2,700 s limit, no rerun -- a CD cell that hits the limit is
+        unfinished and the step fails the "finished" guard. Earlier evaluations in --work (--seed, --readonly) are only read."""
         a, tag = self.a, tag_for(m)
-        env = {**os.environ, "PYTHONPATH": str(ROOT)}
-        if m in a.seed:  # earlier evaluation of this run: read what finished, run nothing
-            return self.read(m)
-        if (a.work / tag / f"wf1_{tag}").exists():  # a built rung is frozen; the gate skips cells that already have a summary
-            return self.read(m, run_missing=True)
-        subprocess.run([sys.executable, str(ROOT / "scripts_cosim/workload_fix_v1_build.py"), "--grounded-wl", str(a.grounded_wl),
-                        "--cfg-dir", str(a.cfg_dir), "--topologies", *map(str, a.topologies), "--rung", f"{tag}={1.0 / m!r}",
-                        "--payload-sampler", "wf1_v1", "--task-mix", "wf1_v1", "--batch-timeout-fixed", "1.0",
-                        "--out", str(a.work / tag)], check=True, cwd=ROOT, env=env)
-        return self.read(m, run_missing=True)
+        if m in a.seed or m in a.readonly:
+            return self.collect(m, a.work / tag / "gate")
+        if not (a.work / tag / f"wf1_{tag}").exists():  # a built rung is frozen; the gate skips cells that already have a summary
+            subprocess.run([sys.executable, str(ROOT / "scripts_cosim/workload_fix_v1_build.py"), "--grounded-wl", str(a.grounded_wl),
+                            "--cfg-dir", str(a.cfg_dir), "--topologies", *map(str, a.topologies), "--rung", f"{tag}={1.0 / m!r}",
+                            "--payload-sampler", "wf1_v1", "--task-mix", "wf1_v1", "--batch-timeout-fixed", "1.0",
+                            "--out", str(a.work / tag)], check=True, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT)})
+        self.gate(m, "cd", a.timeout)
+        return self.collect(m, a.work / tag / "gate")
 
-    def read(self, m: float, run_missing: bool = False) -> dict:
+    def gate(self, m: float, kinds: str, timeout: int) -> None:
         a, tag = self.a, tag_for(m)
-        env = {**os.environ, "PYTHONPATH": str(ROOT)}
-        out = a.work / tag / "gate"
-        if not run_missing:
-            return self.collect(m, out)
-        genv = {**env, "WF1_RUNGS": tag, "WF1_TOPOS": ",".join(map(str, a.topologies)), "WF1_CAL_WINDOWS": ",".join(a.windows),
-                "WF1_CAL_KINDS": "cd,reactive"}
-        cmd = [sys.executable, str(ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py"), "wf1cal", "--inputs", str(a.work / tag),
-               "--out", str(out), "--parallel", str(a.parallel), "--mem", "4G", "--no-scope"]
-        subprocess.run(cmd + ["--timeout", str(a.timeout)], check=False, cwd=ROOT, env=genv, stdout=subprocess.DEVNULL)
-        failed = sorted(out.glob("*.failed.json"))
-        if failed:  # registered failure rule: one rerun of a failed run at 3x the timeout; a second failure stands
-            (out / "first_pass_failed").mkdir(exist_ok=True)
-            for f in failed:
-                shutil.move(str(f), str(out / "first_pass_failed" / f.name))
-            subprocess.run(cmd + ["--timeout", str(3 * a.timeout)], check=False, cwd=ROOT, env=genv, stdout=subprocess.DEVNULL)
-        return self.collect(m, out)
+        genv = {**os.environ, "PYTHONPATH": str(ROOT), "WF1_RUNGS": tag, "WF1_TOPOS": ",".join(map(str, a.topologies)),
+                "WF1_CAL_WINDOWS": ",".join(a.windows), "WF1_CAL_KINDS": kinds}
+        subprocess.run([sys.executable, str(ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py"), "wf1cal", "--inputs", str(a.work / tag),
+                        "--out", str(a.work / tag / "gate"), "--parallel", str(a.parallel), "--mem", "4G", "--no-scope",
+                        "--timeout", str(timeout)], check=False, cwd=ROOT, env=genv, stdout=subprocess.DEVNULL)
+
+    def finalize(self, m: float) -> dict:
+        """The full treatment for a chosen rung: every cell, CD and Knative; a cell that hit the limit gets the registered one
+        rerun at 3x the timeout (transfer_physics_v1); a second failure stands."""
+        with self.guard:
+            lock = self.locks.setdefault(("final", m), threading.Lock())
+        with lock:
+            if m not in self.final:
+                a, tag = self.a, tag_for(m)
+                out = a.work / tag / "gate"
+                self.gate(m, "cd,reactive", a.timeout)
+                failed = sorted(out.glob("*.failed.json"))
+                if failed:
+                    (out / "first_pass_failed").mkdir(exist_ok=True)
+                    for f in failed:
+                        shutil.move(str(f), str(out / "first_pass_failed" / f.name))
+                    self.gate(m, "cd,reactive", 3 * a.timeout)
+                self.final[m] = self.collect(m, out)
+                r = self.final[m]
+                print(f"[final] m={m} {tag}: CD {len(r['cells']['cd'])}/{self.expected}, Knative {len(r['cells']['reactive'])}/{self.expected}, "
+                      f"CD guards {r['guards']['cd']}", flush=True)
+            return self.final[m]
 
     def collect(self, m: float, out: Path) -> dict:
         a, tag = self.a, tag_for(m)
@@ -212,7 +228,8 @@ class Evaluator:
         rec = {"m": m, "tag": tag, "missing": names, "cells": arms,
                "cd_median_share": st.median([c["queue_share"] for c in arms["cd"]]) if arms["cd"] else None,
                "reactive_median_share": st.median([c["queue_share"] for c in arms["reactive"]]) if arms["reactive"] else None,
-               "guards": {arm: guards(cs, self.expected) for arm, cs in arms.items()}}
+               "guards": {arm: guards(cs, self.expected) for arm, cs in arms.items()},
+               "unfinished": {arm: sorted(n for n in names if f"__{arm}_s0" in n) for arm in arms}}
         print(f"[eval] m={m} {tag}: CD {len(arms['cd'])}/{self.expected} cells, median share {rec['cd_median_share']}; "
               f"Knative {len(arms['reactive'])}/{self.expected}, median share {rec['reactive_median_share']}", flush=True)
         return rec
@@ -222,6 +239,26 @@ class Evaluator:
             r = self.record(m)
             return r["cd_median_share"], allowed(r["guards"]["cd"], rung)
         return evaluate
+
+
+def choose_final(result: dict, ev: "Evaluator") -> dict:
+    """Final rung: the search answer, run in full (CD + Knative, 3x rerun); if it then fails a CD guard, the highest step that
+    passed, again in full, until one holds. Knative is reported, never binding."""
+    rung = result["rung"]
+    answer = result["answer"]
+    if answer is None:
+        return {"rung": rung, "chosen": None, "tried": []}
+    others = sorted({s["m"] for s in result["steps"] if s["allowed"] and s["share"] is not None and s["m"] != answer["m"]}, reverse=True)
+    tried = []
+    for m in [answer["m"]] + others:
+        rec = ev.finalize(m)
+        ok = allowed(rec["guards"]["cd"], rung)
+        tried.append({"m": m, "cd_median_share": rec["cd_median_share"], "cd_guards": rec["guards"]["cd"],
+                      "knative_guards": rec["guards"]["reactive"], "knative_median_share": rec["reactive_median_share"], "allowed": ok})
+        if ok:
+            return {"rung": rung, "chosen": {"m": m, "cd_median_share": rec["cd_median_share"], "kind": answer["kind"] if m == answer["m"] else "FALLBACK-HIGHEST-PASSING"},
+                    "tried": tried}
+    return {"rung": rung, "chosen": None, "tried": tried}
 
 
 def a_ends(rung: str, a: argparse.Namespace) -> tuple:
@@ -244,6 +281,8 @@ def main() -> int:
     ap.add_argument("--m-lo", type=float, default=0.05)
     ap.add_argument("--m-hi", type=float, default=64.0)
     ap.add_argument("--max-steps", type=int, default=8)
+    ap.add_argument("--readonly", type=float, nargs="*", default=[], help="multipliers evaluated by an earlier run: read, never run, "
+                    "end points not exempt from the guards")
     ap.add_argument("--ends", nargs="*", default=[], help="per-rung bracket ends, RUNG=LO,HI")
     ap.add_argument("--rungs", nargs="+", default=list(BANDS))
     ap.add_argument("--seed", type=float, nargs="*", default=[], help="multipliers evaluated by an earlier run in --work: read, never run")
@@ -264,12 +303,13 @@ def main() -> int:
         results = [f.result() for f in searches]
         for f in mapped:
             f.result()
+        finals = list(ex.map(lambda r: choose_final(r, ev), results))
     doc = {"topologies": a.topologies, "windows": a.windows, "m_range": [a.m_lo, a.m_hi], "max_steps": a.max_steps,
-           "bands": BANDS, "limits": LIMITS, "results": results, "mapped": [ev.cache[m] for m in a.map],
+           "bands": BANDS, "limits": LIMITS, "results": results, "final": finals, "mapped": [ev.cache[m] for m in a.map],
            "evaluations": {r["tag"]: r for r in ev.cache.values()}}
     a.log.write_text(json.dumps(doc, indent=1, default=str))
-    for r in results:
-        print(json.dumps({k: r[k] for k in ("rung", "status", "answer")}, default=str))
+    for r, f in zip(results, finals):
+        print(json.dumps({"rung": r["rung"], "status": r["status"], "search_answer": r["answer"], "final": f}, default=str))
     return 0
 
 
