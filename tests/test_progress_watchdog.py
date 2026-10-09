@@ -58,3 +58,19 @@ def test_the_runner_kills_a_stalled_command_and_returns_137(tmp_path):
     r = subprocess.run([sys.executable, "scripts_cosim/watchdog_run.py", "--progress-file", str(prog), "--total", "50000", "--limit", "600",
                         "--stall", "1", "--poll", "0.3", "--", sys.executable, str(script)], capture_output=True, text=True, timeout=30)
     assert r.returncode == 137 and "stall" in r.stderr
+
+
+def test_a_sweep_that_cannot_finish_in_its_budget_is_stopped_early():
+    import concurrent.futures
+    import time
+
+    from src.executecosimulation import _completed_or_stalled
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        futs = {ex.submit(time.sleep, 0.2): i for i in range(30)}  # 6 s of work
+        stall = {"pending": 0}
+        wd = ProgressWatchdog(len(futs), 0.5, warmup_s=0.0, stall_s=1e9)  # budget 0.5 s x 1.5 margin
+        got = list(_completed_or_stalled(futs, None, stall, wd, poll_s=0.1))
+        for f in futs:
+            f.cancel()
+    assert 0 < len(got) < 30 and stall["pending"] == 30 - len(got) and "projected" in stall["watchdog"]
