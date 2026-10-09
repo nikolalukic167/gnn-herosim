@@ -76,6 +76,17 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
   decision is the same for every plan, so this ranks plans exactly as end-to-end latency does, and it is the quantity I11
   validated (median 0.000 %, p95 0.126 %). The corpus replay must call the same code path as `i11_replay --params live`.
   If it does, S5's I11 run covers it and no separate 20-state check is needed.
+- **Fidelity corpus wired (S6, `rp/r1a-features` `23bce622`).**
+  - **Same code path as I11:** `src/placement/fidelity_replay.py` calls the same `execute_simulation` with
+    `live_run_params()`, mirroring `i11_replay.py:245–360`, and refuses mismatched params. An independent harness
+    re-simulated 135 labels with max |diff| 1.8e-13.
+  - **Identity on 3 live cells:** unchanged; only `total_rtt_plus_inference` differs, because it adds wall-clock time.
+  - **Smoke:** 6/6 sets complete (ds_00002 5,600/5,600), and the cache builds under v5 with the R1 env.
+  - **Single-candidate-node filter:** rejects 0/3 snapshots on 9601 and 6/16 on 9607. The old route's capture sim had
+    also shrunk the candidate slate, so the earlier 9607 degeneracy was partly that artefact.
+  - **Still owed before training: a fidelity-aware train/serve parity check.** Replay the batch decision in the live
+    scheduler with the queued state, and compare its features with the cache's, attribute by attribute.
+  - `HEROSIM_SNAPSHOT_FIDELITY=1` is required at capture and at corpus build.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
