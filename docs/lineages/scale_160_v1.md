@@ -50,4 +50,12 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
-- 2026-10-10 — Registered. Go/no-go running (S5).
+- 2026-10-10 — Rung calibration plan (S5, accepted before data).
+  - Calibration topologies are seeds 9905–9908, windows g0 + g1.
+  - CD-steered log bisection on the effective share (queue + lock wait) / elapsed, at most 8 steps per rung. Bands:
+    moderate 0.20–0.30, heavy 0.40–0.50.
+  - CD guards: request failures ≤ 1 %, p95 ≤ 300 s, run end ≤ 1.25× the last arrival, a 2,700 s limit, and the
+    backlog-ratio stability guard.
+  - Reserved seeds: go/no-go 9901–9904, calibration 9905–9908, probe 9101. None of them may be used as
+    train/held-out/test topologies.
+- 2026-10-10 — Registered. Go/no-go running (S5: 855119 / 855120 / 855121).
