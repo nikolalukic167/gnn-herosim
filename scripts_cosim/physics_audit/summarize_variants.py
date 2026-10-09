@@ -3,7 +3,7 @@ with the worst states and their absolute misses. usage: summarize_variants.py OU
 import glob, json, math, os, statistics as st, sys
 
 O = sys.argv[1]
-NAMES = {"A": "A d28d1bb0 (poll, name order)", "B": "B f7711324 (exact_batch, name order)", "C": "C poll + task-id order/timers", "D": "D exact_batch + task-id order/timers (8ada0140)", "E": "E D + due time = pop + latency"}
+NAMES = {"A": "A d28d1bb0 (poll, name order)", "B": "B f7711324 (exact_batch, name order)", "C": "C poll + task-id order/timers", "D": "D exact_batch + task-id order/timers (8ada0140)", "E": "E D + due time = pop + latency", "F": "F E + ghosts by first request time pop + latency, then id"}
 
 
 def q(v, p):
@@ -12,7 +12,7 @@ def q(v, p):
 
 
 rows = {}
-for f in glob.glob(f"{O}/*_*/replay_[ABCDE]_*.jsonl"):
+for f in glob.glob(f"{O}/*_*/replay_[ABCDEF]_*.jsonl"):
     cell = os.path.basename(os.path.dirname(f)); var = os.path.basename(f).split("_")[1]
     for l in open(f):
         r = json.loads(l)
@@ -26,7 +26,7 @@ def tuned(r):   # the state variant E was tuned on (heavy 9601, t = 2146.6 s)
 
 for label, keep in (("ALL STATES", lambda r: True), ("UNTUNED (excludes the heavy 9601 t=2146.6 s state E was tuned on)  <- decides", lambda r: not tuned(r))):
     print("#####", label)
-    for var in "ABCDE":
+    for var in "ABCDEF":
         rs = [r for r in rows.get(var, []) if keep(r)]
         ok = [r for r in rs if not r.get("_fail")]
         e = [abs(r["rel_err"]) for r in ok]

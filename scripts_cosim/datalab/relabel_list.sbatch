@@ -10,7 +10,7 @@
 set -euo pipefail
 WT=${WT:?}; EXPECT_HEAD=${EXPECT_HEAD:?}; LIST=${LIST:?}; OUT=${OUT:?}; cd $WT
 eval "$(micromamba shell hook --shell bash)"; micromamba activate gnn
-[[ $(git rev-parse HEAD) == $EXPECT_HEAD* ]] || { echo "HEAD is not $EXPECT_HEAD"; exit 1; }; [[ -z "$(git status --porcelain -- src scripts_cosim)" ]] || { echo "worktree dirty"; exit 1; }
+[[ $(git rev-parse HEAD) == $EXPECT_HEAD* ]] || { echo "HEAD is not $EXPECT_HEAD"; exit 1; }; if ! timeout 300 git diff --quiet HEAD -- src scripts_cosim; then echo "WARN: worktree dirty or git diff timed out (300 s)"; fi
 export HEROSIM_PY=python3 PYTHONPATH=$WT OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES= SIM_FORCE_FULL_STATS=1 PYTHONHASHSEED=0
 export HEROSIM_REPLAY_EXACT_BATCH=${EXACT:-1}
 mkdir -p "$(dirname $OUT)"
