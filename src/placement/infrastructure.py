@@ -268,6 +268,10 @@ class Task:
         self.scheduled_time: Optional[SimTime] = None
         self.arrived_time: Optional[SimTime] = None
         self.started_time: Optional[SimTime] = None
+        # load_recalibration_v1: `started` is stamped before the input stage and, under replica release, before the wait for
+        # the replica's compute lock; these two bound that wait (compute_start_time - io_end_time). Bookkeeping only.
+        self.io_end_time: Optional[SimTime] = None
+        self.compute_start_time: Optional[SimTime] = None
         self.done_time: Optional[SimTime] = None
         self.pull_time: DurationSecond = 0.0
         self.cold_start_time: DurationSecond = 0.0
@@ -481,6 +485,8 @@ class Task:
             "scheduledTime": self.scheduled_time,
             "arrivedTime": self.arrived_time,
             "startedTime": self.started_time,
+            "ioEndTime": self.io_end_time,
+            "computeStartTime": self.compute_start_time,
             "doneTime": self.done_time,
             "applicationType": self.application.type,
             "taskType": self.type,
@@ -1822,6 +1828,7 @@ class Platform:
         if FIDELITY:
             task._fid["io_end"] = self.env.now + input_duration
         yield self.env.timeout(input_duration)
+        task.io_end_time = self.env.now
         if _AUDIT is not None:
             task._audit_io_end = self.env.now
         # task.application.communications_time += input_duration
@@ -1836,6 +1843,7 @@ class Platform:
             compute = self.compute_lock.request()
             yield compute
             self.current_task = task
+        task.compute_start_time = self.env.now
         if _AUDIT is not None:
             task._audit_compute_start = self.env.now
 

@@ -56,6 +56,35 @@ case "$JOB" in
       python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$OUT/inputs" --out "$OUT/gate" \
       --parallel 4 --mem 4G --timeout "${TIMEOUT:-5400}" --no-scope | grep -v "^\[skip"
     ;;
+  identity_lock)
+    # amendment 2026-10-09: the lock-wait stamps change no simulated field. Three CD cells re-run from WT against the same
+    # cells from the earlier bisection (bisect/<tag>/gate), which carry the earlier instrumentation only.
+    OUT=${OUT:?FAIL LOUD: set OUT}
+    [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
+    mkdir -p "$OUT/base" "$OUT/new"
+    for spec in m24p7105:9601:g0 m11p6139:9607:g0 m5p9402:9608:g0; do
+      IFS=: read -r tag topo win <<<"$spec"
+      cp "$R/bisect/$tag/gate/cc40s${topo}__${win}${tag}__cd_s0.summary.json" "$OUT/base/"
+      WF1_RUNGS=$tag WF1_TOPOS=$topo WF1_CAL_WINDOWS=$win WF1_CAL_KINDS=cd \
+        python3 scripts_cosim/fresh_topo_burst_v1_gate.py wf1cal --inputs "$R/bisect/$tag" --out "$OUT/new" \
+        --parallel 1 --mem 4G --timeout "${TIMEOUT:-5400}" --no-scope | grep -v "^\[skip" &
+    done
+    wait
+    python3 scripts_cosim/load_recalibration_v1_identity.py "$OUT/base" "$OUT/new"
+    ;;
+  points)
+    # amendment 2026-10-09: CD-only steering evaluations of the given multipliers into a fresh work directory, with the earlier
+    # runs' rung inputs linked (same windows and configs), so the effective queue share exists at every step
+    BW=${BISECT_NEW:-bisect_eff}
+    [[ ! -e "$R/$BW" ]] || { echo "FAIL LOUD: $R/$BW exists"; exit 1; }
+    mkdir -p "$R/$BW"
+    for m in ${LRC_POINTS:?FAIL LOUD: set LRC_POINTS}; do
+      tag=$(python3 -c "print('m' + f'{float(\"$m\"):.4f}'.replace('.', 'p'))")
+      mkdir -p "$R/$BW/$tag"; ln -s "$R/bisect/$tag/wf1_$tag" "$R/$BW/$tag/wf1_$tag"
+    done
+    python3 scripts_cosim/load_recalibration_v1_bisect.py --work "$R/$BW" --grounded-wl "$X1" --cfg-dir "$R/cfg/cfg_w4" \
+      --topologies $CAL_TOPOS --windows g0 g1 --parallel 8 --points $LRC_POINTS --log "$R/${BW}_points.json"
+    ;;
   bisect)
     # LRC_RESUME=1 (amendment 2026-10-09): continue in the existing $R/bisect; built rungs and finished cells are reused
     [[ -n "${LRC_RESUME:-}" || ( ! -e "$R/bisect" && ! -e "$R/bisect_steps.json" ) ]] || { echo "FAIL LOUD: $R/bisect exists"; exit 1; }

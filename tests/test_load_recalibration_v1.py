@@ -33,7 +33,8 @@ def _summary(**kw):
     s = {"num_tasks": 50000, "requestFailures": 0, "queue_share": 0.1, "averageElapsedTime": 5.0, "endTime": 1000.0,
          "averageExecutionTime": 1.0, "latency_percentiles": {"p95": 10.0, "p99": 20.0},
          "arrival_end": {"end_over_last_arrival": 1.01}, "backlog_profile": {"last_over_mid": 1.5, "in_system_ratio": 1.0},
-         "replica_count_series": {"time_mean": 400.0}, "placement_wait": {"mean": 0.5, "p95": 1.0, "max": 3.0}}
+         "replica_count_series": {"time_mean": 400.0}, "placement_wait": {"mean": 0.5, "p95": 1.0, "max": 3.0},
+         "lock_wait": {"mean": 0.0, "p95": 0.0, "max": 0.0, "effective_queue_share": 0.1}}
     s.update(kw)
     return s
 
@@ -113,3 +114,18 @@ def test_choose_final_falls_back_to_highest_passing_step():
     assert out["chosen"]["m"] == 20.0 and out["chosen"]["kind"] == "FALLBACK-HIGHEST-PASSING" and ev.calls == [30.0, 20.0]
     assert choose_final(res, Ev(bad={11.6, 20.0, 30.0}))["chosen"] is None
     assert choose_final({"rung": "light", "answer": None, "steps": []}, Ev(set()))["chosen"] is None
+
+
+def test_lock_wait_profile_counts_the_wait_after_started():
+    from scripts_cosim.fresh_topo_burst_v1_gate import lock_wait_profile
+
+    # two tasks, elapsed 10 s each; queue 1 s each; the second waits 8 s for the compute lock
+    tr = [{"taskId": 0, "dispatchedTime": 0.0, "doneTime": 10.0, "queueTime": 1.0, "ioEndTime": 5.0, "computeStartTime": 5.0},
+          {"taskId": 1, "dispatchedTime": 0.0, "doneTime": 10.0, "queueTime": 1.0, "ioEndTime": 1.0, "computeStartTime": 9.0},
+          {"taskId": -1, "dispatchedTime": 0.0, "doneTime": 99.0, "queueTime": 9.0, "ioEndTime": 0.0, "computeStartTime": 50.0}]
+    lw = lock_wait_profile(tr)
+    assert lw["n"] == 2 and lw["mean"] == 4.0 and lw["max"] == 8.0 and lw["n_unstamped"] == 0
+    assert lw["queue_share_same_tasks"] == 0.1 and lw["effective_queue_share"] == 0.5
+    tr[0]["computeStartTime"] = None  # never served: no lock wait, reported
+    assert lock_wait_profile(tr)["n_unstamped"] == 1
+    assert lock_wait_profile([]) is None

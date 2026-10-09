@@ -223,6 +223,28 @@ def backlog_profile(task_results: Optional[List[dict]]) -> Optional[Dict[str, ob
             else (math.inf if in_system["three_quarter"] > 0 else 1.0)}
 
 
+def lock_wait_profile(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """load_recalibration_v1 (amendment 2026-10-09): the wait for the replica's compute lock, compute_start - io_end per task.
+    `started` is stamped before it, so the platform queue's FIFO backlog on a saturated replica is filed under compute
+    time and queue_share misses it. effective_queue_share = (queue time + lock wait) / elapsed over the same tasks;
+    queue_share is kept alongside. A task without the stamps (never served) counts as no lock wait and is reported in
+    n_unstamped. None when the result has no task results."""
+    if not task_results:
+        return None
+    rows = [r for r in task_results if r.get("taskId") is None or int(r["taskId"]) >= 0]
+    if not rows:
+        return None
+    w = sorted((float(r["computeStartTime"]) - float(r["ioEndTime"]))
+               if r.get("ioEndTime") is not None and r.get("computeStartTime") is not None else 0.0 for r in rows)
+    n = len(w)
+    elapsed = sum(float(r["doneTime"]) - float(r["dispatchedTime"]) for r in rows)
+    queue = sum(float(r["queueTime"]) for r in rows)
+    return {"n": n, "n_unstamped": sum(1 for r in rows if r.get("computeStartTime") is None),
+            "mean": sum(w) / n, "p95": w[min(n - 1, max(0, math.ceil(0.95 * n) - 1))], "max": w[-1],
+            "effective_queue_share": (queue + sum(w)) / elapsed if elapsed > 0 else None,
+            "queue_share_same_tasks": queue / elapsed if elapsed > 0 else None}
+
+
 def arrival_end(workload_path: str, end_time: Optional[float]) -> Optional[Dict[str, object]]:
     """load_recalibration_v1: the run's end time against the last arrival in its workload file."""
     last = max(float(e["timestamp"]) for e in json.load(open(workload_path))["events"])
@@ -760,6 +782,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["latency_percentiles"] = latency_percentiles(st.get("taskResults"))
     out["placement_wait"] = placement_wait(st.get("taskResults"))
     out["backlog_profile"] = backlog_profile(st.get("taskResults"))
+    out["lock_wait"] = lock_wait_profile(st.get("taskResults"))
     out["arrival_end"] = arrival_end(wl, st.get("endTime"))
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
@@ -863,6 +886,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[FAILED {problems}] {name}"
     e, q = float(out["averageElapsedTime"]), float(out["averageQueueTime"])
     out["queue_share"] = q / e if e > 0 else None
+    out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     json.dump(out, open(summary + ".partial", "w"), indent=1)
     os.replace(summary + ".partial", summary)
     os.remove(raw)
