@@ -26,7 +26,9 @@ if TYPE_CHECKING:
 
 from src.placement.model import SystemState
 
+from src.placement.scaleout import shared_autoscaler
 from src.placement.scheduler import Scheduler
+from src.placement.starved_defer import StarvedDeferMixin
 
 
 class RandomScheduler(Scheduler):
@@ -45,7 +47,13 @@ class RandomScheduler(Scheduler):
         return random_couple
 
 
-class RandomNetworkScheduler(Scheduler):
+class RandomNetworkScheduler(StarvedDeferMixin, Scheduler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # kpa_scaleout_v1 A4: under kpa a starved task is deferred (evict, then timed retry) as Knative and the GNN family do
+        self._kpa_defer = shared_autoscaler()
+        self._init_starved_defer()
+
     def scheduler_process(self):
         """Override to filter by network connectivity and request autoscaling when no reachable replicas."""
         logging.info(
@@ -74,6 +82,10 @@ class RandomNetworkScheduler(Scheduler):
                     f"[ {self.env.now} ] Scheduler did not find network-accessible replica for"
                     f" task {task.id} (total replicas: {len(replicas)})"
                 )
+                if self._kpa_defer:
+                    yield from self._defer(task, system_state)
+                    yield self.mutex.put(system_state)
+                    continue
                 task.postponed_count += 1
                 yield self.tasks.put(task)
                 # KnativeNetworkAutoscaler (used with rp_network) supports source_node_name
