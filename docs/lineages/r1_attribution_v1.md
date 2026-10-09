@@ -392,6 +392,12 @@ No line trips.
   - **S4:** gate driver configured for every arm, cell and rung, with a progress-rate watchdog replacing the 3× reruns;
     a dry run (1 topology × 3 rungs); the pre-registered reader exercised on it; and the gate cost.
   - Nothing is read for performance.
+- **Production capture final (S6):** 1,236 sentinels: 1,227 ok, 9 hung (all heavy, 2.2 % against 5 %), 0 failed, 0 cap-hit.
+  The 9 are 9103 g0, 9237 g2, 9277 g2, 9293 g0–g3, 9296 g0 and 9306 g1. The volume target is 6,135 batches. The
+  production root on /share is 46 GB.
+- **Decision:** fixed timeouts plus 3× reruns are replaced, after this build, by one shared progress-rate watchdog for the
+  capture, build and gate. It kills a cell whose projected finish exceeds 1.5× the limit, or that has made no progress
+  for 5 min, calibrated on this capture's progress data. In the session's waits, the 3× reruns succeeded 0 times.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
