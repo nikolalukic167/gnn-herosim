@@ -80,7 +80,7 @@ rm -rf "$ROOT/raw"
 # 3. build: declared slate (K=5) and the wider slate (K=10); same build environment as wf1_corpus_prod_build.sbatch
 export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000 GNN_CAPTURE_DATASET_STATE=0 COSIM_SUPPRESS_SIM_PRINTS=1 HEROSIM_RETAIN_PEER_STATS=1 COSIM_PLACEMENT_TIMEOUT_S=120
 unset GNN_DECODE_MODE GNN_BATCH_BY_PEER_GROUP HEROSIM_GNN_DEVICE LIVE_AUDIT_STRIDE LIVE_AUDIT_MAX_SNAPSHOTS LIVE_AUDIT_MIN_BATCH_SIZE LIVE_AUDIT_MIN_CANDIDATES
-for K in 5 10; do
+for K in ${KS:-5 10}; do
   export DECLARED_SLATE_TOP_K=$K; D="$ROOT/ds_k$K"; mkdir -p "$D" "$ROOT/build_logs"; i=0
   for R in $TAGS; do for W in $WINDOWS; do
     SNAP="$ROOT/snapshots/${CELL}_${R}_${W}.jsonl"; DONE="$ROOT/snapshots/${CELL}_${R}_${W}.done"
