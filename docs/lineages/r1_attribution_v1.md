@@ -600,6 +600,9 @@ No line trips.
   - The dedicated-CPU side study follows.
 - **Learned-arm gate seeds (2026-10-09 22:00, coordinator).** Seeds 1 and 2 are gated, as registered (matching
   CD←random). The third trained seed is staged but not gated.
+- **Selections (validation only; `selection_<arm>.json` in `/share/nikola.lukic/r1a_prod/20261009_190117/`).**
+  - twin_eng (22:01): g5 (w128, lr 2e-3), val regret 0.930 ± 0.010 s. The other configs are 0.937–0.967, so the grid is
+    flat within seed noise.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
