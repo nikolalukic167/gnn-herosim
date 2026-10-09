@@ -77,6 +77,17 @@ def evaluate(job):
     row["extra_arrivals"] = bisect.bisect_right(arr, t + W) - bisect.bisect_right(arr, t)
     return row
 
+def rung_of(cfgp): return cfgp.split("/inputs/")[1].split("/")[0] if "/inputs/" in cfgp else cfgp
+corpus_mix = {}   # rung -> [single-node optima, all] over EVERY complete dataset in the roots (the weights for the reweighted read)
+for r in args.roots.split(","):
+    for d in sorted(Path(r).glob("ds_*")):
+        if not sweep_complete(d): continue
+        try:
+            prov, plans, _ = load(d)
+            best = min(plans, key=lambda x: x[1])[0]
+        except Exception: continue
+        m = corpus_mix.setdefault(rung_of(prov["cell_config"]), [0, 0]); m[1] += 1; m[0] += len({v[0] for v in best.values()}) == 1
+print("corpus single-node share per rung:", {k: "%d/%d" % tuple(v) for k, v in corpus_mix.items()}, flush=True)
 # datasets
 dss = []
 if args.select: dss = [Path(l.strip()) for l in open(args.select) if l.strip()]
@@ -122,7 +133,7 @@ for ds in dss:
     if len(plans) < 2: continue
     chosen, order = pick(plans, args.next, args.random, hash(ds.name) % 1000)
     nodes = lambda pl: len({v[0] for v in pl.values()})
-    meta[str(ds)] = dict(tasks=len(prov["task_ids"]), plans=len(plans), single_node_opt=nodes(plans[order[0]][0]) == 1,
+    meta[str(ds)] = dict(rung=rung_of(prov["cell_config"]), tasks=len(prov["task_ids"]), plans=len(plans), single_node_opt=nodes(plans[order[0]][0]) == 1,
                          open_peers=sum(1 for rows in (fid.get("fidelity") or {}).get("peers", {}).values() for r in rows if r[1] is None) if isinstance(fid.get("fidelity"), dict) else None)
     for pi in chosen: jobs.append((ds, pi, plans[pi][0], plans[pi][1], prov, 0, fid))
     if args.max and len(meta) >= args.max: break
@@ -164,7 +175,7 @@ for ds, rs in by.items():
     if len(ok) < 2: continue
     a = min(ok, key=lambda r: r["iso"]); b = min(ok, key=lambda r: r["adm"])
     res.append(dict(ds=ds, n=len(ok), agree=a["adm"] <= b["adm"] * (1 + 1e-9), regret=(a["adm"] - b["adm"]) / b["adm"],
-                    rho=spear([r["iso"] for r in ok], [r["adm"] for r in ok]), single=meta[ds]["single_node_opt"], open_peers=meta[ds]["open_peers"]))
+                    rho=spear([r["iso"] for r in ok], [r["adm"] for r in ok]), single=meta[ds]["single_node_opt"], rung=meta[ds]["rung"], open_peers=meta[ds]["open_peers"]))
 json.dump(res, open(OUT / "ranking_result.json", "w"))
 def report(name, rr):
     if not rr: print(name, "n=0"); return
@@ -173,3 +184,22 @@ def report(name, rr):
         name, len(rr), 100 * sum(x["agree"] for x in rr) / len(rr), 100 * q(reg, .5), 100 * q(reg, .9), 100 * max(reg), q(rho, .5), sum(rho) / len(rho) if rho else float("nan"),
         sum(1 for x in rr if x["open_peers"])))
 report("ALL", res); report("single-node optimum", [x for x in res if x["single"]]); report("multi-node optimum", [x for x in res if not x["single"]])
+
+def wq(vals, ws, p):
+    pr = sorted(zip(vals, ws)); tot = sum(ws); acc = 0
+    for v, w in pr:
+        acc += w
+        if acc >= p * tot - 1e-12: return v
+    return pr[-1][0]
+print("REWEIGHTED to the corpus single/multi mix (the signed read; strata above are unweighted):")
+for rung in sorted({x["rung"] for x in res}):
+    rr = [x for x in res if x["rung"] == rung]; mix = corpus_mix.get(rung)
+    sg = [x for x in rr if x["single"]]; mu = [x for x in rr if not x["single"]]
+    if not mix or not sg or not mu:
+        print("  %s: cannot reweight (single %d, multi %d, corpus mix %s)" % (rung, len(sg), len(mu), mix)); continue
+    w_s = mix[0] / mix[1]; w_m = 1 - w_s
+    ws = [w_s / len(sg)] * len(sg) + [w_m / len(mu)] * len(mu); xs = sg + mu
+    ag = w_s * sum(x["agree"] for x in sg) / len(sg) + w_m * sum(x["agree"] for x in mu) / len(mu)
+    reg = [x["regret"] for x in xs]
+    print("  %s: weights single %.2f multi %.2f  agreement %.1f%%  regret median %.3f%% p90 %.3f%% (weighted)  [datasets %d single / %d multi]" % (
+        rung, w_s, w_m, 100 * ag, 100 * wq(reg, ws, .5), 100 * wq(reg, ws, .9), len(sg), len(mu)))
