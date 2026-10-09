@@ -603,6 +603,16 @@ No line trips.
 - **Selections (validation only; `selection_<arm>.json` in `/share/nikola.lukic/r1a_prod/20261009_190117/`).**
   - twin_eng (22:01): g5 (w128, lr 2e-3), val regret 0.930 ± 0.010 s. The other configs are 0.937–0.967, so the grid is
     flat within seed noise.
+- **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
+  - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
+    - ps_exchange_push: +4.1 / +4.3 / +4.6
+    - edge_attr: +2.3 / +2.1 / +2.9
+    - platform_other: +1.1 / +1.2 / +1.4
+    - ps_exchange_pull: +0.9 / +0.9 / +0.5
+    - ps_load: +0.2 / +0.2 / +0.1
+  - Shuffling everything gives about 12.5 s, the random level.
+  - platform_queue, temporal, usage and ps_capacity score exactly 0.00 in all three. Whether they are dead columns or by
+    design is being checked.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
