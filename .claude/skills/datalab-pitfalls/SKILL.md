@@ -238,3 +238,13 @@ A list-valued variable passed that way becomes `VAR=a` plus variables named `b` 
 Export the variable in the submitting shell (`VAR=a,b,c sbatch --export=ALL,... script`) or use a non-comma separator.
 
 Cost: job 853934 (r1_attribution_v1 classical gate, 2026-10-10) ran CD alone — 228 of 1,368 cells — and the other five arms needed a second array.
+
+## 14. `git status` on a freshly created worktree can wedge for hours on Ceph
+
+The job sits at 0 % CPU with no output and never reaches its first real step. Wrap any worktree check in a timeout
+(`timeout 300 git diff --quiet || echo "WARN: worktree check timed out"`) and make it warn rather than block.
+
+**Check after submitting:** within minutes, confirm the job's first artifact (trace dir, timestamped log line) exists.
+A RUNNING state is not progress.
+
+Cost: jobs 849747 and 853598 (r1_attribution_v1 I11 variant pool, 2026-10-09), ~2 h lost.
