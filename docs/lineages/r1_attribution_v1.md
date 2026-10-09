@@ -295,6 +295,12 @@ No line trips.
   - Identity, job 853416: 6 cells identical on every simulated field.
   - Servesmoke, job 853417: passes.
   - Suite: 1,802 pass, the same 26 pre-existing failures.
+- **Ranking rerun, gate 3 FAILS on max (S5, job 853413, mapping fix `c76edaee`).**
+  - 188 of 223 evaluations ran, from 34 of 40 datasets.
+  - Median 0.000 %, p95 0.073 % (passes 1 %), max 12.0 % (fails 5 %).
+  - Only ds_03200's tied argmin group (4 plans, 0.0457 s) exceeds 1 %; ds_10400 shows 0.55 %.
+  - Not run: 30 sub-batch datasets and 5 timing mismatches.
+  - **The ranking stays unread**, per the signed rule, until the rerun after the `rp/fidelity-net` fix.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
