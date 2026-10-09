@@ -188,6 +188,19 @@ arrivals after the snapshot, exactly.
 - **Extended B2** is ready: 12 topologies × 3 rungs, PER_CELL=4, target 576. It waits for S5's I11 spot check at
   `d28d1bb0`.
 
+**Arms built (2026-10-09; S7, `rp/r1a-arms` `b454377f`, smoke job 850090).**
+- **New arms:** MLP-same (flat per-edge vector, no graph) and Set-transformer (SAB over tasks, ISAB over candidates,
+  mean attention). Both read edge columns through the shared `gather_scorable_edges`, whose refactor is bit-identical on 4
+  configs.
+- **Configs:** 7 arms × a 6-point grid (lr {5e-4, 1e-3, 2e-3} × width {64, 128}) plus smoke variants.
+- **Sidecar:** carries `arm_kind`, and serving refuses mismatches.
+- **Determinism:** smoke-trained twice per arm, bit-identical for all 7. 27 new tests pass.
+- **Parameter counts differ** by arm design (8k–249k at width 64). Disclose with the read.
+- **Open:**
+  - merge the R1.1-T fix;
+  - set `HEROSIM_INFLIGHT_CAPTURE` for the `ra_*` kinds from cache/serve feature parity, not by guess;
+  - one servesmoke per arm.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
