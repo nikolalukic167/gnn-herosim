@@ -450,6 +450,16 @@ No line trips.
   - F must pass its unit gates and enter the same pool comparison without extending the verdict past 853598. If it
     can't, it is dropped and the tie-order gap is recorded as a known label limitation.
   - Label use is decided by the ranking test (854202 on E; rerun at the winner), not by per-plan timing alone.
+- **Ranking test at E: PASS (S5, job 854202, script `4bb1d5d5`, `corpus_b2_ext_fix2/*_E8894a08`).**
+  - Gate 3 (forced isolated live vs the E labels), 188 plans in 34 datasets: median 0.0000 %, p95 0.0269 %, max 0.0489 %.
+  - Ranking: argmin agreement 100 % and regret 0.000 % (median, p90 and max), in every stratum and at every rung
+    reweighted to its single/multi mix. Thresholds signed: agreement ≥ 80 %, median regret ≤ 1 %.
+  - On this evidence, the label horizon does not change the argmin.
+  - Limits:
+    - 6 of 40 sampled datasets gave no plan (sub-batch or wrong-instant), so sub-batched datasets are unobserved.
+    - Agreement is measured within at most 6 evaluated plans per dataset, not the full sweep.
+    - The sample has no open-partner states.
+    - The sample contains none of the replay-miss datasets (ds_10000, ds_16401, ds_00800, ds_06401).
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
