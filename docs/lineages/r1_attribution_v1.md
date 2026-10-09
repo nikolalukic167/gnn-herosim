@@ -460,6 +460,15 @@ No line trips.
     - Agreement is measured within at most 6 evaluated plans per dataset, not the full sweep.
     - The sample has no open-partner states.
     - The sample contains none of the replay-miss datasets (ds_10000, ds_16401, ds_00800, ds_06401).
+- **Pool job 853598 never ran (S5).**
+  - It sat for 1h56 at 0 % CPU on `git status` in a fresh worktree on Ceph (the same wedge as 849747), and no trace
+    directory was ever created. It was cancelled. An earlier status said it was "capturing and replaying"; that was
+    wrong.
+  - Fix: the worktree check is now `timeout 300 git diff --quiet` and warns instead of waiting.
+  - Resubmitted as **854263** with six variants A–F (F = `58364ab0`, the mechanism variant per the 20:45 amendment).
+    The verdict is now 6–10 h from 20:55.
+  - F's gates: live no-op 3/3 identical (854262). The 86-dataset relabel (854260) and heavy 9601 (854261) are
+    running. The probes with platform-state logging are 854264–854266.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
