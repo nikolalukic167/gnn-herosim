@@ -2079,6 +2079,9 @@ def generate_brute_force_placement_combinations(
     task_id = 0
     # Determinism: count how many tasks the workload requires
     expected_task_count = 0
+    declared_task_candidates = (
+        ((infrastructure_config.get('live_snapshot_seed') or {}).get(fidelity_replay.SPEC_KEY) or {}).get('task_candidates')
+    )
     
     for event in workload_events:
         application = event['application']
@@ -2138,6 +2141,12 @@ def generate_brute_force_placement_combinations(
                     # Server node without network connectivity - reject it
                     logger.debug(f"  Rejecting platform on {node_name} - no network connectivity from {source_node_name}")
             
+            if declared_task_candidates is not None:
+                # r1_attribution_v1: the declared pruning keeps each task's own top-5 (src/placement/declared_slate.py)
+                if task_id >= len(declared_task_candidates):
+                    raise RuntimeError(f"declared slate lists {len(declared_task_candidates)} tasks, the workload has more")
+                allowed_ids = {(int(n), int(p)) for n, p in declared_task_candidates[task_id]}
+                feasible_platforms = [p for p in feasible_platforms if (p['node_id'], p['platform_id']) in allowed_ids]
             if feasible_platforms:
                 tasks.append({
                     'task_id': task_id,

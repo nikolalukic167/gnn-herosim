@@ -98,27 +98,8 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
                          "dispatched": [getattr(t, "dispatched_time", None) for t in batch_tasks]})
         return orig(self, batch_tasks, system_state, queue_snapshot, temporal_state)
 
-    offered = {t: {f"{sp['node_name']}:{sp['platform_id']}" for sp in specs if sp.get("candidate", True)}
-               for t, specs in infra_ds["live_snapshot_seed"]["replicas_by_type"].items()}
-    batch_types = set(types)
-    orig_slate = GNNScheduler._corpus_slate_view
-
-    def slate_view(self, tasks, system_state):
-        """GNN_SERVE_CORPUS_SLATE=1 limits the batch's types to the corpus slate; here the slate is the dataset's own."""
-        import copy
-
-        if not tasks or int(tasks[0].id) in forced:
-            return system_state
-        view = copy.copy(system_state)
-        view.replicas = dict(system_state.replicas)
-        for t in batch_types:
-            view.replicas[t] = {(n, p) for n, p in system_state.replicas.get(t, set())
-                                if f"{n.node_name}:{p.id}" in offered.get(t, set())}
-        return view
-
     GNNScheduler._prefix_inference = patched
-    GNNScheduler._corpus_slate_view = slate_view
-    os.environ["GNN_SERVE_CORPUS_SLATE"] = "1"
+    os.environ["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"  # the serving mode under test: the real scheduler code prunes
     trace = tempfile.NamedTemporaryFile(prefix="fid_trace_", suffix=".pkl", delete=False)
     trace.close()
     os.environ["GNN_PREFIX_TRACE_PATH"] = trace.name
@@ -143,7 +124,6 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     finally:
         os.unlink(trace.name)
         GNNScheduler._prefix_inference = orig
-        GNNScheduler._corpus_slate_view = orig_slate
 
     out["scheduler_batches"] = [r["task_ids"] for r in records]
     out["decisions"] = decision

@@ -61,7 +61,7 @@ from scripts_cosim.generate_gnn_datasets_fast import (  # noqa: E402
     generate_single_dataset,
     json_dumps_pretty,
 )
-from src.placement import fidelity_replay  # noqa: E402
+from src.placement import declared_slate, fidelity_replay  # noqa: E402
 from src.placement.live_snapshot_seed import build_live_snapshot_seed, inject_synthetic_backlog  # noqa: E402
 
 REQUIRED_ENV = {"HEROSIM_PEER_EXCHANGE": "1"}
@@ -108,7 +108,8 @@ def check_consecutive_batch(snapshot: Dict[str, Any], min_size: int) -> List[int
 
 
 def build_batch_workload(
-    snapshot: Dict[str, Any], trace: Dict[str, Any], ids: Sequence[int], app_order: Sequence[str]
+    snapshot: Dict[str, Any], trace: Dict[str, Any], ids: Sequence[int], app_order: Sequence[str],
+    batch_ids: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """The snapshot's peer group as a co-sim workload: the trace's own events for those
     ids (type, source, qos, demand_scale) at t = 0 like every generated corpus, and the
@@ -162,12 +163,14 @@ def build_batch_workload(
         )
     pairs: List[List[Any]] = []
     id_set = set(ids)
+    # a sub-batch (declared pruning) is part of a larger batch: pairs to its siblings are invisible, not a rejection
+    whole = set(batch_ids) if batch_ids is not None else id_set
     outside = 0
     for i, j, payload in trace.get("peer_exchange") or []:
         i, j = int(i), int(j)
         if i in id_set and j in id_set:
             pairs.append([local[i], local[j], float(payload)])
-        elif i in id_set or j in id_set:
+        elif (i in id_set or j in id_set) and not (i in whole and j in whole):
             outside += 1
     if outside:
         raise SnapshotRejected(f"{outside} peer pair(s) reach outside the batch")
@@ -410,6 +413,22 @@ def candidate_nodes(snapshot: Dict[str, Any], subset: Dict[str, Set[str]]) -> Se
     return nodes
 
 
+def flag_candidates_per_task(snapshot: Dict[str, Any], kept: Dict[int, Set[str]]) -> Dict[str, Any]:
+    """Declared pruning: every task keeps its own candidate set (`kept`: task id -> queue keys); a replica is a candidate when some
+    task of its type keeps it."""
+    out = deepcopy(snapshot)
+    by_type: Dict[str, Set[str]] = {}
+    for task in out["tasks"]:
+        by_type.setdefault(str(task["task_type"]), set()).update(kept[int(task["task_id"])])
+    for ttype, specs in out.get("replicas_by_type", {}).items():
+        for spec in specs:
+            spec["candidate"] = _qkey(spec) in by_type.get(ttype, set())
+    for task in out["tasks"]:
+        task["candidates"] = [c for c in task.get("candidates", []) if c["queue_key"] in kept[int(task["task_id"])]]
+        task["candidate_count"] = len(task["candidates"])
+    return out
+
+
 def flag_candidates(snapshot: Dict[str, Any], subset: Dict[str, Set[str]]) -> Dict[str, Any]:
     """A copy of the snapshot whose replicas_by_type specs carry `candidate`, and whose
     task candidate lists are restricted to the chosen subset (so build_live_snapshot_seed
@@ -619,7 +638,66 @@ def main() -> int:
     made = 0
     idx = args.start_index
     t0 = time.time()
-    for snap in snapshots:
+    def work():
+        """(snapshot, batch ids, view) per dataset to make. Without --fidelity: one per snapshot. With it: the batch's declared
+        pruning (src/placement/declared_slate.py) decides whether the batch is one dataset or several sub-batches."""
+        for snap0 in snapshots:
+            if args.limit is not None and made >= args.limit:
+                return
+            sid0 = int(snap0.get("snapshot_id", -1))
+            entry0: Dict[str, Any] = {
+                "snapshot_id": sid0, "source_file": snap0.get("_source_file"), "source_tag": args.source_tag,
+                "time": float(snap0.get("time", 0.0)), "policy": snap0.get("policy"),
+            }
+            try:
+                if float(snap0.get("time", 0.0)) < args.min_time:
+                    raise SnapshotRejected(f"time {snap0.get('time')} < --min-time {args.min_time}")
+                ids0 = (check_consecutive_batch(snap0, args.variable_group_min) if args.variable_group_min is not None
+                        else check_aligned_peer_group(snap0, args.group_size))
+                if not args.fidelity:
+                    if args.require_connected_batch:
+                        comps = batch_peer_components(build_batch_workload(snap0, trace, ids0, list(cell["wsc"].keys())))
+                        if comps != 1:
+                            raise SnapshotRejected(f"{DISCONNECTED_REASON}: the batch's peer table has {comps} components")
+                    yield snap0, ids0, None
+                    continue
+                if snap0.get("fidelity") is None:
+                    raise SnapshotRejected("--fidelity but the snapshot carries no fidelity block")
+                whole = build_batch_workload(snap0, trace, ids0, list(cell["wsc"].keys()))
+                if args.require_connected_batch:
+                    comps = batch_peer_components(whole)
+                    if comps != 1:
+                        # a batch the capture policy formed from several peer groups is never one scheduler batch under
+                        # peer-group batching (the serving seat); its label is a sum of independent group labels
+                        raise SnapshotRejected(f"{DISCONNECTED_REASON}: the batch's peer table has {comps} components")
+                pairs0 = [(int(i), int(j)) for i, j, _ in trace.get("peer_exchange") or [] if int(i) in set(ids0) and int(j) in set(ids0)]
+                sl = declared_slate.slate(snap0["tasks"], pairs0)
+                gid_of = [int(t["task_id"]) for t in snap0["tasks"]]
+                views = []
+                for g_i, group in enumerate(sl.groups):
+                    gids = [gid_of[p] for p in group]
+                    sub = len(sl.groups) > 1
+                    views.append((
+                        fidelity_replay.restrict_to_gids(snap0, gids) if sub else snap0, gids,
+                        {"kept": {gid_of[p]: {str(c["queue_key"]) for c in sl.kept[p]} for p in group},
+                         "batch_ids": ids0 if sub else None, "sub_batch": g_i if sub else None, "of": len(sl.groups),
+                         "plans": declared_slate.plan_space(len(sl.kept[p]) for p in group),
+                         "full_plans": declared_slate.plan_space(sl.full_sizes[p] for p in group),
+                         "pruned": any(sl.full_sizes[p] > declared_slate.TOP_K for p in group),
+                         "snapshot_pruned": sl.pruned, "snapshot_sub_batched": sl.sub_batched,
+                         "snapshot_plans": sl.plans}))
+            except SnapshotRejected as exc:
+                entry0["status"] = "rejected"
+                entry0["reason"] = str(exc)
+                with open(manifest_path, "a") as fh:
+                    fh.write(json.dumps(entry0) + "\n")
+                if not args.quiet:
+                    print(f"[warm] snapshot {sid0}: rejected -- {exc}", flush=True)
+                continue
+            for v_snap, v_ids, v_info in views:
+                yield v_snap, v_ids, v_info
+
+    for snap, ids, view in work():
         if args.limit is not None and made >= args.limit:
             break
         sid = int(snap.get("snapshot_id", -1))
@@ -627,32 +705,34 @@ def main() -> int:
             "snapshot_id": sid, "source_file": snap.get("_source_file"), "source_tag": args.source_tag,
             "time": float(snap.get("time", 0.0)), "policy": snap.get("policy"),
         }
+        if view is not None:
+            entry["slate"] = {k: v for k, v in view.items() if k != "kept"}
         try:
-            if float(snap.get("time", 0.0)) < args.min_time:
-                raise SnapshotRejected(f"time {snap.get('time')} < --min-time {args.min_time}")
-            ids = (check_consecutive_batch(snap, args.variable_group_min) if args.variable_group_min is not None
-                   else check_aligned_peer_group(snap, args.group_size))
-            workload = build_batch_workload(snap, trace, ids, list(cell["wsc"].keys()))
-            rng = random.Random(args.seed * 1_000_003 + sid)
-            demands = batch_demands(snap, ids, trace, task_types_db)
-            force_keys = reactive_plan_keys(snap) if args.force_candidates_from_plans else None
-            subset, record = choose_candidates(
-                snap, rng, args.target_combos, args.max_combos,
-                demands=None if args.no_cap_filter else demands,
-                force_keys=force_keys, min_choice_fraction=args.min_choice_fraction,
-            )
-            if args.require_connected_batch:
-                comps = batch_peer_components(workload)
-                if comps != 1:
-                    # a batch the capture policy formed from several peer groups is never one scheduler batch under
-                    # peer-group batching (the serving seat); its label is a sum of independent group labels
-                    raise SnapshotRejected(f"{DISCONNECTED_REASON}: the batch's peer table has {comps} components")
+            workload = build_batch_workload(snap, trace, ids, list(cell["wsc"].keys()), batch_ids=view["batch_ids"] if view else None)
+            if view is not None:
+                kept = view["kept"]
+                subset = {}
+                for t in snap["tasks"]:
+                    subset.setdefault(str(t["task_type"]), set()).update(kept[int(t["task_id"])])
+                record = {"rule": declared_slate.RULE, "plans": view["plans"], "num_combos": view["plans"],
+                          "full_plans": view["full_plans"], "pruned": view["pruned"], "sub_batch": view["sub_batch"],
+                          "of": view["of"], "per_task_candidates": [len(kept[int(t["task_id"])]) for t in snap["tasks"]],
+                          "task_ids": [int(t["task_id"]) for t in snap["tasks"]]}
+            else:
+                rng = random.Random(args.seed * 1_000_003 + sid)
+                demands = batch_demands(snap, ids, trace, task_types_db)
+                force_keys = reactive_plan_keys(snap) if args.force_candidates_from_plans else None
+                subset, record = choose_candidates(
+                    snap, rng, args.target_combos, args.max_combos,
+                    demands=None if args.no_cap_filter else demands,
+                    force_keys=force_keys, min_choice_fraction=args.min_choice_fraction,
+                )
             nodes = candidate_nodes(snap, subset)
             if len(nodes) < 2:
                 # every offered candidate sits on ONE node: no peer transfer can differ between plans, the cache's
                 # peer_norm is 0 and every peer-block contract refuses the dataset (r1_attribution_v1 B2 dry run)
                 raise SnapshotRejected(f"{SINGLE_NODE_REASON}: all offered candidates are on {sorted(nodes)}")
-            flagged = flag_candidates(snap, subset)
+            flagged = (flag_candidates_per_task(snap, view["kept"]) if view is not None else flag_candidates(snap, subset))
             provenance = {
                 "source_tag": args.source_tag, "snapshot_id": sid, "snapshot_time": float(snap.get("time", 0.0)),
                 "policy": snap.get("policy"), "trigger_task_id": snap.get("trigger_task_id"),
@@ -669,16 +749,21 @@ def main() -> int:
                 })
                 provenance["synthetic_backlog_seed"] = args.synthetic_backlog_seed
             if args.fidelity:
-                if snap.get("fidelity") is None:
-                    raise SnapshotRejected("--fidelity but the snapshot carries no fidelity block")
                 if synthetic is not None:
                     raise SystemExit("FAIL LOUD: --fidelity replays the real queue; drop --synthetic-backlog-*")
                 # the standard seed (flagged candidates, backlog fields intact) serves the sweep's enumeration and the
                 # cache's features; the replay runs from the raw snapshot carried beside it
                 infra = build_infrastructure(base_infra, {k: v for k, v in flagged.items() if k != "fidelity"},
                                              provenance, synthetic)
-                infra["live_snapshot_seed"][fidelity_replay.SPEC_KEY] = fidelity_replay.build_spec(
+                spec = fidelity_replay.build_spec(
                     {k: v for k, v in snap.items() if not k.startswith("_")}, args.cell_config, args.sim_input)
+                # per DATASET task (events are grouped by application): the candidates the declared pruning kept for it
+                by_gid = {int(t["task_id"]): t for t in flagged["tasks"]}
+                spec["candidate_slate"] = declared_slate.RULE
+                spec["task_candidates"] = [[[int(c["node_id"]), int(c["platform_id"])] for c in by_gid[int(g)]["candidates"]]
+                                           for g in workload["trace_task_ids"]]
+                spec["slate"] = {k: v for k, v in record.items() if k != "task_ids"}
+                infra["live_snapshot_seed"][fidelity_replay.SPEC_KEY] = spec
                 provenance["fidelity_replay"] = {k: v for k, v in infra["live_snapshot_seed"][fidelity_replay.SPEC_KEY].items()
                                                  if k != "snapshot"}
             else:
@@ -766,6 +851,18 @@ def main() -> int:
                "rejected": sum(reasons.values()), "rejected_by_reason": reasons,
                "single_candidate_node": reasons.get(SINGLE_NODE_REASON, 0),
                "disconnected_batch": reasons.get(DISCONNECTED_REASON, 0)}
+    made_entries = [e for e in mine if e.get("status") != "rejected"]
+    slated = [e["slate"] for e in made_entries if e.get("slate")]
+    if slated:
+        snaps_made = {e["snapshot_id"] for e in made_entries}
+        by_snap = {e["snapshot_id"]: e["slate"] for e in made_entries if e.get("slate")}
+        summary["declared_pruning"] = {
+            "rule": declared_slate.RULE, "datasets": len(slated), "snapshots": len(snaps_made),
+            "pruned_snapshots": sum(1 for v in by_snap.values() if v["snapshot_pruned"]),
+            "sub_batched_snapshots": sum(1 for v in by_snap.values() if v["snapshot_sub_batched"]),
+            "pruned_datasets": sum(1 for v in slated if v["pruned"]),
+            "datasets_from_sub_batches": sum(1 for v in slated if v["sub_batch"] is not None),
+        }
     (args.output_dir / f"warm_summary_{args.source_tag}.json").write_text(json.dumps(summary, indent=1))
     print(f"[warm] {summary}", flush=True)
     return 0

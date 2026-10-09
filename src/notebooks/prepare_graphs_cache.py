@@ -691,6 +691,24 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
     }
 
 
+def _single_candidate_slate(all_datasets: Mapping[str, Mapping[str, Any]]) -> Optional[str]:
+    rules = {d.get('candidate_slate') for d in all_datasets.values()}
+    if len(rules) > 1:
+        raise RuntimeError(f"datasets were built under different candidate slates {sorted(map(str, rules))}; a cache has one")
+    return next(iter(rules)) if rules else None
+
+
+def _declared_slate_of(dataset_dir: Path) -> Dict[str, Any]:
+    """`task_candidates` (per dataset task, [[node_id, platform_id], ...]) and the `candidate_slate` rule of a fidelity-mode
+    dataset (make_warm_corpus --fidelity); None on every earlier corpus."""
+    infra_path = Path(dataset_dir) / "infrastructure.json"
+    if not infra_path.exists():
+        return {"task_candidates": None, "candidate_slate": None}
+    with open(infra_path) as fh:
+        spec = ((json.load(fh).get("live_snapshot_seed") or {}).get("fidelity_replay")) or {}
+    return {"task_candidates": spec.get("task_candidates"), "candidate_slate": spec.get("candidate_slate")}
+
+
 def load_all_datasets(
     base_dirs: List[Path], require_queue_data: bool = True
 ) -> Dict[str, Dict[str, Any]]:
@@ -757,6 +775,8 @@ def load_all_datasets(
                     'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
                     'replicas': extended_state.get('replicas', {}),
                     'sweep_opt_rtt': float(sweep_rtt),
+                    # r1_attribution_v1 declared pruning: each task's own candidate set, None on every earlier corpus
+                    **_declared_slate_of(dataset_dir),
                 }
             except Exception as e:
                 tqdm.write(f"  Error loading {dataset_dir.name}: {e}")
@@ -1029,6 +1049,7 @@ def build_graph(
     queue_feature_contract: str = DEFAULT_QUEUE_FEATURE_CONTRACT,
     link_topology: Optional[Mapping[str, Any]] = None,
     network_graph_contract: Optional[str] = None,
+    task_candidates: Optional[Sequence[Sequence[Sequence[int]]]] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -1394,6 +1415,13 @@ def build_graph(
                     )
                 ]
         
+        if compat_plats.size and task_candidates is not None:
+            # declared pruning (src/placement/declared_slate.py): this task keeps only its own top candidates
+            allowed = {(int(n), int(p)) for n, p in task_candidates[t_pos]}
+            compat_plats = compat_plats[np.fromiter(
+                ((node_name_to_id.get(str(plat_node_by_pos[p]), -1), int(plat_ids_arr[p])) in allowed for p in compat_plats),
+                dtype=bool, count=compat_plats.size)]
+
         if compat_plats.size:
             # Sort compatible platforms so their order matches the per-task
             # edge ordering produced by to_undirected (lexicographic by column).
@@ -2079,6 +2107,7 @@ def main():
                         initialized_snapshot=dataset_dict.get('initialized_snapshot', {}),
                         queue_feature_contract=config.queue_feature_contract,
                         link_topology=dataset_dict.get('link_topology'),
+                        task_candidates=dataset_dict.get('task_candidates'),
                     )
                     if config.platform_feature_dim != 16:
                         graph.platform_features = graph.platform_features[
@@ -2194,6 +2223,8 @@ def main():
         'topology_feature_contract': resolve_topology_feature_contract(),
         # the transfer model / replica release / scale-out the exchange seconds and candidate sets were built under
         'physics_env': current_physics_env(),
+        # the candidate-slate rule every dataset was built under (None: the sweep's own slate); serving must run the same one
+        'candidate_slate': _single_candidate_slate(all_datasets),
         # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk
         # trainer refuses a cache without partial_state_contract, so a legacy cache
         # can never silently serve a stage-2 arm.

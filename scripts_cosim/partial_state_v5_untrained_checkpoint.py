@@ -34,6 +34,7 @@ def main() -> int:
     a = ap.parse_args()
     side = json.loads(a.template.read_text())
     g = pickle.load(open(a.cache_dir / "graphs.pkl", "rb"))[0]
+    meta = json.loads((a.cache_dir / "metadata.json").read_text())
     torch.manual_seed(a.seed)
     onehot = int(side["task_type_onehot_dim"])
     model = TaskPlacementGNN(
@@ -53,6 +54,7 @@ def main() -> int:
         partial_state_feature_dim=partial_state_feature_dim(PARTIAL_STATE_CONTRACT_V5),
         cache_dir=str(a.cache_dir), train_seed=a.seed, label_objective="rtt", split_artifact=None,
         untrained_for_parity_only=True,
+        physics_env=meta.get("physics_env"), candidate_slate=meta.get("candidate_slate"),
     )
     a.out.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), a.out)

@@ -815,6 +815,46 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         queue_snapshot: Dict[str, int],
         temporal_state: Optional[Dict[str, Dict[str, float]]],
     ) -> Dict[int, Tuple[int, int]]:
+        """Decode a batch. Under GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1 every task is offered only its top-5 candidates by
+        standalone cost and a batch whose pruned plan space exceeds 100,000 is decoded in sub-batches of at most 4 tasks, exactly as
+        the corpus was built (src/placement/declared_slate.py); otherwise the whole batch over every reachable replica."""
+        from src.placement import declared_slate
+
+        if declared_slate.serving_slate() is None:
+            return self._prefix_inference_core(batch_tasks, system_state, queue_snapshot, temporal_state)
+        if _corpus_slate_on():
+            raise RuntimeError(f"FAIL LOUD: {declared_slate.ENV} and GNN_SERVE_CORPUS_SLATE=1 are two different slates; pick one")
+        from src.placement.live_audit import _candidate_payload
+
+        payloads = []
+        for task in batch_tasks:
+            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+            payloads.append({"task_id": int(task.id),
+                             "candidates": [_candidate_payload(self, task, n, p) for n, p in valid]})
+        ids = {int(t.id) for t in batch_tasks}
+        peers = getattr(self._orchestrator(), "peer_exchange", None) or {}
+        pairs = [(int(t.id), int(j)) for t in batch_tasks for j in (peers.get(int(t.id)) or {}) if int(j) in ids]
+        sl = declared_slate.slate(payloads, pairs)
+        self.slate_declared_batches = getattr(self, "slate_declared_batches", 0) + 1
+        self.slate_declared_pruned = getattr(self, "slate_declared_pruned", 0) + int(sl.pruned)
+        self.slate_declared_sub_batched = getattr(self, "slate_declared_sub_batched", 0) + int(sl.sub_batched)
+        placements: Dict[int, Tuple[int, int]] = {}
+        for group in sl.groups:
+            sub_tasks = [batch_tasks[i] for i in group]
+            allowed = {k: {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for k, i in enumerate(group)}
+            sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
+            for k, i in enumerate(group):
+                placements[i] = sub[k]
+        return placements
+
+    def _prefix_inference_core(
+        self,
+        batch_tasks: List[Task],
+        system_state: SystemState,
+        queue_snapshot: Dict[str, int],
+        temporal_state: Optional[Dict[str, Dict[str, float]]],
+        task_candidate_filter: Optional[Dict[int, Any]] = None,
+    ) -> Dict[int, Tuple[int, int]]:
         """Build the live graph, attach the prefix block, run the registered decoder.
 
         Strict by construction: every exception propagates. A prefix-conditioned gate
@@ -829,7 +869,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if self.gnn_model is None or self._prefix_options is None:
             raise RuntimeError("masked_topo: model / prefix options not set (set_models)")
         graph, task_logit_to_placement = self._build_inference_graph(
-            batch_tasks, system_state, queue_snapshot, temporal_state
+            batch_tasks, system_state, queue_snapshot, temporal_state, task_candidate_filter
         )
         if graph is None:
             raise RuntimeError("masked_topo: the live graph builder returned no feasible edges")
@@ -1401,6 +1441,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         system_state: SystemState,
         queue_snapshot: Dict[str, int],
         temporal_state: Optional[Dict[str, Dict[str, float]]] = None,
+        task_candidate_filter: Optional[Dict[int, Any]] = None,
     ) -> Tuple[Optional[Data], Optional[Dict[int, List[Tuple[int, int]]]]]:
         """
         Build a PyG graph from current system state for GNN inference.
@@ -1416,6 +1457,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             task_types_data=self.task_types_data,
             queue_norm_mode=norm_mode,
             temporal_state=temporal_state,
+            task_candidate_filter=task_candidate_filter,
         )
         self._record_queue_range(graph)
         return graph, mapping
