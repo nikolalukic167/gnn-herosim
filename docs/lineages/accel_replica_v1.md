@@ -24,9 +24,10 @@ node's list order (`src/generate_infrastructure.py:745–765`).
 
 ## Worth-it screen (all must pass before any corpus build)
 
-- **W1, the change takes effect.** Under CD at the calibrated heavy rung, at least 20 % of tasks execute on an
-  accelerator (xavierGpu, xavierDla or pynqFpga), and xavierGpu hosts at least one type. Amended 2026-10-10 before any
-  data: the original also required xavierDla, which the rule cannot satisfy.
+- **W1, the change takes effect.** With CD at the calibrated heavy rung, the accelerator share under
+  `fastest_compatible` is at least the share under `first_compatible` + 15 points, and xavierGpu hosts at least one
+  type. Amended twice on 2026-10-10 (see the Record): the DLA clause was dropped, and the bar was tightened from an
+  absolute 20 %.
 - **W2, headroom.** S5's probe (`scale_probe`) on 4 fresh seeds (9909–9912), at the calibrated rungs: at least 3 of 4
   seeds have more than 50 % of batches above 1 % joint (non-pointwise) regret. The pooled share is also reported against
   `scale_160_v1`'s 69 %. This is descriptive and does not gate.
@@ -49,6 +50,33 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Step 1 done; coordinator's preinit claim RETRACTED** (S7, `rp/accel-replica` 00a08d1a; 16 tests pass).
+  - **Correction, measured:** live runs do **not** preinit at t = 0. A 4,000-event CD run on 9903 creates no initial
+    replicas, and its first scale events are reachability 'up' events at t = 0.158 s.
+    - `simulation.py:395–418` is the fallback branch of `precreate_replicas`, which needs
+      `preinitialize_platforms` and a `replica_plan`. `executesimulation.py:200` builds neither.
+    - Live replicas are created on demand. Under R1 (kpa) every arm uses `src/policy/gnn/autoscaler.py`
+      (`create_first_replica`, `create_replica`).
+    - My 2026-10-10 amendment read the code path without running it.
+  - **Code:** one helper, `src/placement/replica_rule.py`, at the generator and precreate fallback, in
+    `gnn/autoscaler.py`, and in `knative_network/autoscaler.py`. A non-default rule refuses any autoscaler without
+    `supports_replica_rule`.
+  - **Default-rule bit-identity vs R1.1** (4,000 events, same cell):
+    - IDENTICAL for reactive, self-predict, batched greedy and CD.
+    - random_network is nondeterministic at a single commit (two base runs differ), so it is not checkable. This is
+      disclosed and predates the change.
+    - The learned family is **required before the gate** (one ra_* run, default rule, identical to R1.1).
+  - **Lever acts live** (CD, uncalibrated ×46.46, descriptive): accelerator share is 16.8 % under first_compatible and
+    50.2 % under fastest_compatible. cnn moves to xavierGpu (681 of 1,044 tasks). Mean elapsed is 80.0 s against
+    59.3 s.
+  - **W1 tightened** (coordinator; the default already reaches 16.8 % at an uncalibrated rung, so 20 % is not a
+    test). W1 is now:
+    - accelerator share under fastest_compatible ≥ the share under first_compatible **+ 15 points**, both measured with
+      CD at the calibrated heavy rung;
+    - and xavierGpu hosts at least one type.
+    - This is a tightening, disclosed after seeing the uncalibrated descriptive mix.
+  - Pre-existing, disclosed: the precreate fallback crashes under `replica_overlap` (double `initialized.succeed()`).
+    It is never reached on overlap cells.
 - 2026-10-10 — **Amendment before any data (coordinator, on S7's step-1 audit).**
   - **Where the platform is chosen.** It is chosen in three places, and the rule must apply in all three:
     - (i) the generator (`generate_infrastructure.py:745–765`), which feeds co-sim capture and replay through
