@@ -12,8 +12,8 @@ D=/home/nikola.lukic/gnn-herosim/simulation_data/r1a_gate
 S=${EXPECT_HEAD:-07b0acba}
 W=${WT:-$HOME/gnn-herosim-wt/r1a_gate_$S}
 SB=${SBATCH_FILE:-$W/scripts_cosim/datalab/r1a_gate.sbatch}  # the job script may come from a newer, script-only commit; WT (the code that runs) stays pinned
-IN=$D/inputs_learned_$S
-OUT=$D/learned_$S
+IN=${IN_DIR:-$D/inputs_learned_$S}
+OUT=${OUT_DIR:-$D/learned_$S}  # OUT_DIR: a separate result directory (descriptive arms outside the families)
 [[ "$(git -C "$W" rev-parse HEAD)" == "$S"* ]] || { echo "FAIL LOUD: $W is not at $S"; exit 1; }
 mkdir -p "$IN"
 for r in light moderate heavy; do [[ -e "$IN/wf1_$r" ]] || ln -s "$D/inputs_bb9fecf6/inputs/wf1_$r" "$IN/wf1_$r"; done

@@ -34,7 +34,7 @@ CD_GNN, CD_TWIN, CD_RANDOM = "ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_ra
 S1 = (("ra_gnn_eng", "ra_twin_eng"), ("ra_gnn_raw", "ra_twin_raw"), ("ra_gnn_eng", "ra_mlp_same"),
       ("ra_gnn_eng", "ra_set_transformer"), ("ra_gnn_eng_physmp", "ra_gnn_eng"))
 S2 = ((CD_GNN, "cd"), (CD_GNN, CD_TWIN), (CD_RANDOM, "cd"))
-DESCRIPTIVE = ("cd_declared", "reactive")  # reported against CD, in no family
+DESCRIPTIVE = ("cd_declared", "reactive", "random")  # reported against CD, in no family
 CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 
 
