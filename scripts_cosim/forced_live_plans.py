@@ -48,6 +48,9 @@ def run(job):
         trs = {t["taskId"]: t for t in res["stats"]["taskResults"] if t.get("taskId", -1) >= 0}
         if applied != 1 or any(t not in trs for t in tids):
             return dict(ds=ds, plan_idx=pi, error=f"applied={applied}")
+        off = max(abs(trs[t]["scheduledTime"] - prov["snapshot_time"]) for t in tids)
+        if off > 1e-6:   # the forced run decided the batch at another instant than the snapshot: not the same experiment
+            return dict(ds=ds, plan_idx=pi, error=f"batch scheduled {off:.4f} s from the snapshot instant")
         return dict(ds=ds, plan_idx=pi, live=sum(trs[t]["doneTime"] - trs[t]["scheduledTime"] for t in tids))
     except Exception as e:  # recorded
         return dict(ds=ds, plan_idx=pi, error=f"{type(e).__name__}: {str(e)[:150]}")
