@@ -50,6 +50,24 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Calibration finals** (S5, 855146/855147; `rp/scale-probe` 462a411d,
+  `scale_160_v1/calibration_{heavy,moderate}_{steps,result}.json`; 8 cells per arm, median).
+  - Elapsed seconds per task, heavy / moderate:
+    - CD: 2.69 / 2.79 (effective share 0.415 / 0.284; 0 failures; 8/8 guards).
+    - Self-predict: 2.66 / 2.83, a tie with CD (−1 % / +1 %).
+    - Batched greedy: 3.20 / 3.39 (+19 % / +21 %).
+    - Knative collapses (effective share 0.99, 0/8 guards). It is context only.
+  - "CD saturates where greedy doesn't" is fully retracted: at the correct load, CD is faster than the greedy.
+  - **Accelerators idle by construction (disclosed; not changed).** CD's lock wait is 90 % on xavierCpu, and 53 % of it
+    is cnn tasks; GPU, DLA and FPGA carry about 0.
+    - Code fact (coordinator, `src/generate_infrastructure.py:745–765`): with `per_server = 1`, each type's server
+      replica goes on the **first** compatible platform in the node's list order.
+    - S5 infers from the lock profile that this is the CPU for every type. That has not been checked against the
+      generated `infrastructure.json`.
+    - The property is the same at 40 × 6 and is shared by every arm, so the comparison stays fair. But the problem is
+      less heterogeneous than the hardware suggests.
+    - **Ruling (coordinator):** scale_160_v1 keeps R1.1 as registered. Changing replica placement is new physics
+      (recalibration, I11, new labels), so it would be a separate lineage, decided after this gate.
 - 2026-10-10 — **(c) PASS: rungs calibrated** (S5, 855146/855147; seeds 9905–9908, g0 + g1, CD-steered).
   - **Heavy ×23.2278** (CD effective share 0.415, step 3). **Moderate ×16.4245** (0.284, step 4). m is the final
     multiplier on the ×1 windows, with factor 1/m.
