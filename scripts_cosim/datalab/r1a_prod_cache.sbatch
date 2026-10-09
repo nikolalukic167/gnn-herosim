@@ -29,6 +29,10 @@ echo "HEAD $(git rev-parse HEAD) node $(hostname)"
 LINK=simulation_data/graphs_cache_r1_attribution_v1_psv5_inf; SPLITF=experiments/r1_attribution_v1_split.json
 [[ ! -e "$LINK" && ! -L "$LINK" && ! -e "$SPLITF" ]] || { echo "FAIL LOUD: $LINK or $SPLITF already exists in the worktree"; exit 1; }
 for s in train heldout; do [[ -d "$CP/gnn_datasets_wf1_${s}_$SUF" ]] || { echo "FAIL LOUD: no $CP/gnn_datasets_wf1_${s}_$SUF"; exit 1; }; done
+# the held-out directory must hold datasets when this job runs: no empty-test carve-out in production
+NH=$(find "$CP/gnn_datasets_wf1_heldout_$SUF" -maxdepth 1 -name 'ds_*' | wc -l)
+[[ "$NH" -gt 0 ]] || { echo "FAIL LOUD: $CP/gnn_datasets_wf1_heldout_$SUF holds no datasets; the production split needs held-out topologies"; exit 1; }
+echo "held-out datasets present: $NH"
 mkdir -p "$OUT/view"
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
 export DAG_PRIMARY_ALPHA_KEY=inf PARTIAL_STATE_CONTRACT=partial_state_v5 NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded
@@ -74,6 +78,8 @@ checks = {
     "heldout_topologies_in_corpus_split": len(corpus["heldout"]), "dry_run": sp.get("dry_run"),
     "exposure_flags_binary": all(set(torch.unique(h.platform_features[:, -2:]).tolist()) <= {0.0, 1.0} for h in g[:2000]),
 }
+missing = sorted((set(corpus["train"]) | set(corpus["heldout"])) - {t for k in ("train", "val", "test") for t in sp["topologies"][k]})
+checks["topologies_in_corpus_split_without_datasets"] = missing
 print(json.dumps(checks, indent=1)); (out / "checks.json").write_text(json.dumps(checks, indent=1))
 assert checks["physics_env"].get("inflight_capture") == "legacy" and checks["candidate_slate"] == "declared_pruning_v1"
 assert checks["partial_state_contract"] == "partial_state_v5" and checks["platform_feature_dim"] == 14
