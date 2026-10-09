@@ -42,6 +42,7 @@ class DeterminedScheduler(Scheduler):
         # Scheduling-time system snapshot (batch start, before placements mutate queues)
         self._scheduling_state_capture: Optional[Dict[str, Any]] = None
         self.defer_cold_replica_init = False
+        self.exact_batch = False  # fidelity replays: the batch is every event of the workload, collected without a poll
 
     def _debug(self, msg: str) -> None:
         if self.debug_enabled:
@@ -105,6 +106,17 @@ class DeterminedScheduler(Scheduler):
         task: Task = yield self.tasks.get(task_filter)
         batch.append(task)
         self._debug_info(f"DeterminedScheduler: Added task {task.id} to batch (size={len(batch)})")
+
+        if getattr(self, "exact_batch", False):
+            # A fidelity replay's batch is every event of the replay workload, all at t = 0. The poll below would sleep 1 ms
+            # when the gateway has not yet put the other events (same instant, later steps), so the batch would be scheduled
+            # 1 ms after the snapshot instant while the ghosts' timelines are measured from it (ds_03200: the batch's link
+            # request at +48.423 ms instead of +47.423 ms, behind a ghost's +48.359 ms). A blocking get per remaining task
+            # schedules no event of its own.
+            while len(batch) < self.batch_size:
+                task = yield self.tasks.get(task_filter)
+                batch.append(task)
+            return batch
 
         timeout_remaining = float(getattr(self, "batch_timeout", 0.002) or 0.0)
         poll_interval = 0.001
