@@ -582,6 +582,22 @@ No line trips.
   - Label sharpness: the median best-vs-second gap is 2.2 / 0.02 / 0.00 %. 46 / 56 / 67 % of datasets have a gap under
     1 %, mostly exact ties.
   - CD vs label: not measurable offline.
+- **Decision-timing commit `263dd915`: identity holds (S4, job 854528).** 24/24 cells have 0 differences on every
+  simulated field against 07b0acba. The learned arms run at 263dd915, writing to `learned_263dd915`.
+  - Preliminary timing (9483 g0, shared node, smoke weights; indicative only). Median per task decided, light /
+    moderate / heavy:
+    - Knative: 4–5 µs
+    - one-pass greedy: 30–46 µs
+    - locality-first: 36–49 µs
+    - self-predict: 50–81 µs
+    - CD: 65–91 µs
+    - CD-declared: 94–126 µs
+    - CD←random: 109–169 µs
+    - `ra_gnn_eng`: about 1.15 ms
+    - `ra_gnn_eng_cdapply`: about 1.2 ms
+  - **CD is about 13–18× cheaper per decision than the GNN arm**; the "the GNN thinks faster" hypothesis does not hold
+    here.
+  - The dedicated-CPU side study follows.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
