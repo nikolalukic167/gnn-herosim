@@ -92,3 +92,24 @@ def test_linear_midpoint_and_seeded_end_places_bracket_despite_guards():
     assert r["answer"]["kind"] == "IN-BAND" and r["answer"]["m"] > 5
     # without the seed, a failing end counts as above target
     assert search("light", ev, 0.2666, 11.6139, 8)["status"] == "UNBRACKETED-LOW"
+
+
+def test_choose_final_falls_back_to_highest_passing_step():
+    from scripts_cosim.load_recalibration_v1_bisect import choose_final
+
+    class Ev:
+        def __init__(self, bad):
+            self.bad, self.calls = bad, []
+
+        def finalize(self, m):
+            self.calls.append(m)
+            g = guards([cell_metrics(_summary(latency_percentiles={"p95": 999.0 if m in self.bad else 10.0}))], 1)
+            return {"guards": {"cd": g, "reactive": g}, "cd_median_share": 0.3, "reactive_median_share": 0.1}
+
+    steps = [{"m": m, "share": 0.1, "allowed": True} for m in (11.6, 20.0, 30.0)]
+    res = {"rung": "moderate", "answer": {"m": 30.0, "kind": "IN-BAND"}, "steps": steps}
+    ev = Ev(bad={30.0})
+    out = choose_final(res, ev)
+    assert out["chosen"]["m"] == 20.0 and out["chosen"]["kind"] == "FALLBACK-HIGHEST-PASSING" and ev.calls == [30.0, 20.0]
+    assert choose_final(res, Ev(bad={11.6, 20.0, 30.0}))["chosen"] is None
+    assert choose_final({"rung": "light", "answer": None, "steps": []}, Ev(set()))["chosen"] is None
