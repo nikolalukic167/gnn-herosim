@@ -19,7 +19,7 @@
 set -euo pipefail
 WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}; IN=${IN:?}; OUT=${OUT:?}
 D=/home/nikola.lukic/gnn-herosim/simulation_data
-SELECT=$D/small_batch_confirm_v1/inputs/selected.json
+SELECT=${SELECT:-$D/small_batch_confirm_v1/inputs/selected.json}  # scale_160_v1: its own selection of 12 test topologies
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|WF1_)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
@@ -37,8 +37,8 @@ rc=0; timeout 300 git diff --quiet HEAD -- src scripts_cosim experiments run_exp
 for r in light moderate heavy; do [[ -d "$IN/wf1_$r" ]] || { echo "FAIL LOUD: $IN/wf1_$r missing"; exit 1; }; done
 mkdir -p "$OUT"
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
-export WF1_RUNGS=light,moderate,heavy
+export WF1_RUNGS=${WF1_RUNGS:-light,moderate,heavy}
 [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]] || export R1A_SHARD="${SLURM_ARRAY_TASK_ID}/${SLURM_ARRAY_TASK_COUNT}"
-python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$SELECT" --parallel "${PAR:-60}" --mem 8G \
+python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$SELECT" --parallel "${PAR:-60}" --mem "${CELL_MEM:-8G}" \
   --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip"
 echo "failed cells: $(ls "$OUT"/*.failed.json 2>/dev/null | wc -l)  summaries: $(ls "$OUT"/*.summary.json 2>/dev/null | wc -l)"
