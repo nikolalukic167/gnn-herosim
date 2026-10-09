@@ -428,6 +428,12 @@ No line trips.
   overwrite. It runs at low priority: only after S7's second training chunk is submitted, and within the 44-job cap.
   It costs about 1–1.5 h and 104 jobs. It is only a hedge, and the verdict still follows the signed rule. If D wins,
   D's build passes its own volume, fidelity and by-rung checks before training.
+- **Production corpus at E: PASS (S6, check 853822; pin e647446f, OUT_TAG E8894a08; `corpus_prod/by_rung_E8894a08.json`).**
+  - 6,135 of 6,135 batches, giving 6,379 datasets (160 sub-batched). 0 discards. Fidelity re-simulation max |diff| 0 on
+    all 6,379.
+  - Single-node zero-exchange optima: light 49.8 %, moderate 74.8 %, heavy 76.7 %, all under the 80 % line. Sub-batched
+    at most 5.1 %, and unplaced_partner at most 0.16 %. 9 heavy cells hung, 2.2 % against the 5 % line.
+  - Ext-E check 853916 passed: 403 train and 201 held-out datasets, for S5's ranking test.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
