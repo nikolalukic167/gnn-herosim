@@ -36,6 +36,33 @@ with fidelity capture, `--require-connected-batch` and declared pruning. Moderat
 read, and an independent read-only bug audit of the pipeline by S7 (label, physics flags, train/serve parity, determinism,
 silent drops, cost).
 
+**Pipeline audit (2026-10-09; S7, read-only at `rp/r1a-features` `96a09da4`; one test, job 843910).**
+- **Result:** no blocker for the capture, but seven fixes are required first.
+- **Confirmed by reading:**
+  - A truncated sweep aborts the build, then slips back in on resume, because the resume skip and the cache loader
+    check only that files exist, not `sweep_complete`.
+  - A partial capture passes as complete, there is no per-run timeout, and an `afterok` build would never start.
+  - LIMIT=90 gives about 111k datasets, not 5,000; snapshots are not topped up; shard drops are not counted.
+  - `COSIM_PLACEMENT_TIMEOUT_S` never fires.
+- **Confirmed by run:** the cache is not bit-reproducible. Winner ties are picked in worker order, which permutes 24 of
+  229 platform rows; labels are unaffected.
+- **Suspected:** t < 360 s states and the light and moderate rungs had no I11 check.
+- **Passed:**
+  - the label is I11's quantity, with queued tasks as state;
+  - the physics flags and KPA phase match live;
+  - v5 features and the declared pruning use one function on both the train and serve sides;
+  - placements, best and workload rebuild identically;
+  - cache-metadata refusal works.
+- **Cost:** recomputed with pruning on 12,614 B2 heavy snapshots, about 450 core-hours, about 7 h on 62 cores for
+  5,000 datasets. That excludes capture time and the heavy tail.
+- **Decision:**
+  - S6 fixes items 1–7: discard and count truncations; require `sweep_complete`; a capture sentinel, a per-run timeout
+    and `afterany` plus a count check; target 5,000 batches with top-up; deterministic tie-breaks and platform order;
+    `--min-time 360`; a real placement timeout; plus hygiene.
+  - S7 reviews the diff and reruns the A/B test, which must come out bit-identical.
+  - S5 runs I11 at light and moderate.
+  - Production waits for all three.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
