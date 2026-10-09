@@ -132,6 +132,20 @@ arrivals after the snapshot, exactly.
 - **Threshold, signed now:** if more than 10 % of offered batches at any rung are rejected as `unplaced_partner`,
   production pauses and the rule is revisited. Serving still sees those batches.
 
+**B2 dry run, heavy read (2026-10-09; S6, build 843882 at `96a09da4`, PER_CELL=4, 300-snapshot cap;
+`corpus_b2_heavy/optima_read.json`).** Neither line trips, so there is no pause.
+- **Scope:** 38 of 48 cells. The 8 hung spin cells are excluded, and so are 9101 g2/g3, which never ran after task 0
+  died on the unplaced-partner refusal.
+- **Datasets:** 151 complete sweeps from 143 batches, 0 discarded.
+- **Rejections:** 31 of 182 offered (17 %): single_candidate_node 6.0 %, no_choice 10.4 %, disconnected 0.
+- **unplaced_partner,** computed offline with the same predicate (`c5b9a8c6`): 0.46 % of 11,103 offered, against the
+  10 % line.
+- **Pruning:** 51.7 % of batches pruned, **4.2 % sub-batched** (against 10 %).
+- **Optima:** **single-node with zero exchange 66.2 %** (against 80 %). Optima span 2, 3 and 4 nodes in 42, 5 and 4
+  datasets.
+- **Plan counts:** median 75, p90 27,648, max 100,000.
+- **Thin:** 11 topologies, heavy only, the first 75–80 % of each trace. Light and moderate come from the smoke.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
