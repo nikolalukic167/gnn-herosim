@@ -35,7 +35,7 @@ while true; do
     room=$((LIMIT - n)); left=$((LAST - NEXT + 1)); size=$(( room < left ? room : left ))
     if (( size >= 3 || (size >= left && size >= 1) )); then
       END=$((NEXT + size - 1)); MEM=$(cat "$STATE/mem2" 2>/dev/null || echo 150G); TH=$(( size < THROTTLE ? size : THROTTLE ))
-      out=$(sbatch --parsable --dependency=afterok:"$CACHE_JOB" --array="$NEXT-$END%$TH" --mem="$MEM" --export=ALL,WT="$WT",ORDER_PY="$SCRIPTS/../r1a_task_order.py" "$SCRIPTS/r1a_prod_train.sbatch" 2>&1)
+      out=$(sbatch --parsable --array="$NEXT-$END%$TH" --mem="$MEM" --export=ALL,WT="$WT",ORDER_PY="$SCRIPTS/../r1a_task_order.py" "$SCRIPTS/r1a_prod_train.sbatch" 2>&1)
       if [[ "$out" =~ ^[0-9]+$ ]]; then
         SUBS="$SUBS:$out"; echo "$(date +%T) SUB-ARRAY indices $NEXT-$END -> job $out (mem $MEM, $n jobs queued before, room $room)"; NEXT=$((END + 1))
       elif echo "$out" | grep -qiE "limit|QOS|too many"; then echo "$(date +%T) sub-array $NEXT-$END refused at the limit ($out); retrying"
