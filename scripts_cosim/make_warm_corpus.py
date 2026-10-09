@@ -70,6 +70,7 @@ WARM_SNAPSHOT_FILE = "warm_snapshot.json"
 
 SINGLE_NODE_REASON = "single_candidate_node"
 DISCONNECTED_REASON = "disconnected_batch"
+NO_CHOICE_REASON = "no_choice"
 
 
 class SnapshotRejected(ValueError):
@@ -727,6 +728,12 @@ def main() -> int:
                     demands=None if args.no_cap_filter else demands,
                     force_keys=force_keys, min_choice_fraction=args.min_choice_fraction,
                 )
+            if view is not None:
+                n_choice = sum(1 for t in snap["tasks"] if len(view["kept"][int(t["task_id"])]) >= 2)
+                if n_choice < args.min_choice_fraction * len(snap["tasks"]) or view["plans"] < 2:
+                    # after the declared pruning too few tasks have a choice (the old draw's min_choice_fraction): a plan space
+                    # of one is no decision and carries no label
+                    raise SnapshotRejected(f"{NO_CHOICE_REASON}: {n_choice} of {len(snap['tasks'])} tasks keep >= 2 candidates")
             nodes = candidate_nodes(snap, subset)
             if len(nodes) < 2:
                 # every offered candidate sits on ONE node: no peer transfer can differ between plans, the cache's
@@ -850,7 +857,8 @@ def main() -> int:
     summary = {"source_tag": args.source_tag, "offered": len(mine), "made": sum(1 for e in mine if e.get("status") != "rejected"),
                "rejected": sum(reasons.values()), "rejected_by_reason": reasons,
                "single_candidate_node": reasons.get(SINGLE_NODE_REASON, 0),
-               "disconnected_batch": reasons.get(DISCONNECTED_REASON, 0)}
+               "disconnected_batch": reasons.get(DISCONNECTED_REASON, 0),
+               "no_choice": reasons.get(NO_CHOICE_REASON, 0)}
     made_entries = [e for e in mine if e.get("status") != "rejected"]
     slated = [e["slate"] for e in made_entries if e.get("slate")]
     if slated:
