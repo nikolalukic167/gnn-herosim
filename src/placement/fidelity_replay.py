@@ -81,6 +81,17 @@ class FidelityReplay:
         self.kw = snapshot_fidelity.live_run_params()
         self.sim_inputs = load_simulation_inputs(Path(spec["sim_input"]))
         self.full_queue = {str(k): int(v or 0) for k, v in (self.snap.get("full_queue_snapshot") or {}).items()}
+        # what the live feature builder saw at the decision, per platform, from the snapshot's own capture (the replayed ghosts
+        # are not exposed as platform.current_task, so the replay's temporal capture reads zero for them)
+        plain = {k: v for k, v in self.snap.items() if k != "fidelity"}
+        self.live_temporal = {
+            f"{sp['node_name']}:{sp['platform_id']}": {
+                "current_task_remaining": float(sp.get("current_task_remaining", 0.0) or 0.0),
+                "cold_start_remaining": float(sp.get("cold_start_remaining", 0.0) or 0.0),
+                "comm_remaining": float(sp.get("comm_remaining", 0.0) or 0.0),
+            }
+            for sp in build_live_snapshot_seed(plain)["platforms"]
+        }
         self.offered = {t: [[str(k[0]), int(k[1])] for k in keys] for t, keys in offered.items()}
         self.spec_params = spec["live_run_params"]
         if self.kw != self.spec_params:
@@ -122,6 +133,10 @@ class FidelityReplay:
                 tr["fullQueueSnapshot"] = dict(self.full_queue)
                 at = tr.get("queueSnapshotAtScheduling") or {}
                 tr["queueSnapshotAtScheduling"] = {k: self.full_queue.get(k, v) for k, v in at.items()}
+            for field in ("fullTemporalStateAtScheduling", "temporalStateAtScheduling"):
+                ts = tr.get(field)
+                if ts:
+                    tr[field] = {k: ({**v, **self.live_temporal[k]} if k in self.live_temporal else v) for k, v in ts.items()}
             rows.append(tr)
         every = {
             "n_tasks_replayed": len(self.wl["events"]),
