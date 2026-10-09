@@ -560,6 +560,12 @@ No line trips.
       - Its placement is near-identical to epoch 30's: 6 nodes used, top-1 share 0.50 vs 0.52, 96 % of batches
         co-located. There is no fallback, cap hit or memory refusal.
       - Whether that is caused by the checkpoint or is timing luck needs a second seed; not run.
+  - 9103 heavy, epoch 30 (finished in 1.5 h): latency 36.1 s at effective share 0.126, vs 8.60 s at share 0.79 at
+    epoch 10. CD and reactive timed out at 2 h, so there is no reference.
+    - **Effective share fell while latency rose 4×.** The likely reason is that placement wait (deferral and starvation)
+      is not counted in effective share. That's inferred, not confirmed from the trace.
+    - Effective share alone cannot flag a starved-client episode, so read it next to averageWaitTime and the
+      deferral counters.
 - **CD←random, descriptive (S4, array 854323, 07b0acba, `cdrandom_read.json`).**
   - 453 of 456 cells done. 3 heavy cells at 9565 were killed by rate and counted.
   - Paired % vs CD: +1.35 / +4.28 / +3.91 %. CD is ahead in 18 / 18 / 16 of 19 topologies. Dropping 9538 and 9565
