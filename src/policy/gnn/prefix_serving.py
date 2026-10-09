@@ -296,49 +296,67 @@ def load_prefix_conditioned_gnn(
     alpha_key = alpha_key or env_alpha  # "" -> the live decode refuses to run
 
     state_dict = torch.load(checkpoint_path, map_location="cpu")
-    task_w = state_dict["task_encoder.net.0.weight"]
-    plat_w = state_dict["platform_encoder.net.0.weight"]
-    task_feature_dim = int(task_w.shape[1]) - onehot_dim
-    platform_feature_dim = int(plat_w.shape[1])
-    hidden_dim = int(task_w.shape[0])
-    embedding_dim = int(state_dict["task_encoder.net.4.weight"].shape[0])
-    num_layers = sum(
-        1 for k in state_dict if k.startswith("gin.convs.") and k.endswith(".nn.lins.0.weight")
+    from src.policy.gnn.arm_models import (
+        ARM_GNN, build_graph_free_arm, infer_graph_free_dims, require_arm_matches_weights,
     )
-    if num_layers <= 0:
-        raise PrefixServingError(f"{label}: could not infer num_layers from gin.convs.* keys")
 
-    model = TaskPlacementGNN(
-        task_feature_dim=task_feature_dim,
-        platform_feature_dim=platform_feature_dim,
-        embedding_dim=embedding_dim,
-        hidden_dim=hidden_dim,
-        num_layers=num_layers,
-        mp_residual=bool(sidecar.get("mp_residual", False)),
-        mp_node_edges=bool(sidecar.get("mp_node_edges", False)),
-        mp_node_edges_candidates_only=bool(sidecar.get("mp_node_edges_candidates_only", True)),
-        mp_network_entities=bool(sidecar.get("mp_network_entities", False)),
-        mp_dag_edges=bool(sidecar.get("mp_dag_edges", False)),
-        mp_peer_edges=bool(sidecar.get("mp_peer_edges", False)),
-        mp_platform_edges=bool(sidecar.get("mp_platform_edges", True)),
-        # bipartite_edge_v1. The conv itself is weight-visible, so a mismatch here would
-        # fail the strict load below on its own; the ZERO control is not, and the sidecar
-        # is its only record -- serve it wrong and the arm and its control are the same
-        # checkpoint reporting two different things.
-        mp_bipartite_edge_conv=bool(sidecar.get("mp_bipartite_edge_conv", False)),
-        mp_bipartite_edge_attr_zero=bool(sidecar.get("mp_bipartite_edge_attr_zero", False)),
-        # bipartite_aggr_v1. Absent means "mean", which is what every bipartite_edge_v1
-        # checkpoint was trained with; a sum checkpoint served as mean is a silently wrong arm.
-        mp_bipartite_aggr=str(sidecar.get("mp_bipartite_aggr") or "mean"),
-        # hetero_conv_v1: weight-visible, so a mismatch also fails the strict load below.
-        mp_bipartite_hetero=bool(sidecar.get("mp_bipartite_hetero", False)),
-        task_type_onehot_dim=onehot_dim,
-        partial_state_edge_dim=partial_dim,
-        plan_raw=plan_raw,
-        plan_raw_sum=plan_raw_sum,
-        plan_raw_local=plan_raw_local,
-        normalize_platform_inputs=sidecar.get("feature_dim") == 21,
-    )
+    try:
+        arm_kind = require_arm_matches_weights(sidecar, state_dict, label)
+    except ValueError as exc:
+        raise PrefixServingError(str(exc)) from exc
+    if arm_kind != ARM_GNN:
+        # r1_attribution_v1 graph-free arms: no graph option exists to adopt, mismatch or default.
+        dims = infer_graph_free_dims(arm_kind, state_dict, onehot_dim, sidecar)
+        task_feature_dim, platform_feature_dim = dims["task_feature_dim"], dims["platform_feature_dim"]
+        hidden_dim, embedding_dim, num_layers = dims["hidden_dim"], dims["embedding_dim"], dims["num_layers"]
+        model = build_graph_free_arm(
+            arm_kind, **dims, normalize_platform_inputs=sidecar.get("feature_dim") == 21,
+            task_type_onehot_dim=onehot_dim, partial_state_edge_dim=partial_dim,
+        )
+    else:
+        task_w = state_dict["task_encoder.net.0.weight"]
+        plat_w = state_dict["platform_encoder.net.0.weight"]
+        task_feature_dim = int(task_w.shape[1]) - onehot_dim
+        platform_feature_dim = int(plat_w.shape[1])
+        hidden_dim = int(task_w.shape[0])
+        embedding_dim = int(state_dict["task_encoder.net.4.weight"].shape[0])
+        num_layers = sum(
+            1 for k in state_dict if k.startswith("gin.convs.") and k.endswith(".nn.lins.0.weight")
+        )
+        if num_layers <= 0:
+            raise PrefixServingError(f"{label}: could not infer num_layers from gin.convs.* keys")
+
+        model = TaskPlacementGNN(
+            task_feature_dim=task_feature_dim,
+            platform_feature_dim=platform_feature_dim,
+            embedding_dim=embedding_dim,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            mp_residual=bool(sidecar.get("mp_residual", False)),
+            mp_node_edges=bool(sidecar.get("mp_node_edges", False)),
+            mp_node_edges_candidates_only=bool(sidecar.get("mp_node_edges_candidates_only", True)),
+            mp_network_entities=bool(sidecar.get("mp_network_entities", False)),
+            mp_dag_edges=bool(sidecar.get("mp_dag_edges", False)),
+            mp_peer_edges=bool(sidecar.get("mp_peer_edges", False)),
+            mp_platform_edges=bool(sidecar.get("mp_platform_edges", True)),
+            # bipartite_edge_v1. The conv itself is weight-visible, so a mismatch here would
+            # fail the strict load below on its own; the ZERO control is not, and the sidecar
+            # is its only record -- serve it wrong and the arm and its control are the same
+            # checkpoint reporting two different things.
+            mp_bipartite_edge_conv=bool(sidecar.get("mp_bipartite_edge_conv", False)),
+            mp_bipartite_edge_attr_zero=bool(sidecar.get("mp_bipartite_edge_attr_zero", False)),
+            # bipartite_aggr_v1. Absent means "mean", which is what every bipartite_edge_v1
+            # checkpoint was trained with; a sum checkpoint served as mean is a silently wrong arm.
+            mp_bipartite_aggr=str(sidecar.get("mp_bipartite_aggr") or "mean"),
+            # hetero_conv_v1: weight-visible, so a mismatch also fails the strict load below.
+            mp_bipartite_hetero=bool(sidecar.get("mp_bipartite_hetero", False)),
+            task_type_onehot_dim=onehot_dim,
+            partial_state_edge_dim=partial_dim,
+            plan_raw=plan_raw,
+            plan_raw_sum=plan_raw_sum,
+            plan_raw_local=plan_raw_local,
+            normalize_platform_inputs=sidecar.get("feature_dim") == 21,
+        )
     model.load_state_dict(state_dict)
     if device is not None:
         model = model.to(device)

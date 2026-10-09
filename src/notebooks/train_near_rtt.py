@@ -197,6 +197,9 @@ class NearRttConfig:
     # raw_plan_v2: the committed-load channel (gnn_model.TaskPlacementGNN._committed_load)
     plan_raw_sum: bool = os.environ.get("NEAR_RTT_PLAN_RAW_SUM", "0") == "1"
     plan_raw_local: bool = os.environ.get("NEAR_RTT_PLAN_RAW_LOCAL", "0") == "1"
+    # r1_attribution_v1: which architecture is fitted. "gnn" is every arm before it (message passing on or off);
+    # "mlp_same" and "set_transformer" are the graph-free arms in src/policy/gnn/arm_models.py.
+    arm_kind: str = os.environ.get("NEAR_RTT_ARM", "").strip() or "gnn"
     dag_alpha_key: str = os.environ.get("NEAR_RTT_DAG_ALPHA_KEY", "2.0")
     # 0 = use every tied-optimal plan. Any other value CHANGES THE LOSS DEFINITION, so
     # it is recorded in the sidecar and applied deterministically (first N in cache
@@ -2040,34 +2043,76 @@ def _flush_guard_metrics() -> None:
                 flush=True,
             )
 
-model = TaskPlacementGNN(
-    task_feature_dim=_task_feature_dim,
-    platform_feature_dim=_platform_feature_dim,
-    embedding_dim=EMBEDDING_DIM,
-    hidden_dim=HIDDEN_DIM,
-    num_layers=NUM_GIN_LAYERS,
-    dropout=NEAR_CFG.dropout,
-    post_gin_dropout=NEAR_CFG.dropout,
-    normalize_platform_inputs=_feature_dim == 21,
-    mp_residual=NEAR_CFG.mp_residual,
-    mp_node_edges=NEAR_CFG.mp_node_edges,
-    mp_node_edges_candidates_only=NEAR_CFG.mp_node_edges_candidates_only,
-    mp_network_entities=NEAR_CFG.mp_network_entities,
-    # _task_feature_dim stays the cache-derived width; the model adds the one-hot
-    # itself, so the printed provenance above stays honest about the cache.
-    mp_dag_edges=NEAR_CFG.mp_dag_edges,
-    mp_peer_edges=NEAR_CFG.mp_peer_edges,
-    mp_platform_edges=NEAR_CFG.mp_platform_edges,
-    mp_bipartite_edge_conv=NEAR_CFG.mp_bipartite_edge_conv,
-    mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
-    mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
-    mp_bipartite_hetero=NEAR_CFG.mp_bipartite_hetero,
-    task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
-    partial_state_edge_dim=(_prefix_block_dim() if NEAR_CFG.partial_state_edges else 0),
-    plan_raw=NEAR_CFG.plan_raw,
-    plan_raw_sum=NEAR_CFG.plan_raw_sum,
-    plan_raw_local=NEAR_CFG.plan_raw_local,
-).to(DEVICE)
+from src.policy.gnn.arm_models import (  # noqa: E402
+    ARM_KINDS, GRAPH_FREE_ARMS, SET_HEADS_ENV, SET_INDUCING_ENV, DEFAULT_SET_HEADS, DEFAULT_SET_INDUCING,
+    _env_int as _arm_env_int, build_graph_free_arm,
+)
+
+if NEAR_CFG.arm_kind not in ARM_KINDS:
+    raise SystemExit(f"FAIL LOUD: NEAR_RTT_ARM={NEAR_CFG.arm_kind!r}; expected one of {ARM_KINDS}")
+_SET_HEADS = _arm_env_int(SET_HEADS_ENV, DEFAULT_SET_HEADS)
+_SET_INDUCING = _arm_env_int(SET_INDUCING_ENV, DEFAULT_SET_INDUCING)
+if NEAR_CFG.arm_kind in GRAPH_FREE_ARMS:
+    _graph_ops_on = [
+        name for name, on in (
+            ("NEAR_RTT_MP_RESIDUAL", NEAR_CFG.mp_residual), ("NEAR_RTT_MP_NODE_EDGES", NEAR_CFG.mp_node_edges),
+            ("NEAR_RTT_MP_NETWORK_ENTITIES", NEAR_CFG.mp_network_entities), ("NEAR_RTT_MP_DAG_EDGES", NEAR_CFG.mp_dag_edges),
+            ("NEAR_RTT_MP_PEER_EDGES", NEAR_CFG.mp_peer_edges), ("NEAR_RTT_MP_BIPARTITE_EDGE_CONV", NEAR_CFG.mp_bipartite_edge_conv),
+            ("NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO", NEAR_CFG.mp_bipartite_edge_attr_zero),
+            ("NEAR_RTT_MP_BIPARTITE_HETERO", NEAR_CFG.mp_bipartite_hetero), ("NEAR_RTT_PLAN_RAW", NEAR_CFG.plan_raw),
+            ("NEAR_RTT_PLAN_RAW_SUM", NEAR_CFG.plan_raw_sum), ("NEAR_RTT_PLAN_RAW_LOCAL", NEAR_CFG.plan_raw_local),
+            ("GNN_DISABLE_MESSAGE_PASSING", os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower() in ("1", "true", "yes")),
+            ("NEAR_RTT_MP_PLATFORM_EDGES=0", not NEAR_CFG.mp_platform_edges),
+        ) if on
+    ]
+    if _graph_ops_on:
+        raise SystemExit(f"FAIL LOUD: NEAR_RTT_ARM={NEAR_CFG.arm_kind} has no graph, but the config sets {_graph_ops_on}")
+    if not (NEAR_CFG.partial_state_edges and NEAR_CFG.task_type_onehot):
+        raise SystemExit("FAIL LOUD: the graph-free arms take GNN-eng's inputs, which need NEAR_RTT_PARTIAL_STATE_EDGES=1 and "
+                         "NEAR_RTT_TASK_TYPE_ONEHOT=1")
+    model = build_graph_free_arm(
+        NEAR_CFG.arm_kind,
+        task_feature_dim=_task_feature_dim,
+        platform_feature_dim=_platform_feature_dim,
+        embedding_dim=EMBEDDING_DIM,
+        hidden_dim=HIDDEN_DIM,
+        num_layers=NUM_GIN_LAYERS,
+        dropout=NEAR_CFG.dropout,
+        normalize_platform_inputs=_feature_dim == 21,
+        task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM,
+        partial_state_edge_dim=_prefix_block_dim(),
+        heads=_SET_HEADS,
+        inducing=_SET_INDUCING,
+    ).to(DEVICE)
+else:
+    model = TaskPlacementGNN(
+        task_feature_dim=_task_feature_dim,
+        platform_feature_dim=_platform_feature_dim,
+        embedding_dim=EMBEDDING_DIM,
+        hidden_dim=HIDDEN_DIM,
+        num_layers=NUM_GIN_LAYERS,
+        dropout=NEAR_CFG.dropout,
+        post_gin_dropout=NEAR_CFG.dropout,
+        normalize_platform_inputs=_feature_dim == 21,
+        mp_residual=NEAR_CFG.mp_residual,
+        mp_node_edges=NEAR_CFG.mp_node_edges,
+        mp_node_edges_candidates_only=NEAR_CFG.mp_node_edges_candidates_only,
+        mp_network_entities=NEAR_CFG.mp_network_entities,
+        # _task_feature_dim stays the cache-derived width; the model adds the one-hot
+        # itself, so the printed provenance above stays honest about the cache.
+        mp_dag_edges=NEAR_CFG.mp_dag_edges,
+        mp_peer_edges=NEAR_CFG.mp_peer_edges,
+        mp_platform_edges=NEAR_CFG.mp_platform_edges,
+        mp_bipartite_edge_conv=NEAR_CFG.mp_bipartite_edge_conv,
+        mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
+        mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
+        mp_bipartite_hetero=NEAR_CFG.mp_bipartite_hetero,
+        task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
+        partial_state_edge_dim=(_prefix_block_dim() if NEAR_CFG.partial_state_edges else 0),
+        plan_raw=NEAR_CFG.plan_raw,
+        plan_raw_sum=NEAR_CFG.plan_raw_sum,
+        plan_raw_local=NEAR_CFG.plan_raw_local,
+    ).to(DEVICE)
 if NEAR_CFG.plan_raw and not NEAR_CFG.partial_state_edges:
     raise ValueError("FAIL LOUD: NEAR_RTT_PLAN_RAW=1 rides the prefix path; set NEAR_RTT_PARTIAL_STATE_EDGES=1")
 print(
@@ -2232,6 +2277,15 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "plan_raw": NEAR_CFG.plan_raw,
                 "plan_raw_sum": NEAR_CFG.plan_raw_sum,
                 "plan_raw_local": NEAR_CFG.plan_raw_local,
+                # r1_attribution_v1: which architecture. The graph-free arms are told apart by their parameter
+                # names too; serving refuses a sidecar and weights that disagree (arm_models.require_arm_matches_weights).
+                # The widths below are what a serving loader cannot recover from mlp_same's single input layer.
+                "arm_kind": NEAR_CFG.arm_kind,
+                "task_feature_dim": _task_feature_dim,
+                "platform_feature_dim": _platform_feature_dim,
+                "edge_dim": 5,
+                "set_heads": _SET_HEADS if NEAR_CFG.arm_kind == "set_transformer" else None,
+                "set_inducing": _SET_INDUCING if NEAR_CFG.arm_kind == "set_transformer" else None,
                 # Which capacity rung the labels AND the capacity columns came from —
                 # they move together, so this names both.
                 "dag_alpha_key": NEAR_CFG.dag_alpha_key if TEACHER_FORCED else None,
