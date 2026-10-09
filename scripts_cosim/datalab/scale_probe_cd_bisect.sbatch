@@ -23,7 +23,7 @@ python3 scripts_cosim/scale_probe_cfg.py "$BASECFG" "$ROOT/cfg_src" --clients "$
 evaluate() {  # $1 = multiplier; prints the effective share (or plain share if lock wait is unavailable)
   m=$1; tag=m$(python3 -c "print('%.4f'%$m)" | tr . p)
   if [[ ! -d "$ROOT/inputs/wf1_$tag" ]]; then
-    factor=$(python3 -c "print(repr(6.0/($m*$NS)))")
+    factor=$(python3 -c "print(repr(1.0/$m))")   # m is the FINAL multiplier (the first run of this driver scaled twice: 4x the capture's load; retracted)
     python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" --cfg-dir "$ROOT/cfg_src" --topologies "$SEED" --rung "$tag=$factor" \
       --payload-sampler wf1_v1 --task-mix wf1_v1 --batch-timeout-fixed 1 --out "$ROOT/_b_$tag" >/dev/null
     mkdir -p "$ROOT/inputs_w24"; mv "$ROOT/_b_$tag/wf1_$tag" "$ROOT/inputs_w24/wf1_$tag"; cp "$ROOT/_b_$tag/manifest.json" "$ROOT/inputs_w24/manifest_$tag.json"
