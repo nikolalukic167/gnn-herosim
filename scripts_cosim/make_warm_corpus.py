@@ -559,24 +559,28 @@ def load_snapshots(paths: Sequence[Path]) -> List[Dict[str, Any]]:
     return out
 
 
-def _own_manifest_entries(path: Path, source_tag: str) -> List[Dict[str, Any]]:
-    """This run's manifest entries. The manifest is shared by every concurrent build task of a split, each appending whole lines, so a read can
-    land on another task's half-written last line: a line that does not parse is skipped when it is not ours (ours were written whole before)."""
+def _own_manifest_entries(path: Path, source_tag: str) -> Tuple[List[Dict[str, Any]], int]:
+    """(this run's manifest entries, lines skipped). A directory-wide manifest is shared by every concurrent build task, so a read can land on
+    another task's half-written last line: a line that does not parse is skipped when it is not ours (ours were written whole before) and
+    COUNTED (`manifest_lines_skipped` in the summary; the volume check fails on any). A per-source manifest has one writer, so there a bad
+    line is always ours and raises."""
     out: List[Dict[str, Any]] = []
+    skipped = 0
     if not path.exists():
-        return out
+        return out, skipped
     for line in open(path):
         if not line.strip():
             continue
         try:
             e = json.loads(line)
         except json.JSONDecodeError:
-            if f'"source_tag": "{source_tag}"' in line:
+            if f'"source_tag": "{source_tag}"' in line or path.name.startswith("warm_manifest.") and path.name != "warm_manifest.jsonl":
                 raise
+            skipped += 1
             continue
         if e.get("source_tag") == source_tag:
             out.append(e)
-    return out
+    return out, skipped
 
 
 def main() -> int:
@@ -595,6 +599,9 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=None, help="stop after this many datasets")
     ap.add_argument("--limit-batches", type=int, default=None,
                     help="stop after this many BATCHES (snapshots with a dataset made); a batch's sub-batches count toward it once")
+    ap.add_argument("--manifest-per-source", action="store_true",
+                    help="write warm_manifest.<source_tag>.jsonl (one writer per file) instead of the directory-wide warm_manifest.jsonl; "
+                         "for concurrent build tasks on a network filesystem")
     ap.add_argument("--require-limit-batches", action="store_true",
                     help="exit non-zero when the snapshots run out before --limit-batches batches were made (fail loud on a shortfall)")
     ap.add_argument("--min-time", type=float, default=0.0, help="skip snapshots captured before this sim time")
@@ -667,7 +674,7 @@ def main() -> int:
     samples_file = sim_data / "lhs_samples_simple.npy"
     mapping_file = sim_data / "lhs_samples_simple_mapping.pkl"
 
-    manifest_path = args.output_dir / "warm_manifest.jsonl"
+    manifest_path = args.output_dir / (f"warm_manifest.{args.source_tag}.jsonl" if args.manifest_per_source else "warm_manifest.jsonl")
     made = 0
     batches_made: Set[Tuple[Any, int]] = set()
     idx = args.start_index
@@ -904,7 +911,7 @@ def main() -> int:
         made += 1
     print(f"[warm] done: {made} dataset(s) in {time.time() - t0:.0f}s -> {args.output_dir}", flush=True)
     # per-run counts, so a dry run reports the rejection rate by reason (the single-candidate-node share in particular)
-    mine = _own_manifest_entries(manifest_path, args.source_tag)
+    mine, manifest_skipped = _own_manifest_entries(manifest_path, args.source_tag)
     reasons: Dict[str, int] = {}
     for e in mine:
         if e.get("status") == "rejected":
@@ -934,6 +941,7 @@ def main() -> int:
             "pruned_datasets": sum(1 for v in slated if v["pruned"]),
             "datasets_from_sub_batches": sum(1 for v in slated if v["sub_batch"] is not None),
         }
+    summary["manifest_lines_skipped"] = manifest_skipped
     (args.output_dir / f"warm_summary_{args.source_tag}.json").write_text(json.dumps(summary, indent=1))
     print(f"[warm] {summary}", flush=True)
     if args.require_limit_batches and args.limit_batches is not None and len(batches_made) < args.limit_batches:

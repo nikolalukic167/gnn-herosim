@@ -10,6 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from scripts_cosim.wf1_corpus_optima_read import dataset_row, summarise
+from scripts_cosim.wf1_manifest import read_manifests
 
 
 def main() -> int:
@@ -30,9 +31,7 @@ def main() -> int:
                       "no_peer_pairs", "unplaced_partner", "discarded"):
                 c[k] += int(s.get(k, 0) or 0)
         batches = defaultdict(set)
-        manifest = base / "warm_manifest.jsonl"
-        for line in manifest.read_text().splitlines() if manifest.is_file() else []:
-            m = json.loads(line)
+        for m in read_manifests(base)[0]:
             if "dataset_id" not in m:
                 continue
             rung = m["source_tag"].split("_")[2]

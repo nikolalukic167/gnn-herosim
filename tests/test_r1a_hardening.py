@@ -98,16 +98,39 @@ def test_exposure_flags_a_net_stage_ingress_ghost_on_a_candidate_node():
     assert not exposure({"fidelity": {}}, cands)["net_ingress_ghost_on_candidate_node"]
 
 
-def test_manifest_read_skips_another_tasks_half_written_line(tmp_path):
+def test_manifest_read_skips_and_counts_another_tasks_half_written_line(tmp_path):
     import json
+
+    import pytest
 
     from scripts_cosim.make_warm_corpus import _own_manifest_entries
 
     p = tmp_path / "warm_manifest.jsonl"
     p.write_text(json.dumps({"source_tag": "a", "status": "success"}) + "\n" + json.dumps({"source_tag": "b"}) + "\n" + '{"source_tag": "b", "sta')
-    assert [e["status"] for e in _own_manifest_entries(p, "a")] == ["success"]
+    entries, skipped = _own_manifest_entries(p, "a")
+    assert [e["status"] for e in entries] == ["success"] and skipped == 1
     p.write_text(json.dumps({"source_tag": "a"}) + "\n" + '{"source_tag": "a", "sta')
-    import pytest
-
     with pytest.raises(json.JSONDecodeError):
         _own_manifest_entries(p, "a")
+    q = tmp_path / "warm_manifest.a.jsonl"  # per-source: one writer, a bad line is always ours
+    q.write_text(json.dumps({"source_tag": "a"}) + "\n" + 'garbled')
+    with pytest.raises(json.JSONDecodeError):
+        _own_manifest_entries(q, "a")
+
+
+def test_manifest_union_reads_every_per_source_file_and_fails_on_a_garbled_line(tmp_path):
+    import json
+
+    import pytest
+
+    from scripts_cosim.wf1_manifest import read_manifests
+
+    (tmp_path / "warm_manifest.t1_light_g0.jsonl").write_text(json.dumps({"source_tag": "t1_light_g0", "dataset_id": "ds_0"}) + "\n")
+    (tmp_path / "warm_manifest.t2_heavy_g1.jsonl").write_text(json.dumps({"source_tag": "t2_heavy_g1", "dataset_id": "ds_1"}) + "\n")
+    entries, skipped = read_manifests(tmp_path)
+    assert sorted(e["dataset_id"] for e in entries) == ["ds_0", "ds_1"] and skipped == 0
+    (tmp_path / "warm_manifest.t2_heavy_g1.jsonl").write_text('{"source_tag": "t2_hea')
+    with pytest.raises(ValueError, match="garbled"):
+        read_manifests(tmp_path)
+    entries, skipped = read_manifests(tmp_path, strict=False)
+    assert len(entries) == 1 and skipped == 1
