@@ -102,6 +102,19 @@ arrivals after the snapshot, exactly.
   - The **label build** waits if the isolated argmin's median regret under that evaluation is > 1 %, or argmin
     agreement is < 80 %.
 
+**B2 heavy capture: starved-client spin (2026-10-09 10:45; S6, job 843881).**
+- **Hung cells:** 8 of 48 heavy cells (17 %) spin on "No compatible hardware available for dnn2" from sim time ≈ 990 s,
+  under the capture policy `peer_greedy_network_batch`: 9103 g0, 9105 g2/g3, 9202 g3, 9203 g1, 9298 g2, 9300 g3,
+  9302 g3. Their snapshot counts creep (36–231).
+- **The other 40 cells** hit the 300 cap at task ~38–41k of 50k.
+- **Decision:**
+  - The B2 build moves to `afterany` and the 7 slow tasks are cancelled.
+  - Spin cells are excluded from the B2 read, named, and counted.
+- **Production rule, signed now:**
+  - A hung cell is excluded and counted.
+  - If more than 5 % of a rung's cells hang, production pauses for diagnosis. That is already triggered for heavy.
+  - S5 diagnoses the spin: release/scale-out, a reservation defect, W3 reachability, or legitimate overload.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
