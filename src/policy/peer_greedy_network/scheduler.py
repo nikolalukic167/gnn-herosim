@@ -40,8 +40,8 @@ peer-free physics would score a term the simulator never charges.
 from __future__ import annotations
 
 import json
-import logging
 import os
+import sys
 from typing import Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
 from src.placement.live_audit import inflight_remaining_seconds, orchestrator_of, platform_queue_drain_seconds
@@ -50,8 +50,6 @@ from src.placement.model import SystemState
 from src.placement.scheduling_cost import incoming_cold_start_time, network_latency_between
 from src.policy.gnn.scheduler import GNNScheduler, PREFIX_DECODE_MODE
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
@@ -734,7 +732,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         batch that is exactly those tasks (ranking test: a candidate plan executed live, later arrivals placed by the
         rule). Inert when unset. A forced id that overlaps a batch without equalling it, or a (node, platform) that is
         not a valid replica at this instant, raises; a forced plan that no batch ever matched is reported by the
-        FORCED_BATCH_APPLIED line being absent from the log."""
+        FORCED_BATCH_APPLIED line (stderr) being absent."""
         raw = os.environ.get("HEROSIM_FORCED_PLACEMENTS")
         if not raw:
             return
@@ -756,7 +754,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                     f"FAIL LOUD: forced placement {want} for task {task.id} is not a valid replica at t={self.env.now}"
                 )
             placements[idx] = want
-        logger.warning("FORCED_BATCH_APPLIED t=%s ids=%s", self.env.now, sorted(ids))
+        print(f"FORCED_BATCH_APPLIED t={self.env.now} ids={sorted(ids)}", file=sys.stderr, flush=True)
 
     def _pg_ext_lambdas(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[str, float]:
         """lambda_p per `node:platform` key: the rate split by the batch's type mix, then evenly over the
