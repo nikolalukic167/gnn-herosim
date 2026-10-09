@@ -627,6 +627,7 @@ No line trips.
     flat within seed noise.
   - gnn_eng_physmp (23:01): val regret 0.8305 s.
   - mlp_same (23:21): g4, val regret 1.148 ± 0.022 s.
+  - gnn_eng (23:26): g3, val regret 0.861 ± 0.002 s.
 - **twin_eng gate, partial and descriptive (S4, array 854587 at 263dd915; 452 of 456 cells, 3 killed by rate at heavy;
   `twin_partial_read.json`).** Paired % (positive = twin slower), median over 19 topologies:
   - vs CD: +3.60 / +5.61 / +6.22 %, with twin_eng faster in 1 / 0 / 2 of 19 topologies.
