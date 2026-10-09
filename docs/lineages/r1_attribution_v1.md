@@ -466,9 +466,20 @@ No line trips.
     wrong.
   - Fix: the worktree check is now `timeout 300 git diff --quiet` and warns instead of waiting.
   - Resubmitted as **854263** with six variants A–F (F = `58364ab0`, the mechanism variant per the 20:45 amendment).
-    The verdict is now 6–10 h from 20:55.
+    S5's ETA corrected from sacct: the identical one-variant run 853521 took 13 min, so the verdict is about 30–60 min
+    out. The 6–10 h figure was an extrapolation and was wrong.
   - F's gates: live no-op 3/3 identical (854262). The 86-dataset relabel (854260) and heavy 9601 (854261) are
     running. The probes with platform-state logging are 854264–854266.
+- **Training cache (S7, 853988): PASS.** 6,379 graphs, 0 skipped, 0 load errors.
+  - Split: train 4,516 (73 topologies), val 805 (13), test 1,058 (17, the held-out list). Split sha256 d85adcf0….
+  - Peak RSS at about 10 min, for 3 seeds: gnn_raw 35–49 GB, set_transformer and twin_raw 22–26 GB. --mem is lowered to
+    60–80 GB for the tasks not yet started.
+  - gnn_raw takes about 9–10 min per epoch, so it bounds the wall time at about 16 h.
+- **D hedge: one piece (854215, 20 tasks) went in early.** S6's gate counted array tasks (`%A`) as separate jobs. The
+  submitter is stopped and restarts only if the verdict picks D.
+- **Classical gate (S4, 853934 + 854009 at 335abdd1):** 1,366 of 1,368 cells done. 5 were killed by the watchdog (9565
+  and 9538, moderate and heavy), counted with no rerun. 07b0acba vs classical_335abdd1: 18/18 overlapping cells
+  identical, so the learned arms and CD←random run at 07b0acba.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
