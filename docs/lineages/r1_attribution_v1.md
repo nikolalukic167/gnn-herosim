@@ -405,6 +405,20 @@ No line trips.
     verdict or the ranking test goes against them.
   - The ext corpus is rebuilt at E (S6), and the ranking test runs on it in parallel with the variant comparison (S5).
   - None of this changes a registered bar; it only overlaps the stages.
+- **Five-variant comparison, dataset half (S5, job 853590; 86 datasets, 422 of 487 forced-live plans ran, 65 loud
+  failures not yet broken down; untuned = without ds_03200).** All medians are 0.000 %. The p95 values: A 0.512, B 0.333,
+  C 0.342, **D 0.178**, E 0.310 %. The max is 36.93 % in every variant, from one plan (ds_10000 plan 10, unexposed, absolute
+  0.146 s), the same in all five. On the exposed plans, E's p95 is 5.59 % (max 14.69 %) and D's is 0.56 % (max 9.60 %).
+  Argmin changes between any two variants: 0 of 86. The I11 half (853598) is unread, ETA 6–10 h.
+- **Amendment (2026-10-09 19:45, coordinator, before the I11 half is read).**
+  - A miss that is identical in all five variants cannot discriminate between them. It is reported separately and left out
+    of the *choice* among variants. The choice still follows the signed rule: lowest max, then lower p95, on the pool
+    without the tuned states.
+  - It still counts against I11 for *label use*. If 854008 shows the ds_10000 miss is replay-side, label use stays held
+    whichever variant wins. If it is a forced-live artifact, it is excluded and disclosed.
+  - On the dataset half, D leads E by the rule. Speculative training at E continues, because it costs compute only. It is
+    discarded if the full verdict is not E.
+  - The 65 failed forced-live plans are counted and classified before the verdict.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
