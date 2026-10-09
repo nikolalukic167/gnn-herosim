@@ -471,6 +471,17 @@ def _serve(platform: Any, ghost: GhostTask) -> Generator:
         platform.idle_since = env.now
 
 
+def ghost_order_key(g: Dict[str, Any]) -> Tuple:
+    """The order ghosts are created in, which is the order their first events are scheduled, and so the order ties between them fire.
+    Hold-stage pipes first, then wait-stage in pop order: the order the live pipe queues had. Ghosts popped at the same instant
+    (equal `pop`, on different platforms) were popped in task-id order live (the batch placement enqueues in id order, so the
+    platform processes' queue gets fire in that order); breaking the tie by platform name instead put ghost 1238 (node4:218) before
+    1236 (node4:226) in the replay of ds_03200 and reversed their order on the shared link."""
+    ingress = g["stage"] == "ingress"
+    return (0 if ingress and g["link_stage"] == "hold" else 1 if ingress and g["link_stage"] == "wait" else 2,
+            g.get("pop", 0.0), g["tid"], g["q"], 0 if g["stage"] == "compute" else 1, g.get("order", 0.0))
+
+
 def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation_data: Any, env: Any,
                     fidelity: Dict[str, Any]) -> None:
     """After the base seed: warmth and timestamps per platform, pulls in progress, node image caches, and the
@@ -502,13 +513,7 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
         env.process(_pull(env, node, plat, request, float(pull["own"]),
                           (pull["short"], simulation_data.task_types[pull["fn"]])))
 
-    def order(g: Dict[str, Any]) -> Tuple:
-        ingress = g["stage"] == "ingress"
-        # hold-stage pipes first, then wait-stage in pop order: the order the live pipe queues had
-        return (0 if ingress and g["link_stage"] == "hold" else 1 if ingress and g["link_stage"] == "wait" else 2,
-                g.get("pop", 0.0), g["q"], 0 if g["stage"] == "compute" else 1, g.get("order", 0.0), g["tid"])
-
-    for rec in sorted(fidelity.get("ghosts") or [], key=order):
+    for rec in sorted(fidelity.get("ghosts") or [], key=ghost_order_key):
         node_name, plat_id = rec["q"].rsplit(":", 1)
         node, plat = plat_map[(node_name, int(plat_id))]
         ghost = GhostTask(rec, simulation_data.task_types[rec["fn"]])
