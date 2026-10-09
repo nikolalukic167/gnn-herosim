@@ -82,8 +82,11 @@ def test_backlog_profile_counts_unplaced_wait_and_tasks_in_system():
 
 
 def test_linear_midpoint_and_seeded_end_places_bracket_despite_guards():
+    import scripts_cosim.load_recalibration_v1_bisect as lb
     from scripts_cosim.load_recalibration_v1_bisect import next_multiplier
 
+    assert next_multiplier(0.2666, 5.9402) == 1.2584  # log midpoint (default)
+    lb.MIDPOINT = "linear"
     assert next_multiplier(0.2666, 11.6139) == 5.9402
     # light: the low end (seeded, 7/8 cells so its guards fail) is below the band, the high end above it
     def ev(m):
@@ -93,6 +96,7 @@ def test_linear_midpoint_and_seeded_end_places_bracket_despite_guards():
     assert r["answer"]["kind"] == "IN-BAND" and r["answer"]["m"] > 5
     # without the seed, a failing end counts as above target
     assert search("light", ev, 0.2666, 11.6139, 8)["status"] == "UNBRACKETED-LOW"
+    lb.MIDPOINT = "log"
 
 
 def test_choose_final_falls_back_to_highest_passing_step():
@@ -129,3 +133,17 @@ def test_lock_wait_profile_counts_the_wait_after_started():
     tr[0]["computeStartTime"] = None  # never served: no lock wait, reported
     assert lock_wait_profile(tr)["n_unstamped"] == 1
     assert lock_wait_profile([]) is None
+
+
+def test_backlog_v2_counts_lock_wait_and_guard_prefers_it():
+    from scripts_cosim.fresh_topo_burst_v1_gate import backlog_profile
+
+    # 8 tasks; the last quarter waits 10 s for the compute lock, nothing else
+    tr = [{"taskId": i, "dispatchedTime": float(i), "scheduledTime": float(i), "queueTime": 0.5, "doneTime": i + 20.0,
+           "ioEndTime": i + 1.0, "computeStartTime": i + 1.0 + (10.0 if i >= 6 else 0.0)} for i in range(8)]
+    assert backlog_profile(tr)["quarter_mean_backlog"] == [0.5, 0.5, 0.5, 0.5]
+    v2 = backlog_profile(tr, with_lock_wait=True)
+    assert v2["quarter_mean_backlog"] == [0.5, 0.5, 0.5, 10.5] and v2["last_over_mid"] == 21.0
+    g = guards([cell_metrics(_summary(backlog_profile={"last_over_mid": 1.0, "in_system_ratio": 1.0},
+                                      backlog_profile_v2=v2))], 1)
+    assert not allowed(g, "heavy") and allowed(g, "moderate")

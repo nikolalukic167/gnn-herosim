@@ -196,13 +196,19 @@ def placement_wait(task_results: Optional[List[dict]]) -> Optional[Dict[str, obj
     return {"n": n, "mean": sum(w) / n, "p95": w[min(n - 1, max(0, math.ceil(0.95 * n) - 1))], "max": w[-1]}
 
 
-def backlog_profile(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+def backlog_profile(task_results: Optional[List[dict]], with_lock_wait: bool = False) -> Optional[Dict[str, object]]:
     """load_recalibration_v1 backlog guard. Per task, backlog = (scheduledTime - dispatchedTime) + queueTime, so a wait
-    before placement counts. Quarter means in arrival (dispatchedTime) order, last over the mean of the middle two, and
-    the tasks in the system (dispatched, not done) at 1/2 and 3/4 of the last arrival time, 3/4 over 1/2."""
+    before placement counts; with ``with_lock_wait`` (amendment 2026-10-09) the wait for the replica's compute lock,
+    computeStartTime - ioEndTime, is added. Quarter means in arrival (dispatchedTime) order, last over the mean of the
+    middle two, and the tasks in the system (dispatched, not done) at 1/2 and 3/4 of the last arrival time, 3/4 over 1/2."""
     if not task_results:
         return None
-    rows = sorted((float(r["dispatchedTime"]), float(r["scheduledTime"]) - float(r["dispatchedTime"]) + float(r["queueTime"]),
+    def lock(r):
+        if not with_lock_wait or r.get("ioEndTime") is None or r.get("computeStartTime") is None:
+            return 0.0
+        return float(r["computeStartTime"]) - float(r["ioEndTime"])
+
+    rows = sorted((float(r["dispatchedTime"]), float(r["scheduledTime"]) - float(r["dispatchedTime"]) + float(r["queueTime"]) + lock(r),
                    float(r["doneTime"])) for r in task_results if r.get("taskId") is None or int(r["taskId"]) >= 0)
     n = len(rows)
     if n < 4:
@@ -782,6 +788,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["latency_percentiles"] = latency_percentiles(st.get("taskResults"))
     out["placement_wait"] = placement_wait(st.get("taskResults"))
     out["backlog_profile"] = backlog_profile(st.get("taskResults"))
+    out["backlog_profile_v2"] = backlog_profile(st.get("taskResults"), with_lock_wait=True)
     out["lock_wait"] = lock_wait_profile(st.get("taskResults"))
     out["arrival_end"] = arrival_end(wl, st.get("endTime"))
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
