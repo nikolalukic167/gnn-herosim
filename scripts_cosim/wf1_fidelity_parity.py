@@ -74,6 +74,23 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     wl, forced, ids = SF.replay_workload(fid)
     batch_local = [ids[int(r["gid"])] for r in fid["batch"]]
     out.update(queued=len(forced), batch=n_batch, batch_ids=batch_local)
+    # A sub-batch dataset (declared pruning cut a connected peer group into runs of <= 4 tasks) holds only the pairs inside its run, so the
+    # scheduler's peer-group batching would cut it again where the dataset's batch is one unit. Live serving never does that: it collects the
+    # WHOLE connected group and cuts it with the same declared_slate.sub_batches the corpus used. The sub-batch is therefore replayed as one
+    # collected batch (peer-group batching off for this dataset); features, not batching, are what this script compares.
+    par = {int(r["gid"]): int(r["gid"]) for r in fid["batch"]}
+
+    def _find(x):
+        while par[x] != x:
+            x = par[x]
+        return x
+
+    for a_, b_, *_ in fid["pairs"]:
+        if int(a_) in par and int(b_) in par:
+            par[_find(int(a_))] = _find(int(b_))
+    if len({_find(g) for g in par}) > 1:
+        os.environ["GNN_BATCH_BY_PEER_GROUP"] = "0"
+        out["note"] = "sub-batch of a connected peer group: replayed as one collected batch"
 
     space = json.loads(Path(spec["cell_config"]).read_text())
     infra = prepare_infrastructure_for_real_simulation(space, seed=None, sim_input_path=Path(spec["sim_input"]))
