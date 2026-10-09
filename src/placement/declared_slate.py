@@ -29,11 +29,17 @@ TOP_K = 5
 MAX_PLANS = 100_000
 SUB_BATCH = 4
 MAX_PLANS_ENV = "DECLARED_SLATE_MAX_PLANS"  # test hook: lowers the 100,000 so a small batch exercises sub-batching; never set in a run
+TOP_K_ENV = "DECLARED_SLATE_TOP_K"  # scale probe only (2026-10-09): a wider slate for a headroom screen; never set in a production build
 
 
 def max_plans() -> int:
     raw = os.environ.get(MAX_PLANS_ENV, "").strip()
     return int(raw) if raw else MAX_PLANS
+
+
+def top_k() -> int:
+    raw = os.environ.get(TOP_K_ENV, "").strip()
+    return int(raw) if raw else TOP_K
 
 
 def standalone_cost(candidate: Mapping[str, Any]) -> float:
@@ -42,8 +48,10 @@ def standalone_cost(candidate: Mapping[str, Any]) -> float:
             + float(candidate.get("execution_time", 0.0) or 0.0) + float(candidate.get("network_latency", 0.0) or 0.0))
 
 
-def prune_candidates(candidates: Sequence[Mapping[str, Any]], k: int = TOP_K) -> List[Mapping[str, Any]]:
+def prune_candidates(candidates: Sequence[Mapping[str, Any]], k: int | None = None) -> List[Mapping[str, Any]]:
     """The task's k cheapest candidates by standalone cost, deterministic tie-break, in rank order."""
+    if k is None:
+        k = top_k()
     ranked = sorted(candidates, key=lambda c: (standalone_cost(c), int(c["node_id"]), int(c["platform_id"])))
     return ranked[:k]
 
@@ -103,7 +111,7 @@ def slate(tasks: Sequence[Mapping[str, Any]], pairs: Iterable[Tuple[int, int]] =
     else:
         pos = {int(t["task_id"]): i for i, t in enumerate(tasks)}
         groups = [[pos[g] for g in grp] for grp in sub_batches(list(pos), pairs)]
-    return Slate(kept, full, plans, groups, any(f > TOP_K for f in full), len(groups) > 1)
+    return Slate(kept, full, plans, groups, any(f > top_k() for f in full), len(groups) > 1)
 
 
 # ---- serving mode: recorded in the checkpoint's sidecar, refused on mismatch -------------------------------------------------
