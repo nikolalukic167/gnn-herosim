@@ -8,31 +8,53 @@ from pathlib import Path
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts_cosim"))
 import fresh_topo_burst_v1_gate as G  # noqa: E402
 import progress_watchdog as pw  # noqa: E402
 
 
-def test_decide_waits_for_grace_then_projects():
-    assert pw.decide(300, 100.0, 1000.0, 8100, 0) is None  # inside the grace period nothing is killed
-    assert pw.decide(700, 500.0, 1000.0, 8100, 0) is None  # projected 1,400 s
-    v = pw.decide(700, 5.0, 1000.0, 8100, 0)  # projected 140,000 s
-    assert v["reason"] == "projected" and v["projected_s"] == pytest.approx(140000.0)
+def _writer(prog, step_per_s, stop):
+    import threading
+    t0 = time.time()
+
+    def loop():
+        while not stop.is_set():
+            prog.write_text(json.dumps({"sim_now": 1.0 + step_per_s * (time.time() - t0), "wall": time.time()}))
+            time.sleep(0.05)
+    threading.Thread(target=loop, daemon=True).start()
 
 
-def test_decide_stall_and_no_progress():
-    assert pw.decide(900, 400.0, 1000.0, 8100, 700)["reason"] == "stall"
-    assert pw.decide(900, None, 1000.0, 8100, 100)["reason"] == "no-progress"
-
-
-def test_watchdog_kills_a_slow_process_group(tmp_path):
+def test_watchdog_kills_a_stalled_process_group(tmp_path):
     prog = tmp_path / "p.progress"
     prog.write_text(json.dumps({"sim_now": 1.0, "wall": time.time()}))
     proc = subprocess.Popen(["sleep", "60"], start_new_session=True)
-    dog = pw.Watchdog(str(prog), last_arrival_s=1000.0, limit_s=100.0, grace_s=0.2, stall_s=1000.0, poll_s=0.05)
+    dog = pw.Watchdog(str(prog), last_arrival_s=1000.0, limit_s=100.0, warmup_s=0.2, stall_s=0.5, window_s=0.2, poll_s=0.05)
     dog.attach(proc)
     assert proc.wait(timeout=10) != 0
+    assert dog.verdict["reason"] == "stall"
+
+
+def test_watchdog_kills_a_cell_projected_past_its_limit(tmp_path):
+    import threading
+    prog, stop = tmp_path / "p.progress", threading.Event()
+    _writer(prog, 2.0, stop)  # 500 s to finish > 1.5 x 100 s
+    proc = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    dog = pw.Watchdog(str(prog), last_arrival_s=1000.0, limit_s=100.0, warmup_s=0.5, stall_s=100.0, window_s=0.5, poll_s=0.05)
+    dog.attach(proc)
+    assert proc.wait(timeout=10) != 0
+    stop.set()
     assert dog.verdict["reason"] == "projected"
+
+
+def test_watchdog_leaves_a_fast_cell_alone(tmp_path):
+    prog = tmp_path / "p.progress"
+    t0 = time.time()
+    prog.write_text(json.dumps({"sim_now": 900.0, "wall": t0}))
+    proc = subprocess.Popen(["sleep", "1"], start_new_session=True)
+    dog = pw.Watchdog(str(prog), last_arrival_s=1000.0, limit_s=100.0, warmup_s=0.2, stall_s=1000.0, window_s=0.2, poll_s=0.05)
+    dog.attach(proc)
+    assert proc.wait(timeout=10) == 0 and dog.verdict is None
 
 
 def test_pause_line(tmp_path):

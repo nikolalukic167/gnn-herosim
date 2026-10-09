@@ -14,8 +14,9 @@ ENV = "HEROSIM_PROGRESS_FILE"
 INTERVAL_S = 15.0
 
 
-def start_progress_reporter(env, path: str | None = None, interval: float = INTERVAL_S):
+def start_progress_reporter(env, path: str | None = None, interval: float | None = None):
     path = path or os.environ.get(ENV)
+    interval = interval or float(os.environ.get("HEROSIM_PROGRESS_INTERVAL_S", INTERVAL_S))
     if not path:
         return None
     stop = threading.Event()
