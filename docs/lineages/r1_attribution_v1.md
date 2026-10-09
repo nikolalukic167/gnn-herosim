@@ -647,6 +647,18 @@ No line trips.
   - Refine moves per batch: CD 0.2–0.35; with a learned or random start, 0.5–1.9.
 - **Learned-arm gate seeds (2026-10-09 22:00, coordinator).** Seeds 1 and 2 are gated, as registered (matching
   CD←random). The third trained seed is staged but not gated.
+- **Best learned arm declared: gnn_eng_physmp (2026-10-10 02:00, coordinator, on the user's ruling).**
+  - **Rule:** the lowest validation regret among the selected arms. physMP 0.8305 s; gnn_eng 0.861; set_transformer
+    0.901; twin_eng 0.930; mlp_same 1.148; twin_raw 4.198.
+  - **gnn_raw is removed from best-arm candidacy without its own validation score.** The user ruled this on
+    2026-10-10, from its MP-off twin: twin_raw has validation regret 4.198 s, about 5× every engineered arm, and is
+    +16.6 / +26.3 / +30.3 % vs CD live. Even the registered prediction 2 (GNN-raw beats Twin-raw by 8–24 %) leaves
+    gnn_raw far behind the engineered arms. Its training would finish about 15:00.
+  - **Disclosed:** this declaration comes after the descriptive partial test reads of all six arms. The declaration
+    itself uses validation only. On test, physMP's partial reads (+3.4 / +5.9 / +5.9 %) are among the best, so the
+    order of events cannot have helped CD lose.
+  - The primary family (physMP vs CD × 3 rungs, Holm) is read now. gnn_raw stays in S1 (GNN-raw vs Twin-raw), read
+    when its gate lands.
 - **Selections (validation only; `selection_<arm>.json` in `/share/nikola.lukic/r1a_prod/20261009_190117/`).**
   - twin_eng (22:01): g5 (w128, lr 2e-3), val regret 0.930 ± 0.010 s. The other configs are 0.937–0.967, so the grid is
     flat within seed noise.
