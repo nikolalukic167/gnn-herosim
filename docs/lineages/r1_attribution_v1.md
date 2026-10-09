@@ -63,6 +63,17 @@ silent drops, cost).
   - S5 runs I11 at light and moderate.
   - Production waits for all three.
 
+**I11 at light and moderate: PASS (2026-10-09; S5, job 843926, `293fd8c4`, window g0, 4 calibration topologies,
+50,000 arrivals each; `simulation_data/load_recalibration_v1/i11_lm/`).**
+- **Light ×1.2584:** uniform, 20 states: median 0.000 %, p95 0.081 %, max 1.77 % (an absolute miss of 0.002 s). Last
+  third, 20 states: max 0.40 %. No backlog > 100 s states exist.
+- **Moderate ×5.9402:** uniform, 20 states: max 0.032 %. Last third, 20 states: max 0.44 %. Backlog, 10 states (123–194 s,
+  first ~500 s only): max 0.010 %.
+- **Open:**
+  - One reported figure is inconsistent (881 s against 866 s, quoted as 0.006 %); I asked S5.
+  - The continuing-vs-isolated gap recurs, up to 5 % (14.09 against 13.38 s). S5 is testing whether it's the label
+    horizon, meaning post-snapshot arrivals.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
