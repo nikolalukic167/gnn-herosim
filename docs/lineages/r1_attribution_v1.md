@@ -535,6 +535,13 @@ No line trips.
   - Latency vs CD: +0.8 / +2.1 / −0.3 %.
   - Co-location of in-batch peer pairs: 66 / 79 / 84 %. No refine moves (CD: 3.9–6.4 k per run).
   - Topology 9103 did not run (the `--export` comma split).
+- **CD←random, descriptive (S4, array 854323, 07b0acba, `cdrandom_read.json`).**
+  - 453 of 456 cells done. 3 heavy cells at 9565 were killed by rate and counted.
+  - Paired % vs CD: +1.35 / +4.28 / +3.91 %. CD is ahead in 18 / 18 / 16 of 19 topologies. Dropping 9538 and 9565
+    changes nothing.
+  - Against CD-declared (+0.50 / +4.03 / +4.28), most of the gap is the declared slate, not the random start. The start
+    costs +0.9 / +0.2 points at light and moderate, and gains 0.4 at heavy.
+  - CD←random is the reference that CD←GNN's start has to beat.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
