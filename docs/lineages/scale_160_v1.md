@@ -50,6 +50,13 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Gate sizing** (S4, 855149, spare 16020, g0, one cell per arm and rung; no latencies read into the
+  record).
+  - Wall per cell: CD 43–44 s, self-predict 32 s, gnn_eng with smoke weights 242–250 s.
+  - Decision cost per task: CD about 110 µs, self-predict 85 µs, GNN 3.3 ms.
+  - MaxRSS 1.46 GB.
+  - **Ruling:** CELL_MEM 4G and LIMIT 2,000 s with the standard watchdog. The limit is wider than 2× because one benign
+    cell cannot size the heavy tail. The gate uses the exact moderate multiplier.
 - 2026-10-10 — **Corpus staged; moderate multiplier pinned exactly** (S6, `rp/scale160` cbada10e; dry run 855139–855142
   on 16101 passed as a pipeline test: 53 datasets, re-simulated plans match to ≤ 4e-15).
   - **Ruling (coordinator):** moderate is m = 16.42453489 (factor 0.06088452468), the value CD was calibrated on. The
