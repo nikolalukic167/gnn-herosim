@@ -16,5 +16,5 @@ for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|Q
 export HEROSIM_PY=python3 PYTHONPATH=$WT PYTHONUNBUFFERED=1 HEROSIM_RAW_DIR=/tmp/sp_calib_$SLURM_JOB_ID; mkdir -p "$HEROSIM_RAW_DIR" "$OUT"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 echo "HEAD $(git rev-parse HEAD) tag $TAG band $BAND bracket [$LO, $HI] seeds $SEEDS windows $WINDOWS node $(hostname) $(date -Is)"
 python3 scripts_cosim/scale_rung_bisect.py "$OUT" --wt "$WT" --seeds $SEEDS --windows $WINDOWS --clients $NC --servers $NS --p $P \
-  --band $BAND --lo "$LO" --hi "$HI" --steps "$STEPS" --tag "$TAG" --parallel 8 ${KNATIVE:+--knative}
+  --band $BAND --lo "$LO" --hi "$HI" --steps "$STEPS" --tag "$TAG" --parallel 8 ${KNATIVE:+--knative} ${EXTRA:+--extra-policies $EXTRA}
 echo "done $(date -Is)"
