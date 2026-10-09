@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-SKIP = {"wallclock_s", "code", "total_rtt_plus_inference", "env"}
+SKIP = {"wallclock_s", "code", "total_rtt_plus_inference", "env", "decisionTiming"}  # decisionTiming: wall-clock measurement, new since 07b0acba
 # env keys that differ by construction: the checkpoint directory of the run, and provenance keys recorded since the earlier commit
 ENV_OK = {"GNN_MODEL_PATH", "GNN_CD_REFINE", "HEROSIM_CD_RANDOM_SEED"}
 

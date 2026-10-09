@@ -31,6 +31,7 @@ from src.placement.live_audit import (
 )
 from src.placement.model import SystemState
 from src.placement.physics_audit import AUDIT as _AUDIT
+from src.placement.decision_timing import log_of, timed_generator
 
 from src.placement.scaleout import shared_autoscaler
 from src.placement.scheduler import Scheduler
@@ -113,9 +114,11 @@ class KnativeScheduler(StarvedDeferMixin, Scheduler):
                 audit_t0 = self.env.now
 
             # Schedule tasks according to policy
+            decision_s = [0.0]
             (sched_node, sched_platform) = yield self.env.process(
-                self.placement(system_state, task)
+                timed_generator(self.placement(system_state, task), decision_s)
             )
+            log_of(self).add(1, decision_s[0])
             if _AUDIT is not None:
                 _AUDIT.decision(self.env, audit_t0, self.env.now, default_timer() - start, 1, type(self).__name__)
 
