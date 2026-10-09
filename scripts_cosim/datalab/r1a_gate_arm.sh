@@ -5,12 +5,13 @@
 #   R1A_KINDS=ra_gnn_eng           MODELS=<dir with r1-attribution-v1-<arm>-seed<N>.pt + .contract.json> SPLIT=<r1_attribution_v1_split.json> \
 #     r1a_gate_arm.sh               (the 7 ra_* arms; the seeded-CD arms ra_gnn_eng_cdapply / ra_twin_eng_cdapply need their source arm's models)
 #   R1A_KINDS=cd_random_seed        r1a_gate_arm.sh      (needs no checkpoint)
-#   optional: TASKS (array size, default 4), PAR (cells per task, default 56), SEEDS (default 1,2), WT/EXPECT_HEAD (default 07b0acba), DRY=1 (print only)
+#   optional: SBATCH_FILE (job script path), TASKS (array size, default 4), PAR (cells per task, default 56), SEEDS (default 1,2), WT/EXPECT_HEAD (default 07b0acba), DRY=1 (print only)
 set -euo pipefail
 KINDS=${R1A_KINDS:?FAIL LOUD: set R1A_KINDS}
 D=/home/nikola.lukic/gnn-herosim/simulation_data/r1a_gate
 S=${EXPECT_HEAD:-07b0acba}
 W=${WT:-$HOME/gnn-herosim-wt/r1a_gate_$S}
+SB=${SBATCH_FILE:-$W/scripts_cosim/datalab/r1a_gate.sbatch}  # the job script may come from a newer, script-only commit; WT (the code that runs) stays pinned
 IN=$D/inputs_learned_$S
 OUT=$D/learned_$S
 [[ "$(git -C "$W" rev-parse HEAD)" == "$S"* ]] || { echo "FAIL LOUD: $W is not at $S"; exit 1; }
@@ -33,5 +34,5 @@ if [[ ",$KINDS" == *,ra_* ]]; then
   done
 fi
 export R1A_ARMS=$KINDS R1A_SEEDS=${SEEDS:-1,2}
-CMD=(sbatch --array=0-$(( ${TASKS:-4} - 1 )) --export=ALL,WT=$W,EXPECT_HEAD=$S,IN=$IN,OUT=$OUT,PAR=${PAR:-56} "$W/scripts_cosim/datalab/r1a_gate.sbatch")
+CMD=(sbatch --array=0-$(( ${TASKS:-4} - 1 )) --export=ALL,WT=$W,EXPECT_HEAD=$S,IN=$IN,OUT=$OUT,PAR=${PAR:-56} "$SB")
 if [[ "${DRY:-0}" == 1 ]]; then echo "R1A_ARMS=$R1A_ARMS R1A_SEEDS=$R1A_SEEDS ${CMD[*]}"; else "${CMD[@]}"; fi
