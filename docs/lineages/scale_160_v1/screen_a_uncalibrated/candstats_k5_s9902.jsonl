@@ -1,0 +1,56 @@
+{"ds": "ds_00000", "rung": "moderate", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [5, 5, 5, 2], "rate": 102.4}
+{"ds": "ds_00001", "rung": "moderate", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [5, 2, 2, 2], "rate": 99.0}
+{"ds": "ds_00002", "rung": "moderate", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [4, 3, 3, 3], "rate": 97.3}
+{"ds": "ds_00003", "rung": "moderate", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [3, 4, 4, 3], "rate": 94.0}
+{"ds": "ds_00004", "rung": "moderate", "complete": true, "n_plans": 25, "n_tasks": 2, "cand": [5, 5], "cand_nodes": [3, 4], "rate": 28.7}
+{"ds": "ds_00005", "rung": "moderate", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 3, 3], "rate": 67.7}
+{"ds": "ds_00006", "rung": "moderate", "complete": true, "n_plans": 1250, "n_tasks": 5, "cand": [2, 5, 5, 5, 5], "cand_nodes": [2, 3, 3, 5, 4], "rate": 105.2}
+{"ds": "ds_00007", "rung": "moderate", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [5, 5, 4], "rate": 55.0}
+{"ds": "ds_00008", "rung": "moderate", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 3, 3], "rate": 48.3}
+{"ds": "ds_00009", "rung": "moderate", "complete": true, "n_plans": 8, "n_tasks": 2, "cand": [4, 2], "cand_nodes": [4, 2], "rate": 7.5}
+{"ds": "ds_00010", "rung": "moderate", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [3, 3, 3, 3], "rate": 98.5}
+{"ds": "ds_00011", "rung": "moderate", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [3, 3, 3, 3], "rate": 104.2}
+{"ds": "ds_00012", "rung": "moderate", "complete": true, "n_plans": 225, "n_tasks": 4, "cand": [5, 5, 3, 3], "cand_nodes": [4, 4, 3, 3], "rate": 78.8}
+{"ds": "ds_00013", "rung": "moderate", "complete": true, "n_plans": 12500, "n_tasks": 6, "cand": [5, 5, 5, 4, 5, 5], "cand_nodes": [3, 3, 3, 4, 3, 3], "rate": 113.7}
+{"ds": "ds_00014", "rung": "moderate", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 3, 2], "rate": 64.0}
+{"ds": "ds_00015", "rung": "moderate", "complete": true, "n_plans": 20, "n_tasks": 2, "cand": [5, 4], "cand_nodes": [4, 3], "rate": 11.8}
+{"ds": "ds_01000", "rung": "moderate", "complete": true, "n_plans": 8, "n_tasks": 3, "cand": [2, 2, 2], "cand_nodes": [2, 2, 2], "rate": 13.5}
+{"ds": "ds_01001", "rung": "moderate", "complete": true, "n_plans": 50000, "n_tasks": 7, "cand": [4, 4, 5, 5, 5, 5, 5], "cand_nodes": [4, 4, 4, 4, 5, 4, 4], "rate": 108.2}
+{"ds": "ds_01002", "rung": "moderate", "complete": true, "n_plans": 324, "n_tasks": 6, "cand": [3, 3, 3, 3, 2, 2], "cand_nodes": [3, 3, 3, 2, 2, 2], "rate": 78.0}
+{"ds": "ds_01003", "rung": "moderate", "complete": true, "n_plans": 128, "n_tasks": 4, "cand": [4, 4, 4, 2], "cand_nodes": [3, 3, 3, 2], "rate": 72.3}
+{"ds": "ds_01004", "rung": "moderate", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [5, 4, 4], "rate": 66.7}
+{"ds": "ds_01005", "rung": "moderate", "complete": true, "n_plans": 36, "n_tasks": 4, "cand": [2, 2, 3, 3], "cand_nodes": [2, 2, 3, 3], "rate": 39.7}
+{"ds": "ds_01006", "rung": "moderate", "complete": true, "n_plans": 25, "n_tasks": 2, "cand": [5, 5], "cand_nodes": [4, 5], "rate": 31.8}
+{"ds": "ds_01007", "rung": "moderate", "complete": true, "n_plans": 1024, "n_tasks": 5, "cand": [4, 4, 4, 4, 4], "cand_nodes": [4, 4, 4, 4, 4], "rate": 110.2}
+{"ds": "ds_01008", "rung": "moderate", "complete": true, "n_plans": 72, "n_tasks": 4, "cand": [2, 3, 3, 4], "cand_nodes": [2, 2, 2, 4], "rate": 57.2}
+{"ds": "ds_01009", "rung": "moderate", "complete": true, "n_plans": 5625, "n_tasks": 6, "cand": [5, 5, 3, 3, 5, 5], "cand_nodes": [4, 4, 3, 3, 3, 3], "rate": 112.8}
+{"ds": "ds_01010", "rung": "moderate", "complete": true, "n_plans": 100, "n_tasks": 3, "cand": [4, 5, 5], "cand_nodes": [4, 3, 5], "rate": 43.0}
+{"ds": "ds_01011", "rung": "moderate", "complete": true, "n_plans": 10, "n_tasks": 2, "cand": [2, 5], "cand_nodes": [2, 3], "rate": 8.0}
+{"ds": "ds_02000", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [4, 3, 3], "rate": 58.0}
+{"ds": "ds_02001", "rung": "heavy", "complete": true, "n_plans": 25, "n_tasks": 2, "cand": [5, 5], "cand_nodes": [5, 4], "rate": 32.8}
+{"ds": "ds_02002", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 4, 4], "rate": 71.6}
+{"ds": "ds_02003", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 4, 4], "rate": 64.8}
+{"ds": "ds_02004", "rung": "heavy", "complete": true, "n_plans": 20, "n_tasks": 2, "cand": [5, 4], "cand_nodes": [4, 3], "rate": 23.0}
+{"ds": "ds_02005", "rung": "heavy", "complete": true, "n_plans": 78125, "n_tasks": 7, "cand": [5, 5, 5, 5, 5, 5, 5], "cand_nodes": [2, 2, 2, 4, 4, 4, 4], "rate": 98.4}
+{"ds": "ds_02006", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 4, 5], "rate": 41.5}
+{"ds": "ds_02007", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [2, 4, 4], "rate": 52.7}
+{"ds": "ds_02008", "rung": "heavy", "complete": true, "n_plans": 8640, "n_tasks": 7, "cand": [3, 3, 3, 5, 4, 4, 4], "cand_nodes": [3, 3, 3, 3, 3, 3, 3], "rate": 111.9}
+{"ds": "ds_02009", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [4, 4, 3], "rate": 54.2}
+{"ds": "ds_02010", "rung": "heavy", "complete": true, "n_plans": 25, "n_tasks": 2, "cand": [5, 5], "cand_nodes": [4, 4], "rate": 21.6}
+{"ds": "ds_02011", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [5, 5, 3], "rate": 55.2}
+{"ds": "ds_03000", "rung": "heavy", "complete": true, "n_plans": 25, "n_tasks": 2, "cand": [5, 5], "cand_nodes": [4, 4], "rate": 20.6}
+{"ds": "ds_03001", "rung": "heavy", "complete": true, "n_plans": 25, "n_tasks": 2, "cand": [5, 5], "cand_nodes": [4, 3], "rate": 20.8}
+{"ds": "ds_03002", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [4, 4, 4], "rate": 48.6}
+{"ds": "ds_03003", "rung": "heavy", "complete": true, "n_plans": 320, "n_tasks": 4, "cand": [5, 4, 4, 4], "cand_nodes": [5, 4, 4, 4], "rate": 85.7}
+{"ds": "ds_03004", "rung": "heavy", "complete": true, "n_plans": 400, "n_tasks": 4, "cand": [5, 4, 4, 5], "cand_nodes": [5, 4, 4, 3], "rate": 93.3}
+{"ds": "ds_03005", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [4, 4, 4], "rate": 59.7}
+{"ds": "ds_03006", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 3, 4], "rate": 58.7}
+{"ds": "ds_03007", "rung": "heavy", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [4, 4, 4, 5], "rate": 102.5}
+{"ds": "ds_03008", "rung": "heavy", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [4, 4, 5, 3], "rate": 98.8}
+{"ds": "ds_03009", "rung": "heavy", "complete": true, "n_plans": 25, "n_tasks": 2, "cand": [5, 5], "cand_nodes": [4, 3], "rate": 13.6}
+{"ds": "ds_03010", "rung": "heavy", "complete": true, "n_plans": 625, "n_tasks": 4, "cand": [5, 5, 5, 5], "cand_nodes": [4, 4, 4, 4], "rate": 95.9}
+{"ds": "ds_03011", "rung": "heavy", "complete": true, "n_plans": 78125, "n_tasks": 7, "cand": [5, 5, 5, 5, 5, 5, 5], "cand_nodes": [4, 3, 3, 4, 4, 3, 3], "rate": 114.2}
+{"ds": "ds_03012", "rung": "heavy", "complete": true, "n_plans": 375, "n_tasks": 4, "cand": [5, 3, 5, 5], "cand_nodes": [4, 2, 5, 5], "rate": 102.2}
+{"ds": "ds_03013", "rung": "heavy", "complete": true, "n_plans": 375, "n_tasks": 4, "cand": [5, 3, 5, 5], "cand_nodes": [4, 2, 5, 5], "rate": 92.0}
+{"ds": "ds_03014", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 5, 1], "rate": 60.9}
+{"ds": "ds_03015", "rung": "heavy", "complete": true, "n_plans": 125, "n_tasks": 3, "cand": [5, 5, 5], "cand_nodes": [3, 4, 3], "rate": 72.1}
