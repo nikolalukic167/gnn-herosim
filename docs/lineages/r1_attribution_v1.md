@@ -115,6 +115,16 @@ arrivals after the snapshot, exactly.
   - If more than 5 % of a rung's cells hang, production pauses for diagnosis. That is already triggered for heavy.
   - S5 diagnoses the spin: release/scale-out, a reservation defect, W3 reachability, or legitimate overload.
 
+**Fix review (2026-10-09; S7, jobs 843939 and 844128).**
+- **Accepted at c1fb0185:** findings 1–4, 6 and 7.
+- **Finding 5:** `--min-time 360` is accepted. Its I11 part is closed by S5's job 843926.
+- **A/B:** cache tensors, `placements.jsonl` rows, `best.json` and `workload.json` are all identical. `optimal_result.json`
+  differs only in wall-clock `schedulingTime` and end-of-run list order, neither of which the cache reads.
+- **Snapshot cap:** 600 covers heavy, which projects 385–402 snapshots. Light and moderate are not projected.
+- **Two new defects, to fix before production:**
+  - resume doesn't count skipped datasets toward `--limit-batches` (confirmed: a second pass built 2 more);
+  - cap-hit cells are used silently.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
