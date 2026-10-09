@@ -14,6 +14,11 @@ generation_provenance.json (`--source-tag wf1p_cc40s<topology>_<rung>_<window>`)
 `--dry-run-test K` is for a dry run before the held-out build exists: K train topologies are carved into `test` so the artifact loads
 (the loader refuses an empty split). The artifact then carries "dry_run": true and must never be used for a gate.
 
+`--heldout-as-val` (scale_160_v1): the held-out topologies ARE the validation split (selection happens on them), every other train topology trains,
+and the loader's non-empty `test` is a PLACEHOLDER of `--placeholder-test` train topologies (default 1) that is never scored (the training
+configs set NEAR_RTT_SKIP_FINAL_TEST=1). The real test is the gate's freshly minted topologies. The artifact records "heldout_as_val": true and
+"test_placeholder": true so nothing downstream can mistake the placeholder for a held-out score.
+
   make_r1a_split.py --cache-dir <v5 cache> --corpus-split corpus_prod/split.json --out experiments/r1_attribution_v1_split.json
 """
 from __future__ import annotations
@@ -41,10 +46,10 @@ def topology_of(dataset_dir: Path) -> str:
     argv = prov.get("argv") or []
     for i, a in enumerate(argv):
         if a == "--source-tag" and i + 1 < len(argv):
-            m = re.search(r"cc40s(\d+)", argv[i + 1])
+            m = re.search(r"c{1,2}\d+s(?:\d+p[\d.]+s)?(\d+)", argv[i + 1])
             if m:
                 return m.group(1)
-    raise RuntimeError(f"{dataset_dir}: no --source-tag with a cc40s<topology> in generation_provenance.json")
+    raise RuntimeError(f"{dataset_dir}: no --source-tag with a cc<clients>s<topology> or c<clients>s<servers>p<p>s<topology> tag in generation_provenance.json")
 
 
 def main() -> int:
@@ -55,6 +60,8 @@ def main() -> int:
     ap.add_argument("--val-fraction", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--dry-run-test", type=int, default=0, help="carve this many TRAIN topologies into test when no held-out dataset exists")
+    ap.add_argument("--heldout-as-val", action="store_true", help="held-out topologies become the validation split; test is an unscored placeholder")
+    ap.add_argument("--placeholder-test", type=int, default=1, help="with --heldout-as-val: train topologies carved into the unscored placeholder test")
     a = ap.parse_args()
     if a.out.exists():
         raise SystemExit(f"FAIL LOUD: {a.out} exists; a split artifact is frozen once runs depend on it")
@@ -90,21 +97,31 @@ def main() -> int:
     rng.shuffle(pool)
     test_topos = list(present_held)
     dry = False
-    if not test_topos:
+    if a.heldout_as_val:
+        if not present_held:
+            raise SystemExit("FAIL LOUD: --heldout-as-val needs held-out datasets in the cache")
+        if a.placeholder_test < 1 or a.dry_run_test:
+            raise SystemExit("FAIL LOUD: --heldout-as-val needs --placeholder-test >= 1 and no --dry-run-test")
+        val_topos = sorted(present_held)
+        test_topos = sorted(pool[:a.placeholder_test])
+        train_set = sorted(pool[a.placeholder_test:])
+    elif not test_topos:
         if a.dry_run_test < 1:
             raise SystemExit("FAIL LOUD: no held-out dataset in the cache; pass --dry-run-test K for a dry run")
         dry = True
         test_topos = sorted(pool[:a.dry_run_test])
         pool = pool[a.dry_run_test:]
-    n_val = max(1, round(a.val_fraction * len(pool)))
-    val_topos = sorted(pool[:n_val])
-    train_set = sorted(pool[n_val:])
+    if not a.heldout_as_val:
+        n_val = max(1, round(a.val_fraction * len(pool)))
+        val_topos = sorted(pool[:n_val])
+        train_set = sorted(pool[n_val:])
     if not train_set:
         raise SystemExit("FAIL LOUD: no train topology left after the validation draw")
     pick = lambda topos: sorted(p for t in topos for p in by_topo[t])
     payload = {
         "schema": SPLIT_ARTIFACT_SCHEMA, "cache_dir": str(a.cache_dir), "n_parents": len(seen), "random_state": a.seed,
         "split_by": "topology", "dry_run": dry,
+        **({"heldout_as_val": True, "test_placeholder": True} if a.heldout_as_val else {}),
         "corpus_split": {"path": str(a.corpus_split), "sha256": hashlib.sha256(a.corpus_split.read_bytes()).hexdigest()},
         "topologies": {"train": train_set, "val": val_topos, "test": test_topos},
         "train": pick(train_set), "val": pick(val_topos), "test": pick(test_topos),

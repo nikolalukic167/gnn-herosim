@@ -31,10 +31,12 @@ sys.path.insert(0, str(REPO / "scripts_cosim"))
 ARMS = ("gnn_eng", "twin_eng", "mlp_same", "gnn_raw", "twin_raw", "gnn_eng_physmp", "set_transformer")
 CONFIGS = range(6)
 SEEDS = (1, 2, 3)
+DEFAULT_PREFIX = "r1-attribution-v1"
+PREFIX = DEFAULT_PREFIX  # the lineage's run-name prefix (--prefix); a second lineage must not collide in the shared models dir
 
 
 def run_stem(arm: str, k: int) -> str:
-    return f"r1-attribution-v1-{arm.replace('_', '-')}-g{k}"
+    return f"{PREFIX}-{arm.replace('_', '-')}-g{k}"
 
 
 class Incomplete(Exception):
@@ -70,6 +72,7 @@ def stage(src: Path, dst: Path) -> None:
 
 
 def main() -> int:
+    global PREFIX
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--models-dir", type=Path, required=True)
     ap.add_argument("--inputs-dir", type=Path, required=True)
@@ -78,7 +81,9 @@ def main() -> int:
     ap.add_argument("--arms", nargs="+", default=None)
     ap.add_argument("--arm", action="append", default=None, help="per-arm run: the same rule on one arm (repeatable); same picks as the all-arms run")
     ap.add_argument("--if-complete", action="store_true", help="exit 3 quietly when an arm still lacks validation records")
+    ap.add_argument("--prefix", default=DEFAULT_PREFIX, help="run-name prefix of the lineage (scale_160_v1: scale-160-v1)")
     a = ap.parse_args()
+    PREFIX = a.prefix
     a.arms = (a.arm or []) + (a.arms or []) or list(ARMS)
     import joint_burst_v2_sidecheck as sc
 
@@ -107,7 +112,7 @@ def main() -> int:
                 raise SystemExit(f"FAIL LOUD: {src.name} was trained on a different split than {a.split}")
             if sc.check_ra(side, f"ra_{arm}", str(a.split), "inf"):
                 raise SystemExit(f"FAIL LOUD: sidecheck failed for {src.name}")
-            plan.append((src, dest / f"r1-attribution-v1-{arm.replace('_', '-')}-seed{s}.pt"))
+            plan.append((src, dest / f"{PREFIX}-{arm.replace('_', '-')}-seed{s}.pt"))
     best_arm = min(chosen, key=lambda r: (chosen[r]["val_mean"], r))
     # a per-arm run and the all-arms run apply one rule; if both exist their picks must agree
     for arm, c in chosen.items():

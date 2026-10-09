@@ -4,6 +4,8 @@
 # measured ~5x SLOWER per epoch than the CPU (tiny graphs), so no GPU. Checkpoints land in ~/gnn-herosim/models/ as
 # r1-attribution-v1-<arm>-g<k>-seed<s>.pt with .contract.json and .val.json (scripts_cosim/r1a_select_checkpoints.py reads them).
 #   sbatch --dependency=afterok:<cache job> --array=0-41%12 --export=ALL,WT=<pinned worktree> r1a_prod_train.sbatch
+# Another lineage (scale_160_v1) through the environment: LINEAGE (configs experiments/${LINEAGE}_<arm>_g<k>.yaml, cache simulation_data/graphs_cache_${LINEAGE}_psv5_inf,
+# split experiments/${LINEAGE}_split.json) and ARMS="gnn_eng gnn_eng_physmp" (task T -> the width-128 configs g3-g5 first, then g0-g2; array 0-(6*len(ARMS)-1)).
 #SBATCH --job-name=r1a-train
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/r1a-train-%A_%a.out
 #SBATCH --partition=CPU-amd
@@ -14,11 +16,14 @@
 #SBATCH --time=48:00:00
 set -uo pipefail
 ulimit -n 65536 2>/dev/null || true
-WT=${WT:?}
+WT=${WT:?}; LINEAGE=${LINEAGE:-r1_attribution_v1}; SPLITF=experiments/${LINEAGE}_split.json
 # Array index T -> (arm, config): scripts_cosim/r1a_task_order.py (indices 0-20 the slowest pairs, longest first; 21-41 the engineered trio first).
 T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array 0-41}; SEEDS=${SEEDS:-"1 2 3"}
-read -r ARM G < <(python3 "${ORDER_PY:-$WT/scripts_cosim/r1a_task_order.py}" "$T"
-) || { echo "FAIL LOUD: could not map array index $T"; exit 1; }
+if [[ -n "${ARMS:-}" ]]; then
+  read -r ARM G < <(python3 -c "import sys; arms=sys.argv[2:]; o=[(a,g) for g in (3,4,5,0,1,2) for a in arms]; print(*o[int(sys.argv[1])])" "$T" $ARMS)
+else
+  read -r ARM G < <(python3 "${ORDER_PY:-$WT/scripts_cosim/r1a_task_order.py}" "$T")
+fi || { echo "FAIL LOUD: could not map array index $T"; exit 1; }
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
@@ -27,12 +32,12 @@ micromamba activate gnn
 export HEROSIM_PY=python3 PYTHONPATH="$WT:$WT/src/notebooks" PYTHONUNBUFFERED=1 WANDB_ENTITY=nikolalukic167-tu-wien OMP_NUM_THREADS=6 MKL_NUM_THREADS=6 OPENBLAS_NUM_THREADS=6 CUDA_VISIBLE_DEVICES=""
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
 mkdir -p logs
-CFG=experiments/r1_attribution_v1_${ARM}_g${G}.yaml
+CFG=experiments/${LINEAGE}_${ARM}_g${G}.yaml
 echo "task $T: arm $ARM config g$G seeds $SEEDS | HEAD $(git rev-parse HEAD) node $(hostname)"
 [[ -f "$CFG" && -L models ]] || { echo "FAIL LOUD: $CFG missing or models/ is not the symlink"; exit 1; }
-[[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py | grep -v 'experiments/r1_attribution_v1_split.json')" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
-[[ -f experiments/r1_attribution_v1_split.json && -f simulation_data/graphs_cache_r1_attribution_v1_psv5_inf/metadata.json ]] || { echo "FAIL LOUD: the production cache or split is missing"; exit 1; }
-[[ -z "${SPLIT_SHA:-}" || "$(sha256sum experiments/r1_attribution_v1_split.json | cut -d' ' -f1)" == "$SPLIT_SHA" ]] || { echo "FAIL LOUD: split sha mismatch"; exit 1; }
+[[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py | grep -v "$SPLITF")" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
+[[ -f "$SPLITF" && -f simulation_data/graphs_cache_${LINEAGE}_psv5_inf/metadata.json ]] || { echo "FAIL LOUD: the production cache or split is missing"; exit 1; }
+[[ -z "${SPLIT_SHA:-}" || "$(sha256sum "$SPLITF" | cut -d' ' -f1)" == "$SPLIT_SHA" ]] || { echo "FAIL LOUD: split sha mismatch"; exit 1; }
 RUN=$(python3 -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['wandb']['run_name'])" "$CFG")
 pids=(); for S in $SEEDS; do
   CK=models/$RUN-seed$S.pt
@@ -45,7 +50,7 @@ for S in $SEEDS; do
   wait "${pids[$i]}" || { echo "seed $S FAILED"; tail -12 "logs/r1a-train-$RUN-seed$S.log" | cut -c1-240; fail=$((fail+1)); }
   CK=models/$RUN-seed$S.pt
   for f in "$CK" "${CK%.pt}.contract.json" "${CK%.pt}.val.json"; do [[ -f "$f" ]] || { echo "FAIL LOUD: seed $S produced no $f"; fail=$((fail+1)); }; done
-  python3 scripts_cosim/joint_burst_v2_sidecheck.py "${CK%.pt}.contract.json" "ra_$ARM" experiments/r1_attribution_v1_split.json inf || fail=$((fail+1))
+  python3 scripts_cosim/joint_burst_v2_sidecheck.py "${CK%.pt}.contract.json" "ra_$ARM" "$SPLITF" inf || fail=$((fail+1))
   i=$((i+1))
 done
 echo "=== task $T ($RUN): $fail failure(s)"

@@ -127,3 +127,42 @@ def test_if_complete_exits_quietly_until_all_18_runs_are_scored(tmp_path, capsys
     finally:
         sys.argv = old
     assert not (tmp_path / "inputs").exists()
+
+
+def test_a_second_lineage_prefix_selects_and_stages_under_its_own_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(sel, "PREFIX", "scale-160-v1")
+    arms = ["gnn_eng", "gnn_eng_physmp"]
+    split, models = _stage(tmp_path, arms, lambda a, k, s: 1.0 if k == 2 else 2.0)
+    out = tmp_path / "sel.json"
+    old = sys.argv
+    sys.argv = ["x", "--models-dir", str(models), "--inputs-dir", str(tmp_path / "inputs"), "--split", str(split), "--out", str(out),
+                "--prefix", "scale-160-v1", "--arms", *arms]
+    try:
+        assert sel.main() == 0
+    finally:
+        sys.argv = old
+    staged = sorted(p.name for p in (tmp_path / "inputs/models").glob("*.pt"))
+    assert staged == sorted(f"scale-160-v1-{a}-seed{s}.pt" for a in ("gnn-eng", "gnn-eng-physmp") for s in (1, 2, 3))
+    assert not list((tmp_path / "inputs/models").glob("r1-attribution-v1-*"))
+    assert json.loads(out.read_text())["arms"]["gnn_eng"]["config"] == 2
+
+
+def test_scale160_configs_are_the_r1a_recipe_under_their_own_names(tmp_path):
+    import make_r1a_arm_configs as mk
+    import yaml
+
+    for arm in ("gnn_eng", "gnn_eng_physmp"):
+        for k in range(6):
+            _, a = mk.build(arm, k)
+            name, b = mk.build(arm, k, "scale_160_v1", "gnn-scale-160-v1")
+            ca, cb = yaml.safe_load(a), yaml.safe_load(b)
+            assert name == f"scale_160_v1_{arm}_g{k}"
+            assert cb["cache_dir"] == "simulation_data/graphs_cache_scale_160_v1_psv5_inf"
+            assert cb["env"]["NEAR_RTT_SPLIT_ARTIFACT"] == "experiments/scale_160_v1_split.json"
+            assert cb["env"]["NEAR_RTT_SKIP_FINAL_TEST"] == "1" and cb["args"]["epochs"] == 100
+            for key in ("cache_dir",):
+                ca.pop(key), cb.pop(key)
+            for d in (ca, cb):
+                d["env"].pop("NEAR_RTT_SPLIT_ARTIFACT")
+                d.pop("lineage"), d.pop("wandb")
+            assert ca == cb
