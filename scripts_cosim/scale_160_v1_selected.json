@@ -1,0 +1,32 @@
+{
+ "verdict": "DESIGN-READY",
+ "lineage": "scale_160_v1",
+ "clients": 160,
+ "servers": 24,
+ "connection_probability": 0.6,
+ "topologies": [
+  16001,
+  16002,
+  16003,
+  16004,
+  16005,
+  16006,
+  16007,
+  16008,
+  16009,
+  16010,
+  16011,
+  16012
+ ],
+ "spares": [
+  16013,
+  16014,
+  16015,
+  16016,
+  16017,
+  16018,
+  16019,
+  16020
+ ],
+ "note": "fresh gate test topologies; corpus (train + held-out) is 16101-16200 (S6); 9101 and 9901-9908 are the probe and S5's go/no-go and calibration seeds"
+}

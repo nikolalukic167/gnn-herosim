@@ -122,6 +122,7 @@ BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KIND
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 # r1_attribution_v1: the seven learned arms, retrained on R1 + WF1 under partial_state_v5. The checkpoint each arm serves is the
 # configuration chosen on validation topologies only, copied to <inputs>/models/r1-attribution-v1-<arm>-seed<N>.pt by the selection step.
+# scale_160_v1 reuses the arms: R1A_STEM / R1A_SPLIT name its checkpoint prefix and split file, R1A_TOPOS its topologies.
 RA_ARMS = ("gnn_eng", "twin_eng", "mlp_same", "gnn_raw", "twin_raw", "gnn_eng_physmp", "set_transformer")
 RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS)
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
@@ -727,7 +728,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
         elif base_kind in RA_KINDS:
-            stem = "r1-attribution-v1-" + base_kind[3:].replace("_", "-")
+            stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")
         else:
             stem = f"joint-burst-v2-{base_kind}"
         # checkpoints and the split file sit at the inputs root (r1a: one set for every rung); an older layout kept them in the rung directory
@@ -735,7 +736,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind)
-        split = ("r1_attribution_v1_split.json" if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
+        split = (os.environ.get("R1A_SPLIT", "r1_attribution_v1_split.json") if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
                                   os.path.join(mroot, split), "inf"], env=env, cwd=REPO)
@@ -853,7 +854,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     for k in ("residence_tasks", "residence_batches", "queue_range_records"):
         c.pop(k, None)
     arm_kind = RULE_POLICY.get(kind, kind)
-    out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=40,
+    out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=int(json.load(open(cfg))["nodes"]["client_nodes"]["count"]),
                servers=int(json.load(open(cfg))["nodes"]["server_nodes"]["count"]),
                rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "r1a" if base_kind in RA_KINDS else "bc1" if base_kind in BC1_KINDS else "jb2") if base_kind in LEARNED_KINDS else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
