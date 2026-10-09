@@ -188,6 +188,82 @@ def latency_percentiles(task_results: Optional[List[dict]]) -> Optional[Dict[str
     return {"n": n, "p50": rank(0.50), "p95": rank(0.95), "p99": rank(0.99), "max": lat[-1]}
 
 
+def placement_wait(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """load_recalibration_v1: arrival-to-placement time per task (scheduledTime - dispatchedTime, the quantity whose mean is
+    averageWaitTime): mean, p95 (nearest-rank) and max. A queue share cannot see a wait that happens before execution."""
+    if not task_results:
+        return None
+    w = sorted(float(r["scheduledTime"]) - float(r["dispatchedTime"]) for r in task_results
+               if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    n = len(w)
+    if not n:
+        return None
+    return {"n": n, "mean": sum(w) / n, "p95": w[min(n - 1, max(0, math.ceil(0.95 * n) - 1))], "max": w[-1]}
+
+
+def backlog_profile(task_results: Optional[List[dict]], with_lock_wait: bool = False) -> Optional[Dict[str, object]]:
+    """load_recalibration_v1 backlog guard. Per task, backlog = (scheduledTime - dispatchedTime) + queueTime, so a wait
+    before placement counts; with ``with_lock_wait`` (amendment 2026-10-09) the wait for the replica's compute lock,
+    computeStartTime - ioEndTime, is added. Quarter means in arrival (dispatchedTime) order, last over the mean of the
+    middle two, and the tasks in the system (dispatched, not done) at 1/2 and 3/4 of the last arrival time, 3/4 over 1/2."""
+    if not task_results:
+        return None
+    def lock(r):
+        if not with_lock_wait or r.get("ioEndTime") is None or r.get("computeStartTime") is None:
+            return 0.0
+        return float(r["computeStartTime"]) - float(r["ioEndTime"])
+
+    rows = sorted((float(r["dispatchedTime"]), float(r["scheduledTime"]) - float(r["dispatchedTime"]) + float(r["queueTime"]) + lock(r),
+                   float(r["doneTime"])) for r in task_results if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    n = len(rows)
+    if n < 4:
+        return None
+    q = [rows[i * n // 4:(i + 1) * n // 4] for i in range(4)]
+    means = [sum(x[1] for x in part) / len(part) for part in q]
+    mid = (means[1] + means[2]) / 2
+    arrivals = [x[0] for x in rows]
+    done = sorted(x[2] for x in rows)
+    last = arrivals[-1]
+    in_system = {}
+    for tag, frac in (("half", 0.5), ("three_quarter", 0.75)):
+        t = frac * last
+        in_system[tag] = bisect.bisect_right(arrivals, t) - bisect.bisect_right(done, t)
+    return {"quarter_mean_backlog": means, "last_over_mid": means[3] / mid if mid > 0 else (math.inf if means[3] > 0 else 1.0),
+            "in_system_at": in_system,
+            "in_system_ratio": in_system["three_quarter"] / in_system["half"] if in_system["half"] > 0
+            else (math.inf if in_system["three_quarter"] > 0 else 1.0)}
+
+
+def lock_wait_profile(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """load_recalibration_v1 (amendment 2026-10-09): the wait for the replica's compute lock, compute_start - io_end per task.
+    `started` is stamped before it, so the platform queue's FIFO backlog on a saturated replica is filed under compute
+    time and queue_share misses it. effective_queue_share = (queue time + lock wait) / elapsed over the same tasks;
+    queue_share is kept alongside. A task without the stamps (never served) counts as no lock wait and is reported in
+    n_unstamped. None when the result has no task results."""
+    if not task_results:
+        return None
+    rows = [r for r in task_results if r.get("taskId") is None or int(r["taskId"]) >= 0]
+    if not rows:
+        return None
+    w = sorted((float(r["computeStartTime"]) - float(r["ioEndTime"]))
+               if r.get("ioEndTime") is not None and r.get("computeStartTime") is not None else 0.0 for r in rows)
+    n = len(w)
+    elapsed = sum(float(r["doneTime"]) - float(r["dispatchedTime"]) for r in rows)
+    queue = sum(float(r["queueTime"]) for r in rows)
+    return {"n": n, "n_unstamped": sum(1 for r in rows if r.get("computeStartTime") is None),
+            "mean": sum(w) / n, "p95": w[min(n - 1, max(0, math.ceil(0.95 * n) - 1))], "max": w[-1],
+            "effective_queue_share": (queue + sum(w)) / elapsed if elapsed > 0 else None,
+            "queue_share_same_tasks": queue / elapsed if elapsed > 0 else None}
+
+
+def arrival_end(workload_path: str, end_time: Optional[float]) -> Optional[Dict[str, object]]:
+    """load_recalibration_v1: the run's end time against the last arrival in its workload file."""
+    last = max(float(e["timestamp"]) for e in json.load(open(workload_path))["events"])
+    if end_time is None:
+        return None
+    return {"last_arrival_s": last, "end_time_s": float(end_time), "end_over_last_arrival": float(end_time) / last if last > 0 else None}
+
+
 def replica_count_series(system_events: Optional[List[dict]], end_time: Optional[float],
                          points: int = 120) -> Optional[Dict[str, object]]:
     """physics_audit_v1: live replicas per function and in total on a uniform grid over the run, from the autoscaler's
@@ -724,6 +800,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     # reference_physics_programme metrics: cold-start share (percent of tasks) travels with every summary
     out["cold_start_pct"] = st.get("coldStartProportion")
     out["latency_percentiles"] = latency_percentiles(st.get("taskResults"))
+    out["placement_wait"] = placement_wait(st.get("taskResults"))
+    out["backlog_profile"] = backlog_profile(st.get("taskResults"))
+    out["backlog_profile_v2"] = backlog_profile(st.get("taskResults"), with_lock_wait=True)
+    out["lock_wait"] = lock_wait_profile(st.get("taskResults"))
+    out["arrival_end"] = arrival_end(wl, st.get("endTime"))
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
         want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
@@ -831,6 +912,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[FAILED {problems}] {name}"
     e, q = float(out["averageElapsedTime"]), float(out["averageQueueTime"])
     out["queue_share"] = q / e if e > 0 else None
+    out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     json.dump(out, open(summary + ".partial", "w"), indent=1)
     os.replace(summary + ".partial", summary)
     os.remove(raw)

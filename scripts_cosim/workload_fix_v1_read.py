@@ -136,6 +136,14 @@ def exchange_share_by_class(rows: Sequence[dict]) -> Dict[str, Any]:
             "by_pair": {p: {**v, "share_of_latency": v["seconds"] / latency_s} for p, v in sorted(pairs.items())}}
 
 
+def request_failures(runs: Sequence[dict]) -> Dict[str, Any]:
+    """R1.1 request timeouts: failed tasks and runs with one. ``None`` when the summaries predate R1.1."""
+    counts = [r.get("requestFailures") for r in runs]
+    if not runs or any(c is None for c in counts):
+        return {"available": False}
+    return {"available": True, "tasks": int(sum(counts)), "runs_with_failure": sum(c > 0 for c in counts), "n_runs": len(runs)}
+
+
 def compute(ok: dict, bad: dict, topos: Sequence[int], rungs: Sequence[str], excluded: Sequence[int] = ()) -> dict:
     topos = [t for t in topos if t not in set(excluded)]
     out: Dict[str, Any] = {}
@@ -163,6 +171,7 @@ def compute(ok: dict, bad: dict, topos: Sequence[int], rungs: Sequence[str], exc
                 "exch_per_task": st.median(ex) if ex else None, "exch_share": st.median(exs) if exs else None,
                 "cold_start_pct": st.median([c for c in cold if c is not None]) if any(c is not None for c in cold) else None,
                 "exchange_by_access_class": exchange_share_by_class(runs),
+                "request_failures": request_failures(runs),
             }
             if arm != "cd":
                 pc = []
@@ -247,11 +256,13 @@ def main() -> int:
         print(f"== {rung}  (CD first: {result[rung]['_cd_first']})")
         for arm in ARMS:
             r = result[rung][arm]
+            q = r["request_failures"]
+            rf = f"{q['tasks']}/{q['runs_with_failure']}runs" if q["available"] else "n/a"
             vs = (f"vs CD {r['vs_cd']:+6.1f}% ({r['faster']}/{r['n_pc']} faster, p {r['p']:.2g}"
                   + (f", Holm {r['p_holm']:.2g}, {r['label']})" if "p_holm" in r else ", context)")) if "vs_cd" in r else ""
             print(f"  {arm:12s} n={r['n_topologies']:2d} fail={r['n_failed']:2d} lat {r['lat'] or float('nan'):7.2f} "
                   f"q {r['qshare'] or float('nan'):.2f} exch/task {r['exch_per_task'] or float('nan'):.2f}s "
-                  f"({100 * (r['exch_share'] or 0):.1f}% of latency) {vs}")
+                  f"({100 * (r['exch_share'] or 0):.1f}% of latency) req-fail {rf} {vs}")
     return 0
 
 
