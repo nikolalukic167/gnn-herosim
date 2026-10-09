@@ -50,6 +50,12 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Double scaling confirmed; "CD saturated at m0" RETRACTED** (S5, from the minted timestamps).
+  - The (c) inputs ran at ×185.8 (85.5 arrivals/s), 4× the probe capture's ×46.46 (21.4 arrivals/s).
+  - Nothing is known yet about CD at ×46.46, and no CD defect is indicated. (a) and (b) are unaffected.
+  - Fix: one convention, m = the final multiplier on the ×1 windows, with factor 1/m.
+  - Calibration brackets (final multipliers): heavy [11.6, 185.8], moderate [5.8, 92.9]. (c) is judged inside the
+    calibration.
 - 2026-10-10 — Training prep (S7, `rp/scale160-prep` ec970b82).
   - Read from the code: no server-count pad binds under partial_state_v5. The one-hot rank pad applies only to the
     v1/v2 contracts (`reduced_features.py:252, 356`).
