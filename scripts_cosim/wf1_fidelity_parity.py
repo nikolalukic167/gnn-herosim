@@ -43,9 +43,9 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     # the decision must happen at the snapshot instant: no batch-collection wait (every task of the replay arrives at t = 0, so
     # nothing is waited for; a positive window would still tick once per queued batch whose partners lie outside the snapshot),
     # and a batch cap that holds the largest corpus group (the default cap of 4 splits a 6-task peer group)
-    os.environ["GNN_BATCH_TIMEOUT"] = "1e-9"
+    os.environ.pop("GNN_BATCH_TIMEOUT", None)  # the cell config's scheduler block names them (the loader refuses both)
+    os.environ.pop("GNN_BATCH_SIZE", None)
     from src.policy.gnn.scheduler import _gnn_batch_range
-    os.environ["GNN_BATCH_SIZE"] = str(_gnn_batch_range()[1])
     import peer_affinity_live_serve_check as P
     from src.executesimulation import execute_simulation, load_gnn_model, load_simulation_inputs, prepare_infrastructure_for_real_simulation
     from src.placement import snapshot_fidelity as SF
@@ -77,7 +77,7 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     infra["forced_placements"] = {}
     infra["fast_forward_warmup"] = True
     infra["fast_forward_threshold"] = 1
-    infra["scheduler"] = {"batch_size": max(len(wl["events"]), 1), "batch_timeout": 0.02}
+    infra["scheduler"] = {"batch_size": _gnn_batch_range()[1], "batch_timeout": 1e-9}
     kw = SF.live_run_params()
 
     orig = GNNScheduler._prefix_inference
