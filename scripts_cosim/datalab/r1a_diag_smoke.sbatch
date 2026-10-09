@@ -48,4 +48,4 @@ for T in ${TOPOS//,/ }; do for R in light moderate heavy; do
 done; done
 wait
 tail -n 3 "$OUT"/classical.log "$OUT"/learned_*.log | cut -c1-200
-python3 scripts_cosim/r1a_diag_smoke_read.py --out "$OUT" --arm "${ARM#ra_}" --topos "$TOPOS" | tee "$OUT/read.txt"
+python3 "${READER:-scripts_cosim/r1a_diag_smoke_read.py}" --out "$OUT" --arm "${ARM#ra_}" --topos "$TOPOS" | tee "$OUT/read.txt"
