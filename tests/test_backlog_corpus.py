@@ -188,3 +188,28 @@ def test_synthetic_seed_passes_explicit_seconds_and_skips_the_drain_table():
     calls.clear()
     _seed_platform_state({("n0", 1): (None, plat)}, sim, captured)
     assert calls[0][1] == {}
+
+
+def test_legacy_serving_backlog_equals_what_the_cache_reads_for_a_busy_platform(monkeypatch):
+    """r1_attribution_v1 ds_02000: the fidelity replay shows backlog 0 where the cache holds 0.55 s on a platform running a task, because a replayed
+    ghost is not `platform.current_task`. The cache reads the snapshot's candidate payload (live_audit.temporal_state_of -> the scheduler's
+    _capture_temporal_state_for_replicas); serving reads candidate_backlog_seconds -> the same function. Pinned on a real busy platform."""
+    from src.placement.live_snapshot_seed import seeded_backlog_seconds
+    from src.policy.gnn.scheduler import GNNScheduler
+
+    monkeypatch.delenv(live_audit.INFLIGHT_CAPTURE_ENV, raising=False)
+    monkeypatch.setattr(live_audit, "platform_queue_drain_seconds", lambda *a, **k: 0.0)
+    monkeypatch.setattr(live_audit, "orchestrator_of", lambda s: None)
+    task_type = {"name": "cnn", "executionTime": {"xavierCpu": 0.7055338}, "stateSize": {"nofs-cnn": {"output": 11264}}}
+    running = SimpleNamespace(cold_started=False, started_time=100.0, type=task_type, application=SimpleNamespace(type={"name": "nofs-cnn"}))
+    plat = SimpleNamespace(id=220, env=SimpleNamespace(now=100.1567), current_task=running, type={"shortName": "xavierCpu"},
+                           inflight_service_end=None)
+    node = SimpleNamespace(node_name="node4")
+    sched = SimpleNamespace(env=plat.env)
+    sched._capture_temporal_state_for_replicas = lambda reps: GNNScheduler._capture_temporal_state_for_replicas(sched, reps)
+    temporal = live_audit.temporal_state_of(sched, node, plat)
+    assert temporal["current_task_remaining"] == pytest.approx(0.7055338 - 0.1567) and temporal["comm_remaining"] > 0.0
+    served = live_audit.candidate_backlog_seconds(sched, node, plat)
+    spec = {"queue_length": 0, "queue_drain_seconds": 0.0, **{k: temporal[k] for k in ("current_task_remaining", "comm_remaining")}}
+    assert served == pytest.approx(seeded_backlog_seconds(spec, task_type, "xavierCpu"))
+    assert served == pytest.approx(0.7055338 - 0.1567 + temporal["comm_remaining"])

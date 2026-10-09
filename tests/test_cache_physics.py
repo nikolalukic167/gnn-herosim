@@ -9,13 +9,14 @@ from src.placement.cache_physics import current_physics_env, require_matching_ph
 
 
 def test_current_physics_env_follows_the_environment(monkeypatch):
-    for k in ("HEROSIM_TRANSFER_MODEL", "HEROSIM_REPLICA_RELEASE", "HEROSIM_SCALEOUT"):
+    for k in ("HEROSIM_TRANSFER_MODEL", "HEROSIM_REPLICA_RELEASE", "HEROSIM_SCALEOUT", "HEROSIM_INFLIGHT_CAPTURE"):
         monkeypatch.delenv(k, raising=False)
-    assert current_physics_env() == {"transfer_model": "store_forward", "replica_release": "0", "scaleout": "legacy"}
+    assert current_physics_env() == {"transfer_model": "store_forward", "replica_release": "0", "scaleout": "legacy",
+                                     "inflight_capture": "legacy"}
     monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
     monkeypatch.setenv("HEROSIM_REPLICA_RELEASE", "1")
     monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
-    assert current_physics_env() == {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa"}
+    assert current_physics_env() == {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa", "inflight_capture": "legacy"}
 
 
 def test_mismatch_is_refused_and_names_every_difference(monkeypatch):
@@ -26,6 +27,48 @@ def test_mismatch_is_refused_and_names_every_difference(monkeypatch):
     built = {"transfer_model": "store_forward", "replica_release": "1", "scaleout": "legacy"}
     with pytest.raises(ValueError, match="transfer_model.*scaleout"):
         require_matching_physics_env(built, what="cache x")
+
+
+def _r1(monkeypatch):
+    monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
+    monkeypatch.setenv("HEROSIM_REPLICA_RELEASE", "1")
+    monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
+    monkeypatch.delenv("HEROSIM_INFLIGHT_CAPTURE", raising=False)
+
+
+def test_inflight_capture_mismatch_is_refused_both_ways(monkeypatch):
+    _r1(monkeypatch)
+    legacy = current_physics_env()
+    monkeypatch.setenv("HEROSIM_INFLIGHT_CAPTURE", "service_end_v1")
+    with pytest.raises(ValueError, match="inflight_capture: built/trained under 'legacy', this run has 'service_end_v1'"):
+        require_matching_physics_env(legacy, what="legacy cache served service_end_v1")
+    service_end = current_physics_env()
+    monkeypatch.delenv("HEROSIM_INFLIGHT_CAPTURE")
+    with pytest.raises(ValueError, match="inflight_capture: built/trained under 'service_end_v1', this run has 'legacy'"):
+        require_matching_physics_env(service_end, what="service_end cache served legacy")
+    require_matching_physics_env(legacy, what="matching")
+
+
+def test_a_record_without_inflight_capture_means_legacy(monkeypatch):
+    _r1(monkeypatch)
+    old = {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa"}
+    require_matching_physics_env(old, what="r1a smoke cache")
+    monkeypatch.setenv("HEROSIM_INFLIGHT_CAPTURE", "service_end_v1")
+    with pytest.raises(ValueError, match="inflight_capture"):
+        require_matching_physics_env(old, what="r1a smoke cache")
+
+
+def test_cache_records_the_capture_mode_of_its_snapshots_not_the_build_shell(monkeypatch):
+    import pytest as _p
+    pgc = _p.importorskip("src.notebooks.prepare_graphs_cache")
+    legacy_seed = {"fidelity_replay": {"snapshot": {"replicas_by_type": {"dnn1": [{"node_name": "n0", "platform_id": 0}]}}}}
+    service_seed = {"fidelity_replay": {"snapshot": {"replicas_by_type": {"dnn1": [{"node_name": "n0", "platform_id": 0, "current_task_remaining": 0.0}]}}}}
+    assert pgc._inflight_capture_of_seed(legacy_seed) == "legacy"
+    assert pgc._inflight_capture_of_seed(service_seed) == "service_end_v1"
+    assert pgc._inflight_capture_of_seed({}) == "legacy"
+    assert pgc._single_inflight_capture({"a": {"inflight_capture": "legacy"}, "b": {}}) == "legacy"
+    with pytest.raises(RuntimeError, match="different in-flight modes"):
+        pgc._single_inflight_capture({"a": {"inflight_capture": "legacy"}, "b": {"inflight_capture": "service_end_v1"}})
 
 
 def test_a_cache_without_the_field_is_tolerated_unless_required(monkeypatch):

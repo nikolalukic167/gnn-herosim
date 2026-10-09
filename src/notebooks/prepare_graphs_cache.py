@@ -706,10 +706,28 @@ def _declared_slate_of(dataset_dir: Path) -> Dict[str, Any]:
     dataset (make_warm_corpus --fidelity); None on every earlier corpus."""
     infra_path = Path(dataset_dir) / "infrastructure.json"
     if not infra_path.exists():
-        return {"task_candidates": None, "candidate_slate": None}
+        return {"task_candidates": None, "candidate_slate": None, "inflight_capture": "legacy"}
     with open(infra_path) as fh:
-        spec = ((json.load(fh).get("live_snapshot_seed") or {}).get("fidelity_replay")) or {}
-    return {"task_candidates": spec.get("task_candidates"), "candidate_slate": spec.get("candidate_slate")}
+        seed = json.load(fh).get("live_snapshot_seed") or {}
+    spec = seed.get("fidelity_replay") or {}
+    return {"task_candidates": spec.get("task_candidates"), "candidate_slate": spec.get("candidate_slate"),
+            "inflight_capture": _inflight_capture_of_seed(seed)}
+
+
+def _inflight_capture_of_seed(seed: Mapping[str, Any]) -> str:
+    """The HEROSIM_INFLIGHT_CAPTURE mode a snapshot was captured under, read off its replica specs: a service_end_v1 capture
+    (live_audit._candidate_payload) writes `current_task_remaining` on every spec, a legacy capture never does."""
+    snapshot = (seed.get("fidelity_replay") or {}).get("snapshot") or {}
+    by_type = snapshot.get("replicas_by_type") or seed.get("replicas_by_type") or {}
+    specs = [s for lst in by_type.values() for s in lst]
+    return "service_end_v1" if any("current_task_remaining" in s for s in specs) else "legacy"
+
+
+def _single_inflight_capture(all_datasets: Mapping[str, Mapping[str, Any]]) -> str:
+    modes = {d.get('inflight_capture', 'legacy') for d in all_datasets.values()}
+    if len(modes) > 1:
+        raise RuntimeError(f"datasets were captured under different in-flight modes {sorted(modes)}; a cache has one")
+    return next(iter(modes)) if modes else "legacy"
 
 
 def load_all_datasets(
@@ -2242,7 +2260,7 @@ def main():
         # same bug class the inference_feature_layout confound (40.8% of total_rtt) had.
         'topology_feature_contract': resolve_topology_feature_contract(),
         # the transfer model / replica release / scale-out the exchange seconds and candidate sets were built under
-        'physics_env': current_physics_env(),
+        'physics_env': {**current_physics_env(), 'inflight_capture': _single_inflight_capture(all_datasets)},
         # the candidate-slate rule every dataset was built under (None: the sweep's own slate); serving must run the same one
         'candidate_slate': _single_candidate_slate(all_datasets),
         # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk
