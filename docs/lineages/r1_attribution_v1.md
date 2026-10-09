@@ -667,6 +667,23 @@ No line trips.
   - Decision: the pause line applies with no rerun, and it is reported as N of M hung per rung. One diagnostic cell
     classifies the stall (starved-client spin vs a random_network defect).
 - **More selections:** set_transformer (23:41), g1, val regret 0.901 ± 0.034 s.
+- **Trio reads, partial and descriptive (S4; 451–455 of 456 cells each; Holm and the family not yet run).** Paired %
+  over 19 topologies, light / moderate / heavy:
+  - gnn_eng vs CD: +3.55 / +7.31 / +8.62 %, faster in 1 / 1 / 2 topologies.
+  - gnn_eng vs self-predict: +2.3 / +8.1 / +4.1 %.
+  - gnn_eng vs twin_eng: −0.19 / −0.07 / +1.00 %.
+  - gnn_eng vs mlp_same: −0.74 / +0.36 / +1.62 %.
+  - mlp_same vs CD: +4.2 / +7.6 / +6.9 %.
+  - CD←GNN vs CD: **−0.38 / −1.87 / −1.66 %**, faster in 16 / 18 / 17.
+  - CD←GNN vs CD←Twin: +0.02 / +0.04 / −0.10 %, a tie.
+  - CD←GNN vs CD←random: −1.7 / −5.1 / −6.1 %, faster in 19 / 19 / 19.
+  - **Reading:**
+    - The plain learned arms lose to CD.
+    - Message passing adds nothing: GNN ties its twin, and CD←GNN ties CD←Twin.
+    - A learned start for CD beats both a random start and CD itself. The gain comes from the learned seed, not from
+      message passing.
+  - Spin counters (`r1a_gate_spin.py`, ff1c01c6): median deferrals and reachability failures are the same across arms.
+    20–27 of 456 cells per arm have deferrals above 5× CD's, concentrated at 9565 and 9538.
 - **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
   - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
     - ps_exchange_push: +4.1 / +4.3 / +4.6
