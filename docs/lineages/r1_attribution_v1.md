@@ -120,6 +120,11 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
   - The 77 unselected pool ids aren't used.
   - Before capture, every training and validation id passes the live-topology feasibility check
     (`workload_fix_v1_reachability_live.py`). Infeasible cells are dropped and listed.
+  - **Result (S6, `96a09da4`):** 41 of the 144 are infeasible in all four windows, each one because a sending client can't
+    reach a dnn2-capable server. That's 34 train and 7 held-out ids; the list is in datalab
+    `workload_fix_v1/corpus_prod_prov/reach_live_144_infeasible.json`. **Decision: they're dropped and the lists aren't
+    extended.** That leaves train 86 and held-out 17, which is enough for about 5,000 batches. Inputs for the 103 are built
+    (W3 diff 206/206 ok), and they're rebuilt at the recalibrated rungs once those exist.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
