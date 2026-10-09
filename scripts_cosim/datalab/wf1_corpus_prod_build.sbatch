@@ -76,7 +76,7 @@ for R in $TAGS; do
       echo "[$CELL $R $W] capture $(cat "$DONE"); no corpus from this cell"; cells_not_ok="$cells_not_ok ${R}_${W}"; wi=$((wi+1)); continue
     fi
     python3 scripts_cosim/wf1_shard_snapshots.py --snapshots "$SNAP" --out "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" --min-time "$MIN_TIME"
-    python3 scripts_cosim/make_warm_corpus.py --snapshots "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" \
+    python3 scripts_cosim/make_warm_corpus.py --manifest-per-source --snapshots "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" \
       --trace "$ROOT/inputs/wf1_$R/wl/grounded_${W}_n50000.json" --cell-config "$ROOT/inputs/wf1_$R/cfg/$CELL.json" \
       --output-dir "$OUT" --source-tag "wf1p_${CELL}_${R}_${W}" --start-index "$START" --limit-batches "$PER_CELL" --require-limit-batches \
       --min-time "$MIN_TIME" --target-combos "$TARGET" \
