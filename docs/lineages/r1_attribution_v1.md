@@ -153,6 +153,12 @@ arrivals after the snapshot, exactly.
   (S6's 0.46 % uses offered batches as the denominator).
 - **Pipeline code is cleared for production** at `2a7c85c9`. The capture still waits for the spin diagnosis (the heavy
   hung-cell rate is 17 %, against the 5 % line).
+- **The spin is not specific to the capture policy (2026-10-09 11:00).**
+  - CD 9607 g1 at ×5 (S4's job 843900, old-ladder context) busy-loops at 99.7 % CPU and 3.5 GB RSS for 43 min,
+    against 44–54 s for its siblings, with an empty log. The same cell finishes at ×5.94.
+  - CD 9608 g1 at ×0.2666 hit the 2,700 s wall limit in both passes; likely the same failure, unconfirmed.
+  - S6's smoke has 9298 heavy g1 spinning, with a request_timeout signature.
+  - S5 diagnoses the spin on the CD calibration cells first.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
