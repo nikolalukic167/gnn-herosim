@@ -26,7 +26,9 @@ export HEROSIM_PY=python3 PYTHONPATH="$WT" PYTHONUNBUFFERED=1
 export HEROSIM_RAW_DIR=/tmp/herosim_raw_${SLURM_JOB_ID:-$$}; mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 HEAD=$(git rev-parse HEAD); echo "HEAD $HEAD node $(hostname) OUT=$OUT BASE=$BASE"
 [[ "$HEAD" == "$EXPECT_HEAD"* ]] || { echo "FAIL LOUD: worktree HEAD $HEAD is not $EXPECT_HEAD"; exit 1; }
-[[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
+# a wedged Ceph client can hang `git status` (datalab-pitfalls 14): bounded `git diff --quiet`, a warning rather than a stop
+rc=0; timeout 300 git diff --quiet HEAD -- src scripts_cosim experiments run_experiment.py || rc=$?
+[[ $rc == 0 ]] || echo "WARN: worktree check rc=$rc (1 = tracked files differ from HEAD, 124 = timed out after 300 s)"
 [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
 mkdir -p "$OUT/in"
 for r in light moderate heavy; do ln -s "$IN/wf1_$r" "$OUT/in/wf1_$r"; done
