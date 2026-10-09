@@ -160,6 +160,16 @@ arrivals after the snapshot, exactly.
   - S6's smoke has 9298 heavy g1 spinning, with a request_timeout signature.
   - S5 diagnoses the spin on the CD calibration cells first.
 
+**Smoke (2026-10-09; S6, jobs 843935–843937, `2a7c85c9` lineage; 9101 and 9298 × 3 rungs × g0/g1).**
+- **Sentinels:** 12/12 ok, no cap hit, coverage to task 49.5–49.9k. 9298 heavy g1 finished on its own after 1 h 34 min,
+  so the hung-sentinel path is still unexercised; S6 is forcing it.
+- **Build:** 12 batches, 14 datasets, 0 discards, 0 shortfall.
+- **Rejections:** 5 of 19 (no_choice 21 %).
+- **Sub-batched:** 8.3 %.
+- **Single-node, zero-exchange optima:** 11 of 14 (78.6 %, n tiny); the per-rung split is requested.
+- **Fidelity check:** 0 problems.
+- **unplaced_partner:** 0.42–0.59 % per rung.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
