@@ -22,6 +22,7 @@ import json
 import math
 import os
 import re
+import signal
 import statistics as st
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
@@ -205,6 +206,7 @@ def print_report(r: dict) -> None:
 
 
 def main() -> int:
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `| head` ends the report quietly
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
     ap.add_argument("--best-arm", default=None, help="the best learned arm, declared from validation topologies before any test read")
