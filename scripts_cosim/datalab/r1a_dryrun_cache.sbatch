@@ -27,7 +27,7 @@ mkdir -p "$OUT/view"
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
 export DAG_PRIMARY_ALPHA_KEY=inf PARTIAL_STATE_CONTRACT=partial_state_v5 NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded
 python3 - "$CP" "$SUF" "$OUT/view" "$MAX_INDEX" <<'PY'
-import os, sys
+import os, shutil, sys
 from pathlib import Path
 cp, suf, view, mx = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]), int(sys.argv[4])
 for split in ("train", "heldout"):
@@ -36,10 +36,21 @@ for split in ("train", "heldout"):
     n = 0
     for d in sorted(src.glob("ds_*")):
         if int(d.name[3:]) < mx:
-            os.symlink(d, dst / d.name); n += 1
+            # a real directory of symlinks: refresh_optimal_full_stats --rewrite-ssc rewrites optimal_result.json and writes the SSC file, so
+            # those two are private copies and nothing is ever written through a link into the production corpus
+            t = dst / d.name; t.mkdir()
+            for f in d.iterdir():
+                if f.name == "optimal_result.json":
+                    shutil.copyfile(f, t / f.name)
+                else:
+                    os.symlink(f, t / f.name)
+            n += 1
     print(f"view {dst.name}: {n} of {len(list(src.glob('ds_*')))} datasets (index < {mx})")
 PY
-BASES=$(ls -d "$OUT"/view/*/ | tr '\n' ' ')
+S0=$(date +%s)
+for B in "$OUT"/view/*/; do [[ -n "$(ls -A "$B")" ]] && python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$B" --rewrite-ssc | tail -1; done
+echo "ssc rewrite wall seconds: $(( $(date +%s) - S0 ))"
+BASES=$(for B in "$OUT"/view/*/; do [[ -n "$(ls -A "$B")" ]] && echo -n "$B "; done)
 N=$(find "$OUT"/view -mindepth 2 -maxdepth 2 | wc -l)
 echo "=== cache build over $N datasets"
 START=$(date +%s)
