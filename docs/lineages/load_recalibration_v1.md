@@ -18,7 +18,8 @@ run, and every amendment below is dated before the data it governs. Depends on: 
   - Prediction 2 ("heavy unreachable or unstable") is FALSIFIED: heavy is reachable and stable for CD.
 - **Not quotable without:** "effective" next to any share; the queue share of any earlier R1 read is understated
   wherever replicas saturate.
-- **Pending addendum:** the old ×2/×3/×5 ladder measured on WF1, plus ×0.2666 at full treatment.
+- **Old ladder on WF1:** ×2 ≈ 0.10 and ×3 ≈ 0.14 (between light and moderate); ×5 ≈ 0.23 (moderate). ×0.2666 at full
+  treatment is pending.
 
 **Pre-run amendments (2026-10-08, coordinator, before any run; from the `workload_fix_v1` close).**
 - **Calibration set: 9601, 9602, 9607, 9608** (9603–9606 are infeasible on the live topology; `workload_fix_v1`). This
@@ -136,6 +137,21 @@ directories; CD and Knative on 8 cells per rung; 3× reruns on timeouts. Full nu
 - Light was found on its first log midpoint. Moderate and heavy came from measurement pass 843734 and were confirmed
   in the finals.
 - Knative's wait is lock wait: 826 of 837 s at heavy, and 227 of 231 s at moderate. Placement wait is 0.006 s.
+
+## 2026-10-09 — Addendum: old ladder on WF1
+Job 843900, code `5d52cd49`. CD only, the same 8 cells, 2,700 s steering limit, no rerun. Saved in
+`simulation_data/load_recalibration_v1/old_ladder_read.json`.
+
+| ×m | CD cells | CD eff. share | Old queue share | Worst p95 | Run end ÷ last arrival | Backlog ratio | Where it sits |
+|---|---|---|---|---|---|---|---|
+| 2 | 8/8 | 0.104 | 0.046 | 23.0 s | 1.001 | 1.05 | just above light |
+| 3 | 8/8 | 0.145 | 0.057 | 18.3 s | 1.001 | 1.07 | between light and moderate |
+| 5 | 7/8 | 0.234 | 0.070 | 13.5 s | 1.002 | 1.12 | moderate |
+
+- At ×5, the 9607 g1 cell is labelled **stalled, not a guard result**: a 43 min busy loop against 44–54 s for its
+  siblings, with an empty log. It is the spin under diagnosis in `r1_attribution_v1`. The cell finishes at ×5.94.
+- The old ×2/×3/×5 ladder is therefore light-to-moderate on WF1. No old rung reaches heavy.
+- ×0.2666 at full treatment is still to come.
 
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
