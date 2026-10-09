@@ -47,6 +47,14 @@ export HEROSIM_PEER_EXCHANGE=1 HEROSIM_SERVER_ONLY_REPLICAS=1 HEROSIM_WARMTH_PHY
 export HEROSIM_SNAPSHOT_FIDELITY=1
 export MAX_PLACEMENT_COMBINATIONS_SKIP=2000000 GNN_CAPTURE_DATASET_STATE=0 COSIM_SUPPRESS_SIM_PRINTS=1 HEROSIM_RETAIN_TASK_TIMES=1 HEROSIM_RETAIN_PEER_STATS=1
 export COSIM_PLACEMENT_TIMEOUT_S=${COSIM_PLACEMENT_TIMEOUT_S:-120}
+# disk guard: fail loudly before writing if the filesystem this task writes to, or the /home quota the job logs live on, has < GUARD_GB free
+GUARD_GB=${GUARD_GB:-15}
+free_gb() { case "$(readlink -f "$1")" in /home/*) echo $(( (268435456000 - $(getfattr --only-values -n ceph.dir.rbytes "$HOME" 2>/dev/null)) / 1000000000 ));;
+  *) df -P -BG "$1" | awk 'NR==2{gsub("G","",$4); print $4}';; esac; }
+for d in "$HOME" "$ROOT"; do
+  g=$(free_gb "$d"); echo "free on $d: ${g} GB (guard ${GUARD_GB})"
+  [[ "$g" -ge "$GUARD_GB" ]] || { echo "FAIL LOUD: only ${g} GB free for $d, below the ${GUARD_GB} GB guard"; exit 1; }
+done
 SPLIT=train; for h in $HELDOUT_TOPOS; do [[ "$h" == "$SEED" ]] && SPLIT=heldout; done
 OUT="$ROOT/gnn_datasets_wf1_$SPLIT"; mkdir -p "$OUT" "$ROOT/build_logs"
 NR=$(echo $TAGS | wc -w); NW=$(echo $WINDOWS | wc -w); NT=$(echo $TOPOS_ALL | wc -w)
