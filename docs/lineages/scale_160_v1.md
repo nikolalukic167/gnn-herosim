@@ -50,6 +50,12 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Possible double scaling in (c)** (S4, from reading `scale_probe_cd_bisect.sbatch` at a084cb46): m0 =
+  11.6139 × 24/6 may be multiplied again by 6/(m × servers), giving an effective ×185.8, 4× the probe capture's load.
+  If confirmed, the "CD saturated at m0" entry below is retracted. The calibration is held until S5 verifies.
+- 2026-10-10 — Gate prep (S4, `rp/s160-gate` 1e7a4b90).
+  - Test topologies 16001–16012 (spares 16013–16020). Train and held-out (S6): 16101–16200.
+  - Reader `scale_160_v1_read.py` implements the primary family.
 - 2026-10-10 — **(c) at m0 = 46.46: CD is saturated** (S5, 855121; seeds 9901–9904, g0).
   - Effective share 0.97 (plain 0.045), 37–41 s per task, run end 2.0–2.5× the last arrival, 0 request failures.
   - The batched-greedy capture policy was healthy at the same multiplier (3.6–4.6 s per task), so the
