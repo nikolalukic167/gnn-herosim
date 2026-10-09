@@ -137,7 +137,7 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
                 cells = []
                 for k in sorted(set(lv) & set(cv)):
                     if isinstance(lv[k], list) and isinstance(cv[k], list):
-                        cells += [f"{k} col {c}: live {x:.6g} cache {y:.6g}" for c, (x, y) in enumerate(zip(lv[k], cv[k]))
+                        cells += [f"{k} col {c}: live {x!r:.12} cache {y!r:.12}" for c, (x, y) in enumerate(zip(lv[k], cv[k]))
                                   if not P._close(x, y, tol=1e-6)]
                 only = sorted(set(lv) ^ set(cv))
                 detail = f" [{len(cells)} cells differ: {'; '.join(cells[:5])}; keys on one side only: {only[:4]}]"
