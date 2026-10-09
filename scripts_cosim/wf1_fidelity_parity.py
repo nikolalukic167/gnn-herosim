@@ -39,8 +39,13 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     os.environ["GNN_DECODE_MODE"] = "masked_topo"
     os.environ["GNN_BATCH_BY_PEER_GROUP"] = "1"
     os.environ["HEROSIM_GNN_DEVICE"] = "cpu"
-    for name in ("GNN_BATCH_SIZE", "HEROSIM_DATA_LOCALITY"):
-        os.environ.pop(name, None)
+    os.environ.pop("HEROSIM_DATA_LOCALITY", None)
+    # the decision must happen at the snapshot instant: no batch-collection wait (every task of the replay arrives at t = 0, so
+    # nothing is waited for; a positive window would still tick once per queued batch whose partners lie outside the snapshot),
+    # and a batch cap that holds the largest corpus group (the default cap of 4 splits a 6-task peer group)
+    os.environ["GNN_BATCH_TIMEOUT"] = "1e-9"
+    from src.policy.gnn.scheduler import _gnn_batch_range
+    os.environ["GNN_BATCH_SIZE"] = str(_gnn_batch_range()[1])
     import peer_affinity_live_serve_check as P
     from src.executesimulation import execute_simulation, load_gnn_model, load_simulation_inputs, prepare_infrastructure_for_real_simulation
     from src.placement import snapshot_fidelity as SF
@@ -127,7 +132,16 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
         if lv is None or cv is None:
             mism.append(f"{name}: live {'absent' if lv is None else 'present'}, cache {'absent' if cv is None else 'present'}")
         elif not P._close(lv, cv, tol=1e-6):
-            mism.append(f"{name}: differ -- live {str(lv)[:260]} ... cache {str(cv)[:260]}")
+            detail = ""
+            if isinstance(lv, dict) and isinstance(cv, dict):
+                cells = []
+                for k in sorted(set(lv) & set(cv)):
+                    if isinstance(lv[k], list) and isinstance(cv[k], list):
+                        cells += [f"{k} col {c}: live {x:.6g} cache {y:.6g}" for c, (x, y) in enumerate(zip(lv[k], cv[k]))
+                                  if not P._close(x, y, tol=1e-6)]
+                only = sorted(set(lv) ^ set(cv))
+                detail = f" [{len(cells)} cells differ: {'; '.join(cells[:5])}; keys on one side only: {only[:4]}]"
+            mism.append(f"{name}: differ{detail}")
     lp, cp = live.partial_state_ctx, cache.partial_state_ctx
     for name in P.PSC_FIELDS:
         lv, cv = P._norm(lp.get(name)), P._norm(cp.get(name))
