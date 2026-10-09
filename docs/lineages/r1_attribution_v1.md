@@ -269,6 +269,15 @@ No line trips.
   - The 154 "non-replica" plans are most likely a harness task-order mapping error: dataset task order differs from
     snapshot batch order in 425 of 604 datasets, and the mis-mapping reproduces a 70.5 % rate.
   - S5 fixes the mapping and reruns gate 3. ds_03200's 12 % miss is rechecked under the corrected mapping first.
+- **ds_03200 is a real I11 miss** (S5, job 853409). The live policy's own choice is the same plan: live 0.3352 s,
+  replay 0.3809 s (+13.6 %), a constant +0.0153 s on each task. The label equals the replay. The cause is being
+  diagnosed (job 853410), along with whether the offset is plan-independent, which would make it ranking-neutral.
+- **Correction (S7): CD is not pruned.** `peer_greedy_network` uses every reachable replica; only the `ra_*` kinds get
+  the declared top 5.
+- **Decision (2026-10-09, before any gate data):**
+  - The primary bar stays CD with its full candidate set, as registered. Pruning is the learned arms' own constraint.
+  - A descriptive arm, **CD-declared** (CD restricted to the same top-5 slate), is added to measure what pruning costs.
+    It is not in the primary family.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
