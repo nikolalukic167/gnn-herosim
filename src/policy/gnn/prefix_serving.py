@@ -209,6 +209,13 @@ def load_prefix_conditioned_gnn(
         require_matching_physics_env(sidecar.get("physics_env"), what=label)
     except ValueError as exc:
         raise PrefixServingError(str(exc)) from exc
+    # The candidate slate the training cache was built under (declared pruning or none)
+    from src.placement.declared_slate import require_matching_slate
+
+    try:
+        require_matching_slate(sidecar.get("candidate_slate"), what=label)
+    except ValueError as exc:
+        raise PrefixServingError(str(exc)) from exc
     # Contracts: partial-state column meaning, peer-mass column.
     trained_contract = sidecar.get("partial_state_contract")
     if not trained_contract:

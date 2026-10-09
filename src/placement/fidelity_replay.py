@@ -54,6 +54,22 @@ def build_spec(snapshot: Mapping[str, Any], cell_config: Path, sim_input: Path) 
     }
 
 
+def restrict_to_gids(snapshot: Mapping[str, Any], gids: Sequence[int]) -> Dict[str, Any]:
+    """A sub-batch as a snapshot of its own: only `gids` are batch tasks; their siblings in the original batch are absent from the
+    replay (their load is not modelled) and partners outside the chunk are invisible (pairs and peer rows naming a sibling are
+    dropped, as a peer outside the decoded batch is invisible to the decoder by contract). Queued tasks and ghosts are untouched."""
+    keep = {int(g) for g in gids}
+    out = deepcopy(dict(snapshot))
+    fid = out["fidelity"]
+    siblings = {int(r["gid"]) for r in fid["batch"]} - keep
+    fid["batch"] = [r for r in fid["batch"] if int(r["gid"]) in keep]
+    fid["pairs"] = [p for p in fid["pairs"] if int(p[0]) not in siblings and int(p[1]) not in siblings]
+    fid["peers"] = {g: [row for row in rows if int(row[0]) not in siblings]
+                    for g, rows in fid["peers"].items() if int(g) not in siblings}
+    out["tasks"] = [t for t in out["tasks"] if int(t["task_id"]) in keep]
+    return out
+
+
 class FidelityReplay:
     """One per worker process. Holds the snapshot-derived pieces that do not depend on the plan."""
 
@@ -158,16 +174,9 @@ class FidelityReplay:
         return result
 
     def scheduling_replicas(self) -> Dict[str, List[List[Any]]]:
-        """The replica table the cache reads (SSC `replicas`): the offered slate for the types the batch asks for, and every
-        live replica for the others. That is what a live scheduler serving over the corpus slate
-        (GNN_SERVE_CORPUS_SLATE=1, `GNNScheduler._corpus_slate_view`, which limits only the batch's types) hands the feature
-        builder, so the platform replica flags (has_dnn1 / has_dnn2 and the four-type flags) mean the same in training and in
-        serving. The slate itself is the sweep's sampling device: it is not what a live cluster offers."""
-        batch_types = {rec["fn"] for rec in self.snap["fidelity"]["batch"]}
-        out: Dict[str, List[List[Any]]] = {}
-        for t, specs in (self.snap.get("replicas_by_type") or {}).items():
-            if t in batch_types:
-                out[t] = deepcopy(self.offered.get(t, []))
-            else:
-                out[t] = [[str(sp["node_name"]), int(sp["platform_id"])] for sp in specs]
-        return out
+        """The replica table the cache reads (SSC `replicas`): every live replica of every type. The candidate sets are the
+        declared pruning's, restricted per task by `task_candidates` (src/placement/declared_slate.py), so the replica table is
+        what the live builder sees and the platform replica flags (has_dnn1 / has_dnn2 and the four-type flags) mean the same in
+        training and in serving."""
+        return {t: [[str(sp["node_name"]), int(sp["platform_id"])] for sp in specs]
+                for t, specs in (self.snap.get("replicas_by_type") or {}).items()}

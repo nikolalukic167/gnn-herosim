@@ -302,6 +302,7 @@ def build_inference_feature_bundle(
     feature_layout: Optional[str] = None,
     queue_feature_contract: Optional[str] = None,
     topology_feature_contract: Optional[str] = None,
+    task_candidate_filter: Optional[Mapping[int, Any]] = None,
 ) -> Optional[InferenceFeatureBundle]:
     """
     Build tabular/GNN features from live or cached system state.
@@ -533,6 +534,8 @@ def build_inference_feature_bundle(
         for info in platforms_info:
             if info.platform_type not in compatible_types:
                 continue
+            if task_candidate_filter is not None and (info.node_id, info.platform_id) not in task_candidate_filter[t_idx]:
+                continue  # declared pruning (src/placement/declared_slate.py): this task keeps only its own top candidates
 
             is_local = source_node == info.node_name
             is_server = not info.node_name.startswith("client_node")
@@ -727,6 +730,7 @@ def build_pyg_inference_graph(
     queue_feature_contract: Optional[str] = None,
     topology_feature_contract: Optional[str] = None,
     network_graph_contract: Optional[str] = None,
+    task_candidate_filter: Optional[Mapping[int, Any]] = None,
 ) -> Tuple[Optional[Data], Optional[Dict[int, List[Tuple[int, int]]]]]:
     """Build PyG Data for GNN/XGB batch schedulers."""
     bundle = build_inference_feature_bundle(
@@ -739,6 +743,7 @@ def build_pyg_inference_graph(
         temporal_state=temporal_state,
         queue_feature_contract=queue_feature_contract,
         topology_feature_contract=topology_feature_contract,
+        task_candidate_filter=task_candidate_filter,
     )
     if bundle is None:
         return None, None

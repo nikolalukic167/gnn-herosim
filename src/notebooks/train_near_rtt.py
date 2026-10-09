@@ -319,6 +319,7 @@ _required_cache_version = os.environ.get("NEAR_RTT_REQUIRE_CACHE_VERSION", "").s
 # cache predates the shaped label and is one-step "rtt" by construction.
 _cache_label_objective = "rtt"
 _cache_physics_env = None
+_cache_candidate_slate = None
 _metadata_path = CACHE_CTX.cache_dir / "metadata.json"
 if _metadata_path.exists():
     with open(_metadata_path, "r", encoding="utf-8") as _mf:
@@ -329,6 +330,7 @@ if _metadata_path.exists():
     _cache_label_objective = str(_cache_meta.get("label_objective") or "rtt")
     # the physics environment the cache was built under must be this process's (placement/cache_physics.py)
     _cache_physics_env = _cache_meta.get("physics_env")
+    _cache_candidate_slate = _cache_meta.get("candidate_slate")
     from src.placement.cache_physics import require_matching_physics_env
     from src.placement.four_type_features import four_type_enabled
     require_matching_physics_env(_cache_physics_env, what=f"cache {CACHE_CTX.cache_dir}", require=four_type_enabled())
@@ -2241,6 +2243,7 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # executesimulation.checkpoint_mp_config.
                 "label_objective": _cache_label_objective,
                 "physics_env": _cache_physics_env,
+                "candidate_slate": _cache_candidate_slate,
                 "tied_label_mode": (
                     "any_of_k_marginalized" if TEACHER_FORCED else None
                 ),
