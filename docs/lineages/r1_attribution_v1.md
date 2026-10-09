@@ -717,6 +717,11 @@ No line trips.
   - vs twin_eng: +12.2 / +17.5 / +21.4 %.
   - The spin counters are at CD's level, so this is not a spin artefact.
   - This is the floor for GNN-raw vs Twin-raw.
+- **set_transformer gate (S4, 454 of 456 cells; partial and descriptive).**
+  - vs CD: +3.8 / +6.5 / +7.4 %, faster in 1 / 1 / 2 of 19 topologies.
+  - vs gnn_eng: +0.4 / −0.3 / −0.7 %. vs twin_eng: −0.0 / +0.1 / +0.6 %. Both are ties.
+  - The spin counters are at CD's level.
+- twin_eng is final at 452 of 456: 3 rate kills at 9565 heavy, 1 hard timeout at 9538 heavy.
 - **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
   - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
     - ps_exchange_push: +4.1 / +4.3 / +4.6
