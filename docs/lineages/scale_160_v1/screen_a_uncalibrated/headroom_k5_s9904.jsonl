@@ -1,0 +1,52 @@
+{"ds": "ds_00000", "rung": "moderate", "n_plans": 625, "gap_rel": 0.26291724196890076, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.7753067022609882, "status": "ok"}
+{"ds": "ds_00001", "rung": "moderate", "n_plans": 625, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 2, "regret_rel": 3.3965392771624745, "status": "ok"}
+{"ds": "ds_00002", "rung": "moderate", "n_plans": 25, "gap_rel": 0.1395946367302556, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_00003", "rung": "moderate", "n_plans": 125, "gap_rel": 0.006862829613403505, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 95.6019194941115, "status": "ok"}
+{"ds": "ds_00004", "rung": "moderate", "n_plans": 100, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 4, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_00005", "rung": "moderate", "n_plans": 25, "gap_rel": 0.9212786469581052, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_00006", "rung": "moderate", "n_plans": 50, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.3617457569932511, "status": "ok"}
+{"ds": "ds_00007", "rung": "moderate", "n_plans": 20, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_00008", "rung": "moderate", "n_plans": 15625, "gap_rel": 0.1809235273416873, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 3.0684118268663814, "status": "ok"}
+{"ds": "ds_00009", "rung": "moderate", "n_plans": 125, "gap_rel": 0.6352571219945558, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 10.34394276196273, "status": "ok"}
+{"ds": "ds_00010", "rung": "moderate", "n_plans": 64, "gap_rel": 0.009435566247659392, "multi_node_opt": true, "n_opt_ties": 1, "regret_rel": 0.12798123993734303, "status": "ok"}
+{"ds": "ds_00011", "rung": "moderate", "n_plans": 3456, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 3, "regret_rel": 2.065937655638186, "status": "ok"}
+{"ds": "ds_00012", "rung": "moderate", "n_plans": 625, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 4, "regret_rel": 0.0955908851383438, "status": "ok"}
+{"ds": "ds_01000", "rung": "moderate", "n_plans": 3125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 4, "regret_rel": 0.9216096369875548, "status": "ok"}
+{"ds": "ds_01001", "rung": "moderate", "n_plans": 10000, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 2, "regret_rel": 0.033699672053373604, "status": "ok"}
+{"ds": "ds_01002", "rung": "moderate", "n_plans": 9, "gap_rel": 0.2554258577928115, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_01003", "rung": "moderate", "n_plans": 8, "gap_rel": 0.6592321671532926, "multi_node_opt": false, "n_opt_ties": 1, "status": "underdetermined"}
+{"ds": "ds_01004", "rung": "moderate", "n_plans": 100, "gap_rel": 0.5848244731765195, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.6347289565085912, "status": "ok"}
+{"ds": "ds_01005", "rung": "moderate", "n_plans": 2000, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 2, "regret_rel": 0.28159407682025167, "status": "ok"}
+{"ds": "ds_01006", "rung": "moderate", "n_plans": 3125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 15.478324590305581, "status": "ok"}
+{"ds": "ds_01007", "rung": "moderate", "n_plans": 125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 6, "regret_rel": 0.6895512701229976, "status": "ok"}
+{"ds": "ds_01008", "rung": "moderate", "n_plans": 5625, "gap_rel": 0.046721799924204846, "multi_node_opt": true, "n_opt_ties": 1, "regret_rel": 0.22406529965791805, "status": "ok"}
+{"ds": "ds_01009", "rung": "moderate", "n_plans": 108, "gap_rel": 0.0447731473627473, "multi_node_opt": true, "n_opt_ties": 1, "regret_rel": 0.2954346824938542, "status": "ok"}
+{"ds": "ds_01010", "rung": "moderate", "n_plans": 256, "gap_rel": 0.03808699154013178, "multi_node_opt": true, "n_opt_ties": 1, "regret_rel": 0.9084649972550943, "status": "ok"}
+{"ds": "ds_01011", "rung": "moderate", "n_plans": 625, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.15015806380307878, "status": "ok"}
+{"ds": "ds_01012", "rung": "moderate", "n_plans": 20, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.0014720557441694302, "status": "ok"}
+{"ds": "ds_02000", "rung": "heavy", "n_plans": 100, "gap_rel": 6.390066842045903, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 7.491972545652278, "status": "ok"}
+{"ds": "ds_02001", "rung": "heavy", "n_plans": 8, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "status": "underdetermined"}
+{"ds": "ds_02002", "rung": "heavy", "n_plans": 75, "gap_rel": 0.051115509665721294, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 1.394638113023317, "status": "ok"}
+{"ds": "ds_02003", "rung": "heavy", "n_plans": 125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.3403809587570252, "status": "ok"}
+{"ds": "ds_02004", "rung": "heavy", "n_plans": 25, "gap_rel": 0.4397940539312907, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 16.14730962161721, "status": "ok"}
+{"ds": "ds_02005", "rung": "heavy", "n_plans": 25, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_02006", "rung": "heavy", "n_plans": 125, "gap_rel": 0.004495192297004725, "multi_node_opt": true, "n_opt_ties": 1, "regret_rel": 0.05612559154387924, "status": "ok"}
+{"ds": "ds_02007", "rung": "heavy", "n_plans": 8, "gap_rel": 0.9247679139519963, "multi_node_opt": true, "n_opt_ties": 1, "status": "underdetermined"}
+{"ds": "ds_02008", "rung": "heavy", "n_plans": 125, "gap_rel": 0.02540397564034991, "multi_node_opt": true, "n_opt_ties": 1, "regret_rel": 0.02540397564034991, "status": "ok"}
+{"ds": "ds_02009", "rung": "heavy", "n_plans": 125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.07305929349008382, "status": "ok"}
+{"ds": "ds_02010", "rung": "heavy", "n_plans": 625, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 6, "regret_rel": 0.2313323189514976, "status": "ok"}
+{"ds": "ds_02011", "rung": "heavy", "n_plans": 200, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 2, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_02012", "rung": "heavy", "n_plans": 8, "gap_rel": 0.20109482040942045, "multi_node_opt": false, "n_opt_ties": 1, "status": "underdetermined"}
+{"ds": "ds_02013", "rung": "heavy", "n_plans": 125, "gap_rel": 0.0026353688354146176, "multi_node_opt": true, "n_opt_ties": 1, "regret_rel": 0.0026353688354146176, "status": "ok"}
+{"ds": "ds_03000", "rung": "heavy", "n_plans": 20, "gap_rel": 0.053891418280478956, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.10829162706463681, "status": "ok"}
+{"ds": "ds_03001", "rung": "heavy", "n_plans": 25, "gap_rel": 0.06173690128819736, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 2.051125613306114, "status": "ok"}
+{"ds": "ds_03002", "rung": "heavy", "n_plans": 45, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_03003", "rung": "heavy", "n_plans": 30, "gap_rel": 0.3736230539945074, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_03004", "rung": "heavy", "n_plans": 125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 4.0830507557532325, "status": "ok"}
+{"ds": "ds_03005", "rung": "heavy", "n_plans": 75, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 0.00929620651223715, "status": "ok"}
+{"ds": "ds_03006", "rung": "heavy", "n_plans": 25, "gap_rel": 0.006809911152734579, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 1.4621641639230731, "status": "ok"}
+{"ds": "ds_03007", "rung": "heavy", "n_plans": 3125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 37.9677400181, "status": "ok"}
+{"ds": "ds_03008", "rung": "heavy", "n_plans": 78125, "gap_rel": 0.0, "multi_node_opt": false, "n_opt_ties": 2, "regret_rel": 1.5117366319010008, "status": "ok"}
+{"ds": "ds_03009", "rung": "heavy", "n_plans": 50, "gap_rel": 2.732366823452498, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 0.0, "status": "ok"}
+{"ds": "ds_03010", "rung": "heavy", "n_plans": 80, "gap_rel": 22.30675031620318, "multi_node_opt": false, "n_opt_ties": 1, "regret_rel": 28.62779824231846, "status": "ok"}
+{"ds": "ds_03011", "rung": "heavy", "n_plans": 12500, "gap_rel": 0.0, "multi_node_opt": true, "n_opt_ties": 2, "regret_rel": 0.546318828532596, "status": "ok"}
