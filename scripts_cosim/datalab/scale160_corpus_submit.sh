@@ -11,6 +11,9 @@
 #
 #   PHASE=capture WT=<pin> ROOT=<new root> M_MODERATE=<m> M_HEAVY=<m> scale160_corpus_submit.sh
 #   PHASE=build   WT=<pin> ROOT=<same root> scale160_corpus_submit.sh
+# Resume phase capture after a partial submit: INPUTS_DONE=1 (the inputs job finished; chunks carry no dependency) and
+# START_OFFSET=<first pool index not yet submitted>. Run the driver itself as a 1-CPU sbatch job (scale160_driver.sbatch), never under
+# nohup on the login node (datalab-pitfalls 16: the login node reaps background watchers).
 # POOL defaults to 16101-16170 (corpus range 16101-16200 agreed with S4, whose gate topologies are 16001-16020; 9101 and 9901-9908
 # are never used). N_TRAIN=50 N_HELDOUT=8 BATCHES_TARGET=2500 CAP=44 by default.
 set -euo pipefail
@@ -30,16 +33,21 @@ done
 if [[ $PHASE == capture ]]; then
   M_MODERATE=${M_MODERATE:?FAIL LOUD: set M_MODERATE (signed final multiplier, factor = 1/m)}
   M_HEAVY=${M_HEAVY:?FAIL LOUD: set M_HEAVY (signed final multiplier, factor = 1/m)}
-  inp=$(sub <<<"export WT='$WT' ROOT='$ROOT' TOPOS='$POOL' SCALE=160:24:0.6 RUNGS='moderate=$M_MODERATE,heavy=$M_HEAVY' \
-    SPLIT_SOURCE='scale_160_v1'; sbatch --parsable --export=ALL '$D/wf1_corpus_prod_inputs.sbatch'")
-  echo "inputs -> $inp"
-  N=$(echo $POOL | wc -w); off=0
+  if [[ "${INPUTS_DONE:-0}" == 1 ]]; then
+    [[ -d "$ROOT/inputs/wf1_moderate" && -d "$ROOT/inputs/wf1_heavy" ]] || { echo "FAIL LOUD: INPUTS_DONE=1 but $ROOT/inputs is incomplete"; exit 1; }
+    dep=""
+  else
+    inp=$(sub <<<"export WT='$WT' ROOT='$ROOT' TOPOS='$POOL' SCALE=160:24:0.6 RUNGS='moderate=$M_MODERATE,heavy=$M_HEAVY' \
+      SPLIT_SOURCE='scale_160_v1'; sbatch --parsable --export=ALL '$D/wf1_corpus_prod_inputs.sbatch'")
+    echo "inputs -> $inp"; dep="--dependency=afterok:$inp"
+  fi
+  N=$(echo $POOL | wc -w); off=${START_OFFSET:-0}
   while [[ $off -lt $N ]]; do
     room=$(( CAP - $(q) ))
     if [[ $room -lt 1 ]]; then echo "$(date +%H:%M) queue full"; sleep 120; continue; fi
     n=$(( N - off < room ? N - off : room ))
     id=$(sub <<<"export WT='$WT' ROOT='$ROOT' TOPOS='$POOL' TAGS='$TAGS' TOPO_OFFSET=$off; \
-      sbatch --parsable --dependency=afterok:$inp --array=0-$((n-1)) --export=ALL '$D/wf1_corpus_prod_capture.sbatch'")
+      sbatch --parsable $dep --array=0-$((n-1)) --export=ALL '$D/wf1_corpus_prod_capture.sbatch'")
     echo "capture chunk offset=$off n=$n -> $id"; off=$((off+n))
   done
   exit 0
