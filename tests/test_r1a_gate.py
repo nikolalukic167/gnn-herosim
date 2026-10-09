@@ -90,8 +90,8 @@ def r1a_env(monkeypatch):
 def test_r1a_cell_list(r1a_env, monkeypatch):
     sel = {"topologies": list(range(19))}
     cells = G.r1a_tasks(sel)
-    # 19 topologies x 3 rungs x 4 windows; 6 classical arms once, 7 learned + 2 seeded-CD arms at 2 seeds
-    assert len(cells) == 19 * 3 * 4 * (6 + 9 * 2)
+    # 19 topologies x 3 rungs x 4 windows; 6 classical arms once, 7 learned + 3 seeded-CD arms at 2 seeds
+    assert len(cells) == 19 * 3 * 4 * (6 + 10 * 2)
     assert {c["seed"] for c in cells if c["kind"] in G.R1A_CLASSICAL} == {0}
     assert {c["seed"] for c in cells if c["kind"] == "ra_gnn_eng"} == {1, 2}
     monkeypatch.setenv("R1A_SHARD", "1/4")

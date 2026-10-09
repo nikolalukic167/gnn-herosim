@@ -51,6 +51,7 @@ RULE_POLICY = {
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
     "cd_declared": "peer_greedy_network_cd",  # r1_attribution_v1: CD over the learned arms' declared slate (GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1); descriptive
+    "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
     "drain": "drain_greedy_network",  # rule_baselines_v1: least-loaded (drain-time shortest queue, per arrival, no exchange term)
@@ -127,7 +128,7 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
-R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply")
+R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
@@ -677,7 +678,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", *KEEPWARM_ENV):
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -772,10 +773,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_declared", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_declared", "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
+        if kind == "cd_random_seed":
+            env.update(GNN_SERVE_CANDIDATE_SLATE="declared_pruning_v1", GNN_CD_REFINE="apply", HEROSIM_CD_RANDOM_SEED=str(seed))
         if kind == "locality":
             env["HEROSIM_PG_EXCHANGE_SCALE"] = repr(LOCALITY_SCALE)
         if kind == "cdext":
@@ -912,8 +915,15 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("unrefined arm self-refined")
     if kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
-    if not kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0):
+    if not kind.endswith(("_cdshadow", "_cdapply")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
+    if kind == "cd_random_seed":
+        if int(c.get("pg_random_seed_batches") or 0) == 0 or int(c.get("cdr_batches") or 0) != int(c.get("pg_random_seed_batches") or 0):
+            problems.append(f"random-seed instrument off: seeded {c.get('pg_random_seed_batches')} batches, refined {c.get('cdr_batches')}")
+        if out["env"].get("HEROSIM_CD_RANDOM_SEED") != str(seed):
+            problems.append(f"served HEROSIM_CD_RANDOM_SEED={out['env'].get('HEROSIM_CD_RANDOM_SEED')!r}, cell seed {seed}")
+    elif int(c.get("pg_random_seed_batches") or 0):
+        problems.append("a non-random-seed arm drew a random seed plan")
     if kind.endswith("_slate") and int(c.get("slate_batches") or 0) == 0:
         problems.append("slate instrument off: slate_batches == 0")
     if not kind.endswith("_slate") and int(c.get("slate_batches") or 0):
@@ -930,7 +940,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if kind == "cd_declared":
         if out["env"].get("GNN_SERVE_CANDIDATE_SLATE") != "declared_pruning_v1" or declared == 0 or int(c.get("pg_declared_groups") or 0) < declared:
             problems.append("declared-slate instrument off: GNN_SERVE_CANDIDATE_SLATE not served or no batch went through declared_slate")
-    elif declared and not kind.startswith("ra_"):
+    elif declared and not kind.startswith("ra_") and kind != "cd_random_seed":
         problems.append("a non-declared arm applied the declared slate")
     want_scale = repr(LOCALITY_SCALE) if kind == "locality" else None
     if out["env"].get("HEROSIM_PG_EXCHANGE_SCALE") != want_scale:

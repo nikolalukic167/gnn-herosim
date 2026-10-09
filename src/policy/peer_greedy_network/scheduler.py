@@ -839,6 +839,60 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
                 break
 
 
+class PeerGreedyNetworkCDRandomSeedScheduler(PeerGreedyNetworkBatchScheduler):
+    """r1_attribution_v1 CD<-random: the control for the "worse basin" reading of CD<-GNN / CD<-Twin.
+
+    The batch's starting plan is drawn uniformly at random over each task's candidates in the declared slate (GNN_SERVE_CANDIDATE_SLATE=
+    declared_pruning_v1: top-5 by standalone cost, sub-batches as the learned arms), seeded per batch from the cell seed
+    (HEROSIM_CD_RANDOM_SEED) and the batch's task ids. The batch is then refined by exactly the code CD<-GNN uses
+    (GNN_CD_REFINE=apply: GnnCdRefiner, 3 passes, in GNNScheduler's batch path), so the arms differ in the seed plan alone."""
+
+    _policy_label = "peer_greedy_network_cd_random_seed"
+    _live_audit_policy_name = "peer_greedy_network_cd_random_seed"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from src.policy.gnn.scheduler import _cd_refine_mode
+
+        if _cd_refine_mode() != "apply":
+            raise RuntimeError("FAIL LOUD: cd_random_seed refines its random plan; export GNN_CD_REFINE=apply")
+        raw = os.environ.get("HEROSIM_CD_RANDOM_SEED", "").strip()
+        if not raw:
+            raise RuntimeError("FAIL LOUD: cd_random_seed needs HEROSIM_CD_RANDOM_SEED (the cell seed)")
+        self._cd_random_seed = int(raw)
+        self.pg_random_seed_batches = 0
+
+    def _prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state):
+        import random
+
+        from src.placement import declared_slate
+        from src.placement.live_audit import _candidate_payload
+
+        valid_of = [self._get_valid_replicas(system_state.replicas.get(t.type["name"], set()), t) for t in batch_tasks]
+        kept: Dict[int, Set[Tuple[int, int]]] = {i: {(n.id, p.id) for n, p in valid_of[i]} for i in range(len(batch_tasks))}
+        if declared_slate.serving_slate() is not None:
+            payloads = [{"task_id": int(t.id), "candidates": [_candidate_payload(self, t, n, p) for n, p in valid_of[i]]}
+                        for i, t in enumerate(batch_tasks)]
+            ids = {int(t.id) for t in batch_tasks}
+            peers = getattr(self._pg_orchestrator(), "peer_exchange", None) or {}
+            pairs = [(int(t.id), int(j)) for t in batch_tasks for j in (peers.get(int(t.id)) or {}) if int(j) in ids]
+            sl = declared_slate.slate(payloads, pairs)
+            self.pg_declared_batches += 1
+            self.pg_declared_pruned += int(sl.pruned)
+            self.pg_declared_sub_batched += int(sl.sub_batched)
+            self.pg_declared_groups += len(sl.groups)
+            kept = {i: {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for i in range(len(batch_tasks))}
+        rng = random.Random(f"{self._cd_random_seed}:{sorted(int(t.id) for t in batch_tasks)}")
+        placements: Dict[int, Tuple[int, int]] = {}
+        for i in range(len(batch_tasks)):
+            options = sorted(kept[i])
+            if not options:
+                raise RuntimeError(f"FAIL LOUD: cd_random_seed: task {batch_tasks[i].id} has no candidate in its slate")
+            placements[i] = rng.choice(options)
+        self.pg_random_seed_batches += 1
+        return placements
+
+
 class GnnCdRefiner(_PeerGreedyCore):
     """cd_gap_v1 D5: the CD greedy's refine passes, started from a plan someone else decoded.
 
