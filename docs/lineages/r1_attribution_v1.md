@@ -559,6 +559,19 @@ No line trips.
     - F (`58364ab0`) becomes the replay for any *future* build, because it is the live mechanism.
   - Disclosure: E mis-times exposed same-instant link requests (up to 9.5 % on ds_16401).
   - **Closed (2026-10-09, user):** the F-relabel sample is withdrawn, and there is no further variant work.
+- **Mid-training curve audit (S6 read and S7 diagnosis; validation only; epochs 5–58 of 100).**
+  - Most arms are learning. masked_topo val regret falls from about 1.6–1.9 s to 0.94–1.1 s, against about 12.7 s for a
+    random plan. Seeds are consistent, with no NaN and no dead metric.
+  - The "(off)" in the training log is the network-graph contract, not message passing. The sidecars confirm the
+    twins have `disable_message_passing=True` and no conv weights, while the GNNs carry 24 bipartite-conv tensors.
+  - **twin_raw, all 6 configs: learns nothing usable.** Train CE plateaus at 3.46–3.48, about the 3.47 chance level,
+    and masked regret (4.6–4.9) equals its greedy regret.
+    - This is by design: MP is off and it sees only the 2 raw plan columns, so no information reaches the scorer.
+    - It is the floor of the GNN-raw vs Twin-raw contrast. Kept running.
+  - **mlp_same: prefix-free greedy regret worsens (5.2 → 8.1)** while the served masked regret is stable (1.2–1.4).
+    - task_acc and greedy score an empty prefix (`train_near_rtt.py:1210–1219`), which is out of distribution for an
+      arm that leans on the prefix columns. This explanation is not tested directly.
+    - Selection uses the served decode, so it is unaffected.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
