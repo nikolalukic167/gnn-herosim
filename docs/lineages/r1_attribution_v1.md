@@ -101,6 +101,25 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
   with sub-batches of ≤ 4 tasks when a batch exceeds 100,000 plans. The node's pruning ablation (labels on 300 small batches;
   the best arm served with and without pruning on 6 test topologies) stays the check on this rule. Cost is re-measured in the
   B2 dry run.
+- **Pruning built (S6, `f6a0c1cd`, `src/placement/declared_slate.py`, one definition for both sides).**
+  - **The rule:** standalone cost = drain + cold + exec + latency, the CD/peer-greedy base score
+    (`peer_greedy_network/scheduler.py:283`), tie-broken by (cost, node, platform).
+  - **Serving:** `GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1`, recorded in the sidecar and refused on mismatch both ways.
+  - **Parity:** passes 6/6 in this mode and with a forced sub-batching cap; labels re-simulate to 1e-13.
+  - **Disclosed approximations:**
+    - `cold` follows the snapshot's initialized flag rather than the live warm-by-previous-task test;
+    - in a sub-batch, siblings outside the chunk are absent from the replay, because the capture records no `chosen` placement.
+
+    If more than 10 % of production batches are sub-batched, the sibling rule is revisited before training.
+  - Also counted from now on: `no_choice` rejections (fewer than 2 candidates for most tasks, or a plan space of 1).
+- **Topologies (decided).** All share the 9473–9568 generator template (40 clients, 6 servers).
+  - **Train:** 9201–9296 and 9101–9124 (120).
+  - **Held-out validation:** 9297–9320 (24).
+  - **Never used:** the 19 test topologies and the calibration set (9601, 9602, 9607, 9608). The rungs were fitted there, so
+    training on them would be in-sample for the load definition.
+  - The 77 unselected pool ids aren't used.
+  - Before capture, every training and validation id passes the live-topology feasibility check
+    (`workload_fix_v1_reachability_live.py`). Infeasible cells are dropped and listed.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
