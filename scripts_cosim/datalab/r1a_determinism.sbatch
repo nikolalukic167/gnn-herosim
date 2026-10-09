@@ -58,6 +58,8 @@ for i, (x, y) in enumerate(zip(ga, gb)):
         if hasattr(x, k):
             same = torch.equal(getattr(x, k), getattr(y, k)); bad += not same
             print("graph", i, k, "identical" if same else "DIFFERS")
+ok = not bad and len(ga) == len(gb)
 print("graphs", len(ga), len(gb), "DIFFERENCES:", bad)
-sys.exit(1 if bad or len(ga) != len(gb) else 0)
+(o / "determinism_result.json").write_text(json.dumps({"passed": ok, "graphs": [len(ga), len(gb)], "differences": bad}))
+sys.exit(0 if ok else 1)
 PY
