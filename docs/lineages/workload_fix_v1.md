@@ -304,6 +304,12 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
     - B2 9103 g0 confirms the mechanism: 7 of 214 unready edges point at planned-then-deferred peers.
     - Validation jobs: 849747 (repros plus 64 rung cells, CD and Knative) and 849748 (9 heavy spin cells, capture
       policy).
+    - **S7 review: accepted.**
+      - `peer_is_placed` is used only in the two rendezvous and timeout functions.
+      - No other `planned_node_name` reader treats it as placed for rendezvous or timeout.
+      - The "deferred once, then re-planned" window is real but zero sim time.
+      - Identity, job 849832: 10 `stage_w23_wb2` cells with 545–1,008 deferred tasks each are identical at `54fddd0d` and
+        at `c8eb73c2`.
 - **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
   pre-R1.1 and re-measured on R1.1. Expected size from the sample: 2 of 200 cells, ≤ 1 %; that expectation doesn't
   replace the re-measure. Order: W2 at 1 s on R1.1 first (it replaces the provisional W2 read), then the
