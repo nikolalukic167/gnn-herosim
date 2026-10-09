@@ -704,6 +704,12 @@ No line trips.
       message passing.
   - Spin counters (`r1a_gate_spin.py`, ff1c01c6): median deferrals and reachability failures are the same across arms.
     20–27 of 456 cells per arm have deferrals above 5× CD's, concentrated at 9565 and 9538.
+  - Completed: mlp_same 456 / 456, gnn_eng 455, CD←GNN 451 (5 kills, all at 9565). The medians are unchanged.
+- **twin_raw gate (S4, 454 of 456 cells; partial and descriptive).**
+  - vs CD: +16.6 / +26.3 / +30.3 %, faster in 0 / 0 / 1 of 19 topologies.
+  - vs twin_eng: +12.2 / +17.5 / +21.4 %.
+  - The spin counters are at CD's level, so this is not a spin artefact.
+  - This is the floor for GNN-raw vs Twin-raw.
 - **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
   - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
     - ps_exchange_push: +4.1 / +4.3 / +4.6
