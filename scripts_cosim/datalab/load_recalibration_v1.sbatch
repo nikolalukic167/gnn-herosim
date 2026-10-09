@@ -80,7 +80,9 @@ case "$JOB" in
     mkdir -p "$R/$BW"
     for m in ${LRC_POINTS:?FAIL LOUD: set LRC_POINTS}; do
       tag=$(python3 -c "print('m' + f'{float(\"$m\"):.4f}'.replace('.', 'p'))")
-      mkdir -p "$R/$BW/$tag"; ln -s "$R/bisect/$tag/wf1_$tag" "$R/$BW/$tag/wf1_$tag"
+      mkdir -p "$R/$BW/$tag"
+      # an earlier run's rung inputs are linked; a multiplier not built before is built by the driver
+      [[ -d "$R/bisect/$tag/wf1_$tag" ]] && ln -s "$R/bisect/$tag/wf1_$tag" "$R/$BW/$tag/wf1_$tag" || true
     done
     python3 scripts_cosim/load_recalibration_v1_bisect.py --work "$R/$BW" --grounded-wl "$X1" --cfg-dir "$R/cfg/cfg_w4" \
       --topologies $CAL_TOPOS --windows g0 g1 --parallel 8 --points $LRC_POINTS --log "$R/${BW}_points.json"
