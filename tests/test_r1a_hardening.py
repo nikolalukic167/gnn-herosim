@@ -83,3 +83,16 @@ def test_planned_then_deferred_partner_is_unplaced_in_the_snapshot():
     assert peer_node_name(NS(platform=None, planned_node_name="n9")) == "n9"
     assert peer_node_name(NS(platform=None, planned_node_name="n9", postponed_count=2)) is None
     assert peer_node_name(NS(platform=None, planned_node_name=None)) is None
+
+
+def test_exposure_flags_a_net_stage_ingress_ghost_on_a_candidate_node():
+    from src.placement.fidelity_replay import exposure
+
+    ghost = lambda q, stage, ls: {"q": q, "stage": stage, "link_stage": ls}
+    snap = {"fidelity": {"ghosts": [ghost("n1:0", "ingress", "net"), ghost("n2:1", "ingress", "hold"), ghost("n3:0", "compute", None)]}}
+    cands = [{"node_name": "n1"}, {"node_name": "n4"}]
+    e = exposure(snap, cands)
+    assert e["net_ingress_ghost_on_candidate_node"] and e["net_ingress_ghost_nodes_on_candidates"] == ["n1"]
+    assert e["net_ingress_ghosts_total"] == 1 and e["candidate_nodes"] == 2
+    assert not exposure(snap, [{"node_name": "n2"}, {"node_name": "n3"}])["net_ingress_ghost_on_candidate_node"]
+    assert not exposure({"fidelity": {}}, cands)["net_ingress_ghost_on_candidate_node"]
