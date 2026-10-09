@@ -619,6 +619,11 @@ No line trips.
 - **Selections (validation only; `selection_<arm>.json` in `/share/nikola.lukic/r1a_prod/20261009_190117/`).**
   - twin_eng (22:01): g5 (w128, lr 2e-3), val regret 0.930 ± 0.010 s. The other configs are 0.937–0.967, so the grid is
     flat within seed noise.
+- **twin_eng gate, partial and descriptive (S4, array 854587 at 263dd915; 452 of 456 cells, 3 killed by rate at heavy;
+  `twin_partial_read.json`).** Paired % (positive = twin slower), median over 19 topologies:
+  - vs CD: +3.60 / +5.61 / +6.22 %, with twin_eng faster in 1 / 0 / 2 of 19 topologies.
+  - vs self-predict: +2.59 / +6.25 / +2.35 %, faster in 2 / 0 / 5 (heavy p = .066).
+  - Effective share: .112 / .292 / .451.
 - **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
   - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
     - ps_exchange_push: +4.1 / +4.3 / +4.6
