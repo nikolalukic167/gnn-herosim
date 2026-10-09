@@ -22,7 +22,8 @@ ROOT=${ROOT:?FAIL LOUD: set ROOT (the step-1 output root)}
 TOPOS=${TOPOS:?FAIL LOUD: set TOPOS}
 TAGS=${TAGS:?FAIL LOUD: set TAGS (the rung tags of step 1)}
 WINDOWS=${WINDOWS:-"g0 g1 g2 g3"}
-T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array}
+# the account allows 50 queued jobs (AssocMaxSubmitJobLimit), so a long TOPOS list is submitted in array chunks: chunk k is --array=0-<n-1> with TOPO_OFFSET=<first index>, and T is the index into the FULL TOPOS list
+T=$(( ${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array} + ${TOPO_OFFSET:-0} ))
 TOPO_ARR=($TOPOS); SEED=${TOPO_ARR[$T]:?FAIL LOUD: array index beyond TOPOS}
 cd "$WT"
 # nothing a previous gate driver exported (HEROSIM_KEEP_ALIVE, HEROSIM_INFLIGHT_CAPTURE, ...) may reach the capture
@@ -39,6 +40,14 @@ export HEROSIM_SNAPSHOT_FIDELITY=1
 unset GNN_MODEL_PATH GNN_DISABLE_MESSAGE_PASSING || true
 export LIVE_AUDIT_STRIDE=${LIVE_AUDIT_STRIDE:-31} LIVE_AUDIT_MAX_SNAPSHOTS=${LIVE_AUDIT_MAX_SNAPSHOTS:-600} LIVE_AUDIT_MIN_BATCH_SIZE=2 LIVE_AUDIT_MIN_CANDIDATES=1
 export HEROSIM_RAW_DIR=/tmp/herosim_raw_${SLURM_JOB_ID:-$$}; mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
+# disk guard: fail loudly before writing if the filesystem this task writes to, or the /home quota the job logs live on, has < GUARD_GB free
+GUARD_GB=${GUARD_GB:-15}
+free_gb() { case "$(readlink -f "$1")" in /home/*) echo $(( (268435456000 - $(getfattr --only-values -n ceph.dir.rbytes "$HOME" 2>/dev/null)) / 1000000000 ));;
+  *) df -P -BG "$1" | awk 'NR==2{gsub("G","",$4); print $4}';; esac; }
+for d in "$HOME" "$ROOT"; do
+  g=$(free_gb "$d"); echo "free on $d: ${g} GB (guard ${GUARD_GB})"
+  [[ "$g" -ge "$GUARD_GB" ]] || { echo "FAIL LOUD: only ${g} GB free for $d, below the ${GUARD_GB} GB guard"; exit 1; }
+done
 mkdir -p "$ROOT/snapshots" "$ROOT/capture_logs"
 CAPTURE_TIMEOUT_S=${CAPTURE_TIMEOUT_S:-7200}
 pids=()

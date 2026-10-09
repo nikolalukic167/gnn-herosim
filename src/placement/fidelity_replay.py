@@ -54,6 +54,18 @@ def build_spec(snapshot: Mapping[str, Any], cell_config: Path, sim_input: Path) 
     }
 
 
+def exposure(snapshot: Mapping[str, Any], candidates: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Which datasets a replay-side net-stage fix can have moved: does the snapshot hold an ingress ghost still in its net stage
+    (link_stage 'net', not yet on a pipe) on a node that is a candidate of some batch task? `candidates`: the offered candidate payload
+    dicts (node_name per entry)."""
+    nodes = {str(c["node_name"]) for c in candidates}
+    net = [g for g in (snapshot.get("fidelity") or {}).get("ghosts") or []
+           if g.get("stage") == "ingress" and g.get("link_stage") == "net"]
+    on = sorted({str(g["q"]).rsplit(":", 1)[0] for g in net} & nodes)
+    return {"net_ingress_ghost_on_candidate_node": bool(on), "net_ingress_ghost_nodes_on_candidates": on,
+            "net_ingress_ghosts_total": len(net), "candidate_nodes": len(nodes)}
+
+
 def restrict_to_gids(snapshot: Mapping[str, Any], gids: Sequence[int]) -> Dict[str, Any]:
     """A sub-batch as a snapshot of its own: only `gids` are batch tasks; their siblings in the original batch are absent from the
     replay (their load is not modelled) and partners outside the chunk are invisible (pairs and peer rows naming a sibling are
@@ -123,7 +135,8 @@ class FidelityReplay:
         infra["forced_placements"] = forced
         infra["fast_forward_warmup"] = True
         infra["fast_forward_threshold"] = 1
-        infra["scheduler"] = {"batch_size": max(len(self.wl["events"]), 1), "batch_timeout": 0.02}
+        infra["scheduler"] = {"batch_size": max(len(self.wl["events"]), 1), "batch_timeout": 0.02,
+                           "exact_batch": os.environ.get("HEROSIM_REPLAY_EXACT_BATCH", "1") == "1"}  # 0: the pre-fix 1 ms poll, for A/B
         return execute_simulation({"infrastructure": infra, "workload": self.wl}, self.sim_inputs,
                                   scheduling_strategy="determined_determined", cache_policy="fifo",
                                   task_priority="fifo", **self.kw)

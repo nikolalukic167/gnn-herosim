@@ -93,7 +93,7 @@ def _one_plan(job: Dict[str, Any]) -> Dict[str, Any]:
         infra["forced_placements"] = forced
         infra["fast_forward_warmup"] = True
         infra["fast_forward_threshold"] = 1
-        infra["scheduler"] = {"batch_size": max(len(wl["events"]), 1), "batch_timeout": 0.02}
+        infra["scheduler"] = {"batch_size": max(len(wl["events"]), 1), "batch_timeout": 0.02, "exact_batch": True}
         kw = snapshot_fidelity.live_run_params()
         sim_inputs = load_simulation_inputs(Path(job["sim_input"]))
         with contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):

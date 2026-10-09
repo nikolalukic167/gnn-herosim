@@ -10,17 +10,23 @@ import json
 import sys
 from pathlib import Path
 
+from scripts_cosim.wf1_manifest import read_manifests
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, required=True)
+    ap.add_argument("--tag", default="", help="OUT_TAG of the build under check: gnn_datasets_wf1_<split>_<tag>, build_logs_<tag>")
     ap.add_argument("--target", type=int, default=5000)
     ap.add_argument("--max-discard-share", type=float, default=0.02)
     a = ap.parse_args()
+    split_dirs = [a.root / f"gnn_datasets_wf1_{sp}{'_' + a.tag if a.tag else ''}" for sp in ("train", "heldout")]
+    split_dirs = [d for d in split_dirs if d.is_dir()]
+    summaries = sorted(f for d in split_dirs for f in d.glob("warm_summary_*.json"))
     tot = {"cells": 0, "batches_made": 0, "datasets": 0, "offered": 0, "rejected": 0, "discarded": 0, "single_candidate_node": 0,
            "disconnected_batch": 0, "no_choice": 0, "no_peer_pairs": 0, "unplaced_partner": 0, "pruned_snapshots": 0, "sub_batched_snapshots": 0,
            "snapshots": 0, "datasets_from_sub_batches": 0}
-    for f in sorted(a.root.glob("gnn_datasets_wf1_*/warm_summary_*.json")):
+    for f in summaries:
         s = json.loads(f.read_text())
         tot["cells"] += 1
         tot["batches_made"] += s["batches_made"]
@@ -30,8 +36,22 @@ def main() -> int:
         dp = s.get("declared_pruning") or {}
         for k in ("pruned_snapshots", "sub_batched_snapshots", "snapshots", "datasets_from_sub_batches"):
             tot[k] += dp.get(k, 0)
+    manifest_skipped = sum(int(json.loads(f.read_text()).get("manifest_lines_skipped", 0))
+                           for f in summaries)
+    manifest_problems = []
+    for split_dir in split_dirs:
+        try:
+            entries, _ = read_manifests(split_dir)
+        except ValueError as e:
+            manifest_problems.append(str(e))
+            continue
+        made = {e["dataset_id"] for e in entries if e.get("status") in ("success", "dry-run") and "dataset_id" in e}
+        on_disk = {d.name for d in split_dir.glob("ds_*")}
+        if made != on_disk:
+            manifest_problems.append(f"{split_dir.name}: {len(made - on_disk)} manifest datasets missing on disk, {len(on_disk - made)} on disk "
+                                     f"without a manifest entry")
     cells_not_ok, cap_hit = [], []
-    for f in sorted((a.root / "build_logs").glob("topology_*.json")):
+    for f in sorted((a.root / f"build_logs{'_' + a.tag if a.tag else ''}").glob("topology_*.json")):
         t = json.loads(f.read_text())
         if t["cells_not_ok"]:
             cells_not_ok.append(f"{t['topology']}: {t['cells_not_ok']}")
@@ -43,6 +63,9 @@ def main() -> int:
     print(json.dumps({"totals": tot, "rate_per_offered": shares, "sub_batched_share_of_batches": sub_share,
                       "capture_not_ok_cells": cells_not_ok, "cap_hit_cells": cap_hit}, indent=1))
     problems = []
+    if manifest_skipped:
+        problems.append(f"{manifest_skipped} manifest line(s) were skipped as unparseable during the build")
+    problems += manifest_problems
     if cap_hit:
         problems.append(f"{len(cap_hit)} topolog(ies) have cap-hit cells (the capture stopped at the snapshot cap): {cap_hit[:5]}")
     if tot["batches_made"] < a.target:
