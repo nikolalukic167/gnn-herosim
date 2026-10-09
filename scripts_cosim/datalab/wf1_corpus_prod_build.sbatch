@@ -10,6 +10,7 @@
 # offers every eligible snapshot in a spread order (wf1_shard_snapshots.py) and stops at its share, so a rejection is replaced by the
 # next snapshot of the same spread; a cell whose snapshots run out is a shortfall and fails the task at the end. Snapshots before
 # t = 360 s are dropped (I11 validated t >= 360 s).
+# For 100+ topologies submit via wf1_corpus_prod_submit_builds.sh (pieces under the 50-job limit, check afterany on all pieces).
 # Run procedure: chain the build with --dependency=aftercorr:<capture> and the SAME --array range, so topology t builds as soon as capture
 # task t ends instead of waiting for the slowest topology. aftercorr needs the matching capture task to exit 0: a hung or failed CELL does
 # not fail the task (it is a sentinel the build counts), a cap-hit cell does (exit 1). A capture task that fails leaves its build task
