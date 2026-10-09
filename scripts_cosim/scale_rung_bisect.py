@@ -17,6 +17,7 @@ ap.add_argument("--servers", type=int, default=24); ap.add_argument("--p", type=
 ap.add_argument("--band", type=float, nargs=2, required=True); ap.add_argument("--lo", type=float, required=True); ap.add_argument("--hi", type=float, required=True)
 ap.add_argument("--steps", type=int, default=8); ap.add_argument("--tag", required=True); ap.add_argument("--limit", type=int, default=2700)
 ap.add_argument("--parallel", type=int, default=8); ap.add_argument("--knative", action="store_true", help="run knative_network as context at the chosen rung")
+ap.add_argument("--extra-policies", nargs="*", default=[], help="descriptive arms run at the chosen rung on the same cells (e.g. peer_greedy_network_batch peer_greedy_selfpredict_network)")
 a = ap.parse_args()
 ROOT = Path(a.root); WT = Path(a.wt); OUT = ROOT / a.tag; OUT.mkdir(parents=True, exist_ok=True)
 X1 = "/home/nikola.lukic/gnn-herosim/simulation_data/small_batch_confirm_v1/inputs/grounded/wl"
@@ -38,7 +39,10 @@ def mint(m):
     tag = mtag(m); inp = ROOT / "inputs"; inp.mkdir(exist_ok=True)
     if (inp / f"wf1_{tag}").is_dir():
         return tag
-    factor = 6.0 / (m * a.servers)
+    # ONE convention: m is the FINAL arrival multiplier on the x1 windows (factor = 1/m), the same number the gate's RUNGS take.
+    # (The probe's sbatch derived its multiplier from the production rung as m_prod * servers/6; the first (c) driver applied that
+    # scaling twice and ran CD at 4x the capture's load -- coordinator check 2026-10-10, retracted.)
+    factor = 1.0 / m
     b = ROOT / f"_b_{tag}"; w24 = ROOT / f"_w24_{tag}"; w24.mkdir(exist_ok=True)
     subprocess.run([sys.executable, "scripts_cosim/workload_fix_v1_build.py", "--grounded-wl", X1, "--cfg-dir", str(CFG), "--topologies", *map(str, a.seeds),
                     "--rung", f"{tag}={factor!r}", "--payload-sampler", "wf1_v1", "--task-mix", "wf1_v1", "--batch-timeout-fixed", "1", "--out", str(b)],
@@ -55,7 +59,39 @@ def mint(m):
     return tag
 
 
-def run_cell(tag, seed, win, policy):
+def lock_profile(tr, stt):
+    """Where CD's lock waits sit: per task type and per platform type (taskResults carry the platform TYPE, not the replica), and the
+    per-replica picture from stats.platformResults when the run kept it. Concentration = share of the total lock wait on the top 1/5/10."""
+    def lw(r):
+        if r.get("ioEndTime") is None or r.get("computeStartTime") is None:
+            return 0.0
+        return max(0.0, float(r["computeStartTime"]) - float(r["ioEndTime"]))
+    rows = [r for r in tr if r.get("taskId") is None or int(r["taskId"]) >= 0]
+    total = sum(lw(r) for r in rows)
+    def name(x):
+        return (x.get("shortName") or x.get("name")) if isinstance(x, dict) else str(x)
+    by_task, by_plat = {}, {}
+    for r in rows:
+        by_task[name(r.get("taskType"))] = by_task.get(name(r.get("taskType")), 0.0) + lw(r)
+        by_plat[name(r.get("platform"))] = by_plat.get(name(r.get("platform")), 0.0) + lw(r)
+    out = dict(total_lock_wait_s=total, tasks_with_lock_wait=sum(1 for r in rows if lw(r) > 0), n_tasks=len(rows),
+               by_task_type={k: round(v / total, 3) for k, v in by_task.items()} if total else {},
+               by_platform_type={k: round(v / total, 3) for k, v in by_plat.items()} if total else {})
+    pr = stt.get("platformResults") or stt.get("platforms")
+    if isinstance(pr, list) and pr:
+        vals = []
+        for p in pr:
+            v = p.get("totalLockWait") or p.get("lockWaitTime") or p.get("totalQueueTime") or p.get("queueTime")
+            if v is not None:
+                vals.append((float(v), p.get("nodeName") or p.get("node"), p.get("platformId"), name(p.get("platformType"))))
+        vals.sort(reverse=True); s = sum(v for v, *_ in vals) or 1.0
+        out["per_replica"] = dict(key="totalLockWait|lockWaitTime|totalQueueTime|queueTime (first present)", replicas=len(vals), replicas_nonzero=sum(1 for v, *_ in vals if v > 0),
+                                  top1_share=round(vals[0][0] / s, 3) if vals else None, top5_share=round(sum(v for v, *_ in vals[:5]) / s, 3),
+                                  top10_share=round(sum(v for v, *_ in vals[:10]) / s, 3), top10=[dict(wait=round(v, 1), node=n, platform=i, type=t) for v, n, i, t in vals[:10]])
+    return out
+
+
+def run_cell(tag, seed, win, policy, profile=False):
     raw = Path(os.environ.get("HEROSIM_RAW_DIR", "/tmp")) / f"{a.tag}_{tag}_{seed}_{win}_{policy}.raw.json"
     log = OUT / f"{tag}_{seed}_{win}_{policy}.log"
     env = dict(os.environ, HEROSIM_AUDIT_INPUTS=str(ROOT / "inputs"), TS="1.0", SIM_FORCE_FULL_STATS="1", HEROSIM_SHARED_AUTOSCALER="0",
@@ -96,6 +132,8 @@ def run_cell(tag, seed, win, policy):
                 backlog_ok = False
             row["guards"] = dict(failures=(row["request_failures"] <= 0.01 * n), p95=(row["p95"] is not None and row["p95"] <= 300.0),
                                  end=(row["end_over_arrival"] is not None and row["end_over_arrival"] <= 1.25), backlog=backlog_ok, finished=True)
+            if profile and tr:
+                row["lock_profile"] = lock_profile(tr, stt)
         except Exception as ex:  # noqa: BLE001
             row.update(error=repr(ex)[:300]); row["guards"] = dict(finished=False)
         finally:
@@ -106,9 +144,9 @@ def run_cell(tag, seed, win, policy):
     return row
 
 
-def evaluate(m, policy="peer_greedy_network_cd"):
+def evaluate(m, policy="peer_greedy_network_cd", profile=False):
     tag = mint(m)
-    jobs = [(tag, s, w, policy) for s in a.seeds for w in a.windows]
+    jobs = [(tag, s, w, policy, profile) for s in a.seeds for w in a.windows]
     with ThreadPoolExecutor(max_workers=a.parallel) as ex:
         rows = list(ex.map(lambda j: run_cell(*j), jobs))
     shares = [r["effective_share"] for r in rows if r.get("effective_share") is not None]
@@ -146,7 +184,11 @@ else:
     fallback = False
 result = dict(tag=a.tag, band=a.band, bracket=[a.lo, a.hi], steps=len(steps), fallback=fallback,
               multiplier=(chosen or {}).get("m"), median_effective_share=(chosen or {}).get("median_effective_share"), chosen=chosen)
-if a.knative and chosen:
-    result["knative"] = evaluate(chosen["m"], "knative_network")
+if chosen:
+    result["cd_profiled"] = evaluate(chosen["m"], "peer_greedy_network_cd", profile=True)
+    for pol in a.extra_policies:
+        result[pol] = evaluate(chosen["m"], pol, profile=True)
+    if a.knative:
+        result["knative"] = evaluate(chosen["m"], "knative_network")
 json.dump(result, open(OUT / "result.json", "w"), indent=1)
 print(f"[{a.tag}] RESULT multiplier={result['multiplier']} eff={result['median_effective_share']} fallback={fallback}", flush=True)
