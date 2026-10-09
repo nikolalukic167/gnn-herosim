@@ -650,6 +650,11 @@ No line trips.
   - vs self-predict: +2.1 / +7.8 / +2.7 %.
   - vs twin_eng: −0.3 / −0.3 / −1.3 % (heavy p = .03; the others are not separated).
   - vs CD←random: +2.7 / +3.2 / +2.5 %.
+- **Plain random arm (S4, array 854916 at ec6c8777, which differs from 263dd915 in the driver only; descriptive).**
+  - Of 131 decided cells, 114 were killed for stalling (70 light, 36 moderate). The sim clock stops advancing.
+  - Decision: the pause line applies with no rerun, and it is reported as N of M hung per rung. One diagnostic cell
+    classifies the stall (starved-client spin vs a random_network defect).
+- **More selections:** set_transformer (23:41), g1, val regret 0.901 ± 0.034 s.
 - **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
   - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
     - ps_exchange_push: +4.1 / +4.3 / +4.6
