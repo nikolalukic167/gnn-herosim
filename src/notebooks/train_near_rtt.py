@@ -2578,12 +2578,16 @@ def _final_eval(loader, ids, tag):
 
 train_final = _final_eval(train_loader, train_ids, "final/train")
 val_final = _final_eval(val_loader, val_ids, "final/val")
-test_final = _final_eval(test_loader, test_ids, "final/test")
+# r1_attribution_v1: the arm and its configuration are chosen on validation topologies only, before any test read, so the held-out
+# topologies are not scored (nor logged to W&B) by a run that sets NEAR_RTT_SKIP_FINAL_TEST=1.
+SKIP_FINAL_TEST = os.environ.get("NEAR_RTT_SKIP_FINAL_TEST", "0").strip() == "1"
+test_final = None if SKIP_FINAL_TEST else _final_eval(test_loader, test_ids, "final/test")
 
 final_log: Dict[str, float] = {}
 final_log.update(prefix(train_final, "final/train"))
 final_log.update(prefix(val_final, "final/val"))
-final_log.update(prefix(test_final, "final/test"))
+if test_final is not None:
+    final_log.update(prefix(test_final, "final/test"))
 _wandb_log(final_log)
 
 wandb.summary["peak_val_acc"] = float(peak_val_acc)
@@ -2616,9 +2620,16 @@ else:
     wandb.summary["best_val_regret_topk"] = float(best_val_regret)
     wandb.summary["checkpoint_metric"] = "regret_topk"
 wandb.summary["best_val_regret_greedy"] = float(best_val_metrics.get("regret_greedy", 0.0))
-wandb.summary["final_test_regret_topk"] = float(test_final["regret_topk"])
-wandb.summary["final_test_regret_greedy"] = float(test_final["regret_greedy"])
-wandb.summary["final_test_oracle_topk"] = float(test_final["regret_oracle_topk"])
+if test_final is not None:
+    wandb.summary["final_test_regret_topk"] = float(test_final["regret_topk"])
+    wandb.summary["final_test_regret_greedy"] = float(test_final["regret_greedy"])
+    wandb.summary["final_test_oracle_topk"] = float(test_final["regret_oracle_topk"])
+# what the per-arm configuration selection reads (scripts_cosim/r1a_select_checkpoints.py): the validation score of the saved checkpoint
+model_path.with_suffix(".val.json").write_text(json.dumps({
+    "run_name": str(wandb.run.name), "checkpoint_metric": str(checkpoint_metric_name), "best_val": float(best_val_regret),
+    "best_val_regret_greedy": float(best_val_metrics.get("regret_greedy", 0.0)), "train_seed": _TRAIN_SEED,
+    "epochs_requested": int(EPOCHS), "test_evaluated": test_final is not None,
+}, indent=1) + "\n")
 
 _flush_guard_metrics()
 
@@ -2636,7 +2647,10 @@ if CE_ONLY_TRAINING and not TEACHER_FORCED:
     print(f"Best val acc: {best_val_acc * 100:.1f}%")
 else:
     print(f"Best val {checkpoint_metric_name}: {best_val_regret:.4f}s")
-print(
+if test_final is None:
+    print("Final test: skipped (NEAR_RTT_SKIP_FINAL_TEST=1)")
+else:
+  print(
     f"Final test: greedy={test_final['regret_greedy']:.4f}s, "
     f"top{NEAR_CFG.top_k_decode}={test_final['regret_topk']:.4f}s, "
     f"oracle_top{NEAR_CFG.top_k_decode}={test_final['regret_oracle_topk']:.4f}s"

@@ -46,6 +46,8 @@ BASE_ENV = {
     "PARTIAL_STATE_PEER_MASS": "1",
     "NEAR_RTT_FULL_CONTEXT_CE_WEIGHT": "1.0",
     "PARTIAL_STATE_EXCHANGE_SECONDS": "1",
+    # arm and configuration are chosen on validation topologies only: the held-out topologies are not scored by training
+    "NEAR_RTT_SKIP_FINAL_TEST": "1",
 }
 ENG_MP = {"NEAR_RTT_MP_PEER_EDGES": "1", "NEAR_RTT_MP_BIPARTITE_EDGE_CONV": "1", "NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO": "1"}
 TWIN_MP = {"NEAR_RTT_MP_PEER_EDGES": "1", "GNN_DISABLE_MESSAGE_PASSING": "1"}
