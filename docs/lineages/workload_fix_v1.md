@@ -314,6 +314,16 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
       hung)**: 7 in 33–380 s, while 9105 g3 and 9103 g0 creep through a slowed spin for 2,856 s and 4,241 s, inside
       production's 7,200 s capture timeout. The residual slowdown is under diagnosis, by dump only (job 849880). Rung
       identity is being rerun as job 849879.
+    - **Validation results (2026-10-09; S5, jobs 849879, 849748 and 849880).**
+      - **Repros finish.** CD 9607 g1 ×5 in 71 s; 9608 g1 ×0.2666 in 68 s (previously over the wall limit).
+      - **Identity against `54fddd0d`:** 25 of 62 cells identical, 37 changed.
+        - CD's largest change in elapsed per rung: lo +3.3 %, light +0.9 %, **moderate +21.5 %** (9602 g0, request failures
+          0 → 27 of 50,000), heavy +3.1 %.
+        - Knative changes in 6 of 32 cells.
+      - **Spin cells:** 0 of 9 hang. The dumps show no deadlocked holder (all waits ≤ 320 s), so the deadlock becomes churn
+        paced by the 300 s timeout. 9103 g0 and 9105 g3 finish in 48–71 min with 1.0–1.6 % request failures.
+      - **Pending:** guards and bands on `r11t_fix/` (S4); an I11 spot check on moderate 9602 g0 (S5). The merge waits for
+        both.
     - **Rung-finals identity, job 849747:** it died in its preflight while `/home` was at quota, before any simulation ran.
       It is resubmitted once space is freed.
 - **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
