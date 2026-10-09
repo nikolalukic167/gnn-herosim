@@ -18,6 +18,8 @@ ap.add_argument("--band", type=float, nargs=2, required=True); ap.add_argument("
 ap.add_argument("--steps", type=int, default=8); ap.add_argument("--tag", required=True); ap.add_argument("--limit", type=int, default=2700)
 ap.add_argument("--parallel", type=int, default=8); ap.add_argument("--knative", action="store_true", help="run knative_network as context at the chosen rung")
 ap.add_argument("--extra-policies", nargs="*", default=[], help="descriptive arms run at the chosen rung on the same cells (e.g. peer_greedy_network_batch peer_greedy_selfpredict_network)")
+ap.add_argument("--replica-rule", default=None, choices=["first_compatible", "fastest_compatible"],
+                help="accel_replica_v1: write preinit.replica_placement_rule into every minted cell config (absent = first_compatible, the earlier calibration)")
 a = ap.parse_args()
 ROOT = Path(a.root); WT = Path(a.wt); OUT = ROOT / a.tag; OUT.mkdir(parents=True, exist_ok=True)
 X1 = "/home/nikola.lukic/gnn-herosim/simulation_data/small_batch_confirm_v1/inputs/grounded/wl"
@@ -30,6 +32,9 @@ if not CFG.is_dir():
     for s in a.seeds:
         subprocess.run([sys.executable, "scripts_cosim/scale_probe_cfg.py", BASECFG, str(CFG), "--clients", str(a.clients), "--servers", str(a.servers),
                         "--p", str(a.p), "--seed", str(s)], cwd=WT, check=True, stdout=subprocess.DEVNULL)
+        if a.replica_rule:
+            cfgp = CFG / f"cc40s{s}.json"; c = json.loads(cfgp.read_text()); c.setdefault("preinit", {})["replica_placement_rule"] = a.replica_rule
+            cfgp.write_text(json.dumps(c, indent=1))
 
 
 def mtag(m): return "m" + ("%.4f" % m).replace(".", "p")
