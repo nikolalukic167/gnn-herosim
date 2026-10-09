@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import statistics
 import sys
@@ -36,7 +37,11 @@ def run_stem(arm: str, k: int) -> str:
     return f"r1-attribution-v1-{arm.replace('_', '-')}-g{k}"
 
 
-def load_scores(models: Path, arm: str) -> Dict[int, Dict[int, Dict[str, Any]]]:
+class Incomplete(Exception):
+    pass
+
+
+def load_scores(models: Path, arm: str, *, allow_incomplete: bool = False) -> Dict[int, Dict[int, Dict[str, Any]]]:
     out: Dict[int, Dict[int, Dict[str, Any]]] = {}
     missing: List[str] = []
     for k in CONFIGS:
@@ -50,8 +55,18 @@ def load_scores(models: Path, arm: str) -> Dict[int, Dict[int, Dict[str, Any]]]:
                 raise SystemExit(f"FAIL LOUD: {p.name} was scored on the held-out topologies; the selection must precede any test read")
             out.setdefault(k, {})[s] = v
     if missing:
+        if allow_incomplete:
+            raise Incomplete(f"{arm}: {len(missing)} of 18 runs have no validation record yet")
         raise SystemExit(f"FAIL LOUD: {arm}: {len(missing)} of 18 runs have no validation record: {missing[:4]}...")
     return out
+
+
+def stage(src: Path, dst: Path) -> None:
+    """Copy through a temporary name and rename, so the gate never reads a half-written checkpoint."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_name(dst.name + ".tmp")
+    shutil.copyfile(src, tmp)
+    os.replace(tmp, dst)
 
 
 def main() -> int:
@@ -60,8 +75,11 @@ def main() -> int:
     ap.add_argument("--inputs-dir", type=Path, required=True)
     ap.add_argument("--split", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--arms", nargs="+", default=list(ARMS))
+    ap.add_argument("--arms", nargs="+", default=None)
+    ap.add_argument("--arm", action="append", default=None, help="per-arm run: the same rule on one arm (repeatable); same picks as the all-arms run")
+    ap.add_argument("--if-complete", action="store_true", help="exit 3 quietly when an arm still lacks validation records")
     a = ap.parse_args()
+    a.arms = (a.arm or []) + (a.arms or []) or list(ARMS)
     import joint_burst_v2_sidecheck as sc
 
     split_sha = hashlib.sha256(a.split.read_bytes()).hexdigest()
@@ -69,7 +87,11 @@ def main() -> int:
     chosen: Dict[str, Any] = {}
     plan: List[tuple] = []
     for arm in a.arms:
-        scores = load_scores(a.models_dir, arm)
+        try:
+            scores = load_scores(a.models_dir, arm, allow_incomplete=a.if_complete)
+        except Incomplete as exc:
+            print(f"incomplete: {exc}")
+            return 3
         table = {k: {"seeds": {s: scores[k][s]["best_val"] for s in SEEDS},
                      "mean": statistics.fmean(scores[k][s]["best_val"] for s in SEEDS),
                      "sd": statistics.pstdev(scores[k][s]["best_val"] for s in SEEDS),
@@ -87,10 +109,17 @@ def main() -> int:
                 raise SystemExit(f"FAIL LOUD: sidecheck failed for {src.name}")
             plan.append((src, dest / f"r1-attribution-v1-{arm.replace('_', '-')}-seed{s}.pt"))
     best_arm = min(chosen, key=lambda r: (chosen[r]["val_mean"], r))
+    # a per-arm run and the all-arms run apply one rule; if both exist their picks must agree
+    for arm, c in chosen.items():
+        prior = a.out.parent / f"selection_{arm}.json"
+        if prior.is_file() and a.out.name != prior.name:
+            before = json.loads(prior.read_text())["arms"][arm]["config"]
+            if before != c["config"]:
+                raise SystemExit(f"FAIL LOUD: {arm}: the per-arm selection picked g{before}, this run picks g{c['config']}")
     dest.mkdir(parents=True, exist_ok=True)
     for src, dst in plan:
         for suffix in (".pt", ".contract.json"):
-            shutil.copyfile(src.with_suffix(suffix), dst.with_suffix(suffix))
+            stage(src.with_suffix(suffix), dst.with_suffix(suffix))
     report = {"split_sha256": split_sha, "rule": "lowest mean validation score over 3 seeds; validation topologies only; no test read",
               "best_learned_arm_by_validation": best_arm, "arms": chosen}
     a.out.write_text(json.dumps(report, indent=1))

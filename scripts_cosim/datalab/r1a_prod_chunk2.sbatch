@@ -1,8 +1,10 @@
 #!/bin/bash
-# r1_attribution_v1 production chain, stage 2: a 1-CPU waiter that submits the second half of the training array (indices 21-41) and the selection job
-# as soon as the account has room under the shared 44-job limit (pending array elements count). It never submits a partial array: sbatch either takes
-# the whole 21-element array or refuses it, and any refusal that is not a limit refusal fails this job loudly.
-#   sbatch --export=ALL,WT=...,CACHE_JOB=...,CHUNK1_JOB=...,STATE=<dir with mem2>,INPUTS=...,SEL_OUT=... r1a_prod_chunk2.sbatch
+# r1_attribution_v1 production chain, stage 2: a 1-CPU job that (a) submits the second half of the training array (indices 21-41, the engineered trio
+# first, see scripts_cosim/r1a_task_order.py) and the all-arms selection as soon as the account has room under the shared 44-job limit (pending
+# array elements count; it never submits a partial array: sbatch takes the whole 21-element array or refuses it, and any refusal that is not a limit
+# refusal fails this job loudly), then (b) stays alive and runs the per-arm selection (r1a_select_checkpoints.py --arm X --if-complete) for each arm the
+# moment all 18 of its runs have a validation record, staging that arm's checkpoints into $INPUTS/models.
+#   sbatch --export=ALL,WT=<pinned worktree>,SCRIPTS=<dir holding this script's siblings>,CACHE_JOB=..,CHUNK1_JOB=..,STATE=<dir with mem2>,INPUTS=..,SEL_OUT=.. r1a_prod_chunk2.sbatch
 # $STATE/mem2 holds the --mem for the second half (default 150G); edit it before this job submits to lower it.
 #SBATCH --job-name=r1a-chunk2
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/r1a-chunk2-%j.out
@@ -10,29 +12,53 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=1G
+#SBATCH --mem=4G
 #SBATCH --time=72:00:00
 set -uo pipefail
-WT=${WT:?}; CACHE_JOB=${CACHE_JOB:?}; CHUNK1_JOB=${CHUNK1_JOB:?}; STATE=${STATE:?}; INPUTS=${INPUTS:?}; SEL_OUT=${SEL_OUT:?}
+WT=${WT:?}; SCRIPTS=${SCRIPTS:?}; CACHE_JOB=${CACHE_JOB:?}; CHUNK1_JOB=${CHUNK1_JOB:?}; STATE=${STATE:?}; INPUTS=${INPUTS:?}; SEL_OUT=${SEL_OUT:?}
 LIMIT=${LIMIT:-44}; THROTTLE=${THROTTLE:-12}; N2=21
+ARMS="gnn_eng twin_eng mlp_same gnn_raw twin_raw gnn_eng_physmp set_transformer"
 cd "$WT"
-echo "waiter for chunk 2 | worktree $(git rev-parse HEAD)"
-while true; do
+if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
+eval "$(micromamba shell hook --shell bash)"
+micromamba activate gnn
+echo "waiter for chunk 2 | worktree $(git rev-parse HEAD) | scripts $SCRIPTS"
+SUBMITTED=0
+while [[ $SUBMITTED -eq 0 ]]; do
   st=$(sacct -j "$CACHE_JOB" -X -n -o State 2>/dev/null | head -1 | tr -d ' ')
   case "$st" in FAILED*|CANCELLED*|TIMEOUT*|OUT_OF_MEMORY*|NODE_FAIL*) echo "FAIL LOUD: the cache job $CACHE_JOB is $st; chunk 2 is not submitted"; exit 1;; esac
   n=$(squeue -u "$USER" -r -h | wc -l)   # includes this job
   if (( n + N2 <= LIMIT )); then
     MEM=$(cat "$STATE/mem2" 2>/dev/null || echo 150G)
-    out=$(sbatch --parsable --dependency=afterok:"$CACHE_JOB" --array=21-41%"$THROTTLE" --mem="$MEM" --export=ALL,WT="$WT" scripts_cosim/datalab/r1a_prod_train.sbatch 2>&1)
+    out=$(sbatch --parsable --dependency=afterok:"$CACHE_JOB" --array=21-41%"$THROTTLE" --mem="$MEM" --export=ALL,WT="$WT",ORDER_PY="$SCRIPTS/../r1a_task_order.py" "$SCRIPTS/r1a_prod_train.sbatch" 2>&1)
     if [[ "$out" =~ ^[0-9]+$ ]]; then
       CHUNK2=$out
-      SEL=$(sbatch --parsable --dependency=afterok:"$CHUNK1_JOB":"$CHUNK2" --export=ALL,WT="$WT",INPUTS="$INPUTS",OUT="$SEL_OUT" scripts_cosim/datalab/r1a_prod_select.sbatch 2>&1)
+      SEL=$(sbatch --parsable --dependency=afterok:"$CHUNK1_JOB":"$CHUNK2" --export=ALL,WT="$WT",INPUTS="$INPUTS",OUT="$SEL_OUT" "$SCRIPTS/r1a_prod_select.sbatch" 2>&1)
       [[ "$SEL" =~ ^[0-9]+$ ]] || { echo "FAIL LOUD: selection submission refused: $SEL (chunk 2 is $CHUNK2)"; exit 1; }
-      echo "chunk 2 = $CHUNK2 (mem $MEM, $((n)) jobs queued before), selection = $SEL"; exit 0
-    fi
-    if echo "$out" | grep -qiE "limit|QOS|too many"; then echo "$(date +%T) refused at the limit ($out); retrying"; else echo "FAIL LOUD: sbatch refused chunk 2: $out"; exit 1; fi
+      echo "chunk 2 = $CHUNK2 (mem $MEM, $n jobs queued before), selection = $SEL"; SUBMITTED=1
+    elif echo "$out" | grep -qiE "limit|QOS|too many"; then echo "$(date +%T) refused at the limit ($out); retrying"
+    else echo "FAIL LOUD: sbatch refused chunk 2: $out"; exit 1; fi
   else
     echo "$(date +%T) $n jobs queued + $N2 > $LIMIT; waiting"
   fi
-  sleep 300
+  [[ $SUBMITTED -eq 1 ]] || sleep 300
+done
+# (b) per-arm selection as arms complete
+export PYTHONPATH="$WT"
+DONE=""
+while true; do
+  left=0
+  for A in $ARMS; do
+    [[ " $DONE " == *" $A "* ]] && continue
+    if [[ -f "$STATE/selection_$A.json" ]]; then DONE="$DONE $A"; continue; fi
+    python3 "$SCRIPTS/../r1a_select_checkpoints.py" --models-dir /home/nikola.lukic/gnn-herosim/models --inputs-dir "$INPUTS" \
+      --split "$WT/experiments/r1_attribution_v1_split.json" --out "$STATE/selection_$A.json" --arm "$A" --if-complete; rc=$?
+    case $rc in
+      0) echo "$(date +%T) ARM SELECTED: $A -> $INPUTS/models ($STATE/selection_$A.json)"; DONE="$DONE $A";;
+      3) left=$((left+1));;
+      *) echo "FAIL LOUD: per-arm selection of $A failed (rc $rc)"; exit 1;;
+    esac
+  done
+  [[ $left -eq 0 ]] && { echo "all arms selected"; exit 0; }
+  sleep 600
 done

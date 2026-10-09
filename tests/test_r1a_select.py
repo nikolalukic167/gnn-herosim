@@ -84,3 +84,46 @@ def test_a_checkpoint_trained_on_another_split_is_refused(tmp_path):
     split.write_text('{"other": 1}')
     with pytest.raises(SystemExit, match="different split"):
         _run(tmp_path, split, models, ["gnn_eng"])
+
+
+def test_per_arm_selection_picks_what_the_all_arms_run_picks(tmp_path):
+    arms = ["gnn_eng", "twin_eng"]
+    vals = lambda arm, k, s: (k - 2) ** 2 + (0.3 if arm == "twin_eng" else 0.0) + 0.01 * s
+    split, models = _stage(tmp_path, arms, vals)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    picks = {}
+    for arm in arms:
+        argv = ["x", "--models-dir", str(models), "--inputs-dir", str(tmp_path / "inputs_arm"), "--split", str(split),
+                "--out", str(out_dir / f"selection_{arm}.json"), "--arm", arm]
+        old, sys.argv = sys.argv, argv
+        try:
+            assert sel.main() == 0
+        finally:
+            sys.argv = old
+        picks[arm] = json.loads((out_dir / f"selection_{arm}.json").read_text())["arms"][arm]["config"]
+    argv = ["x", "--models-dir", str(models), "--inputs-dir", str(tmp_path / "inputs_all"), "--split", str(split), "--out", str(out_dir / "selection.json")]
+    old, sys.argv = sys.argv, argv
+    try:
+        assert sel.main() == 0
+    finally:
+        sys.argv = old
+    allrun = json.loads((out_dir / "selection.json").read_text())
+    assert picks == {a: allrun["arms"][a]["config"] for a in arms} == {"gnn_eng": 2, "twin_eng": 2}
+    for a in arms:
+        for s in (1, 2, 3):
+            n = f"r1-attribution-v1-{a.replace('_', '-')}-seed{s}.pt"
+            assert (tmp_path / "inputs_arm/models" / n).read_bytes() == (tmp_path / "inputs_all/models" / n).read_bytes()
+
+
+def test_if_complete_exits_quietly_until_all_18_runs_are_scored(tmp_path, capsys):
+    split, models = _stage(tmp_path, ["mlp_same"], lambda a, k, s: 1.0)
+    (models / f"{sel.run_stem('mlp_same', 5)}-seed2.val.json").unlink()
+    argv = ["x", "--models-dir", str(models), "--inputs-dir", str(tmp_path / "inputs"), "--split", str(split), "--out", str(tmp_path / "s.json"),
+            "--arm", "mlp_same", "--if-complete"]
+    old, sys.argv = sys.argv, argv
+    try:
+        assert sel.main() == 3
+    finally:
+        sys.argv = old
+    assert not (tmp_path / "inputs").exists()
