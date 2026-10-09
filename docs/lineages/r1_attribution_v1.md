@@ -553,6 +553,13 @@ No line trips.
       vs 0.57 s).
     - **Implication: arm differences can be dominated by deferral and spin dynamics.** The gate reader should report the
       deferral and reachability-failure counters next to latency (secondary, descriptive).
+    - **Final (S6, `r1a_diag_s7/dec.json`).** The trigger is the environment.
+      - All three arms first hit "No compatible hardware" starvation at about 250–267 s, for rf/dnn2 from client_node8
+        and client_node2.
+      - Epoch 10 responded worse: 1,406 starved tasks and 15× the create calls.
+      - Its placement is near-identical to epoch 30's: 6 nodes used, top-1 share 0.50 vs 0.52, 96 % of batches
+        co-located. There is no fallback, cap hit or memory refusal.
+      - Whether that is caused by the checkpoint or is timing luck needs a second seed; not run.
 - **CD←random, descriptive (S4, array 854323, 07b0acba, `cdrandom_read.json`).**
   - 453 of 456 cells done. 3 heavy cells at 9565 were killed by rate and counted.
   - Paired % vs CD: +1.35 / +4.28 / +3.91 %. CD is ahead in 18 / 18 / 16 of 19 topologies. Dropping 9538 and 9565
