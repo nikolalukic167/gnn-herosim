@@ -33,7 +33,8 @@ HELDOUT_TOPOS=${HELDOUT_TOPOS:-}
 WINDOWS=${WINDOWS:-"g0 g1 g2 g3"}
 TARGET=${TARGET:-20000}; STRIDE=${STRIDE:-200}; MIN_TIME=${MIN_TIME:-360}
 BATCHES_TARGET=${BATCHES_TARGET:-5000}; TOPOS_ALL=${TOPOS_ALL:-$TOPOS}
-T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array}
+# the account allows 50 queued jobs (AssocMaxSubmitJobLimit), so a long TOPOS list is submitted in array chunks: chunk k is --array=0-<n-1> with TOPO_OFFSET=<first index>, and T is the index into the FULL TOPOS list
+T=$(( ${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array} + ${TOPO_OFFSET:-0} ))
 TOPO_ARR=($TOPOS); SEED=${TOPO_ARR[$T]:?FAIL LOUD: array index beyond TOPOS}
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT)'); do unset "$v"; done

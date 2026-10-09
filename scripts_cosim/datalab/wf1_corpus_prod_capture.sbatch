@@ -22,7 +22,8 @@ ROOT=${ROOT:?FAIL LOUD: set ROOT (the step-1 output root)}
 TOPOS=${TOPOS:?FAIL LOUD: set TOPOS}
 TAGS=${TAGS:?FAIL LOUD: set TAGS (the rung tags of step 1)}
 WINDOWS=${WINDOWS:-"g0 g1 g2 g3"}
-T=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array}
+# the account allows 50 queued jobs (AssocMaxSubmitJobLimit), so a long TOPOS list is submitted in array chunks: chunk k is --array=0-<n-1> with TOPO_OFFSET=<first index>, and T is the index into the FULL TOPOS list
+T=$(( ${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array} + ${TOPO_OFFSET:-0} ))
 TOPO_ARR=($TOPOS); SEED=${TOPO_ARR[$T]:?FAIL LOUD: array index beyond TOPOS}
 cd "$WT"
 # nothing a previous gate driver exported (HEROSIM_KEEP_ALIVE, HEROSIM_INFLIGHT_CAPTURE, ...) may reach the capture
