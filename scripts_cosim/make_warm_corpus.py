@@ -803,6 +803,7 @@ def main() -> int:
         if out_dir.exists() and sweep_complete(out_dir):
             if not args.quiet:
                 print(f"[warm] {dataset_id} exists, skipping", flush=True)
+            batches_made.add((entry.get("source_file"), sid))  # a resumed cell must count what it already has, or it builds the limit again
             idx += 1
             made += 1
             continue

@@ -30,17 +30,21 @@ def main() -> int:
         dp = s.get("declared_pruning") or {}
         for k in ("pruned_snapshots", "sub_batched_snapshots", "snapshots", "datasets_from_sub_batches"):
             tot[k] += dp.get(k, 0)
-    cells_not_ok = []
+    cells_not_ok, cap_hit = [], []
     for f in sorted((a.root / "build_logs").glob("topology_*.json")):
         t = json.loads(f.read_text())
         if t["cells_not_ok"]:
             cells_not_ok.append(f"{t['topology']}: {t['cells_not_ok']}")
+        if t.get("cap_hit_cells"):
+            cap_hit.append(f"{t['topology']}: {t['cap_hit_cells']}")
     shares = {k: (tot[k] / tot["offered"] if tot["offered"] else 0.0) for k in
               ("rejected", "single_candidate_node", "disconnected_batch", "no_choice", "no_peer_pairs", "discarded")}
     sub_share = tot["sub_batched_snapshots"] / tot["snapshots"] if tot["snapshots"] else 0.0
     print(json.dumps({"totals": tot, "rate_per_offered": shares, "sub_batched_share_of_batches": sub_share,
-                      "capture_not_ok_cells": cells_not_ok}, indent=1))
+                      "capture_not_ok_cells": cells_not_ok, "cap_hit_cells": cap_hit}, indent=1))
     problems = []
+    if cap_hit:
+        problems.append(f"{len(cap_hit)} topolog(ies) have cap-hit cells (the capture stopped at the snapshot cap): {cap_hit[:5]}")
     if tot["batches_made"] < a.target:
         problems.append(f"{tot['batches_made']} batches made, target {a.target}")
     made_or_discarded = tot["datasets"] + tot["discarded"]
