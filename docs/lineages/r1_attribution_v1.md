@@ -398,6 +398,13 @@ No line trips.
 - **Decision:** fixed timeouts plus 3× reruns are replaced, after this build, by one shared progress-rate watchdog for the
   capture, build and gate. It kills a cell whose projected finish exceeds 1.5× the limit, or that has made no progress
   for 5 min, calibrated on this capture's progress data. In the session's waits, the 3× reruns succeeded 0 times.
+- **Schedule compression (2026-10-09 19:10, coordinator).**
+  - The gate's classical arms run tonight (S4). Live physics is fixed, and the learned arms pair against the same cells
+    later, with the commit verified.
+  - Cache and training start speculatively when the production check passes (S7). They are discarded if the variant
+    verdict or the ranking test goes against them.
+  - The ext corpus is rebuilt at E (S6), and the ranking test runs on it in parallel with the variant comparison (S5).
+  - None of this changes a registered bar; it only overlaps the stages.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
