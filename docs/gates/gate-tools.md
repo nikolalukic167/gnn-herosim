@@ -18,6 +18,16 @@ rendezvous stages the summaries measure. The 300 s request timeout doesn't cover
 stability or admission guard that reads queue share alone passes a collapsed arm. Read p95 per-task latency and the run's
 end time against its last arrival as well.
 
+**Second blind spot (2026-10-09, `load_recalibration_v1`).** Under `HEROSIM_REPLICA_RELEASE=1`, `started` is stamped
+before `_serve_task` requests `compute_lock`. So the FIFO backlog on a saturated replica lands in **compute time**, not
+queue time. For CD at ×24.71 (9601 g0), 40.7 of 42.0 s per task was lock wait, and queue share read 0.010 instead of
+about 0.97. Fix: use effective queue share = (queue + compute_start − io_end) / elapsed. Never read
+`averageComputeTime` as execution under R1.
+
+**Correction (2026-10-09).** On the recalibration cells, Knative's collapse is lock wait, not unplaced tasks: placement
+wait is 0.006 s and lock wait is 826 of 837 s at ×11.61 (`load_recalibration_v1`). The "unplaced" explanation above is
+not supported there. Whether the `workload_fix_v1` W4 cells collapse by the same mechanism is unverified.
+
 ## 2026-10-08 — The autoscaler loops call `env.step()`: any extra scheduled event is a physics change
 
 `Autoscaler.autoscaler_process` and `_kpa_autoscaler_process` (`src/placement/autoscaler.py`) end every iteration

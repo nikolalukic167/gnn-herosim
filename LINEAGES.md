@@ -40,7 +40,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
 | [**transfer_physics_v1**](docs/lineages/transfer_physics_v1.md) | `ACTIVE` | 2×2 read: CD is fastest in every condition and topology; held replicas made queues dominate (released: queue share 0.05–0.08); Knative's gap shrinks; zero-shot GNN falls further behind. Scale-out factor registered as kpa_scaleout_v1. |
 | [**reference_physics_programme**](docs/lineages/reference_physics_programme.md) | `REGISTERED` | Programme plan (9 nodes): KPA scale-out → audit and freeze R1 → fix workload WF1 → recalibrate load → train once and attribute; stopping rule after nodes 1–5. |
-| [**load_recalibration_v1**](docs/lineages/load_recalibration_v1.md) | `REGISTERED` | Light / moderate / heavy rungs on R1 + WF1 defined by CD queue share, bisected on 4 held-out calibration topologies; no policy comparison read. |
 | [**r1_attribution_v1**](docs/lineages/r1_attribution_v1.md) | `REGISTERED` | Retrain once on R1 + WF1 (pruned brute-force labels, equal HP budget, 3 seeds); best learned vs CD at 3 rungs; MP / feature / set-context attribution; seeded-CD controls. |
 | [**call_graph_pairing_v1**](docs/lineages/call_graph_pairing_v1.md) | `REGISTERED` | Trace-derived pairing, synthetic exchange semantics: Casper call graphs decide which siblings exchange (2 partners kept); learned arms zero-shot. |
 | [**access_link_contention_v1**](docs/lineages/access_link_contention_v1.md) | `REGISTERED` | Hypothesis: peer exchange through shared access-link pipes; precondition link wait ≥ 15 % of exchange; best learned vs contention-aware CD. |
@@ -58,6 +57,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**load_recalibration_v1**](docs/lineages/load_recalibration_v1.md) | `CLOSED` | RUNGS-FIXED on R1.1 + WF1 by CD effective queue share (queue + compute-lock wait): light ×1.26, moderate ×5.94, heavy ×11.61; all CD guards pass; Knative collapses at moderate and heavy. |
 | [**workload_fix_v1**](docs/lineages/workload_fix_v1.md) | `CLOSED` | WF1-FROZEN: W2 payloads + W3 access links + W4 four types on R1.1; CD first at both rungs (self-predict's W2 lead gone); reactive saturates at heavy. |
 | [**physics_audit_v1**](docs/lineages/physics_audit_v1.md) | `CLOSED` | R1-FROZEN: pipelined + release + KPA at time scale 1.0; all invariants pass but I5 (reachability-driven replicas); co-sim reproduces live (216 states, p95 0.15 %); labels from t ≥ 360 s. R1.1 (leak fix + 300 s timeout) passes pass 3. |
 | [**replica_placement_v1**](docs/lineages/replica_placement_v1.md) | `CLOSED` | NO-LEVER by the registered rule: under R1 only 22 % of CD's replica creations are load-caused; never run. |

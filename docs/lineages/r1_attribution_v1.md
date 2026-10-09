@@ -13,6 +13,25 @@ scheduled the tasks at another instant) and stays in the denominator. Limits: on
 t ≤ 1,059 s. Re-check 20 states at the recalibrated heavy rung, late in the trace, before labels are built there. Per-state rows:
 datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
 
+**Late-state re-check at the recalibrated heavy rung: PASS (2026-10-09; S5, jobs 843776 and 843791, `rp/recal`
+`293fd8c4`).**
+- **Rung:** ×11.6139 (`load_recalibration_v1`), using the finals' cells, window g0, full 50,000-arrival captures.
+- **Last third, 20 states (5 per calibration topology, t ≥ 6,270 s):** median 0.000 %, p95 0.033 %, max 0.578 %. The max
+  is an absolute miss of 0.001 s. Nothing is above 5 %, and every state replayed.
+- **Backlog states:**
+  - None exist in the last third: the largest replica lock backlog there is under 100 s, and the run-wide maxima of
+    75–518 s all fall in the first 1,300 s.
+  - A separate set of 24 states with backlog > 100 s (9607 and 9608) scores max 0.075 %. It includes a batch that waited
+    1,935 s live, reproduced within 0.029 %.
+- **Data:** `simulation_data/load_recalibration_v1/i11_heavy{,_bl}/`.
+- **Unverified, open:** against the *continuing* live run, as opposed to the isolated truth, two early 9608 states
+  differ more: 4.603 s live against 4.110 s replayed, and 237.5 s against 230.7 s. Most likely this is the batch-label horizon
+  (arrivals after the snapshot aren't in the label) rather than a replay error, but the cause has not been checked.
+
+**B2 dry run, heavy portion submitted (2026-10-09, S6).** Rung ×11.61; 12 topologies (8 train, 4 held-out); inputs job 843775
+(W3 diff passes; access classes wired 0.40, wifi 0.39, cellular 0.21); capture job 843881 and build job 843882 (afterok, LIMIT=4),
+with fidelity capture, `--require-connected-batch` and declared pruning. Moderate (×5.94) is held until its finals finish.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
