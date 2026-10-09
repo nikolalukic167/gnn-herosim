@@ -50,6 +50,13 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — Training prep (S7, `rp/scale160-prep` ec970b82).
+  - Read from the code: no server-count pad binds under partial_state_v5. The one-hot rank pad applies only to the
+    v1/v2 contracts (`reduced_features.py:252, 356`).
+  - Chain: cache, then a 12-task array (2 arms × 6 configs × 3 seeds), then validation-only selection. Stem
+    `scale-160-v1`.
+  - Split: the 8 held-out topologies are validation. The test split is an unscored 1-topology placeholder taken from
+    train, because the loader rejects an empty test split.
 - 2026-10-10 — **Out-of-distribution check at 80c × 12s** (S6, jobs 855114/855128; one topology from seed 9101,
   multiplier ×servers/6 and uncalibrated; the 40 × 6 checkpoints at 263dd915; descriptive, direction only).
   - All 32 of 32 cells finished, and the checkpoints served at 12 servers with no contract refusal.
