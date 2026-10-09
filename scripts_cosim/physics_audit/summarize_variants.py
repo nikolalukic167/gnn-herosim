@@ -3,7 +3,7 @@ with the worst states and their absolute misses. usage: summarize_variants.py OU
 import glob, json, math, os, statistics as st, sys
 
 O = sys.argv[1]
-NAMES = {"A": "A d28d1bb0 (poll, name order)", "B": "B f7711324 (exact_batch, name order)", "C": "C poll + task-id order/timers", "D": "D exact_batch + task-id order/timers (e384e732)"}
+NAMES = {"A": "A d28d1bb0 (poll, name order)", "B": "B f7711324 (exact_batch, name order)", "C": "C poll + task-id order/timers", "D": "D exact_batch + task-id order/timers (8ada0140)", "E": "E D + due time = pop + latency"}
 
 
 def q(v, p):
@@ -12,7 +12,7 @@ def q(v, p):
 
 
 rows = {}
-for f in glob.glob(f"{O}/*_*/replay_[ABCD]_*.jsonl"):
+for f in glob.glob(f"{O}/*_*/replay_[ABCDE]_*.jsonl"):
     cell = os.path.basename(os.path.dirname(f)); var = os.path.basename(f).split("_")[1]
     for l in open(f):
         r = json.loads(l)
@@ -20,7 +20,7 @@ for f in glob.glob(f"{O}/*_*/replay_[ABCD]_*.jsonl"):
             r["_fail"] = True
         r["_cell"] = cell
         rows.setdefault(var, []).append(r)
-for var in "ABCD":
+for var in "ABCDE":
     rs = rows.get(var, [])
     ok = [r for r in rs if not r.get("_fail")]
     e = [abs(r["rel_err"]) for r in ok]
