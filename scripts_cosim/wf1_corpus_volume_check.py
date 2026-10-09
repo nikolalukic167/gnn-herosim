@@ -18,14 +18,14 @@ def main() -> int:
     ap.add_argument("--max-discard-share", type=float, default=0.02)
     a = ap.parse_args()
     tot = {"cells": 0, "batches_made": 0, "datasets": 0, "offered": 0, "rejected": 0, "discarded": 0, "single_candidate_node": 0,
-           "disconnected_batch": 0, "no_choice": 0, "no_peer_pairs": 0, "pruned_snapshots": 0, "sub_batched_snapshots": 0,
+           "disconnected_batch": 0, "no_choice": 0, "no_peer_pairs": 0, "unplaced_partner": 0, "pruned_snapshots": 0, "sub_batched_snapshots": 0,
            "snapshots": 0, "datasets_from_sub_batches": 0}
     for f in sorted(a.root.glob("gnn_datasets_wf1_*/warm_summary_*.json")):
         s = json.loads(f.read_text())
         tot["cells"] += 1
         tot["batches_made"] += s["batches_made"]
         tot["datasets"] += s["made"]
-        for k in ("offered", "rejected", "discarded", "single_candidate_node", "disconnected_batch", "no_choice", "no_peer_pairs"):
+        for k in ("offered", "rejected", "discarded", "single_candidate_node", "disconnected_batch", "no_choice", "no_peer_pairs", "unplaced_partner"):
             tot[k] += s.get(k, 0)
         dp = s.get("declared_pruning") or {}
         for k in ("pruned_snapshots", "sub_batched_snapshots", "snapshots", "datasets_from_sub_batches"):
@@ -38,7 +38,7 @@ def main() -> int:
         if t.get("cap_hit_cells"):
             cap_hit.append(f"{t['topology']}: {t['cap_hit_cells']}")
     shares = {k: (tot[k] / tot["offered"] if tot["offered"] else 0.0) for k in
-              ("rejected", "single_candidate_node", "disconnected_batch", "no_choice", "no_peer_pairs", "discarded")}
+              ("rejected", "single_candidate_node", "disconnected_batch", "no_choice", "no_peer_pairs", "unplaced_partner", "discarded")}
     sub_share = tot["sub_batched_snapshots"] / tot["snapshots"] if tot["snapshots"] else 0.0
     print(json.dumps({"totals": tot, "rate_per_offered": shares, "sub_batched_share_of_batches": sub_share,
                       "capture_not_ok_cells": cells_not_ok, "cap_hit_cells": cap_hit}, indent=1))

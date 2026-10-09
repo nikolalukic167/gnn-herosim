@@ -73,6 +73,7 @@ SINGLE_NODE_REASON = "single_candidate_node"
 DISCONNECTED_REASON = "disconnected_batch"
 NO_CHOICE_REASON = "no_choice"
 NO_PEER_PAIRS_REASON = "no_peer_pairs"
+UNPLACED_PARTNER_REASON = "unplaced_partner"
 
 
 class SnapshotRejected(ValueError):
@@ -679,6 +680,14 @@ def main() -> int:
                 if snap0.get("fidelity") is None:
                     raise SnapshotRejected("--fidelity but the snapshot carries no fidelity block")
                 whole = build_batch_workload(snap0, trace, ids0, list(cell["wsc"].keys()))
+                fid0 = snap0["fidelity"]
+                future0 = fid0.get("future") or {}
+                waiting = sorted({int(other) for row in (fid0.get("peers") or {}).values() for other, node, _p in row
+                                  if node is None and str(other) not in future0})
+                if waiting:
+                    # a partner outside the batch that the live run had not placed yet is a rendezvous whose time the snapshot
+                    # cannot give; the replay refuses it (simulation.py: it would wait for ever) and every plan of the sweep fails
+                    raise SnapshotRejected(f"{UNPLACED_PARTNER_REASON}: partner(s) {waiting} outside the batch were not placed at the snapshot")
                 if args.require_connected_batch:
                     comps = batch_peer_components(whole)
                     if comps != 1:
@@ -890,7 +899,8 @@ def main() -> int:
                "single_candidate_node": reasons.get(SINGLE_NODE_REASON, 0),
                "disconnected_batch": reasons.get(DISCONNECTED_REASON, 0),
                "no_choice": reasons.get(NO_CHOICE_REASON, 0),
-               "no_peer_pairs": reasons.get(NO_PEER_PAIRS_REASON, 0)}
+               "no_peer_pairs": reasons.get(NO_PEER_PAIRS_REASON, 0),
+               "unplaced_partner": reasons.get(UNPLACED_PARTNER_REASON, 0)}
     made_entries = [e for e in mine if e.get("status") in ("success", "dry-run")]
     slated = [e["slate"] for e in made_entries if e.get("slate")]
     if slated:
