@@ -282,6 +282,19 @@ no end row, so a hung run was never judged; no invariant checked pool conservati
   every arm pays. The clock starts at the later of placement and the partner's arrival. Recorded before the
   rescoped code exists; it's judged by the same gates: the 75 timeout cells must return to identical, W4 9565 g2 CD
   must still complete, and the 42 identity cells must stay identical.
+- **R1.1-T implementation hole (2026-10-09, coordinator; found by S5 in `r1_attribution_v1`'s spin diagnosis).**
+  - **The hole.** `_unplaced_peers` (`infrastructure.py:1213`) counts a partner as placed when it has a
+    `planned_node_name` (set by the batch pre-pass) even if it has no platform. An arrived partner, deferred for lack
+    of hardware, therefore never starts the 300 s clock.
+  - **Consequence: deadlock.** The group's other tasks hold the only compatible platforms in rendezvous and wait
+    forever. Dump at 9607 g1 ×5 (CD, job 849135): 734 s of waiting and still going.
+  - **Not a scope change.** The partner has arrived, so R1.1-T as registered covers it.
+  - **Fix:** a peer counts as placed only when `platform is not None`; branch `rp/r11t-fix` off `54fddd0d`.
+  - **Gates:**
+    - the 9607 g1 ×5 and 9608 g1 ×0.2666 repros finish;
+    - the 24 CD rung finals cells keep every guard and their bands (changed cells listed);
+    - the heavy hung-cell rate falls below 5 %;
+    - an I11 spot check on a changed cell.
 - **The leak triggers the pre-registered rule, and it stands:** every R1 number since `kpa_scaleout_v1` is labelled
   pre-R1.1 and re-measured on R1.1. Expected size from the sample: 2 of 200 cells, ≤ 1 %; that expectation doesn't
   replace the re-measure. Order: W2 at 1 s on R1.1 first (it replaces the provisional W2 read), then the
