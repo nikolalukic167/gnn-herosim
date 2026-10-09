@@ -123,7 +123,8 @@ class FidelityReplay:
         infra["forced_placements"] = forced
         infra["fast_forward_warmup"] = True
         infra["fast_forward_threshold"] = 1
-        infra["scheduler"] = {"batch_size": max(len(self.wl["events"]), 1), "batch_timeout": 0.02}
+        infra["scheduler"] = {"batch_size": max(len(self.wl["events"]), 1), "batch_timeout": 0.02,
+                           "exact_batch": os.environ.get("HEROSIM_REPLAY_EXACT_BATCH", "1") == "1"}  # 0: the pre-fix 1 ms poll, for A/B
         return execute_simulation({"infrastructure": infra, "workload": self.wl}, self.sim_inputs,
                                   scheduling_strategy="determined_determined", cache_policy="fifo",
                                   task_priority="fifo", **self.kw)
