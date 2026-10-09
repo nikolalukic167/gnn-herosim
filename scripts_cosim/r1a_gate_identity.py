@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 
 SKIP = {"wallclock_s", "code", "total_rtt_plus_inference", "env"}
+# env keys that differ by construction: the checkpoint directory of the run, and provenance keys recorded since the earlier commit
+ENV_OK = {"GNN_MODEL_PATH", "GNN_CD_REFINE", "HEROSIM_CD_RANDOM_SEED"}
 
 
 def compare(before: Path, after: Path) -> list:
@@ -17,7 +19,7 @@ def compare(before: Path, after: Path) -> list:
     for n in names:
         a, b = json.loads((before / n).read_text()), json.loads((after / n).read_text())
         problems += [f"{n}: {k}" for k in sorted(set(a) | set(b)) if k not in SKIP and a.get(k) != b.get(k)]
-        problems += [f"{n}: env {k}" for k in sorted(set(a["env"]) | set(b["env"])) if a["env"].get(k) != b["env"].get(k)]
+        problems += [f"{n}: env {k}" for k in sorted(set(a["env"]) | set(b["env"])) if k not in ENV_OK and a["env"].get(k) != b["env"].get(k)]
     print(f"{len(names)} cells compared; {len(problems)} differences")
     return problems
 
