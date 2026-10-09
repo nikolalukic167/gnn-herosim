@@ -26,6 +26,7 @@ from typing import Dict, Tuple, Type, Set, Any, List, Optional
 
 from src.placement.infrastructure import FIDELITY, Node, Platform, Storage, Application, Task
 from src.placement.network_fabric import build_fabric
+from src.placement.progress import start_progress_reporter
 
 from simpy.core import Environment  # type: ignore[import-not-found]
 from simpy.resources.store import FilterStore  # type: ignore[import-not-found]
@@ -798,6 +799,7 @@ def start_simulation(
         if snapshot_fidelity.apply_orchestrator(orchestrator, live_snapshot_seed["fidelity"]):
             raise RuntimeError("fidelity replay: a partner the live run had not placed yet has no placement time "
                                "(snapshot['fidelity']['future']); the replay would wait on it for ever")
+    start_progress_reporter(env)
     env.run(until=finished)
     logging.info(f"[ {orchestrator.end_time} ] ✨ Simulation finished")
 

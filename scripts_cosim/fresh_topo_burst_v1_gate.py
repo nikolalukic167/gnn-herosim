@@ -29,6 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
 
 from capped_log import cap_bytes, run_logged
+import progress_watchdog as pw
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOWS = ("w0", "w1", "w2", "w3")
@@ -123,6 +124,14 @@ LOAD_KINDS = V4_KINDS + BC1_KINDS
 RA_ARMS = ("gnn_eng", "twin_eng", "mlp_same", "gnn_raw", "twin_raw", "gnn_eng_physmp", "set_transformer")
 RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS)
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
+# phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
+# to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
+R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
+R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply")
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD
+R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
+R1A_LIMIT_S = 8100
+_LAST_ARRIVAL: Dict[str, float] = {}
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS + RA_KINDS
 SERVICE_END = "service_end_v1"
 # grounded_workload_v1: study windows whose group sizes, sibling offsets and arrival process come from Alibaba's
@@ -298,6 +307,32 @@ def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
     return {"topo": topo, "window": window, "kind": kind, "seed": seed}
 
 
+def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
+    """r1_attribution_v1 live gate cells: R1A_TOPOS (default the selection's 19 test topologies) x the WF1_RUNGS rungs x R1A_WINDOWS
+    x R1A_ARMS. R1A_SHARD="i/n" keeps every n-th cell (array shards; the list is ordered rung, topology, window, arm, seed)."""
+    need = {"HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "1", "HEROSIM_SCALEOUT": "kpa",
+            "GATE_FIXED_POLICY_TIME_SCALE": "1.0", "HEROSIM_SHARED_AUTOSCALER": "0"}
+    bad = {k: os.environ.get(k) for k, v in need.items() if os.environ.get(k) != v}
+    if bad or not WF1_LADDER:
+        raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
+    topos = [int(x) for x in os.environ.get("R1A_TOPOS", "").split(",") if x] or list(selection["topologies"])
+    wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
+    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(R1A_ARMS)).split(",") if k]
+    seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
+    unknown = [k for k in arms if k not in R1A_ARMS]
+    if unknown:
+        raise SystemExit(f"FAIL LOUD: R1A_ARMS {unknown}; arms are {R1A_ARMS}")
+    cells = [task(t, f"{w}{tag}", k, 0 if k in R1A_CLASSICAL else sd)
+             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if k in R1A_CLASSICAL else seeds)]
+    shard = os.environ.get("R1A_SHARD", "")
+    if shard:
+        i, n = (int(x) for x in shard.split("/"))
+        if not 0 <= i < n:
+            raise SystemExit(f"FAIL LOUD: R1A_SHARD={shard!r}")
+        cells = cells[i::n]
+    return cells
+
+
 def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     if phase in ("screen", "rp2screen"):
         pool = RP2C_POOL if phase == "rp2screen" else CANDIDATES
@@ -322,7 +357,7 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             if not cal:
                 raise SystemExit("FAIL LOUD: wf1cal needs WF1_TOPOS")
             kinds = [k for k in os.environ.get("WF1_CAL_KINDS", "cd").split(",") if k]
-            if any(k not in ("cd", "reactive", "cd_declared") + RA_KINDS for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
+            if any(k not in ("cd", "reactive", "cd_declared") + RA_KINDS + R1A_SEEDED_CD for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
                 raise SystemExit(f"FAIL LOUD: WF1_CAL_KINDS={kinds!r}")
             return [task(t, f"{w}{tag}", k) for tag in WF1_TAGS for t in cal for w in wins for k in kinds]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
@@ -336,6 +371,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             raise SystemExit(f"FAIL LOUD: WF1_ARRIVAL_WINDOWS={only_w!r} selects no window")
         return [task(t, w, k) for k in rules if not only or k in only for t in selection["topologies"] for w in ladder]
     topos = selection["topologies"]
+    if phase == "r1a":
+        return r1a_tasks(selection)
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
     if phase == "a":
@@ -607,6 +644,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if os.path.exists(summary) or os.path.exists(failed):
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
+    if R1A_ON:
+        state = pw.rung_state(out_dir, window[2:])
+        if pw.paused(state):
+            return f"[PAUSED rung {window[2:]}: {state['hung']} of {state['decided']} decided cells hung, line {pw.PAUSE_SHARE:.0%}] {name}"
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
     wl_dir = None
@@ -635,7 +676,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", *KEEPWARM_ENV):
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -758,8 +799,26 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     cmd = scope + ["timeout", str(timeout_s)] + PY + [os.path.join(REPO, "src/executesimulation.py"), "--config", cfg,
                                                       "--workload", wl, "--policy", policy, "--output", raw]
     start = time.time()
-    rc = run_logged(cmd, env, REPO, log, cap_bytes())  # capped: a hung run's log used to reach several GB
+    dog = None
+    if R1A_ON:
+        prog = os.path.join(os.environ.get("HEROSIM_RAW_DIR") or out_dir, name + ".progress")
+        env["HEROSIM_PROGRESS_FILE"] = prog
+        if wl not in _LAST_ARRIVAL:
+            _LAST_ARRIVAL[wl] = max(float(e["timestamp"]) for e in json.load(open(wl))["events"])
+        dog = pw.Watchdog(prog, _LAST_ARRIVAL[wl], float(timeout_s), grace_s=float(os.environ.get("R1A_GRACE_S", pw.GRACE_S)),
+                          stall_s=float(os.environ.get("R1A_STALL_S", pw.STALL_S)))
+    rc = run_logged(cmd, env, REPO, log, cap_bytes(), on_start=dog.attach if dog else None)  # capped: a hung run's log used to reach several GB
     wall = int(time.time() - start)
+    if dog:
+        dog.stop()
+        if os.path.exists(prog):
+            os.remove(prog)
+    if dog and dog.verdict:
+        json.dump({"arm": name, "returncode": rc, "wallclock_s": wall, "why": f"watchdog: {dog.verdict['reason']}",
+                   "watchdog": dog.verdict, "limit_s": timeout_s, "last_arrival_s": _LAST_ARRIVAL[wl]}, open(failed, "w"))
+        if os.path.exists(raw):
+            os.remove(raw)
+        return f"[FAILED watchdog {dog.verdict['reason']} projected={dog.verdict.get('projected_s')} {wall}s] {name}"
     if rc != 0 or not os.path.exists(raw):
         json.dump({"arm": name, "returncode": rc, "wallclock_s": wall,
                    "why": "timeout" if rc == 124 else ("memory cap or crash" if rc != 0 else "no output")},
@@ -931,7 +990,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "wf1cal") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "wf1cal", "r1a") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -940,10 +999,11 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     ap.add_argument("--no-scope", action="store_true", help="no per-run systemd scope (SLURM nodes)")
     a = ap.parse_args()
-    global NO_SCOPE
+    global NO_SCOPE, R1A_ON
     NO_SCOPE = a.no_scope
+    R1A_ON = a.phase == "r1a"
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "r1a") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")
