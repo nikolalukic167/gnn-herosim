@@ -423,6 +423,11 @@ No line trips.
   - Identity: 24/24 existing-kind cells match on every simulated field, against the baf340e2 dry run.
   - The diff from 335abdd1 only adds the new kind and its provenance keys; no physics or serving path changes.
   - Re-checked against `classical_335abdd1` once array 854009 completes. Any difference voids this choice.
+- **Hedge build at D (2026-10-09 20:05, coordinator).** The capture is variant-independent (S6: every variant diff is
+  replay-side). D is rebuilt from the same 1,236 sentinels into `gnn_datasets_wf1_*_D<commit>`, next to E, with no
+  overwrite. It runs at low priority: only after S7's second training chunk is submitted, and within the 44-job cap.
+  It costs about 1–1.5 h and 104 jobs. It is only a hedge, and the verdict still follows the signed rule. If D wins,
+  D's build passes its own volume, fidelity and by-rung checks before training.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
