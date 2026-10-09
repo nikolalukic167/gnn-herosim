@@ -89,6 +89,19 @@ silent drops, cost).
 - **Pending:** determinism A/B (843932), a 2-topology × 3-rung smoke (843934–843937), and S7's review. Production
   waits for all of them.
 
+**Label horizon (2026-10-09; S5, job 843931; `load_recalibration_v1/gap.json`).** The continuing-vs-isolated gap is the
+arrivals after the snapshot, exactly.
+- On the 5 largest-gap states (2–22 %), admitting arrivals with time ≤ t + w closes the gap to below 0.001 % once the
+  window covers the arrivals that overlap the batch (1–20 s, 2–152 arrivals). At w = 0 it reproduces the isolated
+  value.
+- No other residual shows at the printed digits. That is inferred from the exact match, not read directly.
+- The isolated label is therefore a clean lower bound that omits the cost later arrivals add.
+- **Decision, thresholds signed before data.** S5 builds a ranking test that replays the top isolated plans with
+  post-snapshot arrivals admitted, placed by the capture policy.
+  - Capture can proceed.
+  - The **label build** waits if the isolated argmin's median regret under that evaluation is > 1 %, or argmin
+    agreement is < 80 %.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
