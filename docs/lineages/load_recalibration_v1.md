@@ -30,6 +30,15 @@ Revision 2026-10-08 (before any run): calibration now runs on the fixed workload
     Job 843586, `rp/recal` `64a545cd`, with linear midpoints and the cached ends read from disk. ×11.61: CD 8/8, share 0.1045, all guards pass.
     ×0.2666: CD 7/8 (the 8th, 9608 g1, hit the wall limit and its rerun was cancelled), share 0.0251. A seeded end places the
     bracket by its share alone and can never be the answer (accepted).
+  - **Steering amendment (2026-10-09 04:05, before any midpoint result was read).** Each step was waiting up to about 3 h
+    for 3× reruns: ×5.94 on one Knative cell, ×64 on 3 CD and 1 Knative cell. Changes:
+    - the bisection steers on CD alone;
+    - during steering, a CD cell that hits the 2,700 s first-pass limit counts as unfinished, so the step fails, with no
+      rerun. At m ≥ 5 that limit is ≥ 5× a normal cell's wall time;
+    - Knative and the 3× reruns run only at the final chosen rungs and the mapped context;
+    - if a final rung fails a CD guard there, it moves to the highest passing step.
+
+    Guards and bands are unchanged.
 
 ## Question
 Which arrival-rate multipliers on R1 + WF1 produce light, moderate and heavy load, defined by a policy-independent
