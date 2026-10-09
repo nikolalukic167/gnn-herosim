@@ -7,7 +7,8 @@ time scale 1.0, at most 8 evaluated multipliers per rung. A multiplier m scales 
 Steering evaluations run CD alone (2,700 s limit, no rerun: a CD cell that hits the limit is unfinished and the step fails the
 "finished" guard). The chosen rung of each search is then run in full: CD and Knative on every cell, one rerun at 3x the
 timeout for a cell that hit the limit; if it then fails a CD guard the rung moves to the highest step that passed.
-The statistic is the median CD queue share.
+The statistic is the median CD effective queue share, (queue time + compute-lock wait) / elapsed (amendment 2026-10-09);
+the old queue_share is kept alongside.
 
 CD guards (a rung where CD fails one is not allowed): every cell finishes; request failures <= 1 % of tasks; per-task
 latency p95 <= 300 s; run end <= 1.25 x last arrival (all per cell, worst cell reported). Rung-specific, from the
@@ -67,7 +68,11 @@ def cell_metrics(s: dict) -> dict:
     bp = s.get("backlog_profile") or {}
     backlog = bp.get("last_over_mid")
     pw = s.get("placement_wait") or {}
-    return {"queue_share": s["queue_share"], "latency_s": s["averageElapsedTime"], "request_failure_pct": 100.0 * rf / n,
+    lw = s.get("lock_wait")
+    if lw is None or lw.get("effective_queue_share") is None:
+        raise SystemExit("FAIL LOUD: summary has no lock_wait.effective_queue_share (run before the 2026-10-09 amendment?)")
+    return {"queue_share": s["queue_share"], "effective_queue_share": lw["effective_queue_share"],
+            "lock_wait_mean_s": lw["mean"], "lock_wait_p95_s": lw["p95"], "lock_wait_max_s": lw["max"], "latency_s": s["averageElapsedTime"], "request_failure_pct": 100.0 * rf / n,
             "p95_s": lp.get("p95"), "p99_s": lp.get("p99"), "end_over_last_arrival": ae.get("end_over_last_arrival"),
             "busy_fraction": busy, "backlog_ratio": backlog, "in_system_ratio": bp.get("in_system_ratio"),
             "in_system_half": (bp.get("in_system_at") or {}).get("half"), "wait_mean_s": pw.get("mean"), "wait_p95_s": pw.get("p95"),
@@ -226,8 +231,10 @@ class Evaluator:
                     else:
                         names.append(f.name)
         rec = {"m": m, "tag": tag, "missing": names, "cells": arms,
-               "cd_median_share": st.median([c["queue_share"] for c in arms["cd"]]) if arms["cd"] else None,
-               "reactive_median_share": st.median([c["queue_share"] for c in arms["reactive"]]) if arms["reactive"] else None,
+               "cd_median_share": st.median([c["effective_queue_share"] for c in arms["cd"]]) if arms["cd"] else None,
+               "reactive_median_share": st.median([c["effective_queue_share"] for c in arms["reactive"]]) if arms["reactive"] else None,
+               "cd_median_queue_share": st.median([c["queue_share"] for c in arms["cd"]]) if arms["cd"] else None,
+               "reactive_median_queue_share": st.median([c["queue_share"] for c in arms["reactive"]]) if arms["reactive"] else None,
                "guards": {arm: guards(cs, self.expected) for arm, cs in arms.items()},
                "unfinished": {arm: sorted(n for n in names if f"__{arm}_s0" in n) for arm in arms}}
         print(f"[eval] m={m} {tag}: CD {len(arms['cd'])}/{self.expected} cells, median share {rec['cd_median_share']}; "
@@ -283,6 +290,7 @@ def main() -> int:
     ap.add_argument("--max-steps", type=int, default=8)
     ap.add_argument("--readonly", type=float, nargs="*", default=[], help="multipliers evaluated by an earlier run: read, never run, "
                     "end points not exempt from the guards")
+    ap.add_argument("--points", type=float, nargs="*", default=[], help="evaluate these multipliers (steering mode) and stop; no search")
     ap.add_argument("--ends", nargs="*", default=[], help="per-rung bracket ends, RUNG=LO,HI")
     ap.add_argument("--rungs", nargs="+", default=list(BANDS))
     ap.add_argument("--seed", type=float, nargs="*", default=[], help="multipliers evaluated by an earlier run in --work: read, never run")
@@ -297,6 +305,13 @@ def main() -> int:
             raise SystemExit(f"FAIL LOUD: {k}={os.environ.get(k)!r}; load_recalibration_v1 runs on R1 ({k}={v})")
     a.work.mkdir(parents=True, exist_ok=True)
     ev = Evaluator(a)
+    if a.points:  # measurement pass: the points run concurrently and are the cache of a later search in the same --work
+        with ThreadPoolExecutor(max_workers=len(a.points)) as ex:
+            recs = list(ex.map(ev.record, a.points))
+        a.log.write_text(json.dumps({"points": a.points, "evaluations": {r["tag"]: r for r in recs}}, indent=1, default=str))
+        for r in recs:
+            print(json.dumps({k: r[k] for k in ("m", "cd_median_share", "cd_median_queue_share")}))
+        return 0
     with ThreadPoolExecutor(max_workers=len(a.rungs) + len(a.map)) as ex:
         searches = [ex.submit(search, r, ev.for_rung(r), *a_ends(r, a), a.max_steps, tuple(a.seed)) for r in a.rungs]
         mapped = [ex.submit(ev.record, m) for m in a.map]
