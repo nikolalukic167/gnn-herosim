@@ -44,7 +44,7 @@ def test_reader_pairs_on_the_same_cell_and_seed(tmp_path):
     assert prim["p"] == pytest.approx(2 / 2 ** 12)
     s1 = rep["main"]["S1"]["tests"]["ra_gnn_eng vs ra_twin_eng|light"]
     assert s1["median_pct"] == pytest.approx(100 * (0.9 - 0.95) / 0.95)
-    assert rep["main"]["S2"]["tests"]["cd_random vs cd|light"]["note"] == "not run (no implementation)"
+    assert rep["main"]["S2"]["tests"]["cd_random_seed vs cd|light"]["note"] == "not run"
     assert rep["arms"]["ra_gnn_eng|heavy"]["failed"] == 1 and rep["arms"]["ra_gnn_eng|heavy"]["failed_why"] == {"watchdog": 1}
     assert rep["sensitivity"]["excluded_topologies"] == [9500]
     assert rep["sensitivity"]["families"]["primary"]["tests"]["heavy"]["n_topologies"] == 11

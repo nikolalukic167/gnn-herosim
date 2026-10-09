@@ -1363,6 +1363,7 @@ def run_simulation(
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'peer_greedy_network_cd_random_seed',
         'decima_wfair_network',
         'offload_network',
         'local_first_network',
@@ -1529,6 +1530,9 @@ def run_simulation(
             models = None
         elif policy == 'peer_greedy_network_cd':
             scheduling_strategy = 'peer_greedy_network_cd_peer_greedy_network_cd'
+            models = None
+        elif policy == 'peer_greedy_network_cd_random_seed':
+            scheduling_strategy = 'peer_greedy_network_cd_random_seed_peer_greedy_network_cd_random_seed'
             models = None
         elif policy == 'decima_wfair_network':
             scheduling_strategy = 'decima_wfair_network_decima_wfair_network'
@@ -1846,7 +1850,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|decima_wfair_network|offload_network|local_first_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|peer_greedy_network_cd_random_seed|decima_wfair_network|offload_network|local_first_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1857,7 +1861,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|decima_wfair_network|offload_network|local_first_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|peer_greedy_network_cd_random_seed|decima_wfair_network|offload_network|local_first_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1883,6 +1887,7 @@ def main():
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'peer_greedy_network_cd_random_seed',
         'decima_wfair_network',
         'offload_network',
         'local_first_network',

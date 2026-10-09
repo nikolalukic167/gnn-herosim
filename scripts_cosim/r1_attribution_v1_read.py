@@ -6,8 +6,7 @@ arm's mean latency against its reference on the same (topology, window); then th
 signed-rank test over the topologies (two-sided; zero differences dropped; mid-ranks for ties). Negative = the arm is faster.
   * primary family, Holm over 3: the best learned arm (declared from validation before any test read: --best-arm) vs CD, one test per rung;
   * S1, Holm over 15: GNN-eng vs Twin-eng, GNN-raw vs Twin-raw, GNN-eng vs MLP-same, GNN-eng vs Set-transformer, GNN-eng-physMP vs GNN-eng;
-  * S2, Holm over 9: CD<-GNN vs CD, CD<-GNN vs CD<-Twin, CD<-random vs CD. CD<-random has no implementation in the tree: its three tests
-    stay in the family at p = 1 (the registered family size is kept; Holm only gets more conservative);
+  * S2, Holm over 9: CD<-GNN vs CD, CD<-GNN vs CD<-Twin, CD<-random vs CD. CD<-random is `cd_random_seed` (seeded per cell); a test with no cells stays in the family at p = 1 (the registered family size is kept);
   * CD-declared (descriptive) and Knative (context) are reported against CD and enter no family.
 A cell that failed (failed.json) drops out of that arm's tests only; failures are counted per arm and rung. The whole read is repeated
 with every topology that has any remaining failure excluded for every arm (`sensitivity`). Per arm and rung it also reports the
@@ -30,7 +29,7 @@ from typing import Dict, List, Optional, Tuple
 RUNGS = ("light", "moderate", "heavy")
 NAME = re.compile(r"cc40s(?P<topo>\d+)__(?P<win>g\d)(?P<rung>light|moderate|heavy)__(?P<kind>.+)_s(?P<seed>\d+)$")
 LEARNED = ("ra_gnn_eng", "ra_twin_eng", "ra_mlp_same", "ra_gnn_raw", "ra_twin_raw", "ra_gnn_eng_physmp", "ra_set_transformer")
-CD_GNN, CD_TWIN, CD_RANDOM = "ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random"
+CD_GNN, CD_TWIN, CD_RANDOM = "ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed"
 S1 = (("ra_gnn_eng", "ra_twin_eng"), ("ra_gnn_raw", "ra_twin_raw"), ("ra_gnn_eng", "ra_mlp_same"),
       ("ra_gnn_eng", "ra_set_transformer"), ("ra_gnn_eng_physmp", "ra_gnn_eng"))
 S2 = ((CD_GNN, "cd"), (CD_GNN, CD_TWIN), (CD_RANDOM, "cd"))
@@ -166,7 +165,7 @@ def families(cells: dict, topos: List[int], best_arm: Optional[str]) -> dict:
         for k, c in tests.items():
             c["holm_p"] = adj[k]
             if c["n_topologies"] == 0:
-                c["note"] = "not run" + (" (no implementation)" if CD_RANDOM in (c["a"], c["b"]) else "")
+                c["note"] = "not run"
         fam[name] = {"holm_over": len(tests), "tests": tests}
     fam["descriptive"] = {f"{a}|{r}": contrast(cells, a, "cd", r, topos) for a in DESCRIPTIVE for r in RUNGS}
     fam["classical_vs_cd"] = {f"{a}|{r}": contrast(cells, a, "cd", r, topos) for a in ("locality", "batched", "selfpredict") for r in RUNGS}
