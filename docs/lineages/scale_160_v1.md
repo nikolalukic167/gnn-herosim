@@ -62,8 +62,9 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
     is cnn tasks; GPU, DLA and FPGA carry about 0.
     - Code fact (coordinator, `src/generate_infrastructure.py:745–765`): with `per_server = 1`, each type's server
       replica goes on the **first** compatible platform in the node's list order.
-    - S5 infers from the lock profile that this is the CPU for every type. That has not been checked against the
-      generated `infrastructure.json`.
+    - **Verified** (S5, topology 9905 regenerated; 21 of 24 servers eligible): the replicas sit on rpiCpu 7 and
+      xavierCpu 7 for every type, plus pynqFpga 7 for dnn1 only. **No type has a replica on xavierGpu or xavierDla**,
+      so the 7 GPUs and 7 DLAs host nothing at t = 0 and are reachable only through KPA scale-out.
     - The property is the same at 40 × 6 and is shared by every arm, so the comparison stays fair. But the problem is
       less heterogeneous than the hardware suggests.
     - **Ruling (coordinator):** scale_160_v1 keeps R1.1 as registered. Changing replica placement is new physics
