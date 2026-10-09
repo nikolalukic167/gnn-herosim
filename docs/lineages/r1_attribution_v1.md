@@ -201,6 +201,12 @@ arrivals after the snapshot, exactly.
   - set `HEROSIM_INFLIGHT_CAPTURE` for the `ra_*` kinds from cache/serve feature parity, not by guess;
   - one servesmoke per arm.
 
+**I11 at the fix: PASS (2026-10-09; S5, jobs 850058 at `c8eb73c2` and 850086 at `d28d1bb0`, numbers identical).**
+- Moderate 9602 g0 (CD, the cell the fix moved most), 20 states: median 0.004 %, max 0.19 % (an absolute miss of 0.002 s).
+- No state hit the unplaced-partner refusal. How many sampled states had a planned-then-deferred partner open was not
+  counted.
+- **Extended B2 submitted** at `d28d1bb0`. The ranking test runs on its datasets.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
