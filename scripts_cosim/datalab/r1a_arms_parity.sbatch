@@ -32,7 +32,7 @@ for MODE in $MODES; do
   for ARM in $ARMS; do
     RUN=r1-attribution-v1-${ARM//_/-}-smoke-seed1
     if [[ "$MODE" == legacy ]]; then unset HEROSIM_INFLIGHT_CAPTURE; else export HEROSIM_INFLIGHT_CAPTURE=$MODE; fi
-    python3 scripts_cosim/wf1_fidelity_parity.py --datasets "$DS" --cache-dir "$CACHE" --checkpoint "models/$RUN.pt" --workers 6 \
+    python3 scripts_cosim/wf1_fidelity_parity.py --datasets "$DS" --cache-dir "$CACHE" --checkpoint "models/$RUN.pt" --workers 6 ${ONLY:+--only $ONLY} \
       --out "$OUT/${MODE}__${ARM}.json" > "$OUT/${MODE}__${ARM}.log" 2>&1
     echo "[$MODE $ARM] rc=$? $(tail -2 "$OUT/${MODE}__${ARM}.log" | tr '\n' ' ' | cut -c1-300)"
   done
