@@ -640,8 +640,16 @@ No line trips.
   - vs self-predict: −1.6 / −1.4 / −4.0 %. vs the unseeded twin: −4.1 / −5.6 / −7.2 %.
   - For reference, CD←random is +1.35 / +4.28 / +3.91 %, so the learned start is worth about 2–5 points over a random
     start.
-  - Caveat: a heavier tail (worst p95 178 s vs CD's 59 s). The sensitivity read is pending.
+  - The 178 s worst p95 is topology 9565 only.
+  - Sensitivity read (17 topologies, dropping 9538, 9565 and any kill): vs CD −0.42 / −1.20 / −1.64 %, faster in 14 /
+    16 / 16 of 17 (heavy p = 5e-5). The tail matches CD's.
+  - vs CD←random, which differs only in the start: −1.9 / −5.2 / −5.7 %.
   - This is an MP-off seed, so it is not a message-passing result.
+- **physmp gate, partial and descriptive (S4, 854820; sensitivity read on 17 topologies).**
+  - vs CD: +3.4 / +5.9 / +5.9 %, faster in 1 / 1 / 0 topologies.
+  - vs self-predict: +2.1 / +7.8 / +2.7 %.
+  - vs twin_eng: −0.3 / −0.3 / −1.3 % (heavy p = .03; the others are not separated).
+  - vs CD←random: +2.7 / +3.2 / +2.5 %.
 - **Permutation importance (S6, job 854576; full validation split, 805 graphs, 5 repeats; mid-training, descriptive).**
   - Δ val regret (s) for gnn_eng ep30 / twin_eng / mlp_same:
     - ps_exchange_push: +4.1 / +4.3 / +4.6
