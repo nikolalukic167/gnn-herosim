@@ -541,6 +541,18 @@ No line trips.
   - Spread and co-location are unchanged between epochs.
   - The 9103 heavy cell runs slowly for the learned arm, CD and reactive alike, so it's the cell, not the model. It hits
     the 2 h timeout and is not rerun.
+  - **9103 moderate swing explained (S6, interim; one cell, one seed).**
+    - Epoch 10's +7.4 s is waiting, not placement quality. Placement wait is +5.8 s over CD, plus rendezvous and
+      initialization. Exec, cold, pull, exchange and queue are all within 0.1–0.3 s of CD.
+    - The cause is a transient **starved-client spin in the first quarter**:
+      - backlog 27 vs CD's 2.6;
+      - prefix deferrals 16.8M vs 1.95M;
+      - reachability scale-up failures 2.46M vs 335k.
+    - It fully drains from quarter 2 onward, so it is not a spiral.
+    - Epoch 30 beats CD by having less waiting (placement 0.43 vs 0.76 s, rendezvous 0.19 vs 0.53 s, initialization 0.24
+      vs 0.57 s).
+    - **Implication: arm differences can be dominated by deferral and spin dynamics.** The gate reader should report the
+      deferral and reachability-failure counters next to latency (secondary, descriptive).
 - **CD←random, descriptive (S4, array 854323, 07b0acba, `cdrandom_read.json`).**
   - 453 of 456 cells done. 3 heavy cells at 9565 were killed by rate and counted.
   - Paired % vs CD: +1.35 / +4.28 / +3.91 %. CD is ahead in 18 / 18 / 16 of 19 topologies. Dropping 9538 and 9565
