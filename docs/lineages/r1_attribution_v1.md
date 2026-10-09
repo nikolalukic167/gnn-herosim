@@ -87,6 +87,20 @@ datalab `simulation_data/workload_fix_v1/i11_wf1/cells/*/replay.jsonl`.
   - **Still owed before training: a fidelity-aware train/serve parity check.** Replay the batch decision in the live
     scheduler with the queued state, and compare its features with the cache's, attribute by attribute.
   - `HEROSIM_SNAPSHOT_FIDELITY=1` is required at capture and at corpus build.
+- **Fidelity-aware parity (S6, `38186d45`, jobs 843602/843603): passes on 6/6 smoke sets.** Two are identical. Four differ only on
+  platforms holding an in-flight task the replay resumes: those tasks aren't exposed as `platform.current_task` inside the replay,
+  so a builder there reads zero remaining work (≤ 1.8e-3 normalised, backlog ≤ 1.9e-2 s). The cache now carries the snapshot's own
+  in-flight terms, which is what real live serving sees. Accepted: the replay is the blind side, not the cache.
+  Fixed in the same pass:
+  - replica flags for types outside the batch had been 0 in training and 1 in serving, which also affects the old so1load corpora;
+  - batches holding several disconnected peer groups are rejected and counted (`--require-connected-batch`), because the
+    serving scheduler would split them.
+- **Candidate slate: the declared pruning, applied identically at corpus build and at serving (decided).**
+  `make_warm_corpus` drew a balanced random slate (≤ 20,000 plans), and live serving offers every reachable replica. Neither
+  matches the node's declared rule. Both now use it: each task's top 5 candidates by exact standalone cost (CD's cost model),
+  with sub-batches of ≤ 4 tasks when a batch exceeds 100,000 plans. The node's pruning ablation (labels on 300 small batches;
+  the best arm served with and without pruning on 6 test topologies) stays the check on this rule. Cost is re-measured in the
+  B2 dry run.
 - **F2:** the link-graph feature reads `bandwidth_mbps` = min(out, in). It's fixed (out and in as two features) only if a
   registered arm reads the link graph; otherwise that's recorded as a limit.
 - **B2, a degeneracy check before the 5,000-batch capture.** In 6/6 smoke datasets the optimum put the whole group on
