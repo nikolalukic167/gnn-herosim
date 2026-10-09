@@ -207,6 +207,19 @@ arrivals after the snapshot, exactly.
   counted.
 - **Extended B2 submitted** at `d28d1bb0`. The ranking test runs on its datasets.
 
+**Arms at the fix (2026-10-09; S7, `rp/r1a-arms` `4e294122`; merge `50d64ae6` of `d28d1bb0`).**
+- **Suite:** the same 26 pre-existing failures; 1,793 pass.
+- **`HEROSIM_INFLIGHT_CAPTURE` stays unset (legacy) for `ra_*`.** Capture clears every `HEROSIM_*` variable, and capture
+  and serve compute backlog with the same function.
+- **Parity job 850130:** 13 of 14 datasets clean. Its two modes can't be told apart in replay, so legacy rests on the code
+  argument.
+- **Servesmoke job 850196:** 7 of 7 arms finish, with queue share 0.04–0.08 and provenance per arm.
+- **Open:**
+  - record the capture mode in the cache metadata and refuse a mismatch;
+  - a 0.55 s `backlog_s` diff in ds_01800 (feature bug or replay artifact?);
+  - ds_02201 splits a 4-task batch into 2 in replay (real batching divergence?);
+  - the suite rerun at head.
+
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
 - **Corpus route: live capture → `make_warm_corpus` → `executecosimulation` → `prepare_graphs_cache`** (the
