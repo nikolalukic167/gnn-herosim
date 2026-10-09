@@ -81,6 +81,7 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     kw = SF.live_run_params()
 
     orig = GNNScheduler._prefix_inference
+    decision: List[Dict[str, Any]] = []
 
     def patched(self, batch_tasks, system_state, queue_snapshot, temporal_state):
         tids = [int(t.id) for t in batch_tasks]
@@ -89,6 +90,8 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
             return {i: (int(forced[t][0]), int(forced[t][1])) for i, t in enumerate(tids)}
         if any(queued):
             raise RuntimeError(f"queued and batch tasks formed one scheduler batch: {tids}")
+        decision.append({"t": float(self.env.now), "ids": tids,
+                         "dispatched": [getattr(t, "dispatched_time", None) for t in batch_tasks]})
         return orig(self, batch_tasks, system_state, queue_snapshot, temporal_state)
 
     offered = {t: {f"{sp['node_name']}:{sp['platform_id']}" for sp in specs if sp.get("candidate", True)}
@@ -139,6 +142,7 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
         GNNScheduler._corpus_slate_view = orig_slate
 
     out["scheduler_batches"] = [r["task_ids"] for r in records]
+    out["decisions"] = decision
     want = [int(x) for x in batch_local]
     rec = [r for r in records if [int(x) for x in r["task_ids"]] == want]
     if len(rec) != 1:
@@ -170,7 +174,11 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
             lv = {k: sorted(v) for k, v in lv.items()}
             cv = {k: sorted(v) for k, v in cv.items()}
         if not P._close(lv, cv):
-            mism.append(f"partial_state_ctx.{name}: live {str(lv)[:260]} != cache {str(cv)[:260]}")
+            detail = ""
+            if isinstance(lv, dict) and isinstance(cv, dict):
+                diffs = [f"{k}: live {lv[k]!r:.14} cache {cv[k]!r:.14}" for k in sorted(set(lv) & set(cv)) if not P._close(lv[k], cv[k])]
+                detail = f" [{len(diffs)} values differ: {'; '.join(diffs[:4])}; only live: {sorted(set(lv) - set(cv))[:4]}; only cache: {sorted(set(cv) - set(lv))[:4]}]"
+            mism.append(f"partial_state_ctx.{name}: differ{detail}" if detail else f"partial_state_ctx.{name}: live {str(lv)[:260]} != cache {str(cv)[:260]}")
     out["task_width"] = int(live.task_features.size(-1))
     out["platform_width"] = int(live.platform_features.size(-1))
     out["n_task_results"] = len(stats.get("taskResults") or [])
@@ -203,6 +211,8 @@ def main() -> int:
     a.out.write_text(json.dumps({"n": len(results), "clean": len(results) - len(bad), "per_dataset": results}, indent=1))
     print(f"[fidelity parity] {len(results) - len(bad)}/{len(results)} datasets identical; report {a.out}")
     for r in results:
+        if r.get("decisions"):
+            print(f"     decision instants {[round(x['t'], 9) for x in r['decisions']][-3:]}, last batch dispatched {r['decisions'][-1]['dispatched']}")
         print(f"  {r['dataset']}: queued {r.get('queued')}, batch {r.get('batch')}, widths task {r.get('task_width')} platform "
               f"{r.get('platform_width')}, scheduler batches {len(r.get('scheduler_batches') or [])}, "
               f"{'identical' if not r['mismatches'] else str(len(r['mismatches'])) + ' mismatches'}")
