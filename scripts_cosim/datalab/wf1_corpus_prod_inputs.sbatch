@@ -30,6 +30,19 @@ export HEROSIM_PY=python3 PYTHONPATH="$WT"
 echo "HEAD $(git rev-parse HEAD)"
 [[ ! -e "$ROOT" ]] || { echo "FAIL LOUD: $ROOT exists"; exit 1; }
 mkdir -p "$ROOT"
+# the root may be on /share: prove a compute node can write there before building anything
+echo ok > "$ROOT/.write_test" && [[ "$(cat "$ROOT/.write_test")" == ok ]] && rm -f "$ROOT/.write_test" || { echo "FAIL LOUD: cannot write under $ROOT"; exit 1; }
+df -P -BG "$ROOT" | tail -1
+# the train / held-out split of TOPOS, written beside the inputs (HELDOUT_TOPOS: r1_attribution_v1 'held-out 9297-9320' intersected with TOPOS)
+if [[ -n "${HELDOUT_TOPOS:-}" ]]; then
+  python3 - "$ROOT/split.json" "$TOPOS" "$HELDOUT_TOPOS" <<'PY'
+import json, sys
+out, topos, held = sys.argv[1], sys.argv[2].split(), sys.argv[3].split()
+assert set(held) <= set(topos), sorted(set(held) - set(topos))
+json.dump({"source": "r1_attribution_v1: held-out 9297-9320 intersected with corpus_prod_prov/feasible_topologies.txt",
+           "heldout": sorted(held, key=int), "train": sorted(set(topos) - set(held), key=int)}, open(out, "w"), indent=1)
+PY
+fi
 TAGS=""
 for spec in ${RUNGS//,/ }; do
   tag=${spec%%=*}; m=${spec##*=}

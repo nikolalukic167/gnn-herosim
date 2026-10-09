@@ -1,5 +1,6 @@
 #!/bin/bash
 # r1_attribution_v1 PRODUCTION corpus, step 4 of 4 -- the end-of-build check. Submit afterany on the build array.
+# The build array is chained aftercorr on the capture; scancel any build task left DependencyNeverSatisfied before this check can run.
 #   sbatch --dependency=afterany:<build> --export=ALL,WT=...,ROOT=... wf1_corpus_prod_check.sbatch
 # 1. wf1_corpus_volume_check.py: batches vs the 5,000 target, filter and discard rates, capture-not-ok cells.
 # 2. wf1_fidelity_corpus_check.py on each split: sweep complete, best.json == min(rows), independent re-simulation of sampled plans.
@@ -25,9 +26,9 @@ export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEO
 export HEROSIM_PEER_EXCHANGE=1 HEROSIM_SERVER_ONLY_REPLICAS=1 HEROSIM_WARMTH_PHYSICS=node_disk_v2 PYTHONHASHSEED=0 HEROSIM_SNAPSHOT_FIDELITY=1
 export SIM_FORCE_FULL_STATS=1
 rc=0
-python3 scripts_cosim/wf1_corpus_volume_check.py --root "$ROOT" --target "${BATCHES_TARGET:-5000}" || rc=1
+python3 scripts_cosim/wf1_corpus_volume_check.py --root "$ROOT" --tag "${OUT_TAG:-}" --target "${BATCHES_TARGET:-5000}" || rc=1
 for split in train heldout; do
-  d="$ROOT/gnn_datasets_wf1_$split"
+  d="$ROOT/gnn_datasets_wf1_${split}${OUT_TAG:+_$OUT_TAG}"
   [[ -d "$d" ]] || continue
   python3 scripts_cosim/wf1_fidelity_corpus_check.py --datasets "$d" --sample "$SAMPLE" || rc=1
 done
