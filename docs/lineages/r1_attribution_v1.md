@@ -245,6 +245,11 @@ No line trips.
 - **Moderate and heavy sit 0.6 points under the 80 % line.** The corpus will be mostly single-node optima at those rungs;
   quote that with any model-class result.
 - **Decision:** the production capture launches now. The label build waits for the ranking test, per the signed rule.
+- **Production layout (2026-10-09).**
+  - Held-out = the registered 9297–9320 ∩ the 103 feasible topologies. That gives 17: 9298, 9300–9302, 9304–9309,
+    9312–9315, 9317–9319. The other 86 are train.
+  - Production ROOT goes on `/share/nikola.lukic`, because /home has about 56 GB free against a capture of about 47 GB
+    plus the build.
 
 **Pipeline readiness and pre-run amendments (2026-10-08, coordinator, before any corpus exists; S6's check at
 `rp/wf1-corpus-check` `7c924b8a`, smoke data only on calibration topologies 9601 and 9607).**
