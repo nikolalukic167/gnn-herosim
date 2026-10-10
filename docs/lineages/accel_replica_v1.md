@@ -67,6 +67,18 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-11 00:30 — **The top-5 slate rarely binds cd_exactS** (S5; 855941, log-only flag 804bd855, decisions
+  identical to 855894; 16307 g0 seed 0, 2 cells; direction only).
+  - **Kept-pass is mostly "already optimal":** 59.4 / 63.3 % of exact batches keep CD's pass plan, but in 57.3 / 59.1 %
+    the pass equals the slate optimum. Only 2.1 / 4.2 % keep it because it is strictly cheaper.
+  - **In those strict batches:**
+    - the out-of-slate tasks mostly sit at standalone rank 6–7 (about 75 % at moderate, 46 % at heavy);
+    - the S gap has median 1.0 s, p90 29 / 12 s;
+    - in total that is 4.9 / 7.8 % of the S gained by moved batches.
+  - cd_exactS already serves the pass plan in those batches. What remains is only a joint slate-plus-pass search.
+  - **Ruling (coordinator):** slate widening is not pursued now. It is a small, tail-only lever on the surrogate,
+    unmeasured in elapsed time. The cost_to_go_v1 plan set stays as registered: cd_exactS's own decision, which is the
+    pass plan whenever the pass is kept, and the next 4 by S.
 - 2026-10-10 23:00 — **Audit: the frozen autoscaler in fidelity replays leaves every reported offline number
   intact** (S6; fix 8e19fcab on rp/cost-to-go).
   - **The bug:** under non-determined schedulers, the replayed KPA's first tick waited on `_kpa_start_gate`, which only
