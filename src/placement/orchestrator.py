@@ -216,6 +216,9 @@ class Orchestrator:
             "slate_declared_tasks", "slate_declared_sub_batched_tasks", "slate_declared_max_tasks", "slate_declared_max_group",
             # GNN_SLATE_NO_SPLIT: over-100k batches decoded whole instead of in sub-batches
             "slate_declared_unsplit",
+            # GNN_SELF_SEARCH (gnn_selfsearch): exact vs ascent batches, plan-changed share, plans scored, search seconds
+            "ss_batches", "ss_tasks", "ss_exact_batches", "ss_ascent_batches", "ss_ascent_sweeps", "ss_scored", "ss_changed_batches",
+            "ss_changed_tasks", "ss_seconds",
             "cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change",
             "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves",
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",
