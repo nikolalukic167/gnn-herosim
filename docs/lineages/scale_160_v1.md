@@ -62,7 +62,9 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
   - **Disclosed:** physmp g5 wins on the mean through one seed (0.702). g4 is the tightest (0.860 ± 0.001) and within
     noise of g5. The rule picks g5, and it stands as registered.
-  - **Floors on the same split:** random plan 16.42 s, additive argmin 4.51 s.
+  - **Floors on the same split:** random plan 16.42 s, additive argmin 4.51 s, worst plan 29.28 s.
+  - **Scale:** the mean optimal batch latency is 2.31 s (`val_opt_rtt`, `train_near_rtt.py:1852–1880`). So physmp's
+    0.83 s regret sits about 36 % above the optimum.
   - Staged at `s160_prod/gate_inputs/models/` (6 .pt + 6 sidecars). Sentinel `selection.json` has split sha
     b8fe5007…. S4's trigger submits the learned arms.
 - 2026-10-10 01:15 (recorded 08:20) — **Size-transfer probe: r1a checkpoints served at 80c×12s** (S6; jobs 855114 and
