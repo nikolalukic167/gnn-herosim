@@ -58,7 +58,7 @@ RULE_POLICY = {
     "cd_exactS": "peer_greedy_network_cd",
     # cost_to_go_v1 gate: cd_exactS whose decided plan + next 4 lowest-S plans are re-ranked by dS + lambda*dV (src/placement/cost_to_go_v.py)
     "cd_exactS_hv": "peer_greedy_network_cd",  # hand V (own service + cold), lambda 0.1
-    "cd_exactS_mv": "peer_greedy_network_cd",  # rung-(b) MLP V, no in-flight, seed 0, lambda from its contract (HEROSIM_CTG_MLPV_CKPT)  # cd_exactS: CD + exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1, expansion as the over-cap fallback); the hand bar
+    "cd_exactS_mv": "peer_greedy_network_cd",  # rung-(b) MLP V, no in-flight, seed 0, lambda from its contract (CTG_MLPV_CKPT)  # cd_exactS: CD + exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1, expansion as the over-cap fallback); the hand bar
     "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
@@ -822,9 +822,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if kind == "cd_exactS_hv":
             env.update(HEROSIM_PG_CD_EXACT_V="hand", HEROSIM_PG_CD_EXACT_V_TRACE=wl)
         if kind == "cd_exactS_mv":
-            ck = os.environ.get("HEROSIM_CTG_MLPV_CKPT", "").strip()
+            ck = os.environ.get("CTG_MLPV_CKPT", "").strip()
             if not ck or not os.path.exists(ck):
-                raise SystemExit(f"FAIL LOUD: cd_exactS_mv needs HEROSIM_CTG_MLPV_CKPT (the rung-(b) MLP V checkpoint), got {ck!r}")
+                raise SystemExit(f"FAIL LOUD: cd_exactS_mv needs CTG_MLPV_CKPT (the rung-(b) MLP V checkpoint), got {ck!r}")
             env.update(HEROSIM_PG_CD_EXACT_V="mlp", HEROSIM_PG_CD_EXACT_V_CKPT=ck, HEROSIM_PG_CD_EXACT_V_TRACE=wl)
         if kind in DECIMA_TUNE_ALPHAS:
             env["HEROSIM_DECIMA_ALPHA"] = repr(DECIMA_TUNE_ALPHAS[kind])
