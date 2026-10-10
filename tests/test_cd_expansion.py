@@ -4,6 +4,8 @@ node that executes them for free, paying a 10 s exchange, while a third node run
 costs more than it saves (ICM is stuck); moving the pair is the improving move."""
 from types import SimpleNamespace
 
+import os
+
 import pytest
 
 from src.policy.peer_greedy_network import scheduler as S
@@ -137,7 +139,7 @@ def test_harness_serves_cd_expand_as_a_named_diagnostic_arm():
     assert "cd_expand" in G.R1A_DIAG and "cd_expand" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_expand":\n            env["HEROSIM_PG_CD_EXPANSION"] = "1"' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
 
 
 # ---- cdxapply: the CD refine of a seeded (learned) plan, with the expansion ----
@@ -212,20 +214,20 @@ def test_harness_serves_cdxapply_as_a_named_learned_diagnostic():
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
     import fresh_topo_burst_v1_gate as G
 
-    assert "_cdxapply" in G.SUFFIXES and G.R1A_CDX == ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply")
+    assert "_cdxapply" in G.SUFFIXES and G.R1A_CDX[:2] == ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply")
     for k in G.R1A_CDX:
         assert k in G.R1A_ARMS and next((k[:-len(s)] for s in G.SUFFIXES if k.endswith(s)), k) in G.RA_KINDS
     src = open(G.__file__).read()
     assert 'if kind.endswith("_cdxapply"):\n            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")' in src
     assert 'R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_CDX)' in src   # out of the default grid
-    assert 'expands = kind.endswith("_cdxapply") or kind == "cd_expand"' in src
+    assert 'expands = kind.endswith(("_cdxapply", "_cdxexg")) or kind == "cd_expand"' in src
     # the check reads the flag back from run_provenance, which records a whitelist of env keys
     import inspect
 
     from src import executesimulation
 
     assert '"HEROSIM_PG_CD_EXPANSION"' in inspect.getsource(executesimulation.build_run_provenance)
-    assert 'kind.endswith(("_nosplit", "_cdxapply"))' in src
+    assert 'kind.endswith(("_nosplit", "_cdxapply", "_cdxexg"))' in src
 
 
 # ---- cd_exactS: exact search over S on the top-K slate ----
@@ -342,5 +344,93 @@ def test_harness_serves_cd_exactS_as_a_named_diagnostic_arm():
     assert "cd_exactS" in G.R1A_DIAG and "cd_exactS" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_exactS":\n            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell
     assert 'if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1"' in src
+
+
+# ---- cd_exactS_gnn: S-ties broken by the GNN's plan score, the fallback seeded by the GNN plan ----
+
+def _gnn_refiner(monkeypatch, prefer, exec_times=None):
+    """A GnnCdRefiner whose host scores a plan with `prefer(plan) -> float` (plan = [(node id, platform id), ...])."""
+    from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
+
+    flag = os.environ.pop(S.PG_CD_EXACT_GNN_ENV, None)   # the CD shell used for the toy primitives must not see the refiner-only flag
+    try:
+        s, tasks, state = _shell(monkeypatch, exec_times=exec_times)
+    finally:
+        if flag is not None:
+            os.environ[S.PG_CD_EXACT_GNN_ENV] = flag
+    calls = []
+
+    def scorer_for(batch_tasks, system_state, allowed):
+        calls.append(allowed)
+        return prefer
+
+    host = SimpleNamespace(nodes=s.nodes, _get_valid_replicas=s._get_valid_replicas, _orchestrator=s._pg_orchestrator, _exact_plan_scorer=scorer_for)
+    return GnnCdRefiner(host), tasks, state, calls
+
+
+_TIE_TIMES = [{"pa": 1.0, "pb": 100.0, "pc": 1.0}, {"pa": 1.0, "pb": 100.0, "pc": 1.0}]
+
+
+def test_exact_gnn_flag_needs_the_seeded_refine(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_GNN_ENV, "1")
+    with pytest.raises(RuntimeError, match="gnn_cd_refine only"):
+        _shell(monkeypatch)
+    monkeypatch.delenv(S.PG_CD_EXACT_ENV)
+    with pytest.raises(RuntimeError, match="needs HEROSIM_PG_CD_EXACT=1"):
+        _gnn_refiner(monkeypatch, lambda plan: 0.0)
+
+
+def test_exact_gnn_tie_goes_to_the_higher_gnn_score_than_the_pass_plan(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_GNN_ENV, "1")
+    r, tasks, state, calls = _gnn_refiner(monkeypatch, lambda plan: 1.0 if all(c == (3, 33) for c in plan) else 0.0, exec_times=_TIE_TIMES)
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (1, 11)}, passes=3)   # the seed co-locates on A; (C, C) ties it in S
+    assert plan == {0: (3, 33), 1: (3, 33)}
+    assert (r.pg_exact_gnn_tie_batches, r.pg_exact_gnn_changed, r.pg_exact_gnn_capped) == (1, 1, 0)
+    assert r.pg_exact_gnn_scored >= 2 and r.pg_exact_gnn_tie_plans >= 2 and r.pg_exact_kept_pass == 0
+    assert all((1, 11) in a[0] and (3, 33) in a[0] for a in calls)   # the scorer is offered the exact search's slates
+
+
+def test_exact_gnn_tie_keeps_the_pass_plan_when_the_gnn_does_not_prefer_another(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_GNN_ENV, "1")
+    r, tasks, state, _ = _gnn_refiner(monkeypatch, lambda plan: 0.0, exec_times=_TIE_TIMES)   # all scores equal: the pass plan wins
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (1, 11)}, passes=3)
+    assert plan == {0: (1, 11), 1: (1, 11)} and info["moved"] == 0
+    assert (r.pg_exact_gnn_tie_batches, r.pg_exact_gnn_changed) == (1, 0)
+
+
+def test_exact_gnn_flag_off_never_asks_the_host_to_score(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.delenv(S.PG_CD_EXACT_GNN_ENV, raising=False)
+    r, tasks, state = _refiner(monkeypatch, exec_times=_TIE_TIMES)   # plain refiner: no scorer on the host at all
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (1, 11)}, passes=3)
+    assert plan == {0: (1, 11), 1: (1, 11)} and r.pg_exact_ties == 1 and r.pg_exact_kept_pass == 1 and r.pg_exact_gnn_tie_batches == 0
+
+
+def test_exact_gnn_fallback_counts_the_batches_the_gnn_seed_changed(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_GNN_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_MAX_PLANS_ENV, "1")   # every batch is over the cap
+    r, tasks, state, _ = _gnn_refiner(monkeypatch, lambda plan: 0.0)
+    before = {k: getattr(r, k) for k in S.PEER_GREEDY_COUNTERS if k not in ("pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs") and hasattr(r, k)}
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (2, 22)}, passes=3)
+    assert r.pg_exact_gnn_fb_batches == 1 and r.pg_exact_fallbacks == 1   # the counterfactual's own fallback is rolled back
+    assert r.pg_exact_gnn_fb_differs in (0, 1)
+
+
+def test_harness_serves_the_exact_gnn_arm_and_the_flag_is_in_provenance():
+    import inspect
+    from src import executesimulation
+    from src.placement import orchestrator
+
+    exporter = inspect.getsource(orchestrator.Orchestrator._scheduler_counters)
+    for k in S.PG_EXACT_COUNTERS:
+        assert k in S.PEER_GREEDY_COUNTERS and f'"{k}"' in exporter
+    assert '"HEROSIM_PG_CD_EXACT_GNN"' in inspect.getsource(executesimulation.build_run_provenance)
+    src = open("scripts_cosim/fresh_topo_burst_v1_gate.py").read()
+    assert '"_cdxexg"' in src and "HEROSIM_PG_CD_EXACT_GNN" in src

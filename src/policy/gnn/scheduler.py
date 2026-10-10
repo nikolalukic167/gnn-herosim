@@ -958,6 +958,44 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
 
+    def _exact_plan_scorer(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
+        """cd_exactS_gnn: a plan scorer for the exact search's tie-break. The live graph of this batch over the exact search's own slates
+        (`allowed`, per batch index), the same prefix block and partial-state scorer the decode uses; a plan's score is the sum over its
+        tasks of the model's logit for that task's placement with every other task committed where the plan puts it (the `_self_refine`
+        convention, so the score does not depend on a decode order)."""
+        from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
+        from src.policy.gnn.prefix_serving import PrefixServingError, attach_live_prefix_block, build_partial_state_context_from_graph
+
+        queue_snapshot, temporal_state = self._cd_snap
+        graph, tl = self._build_inference_graph(batch_tasks, system_state, queue_snapshot, temporal_state, allowed)
+        if graph is None:
+            raise RuntimeError("FAIL LOUD: cd_exactS_gnn: the live graph builder returned no feasible edges")
+        graph.queue_snapshot = dict(queue_snapshot)
+        graph.task_logit_to_placement = tl
+        graph._task_logit_to_placement = tl
+        attach_live_prefix_block(graph, batch_tasks, nodes=list(self.nodes.items),
+                                 peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
+                                 options=self._prefix_options, backlog_seconds=self._v4_backlog_seconds(tl, system_state))
+        graph = move_graph_tensors_(graph, self.device)
+        ctx = build_partial_state_context_from_graph(graph)
+        caps = graph.partial_state_ctx["node_caps_by_alpha"]
+        if self._prefix_options.alpha_key not in caps:
+            raise PrefixServingError(f"alpha_key {self._prefix_options.alpha_key!r} not in node_caps_by_alpha")
+        ctx.node_caps = caps[self._prefix_options.alpha_key]
+        score_fn = make_partial_state_score_fn(self.gnn_model, graph, ctx)
+        n = len(batch_tasks)
+
+        def score(plan: List[Tuple[int, int]]) -> float:
+            total = 0.0
+            with torch.no_grad():
+                for t in range(n):
+                    committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
+                    logits = score_fn(t, committed)
+                    total += float(logits[[(int(c[0]), int(c[1])) for c in tl[t]].index((int(plan[t][0]), int(plan[t][1])))])
+            return total
+
+        return score
+
     def _cd_refine(self, tasks: List[Task], placements: Dict[int, Tuple[int, int]],
                    system_state: SystemState, mode: str) -> Dict[int, Tuple[int, int]]:
         """cd_gap_v1 D5 (GNN_CD_REFINE=shadow|apply): run the CD greedy's refine passes from the
@@ -1180,6 +1218,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             if _sibling_spread_on():
                 placements = self._spread_over_siblings(decodable, placements, system_state)
             refine_mode = _cd_refine_mode()
+            self._cd_snap = (queue_snapshot, temporal_state)
             if refine_mode:
                 placements = self._cd_refine(decodable, placements, system_state, refine_mode)
             keepwarm = _keepwarm_params()

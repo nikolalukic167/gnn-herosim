@@ -64,6 +64,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_expand_gain_seconds", "pg_expand_labels_skipped",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
     "pg_exact_gain_seconds",
+    "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -145,8 +146,15 @@ def _exact_diag_write(rec: Dict) -> None:
 
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
 PG_CD_EXACT_TOP_K_ENV = "HEROSIM_PG_CD_EXACT_TOP_K"  # default 5, the declared pruning's slate width
+# cd_exactS_gnn (HEROSIM_PG_CD_EXACT_GNN=1, gnn_cd_refine only): S-ties among the exact plans (and the pass plan when it ties) are broken by the
+# GNN's plan score instead of CD's order; at most _EXACT_GNN_TIE_CAP tied plans are scored, the first ones in CD's order. The over-cap fallback
+# starts from the pass plan the GNN seed produced; each fallback batch is re-run from the CD greedy start (not applied) to count how often the
+# GNN seed changed the plan.
+PG_CD_EXACT_GNN_ENV = "HEROSIM_PG_CD_EXACT_GNN"
+_EXACT_GNN_TIE_CAP = 64
 PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass",
-                     "pg_exact_tasks_moved", "pg_exact_gain_seconds")
+                     "pg_exact_tasks_moved", "pg_exact_gain_seconds",
+                     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs")
 PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
 
 
@@ -299,11 +307,15 @@ class _PeerGreedyCore:
         self.pg_cd_exact = _pg_flag(PG_CD_EXACT_ENV)
         self.pg_cd_exact_max_plans = _pg_int(PG_CD_EXACT_MAX_PLANS_ENV, 100_000)
         self.pg_cd_exact_top_k = _pg_int(PG_CD_EXACT_TOP_K_ENV, 5)
+        self.pg_cd_exact_gnn = _pg_flag(PG_CD_EXACT_GNN_ENV)
         for name in PG_EXACT_COUNTERS:
             setattr(self, name, 0.0 if name.endswith("_seconds") else 0)
         if self.pg_cd_exact and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_ENV}=1 is defined for peer_greedy_network_cd and gnn_cd_refine only; "
                                f"{self._policy_label} has no refine to extend")
+        if self.pg_cd_exact_gnn and not (self.pg_cd_exact and self._policy_label == "gnn_cd_refine"):
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_GNN_ENV}=1 needs {PG_CD_EXACT_ENV}=1 and is defined for gnn_cd_refine only "
+                               f"(it scores plans with the GNN that seeded the refine); {self._policy_label}")
         self.pg_ext_batches = 0
         self.pg_ext_charged = 0
         self.pg_ext_seconds = 0.0
@@ -1112,19 +1124,61 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.pg_exact_batches += 1
         self.pg_exact_plans += total
         cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
+        gnn = self.pg_cd_exact_gnn
         best_cost, best_plan, ties = None, None, 0
+        tied: List[List] = []
         for combo in product(*slates):
             cost, _s, _c = self._pg_plan_cost(batch_tasks, list(combo), orch, memo, nodes)
             if best_cost is None or cost < best_cost - 1e-9:
                 best_cost, best_plan, ties = cost, list(combo), 0
+                tied = [list(combo)] if gnn else tied
             elif abs(cost - best_cost) <= 1e-9:
                 ties += 1
+                if gnn:
+                    tied.append(list(combo))
         if ties:
             self.pg_exact_ties += 1
         if _EXACT_DIAG_DIR:
             _exact_diag_write({"n": n, "pinned": len(pinned), "cur": cur, "best": best_cost, "kept": bool(best_cost >= cur - 1e-9),
                                "slate": [len(sl) for sl in slates], "pass_rank": diag_ranks, "k": self.pg_cd_exact_top_k})
-        if best_cost >= cur - 1e-9:
+        ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
+        keep_pass = best_cost >= cur - 1e-9
+        if gnn and abs(best_cost - cur) <= 1e-9 or (gnn and not keep_pass and len(tied) > 1):
+            # S-tie: the candidates are every enumerated plan at the optimum, and the pass plan when it sits at the optimum too
+            cands_t = list(tied)
+            pass_id = ident(plan)
+            pass_in = any(ident(t) == pass_id for t in cands_t)
+            if keep_pass and not pass_in:
+                cands_t.append(list(plan))
+            if len(cands_t) > 1:
+                self.pg_exact_gnn_tie_batches += 1
+                self.pg_exact_gnn_tie_plans += len(cands_t)
+                scored = cands_t[:_EXACT_GNN_TIE_CAP]
+                if keep_pass and pass_id not in [ident(t) for t in scored]:
+                    scored.append(list(plan))
+                if len(cands_t) > _EXACT_GNN_TIE_CAP:
+                    self.pg_exact_gnn_capped += 1
+                allowed = {i: {(int(c[0].id), int(c[1].id)) for c in slates[i]} | {(int(plan[i][0].id), int(plan[i][1].id))} for i in range(n)}
+                scorer = self._host._exact_plan_scorer(batch_tasks, system_state, allowed)
+                baseline = list(plan) if keep_pass else tied[0]
+                # the highest GNN plan score wins; a score tie goes to the pass plan, then to the lowest plan in CD's order
+                top, top_score = None, None
+                for cand in sorted(scored, key=lambda t: (ident(t) != pass_id,)) if keep_pass else scored:
+                    sc = scorer([(int(c[0].id), int(c[1].id)) for c in cand])
+                    self.pg_exact_gnn_scored += 1
+                    if top_score is None or sc > top_score + 1e-9:
+                        top, top_score = cand, sc
+                if ident(top) != ident(baseline):
+                    self.pg_exact_gnn_changed += 1
+                if ident(top) == pass_id:
+                    return 0
+                best_plan, keep_pass, best_cost = list(top), False, best_cost
+                moved = sum(1 for i in range(n) if ident([best_plan[i]]) != ident([plan[i]]))
+                self.pg_exact_tasks_moved += moved
+                self.pg_exact_gain_seconds += max(0.0, cur - best_cost)
+                self._pg_write_books(batch_tasks, best_plan, orch, memo, committed_service, planned, placements, service_of)
+                return moved
+        if keep_pass:
             self.pg_exact_kept_pass += 1
             return 0
         moved = sum(1 for i in range(n) if (int(best_plan[i][0].id), int(best_plan[i][1].id)) != (int(plan[i][0].id), int(plan[i][1].id)))
@@ -1306,6 +1360,27 @@ class GnnCdRefiner(_PeerGreedyCore):
             if moved == 0:
                 break
 
+    def _cd_native_plan(self, batch_tasks, system_state, passes) -> Dict[int, Tuple[int, int]]:
+        """The plan the CD scheduler itself would reach on this batch (greedy start, passes, expansion, passes), computed for counting only:
+        every book this touches is restored, so it changes nothing the run reads."""
+        saved = {name: getattr(self, name) for name in PEER_GREEDY_COUNTERS if hasattr(self, name)}
+        orch = self._pg_orchestrator()
+        memo: Dict[str, float] = {}
+        committed_service: Dict[str, float] = {}
+        planned: Dict[int, str] = {}
+        placements: Dict[int, Tuple[int, int]] = {}
+        service_of: Dict[int, Tuple[str, float]] = {}
+        try:
+            self._pg_batch_pass(batch_tasks, system_state, orch, memo=memo, committed_service=committed_service, planned=planned,
+                                placements=placements, service_of=service_of, refine=False)
+            self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+            if self._pg_exact(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
+                self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        finally:
+            for name, value in saved.items():
+                setattr(self, name, value)
+        return {i: tuple(v) for i, v in placements.items()}
+
     def refine(self, batch_tasks: List["Task"], system_state: SystemState,
                seed: Dict[int, Tuple[int, int]], passes: int) -> Tuple[Dict[int, Tuple[int, int]], Dict[str, int]]:
         orch = self._pg_orchestrator()
@@ -1332,11 +1407,16 @@ class GnnCdRefiner(_PeerGreedyCore):
             committed_service[key] = committed_service.get(key, 0.0) + service
             service_of[int(task.id)] = (key, service)
         self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        fallbacks_before = self.pg_exact_fallbacks
         if self.pg_cd_expansion or self.pg_cd_exact:
             # cdxapply: one expansion phase (or the exact search) after the passes converge on the seeded plan, then the passes again
             search = self._pg_exact if self.pg_cd_exact else self._pg_expand
             if search(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
                 self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if self.pg_cd_exact_gnn and self.pg_exact_fallbacks > fallbacks_before:
+            self.pg_exact_gnn_fb_batches += 1
+            if self._cd_native_plan(batch_tasks, system_state, passes) != {i: tuple(v) for i, v in placements.items()}:
+                self.pg_exact_gnn_fb_differs += 1
         seed_load: Dict[Tuple[int, int], int] = {}
         for v in seed.values():
             seed_load[tuple(v)] = seed_load.get(tuple(v), 0) + 1

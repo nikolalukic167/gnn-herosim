@@ -1247,6 +1247,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # cd_expand / cdxapply: exact-move expansion in the CD refine; cd_exactS: exact search over S; the parked swap / fusion flags
             "HEROSIM_PG_CD_EXPANSION",
             "HEROSIM_PG_CD_EXACT",
+            "HEROSIM_PG_CD_EXACT_GNN",
             "HEROSIM_PG_CD_SWAP",
             "HEROSIM_PG_FUSE",
             "MLP_MODEL_PATH",
