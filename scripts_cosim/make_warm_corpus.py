@@ -495,6 +495,9 @@ def cell_base_infrastructure(cell_config: Path, sim_input: Path, seed: int, scra
         return json.load(fh)
 
 
+_RULE_ANNOUNCED = set()
+
+
 def build_infrastructure(
     base: Dict[str, Any], flagged_snapshot: Dict[str, Any], provenance: Dict[str, Any],
     synthetic: Optional[Tuple[random.Random, Dict[str, float]]] = None,
@@ -532,6 +535,9 @@ def build_infrastructure(
             )
     if not replica_placements:
         raise SnapshotRejected("seed carries no candidate replica")
+    if base.get("replica_placement_rule") and base["replica_placement_rule"] not in _RULE_ANNOUNCED:
+        _RULE_ANNOUNCED.add(base["replica_placement_rule"])
+        print(f"[make_warm_corpus] replay infrastructure carries replica_placement_rule={base['replica_placement_rule']}", flush=True)
     infra = {
         "network_maps": base["network_maps"],
         "replica_placements": replica_placements,
