@@ -139,7 +139,7 @@ def test_harness_serves_cd_expand_as_a_named_diagnostic_arm():
     assert "cd_expand" in G.R1A_DIAG and "cd_expand" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_expand":\n            env["HEROSIM_PG_CD_EXPANSION"] = "1"' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
 
 
 # ---- cdxapply: the CD refine of a seeded (learned) plan, with the expansion ----
@@ -220,14 +220,14 @@ def test_harness_serves_cdxapply_as_a_named_learned_diagnostic():
     src = open(G.__file__).read()
     assert 'if kind.endswith("_cdxapply"):\n            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")' in src
     assert 'R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_CDX)' in src   # out of the default grid
-    assert 'expands = kind.endswith(("_cdxapply", "_cdxexg")) or kind == "cd_expand"' in src
+    assert 'expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) or kind == "cd_expand"' in src
     # the check reads the flag back from run_provenance, which records a whitelist of env keys
     import inspect
 
     from src import executesimulation
 
     assert '"HEROSIM_PG_CD_EXPANSION"' in inspect.getsource(executesimulation.build_run_provenance)
-    assert 'kind.endswith(("_nosplit", "_cdxapply", "_cdxexg"))' in src
+    assert 'kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb"))' in src
 
 
 # ---- cd_exactS: exact search over S on the top-K slate ----
@@ -344,7 +344,7 @@ def test_harness_serves_cd_exactS_as_a_named_diagnostic_arm():
     assert "cd_exactS" in G.R1A_DIAG and "cd_exactS" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_exactS":\n            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell
     assert 'if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1"' in src
 
 
@@ -434,3 +434,90 @@ def test_harness_serves_the_exact_gnn_arm_and_the_flag_is_in_provenance():
     assert '"HEROSIM_PG_CD_EXACT_GNN"' in inspect.getsource(executesimulation.build_run_provenance)
     src = open("scripts_cosim/fresh_topo_burst_v1_gate.py").read()
     assert '"_cdxexg"' in src and "HEROSIM_PG_CD_EXACT_GNN" in src
+
+
+# ---- cdxprune: over the cap, the slate cut to its top-k and enumerated exactly ----
+
+def _prune_refiner(monkeypatch, mode, logits=None):
+    from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
+
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_MAX_PLANS_ENV, "8")   # 3 x 3 = 9 plans is over the cap; k = 2 gives 4
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, mode)
+    flag = os.environ.pop(S.PG_CD_EXACT_PRUNE_ENV)
+    try:
+        s, tasks, state = _shell(monkeypatch)
+    finally:
+        os.environ[S.PG_CD_EXACT_PRUNE_ENV] = flag
+    asked = []
+
+    def task_logits(batch_tasks, system_state, allowed, plan):
+        asked.append((allowed, plan))
+        return logits
+
+    host = SimpleNamespace(nodes=s.nodes, _get_valid_replicas=s._get_valid_replicas, _orchestrator=s._pg_orchestrator, _exact_task_logits=task_logits)
+    return GnnCdRefiner(host), tasks, state, asked
+
+
+def test_prune_flag_values_and_shells_fail_loudly(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "top")
+    with pytest.raises(ValueError, match="gnn or cost"):
+        _shell(monkeypatch)
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "gnn")
+    with pytest.raises(RuntimeError, match="gnn_cd_refine only"):
+        _shell(monkeypatch)
+    monkeypatch.delenv(S.PG_CD_EXACT_ENV)
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "cost")
+    with pytest.raises(RuntimeError, match="needs HEROSIM_PG_CD_EXACT=1"):
+        _shell(monkeypatch)
+
+
+def test_prune_cost_enumerates_the_cut_slate_and_counts_against_the_expansion(monkeypatch):
+    r, tasks, state, asked = _prune_refiner(monkeypatch, "cost")
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (2, 22)}, passes=3)
+    assert plan == {0: (3, 33), 1: (3, 33)} and not asked
+    assert (r.pg_exact_fallbacks, r.pg_exact_batches, r.pg_expand_batches) == (1, 0, 0)   # the counterfactual expansion is rolled back
+    assert (r.pg_exact_prune_batches, r.pg_exact_prune_plans, r.pg_exact_prune_kother, r.pg_exact_prune_tasks_moved) == (1, 4, 1, 2)
+    assert (r.pg_exact_prune_differs, r.pg_exact_prune_better, r.pg_exact_prune_worse) == (0, 0, 0)   # the expansion finds the same pair move
+    assert r.pg_exact_prune_gain_pass_seconds == pytest.approx(16.0) and r.pg_exact_prune_gain_fb_seconds == pytest.approx(0.0)
+
+
+def test_prune_gnn_ranks_by_the_logit_and_a_cut_that_loses_the_optimum_is_counted_worse(monkeypatch):
+    logits = [{(1, 11): 9.0, (2, 22): 8.0, (3, 33): 0.0}, {(1, 11): 0.0, (2, 22): 9.0, (3, 33): 8.0}]   # task 0 drops C from its top 2
+    r, tasks, state, asked = _prune_refiner(monkeypatch, "gnn", logits)
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (2, 22)}, passes=3)
+    assert len(asked) == 1 and asked[0][1] == [(1, 11), (2, 22)]   # ranked with the others at the pass plan
+    assert plan == {0: (1, 11), 1: (2, 22)} and r.pg_exact_prune_kept_pass == 1
+    assert (r.pg_exact_prune_set_differs, r.pg_exact_prune_differs, r.pg_exact_prune_worse) == (1, 1, 1)
+    assert r.pg_exact_prune_gain_fb_seconds == pytest.approx(-16.0)
+
+
+def test_prune_off_leaves_the_expansion_fallback_untouched(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_MAX_PLANS_ENV, "8")
+    monkeypatch.delenv(S.PG_CD_EXACT_PRUNE_ENV, raising=False)
+    r, tasks, state = _refiner(monkeypatch)
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (2, 22)}, passes=3)
+    assert plan == {0: (3, 33), 1: (3, 33)} and r.pg_expand_batches == 1 and r.pg_exact_prune_batches == 0
+
+
+def test_harness_serves_the_prune_arms_and_the_flag_is_in_provenance():
+    import inspect
+    from src import executesimulation
+    from src.placement import orchestrator
+
+    exporter = inspect.getsource(orchestrator.Orchestrator._scheduler_counters)
+    for k in S.PG_EXACT_COUNTERS:
+        assert k in S.PEER_GREEDY_COUNTERS and f'"{k}"' in exporter
+    assert '"HEROSIM_PG_CD_EXACT_PRUNE"' in inspect.getsource(executesimulation.build_run_provenance)
+    import sys
+    sys.path.insert(0, "scripts_cosim")
+    import fresh_topo_burst_v1_gate as G
+
+    for k in ("ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb"):
+        assert k in G.R1A_CDX and k in G.R1A_ARMS and next((k[:-len(x)] for x in G.SUFFIXES if k.endswith(x)), k) in G.RA_KINDS
+    src = open(G.__file__).read()
+    assert '"HEROSIM_PG_CD_EXACT_PRUNE"' in src and '"gnn" if kind.endswith("_cdxpra") else "cost"' in src

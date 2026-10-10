@@ -963,6 +963,35 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         (`allowed`, per batch index), the same prefix block and partial-state scorer the decode uses; a plan's score is the sum over its
         tasks of the model's logit for that task's placement with every other task committed where the plan puts it (the `_self_refine`
         convention, so the score does not depend on a decode order)."""
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, allowed)
+        n = len(batch_tasks)
+
+        def score(plan: List[Tuple[int, int]]) -> float:
+            total = 0.0
+            with torch.no_grad():
+                for t in range(n):
+                    committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
+                    logits = score_fn(t, committed)
+                    total += float(logits[[(int(c[0]), int(c[1])) for c in tl[t]].index((int(plan[t][0]), int(plan[t][1])))])
+            return total
+
+        return score
+
+    def _exact_task_logits(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any],
+                           plan: List[Tuple[int, int]]) -> List[Dict[Tuple[int, int], float]]:
+        """cdxprune (a): per task, the model's logit for every couple in `allowed` with every other task committed where `plan` puts it
+        (the same convention as the plan score)."""
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, allowed)
+        n = len(batch_tasks)
+        out: List[Dict[Tuple[int, int], float]] = []
+        with torch.no_grad():
+            for t in range(n):
+                committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
+                logits = score_fn(t, committed)
+                out.append({(int(c[0]), int(c[1])): float(logits[k]) for k, c in enumerate(tl[t])})
+        return out
+
+    def _exact_score_fn(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
         from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
         from src.policy.gnn.prefix_serving import PrefixServingError, attach_live_prefix_block, build_partial_state_context_from_graph
 
@@ -982,19 +1011,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if self._prefix_options.alpha_key not in caps:
             raise PrefixServingError(f"alpha_key {self._prefix_options.alpha_key!r} not in node_caps_by_alpha")
         ctx.node_caps = caps[self._prefix_options.alpha_key]
-        score_fn = make_partial_state_score_fn(self.gnn_model, graph, ctx)
-        n = len(batch_tasks)
-
-        def score(plan: List[Tuple[int, int]]) -> float:
-            total = 0.0
-            with torch.no_grad():
-                for t in range(n):
-                    committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
-                    logits = score_fn(t, committed)
-                    total += float(logits[[(int(c[0]), int(c[1])) for c in tl[t]].index((int(plan[t][0]), int(plan[t][1])))])
-            return total
-
-        return score
+        return make_partial_state_score_fn(self.gnn_model, graph, ctx), tl
 
     def _cd_refine(self, tasks: List[Task], placements: Dict[int, Tuple[int, int]],
                    system_state: SystemState, mode: str) -> Dict[int, Tuple[int, int]]:
