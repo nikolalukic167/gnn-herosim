@@ -1,6 +1,18 @@
 # big_groups_s0_v1 — do bigger peer groups make exact search on CD's surrogate fail, at fixed load?
 
-**Status:** `REGISTERED` (2026-10-11). Every bar below was signed before any data.
+**Status:** `ACTIVE` (2026-10-11). The screen reads **NO-GO** (registered bar not met). The live gate is pending.
+Registered 2026-10-11; every bar below was signed before its data.
+
+**Now.**
+- **Screen NO-GO as registered:** at G=8 the M2 clause fails in both conditions; M1, M4 and health pass.
+  - M2 fails partly by construction: in 25–32 of 56 states the top-2 plans are latency-identical equivalents.
+  - That is a design flaw of M2. It is recorded as such, not re-defined after the read.
+- Pooled S-regret is large but tail-driven: the median per-state regret is 0 in every cell. It is also large at the
+  current G on these fresh topologies.
+- M1 rises with G at heavy (7.0 → 40.8 %, no slate) and falls at moderate.
+- **cd_exactS's served plan is far off at G8** (pooled 55–65 %): its fallback binds in 48–82 % of G8 batches.
+- The S′ shared-link term does not help.
+- Stage 2 is not run. The live gate runs at G=8.
 
 **Why.** In the accel seat the decision is too easy for a learned model to beat search (SCIENTIST, PUBLISHER, S4–S7,
 2026-10-11; recorded in `selfsearch_confirm_v1` and `accel_nosplit_v1`).
@@ -65,6 +77,48 @@
 
 ## Record (newest first)
 
+- 2026-10-11 16:00 — **Stage 1 read: NO-GO as registered; ruling** (S6; search 856340 at a30a0102, ILS, B = 600; 448/448
+  rows, 0 errors; read once at a30a0102).
+  - **Per (G, rung, condition):** pooled M1 [cd_exactS served] | M4 | median M2 (share ≤ 1 %) | M3 | per-state
+    argmin-S regret median / p75 / states over 5 %:
+
+    | cell | M1 [cd_exactS] | M4 | M2 | M3 | per-state |
+    |---|---|---|---|---|---|
+    | G8 heavy, none | 40.8 [65.0] % | 42.3 % | 0.00 % (62 %) | 82 % | 0 / 5.9 % / 14 |
+    | G8 heavy, top5 | 52.2 [55.4] % | 60.4 % | 0.00 % (59 %) | 75 % | 0 / 12.6 % / 17 |
+    | G8 moderate, none | 15.5 [57.8] % | 33.6 % | 0.03 % (62 %) | 68 % | 0 / 8.0 % / 17 |
+    | G8 moderate, top5 | 20.9 [57.9] % | 36.0 % | 0.17 % (59 %) | 48 % | 0 / 16.6 % / 22 |
+    | current heavy, none | 7.0 [7.8] % | 7.0 % | 7.10 % (39 %) | 9 % | 0 / 0 % / 5 |
+    | current heavy, top5 | 130.8 [8.9] % | 137.0 % | 9.80 % (30 %) | 7 % | 0 / 7.1 % / 15 |
+    | current moderate, none | 39.8 [46.5] % | 31.9 % | 6.84 % (39 %) | 9 % | 0 / 0.1 % / 12 |
+    | current moderate, top5 | 56.3 [37.0] % | 55.0 % | 7.23 % (39 %) | 7 % | 0 / 15.9 % / 16 |
+
+  - **Caveats, to be read with the numbers:**
+    - (1) Pooled M1 is tail-driven. Without the single worst state: G8 heavy 21.6 / 33.9 %, moderate 11.6 / 17.1 %;
+      current heavy top5 130.8 → 53.7 %.
+    - (2) The top-5 condition is confounded: in 10–12 states per cell, cd_exactS's plan uses a candidate outside the
+      dataset's declared slate. No slate is the clean read of S.
+    - (3) The current-G M1 is far above the corpus's 6.1 %, but its median per-state regret is 0. These are heavy tails
+      on fresh topologies, not a typical-state shift.
+    - (4) S′ does not fix S (M4 ≥ M1 in most cells).
+    - Search adequacy: G8 restarts improved in the last 20 % of B in 2–9 % of states, below the 30 % safeguard trigger.
+    - The GNN start is absent.
+  - **Failed runs, disclosed:**
+    - check 856288 (1 ms dispatch offset; fixed 5e80b996, recheck exact);
+    - search 856303 (missing sweep file; fixed 2aa94043);
+    - 856334 cancelled unread for the ILS amendment.
+  - **Ruling (coordinator):**
+    - **NO-GO stands as registered.** M2 is not re-defined after the read.
+    - M2's failure is partly a design flaw: latency-identical equivalent placements make the top-2 gap 0 in 25–32 of
+      56 G8 states. Recorded as a lesson for future screens: measure gaps over latency-distinct plans.
+    - A latency-distinct M2 may be reported as a disclosed post-hoc descriptive, and it cannot change the verdict.
+    - **Stage 2 (G 12/16) is not run:** M1 rises with G only at heavy, and M2 as registered would fail by the same
+      construction.
+    - **The live gate runs at G=8**, the only G with measured CD health, as the registered "closest to 12 that keeps
+      CD healthy". Arms: the current GNN self-search (ra_gnn_eng s1, no retraining), CD and cd_exactS. 12 fresh
+      topologies × 4 windows × both rungs.
+    - Reason it is worth it: cd_exactS's served plan is 55–65 % above best-known at G8, because its fallback binds in
+      48–82 % of batches. That is exactly where a learned search might differ.
 - 2026-10-11 15:30 — **Amendment before any measure is read (coordinator):** iterated local search for the reference.
   - **Why:** the search smoke (856332; only errors, convergence and timing read) converged in 1 sweep after 33–43
     replays at G8. A one-descent local optimum would bias M1 low at G8.
