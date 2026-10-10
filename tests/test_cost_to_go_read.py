@@ -10,6 +10,10 @@ TOPOS = list(range(16369, 16393))
 RUNGS = ("moderate", "heavy")
 
 
+def cell(lat):
+    return {"averageElapsedTime": lat, "num_tasks": 100, "wallclock_s": 10.0}
+
+
 def synth(arm_pct: dict, topos=TOPOS, windows=("g0", "g1"), seeds=(1, 2)):
     """cd_exactS = 3.0 s everywhere (seed 0); each arm is `pct` % off it; descriptive refs 3.3 s."""
     cells = {}
@@ -17,10 +21,10 @@ def synth(arm_pct: dict, topos=TOPOS, windows=("g0", "g1"), seeds=(1, 2)):
         for w in windows:
             for r in RUNGS:
                 for ref in ("cd_exactS", "cd", "cd_expand", "cdxapply"):
-                    cells[(ref, 0, t, w, r)] = {"averageElapsedTime": 3.0 if ref == "cd_exactS" else 3.3}
+                    cells[(ref, 0, t, w, r)] = cell(3.0 if ref == "cd_exactS" else 3.3)
                 for a, pct in arm_pct.items():
                     for sd in seeds:
-                        cells[(a, sd, t, w, r)] = {"averageElapsedTime": 3.0 * (1 + pct.get(r, 0) / 100) if isinstance(pct, dict) else 3.0 * (1 + pct / 100)}
+                        cells[(a, sd, t, w, r)] = cell(3.0 * (1 + pct.get(r, 0) / 100) if isinstance(pct, dict) else 3.0 * (1 + pct / 100))
     return cells
 
 
