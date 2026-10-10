@@ -50,6 +50,13 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Gap found in the labelling path; W2 rerun ordered** (S7). `make_warm_corpus`'s
+  `cell_base_infrastructure` did not carry `replica_placement_rule`, so label sweeps scaled out under first_compatible.
+  - Fixed at `rp/accel-calib` 7c789baf (with a unit test).
+  - The W2 probe 855276 was launched before the fix. **Ruling (coordinator):** it cannot gate and is descriptive only
+    (a pre-fix vs post-fix comparison). W2 reruns from 7c789baf on the same seeds and rungs; it counts only once its
+    build logs show the rule line.
+  - W3 stands: its replay path (`prepare_infrastructure_for_real_simulation`) was shown to apply the rule.
 - 2026-10-10 — **W3 PASS; the replay applies the rule** (S7, `rp/accel-calib` c8b56d8e; I11 855277, check 855296).
   - **I11** at heavy ×27.6227, 9905, 40 states, CD capture: median 0.000 %, p95 0.098 %, max 0.123 %, 40 of 40
     replayed.
