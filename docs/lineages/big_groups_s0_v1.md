@@ -65,6 +65,16 @@
 
 ## Record (newest first)
 
+- 2026-10-11 12:50 — **Amendment before any data (coordinator, on the user's "isn't 8 enough? remove the 5 limit"):**
+  - **Stage 1:** G ∈ {current, 8} only, each in two slate conditions:
+    - (i) the declared top-5 slate;
+    - (ii) no slate, where every eligible candidate per task is available to argmin-S, cd_exactS and the reference
+      search. Report candidates per task.
+  - **Stage 2:** G = 12 and 16 run only if Stage 1 is not GO and M1 rises from current to 8, or if G=8 is labelled
+    UNDER-SEARCHED.
+  - The GO bar applies unchanged at G = 8, under either slate condition, read separately and labelled.
+  - The B = 600 cap and the safeguard apply to both conditions. Under no slate, a sweep has n × (c − 1) single moves.
+  - The live gate uses the G and slate condition the screen selects, by the same rule.
 - 2026-10-11 12:40 — **Search budget fixed before any data** (S6 plan, coordinator OK).
   - **Reference:** best-improvement local search over the top-5 slate, scored by the co-sim per-plan engine (the corpus
     label quantity, about 0.4 s per plan). Moves are single-task moves plus in-slate pair swaps.
