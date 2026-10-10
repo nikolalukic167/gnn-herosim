@@ -1,7 +1,23 @@
 # accel_replica_v1 — put the per-server replicas on the accelerators
 
-**Status:** `ACTIVE` (2026-10-10) — the worth-it screen passed and the corpus build is GO. Registered 2026-10-10;
-every bar below was signed before its data.
+**Status:** `CLOSED` (2026-10-10) — **NOT-SEPARATED** (no WIN). Registered 2026-10-10; every bar below was signed before
+its data.
+
+**Outcome.** Putting replicas on the fastest platform moves the GNN from behind CD to ahead of it at moderate, but not
+at heavy, so it is no registered win.
+- **Gate:** learned arms 855703 at 9e5ee729, classical 855432 at fcd47841, paired on identity. 12 fresh topologies;
+  576 of 576 and 192 of 192 cells.
+- **Paired % vs CD at moderate / heavy:**
+  - gnn_eng: −5.45 % (9/12 faster, Holm .065) / +2.70 % (Holm .15).
+  - physmp: −6.05 % (10/12, Holm .081) / +2.63 % (Holm .15).
+  - The moderate medians pass −5 %, but Holm misses .05. Nothing is separated at heavy.
+- **CD←GNN beats CD** by −5.03 / −3.40 % (12/12 at both rungs, uncorrected p .0005; descriptive). It is the
+  learned-seed effect, and it is the largest of the three studies.
+- **Self-predict** is at −1.1 / −1.6 %.
+- **Unpaired side by side with `scale_160_v1`** (descriptive, no contrast across gates): gnn_eng goes from +1.2 % to
+  −5.5 % at moderate, and from +4.0 % to +2.7 % at heavy.
+- **Do not quote:** a GNN win, the moderate direction as confirmed, or "message passing helps". No MP twin was trained.
+- A confirmation at moderate would need its own registration on fresh topologies.
 
 **Why.** Under R1.1, `per_server = 1` places each type's server replica on the **first** compatible platform in the
 node's list order (`src/generate_infrastructure.py:745–765`).
@@ -51,6 +67,29 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 11:30 — **Gate read: NOT-SEPARATED, closed** (S4; one read, job 855719, `~/accel_read.sh` repointed to
+  `learned_9e5ee729`, reader a95ce980; output `accel_gate/read_fcd47841.{json,txt}`. The file name keeps the
+  classical pin; the learned arms ran at 9e5ee729. 768 summaries, 0 failed, 12 topologies; the sensitivity pass is
+  identical; 855691 was a failed launch of 0 of 576).
+
+  | Arm vs CD | Moderate | Heavy |
+  |---|---|---|
+  | gnn_eng | −5.45 % (9/12 faster, p .016, Holm .065) | +2.70 % (3/12, p .077, Holm .154) |
+  | physmp | −6.05 % (10/12, p .027, Holm .081) | +2.63 % (4/12, p .151, Holm .154) |
+  | self-predict (descriptive) | −1.14 % (9/12, p .027) | −1.64 % (8/12, p .077) |
+  | CD←GNN (descriptive) | −5.03 % (12/12, p .0005) | −3.40 % (12/12, p .0005) |
+
+  - **Labels (registered rule):** both arms NOT-SEPARATED; no WIN.
+  - **Median decision cost per task:** CD 133 / 163 µs, GNN arms 6.8–7.2 ms.
+  - **Spin:** one CD←GNN heavy cell has deferrals above 5× CD's.
+  - **Side by side** (`scale_vs_accel_side_by_side.py`, unpaired, median [IQR]; s160 first_compatible vs accel):
+
+    | Arm | Rung | scale_160 | accel |
+    |---|---|---|---|
+    | gnn_eng | moderate | +1.23 [−0.13, +2.49] | −5.45 [−9.23, −0.72] |
+    | gnn_eng | heavy | +3.95 [+2.73, +5.66] | +2.70 [+0.97, +4.85] |
+    | physmp | moderate | +1.13 [−2.04, +2.35] | −6.05 [−8.78, −0.23] |
+    | physmp | heavy | +3.73 [+2.19, +6.10] | +2.63 [−1.24, +5.46] |
 - 2026-10-10 10:40 — **Fix 9e5ee729; identity PASS; learned arms resubmitted as 855703** (S7 fix, S4 identity).
   - **Fix:** `rp/accel-gate-fix` 9e5ee729 on fcd47841, 3 files: `executesimulation.py` passes `space_config` and
     `prefix_serving.py` forwards it, plus tests. All four checkpoint × cell combinations are covered through
