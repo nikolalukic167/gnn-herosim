@@ -70,9 +70,11 @@ def _log_mutex(orchestrator, path: str, offset: float, until: float) -> None:
 
 
 class _TopS(Exception):
-    def __init__(self, top):
-        super().__init__("top_s")
-        self.top = top
+    """Carries the enumeration out of the simulation; the payload lives in args (SimPy re-raises a copy built from them)."""
+
+    @property
+    def top(self):
+        return self.args[0]
 
 
 def _top_s(sched, tasks, system_state, local_of, k: int):
