@@ -35,5 +35,11 @@ what make the test honest.
 
 ## Record (newest first)
 
+- 2026-10-10 12:20 — **Id range verified** (S5). 16321–16344 is disjoint from every range in use:
+  - scale_160 16001–16020 and 16101–16200;
+  - accel 16201–16320;
+  - r1a and workload_fix 9xxx;
+  - REGISTRY has no 16xxx, and no 1632x–1634x cell exists on datalab.
+  The next free pool is 16345+. S4 may mint.
 - 2026-10-10 11:45 — **Registered** (coordinator, on the user's go). S4 mints and runs the gate; S5 verifies the id
   range first.
