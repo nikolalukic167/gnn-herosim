@@ -32,7 +32,7 @@ def label_of(rows, platforms):
 
 
 def _one(job):
-    ds, expand = Path(job[0]), job[1]
+    ds, expand, extra = Path(job[0]), job[1], (job[2] if len(job) > 2 else None) or {}
     try:
         os.environ["HEROSIM_SNAPSHOT_FIDELITY"] = "1"
         prov = json.load(open(ds / "generation_provenance.json"))
@@ -67,7 +67,7 @@ def _one(job):
                 allowed.setdefault(int(k), set()).add((int(v[0]), int(v[1])))
         local_of = {fr.batch_local[i]: i for i in range(len(fr.batch_local))}   # replay task id -> dataset task index
         forced = dict(fr.queued_forced)
-        seen = {"decisions": 0, "decided": [], "queued_scheduled_at_decision": None}
+        seen = {"decisions": 0, "decided": [], "queued_scheduled_at_decision": None, "s_extra": {}, "s_own": None}
 
         orig = PG.PeerGreedyNetworkBatchScheduler._prefix_inference
 
@@ -91,10 +91,24 @@ def _one(job):
                     1 for tid in forced if getattr(orch, "task_by_id", {}).get(tid) is not None
                     and orch.task_by_id[tid].scheduled.triggered)
                 self._pg_allowed = {int(batch_tasks[i].id): allowed[local_of[int(batch_tasks[i].id)]] for i in free}
+                free_tasks = [batch_tasks[i] for i in free]
+                couple = {(int(n.id), int(p.id)): (n, p) for n in self.nodes.items for p in n.platforms.items}
+
+                def s_of(plan_by_ds_index):
+                    trial = [couple[(int(plan_by_ds_index[local_of[int(t.id)]][0]), int(plan_by_ds_index[local_of[int(t.id)]][1]))]
+                             for t in free_tasks]
+                    return float(self._pg_plan_cost(free_tasks, trial, orch, {}, self.nodes.items)[0])
+
+                for key, plan in extra.items():
+                    seen["s_extra"][key] = s_of(plan)
                 try:
-                    sub = self._pg_decide([batch_tasks[i] for i in free], system_state)
+                    sub = self._pg_decide(free_tasks, system_state)
                 finally:
                     self._pg_allowed = None
+                own = {}
+                for k, i in enumerate(free):
+                    own[local_of[int(batch_tasks[i].id)]] = sub[k]
+                seen["s_own"] = s_of(own)
                 for k, i in enumerate(free):
                     out[i] = sub[k]
                 seen["decisions"] += 1
@@ -129,7 +143,8 @@ def _one(job):
                     queued=len(forced), queued_scheduled_at_decision=seen["queued_scheduled_at_decision"],
                     plan_nodes=[names[b][0] for b in fr.batch_local], plan_platforms=[names[b][1] for b in fr.batch_local],
                     label_of_plan=label_of(rows, [names[b][1] for b in fr.batch_local]),
-                    expand_moves=int(sc.get("pg_expand_moves") or 0), cd_moves=int(sc.get("pg_cd_moves") or 0))
+                    expand_moves=int(sc.get("pg_expand_moves") or 0), cd_moves=int(sc.get("pg_cd_moves") or 0),
+                    s_own=seen["s_own"], s_extra=seen["s_extra"])
     except Exception as e:  # recorded, never swallowed
         return dict(ds=str(ds), arm="cd_expand" if expand else "cd", error=f"{type(e).__name__}: {str(e)[:300]}")
 
@@ -138,10 +153,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out"); ap.add_argument("listfile")
     ap.add_argument("--expand", action="store_true"); ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--extra-plans", default=None, help="JSON {dataset dir name: {label: [[node_id, platform_id] per task index]}}: "
+                    "CD's whole-plan surrogate S of each is recorded at the decision, on the same state (s_extra), with s_own for its own plan")
     a = ap.parse_args()
     dss = [l.strip() for l in open(a.listfile) if l.strip()]
+    extra = json.load(open(a.extra_plans)) if a.extra_plans else {}
     with get_context("spawn").Pool(a.workers) as pool, open(a.out, "w") as fh:
-        for r in pool.imap(_one, [(d, a.expand) for d in dss], chunksize=2):
+        for r in pool.imap(_one, [(d, a.expand, extra.get(Path(d).name)) for d in dss], chunksize=2):
             fh.write(json.dumps(r) + "\n")
             fh.flush()
     return 0
