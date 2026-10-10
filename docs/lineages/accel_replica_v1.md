@@ -67,6 +67,23 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 20:40 — **The GNN seed still helps the strongest search, slightly** (S5; cdxapply = the no-split GNN plan,
+  seed 1, then CD refine with expansion; rp/cdx-apply f1dfc355; 855885, after the failed launch 855862 with 0 of 24
+  usable; g0; 12 gate topologies; descriptive).
+  - **Paired % at moderate / heavy:**
+    - vs cd_expand: −1.84 % (10/12, Wilcoxon .042) / −1.44 % (9/12, .129);
+    - vs plain cdapply: −3.82 / −4.87 %;
+    - vs CD: −9.73 / −9.52 %;
+    - vs the plain (split) GNN: −3.90 / −8.41 %.
+  - Expansion does less work from the GNN seed (0.64 / 0.54 accepted moves per batch against 0.77 / 0.68). The seed
+    starts nearer the search's optimum.
+  - **Offline context** (S6, read-only, 413 held-out tables):
+    - Exact argmin of CD's surrogate S over the slate hits the label optimum on 79.4 % (regret 6.1 % of Σ optimum),
+      against cd_expand's 64.6 % (43.8 %) and the GNN's 64.8 % (21.7 %).
+    - The GNN recovers up to 5.7 % of argmin-S's residual with an oracle selector, concentrated in a few large
+      multi-node groups.
+    - An earlier "S ties" finding was a tool artefact, retracted (S covered only the last decision on 25
+      multi-decision datasets).
 - 2026-10-10 19:00 — **Replay variant G fixes the opening-state I11 miss** (S6; rp/replay-g e787127a; 855829, 855845–6,
   855851, 855854).
   - **Miss at F:** heavy opening states (t < 120 s) failed I11, p95 1.57 % and max 3.68 %, with the replay always
