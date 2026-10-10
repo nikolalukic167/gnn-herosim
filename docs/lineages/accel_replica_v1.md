@@ -50,6 +50,15 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **W3 PASS; the replay applies the rule** (S7, `rp/accel-calib` c8b56d8e; I11 855277, check 855296).
+  - **I11** at heavy ×27.6227, 9905, 40 states, CD capture: median 0.000 %, p95 0.098 %, max 0.123 %, 40 of 40
+    replayed.
+  - **Rule in replay:** the same 40 states were replayed under both rules.
+    - 10 states create a replica inside the horizon.
+    - In 7 of them, the end-of-replay platform mix differs; each new replica takes the faster available platform.
+    - The replayed batch latencies are identical under the two rules, because placements are forced. So I11 alone
+      cannot detect the rule, and this platform comparison is the evidence.
+  - Still to verify before labels: the corpus-labelling path (`make_warm_corpus`) shows the rule line.
 - 2026-10-10 — **Rungs calibrated; W1 PASS** (S7, `rp/accel-calib` bb26e296; seeds 9905–9908 × g0/g1; 8/8 guards).
   - **Rungs (fastest_compatible):** moderate ×11.6139 (CD effective share 0.220), heavy ×27.6227 (0.468). Against
     first_compatible's ×16.4245 / ×23.2278.
