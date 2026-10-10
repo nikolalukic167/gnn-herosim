@@ -343,4 +343,4 @@ def test_backlog_forms_and_assignment():
     # tasks: (1.5 on 2:2), (0.5 on 1:1), (1.5 on 1:1) -> sv * (B + own - sv)
     assert out["backlog_v2"] == pytest.approx(1.5 * (0.5 + 1.5 - 1.5) + 0.5 * (1.5 + 2.0 - 0.5) + 1.5 * (1.5 + 2.0 - 1.5))
     with pytest.raises(ValueError):
-        fly.assign_tasks(["1:1", "2:2"], [1.0, 1.0], {"1:1": 1.0, "2:2": 1.0})
+        fly.assign_tasks(["1:1", "2:2"], [1.0, 1.0], {"1:1": 5.0})
