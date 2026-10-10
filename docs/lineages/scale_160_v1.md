@@ -50,6 +50,17 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 05:30 — **Early training curves** (S7; offline and descriptive; never closes anything, rule 6).
+  - Units: `val/regret_masked_topo` is the mean over the 451 validation datasets of the served-decode plan RTT minus
+    the optimum RTT, in batch-total seconds. The `_frac` companion divides by the random-plan regret, not the optimum.
+  - Floors on the same split:
+    - random plan 16.42 s;
+    - additive argmin 4.51 s (median 0.15 s; 424 of 451 scored);
+    - mean optimum 2.31 s.
+  - **At epochs 7–11, all 12 configs are below the additive-argmin floor:** gnn_eng 1.09–1.39 s, physmp 0.95–1.74 s.
+    task_acc is 0.52–0.55 (chance 0.256).
+  - The empty-prefix `val/regret_greedy` (about 5 s, rising) is not a selection metric; it is the same artifact as in
+    r1a.
 - 2026-10-10 — **Production-corpus headroom screen (S6, 855588; descriptive, gates nothing; all 3,170 datasets read).**
   "Regret" means the additive (pointwise) argmin plan against the joint optimum.
   - Train moderate / heavy:
