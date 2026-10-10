@@ -230,9 +230,44 @@ def read(a):
                           f"{min(rho):.3f}, best plan changed {flip}/{n} ({100 * flip / n:.1f} %) -> {'PASS' if ok else 'STOP'}")
 
 
+def read_split(a):
+    """Split read (b), reported apart from S0: whole 9-10-task groups, cd_exactS's own (unrestricted) decision vs the next 4
+    distinct plans by S over its slate."""
+    rows = _rows(a.split)
+    errs = [r for r in rows if "error" in r]
+    print(f"split rows {len(rows)}, errors {len(errs)}")
+    for r in errs[:5]:
+        print("  ERROR", r["tag"], r["error"][:200])
+    st = defaultdict(dict)
+    for r in rows:
+        if "error" in r:
+            continue
+        _k, slot, grp = r["tag"].split("|", 2)
+        st[(grp, r["H"])][slot] = r
+    for H in sorted({k[1] for k in st}):
+        for label, keep in (("all", lambda g: True), ("heavy", lambda g: "_heavy_" in g), ("moderate", lambda g: "_moderate_" in g)):
+            sets = {g: _plan_set(v) for (g, h), v in st.items() if h == H and keep(g)}
+            sets = {g: v for g, v in sets.items() if v and len(v) >= 2}
+            if not sets:
+                continue
+            share, wins, sh, sq = [], defaultdict(int), 0.0, 0.0
+            for g, ps in sets.items():
+                q0 = ps["policy"]["q"]
+                best = min(ps, key=lambda s_: (ps[s_]["q"], s_ != "policy"))
+                head = q0 - ps[best]["q"]
+                wins[best if head > 1e-9 else "policy"] += 1
+                share.append(100 * head / q0 if q0 > 0 else 0.0)
+                sh += head
+                sq += q0
+            n = len(share)
+            print(f"H {H:g} [{label}] {n} groups | headroom share median {median(share):.3f} %  mean {sum(share) / n:.3f} %  max {max(share):.3f} % | "
+                  f"summed {100 * sh / sq:.3f} % | wins {dict(sorted(wins.items()))}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("mode", choices=("jobs-s0", "jobs-s1", "read"))
+    ap.add_argument("mode", choices=("jobs-s0", "jobs-s1", "read", "read-split"))
+    ap.add_argument("--split")
     ap.add_argument("out", nargs="?")
     ap.add_argument("--argmin"); ap.add_argument("--gnn"); ap.add_argument("--tables"); ap.add_argument("--cells")
     ap.add_argument("--hs", default="5,15,30"); ap.add_argument("--max-states", type=int, default=0)
@@ -240,7 +275,7 @@ def main():
     ap.add_argument("--eps", default="0.001,0.01")
     ap.add_argument("--drop", default="", help="ds_name:H pairs to drop for the robustness line, comma separated")
     a = ap.parse_args()
-    {"jobs-s0": jobs_s0, "jobs-s1": jobs_s1, "read": read}[a.mode](a)
+    {"jobs-s0": jobs_s0, "jobs-s1": jobs_s1, "read": read, "read-split": read_split}[a.mode](a)
 
 
 if __name__ == "__main__":
