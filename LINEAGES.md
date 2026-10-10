@@ -40,7 +40,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
 | [**transfer_physics_v1**](docs/lineages/transfer_physics_v1.md) | `ACTIVE` | 2×2 read: CD is fastest in every condition and topology; held replicas made queues dominate (released: queue share 0.05–0.08); Knative's gap shrinks; zero-shot GNN falls further behind. Scale-out factor registered as kpa_scaleout_v1. |
 | [**reference_physics_programme**](docs/lineages/reference_physics_programme.md) | `REGISTERED` | Programme plan (9 nodes): KPA scale-out → audit and freeze R1 → fix workload WF1 → recalibrate load → train once and attribute; stopping rule after nodes 1–5. |
-| [**accel_replica_v1**](docs/lineages/accel_replica_v1.md) | `ACTIVE` | Per-server replicas on the fastest compatible platform (today no GPU/DLA replica exists at t = 0); 160 × 24; worth-it screen (accelerator use, joint headroom, I11) before any corpus. |
 | [**call_graph_pairing_v1**](docs/lineages/call_graph_pairing_v1.md) | `REGISTERED` | Trace-derived pairing, synthetic exchange semantics: Casper call graphs decide which siblings exchange (2 partners kept); learned arms zero-shot. |
 | [**access_link_contention_v1**](docs/lineages/access_link_contention_v1.md) | `REGISTERED` | Hypothesis: peer exchange through shared access-link pipes; precondition link wait ≥ 15 % of exchange; best learned vs contention-aware CD. |
 | [**live_headroom_v1**](docs/lineages/live_headroom_v1.md) | `REGISTERED` | Offline single-batch headroom of CD on the live states it produces at ×2/×3/×5 (exhaustive sweep, no synthetic backlog): is the environment closed for any learned model? |
@@ -57,6 +56,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**accel_replica_v1**](docs/lineages/accel_replica_v1.md) | `CLOSED` | NOT-SEPARATED: replicas on fastest platform; GNN −5.5/−6.1 % vs CD at moderate (Holm .07/.08), +2.7 % at heavy; CD←GNN −5.0/−3.4 % (12/12, learned seed). No win. |
 | [**scale_160_v1**](docs/lineages/scale_160_v1.md) | `CLOSED` | CD-FASTER at 160c×24s: gnn_eng +1.2/+4.0 %, physmp +1.1/+3.7 % vs CD (heavy Holm-confirmed, moderate not separated); CD←GNN −3.5/−3.3 % (learned seed, no twin). |
 | [**r1_attribution_v1**](docs/lineages/r1_attribution_v1.md) | `CLOSED` | CD-FASTER: best learned arm (physMP) +3.4/+5.9/+5.1 % vs CD, Holm-confirmed at all 3 rungs; MP ties its twin; CD←GNN −0.4/−1.9/−1.7 % but ties CD←Twin (learned seed, not MP). Successor scale_160_v1. |
 | [**load_recalibration_v1**](docs/lineages/load_recalibration_v1.md) | `CLOSED` | RUNGS-FIXED on R1.1 + WF1 by CD effective queue share (queue + compute-lock wait): light ×1.26, moderate ×5.94, heavy ×11.61; all CD guards pass; Knative collapses at moderate and heavy. |
