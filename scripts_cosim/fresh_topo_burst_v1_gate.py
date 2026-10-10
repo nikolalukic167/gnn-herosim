@@ -55,10 +55,10 @@ RULE_POLICY = {
     "cd_ledger": "peer_greedy_network_cd",  # identity check: the pull ledger alone (HEROSIM_PULL_LEDGER=1) must leave CD bit-identical
     "cd_declared": "peer_greedy_network_cd",  # r1_attribution_v1: CD over the learned arms' declared slate (GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1); descriptive
     "cd_expand": "peer_greedy_network_cd",  # cd_expand: CD + exact-move alpha-expansion in its refine (HEROSIM_PG_CD_EXPANSION=1); descriptive, the stronger hand control
-    "cd_exactS": "peer_greedy_network_cd",
+    "cd_exactS": "peer_greedy_network_cd",  # cd_exactS: CD + exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1, expansion as the over-cap fallback); the hand bar
     # cost_to_go_v1 gate: cd_exactS whose decided plan + next 4 lowest-S plans are re-ranked by dS + lambda*dV (src/placement/cost_to_go_v.py)
     "cd_exactS_hv": "peer_greedy_network_cd",  # hand V (own service + cold), lambda 0.1
-    "cd_exactS_mv": "peer_greedy_network_cd",  # rung-(b) MLP V, no in-flight, seed 0, lambda from its contract (CTG_MLPV_CKPT)  # cd_exactS: CD + exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1, expansion as the over-cap fallback); the hand bar
+    "cd_exactS_mv": "peer_greedy_network_cd",  # rung-(b) MLP V, no in-flight, seed 0, lambda from its contract (CTG_MLPV_CKPT)
     "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
