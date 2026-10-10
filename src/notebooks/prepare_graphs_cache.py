@@ -17,6 +17,7 @@ NON-UNIQUE PLACEMENTS:
 """
 
 import argparse
+import functools
 import json
 import logging
 import math
@@ -706,12 +707,43 @@ def _declared_slate_of(dataset_dir: Path) -> Dict[str, Any]:
     dataset (make_warm_corpus --fidelity); None on every earlier corpus."""
     infra_path = Path(dataset_dir) / "infrastructure.json"
     if not infra_path.exists():
-        return {"task_candidates": None, "candidate_slate": None, "inflight_capture": "legacy"}
+        return {"task_candidates": None, "candidate_slate": None, "inflight_capture": "legacy", "replica_placement_rule": "first_compatible"}
     with open(infra_path) as fh:
-        seed = json.load(fh).get("live_snapshot_seed") or {}
+        infra = json.load(fh)
+    seed = infra.get("live_snapshot_seed") or {}
     spec = seed.get("fidelity_replay") or {}
     return {"task_candidates": spec.get("task_candidates"), "candidate_slate": spec.get("candidate_slate"),
-            "inflight_capture": _inflight_capture_of_seed(seed)}
+            "inflight_capture": _inflight_capture_of_seed(seed),
+            "replica_placement_rule": _replica_rule_of_dataset(Path(dataset_dir), infra)}
+
+
+def _replica_rule_of_dataset(dataset_dir: Path, infra: Mapping[str, Any]) -> str:
+    """accel_replica_v1: the replica_placement_rule the dataset's label replays ran under (infrastructure.json, written by make_warm_corpus only when it is not
+    first_compatible). Cross-checked against the cell config the dataset was generated from (generation_provenance.json `--cell-config`): a cell that says
+    fastest_compatible whose replay infrastructure does not carry it was labelled under the wrong physics, and no cache may be built from it."""
+    from src.placement.replica_rule import FIRST, validate
+
+    rule = validate(infra.get("replica_placement_rule") or FIRST)
+    prov_path = dataset_dir / "generation_provenance.json"
+    cell_rule = None
+    if prov_path.exists():
+        argv = json.loads(prov_path.read_text()).get("argv") or []
+        for i, a in enumerate(argv):
+            if a == "--cell-config" and i + 1 < len(argv):
+                cell_rule = _cell_config_rule(argv[i + 1])
+                break
+    if cell_rule is not None and cell_rule != rule:
+        raise RuntimeError(f"{dataset_dir}: the cell config sets replica_placement_rule={cell_rule!r} but the dataset's replay infrastructure carries {rule!r}; "
+                           "it was labelled under the wrong physics (rebuild it with make_warm_corpus from the commit that carries the rule)")
+    return rule
+
+
+@functools.lru_cache(maxsize=None)
+def _cell_config_rule(path: str) -> Optional[str]:
+    p = Path(path)
+    if not p.is_file():
+        return None  # the cell config is gone; the dataset's own infrastructure.json is then the only record
+    return (json.loads(p.read_text()).get("preinit") or {}).get("replica_placement_rule", "first_compatible")
 
 
 def _inflight_capture_of_seed(seed: Mapping[str, Any]) -> str:
@@ -721,6 +753,13 @@ def _inflight_capture_of_seed(seed: Mapping[str, Any]) -> str:
     by_type = snapshot.get("replicas_by_type") or seed.get("replicas_by_type") or {}
     specs = [s for lst in by_type.values() for s in lst]
     return "service_end_v1" if any("current_task_remaining" in s for s in specs) else "legacy"
+
+
+def _single_replica_rule(all_datasets: Mapping[str, Mapping[str, Any]]) -> str:
+    rules = {d.get('replica_placement_rule', 'first_compatible') for d in all_datasets.values()}
+    if len(rules) > 1:
+        raise RuntimeError(f"datasets were labelled under different replica_placement_rules {sorted(rules)}; a cache has one")
+    return next(iter(rules)) if rules else "first_compatible"
 
 
 def _single_inflight_capture(all_datasets: Mapping[str, Mapping[str, Any]]) -> str:
@@ -2260,7 +2299,8 @@ def main():
         # same bug class the inference_feature_layout confound (40.8% of total_rtt) had.
         'topology_feature_contract': resolve_topology_feature_contract(),
         # the transfer model / replica release / scale-out the exchange seconds and candidate sets were built under
-        'physics_env': {**current_physics_env(), 'inflight_capture': _single_inflight_capture(all_datasets)},
+        'physics_env': {**current_physics_env(), 'inflight_capture': _single_inflight_capture(all_datasets),
+                        'replica_placement_rule': _single_replica_rule(all_datasets)},
         # the candidate-slate rule every dataset was built under (None: the sweep's own slate); serving must run the same one
         'candidate_slate': _single_candidate_slate(all_datasets),
         # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk

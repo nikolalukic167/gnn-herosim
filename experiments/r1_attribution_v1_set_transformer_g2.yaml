@@ -22,6 +22,7 @@ env:
   PARTIAL_STATE_PEER_MASS: '1'
   NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
   PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
   NEAR_RTT_SPLIT_ARTIFACT: experiments/r1_attribution_v1_split.json
   NEAR_RTT_ARM: set_transformer
 args:
