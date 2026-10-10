@@ -130,9 +130,28 @@ def serving_slate() -> str | None:
 
 def require_matching_slate(trained: str | None, *, what: str) -> None:
     """A checkpoint trained on a pruned slate must be served over it and a checkpoint trained without one must not be: the candidate
-    set is part of what the weights were fitted on."""
+    set is part of what the weights were fitted on. The one declared serving variant, NO_SPLIT_ENV, keeps the candidate set and only
+    changes how an over-MAX_PLANS batch is decoded; it is accepted here by name (serving_no_split validates it) and recorded in the
+    run's provenance, never implied."""
     now = serving_slate()
     if (trained or None) != now:
         raise ValueError(
             f"{what}: trained with candidate_slate={trained!r} but this run serves with {ENV}={now!r}; export {ENV}="
             f"{trained or 'unset'} to match (the candidate set is part of the training distribution)")
+    serving_no_split()
+
+
+# ---- declared serving variant: decode an over-MAX_PLANS batch whole ---------------------------------------------------------
+NO_SPLIT_ENV = "GNN_SLATE_NO_SPLIT"
+
+
+def serving_no_split() -> bool:
+    """GNN_SLATE_NO_SPLIT=1: keep every task's top-TOP_K candidates but decode a batch whose pruned plan space exceeds MAX_PLANS
+    whole, in one sequential decode, instead of in SUB_BATCH-task sub-batches that cannot see each other's partners. Serving only:
+    the corpus labels sub-batches, so a whole batch above MAX_PLANS (9-10 tasks) is outside what the weights were fitted on."""
+    raw = os.environ.get(NO_SPLIT_ENV, "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: {NO_SPLIT_ENV} must be 0 or 1, got {raw!r}")
+    if raw == "1" and serving_slate() is None:
+        raise ValueError(f"FAIL LOUD: {NO_SPLIT_ENV}=1 is a variant of {ENV}={RULE}, which is unset")
+    return raw == "1"

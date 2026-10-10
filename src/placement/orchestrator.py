@@ -214,6 +214,8 @@ class Orchestrator:
             # accel_slate_instr: the declared-pruning slate's books (src/policy/gnn/scheduler.py), measurement only
             "slate_declared_batches", "slate_declared_pruned", "slate_declared_sub_batched", "slate_declared_groups",
             "slate_declared_tasks", "slate_declared_sub_batched_tasks", "slate_declared_max_tasks", "slate_declared_max_group",
+            # GNN_SLATE_NO_SPLIT: over-100k batches decoded whole instead of in sub-batches
+            "slate_declared_unsplit",
             "cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change",
             "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves",
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",

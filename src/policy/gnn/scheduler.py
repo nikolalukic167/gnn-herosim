@@ -844,8 +844,13 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.slate_declared_sub_batched_tasks = getattr(self, "slate_declared_sub_batched_tasks", 0) + (len(batch_tasks) if sl.sub_batched else 0)
         self.slate_declared_max_tasks = max(getattr(self, "slate_declared_max_tasks", 0), len(batch_tasks))
         self.slate_declared_max_group = max(getattr(self, "slate_declared_max_group", 0), max(len(g) for g in sl.groups))
+        groups = sl.groups
+        if sl.sub_batched and declared_slate.serving_no_split():
+            # declared serving variant: the same pruned candidates, one sequential decode over the whole batch
+            groups = [list(range(len(batch_tasks)))]
+            self.slate_declared_unsplit = getattr(self, "slate_declared_unsplit", 0) + 1
         placements: Dict[int, Tuple[int, int]] = {}
-        for group in sl.groups:
+        for group in groups:
             sub_tasks = [batch_tasks[i] for i in group]
             allowed = {k: {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for k, i in enumerate(group)}
             sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
