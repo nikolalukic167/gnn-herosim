@@ -179,6 +179,7 @@ def _one(job):
         scored_ids = win | {int(r["gid"]) for r in fid["batch"]}
         pairs_touch = pairs_cut = 0
         batch_gids = {int(r["gid"]) for r in fid["batch"]}
+        ghost_ids = {int(g["tid"]) for g in fid.get("ghosts") or []}  # in flight at t0, possibly decided at t0 itself before the batch
         siblings = set()
         for a, b, payload in trace.get("peer_exchange") or []:
             a, b = int(a), int(b)
@@ -202,7 +203,7 @@ def _one(job):
                 beyond += 1
                 stub_rows.setdefault(ids[inside], []).append((other, tab["node"][other], float(payload), tab["scheduled"][other] - t0))
                 continue
-            if tab["scheduled"][other] >= t0 - 1e-9 and tab["done"][other] > t0:
+            if other not in ghost_ids and tab["scheduled"][other] >= t0 - 1e-9 and tab["done"][other] > t0:
                 raise RuntimeError(f"window task {inside}'s partner {other} is unscheduled at t0 but not in the window")
             stub_rows.setdefault(ids[inside], []).append((other, tab["node"][other], float(payload), None))
         if pairs:
