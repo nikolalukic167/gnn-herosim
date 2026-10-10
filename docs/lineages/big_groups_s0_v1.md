@@ -65,6 +65,14 @@
 
 ## Record (newest first)
 
+- 2026-10-11 15:10 — **Health: CD is healthy at every (G, rung)** (S7; 856296/856297, clean gate harness at ae113145,
+  `cd` s0; 16700–16707 × 4 windows; 128/128 cells, 0 failed).
+  - Run end over the last arrival: median 1.006–1.018, max 1.044 (bar ≤ 1.10). Effective queue share ≤ 0.67.
+  - **Paired, G=8 vs current:**
+    - moderate: mean RTT ratio median 1.13, p95 ratio 1.07;
+    - heavy: RTT ratio 1.04, p95 ratio 1.03;
+    - effective share −0.02 / −0.05.
+  - Load did not move with G. A g0 cross-check against S6's capture raw is pending.
 - 2026-10-11 14:40 — **States built; M3 and slate sizes read before the search** (S6; capture 856295 32/32; build
   856302 at 16778f28; label-reproduction check 856294 381/381 exact after the 1 ms dispatch fix 5e80b996; the first
   check 856288 failed on that offset).
