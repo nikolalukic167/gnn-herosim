@@ -40,6 +40,8 @@ CONTINUATION = {
     "cd": ("peer_greedy_network_cd_peer_greedy_network_cd", {}),
     "live": ("peer_greedy_network_batch_peer_greedy_network_batch", {}),
 }
+DETAIL = ("scheduledTime", "arrivedTime", "startedTime", "doneTime", "coldStartTime", "coldStarted", "peerExchangeTime",
+          "peerRendezvousWait", "linkWaitTime", "executionNode", "executionPlatform")
 PERTURBED = ("compute_remaining", "io_remaining", "net_remaining", "hold_remaining", "cold_remaining")
 
 
@@ -230,7 +232,12 @@ def _one(job):
                 else:
                     free.append(i)
             if not out:
-                res = orig_inf(self, batch_tasks, system_state, queue_snapshot, temporal_state)
+                restrict = {int(t.id): allowed[local_of[int(t.id)]] for t in batch_tasks if int(t.id) in local_of}
+                self._pg_allowed = restrict or None
+                try:
+                    res = orig_inf(self, batch_tasks, system_state, queue_snapshot, temporal_state)
+                finally:
+                    self._pg_allowed = None
             else:
                 res = {}
                 if free:
@@ -297,6 +304,7 @@ def _one(job):
                     pairs_dropped_beyond_cut=dropped, pairs_touching_scored=pairs_touch, pairs_touching_scored_cut=pairs_cut, stubs=sum(len(v) for v in stub_rows.values()),
                     q=q_batch + q_win, q_batch=q_batch, q_window=q_win, plan=plan, label_of_plan=label,
                     window_lat={str(g): lat(ids[g]) for g in window}, batch_lat=[lat(b) for b in fr.batch_local],
+                    batch_detail=[{k: trs[b].get(k) for k in DETAIL} for b in fr.batch_local],
                     decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
                     exact_fallbacks=int(sc.get("pg_exact_fallbacks") or 0), wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
@@ -342,7 +350,7 @@ def truth_one(job):
         return dict(base, t0=t0, n_cut=n_cut, history_max_abs=max(hist) if hist else 0.0, history_off=hist_off, batch_moved=moved,
                     window_same=sorted(win_truth) == sorted(window), n_window=len(win_truth),
                     q=sum(lat(g) for g in batch) + sum(lat(i) for i in win_truth), q_batch=sum(lat(g) for g in batch),
-                    q_window=sum(lat(i) for i in win_truth), window_lat={str(i): lat(i) for i in win_truth}, wall=time.time() - t_start)
+                    q_window=sum(lat(i) for i in win_truth), batch_detail=[{k: trs[g].get(k) for k in DETAIL} for g in batch], window_lat={str(i): lat(i) for i in win_truth}, wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
         return dict(base, error=f"{type(e).__name__}: {str(e)[:300]}")
 
