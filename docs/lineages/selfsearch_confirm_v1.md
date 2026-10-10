@@ -22,7 +22,7 @@ had heavy at only −1.65 % (DIRECTION-ONLY). This tests the self-search arm whe
   - **Secondary, does the search add:** the same two checkpoints, no-split without self-search.
   - **Secondary, MP:** self-search on a separately trained MP-OFF twin's score (the g3 recipe with message passing
     disabled in training and serving, seeds 1 and 2). It runs only if the twin is trained and contract-checked before
-    the gate starts. Otherwise the arm is recorded as not run, and no MP claim is possible.
+    the single read (amended 2026-10-11 11:30). Otherwise the arm is recorded as not run, and no MP claim is possible.
   - **Descriptive (no family):** cd_exactS and cdxapply. These are the fair-bar hand searches holding the model's
     information.
 - **Statistic:** paired % per topology (median over windows and seeds), then the median over 24, with an exact two-sided
@@ -45,6 +45,13 @@ had heavy at only −1.65 % (DIRECTION-ONLY). This tests the self-search arm whe
 
 ## Record (newest first)
 
+- 2026-10-11 11:30 — **Amendment before any gate data (coordinator):** the MP twin arm may be submitted as a separate
+  job after the main gate starts. Conditions:
+  - it runs on the same pin plus only the twin kind, merged with identity shown;
+  - it runs before the single read. The reader (fdd6f798) reads every arm once, after all cells land.
+  - The primary family is untouched.
+  - Gate setup: topologies 16490–16513 (spares 16514–16523, selection md5 15a36704); inputs 856266, 24/24 built; harness
+    rp/selfsearch-confirm 79ea002c; reader fdd6f798, committed first.
 - 2026-10-11 10:00 — **Registered** (coordinator; the trigger in `accel_nosplit_v1`'s gnn_selfsearch entry fired).
   - S4: id scan, inputs, harness, reader.
   - S7: MP-OFF twin training at the g3 recipe, in parallel.
