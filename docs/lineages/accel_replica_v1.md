@@ -53,7 +53,7 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 - 2026-10-10 — **Corpus PASS; headroom screen** (S5's build `rp/accel-corpus` e8cfc555; check 855578 exit 0; S6
   screen 855605, descriptive).
-  - **Check:** 2,784 batches, 3,169 datasets (train 2,731, held-out 438), 0 problems, max |diff| 0.0 (from S5's check log; S6 quoted 5.7e-14, which matches the scale160 figure). The rule line is in 464 of 464 build logs.
+  - **Check:** 2,784 batches, 3,169 datasets (train 2,731, held-out 438), 0 problems, max |diff| 5.68e-14 over all datasets (S5 first quoted a single dataset's 0.0, corrected). The rule line is in 464 of 464 build logs.
   - **Screen**, train moderate / heavy:
     - share above 1 % joint regret: 48.6 / 61.0 %;
     - exact ties: 14.7 / 30.4 %;
