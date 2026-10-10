@@ -215,7 +215,9 @@ def _one(job):
             ref = json.load(open(Path(grp["physics_from"]) / "infrastructure.json"))["live_snapshot_seed"]["fidelity_replay"]
             spec = {"snapshot": snap, "cell_config": ref["cell_config"], "sim_input": ref["sim_input"],
                     "live_run_params": ref["live_run_params"]}
-            replicas_by_type = snap["replicas_by_type"]
+            from src.placement.live_snapshot_seed import build_live_snapshot_seed
+
+            replicas_by_type = build_live_snapshot_seed(snap)["replicas_by_type"]
             types = [r["fn"] for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
             rows = []
         else:
