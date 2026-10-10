@@ -1,6 +1,6 @@
 # accel_moderate_confirm_v1 — does the accel moderate-rung GNN lead over CD hold on fresh topologies?
 
-**Status:** `REGISTERED` (2026-10-10). Every bar below was signed before any data.
+**Status:** `ACTIVE` (2026-10-10), gate running. Registered 2026-10-10. Every bar below was signed before any data.
 
 **Why.** `accel_replica_v1` closed NOT-SEPARATED. At the moderate rung gnn_eng read −5.45 % (Holm .065) and physmp
 −6.05 % (Holm .081) against CD, on 12 topologies. Heavy ran against the GNN (+2.7 %). This node tests the moderate
@@ -35,6 +35,12 @@ what make the test honest.
 
 ## Record (newest first)
 
+- 2026-10-10 12:45 — **Launched, sealed** (S4).
+  - Inputs: rp/accel-confirm 8f6f45f0, data only (`accel_moderate_confirm_v1_selected.json`). All 24 cfgs carry
+    fastest_compatible, and the moderate windows are byte-identical to the accel gate's (factor 1/11.6139).
+  - Arrays at 9e5ee729: classical 855775 (cd and selfpredict at s0, 192 cells) and learned 855776 (ra_gnn_eng, physmp
+    and cdapply at s1 and s2, 576 cells). Output `accel_confirm/{classical,learned}_9e5ee729`.
+  - The builder also made heavy inputs (m 27.6227) for these ids. They are never run and stay on disk.
 - 2026-10-10 12:20 — **Id range verified** (S5). 16321–16344 is disjoint from every range in use:
   - scale_160 16001–16020 and 16101–16200;
   - accel 16201–16320;
