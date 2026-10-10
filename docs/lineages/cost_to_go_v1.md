@@ -51,6 +51,23 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 19:00 — **Rung (b) design signed; gate arms fixed before any MLP or gate data** (S6 design, coordinator
+  rulings).
+  - **Data:** the train set is 2,174 states (H=5, 5 plans, 856258). The S0 rows (346 held-out) are eval, read once.
+  - **MLP V:** pointwise DeepSets over per-replica post-plan features, with mean ⊕ sum pooling and about 14k
+    parameters. Paired Huber loss on A = Q5(k) − Q5(policy).
+    - Selection: epoch and λ on a train-topology slice (positions ≡ 0 mod 5). Seed 0 is reported.
+    - Trainer `value_mlp` via run_experiment.py, W&B logged, with a determinism case added.
+    - **Two declared variants**, with and without in-flight (ghost b1), chosen on SELECTION only. The in-flight
+      variant needs the live parity proof before any gate.
+  - **Gate arms (fixed):**
+    - cd_exactS (the bar);
+    - cd_exactS + hand V (own service + cold), re-ranking cd_exactS's top-5-by-S with dS + λ·ΔV;
+    - cd_exactS + MLP V (same form), only if it beats the hand V on SELECTION;
+    - plain CD, descriptive.
+    - Over-cap batches serve cd_exactS's fallback unchanged. Holm over the V arms gated.
+  - The selection file for 16369–16392 needs the DESIGN-READY verdict before launch (see `selfsearch_confirm_v1`,
+    856305).
 - 2026-10-11 10:15 — **S1 PASSES at every (H, ε); H = 5 is fixed by the registered rule** (S6; 856121 at a0048522,
   read ca5b236b; 7,080 rollouts, 0 errors; 100 S0 states × ±ε).
   - Median Spearman is 1.000 in all 6 cells.
