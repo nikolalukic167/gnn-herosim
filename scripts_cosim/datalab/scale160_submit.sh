@@ -1,5 +1,5 @@
 #!/bin/bash
-# scale_160_v1: submit cache -> training array (gnn_eng + gnn_eng_physmp, 6 configs, 3 seeds per task = 12 tasks) -> per-arm validation-only selection,
+# scale_160_v1 (and accel_replica_v1: LINEAGE=accel_replica_v1, stem accel-replica-v1): submit cache -> training array (gnn_eng + gnn_eng_physmp, 6 configs, 3 seeds per task = 12 tasks) -> per-arm validation-only selection,
 # on the datalab login node, as ONE chain (14 jobs). The r1a recipe unchanged: same 6-config grid, 100-epoch cap, NEAR_RTT_SKIP_FINAL_TEST=1, val.json
 # sidecars. twin_eng is prepared (experiments/scale_160_v1_twin_eng_g*.yaml via make_r1a_arm_configs.py --lineage scale_160_v1 --arms twin_eng) but is
 # NOT part of this chain: it trains only if a GNN wins.
@@ -12,7 +12,7 @@
 set -euo pipefail
 CORPUS=${CORPUS:?FAIL LOUD: set CORPUS}; SUF=${SUF:?FAIL LOUD: set SUF}; CORPUS_SPLIT=${CORPUS_SPLIT:?FAIL LOUD: set CORPUS_SPLIT}
 OUT=${OUT:?FAIL LOUD: set OUT}; WT=${WT:?FAIL LOUD: set WT (pinned detached worktree)}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}
-LIMIT=${LIMIT:-44}; TRAIN_MEM=${TRAIN_MEM:-60G}; LINEAGE=scale_160_v1; ARMS="gnn_eng gnn_eng_physmp"; N_TASKS=12
+LIMIT=${LIMIT:-44}; TRAIN_MEM=${TRAIN_MEM:-60G}; LINEAGE=${LINEAGE:-scale_160_v1}; STEM=${STEM:-$(echo "${LINEAGE:-scale_160_v1}" | tr _ -)}; ARMS="gnn_eng gnn_eng_physmp"; N_TASKS=12
 INPUTS=${INPUTS:-$OUT/gate_inputs}
 cd "$WT"
 HEAD=$(git rev-parse HEAD)
@@ -32,6 +32,6 @@ mkdir -p "$OUT"
 export LINEAGE ARMS CORPUS CORPUS_SPLIT SUF HELDOUT_AS_VAL=1
 CACHE_JOB=$(sbatch --parsable --export=ALL,WT="$WT",OUT="$OUT/cache_run" scripts_cosim/datalab/r1a_prod_cache.sbatch)
 TRAIN_JOB=$(sbatch --parsable --dependency=afterok:$CACHE_JOB --array=0-$((N_TASKS - 1)) --mem="$TRAIN_MEM" --export=ALL,WT="$WT" scripts_cosim/datalab/r1a_prod_train.sbatch)
-SEL_JOB=$(sbatch --parsable --dependency=afterok:$TRAIN_JOB --export=ALL,WT="$WT",INPUTS="$INPUTS",OUT="$OUT/selection.json",SPLIT="experiments/${LINEAGE}_split.json",PREFIX=scale-160-v1 scripts_cosim/datalab/r1a_prod_select.sbatch)
+SEL_JOB=$(sbatch --parsable --dependency=afterok:$TRAIN_JOB --export=ALL,WT="$WT",INPUTS="$INPUTS",OUT="$OUT/selection.json",SPLIT="experiments/${LINEAGE}_split.json",PREFIX=$STEM scripts_cosim/datalab/r1a_prod_select.sbatch)
 for j in "$CACHE_JOB" "$TRAIN_JOB" "$SEL_JOB"; do [[ "$j" =~ ^[0-9]+$ ]] || { echo "FAIL LOUD: a submission was refused (got '$j'); cancel the others: scancel $CACHE_JOB $TRAIN_JOB $SEL_JOB"; exit 1; }; done
-echo "cache $CACHE_JOB -> train array 0-$((N_TASKS - 1)) $TRAIN_JOB (mem $TRAIN_MEM) -> selection $SEL_JOB -> $OUT/selection.json ; staged checkpoints under $INPUTS/models/scale-160-v1-<arm>-seed<N>.pt"
+echo "cache $CACHE_JOB -> train array 0-$((N_TASKS - 1)) $TRAIN_JOB (mem $TRAIN_MEM) -> selection $SEL_JOB -> $OUT/selection.json ; staged checkpoints under $INPUTS/models/$STEM-<arm>-seed<N>.pt"
