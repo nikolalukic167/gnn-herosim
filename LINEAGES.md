@@ -36,7 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**cost_to_go_v1**](docs/lineages/cost_to_go_v1.md) | `REGISTERED` | Learned post-batch value (short-horizon rollout advantage) added to exact slate search vs cd_exactS; hard stops on headroom ≥3 % and stability first. |
+| [**cost_to_go_v1**](docs/lineages/cost_to_go_v1.md) | `ACTIVE` | Learned post-batch value on exact slate search vs cd_exactS. S0 passes thinly (4.7/3.3/3.4 % at H5/15/30, tail-only); oracle below the −5 % WIN bar; S1 running. |
 | [**mixed_dispatch_v1**](docs/lineages/mixed_dispatch_v1.md) | `ACTIVE` | Reservations win 11/16 observed comparisons, but the trained DAG successor loses to hand search; dag_resume_s0_v1 also closes its bounded continuation recipe with no relative gain. |
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
 | [**transfer_physics_v1**](docs/lineages/transfer_physics_v1.md) | `ACTIVE` | 2×2 read: CD is fastest in every condition and topology; held replicas made queues dominate (released: queue share 0.05–0.08); Knative's gap shrinks; zero-shot GNN falls further behind. Scale-out factor registered as kpa_scaleout_v1. |
