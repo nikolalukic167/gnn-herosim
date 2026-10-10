@@ -329,6 +329,9 @@ def _one(job):
         def monitor(self):
             if phase > 0:
                 yield self.env.timeout(phase)
+            # live: at each shared instant the KPA tick takes the mutex first and its env.step() then meets the monitor; the
+            # replay's KPA start is scheduled after this process, so one zero-delay yield restores that order
+            yield self.env.timeout(0)
             yield from orig_monitor(self)
 
         PG.PeerGreedyNetworkBatchScheduler._prefix_inference = patched
