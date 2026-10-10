@@ -36,6 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**selfsearch_confirm_v1**](docs/lineages/selfsearch_confirm_v1.md) | `REGISTERED` | Sealed fresh-topology test: pure GNN with search on its own score vs CD at both rungs (dev: −10.7/−9.4 % vs CD, ties cd_exactS); MP-OFF twin secondary. |
 | [**cost_to_go_v1**](docs/lineages/cost_to_go_v1.md) | `ACTIVE` | Learned post-batch value on exact slate search vs cd_exactS. S0 passes thinly (4.7/3.3/3.4 % at H5/15/30, tail-only); oracle below the −5 % WIN bar; S1 running. |
 | [**mixed_dispatch_v1**](docs/lineages/mixed_dispatch_v1.md) | `ACTIVE` | Reservations win 11/16 observed comparisons, but the trained DAG successor loses to hand search; dag_resume_s0_v1 also closes its bounded continuation recipe with no relative gain. |
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
