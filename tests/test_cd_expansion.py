@@ -219,4 +219,10 @@ def test_harness_serves_cdxapply_as_a_named_learned_diagnostic():
     assert 'if kind.endswith("_cdxapply"):\n            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")' in src
     assert 'R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_CDX)' in src   # out of the default grid
     assert 'expands = kind.endswith("_cdxapply") or kind == "cd_expand"' in src
+    # the check reads the flag back from run_provenance, which records a whitelist of env keys
+    import inspect
+
+    from src import executesimulation
+
+    assert '"HEROSIM_PG_CD_EXPANSION"' in inspect.getsource(executesimulation.build_run_provenance)
     assert 'kind.endswith(("_nosplit", "_cdxapply"))' in src
