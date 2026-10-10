@@ -45,6 +45,16 @@ had heavy at only −1.65 % (DIRECTION-ONLY). This tests the self-search arm whe
 
 ## Record (newest first)
 
+- 2026-10-11 17:45 — **MP-OFF twin trained and checked** (S7; rp/accel-twin 2d398731, the gnn_eng **g4** recipe, which
+  is the served checkpoint, with message passing disabled in training and serving; job 856255, 100-epoch cap, W&B
+  gnn-accel-replica-v1).
+  - **Corpus:** the accel_replica_v1 cache (2,731 wf1_train tables plus 438 wf1_heldout as val, split sha f5bc4f51),
+    the same as the original.
+  - **Checkpoints, md5:** seed 1 bc44f9c2…, seed 2 7798e128…. Sidechecks pass.
+  - **Serving smoke 856430:** self-search ran on all batches.
+  - **Offline best-val regret:** twin 0.645 / 0.655 s against gnn_eng g4 0.781 / 0.692 s. That ranks epochs, not
+    arms, but it is disclosed as a prior that the twin may tie or beat the GNN (cf. `gnn_seeded_cd_mp_ablation_v1`).
+  - **Gate harness for the twin arm:** 2c84ab4e = 79ea002c plus one line.
 - 2026-10-11 15:00 — **Gate launched** (S4).
   - Identity at 79ea002c, decision-identical:
     - cd_exactS and physmp no-split: 0 differences;
