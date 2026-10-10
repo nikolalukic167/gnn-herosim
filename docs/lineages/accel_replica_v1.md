@@ -18,6 +18,11 @@ at heavy, so it is no registered win.
   −5.5 % at moderate, and from +4.0 % to +2.7 % at heavy.
 - **Do not quote:** a GNN win, the moderate direction as confirmed, or "message passing helps". No MP twin was trained.
 - A confirmation at moderate would need its own registration on fresh topologies.
+- **Post-close diagnostics (to 2026-10-11, descriptive):**
+  - the strongest hand rule is now cd_exactS: −10.3 / −9.7 % vs CD, ties the GNN-seeded search (cdxapply);
+  - the top-5 slate rarely binds it;
+  - the stakes-weighted retrain is no better live;
+  - the frozen-autoscaler replay bug leaves every reported number intact.
 
 **Why.** Under R1.1, `per_server = 1` places each type's server replica on the **first** compatible platform in the
 node's list order (`src/generate_infrastructure.py:745–765`).

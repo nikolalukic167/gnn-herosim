@@ -1,6 +1,14 @@
 # cost_to_go_v1 — does a learned post-batch value beat exact batch-myopic search?
 
-**Status:** `REGISTERED` (2026-10-10). Every bar below was signed before any data.
+**Status:** `ACTIVE` (2026-10-11). Registered 2026-10-10; every bar below was signed before any data.
+
+**Now (2026-10-11).**
+- **S0 PASSES pooled at every H, but thinly:** the headroom is 4.74 / 3.25 / 3.35 % at H 5/15/30. It sits in a tail
+  (the per-state median is 0).
+- At short H it is mostly S's batch-surrogate error. The post-batch window part reaches the bar only at H30 (3.17 %).
+- **Disclosed ceiling:** the one-step oracle headroom is below the gate's −5 % WIN bar, so expect DIRECTION-ONLY at best.
+- In the split 9–10-task groups the lever is search, not V.
+- S1 is running.
 
 **Why.** Within the declared top-5 slate, exact search on CD's surrogate S (cd_exactS) dominates learned batch scorers
 offline: hit 79.4 % against the GNN's 64.8 %, regret 6.1 % against 21.7 % of the summed optimum (`accel_replica_v1`,
@@ -43,6 +51,45 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 03:40 — **S0: PASS pooled at every H, marginal; S1 launched; ruling** (S6; 855965 at a0048522; 346
+  non-split single-decision held-out states; 7,158 rollouts, 0 errors. Split read 856004 at bd92e30c; S1 856121).
+  - **Headroom** = best of the 6 plans vs cd_exactS, summed share of Σ Q_H(cd_exactS); the bar is 3 %:
+
+    | | H5 | H15 | H30 |
+    |---|---|---|---|
+    | all | 4.74 % | 3.25 % | 3.35 % |
+    | without the GNN slot | 4.43 % | 3.14 % | 3.24 % |
+    | heavy (169) | 1.61 % | 1.88 % | 3.50 % |
+    | moderate (177) | 6.88 % | 4.39 % | 3.22 % |
+    | self-check residual pairs dropped (robustness, not the registered bar) | 4.74 % | 2.81 % | 3.39 % |
+
+    - Per-state median 0.000 % at every H; p90 1.8 / 2.9 / 7.8 %.
+    - cd_exactS's own plan is best in 239 / 226 / 202 states. The GNN plan wins 14 / 14 / 17.
+    - Four self-check residual states are among the winners.
+  - **Decomposition of the headroom:**
+    - batch part 2.85 / 0.92 / 0.18 %. This is S's own surrogate error: within the same plan set, the best label beats
+      cd_exactS's by 26 % of the summed batch label.
+    - post-batch window part 1.89 / 2.33 / 3.17 %. This is the part only a value of the post-batch state can capture.
+  - **Horizon edge:** pairs beyond the cut have median 0.0 % (mean 0.6 % at H5), far under the 30 % flag.
+    cd_exactS fell back to expansion in 170 / 264 / 313 rollouts.
+  - **Exclusions:** heavy 37 split views and 17 multi-decision states; moderate 30 and 8. A first run (855959) was
+    cancelled for mixed code (a96b8f27 / a0048522) and kept unused.
+  - **Split read (38 whole 9–10-task groups, reported apart):**
+    - raw headroom 13.5 / 6.6 / 6.8 %;
+    - almost all of it is search: above the 100k cap, the exact lowest-S slate plan beats cd_exactS's expansion
+      fallback by a median 18.4 % on batch latency;
+    - against the better of cd_exactS and argmin-S, the cost-to-go part is 0.07 / 0.05 / 0.39 %. There the lever is
+      search, not V.
+  - **Ruling (coordinator):**
+    - S0 passes as registered (pooled, every H), so the design proceeds: S1, then hand V, then MLP, then GNN only if
+      the MLP leaves ≥ half the headroom.
+    - **Disclosed before any model:** the one-step oracle headroom (3.2–3.4 % at H15/30) is below the gate's −5 % WIN
+      bar. A perfect V captures at most the oracle, so a WIN would need live compounding beyond it. The expected best
+      outcome is DIRECTION-ONLY.
+    - Heavy has headroom only at H30.
+    - Per rule 6 the registered live gate still runs, with whatever V arms survive selection, and at minimum the hand V.
+    - The search finding (the cap fallback in large groups) is recorded as an input for cd_exactS's successor, not as
+      part of this lineage.
 - 2026-10-11 02:30 — **Gate inputs built and sealed** (S4; 856084 at 9e5ee729, s160_gate_inputs.sbatch).
   - **Topologies:** 16369–16392, 24 of 24 built, 0 failures. Spares 16393–16399 are unbuilt.
   - **Range check:** a scan of datalab and every rp/* branch; the ids are disjoint from all prior pools, validation, gate
