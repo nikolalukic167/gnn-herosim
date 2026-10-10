@@ -273,3 +273,62 @@ def test_decision_hook_wires_ctx_and_s_totals(monkeypatch):
     assert out["inflight"]["1:7"] == 4.0 and out["drain"]["1:7"] == 2.0
     assert out["replicas"][0]["cold_s"] == 3.0 and out["replicas"][0]["idle_s"] == 60.0
     assert out["local_batch"] == [0] and out["s_total"] == 3.0 and sum(out["s_scores"]) == out["s_total"]
+
+
+# ---- in-flight term: one definition for replay and live ----
+from scripts_cosim import cost_to_go_handv_inflight as fly
+
+
+def _g(q, stage, **kw):
+    return dict({"q": q, "tid": 1, "exec": 0.5, "output": 0.1}, stage=stage, **kw)
+
+
+def test_ghost_remaining_by_stage():
+    assert fly.ghost_remaining_seconds(_g("n:1", "input_io", io_remaining=4.0)) == pytest.approx(4.6)
+    assert fly.ghost_remaining_seconds(_g("n:1", "cold", cold_remaining=1.0, io_remaining=2.0)) == pytest.approx(3.6)
+    assert fly.ghost_remaining_seconds(_g("n:1", "compute", compute_remaining=0.2)) == pytest.approx(0.3)
+    assert fly.ghost_remaining_seconds(_g("n:1", "lock_wait")) == pytest.approx(0.6)
+    assert fly.ghost_remaining_seconds(_g("n:1", "rendezvous", io_remaining=0.0)) == pytest.approx(0.6)
+    assert fly.ghost_remaining_seconds(_g("n:1", "ingress", net_remaining=1.0, io_remaining=2.0)) == pytest.approx(3.6)
+    with pytest.raises(ValueError):
+        fly.ghost_remaining_seconds(_g("n:1", "bogus"))
+
+
+def test_platform_inflight_sum_and_max():
+    recs = [_g("a:1", "input_io", io_remaining=4.0), _g("a:1", "lock_wait"), _g("b:2", "lock_wait")]
+    assert fly.platform_inflight(recs, "b1") == {"a:1": pytest.approx(5.2), "b:2": pytest.approx(0.6)}
+    assert fly.platform_inflight(recs, "b2") == {"a:1": pytest.approx(4.6), "b:2": pytest.approx(0.6)}
+    with pytest.raises(ValueError):
+        fly.platform_inflight(recs, "b3")
+
+
+def test_add_inflight_matches_on_platform_id_and_counts_overlap():
+    feat = {"load_after": {"7:11": 1.0, "8:12": 2.0}, "type_platforms": {"t": ["7:11"], "u": ["8:12", "7:11"]}}
+    ghosts = [dict(_g("node3:11", "lock_wait"), tid=5), dict(_g("node3:11", "lock_wait"), tid=6)]
+    out = fly.add_inflight(feat, ghosts, queued_gids=[6, 9])
+    assert out["inflight_b1"] == {"7:11": pytest.approx(1.2), "8:12": 0.0}
+    assert out["inflight_b2"]["7:11"] == pytest.approx(0.6)
+    assert out["load_after_b1"] == {"7:11": pytest.approx(2.2), "8:12": 2.0}
+    assert out["ghost_queue_overlap"] == 1
+    with pytest.raises(ValueError):
+        fly.add_inflight(feat, [_g("node3:99", "lock_wait")])
+
+
+def test_live_accessor_reads_the_same_records(monkeypatch):
+    import src.placement.snapshot_fidelity as sf
+
+    class P:
+        admitted = None
+        inflight = ["t1", "t2"]
+        rendezvous_procs = {"t2": object()}
+
+    seen = []
+
+    def fake(platform, task, pool, now, fn, rendezvous):
+        seen.append((task, pool, rendezvous))
+        return _g("node3:11", "lock_wait") if task == "t1" else _g("node3:11", "rendezvous", io_remaining=0.0)
+
+    monkeypatch.setattr(sf, "_ghost_record", fake)
+    assert fly.live_inflight_remaining(P(), 10.0, "b1") == pytest.approx(1.2)
+    assert fly.live_inflight_remaining(P(), 10.0, "b2") == pytest.approx(0.6)
+    assert seen[:2] == [("t1", "inflight", False), ("t2", "inflight", True)]
