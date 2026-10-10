@@ -51,6 +51,17 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Contract gap closed; learned-family identity PASS** (S7, `rp/accel-train` 5b5dc011).
+  - `replica_placement_rule` is now a cache_physics key; absent reads as first_compatible.
+    - The cache cross-checks each dataset's replay infrastructure against its cell config, and refuses mixed or wrongly
+      labelled data.
+    - The sidecar carries the rule; both serving loaders refuse a mismatch, in both directions.
+    - 67 tests pass.
+  - **Default-rule identity, learned family:** ra_gnn_eng on 9101 moderate g0, served at base 315f660b and at 5b5dc011.
+    The summaries are identical except `code`. The requirement is discharged.
+  - Identity now holds for every family except random_network, which is nondeterministic at a single commit.
+  - Gate (S4): inputs `rp/accel-gate` 41ef627b, byte-identical to the corpus chain. Every arm runs at one commit that
+    merges 5b5dc011.
 - 2026-10-10 — **Worth-it screen PASS → GO** (coordinator).
   - **W2** (S7, 855318 at 5e21b11f, post-fix, rule line in every build log): share of scored batches above 1 % joint
     regret.
