@@ -1,6 +1,18 @@
 # accel_nosplit_v1 — does the accel GNN beat CD when split peer groups are served whole?
 
-**Status:** `ACTIVE` (2026-10-10), gate running. Registered 2026-10-10. Every bar below was signed before any data.
+**Status:** `CLOSED` (2026-10-10) — **DIRECTION-ONLY** (moderate CONFIRMED, heavy DIRECTION-ONLY; no WIN). Registered
+2026-10-10; every bar below was signed before its data.
+
+**Outcome.** Serving split groups whole makes the accel GNN beat plain CD at moderate, confirmed on 24 fresh
+topologies. It also turns heavy from a loss into a small lead. It does not beat the stronger hand bar.
+- **vs CD, moderate:** gnn_eng −6.93 % (23/24, Holm <.0001); physmp −7.71 % (22/24, Holm <.0001). Both CONFIRMED.
+- **vs CD, heavy:** gnn_eng −1.65 % (15/24, Holm .079); physmp −1.05 % (Holm .32). DIRECTION-ONLY.
+- **Flag off** on the same topologies: −4.3 / −4.8 % moderate, +4.1 / +4.3 % heavy. The sub-batch cut was the heavy
+  loss.
+- **vs cd_expand** (CD + α-expansion; descriptive, it holds the same information): −1.2 / −1.1 % moderate (n.s.),
+  +2.7 / +3.5 % heavy (cd_expand faster, 5 and 3 of 24).
+- **cd_pull** (CD + pull hold; information the GNN lacks): −4.2 / −8.9 % vs CD.
+- **Do not quote** a win over the strongest hand bar, or any message-passing claim (no MP-off twin).
 
 **Why.** In `accel_replica_v1` the GNN beat CD on every peer group of at most 8 tasks. It lost only on 9–10-task groups,
 which the declared slate splits into blind sub-groups above 100k plans (S5, 855815). Serving those groups whole
@@ -34,6 +46,24 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-10 21:00 — **Gate read: DIRECTION-ONLY, closed** (S4; one read, job 855897, reader ee821695; output
+  `accel_nosplit/read_acbea783.{json,txt}`; 2,688 of 2,688 summaries: classical 576, learned 1,920, cd_expand 192;
+  0 failed, none killed, none above 5× CD cost; the sensitivity pass is identical).
+
+  | Arm vs CD | Moderate | Heavy |
+  |---|---|---|
+  | gnn_eng no-split (primary) | −6.93 % (23/24, Holm <.0001) | −1.65 % (15/24, p .040, Holm .079) |
+  | physmp no-split (primary) | −7.71 % (22/24, Holm <.0001) | −1.05 % (15/24, Holm .32) |
+  | gnn_eng flag off | −4.31 % (17/24) | +4.10 % (5/24) |
+  | physmp flag off | −4.82 % (16/24) | +4.30 % (5/24) |
+  | cd_pull | −4.18 % (22/24) | −8.89 % (24/24) |
+  | self-predict | −1.09 % | −0.44 % |
+  | CD←GNN (flag off) | −3.67 % (23/24) | −1.70 % (21/24) |
+
+  - **No-split GNN vs cd_expand** (paired, descriptive):
+    - gnn_eng: −1.20 % (15/24, p .17) / +2.68 % (5/24, p .0008);
+    - physmp: −1.13 % (p .23) / +3.49 % (3/24, p .0001).
+  - **Median decision cost per task:** no-split 6.1 / 5.6 ms, cd_expand 0.57 / 0.67 ms, CD 0.14 / 0.16 ms.
 - 2026-10-10 19:40 — **Amendment, before any read: cd_expand added as a descriptive arm** (coordinator, on SCIENTIST's
   advice).
   - `cd_expand` (CD + exact α-expansion moves, rp/cd-expand 8e3d39c6, which is acbea783 + expansion, off by default and

@@ -36,7 +36,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**accel_nosplit_v1**](docs/lineages/accel_nosplit_v1.md) | `ACTIVE` | Accel GNN served with split 9–10-task groups decoded whole vs CD, 24 fresh topologies, both rungs, Holm over 4; cd_pull descriptive. |
 | [**mixed_dispatch_v1**](docs/lineages/mixed_dispatch_v1.md) | `ACTIVE` | Reservations win 11/16 observed comparisons, but the trained DAG successor loses to hand search; dag_resume_s0_v1 also closes its bounded continuation recipe with no relative gain. |
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
 | [**transfer_physics_v1**](docs/lineages/transfer_physics_v1.md) | `ACTIVE` | 2×2 read: CD is fastest in every condition and topology; held replicas made queues dominate (released: queue share 0.05–0.08); Knative's gap shrinks; zero-shot GNN falls further behind. Scale-out factor registered as kpa_scaleout_v1. |
@@ -57,6 +56,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**accel_nosplit_v1**](docs/lineages/accel_nosplit_v1.md) | `CLOSED` | DIRECTION-ONLY: whole-group serving; GNN −6.9/−7.7 % vs CD at moderate (CONFIRMED, 24 fresh), −1.7/−1.1 % heavy; behind cd_expand at heavy (+2.7/+3.5 %). |
 | [**accel_moderate_confirm_v1**](docs/lineages/accel_moderate_confirm_v1.md) | `CLOSED` | DIRECTION-ONLY: 24 fresh topologies, moderate; gnn_eng −4.4 %, physmp −3.8 % vs CD (Holm .09); CD←GNN −3.8 % 24/24. Lead real in direction, ~−4 % magnitude. |
 | [**accel_replica_v1**](docs/lineages/accel_replica_v1.md) | `CLOSED` | NOT-SEPARATED: replicas on fastest platform; GNN −5.5/−6.1 % vs CD at moderate (Holm .07/.08), +2.7 % at heavy; CD←GNN −5.0/−3.4 % (12/12, learned seed). No win. |
 | [**scale_160_v1**](docs/lineages/scale_160_v1.md) | `CLOSED` | CD-FASTER at 160c×24s: gnn_eng +1.2/+4.0 %, physmp +1.1/+3.7 % vs CD (heavy Holm-confirmed, moderate not separated); CD←GNN −3.5/−3.3 % (learned seed, no twin). |
