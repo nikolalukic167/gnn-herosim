@@ -227,7 +227,10 @@ def _one(job):
             spec = deepcopy(seed["fidelity_replay"])
             replicas_by_type = seed["replicas_by_type"]
             types = [next(iter(e["application"]["dag"])) for e in json.load(open(ds / "workload.json"))["events"]]
-            rows = [r for r in (json.loads(l) for l in open(ds / "placements" / "placements.jsonl") if l.strip()) if "placement_plan" in r]
+            sweep = ds / "placements" / "placements.jsonl"
+            # a dry-run fidelity dataset (big_groups_s0_v1) has no sweep: no label lookup, and the policy is not restricted to it
+            rows = ([r for r in (json.loads(l) for l in open(sweep) if l.strip()) if "placement_plan" in r]
+                    if sweep.exists() or not json.load(open(ds / "generation_provenance.json")).get("dry_run") else [])
         if not Path(spec["sim_input"]).exists():
             spec["sim_input"] = str(REPO / "data" / "nofs-ids")
         if eps:
@@ -238,12 +241,19 @@ def _one(job):
                    for t, specs in replicas_by_type.items()}
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
 
-        trace = json.load(open(job["workload"]))
-        arrivals = [float(e["timestamp"]) for e in trace["events"]]
-        tab = json.load(open(job["table"]))
-        window, n_cut = window_of(fid, t0, H, arrivals, tab, None)
-        if tab["n"] < n_cut:
-            raise RuntimeError(f"table has {tab['n']} tasks, the rollout needs {n_cut}")
+        if job.get("table") is None:
+            # batch-only scoring (big_groups_s0_v1 reference search): the label's own setting, the snapshot and its batch, no
+            # window and no stubs, so neither the live table nor the trace is needed
+            if H >= 0:
+                raise RuntimeError("a job without a table must be batch-only (H < 0)")
+            trace, arrivals, tab, window, n_cut = {}, [], None, [], 0
+        else:
+            trace = json.load(open(job["workload"]))
+            arrivals = [float(e["timestamp"]) for e in trace["events"]]
+            tab = json.load(open(job["table"]))
+            window, n_cut = window_of(fid, t0, H, arrivals, tab, None)
+            if tab["n"] < n_cut:
+                raise RuntimeError(f"table has {tab['n']} tasks, the rollout needs {n_cut}")
 
         ids = snapshot_fidelity.local_ids(fid)  # live id -> replay id for queued + batch
         wl = deepcopy(fr.wl)
