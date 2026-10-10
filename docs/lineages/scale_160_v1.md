@@ -1,7 +1,22 @@
 # scale_160_v1 — does a GNN beat CD at 160 clients × 24 servers?
 
-**Status:** `ACTIVE` (2026-10-10). The go/no-go checks passed, the corpus is built, and training is running.
-Registered 2026-10-10; every bar below was signed before its data.
+**Status:** `CLOSED` (2026-10-10) — **CD-FASTER**. Registered 2026-10-10; every bar below was signed before its data.
+
+**Outcome.** Size did not change the r1a answer: no learned arm beats CD at 160c × 24s.
+- **Gate:** 855623 at 493fd2f1. 12 fresh topologies; 576 of 576 learned cells and 192 of 192 classical cells; 0 failed
+  or killed.
+- **Paired % vs CD at moderate / heavy:**
+  - gnn_eng: +1.23 % (Holm .85) / +3.95 % (Holm .007).
+  - physmp: +1.13 % (Holm .91) / +3.73 % (Holm .006).
+  - CD is Holm-confirmed faster at heavy; moderate is not separated.
+- **CD←GNN beats CD** by −3.53 / −3.31 % (12 and 11 of 12 topologies; uncorrected p .0005 / .001; descriptive). It is
+  the learned-seed effect again. No MP twin was trained, because the trigger was a GNN win.
+- **Self-predict ties CD:** −0.83 / +0.49 %.
+- **Cost:** the GNN decision takes about 6–7 ms per task, against CD's 160 µs.
+- **Offline vs live:** offline, physmp's validation regret was 0.83 s, against 4.51 s for the additive argmin. That
+  offline edge did not survive live.
+- **Do not quote** "message passing helps", and do not quote the CD←GNN gain as a GNN win.
+- **Sibling:** `accel_replica_v1` (replica placement) is gated separately.
 
 **Why.** At 40c × 6s the placement problem is close to trivial:
 - median candidates per task is 2–3, and 11–37 % of slots have one candidate;
@@ -50,6 +65,23 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 09:45 — **Gate read: CD-FASTER, closed** (S4; learned array 855623 and classical 855254 at 493fd2f1,
+  SEALED; one read, job 855675, `~/s160_read.sh`; output `s160_gate/read_493fd2f1.{json,txt}` on datalab; 768 summaries,
+  0 failed, 12 topologies; the sensitivity pass is identical).
+
+  | Arm vs CD | Moderate | Heavy |
+  |---|---|---|
+  | gnn_eng | +1.23 % (3/12 faster, p .42, Holm .85) | +3.95 % (1/12, p .0024, Holm .0073) |
+  | physmp | +1.13 % (5/12, p .91, Holm .91) | +3.73 % (1/12, p .0015, Holm .0059) |
+  | self-predict (descriptive) | −0.83 % (7/12, p .27) | +0.49 % (5/12, p .85) |
+  | CD←GNN (descriptive) | −3.53 % (12/12, p .0005) | −3.31 % (11/12, p .0010) |
+
+  - **Labels (registered rule):** both arms CD-FASTER. CD is Holm-confirmed faster at heavy; moderate is
+    NOT-SEPARATED. No WIN, so `twin_eng` is not trained.
+  - **Median decision cost per task:** CD 158 / 164 µs, gnn_eng 7.3 / 6.4 ms, physmp 7.0 / 6.2 ms, self-predict
+    109 / 121 µs.
+  - **Spin:** no cell has deferrals above 5× CD's.
+  - **Reachability failures:** CD 51 / 101, CD←GNN 100 / 206, plain GNN arms 3.5–7.5.
 - 2026-10-10 08:35 — **Training done and checkpoints selected** (S7; array 855580 all COMPLETED, slowest task 3 h 00 m;
   selection 855581 exited clean; validation only).
   - **Rule:** lowest mean `val/regret_masked_topo` over 3 seeds. The split has 451 datasets on 8 held-out topologies; the
