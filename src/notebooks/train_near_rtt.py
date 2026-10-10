@@ -337,7 +337,9 @@ if _metadata_path.exists():
     _cache_candidate_slate = _cache_meta.get("candidate_slate")
     from src.placement.cache_physics import require_matching_physics_env
     from src.placement.four_type_features import four_type_enabled
-    require_matching_physics_env(_cache_physics_env, what=f"cache {CACHE_CTX.cache_dir}", require=four_type_enabled())
+    # the trainer is rule-agnostic: it records the cache's replica_placement_rule in the sidecar (serving enforces it)
+    require_matching_physics_env(_cache_physics_env, what=f"cache {CACHE_CTX.cache_dir}", require=four_type_enabled(),
+                                 skip=("replica_placement_rule",))
     # Caches older than CACHE_VERSION 5.7 predate the field and are legacy_v0 by construction.
     _queue_feature_contract = validate_queue_feature_contract(
         _cache_meta.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
