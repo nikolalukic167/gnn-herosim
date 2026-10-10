@@ -208,34 +208,62 @@ def _search_state(job):
         start_q = {k: q(v) for k, v in starts.items()}
         start_q["argmin_s2"] = q(h["argmin_s2"])
         first = min(starts, key=lambda k: (start_q[k], k))
-        cur = [tuple(map(int, c)) for c in starts[first]]
-        cq, sweeps, converged = q(cur), 0, False
         rng = random.Random(f"{job['seed']}:{Path(ds).name}")
-        while True:
-            nb = _neighbours(cur, slates)
-            new = [p for p in nb if tuple(p) not in seen]
-            room = B - len(seen)
-            if new and room <= 0:
-                break
-            if len(new) > room:
-                rng.shuffle(new)
-                new = new[:room]  # the budget ends inside this sweep: a seeded share of it is replayed
-            for p in new:
-                q(p)
-            sweeps += 1 if new else 0
-            done = [p for p in nb if tuple(p) in seen]
-            best = min(done, key=lambda p: (seen[tuple(p)], tuple(p))) if done else None
-            if best is not None and seen[tuple(best)] < cq - 1e-12:
-                cur, cq = [tuple(c) for c in best], seen[tuple(best)]
-                continue
-            converged = len(done) == len(nb)  # every neighbour replayed and none strictly better: a local optimum
-            break
+        sweeps = 0
+
+        def descend(cur):
+            """Best-improvement moves + swaps from `cur` until a local optimum or the budget ends. (plan, latency, converged)"""
+            nonlocal sweeps
+            cur = [tuple(map(int, c)) for c in cur]
+            cq = q(cur)
+            while True:
+                nb = _neighbours(cur, slates)
+                new = [p for p in nb if tuple(p) not in seen]
+                room = B - len(seen)
+                if new and room <= 0:
+                    return cur, cq, False
+                if len(new) > room:
+                    rng.shuffle(new)
+                    new = new[:room]  # the budget ends inside this sweep: a seeded share of it is replayed
+                for p in new:
+                    q(p)
+                sweeps += 1 if new else 0
+                done = [p for p in nb if tuple(p) in seen]
+                best = min(done, key=lambda p: (seen[tuple(p)], tuple(p))) if done else None
+                if best is not None and seen[tuple(best)] < cq - 1e-12:
+                    cur, cq = [tuple(c) for c in best], seen[tuple(best)]
+                    continue
+                return cur, cq, len(done) == len(nb)  # every neighbour replayed and none strictly better: a local optimum
+
+        # first descent, then iterated local search until B is spent (amendment 2026-10-11): perturb the best plan found so
+        # far by moving k = ceil(n/4) seeded-random tasks to a random other candidate of the condition's slate, descend again
+        best_p, best_q, converged = descend(starts[first])
+        first_q, first_replays = best_q, len(seen)
+        n = h["n"]
+        k = max(1, -(-n // 4))
+        movable = [i for i in range(n) if len(slates[i]) > 1]
+        restarts, improved_at, idle = 0, [], 0
+        while len(seen) < B and movable and len(seen) < h["plans_in_slate"] and idle < 200:
+            before = len(seen)
+            p = list(best_p)
+            for i in rng.sample(movable, min(k, len(movable))):
+                p[i] = rng.choice([c for c in slates[i] if c != p[i]])
+            restarts += 1
+            rp, rq, _conv = descend(p)
+            idle = idle + 1 if len(seen) == before else 0  # a restart that replays nothing new (small plan spaces) counts toward the stop
+            if rq < best_q - 1e-12:
+                best_p, best_q = rp, rq
+                improved_at.append(len(seen))
         ranked = sorted(seen.values())
+        cur = min(seen, key=lambda key: (seen[key], key))
         return dict(ds=ds, condition=job.get("condition"), n=h["n"], plans_in_slate=h["plans_in_slate"], slate_sizes=h["slate_sizes"],
                     cd_plan_in_slate=h["cd_plan_in_slate"], s_exact=h["s_exact"], s2_exact=h["s2_exact"],
                     s_evals=h["s_evals"], s2_evals=h["s2_evals"], q_argmin_s=start_q["argmin_s"], q_cd_exacts=start_q["cd_exacts"],
                     q_argmin_s2=start_q["argmin_s2"], q_best=ranked[0], q_second=ranked[1] if len(ranked) > 1 else None,
                     best_plan=[list(c) for c in cur], replays=len(seen), budget=B, sweeps=sweeps, converged=converged,
+                    first_descent_q=first_q, first_descent_replays=first_replays, restarts=restarts, improved_at=improved_at,
+                    best_from_restart=bool(improved_at),
+                    improved_last20=any(x > 0.8 * B for x in improved_at), exhausted=len(seen) >= h["plans_in_slate"],
                     exact_batches=dec.get("exact_batches"), exact_fallbacks=dec.get("exact_fallbacks"),
                     all_q=ranked[:50], wall=time.time() - t0)
     except Exception as e:
@@ -282,12 +310,16 @@ def read(a):
                  m2=median(gap) if gap else float("nan"), m2_1=sum(g <= 0.01 for g in gap) / max(1, len(gap)),
                  m2_5=sum(g <= 0.05 for g in gap) / max(1, len(gap)), m3=sum(x["plans_in_slate"] > CAP for x in v) / len(v),
                  conv=conv, s_exact=sum(x["s_exact"] for x in v) / len(v), replays=median(x["replays"] for x in v),
-                 miss=sum(x["q_argmin_s"] > x["q_best"] * (1 + 1e-9) for x in v) / len(v))
+                 miss=sum(x["q_argmin_s"] > x["q_best"] * (1 + 1e-9) for x in v) / len(v),
+                 restarts=median(x["restarts"] for x in v), from_restart=sum(x["best_from_restart"] for x in v) / len(v),
+                 last20=sum(x["improved_last20"] for x in v) / len(v), exhausted=sum(x["exhausted"] for x in v) / len(v))
         res[key] = m
         print(f"G {key[0]:8s} {key[1]:8s} {key[2]:4s} n {m['n']:3d} | M1 {100*m['m1']:6.2f} % (cd_exactS {100*m['cd']:6.2f} %, argmin-S misses "
               f"{100*m['miss']:.0f} %, S exact {100*m['s_exact']:.0f} %) | M2 med {100*m['m2']:.2f} % <=1 % {100*m['m2_1']:.0f} % <=5 % "
-              f"{100*m['m2_5']:.0f} % | M3 {100*m['m3']:.0f} % | M4 {100*m['m4']:6.2f} % | converged {100*conv:.0f} %, replays med {m['replays']:.0f}"
-              + ("  UNDER-SEARCH CHECK DUE (converged < 50 %)" if conv < 0.5 else ""))
+              f"{100*m['m2_5']:.0f} % | M3 {100*m['m3']:.0f} % | M4 {100*m['m4']:6.2f} % | first descent converged {100*conv:.0f} %, replays med "
+              f"{m['replays']:.0f}, restarts med {m['restarts']:.0f}, best from a restart {100*m['from_restart']:.0f} %, improved in the last "
+              f"20 % of B {100*m['last20']:.0f} %, plan space exhausted {100*m['exhausted']:.0f} %"
+              + ("  B=1,800 CHECK DUE (last-20 % improvement > 30 %)" if key[0] != "Gcurrent" and m["last20"] > 0.3 else ""))
     for cond in ("top5", "none"):
         for g in sorted({k[0] for k in res if k[0] != "Gcurrent"}):
             ks = [(g, r, cond) for r in ("moderate", "heavy") if (g, r, cond) in res]
