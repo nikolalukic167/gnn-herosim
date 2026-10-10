@@ -65,6 +65,17 @@
 
 ## Record (newest first)
 
+- 2026-10-11 15:30 — **Amendment before any measure is read (coordinator):** iterated local search for the reference.
+  - **Why:** the search smoke (856332; only errors, convergence and timing read) converged in 1 sweep after 33–43
+    replays at G8. A one-descent local optimum would bias M1 low at G8.
+  - **New rule:** after convergence, perturb the best plan (reassign ceil(n/4) seeded-random tasks to another
+    candidate) and descend again, until B = 600 is spent; keep the overall best. The rule is the same at every G and in
+    both conditions. Restart counts and restart-found shares are reported.
+  - **Safeguard replaced:** if restarts still improve the best plan in the last 20 % of B for more than 30 % of G8
+    states, rerun 20 seeded states at B = 1,800. If M1 moves by more than 2 points, that G is labelled UNDER-SEARCHED.
+  - Failed runs so far:
+    - search 856303 (dry-run datasets lacked the sweep file; fixed 2aa94043);
+    - 856334 cancelled before any read for this amendment.
 - 2026-10-11 15:10 — **Health: CD is healthy at every (G, rung)** (S7; 856296/856297, clean gate harness at ae113145,
   `cd` s0; 16700–16707 × 4 windows; 128/128 cells, 0 failed).
   - Run end over the last arrival: median 1.006–1.018, max 1.044 (bar ≤ 1.10). Effective queue share ≤ 0.67.
