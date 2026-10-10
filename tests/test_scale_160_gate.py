@@ -80,4 +80,4 @@ def test_accel_replica_selection_is_disjoint_from_its_corpus():
     sel = json.load(open(os.path.join(os.path.dirname(SEL), "accel_replica_v1_selected.json")))
     assert sel["topologies"] == list(range(16301, 16313)) and sel["spares"] == list(range(16313, 16321))
     assert sel["replica_placement_rule"] == "fastest_compatible"
-    assert not set(sel["topologies"] + sel["spares"]) & set(range(16001, 16021)) | set(range(16101, 16301))
+    assert not set(sel["topologies"] + sel["spares"]) & (set(range(16001, 16021)) | set(range(16101, 16301)))
