@@ -50,6 +50,23 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 01:15 (recorded 08:20) — **Size-transfer probe: r1a checkpoints served at 80c×12s** (S6; jobs 855114 and
+  855128; 32 of 32 cells, 0 hung; results `simulation_data/r1a_gate/scale80_9101_263dd915` on datalab; descriptive only,
+  never closes anything).
+  - **Scope:** one topology, 9101, at 80 clients × 12 servers, uncalibrated. The size is out of distribution, but 9101 is
+    in r1a's train split at its native size, so the topology is not.
+  - **Vs CD at moderate / heavy:**
+
+    | Arm | Moderate | Heavy |
+    |---|---|---|
+    | physmp | +5.5 % | +11.3 % |
+    | gnn_eng | +3.5 % | +11.4 % |
+    | CD←GNN | −4.9 % | −0.5 % |
+    | self-predict | +3.5 % | +7.0 % |
+
+  - CD effective share is 0.23–0.27 at moderate and 0.44–0.49 at heavy, inside the bands.
+  - **Reading:** the r1a pattern holds at the larger size. Plain learned arms are slower than CD, and the learned seed
+    helps CD. It is n = 1 topology, so it gives a direction, not a magnitude. It is no input to this study's gate.
 - 2026-10-10 06:00 — **Epoch-30 read** (S7; seed 1 per config, epochs 21–42; offline and descriptive).
   - Current validation masked-topo regret is 1.03–1.40 s (best so far 0.93–1.17 s). The curves fell from about 2.2 to
     about 1.1 in 10 epochs and have since sat on a noisy plateau (±0.2 s per epoch), with the best epoch often early.
