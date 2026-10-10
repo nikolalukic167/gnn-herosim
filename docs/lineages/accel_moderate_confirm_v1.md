@@ -35,6 +35,8 @@ what make the test honest.
 
 ## Record (newest first)
 
+- 2026-10-10 13:05 — **Reader committed before data** (S4). rp/accel-confirm f736c9f1:
+  `accel_moderate_confirm_v1_read.py` and its test. Moderate only, Holm over 2, with the labels as registered.
 - 2026-10-10 12:45 — **Launched, sealed** (S4).
   - Inputs: rp/accel-confirm 8f6f45f0, data only (`accel_moderate_confirm_v1_selected.json`). All 24 cfgs carry
     fastest_compatible, and the moderate windows are byte-identical to the accel gate's (factor 1/11.6139).
