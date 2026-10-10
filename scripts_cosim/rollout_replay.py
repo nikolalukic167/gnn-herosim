@@ -40,7 +40,7 @@ CONTINUATION = {
     "cd": ("peer_greedy_network_cd_peer_greedy_network_cd", {}),
     "live": ("peer_greedy_network_batch_peer_greedy_network_batch", {}),
 }
-DETAIL = ("scheduledTime", "arrivedTime", "startedTime", "doneTime", "coldStartTime", "coldStarted", "peerExchangeTime",
+DETAIL = ("scheduledTime", "arrivedTime", "startedTime", "doneTime", "coldStartTime", "coldStarted", "peerExchangeTime", "pullWaitTime",
           "peerRendezvousWait", "linkWaitTime", "executionNode", "executionPlatform")
 PERTURBED = ("compute_remaining", "io_remaining", "net_remaining", "hold_remaining", "cold_remaining")
 
@@ -329,6 +329,8 @@ def _one(job):
                     q=q_batch + q_win, q_batch=q_batch, q_window=q_win, plan=plan, label_of_plan=label,
                     window_lat={str(g): lat(ids[g]) for g in window}, batch_lat=[lat(b) for b in fr.batch_local],
                     batch_detail=[{k: trs[b].get(k) for k in DETAIL} for b in fr.batch_local],
+                    window_detail={str(g): {k: trs[ids[g]].get(k) for k in DETAIL} for g in window} if job.get("detail") else None,
+                    scale_events=[[round(e["timestamp"], 3), e.get("action"), e.get("name"), e.get("cause")] for e in res["stats"].get("scaleEvents", [])][:300] if job.get("detail") else None,
                     decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
                     exact_fallbacks=int(sc.get("pg_exact_fallbacks") or 0), wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
@@ -375,7 +377,9 @@ def truth_one(job):
                                   env=env, cwd=str(REPO), capture_output=True, text=True)
             if proc.returncode != 0 or not os.path.exists(out):
                 raise RuntimeError(f"cut live run failed (rc {proc.returncode}): {proc.stderr[-300:]}")
-            trs = {int(tr["taskId"]): tr for tr in json.load(open(out))["stats"]["taskResults"] if tr.get("taskId", -1) >= 0}
+            _st = json.load(open(out))["stats"]
+            trs = {int(tr["taskId"]): tr for tr in _st["taskResults"] if tr.get("taskId", -1) >= 0}
+            stats_scale = [e for e in _st.get("scaleEvents", []) if t0 - 30 <= e["timestamp"] <= t0 + H + 30]
         hist = [abs(float(trs[i]["scheduledTime"]) - tab["scheduled"][i]) for i in range(n_cut) if tab["scheduled"][i] < t0 - 1e-9]
         hist_off = [[i, tab["scheduled"][i], float(trs[i]["scheduledTime"]), float(trs[i]["doneTime"]) - tab["done"][i]]
                     for i in range(n_cut) if tab["scheduled"][i] < t0 - 1e-9 and abs(float(trs[i]["scheduledTime"]) - tab["scheduled"][i]) > 1e-9][:10]
@@ -387,7 +391,9 @@ def truth_one(job):
         return dict(base, t0=t0, n_cut=n_cut, partners_beyond_cut=len(later), history_max_abs=max(hist) if hist else 0.0, history_off=hist_off, batch_moved=moved,
                     window_same=sorted(win_truth) == sorted(window), n_window=len(win_truth),
                     q=sum(lat(g) for g in batch) + sum(lat(i) for i in win_truth), q_batch=sum(lat(g) for g in batch),
-                    q_window=sum(lat(i) for i in win_truth), batch_detail=[{k: trs[g].get(k) for k in DETAIL} for g in batch], window_lat={str(i): lat(i) for i in win_truth}, wall=time.time() - t_start)
+                    q_window=sum(lat(i) for i in win_truth), batch_detail=[{k: trs[g].get(k) for k in DETAIL} for g in batch],
+                    window_detail={str(i): {k: trs[i].get(k) for k in DETAIL} for i in win_truth} if job.get("detail") else None,
+                    scale_events=[[round(e["timestamp"] - t0, 3), e.get("action"), e.get("name"), e.get("cause")] for e in stats_scale] if job.get("detail") else None, window_lat={str(i): lat(i) for i in win_truth}, wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
         return dict(base, error=f"{type(e).__name__}: {str(e)[:300]}")
 
