@@ -51,6 +51,23 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 05:50 — **Hand V offline: the rank signal is real at short H, and it recovers about half the H=5
+  headroom on held-out topologies** (S7; rp/cost-to-go-handv cc305957; feature pass 856141, 2,386 rollouts, 0 errors;
+  every rollout bit-identical to its S0 row; offline, orders the work only).
+  - **Split, fixed before the read:** FIT 16251/53/55/57, EVAL 16252/54/56/58. That is 4 + 4 topologies, so treat it
+    as a direction.
+  - **On EVAL:**
+
+    | H | λ (fit) | pooled Spearman dV vs dQ | hit rate, λ=0 → best λ | Q_H saved vs cd_exactS |
+    |---|---|---|---|---|
+    | 5 | 0.1 | +0.64 | 73.1 → 74.3 % | 72.3 s of 127.6 s headroom (56.6 %) |
+    | 15 | 0.0316 | +0.57 | 67.4 → 67.4 % | 72.3 of 379.4 s (19.1 %) |
+    | 30 | 0.0562 | +0.48 | 63.4 → 60.0 % | −19.5 of 1,082 s (−1.8 %, overfit) |
+
+  - The saving comes from a few large-advantage states. The small-λ (tie-breaker) regime is λ=0 at every H and saves 0.
+  - **Features:** queue drain is nonzero in 88 of 346 states. **In-flight remaining is 0 in every state**, so the
+    in-flight view tests nothing. Unverified, under check: is 0 a fact of the states, or an accessor that returns 0?
+  - The cold term is not broken out, and the pooled platform-load term is not yet in V.
 - 2026-10-11 03:40 — **S0: PASS pooled at every H, marginal; S1 launched; ruling** (S6; 855965 at a0048522; 346
   non-split single-decision held-out states; 7,158 rollouts, 0 errors. Split read 856004 at bd92e30c; S1 856121).
   - **Headroom** = best of the 6 plans vs cd_exactS, summed share of Σ Q_H(cd_exactS); the bar is 3 %:
