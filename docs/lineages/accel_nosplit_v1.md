@@ -46,6 +46,33 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-11 09:00 — **Option C (on-policy DAgger retrain) analysed: NO-GO as specified** (coordinator, on S7's
+  analysis with SCIENTIST and PUBLISHER input; offline, 413 held-out tables; job 856206 at a07c9fd0).
+  - **The right plan is almost always in the GNN's top 5.** Ranked by the GNN plan score (physmp g3 s1 best), the
+    argmin-S plan is at k=1/5/10/32 in 74.6 / 93.7 / 96.1 / 98.5 % of tables, and the label-optimal plan in 73.8 /
+    97.1 / 98.3 / 99.5 %. g4 is similar.
+  - **The excess is concentrated:**
+    - top-1 has zero excess on 305 of 413 tables;
+    - 99 % of the top-1 excess sits in the worst 41 tables (median plan space 375 vs 60, median 4 tasks vs 3);
+    - tables with ≥ 9 tasks carry 24 % of it.
+  - **Pooled regret (Σ regret / Σ opt), g3:**
+    - served decode 20.2 %; plan-score top-1 24.6 %, which is worse than the decode;
+    - argmin-S 6.1 %;
+    - oracle best of the GNN's top-k: 15.2 / 10.5 / 6.2 % at k = 2 / 5 / 10.
+  - **Loaded heavy states are already in the corpus:**
+    - train heavy (n = 1,415): 22 % queued, median 21 in-flight;
+    - held-out: 28 % queued; S0: 27 % queued.
+    - GNN-visited states are unmeasured, because no live snapshots exist.
+  - **Ruling:**
+    - The gap is selection among plans the model already proposes, not missing coverage. C's ceiling is the myopic
+      expert (SCIENTIST), and two offline-positive / live-negative reversals sit on this path (`rollout_imitation_v1`,
+      the stakes retrain).
+    - On-policy C is NO-GO, and so is the oversample control: nothing measured points at the state distribution.
+    - Replacement candidate, decided after the gnn_selfsearch read: a learned re-ranker over the GNN's own top-10
+      plans, trained on the existing per-plan sweep labels with a plan-level loss. The oracle at k=10 reaches argmin-S
+      level.
+    - **Prediction recorded before the selfsearch read:** plan-score top-1 is worse offline than the served decode
+      (24.6 vs 20.2 %). So gnn_selfsearch may not beat the plain no-split GNN.
 - 2026-10-11 07:20 — **Classical reference arms: every one is far slower than the no-split GNN and CD** (S4; 856147
   at acbea783, reader 06f09941 committed before the data, read once as 856169; 16345–16368 × 4 windows × 2 rungs,
   seed 0; descriptive addendum requested by PUBLISHER).
