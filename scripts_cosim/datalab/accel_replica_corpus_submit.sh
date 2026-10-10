@@ -46,6 +46,13 @@ if [[ $PHASE == capture ]]; then
   fi
   N=$(echo $POOL | wc -w); off=${START_OFFSET:-0}
   while [[ $off -lt $N ]]; do
+    # a finished inputs job is purged from the scheduler after a while, and afterok on a purged job is refused ("Job dependency
+    # problem"): drop the dependency once the inputs job has COMPLETED, fail loud if it ended any other way (rp/scale160 e1d3c137)
+    if [[ -n "$dep" ]] && ! sub <<<"squeue -h -j $inp 2>/dev/null" | grep -q .; then
+      st=$(sub <<<"sacct -n -X -j $inp -o State 2>/dev/null | head -1" | tr -d ' ')
+      [[ "$st" == COMPLETED ]] || { echo "FAIL LOUD: inputs job $inp ended $st"; exit 1; }
+      dep=""
+    fi
     room=$(( CAP - $(q) ))
     if [[ $room -lt 1 ]]; then echo "$(date +%H:%M) queue full"; sleep 120; continue; fi
     n=$(( N - off < room ? N - off : room ))
