@@ -239,7 +239,8 @@ class Orchestrator:
             "pg_expand_gain_seconds", "pg_expand_labels_skipped",
             # cd_exactS: exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1)
             "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
-            "pg_exact_gain_seconds",
+            "pg_exact_gain_seconds", "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped",
+            "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",
