@@ -9,6 +9,7 @@
 - **Disclosed ceiling:** the one-step oracle headroom is below the gate's −5 % WIN bar, so expect DIRECTION-ONLY at best.
 - In the split 9–10-task groups the lever is search, not V.
 - S1 passes (Spearman 1.000 median); H = 5 is fixed.
+- A pointwise MLP V captures 76 % of the H5 headroom offline, so the GNN rung is not run. The gate is next.
 
 **Why.** Within the declared top-5 slate, exact search on CD's surrogate S (cd_exactS) dominates learned batch scorers
 offline: hit 79.4 % against the GNN's 64.8 %, regret 6.1 % against 21.7 % of the summed optimum (`accel_replica_v1`,
@@ -51,6 +52,27 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 20:30 — **Rung (b): the pointwise MLP V captures 76 % of the H5 headroom, so the GNN rung does not run;
+  the MLP gate arm is admitted** (S6; 856550 at 2544eb25, after a failed launch 856458 that died on a topology-id parse
+  before training; feature passes 2,174 + 346 states, 0 bit-identity exclusions; determinism test passed; W&B
+  herosim-cost-to-go).
+  - **Variant choice on SELECTION** (10 train topologies, 424 states, seed 0): no in-flight (pooled Spearman 0.8505)
+    beats in-flight (0.8494), a near-tie. No in-flight parity proof is needed.
+  - **One eval on S0** (no in-flight, seed 0, epoch 62, λ 1.0):
+    - all 346 states: pooled Spearman dV vs dQ5 +0.856; Q5 saved vs cd_exactS 528.3 of 695.7 s headroom (75.9 %);
+      hit rate 68.8 % vs argmin-S 71.1 %;
+    - EVAL half (175 states, the hand V comparator): Spearman +0.844 vs +0.644; saved 62.6 % vs the hand V's 56.6 %.
+    - The hand V's λ was fit on S0's FIT half, the MLP's on train-topology SELECTION only, so the comparison favours
+      the hand V.
+  - **Seeds 1–2 (descriptive):** saved 55.8 / 68.2 %, Spearman +0.861 / +0.865. Every seed captures ≥ half.
+  - **On SELECTION the MLP beats the hand V:** Spearman 0.851 vs 0.606; saved 65.0 vs 63.1 %.
+  - **Consequence (registered rule):** the MLP leaves less than half of S0's headroom, so **the GNN + MP-OFF rung is
+    not run**. A pointwise model captures the cost-to-go signal.
+  - **Implied ceiling:** 76 % of the 4.7 % H5 headroom is about −3.6 % vs cd_exactS offline, still short of the −5 %
+    WIN bar. DIRECTION-ONLY stays the expected best.
+  - **Gate prep GO (coordinator):** serving code (top-5-by-S re-rank with dS + λ·dV, live features from the same
+    accessors), a live-vs-replay feature parity check on one state, and the DESIGN-READY verdict in the 16369–16392
+    selection file. Arms as fixed.
 - 2026-10-11 19:00 — **Rung (b) design signed; gate arms fixed before any MLP or gate data** (S6 design, coordinator
   rulings).
   - **Data:** the train set is 2,174 states (H=5, 5 plans, 856258). The S0 rows (346 held-out) are eval, read once.
