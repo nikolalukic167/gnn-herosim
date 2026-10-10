@@ -23,7 +23,9 @@ M_HEAVY=${M_HEAVY:?FAIL LOUD: set M_HEAVY (the signed heavy multiplier for 160 x
 NC=${NC:-160}; NS=${NS:-24}; P=${P:-0.6}
 D=/home/nikola.lukic/gnn-herosim/simulation_data
 X1=$D/small_batch_confirm_v1/inputs/grounded/wl
-BASECFG=$D/workload_fix_v1/corpus_prod_prov/cfg_src/cc40s9101.json
+BASECFG=${BASECFG:-$D/workload_fix_v1/corpus_prod_prov/cfg_src/cc40s9101.json}  # accel_replica_v1: S7's fastest_compatible cell cfg
+SELECTION=${SELECTION:-scripts_cosim/scale_160_v1_selected.json}
+REPLICA_RULE=${REPLICA_RULE:-}  # accel_replica_v1: every minted cfg must carry preinit.replica_placement_rule = this
 cd "$WT"
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
@@ -35,7 +37,7 @@ echo "HEAD $HEAD node $(hostname) ROOT=$ROOT"
 rc=0; timeout 300 git diff --quiet HEAD -- src scripts_cosim experiments run_experiment.py || rc=$?
 [[ $rc == 0 ]] || echo "WARN: worktree check rc=$rc (1 = tracked files differ from HEAD, 124 = timed out after 300 s)"
 [[ ! -e "$ROOT" ]] || { echo "FAIL LOUD: $ROOT exists"; exit 1; }
-TOPOS=${TOPOS:-$(python3 -c "import json;print(*json.load(open('scripts_cosim/scale_160_v1_selected.json'))['topologies'])")}
+TOPOS=${TOPOS:-$(python3 -c "import json;print(*json.load(open('$SELECTION'))['topologies'])")}
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 mkdir -p "$ROOT"
 for t in $TOPOS; do python3 scripts_cosim/scale_probe_cfg.py "$BASECFG" "$ROOT/cfg_src" --clients "$NC" --servers "$NS" --p "$P" --seed "$t" >/dev/null; done
@@ -52,14 +54,16 @@ for tag in $TAGS; do for W in g0 g1 g2 g3; do
   f="$ROOT/inputs/wf1_$tag/wl/grounded_${W}_n50000.json"
   python3 scripts_cosim/scale_probe_remap_clients.py "$f" "$f.tmp" --clients "$NC" && mv "$f.tmp" "$f"
 done; done
-python3 - "$ROOT/inputs" "$NC" "$NS" "$P" $TOPOS <<'PY'
-import json, sys
+REPLICA_RULE="$REPLICA_RULE" python3 - "$ROOT/inputs" "$NC" "$NS" "$P" $TOPOS <<'PY'
+import json, os, sys
 inp, nc, ns, p, topos = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), float(sys.argv[4]), sys.argv[5:]
+rule = os.environ.get("REPLICA_RULE") or None
 for tag in ("moderate", "heavy"):
     for t in topos:
         c = json.load(open(f"{inp}/wf1_{tag}/cfg/cc40s{t}.json"))
         got = (c["nodes"]["client_nodes"]["count"], c["nodes"]["server_nodes"]["count"], c["network"]["topology"]["connection_probability"], c["network"]["topology"]["seed"])
         assert got == (nc, ns, p, int(t)), f"{tag} {t}: {got}"
-print(f"[check] {len(topos)} topologies x moderate/heavy: {nc} clients, {ns} servers, p={p}, topology seed = id")
+        assert (c.get("preinit") or {}).get("replica_placement_rule") == rule, f"{tag} {t}: replica_placement_rule {(c.get('preinit') or {}).get('replica_placement_rule')!r}, want {rule!r}"
+print(f"[check] {len(topos)} topologies x moderate/heavy: {nc} clients, {ns} servers, p={p}, topology seed = id, replica rule {rule}")
 PY
 echo "inputs ready: $ROOT/inputs (rungs moderate, heavy)"
