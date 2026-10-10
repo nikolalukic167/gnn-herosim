@@ -45,6 +45,15 @@ had heavy at only −1.65 % (DIRECTION-ONLY). This tests the self-search arm whe
 
 ## Record (newest first)
 
+- 2026-10-11 15:00 — **Gate launched** (S4).
+  - Identity at 79ea002c, decision-identical:
+    - cd_exactS and physmp no-split: 0 differences;
+    - cdxapply and self-search: identical latency; only counters absent at the old pin and a wall-clock timer differ.
+  - **Failed launch 856305:** all 8 tasks exited in 1–4 s because the selection file lacked `"verdict": "DESIGN-READY"`
+    (`fresh_topo_burst_v1_gate.py:1086`). No cell ran.
+    - The key was added; the topologies are unchanged and the md5 is now 63d4eae2.
+    - The cost_to_go_v1 selection file has the same gap and must be fixed before its gate.
+  - **Relaunched as 856313:** 2,304 cells, sealed, ETA about 3–4 h. The twin arm follows separately.
 - 2026-10-11 11:30 — **Amendment before any gate data (coordinator):** the MP twin arm may be submitted as a separate
   job after the main gate starts. Conditions:
   - it runs on the same pin plus only the twin kind, merged with identity shown;
