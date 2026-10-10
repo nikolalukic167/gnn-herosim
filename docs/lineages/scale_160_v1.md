@@ -50,6 +50,20 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Production-corpus headroom screen (S6, 855588; descriptive, gates nothing; all 3,170 datasets read).**
+  "Regret" means the additive (pointwise) argmin plan against the joint optimum.
+  - Train moderate / heavy:
+    - median regret 13.4 / 21.2 %;
+    - share above 1 %: 61.7 / 68.6 %;
+    - exact ties 35.9 / 49.3 %;
+    - multi-node optimum 29.6 / 25.5 %;
+    - single-candidate slots 3.6 / 1.8 %.
+  - Held-out is similar (median 14.1 / 21.4 %).
+  - **Against the E corpus (40 × 6) through the same reader:** median regret 0.85 %, single-candidate slots 21.5 %,
+    median plans 20 (here 80–125).
+  - The regret is bimodal: train p25 / p50 / p75 are 0 / 17.5 / 137 %. Median regret is 1.3 % on batches with ≤ 25
+    plans and 23.7 % on those with > 25. So the joint structure sits in the large sweeps that the bigger cluster opens
+    up. Read the median as "the additive fit often picks a very bad plan", not as a typical gap.
 - 2026-10-10 — **Corpus PASS; training launched.**
   - **Corpus** (S6, 855298/855339/855373; check 855392 exit 0, `workload_fix_v1/scale160_corpus`):
     - 464 cells, 2,784 batches (exactly the target) giving 3,170 datasets (train 2,719, held-out 451);
