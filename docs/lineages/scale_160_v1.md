@@ -50,6 +50,13 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 06:00 — **Epoch-30 read** (S7; seed 1 per config, epochs 21–42; offline and descriptive).
+  - Current validation masked-topo regret is 1.03–1.40 s (best so far 0.93–1.17 s). The curves fell from about 2.2 to
+    about 1.1 in 10 epochs and have since sat on a noisy plateau (±0.2 s per epoch), with the best epoch often early.
+  - That is about 6–8 % of the random-plan regret and about a quarter of the additive argmin. Validation CE is
+    1.41–1.49 (chance 4.89).
+  - No config is at chance. Selection noise on a plateau is expected; it is handled by selecting on validation across
+    3 seeds.
 - 2026-10-10 05:30 — **Early training curves** (S7; offline and descriptive; never closes anything, rule 6).
   - Units: `val/regret_masked_topo` is the mean over the 451 validation datasets of the served-decode plan RTT minus
     the optimum RTT, in batch-total seconds. The `_frac` companion divides by the random-plan regret, not the optimum.
