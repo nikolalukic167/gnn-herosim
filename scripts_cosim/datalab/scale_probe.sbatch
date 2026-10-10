@@ -5,6 +5,7 @@
 # a small fidelity corpus at the declared slate (top 5) and at a wider slate (top 10, probe hook DECLARED_SLATE_TOP_K), then run the
 # joint-headroom screen and the candidate stats on both. Everything is written under OUT=/share/...; nothing in the repo or in
 # the production corpus is touched. The load is NOT calibrated: the achieved queue share is reported with the cell.
+#   (accel_replica_v1: REPLICA_RULE=fastest_compatible; RUNGS take PRODUCTION multipliers, final m = m_prod*NS/6)
 #   SIZES="40:6:0.6:9101 80:12:0.6:9101 ..." sbatch --array=0-<n-1> --export=ALL,WT=...,OUT=...,SIZES="..." scale_probe.sbatch
 #SBATCH --job-name=scaleprobe
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/scaleprobe-%A_%a.out
@@ -35,6 +36,12 @@ echo "HEAD $(git rev-parse HEAD) cell $CELL node $(hostname) $(date -Is)"
 if [[ ! -f "$ROOT/inputs.done" ]]; then
   rm -rf "$ROOT/cfg_src" "$ROOT/_b_"* "$ROOT/inputs_w24" "$ROOT/inputs"
   python3 scripts_cosim/scale_probe_cfg.py "$BASECFG" "$ROOT/cfg_src" --clients "$NC" --servers "$NS" --p "$P" --seed "$SEED"
+  if [[ -n "${REPLICA_RULE:-}" ]]; then   # accel_replica_v1: preinit.replica_placement_rule in the minted cell
+    python3 - "$ROOT/cfg_src/cc40s$SEED.json" "$REPLICA_RULE" <<'PY'
+import json, sys
+p, rule = sys.argv[1:3]; c = json.load(open(p)); c.setdefault("preinit", {})["replica_placement_rule"] = rule; json.dump(c, open(p, "w"), indent=1)
+PY
+  fi
   TAGS=""
   for spec in $RUNGS; do
     tag=${spec%%=*}; m=${spec##*=}
