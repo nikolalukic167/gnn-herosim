@@ -65,6 +65,22 @@
 
 ## Record (newest first)
 
+- 2026-10-11 14:40 — **States built; M3 and slate sizes read before the search** (S6; capture 856295 32/32; build
+  856302 at 16778f28; label-reproduction check 856294 381/381 exact after the 1 ms dispatch fix 5e80b996; the first
+  check 856288 failed on that offset).
+  - **States:** 224 per condition, 56 per (G, rung). The no-slate set uses the same snapshots.
+  - **M3, the share of batches over 100k plans:**
+
+    | G, rung | top-5 slate | no slate |
+    |---|---|---|
+    | current, heavy | 7 % | 5/56 |
+    | current, moderate | 7 % | 5/56 |
+    | 8, heavy | **75 %** | 46/56 |
+    | 8, moderate | **48 %** | 38/56 |
+
+  - **No slate barely adds options:** median eligible candidates per task is 4–6 (p90 9–10, max 13–22). The 5-limit
+    is near the natural candidate count.
+  - The search (B = 600) was submitted on GO. The GNN start is absent and flagged.
 - 2026-10-11 13:50 — **Inputs built** (S7; scan 856289 clean; builds 856291/856292 at rp/big-groups ae113145).
   - Topologies 16700–16707 × both rungs × g0–g3, on the accel base cfg (fastest_compatible asserted).
   - **Task rate identical across G:** moderate 5.3470, heavy 12.7173 tasks/s.
