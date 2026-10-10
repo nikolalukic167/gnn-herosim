@@ -205,30 +205,32 @@ def read(a):
         s1 = _by_state(_rows(a.s1))
         s1err = sum(1 for r in _rows(a.s1) if "error" in r)
         print(f"\nS1 rows errors {s1err}")
-        for H in sorted({k[1] for k in s1}):
-            for eps in sorted({abs(k[2]) for k in s1 if k[1] == H}):
-                rho, flip, n = [], 0, 0
-                for (ds, h, e), slots in s1.items():
-                    if h != H or abs(e) != eps:
-                        continue
-                    base = _plan_set(st.get((ds, H, 0.0), {}))
-                    if not base:
-                        continue
-                    common = [s for s in base if s in slots]
-                    if len(common) < 3 or "policy" not in common:
-                        continue
-                    a0 = [base[s]["q"] - base["policy"]["q"] for s in common]
-                    a1 = [slots[s]["q"] - slots["policy"]["q"] for s in common]
-                    rho.append(spearman(a0, a1))
-                    b0 = min(common, key=lambda s: (base[s]["q"], s != "policy"))
-                    b1 = min(common, key=lambda s: (slots[s]["q"], s != "policy"))
-                    flip += b0 != b1
-                    n += 1
-                if n:
-                    ok = median(rho) >= 0.9 and flip / n <= 0.10
-                    print(f"  H {H:g} eps {eps:g} (both signs): {n} perturbed states, Spearman of advantages median {median(rho):.3f} min "
-                          f"{min(rho):.3f}, best plan changed {flip}/{n} ({100 * flip / n:.1f} %) -> {'PASS' if ok else 'STOP'}")
-
+        dropped_states = {d for d, _h in drop}
+        for label, skip in (("all", set()), ("self-check residual states dropped", dropped_states)):
+            print(f"  [{label}]")
+            for H in sorted({k[1] for k in s1}):
+                for eps in sorted({abs(k[2]) for k in s1 if k[1] == H}):
+                    rho, flip, n = [], 0, 0
+                    for (ds, h, e), slots in s1.items():
+                        if h != H or abs(e) != eps or os.path.basename(ds) in skip:
+                            continue
+                        base = _plan_set(st.get((ds, H, 0.0), {}))
+                        if not base:
+                            continue
+                        common = [s_ for s_ in base if s_ in slots]
+                        if len(common) < 3 or "policy" not in common:
+                            continue
+                        a0 = [base[s_]["q"] - base["policy"]["q"] for s_ in common]
+                        a1 = [slots[s_]["q"] - slots["policy"]["q"] for s_ in common]
+                        rho.append(spearman(a0, a1))
+                        b0 = min(common, key=lambda s_: (base[s_]["q"], s_ != "policy"))
+                        b1 = min(common, key=lambda s_: (slots[s_]["q"], s_ != "policy"))
+                        flip += b0 != b1
+                        n += 1
+                    if n:
+                        ok = median(rho) >= 0.9 and flip / n <= 0.10
+                        print(f"    H {H:g} eps {eps:g} (both signs): {n} perturbed states, Spearman of advantages median {median(rho):.3f} "
+                              f"min {min(rho):.3f}, best plan changed {flip}/{n} ({100 * flip / n:.1f} %) -> {'PASS' if ok else 'STOP'}")
 
 def read_split(a):
     """Split read (b), reported apart from S0: whole 9-10-task groups, cd_exactS's own (unrestricted) decision vs the next 4
