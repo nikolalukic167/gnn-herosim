@@ -26,8 +26,8 @@
 
 `r1_attribution_v1` found that every learned arm loses to CD and that MP ties its twin there. The scale feasibility
 report (S5, probe job 855065, `rp/scale-probe` 38aa87ab) found that at 160c × 24s with p = 0.6, every task has a full
-top-5 slate. There, 69 % of batches carry more than 1 % joint (non-pointwise) headroom, with median regret about 15 %,
-against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on the declared top-5 slate cost about
+top-5 slate. There, 69 % of batches carry more than 1 % joint (non-pointwise) headroom, against 36 % at 40 × 6 (one seed, about 50 batches). The regret is bimodal: about half the batches are at 0, and p90 is
+288–494 % on the production screen (S5). Quote the share above 1 % and the tail, never the median. Exact labels on the declared top-5 slate cost about
 33 node-h.
 
 ## Design (fixed now)
