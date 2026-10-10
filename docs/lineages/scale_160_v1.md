@@ -1,7 +1,7 @@
 # scale_160_v1 — does a GNN beat CD at 160 clients × 24 servers?
 
-**Status:** `REGISTERED` (2026-10-10). No data yet. The go/no-go screen is running. Every bar below was signed before
-its data.
+**Status:** `ACTIVE` (2026-10-10). The go/no-go checks passed, the corpus is built, and training is running.
+Registered 2026-10-10; every bar below was signed before its data.
 
 **Why.** At 40c × 6s the placement problem is close to trivial:
 - median candidates per task is 2–3, and 11–37 % of slots have one candidate;
@@ -50,6 +50,15 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Corpus PASS; training launched.**
+  - **Corpus** (S6, 855298/855339/855373; check 855392 exit 0, `workload_fix_v1/scale160_corpus`):
+    - 464 cells, 2,784 batches (exactly the target) giving 3,170 datasets (train 2,719, held-out 451);
+    - 149 rejected (4.5 %), 0 discarded, 0 capture failures, 0 cap hits;
+    - fidelity replay: 0 problem datasets, max |diff| 5.7e-14.
+  - **Training** (S7, `rp/scale160-prep` 7afb4efd, pinned worktree): cache 855579, then a 12-task array 855580
+    (gnn_eng and physmp × 6 configs × 3 seeds, 80G), then selection 855581.
+    - The held-out 16151–16158 are validation; the test split is an unscored 1-topology placeholder.
+    - Checkpoints are staged as `scale-160-v1-<arm>-seed<N>.pt`.
 - 2026-10-10 — **Calibrated-rung screen PASS; GO for the Phase 2 labels** (S5, 855164; seeds 9901 / 9902 / 9904
   screened, 9903 still finishing and can only add; 0 hung).
   - Share above 1 % joint regret: 67 / 71 / 63 %.
