@@ -161,8 +161,13 @@ def _one(job):
         pairs = list(wl.get("peer_exchange") or [])
         stub_rows = {}  # replay id -> [(live partner id, node name, payload)]
         dropped = 0
+        scored_ids = win | {int(r["gid"]) for r in fid["batch"]}
+        pairs_touch = pairs_cut = 0
         for a, b, payload in trace.get("peer_exchange") or []:
             a, b = int(a), int(b)
+            if a in scored_ids or b in scored_ids:
+                pairs_touch += 1
+                pairs_cut += a >= n_cut or b >= n_cut
             if a not in win and b not in win:
                 continue  # pairs among snapshot tasks are the snapshot's own; pairs among placed tasks do not matter
             if a >= n_cut or b >= n_cut:
@@ -289,7 +294,7 @@ def _one(job):
             label = min(hit) if hit else None
         sc = res["stats"].get("schedulerCounters") or {}
         return dict(base, t0=t0, n_cut=n_cut, n_window=len(window), n_window_pending=sum(1 for g in window if arrivals[g] <= t0),
-                    pairs_dropped_beyond_cut=dropped, stubs=sum(len(v) for v in stub_rows.values()),
+                    pairs_dropped_beyond_cut=dropped, pairs_touching_scored=pairs_touch, pairs_touching_scored_cut=pairs_cut, stubs=sum(len(v) for v in stub_rows.values()),
                     q=q_batch + q_win, q_batch=q_batch, q_window=q_win, plan=plan, label_of_plan=label,
                     window_lat={str(g): lat(ids[g]) for g in window}, batch_lat=[lat(b) for b in fr.batch_local],
                     decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
