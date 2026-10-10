@@ -51,6 +51,24 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 06:40 — **The hand V as built cannot see backlog; it is corrected to the registered definition** (S7;
+  a92bc028; offline recompute from the snapshot ghosts, no jobs).
+  - **Facts:**
+    - ghosts and the queued tasks do not overlap (0 shared);
+    - in-flight is nonzero in 344 of 346 states;
+    - both in-flight variants (b1 sum, b2 max) leave every EVAL number unchanged (H=5 Spearman +0.644).
+  - **Cause, a design flaw:**
+    - the built V weighted each platform's post-commit backlog by a plan-independent need[p];
+    - any plan-independent backlog (queue drain, in-flight) therefore cancels in the paired dV;
+    - the +0.64 at H=5 comes from the plan's own-service and cold terms alone.
+    - This tests nothing about backlog.
+  - **Ruling (coordinator):** rebuild the hand V as registered: post-batch backlog seconds on the replicas the plan
+    touches. Two forms, both declared now, chosen on FIT only and both reported on EVAL:
+    - (v1) Σ over touched platforms of (drain + in-flight + this plan's committed service);
+    - (v2) Σ over the plan's tasks of own service × (drain + in-flight + other committed work on its platform).
+  - The live/replay parity proof for the in-flight accessor (`live_inflight_remaining`, 22 unit tests) runs only if a
+    V with in-flight is selected for the gate. It must also show that `HEROSIM_SNAPSHOT_FIDELITY=1` leaves a live run
+    identical.
 - 2026-10-11 05:50 — **Hand V offline: the rank signal is real at short H, and it recovers about half the H=5
   headroom on held-out topologies** (S7; rp/cost-to-go-handv cc305957; feature pass 856141, 2,386 rollouts, 0 errors;
   every rollout bit-identical to its S0 row; offline, orders the work only).
