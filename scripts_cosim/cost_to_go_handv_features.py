@@ -28,7 +28,7 @@ def post_commit_features(sched, tasks, plan, system_state, now, type_defs, scale
     for (node, platform), svc in zip(plan, service):
         own[_key(node, platform)] = own.get(_key(node, platform), 0.0) + float(svc)
     used = set(own)
-    type_platforms, load_after, replicas = {}, {}, []
+    type_platforms, load_after, load_after_inflight, drain_of, inflight_of, replicas = {}, {}, {}, {}, {}, []
     for typ, reps in system_state.replicas.items():
         if typ not in type_defs:
             raise KeyError(f"FAIL LOUD: type_defs has no entry for task type {typ!r}")
@@ -39,13 +39,15 @@ def post_commit_features(sched, tasks, plan, system_state, now, type_defs, scale
             if k not in load_after:
                 xf = sched._pg_xf(platform)
                 drain = float(platform_queue_drain_seconds(platform, orch, memo, exec_scale=xf))
-                if sched.pg_inflight:
-                    drain += float(inflight_remaining_seconds(platform) or 0.0)
-                load_after[k] = drain + own.get(k, 0.0)
+                fly = float(inflight_remaining_seconds(platform) or 0.0)      # logged whatever the pg_inflight switch says
+                drain_of[k], inflight_of[k] = drain, fly
+                load_after[k] = drain + (fly if sched.pg_inflight else 0.0) + own.get(k, 0.0)    # as S sees it
+                load_after_inflight[k] = drain + fly + own.get(k, 0.0)                            # plus in-flight remaining
             ref = platform.idle_since if math.isfinite(platform.idle_since) else platform.last_allocated
             cold_s = float(type_defs[typ]["coldStartDuration"].get(platform.type["shortName"], 0.0) or 0.0)
             replicas.append({"key": k, "type": typ, "idle_s": float(now - ref), "used": k in used, "cold_s": cold_s})
     return {"ds": ds, "slot": slot, "t0": float(t0), "workload": workload, "load_after": load_after,
+            "load_after_inflight": load_after_inflight, "drain": drain_of, "inflight": inflight_of,
             "type_platforms": type_platforms, "replicas": replicas,
             "scale_in_after_s": float(scale_in_after_s)}
 

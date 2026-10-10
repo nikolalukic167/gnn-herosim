@@ -65,8 +65,9 @@ def type_rates(events, t0, lookback_s):
     return {t: c / span for t, c in n.items()}
 
 
-def hand_v(feat, rates, H):
-    """{'v', 'load', 'cold'} in seconds for one plan's post-commit features and the pre-t0 type rates."""
+def hand_v(feat, rates, H, load_key="load_after"):
+    """{'v', 'load', 'cold'} in seconds for one plan's post-commit features and the pre-t0 type rates. load_key picks the backlog:
+    "load_after" (as S sees it) or "load_after_inflight" (plus the in-flight remaining seconds the live state holds)."""
     need = defaultdict(float)
     for typ, keys in feat["type_platforms"].items():
         if not keys:
@@ -74,7 +75,7 @@ def hand_v(feat, rates, H):
         exp = rates.get(typ, 0.0) * H
         for k in keys:
             need[k] += exp / len(keys)
-    load = sum(need[k] * float(v) for k, v in feat["load_after"].items())
+    load = sum(need[k] * float(v) for k, v in feat[load_key].items())
     n_rep = defaultdict(int)
     for r in feat["replicas"]:
         n_rep[r["type"]] += 1
@@ -91,7 +92,7 @@ def choose(cands, lam):
     return min(cands, key=lambda s: (cands[s][0] + lam * cands[s][1], s != "policy", s))
 
 
-def build_states(rows, tops_by_ds, feats, rates_of, cell_of):
+def build_states(rows, tops_by_ds, feats, rates_of, cell_of, load_key="load_after"):
     """-> {(ds, H): {'cell','cands':{slot:(dS,dV)},'dq':{slot:A}}} over the 6-plan set minus the GNN slot (its S is not recorded)."""
     by = defaultdict(dict)
     for r in rows:
@@ -114,7 +115,7 @@ def build_states(rows, tops_by_ds, feats, rates_of, cell_of):
         if len(keep) < 2 or any((ds, s) not in feats for s in keep):
             continue
         rates = rates_of(ds)
-        vv = {s: hand_v(feats[(ds, s)], rates, H)["v"] for s in keep}
+        vv = {s: hand_v(feats[(ds, s)], rates, H, load_key)["v"] for s in keep}
         q0 = ps["policy"]["q"]
         out[(ds, H)] = {"cell": cell_of(ds),
                         "cands": {s: (s_of[s] - s_of["policy"], vv[s] - vv["policy"]) for s in keep},
@@ -234,8 +235,17 @@ def read(a):
         raise ValueError(f"FAIL LOUD: S0 rows contain gate topologies {sorted(both)}")
     check_split(fit_t, ev_t, gate_t)
     print(f"{len(all_topos)} S0 topologies: FIT {fit_t} / EVAL {ev_t} (fixed odd/even split of the sorted ids)")
-    states = build_states(rows, tops, feats, rates_of, cell_of)
-    print(f"{len(states)} (state, H) pairs with a paired S, V and Q_H for >= 2 plans")
+    ds_all = sorted({d for d, slot in feats if slot == "policy"})
+    nz_drain = sum(any(v > 0 for v in feats[(d, "policy")].get("drain", {}).values()) for d in ds_all)
+    nz_fly = sum(any(v > 0 for v in feats[(d, "policy")].get("inflight", {}).values()) for d in ds_all)
+    print(f"states with features: {len(ds_all)}; nonzero queue drain on some platform: {nz_drain}; nonzero in-flight remaining: {nz_fly}")
+    for label, key in (("(a) load_after as S sees it", "load_after"), ("(b) load_after plus in-flight remaining", "load_after_inflight")):
+        states = build_states(rows, tops, feats, rates_of, cell_of, key)
+        print(f"\n===== hand V {label}: {len(states)} (state, H) pairs with a paired S, V and Q_H for >= 2 plans")
+        _report(states, fit_t, ev_t)
+
+
+def _report(states, fit_t, ev_t):
     for H in sorted({k[1] for k in states}):
         fit = [s for k, s in states.items() if k[1] == H and topo_of_cell(s["cell"]) in fit_t]
         ev = [s for k, s in states.items() if k[1] == H and topo_of_cell(s["cell"]) in ev_t]
