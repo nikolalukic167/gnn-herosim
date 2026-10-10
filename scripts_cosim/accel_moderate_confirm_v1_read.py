@@ -14,12 +14,16 @@ import sys
 
 import scale_160_v1_read as S
 
-S.RUNGS = ("moderate",)  # the readers' functions look the rung tuple up at call time
+RUNGS = ("moderate",)  # the scale_160 reader's functions look S.RUNGS up at call time; read() scopes the override
 RENAME = {"WIN": "CONFIRMED"}
 
 
 def read(gate) -> dict:
-    r = S.read(gate)
+    saved, S.RUNGS = S.RUNGS, RUNGS
+    try:
+        r = S.read(gate)
+    finally:
+        S.RUNGS = saved
     for fam in (r["main"], r["sensitivity"]["family"]):
         fam["labels"] = {a: RENAME.get(v, v) for a, v in fam["labels"].items()}
     return r
