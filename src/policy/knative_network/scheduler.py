@@ -42,6 +42,12 @@ from src.policy.state_capture import StateCaptureHelper
 class KnativeScheduler(StarvedDeferMixin, Scheduler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # reactive_conc (HEROSIM_KN_CONC=1): the least-connected key counts in-flight concurrency (queue + compute-lock waiters + running).
+        # Under HEROSIM_REPLICA_RELEASE=1 a task leaves the queue at pop and waits on the lock, so the queue alone reads 0 on a saturated replica.
+        raw = os.environ.get("HEROSIM_KN_CONC", "0").strip() or "0"
+        if raw not in ("0", "1"):
+            raise ValueError(f"FAIL LOUD: HEROSIM_KN_CONC must be 0 or 1, got {raw!r}")
+        self._kn_conc = raw == "1"
         # kpa_scaleout_v1 A4: under kpa a starved task is deferred as in the GNN family (evict, then timed retry)
         self._kpa_defer = shared_autoscaler()
         self._init_starved_defer()
@@ -208,9 +214,16 @@ class KnativeScheduler(StarvedDeferMixin, Scheduler):
         
         # Least Connected (shortest queue) among candidates. Set iteration order is not
         # reproducible across processes (PYTHONHASHSEED), so tie-break on replica identity.
-        bounded_concurrency = min(
-            candidates, key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)
-        )
+        if self._kn_conc:
+            bounded_concurrency = min(
+                candidates,
+                key=lambda couple: (len(couple[1].queue.items) + len(couple[1].compute_lock.queue) + len(couple[1].compute_lock.users),
+                                    couple[0].id, couple[1].id),
+            )
+        else:
+            bounded_concurrency = min(
+                candidates, key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)
+            )
 
         # print(f"task: {task.id}")
         # print(f"bounded_concurrency: {bounded_concurrency}")

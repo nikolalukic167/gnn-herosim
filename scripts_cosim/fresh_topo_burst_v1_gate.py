@@ -45,6 +45,7 @@ CANDIDATES = OLD_POOL + NEW_POOL + EXT_POOL
 RP2C_POOL = tuple(range(9473, 9569))
 RULE_POLICY = {
     "reactive": "knative_network",
+    "reactive_conc": "knative_network",  # reactive_conc: HEROSIM_KN_CONC=1, the least-connected key counts queue + compute-lock waiters + running
     "batched": "peer_greedy_network_batch",
     "selfpredict": "peer_greedy_selfpredict_network",
     "cd": "peer_greedy_network_cd",
@@ -135,7 +136,7 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
-R1A_DIAG = ("cd_pull", "cd_ledger")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_DIAG = ("cd_pull", "cd_ledger", "reactive_conc")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
@@ -688,7 +689,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
               "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
-              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV):
+              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_KN_CONC", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -803,6 +804,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(HEROSIM_PG_PULL_HOLD="1", HEROSIM_PULL_LEDGER="1")
         if kind == "cd_ledger":
             env["HEROSIM_PULL_LEDGER"] = "1"
+        if kind == "reactive_conc":
+            env["HEROSIM_KN_CONC"] = "1"
         if kind in DECIMA_TUNE_ALPHAS:
             env["HEROSIM_DECIMA_ALPHA"] = repr(DECIMA_TUNE_ALPHAS[kind])
         if kind == "decima":
@@ -986,6 +989,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"no-split instrument off: GNN_SLATE_NO_SPLIT={out['env'].get('GNN_SLATE_NO_SPLIT')!r}, unsplit {unsplit} of {sub_b} sub-batched")
     if not kind.endswith("_nosplit") and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
         problems.append("a split arm decoded a batch whole")
+    if (out["env"].get("HEROSIM_KN_CONC") == "1") != (kind == "reactive_conc"):
+        problems.append(f"HEROSIM_KN_CONC={out['env'].get('HEROSIM_KN_CONC')!r} served for {kind}")
     if kind != "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") or int(c.get("pg_pull_charged") or 0)):
         problems.append("a non-pull arm charged the pull hold")
     if (out["env"].get("HEROSIM_PULL_LEDGER") == "1") != (kind in ("cd_pull", "cd_ledger")):
