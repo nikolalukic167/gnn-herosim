@@ -51,6 +51,10 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 06:15 — **Training launched** (S7, `rp/accel-train` 26e4f5b2, pinned): cache 855606, then a 12-task array
+  855607 (40G), then selection 855608.
+  - The cache records and cross-checks `replica_placement_rule=fastest_compatible`.
+  - Checkpoints are staged as `accel-replica-v1-<arm>-seed<N>.pt`. S4 arms the learned gate at fcd47841 with SEALED=1.
 - 2026-10-10 — **Corpus PASS; headroom screen** (S5's build `rp/accel-corpus` e8cfc555; check 855578 exit 0; S6
   screen 855605, descriptive).
   - **Check:** 2,784 batches, 3,169 datasets (train 2,731, held-out 438), 0 problems, max |diff| 5.68e-14 over all datasets (S5 first quoted a single dataset's 0.0, corrected). The rule line is in 464 of 464 build logs.
