@@ -51,6 +51,22 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-11 13:20 — **A faithful Knative (concurrency key) never collapses and is far slower than every coordinated
+  arm** (S5; reactive_conc = knative_network with the least-connected key counting queue + lock waiters + running,
+  `HEROSIM_KN_CONC=1`; rp/knative-conc aee7760b, flag-off identity bit-identical to classical2; 856272, 192/192
+  cells, 0 failed; 16345–16368 × 4 windows × 2 rungs, seed 0; reader 9d3176f6 committed first).
+  - **Collapse at moderate / heavy:** 0/96 cells at both rungs (key-blind reactive: 82 and 84 of 96). Median run end
+    1.01 / 1.02 × the last arrival, effective share 0.14 / 0.24, p95 24.9 / 24.7 s.
+  - **Paired %, positive = reactive_conc slower, moderate / heavy, 0/24 topologies faster:**
+    - vs CD +48.1 / +67.6 %;
+    - vs batched +31.7 / +51.0 %;
+    - vs locality +30.9 / +49.8 %;
+    - vs self-predict +48.3 / +69.5 %.
+  - **The no-split GNN arms vs reactive_conc:** gnn_eng −38.5 / −41.0 %, physmp −38.8 / −40.0 % (24/24, p < .0001).
+  - **Disclosure:** the first read printed n=0 for the no-split rows, because the seeded cells lack a seed-0 pairing
+    reference. A reverse contrast was added (a0131338) before any value was used, and the read was rerun.
+  - **For reporting:** quote this arm as Knative under R1, not the key-blind one. It is slower than CD because it
+    ignores platform speed, exchange and cold starts, not because it collapses.
 - 2026-10-11 10:45 — **Knative's collapse is herding through a queue key blinded by replica release; our Knative is
   not a faithful Knative under R1** (S5; rp/cd-exacts 2d353388, state-read instrumentation only; 856247 at
   release=1, 856248 at release=0; 16345 and 16348, g0; 12/12 cells).
