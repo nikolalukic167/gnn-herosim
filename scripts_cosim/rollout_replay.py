@@ -319,6 +319,12 @@ def _one(job):
                 allowed.setdefault(int(k), set()).add((int(v[0]), int(v[1])))
         seen = {"decisions": 0, "batch_plan": None, "batch_decided": False}
 
+        hook = None
+        if job.get("decision_hook"):  # "module:function", called once at the batch decision; its return value lands in the row
+            import importlib
+
+            mod, fn = job["decision_hook"].split(":")
+            hook = getattr(importlib.import_module(mod), fn)
         orig_inf = PG.PeerGreedyNetworkBatchScheduler._prefix_inference
         orig_apply = snapshot_fidelity.apply_orchestrator
 
@@ -365,6 +371,11 @@ def _one(job):
             for i, t in enumerate(batch_tasks):
                 if int(t.id) in local_of and int(t.id) not in fr.queued_forced:
                     seen.setdefault("batch_rows", {})[local_of[int(t.id)]] = [int(res[i][0]), int(res[i][1])]
+            if hook is not None and set(local_of) <= {int(t.id) for t in batch_tasks} and "hook" not in seen:
+                # the batch decision, before anything is enqueued: res[i] = (node_id, platform_id) for batch_tasks[i]
+                couple = {(int(n.id), int(p.id)): (n, p) for n in self.nodes.items for p in n.platforms.items}
+                seen["hook"] = hook(self, batch_tasks, [couple[(int(res[i][0]), int(res[i][1]))] for i in range(len(batch_tasks))],
+                                    system_state, {"job": job, "t0": t0, "local_of": local_of, "queued": set(fr.queued_forced)})
             return res
 
         def apply(orchestrator, fidelity):
@@ -442,7 +453,7 @@ def _one(job):
                     batch_detail=[{k: trs[b].get(k) for k in DETAIL} for b in fr.batch_local],
                     window_detail={str(g): {k: trs[ids[g]].get(k) for k in DETAIL} for g in window} if job.get("detail") else None,
                     scale_events=[[round(e["timestamp"], 3), e.get("action"), e.get("name"), e.get("cause")] for e in res["stats"].get("scaleEvents", [])][:300] if job.get("detail") else None,
-                    decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
+                    hook=seen.get("hook"), decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
                     exact_fallbacks=int(sc.get("pg_exact_fallbacks") or 0), wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
         import traceback
