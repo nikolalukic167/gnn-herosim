@@ -28,7 +28,11 @@ while [[ $off -lt $N ]]; do
   echo "build piece offset=$off n=$n -> $id"; ids+=("$id"); off=$((off+n))
 done
 while [[ $(( $(q) + 1 )) -gt $CAP ]]; do sleep 120; done
-dep=$(IFS=:; echo "${ids[*]}")
+# a piece that already left the queue has finished; afterany on a purged job is refused, so depend only on the live pieces
+live=()
+for id in "${ids[@]}"; do sub <<<"squeue -h -j $id 2>/dev/null" | grep -q . && live+=("$id"); done
+dep=$(IFS=:; echo "${live[*]}")
+DEPOPT=""; [[ -n "$dep" ]] && DEPOPT="--dependency=afterany:$dep"
 # the check's volume target excludes cells the capture marked hung or failed: CHECK_PER_CELL x (cells with an ok sentinel)
 CHECK_TARGET=$BATCHES_TARGET
 if [[ -n "${CHECK_PER_CELL:-}" ]]; then
@@ -37,5 +41,5 @@ if [[ -n "${CHECK_PER_CELL:-}" ]]; then
   CHECK_TARGET=$(( CHECK_PER_CELL * ok ))
   echo "check target: $CHECK_PER_CELL x $ok ok cells = $CHECK_TARGET"
 fi
-chk=$(sub <<<"sbatch --parsable --dependency=afterany:$dep --export=ALL,WT='$WT',ROOT='$ROOT',BATCHES_TARGET=$CHECK_TARGET,OUT_TAG='${OUT_TAG:-}' '$D/wf1_corpus_prod_check.sbatch'")
-echo "check -> $chk (afterany:$dep)"
+chk=$(sub <<<"sbatch --parsable $DEPOPT --export=ALL,WT='$WT',ROOT='$ROOT',BATCHES_TARGET=$CHECK_TARGET,OUT_TAG='${OUT_TAG:-}' '$D/wf1_corpus_prod_check.sbatch'")
+echo "check -> $chk (${DEPOPT:-no dependency: every piece already finished})"
