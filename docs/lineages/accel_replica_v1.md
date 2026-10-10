@@ -51,6 +51,12 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Gate commit fixed; classical arms sealed** (S4).
+  - The gate commit is `rp/accel-gate` fcd47841: s160-gate + accel-calib + the 5b5dc011 contract.
+  - Default-rule identity on full 50k-task cells at 9483: 24 of 24 cells identical to the 263dd915 / 335abdd1 results.
+    They span CD, CD-declared, locality, one-pass greedy, self-predict, Knative, ra_gnn_eng and CD←GNN.
+  - CD and self-predict were submitted as 855432 (192 cells), sealed. The learned arms run at fcd47841 on checkpoints
+    whose contract says fastest_compatible.
 - 2026-10-10 — **Contract gap closed; learned-family identity PASS** (S7, `rp/accel-train` 5b5dc011).
   - `replica_placement_rule` is now a cache_physics key; absent reads as first_compatible.
     - The cache cross-checks each dataset's replay infrastructure against its cell config, and refuses mixed or wrongly
