@@ -227,7 +227,10 @@ def _one(job):
             spec = deepcopy(seed["fidelity_replay"])
             replicas_by_type = seed["replicas_by_type"]
             types = [next(iter(e["application"]["dag"])) for e in json.load(open(ds / "workload.json"))["events"]]
-            rows = [r for r in (json.loads(l) for l in open(ds / "placements" / "placements.jsonl") if l.strip()) if "placement_plan" in r]
+            sweep = ds / "placements" / "placements.jsonl"
+            # a dry-run fidelity dataset (big_groups_s0_v1) has no sweep: no label lookup, and the policy is not restricted to it
+            rows = ([r for r in (json.loads(l) for l in open(sweep) if l.strip()) if "placement_plan" in r]
+                    if sweep.exists() or not json.load(open(ds / "generation_provenance.json")).get("dry_run") else [])
         if not Path(spec["sim_input"]).exists():
             spec["sim_input"] = str(REPO / "data" / "nofs-ids")
         if eps:
