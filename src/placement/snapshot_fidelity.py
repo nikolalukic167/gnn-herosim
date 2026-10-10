@@ -487,15 +487,17 @@ def net_due(node: Any, rec: Dict[str, Any]) -> float:
     return float(rec["net_remaining"])
 
 
-def ghost_order_key(g: Dict[str, Any]) -> Tuple:
+def ghost_order_key(g: Dict[str, Any], request_time: float = None) -> Tuple:
     """The order ghosts are created in, which is the order their first events are scheduled, and so the order ties between them fire.
-    Hold-stage pipes first, then wait-stage in pop order: the order the live pipe queues had. Ghosts popped at the same instant
-    (equal `pop`, on different platforms) were popped in task-id order live (the batch placement enqueues in id order, so the
-    platform processes' queue gets fire in that order); breaking the tie by platform name instead put ghost 1238 (node4:218) before
-    1236 (node4:226) in the replay of ds_03200 and reversed their order on the shared link."""
+    Live schedules a task's first link request at pop + network latency (its `network_time`), and equal times fire in the order the
+    tasks were popped, which is task-id order within one placement. The key is therefore (stage class, request time, task id): hold-stage
+    pipes first, then wait-stage in request order (the order the live pipe queues had), then the rest. A caller that knows the ghost's
+    platform node passes `request_time` = pop + latency; without it the pop alone is used (the pre-F behaviour, for ghosts with no source
+    latency)."""
     ingress = g["stage"] == "ingress"
+    t = g.get("pop", 0.0) if request_time is None else request_time
     return (0 if ingress and g["link_stage"] == "hold" else 1 if ingress and g["link_stage"] == "wait" else 2,
-            g.get("pop", 0.0), g["tid"], g["q"], 0 if g["stage"] == "compute" else 1, g.get("order", 0.0))
+            t, g["tid"], g["q"], 0 if g["stage"] == "compute" else 1, g.get("order", 0.0))
 
 
 def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation_data: Any, env: Any,
@@ -529,7 +531,15 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
         env.process(_pull(env, node, plat, request, float(pull["own"]),
                           (pull["short"], simulation_data.task_types[pull["fn"]])))
 
-    for rec in sorted(fidelity.get("ghosts") or [], key=ghost_order_key):
+    def request_time(g: Dict[str, Any]) -> float:
+        # an ingress ghost's first link request: pop + the latency from its source to its platform's node (live `network_time`)
+        if g["stage"] != "ingress":
+            return g.get("pop", 0.0)
+        n, p = g["q"].rsplit(":", 1)
+        latency = (getattr(plat_map[(n, int(p))][0], "network_map", None) or {}).get(g["src"])
+        return g.get("pop", 0.0) + (float(latency) if latency is not None else 0.0)
+
+    for rec in sorted(fidelity.get("ghosts") or [], key=lambda g: ghost_order_key(g, request_time(g))):
         node_name, plat_id = rec["q"].rsplit(":", 1)
         node, plat = plat_map[(node_name, int(plat_id))]
         ghost = GhostTask(rec, simulation_data.task_types[rec["fn"]])

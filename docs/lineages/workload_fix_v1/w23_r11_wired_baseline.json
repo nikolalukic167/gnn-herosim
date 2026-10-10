@@ -1,0 +1,1607 @@
+{
+ "definition": "S(type) = servers with a platform listed for the type; independent uniform draws; transfer only if the two servers differ",
+ "rungs": {
+  "lo": {
+   "median_baseline": 0.19239894125853324,
+   "min_baseline": 0.0,
+   "max_baseline": 1.0,
+   "arms": {
+    "reactive": {
+     "median_diff_pp": 0.0,
+     "n_above": 9,
+     "n_below": 6,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.1392495711160426,
+     "informative": {
+      "median_diff_pp": 0.8562055800704564,
+      "n_above": 9,
+      "n_below": 6,
+      "n": 15
+     }
+    },
+    "selfpredict": {
+     "median_diff_pp": 2.9494122487245886,
+     "n_above": 11,
+     "n_below": 4,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.16483214089157952,
+     "informative": {
+      "median_diff_pp": 3.1110392918213603,
+      "n_above": 11,
+      "n_below": 4,
+      "n": 15
+     }
+    },
+    "locality": {
+     "median_diff_pp": 3.559102874792832,
+     "n_above": 14,
+     "n_below": 1,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.1947523280216825,
+     "informative": {
+      "median_diff_pp": 4.161499320822965,
+      "n_above": 14,
+      "n_below": 1,
+      "n": 15
+     }
+    },
+    "batched": {
+     "median_diff_pp": 3.090195634275788,
+     "n_above": 14,
+     "n_below": 1,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.19831698913331566,
+     "informative": {
+      "median_diff_pp": 4.246012618660333,
+      "n_above": 14,
+      "n_below": 1,
+      "n": 15
+     }
+    },
+    "cd": {
+     "median_diff_pp": 3.6046361004956506,
+     "n_above": 13,
+     "n_below": 2,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.18846440231399278,
+     "informative": {
+      "median_diff_pp": 4.125686752680921,
+      "n_above": 13,
+      "n_below": 2,
+      "n": 15
+     }
+    }
+   },
+   "topologies": {
+    "9483": {
+     "baseline_share": 0.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 1,
+     "uniform_over_all_servers_share": 0.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 237228,
+       "observed_share": 0.0
+      },
+      "selfpredict": {
+       "transfers": 209498,
+       "observed_share": 0.0
+      },
+      "locality": {
+       "transfers": 176760,
+       "observed_share": 0.0
+      },
+      "batched": {
+       "transfers": 183768,
+       "observed_share": 0.0
+      },
+      "cd": {
+       "transfers": 179232,
+       "observed_share": 0.0
+      }
+     }
+    },
+    "9484": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 249434,
+       "observed_share": 0.08759832260237177
+      },
+      "selfpredict": {
+       "transfers": 211760,
+       "observed_share": 0.12051378919531545
+      },
+      "locality": {
+       "transfers": 182056,
+       "observed_share": 0.1210067232060465
+      },
+      "batched": {
+       "transfers": 190848,
+       "observed_share": 0.10809649564050973
+      },
+      "cd": {
+       "transfers": 180932,
+       "observed_share": 0.11320275020449672
+      }
+     }
+    },
+    "9485": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 253140,
+       "observed_share": 0.2956940823259856
+      },
+      "selfpredict": {
+       "transfers": 232838,
+       "observed_share": 0.3448749774521341
+      },
+      "locality": {
+       "transfers": 188964,
+       "observed_share": 0.3636459854787155
+      },
+      "batched": {
+       "transfers": 206174,
+       "observed_share": 0.3821141366030634
+      },
+      "cd": {
+       "transfers": 205832,
+       "observed_share": 0.39497259901278714
+      }
+     }
+    },
+    "9487": {
+     "baseline_share": 0.4484939076831768,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 4,
+     "uniform_over_all_servers_share": 0.4,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 247664,
+       "observed_share": 0.5362588022482072
+      },
+      "selfpredict": {
+       "transfers": 231412,
+       "observed_share": 0.5160147269804505
+      },
+      "locality": {
+       "transfers": 182184,
+       "observed_share": 0.49010890089140646
+      },
+      "batched": {
+       "transfers": 190140,
+       "observed_share": 0.49095403386978015
+      },
+      "cd": {
+       "transfers": 185014,
+       "observed_share": 0.49958381527884377
+      }
+     }
+    },
+    "9491": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 254148,
+       "observed_share": 0.1392495711160426
+      },
+      "selfpredict": {
+       "transfers": 218450,
+       "observed_share": 0.17053788052185856
+      },
+      "locality": {
+       "transfers": 189646,
+       "observed_share": 0.1947523280216825
+      },
+      "batched": {
+       "transfers": 199062,
+       "observed_share": 0.20631762968321427
+      },
+      "cd": {
+       "transfers": 191808,
+       "observed_share": 0.2240573907240574
+      }
+     }
+    },
+    "9502": {
+     "baseline_share": 0.4484939076831768,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 4,
+     "uniform_over_all_servers_share": 0.4,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 264550,
+       "observed_share": 0.5248913248913248
+      },
+      "selfpredict": {
+       "transfers": 246984,
+       "observed_share": 0.5296456450620283
+      },
+      "locality": {
+       "transfers": 199682,
+       "observed_share": 0.574793922336515
+      },
+      "batched": {
+       "transfers": 214948,
+       "observed_share": 0.5737945921804344
+      },
+      "cd": {
+       "transfers": 211164,
+       "observed_share": 0.5693394707431191
+      }
+     }
+    },
+    "9506": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 247144,
+       "observed_share": 0.1009371054931538
+      },
+      "selfpredict": {
+       "transfers": 200922,
+       "observed_share": 0.13277789390907915
+      },
+      "locality": {
+       "transfers": 167008,
+       "observed_share": 0.12806572140256753
+      },
+      "batched": {
+       "transfers": 174234,
+       "observed_share": 0.11911567202727366
+      },
+      "cd": {
+       "transfers": 167234,
+       "observed_share": 0.13119341760646758
+      }
+     }
+    },
+    "9525": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 226846,
+       "observed_share": 0.26487573067190956
+      },
+      "selfpredict": {
+       "transfers": 205306,
+       "observed_share": 0.27659201387197646
+      },
+      "locality": {
+       "transfers": 161948,
+       "observed_share": 0.21802059920468297
+      },
+      "batched": {
+       "transfers": 169344,
+       "observed_share": 0.21102607709750568
+      },
+      "cd": {
+       "transfers": 166020,
+       "observed_share": 0.20909528972412963
+      }
+     }
+    },
+    "9529": {
+     "baseline_share": 0.2954111258921797,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 4,
+     "uniform_over_all_servers_share": 0.4,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 257840,
+       "observed_share": 0.23931120074464785
+      },
+      "selfpredict": {
+       "transfers": 228916,
+       "observed_share": 0.3265215188103933
+      },
+      "locality": {
+       "transfers": 186844,
+       "observed_share": 0.401008327802873
+      },
+      "batched": {
+       "transfers": 196912,
+       "observed_share": 0.38771634029414154
+      },
+      "cd": {
+       "transfers": 194760,
+       "observed_share": 0.3951632778804683
+      }
+     }
+    },
+    "9533": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 235026,
+       "observed_share": 0.23021282751695557
+      },
+      "selfpredict": {
+       "transfers": 213310,
+       "observed_share": 0.25816886221930524
+      },
+      "locality": {
+       "transfers": 174272,
+       "observed_share": 0.16325055086301873
+      },
+      "batched": {
+       "transfers": 179970,
+       "observed_share": 0.15631494137911875
+      },
+      "cd": {
+       "transfers": 175616,
+       "observed_share": 0.16763848396501457
+      }
+     }
+    },
+    "9538": {
+     "baseline_share": 0.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 0,
+     "uniform_over_all_servers_share": 0.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 235634,
+       "observed_share": 0.0
+      },
+      "selfpredict": {
+       "transfers": 210454,
+       "observed_share": 0.0
+      },
+      "locality": {
+       "transfers": 173618,
+       "observed_share": 0.0
+      },
+      "batched": {
+       "transfers": 180430,
+       "observed_share": 0.0
+      },
+      "cd": {
+       "transfers": 176872,
+       "observed_share": 0.0
+      }
+     }
+    },
+    "9540": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 229524,
+       "observed_share": 0.05146302783151217
+      },
+      "selfpredict": {
+       "transfers": 198798,
+       "observed_share": 0.0723950945180535
+      },
+      "locality": {
+       "transfers": 174642,
+       "observed_share": 0.07849200077873593
+      },
+      "batched": {
+       "transfers": 181944,
+       "observed_share": 0.07380292837356549
+      },
+      "cd": {
+       "transfers": 177582,
+       "observed_share": 0.07985043529186517
+      }
+     }
+    },
+    "9548": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 241410,
+       "observed_share": 0.15114535437637214
+      },
+      "selfpredict": {
+       "transfers": 218040,
+       "observed_share": 0.16483214089157952
+      },
+      "locality": {
+       "transfers": 173590,
+       "observed_share": 0.22118785644334352
+      },
+      "batched": {
+       "transfers": 181104,
+       "observed_share": 0.19831698913331566
+      },
+      "cd": {
+       "transfers": 174590,
+       "observed_share": 0.18846440231399278
+      }
+     }
+    },
+    "9550": {
+     "baseline_share": 0.1030121846336465,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 229102,
+       "observed_share": 0.09528506953234804
+      },
+      "selfpredict": {
+       "transfers": 203488,
+       "observed_share": 0.1301796666142475
+      },
+      "locality": {
+       "transfers": 173976,
+       "observed_share": 0.14313468524394168
+      },
+      "batched": {
+       "transfers": 181416,
+       "observed_share": 0.13733077567579485
+      },
+      "cd": {
+       "transfers": 177810,
+       "observed_share": 0.139058545638603
+      }
+     }
+    },
+    "9551": {
+     "baseline_share": 1.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 6,
+     "uniform_over_all_servers_share": 1.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 220206,
+       "observed_share": 1.0
+      },
+      "selfpredict": {
+       "transfers": 210698,
+       "observed_share": 1.0
+      },
+      "locality": {
+       "transfers": 153734,
+       "observed_share": 1.0
+      },
+      "batched": {
+       "transfers": 167724,
+       "observed_share": 1.0
+      },
+      "cd": {
+       "transfers": 167376,
+       "observed_share": 1.0
+      }
+     }
+    },
+    "9557": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 230538,
+       "observed_share": 0.10888443553774214
+      },
+      "selfpredict": {
+       "transfers": 196214,
+       "observed_share": 0.1329568736175808
+      },
+      "locality": {
+       "transfers": 173670,
+       "observed_share": 0.20309782921632982
+      },
+      "batched": {
+       "transfers": 180380,
+       "observed_share": 0.20039915733451602
+      },
+      "cd": {
+       "transfers": 175180,
+       "observed_share": 0.21213608859458843
+      }
+     }
+    },
+    "9565": {
+     "baseline_share": 0.106596997196918,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 245270,
+       "observed_share": 0.026713417866025196
+      },
+      "selfpredict": {
+       "transfers": 216298,
+       "observed_share": 0.03303775346975007
+      },
+      "locality": {
+       "transfers": 174706,
+       "observed_share": 0.042986503039391895
+      },
+      "batched": {
+       "transfers": 181268,
+       "observed_share": 0.045876823267206567
+      },
+      "cd": {
+       "transfers": 175740,
+       "observed_share": 0.04391715033572323
+      }
+     }
+    },
+    "9566": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 219220,
+       "observed_share": 0.19601313748745552
+      },
+      "selfpredict": {
+       "transfers": 190988,
+       "observed_share": 0.22216055458981715
+      },
+      "locality": {
+       "transfers": 164800,
+       "observed_share": 0.24557038834951456
+      },
+      "batched": {
+       "transfers": 173122,
+       "observed_share": 0.243146451635263
+      },
+      "cd": {
+       "transfers": 165594,
+       "observed_share": 0.23365580878534245
+      }
+     }
+    },
+    "9568": {
+     "baseline_share": 0.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 0,
+     "uniform_over_all_servers_share": 0.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 227872,
+       "observed_share": 0.0
+      },
+      "selfpredict": {
+       "transfers": 190176,
+       "observed_share": 0.0
+      },
+      "locality": {
+       "transfers": 149980,
+       "observed_share": 0.0
+      },
+      "batched": {
+       "transfers": 157758,
+       "observed_share": 0.0
+      },
+      "cd": {
+       "transfers": 155544,
+       "observed_share": 0.0
+      }
+     }
+    }
+   }
+  },
+  "hi": {
+   "median_baseline": 0.19239894125853324,
+   "min_baseline": 0.0,
+   "max_baseline": 1.0,
+   "arms": {
+    "reactive": {
+     "median_diff_pp": 0.0,
+     "n_above": 6,
+     "n_below": 9,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.05815351963211885,
+     "informative": {
+      "median_diff_pp": -1.731695811994545,
+      "n_above": 6,
+      "n_below": 9,
+      "n": 15
+     }
+    },
+    "selfpredict": {
+     "median_diff_pp": 14.3149911538562,
+     "n_above": 13,
+     "n_below": 2,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.3467666354264292,
+     "informative": {
+      "median_diff_pp": 20.665636485861917,
+      "n_above": 13,
+      "n_below": 2,
+      "n": 15
+     }
+    },
+    "locality": {
+     "median_diff_pp": 6.70001003775389,
+     "n_above": 11,
+     "n_below": 4,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.20630125161847215,
+     "informative": {
+      "median_diff_pp": 14.131042242041794,
+      "n_above": 11,
+      "n_below": 4,
+      "n": 15
+     }
+    },
+    "batched": {
+     "median_diff_pp": 3.3706786472870753,
+     "n_above": 11,
+     "n_below": 4,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.1818044463630477,
+     "informative": {
+      "median_diff_pp": 10.576892496242154,
+      "n_above": 11,
+      "n_below": 4,
+      "n": 15
+     }
+    },
+    "cd": {
+     "median_diff_pp": 5.065431202539275,
+     "n_above": 13,
+     "n_below": 2,
+     "n_tied": 4,
+     "n": 19,
+     "median_observed": 0.23542043984476066,
+     "informative": {
+      "median_diff_pp": 14.334073305882821,
+      "n_above": 13,
+      "n_below": 2,
+      "n": 15
+     }
+    }
+   },
+   "topologies": {
+    "9483": {
+     "baseline_share": 0.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 1,
+     "uniform_over_all_servers_share": 0.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 125128,
+       "observed_share": 0.0
+      },
+      "selfpredict": {
+       "transfers": 52542,
+       "observed_share": 0.0
+      },
+      "locality": {
+       "transfers": 64566,
+       "observed_share": 0.0
+      },
+      "batched": {
+       "transfers": 69230,
+       "observed_share": 0.0
+      },
+      "cd": {
+       "transfers": 58364,
+       "observed_share": 0.0
+      }
+     }
+    },
+    "9484": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 111736,
+       "observed_share": 0.040917877854943795
+      },
+      "selfpredict": {
+       "transfers": 46948,
+       "observed_share": 0.3467666354264292
+      },
+      "locality": {
+       "transfers": 60626,
+       "observed_share": 0.18421139445122556
+      },
+      "batched": {
+       "transfers": 62326,
+       "observed_share": 0.14866989699322916
+      },
+      "cd": {
+       "transfers": 46556,
+       "observed_share": 0.21195979035999657
+      }
+     }
+    },
+    "9485": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 128400,
+       "observed_share": 0.2725389408099688
+      },
+      "selfpredict": {
+       "transfers": 88756,
+       "observed_share": 0.5230294289963495
+      },
+      "locality": {
+       "transfers": 90740,
+       "observed_share": 0.4131805157593123
+      },
+      "batched": {
+       "transfers": 100344,
+       "observed_share": 0.37644502909989636
+      },
+      "cd": {
+       "transfers": 94238,
+       "observed_share": 0.4586472548228952
+      }
+     }
+    },
+    "9487": {
+     "baseline_share": 0.4484939076831768,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 4,
+     "uniform_over_all_servers_share": 0.4,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 188616,
+       "observed_share": 0.7596280273147559
+      },
+      "selfpredict": {
+       "transfers": 82008,
+       "observed_share": 0.4146424739049849
+      },
+      "locality": {
+       "transfers": 110868,
+       "observed_share": 0.2728109102716744
+      },
+      "batched": {
+       "transfers": 115320,
+       "observed_share": 0.27868539715574053
+      },
+      "cd": {
+       "transfers": 85020,
+       "observed_share": 0.4868501529051988
+      }
+     }
+    },
+    "9491": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 113080,
+       "observed_share": 0.05815351963211885
+      },
+      "selfpredict": {
+       "transfers": 69740,
+       "observed_share": 0.3530542013191855
+      },
+      "locality": {
+       "transfers": 84652,
+       "observed_share": 0.17755044180881727
+      },
+      "batched": {
+       "transfers": 85910,
+       "observed_share": 0.15974857408916307
+      },
+      "cd": {
+       "transfers": 64230,
+       "observed_share": 0.283481239296279
+      }
+     }
+    },
+    "9502": {
+     "baseline_share": 0.4484939076831768,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 4,
+     "uniform_over_all_servers_share": 0.4,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 188172,
+       "observed_share": 0.5361477796909211
+      },
+      "selfpredict": {
+       "transfers": 90906,
+       "observed_share": 0.46153169207753064
+      },
+      "locality": {
+       "transfers": 120556,
+       "observed_share": 0.5677029762102259
+      },
+      "batched": {
+       "transfers": 123890,
+       "observed_share": 0.43874404713859066
+      },
+      "cd": {
+       "transfers": 81040,
+       "observed_share": 0.4700394866732478
+      }
+     }
+    },
+    "9506": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 140322,
+       "observed_share": 0.02558401391086216
+      },
+      "selfpredict": {
+       "transfers": 62202,
+       "observed_share": 0.3212436899135076
+      },
+      "locality": {
+       "transfers": 95916,
+       "observed_share": 0.2685891822010926
+      },
+      "batched": {
+       "transfers": 96882,
+       "observed_share": 0.15866724468941598
+      },
+      "cd": {
+       "transfers": 56946,
+       "observed_share": 0.2054226811365153
+      }
+     }
+    },
+    "9525": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 145840,
+       "observed_share": 0.3517964893033461
+      },
+      "selfpredict": {
+       "transfers": 39380,
+       "observed_share": 0.24748603351955306
+      },
+      "locality": {
+       "transfers": 50974,
+       "observed_share": 0.20630125161847215
+      },
+      "batched": {
+       "transfers": 56078,
+       "observed_share": 0.22711223652769358
+      },
+      "cd": {
+       "transfers": 43630,
+       "observed_share": 0.1882649553059821
+      }
+     }
+    },
+    "9529": {
+     "baseline_share": 0.2954111258921797,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 4,
+     "uniform_over_all_servers_share": 0.4,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 147044,
+       "observed_share": 0.16382851391420256
+      },
+      "selfpredict": {
+       "transfers": 101702,
+       "observed_share": 0.6685020943540934
+      },
+      "locality": {
+       "transfers": 102368,
+       "observed_share": 0.5691036261331666
+      },
+      "batched": {
+       "transfers": 106584,
+       "observed_share": 0.5281655783232004
+      },
+      "cd": {
+       "transfers": 98660,
+       "observed_share": 0.5834380701398744
+      }
+     }
+    },
+    "9533": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 143408,
+       "observed_share": 0.09813957380341404
+      },
+      "selfpredict": {
+       "transfers": 73596,
+       "observed_share": 0.32512636556334584
+      },
+      "locality": {
+       "transfers": 85942,
+       "observed_share": 0.1845896069442182
+      },
+      "batched": {
+       "transfers": 92660,
+       "observed_share": 0.1818044463630477
+      },
+      "cd": {
+       "transfers": 77300,
+       "observed_share": 0.23542043984476066
+      }
+     }
+    },
+    "9538": {
+     "baseline_share": 0.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 0,
+     "uniform_over_all_servers_share": 0.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 154826,
+       "observed_share": 0.0
+      },
+      "selfpredict": {
+       "transfers": 92058,
+       "observed_share": 0.0
+      },
+      "locality": {
+       "transfers": 98474,
+       "observed_share": 0.0
+      },
+      "batched": {
+       "transfers": 112050,
+       "observed_share": 0.0
+      },
+      "cd": {
+       "transfers": 95900,
+       "observed_share": 0.0
+      }
+     }
+    },
+    "9540": {
+     "baseline_share": 0.04290097203080761,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 131120,
+       "observed_share": 0.0008846857840146431
+      },
+      "selfpredict": {
+       "transfers": 63832,
+       "observed_share": 0.1860508835693696
+      },
+      "locality": {
+       "transfers": 72174,
+       "observed_share": 0.1099010724083465
+      },
+      "batched": {
+       "transfers": 73674,
+       "observed_share": 0.07660775850367836
+      },
+      "cd": {
+       "transfers": 65480,
+       "observed_share": 0.09355528405620037
+      }
+     }
+    },
+    "9548": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 129582,
+       "observed_share": 0.0489265484403698
+      },
+      "selfpredict": {
+       "transfers": 77062,
+       "observed_share": 0.3990553061171524
+      },
+      "locality": {
+       "transfers": 117248,
+       "observed_share": 0.39175081877729256
+      },
+      "batched": {
+       "transfers": 124502,
+       "observed_share": 0.40794525389150377
+      },
+      "cd": {
+       "transfers": 72586,
+       "observed_share": 0.33573967431736146
+      }
+     }
+    },
+    "9550": {
+     "baseline_share": 0.1030121846336465,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 132356,
+       "observed_share": 0.10737707395206866
+      },
+      "selfpredict": {
+       "transfers": 60512,
+       "observed_share": 0.3877908514013749
+      },
+      "locality": {
+       "transfers": 83714,
+       "observed_share": 0.3634517523950594
+      },
+      "batched": {
+       "transfers": 88480,
+       "observed_share": 0.36787974683544306
+      },
+      "cd": {
+       "transfers": 66252,
+       "observed_share": 0.2946024270965405
+      }
+     }
+    },
+    "9551": {
+     "baseline_share": 1.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 6,
+     "uniform_over_all_servers_share": 1.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 178852,
+       "observed_share": 1.0
+      },
+      "selfpredict": {
+       "transfers": 69550,
+       "observed_share": 1.0
+      },
+      "locality": {
+       "transfers": 98458,
+       "observed_share": 1.0
+      },
+      "batched": {
+       "transfers": 105482,
+       "observed_share": 1.0
+      },
+      "cd": {
+       "transfers": 78756,
+       "observed_share": 1.0
+      }
+     }
+    },
+    "9557": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 136074,
+       "observed_share": 0.04209474256654468
+      },
+      "selfpredict": {
+       "transfers": 69108,
+       "observed_share": 0.1957226370318921
+      },
+      "locality": {
+       "transfers": 88418,
+       "observed_share": 0.1245900156076817
+      },
+      "batched": {
+       "transfers": 95824,
+       "observed_share": 0.10235431624645183
+      },
+      "cd": {
+       "transfers": 75946,
+       "observed_share": 0.21228241118689595
+      }
+     }
+    },
+    "9565": {
+     "baseline_share": 0.106596997196918,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 2,
+     "uniform_over_all_servers_share": 0.06666666666666667,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 133570,
+       "observed_share": 0.04535449577000823
+      },
+      "selfpredict": {
+       "transfers": 60662,
+       "observed_share": 0.07612673502357324
+      },
+      "locality": {
+       "transfers": 70158,
+       "observed_share": 0.07340574132671969
+      },
+      "batched": {
+       "transfers": 77790,
+       "observed_share": 0.12741997686077902
+      },
+      "cd": {
+       "transfers": 69140,
+       "observed_share": 0.08417703210876483
+      }
+     }
+    },
+    "9566": {
+     "baseline_share": 0.19239894125853324,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 3,
+     "uniform_over_all_servers_share": 0.2,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 132058,
+       "observed_share": 0.09335292068636508
+      },
+      "selfpredict": {
+       "transfers": 57218,
+       "observed_share": 0.45635988674892514
+      },
+      "locality": {
+       "transfers": 76954,
+       "observed_share": 0.4186916859422512
+      },
+      "batched": {
+       "transfers": 79812,
+       "observed_share": 0.4083345862777527
+      },
+      "cd": {
+       "transfers": 60458,
+       "observed_share": 0.39511727149426046
+      }
+     }
+    },
+    "9568": {
+     "baseline_share": 0.0,
+     "n_pairs": 261210,
+     "pair_types": {
+      "dnn1+dnn1": 65766,
+      "dnn1+dnn2": 130897,
+      "dnn2+dnn2": 64547
+     },
+     "n_servers": 6,
+     "n_wired_servers": 0,
+     "uniform_over_all_servers_share": 0.0,
+     "compatible_servers": {
+      "dnn1": 6,
+      "dnn2": 4
+     },
+     "arms": {
+      "reactive": {
+       "transfers": 111638,
+       "observed_share": 0.0
+      },
+      "selfpredict": {
+       "transfers": 53998,
+       "observed_share": 0.0
+      },
+      "locality": {
+       "transfers": 69872,
+       "observed_share": 0.0
+      },
+      "batched": {
+       "transfers": 71084,
+       "observed_share": 0.0
+      },
+      "cd": {
+       "transfers": 53118,
+       "observed_share": 0.0
+      }
+     }
+    }
+   }
+  }
+ }
+}

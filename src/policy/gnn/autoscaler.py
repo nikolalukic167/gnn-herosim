@@ -42,6 +42,7 @@ from src.placement.model import (
 
 from src.placement.autoscaler import Autoscaler, replica_platform_type_allowed
 from src.placement.infrastructure import FIDELITY, STARVED_RENDEZVOUS, interrupt_if_waiting
+from src.placement.replica_rule import order_platform_types, restrict_to_fastest
 from src.placement.starved_defer import log_starved
 from src.placement.warmth import (
     PLATFORM_REUSE_V1,
@@ -52,6 +53,7 @@ from src.placement.warmth import (
 
 
 class KnativeAutoscaler(Autoscaler):
+    supports_replica_rule = True  # accel_replica_v1: create_first_replica / create_replica follow replica_rule
 
 
 
@@ -373,7 +375,7 @@ class KnativeAutoscaler(Autoscaler):
         # Try each available hardware type. `available_hardware` is a set, so its
         # iteration order is not reproducible across processes (PYTHONHASHSEED) —
         # sort so which hardware type gets scaled up first is deterministic.
-        for platform_name in sorted(available_hardware):
+        for platform_name in order_platform_types(task_type, available_hardware):
             stop = yield self.env.process(
                 self.scale_up(
                     1,
@@ -415,6 +417,7 @@ class KnativeAutoscaler(Autoscaler):
             c for c in couples_suitable if c[0].node_name.startswith("client_node")
         ]
         candidates = server_couples if server_couples else client_couples
+        candidates = restrict_to_fastest(task_type, candidates, lambda couple: couple[1].type["shortName"])
 
         # Select a replica on the most available node. `couples_suitable` is a set, so
         # `candidates`' order is not reproducible across processes (PYTHONHASHSEED) —

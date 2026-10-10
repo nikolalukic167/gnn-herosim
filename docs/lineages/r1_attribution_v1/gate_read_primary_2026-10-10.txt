@@ -1,0 +1,97 @@
+5444 summaries, 28 failed, code ["{'git_available': True, 'commit': '07b0acbaea3ae9e6235597f18c75ee3d3b4da342', 'describe': '07b0acba', 'branch': 'HEAD', 'code_paths': ['src', 'scripts_cosim', 'experiments', 'run_experiment.py'], 'dirty': False, 'diff_sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'changed_files': [], 'changed_file_count': 0}", "{'git_available': True, 'commit': '263dd915e6d27ad6c36ff6ac5fe6585d3cb76703', 'describe': '263dd915', 'branch': 'HEAD', 'code_paths': ['src', 'scripts_cosim', 'experiments', 'run_experiment.py'], 'dirty': False, 'diff_sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'changed_files': [], 'changed_file_count': 0}", "{'git_available': True, 'commit': '335abdd1a366ed4109cd2325750bdb884f0d43da', 'describe': '335abdd1', 'branch': 'HEAD', 'code_paths': ['src', 'scripts_cosim', 'experiments', 'run_experiment.py'], 'dirty': False, 'diff_sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'changed_files': [], 'changed_file_count': 0}"]
+arm                        rung      ok/fail  eff.share    p95 med/worst end/arr worst   lat s
+batched                    light     76/0          0.102    17.5/27.0             1.003    3.98
+batched                    moderate  76/0          0.241    10.5/19.8             1.007    2.69
+batched                    heavy     75/1          0.389     9.1/40.4             1.031    2.53
+cd                         light     76/0          0.105    15.7/21.3             1.001    3.78
+cd                         moderate  76/0          0.273     8.3/18.4             1.007    2.36
+cd                         heavy     75/1          0.449     7.3/58.8             1.015    2.17
+cd_declared                light     76/0          0.105    15.8/22.6             1.001    3.79
+cd_declared                moderate  75/1          0.263     9.2/18.9             1.005    2.44
+cd_declared                heavy     75/1          0.423     8.1/37.2             1.015    2.28
+cd_random_seed             light     152/0          0.105    15.9/22.9             1.001    3.80
+cd_random_seed             moderate  152/0          0.267     9.0/19.7             1.007    2.47
+cd_random_seed             heavy     149/3          0.432     7.8/467.8            1.039    2.29
+locality                   light     76/0          0.110    17.6/25.7             1.003    4.02
+locality                   moderate  76/0          0.266    11.4/26.0             1.006    2.74
+locality                   heavy     75/1          0.437    11.7/364.4            1.114    2.67
+ra_gnn_eng                 light     152/0          0.110    17.0/24.6             1.001    3.89
+ra_gnn_eng                 moderate  152/0          0.286     9.5/18.8             1.007    2.50
+ra_gnn_eng                 heavy     151/1          0.447     8.6/48.5             1.016    2.34
+ra_gnn_eng_cdapply         light     152/0          0.107    15.5/22.3             1.001    3.74
+ra_gnn_eng_cdapply         moderate  150/2          0.281     8.1/17.6             1.005    2.30
+ra_gnn_eng_cdapply         heavy     149/3          0.459     6.8/59.3             1.016    2.13
+ra_gnn_eng_physmp          light     152/0          0.111    17.2/24.2             1.001    3.92
+ra_gnn_eng_physmp          moderate  152/0          0.285     9.4/18.8             1.005    2.46
+ra_gnn_eng_physmp          heavy     150/2          0.449     8.0/27.1             1.012    2.29
+ra_mlp_same                light     152/0          0.111    17.1/24.7             1.001    3.90
+ra_mlp_same                moderate  152/0          0.282     9.5/19.8             1.007    2.51
+ra_mlp_same                heavy     152/0          0.431     8.3/222.5            1.027    2.34
+ra_set_transformer         light     152/0          0.113    17.2/25.0             1.001    3.92
+ra_set_transformer         moderate  152/0          0.290     9.4/19.0             1.007    2.50
+ra_set_transformer         heavy     150/2          0.451     8.3/182.4            1.015    2.30
+ra_twin_eng                light     152/0          0.112    17.1/24.4             1.001    3.90
+ra_twin_eng                moderate  152/0          0.292     9.5/19.6             1.007    2.48
+ra_twin_eng                heavy     148/4          0.451     8.4/39.7             1.015    2.30
+ra_twin_eng_cdapply        light     152/0          0.108    15.5/22.1             1.001    3.74
+ra_twin_eng_cdapply        moderate  151/1          0.285     8.1/17.3             1.005    2.32
+ra_twin_eng_cdapply        heavy     150/2          0.460     6.8/178.5            1.030    2.15
+ra_twin_raw                light     152/0          0.107    20.6/31.9             1.001    4.35
+ra_twin_raw                moderate  152/0          0.243    13.9/25.6             1.007    3.05
+ra_twin_raw                heavy     150/2          0.391    12.7/946.1            1.120    2.85
+reactive                   light     76/0          0.115    21.9/34.6             1.001    4.74
+reactive                   moderate  76/0          0.978  1499.0/6150.1           1.462  161.42
+reactive                   heavy     75/1          0.994  5249.7/11457.7          2.741  577.07
+selfpredict                light     76/0          0.123    15.9/22.2             1.001    3.80
+selfpredict                moderate  76/0          0.317     8.0/19.7             1.006    2.35
+selfpredict                heavy     76/0          0.517     7.2/827.8            1.184    2.28
+-- primary (best arm ra_gnn_eng_physmp)
+  light                                        median    +3.42 %  n=19  wins=1  p=0.0001  holm=0.0001  
+  moderate                                     median    +5.90 %  n=19  wins=1  p=0.0000  holm=0.0000  
+  heavy                                        median    +5.14 %  n=19  wins=2  p=0.0181  holm=0.0181  
+-- S1
+  ra_gnn_eng vs ra_twin_eng|light              median    -0.19 %  n=19  wins=14  p=0.0401  holm=0.3612  
+  ra_gnn_eng vs ra_twin_eng|moderate           median    -0.07 %  n=19  wins=10  p=0.5153  holm=1.0000  
+  ra_gnn_eng vs ra_twin_eng|heavy              median    +1.00 %  n=19  wins=6  p=0.0361  holm=0.3607  
+  ra_gnn_raw vs ra_twin_raw|light              median          -  n= 0  wins=None  p=-  holm=-  not run
+  ra_gnn_raw vs ra_twin_raw|moderate           median          -  n= 0  wins=None  p=-  holm=-  not run
+  ra_gnn_raw vs ra_twin_raw|heavy              median          -  n= 0  wins=None  p=-  holm=-  not run
+  ra_gnn_eng vs ra_mlp_same|light              median    -0.74 %  n=19  wins=15  p=0.0002  holm=0.0031  
+  ra_gnn_eng vs ra_mlp_same|moderate           median    +0.36 %  n=19  wins=5  p=0.3321  holm=1.0000  
+  ra_gnn_eng vs ra_mlp_same|heavy              median    +1.68 %  n=19  wins=4  p=0.0010  holm=0.0116  
+  ra_gnn_eng vs ra_set_transformer|light       median    -0.40 %  n=19  wins=14  p=0.0258  holm=0.2840  
+  ra_gnn_eng vs ra_set_transformer|moderate    median    +0.30 %  n=19  wins=9  p=0.1956  holm=1.0000  
+  ra_gnn_eng vs ra_set_transformer|heavy       median    +0.67 %  n=19  wins=8  p=0.4180  holm=1.0000  
+  ra_gnn_eng_physmp vs ra_gnn_eng|light        median    -0.04 %  n=19  wins=10  p=0.9217  holm=1.0000  
+  ra_gnn_eng_physmp vs ra_gnn_eng|moderate     median    -0.72 %  n=19  wins=16  p=0.0005  holm=0.0073  
+  ra_gnn_eng_physmp vs ra_gnn_eng|heavy        median    -1.91 %  n=19  wins=16  p=0.0005  holm=0.0073  
+-- S2
+  ra_gnn_eng_cdapply vs cd|light               median    -0.38 %  n=19  wins=16  p=0.0062  holm=0.0247  
+  ra_gnn_eng_cdapply vs cd|moderate            median    -1.87 %  n=19  wins=18  p=0.0000  holm=0.0001  
+  ra_gnn_eng_cdapply vs cd|heavy               median    -1.66 %  n=19  wins=17  p=0.0006  holm=0.0039  
+  ra_gnn_eng_cdapply vs ra_twin_eng_cdapply|light median    +0.02 %  n=19  wins=8  p=0.6226  holm=1.0000  
+  ra_gnn_eng_cdapply vs ra_twin_eng_cdapply|moderate median    +0.04 %  n=19  wins=9  p=0.9843  holm=1.0000  
+  ra_gnn_eng_cdapply vs ra_twin_eng_cdapply|heavy median    -0.10 %  n=19  wins=12  p=0.1336  holm=0.4009  
+  cd_random_seed vs cd|light                   median    +1.35 %  n=19  wins=1  p=0.0000  holm=0.0001  
+  cd_random_seed vs cd|moderate                median    +4.28 %  n=19  wins=1  p=0.0000  holm=0.0001  
+  cd_random_seed vs cd|heavy                   median    +3.91 %  n=19  wins=3  p=0.0017  holm=0.0085  
+-- descriptive
+  cd_declared|light                            median    +0.50 %  n=19  wins=1  p=0.0000  holm=-  
+  cd_declared|moderate                         median    +4.03 %  n=19  wins=1  p=0.0000  holm=-  
+  cd_declared|heavy                            median    +4.28 %  n=19  wins=2  p=0.0181  holm=-  
+  reactive|light                               median   +25.90 %  n=19  wins=0  p=0.0000  holm=-  
+  reactive|moderate                            median +6204.27 %  n=19  wins=0  p=0.0000  holm=-  
+  reactive|heavy                               median +26368.21 %  n=19  wins=0  p=0.0000  holm=-  
+  random|light                                 median          -  n= 0  wins=None  p=-  holm=-  
+  random|moderate                              median          -  n= 0  wins=None  p=-  holm=-  
+  random|heavy                                 median          -  n= 0  wins=None  p=-  holm=-  
+-- classical_vs_cd
+  locality|light                               median    +7.21 %  n=19  wins=0  p=0.0000  holm=-  
+  locality|moderate                            median   +15.02 %  n=19  wins=0  p=0.0000  holm=-  
+  locality|heavy                               median   +19.81 %  n=19  wins=0  p=0.0000  holm=-  
+  batched|light                                median    +5.74 %  n=19  wins=0  p=0.0000  holm=-  
+  batched|moderate                             median   +12.65 %  n=19  wins=1  p=0.0000  holm=-  
+  batched|heavy                                median   +10.91 %  n=19  wins=1  p=0.0004  holm=-  
+  selfpredict|light                            median    +0.68 %  n=19  wins=2  p=0.0003  holm=-  
+  selfpredict|moderate                         median    -0.54 %  n=19  wins=13  p=0.2753  holm=-  
+  selfpredict|heavy                            median    +2.72 %  n=19  wins=3  p=0.0005  holm=-  

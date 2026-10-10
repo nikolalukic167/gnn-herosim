@@ -238,3 +238,28 @@ A list-valued variable passed that way becomes `VAR=a` plus variables named `b` 
 Export the variable in the submitting shell (`VAR=a,b,c sbatch --export=ALL,... script`) or use a non-comma separator.
 
 Cost: job 853934 (r1_attribution_v1 classical gate, 2026-10-10) ran CD alone — 228 of 1,368 cells — and the other five arms needed a second array.
+
+## 14. `git status` on a freshly created worktree can wedge for hours on Ceph
+
+The job sits at 0 % CPU with no output and never reaches its first real step. Wrap any worktree check in a timeout
+(`timeout 300 git diff --quiet || echo "WARN: worktree check timed out"`) and make it warn rather than block.
+
+**Check after submitting:** within minutes, confirm the job's first artifact (trace dir, timestamped log line) exists.
+A RUNNING state is not progress.
+
+Cost: jobs 849747 and 853598 (r1_attribution_v1 I11 variant pool, 2026-10-09), ~2 h lost.
+
+## 15. `--dependency=afterok:<id>` on a long-finished job is refused
+
+Once a completed job is purged from the controller, a new submission depending on it fails with
+`Job dependency problem`. A waiter that submits later must depend only on jobs still in `squeue`, and check finished
+ones through `sacct` (require COMPLETED, else fail loud).
+
+Cost: waiter 854330 (r1_attribution_v1 training chunk 2, 2026-10-09) died on its first sub-array.
+
+## 16. The login node reaps background processes, even `setsid nohup`
+
+A watcher loop left on `slurm-head-1` died within minutes (and a `setsid nohup` relaunch within ~10 s), silently. Run
+any long-lived watcher as a 1-CPU `sbatch` job with a long time limit; one queue slot is cheaper than a missed hand-off.
+
+Cost: r1_attribution_v1 gate watcher (pid 3011515, 2026-10-09) — a staged arm sat unsubmitted for 15 min.
