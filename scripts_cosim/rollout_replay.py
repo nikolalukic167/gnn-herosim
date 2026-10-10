@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import bisect
 import json
+import math
 import os
 import sys
 import time
@@ -318,8 +319,21 @@ def _one(job):
                     orchestrator.peer_exchange.setdefault(rid, {})[sid] = payload
             return never
 
+        # the orchestrator's 1-s monitor ran on the live run's absolute grid (started at live t = 0); the KPA tick's env.step()
+        # meets it at the same instant there, so the replay's monitor must keep that phase or the tick phase drifts
+        from src.policy.gnn import orchestrator as GO
+
+        orig_monitor = GO.GNNOrchestrator.monitor_process
+        phase = (math.ceil(t0) - t0) % 1.0
+
+        def monitor(self):
+            if phase > 0:
+                yield self.env.timeout(phase)
+            yield from orig_monitor(self)
+
         PG.PeerGreedyNetworkBatchScheduler._prefix_inference = patched
         snapshot_fidelity.apply_orchestrator = apply
+        GO.GNNOrchestrator.monitor_process = monitor
         try:
             infra = deepcopy(fr.base_infra)
             seed_live = deepcopy(fr.seed)
@@ -332,6 +346,7 @@ def _one(job):
         finally:
             PG.PeerGreedyNetworkBatchScheduler._prefix_inference = orig_inf
             snapshot_fidelity.apply_orchestrator = orig_apply
+            GO.GNNOrchestrator.monitor_process = orig_monitor
         trs = {tr["taskId"]: tr for tr in res["stats"]["taskResults"] if tr.get("taskId", -1) >= 0}
         lat = lambda rid: float(trs[rid]["doneTime"]) - float(trs[rid]["scheduledTime"])
         missing = [rid for rid in list(fr.batch_local) + [ids[g] for g in window] if rid not in trs]
