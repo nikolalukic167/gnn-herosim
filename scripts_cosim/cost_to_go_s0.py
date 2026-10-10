@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """cost_to_go_v1 hard stops S0 (headroom) and S1 (stability): job builders and the reader. Offline, held-out steady states.
 
-  cost_to_go_s0.py jobs-s0  OUT.jsonl --argmin TOPS.jsonl --gnn EVAL.json --tables DIR --cells CELLS.txt [--hs 5,15,30] [--max-states N]
+  cost_to_go_s0.py jobs-s0  OUT.jsonl --argmin TOPS.jsonl [--gnn EVAL.json] --tables DIR --cells CELLS.txt [--hs 5,15,30] [--max-states N]
   cost_to_go_s0.py jobs-s1  OUT.jsonl --s0 ROWS.jsonl --s0-jobs JOBS.jsonl --n-states 100 [--eps 0.001,0.01]
   cost_to_go_s0.py read     --s0 ROWS.jsonl [--s1 ROWS.jsonl]
 
@@ -33,7 +33,8 @@ def jobs_s0(a):
         if "error" in r or int(r.get("decisions") or 0) != 1 or not r.get("argmin_s"):
             continue
         tops[r["ds"]] = r["argmin_s"]["top_s"]
-    gnn = {os.path.basename(r["dataset_id"]): r.get("combo") for r in json.load(open(a.gnn))["records"]}
+    # No GNN eval exists on the train split (the served-regret dump is validation-only), so --gnn is optional there.
+    gnn = {os.path.basename(r["dataset_id"]): r.get("combo") for r in json.load(open(a.gnn))["records"]} if a.gnn else {}
     cells = {}
     for line in open(a.cells):
         c, cfg, wl = line.split()
