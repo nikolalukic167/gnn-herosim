@@ -1,6 +1,6 @@
 # accel_nosplit_v1 — does the accel GNN beat CD when split peer groups are served whole?
 
-**Status:** `REGISTERED` (2026-10-10). Every bar below was signed before any data.
+**Status:** `ACTIVE` (2026-10-10), gate running. Registered 2026-10-10. Every bar below was signed before any data.
 
 **Why.** In `accel_replica_v1` the GNN beat CD on every peer group of at most 8 tasks. It lost only on 9–10-task groups,
 which the declared slate splits into blind sub-groups above 100k plans (S5, 855815). Serving those groups whole
@@ -34,6 +34,14 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-10 17:50 — **Launched, sealed** (S4) at acbea783.
+  - **Identity (855826):** 6 of 6 cells bit-identical against the accel gate (cd, selfpredict and flag-off ra_gnn_eng
+    on 16301, g0, both rungs).
+  - **Instrument checks:** no-split unsplit = sub_batched (677/677 moderate, 900/900 heavy); cd_pull charged
+    6,769 / 24,923.
+  - **Reader tests:** 9 passed at 8c5085ba.
+  - **Arrays:** classical 855831 (cd, selfpredict and cd_pull; 576 cells) and learned 855832 (no-split and flag-off
+    gnn_eng and physmp, cdapply flag-off; seeds 1–2; 1,920 cells).
 - 2026-10-10 17:30 — **Inputs and reader ready** (S4).
   - Inputs 855824: 24 cfgs per rung for 16345–16368, fastest_compatible in every cfg, windows byte-identical to the
     accel gate's.
