@@ -25,7 +25,7 @@ mkdir -p "$OUT" logs
 one() { # arm cfgname seed
   local CFG=experiments/accel_replica_v1_$1.yaml RUN S=$3 K
   RUN=$(python3 -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['wandb']['run_name'])" "$CFG")
-  for K in "" "-final"; do
+  for K in ${KINDS:-"" "-final"}; do
     local CK=$MODELS/$RUN-seed$S$K.pt
     [[ -f "$CK" ]] || { echo "FAIL LOUD: $CK missing"; return 1; }
     NEAR_RTT_EVAL_CKPT=$CK NEAR_RTT_EVAL_OUT=$OUT/$RUN-seed$S${K:-"-best"}.json \
