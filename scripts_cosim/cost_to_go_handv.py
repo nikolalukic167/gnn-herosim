@@ -9,8 +9,9 @@ Two terms in seconds, no free weights, one lambda that scales their sum in the p
           own service on p). need[p]: expected arrivals in (t0, t0 + H] that would be served on p, i.e. for each task type its
           arrival rate * H spread evenly over the platforms that can serve it (p's share is 1/|candidates(type)| if p is one).
   cold  = sum over replicas the plan leaves idle whose idle time + H reaches the scale-in time:
-          rate(type) * H * (1 / replicas(type)) * cold_cost(type)   (a type's next arrival lands on a scaled-in replica with
-          probability ~ its share, and pays that type's cold start).
+          rate(type) * H * (1 / replicas(type)) * cold_s(replica)   (a type's next arrival lands on a scaled-in replica with
+          probability ~ its share, and pays that replica's cold start: task.type["coldStartDuration"][platform shortName], the
+          quantity S's own cold term charges, scheduling_cost.incoming_cold_start_time).
 
 Arrival rates use trace events with timestamp <= t0 only; nothing after t0 is read (tested).
 
@@ -18,16 +19,16 @@ The V target is PAIRED, never a separate return: A_k = Q_H(plan_k) - Q_H(policy 
 plan is cd_exactS's own decision. The reader never forms a score from a single plan's return.
 
   cost_to_go_handv.py read --s0 ROWS.jsonl --tops TOPS.jsonl --features FEATS.jsonl
-                           --fit-topos 16301,16302 --eval-topos 16251,16252 --gate-topos 16251,16252,... [--lookback 60]
+                           [--gate-topos 16369-16392] [--lookback 60]
 
-lambda is fit on --fit-topos only, which must be disjoint from --eval-topos and from --gate-topos. S0's rows are held-out
-topologies only (S6, 2026-10-10), so a fit set needs states rolled on other topologies: the reader refuses an empty or overlapping
-fit set rather than fit on what it reports.
+The split is fixed (coordinator ruling, declared before S0 was read): sort the distinct topology ids of the S0 rows; the 1st, 3rd, ...
+are FIT and the 2nd, 4th, ... are EVAL. lambda is fit on FIT only and every number is reported on EVAL. The gate topologies
+(16369-16392 by default) must be absent from the S0 rows; the reader refuses any overlap.
 
 FEATURES (one JSON row per (ds, slot), written by cost_to_go_handv_features.py from a replay of the batch decision):
   {ds, slot, t0, workload (the cell's trace JSON path), load_after: {"node:platform": seconds},
-   type_platforms: {type: ["node:platform", ...]}, replicas: [{key, type, idle_s, used}],
-   cold_cost_s: {type: seconds}, scale_in_after_s: seconds}
+   type_platforms: {type: ["node:platform", ...]}, replicas: [{key, type, idle_s, used, cold_s}],
+   scale_in_after_s: seconds}
 """
 from __future__ import annotations
 
@@ -81,7 +82,7 @@ def hand_v(feat, rates, H):
     for r in feat["replicas"]:
         if r["used"] or float(r["idle_s"]) + H < float(feat["scale_in_after_s"]):
             continue
-        cold += rates.get(r["type"], 0.0) * H / n_rep[r["type"]] * float(feat["cold_cost_s"].get(r["type"], 0.0))
+        cold += rates.get(r["type"], 0.0) * H / n_rep[r["type"]] * float(r["cold_s"])
     return {"v": load + cold, "load": load, "cold": cold}
 
 
@@ -174,6 +175,15 @@ def spearmans(states):
             "per_state_mean": sum(per) / len(per) if per else float("nan"), "per_state_n": len(per)}
 
 
+GATE_TOPOS = tuple(range(16369, 16393))
+
+
+def default_split(topos):
+    """Sorted distinct topology ids -> (FIT = positions 1, 3, ...; EVAL = positions 2, 4, ...). Fixed, not a flag."""
+    t = sorted(set(topos))
+    return t[0::2], t[1::2]
+
+
 def check_split(fit, ev, gate):
     fit, ev, gate = set(fit), set(ev), set(gate)
     if not fit:
@@ -194,10 +204,6 @@ def topo_of_cell(cell):
 
 
 def read(a):
-    fit_t = [int(x) for x in a.fit_topos.split(",") if x]
-    ev_t = [int(x) for x in a.eval_topos.split(",") if x]
-    gate_t = [int(x) for x in (a.gate_topos or "").split(",") if x]
-    check_split(fit_t, ev_t, gate_t)
     rows = [json.loads(l) for l in open(a.s0) if l.strip()]
     tops = {}
     for l in open(a.tops):
@@ -220,6 +226,14 @@ def read(a):
             wl_cache[ds] = json.load(open(f["workload"]))["events"]
         return type_rates(wl_cache[ds], float(f["t0"]), a.lookback)
 
+    all_topos = {topo_of_cell(cell_of(ds)) for ds in {r["ds"] for r in rows if "error" not in r}}
+    fit_t, ev_t = default_split(all_topos)
+    gate_t = list(GATE_TOPOS) if a.gate_topos is None else [int(x) for x in a.gate_topos.split(",") if x]
+    both = all_topos & set(gate_t)
+    if both:
+        raise ValueError(f"FAIL LOUD: S0 rows contain gate topologies {sorted(both)}")
+    check_split(fit_t, ev_t, gate_t)
+    print(f"{len(all_topos)} S0 topologies: FIT {fit_t} / EVAL {ev_t} (fixed odd/even split of the sorted ids)")
     states = build_states(rows, tops, feats, rates_of, cell_of)
     print(f"{len(states)} (state, H) pairs with a paired S, V and Q_H for >= 2 plans")
     for H in sorted({k[1] for k in states}):
@@ -247,9 +261,7 @@ def main():
     r.add_argument("--s0", required=True)
     r.add_argument("--tops", required=True)
     r.add_argument("--features", required=True)
-    r.add_argument("--fit-topos", required=True)
-    r.add_argument("--eval-topos", required=True)
-    r.add_argument("--gate-topos", default="")
+    r.add_argument("--gate-topos", default=None, help="comma list; default 16369-16392")
     r.add_argument("--lookback", type=float, default=60.0)
     a = ap.parse_args()
     read(a)
