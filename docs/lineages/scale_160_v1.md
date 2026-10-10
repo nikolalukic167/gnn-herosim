@@ -50,6 +50,13 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 — **Calibrated-rung screen PASS; GO for the Phase 2 labels** (S5, 855164; seeds 9901 / 9902 / 9904
+  screened, 9903 still finishing and can only add; 0 hung).
+  - Share above 1 % joint regret: 67 / 71 / 63 %.
+  - Per rung: **moderate ×16.42: 69 %** (median regret 15.8 %; ties 49 %; multi-node optimum 39 %); heavy ×23.23: 65 %
+    (median 9.4 %; ties 41 %; multi-node 26 %).
+  - Captures (S6): all 70 seeds 16101–16170 ok (0 failed, 0 hung).
+  - **Split:** train 16101–16150, held-out 16151–16158. 16159–16170 are captured and held as an unused reserve.
 - 2026-10-10 — **(a) PASS; GO for the Phase 1 captures; labels held for a re-screen** (S5, 855119; top-5, fresh seeds,
   2 rungs × 2 windows × 12 batches; 16/16 captures per seed ok, 0 hung).
   - Share of scored batches above 1 % joint regret: 9901 70 %, 9903 60 %, 9904 73 % (median regret 19–30 %). 9902 is
