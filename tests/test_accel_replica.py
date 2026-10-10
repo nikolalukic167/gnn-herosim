@@ -135,3 +135,20 @@ def test_autoscaler_walk_is_alphabetical_by_default_and_fastest_first_under_the_
     assert rr.restrict_to_fastest(cnn, cands, lambda c: c[1], "fastest_compatible") == [("n1", "xavierGpu"), ("n3", "xavierGpu")]
     with pytest.raises(ValueError):
         rr.set_rule("slowest")
+
+
+def test_make_warm_corpus_carries_the_rule_into_the_replay_infrastructure():
+    from scripts_cosim.make_warm_corpus import build_infrastructure
+
+    snap = {"tasks": [{"task_type": "cnn", "task_id": 1, "candidates": [{"queue_key": "node0:3", "platform_type": "xavierGpu"}]}]}
+    seed_block = {"replicas_by_type": {"cnn": [{"node_name": "node0", "platform_id": 3, "platform_type": "xavierGpu", "queue_length": 0, "candidate": True}]}}
+    import scripts_cosim.make_warm_corpus as mwc
+
+    orig = mwc.build_live_snapshot_seed
+    mwc.build_live_snapshot_seed = lambda s: seed_block
+    try:
+        base = {"network_maps": {}, "link_topology": None, "metadata": {}}
+        assert "replica_placement_rule" not in build_infrastructure(base, snap, {})
+        assert build_infrastructure(dict(base, replica_placement_rule="fastest_compatible"), snap, {})["replica_placement_rule"] == "fastest_compatible"
+    finally:
+        mwc.build_live_snapshot_seed = orig
