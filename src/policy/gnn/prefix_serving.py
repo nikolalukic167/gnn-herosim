@@ -158,7 +158,8 @@ def _adopt_or_verify_env(
 
 
 def load_prefix_conditioned_gnn(
-    checkpoint_path: Path, *, device: Optional[torch.device] = None, adopt_env: bool = True
+    checkpoint_path: Path, *, device: Optional[torch.device] = None, adopt_env: bool = True,
+    space_config: Optional[dict] = None,
 ) -> Tuple[TaskPlacementGNN, PrefixServingOptions, dict]:
     """Construct a prefix-conditioned ``TaskPlacementGNN`` from ``<ckpt>.pt`` and its
     mandatory ``.contract.json`` sidecar. Returns (model in eval mode, decode options,
@@ -202,11 +203,12 @@ def load_prefix_conditioned_gnn(
             adopt=adopt_env, default="0",
         )
 
-    # The physics environment the training cache was built under (transfer model, replica release, scale-out).
+    # The physics environment the training cache was built under (transfer model, replica release, scale-out, replica rule). The checkpoint loads
+    # BEFORE the simulator sets the run's replica_placement_rule, so the rule of the run comes from the cell config the caller passes (space_config).
     from src.placement.cache_physics import require_matching_physics_env
 
     try:
-        require_matching_physics_env(sidecar.get("physics_env"), what=label)
+        require_matching_physics_env(sidecar.get("physics_env"), what=label, space_config=space_config)
     except ValueError as exc:
         raise PrefixServingError(str(exc)) from exc
     # The candidate slate the training cache was built under (declared pruning or none)
