@@ -55,6 +55,9 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
   - Share above 1 % joint regret: 67 / 71 / 63 %.
   - Per rung: **moderate ×16.42: 69 %** (median regret 15.8 %; ties 49 %; multi-node optimum 39 %); heavy ×23.23: 65 %
     (median 9.4 %; ties 41 %; multi-node 26 %).
+  - **Final, with 9903:** 9903 is 60 %, so 4 of 4 pass. Per rung: heavy 66 % (median regret 14.2 %, ties 41 %),
+    moderate 64 % (median 8.7 %, ties 43 %). One seed × rung cell is below 50 % on its own (9903 moderate, 48 %); the
+    bar is per seed. Ties are fewer than at the probe load (41–43 % against 50–66 %).
   - Captures (S6): all 70 seeds 16101–16170 ok (0 failed, 0 hung).
   - **Split:** train 16101–16150, held-out 16151–16158. 16159–16170 are captured and held as an unused reserve.
 - 2026-10-10 — **(a) PASS; GO for the Phase 1 captures; labels held for a re-screen** (S5, 855119; top-5, fresh seeds,
