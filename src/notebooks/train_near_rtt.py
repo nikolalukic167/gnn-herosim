@@ -1175,6 +1175,9 @@ def train_epoch(
 
 
 @torch.no_grad()
+_PER_DATASET_RECORDS: Optional[List[Dict[str, Any]]] = None
+
+
 def evaluate(
     model: nn.Module,
     loader: DataLoader,
@@ -1301,6 +1304,10 @@ def evaluate(
                     )
                     if mt_regret is not None:
                         regret_masked_topo.append(mt_regret)
+                    if _PER_DATASET_RECORDS is not None:
+                        _PER_DATASET_RECORDS.append(
+                            {"dataset_id": dataset_id, "opt_rtt": opt_rtt, "regret": mt_regret}
+                        )
                     agree, n_choice, exact = _plan_agreement_with_label(mt_combo, data)
                     mt_choice_correct += agree
                     mt_choice_total += n_choice
@@ -2336,6 +2343,22 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
         + "\n"
     )
 
+
+_eval_ckpt = os.environ.get("NEAR_RTT_EVAL_CKPT")
+if _eval_ckpt:
+    # Eval-only: score one saved checkpoint on the validation split, dump per-dataset served regret, exit.
+    # Never trains, never writes a checkpoint; the validation split only (no test read).
+    import json as _json
+    model.load_state_dict(torch.load(_eval_ckpt, map_location=DEVICE))
+    _PER_DATASET_RECORDS = []
+    _m = evaluate(model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "val",
+                  full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET)
+    _out = os.environ["NEAR_RTT_EVAL_OUT"]
+    with open(_out, "w") as _f:
+        _json.dump({"checkpoint": _eval_ckpt, "val_regret_masked_topo": _m["regret_masked_topo"],
+                    "records": _PER_DATASET_RECORDS}, _f)
+    print(f"[eval-only] {_eval_ckpt}: val regret_masked_topo={_m['regret_masked_topo']:.4f}s, {len(_PER_DATASET_RECORDS)} datasets -> {_out}")
+    sys.exit(0)
 
 best_val_regret = float("inf")
 best_val_acc = 0.0
