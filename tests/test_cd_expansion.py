@@ -139,7 +139,7 @@ def test_harness_serves_cd_expand_as_a_named_diagnostic_arm():
     assert "cd_expand" in G.R1A_DIAG and "cd_expand" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_expand":\n            env["HEROSIM_PG_CD_EXPANSION"] = "1"' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
 
 
 # ---- cdxapply: the CD refine of a seeded (learned) plan, with the expansion ----
@@ -344,7 +344,7 @@ def test_harness_serves_cd_exactS_as_a_named_diagnostic_arm():
     assert "cd_exactS" in G.R1A_DIAG and "cd_exactS" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_exactS":\n            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell
     assert 'if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1"' in src
 
 
