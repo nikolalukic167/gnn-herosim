@@ -141,9 +141,9 @@ def _one(job):
         trace = json.load(open(job["workload"]))
         arrivals = [float(e["timestamp"]) for e in trace["events"]]
         tab = json.load(open(job["table"]))
-        if tab["n"] != len(arrivals):
-            raise RuntimeError(f"table has {tab['n']} tasks, the trace {len(arrivals)}")
         window, n_cut = window_of(fid, t0, H, arrivals, tab, None)
+        if tab["n"] < n_cut:
+            raise RuntimeError(f"table has {tab['n']} tasks, the rollout needs {n_cut}")
 
         ids = snapshot_fidelity.local_ids(fid)  # live id -> replay id for queued + batch
         wl = deepcopy(fr.wl)
@@ -327,12 +327,14 @@ def truth_one(job):
                 raise RuntimeError(f"cut live run failed (rc {proc.returncode}): {proc.stderr[-300:]}")
             trs = {int(tr["taskId"]): tr for tr in json.load(open(out))["stats"]["taskResults"] if tr.get("taskId", -1) >= 0}
         hist = [abs(float(trs[i]["scheduledTime"]) - tab["scheduled"][i]) for i in range(n_cut) if tab["scheduled"][i] < t0 - 1e-9]
+        hist_off = [[i, tab["scheduled"][i], float(trs[i]["scheduledTime"]), float(trs[i]["doneTime"]) - tab["done"][i]]
+                    for i in range(n_cut) if tab["scheduled"][i] < t0 - 1e-9 and abs(float(trs[i]["scheduledTime"]) - tab["scheduled"][i]) > 1e-9][:10]
         moved = [g for g in batch if (str(trs[g]["executionNode"]), int(trs[g]["executionPlatform"])) != (tab["node"][g], tab["platform"][g])
                  or abs(float(trs[g]["scheduledTime"]) - t0) > 1e-6]
         snapset = {int(r["gid"]) for r in fid["queued"]} | set(batch) | {int(g["tid"]) for g in fid.get("ghosts") or []}
         win_truth = [i for i in range(n_cut) if i not in snapset and float(trs[i]["scheduledTime"]) >= t0 - 1e-9]
         lat = lambda i: float(trs[i]["doneTime"]) - float(trs[i]["scheduledTime"])
-        return dict(base, t0=t0, n_cut=n_cut, history_max_abs=max(hist) if hist else 0.0, batch_moved=moved,
+        return dict(base, t0=t0, n_cut=n_cut, history_max_abs=max(hist) if hist else 0.0, history_off=hist_off, batch_moved=moved,
                     window_same=sorted(win_truth) == sorted(window), n_window=len(win_truth),
                     q=sum(lat(g) for g in batch) + sum(lat(i) for i in win_truth), q_batch=sum(lat(g) for g in batch),
                     q_window=sum(lat(i) for i in win_truth), window_lat={str(i): lat(i) for i in win_truth}, wall=time.time() - t_start)
