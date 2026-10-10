@@ -69,6 +69,45 @@ def _log_mutex(orchestrator, path: str, offset: float, until: float) -> None:
     m.get, m.put = get, put
 
 
+class _TopS(Exception):
+    def __init__(self, top):
+        super().__init__("top_s")
+        self.top = top
+
+
+def _top_s(sched, tasks, system_state, local_of, k: int):
+    """The k lowest-S plans over the batch's top-K slate (cd_exactS's own slate: each task's five cheapest candidates by
+    standalone cost), by exhaustive enumeration with a bounded heap; plans in dataset task order as [node_id, platform_id]."""
+    import heapq
+    from itertools import product
+
+    orch = sched._pg_orchestrator()
+    memo = {}
+    nodes = sched.nodes.items
+    placements = {i: (0, 0) for i in range(len(tasks))}
+    cands = [sched._pg_candidates(t, system_state) for t in tasks]
+    slates = []
+    for i, t in enumerate(tasks):
+        ranked = sorted(cands[i], key=lambda c: (sched._pg_standalone(t, c[0], c[1], orch, memo, nodes), int(c[0].id), int(c[1].id)))
+        slates.append(sorted(ranked[:sched.pg_cd_exact_top_k], key=lambda c: (int(c[0].id), int(c[1].id))))
+    heap, n_plans = [], 0
+    for combo in product(*slates):
+        cost = float(sched._pg_plan_cost(tasks, list(combo), orch, memo, nodes)[0])
+        n_plans += 1
+        item = (-cost, -n_plans, combo)
+        if len(heap) < k:
+            heapq.heappush(heap, item)
+        elif cost < -heap[0][0]:
+            heapq.heapreplace(heap, item)
+    out = []
+    for neg, _n, combo in sorted(heap, key=lambda x: (-x[0], -x[1])):
+        plan = [None] * len(tasks)
+        for t, (node, plat) in zip(tasks, combo):
+            plan[local_of[int(t.id)]] = [int(node.id), int(plat.id)]
+        out.append({"s": -neg, "plan": plan})
+    return {"top": out, "n_plans": n_plans}
+
+
 class _Every:
     def __contains__(self, _key) -> bool:
         return True
@@ -147,7 +186,8 @@ def _one(job):
                 continuation=job["continuation"], tag=job.get("tag"))
     try:
         os.environ["HEROSIM_SNAPSHOT_FIDELITY"] = "1"
-        prov = json.load(open(ds / "generation_provenance.json"))
+        grp = job.get("group")  # split read (b): a whole peer group from its raw corpus snapshot line, no sweep
+        prov = json.load(open(Path(grp["physics_from"] if grp else ds) / "generation_provenance.json"))
         for k, v in (prov.get("physics_env") or {}).items():
             if k.startswith("HEROSIM_") or k in ("COSIM_AUTOSCALER_RECONCILE_INTERVAL",):
                 os.environ.setdefault(k, str(v))
@@ -163,19 +203,36 @@ def _one(job):
         from src.placement import fidelity_replay, snapshot_fidelity
         from src.policy.peer_greedy_network import scheduler as PG
 
-        seed = json.load(open(ds / "infrastructure.json"))["live_snapshot_seed"]
-        spec = deepcopy(seed["fidelity_replay"])
+        if grp:
+            snap = None
+            for line in open(grp["snapfile"]):
+                rec = json.loads(line)
+                if int(rec["snapshot_id"]) == int(grp["snapshot_id"]) and abs(float(rec["time"]) - float(grp["time"])) < 1e-6:
+                    snap = rec
+                    break
+            if snap is None:
+                raise RuntimeError(f"no snapshot {grp['snapshot_id']} at {grp['time']} in {grp['snapfile']}")
+            ref = json.load(open(Path(grp["physics_from"]) / "infrastructure.json"))["live_snapshot_seed"]["fidelity_replay"]
+            spec = {"snapshot": snap, "cell_config": ref["cell_config"], "sim_input": ref["sim_input"],
+                    "live_run_params": ref["live_run_params"]}
+            replicas_by_type = snap["replicas_by_type"]
+            types = [r["fn"] for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
+            rows = []
+        else:
+            seed = json.load(open(ds / "infrastructure.json"))["live_snapshot_seed"]
+            spec = deepcopy(seed["fidelity_replay"])
+            replicas_by_type = seed["replicas_by_type"]
+            types = [next(iter(e["application"]["dag"])) for e in json.load(open(ds / "workload.json"))["events"]]
+            rows = [r for r in (json.loads(l) for l in open(ds / "placements" / "placements.jsonl") if l.strip()) if "placement_plan" in r]
         if not Path(spec["sim_input"]).exists():
             spec["sim_input"] = str(REPO / "data" / "nofs-ids")
         if eps:
             perturb(spec["snapshot"]["fidelity"], eps)
         fid = spec["snapshot"]["fidelity"]
         t0 = float(spec["snapshot"]["time"])
-        types = [next(iter(e["application"]["dag"])) for e in json.load(open(ds / "workload.json"))["events"]]
         offered = {t: [(sp["node_name"], sp["platform_id"]) for sp in specs if sp.get("candidate", True)]
-                   for t, specs in seed["replicas_by_type"].items()}
+                   for t, specs in replicas_by_type.items()}
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
-        rows = [r for r in (json.loads(l) for l in open(ds / "placements" / "placements.jsonl") if l.strip()) if "placement_plan" in r]
 
         trace = json.load(open(job["workload"]))
         arrivals = [float(e["timestamp"]) for e in trace["events"]]
@@ -277,8 +334,10 @@ def _one(job):
                     t.planned_node_name = node_by_id[int(f[0])].node_name
                 else:
                     free.append(i)
+            if not out and job.get("enumerate_s") and set(local_of) <= {int(t.id) for t in batch_tasks}:
+                raise _TopS(_top_s(self, batch_tasks, system_state, local_of, int(job.get("top_k", 8))))
             if not out:
-                restrict = _Restrict({int(t.id): allowed[local_of[int(t.id)]] for t in batch_tasks if int(t.id) in local_of})
+                restrict = _Restrict({int(t.id): allowed[local_of[int(t.id)]] for t in batch_tasks if int(t.id) in local_of and allowed})
                 self._pg_allowed = restrict or None
                 try:
                     res = orig_inf(self, batch_tasks, system_state, queue_snapshot, temporal_state)
@@ -288,7 +347,9 @@ def _one(job):
                 res = {}
                 if free:
                     free_tasks = [batch_tasks[i] for i in free]
-                    restrict = _Restrict({int(t.id): allowed[local_of[int(t.id)]] for t in free_tasks if int(t.id) in local_of})
+                    restrict = _Restrict({int(t.id): allowed[local_of[int(t.id)]] for t in free_tasks if int(t.id) in local_of and allowed})
+                    if job.get("enumerate_s") and set(local_of) <= {int(t.id) for t in free_tasks}:
+                        raise _TopS(_top_s(self, free_tasks, system_state, local_of, int(job.get("top_k", 8))))
                     self._pg_allowed = restrict or None
                     try:
                         sub = self._pg_decide(free_tasks, system_state)
@@ -344,8 +405,11 @@ def _one(job):
             infra["live_snapshot_seed"] = seed_live
             infra["fast_forward_warmup"] = True
             infra["fast_forward_threshold"] = 1
-            res = execute_simulation({"infrastructure": infra, "workload": wl}, fr.sim_inputs, scheduling_strategy=strategy,
-                                     cache_policy="fifo", task_priority="fifo", **fr.kw)
+            try:
+                res = execute_simulation({"infrastructure": infra, "workload": wl}, fr.sim_inputs, scheduling_strategy=strategy,
+                                         cache_policy="fifo", task_priority="fifo", **fr.kw)
+            except _TopS as top:
+                return dict(base, t0=t0, n_batch=len(fr.batch_local), top_s=top.top["top"], n_plans=top.top["n_plans"], wall=time.time() - t_start)
         finally:
             PG.PeerGreedyNetworkBatchScheduler._prefix_inference = orig_inf
             snapshot_fidelity.apply_orchestrator = orig_apply
