@@ -328,8 +328,13 @@ def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
 def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
     """r1_attribution_v1 live gate cells: R1A_TOPOS (default the selection's 19 test topologies) x the WF1_RUNGS rungs x R1A_WINDOWS
     x R1A_ARMS. R1A_SHARD="i/n" keeps every n-th cell (array shards; the list is ordered rung, topology, window, arm, seed)."""
-    need = {"HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "1", "HEROSIM_SCALEOUT": "kpa",
-            "GATE_FIXED_POLICY_TIME_SCALE": "1.0", "HEROSIM_SHARED_AUTOSCALER": "0"}
+    # knative_diag: R1A_KNATIVE_DIAG=1 lets the replica-release physics be switched off for a diagnostic cell (reactive only, not a gate)
+    need = {"HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "0" if os.environ.get("R1A_KNATIVE_DIAG") == "1" else "1",
+            "HEROSIM_SCALEOUT": "kpa", "GATE_FIXED_POLICY_TIME_SCALE": "1.0", "HEROSIM_SHARED_AUTOSCALER": "0"}
+    if os.environ.get("R1A_KNATIVE_DIAG") == "1" and os.environ.get("HEROSIM_REPLICA_RELEASE") not in ("0", "1"):
+        raise SystemExit("FAIL LOUD: R1A_KNATIVE_DIAG=1 needs HEROSIM_REPLICA_RELEASE set to 0 or 1")
+    if os.environ.get("R1A_KNATIVE_DIAG") == "1":
+        need["HEROSIM_REPLICA_RELEASE"] = os.environ["HEROSIM_REPLICA_RELEASE"]
     bad = {k: os.environ.get(k) for k, v in need.items() if os.environ.get(k) != v}
     if bad or not WF1_LADDER:
         raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
