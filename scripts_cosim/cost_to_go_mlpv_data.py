@@ -83,6 +83,8 @@ def build(a):
             plans = []
             n_s = 0
             for slot in sorted(slots, key=lambda s: (s != "policy", s)):
+                if slot != "policy" and not slot[1:].isdigit():
+                    continue  # the GNN slot of the S0 rows: not in the 5 non-GNN plans
                 if slot != "policy":
                     # the 5-plan set of the S0 reader (_plan_set): the policy plan and the first 4 S-ranked plans that differ from it
                     if slots[slot]["plan"] == pol["plan"] or n_s >= 4:
