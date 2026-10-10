@@ -65,8 +65,14 @@ rollout (SCIENTIST, 2026-10-10).
     | 30 | 0.0562 | +0.48 | 63.4 → 60.0 % | −19.5 of 1,082 s (−1.8 %, overfit) |
 
   - The saving comes from a few large-advantage states. The small-λ (tie-breaker) regime is λ=0 at every H and saves 0.
-  - **Features:** queue drain is nonzero in 88 of 346 states. **In-flight remaining is 0 in every state**, so the
-    in-flight view tests nothing. Unverified, under check: is 0 a fact of the states, or an accessor that returns 0?
+  - **Features:** queue drain is nonzero in 88 of 346 states.
+  - **In-flight remaining read 0 in every state: an accessor artefact, corrected 06:10 (S7).**
+    - Cause: `inflight_remaining_seconds` (`src/placement/live_audit.py:135-141`) reads `platform.inflight_service_end`,
+      which only live `_serve_task` sets. Replay ghosts never set it.
+    - The snapshots do hold in-flight work: 344 of 346 states have ghosts at t0, mostly input_io. The state total has
+      median 208 s, against a queue-drain median of 0 s.
+    - So view (b) is untested, not null. The same accessor would also read 0 for `pg_inflight` in any replay.
+    - Next: recompute (b) offline from the snapshot ghosts, as sum (b1) and max-over-ghosts (b2).
   - The cold term is not broken out, and the pooled platform-load term is not yet in V.
 - 2026-10-11 03:40 — **S0: PASS pooled at every H, marginal; S1 launched; ruling** (S6; 855965 at a0048522; 346
   non-split single-decision held-out states; 7,158 rollouts, 0 errors. Split read 856004 at bd92e30c; S1 856121).
