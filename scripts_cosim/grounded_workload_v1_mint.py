@@ -63,6 +63,20 @@ def merge_groups(groups: List[dict], k: int) -> List[dict]:
     return out
 
 
+def regroup_to_size(groups: List[dict], size: int) -> List[dict]:
+    """big_groups_s0_v1: peer groups of exactly `size` tasks (the last one shorter). The library's tasks, in arrival order, are cut into
+    consecutive chunks of `size`; a chunk is dispatched at its first task's arrival and every member keeps its real lag behind it (ms,
+    never stretched), as --merge-k does. The task sequence and so the task rate are those of the K=1 mint."""
+    if size < 1:
+        raise ValueError(f"group size {size} < 1")
+    abs_ms = sorted(int(g["t0_ms"]) + int(o) for g in groups for o in g["offsets_ms"])
+    out = []
+    for i in range(0, len(abs_ms), size):
+        chunk = abs_ms[i:i + size]
+        out.append({"t0_ms": chunk[0], "offsets_ms": [t - chunk[0] for t in chunk]})
+    return out
+
+
 def plan_groups(groups: List[dict], n_tasks: int) -> List[Tuple[int, List[int]]]:
     out: List[Tuple[int, List[int]]] = []
     placed = 0
@@ -76,9 +90,11 @@ def plan_groups(groups: List[dict], n_tasks: int) -> List[Tuple[int, List[int]]]
 
 
 def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
-         payload_sampler: str = "legacy") -> Tuple[dict, dict]:
+         payload_sampler: str = "legacy", group_size: int = 0) -> Tuple[dict, dict]:
     require_sampler(payload_sampler)
-    plan = plan_groups(merge_groups(lib["groups"], merge_k), n_tasks)
+    if group_size and merge_k != 1:
+        raise SystemExit("FAIL LOUD: --group-size and --merge-k are two ways to set the group size; give one")
+    plan = plan_groups(regroup_to_size(lib["groups"], group_size) if group_size else merge_groups(lib["groups"], merge_k), n_tasks)
     bev = base["events"][:n_tasks]
     if len(bev) < n_tasks:
         raise SystemExit("FAIL LOUD: base window shorter than --n-tasks")
@@ -127,7 +143,7 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
                 key = (min(i, j), max(i, j))
                 if key not in pairs:
                     pairs[key] = payload()
-        if merge_k > 1 and len(members) > 1:
+        if (merge_k > 1 or group_size) and len(members) > 1:
             root = {m: m for m in members}
 
             def find(x: int) -> int:
@@ -165,6 +181,8 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
     }
     if merge_k > 1:
         meta["merge_k"] = merge_k
+    if group_size:
+        meta["group_size"] = group_size
     if payload_sampler != "legacy":
         meta["payload_sampler"] = payload_sampler_meta()
     doc = {"rps": base["rps"], "duration": base["duration"], "events": events,
@@ -180,6 +198,10 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--n-tasks", type=int, default=50000)
     ap.add_argument("--merge-k", type=int, default=1)
+    ap.add_argument("--group-size", type=int, default=0,
+                    help="big_groups_s0_v1: peer groups of exactly this many tasks (0 = the library's own groups, the K=1 mint)")
+    ap.add_argument("--rate-tol", type=float, default=0.02,
+                    help="fail loud when the minted task rate differs from the base window's by more than this fraction")
     ap.add_argument("--payload-sampler", choices=PAYLOAD_SAMPLERS, default="legacy",
                     help="legacy: 200 MB * 10**U(-1,1). wf1_v1: workload_fix_v1 W2 (log-normal 4 MB + heavy tier)")
     a = ap.parse_args()
@@ -189,7 +211,9 @@ def main() -> int:
     base = json.load(open(a.base))
     if a.merge_k < 1:
         raise SystemExit("FAIL LOUD: --merge-k must be >= 1")
-    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k, a.payload_sampler)
+    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k, a.payload_sampler, a.group_size)
+    if abs(meta["rate_per_s"] / meta["base_rate_per_s"] - 1) > a.rate_tol:
+        raise SystemExit(f"FAIL LOUD: minted rate {meta['rate_per_s']:.5f}/s differs from the base {meta['base_rate_per_s']:.5f}/s by more than {a.rate_tol:.0%}")
     doc["grounded_workload_v1"] = {**meta, "library": os.path.basename(a.lib), "library_sha256": _sha(a.lib),
                                    "library_source": lib["source"], "base": os.path.basename(a.base),
                                    "base_sha256": _sha(a.base)}
