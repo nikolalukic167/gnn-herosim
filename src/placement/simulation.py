@@ -671,7 +671,8 @@ def start_simulation(
 
     # NOTE: This is ONLY used by executecosimulation.py (co-simulation mode)
     # executeinitial.py does NOT provide replica_plan and should not preinitialize platforms
-    replica_rule.set_rule(infrastructure.get("replica_placement_rule"))
+    if replica_rule.set_rule(infrastructure.get("replica_placement_rule")) != replica_rule.FIRST:
+        print(f"[simulation] replica_placement_rule={replica_rule.current_rule()}")
     initial_replicas = {}
     live_snapshot_seed = infrastructure.get("live_snapshot_seed")
     if live_snapshot_seed:
@@ -770,7 +771,7 @@ def start_simulation(
     autoscaler_type = snapshot_fidelity.swap_autoscaler(autoscaler_type)
     # accel_replica_v1: the platform rule of this simulation (default first_compatible = every earlier run). An autoscaler that has not been given the
     # rule would silently keep the alphabetical walk, so a non-default rule refuses it.
-    rule = replica_rule.set_rule(infrastructure.get("replica_placement_rule"))
+    rule = replica_rule.current_rule()
     if rule != replica_rule.FIRST and not getattr(autoscaler_type, "supports_replica_rule", False):
         raise RuntimeError(f"FAIL LOUD: replica_placement_rule={rule!r} is not implemented by {autoscaler_type.__name__}")
 
