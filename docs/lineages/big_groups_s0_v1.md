@@ -65,4 +65,12 @@
 
 ## Record (newest first)
 
+- 2026-10-11 12:40 — **Search budget fixed before any data** (S6 plan, coordinator OK).
+  - **Reference:** best-improvement local search over the top-5 slate, scored by the co-sim per-plan engine (the corpus
+    label quantity, about 0.4 s per plan). Moves are single-task moves plus in-slate pair swaps.
+  - Starts: argmin-S (S-only local search above the cap, marked), cd_exactS's plan, and GNN self-search if available.
+  - **B = 600 replayed plans per state**, the same at every G. Every replayed plan is kept for M2.
+  - **Safeguard:** if fewer than 50 % of states converge before B at any G ≥ 12, 20 seeded states rerun at B = 1,800.
+    If M1 moves by more than 2 points, that G is labelled UNDER-SEARCHED and no NO-GO is drawn from it.
+  - The scorer must reproduce held-out corpus labels within 0.1 % before use.
 - 2026-10-11 12:00 — **Registered** (coordinator, on the user's "yes, please").
