@@ -1,0 +1,14 @@
+trainer: value_mlp
+lineage: cost_to_go_v1
+description: "rung (b) MLP V, DeepSets over post-plan replicas, paired H=5 advantage target; in-flight feature ON (b1 ghosts)"
+cache_dir: /share/nikola.lukic/cost_to_go/mlpv/train_cache
+args:
+  epochs: 100
+  lr: 0.001
+  batch-states: 64
+  output: models/cost-to-go-v1-mlpv-inflt.pt
+
+wandb:
+  project: herosim-cost-to-go
+  run_name: cost-to-go-v1-mlpv-inflt
+  tags: [cost_to_go_v1, rung_b]

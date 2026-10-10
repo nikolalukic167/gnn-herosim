@@ -14,10 +14,10 @@ from __future__ import annotations
 import argparse
 import json
 
-from scripts_cosim.cost_to_go_handv_features import post_commit_features
-
 
 def decision_hook(sched, batch_tasks, plan, system_state, ctx):
+    from scripts_cosim.cost_to_go_handv_features import post_commit_features  # simulator imports: only inside a replay
+
     job = ctx["job"]
     local_of = ctx["local_of"]
     couple = {(int(n.id), int(p.id)): (n, p) for n in sched.nodes.items for p in n.platforms.items}
