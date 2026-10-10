@@ -240,6 +240,8 @@ class Orchestrator:
             # cd_exactS: exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1)
             "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
             "pg_exact_gain_seconds",
+            # cost_to_go_v1 gate: cd_exactS batches re-ranked by the value term, and those whose plan it changed
+            "pg_v_batches", "pg_v_changed",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",
