@@ -82,11 +82,11 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
     - mean execution time is 0.59–0.63 s per task vs 0.32 s in healthy cells;
     - the backlog grows linearly (174 → 1,249 tasks by quarter).
   - **Code:**
-    - `knative_network/scheduler.py:176–178` picks the replica with the shortest `queue`, which ignores platform
+    - `knative_network/scheduler.py:211–213` (at the acbea783 descendant) picks the replica with the shortest `queue`, which ignores platform
       speed;
     - under `HEROSIM_REPLICA_RELEASE=1` that queue stays near 0, because tasks pop at once and wait on
       `compute_lock` (`infrastructure.py:814, 1654, 1855`). The key is blind and ties fall to the lowest ids;
-    - the autoscaler (`autoscaler.py:103–110, 243–255`) sizes by in-system count with no speed input.
+    - the autoscaler (`autoscaler.py:95, 247, 252–255`) sizes by in-system count with no speed input.
   - **Not a harness spin:** wall clock 69 s per cell, CD/batched/locality healthy on the same harness, same signature
     as r1_attribution_v1's Knative arm.
   - Instrumented per-task check plus a REPLICA_RELEASE=0 test approved (S5).
