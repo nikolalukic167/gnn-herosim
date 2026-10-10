@@ -237,12 +237,35 @@ def read(a):
     print(f"{len(all_topos)} S0 topologies: FIT {fit_t} / EVAL {ev_t} (fixed odd/even split of the sorted ids)")
     ds_all = sorted({d for d, slot in feats if slot == "policy"})
     nz_drain = sum(any(v > 0 for v in feats[(d, "policy")].get("drain", {}).values()) for d in ds_all)
-    nz_fly = sum(any(v > 0 for v in feats[(d, "policy")].get("inflight", {}).values()) for d in ds_all)
+    fly_key = "inflight_b1" if "inflight_b1" in feats[(ds_all[0], "policy")] else "inflight"
+    nz_fly = sum(any(v > 0 for v in feats[(d, "policy")].get(fly_key, {}).values()) for d in ds_all)
     print(f"states with features: {len(ds_all)}; nonzero queue drain on some platform: {nz_drain}; nonzero in-flight remaining: {nz_fly}")
-    for label, key in (("(a) load_after as S sees it", "load_after"), ("(b) load_after plus in-flight remaining", "load_after_inflight")):
+    views = [("(a) load_after as S sees it", "load_after")]
+    if all("load_after_b1" in f for f in feats.values()):
+        views += [("(b1) load_after + in-flight remaining, sum over a platform's tasks", "load_after_b1"),
+                  ("(b2) load_after + in-flight remaining, largest single task", "load_after_b2")]
+    else:
+        views.append(("(b) load_after plus in-flight remaining (accessor-based; 0 in replay)", "load_after_inflight"))
+    fit_score = {}
+    for label, key in views:
         states = build_states(rows, tops, feats, rates_of, cell_of, key)
         print(f"\n===== hand V {label}: {len(states)} (state, H) pairs with a paired S, V and Q_H for >= 2 plans")
         _report(states, fit_t, ev_t)
+        fit_score[key] = fit_spearman(states, fit_t)
+    if "load_after_b1" in fit_score:
+        pick = "load_after_b1" if fit_score["load_after_b1"] >= fit_score["load_after_b2"] else "load_after_b2"
+        print(f"\nvariant choice on FIT topologies only (mean over H of pooled Spearman of dV vs dQ_H; tie -> b1): "
+              f"b1 {fit_score['load_after_b1']:+.3f}, b2 {fit_score['load_after_b2']:+.3f} -> {pick}")
+
+
+def fit_spearman(states, fit_t):
+    """Mean over H of the pooled Spearman of dV vs dQ_H on FIT-topology states: the declared rule for choosing between b1 and b2."""
+    vals = []
+    for H in sorted({k[1] for k in states}):
+        fit = [s for k, s in states.items() if k[1] == H and topo_of_cell(s["cell"]) in fit_t]
+        if fit:
+            vals.append(spearmans(fit)["pooled"])
+    return sum(vals) / len(vals) if vals else float("nan")
 
 
 def _report(states, fit_t, ev_t):
