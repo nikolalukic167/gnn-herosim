@@ -39,3 +39,16 @@ def test_family_is_holm_over_four_on_the_nosplit_arms_and_restores_globals(monke
 
 def test_importing_the_reader_leaves_the_scale_160_arms_alone():
     assert S.ARMS == ("ra_gnn_eng", "ra_gnn_eng_physmp")
+
+
+def test_vs_cd_expand_pairs_against_seed_zero(monkeypatch):
+    monkeypatch.setattr(S, "RUNGS", ("moderate", "heavy"))
+    cells = {}
+    for t in range(16345, 16349):
+        cells[("cd_expand", 0, t, "g0", "moderate")] = {"averageElapsedTime": 3.0}
+        cells[("ra_gnn_eng_nosplit", 1, t, "g0", "moderate")] = {"averageElapsedTime": 2.7}
+    monkeypatch.setattr(S.R, "load", lambda gate: (cells, {}))
+    out = A.vs_cd_expand(["x"], list(range(16345, 16349)))
+    c = out["ra_gnn_eng_nosplit|moderate"]
+    assert c["n_topologies"] == 4 and abs(c["median_pct"] + 10.0) < 1e-9 and c["wins"] == 4
+    assert out["ra_gnn_eng_physmp_nosplit|moderate"]["median_pct"] is None
