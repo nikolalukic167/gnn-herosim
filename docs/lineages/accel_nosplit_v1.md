@@ -34,6 +34,11 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-10 17:30 — **Inputs and reader ready** (S4).
+  - Inputs 855824: 24 cfgs per rung for 16345–16368, fastest_compatible in every cfg, windows byte-identical to the
+    accel gate's.
+  - Reader committed before data at rp/accel-nosplit-run 8c5085ba.
+  - Identity 855826 is running at acbea783 (10 cells on 16301). Submission is pre-approved on an identity pass.
 - 2026-10-10 17:10 — **Amendment, before any data: gate pin** (coordinator). The pin is rp/accel-nosplit-gate acbea783:
   d4ec8688 plus the merge of rp/accel-pullhold 4ace56e0, which adds pull-ledger and cd_pull src code, off by default and
   identity-tested on its parent (855822), plus the no-split harness kinds.
