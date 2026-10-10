@@ -67,6 +67,22 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 19:00 — **Replay variant G fixes the opening-state I11 miss** (S6; rp/replay-g e787127a; 855829, 855845–6,
+  855851, 855854).
+  - **Miss at F:** heavy opening states (t < 120 s) failed I11, p95 1.57 % and max 3.68 %, with the replay always
+    faster than live.
+  - **Cause:** `snapshot_fidelity.ghost_order_key` created in-flight ghosts in (pop, tid) order, but a replica's compute
+    lock is FIFO by request time. A lower-tid waiter therefore jumped the lock while a pull held the node's storage.
+  - **G** orders in-flight ghosts by lock request, after ingress and cold ghosts.
+  - **I11 at G:**
+    - opening heavy: median 0.011 %, p95 0.200 %, max 0.617 %;
+    - opening moderate: p95 0.041 %;
+    - steady heavy: max 0.062 %.
+    All pass.
+  - **Label drift F → G** on 60 accel train datasets: 0 changed and 0 argmin flips. The existing scale160 and accel
+    corpora are unaffected; only opening states need G.
+  - **Opening label stability** (ε = 0.001 and 0.01 on every in-flight timer, 30 datasets): 0 argmin changes, the same
+    as steady states.
 - 2026-10-10 18:40 — **CD with α-expansion moves beats CD by 7–8 %** (S5; rp/cd-expand 8e3d39c6, flag
   `HEROSIM_PG_CD_EXPANSION`; 855850; seed 0, g0, 12 gate topologies; descriptive).
   - **Identity:** flag-unset CD is identical to `classical_fcd47841`.
