@@ -5,7 +5,8 @@
 # a small fidelity corpus at the declared slate (top 5) and at a wider slate (top 10, probe hook DECLARED_SLATE_TOP_K), then run the
 # joint-headroom screen and the candidate stats on both. Everything is written under OUT=/share/...; nothing in the repo or in
 # the production corpus is touched. The load is NOT calibrated: the achieved queue share is reported with the cell.
-#   (accel_replica_v1: REPLICA_RULE=fastest_compatible; RUNGS take PRODUCTION multipliers, final m = m_prod*NS/6)
+#   (accel_replica_v1: REPLICA_RULE=fastest_compatible; FINAL_M=1 makes RUNGS final multipliers, factor = 1/m, like scale_rung_bisect.py; without it RUNGS are
+#    PRODUCTION multipliers and the factor is 6/(m*NS))
 #   SIZES="40:6:0.6:9101 80:12:0.6:9101 ..." sbatch --array=0-<n-1> --export=ALL,WT=...,OUT=...,SIZES="..." scale_probe.sbatch
 #SBATCH --job-name=scaleprobe
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/scaleprobe-%A_%a.out
@@ -45,7 +46,8 @@ PY
   TAGS=""
   for spec in $RUNGS; do
     tag=${spec%%=*}; m=${spec##*=}
-    factor=$(python3 -c "print(repr(6.0/($m*$NS)))")
+    if [[ -n "${FINAL_M:-}" ]]; then factor=$(python3 -c "print(repr(1.0/$m))")   # accel_replica_v1: RUNGS carry FINAL multipliers (as scale_rung_bisect.py does)
+    else factor=$(python3 -c "print(repr(6.0/($m*$NS)))"); fi
     python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" --cfg-dir "$ROOT/cfg_src" --topologies "$SEED" --rung "$tag=$factor" \
       --payload-sampler wf1_v1 --task-mix wf1_v1 --batch-timeout-fixed 1 --out "$ROOT/_b_$tag"
     mkdir -p "$ROOT/inputs_w24"; mv "$ROOT/_b_$tag/wf1_$tag" "$ROOT/inputs_w24/wf1_$tag"; cp "$ROOT/_b_$tag/manifest.json" "$ROOT/inputs_w24/manifest_$tag.json"
