@@ -473,6 +473,29 @@ def _prefix_free_prefix_block(data: Data) -> None:
     )
 
 
+def _plan_scores_for_graph(model: nn.Module, data: Data, combos) -> List[Optional[float]]:
+    """The GNN plan score of each full plan (gnn_selfsearch's convention): the sum over tasks of the model's logit for the task's choice with every
+    other task committed at the plan. None for a plan with a choice outside the graph's candidate slate."""
+    alpha_key = str(NEAR_CFG.dag_alpha_key or getattr(data, "dag_primary_alpha_key", "2.0"))
+    ctx = build_partial_state_context_from_graph(data)
+    ctx.node_caps = data.partial_state_ctx["node_caps_by_alpha"][alpha_key]
+    score_fn = make_partial_state_score_fn(model, data, ctx)
+    tl = [[tuple(int(v) for v in c) for c in data.task_logit_to_placement[t]] for t in range(int(data.n_tasks))]
+    out: List[Optional[float]] = []
+    with torch.no_grad():
+        for combo in combos:
+            plan = [tuple(int(v) for v in c) for c in combo]
+            if len(plan) != len(tl) or any(plan[t] not in tl[t] for t in range(len(tl))):
+                out.append(None)
+                continue
+            total = 0.0
+            for t in range(len(tl)):
+                logits = score_fn(t, {j: plan[j] for j in range(len(tl)) if j != t})
+                total += float(logits[tl[t].index(plan[t])])
+            out.append(total)
+    return out
+
+
 def _masked_topo_regret_for_graph(
     model: nn.Module, data: Data
 ) -> Optional[Tuple[int, ...]]:
@@ -1305,10 +1328,14 @@ def evaluate(
                     if mt_regret is not None:
                         regret_masked_topo.append(mt_regret)
                     if _PER_DATASET_RECORDS is not None:
-                        _PER_DATASET_RECORDS.append(
-                            {"dataset_id": dataset_id, "opt_rtt": opt_rtt, "regret": mt_regret,
-                             "combo": [list(map(int, c)) for c in mt_combo]}
-                        )
+                        _rec = {"dataset_id": dataset_id, "opt_rtt": opt_rtt, "regret": mt_regret,
+                                "combo": [list(map(int, c)) for c in mt_combo]}
+                        if os.environ.get("NEAR_RTT_EVAL_PLAN_SCORES") == "1":
+                            _combos = list(rtt_map)
+                            _sc = _plan_scores_for_graph(model, data, _combos)
+                            _rec["plans"] = [[[list(map(int, c)) for c in cb], sc, float(rtt_map[cb])]
+                                             for cb, sc in zip(_combos, _sc)]
+                        _PER_DATASET_RECORDS.append(_rec)
                     agree, n_choice, exact = _plan_agreement_with_label(mt_combo, data)
                     mt_choice_correct += agree
                     mt_choice_total += n_choice
