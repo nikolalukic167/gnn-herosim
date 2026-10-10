@@ -211,6 +211,9 @@ class Orchestrator:
             "prefix_batches", "prefix_tasks_decoded", "prefix_tasks_deferred",
             "prefix_pairs_in_batch", "prefix_peers_outside_batch", "prefix_sibling_moves",
             "slate_batches", "slate_rejected", "slate_candidates_full", "slate_candidates_kept",
+            # accel_slate_instr: the declared-pruning slate's books (src/policy/gnn/scheduler.py), measurement only
+            "slate_declared_batches", "slate_declared_pruned", "slate_declared_sub_batched", "slate_declared_groups",
+            "slate_declared_tasks", "slate_declared_sub_batched_tasks", "slate_declared_max_tasks", "slate_declared_max_group",
             "cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change",
             "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves",
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",

@@ -839,6 +839,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.slate_declared_batches = getattr(self, "slate_declared_batches", 0) + 1
         self.slate_declared_pruned = getattr(self, "slate_declared_pruned", 0) + int(sl.pruned)
         self.slate_declared_sub_batched = getattr(self, "slate_declared_sub_batched", 0) + int(sl.sub_batched)
+        self.slate_declared_groups = getattr(self, "slate_declared_groups", 0) + len(sl.groups)
+        self.slate_declared_tasks = getattr(self, "slate_declared_tasks", 0) + len(batch_tasks)
+        self.slate_declared_sub_batched_tasks = getattr(self, "slate_declared_sub_batched_tasks", 0) + (len(batch_tasks) if sl.sub_batched else 0)
+        self.slate_declared_max_tasks = max(getattr(self, "slate_declared_max_tasks", 0), len(batch_tasks))
+        self.slate_declared_max_group = max(getattr(self, "slate_declared_max_group", 0), max(len(g) for g in sl.groups))
         placements: Dict[int, Tuple[int, int]] = {}
         for group in sl.groups:
             sub_tasks = [batch_tasks[i] for i in group]
