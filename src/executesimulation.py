@@ -1241,6 +1241,9 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # r1_attribution_v1: the seeded-CD arms (CD refine of a plan; the random plan's cell seed)
             "GNN_CD_REFINE",
             "HEROSIM_CD_RANDOM_SEED",
+            # accel pull-hold control: the pull ledger and the hand rule's pull-hold term
+            "HEROSIM_PULL_LEDGER",
+            "HEROSIM_PG_PULL_HOLD",
             "MLP_MODEL_PATH",
             "TOPOLOGY_FEATURE_CONTRACT",
             "NETWORK_GRAPH_CONTRACT",

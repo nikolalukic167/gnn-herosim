@@ -72,6 +72,9 @@ PG_BATCH_BLIND_ENV = "HEROSIM_PG_BATCH_BLIND"
 # ~idle. 1 adds `live_audit.inflight_remaining_seconds` -- the service end the platform recorded -- to
 # the drain. 0 (the default) is the registered rule, byte-identical.
 PG_INFLIGHT_ENV = "HEROSIM_PG_INFLIGHT"
+# accel pull-hold control (cd_pull): price the wait an image pull holding the candidate node's local storage adds at the
+# task's output write, max(0, hold - time to that write); needs the pull ledger (HEROSIM_PULL_LEDGER=1)
+PG_PULL_HOLD_ENV = "HEROSIM_PG_PULL_HOLD"
 
 # joint_burst_v2 (2026-09-20): a DISCLOSED probe knob, never a registered arm's default. The
 # exchange term X is multiplied by this factor in the score (the service a task adds to its
@@ -184,6 +187,17 @@ class _PeerGreedyCore:
         self.pg_inflight = raw_inflight == "1"
         self.pg_inflight_charged = 0
         self.pg_inflight_seconds = 0.0
+        raw_pull = os.environ.get(PG_PULL_HOLD_ENV, "0").strip() or "0"
+        if raw_pull not in ("0", "1"):
+            raise ValueError(f"FAIL LOUD: {PG_PULL_HOLD_ENV} must be 0 or 1, got {raw_pull!r}")
+        self.pg_pull_hold = raw_pull == "1"
+        if self.pg_pull_hold:
+            from src.placement.infrastructure import PULL_LEDGER
+
+            if not PULL_LEDGER:
+                raise ValueError(f"FAIL LOUD: {PG_PULL_HOLD_ENV}=1 reads the pull ledger; set HEROSIM_PULL_LEDGER=1")
+        self.pg_pull_charged = 0
+        self.pg_pull_seconds = 0.0
         self.pg_ext_rate = _pg_ext_rate()
         self._pg_ext_lambda: Dict[str, float] = {}
         self.pg_ext_batches = 0
@@ -296,6 +310,18 @@ class _PeerGreedyCore:
             lat = network_latency_between(task.node_name, node, nodes)
             base = drain + cold + exec_s + lat
             exch = self._pg_exchange_seconds(node, platform, peer_nodes)
+            if getattr(self, "pg_pull_hold", False):
+                hold_key = f"pull_hold:{node.node_name}"
+                if hold_key not in memo:
+                    from src.placement.snapshot_fidelity import node_pull_hold_seconds
+
+                    memo[hold_key] = node_pull_hold_seconds(self, node, float(self.env.now))
+                # the hold blocks the task at its output write, after drain, cold start, ingress, exchange and execution
+                pull_wait = max(0.0, memo[hold_key] - (drain + cold + lat + exch + exec_s))
+                if pull_wait > 0.0:
+                    base += pull_wait
+                    self.pg_pull_charged += 1
+                    self.pg_pull_seconds += pull_wait
             ext = 0.0
             if self.pg_ext_rate is not None:
                 lam = self._pg_ext_lambda.get(key, 0.0)
@@ -594,6 +620,8 @@ class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
         planned: Dict[int, str],
         nodes,
     ) -> Tuple["Node", "Platform", float]:
+        if getattr(self, "pg_pull_hold", False):
+            raise ValueError(f"FAIL LOUD: {PG_PULL_HOLD_ENV}=1 is priced by the hand rule only; the learned scorer has no such term")
         peer_nodes = self._pg_peer_nodes(task, orch, planned) if self.exchange_on else []
         comm = _approx_comm(task.type)
         rows = []  # (node, platform, service_seconds, feats5 in _FEATURE_ORDER)
