@@ -158,6 +158,9 @@ PG_CD_EXACT_GNN_ENV = "HEROSIM_PG_CD_EXACT_GNN"
 # model that seeded the refine (every other task committed at the pass plan). The expansion is run on the side, never applied, to count how often the pruned
 # optimum is the fallback plan and what it gains over it. Under the cap nothing changes.
 PG_CD_EXACT_PRUNE_ENV = "HEROSIM_PG_CD_EXACT_PRUNE"
+# big_groups_s0_v1 M4 (HEROSIM_PG_SHARED_LINK=1): S' = S with each in-batch peer pair's transfer priced at the link bandwidth divided by the number of
+# the batch's cross-node pairs whose route crosses the same link (`_pg_plan_cost` only; the greedy and the passes keep S). Off: bit-identical.
+PG_SHARED_LINK_ENV = "HEROSIM_PG_SHARED_LINK"
 _EXACT_GNN_TIE_CAP = 64
 PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass",
                      "pg_exact_tasks_moved", "pg_exact_gain_seconds",
@@ -318,6 +321,10 @@ class _PeerGreedyCore:
         self.pg_cd_exact_max_plans = _pg_int(PG_CD_EXACT_MAX_PLANS_ENV, 100_000)
         self.pg_cd_exact_top_k = _pg_int(PG_CD_EXACT_TOP_K_ENV, 5)
         self.pg_cd_exact_gnn = _pg_flag(PG_CD_EXACT_GNN_ENV)
+        self.pg_shared_link = _pg_flag(PG_SHARED_LINK_ENV)
+        if self.pg_shared_link and not (self._pg_batched and self.exchange_on):
+            raise RuntimeError(f"FAIL LOUD: {PG_SHARED_LINK_ENV}=1 prices a batch's pairs over shared links: it needs a batched flavour with peer exchange; "
+                               f"{self._policy_label}")
         self.pg_cd_exact_prune = os.environ.get(PG_CD_EXACT_PRUNE_ENV, "").strip()
         if self.pg_cd_exact_prune not in ("", "gnn", "cost"):
             raise ValueError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} must be gnn or cost, got {self.pg_cd_exact_prune!r}")
@@ -960,7 +967,10 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             others.pop(int(batch_tasks[i].id), None)
             peer_nodes_of.append(self._pg_peer_nodes(batch_tasks[i], orch, others) if self.exchange_on else [])
         self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
-        exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+        if self.pg_shared_link:
+            exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
+        else:
+            exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
         xf = [self._pg_xf(plan[i][1]) for i in range(n)]
         exec_s = [float(batch_tasks[i].type["executionTime"].get(plan[i][1].type["shortName"], 0.0) or 0.0) * xf[i] for i in range(n)]
         comm = [_approx_comm(batch_tasks[i].type) for i in range(n)]
@@ -995,6 +1005,59 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             scores.append(score)
             total += score
         return total, service, scores
+
+    def _pg_exchange_shared(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch,
+                            peer_nodes_of: List[Sequence[Tuple[str, float]]]) -> List[float]:
+        """S' exchange seconds per task (big_groups_s0_v1 M4). Each unordered in-batch pair on two different nodes loads every link of its route;
+        a link's load is the number of such pairs crossing it. A task's transfer from an in-batch partner is `transmission_hops * payload /
+        (min over the route of bandwidth / load)`, the formula of `Platform._payload_transfer_time` with the shared bandwidth; propagation
+        latency and any partner outside the batch are priced as in S. With no shared link (every load 1) it equals S to the digit."""
+        from src.placement.network_fabric import transmission_hops
+
+        n = len(batch_tasks)
+        table = getattr(orch, "peer_exchange", None) or {}
+        idx = {int(t.id): i for i, t in enumerate(batch_tasks)}
+
+        def fabric_of(i: int):
+            return getattr(getattr(plan[i][1], "node", None), "fabric", None)
+
+        load: Dict[str, int] = {}
+        for i in range(n):
+            for peer_id in table.get(int(batch_tasks[i].id)) or {}:
+                j = idx.get(int(peer_id))
+                if j is None or j <= i or plan[i][0].node_name == plan[j][0].node_name:
+                    continue
+                fabric = fabric_of(i)
+                if fabric is None:
+                    continue
+                for key, _bw in fabric.hops(plan[i][0].node_name, plan[j][0].node_name):
+                    load[key] = load.get(key, 0) + 1
+        out = []
+        for i in range(n):
+            node, platform = plan[i]
+            fabric = fabric_of(i)
+            pending: Dict[Tuple[str, float], int] = {}
+            for pid, pl in (table.get(int(batch_tasks[i].id)) or {}).items():
+                if int(pid) in idx:
+                    entry = (plan[idx[int(pid)]][0].node_name, float(pl))
+                    pending[entry] = pending.get(entry, 0) + 1
+            total = 0.0
+            for entry in peer_nodes_of[i]:   # S's own order, so a load of 1 everywhere reproduces S to the digit
+                peer_node_name, payload = entry
+                if peer_node_name == node.node_name:
+                    continue
+                transfer = None
+                if pending.get(entry, 0) > 0:
+                    pending[entry] -= 1
+                    hops = fabric.hops(peer_node_name, node.node_name) if fabric is not None else []
+                    bottleneck = min((bw / load.get(key, 1) for key, bw in hops), default=0.0)
+                    if bottleneck > 0:
+                        transfer = transmission_hops(len(hops)) * payload / (bottleneck * (1024 * 1024))
+                if transfer is None:
+                    transfer = platform._payload_transfer_time(peer_node_name, payload)
+                total += transfer + platform.peer_link_latency(peer_node_name, context="peer-greedy estimate")
+            out.append(total)
+        return out
 
     def _pg_plan_objects(self, batch_tasks: List["Task"], system_state: SystemState, placements: Dict[int, Tuple[int, int]]):
         """(candidate couples per task, the shared couple table, candidate keys per task, the current plan as couples, pinned
@@ -1425,6 +1488,7 @@ class GnnCdRefiner(_PeerGreedyCore):
     # cdxapply (HEROSIM_PG_CD_EXPANSION=1): the expansion phase of cd_expand, bound here as the pass is, not copied
     _pg_candidates = PeerGreedyNetworkBatchScheduler._pg_candidates
     _pg_plan_cost = PeerGreedyNetworkBatchScheduler._pg_plan_cost
+    _pg_exchange_shared = PeerGreedyNetworkBatchScheduler._pg_exchange_shared
     _pg_expand = PeerGreedyNetworkBatchScheduler._pg_expand
     _pg_plan_objects = PeerGreedyNetworkBatchScheduler._pg_plan_objects
     _pg_write_books = PeerGreedyNetworkBatchScheduler._pg_write_books
