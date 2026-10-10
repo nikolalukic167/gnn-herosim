@@ -86,8 +86,10 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
     - vs cdxapply: −0.10 % (6/12, .27) / −1.66 % (7/12, .13), not separated.
   - **Search:** 94.8 / 92.9 % of multi-task batches enumerated exactly, the rest fell back to expansion at the cap. Ties
     go to the lowest plan in CD's order (22 / 33 %).
-  - **CD's pass plan was strictly cheaper than the slate optimum in 61 / 64 % of exact batches.** Read: the pass plan
-    leaves the top-5 slate, so the slate, not the search, bounds this rule. Unverified.
+  - **CD's pass plan was kept in 61 / 64 % of exact batches** (`pg_exact_kept_pass`: slate optimum ≥ pass S − 1e-9).
+    This includes passes that sit inside the slate and equal its optimum, so it does **not** show that the slate binds
+    (corrected 2026-10-10 23:30, S5 code read). An instrumented 2-cell check (855941, 16307) is measuring how many of
+    the pass plan's tasks fall outside the slate.
   - **Decision time per task:** median 1.4 / 1.9 ms, mean 48 / 55 ms (CD 0.14 ms, GNN about 7 ms). Not scored (I10).
 - 2026-10-10 22:30 — **Stakes-weighted training does not transfer live; physmp g3 stays the candidate** (S7; stakes
   physmp g3, 855813, 100 epochs, 3 seeds; live 855931, 48 cells; validation topologies 16251–16258, g0; selection
