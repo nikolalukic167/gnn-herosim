@@ -19,6 +19,7 @@ import r1_attribution_v1_read as R
 
 ARM = "reactive_conc"
 REFERENCES = ("cd", "reactive", "ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "batched", "locality", "selfpredict")
+SEEDED = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")
 RUNGS = ("moderate", "heavy")
 END_X, SHARE_X = 1.5, 0.80
 
@@ -52,6 +53,12 @@ def read(gate) -> dict:
         for rung in RUNGS:
             c = R.contrast(cells, ARM, ref, rung, topos)
             r["contrasts"][f"{ARM} vs {ref}|{rung}"] = {k: c.get(k) for k in ("n_topologies", "median_pct", "p", "wins", "per_topology")}
+    # amendment after the first read: a seeded arm (the no-split GNN arms, seeds 1 and 2) has no seed-0 cell, so the contrast above is empty for it;
+    # the same pairs are read the other way round (the arm against reactive_conc, whose seed-0 cell is the fallback reference)
+    for ref in SEEDED:
+        for rung in RUNGS:
+            c = R.contrast(cells, ref, ARM, rung, topos)
+            r["contrasts"][f"{ref} vs {ARM}|{rung}"] = {k: c.get(k) for k in ("n_topologies", "median_pct", "p", "wins", "per_topology")}
     return r
 
 
@@ -70,7 +77,7 @@ def main() -> int:
     for k, c in r["collapse"].items():
         mp = "-" if c["median_p95_s"] is None else f"{c['median_p95_s']:.1f}"
         print(f"  {k:36s} cells {c['cells']:3d} end>1.5 {c['end_gt_1.5']:3d} share>0.8 {c['share_gt_0.80']:3d} unknown {c['unknown']} | median p95 {mp} s, median end/last {c['median_end_over_last_arrival']:.2f}, median share {c['median_effective_share']:.2f}")
-    print("-- paired (negative = reactive_conc faster; median over topologies of the per-topology median over windows)")
+    print("-- paired ('reactive_conc vs X': negative = reactive_conc faster; 'X vs reactive_conc' (seeded GNN arms): negative = X faster; median over topologies of the per-topology median over windows)")
     for k, c in r["contrasts"].items():
         m = "-" if c["median_pct"] is None else f"{c['median_pct']:+.2f} %"
         print(f"  {k:52s} median {m:>10s} n={c['n_topologies']} wins={c['wins']} p={'-' if c['p'] is None else format(c['p'], '.4f')}")

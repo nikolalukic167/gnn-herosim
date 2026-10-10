@@ -26,3 +26,14 @@ def test_paired_contrast_and_collapse_counts(tmp_path):
     assert r["contrasts"]["reactive_conc vs cd|heavy"]["median_pct"] is None
     assert r["collapse"]["reactive|moderate"]["end_gt_1.5"] == 6 and r["collapse"]["reactive_conc|moderate"]["end_gt_1.5"] == 0
     assert r["contrasts"]["reactive_conc vs reactive|moderate"]["median_pct"] < -90
+
+
+def test_seeded_arm_is_read_against_reactive_conc(tmp_path):
+    d = str(tmp_path)
+    for topo in (1, 2):
+        _cell(d, "reactive_conc", topo, "g0", "moderate", 10.0)
+        _cell(d, "ra_gnn_eng_nosplit", topo, "g0", "moderate", 9.0, seed=1)
+    r = RC.read([d])
+    assert r["contrasts"]["reactive_conc vs ra_gnn_eng_nosplit|moderate"]["n_topologies"] == 0
+    c = r["contrasts"]["ra_gnn_eng_nosplit vs reactive_conc|moderate"]
+    assert c["n_topologies"] == 2 and c["median_pct"] == -10.0
