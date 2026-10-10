@@ -1,14 +1,17 @@
 per seed (both rungs):
    9901 n 54/56 | regret median 17.44 % p90 1385 % | >1 %: 67 % | gap<1 %: 59 % (ties 45 %) | multi-node 38 %
    9902 n 52/55 | regret median 21.60 % p90 571 % | >1 %: 71 % | gap<1 %: 65 % (ties 56 %) | multi-node 22 %
+   9903 n 50/52 | regret median 17.61 % p90 484 % | >1 %: 60 % | gap<1 %: 40 % (ties 31 %) | multi-node 40 %
    9904 n 52/55 | regret median 4.42 % p90 151 % | >1 %: 63 % | gap<1 %: 49 % (ties 35 %) | multi-node 38 %
 per rung (all seeds):
-   heavy n 80/82 | regret median 9.44 % p90 518 % | >1 %: 65 % | gap<1 %: 56 % (ties 41 %) | multi-node 26 %
-   moderate n 78/84 | regret median 15.76 % p90 313 % | >1 %: 69 % | gap<1 %: 60 % (ties 49 %) | multi-node 39 %
+   heavy n 107/110 | regret median 14.16 % p90 494 % | >1 %: 66 % | gap<1 %: 54 % (ties 41 %) | multi-node 30 %
+   moderate n 101/108 | regret median 8.70 % p90 288 % | >1 %: 64 % | gap<1 %: 54 % (ties 43 %) | multi-node 39 %
 per seed x rung:
    9901 heavy n 26/27 | regret median 25.75 % p90 4551 % | >1 %: 65 % | gap<1 %: 56 % (ties 33 %) | multi-node 26 %
    9901 moderate n 28/29 | regret median 8.70 % p90 452 % | >1 %: 68 % | gap<1 %: 62 % (ties 55 %) | multi-node 48 %
    9902 heavy n 28/29 | regret median 10.32 % p90 518 % | >1 %: 71 % | gap<1 %: 62 % (ties 52 %) | multi-node 21 %
    9902 moderate n 24/26 | regret median 39.40 % p90 1136 % | >1 %: 71 % | gap<1 %: 69 % (ties 62 %) | multi-node 23 %
+   9903 heavy n 27/28 | regret median 36.44 % p90 494 % | >1 %: 70 % | gap<1 %: 46 % (ties 39 %) | multi-node 43 %
+   9903 moderate n 23/24 | regret median 0.00 % p90 246 % | >1 %: 48 % | gap<1 %: 33 % (ties 21 %) | multi-node 38 %
    9904 heavy n 26/26 | regret median 4.42 % p90 325 % | >1 %: 58 % | gap<1 %: 50 % (ties 38 %) | multi-node 31 %
    9904 moderate n 26/29 | regret median 6.52 % p90 120 % | >1 %: 69 % | gap<1 %: 48 % (ties 31 %) | multi-node 45 %
