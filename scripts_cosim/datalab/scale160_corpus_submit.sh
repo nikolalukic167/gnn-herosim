@@ -46,6 +46,13 @@ if [[ $PHASE == capture ]]; then
     room=$(( CAP - $(q) ))
     if [[ $room -lt 1 ]]; then echo "$(date +%H:%M) queue full"; sleep 120; continue; fi
     n=$(( N - off < room ? N - off : room ))
+    # a finished inputs job is purged from the scheduler after a while, and afterok on a purged job is refused ("Job dependency
+    # problem"): drop the dependency once the inputs job has COMPLETED, fail loud if it ended any other way
+    if [[ -n "$dep" ]] && ! sub <<<"squeue -h -j $inp 2>/dev/null" | grep -q .; then
+      st=$(sub <<<"sacct -n -X -j $inp -o State 2>/dev/null | head -1" | tr -d ' ')
+      [[ "$st" == COMPLETED ]] || { echo "FAIL LOUD: inputs job $inp ended $st"; exit 1; }
+      dep=""
+    fi
     id=$(sub <<<"export WT='$WT' ROOT='$ROOT' TOPOS='$POOL' TAGS='$TAGS' TOPO_OFFSET=$off; \
       sbatch --parsable $dep --array=0-$((n-1)) --export=ALL '$D/wf1_corpus_prod_capture.sbatch'")
     echo "capture chunk offset=$off n=$n -> $id"; off=$((off+n))
