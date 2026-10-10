@@ -1,6 +1,7 @@
 # accel_replica_v1 — put the per-server replicas on the accelerators
 
-**Status:** `REGISTERED` (2026-10-10). There is no data yet. Every bar below was signed before its data.
+**Status:** `ACTIVE` (2026-10-10) — the worth-it screen passed and the corpus build is GO. Registered 2026-10-10;
+every bar below was signed before its data.
 
 **Why.** Under R1.1, `per_server = 1` places each type's server replica on the **first** compatible platform in the
 node's list order (`src/generate_infrastructure.py:745–765`).
@@ -50,6 +51,18 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Worth-it screen PASS → GO** (coordinator).
+  - **W2** (S7, 855318 at 5e21b11f, post-fix, rule line in every build log): share of scored batches above 1 % joint
+    regret.
+    - Per seed: 9909 64.8 %, 9910 58.0 %, 9911 63.0 %, 9912 58.5 %, so 4 of 4 pass.
+    - Pooled 61.1 % (124 of 203), against `scale_160_v1`'s 69 %. That comparison is descriptive, and S7's definition
+      is not cross-checked against S5's.
+    - Heavy 73–75 %; **moderate alone 42–57 %** (disclosed: the moderate rung carries less headroom).
+    - Pre-fix (855276) pooled 59.6 %. The label-replay gap moved headroom by about seed noise (+1.5 points).
+  - **W4:** 16 of 16 captures ok, 0 hung; CD guards 8 of 8 at both rungs.
+  - With W1 (+28.8 points) and W3 (max 0.123 %), every bar passes.
+  - **GO for the Phase 2 labels** from `rp/accel-corpus` 419dd11f (S5 launches; split 50 + 8 from 16201–16270), then
+    training (S7) and the gate (S4, 16301–16312). scale_160 jobs keep priority.
 - 2026-10-10 — **Dry run passed; speculative Phase 1 captures allowed** (S5, 855323/855337/855338; seed 16201).
   - 56 datasets. The rule line appears in 8/8 capture logs and 8/8 label-build logs, and in every dataset's
     `infrastructure.json`. The fidelity check finds 0 problems (max |diff| 1.8e-15). The inputs are byte-identical to
