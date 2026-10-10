@@ -238,12 +238,19 @@ def _one(job):
                    for t, specs in replicas_by_type.items()}
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
 
-        trace = json.load(open(job["workload"]))
-        arrivals = [float(e["timestamp"]) for e in trace["events"]]
-        tab = json.load(open(job["table"]))
-        window, n_cut = window_of(fid, t0, H, arrivals, tab, None)
-        if tab["n"] < n_cut:
-            raise RuntimeError(f"table has {tab['n']} tasks, the rollout needs {n_cut}")
+        if job.get("table") is None:
+            # batch-only scoring (big_groups_s0_v1 reference search): the label's own setting, the snapshot and its batch, no
+            # window and no stubs, so neither the live table nor the trace is needed
+            if H >= 0:
+                raise RuntimeError("a job without a table must be batch-only (H < 0)")
+            trace, arrivals, tab, window, n_cut = {}, [], None, [], 0
+        else:
+            trace = json.load(open(job["workload"]))
+            arrivals = [float(e["timestamp"]) for e in trace["events"]]
+            tab = json.load(open(job["table"]))
+            window, n_cut = window_of(fid, t0, H, arrivals, tab, None)
+            if tab["n"] < n_cut:
+                raise RuntimeError(f"table has {tab['n']} tasks, the rollout needs {n_cut}")
 
         ids = snapshot_fidelity.local_ids(fid)  # live id -> replay id for queued + batch
         wl = deepcopy(fr.wl)
