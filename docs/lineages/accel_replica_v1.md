@@ -50,6 +50,23 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Rungs calibrated; W1 PASS** (S7, `rp/accel-calib` bb26e296; seeds 9905–9908 × g0/g1; 8/8 guards).
+  - **Rungs (fastest_compatible):** moderate ×11.6139 (CD effective share 0.220), heavy ×27.6227 (0.468). Against
+    first_compatible's ×16.4245 / ×23.2278.
+  - **Finals, mean latency moderate / heavy:**
+    - CD 3.13 / 2.51 s
+    - Self-predict 3.15 / 2.49 s (a tie with CD)
+    - Batched greedy 3.67 / 2.82 s
+    - Knative collapses (0.99 effective share).
+  - **The congestion moves to the GPU.** CD's heavy lock wait is 47.8 % xavierGpu and 43.9 % xavierCpu, against 90 %
+    xavierCpu before.
+  - **W1** (job 855273, `accel_s7/w1/w1.json`): CD accelerator share at each rule's own heavy rung.
+    - first_compatible: 5.2 % (cell range 1.8–8.3 %).
+    - fastest_compatible: 34.0 % (31.2–45.0 %).
+    - The difference is **+28.8 points**, against a bar of 15. xavierGpu hosts cnn and rf. **PASS.**
+    - Equal load (×23.2278): +31.0 points, so this is the rule's effect, not the load's.
+  - Descriptive: under both rules, CD's mean latency is higher at moderate than at heavy (first_compatible: 2.79 vs
+    2.69 s). The cause has not been checked.
 - 2026-10-10 — **Step 1 done; coordinator's preinit claim RETRACTED** (S7, `rp/accel-replica` 00a08d1a; 16 tests pass).
   - **Correction, measured:** live runs do **not** preinit at t = 0. A 4,000-event CD run on 9903 creates no initial
     replicas, and its first scale events are reachability 'up' events at t = 0.158 s.
