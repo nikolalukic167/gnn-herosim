@@ -62,7 +62,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
     "pg_expand_gain_seconds", "pg_expand_labels_skipped",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
-    "pg_exact_gain_seconds",
+    "pg_exact_gain_seconds", "pg_v_batches", "pg_v_changed",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -129,6 +129,9 @@ PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves"
 PG_CD_EXACT_ENV = "HEROSIM_PG_CD_EXACT"
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
 PG_CD_EXACT_TOP_K_ENV = "HEROSIM_PG_CD_EXACT_TOP_K"  # default 5, the declared pruning's slate width
+# cost_to_go_v1 gate: re-rank cd_exactS's top-5 by dS + lambda * dV (src/placement/cost_to_go_v.py); unset = cd_exactS, unchanged
+_CTG_V_ENV = "HEROSIM_PG_CD_EXACT_V"
+_CTG_V_K = 5
 PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass",
                      "pg_exact_tasks_moved", "pg_exact_gain_seconds")
 PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
@@ -283,6 +286,16 @@ class _PeerGreedyCore:
         self.pg_cd_exact = _pg_flag(PG_CD_EXACT_ENV)
         self.pg_cd_exact_max_plans = _pg_int(PG_CD_EXACT_MAX_PLANS_ENV, 100_000)
         self.pg_cd_exact_top_k = _pg_int(PG_CD_EXACT_TOP_K_ENV, 5)
+        _v_kind = os.environ.get(_CTG_V_ENV, "").strip()
+        self.pg_v = None
+        self.pg_v_batches = 0
+        self.pg_v_changed = 0
+        if _v_kind:
+            if not self.pg_cd_exact:
+                raise RuntimeError(f"FAIL LOUD: {_CTG_V_ENV} re-ranks cd_exactS's plans; set {PG_CD_EXACT_ENV}=1")
+            from src.placement.cost_to_go_v import ValueTerm
+
+            self.pg_v = ValueTerm(_v_kind)
         for name in PG_EXACT_COUNTERS:
             setattr(self, name, 0.0 if name.endswith("_seconds") else 0)
         if self.pg_cd_exact and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
@@ -1092,14 +1105,22 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.pg_exact_plans += total
         cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
         best_cost, best_plan, ties = None, None, 0
+        lowest: List = []  # cost_to_go_v1 gate: the K lowest-S plans of the enumeration, for the value re-rank
         for combo in product(*slates):
             cost, _s, _c = self._pg_plan_cost(batch_tasks, list(combo), orch, memo, nodes)
             if best_cost is None or cost < best_cost - 1e-9:
                 best_cost, best_plan, ties = cost, list(combo), 0
             elif abs(cost - best_cost) <= 1e-9:
                 ties += 1
+            if self.pg_v is not None:
+                lowest.append((cost, len(lowest), list(combo)))
+                if len(lowest) > 4 * _CTG_V_K:
+                    lowest = sorted(lowest, key=lambda e: (e[0], e[1]))[:_CTG_V_K]
         if ties:
             self.pg_exact_ties += 1
+        if self.pg_v is not None:
+            return self._pg_v_rerank(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of,
+                                     plan, cur, best_plan, best_cost, sorted(lowest, key=lambda e: (e[0], e[1]))[:_CTG_V_K])
         if best_cost >= cur - 1e-9:
             self.pg_exact_kept_pass += 1
             return 0
@@ -1107,6 +1128,39 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.pg_exact_tasks_moved += moved
         self.pg_exact_gain_seconds += cur - best_cost
         self._pg_write_books(batch_tasks, best_plan, orch, memo, committed_service, planned, placements, service_of)
+        return moved
+
+    def _pg_v_rerank(self, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of,
+                     plan, cur, best_plan, best_cost, lowest) -> int:
+        """cost_to_go_v1 gate (HEROSIM_PG_CD_EXACT_V): cd_exactS's decided plan (the S-minimal plan, or the pass plan when it is
+        not beaten) and the next 4 lowest-S enumerated plans that differ from it, re-ranked by dS + lambda * dV with dS, dV paired
+        against the decided plan. Ties keep the decided plan. Books written for the chosen plan, counters as cd_exactS."""
+        ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
+        kept_pass = best_cost >= cur - 1e-9
+        decided, s_dec = (list(plan), cur) if kept_pass else (best_plan, best_cost)
+        cands, costs = [decided], [s_dec]
+        for cost, _i, combo in lowest:
+            if len(cands) > _CTG_V_K - 1:
+                break
+            if ident(combo) != ident(decided):
+                cands.append(combo)
+                costs.append(cost)
+        self.pg_v_batches += 1
+        k = 0
+        if len(cands) > 1:
+            v = self.pg_v.values(self, batch_tasks, cands, system_state)
+            k = self.pg_v.choose([c - s_dec for c in costs], [x - v[0] for x in v])
+        chosen = cands[k]
+        if k:
+            self.pg_v_changed += 1
+        if ident(chosen) == ident(plan):
+            if kept_pass:
+                self.pg_exact_kept_pass += 1
+            return 0
+        moved = sum(1 for i in range(len(plan)) if (int(chosen[i][0].id), int(chosen[i][1].id)) != (int(plan[i][0].id), int(plan[i][1].id)))
+        self.pg_exact_tasks_moved += moved
+        self.pg_exact_gain_seconds += cur - costs[k]
+        self._pg_write_books(batch_tasks, chosen, orch, memo, committed_service, planned, placements, service_of)
         return moved
 
     def _pg_ext_lambdas(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[str, float]:
