@@ -45,6 +45,29 @@ DETAIL = ("scheduledTime", "arrivedTime", "startedTime", "doneTime", "coldStartT
 PERTURBED = ("compute_remaining", "io_remaining", "net_remaining", "hold_remaining", "cold_remaining")
 
 
+def _log_mutex(orchestrator, path: str, offset: float, until: float) -> None:
+    """Debug (CTG_MUTEX_LOG): every request, acquisition and release of the orchestrator mutex up to `until`, with the
+    calling generator, on the rollout's clock (truth times minus `offset`)."""
+    m, env = orchestrator.mutex, orchestrator.env
+    fh = open(path, "w")
+    get0, put0 = m.get, m.put
+
+    def get(*a, **kw):
+        who = sys._getframe(1).f_code.co_name
+        t_req = env.now
+        ev = get0(*a, **kw)
+        if t_req - offset <= until:
+            ev.callbacks.append(lambda _e: fh.write(f"{t_req - offset:.6f} {env.now - offset:.6f} GET {who}\n"))
+        return ev
+
+    def put(*a, **kw):
+        if env.now - offset <= until:
+            fh.write(f"{env.now - offset:.6f} {env.now - offset:.6f} PUT {sys._getframe(1).f_code.co_name}\n")
+        return put0(*a, **kw)
+
+    m.get, m.put = get, put
+
+
 class _Every:
     def __contains__(self, _key) -> bool:
         return True
@@ -280,6 +303,8 @@ def _one(job):
 
         def apply(orchestrator, fidelity):
             never = orig_apply(orchestrator, fidelity)
+            if job.get("mutex_log"):
+                _log_mutex(orchestrator, job["mutex_log"], 0.0, H + 1)
             env = orchestrator.env
             for rid, prow in stub_rows.items():
                 for other, node_name, payload, delay in prow:
@@ -367,7 +392,7 @@ def truth_one(job):
             wl_cut = os.path.join(tmp, "wl.json")
             json.dump(cut, open(wl_cut, "w"))
             spec = os.path.join(tmp, "spec.json")
-            json.dump({"stubs": {str(j): [tab["scheduled"][j], tab["node"][j]] for j in later},
+            json.dump({"mutex_log": job.get("mutex_log"), "t0": t0, "H": H, "stubs": {str(j): [tab["scheduled"][j], tab["node"][j]] for j in later},
                        "argv": ["src/executesimulation.py", "--config", job["cfg"], "--workload", wl_cut, "--policy",
                                 "peer_greedy_network_batch", "--output", os.path.join(tmp, "cut.json")]}, open(spec, "w"))
             env = dict(os.environ, SIM_FORCE_FULL_STATS="1", LIVE_AUDIT_SNAPSHOT_PATH=os.path.join(tmp, "snap.jsonl"))
@@ -411,6 +436,8 @@ def truth_run(spec_path: str) -> None:
 
     def init(self, *a, **kw):
         orig(self, *a, **kw)
+        if spec.get("mutex_log"):
+            _log_mutex(self, spec["mutex_log"], spec["t0"], spec["H"] + 1)
         for j, (when, node) in stubs.items():
             if j in self.task_by_id:
                 raise RuntimeError(f"stub {j} collides with a real task")
