@@ -170,6 +170,23 @@ def _cd_refine_mode() -> str:
     return raw
 
 
+SELF_SEARCH_ENV = "GNN_SELF_SEARCH"
+SELF_SEARCH_EXACT_MAX = 625  # exact enumeration up to this many slate plans, coordinate ascent above
+SELF_SEARCH_SWEEPS = 5
+
+
+def _self_search_on() -> bool:
+    """gnn_selfsearch (accel_nosplit_v1): per batch, the slate plan with the highest GNN plan score. Needs the declared slate served whole."""
+    raw = os.environ.get(SELF_SEARCH_ENV, "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: {SELF_SEARCH_ENV} must be 0 or 1, got {raw!r}")
+    if raw == "1":
+        from src.placement import declared_slate
+        if not declared_slate.serving_no_split():
+            raise ValueError(f"FAIL LOUD: {SELF_SEARCH_ENV}=1 scores whole-batch plans; it needs {declared_slate.NO_SPLIT_ENV}=1 (and the declared slate)")
+    return raw == "1"
+
+
 def _corpus_slate_on() -> bool:
     raw = os.environ.get("GNN_SERVE_CORPUS_SLATE", "0").strip() or "0"
     if raw not in ("0", "1"):
@@ -856,6 +873,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
             for k, i in enumerate(group):
                 placements[i] = sub[k]
+        if _self_search_on():
+            placements = self._self_search(batch_tasks, system_state, queue_snapshot, temporal_state, sl, placements)
         return placements
 
     def _prefix_inference_core(
@@ -957,6 +976,96 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             with open(trace_path, "ab") as fh:
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
+
+    def _exact_score_fn(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
+        """Copied from rp/cd-exacts 8ddd1b8b (cd_exactS_gnn): the live graph of this batch over `allowed` (batch index -> set of (node_id, platform_id)),
+        the same prefix block and partial-state scorer the decode uses. Returns (score_fn(t, committed) -> logits over tl[t], tl)."""
+        from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
+        from src.policy.gnn.prefix_serving import PrefixServingError, attach_live_prefix_block, build_partial_state_context_from_graph
+
+        queue_snapshot, temporal_state = self._cd_snap
+        graph, tl = self._build_inference_graph(batch_tasks, system_state, queue_snapshot, temporal_state, allowed)
+        if graph is None:
+            raise RuntimeError("FAIL LOUD: gnn_selfsearch: the live graph builder returned no feasible edges")
+        graph.queue_snapshot = dict(queue_snapshot)
+        graph.task_logit_to_placement = tl
+        graph._task_logit_to_placement = tl
+        attach_live_prefix_block(graph, batch_tasks, nodes=list(self.nodes.items),
+                                 peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
+                                 options=self._prefix_options, backlog_seconds=self._v4_backlog_seconds(tl, system_state))
+        graph = move_graph_tensors_(graph, self.device)
+        ctx = build_partial_state_context_from_graph(graph)
+        caps = graph.partial_state_ctx["node_caps_by_alpha"]
+        if self._prefix_options.alpha_key not in caps:
+            raise PrefixServingError(f"alpha_key {self._prefix_options.alpha_key!r} not in node_caps_by_alpha")
+        ctx.node_caps = caps[self._prefix_options.alpha_key]
+        return make_partial_state_score_fn(self.gnn_model, graph, ctx), tl
+
+    def _self_search(self, batch_tasks: List[Task], system_state: SystemState, queue_snapshot, temporal_state, sl,
+                     start_plan: Dict[int, Tuple[int, int]]) -> Dict[int, Tuple[int, int]]:
+        """gnn_selfsearch: the slate plan with the highest GNN plan score (the sum over tasks of the model's logit for the task's choice, every
+        other task committed at the plan; no S, no CD, no hand term). Exact enumeration when the batch has at most SELF_SEARCH_EXACT_MAX slate
+        plans; otherwise coordinate ascent on the same score from the no-split decode (tasks in id order, each moved to its best slate
+        candidate given the rest, until no change or SELF_SEARCH_SWEEPS sweeps). A score tie keeps the incumbent."""
+        from itertools import product
+
+        t0 = default_timer()
+        n = len(batch_tasks)
+        cands = [[(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]] for i in range(n)]
+        start = [(int(start_plan[i][0]), int(start_plan[i][1])) for i in range(n)]
+        for i in range(n):
+            if start[i] not in cands[i]:
+                raise RuntimeError(f"FAIL LOUD: gnn_selfsearch: the decode placed task {batch_tasks[i].id} outside its slate")
+        self._cd_snap = (queue_snapshot, temporal_state)
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, {i: set(cands[i]) for i in range(n)})
+        index = [[(int(c[0]), int(c[1])) for c in tl[i]] for i in range(n)]
+        scored = 0
+
+        def score(plan) -> float:
+            nonlocal scored
+            scored += 1
+            total = 0.0
+            with torch.no_grad():
+                for t in range(n):
+                    logits = score_fn(t, {j: plan[j] for j in range(n) if j != t})
+                    total += float(logits[index[t].index(plan[t])])
+            return total
+
+        best, best_score = list(start), score(start)
+        if sl.plans <= SELF_SEARCH_EXACT_MAX:
+            self.ss_exact_batches = getattr(self, "ss_exact_batches", 0) + 1
+            for combo in product(*cands):
+                sc = score(list(combo))
+                if sc > best_score + 1e-9:
+                    best, best_score = list(combo), sc
+        else:
+            self.ss_ascent_batches = getattr(self, "ss_ascent_batches", 0) + 1
+            order = sorted(range(n), key=lambda i: int(batch_tasks[i].id))
+            for _ in range(SELF_SEARCH_SWEEPS):
+                self.ss_ascent_sweeps = getattr(self, "ss_ascent_sweeps", 0) + 1
+                moved = False
+                for t in order:
+                    top, top_score = best[t], best_score
+                    for c in cands[t]:
+                        if c == best[t]:
+                            continue
+                        trial = list(best)
+                        trial[t] = c
+                        sc = score(trial)
+                        if sc > top_score + 1e-9:
+                            top, top_score = c, sc
+                    if top != best[t]:
+                        best[t], best_score, moved = top, top_score, True
+                if not moved:
+                    break
+        self.ss_batches = getattr(self, "ss_batches", 0) + 1
+        self.ss_tasks = getattr(self, "ss_tasks", 0) + n
+        self.ss_scored = getattr(self, "ss_scored", 0) + scored
+        changed = sum(1 for i in range(n) if best[i] != start[i])
+        self.ss_changed_batches = getattr(self, "ss_changed_batches", 0) + int(changed > 0)
+        self.ss_changed_tasks = getattr(self, "ss_changed_tasks", 0) + changed
+        self.ss_seconds = getattr(self, "ss_seconds", 0.0) + (default_timer() - t0)
+        return {i: best[i] for i in range(n)}
 
     def _cd_refine(self, tasks: List[Task], placements: Dict[int, Tuple[int, int]],
                    system_state: SystemState, mode: str) -> Dict[int, Tuple[int, int]]:

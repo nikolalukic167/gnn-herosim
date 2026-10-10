@@ -1237,6 +1237,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # r1_attribution_v1: the serving slate (declared pruning) and the arm the serving environment asked for
             "GNN_SERVE_CANDIDATE_SLATE",
             "GNN_SLATE_NO_SPLIT",
+            "GNN_SELF_SEARCH",
             "GNN_ARM_KIND",
             # r1_attribution_v1: the seeded-CD arms (CD refine of a plan; the random plan's cell seed)
             "GNN_CD_REFINE",
