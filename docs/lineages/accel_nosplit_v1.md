@@ -34,6 +34,11 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-10 17:10 — **Amendment, before any data: gate pin** (coordinator). The pin is rp/accel-nosplit-gate acbea783:
+  d4ec8688 plus the merge of rp/accel-pullhold 4ace56e0, which adds pull-ledger and cd_pull src code, off by default and
+  identity-tested on its parent (855822), plus the no-split harness kinds.
+  - This replaces the design's "d4ec8688 or a descendant that adds only harness changes".
+  - The 4-cell identity at acbea783 against the accel gate still gates the run.
 - 2026-10-10 16:55 — **Ids verified** (S5). 16345–16368 are free. Minted ids ≥ 16300 are 16301–16312 and
   16321–16344 only. The next free pool is 16369+.
 - 2026-10-10 16:35 — **Registered** (coordinator). S4 mints and runs the gate, S5 re-verifies the ids, and S6 provides
