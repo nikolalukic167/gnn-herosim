@@ -10,6 +10,13 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-10-11 — `test_trainer_determinism.py` skips 8 of 18 checks without the smoke caches
+
+The pre-training gate in AGENTS.md (`tests/test_trainer_determinism.py`) passes while skipping 8 of its 18 tests when
+`simulation_data/graphs_cache_route_b_smoke_s_dag*` is absent, as it is in a fresh worktree (measured 2026-10-11: 10
+passed, 8 skipped). A green run therefore does not cover the DAG partial-state trainer paths. Run it with `-rs` and read
+the skips. Treat a skipped trainer as unverified, and rebuild the smoke cache before gating a run on those paths.
+
 ## 2026-10-10 — Fidelity replays froze the autoscaler and ran the monitor off phase
 
 Fidelity replays under any non-determined scheduler (PG, CD, GNN) froze the replayed KPA. Its first tick waits on
