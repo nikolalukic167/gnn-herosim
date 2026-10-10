@@ -94,6 +94,72 @@ def add_inflight(feat, ghosts, queued_gids=()):
     return out
 
 
+def assign_tasks(plan_keys, service, own):
+    """Which platform each task's service ran on. The feature rows log S's per-task service in the hook's batch order but not the
+    plan's platform per task, and the hook order is not the S0 row's dataset order. Recover it as the assignment of tasks to the plan's
+    platform slots whose per-platform sums equal `own` (committed service per platform, load_after - drain); raises unless it is unique
+    up to tasks with equal (service, platform). -> [(service, platform key)]."""
+    from collections import Counter
+
+    n = len(service)
+    slots = Counter(plan_keys)
+    sols = set()
+    got = defaultdict(float)
+    asg = []
+
+    def bt(i):
+        if len(sols) > 1:
+            return
+        if i == n:
+            if all(abs(got.get(q, 0.0) - own.get(q, 0.0)) < 1e-6 for q in set(got) | set(own)):
+                sols.add(tuple(sorted((round(sv, 9), q) for sv, q in asg)))
+            return
+        for q in list(slots):
+            if slots[q] == 0 or got.get(q, 0.0) + service[i] > own.get(q, 0.0) + 1e-6:
+                continue
+            slots[q] -= 1
+            got[q] += service[i]
+            asg.append((service[i], q))
+            bt(i + 1)
+            asg.pop()
+            got[q] -= service[i]
+            slots[q] += 1
+
+    bt(0)
+    if len(sols) != 1:
+        raise ValueError(f"FAIL LOUD: task->platform assignment has {len(sols)} consistent solutions")
+    return [(sv, q) for sv, q in next(iter(sols))]
+
+
+def backlog_forms(feat, plan_keys):
+    """Backlog-seconds forms of one plan, registered 2026-10-10 (cost_to_go_v1), B[p] = drain + in-flight b1:
+    v1 = sum over platforms the plan touches of (B[p] + this plan's committed service on p)
+    v2 = sum over the plan's tasks of own service x (B[p] + the other committed work on its platform)."""
+    own = {k: float(feat["load_after"][k]) - float(feat["drain"][k]) for k in feat["load_after"]}
+    asg = assign_tasks(plan_keys, [float(x) for x in feat["s_service"]], {k: v for k, v in own.items() if v != 0.0})
+    base = {k: float(feat["drain"][k]) + float(feat["inflight_b1"][k]) for k in feat["load_after"]}
+    touched = {q for _sv, q in asg}
+    v1 = sum(base[q] + own[q] for q in touched)
+    v2 = sum(sv * (base[q] + own[q] - sv) for sv, q in asg)
+    return {"backlog_v1": v1, "backlog_v2": v2}
+
+
+def forms(a):
+    plans = {}
+    for l in open(a.s0):
+        r = json.loads(l)
+        if "error" not in r and float(r["H"]) == 5.0:
+            plans[(r["ds"], r["tag"].split("|", 1)[1])] = [f"{n}:{p}" for n, p in r["plan"]]
+    n = 0
+    with open(a.out, "w") as fo:
+        for l in open(a.features):
+            f = json.loads(l)
+            f.update(backlog_forms(f, plans[(f["ds"], f["slot"])]))
+            fo.write(json.dumps(f) + "\n")
+            n += 1
+    print(f"{n} feature rows with backlog_v1 / backlog_v2 written to {a.out}")
+
+
 def recompute(a):
     cache = {}
     n = 0
@@ -127,7 +193,12 @@ def main():
     r = sub.add_parser("recompute")
     r.add_argument("--features", required=True)
     r.add_argument("--out", required=True)
-    recompute(ap.parse_args())
+    f = sub.add_parser("forms")
+    f.add_argument("--s0", required=True)
+    f.add_argument("--features", required=True)
+    f.add_argument("--out", required=True)
+    a = ap.parse_args()
+    {"recompute": recompute, "forms": forms}[a.cmd](a)
 
 
 if __name__ == "__main__":
