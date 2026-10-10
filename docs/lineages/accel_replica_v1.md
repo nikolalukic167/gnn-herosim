@@ -51,6 +51,18 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Corpus PASS; headroom screen** (S5's build `rp/accel-corpus` e8cfc555; check 855578 exit 0; S6
+  screen 855605, descriptive).
+  - **Check:** 2,784 batches, 3,169 datasets (train 2,731, held-out 438), 0 problems, max |diff| 5.7e-14.
+  - **Screen**, train moderate / heavy:
+    - share above 1 % joint regret: 48.6 / 61.0 %;
+    - exact ties: 14.7 / 30.4 %;
+    - multi-node optimum: 44.8 / 25.2 %;
+    - single-candidate slots: 6.2 / 1.4 %.
+    - Held-out: share above 1 % is 50.3 / 48.5 %.
+  - The regret is bimodal, so medians are unstable; quote the share above 1 %.
+  - **Against `scale_160_v1`:** fewer batches with headroom (55 % against 65 % on train). But labels are sharper, with
+    fewer ties (15 % against 36 % at moderate), and more multi-node optima at moderate (45 % against 30 %).
 - 2026-10-10 — **Gate commit fixed; classical arms sealed** (S4).
   - The gate commit is `rp/accel-gate` fcd47841: s160-gate + accel-calib + the 5b5dc011 contract.
   - Default-rule identity on full 50k-task cells at 9483: 24 of 24 cells identical to the 263dd915 / 335abdd1 results.
