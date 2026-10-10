@@ -16,7 +16,7 @@
   - CD←GNN ties CD←Twin, so this is a learned-seed win, not a message-passing win.
   - CD←random is slower than CD: +1.35 / +4.28 / +3.91 %.
 - **Other arms:**
-  - Random placement (fixed, 453 of 456 cells): +33 / +120 / +155 %.
+  - Random placement (fixed, 454 of 456 cells): +32.8 / +119.6 / +154.9 %.
   - Knative: +26 % at light and collapses at moderate and heavy.
   - CD decides 10× faster than any learned arm (prediction 7).
 - **Open: gnn_raw.** It was removed from best-arm candidacy by the user's ruling: its twin, twin_raw, is
@@ -673,6 +673,13 @@ No line trips.
   - Refine moves per batch: CD 0.2–0.35; with a learned or random start, 0.5–1.9.
 - **Learned-arm gate seeds (2026-10-09 22:00, coordinator).** Seeds 1 and 2 are gated, as registered (matching
   CD←random). The third trained seed is staged but not gated.
+- **Random arm final (2026-10-10; S4, 855099 at 5e9266e8; descriptive).** 454 of 456 cells; 2 rate-killed at 9538 g2
+  heavy, excluded and counted.
+  - vs CD: +32.8 / +119.6 / +154.9 % (0/19 topologies faster at every rung).
+  - vs self-predict: about the same.
+  - vs Knative: +4.6 % at light; −96.6 / −99.0 % at moderate and heavy, where Knative collapses.
+  - Random never loads the cluster to CD's bands (effective share .095 / .163 / .241) yet is slower anyway.
+  - No spin: average wait is about 0. The old hang is fully explained by the missing defer mixin.
 - **Primary read, CLOSED CD-FASTER (2026-10-10; S4, a6713375; Holm over 3 / 15 / 9).** The numbers are in the head;
   the JSON is in the attachment directory. gnn_raw vs twin_raw is NOT RUN (p = 1 in S1) and is pending as an addendum.
 - **Best learned arm declared: gnn_eng_physmp (2026-10-10 02:00, coordinator, on the user's ruling).**
