@@ -1306,7 +1306,8 @@ def evaluate(
                         regret_masked_topo.append(mt_regret)
                     if _PER_DATASET_RECORDS is not None:
                         _PER_DATASET_RECORDS.append(
-                            {"dataset_id": dataset_id, "opt_rtt": opt_rtt, "regret": mt_regret}
+                            {"dataset_id": dataset_id, "opt_rtt": opt_rtt, "regret": mt_regret,
+                             "combo": [list(map(int, c)) for c in mt_combo]}
                         )
                     agree, n_choice, exact = _plan_agreement_with_label(mt_combo, data)
                     mt_choice_correct += agree
