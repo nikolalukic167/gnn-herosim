@@ -43,6 +43,16 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 02:30 — **Gate inputs built and sealed** (S4; 856084 at 9e5ee729, s160_gate_inputs.sbatch).
+  - **Topologies:** 16369–16392, 24 of 24 built, 0 failures. Spares 16393–16399 are unbuilt.
+  - **Range check:** a scan of datalab and every rp/* branch; the ids are disjoint from all prior pools, validation, gate
+    and training ids.
+  - **No admission screen**, matching the accel gates. A topology may be replaced only on a build failure, never on a
+    reference's behaviour.
+  - **Setup:** accel base cfg (fastest_compatible); moderate m 11.6139, heavy m 27.622665025860204; windows g0–g3
+    byte-identical to the accel gate's.
+  - **Selection file:** `/share/nikola.lukic/cost_to_go_sel/selected.json`, md5 b48e72cc4bf71fd1201ac14fd5360aef.
+  - Nothing has run on these topologies.
 - 2026-10-11 01:45 — **Literature context and design notes, before S0 is read** (SCIENTIST; [V] = abstract checked on
   Semantic Scholar, [M] = from memory).
   - **Exact myopic solver plus a learned V has deployed precedent in dispatch:**
