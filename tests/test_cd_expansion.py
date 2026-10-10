@@ -110,7 +110,7 @@ def test_bad_values_and_the_wrong_flavour_fail_loudly(monkeypatch):
     with pytest.raises(ValueError, match=S.PG_CD_EXPANSION_SWEEPS_ENV):
         _shell(monkeypatch)
     monkeypatch.delenv(S.PG_CD_EXPANSION_SWEEPS_ENV, raising=False)
-    with pytest.raises(RuntimeError, match="peer_greedy_network_cd only"):
+    with pytest.raises(RuntimeError, match="has no refine to extend"):
         _shell(monkeypatch, cls=PeerGreedyNetworkBatchScheduler)
 
 
@@ -138,3 +138,85 @@ def test_harness_serves_cd_expand_as_a_named_diagnostic_arm():
     src = open(G.__file__).read()
     assert 'if kind == "cd_expand":\n            env["HEROSIM_PG_CD_EXPANSION"] = "1"' in src
     assert '"HEROSIM_PG_CD_EXPANSION", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
+
+
+# ---- cdxapply: the CD refine of a seeded (learned) plan, with the expansion ----
+
+def _refiner(monkeypatch, exec_times=None):
+    """A GnnCdRefiner over the same three-node toy, held by a fake GNN host."""
+    from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
+
+    s, tasks, state = _shell(monkeypatch, exec_times=exec_times)   # only for the patched primitives, nodes and replicas
+    host = SimpleNamespace(nodes=s.nodes, _get_valid_replicas=s._get_valid_replicas, _orchestrator=s._pg_orchestrator)
+    r = GnnCdRefiner(host)
+    return r, tasks, state
+
+
+def test_refiner_flag_off_runs_the_passes_only_and_never_expands(monkeypatch):
+    monkeypatch.delenv(S.PG_CD_EXPANSION_ENV, raising=False)
+    r, tasks, state = _refiner(monkeypatch)
+
+    def never(*a, **k):
+        raise AssertionError("expansion ran with the flag off")
+
+    monkeypatch.setattr(r, "_pg_expand", never)
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (2, 22)}, passes=3)
+    assert plan == {0: (1, 11), 1: (2, 22)} and info["moved"] == 0     # ICM is stuck on the split pair
+    assert r.pg_expand_batches == 0 and r.pg_expand_moves == 0
+
+
+def test_refiner_flag_on_moves_the_seeded_pair(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    r, tasks, state = _refiner(monkeypatch)
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (2, 22)}, passes=3)
+    assert plan == {0: (3, 33), 1: (3, 33)}
+    assert info["moved"] == 2 and info["node_change"] == 2
+    assert (r.pg_expand_batches, r.pg_expand_moves, r.pg_expand_tasks_moved) == (1, 1, 2)
+    assert r.pg_expand_gain_seconds == pytest.approx(16.0)
+
+
+def test_refiner_flag_on_keeps_a_seed_it_cannot_improve(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    r, tasks, state = _refiner(monkeypatch, exec_times=[{"pa": 0.0, "pb": 100.0, "pc": 20.0}, {"pa": 100.0, "pb": 0.0, "pc": 20.0}])
+    plan, info = r.refine(tasks, state, {0: (1, 11), 1: (2, 22)}, passes=3)
+    assert plan == {0: (1, 11), 1: (2, 22)} and info["moved"] == 0
+    assert (r.pg_expand_batches, r.pg_expand_moves) == (1, 0)
+
+
+def test_gnn_host_mirrors_the_refiner_expansion_counters(monkeypatch):
+    from src.policy.gnn.scheduler import GNNScheduler
+
+    host = object.__new__(GNNScheduler)
+    for k in ("cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change", "cdr_platform_only", "cdr_unstack"):
+        setattr(host, k, 0)
+    counters = dict(zip(S.PG_EXPAND_COUNTERS, (5, 7, 3, 4, 120, 9.5, 0)))
+    stub = SimpleNamespace(pg_cd_expansion=True, refine=lambda tasks, state, seed, passes: ({0: (3, 33)}, {"moved": 1, "node_change": 1, "platform_only": 0, "unstack": 0}),
+                           **counters)
+    host._cd_refiner = stub
+    out = host._cd_refine([SimpleNamespace(id=0)], {0: (1, 11)}, SimpleNamespace(replicas={}), "apply")
+    assert out == {0: (3, 33)} and host.cdr_batches == 1 and host.cdr_moved == 1
+    assert {k: getattr(host, k) for k in S.PG_EXPAND_COUNTERS} == counters
+    # with the flag off on the refiner, the host carries no expansion books at all
+    host2 = object.__new__(GNNScheduler)
+    for k in ("cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change", "cdr_platform_only", "cdr_unstack"):
+        setattr(host2, k, 0)
+    host2._cd_refiner = SimpleNamespace(pg_cd_expansion=False, refine=stub.refine, **counters)
+    host2._cd_refine([SimpleNamespace(id=0)], {0: (1, 11)}, SimpleNamespace(replicas={}), "apply")
+    assert not any(hasattr(host2, k) for k in S.PG_EXPAND_COUNTERS)
+
+
+def test_harness_serves_cdxapply_as_a_named_learned_diagnostic():
+    import os
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
+    import fresh_topo_burst_v1_gate as G
+
+    assert "_cdxapply" in G.SUFFIXES and G.R1A_CDX == ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply")
+    for k in G.R1A_CDX:
+        assert k in G.R1A_ARMS and next((k[:-len(s)] for s in G.SUFFIXES if k.endswith(s)), k) in G.RA_KINDS
+    src = open(G.__file__).read()
+    assert 'if kind.endswith("_cdxapply"):\n            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")' in src
+    assert 'R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_CDX)' in src   # out of the default grid
+    assert 'expands = kind.endswith("_cdxapply") or kind == "cd_expand"' in src
+    assert 'kind.endswith(("_nosplit", "_cdxapply"))' in src
