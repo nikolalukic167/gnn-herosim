@@ -8,7 +8,7 @@
 - At short H it is mostly S's batch-surrogate error. The post-batch window part reaches the bar only at H30 (3.17 %).
 - **Disclosed ceiling:** the one-step oracle headroom is below the gate's −5 % WIN bar, so expect DIRECTION-ONLY at best.
 - In the split 9–10-task groups the lever is search, not V.
-- S1 is running.
+- S1 passes (Spearman 1.000 median); H = 5 is fixed.
 
 **Why.** Within the declared top-5 slate, exact search on CD's surrogate S (cd_exactS) dominates learned batch scorers
 offline: hit 79.4 % against the GNN's 64.8 %, regret 6.1 % against 21.7 % of the summed optimum (`accel_replica_v1`,
@@ -51,6 +51,19 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 10:15 — **S1 PASSES at every (H, ε); H = 5 is fixed by the registered rule** (S6; 856121 at a0048522,
+  read ca5b236b; 7,080 rollouts, 0 errors; 100 S0 states × ±ε).
+  - Median Spearman is 1.000 in all 6 cells.
+  - The best plan changed in 0–1 of 200 perturbed states per cell (≤ 0.5 %).
+  - Minimum Spearman 0.707–1.000, from single states. Dropping the residual states changes only two minimums
+    (0.895 → 0.984).
+  - **Ruling (coordinator):**
+    - H = 5 (the shortest H passing S1).
+    - Next rung (b), MLP V: S6 rolls a training set at H=5 on train topologies (same commit a0048522, the same 6-plan
+      set), since the S0 rows are held-out only.
+    - The hand V (own service + cold) stays the rung-(a) arm.
+    - The re-verification of the exposed batch-only reads is dropped: they were never reported.
+    - The `_kpa_pending` residual dig and the generic monitor-phase src fix wait.
 - 2026-10-11 08:00 — **The backlog forms of the hand V rank worse than the own-service V; no in-flight V is
   selected** (S7; f7ee0cab, offline; 23 tests; the same fixed split).
   - **EVAL pooled Spearman of dV vs dQ_H, at H 5 / 15 / 30:**
