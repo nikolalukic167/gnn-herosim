@@ -13,6 +13,7 @@ after the model has learned to avoid obviously bad placements.
 import gc
 import hashlib
 import itertools
+import math
 import json
 import os
 import random
@@ -1175,6 +1176,50 @@ def train_epoch(
 
 
 _PER_DATASET_RECORDS: Optional[List[Dict[str, Any]]] = None
+# eval-only (accel read 2, read-only): NEAR_RTT_EVAL_SCORE_PLANS = JSON {dataset_id: {label: combo}}; each listed plan (and the decoded
+# one, "gnn_self") gets the model's score under the served decoder's own scorer, recorded per dataset as rec["plan_scores"].
+_SCORE_PLANS: Optional[Dict[str, Dict[str, Any]]] = (
+    json.load(open(os.environ["NEAR_RTT_EVAL_SCORE_PLANS"])) if os.environ.get("NEAR_RTT_EVAL_SCORE_PLANS") else None)
+
+
+def _plan_logprob(model: nn.Module, data: Data, combo: Sequence[Sequence[int]]) -> Optional[Dict[str, Any]]:
+    """A whole plan's score under the masked_topo decode's scorer: tasks in topological order, each step's logits from
+    make_partial_state_score_fn with the plan's own placements committed so far (the teacher-forced walk), summed
+    log-softmax at the plan's candidate. `raw` normalises over the task's whole slate; `masked` over the candidates the
+    decoder's mask leaves (replica reuse, node caps at the run's alpha), None when the mask rejects the plan; None
+    altogether when a placement is not in its task's slate."""
+    alpha_key = str(NEAR_CFG.dag_alpha_key or getattr(data, "dag_primary_alpha_key", "2.0"))
+    ctx = build_partial_state_context_from_graph(data)
+    ctx.node_caps = data.partial_state_ctx["node_caps_by_alpha"][alpha_key]
+    score = make_partial_state_score_fn(model, data, ctx)
+    n_tasks = int(data.n_tasks)
+    committed: Dict[int, Tuple[int, int]] = {}
+    used: set = set()
+    load: Dict[int, float] = {}
+    raw = 0.0
+    masked: Optional[float] = 0.0
+    with torch.no_grad():
+        for t in topological_task_order(n_tasks, data.dag_parents):
+            cands = [(int(c[0]), int(c[1])) for c in data.task_logit_to_placement[t]]
+            want = (int(combo[t][0]), int(combo[t][1]))
+            if want not in cands:
+                return None
+            logits = torch.as_tensor([float(x) for x in score(t, dict(committed))], dtype=torch.float64)
+            i = cands.index(want)
+            raw += float(torch.log_softmax(logits, dim=0)[i])
+            dem = [float(ctx.demand[(t, c)]) for c in cands]
+            ok = [(NEAR_CFG.decode_replica_reuse or c not in used)
+                  and load.get(c[0], 0.0) + dem[k] <= ctx.node_caps.get(c[0], math.inf) + 1e-9 for k, c in enumerate(cands)]
+            if masked is not None:
+                if not ok[i]:
+                    masked = None
+                else:
+                    sub = logits[[k for k in range(len(cands)) if ok[k]]]
+                    masked += float(logits[i] - torch.logsumexp(sub, dim=0))
+            committed[t] = want
+            used.add(want)
+            load[want[0]] = load.get(want[0], 0.0) + dem[i]
+    return {"raw": raw, "masked": masked}
 
 
 @torch.no_grad()
@@ -1305,10 +1350,13 @@ def evaluate(
                     if mt_regret is not None:
                         regret_masked_topo.append(mt_regret)
                     if _PER_DATASET_RECORDS is not None:
-                        _PER_DATASET_RECORDS.append(
-                            {"dataset_id": dataset_id, "opt_rtt": opt_rtt, "regret": mt_regret,
-                             "combo": [list(map(int, c)) for c in mt_combo]}
-                        )
+                        rec = {"dataset_id": dataset_id, "opt_rtt": opt_rtt, "regret": mt_regret,
+                               "combo": [list(map(int, c)) for c in mt_combo]}
+                        if _SCORE_PLANS is not None:
+                            want = dict(_SCORE_PLANS.get(dataset_id) or {})
+                            want["gnn_self"] = [list(map(int, c)) for c in mt_combo]
+                            rec["plan_scores"] = {k: _plan_logprob(model, data, v) for k, v in want.items()}
+                        _PER_DATASET_RECORDS.append(rec)
                     agree, n_choice, exact = _plan_agreement_with_label(mt_combo, data)
                     mt_choice_correct += agree
                     mt_choice_total += n_choice
