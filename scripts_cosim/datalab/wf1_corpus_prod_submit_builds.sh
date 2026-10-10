@@ -32,7 +32,9 @@ dep=$(IFS=:; echo "${ids[*]}")
 # the check's volume target excludes cells the capture marked hung or failed: CHECK_PER_CELL x (cells with an ok sentinel)
 CHECK_TARGET=$BATCHES_TARGET
 if [[ -n "${CHECK_PER_CELL:-}" ]]; then
-  ok=$(sub <<<"cat $ROOT/snapshots/*.done | grep -c '\"status\": \"ok\"'"); CHECK_TARGET=$(( CHECK_PER_CELL * ok ))
+  # only the topologies being built: a pool captured beyond TOPOS (spare seeds) must not raise the target
+  ok=0; for t in $TOPOS; do ok=$(( ok + $(sub <<<"cat $ROOT/snapshots/cc40s${t}_*.done | grep -c '\"status\": \"ok\"' || true") )); done
+  CHECK_TARGET=$(( CHECK_PER_CELL * ok ))
   echo "check target: $CHECK_PER_CELL x $ok ok cells = $CHECK_TARGET"
 fi
 chk=$(sub <<<"sbatch --parsable --dependency=afterany:$dep --export=ALL,WT='$WT',ROOT='$ROOT',BATCHES_TARGET=$CHECK_TARGET,OUT_TAG='${OUT_TAG:-}' '$D/wf1_corpus_prod_check.sbatch'")
