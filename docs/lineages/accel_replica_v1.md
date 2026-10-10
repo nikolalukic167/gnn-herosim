@@ -67,6 +67,35 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 15:15 — **Post-close diagnostics: where the GNN loses** (descriptive; they close nothing and are inputs to
+  the next registration).
+  - **CD in the GNN's seat** (S4, 96 cells, f8284fe9, 12 gate topologies; `cd_declared` means the declared top-5 slate
+    plus sub-batching at 100k plans): +7.00 % vs CD at moderate (0/12 faster, p .0005) and +7.92 % at heavy (0/12).
+    The seat costs CD 7–8 %. Arm-vs-arm in the same seat was not paired.
+  - **Slate instrument** (S4, f8284fe9, identity 10/10; heavy, g1, seed 1, 8 cells): 5.5–7.5 % of batches are split.
+    These are about 10-task batches, cut into about 3 groups, holding 14–19 % of tasks.
+  - **Regime split** (S5, 855803, 8 cells identical to the gate; 16301 and 16302, g0, seed 1):
+    - The GNN is ahead of CD in the opening (t < 360 s) in 4 of 4 cells, by a lock-wait gain.
+    - The heavy loss is in the steady state, by exchange. This falsifies the "missing opening states" hypothesis.
+  - **Peer-group split** (S5, 855815, the same raws, steady state):
+    - The GNN beats CD at every peer-group size ≤ 8 in all 4 cells: −8 to −32 % with 9–10 groups excluded.
+    - The whole deficit is the 9–10-task groups, the split ones: 0 / +45 / +26 / +79 %, with a lower same-node rate and
+      higher pair exchange.
+    - Payloads and access classes do not differ.
+  - **Fix A** (S6, rp/accel-seqgroups b46ad0ba; later groups see earlier groups as queued load): identity PASS, but the
+    GNN got worse on 5 of 5 heavy cells (+0.7 to +14.2 %, paired on vs off). Queue fell and the outside-peer share was
+    unchanged. The sub-batch cost is the peer cut, not load. Not registered.
+  - **Hidden image pulls** (S6, 855795):
+    - In-flight pulls hold a node's local storage and block every output write on that node.
+    - Neither CD's cost nor the dim22 features see them.
+    - Live, about 90 % of snapshots before 120 s carry them, under 2 % after 360 s.
+    - The corpus starts at 361 s: 6 of 438 held-out datasets are affected, but ds_84201 alone is about 30 % of every
+      checkpoint's validation regret.
+  - **Checkpoint selection** (S7):
+    - Final vs best is indistinguishable live (208 cells on validation topologies).
+    - Validation regret is heavy-tailed: the worst 10 % of datasets carry 93–96 % of it.
+  - **Opening corpus pricing** (S5, 855801): 0.35 / 0.41 worker-s per plan, about Phase 2's cost; supply-limited.
+    Parked as hygiene.
 - 2026-10-10 11:30 — **Gate read: NOT-SEPARATED, closed** (S4; one read, job 855719, `~/accel_read.sh` repointed to
   `learned_9e5ee729`, reader a95ce980; output `accel_gate/read_fcd47841.{json,txt}`. The file name keeps the
   classical pin; the learned arms ran at 9e5ee729. 768 summaries, 0 failed, 12 topologies; the sensitivity pass is
