@@ -50,6 +50,12 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Dry run passed; speculative Phase 1 captures allowed** (S5, 855323/855337/855338; seed 16201).
+  - 56 datasets. The rule line appears in 8/8 capture logs and 8/8 label-build logs, and in every dataset's
+    `infrastructure.json`. The fidelity check finds 0 problems (max |diff| 1.8e-15). The inputs are byte-identical to
+    S7's calibration inputs (8/8 windows).
+  - **Ruling:** Phase 1 (inputs and captures, 16201–16270) may run before W2, because it is cheap; it submits only at
+    ≤ 30 queued. Labels wait for W2. If W2 fails, the captures are scratch.
 - 2026-10-10 — **Corpus staged, not launched** (S5, `rp/accel-corpus` 69d8b5f8: S6's scale160 pipeline merged onto
   S7's fixed code; 30 tests pass).
   - IDs: corpus pool 16201–16300 (train and held-out from 16201–16258); **gate test 16301–16312, spares to 16320**
