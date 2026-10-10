@@ -1174,10 +1174,10 @@ def train_epoch(
     }
 
 
-@torch.no_grad()
 _PER_DATASET_RECORDS: Optional[List[Dict[str, Any]]] = None
 
 
+@torch.no_grad()
 def evaluate(
     model: nn.Module,
     loader: DataLoader,
