@@ -77,6 +77,14 @@ Registered 2026-10-11; every bar below was signed before its data.
 
 ## Record (newest first)
 
+- 2026-10-11 16:50 — **Live gate at G=8 set up** (S7).
+  - Topologies 16900–16911, from a clean scan; selection `selected_gate.json`, verdict asserted.
+  - Inputs 856368: the rate matches the current G (moderate 5.3470, heavy 12.7173 tasks/s), 6,250 groups of 8 per
+    window.
+  - Reader rp/big-groups 1a0babe7, committed before the data.
+  - Harness 79ea002c. Arms ra_gnn_eng_selfsearch s1, cd s0, cd_exactS s0: 288 cells, sealed, LIMIT 20,000 s.
+  - Smoke 856369: one heavy cell per arm, written into the gate directory. Only completion and timing are read before
+    the full read.
 - 2026-10-11 16:20 — **Post-hoc, descriptive only (does not change the NO-GO): M2 over latency-distinct plans** (S6; from
   the same search rows; `search_a30a0102/m2_latency_distinct_posthoc.txt`).
   - **Median gap to the first distinct latency (share ≤ 1 % / share ≤ 5 %):**
