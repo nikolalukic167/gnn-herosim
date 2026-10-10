@@ -67,6 +67,16 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 23:00 — **Audit: the frozen autoscaler in fidelity replays leaves every reported offline number
+  intact** (S6; fix 8e19fcab on rp/cost-to-go).
+  - **The bug:** under non-determined schedulers, the replayed KPA's first tick waited on `_kpa_start_gate`, which only
+    DeterminedScheduler released. The autoscaler therefore stayed frozen after the decision.
+  - **What is shielded:** everything computed at the decision (chosen plans, S, argmin-S, ties) and every reported
+    number scored from sweep-row labels (`label_of_plan`). This covers the 413-table reads above (argmin-S 79.4 %,
+    cd_expand 64.6 %, oracle 5.67 %). The GNN numbers are S7's dataset decode, not a replay.
+  - **Exposed:** only the diagnostic "CD replay differs from the label path by a few ms", which was never reported.
+  - **Unaffected:** corpus labels, I11, label drift F→G (all on the determined arm), and live gates (no fidelity seed,
+    gate None).
 - 2026-10-10 22:45 — **Exact search on CD's surrogate is the strongest hand rule, level with the GNN-seeded
   search** (S5; cd_exactS = exhaustive enumeration over the top-5 slate on S, with a 100k cap and expansion fallback;
   rp/cd-exacts 72df02a0; 855894, 24/24 cells; seed 0; 16301–16312; g0; descriptive).
