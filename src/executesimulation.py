@@ -924,7 +924,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                     f"{decode_mode!r}. Any other decode would score against an all-zero "
                     "prefix block."
                 )
-            model, options, _sidecar = load_prefix_conditioned_gnn(model_path, device=device)
+            model, options, _sidecar = load_prefix_conditioned_gnn(model_path, device=device, space_config=space_config)
             model.prefix_serving_options = options
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
