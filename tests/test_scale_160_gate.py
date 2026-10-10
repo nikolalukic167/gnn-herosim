@@ -74,3 +74,14 @@ def test_labels():
 def test_a_win_needs_both_rungs_and_five_percent():
     out = _labels({"ra_gnn_eng": {"moderate": -8.0, "heavy": -3.0}, "ra_gnn_eng_physmp": {"moderate": -8.0, "heavy": -8.0}})
     assert out == {"ra_gnn_eng": "DIRECTION-ONLY", "ra_gnn_eng_physmp": "WIN"}
+
+
+def test_side_by_side_is_unpaired_and_reports_median_and_iqr():
+    import scale_vs_accel_side_by_side as SB
+
+    def read(vals):
+        return {"main": {"tests": {f"{a}|{r}": {"per_topology": {str(i): v for i, v in enumerate(vals)}} for a in SB.ARMS for r in SB.RUNGS}}}
+
+    out = SB.table(read([1.0, 2.0, 3.0, 4.0, 5.0]), read([-5.0, -4.0, -3.0, -2.0, -1.0]))
+    assert "unpaired, descriptive" in out
+    assert "+3.00 % [+2.00, +4.00] n=5" in out and "-3.00 % [-4.00, -2.00] n=5" in out
