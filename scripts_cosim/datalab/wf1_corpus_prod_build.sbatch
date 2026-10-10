@@ -33,6 +33,7 @@ TAGS=${TAGS:?FAIL LOUD: set TAGS}
 HELDOUT_TOPOS=${HELDOUT_TOPOS:-}
 WINDOWS=${WINDOWS:-"g0 g1 g2 g3"}
 TARGET=${TARGET:-20000}; STRIDE=${STRIDE:-200}; MIN_TIME=${MIN_TIME:-360}
+MAX_TIME=${MAX_TIME:-}  # opening-slice builds (accel_replica_v1 idea 4): keep only snapshots captured before this sim time; unset = no upper bound
 BATCHES_TARGET=${BATCHES_TARGET:-5000}; TOPOS_ALL=${TOPOS_ALL:-$TOPOS}
 # the account allows 50 queued jobs (AssocMaxSubmitJobLimit), so a long TOPOS list is submitted in array chunks: chunk k is --array=0-<n-1> with TOPO_OFFSET=<first index>, and T is the index into the FULL TOPOS list
 T=$(( ${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as an array} + ${TOPO_OFFSET:-0} ))
@@ -77,7 +78,7 @@ for R in $TAGS; do
     if ! grep -q '"status": "ok"' "$DONE"; then
       echo "[$CELL $R $W] capture $(cat "$DONE"); no corpus from this cell"; cells_not_ok="$cells_not_ok ${R}_${W}"; wi=$((wi+1)); continue
     fi
-    python3 scripts_cosim/wf1_shard_snapshots.py --snapshots "$SNAP" --out "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" --min-time "$MIN_TIME"
+    python3 scripts_cosim/wf1_shard_snapshots.py --snapshots "$SNAP" --out "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" --min-time "$MIN_TIME" ${MAX_TIME:+--max-time "$MAX_TIME"}
     python3 scripts_cosim/make_warm_corpus.py --manifest-per-source --snapshots "$ROOT/snapshots/shard_${CELL}_${R}_${W}.jsonl" \
       --trace "$ROOT/inputs/wf1_$R/wl/grounded_${W}_n50000.json" --cell-config "$ROOT/inputs/wf1_$R/cfg/$CELL.json" \
       --output-dir "$OUT" --source-tag "wf1p_${CELL}_${R}_${W}" --start-index "$START" --limit-batches "$PER_CELL" --require-limit-batches \

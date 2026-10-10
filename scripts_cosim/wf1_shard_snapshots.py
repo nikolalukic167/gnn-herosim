@@ -38,6 +38,7 @@ def main() -> int:
     ap.add_argument("--snapshots", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--min-time", type=float, default=0.0)
+    ap.add_argument("--max-time", type=float, default=None, help="drop snapshots captured at or after this sim time (opening-slice builds)")
     ap.add_argument("--min-batch", type=int, default=2)
     a = ap.parse_args()
     keep, dropped, total = [], {}, 0
@@ -49,9 +50,11 @@ def main() -> int:
         try:
             if float(snap.get("time", 0.0)) < a.min_time:
                 raise SnapshotRejected("before_min_time")
+            if a.max_time is not None and float(snap.get("time", 0.0)) >= a.max_time:
+                raise SnapshotRejected("at_or_after_max_time")
             check_consecutive_batch(snap, a.min_batch)
         except SnapshotRejected as exc:
-            key = str(exc) if str(exc) == "before_min_time" else "not_a_consecutive_batch"
+            key = str(exc) if str(exc) in ("before_min_time", "at_or_after_max_time") else "not_a_consecutive_batch"
             dropped[key] = dropped.get(key, 0) + 1
             continue
         keep.append(line)
