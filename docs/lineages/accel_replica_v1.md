@@ -67,6 +67,18 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 22:45 — **Exact search on CD's surrogate is the strongest hand rule, level with the GNN-seeded
+  search** (S5; cd_exactS = exhaustive enumeration over the top-5 slate on S, with a 100k cap and expansion fallback;
+  rp/cd-exacts 72df02a0; 855894, 24/24 cells; seed 0; 16301–16312; g0; descriptive).
+  - **Paired % at moderate / heavy (median, faster count, Wilcoxon p):**
+    - vs CD: −10.34 % (11/12, .001) / −9.66 % (12/12, <.001);
+    - vs cd_expand: −1.54 % (12/12, <.001) / −2.70 % (10/12, .034);
+    - vs cdxapply: −0.10 % (6/12, .27) / −1.66 % (7/12, .13), not separated.
+  - **Search:** 94.8 / 92.9 % of multi-task batches enumerated exactly, the rest fell back to expansion at the cap. Ties
+    go to the lowest plan in CD's order (22 / 33 %).
+  - **CD's pass plan was strictly cheaper than the slate optimum in 61 / 64 % of exact batches.** Read: the pass plan
+    leaves the top-5 slate, so the slate, not the search, bounds this rule. Unverified.
+  - **Decision time per task:** median 1.4 / 1.9 ms, mean 48 / 55 ms (CD 0.14 ms, GNN about 7 ms). Not scored (I10).
 - 2026-10-10 22:30 — **Stakes-weighted training does not transfer live; physmp g3 stays the candidate** (S7; stakes
   physmp g3, 855813, 100 epochs, 3 seeds; live 855931, 48 cells; validation topologies 16251–16258, g0; selection
   evidence, descriptive only).
