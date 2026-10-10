@@ -45,6 +45,18 @@ DETAIL = ("scheduledTime", "arrivedTime", "startedTime", "doneTime", "coldStartT
 PERTURBED = ("compute_remaining", "io_remaining", "net_remaining", "hold_remaining", "cold_remaining")
 
 
+class _Every:
+    def __contains__(self, _key) -> bool:
+        return True
+
+
+class _Restrict(dict):
+    """The sweep's candidates for the dataset's batch tasks; any other task sharing the decision is unrestricted."""
+
+    def __missing__(self, _key):
+        return _Every()
+
+
 def make_table(raw_path: str, out_path: str) -> None:
     res = json.load(open(raw_path))
     trs = [tr for tr in res["stats"]["taskResults"] if tr.get("taskId", -1) >= 0]
@@ -79,7 +91,7 @@ def perturb(fid, eps: float) -> None:
 def window_of(fid, t0: float, H: float, arrivals, tab, trace_pairs):
     """(window task ids in trace order, cut n): every trace task below n(t0 + H) the live run had not scheduled by t0. Fails loud when
     the table's history disagrees with the snapshot (a task scheduled before t0 that is neither done, in flight nor in the snapshot)."""
-    n_cut = bisect.bisect_right(arrivals, t0 + H)
+    n_cut = bisect.bisect_right(arrivals, t0 + max(H, 0.0))
     snap = {int(r["gid"]) for r in fid["queued"]} | {int(r["gid"]) for r in fid["batch"]}
     ghosts = {int(g["tid"]) for g in fid.get("ghosts") or []}
     tol = 1e-9
@@ -92,7 +104,8 @@ def window_of(fid, t0: float, H: float, arrivals, tab, trace_pairs):
             if d > t0 + tol:
                 bad.append(i)
             continue
-        window.append(i)
+        if H >= 0:
+            window.append(i)
     if bad:
         raise RuntimeError(f"table history disagrees with the snapshot: tasks {bad[:5]} were scheduled before t0 and not done, "
                            "but are neither queued, batch nor in flight in it")
@@ -161,34 +174,42 @@ def _one(job):
         win = set(window)
         snapset = set(ids) - win
         pairs = list(wl.get("peer_exchange") or [])
-        stub_rows = {}  # replay id -> [(live partner id, node name, payload)]
-        dropped = 0
+        stub_rows = {}  # replay id -> [(live partner id, node name, payload, placement delay from t0 or None if placed by t0)]
+        beyond = 0
         scored_ids = win | {int(r["gid"]) for r in fid["batch"]}
         pairs_touch = pairs_cut = 0
+        batch_gids = {int(r["gid"]) for r in fid["batch"]}
+        siblings = set()
         for a, b, payload in trace.get("peer_exchange") or []:
             a, b = int(a), int(b)
             if a in scored_ids or b in scored_ids:
                 pairs_touch += 1
                 pairs_cut += a >= n_cut or b >= n_cut
+            for x, y in ((a, b), (b, a)):
+                if x in batch_gids and y in win and abs(tab["scheduled"][y] - t0) <= 1e-6:
+                    siblings.add(y)  # decided live in the batch's own decision: the dataset is a sub-batch view
             if a not in win and b not in win:
                 continue  # pairs among snapshot tasks are the snapshot's own; pairs among placed tasks do not matter
-            if a >= n_cut or b >= n_cut:
-                dropped += 1
-                continue
             if a in ids and b in ids:
                 if a in snapset and b in snapset:
                     continue
                 pairs.append([ids[a], ids[b], float(payload)])
                 continue
             inside, other = (a, b) if a in ids else (b, a)
+            if other >= n_cut:
+                # a partner beyond the horizon: absent as a task, but placed where and when the full live run placed it, so a
+                # window task rendezvouses and pays the exchange to it as live (the cut truth run uses the same convention)
+                beyond += 1
+                stub_rows.setdefault(ids[inside], []).append((other, tab["node"][other], float(payload), tab["scheduled"][other] - t0))
+                continue
             if tab["scheduled"][other] >= t0 - 1e-9 and tab["done"][other] > t0:
                 raise RuntimeError(f"window task {inside}'s partner {other} is unscheduled at t0 but not in the window")
-            stub_rows.setdefault(ids[inside], []).append((other, tab["node"][other], float(payload)))
+            stub_rows.setdefault(ids[inside], []).append((other, tab["node"][other], float(payload), None))
         if pairs:
             wl["peer_exchange"] = pairs
         # snapshot tasks' outside partners that are now window tasks become real pairs (none in the accel corpus: no open peers)
         for gid, prow in list((fid.get("peers") or {}).items()):
-            keep = [r for r in prow if int(r[0]) not in win and int(r[0]) < n_cut]
+            keep = [r for r in prow if int(r[0]) not in win]
             for r in prow:
                 if int(r[0]) in win:
                     wl.setdefault("peer_exchange", []).append([ids[int(gid)], ids[int(r[0])], float(r[2])])
@@ -232,7 +253,7 @@ def _one(job):
                 else:
                     free.append(i)
             if not out:
-                restrict = {int(t.id): allowed[local_of[int(t.id)]] for t in batch_tasks if int(t.id) in local_of}
+                restrict = _Restrict({int(t.id): allowed[local_of[int(t.id)]] for t in batch_tasks if int(t.id) in local_of})
                 self._pg_allowed = restrict or None
                 try:
                     res = orig_inf(self, batch_tasks, system_state, queue_snapshot, temporal_state)
@@ -242,7 +263,7 @@ def _one(job):
                 res = {}
                 if free:
                     free_tasks = [batch_tasks[i] for i in free]
-                    restrict = {int(t.id): allowed[local_of[int(t.id)]] for t in free_tasks if int(t.id) in local_of}
+                    restrict = _Restrict({int(t.id): allowed[local_of[int(t.id)]] for t in free_tasks if int(t.id) in local_of})
                     self._pg_allowed = restrict or None
                     try:
                         sub = self._pg_decide(free_tasks, system_state)
@@ -260,12 +281,14 @@ def _one(job):
             never = orig_apply(orchestrator, fidelity)
             env = orchestrator.env
             for rid, prow in stub_rows.items():
-                for other, node_name, payload in prow:
+                for other, node_name, payload, delay in prow:
                     sid = snapshot_fidelity.STUB_BASE + int(other)
                     stub = orchestrator.task_by_id.get(sid)
                     if stub is None:
-                        stub = snapshot_fidelity.PeerStub(env, int(other), node_name)
+                        stub = snapshot_fidelity.PeerStub(env, int(other), node_name if delay is None else None)
                         orchestrator.task_by_id[sid] = stub
+                        if delay is not None:
+                            env.process(snapshot_fidelity._place_later(env, stub, max(0.0, float(delay)), node_name))
                     orchestrator.peer_exchange.setdefault(rid, {})[sid] = payload
             return never
 
@@ -301,7 +324,7 @@ def _one(job):
             label = min(hit) if hit else None
         sc = res["stats"].get("schedulerCounters") or {}
         return dict(base, t0=t0, n_cut=n_cut, n_window=len(window), n_window_pending=sum(1 for g in window if arrivals[g] <= t0),
-                    pairs_dropped_beyond_cut=dropped, pairs_touching_scored=pairs_touch, pairs_touching_scored_cut=pairs_cut, stubs=sum(len(v) for v in stub_rows.values()),
+                    partners_beyond_cut=beyond, n_siblings=len(siblings), pairs_touching_scored=pairs_touch, pairs_touching_scored_cut=pairs_cut, stubs=sum(len(v) for v in stub_rows.values()),
                     q=q_batch + q_win, q_batch=q_batch, q_window=q_win, plan=plan, label_of_plan=label,
                     window_lat={str(g): lat(ids[g]) for g in window}, batch_lat=[lat(b) for b in fr.batch_local],
                     batch_detail=[{k: trs[b].get(k) for k in DETAIL} for b in fr.batch_local],
@@ -330,11 +353,24 @@ def truth_one(job):
         window, _ = window_of(fid, t0, H, arrivals, tab, None)
         batch = [int(r["gid"]) for r in fid["batch"]]
         with tempfile.TemporaryDirectory(dir=os.environ.get("HEROSIM_RAW_DIR")) as tmp:
-            env = dict(os.environ, HEROSIM_MAX_EVENTS=str(n_cut), SIM_FORCE_FULL_STATS="1",
-                       LIVE_AUDIT_SNAPSHOT_PATH=os.path.join(tmp, "snap.jsonl"))
+            # the live run on the trace cut at n(t0 + H), every pair with an end below the cut KEPT: a partner beyond the cut is a stub
+            # placed where and when the full run placed it, so batching waits and rendezvous happen as live and the history before
+            # t0 is the full run's (checked below, not assumed)
+            trace = json.load(open(job["workload"]))
+            cut = {k: v for k, v in trace.items() if k not in ("events", "peer_exchange")}
+            cut["events"] = trace["events"][:n_cut]
+            cut["peer_exchange"] = [p for p in trace.get("peer_exchange") or [] if min(int(p[0]), int(p[1])) < n_cut]
+            later = sorted({int(x) for p in cut["peer_exchange"] for x in p[:2] if int(x) >= n_cut})
+            wl_cut = os.path.join(tmp, "wl.json")
+            json.dump(cut, open(wl_cut, "w"))
+            spec = os.path.join(tmp, "spec.json")
+            json.dump({"stubs": {str(j): [tab["scheduled"][j], tab["node"][j]] for j in later},
+                       "argv": ["src/executesimulation.py", "--config", job["cfg"], "--workload", wl_cut, "--policy",
+                                "peer_greedy_network_batch", "--output", os.path.join(tmp, "cut.json")]}, open(spec, "w"))
+            env = dict(os.environ, SIM_FORCE_FULL_STATS="1", LIVE_AUDIT_SNAPSHOT_PATH=os.path.join(tmp, "snap.jsonl"))
+            env.pop("HEROSIM_MAX_EVENTS", None)
             out = os.path.join(tmp, "cut.json")
-            proc = subprocess.run([sys.executable, str(REPO / "src/executesimulation.py"), "--config", job["cfg"], "--workload",
-                                   job["workload"], "--policy", "peer_greedy_network_batch", "--output", out],
+            proc = subprocess.run([sys.executable, str(REPO / "scripts_cosim/rollout_replay.py"), "--truth-run", spec],
                                   env=env, cwd=str(REPO), capture_output=True, text=True)
             if proc.returncode != 0 or not os.path.exists(out):
                 raise RuntimeError(f"cut live run failed (rc {proc.returncode}): {proc.stderr[-300:]}")
@@ -347,12 +383,38 @@ def truth_one(job):
         snapset = {int(r["gid"]) for r in fid["queued"]} | set(batch) | {int(g["tid"]) for g in fid.get("ghosts") or []}
         win_truth = [i for i in range(n_cut) if i not in snapset and float(trs[i]["scheduledTime"]) >= t0 - 1e-9]
         lat = lambda i: float(trs[i]["doneTime"]) - float(trs[i]["scheduledTime"])
-        return dict(base, t0=t0, n_cut=n_cut, history_max_abs=max(hist) if hist else 0.0, history_off=hist_off, batch_moved=moved,
+        return dict(base, t0=t0, n_cut=n_cut, partners_beyond_cut=len(later), history_max_abs=max(hist) if hist else 0.0, history_off=hist_off, batch_moved=moved,
                     window_same=sorted(win_truth) == sorted(window), n_window=len(win_truth),
                     q=sum(lat(g) for g in batch) + sum(lat(i) for i in win_truth), q_batch=sum(lat(g) for g in batch),
                     q_window=sum(lat(i) for i in win_truth), batch_detail=[{k: trs[g].get(k) for k in DETAIL} for g in batch], window_lat={str(i): lat(i) for i in win_truth}, wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
         return dict(base, error=f"{type(e).__name__}: {str(e)[:300]}")
+
+
+def truth_run(spec_path: str) -> None:
+    """Inside the truth subprocess: stub the partners beyond the cut on every orchestrator, then run the live driver."""
+    import runpy
+
+    from src.placement import orchestrator as O
+    from src.placement import snapshot_fidelity
+
+    spec = json.load(open(spec_path))
+    stubs = {int(k): (float(v[0]), str(v[1])) for k, v in spec["stubs"].items()}
+    orig = O.Orchestrator.__init__
+
+    def init(self, *a, **kw):
+        orig(self, *a, **kw)
+        for j, (when, node) in stubs.items():
+            if j in self.task_by_id:
+                raise RuntimeError(f"stub {j} collides with a real task")
+            stub = snapshot_fidelity.PeerStub(self.env, j, None)
+            stub.id = j
+            self.task_by_id[j] = stub
+            self.env.process(snapshot_fidelity._place_later(self.env, stub, when, node))
+
+    O.Orchestrator.__init__ = init
+    sys.argv = spec["argv"]
+    runpy.run_path(str(REPO / "src/executesimulation.py"), run_name="__main__")
 
 
 def _dispatch(job):
@@ -364,7 +426,11 @@ def main() -> int:
     ap.add_argument("out", nargs="?"); ap.add_argument("jobs", nargs="?")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--make-table", nargs=2, metavar=("RAW", "TABLE"))
+    ap.add_argument("--truth-run", metavar="SPEC")
     a = ap.parse_args()
+    if a.truth_run:
+        truth_run(a.truth_run)
+        return 0
     if a.make_table:
         make_table(*a.make_table)
         return 0
