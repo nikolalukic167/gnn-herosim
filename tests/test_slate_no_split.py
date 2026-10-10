@@ -90,3 +90,20 @@ def test_counter_and_provenance_are_recorded():
 
     assert '"slate_declared_unsplit"' in inspect.getsource(Orchestrator._scheduler_counters)
     assert '"GNN_SLATE_NO_SPLIT"' in inspect.getsource(executesimulation)
+
+
+def test_harness_serves_the_nosplit_kinds_and_keeps_them_out_of_the_default_grid(monkeypatch):
+    import os
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
+    import fresh_topo_burst_v1_gate as G
+
+    assert G.R1A_NOSPLIT == ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")
+    for k in G.R1A_NOSPLIT:
+        assert k in G.R1A_ARMS and next((k[:-len(s)] for s in G.SUFFIXES if k.endswith(s)), k) in G.RA_KINDS
+    for k in ("cd", "selfpredict", "ra_gnn_eng", "ra_gnn_eng_physmp", "ra_gnn_eng_cdapply", "cd_pull"):
+        assert k in G.R1A_ARMS
+    src = open(G.__file__).read()
+    assert 'if kind.endswith("_nosplit"):\n            env["GNN_SLATE_NO_SPLIT"] = "1"' in src
+    assert '"GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src          # scrubbed per cell before the kind sets it
