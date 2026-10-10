@@ -17,7 +17,7 @@ import logging
 import json
 import os
 from timeit import default_timer
-from typing import Callable, Generator, List, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
+from typing import Callable, Generator, List, Mapping, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
 
 import torch
 import numpy as np
@@ -174,6 +174,15 @@ def _corpus_slate_on() -> bool:
     raw = os.environ.get("GNN_SERVE_CORPUS_SLATE", "0").strip() or "0"
     if raw not in ("0", "1"):
         raise ValueError(f"FAIL LOUD: GNN_SERVE_CORPUS_SLATE must be 0 or 1, got {raw!r}")
+    return raw == "1"
+
+
+def _seq_group_load_on() -> bool:
+    """GNN_SEQ_GROUP_LOAD=1: under the declared slate, decode sub-batches in order and show each later one the earlier ones'
+    placements as queued load (queue count and v5 backlog seconds). Off by default; the default path is unchanged."""
+    raw = os.environ.get("GNN_SEQ_GROUP_LOAD", "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: GNN_SEQ_GROUP_LOAD must be 0 or 1, got {raw!r}")
     return raw == "1"
 
 
@@ -776,7 +785,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         return peer is not None and bool(peer.scheduled.triggered)
 
     def _v4_backlog_seconds(
-        self, task_logit_to_placement: Dict[int, List[Tuple[int, int]]], system_state: SystemState
+        self, task_logit_to_placement: Dict[int, List[Tuple[int, int]]], system_state: SystemState,
+        extra: Optional[Mapping[Tuple[int, int], float]] = None,
     ) -> Optional[Dict[Tuple[int, int], float]]:
         """load_repr_v1: each candidate replica's backlog in seconds, the partial_state_v4
         column the cache reads off the snapshot (live_audit.candidate_backlog_seconds). None
@@ -805,6 +815,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                     raise RuntimeError(f"{resolve_partial_state_contract()}: candidate {key} is not a live replica")
                 node, platform = replica_by_key[key]
                 out[key] = candidate_backlog_seconds(self, node, platform, memo)
+                if extra and key in extra:
+                    out[key] += float(extra[key])
         self.v4_backlog_batches += 1
         self.v4_backlog_nonzero += sum(1 for v in out.values() if v > 0.0)
         return out
@@ -821,7 +833,10 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         the corpus was built (src/placement/declared_slate.py); otherwise the whole batch over every reachable replica."""
         from src.placement import declared_slate
 
+        seq_load = _seq_group_load_on()
         if declared_slate.serving_slate() is None:
+            if seq_load:
+                raise RuntimeError(f"FAIL LOUD: GNN_SEQ_GROUP_LOAD=1 orders the declared slate's sub-batches; {declared_slate.ENV} is unset")
             return self._prefix_inference_core(batch_tasks, system_state, queue_snapshot, temporal_state)
         if _corpus_slate_on():
             raise RuntimeError(f"FAIL LOUD: {declared_slate.ENV} and GNN_SERVE_CORPUS_SLATE=1 are two different slates; pick one")
@@ -845,13 +860,48 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.slate_declared_max_tasks = max(getattr(self, "slate_declared_max_tasks", 0), len(batch_tasks))
         self.slate_declared_max_group = max(getattr(self, "slate_declared_max_group", 0), max(len(g) for g in sl.groups))
         placements: Dict[int, Tuple[int, int]] = {}
+        # GNN_SEQ_GROUP_LOAD: what the sub-batches decoded so far add to their replicas (queue count by queue_key, v5 backlog
+        # seconds by (node_id, platform_id)), and the nodes they planned for their tasks
+        extra_count: Dict[str, int] = {}
+        extra_seconds: Dict[Tuple[int, int], float] = {}
+        planned_nodes: Dict[int, str] = {}
         for group in sl.groups:
             sub_tasks = [batch_tasks[i] for i in group]
             allowed = {k: {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for k, i in enumerate(group)}
-            sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
+            if seq_load and extra_count:
+                group_queue = dict(queue_snapshot)
+                for key, n in extra_count.items():
+                    group_queue[key] = group_queue.get(key, 0) + n
+                sub = self._prefix_inference_core(sub_tasks, system_state, group_queue, temporal_state, allowed,
+                                                  backlog_extra=extra_seconds)
+                self.seq_group_loaded_groups = getattr(self, "seq_group_loaded_groups", 0) + 1
+            else:
+                sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
             for k, i in enumerate(group):
                 placements[i] = sub[k]
+            if seq_load and len(sl.groups) > 1:
+                self._fold_group_load(sub_tasks, [sub[k] for k in range(len(group))], extra_count, extra_seconds, planned_nodes)
         return placements
+
+    def _fold_group_load(self, tasks: List[Task], plan: List[Tuple[int, int]], extra_count: Dict[str, int],
+                         extra_seconds: Dict[Tuple[int, int], float], planned_nodes: Dict[int, str]) -> None:
+        """GNN_SEQ_GROUP_LOAD: add a decoded sub-batch's tasks to the load the next sub-batch sees, each priced as
+        platform_queue_drain_seconds would price it once queued (live_audit.pending_task_seconds)."""
+        from src.placement.live_audit import pending_task_seconds
+
+        node_by_id = {int(node.id): node for node in self.nodes.items}
+        placed = []
+        for task, (nid, pid) in zip(tasks, plan):
+            node = node_by_id[int(nid)]
+            platform = next(p for p in node.platforms.items if int(p.id) == int(pid))
+            planned_nodes[int(task.id)] = node.node_name
+            placed.append((task, node, platform, (int(nid), int(pid))))
+        orch = self._orchestrator()
+        for task, node, platform, key in placed:
+            qkey = f"{node.node_name}:{platform.id}"
+            extra_count[qkey] = extra_count.get(qkey, 0) + 1
+            extra_seconds[key] = extra_seconds.get(key, 0.0) + pending_task_seconds(task, platform, orch, planned_nodes)
+            self.seq_group_loaded_tasks = getattr(self, "seq_group_loaded_tasks", 0) + 1
 
     def _prefix_inference_core(
         self,
@@ -860,6 +910,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         queue_snapshot: Dict[str, int],
         temporal_state: Optional[Dict[str, Dict[str, float]]],
         task_candidate_filter: Optional[Dict[int, Any]] = None,
+        backlog_extra: Optional[Mapping[Tuple[int, int], float]] = None,
     ) -> Dict[int, Tuple[int, int]]:
         """Build the live graph, attach the prefix block, run the registered decoder.
 
@@ -894,7 +945,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             nodes=list(self.nodes.items),
             peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
             options=self._prefix_options,
-            backlog_seconds=self._v4_backlog_seconds(task_logit_to_placement, system_state),
+            backlog_seconds=self._v4_backlog_seconds(task_logit_to_placement, system_state, backlog_extra),
         )
         self.prefix_pairs_in_batch += int(diag["n_pairs_in_batch"])
         self.prefix_peers_outside_batch += int(diag["peers_outside_batch"])

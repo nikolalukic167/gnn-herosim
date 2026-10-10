@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Mapping, Optional, TYPE_CHECKING
 
 from src.placement import snapshot_fidelity
 from src.placement.live_snapshot_seed import _approx_comm
@@ -114,6 +114,44 @@ def platform_queue_drain_seconds(
             total += _transfer(peer_node_name, float(payload)) + _latency_to(peer_node_name)
     if memo is not None:
         memo[memo_key] = float(total)
+    return float(total)
+
+
+def pending_task_seconds(
+    task: "Task", platform: "Platform", orchestrator: Any, planned_nodes: Mapping[int, str], exec_scale: float = 1.0,
+) -> float:
+    """What `platform_queue_drain_seconds` would charge `task` once it sits in `platform`'s queue: the same terms as one pass
+    of its loop. A peer's node is its platform's node if placed, else `planned_nodes[peer_id]`, else its `planned_node_name`.
+    GNN_SEQ_GROUP_LOAD: the load an earlier sub-batch adds to a replica before the next sub-batch is decoded."""
+    node = platform.node
+    plat_type = platform.type["shortName"]
+    network_map = getattr(node, "network_map", None) or {}
+
+    def _latency_to(other_node_name: str) -> float:
+        entry = network_map.get(other_node_name)
+        if entry is None:
+            return 0.0
+        return float(entry.get("latency", 0.0)) if isinstance(entry, dict) else float(entry)
+
+    task_type = task.type
+    total = float(task_type.get("executionTime", {}).get(plat_type, 0.0) or 0.0) * exec_scale
+    total += _approx_comm(task_type)
+    if getattr(task, "node_name", None) and task.node_name != node.node_name:
+        total += _latency_to(task.node_name)
+    if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
+        return float(total)
+    peer_table = (getattr(orchestrator, "peer_exchange", None) or {}) if orchestrator is not None else {}
+    task_by_id = (getattr(orchestrator, "task_by_id", None) or {}) if orchestrator is not None else {}
+    for peer_id, payload in (peer_table.get(int(task.id)) or {}).items():
+        peer = task_by_id.get(peer_id)
+        if peer is None:
+            continue
+        peer_platform = getattr(peer, "platform", None)
+        peer_node_name = (peer_platform.node.node_name if peer_platform is not None
+                          else planned_nodes.get(int(peer_id)) or getattr(peer, "planned_node_name", None))
+        if peer_node_name is None or peer_node_name == node.node_name:
+            continue
+        total += float(platform._payload_transfer_time(peer_node_name, 1.0)) * float(payload) + _latency_to(peer_node_name)
     return float(total)
 
 
