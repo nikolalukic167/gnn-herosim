@@ -65,6 +65,12 @@
 
 ## Record (newest first)
 
+- 2026-10-11 13:50 — **Inputs built** (S7; scan 856289 clean; builds 856291/856292 at rp/big-groups ae113145).
+  - Topologies 16700–16707 × both rungs × g0–g3, on the accel base cfg (fastest_compatible asserted).
+  - **Task rate identical across G:** moderate 5.3470, heavy 12.7173 tasks/s.
+  - **G=current:** mean group size 3.91–4.09 (max 10), 1.30–1.33 pairs per task.
+  - **G=8:** 6,250 groups of exactly 8, 1.71 pairs per task.
+  - Cells list: `/share/nikola.lukic/big_groups/cells.txt`.
 - 2026-10-11 13:25 — **G generator built and checked** (S7; `--group-size G` in `grounded_workload_v1_mint.py`,
   rp/big-groups 129099b3).
   - G=current re-mints the four ×1 windows byte-identical.
