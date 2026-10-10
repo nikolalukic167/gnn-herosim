@@ -52,6 +52,11 @@ TRAINERS = {
         "path": REPO_ROOT / "src" / "policy" / "tabular" / "train_mlp_dim22_from_batch.py",
         "wandb": "cli",
     },
+    # cost_to_go_v1 rung (b): the post-plan value MLP (seeded by VALUE_MLP_SEED)
+    "value_mlp": {
+        "path": REPO_ROOT / "scripts_cosim" / "train_value_mlp.py",
+        "wandb": "env",
+    },
 }
 
 # Default ceiling on training length for every run (Nikola, 2026-10-01): the long arms
@@ -194,6 +199,13 @@ def resolve(
             args["output"] = str(
                 output_path.with_name(f"{output_path.stem}_seed{seed}{output_path.suffix}")
             )
+        elif cfg["trainer"] == "value_mlp":
+            env["VALUE_MLP_SEED"] = str(seed)
+            output = args.get("output")
+            if output is None:
+                raise ConfigError(f"--seed requires a value_mlp config to set args.output ({config_path.name})")
+            output_path = Path(str(output))
+            args["output"] = str(output_path.with_name(f"{output_path.stem}_seed{seed}{output_path.suffix}"))
         elif cfg["trainer"] == "gnn":
             # NEAR_RTT_TRAIN_SEED seeds torch (train_near_rtt.py:106); the checkpoint
             # path is models/{wandb.run.name}.pt, so distinct run names are what

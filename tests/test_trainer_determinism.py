@@ -549,3 +549,34 @@ def test_graph_free_arms_train_bit_identically_at_a_fixed_seed(kind):
 
     first, second = train_arm_once(kind, SEED), train_arm_once(kind, SEED)
     _assert_state_dicts_identical(first, second, f"r1_attribution_v1 {kind}")
+
+
+def test_value_mlp_trainer_is_bit_identical_at_a_fixed_seed(tmp_path):
+    """cost_to_go_v1 rung (b): two runs of the value MLP trainer at one seed give bit-identical weights."""
+    import json
+    import random
+    import subprocess
+
+    import torch
+
+    sys_path = Path(__file__).resolve().parents[1]
+    from scripts_cosim.cost_to_go_mlpv_data import FEATURES
+
+    rng = random.Random(7)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    with open(cache / "states.jsonl", "w") as fh:
+        for i in range(30):
+            plans = [{"slot": s, "s": rng.random(), "q": rng.random() * 5,
+                      "x": [[rng.random() for _ in FEATURES] for _ in range(rng.randint(3, 6))]} for s in ("policy", "s0", "s1")]
+            fh.write(json.dumps({"ds": f"d{i}", "cell": f"cc40s{16000 + i % 10}_heavy_g0", "topo": 16000 + i % 10, "plans": plans}) + "\n")
+    outs = []
+    for k in range(2):
+        out = tmp_path / f"m{k}.pt"
+        env = {**os.environ, "WANDB_MODE": "disabled", "VALUE_MLP_SEED": "3", "PYTHONPATH": str(sys_path), "OMP_NUM_THREADS": "1"}
+        subprocess.run([sys.executable, str(sys_path / "scripts_cosim" / "train_value_mlp.py"), "--cache-dir", str(cache),
+                        "--epochs", "3", "--output", str(out)], env=env, check=True, capture_output=True)
+        outs.append(torch.load(out))
+    assert outs[0].keys() == outs[1].keys()
+    for key in outs[0]:
+        assert torch.equal(outs[0][key], outs[1][key]), key
