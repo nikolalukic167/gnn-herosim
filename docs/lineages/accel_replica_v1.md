@@ -57,6 +57,8 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
     They span CD, CD-declared, locality, one-pass greedy, self-predict, Knative, ra_gnn_eng and CD←GNN.
   - CD and self-predict were submitted as 855432 (192 cells), sealed. The learned arms run at fcd47841 on checkpoints
     whose contract says fastest_compatible.
+  - Disclosed: S4 saw three CD moderate log lines (16301, 16302) while checking the array had started. Nothing was used.
+    The selection is validation-only and the bars are signed, so this cannot steer the result.
 - 2026-10-10 — **Contract gap closed; learned-family identity PASS** (S7, `rp/accel-train` 5b5dc011).
   - `replica_placement_rule` is now a cache_physics key; absent reads as first_compatible.
     - The cache cross-checks each dataset's replay infrastructure against its cell config, and refuses mixed or wrongly
