@@ -65,6 +65,16 @@
 
 ## Record (newest first)
 
+- 2026-10-11 13:25 — **G generator built and checked** (S7; `--group-size G` in `grounded_workload_v1_mint.py`,
+  rp/big-groups 129099b3).
+  - G=current re-mints the four ×1 windows byte-identical.
+  - The realised task rate equals the base rate within 0.01 % at every G. G=8 gives a mean group size of exactly 8.00.
+  - **Disclosed, these change together with G:**
+    - (a) group spans: today's groups sometimes spread over up to 70–298 s (median 2 ms), while G=8 groups span
+      ≤ 26 ms;
+    - (b) partner pairs per task rise 29 % (1.71 vs 1.30–1.33), because each member still draws 2 partners.
+  - So G=8 means bigger, simultaneous and denser groups. The screen reads them as one lever, and no attribution to
+    size alone is made.
 - 2026-10-11 12:50 — **Amendment before any data (coordinator, on the user's "isn't 8 enough? remove the 5 limit"):**
   - **Stage 1:** G ∈ {current, 8} only, each in two slate conditions:
     - (i) the declared top-5 slate;
