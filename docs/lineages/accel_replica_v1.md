@@ -51,6 +51,22 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 10:00 — **Learned launch 855691 failed at load; ruling: fix and resubmit** (S4 report; coordinator ruling).
+  - **Failure:** 0 of 576 cells finished. All 576 exited rc 1 at checkpoint load with "physics environment mismatch
+    (replica_placement_rule: … 'fastest_compatible', this run has 'first_compatible')". Slurm shows COMPLETED because
+    the wrapper exits 0.
+  - **Cause:** `prefix_serving.py:209` calls `require_matching_physics_env` without `space_config`. The check therefore
+    reads the `replica_rule` module global, which is still the default, because the simulator sets the rule after the
+    checkpoint loads. The cells do carry the rule, so it is a serving-check bug from the contract change 5b5dc011. The
+    earlier learned-family identity did not exercise a fastest_compatible checkpoint through this loader. scale_160 and
+    r1a are unaffected, because their default rule matches.
+  - **Ruling:** a code fix, not a rerun. S7 fixes it on `rp/accel-gate-fix` off fcd47841, passing the cell's
+    space_config into the check. Tests go through `load_gnn_model`, all four checkpoint × cell combinations.
+  - **Before resubmitting**, S4 reviews the diff and runs identity at the new commit:
+    - 4 classical cells, bit-identical to 855432;
+    - 2 learned cells that must load and finish.
+    Pairing against the classical arms at fcd47841 rests on that identity check, and it is disclosed.
+  - Counted as a failed launch, not as excluded cells.
 - 2026-10-10 09:50 — **Training done and checkpoints selected** (S7; array 855607 all COMPLETED; selection 855608;
   validation only).
   - **Rule:** lowest mean `val/regret_masked_topo` over 3 seeds. The split has 438 datasets on the held-out topologies
