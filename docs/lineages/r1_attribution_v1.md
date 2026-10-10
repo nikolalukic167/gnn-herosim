@@ -19,9 +19,9 @@
   - Random placement (fixed, 454 of 456 cells): +32.8 / +119.6 / +154.9 %.
   - Knative: +26 % at light and collapses at moderate and heavy.
   - CD decides 10× faster than any learned arm (prediction 7).
-- **Open: gnn_raw.** It was removed from best-arm candidacy by the user's ruling: its twin, twin_raw, is
-  +16.6 / +26.3 / +30.3 % vs CD. Its S1 contrast (GNN-raw vs Twin-raw) is read when its gate lands, as an addendum that
-  cannot change the verdict.
+- **gnn_raw addendum (S1, does not change the verdict).** Message passing helps the raw-plan arm: gnn_raw vs twin_raw
+  −4.75 / −4.62 / −7.99 %, Holm-confirmed at every rung (19/17/18 of 19). Prediction 2 holds in direction, below its
+  8–24 % range at light and moderate. Both raw arms are far slower than CD: gnn_raw +11.3 / +20.6 / +19.9 %.
 - **Successor:** `scale_160_v1` tests the same question at 160c × 24s.
 - **Read:** `r1_attribution_v1/gate_read_primary_2026-10-10.json`, from S4's `rp/r1a-gate` a6713375. 5,444 summaries;
   28 failed (rate- or projection-killed, excluded and counted).
@@ -673,6 +673,17 @@ No line trips.
   - Refine moves per batch: CD 0.2–0.35; with a learned or random start, 0.5–1.9.
 - **Learned-arm gate seeds (2026-10-09 22:00, coordinator).** Seeds 1 and 2 are gated, as registered (matching
   CD←random). The third trained seed is staged but not gated.
+- **gnn_raw addendum, S1 read (2026-10-10 23:50; S4, pin 263dd915, jobs 855946/855947; descriptive, outside the
+  primary family).**
+  - **Counts:** ra_gnn_raw has 455 summaries and 1 failed (cc40s9565 g0 heavy s2, watchdog-killed, counted).
+    ra_twin_raw has 454 and 2 failed (heavy). The read covers 5,446 summaries, 26 failed, 19 topologies.
+  - **gnn_raw vs twin_raw** (paired, Holm over the 15 S1 tests): −4.75 % (19/19, .0001) / −4.62 % (17/19, .0009) /
+    −7.99 % (18/19, .0001) at light / moderate / heavy. For contrast, gnn_eng vs twin_eng ties (−0.19 / −0.07 / +1.00 %).
+  - **vs CD, descriptive:** gnn_raw +11.28 / +20.58 / +19.91 % (0, 0 and 2 of 19 faster); twin_raw +16.63 / +26.27 /
+    +30.31 %; gnn_eng +3.55 / +7.31 / +8.62 %.
+  - **Prediction 2:** right in direction; magnitude below 8–24 % except at heavy (−8.0 %).
+  - Message passing matters when the inputs are raw and not when the physics is engineered in. Neither form reaches CD.
+    Output: `/share/nikola.lukic/r1a_gnnraw_read_263dd915.{json,txt}`.
 - **Random arm final (2026-10-10; S4, 855099 at 5e9266e8; descriptive).** 454 of 456 cells; 2 rate-killed at 9538 g2
   heavy, excluded and counted.
   - vs CD: +32.8 / +119.6 / +154.9 % (0/19 topologies faster at every rung).
