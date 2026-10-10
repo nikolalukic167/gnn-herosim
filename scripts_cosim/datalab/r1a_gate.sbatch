@@ -6,6 +6,7 @@
 #   IN                inputs: wf1_light/ wf1_moderate/ wf1_heavy/ models/ r1_attribution_v1_split.json
 #   OUT               result directory (shared by every shard; may exist when resuming)
 #   R1A_TOPOS R1A_WINDOWS R1A_ARMS R1A_SEEDS   restrict the cell list (unset = the registered grid); PAR = parallel cells per task
+#   SEALED=1          write the per-cell latency lines to $OUT/.cell_lines_<task>.txt instead of the slurm log
 #   LIMIT             watchdog / hard limit in s (default 8100 = the former 3x rerun)
 #   sbatch --array=0-N%K ... for the full gate; no --array for the dry run
 #SBATCH --job-name=r1a-gate
@@ -42,5 +43,8 @@ export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEO
 export WF1_RUNGS=${RUNGS_IN:-light,moderate,heavy}
 [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]] || export R1A_SHARD="${SLURM_ARRAY_TASK_ID}/${SLURM_ARRAY_TASK_COUNT}"
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$SELECT" --parallel "${PAR:-60}" --mem "${CELL_MEM:-8G}" \
-  --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip"
+  --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip" | \
+  if [[ "${SEALED:-0}" == 1 ]]; then   # sealed arrays: the per-cell latency lines go to a side file, so start and failure checks of the slurm log cannot expose results
+    tee -a "$OUT/.cell_lines_${SLURM_ARRAY_TASK_ID:-0}.txt" | sed -u -e 's/ elapsed=.*$//'
+  else cat; fi
 echo "failed cells: $(ls "$OUT"/*.failed.json 2>/dev/null | wc -l)  summaries: $(ls "$OUT"/*.summary.json 2>/dev/null | wc -l)"
