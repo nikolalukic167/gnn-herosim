@@ -104,7 +104,7 @@ def build(a):
                 continue
             argv = json.load(open(os.path.join(ds, "generation_provenance.json")))["argv"]
             cell = os.path.basename(argv[argv.index("--snapshots") + 1]).replace("shard_", "").replace(".jsonl", "")
-            fh.write(json.dumps({"ds": ds, "cell": cell, "topo": int(cell.split("_")[0][4:]), "plans": plans}) + "\n")
+            fh.write(json.dumps({"ds": ds, "cell": cell, "topo": int(cell.split("_")[0].split("s", 1)[1]), "plans": plans}) + "\n")
             kept += 1
     print(f"{kept} states written to {a.out}; skipped {skipped} (no tops row, no policy features, or < 2 plans)")
 
