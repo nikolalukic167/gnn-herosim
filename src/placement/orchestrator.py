@@ -234,6 +234,9 @@ class Orchestrator:
             "pg_random_seed_batches",
             # accel pull-hold control: candidate evaluations charged the node's pull hold, and the seconds charged
             "pg_pull_charged", "pg_pull_seconds",
+            # cd_expand: exact-move alpha-expansion in the CD refine (HEROSIM_PG_CD_EXPANSION=1)
+            "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
+            "pg_expand_gain_seconds", "pg_expand_labels_skipped",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",
