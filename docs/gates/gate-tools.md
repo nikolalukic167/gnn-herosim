@@ -10,6 +10,20 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-10-10 — Fidelity replays froze the autoscaler and ran the monitor off phase
+
+Fidelity replays under any non-determined scheduler (PG, CD, GNN) froze the replayed KPA. Its first tick waits on
+`_kpa_start_gate`, which only `DeterminedScheduler` released. Fix for the GNN-family path: 8e19fcab.
+
+Separately, any replay longer than one tick restarted the orchestrator's 1-s `monitor_process` at t0. That put it off the
+live run's absolute phase, and later off its within-instant order: live runs the KPA tick first, then the monitor. The
+tick's `env.step()` then re-phased scale actions by up to a tick, which moved cold starts and co-location. Fixed tool-side
+in `rollout_replay` (daf74ffa, a96b8f27); the generic src fix is pending.
+
+Shielded: everything computed at the decision, plus sweep-row labels, so every reported number is intact
+(`accel_replica_v1`, 2026-10-10 23:00). Exposed: latency replayed after the decision. A rare residual remains: a KPA
+action one tick late, in 6 of 300 state-horizon pairs (`cost_to_go_v1`).
+
 ## 2026-10-08 — Queue share misses pre-execution starvation; read p95 and run end too
 
 Under WF1 at ×11.61, Knative's queue share was 0.001 while its mean latency was 602 s: p50 1 s, p95 5,366 s, and runs ending at
