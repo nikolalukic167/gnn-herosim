@@ -1244,6 +1244,8 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # accel pull-hold control: the pull ledger and the hand rule's pull-hold term
             "HEROSIM_PULL_LEDGER",
             "HEROSIM_PG_PULL_HOLD",
+            # cd_expand / cdxapply: exact-move expansion in the CD refine
+            "HEROSIM_PG_CD_EXPANSION",
             "MLP_MODEL_PATH",
             "TOPOLOGY_FEATURE_CONTRACT",
             "NETWORK_GRAPH_CONTRACT",
