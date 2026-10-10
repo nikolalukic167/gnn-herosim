@@ -40,6 +40,13 @@ def test_load_term_weights_backlog_by_expected_arrivals_share():
     assert out["cold"] == 0.0 and out["v"] == out["load"]
 
 
+def test_load_key_selects_the_backlog_view():
+    f = feat({"p1": 1.0}, {"a": ["p1"]})
+    f["load_after_inflight"] = {"p1": 6.0}
+    assert hv.hand_v(f, {"a": 0.1}, 10.0)["v"] == pytest.approx(1.0)
+    assert hv.hand_v(f, {"a": 0.1}, 10.0, "load_after_inflight")["v"] == pytest.approx(6.0)
+
+
 def test_load_term_zero_rate_is_zero_and_plan_with_more_backlog_costs_more():
     f1 = feat({"p1": 5.0}, {"a": ["p1"]})
     f2 = feat({"p1": 9.0}, {"a": ["p1"]})
@@ -188,6 +195,8 @@ def test_post_commit_features_with_fakes(monkeypatch):
     out = fe.post_commit_features(Sched(), ["t0", "t1"], [(n1, p1), (n1, p1)], state, now=100.0,
                                   type_defs=type_defs, scale_in_after_s=120.0, ds="d", slot="policy", t0=100.0, workload="w.json")
     assert out["load_after"]["1:10"] == pytest.approx(3.0 + 1.0 + 2.5)     # drain + in-flight + the plan's own service (both tasks)
+    assert out["load_after_inflight"]["1:10"] == pytest.approx(3.0 + 1.0 + 2.5)   # pg_inflight is on here: both views agree
+    assert out["drain"]["1:10"] == 3.0 and out["inflight"]["1:10"] == 1.0 and out["inflight"]["1:30"] == 0.0
     assert out["load_after"]["2:20"] == 0.0
     assert out["load_after"]["1:30"] == 5.0                              # in-flight None counts as 0
     assert {r["key"]: r["cold_s"] for r in out["replicas"]} == {"1:10": 4.0, "2:20": 1.5, "1:30": 6.0}
@@ -214,8 +223,8 @@ def test_read_end_to_end_on_synthetic_files(tmp_path, capsys):
                 rows.append(row(d, H, "policy", 10.0, [[1, 1]]))
                 rows.append(row(d, H, "s1", 8.0, [[2, 2]]))     # S says policy, Q_H says s1; V should say s1 too
             for slot, load in (("policy", 5.0), ("s1", 1.0)):
-                feats.append({"ds": d, "slot": slot, "t0": 90.0, "workload": str(wl), "load_after": {"p": load},
-                              "type_platforms": {"a": ["p"]}, "replicas": [], "scale_in_after_s": 1e9})
+                feats.append({"ds": d, "slot": slot, "t0": 90.0, "workload": str(wl), "load_after": {"p": load}, "load_after_inflight": {"p": load},
+                              "drain": {"p": load}, "inflight": {"p": 0.0}, "type_platforms": {"a": ["p"]}, "replicas": [], "scale_in_after_s": 1e9})
     paths = {}
     for name, lst in (("s0", rows), ("tops", tops), ("features", feats)):
         paths[name] = tmp_path / f"{name}.jsonl"
@@ -224,6 +233,8 @@ def test_read_end_to_end_on_synthetic_files(tmp_path, capsys):
     hv.read(a)
     out = capsys.readouterr().out
     assert "FIT [16251] / EVAL [16252]" in out
+    assert "nonzero queue drain on some platform: 12" in out and "nonzero in-flight remaining: 0" in out
+    assert "(a) load_after as S sees it" in out and "(b) load_after plus in-flight remaining" in out
     assert "H = 5 s: fit states 6, eval states 6" in out
     assert "picks the Q_H-best plan on 100.0 %" in out        # held-out, at the fitted lambda
     a.gate_topos = "16252,16400"
@@ -236,7 +247,7 @@ def test_decision_hook_wires_ctx_and_s_totals(monkeypatch):
     import types
     live = types.ModuleType("src.placement.live_audit")
     live.platform_queue_drain_seconds = lambda platform, orch, memo, exec_scale=1.0: 2.0
-    live.inflight_remaining_seconds = lambda platform: 0.0
+    live.inflight_remaining_seconds = lambda platform: 4.0
     for name, mod in (("src", types.ModuleType("src")), ("src.placement", types.ModuleType("src.placement")),
                       ("src.placement.live_audit", live)):
         monkeypatch.setitem(sys.modules, name, mod)
@@ -257,6 +268,8 @@ def test_decision_hook_wires_ctx_and_s_totals(monkeypatch):
     ctx = {"job": {"ds": "d", "tag": "s0|s1", "workload": "w.json"}, "t0": 90.0, "local_of": {11: 0}, "queued": {99}}
     out = fe.decision_hook(sched, tasks, [(node, plat), (node, plat)], types.SimpleNamespace(replicas={"a": {(node, plat)}}), ctx)
     assert out["slot"] == "s1" and out["scale_in_after_s"] == 60.0 and out["pg_inflight"] is False
-    assert out["load_after"]["1:7"] == pytest.approx(2.0 + 1.5)               # drain only (no in-flight) + both tasks' service
+    assert out["load_after"]["1:7"] == pytest.approx(2.0 + 1.5)               # drain only (pg_inflight off) + both tasks' service
+    assert out["load_after_inflight"]["1:7"] == pytest.approx(2.0 + 4.0 + 1.5)  # the in-flight view, logged whatever the switch says
+    assert out["inflight"]["1:7"] == 4.0 and out["drain"]["1:7"] == 2.0
     assert out["replicas"][0]["cold_s"] == 3.0 and out["replicas"][0]["idle_s"] == 60.0
     assert out["local_batch"] == [0] and out["s_total"] == 3.0 and sum(out["s_scores"]) == out["s_total"]
