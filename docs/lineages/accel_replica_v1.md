@@ -67,6 +67,19 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 22:30 — **Stakes-weighted training does not transfer live; physmp g3 stays the candidate** (S7; stakes
+  physmp g3, 855813, 100 epochs, 3 seeds; live 855931, 48 cells; validation topologies 16251–16258, g0; selection
+  evidence, descriptive only).
+  - **Offline (best checkpoint, 438 validation datasets):** regret −3.2 % vs physmp g3, heavy −12.6 %, moderate +18 %
+    (worse on all 3 seeds). The weights use the disclosed proxy, capped-sidecar mean RTT minus the optimum.
+  - **Live, median paired % over 8 topologies:**
+    - moderate: vs physmp g3 −0.52 % (7/8); vs CD −6.58 % (7/8);
+    - heavy: vs physmp g3 −0.28 % (4/8); vs CD +1.78 % (3/8).
+  - **Rule signed before the read:** swap only if heavy is ≥ 3 % ahead and moderate is no more than 2 % behind. Heavy
+    is not met, so the swap is NOT made.
+  - Offline regret predicted neither rung's live direction; it ranks epochs, not arms.
+  - **Reuse:** 16 CD and 48 physmp g3 cells were taken from the livefb run. All 112 summaries carry the same
+    run_provenance.code (9e5ee729, clean). Env flags are identical apart from GNN_MODEL_PATH.
 - 2026-10-10 20:40 — **The GNN seed still helps the strongest search, slightly** (S5; cdxapply = the no-split GNN plan,
   seed 1, then CD refine with expansion; rp/cdx-apply f1dfc355; 855885, after the failed launch 855862 with 0 of 24
   usable; g0; 12 gate topologies; descriptive).
