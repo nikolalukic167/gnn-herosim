@@ -46,6 +46,23 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-11 07:20 — **Classical reference arms: every one is far slower than the no-split GNN and CD** (S4; 856147
+  at acbea783, reader 06f09941 committed before the data, read once as 856169; 16345–16368 × 4 windows × 2 rungs,
+  seed 0; descriptive addendum requested by PUBLISHER).
+  - **Counts:** reactive, batched (one-pass greedy) and locality 192/192 each. Random 187/192: 5 watchdog kills,
+    counted as failed, not rerun.
+  - **Paired % vs gnn_eng no-split (positive = classical slower), moderate / heavy; Holm < .0001 and 0/24 topologies
+    ahead in every family:**
+    - random +160.7 / +224.3 %;
+    - batched +23.45 / +13.85 %;
+    - locality +22.63 / +13.18 %.
+    - vs physmp no-split and vs CD the pattern is the same (CD vs batched +13.7 / +11.7 %).
+  - **Reactive (Knative) collapses at both rungs; recorded, not dropped:**
+    - moderate: p95 median 5,703 s, run end 2.01 × the last arrival, effective queue share 0.99;
+    - heavy: p95 8,142 s, end 4.60 ×, share 1.00.
+    - Its paired % (+18,621 / +31,042 %) is the queue blowing up, not a placement margin.
+  - Random, batched and locality are healthy (end ≤ 1.04).
+  - Sensitivity without the 4 topologies that had a failure: in `/share/nikola.lukic/accel_nosplit/read2_06f09941.json`.
 - 2026-10-11 07:00 — **Registered diagnostic: the GNN searching on its own score ("gnn_selfsearch"), aimed at the heavy
   gap** (coordinator, on the user's "start A"; owner S4; descriptive; it cannot change this lineage's verdict).
   - **Why:** heavy is the missing rung vs CD: gnn_eng −1.65 %, while cd_exactS reaches −9.7 % on 16301–16312.
