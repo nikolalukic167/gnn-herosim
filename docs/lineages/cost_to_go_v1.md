@@ -43,5 +43,22 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 01:45 — **Literature context and design notes, before S0 is read** (SCIENTIST; [V] = abstract checked on
+  Semantic Scholar, [M] = from memory).
+  - **Exact myopic solver plus a learned V has deployed precedent in dispatch:**
+    - Xu et al. KDD 2018 [V]: KM matching on reward + γV;
+    - NeurADP, AAAI 2020 [V]: ILP plus a neural V, up to 16 %;
+    - Simão/Powell 2009 [V]: assignment LP with ADP values;
+    - Ulmer et al. 2019 [V]: offline V plus online rollout beats either alone.
+  - None found for cloud placement; treat it as a gap, not a prior.
+  - CEVD 2021 [V]: a decomposed per-agent V costs up to 9.8 % when agents compete. That supports a joint V over the
+    batch.
+  - **No paper shows a GNN V beating an MLP V.** The matched MLP rung stays required.
+  - **Design notes:**
+    - (a) The target is already a paired advantage on one shared future, the standard variance fix.
+    - (b) Once argmin S + λV is served, states drift away from cd_exactS continuations. If a learned rung passes
+      offline, plan one re-collection pass under the new policy before the gate.
+    - (c) Pick λ on validation environments disjoint from the gate topologies. A small λ (V as a near-tie breaker) is
+      the safe regime.
 - 2026-10-10 21:15 — **Registered** (coordinator, on the user's "do both in parallel"). S6 builds the rollout tool and
   runs S0 and S1. S5 builds the opening split at G if S0 says the opening matters.
