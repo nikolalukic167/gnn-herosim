@@ -141,6 +141,12 @@ _fidelity_env = os.environ.get("HEROSIM_SNAPSHOT_FIDELITY", "0")
 if _fidelity_env not in ("0", "1"):
     raise ValueError(f"HEROSIM_SNAPSHOT_FIDELITY={_fidelity_env!r}; expected 0 or 1")
 FIDELITY = _fidelity_env == "1"
+# The per-node image-pull ledger (node._fid_pull_calls, node._fid_storages) on its own, for a policy that prices the node's
+# storage hold (snapshot_fidelity.node_pull_hold_seconds). Bookkeeping only, no SimPy event; FIDELITY implies it.
+_pull_ledger_env = os.environ.get("HEROSIM_PULL_LEDGER", "0")
+if _pull_ledger_env not in ("0", "1"):
+    raise ValueError(f"HEROSIM_PULL_LEDGER={_pull_ledger_env!r}; expected 0 or 1")
+PULL_LEDGER = FIDELITY or _pull_ledger_env == "1"
 
 from src.placement.model import (
     ApplicationResult,
