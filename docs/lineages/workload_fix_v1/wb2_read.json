@@ -1,0 +1,324 @@
+{
+ "lo": {
+  "reactive": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.434773888956575,
+   "qshare": 0.1704830070335032,
+   "exch_per_task": 0.09567081025341129,
+   "exch_share": 0.054143679778521345,
+   "cold_start_pct": 22.444,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 2.4873027733761766,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06
+  },
+  "selfpredict": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.430043159103317,
+   "qshare": 0.17094279148308997,
+   "exch_per_task": 0.0937028060044016,
+   "exch_share": 0.05337348141446421,
+   "cold_start_pct": 22.424,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 2.4015897112328544,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "locality": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.3824878907308125,
+   "qshare": 0.12809306681110771,
+   "exch_per_task": 0.06784299388623853,
+   "exch_share": 0.04054795039876759,
+   "cold_start_pct": 41.4635,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.6907655243402644,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "batched": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.364295931459745,
+   "qshare": 0.1140979665615189,
+   "exch_per_task": 0.07524944077322279,
+   "exch_share": 0.04585830108099002,
+   "cold_start_pct": 42.715500000000006,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.11253021980318634,
+   "faster": 1,
+   "n_pc": 19,
+   "p": 7.62939453125e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "cd": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.3619732633270463,
+   "qshare": 0.10962848086471783,
+   "exch_per_task": 0.07544715744414651,
+   "exch_share": 0.046188512014552076,
+   "cold_start_pct": 43.153,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   }
+  },
+  "_cd_first": true
+ },
+ "hi": {
+  "reactive": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 0.5211320848355161,
+   "qshare": 0.35513809673260277,
+   "exch_per_task": 0.09731923778204467,
+   "exch_share": 0.18979649719762415,
+   "cold_start_pct": 3.7279999999999998,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 5.60879296807657,
+   "faster": 1,
+   "n_pc": 19,
+   "p": 1.9073486328125e-05
+  },
+  "selfpredict": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 0.46776828891677547,
+   "qshare": 0.4019189179546703,
+   "exch_per_task": 0.05007590521221175,
+   "exch_share": 0.11111509330922857,
+   "cold_start_pct": 3.839,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": -6.1204189402644325,
+   "faster": 19,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CONFIRMED"
+  },
+  "locality": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 0.5029319255569237,
+   "qshare": 0.3822172382802147,
+   "exch_per_task": 0.05060690396492111,
+   "exch_share": 0.10442172840570407,
+   "cold_start_pct": 8.313,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 1.4573944572341069,
+   "faster": 5,
+   "n_pc": 19,
+   "p": 0.000644683837890625,
+   "p_holm": 0.00128936767578125,
+   "label": "CD-FASTER"
+  },
+  "batched": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 0.4998204865670499,
+   "qshare": 0.37618012892673103,
+   "exch_per_task": 0.0584255051204414,
+   "exch_share": 0.12101809583989806,
+   "cold_start_pct": 8.0555,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.5010013392813373,
+   "faster": 4,
+   "n_pc": 19,
+   "p": 0.025821685791015625,
+   "p_holm": 0.025821685791015625,
+   "label": "CD-FASTER"
+  },
+  "cd": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 0.49838311013616565,
+   "qshare": 0.37198941649369405,
+   "exch_per_task": 0.050551783604164256,
+   "exch_share": 0.10636987990245325,
+   "cold_start_pct": 8.2565,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   }
+  },
+  "_cd_first": false
+ },
+ "_meta": {
+  "family": [
+   "selfpredict",
+   "locality",
+   "batched"
+  ],
+  "family_size": 6,
+  "context_only": [
+   "reactive"
+  ],
+  "topologies": [
+   9483,
+   9484,
+   9485,
+   9487,
+   9491,
+   9502,
+   9506,
+   9525,
+   9529,
+   9533,
+   9538,
+   9540,
+   9548,
+   9550,
+   9551,
+   9557,
+   9565,
+   9566,
+   9568
+  ],
+  "excluded": []
+ },
+ "_sensitivity_excluding_failed_topologies": null,
+ "_cd_decomposition": {
+  "ladder_window": {
+   "lo": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 2.8473106952603864,
+    "batching_wait": 0.6958637540724825,
+    "queue": 0.1803338008125807,
+    "exchange": 0.07308943842062632,
+    "rendezvous": 1.5817742719895191,
+    "cold_start": 0.209555025,
+    "other": 0.11277033832528538
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 0.49754667479186754,
+    "batching_wait": 0.017282061639929364,
+    "queue": 0.1882213510277188,
+    "exchange": 0.050279683036413066,
+    "rendezvous": 0.03597930178172204,
+    "cold_start": 0.032910165,
+    "other": 0.17456438967141674
+   }
+  },
+  "fixed_window": {
+   "lo": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 2.3619732633270463,
+    "batching_wait": 0.034670246722924264,
+    "queue": 0.18188274912703414,
+    "exchange": 0.07544715744414651,
+    "rendezvous": 1.7448933124809276,
+    "cold_start": 0.21142686,
+    "other": 0.11527033461987068
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 0.49838311013616565,
+    "batching_wait": 0.0112742032370096,
+    "queue": 0.18829049379098947,
+    "exchange": 0.050551783604164256,
+    "rendezvous": 0.0368950818883766,
+    "cold_start": 0.032710345,
+    "other": 0.17476175054037263
+   }
+  },
+  "ladder_window_excluding_failed_topologies": {
+   "lo": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 2.8473106952603864,
+    "batching_wait": 0.6958637540724825,
+    "queue": 0.1803338008125807,
+    "exchange": 0.07308943842062632,
+    "rendezvous": 1.5817742719895191,
+    "cold_start": 0.209555025,
+    "other": 0.11277033832528538
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 0.49754667479186754,
+    "batching_wait": 0.017282061639929364,
+    "queue": 0.1882213510277188,
+    "exchange": 0.050279683036413066,
+    "rendezvous": 0.03597930178172204,
+    "cold_start": 0.032910165,
+    "other": 0.17456438967141674
+   }
+  },
+  "fixed_window_excluding_failed_topologies": {
+   "lo": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 2.3619732633270463,
+    "batching_wait": 0.034670246722924264,
+    "queue": 0.18188274912703414,
+    "exchange": 0.07544715744414651,
+    "rendezvous": 1.7448933124809276,
+    "cold_start": 0.21142686,
+    "other": 0.11527033461987068
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 0.49838311013616565,
+    "batching_wait": 0.0112742032370096,
+    "queue": 0.18829049379098947,
+    "exchange": 0.050551783604164256,
+    "rendezvous": 0.0368950818883766,
+    "cold_start": 0.032710345,
+    "other": 0.17476175054037263
+   }
+  }
+ }
+}

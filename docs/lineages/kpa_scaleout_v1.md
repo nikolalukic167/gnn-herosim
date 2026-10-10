@@ -109,6 +109,23 @@ Each arm vs CD, paired, under `kpa`.
 
 ## Record
 
+### 2026-10-08 — re-measure on R1.1: pipe_release unchanged
+
+Required by `workload_fix_v1`'s R1.1 rule (the free-pool leak touched completed runs). Run at the published settings
+(per-rung policy time scale), code `rp/kpa-r11` `16f2dcc7` (`src/` identical to R1.1 `252b45aa`), job 843075, output
+`gate_pipe_release_kpa_r11`: 1,596/1,596, 0 failed, 0 hung, 0 request failures. **1 of 1,596 cells differs**: CD on cc40s9529 g2
+×5, 0.8953 → 0.8899 s (−0.61 %, a replica-pool difference consistent with the leak, not traced). Every vs-CD row and label
+matches the published table to the printed digit; self-predict is −8.8 / −9.2 / −9.5 % at ×2 / ×3 / ×5, CONFIRMED 19/19.
+The r11 Holm runs over this condition's 15 tests and the published one over 60; both are in
+[`kpa_r11_pipe_release_read.json`](kpa_scaleout_v1/kpa_r11_pipe_release_read.json). **The R1 headline stands on R1.1.**
+The other three conditions ([`kpa_r11_other_read.json`](kpa_scaleout_v1/kpa_r11_other_read.json)) also reproduce:
+1,596/1,596 each, 0 failures, every vs-CD value, count and label unchanged to the printed digit. Cells that differ: pipe 1
+(CD ×5, ≤ 0.25 %), release 3 (batched, CD, locality ×5, ≤ 1.21 %), replay 2 (batched ×5, ≤ 1.95 %). All are at ×5, untraced, and
+none changes a label. The four `*_legacy_shared_r11` controls
+([`kpa_r11_controls_read.json`](kpa_scaleout_v1/kpa_r11_controls_read.json)) reproduce `shared_control_read.json`:
+456/456 each, 0 failures, 0 of 3,648 reactive and self-predict cells differ, and all 24 rows match to the printed digit.
+**The re-measure is complete: `kpa_scaleout_v1` stands on R1.1.**
+
 ### 2026-10-08 — read (code `71d9cbcb`; control `38cd802f`)
 - **Replay.** Legacy scale-out at `71d9cbcb` reproduces `transfer_physics_v1` field for field: 23 / 23, 1,589 / 1,589,
   1,592 / 1,592, 1,591 / 1,591 (only the runs that failed in the original gate are absent;

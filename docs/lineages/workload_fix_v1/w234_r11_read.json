@@ -1,0 +1,835 @@
+{
+ "lo": {
+  "reactive": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 6.362810830894335,
+   "qshare": 0.039026985048478686,
+   "exch_per_task": 3.3618438350545414,
+   "exch_share": 0.5448143181717849,
+   "cold_start_pct": 36.066500000000005,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 76,
+    "latency_seconds": 24137162.57355741,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 216374.89730259578,
+      "transfers": 34196,
+      "share_of_latency": 0.008964388280652234
+     },
+     "cellular+wifi": {
+      "seconds": 2423882.394794337,
+      "transfers": 525848,
+      "share_of_latency": 0.1004211819598768
+     },
+     "cellular+wired": {
+      "seconds": 1890161.1742226572,
+      "transfers": 548732,
+      "share_of_latency": 0.07830917028720495
+     },
+     "wifi+wifi": {
+      "seconds": 2842929.2375334813,
+      "transfers": 1027356,
+      "share_of_latency": 0.11778224672720848
+     },
+     "wifi+wired": {
+      "seconds": 4836002.125737818,
+      "transfers": 1804748,
+      "share_of_latency": 0.20035503804559546
+     },
+     "wired+wired": {
+      "seconds": 277174.61273433035,
+      "transfers": 1033638,
+      "share_of_latency": 0.011483313827366722
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 0,
+    "runs_with_failure": 0,
+    "n_runs": 76
+   },
+   "vs_cd": 13.064326580397244,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06
+  },
+  "selfpredict": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 6.022560801984291,
+   "qshare": 0.041010027670841775,
+   "exch_per_task": 3.0864055403941864,
+   "exch_share": 0.5330816623921327,
+   "cold_start_pct": 36.6045,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 76,
+    "latency_seconds": 23134623.546098728,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 290312.5197518952,
+      "transfers": 48542,
+      "share_of_latency": 0.012548832669501192
+     },
+     "cellular+wifi": {
+      "seconds": 2385423.479585014,
+      "transfers": 533208,
+      "share_of_latency": 0.10311053797057684
+     },
+     "cellular+wired": {
+      "seconds": 2022886.8609954112,
+      "transfers": 604130,
+      "share_of_latency": 0.08743980021825502
+     },
+     "wifi+wifi": {
+      "seconds": 2461008.386408065,
+      "transfers": 953292,
+      "share_of_latency": 0.10637771483526359
+     },
+     "wifi+wired": {
+      "seconds": 4313658.702785098,
+      "transfers": 1696190,
+      "share_of_latency": 0.18645899701759033
+     },
+     "wired+wired": {
+      "seconds": 286347.0370422866,
+      "transfers": 1070614,
+      "share_of_latency": 0.01237742366854179
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 0,
+    "runs_with_failure": 0,
+    "n_runs": 76
+   },
+   "vs_cd": 8.635633445889457,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "locality": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 5.652132941466294,
+   "qshare": 0.03537957314202437,
+   "exch_per_task": 2.6638316730957214,
+   "exch_share": 0.5006910502682469,
+   "cold_start_pct": 49.2365,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 76,
+    "latency_seconds": 21795047.71133718,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 291800.34194190236,
+      "transfers": 46902,
+      "share_of_latency": 0.013388378213557015
+     },
+     "cellular+wifi": {
+      "seconds": 2104146.9263971425,
+      "transfers": 476887,
+      "share_of_latency": 0.09654243267853108
+     },
+     "cellular+wired": {
+      "seconds": 1765906.7710942277,
+      "transfers": 534097,
+      "share_of_latency": 0.08102330375609373
+     },
+     "wifi+wifi": {
+      "seconds": 2291871.95873149,
+      "transfers": 884824,
+      "share_of_latency": 0.10515562934690535
+     },
+     "wifi+wired": {
+      "seconds": 3788207.819187523,
+      "transfers": 1503570,
+      "share_of_latency": 0.17381048526987175
+     },
+     "wired+wired": {
+      "seconds": 254902.1097246385,
+      "transfers": 966507,
+      "share_of_latency": 0.011695414164752917
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 4,
+    "runs_with_failure": 2,
+    "n_runs": 76
+   },
+   "vs_cd": 2.592851854531031,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "batched": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 5.638203446526366,
+   "qshare": 0.032184734024030756,
+   "exch_per_task": 2.756124488681929,
+   "exch_share": 0.5114241929215305,
+   "cold_start_pct": 50.625,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 76,
+    "latency_seconds": 21795006.045188915,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 288504.80076375505,
+      "transfers": 46446,
+      "share_of_latency": 0.01323719755643015
+     },
+     "cellular+wifi": {
+      "seconds": 2174717.5205514333,
+      "transfers": 503949,
+      "share_of_latency": 0.09978054220505647
+     },
+     "cellular+wired": {
+      "seconds": 1820354.74593448,
+      "transfers": 575203,
+      "share_of_latency": 0.08352164446113149
+     },
+     "wifi+wifi": {
+      "seconds": 2375892.4569612774,
+      "transfers": 965992,
+      "share_of_latency": 0.10901086478412507
+     },
+     "wifi+wired": {
+      "seconds": 3839475.640861802,
+      "transfers": 1593236,
+      "share_of_latency": 0.17616309134767766
+     },
+     "wired+wired": {
+      "seconds": 265176.8197290203,
+      "transfers": 1015929,
+      "share_of_latency": 0.012166861490160316
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 4,
+    "runs_with_failure": 2,
+    "n_runs": 76
+   },
+   "vs_cd": 2.37211833076596,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "cd": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 5.5002886945667235,
+   "qshare": 0.03212097033924869,
+   "exch_per_task": 2.5911035705221868,
+   "exch_share": 0.4996756232338011,
+   "cold_start_pct": 51.542,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 76,
+    "latency_seconds": 21256880.367281392,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 289449.9042072774,
+      "transfers": 47216,
+      "share_of_latency": 0.013616763100045429
+     },
+     "cellular+wifi": {
+      "seconds": 2081696.8921863488,
+      "transfers": 497773,
+      "share_of_latency": 0.09793049855944518
+     },
+     "cellular+wired": {
+      "seconds": 1776343.4485402522,
+      "transfers": 576072,
+      "share_of_latency": 0.08356557584406418
+     },
+     "wifi+wifi": {
+      "seconds": 2210735.70525029,
+      "transfers": 958308,
+      "share_of_latency": 0.10400094778973572
+     },
+     "wifi+wired": {
+      "seconds": 3577741.8597806804,
+      "transfers": 1572801,
+      "share_of_latency": 0.1683098271224946
+     },
+     "wired+wired": {
+      "seconds": 264523.82510660373,
+      "transfers": 1025383,
+      "share_of_latency": 0.012444150813106096
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 2,
+    "runs_with_failure": 1,
+    "n_runs": 76
+   }
+  },
+  "_cd_first": true
+ },
+ "hi": {
+  "reactive": {
+   "n_topologies": 19,
+   "n_runs": 72,
+   "n_failed": 0,
+   "lat": 602.211406999328,
+   "qshare": 0.0006159190700311087,
+   "exch_per_task": 3.1194344786101533,
+   "exch_share": 0.005211615472637527,
+   "cold_start_pct": 0.16,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 72,
+    "latency_seconds": 2313604348.480466,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 137788.82268138474,
+      "transfers": 21996,
+      "share_of_latency": 5.955591446388921e-05
+     },
+     "cellular+wifi": {
+      "seconds": 1797714.8856207544,
+      "transfers": 383776,
+      "share_of_latency": 0.0007770191505740649
+     },
+     "cellular+wired": {
+      "seconds": 1413283.7241401002,
+      "transfers": 410616,
+      "share_of_latency": 0.0006108579995833427
+     },
+     "wifi+wifi": {
+      "seconds": 2960388.3075580457,
+      "transfers": 1016218,
+      "share_of_latency": 0.0012795568566001253
+     },
+     "wifi+wired": {
+      "seconds": 4167410.5138287493,
+      "transfers": 1598910,
+      "share_of_latency": 0.0018012632611819866
+     },
+     "wired+wired": {
+      "seconds": 258096.25419370114,
+      "transfers": 962068,
+      "share_of_latency": 0.00011155591679416325
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 0,
+    "runs_with_failure": 0,
+    "n_runs": 72
+   },
+   "vs_cd": 26368.207046171585,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06
+  },
+  "selfpredict": {
+   "n_topologies": 19,
+   "n_runs": 72,
+   "n_failed": 0,
+   "lat": 2.277978759813157,
+   "qshare": 0.14507392991964216,
+   "exch_per_task": 0.7829174552299247,
+   "exch_share": 0.3342718066357245,
+   "cold_start_pct": 3.5045,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 72,
+    "latency_seconds": 16677278.127813298,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 80860.75883198841,
+      "transfers": 20094,
+      "share_of_latency": 0.004848558512502949
+     },
+     "cellular+wifi": {
+      "seconds": 501827.3637160191,
+      "transfers": 154266,
+      "share_of_latency": 0.03009048358311561
+     },
+     "cellular+wired": {
+      "seconds": 500434.4781222279,
+      "transfers": 185384,
+      "share_of_latency": 0.030006963623616448
+     },
+     "wifi+wifi": {
+      "seconds": 741554.3420100552,
+      "transfers": 395244,
+      "share_of_latency": 0.04446495023509491
+     },
+     "wifi+wired": {
+      "seconds": 921123.8902449565,
+      "transfers": 584344,
+      "share_of_latency": 0.0552322677109261
+     },
+     "wired+wired": {
+      "seconds": 144212.04535805905,
+      "transfers": 570962,
+      "share_of_latency": 0.008647217144957932
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 0,
+    "runs_with_failure": 0,
+    "n_runs": 72
+   },
+   "vs_cd": 2.3865916461454746,
+   "faster": 4,
+   "n_pc": 19,
+   "p": 0.00823211669921875,
+   "p_holm": 0.00823211669921875,
+   "label": "CD-FASTER"
+  },
+  "locality": {
+   "n_topologies": 19,
+   "n_runs": 72,
+   "n_failed": 0,
+   "lat": 2.6911261925934524,
+   "qshare": 0.13147718331074632,
+   "exch_per_task": 1.080732629236501,
+   "exch_share": 0.4096336184732235,
+   "cold_start_pct": 3.758,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 72,
+    "latency_seconds": 12232305.068896223,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 159559.82970235913,
+      "transfers": 29486,
+      "share_of_latency": 0.013044134266082112
+     },
+     "cellular+wifi": {
+      "seconds": 728951.3427509974,
+      "transfers": 193384,
+      "share_of_latency": 0.059592312213054874
+     },
+     "cellular+wired": {
+      "seconds": 571072.1242702542,
+      "transfers": 192126,
+      "share_of_latency": 0.046685569159189116
+     },
+     "wifi+wifi": {
+      "seconds": 924605.8693917793,
+      "transfers": 415338,
+      "share_of_latency": 0.07558721468963582
+     },
+     "wifi+wired": {
+      "seconds": 1379266.5423063217,
+      "transfers": 661175,
+      "share_of_latency": 0.11275606147311197
+     },
+     "wired+wired": {
+      "seconds": 155463.71039702714,
+      "transfers": 605764,
+      "share_of_latency": 0.012709273478825634
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 0,
+    "runs_with_failure": 0,
+    "n_runs": 72
+   },
+   "vs_cd": 19.866300252637302,
+   "faster": 1,
+   "n_pc": 19,
+   "p": 0.000965118408203125,
+   "p_holm": 0.002895355224609375,
+   "label": "CD-FASTER"
+  },
+  "batched": {
+   "n_topologies": 19,
+   "n_runs": 72,
+   "n_failed": 0,
+   "lat": 2.4693551991510048,
+   "qshare": 0.13325419996254775,
+   "exch_per_task": 1.1201161260907488,
+   "exch_share": 0.45061565341560106,
+   "cold_start_pct": 3.732,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 72,
+    "latency_seconds": 9724927.79641662,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 123645.8838994499,
+      "transfers": 23824,
+      "share_of_latency": 0.012714324104803137
+     },
+     "cellular+wifi": {
+      "seconds": 754113.2801651967,
+      "transfers": 208819,
+      "share_of_latency": 0.07754435775277094
+     },
+     "cellular+wired": {
+      "seconds": 657109.5880301114,
+      "transfers": 236344,
+      "share_of_latency": 0.0675696109818151
+     },
+     "wifi+wifi": {
+      "seconds": 913794.3152752419,
+      "transfers": 448616,
+      "share_of_latency": 0.09396412337497775
+     },
+     "wifi+wired": {
+      "seconds": 1411191.1503769162,
+      "transfers": 748069,
+      "share_of_latency": 0.14511070723804273
+     },
+     "wired+wired": {
+      "seconds": 155772.8703415653,
+      "transfers": 617230,
+      "share_of_latency": 0.016017894795986407
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 305,
+    "runs_with_failure": 1,
+    "n_runs": 72
+   },
+   "vs_cd": 12.10499090439685,
+   "faster": 1,
+   "n_pc": 19,
+   "p": 0.000965118408203125,
+   "p_holm": 0.002895355224609375,
+   "label": "CD-FASTER"
+  },
+  "cd": {
+   "n_topologies": 19,
+   "n_runs": 72,
+   "n_failed": 0,
+   "lat": 2.228573063898504,
+   "qshare": 0.15047810398258005,
+   "exch_per_task": 0.8165630718924978,
+   "exch_share": 0.3568464723607535,
+   "cold_start_pct": 4.9955,
+   "exchange_by_access_class": {
+    "available": true,
+    "n_runs": 72,
+    "latency_seconds": 9102490.70890606,
+    "by_pair": {
+     "cellular+cellular": {
+      "seconds": 79178.71159499323,
+      "transfers": 19602,
+      "share_of_latency": 0.008698576480558579
+     },
+     "cellular+wifi": {
+      "seconds": 548539.1882824175,
+      "transfers": 174320,
+      "share_of_latency": 0.060262537565209016
+     },
+     "cellular+wired": {
+      "seconds": 492849.1211928999,
+      "transfers": 195082,
+      "share_of_latency": 0.05414442452665032
+     },
+     "wifi+wifi": {
+      "seconds": 657891.1364981676,
+      "transfers": 387484,
+      "share_of_latency": 0.07227594704979745
+     },
+     "wifi+wired": {
+      "seconds": 959630.5084089744,
+      "transfers": 620955,
+      "share_of_latency": 0.105425046736939
+     },
+     "wired+wired": {
+      "seconds": 139178.67718688687,
+      "transfers": 570109,
+      "share_of_latency": 0.015290175144118703
+     }
+    }
+   },
+   "request_failures": {
+    "available": true,
+    "tasks": 543,
+    "runs_with_failure": 2,
+    "n_runs": 72
+   }
+  },
+  "_cd_first": true
+ },
+ "_meta": {
+  "family": [
+   "selfpredict",
+   "locality",
+   "batched"
+  ],
+  "family_size": 6,
+  "context_only": [
+   "reactive"
+  ],
+  "topologies": [
+   9483,
+   9484,
+   9485,
+   9487,
+   9491,
+   9502,
+   9506,
+   9525,
+   9529,
+   9533,
+   9538,
+   9540,
+   9548,
+   9550,
+   9551,
+   9557,
+   9565,
+   9566,
+   9568
+  ],
+  "excluded": []
+ },
+ "_cd_decomposition": {
+  "lo": {
+   "available": true,
+   "n_topologies": 19,
+   "latency": 5.5002886945667235,
+   "batching_wait": 0.03573901300512565,
+   "queue": 0.17274527905143255,
+   "exchange": 2.5911035705221868,
+   "rendezvous": 1.74623153786439,
+   "cold_start": 0.242239825,
+   "other": 0.7127583628848608
+  },
+  "hi": {
+   "available": true,
+   "n_topologies": 19,
+   "latency": 2.228573063898504,
+   "batching_wait": 0.01700275493274349,
+   "queue": 0.33879576300040803,
+   "exchange": 0.8165630718924978,
+   "rendezvous": 0.04205074763005547,
+   "cold_start": 0.027612785,
+   "other": 0.9516706076275541
+  }
+ },
+ "_exchange_by_arm": {
+  "lo": {
+   "reactive": {
+    "n_runs": 76,
+    "exch_per_task": 3.3618438350545414,
+    "transfers": 4974518,
+    "transfers_wired_wired": 1033638,
+    "share_transfers_wired_wired": 0.20778656344192542,
+    "share_seconds_wired_wired": 0.02219789934457657,
+    "seconds_per_transfer": 2.5100973485924105
+   },
+   "selfpredict": {
+    "n_runs": 76,
+    "exch_per_task": 3.0864055403941864,
+    "transfers": 4905976,
+    "transfers_wired_wired": 1070614,
+    "share_transfers_wired_wired": 0.21822650579619632,
+    "share_seconds_wired_wired": 0.02434998949111791,
+    "seconds_per_transfer": 2.3970025508823865
+   },
+   "locality": {
+    "n_runs": 76,
+    "exch_per_task": 2.6638316730957214,
+    "transfers": 4412787,
+    "transfers_wired_wired": 966507,
+    "share_transfers_wired_wired": 0.21902416771985594,
+    "share_seconds_wired_wired": 0.02428370906199557,
+    "seconds_per_transfer": 2.3787316104486624
+   },
+   "batched": {
+    "n_runs": 76,
+    "exch_per_task": 2.756124488681929,
+    "transfers": 4700755,
+    "transfers_wired_wired": 1015929,
+    "share_transfers_wired_wired": 0.2161203891715267,
+    "share_seconds_wired_wired": 0.024635248476692545,
+    "seconds_per_transfer": 2.2898708792102034
+   },
+   "cd": {
+    "n_runs": 76,
+    "exch_per_task": 2.5911035705221868,
+    "transfers": 4677553,
+    "transfers_wired_wired": 1025383,
+    "share_transfers_wired_wired": 0.2192135503328343,
+    "share_seconds_wired_wired": 0.025932458411819573,
+    "seconds_per_transfer": 2.1807324545700384
+   }
+  },
+  "hi": {
+   "reactive": {
+    "n_runs": 72,
+    "exch_per_task": 3.1194344786101533,
+    "transfers": 4393584,
+    "transfers_wired_wired": 962068,
+    "share_transfers_wired_wired": 0.21897111788462448,
+    "share_seconds_wired_wired": 0.02404321264283398,
+    "seconds_per_transfer": 2.4432632921147617
+   },
+   "selfpredict": {
+    "n_runs": 72,
+    "exch_per_task": 0.7829174552299247,
+    "transfers": 1910294,
+    "transfers_wired_wired": 570962,
+    "share_transfers_wired_wired": 0.2988869776065883,
+    "share_seconds_wired_wired": 0.049900139352916005,
+    "seconds_per_transfer": 1.5128628777996005
+   },
+   "locality": {
+    "n_runs": 72,
+    "exch_per_task": 1.080732629236501,
+    "transfers": 2097273,
+    "transfers_wired_wired": 605764,
+    "share_transfers_wired_wired": 0.28883411935403736,
+    "share_seconds_wired_wired": 0.03967004517890493,
+    "seconds_per_transfer": 1.868578586964471
+   },
+   "batched": {
+    "n_runs": 72,
+    "exch_per_task": 1.1201161260907488,
+    "transfers": 2282902,
+    "transfers_wired_wired": 617230,
+    "share_transfers_wired_wired": 0.27037078245145874,
+    "share_seconds_wired_wired": 0.038791667384561905,
+    "seconds_per_transfer": 1.7590010819949708
+   },
+   "cd": {
+    "n_runs": 72,
+    "exch_per_task": 0.8165630718924978,
+    "transfers": 1967552,
+    "transfers_wired_wired": 570109,
+    "share_transfers_wired_wired": 0.2897554931203851,
+    "share_seconds_wired_wired": 0.04837182666308028,
+    "seconds_per_transfer": 1.4623589837342739
+   }
+  }
+ },
+ "_w3_minus_w2": {
+  "lo": {
+   "reactive": {
+    "n_pairs": 76,
+    "median_pct_cells": 20.904336868603224,
+    "median_pct_topologies": 20.202791755880746,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.2397677617551397
+   },
+   "selfpredict": {
+    "n_pairs": 76,
+    "median_pct_cells": 27.197352631917372,
+    "median_pct_topologies": 26.3412461895443,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.6065488686568719
+   },
+   "locality": {
+    "n_pairs": 76,
+    "median_pct_cells": 30.341082130980514,
+    "median_pct_topologies": 30.694728283962313,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.7163602966013343
+   },
+   "batched": {
+    "n_pairs": 76,
+    "median_pct_cells": 29.925778162973593,
+    "median_pct_topologies": 30.508185491733073,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.7683699185358805
+   },
+   "cd": {
+    "n_pairs": 76,
+    "median_pct_cells": 29.576392922224336,
+    "median_pct_topologies": 30.323714883976027,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.7169363642036961
+   }
+  },
+  "hi": {
+   "reactive": {
+    "n_pairs": 72,
+    "median_pct_cells": 29242.028800672913,
+    "median_pct_topologies": 30089.292658246457,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 1.296093163801755
+   },
+   "selfpredict": {
+    "n_pairs": 72,
+    "median_pct_cells": 148.81585647905996,
+    "median_pct_topologies": 158.12982853165926,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.2802952260746216
+   },
+   "locality": {
+    "n_pairs": 72,
+    "median_pct_cells": 120.79770979414886,
+    "median_pct_topologies": 113.77801816268965,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.31451253689163927
+   },
+   "batched": {
+    "n_pairs": 72,
+    "median_pct_cells": 111.16058373028355,
+    "median_pct_topologies": 108.12374847387093,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.3532220861235046
+   },
+   "cd": {
+    "n_pairs": 72,
+    "median_pct_cells": 141.1150938684476,
+    "median_pct_topologies": 136.64662681739318,
+    "n_topologies_slower": 19,
+    "n_topologies": 19,
+    "median_exch_per_task_diff_s": 0.3019030700837084
+   }
+  }
+ },
+ "_inputs": {
+  "w4_gate": "/home/nikola.lukic/gnn-herosim/simulation_data/workload_fix_v1/stage_w234_r11",
+  "w3_gate": "/home/nikola.lukic/gnn-herosim/simulation_data/workload_fix_v1/stage_w23_r11/gate",
+  "n_w4": 740,
+  "n_w4_failed": 0,
+  "n_w3": 740,
+  "n_w3_failed": 0,
+  "excluded": [
+   "9538:g2:hi",
+   "9565:g0:hi",
+   "9565:g1:hi",
+   "9565:g2:hi"
+  ]
+ }
+}
