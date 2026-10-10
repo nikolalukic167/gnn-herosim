@@ -46,6 +46,31 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-11 07:00 — **Registered diagnostic: the GNN searching on its own score ("gnn_selfsearch"), aimed at the heavy
+  gap** (coordinator, on the user's "start A"; owner S4; descriptive; it cannot change this lineage's verdict).
+  - **Why:** heavy is the missing rung vs CD: gnn_eng −1.65 %, while cd_exactS reaches −9.7 % on 16301–16312.
+    Offline, the GNN's decoded plans have regret 21.7 % against argmin-S's 6.1 % (413 tables, `accel_replica_v1`).
+    Hypothesis: part of the GNN's heavy error is its sequential one-pass decode, not its scores. Search on the model's
+    own score could remove that and keep the policy learned-only. CD gained about 10 % from search on S.
+  - **Arm:** the no-split GNN (ra_gnn_eng s1, the cdxapply checkpoint). Per batch, choose the slate plan with the
+    highest GNN plan score: the sum over tasks of the model's logit for the task's choice, with every other task
+    committed where the plan puts it (S5's cdxexg convention).
+    - Exact enumeration when the batch has ≤ 625 slate plans.
+    - Above that: coordinate ascent on the same score, starting from the no-split decode. Sweep tasks in id order and
+      move each to its best slate candidate given the rest. Stop at no change or 5 sweeps.
+    - No S, no CD and no hand term anywhere.
+  - **Cells:** 16301–16312, g0, both rungs, seed 1. The plain no-split GNN runs in the same job as the paired
+    reference. CD, cd_exactS and cdxapply cells are reused from 855894 / 855885 if their provenance matches. Flag-off
+    identity is shown first on one cell vs the no-split path at acbea783.
+  - **Bars, signed before any data:**
+    - read per rung: paired median % vs CD, vs the plain no-split GNN, vs cd_exactS and vs cdxapply; sign counts;
+      exact Wilcoxon;
+    - **trigger:** heavy vs CD ≤ −5 % and moderate vs CD ≤ −5 % on these 12 topologies → register a sealed
+      fresh-topology confirmation (new ids, accel setup) with gnn_selfsearch vs CD as the primary, plus the same search
+      on the MP-OFF twin's score;
+    - otherwise it is recorded as a diagnostic.
+  - Also reported: counts of exact vs ascent batches, how often search changes the decoded plan, and decision time
+    (not scored).
 - 2026-10-10 21:00 — **Gate read: DIRECTION-ONLY, closed** (S4; one read, job 855897, reader ee821695; output
   `accel_nosplit/read_acbea783.{json,txt}`; 2,688 of 2,688 summaries: classical 576, learned 1,920, cd_expand 192;
   0 failed, none killed, none above 5× CD cost; the sensitivity pass is identical).
