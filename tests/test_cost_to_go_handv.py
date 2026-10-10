@@ -229,3 +229,34 @@ def test_read_end_to_end_on_synthetic_files(tmp_path, capsys):
     a.gate_topos = "16252,16400"
     with pytest.raises(ValueError, match="gate topologies"):
         hv.read(a)
+
+
+def test_decision_hook_wires_ctx_and_s_totals(monkeypatch):
+    import importlib
+    import types
+    live = types.ModuleType("src.placement.live_audit")
+    live.platform_queue_drain_seconds = lambda platform, orch, memo, exec_scale=1.0: 2.0
+    live.inflight_remaining_seconds = lambda platform: 0.0
+    for name, mod in (("src", types.ModuleType("src")), ("src.placement", types.ModuleType("src.placement")),
+                      ("src.placement.live_audit", live)):
+        monkeypatch.setitem(sys.modules, name, mod)
+    monkeypatch.delitem(sys.modules, "cost_to_go_handv_features", raising=False)
+    fe = importlib.import_module("cost_to_go_handv_features")
+    class Obj:
+        def __init__(self, **kw): self.__dict__.update(kw)
+
+    node = Obj(id=1)
+    plat = Obj(id=7, idle_since=float("inf"), last_allocated=40.0, type={"shortName": "x"})
+    defs = {"a": {"coldStartDuration": {"x": 3.0}}}
+    sched = types.SimpleNamespace(
+        pg_inflight=False, nodes=types.SimpleNamespace(items=[]), env=types.SimpleNamespace(now=100.0),
+        autoscaler=types.SimpleNamespace(kpa=types.SimpleNamespace(config=types.SimpleNamespace(stable_window=60.0))),
+        _pg_orchestrator=lambda: types.SimpleNamespace(data=types.SimpleNamespace(task_types=defs)),
+        _pg_xf=lambda p: 1.0, _pg_plan_cost=lambda t, plan, o, m, n: (3.0, [1.0, 0.5], [1.5, 1.5]))
+    tasks = [types.SimpleNamespace(id=11), types.SimpleNamespace(id=99)]       # 99 is a queued task forced at the same decision
+    ctx = {"job": {"ds": "d", "tag": "s0|s1", "workload": "w.json"}, "t0": 90.0, "local_of": {11: 0}, "queued": {99}}
+    out = fe.decision_hook(sched, tasks, [(node, plat), (node, plat)], types.SimpleNamespace(replicas={"a": {(node, plat)}}), ctx)
+    assert out["slot"] == "s1" and out["scale_in_after_s"] == 60.0 and out["pg_inflight"] is False
+    assert out["load_after"]["1:7"] == pytest.approx(2.0 + 1.5)               # drain only (no in-flight) + both tasks' service
+    assert out["replicas"][0]["cold_s"] == 3.0 and out["replicas"][0]["idle_s"] == 60.0
+    assert out["local_batch"] == [0] and out["s_total"] == 3.0 and sum(out["s_scores"]) == out["s_total"]

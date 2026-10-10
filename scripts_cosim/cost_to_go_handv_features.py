@@ -48,3 +48,22 @@ def post_commit_features(sched, tasks, plan, system_state, now, type_defs, scale
     return {"ds": ds, "slot": slot, "t0": float(t0), "workload": workload, "load_after": load_after,
             "type_platforms": type_platforms, "replicas": replicas,
             "scale_in_after_s": float(scale_in_after_s)}
+
+
+def decision_hook(sched, batch_tasks, plan, system_state, ctx):
+    """rollout_replay `decision_hook` entry point ("scripts_cosim.cost_to_go_handv_features:decision_hook"): called once at the batch
+    decision, before anything is enqueued. plan is [(Node, Platform)] aligned with batch_tasks, which may include queued tasks forced
+    at the same decision; all of them are committed to their platforms here, so their service is in load_after.
+    Scale-in time is sched.autoscaler.kpa.config.stable_window, the KPA's own horizon (it has no fixed scale-in time)."""
+    job = ctx["job"]
+    feat = post_commit_features(
+        sched, batch_tasks, plan, system_state, float(sched.env.now),
+        sched._pg_orchestrator().data.task_types, float(sched.autoscaler.kpa.config.stable_window),
+        ds=job["ds"], slot=job["tag"].split("|", 1)[1], t0=float(ctx["t0"]), workload=job["workload"])
+    # Plumbing check material: S's own totals for this plan, to compare with the features offline.
+    orch = sched._pg_orchestrator()
+    total, service, scores = sched._pg_plan_cost(batch_tasks, plan, orch, {}, sched.nodes.items)
+    feat["s_total"], feat["s_service"], feat["s_scores"] = float(total), [float(x) for x in service], [float(x) for x in scores]
+    feat["pg_inflight"] = bool(sched.pg_inflight)
+    feat["local_batch"] = sorted(int(ctx["local_of"][int(t.id)]) for t in batch_tasks if int(t.id) in ctx["local_of"])
+    return feat
