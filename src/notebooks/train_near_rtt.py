@@ -2379,6 +2379,28 @@ if _eval_ckpt:
     import json as _json
     model.load_state_dict(torch.load(_eval_ckpt, map_location=DEVICE))
     _PER_DATASET_RECORDS = []
+    _smoke = int(os.environ.get("NEAR_RTT_EVAL_TRAIN_SMOKE", "0"))
+    if _smoke:
+        # Timing smoke for the re-ranker cost estimate: score every k-th TRAIN table (k = len // N), same code path as val. Train is read
+        # here on purpose and only here; the output is never used to select anything.
+        _step = max(1, len(train_ids) // _smoke)
+        _pick = list(range(0, len(train_ids), _step))[:_smoke]
+        _sub_ids = [train_ids[i] for i in _pick]
+        _sub_loader = create_loader(GraphRttDataset([train_graphs[i] for i in _pick], _sub_ids, DATA_OPTIMAL_RTT), shuffle=False)
+        _sub_full = build_full_sweep_rtt_by_dataset(CACHE_CTX.cache_dir, keep_ids=_sub_ids)
+        import time as _time
+        _t0 = _time.time()
+        _m = evaluate(model, _sub_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "train-smoke",
+                      full_sweep_rtt_by_dataset=_sub_full)
+        _wall = _time.time() - _t0
+        _np = sum(len(r.get("plans", [])) for r in _PER_DATASET_RECORDS)
+        print(f"[train-smoke] {len(_sub_ids)} train tables, {_np} plans scored in {_wall:.1f}s = {_np / max(_wall, 1e-9):.1f} plans/s "
+              f"(sweep plans in the full train corpus: extrapolate = 4,522,296 / rate)")
+        _out = os.environ["NEAR_RTT_EVAL_OUT"]
+        with open(_out, "w") as _f:
+            _json.dump({"checkpoint": _eval_ckpt, "smoke_tables": len(_sub_ids), "plans": _np, "wall_s": _wall,
+                        "records": _PER_DATASET_RECORDS}, _f)
+        sys.exit(0)
     _m = evaluate(model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "val",
                   full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET)
     _out = os.environ["NEAR_RTT_EVAL_OUT"]
