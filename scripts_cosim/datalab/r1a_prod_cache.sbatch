@@ -31,21 +31,22 @@ echo "HEAD $(git rev-parse HEAD) node $(hostname)"
 [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
 LINK=simulation_data/graphs_cache_${LINEAGE}_psv5_inf; SPLITF=experiments/${LINEAGE}_split.json
 [[ ! -e "$LINK" && ! -L "$LINK" && ! -e "$SPLITF" ]] || { echo "FAIL LOUD: $LINK or $SPLITF already exists in the worktree"; exit 1; }
-for s in train heldout; do [[ -d "$CP/gnn_datasets_wf1_${s}_$SUF" ]] || { echo "FAIL LOUD: no $CP/gnn_datasets_wf1_${s}_$SUF"; exit 1; }; done
+SFX=_$SUF; [[ "$SUF" == none ]] && SFX=""   # SUF=none: the corpus dirs carry no suffix (gnn_datasets_wf1_train, gnn_datasets_wf1_heldout)
+for s in train heldout; do [[ -d "$CP/gnn_datasets_wf1_${s}$SFX" ]] || { echo "FAIL LOUD: no $CP/gnn_datasets_wf1_${s}$SFX"; exit 1; }; done
 # the held-out directory must hold datasets when this job runs: no empty-test carve-out in production
-NH=$(find "$CP/gnn_datasets_wf1_heldout_$SUF" -maxdepth 1 -name 'ds_*' | wc -l)
+NH=$(find "$CP/gnn_datasets_wf1_heldout$SFX" -maxdepth 1 -name 'ds_*' | wc -l)
 [[ "$NH" -gt 0 ]] || { echo "FAIL LOUD: $CP/gnn_datasets_wf1_heldout_$SUF holds no datasets; the production split needs held-out topologies"; exit 1; }
 echo "held-out datasets present: $NH"
 mkdir -p "$OUT/view"
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
 export DAG_PRIMARY_ALPHA_KEY=inf PARTIAL_STATE_CONTRACT=partial_state_v5 NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded
 T0=$(date +%s)
-python3 - "$CP" "$SUF" "$OUT/view" <<'PY'
+python3 - "$CP" "$SFX" "$OUT/view" <<'PY'
 import os, shutil, sys
 from pathlib import Path
-cp, suf, view = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+cp, sfx, view = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
 for split in ("train", "heldout"):
-    src = cp / f"gnn_datasets_wf1_{split}_{suf}"; dst = view / src.name; dst.mkdir()
+    src = cp / f"gnn_datasets_wf1_{split}{sfx}"; dst = view / src.name; dst.mkdir()
     n = 0
     for d in sorted(src.glob("ds_*")):
         t = dst / d.name; t.mkdir()
