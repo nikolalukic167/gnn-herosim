@@ -77,6 +77,14 @@ Registered 2026-10-11; every bar below was signed before its data.
 
 ## Record (newest first)
 
+- 2026-10-11 16:20 — **Post-hoc, descriptive only (does not change the NO-GO): M2 over latency-distinct plans** (S6; from
+  the same search rows; `search_a30a0102/m2_latency_distinct_posthoc.txt`).
+  - **Median gap to the first distinct latency (share ≤ 1 % / share ≤ 5 %):**
+    - G8 heavy: 11.0 % (30 / 46 %) none, 5.1 % (25 / 50 %) top5;
+    - G8 moderate: 3.5 % (35 / 53 %) none, 4.9 % (35 / 50 %) top5;
+    - current heavy: 34.0 / 39.2 %; current moderate: 35.3 / 35.3 %.
+  - Every G8 cell would clear 2 % on this definition. The landscape is flatter at G8 than at the current G.
+  - Recorded so a future screen registers the distinct-latency gap from the start.
 - 2026-10-11 16:00 — **Stage 1 read: NO-GO as registered; ruling** (S6; search 856340 at a30a0102, ILS, B = 600; 448/448
   rows, 0 errors; read once at a30a0102).
   - **Per (G, rung, condition):** pooled M1 [cd_exactS served] | M4 | median M2 (share ≤ 1 %) | M3 | per-state
