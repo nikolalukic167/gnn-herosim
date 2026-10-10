@@ -23,6 +23,14 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 
+def label_of(rows, platforms):
+    """The sweep's label for the plan with these platform ids (task-index order); None if the plan is not a sweep row. The CD replay
+    path schedules a task up to a few ms apart from the forced label path, so the plan is scored by its own row, on the optimum's scale."""
+    key = [int(p) for p in platforms]
+    hit = [float(r["rtt"]) for r in rows if [int(r["placement_plan"][str(i)][1]) for i in range(len(key))] == key]
+    return min(hit) if hit else None
+
+
 def _one(job):
     ds, expand = Path(job[0]), job[1]
     try:
@@ -119,7 +127,8 @@ def _one(job):
         return dict(ds=str(ds), arm="cd_expand" if expand else "cd", rtt=label, opt=opt, regret_rel=(label - opt) / opt if opt > 0 else 0.0,
                     matched_rows=len(match), n_plans=len(rows), n_tasks=len(fr.batch_local), decisions=seen["decisions"],
                     queued=len(forced), queued_scheduled_at_decision=seen["queued_scheduled_at_decision"],
-                    plan_nodes=[names[b][0] for b in fr.batch_local],
+                    plan_nodes=[names[b][0] for b in fr.batch_local], plan_platforms=[names[b][1] for b in fr.batch_local],
+                    label_of_plan=label_of(rows, [names[b][1] for b in fr.batch_local]),
                     expand_moves=int(sc.get("pg_expand_moves") or 0), cd_moves=int(sc.get("pg_cd_moves") or 0))
     except Exception as e:  # recorded, never swallowed
         return dict(ds=str(ds), arm="cd_expand" if expand else "cd", error=f"{type(e).__name__}: {str(e)[:300]}")
