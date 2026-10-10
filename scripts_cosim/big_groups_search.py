@@ -255,6 +255,49 @@ def search(a):
     print(f"search: {len(jobs)} states -> {a.out}")
 
 
+def read(a):
+    """Per (G, rung, condition): search health, M1 (argmin-S regret vs best-known, pooled; cd_exactS alongside), M2 (top-2 gap),
+    M3 (plans > cap), M4 (argmin-S' regret, pooled), and the registered bar per G >= 8 (CD health is S7's read)."""
+    from collections import defaultdict
+    from statistics import median
+
+    rows = [json.loads(l) for f in a.states.split(",") for l in open(f) if l.strip()]
+    cells = defaultdict(list)
+    errors = defaultdict(int)
+    for r in rows:
+        tag = json.load(open(Path(r["ds"]) / "warm_snapshot.json"))["provenance"]["source_tag"]
+        _, rung, g = tag.split("_")
+        if "error" in r:
+            errors[(g, rung, r["condition"])] += 1
+            continue
+        cells[(g, rung, r["condition"])].append(r)
+    pooled = lambda v, k: (sum(x[k] for x in v) - sum(x["q_best"] for x in v)) / sum(x["q_best"] for x in v)
+    print(f"{len(rows)} rows, {sum(errors.values())} errors {dict(errors)}")
+    res = {}
+    for key in sorted(cells):
+        v = cells[key]
+        gap = sorted((x["q_second"] - x["q_best"]) / x["q_best"] for x in v if x["q_second"] is not None)
+        conv = sum(x["converged"] for x in v) / len(v)
+        m = dict(n=len(v), m1=pooled(v, "q_argmin_s"), cd=pooled(v, "q_cd_exacts"), m4=pooled(v, "q_argmin_s2"),
+                 m2=median(gap) if gap else float("nan"), m2_1=sum(g <= 0.01 for g in gap) / max(1, len(gap)),
+                 m2_5=sum(g <= 0.05 for g in gap) / max(1, len(gap)), m3=sum(x["plans_in_slate"] > CAP for x in v) / len(v),
+                 conv=conv, s_exact=sum(x["s_exact"] for x in v) / len(v), replays=median(x["replays"] for x in v),
+                 miss=sum(x["q_argmin_s"] > x["q_best"] * (1 + 1e-9) for x in v) / len(v))
+        res[key] = m
+        print(f"G {key[0]:8s} {key[1]:8s} {key[2]:4s} n {m['n']:3d} | M1 {100*m['m1']:6.2f} % (cd_exactS {100*m['cd']:6.2f} %, argmin-S misses "
+              f"{100*m['miss']:.0f} %, S exact {100*m['s_exact']:.0f} %) | M2 med {100*m['m2']:.2f} % <=1 % {100*m['m2_1']:.0f} % <=5 % "
+              f"{100*m['m2_5']:.0f} % | M3 {100*m['m3']:.0f} % | M4 {100*m['m4']:6.2f} % | converged {100*conv:.0f} %, replays med {m['replays']:.0f}"
+              + ("  UNDER-SEARCH CHECK DUE (converged < 50 %)" if conv < 0.5 else ""))
+    for cond in ("top5", "none"):
+        for g in sorted({k[0] for k in res if k[0] != "Gcurrent"}):
+            ks = [(g, r, cond) for r in ("moderate", "heavy") if (g, r, cond) in res]
+            if len(ks) < 2:
+                continue
+            ok = all(res[k]["m1"] >= 0.12 and res[k]["m4"] >= 0.08 and res[k]["m2"] >= 0.02 for k in ks)
+            print(f"bar {g} {cond}: M1 >= 12 %, M4 >= 8 %, median M2 >= 2 % at both rungs -> {'MET' if ok else 'NOT MET'} "
+                  "(CD health from S7's read completes the bar)")
+
+
 def check(a):
     states = [l.strip() for l in open(a.states) if l.strip()]
     rng = random.Random(a.seed)
@@ -284,7 +327,7 @@ def check(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=("check", "search"))
+    ap.add_argument("mode", choices=("check", "search", "read"))
     ap.add_argument("out")
     ap.add_argument("states")
     ap.add_argument("--n-states", type=int, default=40)
@@ -293,7 +336,7 @@ def main():
     ap.add_argument("--seed", type=int, default=20261011)
     ap.add_argument("--budget", type=int, default=600, help="replayed plans per state (registered B = 600, the same for every G)")
     a = ap.parse_args()
-    (check if a.mode == "check" else search)(a)
+    {"check": check, "search": search, "read": read}[a.mode](a)
 
 
 if __name__ == "__main__":
