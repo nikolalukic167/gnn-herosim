@@ -9,6 +9,7 @@
 #SBATCH --mem=150G
 #SBATCH --time=02:00:00
 set -uo pipefail
+ulimit -n 65536 2>/dev/null || true
 NEW=${NEW:?}; BASE=${BASE:?}; OUT=${OUT:?}; mkdir -p "$OUT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
