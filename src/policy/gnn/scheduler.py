@@ -1076,6 +1076,12 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
             self._cd_refiner = GnnCdRefiner(self)
         refined, info = self._cd_refiner.refine(tasks, system_state, placements, passes=3)
+        if self._cd_refiner.pg_cd_expansion or getattr(self._cd_refiner, "pg_cd_exact", False):
+            # cdxapply: the refiner's search books, mirrored on the host the orchestrator reads counters from
+            from src.policy.peer_greedy_network.scheduler import PG_SEARCH_COUNTERS
+
+            for name in PG_SEARCH_COUNTERS:
+                setattr(self, name, getattr(self._cd_refiner, name))
         self.cdr_batches += 1
         self.cdr_batches_changed += 1 if info["moved"] else 0
         self.cdr_tasks += len(tasks)

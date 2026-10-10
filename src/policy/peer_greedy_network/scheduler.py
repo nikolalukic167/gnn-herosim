@@ -59,6 +59,10 @@ PEER_GREEDY_COUNTERS = (
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
     "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
     "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
+    "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
+    "pg_expand_gain_seconds", "pg_expand_labels_skipped",
+    "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
+    "pg_exact_gain_seconds",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -101,6 +105,69 @@ def _pg_ext_rate() -> Optional[float]:
     if not value > 0.0:
         raise ValueError(f"FAIL LOUD: {PG_EXT_RATE_ENV} must be > 0, got {value}")
     return value
+
+
+# cd_expand (2026-10-10): exact-move alpha-expansion inside the CD refine, for the batched CD flavour only. After the
+# single-task passes converge, every label alpha = (node, platform) in the batch's candidate sets is tried as one move:
+# ANY subset of the tasks that may take alpha moves there together (every subset scored exactly on the rule's own S summed
+# over the batch, with in-batch stacking and exchange recomputed for the whole plan), the best strictly improving subset is
+# applied, and the single-task passes run again. ICM (one task at a time) cannot move a pair of partners off a node they
+# share with nobody; expansion can (Boykov, Veksler and Zabih 2001). Measured on 1,017 whole-batch accel datasets against
+# the exact optimum: single-task moves reach it in 55 %, expansion in 67 % (the tails stay large, so it is a search,
+# not a labeller). 0 (the default) is the registered CD rule, byte-identical.
+PG_CD_EXPANSION_ENV = "HEROSIM_PG_CD_EXPANSION"
+PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
+                      "pg_expand_gain_seconds", "pg_expand_labels_skipped")
+# cd_exactS (2026-10-10): exact search over the rule's own S, for the batched CD flavour. After the single-task passes, every plan
+# over the batch's top-5 slate (each task's five cheapest candidates by standalone cost, the declared pruning's rule) is scored
+# as a whole plan on S and the minimum is taken; ties go to the plan that is lowest in CD's own (node id, platform id) order,
+# task by task. A batch whose slate holds more than HEROSIM_PG_CD_EXACT_MAX_PLANS plans is not enumerated: the expansion search
+# runs instead (HEROSIM_PG_CD_EXPANSION) and the fallback is counted. The pass's plan, which may use candidates outside the
+# slate, is kept when it is strictly cheaper on S (counted). Offline on the exact label tables this reaches the optimum in
+# 72.6-79 % of batches against the expansion's 62.8 %, at ~1.6k S-evaluations per batch (S6, 2026-10-10). 0 (the default) is
+# the registered CD rule, byte-identical.
+PG_CD_EXACT_ENV = "HEROSIM_PG_CD_EXACT"
+PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
+PG_CD_EXACT_TOP_K_ENV = "HEROSIM_PG_CD_EXACT_TOP_K"  # default 5, the declared pruning's slate width
+PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass",
+                     "pg_exact_tasks_moved", "pg_exact_gain_seconds")
+PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
+
+
+def _pg_flag(env: str) -> bool:
+    raw = os.environ.get(env, "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: {env} must be 0 or 1, got {raw!r}")
+    return raw == "1"
+
+
+def _pg_int(env: str, default: int) -> int:
+    raw = os.environ.get(env, str(default)).strip() or str(default)
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"FAIL LOUD: {env}={raw!r} is not an integer") from exc
+    if value < 1:
+        raise ValueError(f"FAIL LOUD: {env} must be >= 1, got {value}")
+    return value
+PG_CD_EXPANSION_SWEEPS_ENV = "HEROSIM_PG_CD_EXPANSION_SWEEPS"  # label sweeps per expansion phase (default 3)
+PG_CD_EXPANSION_MAX_MOVERS_ENV = "HEROSIM_PG_CD_EXPANSION_MAX_MOVERS"  # a label shared by more tasks than this is skipped and counted (default 12)
+
+
+def _pg_cd_expansion() -> Tuple[bool, int, int]:
+    raw = os.environ.get(PG_CD_EXPANSION_ENV, "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: {PG_CD_EXPANSION_ENV} must be 0 or 1, got {raw!r}")
+    sweeps_raw = os.environ.get(PG_CD_EXPANSION_SWEEPS_ENV, "3").strip() or "3"
+    movers_raw = os.environ.get(PG_CD_EXPANSION_MAX_MOVERS_ENV, "12").strip() or "12"
+    try:
+        sweeps, movers = int(sweeps_raw), int(movers_raw)
+    except ValueError as exc:
+        raise ValueError(f"FAIL LOUD: {PG_CD_EXPANSION_SWEEPS_ENV}={sweeps_raw!r} / {PG_CD_EXPANSION_MAX_MOVERS_ENV}={movers_raw!r} "
+                         "are not integers") from exc
+    if sweeps < 1 or movers < 1:
+        raise ValueError(f"FAIL LOUD: {PG_CD_EXPANSION_SWEEPS_ENV} and {PG_CD_EXPANSION_MAX_MOVERS_ENV} must be >= 1")
+    return raw == "1", sweeps, movers
 
 
 # hidden_exec_s0_v1: what the rule knows about execution time. `table` (default) reads the
@@ -200,6 +267,27 @@ class _PeerGreedyCore:
         self.pg_pull_seconds = 0.0
         self.pg_ext_rate = _pg_ext_rate()
         self._pg_ext_lambda: Dict[str, float] = {}
+        self.pg_cd_expansion, self.pg_cd_expansion_sweeps, self.pg_cd_expansion_max_movers = _pg_cd_expansion()
+        self.pg_expand_batches = 0
+        self.pg_expand_sweeps = 0
+        self.pg_expand_moves = 0
+        self.pg_expand_tasks_moved = 0
+        self.pg_expand_evals = 0
+        self.pg_expand_gain_seconds = 0.0
+        self.pg_expand_labels_skipped = 0
+        if self.pg_cd_expansion and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
+            raise RuntimeError(
+                f"FAIL LOUD: {PG_CD_EXPANSION_ENV}=1 is defined for peer_greedy_network_cd and the CD refine of a seeded plan "
+                f"(gnn_cd_refine) only; {self._policy_label} has no refine to extend"
+            )
+        self.pg_cd_exact = _pg_flag(PG_CD_EXACT_ENV)
+        self.pg_cd_exact_max_plans = _pg_int(PG_CD_EXACT_MAX_PLANS_ENV, 100_000)
+        self.pg_cd_exact_top_k = _pg_int(PG_CD_EXACT_TOP_K_ENV, 5)
+        for name in PG_EXACT_COUNTERS:
+            setattr(self, name, 0.0 if name.endswith("_seconds") else 0)
+        if self.pg_cd_exact and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_ENV}=1 is defined for peer_greedy_network_cd and gnn_cd_refine only; "
+                               f"{self._policy_label} has no refine to extend")
         self.pg_ext_batches = 0
         self.pg_ext_charged = 0
         self.pg_ext_seconds = 0.0
@@ -804,6 +892,223 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.prefix_peers_outside_batch += outside
         return placements
 
+    def _pg_candidates(self, task: "Task", system_state: SystemState) -> List[Tuple["Node", "Platform"]]:
+        """The couples a refine pass offers this task: the (slate-restricted) reachable replicas, initialized ones if any.
+        Mirrors `_pg_batch_pass`, which keeps its own copy so the registered pass is untouched."""
+        valid = self._pg_restrict(task, self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task))
+        initialized = [r for r in valid if r[1].initialized.triggered]
+        return initialized if initialized else valid
+
+    def _pg_plan_cost(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch, memo: Dict[str, float],
+                      nodes) -> Tuple[float, List[float], List[float]]:
+        """The rule's S summed over the batch for a WHOLE plan, every term as `_pg_choose` charges it, with the in-batch
+        state recomputed from the plan itself: every partner's node is the plan's, and the backlog a task sees on its platform
+        is the platform's drain plus the service (exec + I/O + exchange) of every OTHER batch task the plan puts there.
+        Returns (sum of S, per-task service, per-task S). No counters: this is the expansion's objective, not a decision."""
+        n = len(batch_tasks)
+        planned = {int(batch_tasks[i].id): plan[i][0].node_name for i in range(n)}
+        # _pg_peer_nodes keeps the partner books of the DECISIONS; a scored trial plan is not one, so they are restored
+        books = (self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded)
+        peer_nodes_of = []
+        for i in range(n):
+            others = dict(planned)
+            others.pop(int(batch_tasks[i].id), None)
+            peer_nodes_of.append(self._pg_peer_nodes(batch_tasks[i], orch, others) if self.exchange_on else [])
+        self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
+        exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+        xf = [self._pg_xf(plan[i][1]) for i in range(n)]
+        exec_s = [float(batch_tasks[i].type["executionTime"].get(plan[i][1].type["shortName"], 0.0) or 0.0) * xf[i] for i in range(n)]
+        comm = [_approx_comm(batch_tasks[i].type) for i in range(n)]
+        service = [exec_s[i] + comm[i] + exch[i] for i in range(n)]
+        committed: Dict[str, float] = {}
+        for i in range(n):
+            key = f"{plan[i][0].node_name}:{plan[i][1].id}"
+            committed[key] = committed.get(key, 0.0) + service[i]
+        total = 0.0
+        scores = []
+        for i in range(n):
+            node, platform = plan[i]
+            key = f"{node.node_name}:{platform.id}"
+            drain = platform_queue_drain_seconds(platform, orch, memo, exec_scale=xf[i]) + (committed[key] - service[i])
+            if self.pg_inflight:
+                drain += inflight_remaining_seconds(platform)
+            cold = incoming_cold_start_time(batch_tasks[i], platform)
+            lat = network_latency_between(batch_tasks[i].node_name, node, nodes)
+            base = drain + cold + exec_s[i] + lat
+            if getattr(self, "pg_pull_hold", False):
+                hold_key = f"pull_hold:{node.node_name}"
+                if hold_key not in memo:
+                    from src.placement.snapshot_fidelity import node_pull_hold_seconds
+
+                    memo[hold_key] = node_pull_hold_seconds(self, node, float(self.env.now))
+                base += max(0.0, memo[hold_key] - (drain + cold + lat + exch[i] + exec_s[i]))
+            ext = 0.0
+            if self.pg_ext_rate is not None:
+                lam = self._pg_ext_lambda.get(key, 0.0)
+                ext = 0.5 * lam * ((drain + service[i]) ** 2 - drain ** 2)
+            score = base + self.pg_exchange_scale * exch[i] + ext
+            scores.append(score)
+            total += score
+        return total, service, scores
+
+    def _pg_plan_objects(self, batch_tasks: List["Task"], system_state: SystemState, placements: Dict[int, Tuple[int, int]]):
+        """(candidate couples per task, the shared couple table, candidate keys per task, the current plan as couples, pinned
+        task indices). A task whose current couple is not among its candidates (a forced placement) is pinned: it keeps its couple,
+        taken from the reachable replicas so the plan can still be scored, and is never moved."""
+        n = len(batch_tasks)
+        cands = [self._pg_candidates(batch_tasks[i], system_state) for i in range(n)]
+        couple: Dict[Tuple[int, int], Tuple["Node", "Platform"]] = {}
+        for cs in cands:
+            for node, platform in cs:
+                couple.setdefault((int(node.id), int(platform.id)), (node, platform))
+        keys = [{(int(node.id), int(platform.id)) for node, platform in cs} for cs in cands]
+        pinned = set()
+        for i in range(n):
+            held = (int(placements[i][0]), int(placements[i][1]))
+            if held not in keys[i]:
+                pinned.add(i)
+                keys[i] = set()
+                if held not in couple:
+                    task = batch_tasks[i]
+                    match = next((r for r in self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+                                  if (int(r[0].id), int(r[1].id)) == held), None)
+                    if match is None:
+                        raise RuntimeError(f"{self._policy_label}: task {task.id} holds {held}, which is not a reachable replica")
+                    couple[held] = match
+        plan = [couple[(int(placements[i][0]), int(placements[i][1]))] for i in range(n)]
+        return cands, couple, keys, plan, pinned
+
+    def _pg_expand(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
+                   committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                   service_of: Dict[int, Tuple[str, float]]) -> int:
+        """Exact-move alpha-expansion on the batch's current plan (HEROSIM_PG_CD_EXPANSION=1). Labels are visited in
+        (node id, platform id) order; for each, every non-empty subset of the tasks that may take it and do not hold it is
+        scored as a whole plan and the best strictly improving subset is applied before the next label. Sweeps stop when a
+        full sweep moves nothing. On return the batch's books (placements, planned, service_of, committed_service) describe the
+        new plan with every task's service recomputed from it; nothing is touched when no move improves. Returns the number
+        of tasks moved."""
+        from itertools import combinations
+
+        n = len(batch_tasks)
+        if n < 2:
+            return 0
+        nodes = self.nodes.items
+        # a task whose current couple is not among its candidates (a forced placement) is pinned: never a mover
+        _cands, couple, keys, plan, _pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
+        self.pg_expand_batches += 1
+        self.pg_expand_evals += 1
+        start = cur
+        moved_tasks = 0
+        for _ in range(self.pg_cd_expansion_sweeps):
+            self.pg_expand_sweeps += 1
+            moved_in_sweep = False
+            for label in sorted(couple):
+                movers = [i for i in range(n) if label in keys[i] and (int(plan[i][0].id), int(plan[i][1].id)) != label]
+                if not movers:
+                    continue
+                if len(movers) > self.pg_cd_expansion_max_movers:
+                    self.pg_expand_labels_skipped += 1
+                    continue
+                target = couple[label]
+                best_cost, best_plan, best_size = cur, None, 0
+                for size in range(1, len(movers) + 1):
+                    for subset in combinations(movers, size):
+                        trial = list(plan)
+                        for i in subset:
+                            trial[i] = target
+                        cost, _s, _c = self._pg_plan_cost(batch_tasks, trial, orch, memo, nodes)
+                        self.pg_expand_evals += 1
+                        if cost < best_cost - 1e-9:
+                            best_cost, best_plan, best_size = cost, trial, size
+                if best_plan is not None:
+                    plan, cur = best_plan, best_cost
+                    self.pg_expand_moves += 1
+                    moved_tasks += best_size
+                    moved_in_sweep = True
+            if not moved_in_sweep:
+                break
+        if moved_tasks == 0:
+            return 0
+        self.pg_expand_tasks_moved += moved_tasks
+        self.pg_expand_gain_seconds += start - cur
+        self._pg_write_books(batch_tasks, plan, orch, memo, committed_service, planned, placements, service_of)
+        return moved_tasks
+
+    def _pg_write_books(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch, memo: Dict[str, float],
+                        committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                        service_of: Dict[int, Tuple[str, float]]) -> None:
+        """The batch's books rewritten for `plan`, every task's service recomputed from it (what `_pg_expand` does on acceptance)."""
+        _cost, service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, self.nodes.items)
+        committed_service.clear()
+        for i in range(len(batch_tasks)):
+            node, platform = plan[i]
+            tid = int(batch_tasks[i].id)
+            key = f"{node.node_name}:{platform.id}"
+            placements[i] = (node.id, platform.id)
+            planned[tid] = node.node_name
+            service_of[tid] = (key, service[i])
+            committed_service[key] = committed_service.get(key, 0.0) + service[i]
+
+    def _pg_standalone(self, task: "Task", node: "Node", platform: "Platform", orch, memo: Dict[str, float], nodes) -> float:
+        """A task's S on a couple with no partner known and nothing committed: drain + cold + exec + latency, the terms the declared
+        pruning ranks candidates by (src/placement/declared_slate.py), computed as `_pg_choose` computes them."""
+        xf = self._pg_xf(platform)
+        drain = platform_queue_drain_seconds(platform, orch, memo, exec_scale=xf)
+        if self.pg_inflight:
+            drain += inflight_remaining_seconds(platform)
+        exec_s = float(task.type["executionTime"].get(platform.type["shortName"], 0.0) or 0.0) * xf
+        return drain + incoming_cold_start_time(task, platform) + exec_s + network_latency_between(task.node_name, node, nodes)
+
+    def _pg_exact(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
+                  committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                  service_of: Dict[int, Tuple[str, float]]) -> int:
+        """cd_exactS (HEROSIM_PG_CD_EXACT=1): the S-minimal plan over the batch's top-K slate by exhaustive enumeration. Plans are
+        visited in CD's own order (each task's slate sorted by (node id, platform id), tasks in batch order), and only a strictly
+        cheaper plan replaces the incumbent, so a tie goes to the lowest plan in that order. Above the plan cap the expansion
+        search runs instead and the fallback is counted. The pass's plan is kept when it is strictly cheaper (it may use couples
+        outside the slate). Books rewritten when the plan changes. Returns the number of tasks moved."""
+        from itertools import product
+
+        n = len(batch_tasks)
+        if n < 2:
+            return 0
+        nodes = self.nodes.items
+        cands, couple, keys, plan, pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        slates = []
+        for i in range(n):
+            if i in pinned:
+                slates.append([plan[i]])
+                continue
+            ranked = sorted(cands[i], key=lambda c: (self._pg_standalone(batch_tasks[i], c[0], c[1], orch, memo, nodes), int(c[0].id), int(c[1].id)))
+            slates.append(sorted(ranked[:self.pg_cd_exact_top_k], key=lambda c: (int(c[0].id), int(c[1].id))))
+        total = 1
+        for sl in slates:
+            total *= len(sl)
+        if total > self.pg_cd_exact_max_plans:
+            self.pg_exact_fallbacks += 1
+            return self._pg_expand(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of) if self.pg_cd_expansion else 0
+        self.pg_exact_batches += 1
+        self.pg_exact_plans += total
+        cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
+        best_cost, best_plan, ties = None, None, 0
+        for combo in product(*slates):
+            cost, _s, _c = self._pg_plan_cost(batch_tasks, list(combo), orch, memo, nodes)
+            if best_cost is None or cost < best_cost - 1e-9:
+                best_cost, best_plan, ties = cost, list(combo), 0
+            elif abs(cost - best_cost) <= 1e-9:
+                ties += 1
+        if ties:
+            self.pg_exact_ties += 1
+        if best_cost >= cur - 1e-9:
+            self.pg_exact_kept_pass += 1
+            return 0
+        moved = sum(1 for i in range(n) if (int(best_plan[i][0].id), int(best_plan[i][1].id)) != (int(plan[i][0].id), int(plan[i][1].id)))
+        self.pg_exact_tasks_moved += moved
+        self.pg_exact_gain_seconds += cur - best_cost
+        self._pg_write_books(batch_tasks, best_plan, orch, memo, committed_service, planned, placements, service_of)
+        return moved
+
     def _pg_ext_lambdas(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[str, float]:
         """lambda_p per `node:platform` key: the rate split by the batch's type mix, then evenly over the
         replicas the pass would consider for that type (initialized ones if any, else all valid)."""
@@ -856,6 +1161,20 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
         passes = int(raw)
         if passes < 1:
             raise ValueError(f"FAIL LOUD: HEROSIM_PG_CD_PASSES must be >= 1, got {raw!r}")
+        self._pg_cd_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if not (self.pg_cd_expansion or self.pg_cd_exact):
+            return
+        # cd_expand: one expansion phase after the single-task passes converge, then the passes again on the new plan;
+        # cd_exactS: the exact search over the slate instead (the expansion is its fallback above the plan cap)
+        if self.pg_cd_exact:
+            moved = self._pg_exact(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        else:
+            moved = self._pg_expand(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if moved:
+            self._pg_cd_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+
+    def _pg_cd_passes(self, passes, batch_tasks, system_state, orch, memo, committed_service, planned,
+                      placements, service_of) -> None:
         for _ in range(passes):
             moved = self._pg_batch_pass(
                 batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
@@ -932,6 +1251,14 @@ class GnnCdRefiner(_PeerGreedyCore):
     _policy_label = "gnn_cd_refine"
     _pg_batched = True
     _pg_batch_pass = PeerGreedyNetworkBatchScheduler._pg_batch_pass
+    # cdxapply (HEROSIM_PG_CD_EXPANSION=1): the expansion phase of cd_expand, bound here as the pass is, not copied
+    _pg_candidates = PeerGreedyNetworkBatchScheduler._pg_candidates
+    _pg_plan_cost = PeerGreedyNetworkBatchScheduler._pg_plan_cost
+    _pg_expand = PeerGreedyNetworkBatchScheduler._pg_expand
+    _pg_plan_objects = PeerGreedyNetworkBatchScheduler._pg_plan_objects
+    _pg_write_books = PeerGreedyNetworkBatchScheduler._pg_write_books
+    _pg_standalone = PeerGreedyNetworkBatchScheduler._pg_standalone
+    _pg_exact = PeerGreedyNetworkBatchScheduler._pg_exact
 
     def __init__(self, host) -> None:
         self._host = host
@@ -946,6 +1273,14 @@ class GnnCdRefiner(_PeerGreedyCore):
 
     def _pg_orchestrator(self):
         return self._host._orchestrator()
+
+    def _refine_passes(self, passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of) -> None:
+        for _ in range(passes):
+            moved = self._pg_batch_pass(batch_tasks, system_state, orch, memo=memo,
+                                        committed_service=committed_service, planned=planned,
+                                        placements=placements, service_of=service_of, refine=True)
+            if moved == 0:
+                break
 
     def refine(self, batch_tasks: List["Task"], system_state: SystemState,
                seed: Dict[int, Tuple[int, int]], passes: int) -> Tuple[Dict[int, Tuple[int, int]], Dict[str, int]]:
@@ -972,12 +1307,12 @@ class GnnCdRefiner(_PeerGreedyCore):
             key = f"{node.node_name}:{platform.id}"
             committed_service[key] = committed_service.get(key, 0.0) + service
             service_of[int(task.id)] = (key, service)
-        for _ in range(passes):
-            moved = self._pg_batch_pass(batch_tasks, system_state, orch, memo=memo,
-                                        committed_service=committed_service, planned=planned,
-                                        placements=placements, service_of=service_of, refine=True)
-            if moved == 0:
-                break
+        self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if self.pg_cd_expansion or self.pg_cd_exact:
+            # cdxapply: one expansion phase (or the exact search) after the passes converge on the seeded plan, then the passes again
+            search = self._pg_exact if self.pg_cd_exact else self._pg_expand
+            if search(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
+                self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         seed_load: Dict[Tuple[int, int], int] = {}
         for v in seed.values():
             seed_load[tuple(v)] = seed_load.get(tuple(v), 0) + 1
