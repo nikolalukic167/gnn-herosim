@@ -1,6 +1,15 @@
 # accel_moderate_confirm_v1 — does the accel moderate-rung GNN lead over CD hold on fresh topologies?
 
-**Status:** `ACTIVE` (2026-10-10), gate running. Registered 2026-10-10. Every bar below was signed before any data.
+**Status:** `CLOSED` (2026-10-10) — **DIRECTION-ONLY**. Registered 2026-10-10; every bar below was signed before its data.
+
+**Outcome.** On 24 fresh topologies the moderate lead shrank and was not confirmed.
+- **gnn_eng:** −4.38 % vs CD (16/24 faster, p .046, Holm .091).
+- **physmp:** −3.84 % (16/24, Holm .091).
+- **CD←GNN** beat CD on 24/24 topologies (−3.76 %); **self-predict** −1.77 % (both descriptive).
+- The accel gate's −5.45 / −6.05 % was partly selection (winner's curse). The direction holds; the magnitude is about
+  −4 %.
+- **Diagnostics run alongside** (recorded in `accel_replica_v1`): the GNN's deficit sits in batches the declared slate
+  splits into blind sub-groups.
 
 **Why.** `accel_replica_v1` closed NOT-SEPARATED. At the moderate rung gnn_eng read −5.45 % (Holm .065) and physmp
 −6.05 % (Holm .081) against CD, on 12 topologies. Heavy ran against the GNN (+2.7 %). This node tests the moderate
@@ -35,6 +44,20 @@ what make the test honest.
 
 ## Record (newest first)
 
+- 2026-10-10 15:10 — **Gate read: DIRECTION-ONLY, closed** (S4; one read, job 855818; output
+  `accel_confirm/read_9e5ee729.{json,txt}`; classical 192/192 and learned 576/576, 0 failed, 24 topologies; the
+  sensitivity pass is identical).
+
+  | Arm vs CD (moderate) | Median | Topologies faster | p | Holm |
+  |---|---|---|---|---|
+  | gnn_eng | −4.38 % | 16/24 | .046 | .091 |
+  | physmp | −3.84 % | 16/24 | .079 | .091 |
+  | self-predict (descriptive) | −1.77 % | 18/24 | .0011 | — |
+  | CD←GNN (descriptive) | −3.76 % | 24/24 | <.0001 | — |
+
+  - **Decision cost per task:** GNN 6.6–7.1 ms, CD 0.12 ms. No cell has deferrals above 5× CD's.
+  - **Reader fix, disclosed:** the reader was committed at f736c9f1 before any data. A test-isolation fix, 967e7858 (the
+    rung override scoped to `read()`), came after the arrays finished and before any read, with no semantic change.
 - 2026-10-10 13:05 — **Reader committed before data** (S4). rp/accel-confirm f736c9f1:
   `accel_moderate_confirm_v1_read.py` and its test. Moderate only, Holm over 2, with the labels as registered.
 - 2026-10-10 12:45 — **Launched, sealed** (S4).
