@@ -37,7 +37,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | Lineage | Status | Outcome |
 |---|---|---|
 | [**big_groups_s0_v1**](docs/lineages/big_groups_s0_v1.md) | `ACTIVE` | Screen NO-GO as registered (G8 top-2 gap clause fails; S-regret large but tail-only, median 0). cd_exactS fallback binds 48–82 % at G8. Live gate at G8 pending. |
-| [**selfsearch_confirm_v1**](docs/lineages/selfsearch_confirm_v1.md) | `REGISTERED` | Sealed fresh-topology test: pure GNN with search on its own score vs CD at both rungs (dev: −10.7/−9.4 % vs CD, ties cd_exactS); MP-OFF twin secondary. |
 | [**cost_to_go_v1**](docs/lineages/cost_to_go_v1.md) | `ACTIVE` | Learned post-batch value on exact slate search vs cd_exactS. S0 passes thinly (4.7/3.3/3.4 % at H5/15/30, tail-only); oracle below the −5 % WIN bar; S1 running. |
 | [**mixed_dispatch_v1**](docs/lineages/mixed_dispatch_v1.md) | `ACTIVE` | Reservations win 11/16 observed comparisons, but the trained DAG successor loses to hand search; dag_resume_s0_v1 also closes its bounded continuation recipe with no relative gain. |
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
@@ -59,6 +58,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**selfsearch_confirm_v1**](docs/lineages/selfsearch_confirm_v1.md) | `CLOSED` | DIRECTION-ONLY: pure GNN self-search vs CD −8.5/−10.1 % moderate (CONFIRMED), −3.1/−3.8 % heavy; ties MP-OFF twin; hand searches faster at heavy (+3.4–3.7 %). |
 | [**accel_nosplit_v1**](docs/lineages/accel_nosplit_v1.md) | `CLOSED` | DIRECTION-ONLY: whole-group serving; GNN −6.9/−7.7 % vs CD at moderate (CONFIRMED, 24 fresh), −1.7/−1.1 % heavy; behind cd_expand at heavy (+2.7/+3.5 %). |
 | [**accel_moderate_confirm_v1**](docs/lineages/accel_moderate_confirm_v1.md) | `CLOSED` | DIRECTION-ONLY: 24 fresh topologies, moderate; gnn_eng −4.4 %, physmp −3.8 % vs CD (Holm .09); CD←GNN −3.8 % 24/24. Lead real in direction, ~−4 % magnitude. |
 | [**accel_replica_v1**](docs/lineages/accel_replica_v1.md) | `CLOSED` | NOT-SEPARATED: replicas on fastest platform; GNN −5.5/−6.1 % vs CD at moderate (Holm .07/.08), +2.7 % at heavy; CD←GNN −5.0/−3.4 % (12/12, learned seed). No win. |

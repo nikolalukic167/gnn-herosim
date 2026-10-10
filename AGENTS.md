@@ -41,35 +41,45 @@ numbering. What a GNN needs to have anything to learn from a *supervised* target
 route B proved contention alone is not enough either, which is why option 3 changed the
 objective instead.
 
-**Where the research question stands (rewritten 2026-10-07).**
+**Where the research question stands (rewritten 2026-10-11).**
 
-**On the faithful workload, no learned arm beats coordinate-descent search (CD); the earlier "beats CD" headline was an
-artifact of scattered request origins.** The setting is the Alibaba-grounded workload at ×2 / ×3 / ×5 on 19 unseen
-topologies (`grounded_workload_v1` → `peak_load_v1` → `small_batch_confirm_v1`). The grounded mint gave each task of a peer
-group its own client (97 % of groups span clients); a trace request has one caller (`client_local_v1`). With one origin
-per group every rule runs 26–82 % faster, and:
+**In the reference-physics accel seat, a learned scorer beats CD at moderate load, confirmed on fresh topologies. At
+heavy load the margin is significant but under the −5 % bar. It never beats exact search on CD's own surrogate, and it is
+never a message-passing win.** The seat is R1.1 + WF1, with replicas on the fastest compatible platform, 160 clients ×
+24 servers, moderate and heavy rungs.
+- **Whole-group GNN** (`accel_nosplit_v1`): −6.9 / −7.7 % vs CD at moderate (CONFIRMED, 24 topologies) and −1.7 / −1.1 %
+  at heavy.
+- **GNN searching on its own score, with no S or CD** (`selfsearch_confirm_v1`, CLOSED DIRECTION-ONLY): −8.5 / −10.1 % at
+  moderate (CONFIRMED) and −3.1 / −3.8 % at heavy.
+  - It ties its separately trained MP-OFF twin (+0.1 / −0.2 %).
+  - **The bar is a rule with the model's information:** exact search on CD's surrogate (cd_exactS, −10 % vs CD) and
+    GNN-seeded CD expansion (cdxapply) tie it at moderate and are 1.8–3.7 % faster at heavy.
+- **Why learning has little room:**
+  - decisions are small (median 3 tasks, top-5 slate, 0 % over the enumeration cap);
+  - the additive surrogate is nearly right (argmin-S hits the optimum in 79 %, regret 6 %);
+  - platforms are 95–99 % idle;
+  - one-step lookahead headroom is 3–5 %.
+  - Adding servers made it easier, not harder. A pointwise MLP V captures 76 % of the lookahead headroom
+    (`cost_to_go_v1`, gate pending).
+- **Bigger peer groups** (`big_groups_s0_v1`): G=8 breaks exact enumeration (fallback in 48–82 % of batches, served plan
+  55–65 % above best-known). S's own error is tail-only (median per-state regret 0). The screen is NO-GO as registered,
+  and the G=8 live gate is pending.
+- **Knative under R1:** the key-blind arm herds and collapses on lock wait. A faithful concurrency-key Knative never
+  collapses and is +48 / +68 % vs CD. Quote only the latter (`docs/gates/gate-tools.md`).
 
-- **The engineered GNN `sb1load` no longer beats CD**, zero-shot or retrained on a single-origin corpus
-  (`small_batch_so_v1`, NO-WIN): +13.1 / +7.3 % (CD faster) and −3.5 % (not separated); retraining moves it 1–2 %. It
-  still beats Knative −40 / −54 / −68 % and self-predict ~−27 %, ties locality-first and the one-pass greedy, and ties its
-  MP-OFF twin. Under scattered origins it had beaten CD −10 / −35 / −17 % — **quote that only with the origin model named.**
-- **Message passing is real but small, and never where it beats search.** The raw-plan GNN beats its same-input MLP
-  (`local_features_v1` −11 / −24 / −20 %; retrained single-origin −10 / −7 % at ×2 / ×3, ×5 not separated) and its no-conv
-  twin, but CD is faster at every rung (+13 to +19 %). Per-relation weights (`hetero_conv_v1`) add up to −7 % at ×5 and
-  nothing else; edge physics in the convs (`raw_plan_v2`) and sum aggregation were worse or tied. Where a learned arm has
-  beaten CD it was the engineered pointwise context, never the convolutions (`small_batch_confirm_v1`, `peak_controls_v1`).
-- **Client execution does not pay** (`client_local_v1`): 2–7 of 20 clients can host the functions at all, and local
-  execution is 0.1–2 % of calls under every policy.
-
-**Earlier settings, still true:** per arrival the self-predict rule is the bar (`selfpredict_bar_v1`); in the 6-server burst
-seat uncapped `gnnedge0` beats the one-pass greedy and loses to CD (`joint_burst_v2`); the co-sim single-batch target is
-pointwise-separable (`program_verdict_v1`); rollout imitation and lookahead are closed (`rollout_imitation_v1`,
-`lookahead_mp_v1`). Every client-rung "vs reactive" number before 2026-09-20 flips sign when paired.
+**Earlier settings, still true:**
+- On the grounded single-origin workload no learned arm beats CD (`small_batch_so_v1`). Scattered-origin wins need their
+  origin model named.
+- Message passing helps raw inputs but not engineered ones (`local_features_v1`, `r1_attribution_v1` gnn_raw addendum).
+- Self-predict is the per-arrival bar (`selfpredict_bar_v1`).
+- The co-sim single-batch target is pointwise-separable (`program_verdict_v1`).
+- Every client-rung "vs reactive" number before 2026-09-20 flips sign when paired.
 
 **Pair on the environment before you take a median; quote a DIRECTION from a small design and a MAGNITUDE only from a
 large one; a rule with the model's information is the bar, never Knative alone; name the origin model with any grounded
 number.** Never a `peer_affinity` live number without its load factor, never an arm comparison without its corpus. Start at
-`docs/lineages/small_batch_so_v1.md`, `client_local_v1.md`, `local_features_v1.md` and `throughline.md`.
+`docs/lineages/selfsearch_confirm_v1.md`, `accel_nosplit_v1.md`, `big_groups_s0_v1.md`, `cost_to_go_v1.md` and
+`throughline.md`.
 
 ## Current research entry points
 
