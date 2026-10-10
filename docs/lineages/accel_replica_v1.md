@@ -72,6 +72,20 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-11 05:30 — **A GNN tie-break and fallback seed inside cd_exactS add nothing measurable** (S5; cdxexg =
+  cd_exactS with S-ties broken by the ra_gnn_eng s1 plan score, and over-cap fallbacks seeded from the no-split GNN
+  plan; d2a980e1, flag-off identity with 72df02a0 shown; 856109, 24/24 cells; 16301–16312, g0; descriptive).
+  - **Counts at moderate / heavy:**
+    - ties in 20.5 / 31.0 % of exact batches; the tie-break changed the plan in 4.1 / 4.7 % of all exact batches;
+    - fallback batches 5.1 / 7.2 %; the GNN seed changed 62 / 64 % of those.
+  - **Paired %:**
+    - vs cd_exactS: −1.04 % (7/12, p .34) / +0.40 % (5/12, p .34), a tie;
+    - vs cdxapply: −1.02 % (9/12, .064) / −0.56 % (7/12, .79);
+    - vs cd_expand: −2.99 / −1.87 %;
+    - vs CD: −11.22 / −8.99 %.
+  - Decision time per task, median 8.8 / 10.1 ms, about 6× cd_exactS.
+  - **Read:** with the slate fixed, the GNN has little left to act on inside exact search. The GNN-plus-search stacks
+    (cdxapply, cdxexg) and cd_exactS all sit at about −9 to −11 % vs CD.
 - 2026-10-11 00:30 — **The top-5 slate rarely binds cd_exactS** (S5; 855941, log-only flag 804bd855, decisions
   identical to 855894; 16307 g0 seed 0, 2 cells; direction only).
   - **Kept-pass is mostly "already optimal":** 59.4 / 63.3 % of exact batches keep CD's pass plan, but in 57.3 / 59.1 %
