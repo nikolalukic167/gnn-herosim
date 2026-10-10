@@ -21,6 +21,7 @@ import bisect
 import json
 import math
 import os
+import shutil
 import shlex
 import subprocess
 import sys
@@ -1001,7 +1002,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     json.dump(out, open(summary + ".partial", "w"), indent=1)
     os.replace(summary + ".partial", summary)
-    os.remove(raw)
+    keep = os.environ.get("KEEP_RAW_DIR")
+    if keep:
+        # regime decomposition (accel_replica_v1 idea 1): the per-task result outlives the summary, on /share, never on /home
+        os.makedirs(keep, exist_ok=True)
+        shutil.move(raw, os.path.join(keep, os.path.basename(raw)))
+    else:
+        os.remove(raw)
     return f"[done {wall}s] {name} elapsed={e:.3f} share={out['queue_share']:.3f}"
 
 
