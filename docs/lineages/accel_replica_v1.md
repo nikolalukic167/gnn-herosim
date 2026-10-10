@@ -50,6 +50,20 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 — **Corpus staged, not launched** (S5, `rp/accel-corpus` 69d8b5f8: S6's scale160 pipeline merged onto
+  S7's fixed code; 30 tests pass).
+  - IDs: corpus pool 16201–16300 (train and held-out from 16201–16258); **gate test 16301–16312, spares to 16320**
+    (signed by the coordinator).
+  - Exact multipliers: moderate 11.6139, heavy 27.622665025860204. The rounded "27.6227" is not byte-identical.
+  - Launch waits for W2 (rerun 855318) and the coordinator's GO. The byte-diff (855322) and the 1-topology dry run
+    (855323) are in flight.
+  - **Why CD is slower at moderate than at heavy** (S5, inferred from the finals' decomposition; no rendezvous counter
+    was read). Under first_compatible, queue + lock wait rise by 0.30 s from moderate to heavy, while the rest falls by
+    0.32 s.
+    - The arrival-dependent term is peer rendezvous: a placed task holds its platform until its partners arrive, and
+      partner gaps scale with 1/m.
+    - This is the same mechanism `workload_fix_v1` measured at 40 × 6. It is larger under fastest_compatible because
+      the rung ratio is wider (2.4×).
 - 2026-10-10 — **Gap found in the labelling path; W2 rerun ordered** (S7). `make_warm_corpus`'s
   `cell_base_infrastructure` did not carry `replica_placement_rule`, so label sweeps scaled out under first_compatible.
   - Fixed at `rp/accel-calib` 7c789baf (with a unit test).
