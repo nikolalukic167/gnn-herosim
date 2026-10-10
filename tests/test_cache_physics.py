@@ -12,11 +12,12 @@ def test_current_physics_env_follows_the_environment(monkeypatch):
     for k in ("HEROSIM_TRANSFER_MODEL", "HEROSIM_REPLICA_RELEASE", "HEROSIM_SCALEOUT", "HEROSIM_INFLIGHT_CAPTURE"):
         monkeypatch.delenv(k, raising=False)
     assert current_physics_env() == {"transfer_model": "store_forward", "replica_release": "0", "scaleout": "legacy",
-                                     "inflight_capture": "legacy"}
+                                     "inflight_capture": "legacy", "replica_placement_rule": "first_compatible"}
     monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
     monkeypatch.setenv("HEROSIM_REPLICA_RELEASE", "1")
     monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
-    assert current_physics_env() == {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa", "inflight_capture": "legacy"}
+    assert current_physics_env() == {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa", "inflight_capture": "legacy",
+                                     "replica_placement_rule": "first_compatible"}
 
 
 def test_mismatch_is_refused_and_names_every_difference(monkeypatch):
@@ -157,3 +158,95 @@ def test_batch_peer_components():
     assert batch_peer_components({"events": ev, "peer_exchange": [[0, 1, 1.0], [1, 2, 1.0], [2, 3, 1.0]]}) == 1
     assert batch_peer_components({"events": ev, "peer_exchange": [[0, 1, 1.0], [2, 3, 1.0]]}) == 2
     assert batch_peer_components({"events": ev}) == 4
+
+
+FAST = {"preinit": {"replica_placement_rule": "fastest_compatible"}}
+
+
+def test_replica_rule_mismatch_is_refused_both_ways(monkeypatch):
+    _r1(monkeypatch)
+    first = current_physics_env()
+    fast = current_physics_env(FAST)
+    assert fast["replica_placement_rule"] == "fastest_compatible"
+    with pytest.raises(ValueError, match="replica_placement_rule: built/trained under 'fastest_compatible', this run has 'first_compatible'"):
+        require_matching_physics_env(fast, what="accel checkpoint served under first_compatible")
+    with pytest.raises(ValueError, match="replica_placement_rule: built/trained under 'first_compatible', this run has 'fastest_compatible'"):
+        require_matching_physics_env(first, what="first_compatible checkpoint served under fastest", space_config=FAST)
+    require_matching_physics_env(fast, what="accel under accel", space_config=FAST)
+    require_matching_physics_env(first, what="first under first")
+
+
+def test_a_record_without_the_rule_reads_as_first_compatible(monkeypatch):
+    _r1(monkeypatch)
+    old = {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa", "inflight_capture": "legacy"}
+    require_matching_physics_env(old, what="scale160 cache or checkpoint, built before the field")
+    with pytest.raises(ValueError, match="replica_placement_rule"):
+        require_matching_physics_env(old, what="the same served under fastest_compatible", space_config=FAST)
+
+
+def test_the_trainer_skips_the_rule_and_the_run_rule_follows_the_simulator_when_no_config_is_at_hand(monkeypatch):
+    from src.placement import replica_rule
+
+    _r1(monkeypatch)
+    fast = current_physics_env(FAST)
+    require_matching_physics_env(fast, what="cache", skip=("replica_placement_rule",))
+    replica_rule.set_rule("fastest_compatible")
+    try:
+        assert current_physics_env()["replica_placement_rule"] == "fastest_compatible"
+        require_matching_physics_env(fast, what="served inside a simulator set to the rule")
+    finally:
+        replica_rule.set_rule(None)
+
+
+def test_the_loader_refuses_an_accel_checkpoint_under_first_and_the_reverse(tmp_path, monkeypatch):
+    from src.executesimulation import load_gnn_model
+
+    _r1(monkeypatch)
+    accel = _ckpt(tmp_path, current_physics_env(FAST))
+    with pytest.raises(ValueError, match="physics environment mismatch.*replica_placement_rule"):
+        load_gnn_model(accel, space_config={})
+    model, _ = load_gnn_model(accel, space_config=FAST)
+    assert model is not None
+    legacy = _ckpt(tmp_path, {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa", "inflight_capture": "legacy"})
+    model, _ = load_gnn_model(legacy, space_config={})
+    with pytest.raises(ValueError, match="physics environment mismatch.*replica_placement_rule"):
+        load_gnn_model(legacy, space_config=FAST)
+
+
+def test_the_cache_records_the_rule_of_its_label_replays_and_refuses_an_inconsistent_dataset(tmp_path):
+    pgc = pytest.importorskip("src.notebooks.prepare_graphs_cache")
+    ds = tmp_path / "ds_00000"
+    ds.mkdir()
+    cfg = tmp_path / "cell.json"
+    cfg.write_text(json.dumps(FAST))
+    (ds / "generation_provenance.json").write_text(json.dumps({"argv": ["--cell-config", str(cfg)]}))
+    assert pgc._replica_rule_of_dataset(ds, {"replica_placement_rule": "fastest_compatible"}) == "fastest_compatible"
+    with pytest.raises(RuntimeError, match="wrong physics"):
+        pgc._replica_rule_of_dataset(ds, {})          # the cell asks for fastest, the replay infrastructure does not carry it
+    assert pgc._replica_rule_of_dataset(tmp_path / "no_provenance", {}) == "first_compatible"
+    assert pgc._single_replica_rule({"a": {}, "b": {"replica_placement_rule": "first_compatible"}}) == "first_compatible"
+    with pytest.raises(RuntimeError, match="different replica_placement_rules"):
+        pgc._single_replica_rule({"a": {}, "b": {"replica_placement_rule": "fastest_compatible"}})
+
+
+def test_prefix_loader_refuses_the_rule_mismatch_both_ways(tmp_path, monkeypatch):
+    from src.placement import replica_rule
+    from src.policy.gnn.prefix_serving import PrefixServingError, load_prefix_conditioned_gnn
+
+    _r1(monkeypatch)
+    path = _ckpt(tmp_path, current_physics_env(FAST))
+    side = json.loads(path.with_suffix(".contract.json").read_text())
+    side["partial_state_edge_features"] = True
+    path.with_suffix(".contract.json").write_text(json.dumps(side))
+    with pytest.raises(PrefixServingError, match="replica_placement_rule"):
+        load_prefix_conditioned_gnn(path)               # served by a simulator on first_compatible
+    replica_rule.set_rule("fastest_compatible")
+    try:
+        legacy = _ckpt(tmp_path, {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa", "inflight_capture": "legacy"})
+        side = json.loads(legacy.with_suffix(".contract.json").read_text())
+        side["partial_state_edge_features"] = True
+        legacy.with_suffix(".contract.json").write_text(json.dumps(side))
+        with pytest.raises(PrefixServingError, match="replica_placement_rule"):
+            load_prefix_conditioned_gnn(legacy)         # a first_compatible record under a simulator on fastest_compatible
+    finally:
+        replica_rule.set_rule(None)
