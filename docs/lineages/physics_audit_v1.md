@@ -1,6 +1,6 @@
 # physics_audit_v1 — scrutinise and freeze reference physics R1
 
-**Status:** `CLOSED` (2026-10-08) — **R1-FROZEN**. Registered 2026-10-08; amendments B1–B4 signed after pass 1 and before pass 2 (B3 post-data, labelled). R1 = code `033811d6`, gate pin `242d0ea6`.
+**Status:** `CLOSED` (2026-10-08) — **R1-FROZEN**. Registered 2026-10-08; amendments B1–B4 signed after pass 1 and before pass 2 (B3 post-data, labelled). R1 = code `033811d6`, gate pin `242d0ea6`; superseded on 2026-10-08 by **R1.1** = `rp/starve` `665c9142` / gate `252b45aa` (audit pass 3).
 Revision 2026-10-08 (before any run): added I11, I12 and the I5 fallback.
 
 
@@ -12,7 +12,9 @@ not follow instantaneous load under either arm. **Quote R1 replica counts as par
 co-simulation reproduces live) passes on 216 states: median 0.00 %, p95 0.15 %, one state 4.3 % undiagnosed. **Labels
 under R1 come only from decisions at t ≥ 360 s**, and that range is validated only to 3,000 arrivals. I11 covers the
 CD arm; I6's refusal path is checked only on a reduced-memory cell. `replica_placement_v1` closed NO-LEVER as
-registered.
+registered. **R1.1 (2026-10-08)** adds the free-pool leak and cross-source drain fixes and a 300 s request timeout that
+runs only once the awaited partner has arrived. Pass 3 passes I1–I4, I6–I13, with I5 as before. It is identical to R1 on all 42
+audit and legacy cells, and on 198 of 200 W2 cells (2 leak cells within 1 %). Cite R1.1 from now on.
 
 ## Question
 Does the candidate reference physics behave like the system it claims to model, checked by invariants that do
@@ -69,6 +71,18 @@ Instrumented runs on 6 topologies × 3 rungs × CD and Knative, plus I8 duplicat
 
 
 ## Record (newest first)
+
+### 2026-10-08 — audit pass 3 on R1.1; R1.1 accepted
+
+Report: [`physics_audit_v1/pass3_report.md`](physics_audit_v1/pass3_report.md) (S5, `rp/starve`). The 36 cells are the
+pass-2 design at time scale 1.0. **I1–I4, I6, I7, I9, I10, I13 PASS 36/36**; I8 12/12; I11 216 states, worst p95 0.10 %;
+I12 12/12. I5 is as before (CD load share 0.217; reactive above 0.5 in 10/18; B3). I7 now judges a run with no end row as
+FAIL. **I13 pool conservation** is new: free + owned + draining = platforms on every node at every KPA tick, and free equals
+`available_platforms`. Its seeded-defect tests include the old filtered-pool swap fed through the real emitter.
+Identity and the timeout's scope are recorded in [`workload_fix_v1`](workload_fix_v1.md) (R1.1-T, accepted). **Caveat:**
+pass 3 ran on `8e835eef` (timeout over the whole wait), not on `665c9142` (R1.1-T). Both commits are identical to `d4aeb7ca` on all
+42 cells, and the timeout fired 0 times at each. **Closed the same day:** pass 3 rerun at `665c9142` (I1–I10, I12, I13 on
+the 36 cells; I8 12/12; the reduced-memory cell) changes no verdict or number on any cell; I11 wasn't rerun.
 
 ### 2026-10-08 — audit pass 2 at time scale 1.0: R1 frozen
 

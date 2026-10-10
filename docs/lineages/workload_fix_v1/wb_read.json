@@ -1,0 +1,549 @@
+{
+ "lo": {
+  "reactive": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.434773888956575,
+   "qshare": 0.1704830070335032,
+   "exch_per_task": 0.09567081025341129,
+   "exch_share": 0.054143679778521345,
+   "cold_start_pct": 22.444,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.294295179112275,
+   "faster": 4,
+   "n_pc": 19,
+   "p": 0.01082611083984375
+  },
+  "selfpredict": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.430043159103317,
+   "qshare": 0.17094279148308997,
+   "exch_per_task": 0.0937028060044016,
+   "exch_share": 0.05337348141446421,
+   "cold_start_pct": 22.424,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.18773091973600664,
+   "faster": 6,
+   "n_pc": 19,
+   "p": 0.09551239013671875,
+   "p_holm": 0.09551239013671875,
+   "label": "NOT-SEPARATED"
+  },
+  "locality": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.4370642321310463,
+   "qshare": 0.12453890860718994,
+   "exch_per_task": 0.06708091650418789,
+   "exch_share": 0.03921092007961695,
+   "cold_start_pct": 41.582,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.6866762732094633,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "batched": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.4197489262648566,
+   "qshare": 0.11082113105847045,
+   "exch_per_task": 0.07440590189667103,
+   "exch_share": 0.04441775532690428,
+   "cold_start_pct": 42.836,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.13654004559331412,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "cd": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 2.416959839349194,
+   "qshare": 0.10663242842388693,
+   "exch_per_task": 0.07450573136034039,
+   "exch_share": 0.044608076230185825,
+   "cold_start_pct": 43.283500000000004,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   }
+  },
+  "_cd_first": true
+ },
+ "hi": {
+  "reactive": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 0.5211320848355161,
+   "qshare": 0.35513809673260277,
+   "exch_per_task": 0.09731923778204467,
+   "exch_share": 0.18979649719762415,
+   "cold_start_pct": 3.7279999999999998,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": -63.7834696488113,
+   "faster": 19,
+   "n_pc": 19,
+   "p": 3.814697265625e-06
+  },
+  "selfpredict": {
+   "n_topologies": 19,
+   "n_runs": 76,
+   "n_failed": 0,
+   "lat": 0.46776828891677547,
+   "qshare": 0.4019189179546703,
+   "exch_per_task": 0.05007590521221175,
+   "exch_share": 0.11111509330922857,
+   "cold_start_pct": 3.839,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": -67.25801035515809,
+   "faster": 19,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CONFIRMED"
+  },
+  "locality": {
+   "n_topologies": 19,
+   "n_runs": 75,
+   "n_failed": 1,
+   "lat": 1.35810236489234,
+   "qshare": 0.18064409515112512,
+   "exch_per_task": 0.03380370976162122,
+   "exch_share": 0.04466108042536559,
+   "cold_start_pct": 6.667,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.5466214114333234,
+   "faster": 1,
+   "n_pc": 19,
+   "p": 7.62939453125e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "batched": {
+   "n_topologies": 19,
+   "n_runs": 75,
+   "n_failed": 1,
+   "lat": 1.3543349415177126,
+   "qshare": 0.17377753491662415,
+   "exch_per_task": 0.042633074324931505,
+   "exch_share": 0.052835290409324207,
+   "cold_start_pct": 6.6295,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   },
+   "vs_cd": 0.5268141451534314,
+   "faster": 0,
+   "n_pc": 19,
+   "p": 3.814697265625e-06,
+   "p_holm": 2.288818359375e-05,
+   "label": "CD-FASTER"
+  },
+  "cd": {
+   "n_topologies": 19,
+   "n_runs": 75,
+   "n_failed": 1,
+   "lat": 1.3507082893895652,
+   "qshare": 0.1759609942121687,
+   "exch_per_task": 0.032509036258721764,
+   "exch_share": 0.044756792588018894,
+   "cold_start_pct": 6.7435,
+   "exchange_by_access_class": {
+    "available": false,
+    "reason": "no access classes on these topologies (uniform links)"
+   }
+  },
+  "_cd_first": false
+ },
+ "_meta": {
+  "family": [
+   "selfpredict",
+   "locality",
+   "batched"
+  ],
+  "family_size": 6,
+  "context_only": [
+   "reactive"
+  ],
+  "topologies": [
+   9483,
+   9484,
+   9485,
+   9487,
+   9491,
+   9502,
+   9506,
+   9525,
+   9529,
+   9533,
+   9538,
+   9540,
+   9548,
+   9550,
+   9551,
+   9557,
+   9565,
+   9566,
+   9568
+  ],
+  "excluded": []
+ },
+ "_sensitivity_excluding_failed_topologies": {
+  "lo": {
+   "reactive": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 2.427966127357025,
+    "qshare": 0.16996811685684743,
+    "exch_per_task": 0.09606573176917681,
+    "exch_share": 0.05429058693278456,
+    "cold_start_pct": 22.302500000000002,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": 0.2989854051660079,
+    "faster": 3,
+    "n_pc": 17,
+    "p": 0.00384521484375
+   },
+   "selfpredict": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 2.4272228848830557,
+    "qshare": 0.17041047808220156,
+    "exch_per_task": 0.0937028060044016,
+    "exch_share": 0.053421995674762045,
+    "cold_start_pct": 22.266000000000002,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": 0.18773091973600664,
+    "faster": 5,
+    "n_pc": 17,
+    "p": 0.044769287109375,
+    "p_holm": 0.044769287109375,
+    "label": "CD-FASTER"
+   },
+   "locality": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 2.4312103555037567,
+    "qshare": 0.12453890860718994,
+    "exch_per_task": 0.06708091650418789,
+    "exch_share": 0.03921092007961695,
+    "cold_start_pct": 41.011,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": 0.7004714528710654,
+    "faster": 0,
+    "n_pc": 17,
+    "p": 1.52587890625e-05,
+    "p_holm": 9.1552734375e-05,
+    "label": "CD-FASTER"
+   },
+   "batched": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 2.415183768596813,
+    "qshare": 0.1108200298767965,
+    "exch_per_task": 0.07440590189667103,
+    "exch_share": 0.04441775532690428,
+    "cold_start_pct": 41.8765,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": 0.13654004559331412,
+    "faster": 0,
+    "n_pc": 17,
+    "p": 1.52587890625e-05,
+    "p_holm": 9.1552734375e-05,
+    "label": "CD-FASTER"
+   },
+   "cd": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 2.41311042270522,
+    "qshare": 0.10650855221147887,
+    "exch_per_task": 0.07450573136034039,
+    "exch_share": 0.044608076230185825,
+    "cold_start_pct": 42.3865,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    }
+   },
+   "_cd_first": true
+  },
+  "hi": {
+   "reactive": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 0.5195881872033611,
+    "qshare": 0.35513809673260277,
+    "exch_per_task": 0.09634134131455871,
+    "exch_share": 0.18979649719762415,
+    "cold_start_pct": 3.6879999999999997,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": -64.0361952110565,
+    "faster": 17,
+    "n_pc": 17,
+    "p": 1.52587890625e-05
+   },
+   "selfpredict": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 0.46592799516412553,
+    "qshare": 0.4021515783243551,
+    "exch_per_task": 0.04989501401475939,
+    "exch_share": 0.10910244550352748,
+    "cold_start_pct": 3.7954999999999997,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": -67.46871375635625,
+    "faster": 17,
+    "n_pc": 17,
+    "p": 1.52587890625e-05,
+    "p_holm": 9.1552734375e-05,
+    "label": "CONFIRMED"
+   },
+   "locality": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 1.35810236489234,
+    "qshare": 0.18064409515112512,
+    "exch_per_task": 0.03380370976162122,
+    "exch_share": 0.04378968041619035,
+    "cold_start_pct": 6.548,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": 0.5466214114333234,
+    "faster": 1,
+    "n_pc": 17,
+    "p": 3.0517578125e-05,
+    "p_holm": 9.1552734375e-05,
+    "label": "CD-FASTER"
+   },
+   "batched": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 1.3543349415177126,
+    "qshare": 0.17377753491662415,
+    "exch_per_task": 0.04113979760647832,
+    "exch_share": 0.05142024860353639,
+    "cold_start_pct": 6.481,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    },
+    "vs_cd": 0.5268141451534314,
+    "faster": 0,
+    "n_pc": 17,
+    "p": 1.52587890625e-05,
+    "p_holm": 9.1552734375e-05,
+    "label": "CD-FASTER"
+   },
+   "cd": {
+    "n_topologies": 17,
+    "n_runs": 68,
+    "n_failed": 0,
+    "lat": 1.3507082893895652,
+    "qshare": 0.1759609942121687,
+    "exch_per_task": 0.03247781618903778,
+    "exch_share": 0.04454544426570725,
+    "cold_start_pct": 6.6545000000000005,
+    "exchange_by_access_class": {
+     "available": false,
+     "reason": "no access classes on these topologies (uniform links)"
+    }
+   },
+   "_cd_first": false
+  },
+  "_meta": {
+   "family": [
+    "selfpredict",
+    "locality",
+    "batched"
+   ],
+   "family_size": 6,
+   "context_only": [
+    "reactive"
+   ],
+   "topologies": [
+    9483,
+    9484,
+    9485,
+    9487,
+    9491,
+    9502,
+    9506,
+    9525,
+    9529,
+    9533,
+    9540,
+    9548,
+    9550,
+    9551,
+    9557,
+    9566,
+    9568
+   ],
+   "excluded": [
+    9538,
+    9565
+   ]
+  }
+ },
+ "_cd_decomposition": {
+  "ladder_window": {
+   "lo": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 2.8473106952603864,
+    "batching_wait": 0.6958637540724825,
+    "queue": 0.1803338008125807,
+    "exchange": 0.07308943842062632,
+    "rendezvous": 1.5817742719895191,
+    "cold_start": 0.209555025,
+    "other": 0.11277033832528538
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 0.49754667479186754,
+    "batching_wait": 0.017282061639929364,
+    "queue": 0.1882213510277188,
+    "exchange": 0.050279683036413066,
+    "rendezvous": 0.03597930178172204,
+    "cold_start": 0.032910165,
+    "other": 0.17456438967141674
+   }
+  },
+  "fixed_window": {
+   "lo": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 2.416959839349194,
+    "batching_wait": 0.14776208085889994,
+    "queue": 0.1810041110189522,
+    "exchange": 0.07450573136034039,
+    "rendezvous": 1.6913331201128048,
+    "cold_start": 0.210467925,
+    "other": 0.1137331268619457
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 19,
+    "latency": 1.3507082893895652,
+    "batching_wait": 0.9317234698282625,
+    "queue": 0.1776963099384705,
+    "exchange": 0.032509036258721764,
+    "rendezvous": 0.010543718025730484,
+    "cold_start": 0.024375675,
+    "other": 0.17325179048672146
+   }
+  },
+  "ladder_window_excluding_failed_topologies": {
+   "lo": {
+    "available": true,
+    "n_topologies": 17,
+    "latency": 2.8462305050079517,
+    "batching_wait": 0.6919873365592687,
+    "queue": 0.1759830289565461,
+    "exchange": 0.07308943842062632,
+    "rendezvous": 1.5819300482110512,
+    "cold_start": 0.206867155,
+    "other": 0.11129370855297349
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 17,
+    "latency": 0.4941708596131604,
+    "batching_wait": 0.0172597893465731,
+    "queue": 0.18690703552423044,
+    "exchange": 0.050046506309447424,
+    "rendezvous": 0.03597930178172204,
+    "cold_start": 0.03269364,
+    "other": 0.1751404919193939
+   }
+  },
+  "fixed_window_excluding_failed_topologies": {
+   "lo": {
+    "available": true,
+    "n_topologies": 17,
+    "latency": 2.41311042270522,
+    "batching_wait": 0.14753123750423372,
+    "queue": 0.17724719400716105,
+    "exchange": 0.07450573136034039,
+    "rendezvous": 1.6915912281402277,
+    "cold_start": 0.20806492,
+    "other": 0.11234814550598049
+   },
+   "hi": {
+    "available": true,
+    "n_topologies": 17,
+    "latency": 1.3507082893895652,
+    "batching_wait": 0.9317234698282625,
+    "queue": 0.1776963099384705,
+    "exchange": 0.03247781618903778,
+    "rendezvous": 0.010543718025730484,
+    "cold_start": 0.02429338,
+    "other": 0.17325179048672146
+   }
+  }
+ }
+}
