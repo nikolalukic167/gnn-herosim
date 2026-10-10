@@ -59,8 +59,9 @@ never a message-passing win.** The seat is R1.1 + WF1, with replicas on the fast
   - the additive surrogate is nearly right (argmin-S hits the optimum in 79 %, regret 6 %);
   - platforms are 95–99 % idle;
   - one-step lookahead headroom is 3–5 %.
-  - Adding servers made it easier, not harder. A pointwise MLP V captures 76 % of the lookahead headroom
-    (`cost_to_go_v1`, gate pending).
+  - Adding servers made it easier, not harder.
+  - **A post-batch value does not help live** (`cost_to_go_v1`, CLOSED NO-WIN). The hand V and the MLP V both tie
+    cd_exactS (≤ 0.5 %), although the MLP V captured 76 % of the headroom offline.
 - **Bigger peer groups** (`big_groups_s0_v1`): G=8 breaks exact enumeration (fallback in 48–82 % of batches, served plan
   55–65 % above best-known). S's own error is tail-only (median per-state regret 0). The screen is NO-GO as registered,
   and the G=8 live gate is pending.

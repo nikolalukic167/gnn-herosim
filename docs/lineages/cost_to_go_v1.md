@@ -1,15 +1,18 @@
 # cost_to_go_v1 — does a learned post-batch value beat exact batch-myopic search?
 
-**Status:** `ACTIVE` (2026-10-11). Registered 2026-10-10; every bar below was signed before any data.
+**Status:** `CLOSED` (2026-10-11) — **NO-WIN** (both arms). Registered 2026-10-10; every bar below was signed before any data.
 
-**Now (2026-10-11).**
-- **S0 PASSES pooled at every H, but thinly:** the headroom is 4.74 / 3.25 / 3.35 % at H 5/15/30. It sits in a tail
-  (the per-state median is 0).
-- At short H it is mostly S's batch-surrogate error. The post-batch window part reaches the bar only at H30 (3.17 %).
-- **Disclosed ceiling:** the one-step oracle headroom is below the gate's −5 % WIN bar, so expect DIRECTION-ONLY at best.
-- In the split 9–10-task groups the lever is search, not V.
-- S1 passes (Spearman 1.000 median); H = 5 is fixed.
-- A pointwise MLP V captures 76 % of the H5 headroom offline, so the GNN rung is not run. The gate is next.
+**Outcome (2026-10-11, gate 856599, 24 fresh topologies × 4 windows × 2 rungs, 768/768 cells, reader 579f7346).**
+- **Neither value term moves cd_exactS live.**
+  - Hand V vs cd_exactS: +0.04 / −0.05 % (moderate / heavy), Holm 1.0.
+  - MLP V vs cd_exactS: +0.20 / +0.50 %. The heavy rung is a nominal loss (p .016) that is not significant after Holm
+    (.066).
+- **The MLP V's offline gain does not carry live.** It captured 75.9 % of the S0 headroom offline. Live it changes
+  26–29 % of the re-ranked plans (the hand V changes 8 %) and gains nothing.
+- cd_exactS beats plain CD by 6–7 % (0/24 topologies where CD is faster), and that margin is all exact search.
+- **Ceiling, disclosed before data:** one-step lookahead headroom was 3–5 %, tail-only, already below the −5 % WIN bar.
+- The GNN-V rung was never run, under the registered rule, so there is **no MP claim either way**.
+- **Do not re-propose a post-batch value on this seat without new headroom.** The lookahead lever is closed here.
 
 **Why.** Within the declared top-5 slate, exact search on CD's surrogate S (cd_exactS) dominates learned batch scorers
 offline: hit 79.4 % against the GNN's 64.8 %, regret 6.1 % against 21.7 % of the summed optimum (`accel_replica_v1`,
@@ -52,6 +55,37 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 02:00 — **Gate read: NO-WIN for both V arms; lineage CLOSED** (S6; reader 579f7346, read once at code
+  22c46038 with a clean tree; /share/nikola.lukic/cost_to_go_gate/gate_22c46038/read.{json,txt}).
+  - **Health:** 768/768 cells, 0 failed, 0 watchdog kills. Worst end-to-last-arrival ≤ 1.047. The sensitivity read is
+    identical (no topology excluded).
+  - **Primary family (Holm over 4; negative = the V arm is faster):**
+
+    | contrast | rung | median | V faster | p | Holm |
+    |---|---|---|---|---|---|
+    | hand V vs cd_exactS | moderate | +0.04 % | 12/24 | .966 | 1.000 |
+    | hand V vs cd_exactS | heavy | −0.05 % | 13/24 | .768 | 1.000 |
+    | MLP V vs cd_exactS | moderate | +0.20 % | 10/24 | .229 | .688 |
+    | MLP V vs cd_exactS | heavy | +0.50 % | 7/24 | .016 | .066 |
+
+  - **Descriptive:**
+    - cd vs cd_exactS +7.40 / +6.12 % (CD faster on 0/24);
+    - hand V vs cd −6.92 / −6.11 % (24/24);
+    - MLP V vs cd −7.33 / −5.91 % (24/24, 23/24);
+    - MLP V vs hand V −0.18 % (p .94) / +0.87 % (p .043).
+  - **Health per arm:** queue share .25–.29 at moderate and .51–.56 at heavy; median latency 2.81–3.06 s at moderate and
+    2.45–2.62 s at heavy.
+  - **Instrument on:** pg_v_batches = pg_exact_batches in every arm and rung (about 1.1M batches each). Plans changed:
+    hand V 8.5 / 8.4 %, MLP V 26.4 / 29.4 %.
+  - **Disclosures:**
+    - The λ fits are asymmetric: the hand V's 0.1 was fit on S0's FIT half, the MLP V's 1.0 on train-topology
+      SELECTION.
+    - The policy path's 1 ms batch-poll offset was accepted at a 1.1 ms tolerance (40/40 plans identical).
+    - The failed launches 856458 and 856586 were code fixes before data, not reruns. They are recorded below.
+  - **Ruling (coordinator):** CLOSED NO-WIN as registered.
+    - The live result confirms the disclosed ceiling: one-step lookahead headroom on this seat is too small, and too
+      concentrated in the tail, for a value term to move latency.
+    - The offline capture rate (Q5 saved) does not predict live gain. This matches "offline ranks epochs, never arms".
 - 2026-10-11 21:20 — **Gate prepared and launched** (S6; serving rp/cost-to-go-mlpv: `HEROSIM_PG_CD_EXACT_V=hand|mlp`
   re-ranks cd_exactS's plan plus the next 4 by S with dS + λ·dV; over-cap batches serve the fallback unchanged).
   - **Flag-off identity (856588):** taskResults identical over 8,000 tasks. A first attempt (856586) exposed two harness
