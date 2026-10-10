@@ -51,6 +51,20 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 09:50 — **Training done and checkpoints selected** (S7; array 855607 all COMPLETED; selection 855608;
+  validation only).
+  - **Rule:** lowest mean `val/regret_masked_topo` over 3 seeds. The split has 438 datasets on the held-out topologies
+    16251–16258.
+
+    | Arm | Chosen | Mean ± sd | Seeds | All configs g0–g5 |
+    |---|---|---|---|---|
+    | gnn_eng | g4 | 0.736 ± 0.036 | 0.781 / 0.692 / 0.736 | 0.927 / 0.776 / 0.765 / 0.922 / 0.736 / 0.939 |
+    | gnn_eng_physmp | g3 | 0.633 ± 0.003 | 0.634 / 0.636 / 0.629 | 0.678 / 0.659 / 0.722 / 0.633 / 0.672 / 0.790 |
+
+  - The corpus differs from scale_160's, so validation numbers are not comparable across the two.
+  - Staged at `accel_prod/gate_inputs/models/` (6 .pt + 6 sidecars). The sentinel split sha is f5bc4f51…. Seed-1
+    sidecars of both arms carry `replica_placement_rule = fastest_compatible`, and the loader refuses first_compatible
+    cells.
 - 2026-10-10 06:15 — **Training launched** (S7, `rp/accel-train` 26e4f5b2, pinned): cache 855606, then a 12-task array
   855607 (40G), then selection 855608.
   - The cache records and cross-checks `replica_placement_rule=fastest_compatible`.
