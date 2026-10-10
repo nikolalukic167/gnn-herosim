@@ -1207,6 +1207,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if reserve is not None:
             for idx in range(len(decodable)):
                 reserve(placements[idx])
+        # fidelity replay: the autoscaler's first tick waits for this decision, as it waited on the mutex in the live run
+        # (DeterminedScheduler releases the same gate; None unless a fidelity snapshot seeded it)
+        gate = getattr(self.autoscaler, "_kpa_start_gate", None)
+        if gate is not None and not gate.triggered:
+            gate.succeed()
         yield self.mutex.put(system_state)
 
         for task in deferred:
