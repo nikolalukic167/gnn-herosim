@@ -1,0 +1,33 @@
+{
+ "verdict": "DESIGN-READY",
+ "lineage": "accel_replica_v1",
+ "clients": 160,
+ "servers": 24,
+ "connection_probability": 0.6,
+ "topologies": [
+  16301,
+  16302,
+  16303,
+  16304,
+  16305,
+  16306,
+  16307,
+  16308,
+  16309,
+  16310,
+  16311,
+  16312
+ ],
+ "spares": [
+  16313,
+  16314,
+  16315,
+  16316,
+  16317,
+  16318,
+  16319,
+  16320
+ ],
+ "replica_placement_rule": "fastest_compatible",
+ "note": "gate test topologies; corpus is 16201-16300 (S5), disjoint"
+}

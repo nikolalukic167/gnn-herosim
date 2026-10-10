@@ -74,3 +74,10 @@ def test_labels():
 def test_a_win_needs_both_rungs_and_five_percent():
     out = _labels({"ra_gnn_eng": {"moderate": -8.0, "heavy": -3.0}, "ra_gnn_eng_physmp": {"moderate": -8.0, "heavy": -8.0}})
     assert out == {"ra_gnn_eng": "DIRECTION-ONLY", "ra_gnn_eng_physmp": "WIN"}
+
+
+def test_accel_replica_selection_is_disjoint_from_its_corpus():
+    sel = json.load(open(os.path.join(os.path.dirname(SEL), "accel_replica_v1_selected.json")))
+    assert sel["topologies"] == list(range(16301, 16313)) and sel["spares"] == list(range(16313, 16321))
+    assert sel["replica_placement_rule"] == "fastest_compatible"
+    assert not set(sel["topologies"] + sel["spares"]) & set(range(16001, 16021)) | set(range(16101, 16301))
