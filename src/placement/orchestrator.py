@@ -232,6 +232,8 @@ class Orchestrator:
             "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
             "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
             "pg_random_seed_batches",
+            # accel pull-hold control: candidate evaluations charged the node's pull hold, and the seconds charged
+            "pg_pull_charged", "pg_pull_seconds",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",

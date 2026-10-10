@@ -51,6 +51,8 @@ RULE_POLICY = {
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
+    "cd_pull": "peer_greedy_network_cd",  # accel pull-hold control: HEROSIM_PG_PULL_HOLD=1 + HEROSIM_PULL_LEDGER=1
+    "cd_ledger": "peer_greedy_network_cd",  # identity check: the pull ledger alone (HEROSIM_PULL_LEDGER=1) must leave CD bit-identical
     "cd_declared": "peer_greedy_network_cd",  # r1_attribution_v1: CD over the learned arms' declared slate (GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1); descriptive
     "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
@@ -132,7 +134,8 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM
+R1A_DIAG = ("cd_pull", "cd_ledger")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
 _LAST_ARRIVAL: Dict[str, float] = {}
@@ -321,13 +324,14 @@ def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
         raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
     topos = [int(x) for x in os.environ.get("R1A_TOPOS", "").split(",") if x] or list(selection["topologies"])
     wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
-    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM)).split(",") if k]
+    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM + R1A_DIAG)).split(",") if k]
     seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
     unknown = [k for k in arms if k not in R1A_ARMS]
     if unknown:
         raise SystemExit(f"FAIL LOUD: R1A_ARMS {unknown}; arms are {R1A_ARMS}")
-    cells = [task(t, f"{w}{tag}", k, 0 if k in R1A_CLASSICAL else sd)
-             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if k in R1A_CLASSICAL else seeds)]
+    single = R1A_CLASSICAL + R1A_DIAG
+    cells = [task(t, f"{w}{tag}", k, 0 if k in single else sd)
+             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if k in single else seeds)]
     shard = os.environ.get("R1A_SHARD", "")
     if shard:
         i, n = (int(x) for x in shard.split("/"))
@@ -681,7 +685,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED", *KEEPWARM_ENV):
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
+              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -776,7 +781,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_declared", "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
@@ -790,6 +795,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / rate_scale)
         if kind == "cd_inflight":
             env["HEROSIM_PG_INFLIGHT"] = "1"
+        if kind == "cd_pull":
+            env.update(HEROSIM_PG_PULL_HOLD="1", HEROSIM_PULL_LEDGER="1")
+        if kind == "cd_ledger":
+            env["HEROSIM_PULL_LEDGER"] = "1"
         if kind in DECIMA_TUNE_ALPHAS:
             env["HEROSIM_DECIMA_ALPHA"] = repr(DECIMA_TUNE_ALPHAS[kind])
         if kind == "decima":
@@ -936,7 +945,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("decima instrument off: decima_batches == 0")
         if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
             problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
-    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
     # cd_declared: the slate must have been applied to every batch, and nowhere else
     declared = int(c.get("pg_declared_batches") or 0)
@@ -965,6 +974,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("inflight instrument off: HEROSIM_PG_INFLIGHT not served or pg_inflight_charged == 0")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
         problems.append("a non-inflight arm charged the in-flight task")
+    if kind == "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") != "1" or out["env"].get("HEROSIM_PULL_LEDGER") != "1"
+                              or int(c.get("pg_pull_charged") or 0) == 0):
+        problems.append("pull-hold instrument off: HEROSIM_PG_PULL_HOLD / HEROSIM_PULL_LEDGER not served or pg_pull_charged == 0")
+    if kind != "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") or int(c.get("pg_pull_charged") or 0)):
+        problems.append("a non-pull arm charged the pull hold")
+    if (out["env"].get("HEROSIM_PULL_LEDGER") == "1") != (kind in ("cd_pull", "cd_ledger")):
+        problems.append(f"HEROSIM_PULL_LEDGER={out['env'].get('HEROSIM_PULL_LEDGER')!r} served for {kind}")
     if kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0) == 0:
         problems.append("spread instrument off: prefix_sibling_moves == 0")
     want_capture = SERVICE_END if (base_kind in BC1_KINDS or kind.endswith("_se")) else None

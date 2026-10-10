@@ -24,7 +24,7 @@ import sys
 from datetime import datetime
 from typing import Dict, Tuple, Type, Set, Any, List, Optional
 
-from src.placement.infrastructure import FIDELITY, Node, Platform, Storage, Application, Task
+from src.placement.infrastructure import PULL_LEDGER, Node, Platform, Storage, Application, Task
 from src.placement.network_fabric import build_fabric
 from src.placement.progress import start_progress_reporter
 from src.placement.replica_rule import order_platforms
@@ -191,7 +191,7 @@ def create_nodes(
 
             storage_id += 1
 
-        if FIDELITY:
+        if PULL_LEDGER:
             # a pull checks its storage out of the FilterStore for its whole duration; keep the full list
             current_node._fid_storages = list(storage_store.items)
 
