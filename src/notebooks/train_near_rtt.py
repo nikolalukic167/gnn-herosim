@@ -1039,6 +1039,40 @@ def move_graph_to_device(data: Data, device: torch.device) -> Data:
     return data
 
 
+_CE_GRAPH_WEIGHT_MODE = os.environ.get("NEAR_RTT_CE_GRAPH_WEIGHT", "")
+if _CE_GRAPH_WEIGHT_MODE not in ("", "stakes"):
+    raise SystemExit(f"FAIL LOUD: NEAR_RTT_CE_GRAPH_WEIGHT={_CE_GRAPH_WEIGHT_MODE!r}; only 'stakes' is defined")
+_CE_GRAPH_WEIGHTS: Optional[Dict[str, float]] = None
+
+
+def _ce_graph_weights(loader: DataLoader) -> Dict[str, float]:
+    """Per-dataset CE weight ~ the dataset's stakes: mean RTT of its plans in the capped sidecar minus the true optimum.
+    The sidecar is a capped, near-optimum-biased sample of the sweep, so this UNDERESTIMATES the random-plan regret (a
+    disclosed proxy, accepted). Clipped to NEAR_RTT_CE_GRAPH_WEIGHT_CLIP (lo,hi; default 0.25,8) then renormalised to mean 1
+    over the training datasets, so the loss scale and learning rate stay comparable to plain CE."""
+    global _CE_GRAPH_WEIGHTS
+    if _CE_GRAPH_WEIGHTS is not None:
+        return _CE_GRAPH_WEIGHTS
+    lo, hi = (float(x) for x in os.environ.get("NEAR_RTT_CE_GRAPH_WEIGHT_CLIP", "0.25,8").split(","))
+    stakes: Dict[str, float] = {}
+    for did in loader.dataset.dataset_ids:
+        combos = RTT_BY_DATASET.get(did) or RTT_BY_DATASET.get(parent_dataset_id(did))
+        opt = DATA_OPTIMAL_RTT.get(did, DATA_OPTIMAL_RTT.get(parent_dataset_id(did)))
+        if not combos or opt is None:
+            raise SystemExit(f"FAIL LOUD: NEAR_RTT_CE_GRAPH_WEIGHT=stakes has no sidecar RTTs or optimum for {did}")
+        stakes[parent_dataset_id(did)] = max(0.0, sum(combos.values()) / len(combos) - float(opt))
+    mean_s = sum(stakes.values()) / len(stakes)
+    if mean_s <= 0:
+        raise SystemExit("FAIL LOUD: NEAR_RTT_CE_GRAPH_WEIGHT=stakes: mean stakes is 0")
+    w = {d: min(hi, max(lo, v / mean_s)) for d, v in stakes.items()}
+    norm = sum(w.values()) / len(w)
+    _CE_GRAPH_WEIGHTS = {d: v / norm for d, v in w.items()}
+    ws = sorted(_CE_GRAPH_WEIGHTS.values())
+    print(f"[ce-graph-weight=stakes] {len(ws)} train datasets, clip ({lo},{hi}), weights min {ws[0]:.3f} median {ws[len(ws)//2]:.3f} "
+          f"p90 {ws[int(.9*len(ws))]:.3f} max {ws[-1]:.3f}", flush=True)
+    return _CE_GRAPH_WEIGHTS
+
+
 def train_epoch(
     model: nn.Module,
     loader: DataLoader,
@@ -1088,6 +1122,8 @@ def train_epoch(
                 logits = model(data)
                 loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
             if valid_ce > 0 and torch.isfinite(loss_ce):
+                if _CE_GRAPH_WEIGHT_MODE:
+                    loss_ce = loss_ce * _ce_graph_weights(loader)[lookup_dataset_id(data)]
                 loss_ce_total = loss_ce_total + loss_ce
                 n_ce += 1
 
