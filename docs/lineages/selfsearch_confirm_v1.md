@@ -1,6 +1,24 @@
 # selfsearch_confirm_v1 — does a pure GNN policy with search on its own score beat CD on fresh topologies?
 
-**Status:** `REGISTERED` (2026-10-11). Every bar below was signed before any data.
+**Status:** `CLOSED` (2026-10-11) — **DIRECTION-ONLY** (moderate CONFIRMED, heavy DIRECTION-ONLY; no WIN). Registered
+2026-10-11; every bar below was signed before its data.
+
+**Outcome.** A pure learned policy, the no-split GNN choosing the slate plan with the best score of its own (no S, no
+CD), beats CD on 24 fresh topologies. The margin is confirmed at moderate; at heavy it is significant but under the −5 %
+bar.
+- **Primary, vs CD, median paired % (Holm over 4), moderate / heavy:**
+  - gnn_eng self-search: −8.46 % (23/24, Holm < .0001) / −3.09 % (19/24, Holm .0017);
+  - physmp self-search: −10.09 % (23/24, < .0001) / −3.76 % (20/24, .0017).
+  - No rung has CD faster.
+- **Search adds over the plain no-split decode**, significant at both rungs and both checkpoints: −1.0 / −1.6 % and
+  −2.6 / −3.0 %.
+- **Not a message-passing result:** gnn_eng self-search vs its separately trained MP-OFF twin's self-search is
+  +0.07 / −0.24 % (NOT-SEPARATED).
+- **The hand searches holding the same information are faster at heavy:** vs cd_exactS +3.66 / +3.40 % (2/24),
+  vs cdxapply +2.21 / +1.78 %. At moderate they tie.
+- The development heavy margin (−9.4 % on 12 topologies) shrank to −3.1 / −3.8 % on fresh topologies. Moderate held.
+- **Quote as:** "a learned scorer with search on its own score beats CD, confirmed at moderate". Never as a
+  message-passing win, and never as beating the best hand search.
 
 **Why.** On the 12 development topologies, the no-split GNN choosing the slate plan with the highest score of its own
 (gnn_selfsearch: exact up to 625 plans, coordinate ascent above; no S, no CD, no hand term) beat CD by −10.67 / −9.35 %
@@ -45,6 +63,20 @@ had heavy at only −1.65 % (DIRECTION-ONLY). This tests the self-search arm whe
 
 ## Record (newest first)
 
+- 2026-10-11 21:00 — **CLOSED DIRECTION-ONLY** (S4; gate 856313 at 79ea002c plus twin 856438 at 2c84ab4e; read once as
+  856584 with reader fdd6f798, both gate dirs; 2,688 summaries, 0 failed, 24 topologies 16490–16513).
+  - Search ran on every batch. gnn_eng exact / ascent batches: 2.14 M / 0.42 M at moderate, 1.97 M / 0.51 M at heavy.
+    The plan changed vs the decode in 37 / 41 % of batches.
+  - Decision time per task, median 16–25 ms.
+  - **Primary:** as in the head.
+  - **Secondary, does the search add (Holm over 4, all significant):** gnn_eng −0.97 / −1.57 %; physmp −2.59 / −3.00 %.
+    The reader's per-rung labels inherit the −5 % bar, so read the numbers.
+  - **MP family (Holm over 2):** +0.07 % (11/24, p .81) / −0.24 % (13/24, Holm .39). NOT-SEPARATED.
+  - **Descriptive:**
+    - self-search vs cd_exactS: −0.16 / +3.66 % (gnn_eng), −1.96 / +3.40 % (physmp);
+    - vs cdxapply: −1.87 / +2.21 %, −3.12 / +1.78 %;
+    - no-split vs CD: −7.44 / −1.67 %, −7.96 / −0.55 %.
+  - **Prediction:** both rungs CONFIRMED. It held at moderate and missed at heavy.
 - 2026-10-11 17:45 — **MP-OFF twin trained and checked** (S7; rp/accel-twin 2d398731, the gnn_eng **g4** recipe, which
   is the served checkpoint, with message passing disabled in training and serving; job 856255, 100-epoch cap, W&B
   gnn-accel-replica-v1).
