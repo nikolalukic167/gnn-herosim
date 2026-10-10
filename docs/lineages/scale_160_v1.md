@@ -50,6 +50,21 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 08:35 — **Training done and checkpoints selected** (S7; array 855580 all COMPLETED, slowest task 3 h 00 m;
+  selection 855581 exited clean; validation only).
+  - **Rule:** lowest mean `val/regret_masked_topo` over 3 seeds. The split has 451 datasets on 8 held-out topologies; the
+    unit is seconds, as a mean of per-dataset regret.
+
+    | Arm | Chosen | Mean ± sd | Seeds | All configs g0–g5 |
+    |---|---|---|---|---|
+    | gnn_eng | g4 | 0.882 ± 0.014 | 0.890 / 0.894 / 0.863 | 1.007 / 0.969 / 0.975 / 0.997 / 0.882 / 0.953 |
+    | gnn_eng_physmp | g5 | 0.828 ± 0.094 | 0.928 / 0.855 / 0.702 | 0.913 / 0.897 / 0.887 / 0.937 / 0.860 / 0.828 |
+
+  - **Disclosed:** physmp g5 wins on the mean through one seed (0.702). g4 is the tightest (0.860 ± 0.001) and within
+    noise of g5. The rule picks g5, and it stands as registered.
+  - **Floors on the same split:** random plan 16.42 s, additive argmin 4.51 s.
+  - Staged at `s160_prod/gate_inputs/models/` (6 .pt + 6 sidecars). Sentinel `selection.json` has split sha
+    b8fe5007…. S4's trigger submits the learned arms.
 - 2026-10-10 01:15 (recorded 08:20) — **Size-transfer probe: r1a checkpoints served at 80c×12s** (S6; jobs 855114 and
   855128; 32 of 32 cells, 0 hung; results `simulation_data/r1a_gate/scale80_9101_263dd915` on datalab; descriptive only,
   never closes anything).
