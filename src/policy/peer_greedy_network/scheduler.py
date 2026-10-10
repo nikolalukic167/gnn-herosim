@@ -114,6 +114,8 @@ def _pg_ext_rate() -> Optional[float]:
 # the exact optimum: single-task moves reach it in 55 %, expansion in 67 % (the tails stay large, so it is a search,
 # not a labeller). 0 (the default) is the registered CD rule, byte-identical.
 PG_CD_EXPANSION_ENV = "HEROSIM_PG_CD_EXPANSION"
+PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
+                      "pg_expand_gain_seconds", "pg_expand_labels_skipped")
 PG_CD_EXPANSION_SWEEPS_ENV = "HEROSIM_PG_CD_EXPANSION_SWEEPS"  # label sweeps per expansion phase (default 3)
 PG_CD_EXPANSION_MAX_MOVERS_ENV = "HEROSIM_PG_CD_EXPANSION_MAX_MOVERS"  # a label shared by more tasks than this is skipped and counted (default 12)
 
@@ -239,10 +241,10 @@ class _PeerGreedyCore:
         self.pg_expand_evals = 0
         self.pg_expand_gain_seconds = 0.0
         self.pg_expand_labels_skipped = 0
-        if self.pg_cd_expansion and self._policy_label != "peer_greedy_network_cd":
+        if self.pg_cd_expansion and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
             raise RuntimeError(
-                f"FAIL LOUD: {PG_CD_EXPANSION_ENV}=1 is defined for peer_greedy_network_cd only (the move lives in its refine); "
-                f"{self._policy_label} has no refine to extend"
+                f"FAIL LOUD: {PG_CD_EXPANSION_ENV}=1 is defined for peer_greedy_network_cd and the CD refine of a seeded plan "
+                f"(gnn_cd_refine) only; {self._policy_label} has no refine to extend"
             )
         self.pg_ext_batches = 0
         self.pg_ext_charged = 0
@@ -1131,6 +1133,10 @@ class GnnCdRefiner(_PeerGreedyCore):
     _policy_label = "gnn_cd_refine"
     _pg_batched = True
     _pg_batch_pass = PeerGreedyNetworkBatchScheduler._pg_batch_pass
+    # cdxapply (HEROSIM_PG_CD_EXPANSION=1): the expansion phase of cd_expand, bound here as the pass is, not copied
+    _pg_candidates = PeerGreedyNetworkBatchScheduler._pg_candidates
+    _pg_plan_cost = PeerGreedyNetworkBatchScheduler._pg_plan_cost
+    _pg_expand = PeerGreedyNetworkBatchScheduler._pg_expand
 
     def __init__(self, host) -> None:
         self._host = host
@@ -1145,6 +1151,14 @@ class GnnCdRefiner(_PeerGreedyCore):
 
     def _pg_orchestrator(self):
         return self._host._orchestrator()
+
+    def _refine_passes(self, passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of) -> None:
+        for _ in range(passes):
+            moved = self._pg_batch_pass(batch_tasks, system_state, orch, memo=memo,
+                                        committed_service=committed_service, planned=planned,
+                                        placements=placements, service_of=service_of, refine=True)
+            if moved == 0:
+                break
 
     def refine(self, batch_tasks: List["Task"], system_state: SystemState,
                seed: Dict[int, Tuple[int, int]], passes: int) -> Tuple[Dict[int, Tuple[int, int]], Dict[str, int]]:
@@ -1171,12 +1185,11 @@ class GnnCdRefiner(_PeerGreedyCore):
             key = f"{node.node_name}:{platform.id}"
             committed_service[key] = committed_service.get(key, 0.0) + service
             service_of[int(task.id)] = (key, service)
-        for _ in range(passes):
-            moved = self._pg_batch_pass(batch_tasks, system_state, orch, memo=memo,
-                                        committed_service=committed_service, planned=planned,
-                                        placements=placements, service_of=service_of, refine=True)
-            if moved == 0:
-                break
+        self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if self.pg_cd_expansion:
+            # cdxapply: one expansion phase after the passes converge on the seeded plan, then the passes again (as cd_expand)
+            if self._pg_expand(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
+                self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         seed_load: Dict[Tuple[int, int], int] = {}
         for v in seed.values():
             seed_load[tuple(v)] = seed_load.get(tuple(v), 0) + 1
