@@ -52,6 +52,16 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 21:20 — **Gate prepared and launched** (S6; serving rp/cost-to-go-mlpv: `HEROSIM_PG_CD_EXACT_V=hand|mlp`
+  re-ranks cd_exactS's plan plus the next 4 by S with dS + λ·dV; over-cap batches serve the fallback unchanged).
+  - **Flag-off identity (856588):** taskResults identical over 8,000 tasks. A first attempt (856586) exposed two harness
+    defects, fixed before 856588.
+  - **Live-vs-replay feature parity:** 40/40 plans identical, except idle_s off by exactly 0.001 s. The training rows
+    carry the same 1 ms decision offset, so it is accepted as disclosed.
+  - The selection file now carries DESIGN-READY; topologies unchanged.
+  - **Reader 579f7346, committed before any cell:** primary {hand V, MLP V} vs cd_exactS × 2 rungs, Holm over 4.
+  - Arms cd, cd_exactS, cd_exactS_hv (λ 0.1), cd_exactS_mv (no in-flight, seed 0, λ 1.0, md5 81d6dce7). 24 topologies
+    × 4 windows × 2 rungs = 768 cells.
 - 2026-10-11 20:30 — **Rung (b): the pointwise MLP V captures 76 % of the H5 headroom, so the GNN rung does not run;
   the MLP gate arm is admitted** (S6; 856550 at 2544eb25, after a failed launch 856458 that died on a topology-id parse
   before training; feature passes 2,174 + 346 states, 0 bit-identity exclusions; determinism test passed; W&B
