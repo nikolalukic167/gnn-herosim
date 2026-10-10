@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
+from src.placement.replica_rule import order_platforms, validate as validate_rule
 from src.placement.network_fabric import CORE_PREFIX, draw_access_classes, link_key
 from src.utils.distributions import sample_bounded_int, sample_replica_count
 
@@ -626,6 +627,18 @@ def resolve_reachability_repair_types(
     return list(wanted)
 
 
+def require_generated_replicas_for_rule(config: Dict[str, Any], deterministic_data: Any) -> None:
+    """accel_replica_v1: a non-default replica_placement_rule exists only in the generator's replica_placements (infrastructure.json). The legacy
+    on-the-fly path in executecosimulation / precreate_replicas re-derives replicas with the first_compatible walk, so it would silently run the
+    wrong environment. Refuse it."""
+    rule = (config.get('preinit') or {}).get('replica_placement_rule', 'first_compatible')
+    if rule != 'first_compatible' and not deterministic_data:
+        raise RuntimeError(
+            f"FAIL LOUD: preinit.replica_placement_rule={rule!r} needs the generated infrastructure.json; the legacy path would re-derive "
+            f"replicas with the first_compatible rule"
+        )
+
+
 class ReplicaStarvationError(RuntimeError):
     """A task type asked for replicas and the FCFS allocator gave it none.
 
@@ -727,6 +740,13 @@ def generate_replica_placements_deterministic(
     # preinit.replica_overlap key) reproduces byte-identically.
     replica_overlap = bool(preinit_config.get('replica_overlap', False))
 
+    # accel_replica_v1: which compatible platform of a hosting server carries a type's per_server replica.
+    # first_compatible (default; the key absent) is the node's platform-list order, byte-identical to every
+    # existing grid. fastest_compatible takes the platform with the lowest task_types[type]["executionTime"],
+    # ties by platform id; per_client replicas are unchanged. The flag lives in `preinit`, not `replicas`:
+    # executecosimulation.py reads every key of `replicas` as a task-type name.
+    placement_rule = validate_rule(preinit_config.get('replica_placement_rule', 'first_compatible'))
+
     assigned_platforms = set()  # Set of (node_name, platform_id) tuples
 
     for task_type_name, replica_config in replicas_config.items():
@@ -750,6 +770,9 @@ def generate_replica_placements_deterministic(
                         and (replica_overlap
                              or (node_name, p['platform_id']) not in assigned_platforms)
                     ]
+                    suitable_platforms = order_platforms(
+                        task_type, suitable_platforms, lambda p: p['platform_type'], lambda p: p['platform_id'], placement_rule
+                    )
 
                     replicas_created = 0
                     for platform_info in suitable_platforms:
@@ -1120,6 +1143,11 @@ def generate_deterministic_infrastructure(
             # Which warmth physics this dataset was generated for. Metadata extraction
             # used to report a .get() default here and call it measured.
             "warmth_physics": config.get("warmth_physics"),
+            **(
+                {"replica_placement_rule": config['preinit']['replica_placement_rule']}
+                if (config.get('preinit') or {}).get('replica_placement_rule', 'first_compatible') != 'first_compatible'
+                else {}
+            ),
         }
     }
     

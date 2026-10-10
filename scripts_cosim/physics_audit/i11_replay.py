@@ -378,6 +378,13 @@ def main() -> int:
                             "peerExchangeTime", "peerRendezvousWait", "linkTransferTime", "linkWaitTime", "executionNode",
                             "executionPlatform", "networkLatency")
                     row["replay_tasks"] = [{k: trs[i].get(k) for k in keep} for i in batch_local]
+                if os.environ.get("I11_SCALE"):
+                    # accel_replica_v1: the replicas this replay created and the platform mix it ended with (opt-in; the default row is unchanged)
+                    row["replay_scale_ups"] = [[round(e["timestamp"], 3), e["name"], e.get("cause")] for e in stats.get("scaleEvents", []) if e.get("action") == "up"]
+                    last = {}
+                    for e in stats.get("systemEvents", []):
+                        last[e["name"]] = {k: v for k, v in e.items() if k in ("xavierGpu", "xavierDla", "xavierCpu", "rpiCpu", "pynqFpga", "count")}
+                    row["replay_replicas_end"] = last
                 row["scaleout_target"] = (stats.get("scaleOut") or {}).get("target")
                 row["replay_cold"] = sum(bool(trs[i]["coldStarted"]) for i in batch_local)
             except (Exception, SystemExit) as exc:  # a failed replay (or a sys.exit inside the simulator) is a result, recorded by name
