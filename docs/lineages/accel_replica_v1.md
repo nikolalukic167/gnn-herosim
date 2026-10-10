@@ -51,6 +51,18 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 10:40 — **Fix 9e5ee729; identity PASS; learned arms resubmitted as 855703** (S7 fix, S4 identity).
+  - **Fix:** `rp/accel-gate-fix` 9e5ee729 on fcd47841, 3 files: `executesimulation.py` passes `space_config` and
+    `prefix_serving.py` forwards it, plus tests. All four checkpoint × cell combinations are covered through
+    `load_gnn_model`, and reverting the fix reproduces the failure.
+  - **Callers left as they are:** `wf1_fidelity_parity.py:125`, `peer_affinity_live_serve_check.py:166` and
+    `wide_choice_s0_v1_replay.py:73` still read the global. They refuse an accel checkpoint loudly.
+  - **Identity at 9e5ee729:**
+    - classical, 855697: 4 cells (cd and selfpredict; 16301, g0; moderate and heavy), 0 differences against
+      `classical_fcd47841`;
+    - learned, 855698: 2 of 2 ra_gnn_eng seed-1 cells loaded and finished.
+  - **Resubmitted:** 855703 at 9e5ee729, SEALED=1, 576 cells; output `accel_gate/learned_9e5ee729`.
+  - **Pairing:** the learned arms at 9e5ee729 are paired with the classical arms at fcd47841 on this identity.
 - 2026-10-10 10:00 — **Learned launch 855691 failed at load; ruling: fix and resubmit** (S4 report; coordinator ruling).
   - **Failure:** 0 of 576 cells finished. All 576 exited rc 1 at checkpoint load with "physics environment mismatch
     (replica_placement_rule: … 'fastest_compatible', this run has 'first_compatible')". Slurm shows COMPLETED because
