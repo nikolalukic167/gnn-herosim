@@ -67,6 +67,18 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 16:00 — **CD + pull-hold term beats CD** (S6; diagnostic 855822 at rp/accel-pullhold 4ace56e0; g0; 12 gate
+  topologies; descriptive).
+  - **Term:** `cd_pull` adds max(0, node pull-hold − time-to-output) to CD's base cost, refine included. The live pull
+    ledger is behind `HEROSIM_PULL_LEDGER`.
+  - **Identity:** 28 of 28 cells bit-identical to `classical_fcd47841` (24 CD cells, plus 4 cells with the ledger on
+    and the term off).
+  - **Paired % vs CD:**
+    - moderate: median −3.21 % (11/12 faster, range −7.3 to +0.6);
+    - heavy: median −5.66 % (11/12, range −15.8 to +2.4).
+    - Heavy queue time falls in every cell.
+  - **Implication:** under AGENTS' bar rule, a rule with the model's information, CD + pull is the stronger bar. The
+    GNN's accel margins vs plain CD overstate its standing. GNN vs cd_pull was not paired.
 - 2026-10-10 15:15 — **Post-close diagnostics: where the GNN loses** (descriptive; they close nothing and are inputs to
   the next registration).
   - **CD in the GNN's seat** (S4, 96 cells, f8284fe9, 12 gate topologies; `cd_declared` means the declared top-5 slate
