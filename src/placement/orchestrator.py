@@ -237,6 +237,11 @@ class Orchestrator:
             # cd_expand: exact-move alpha-expansion in the CD refine (HEROSIM_PG_CD_EXPANSION=1)
             "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
             "pg_expand_gain_seconds", "pg_expand_labels_skipped",
+            # fair bar: alpha-beta swap (HEROSIM_PG_CD_SWAP=1) and proposal fusion (HEROSIM_PG_FUSE=1)
+            "pg_swap_batches", "pg_swap_sweeps", "pg_swap_moves", "pg_swap_tasks_moved", "pg_swap_evals", "pg_swap_gain_seconds",
+            "pg_swap_pairs_skipped",
+            "pg_fuse_batches", "pg_fuse_plans", "pg_fuse_capped", "pg_fuse_tasks_from_seed", "pg_fuse_tasks_from_cd",
+            "pg_fuse_tasks_from_cdx", "pg_fuse_gain_seconds",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",
