@@ -33,6 +33,7 @@ def label_of(rows, platforms):
 
 def _one(job):
     ds, expand, extra = Path(job[0]), job[1], (job[2] if len(job) > 2 else None) or {}
+    argmin_s = bool(job[3]) if len(job) > 3 else False
     try:
         os.environ["HEROSIM_SNAPSHOT_FIDELITY"] = "1"
         prov = json.load(open(ds / "generation_provenance.json"))
@@ -67,7 +68,7 @@ def _one(job):
                 allowed.setdefault(int(k), set()).add((int(v[0]), int(v[1])))
         local_of = {fr.batch_local[i]: i for i in range(len(fr.batch_local))}   # replay task id -> dataset task index
         forced = dict(fr.queued_forced)
-        seen = {"decisions": 0, "decided": [], "queued_scheduled_at_decision": None, "s_extra": {}, "s_own": None}
+        seen = {"decisions": 0, "decided": [], "queued_scheduled_at_decision": None, "s_extra": {}, "s_own": None, "argmin_s": None}
 
         orig = PG.PeerGreedyNetworkBatchScheduler._prefix_inference
 
@@ -101,6 +102,18 @@ def _one(job):
 
                 for key, plan in extra.items():
                     seen["s_extra"][key] = s_of(plan)
+                if argmin_s:
+                    # the exact argmin of S over the slate: the sweep is the slate's full product, so S on every row
+                    best_s, best_labels = None, []
+                    for r in rows:
+                        pl = {int(k): v for k, v in r["placement_plan"].items()}
+                        sv = s_of(pl)
+                        if best_s is None or sv < best_s - 1e-12:
+                            best_s, best_labels = sv, [float(r["rtt"])]
+                        elif abs(sv - best_s) <= 1e-12:
+                            best_labels.append(float(r["rtt"]))
+                    seen["argmin_s"] = {"s": best_s, "label_min": min(best_labels), "label_max": max(best_labels),
+                                        "ties": len(best_labels), "n": len(rows)}
                 try:
                     sub = self._pg_decide(free_tasks, system_state)
                 finally:
@@ -144,7 +157,7 @@ def _one(job):
                     plan_nodes=[names[b][0] for b in fr.batch_local], plan_platforms=[names[b][1] for b in fr.batch_local],
                     label_of_plan=label_of(rows, [names[b][1] for b in fr.batch_local]),
                     expand_moves=int(sc.get("pg_expand_moves") or 0), cd_moves=int(sc.get("pg_cd_moves") or 0),
-                    s_own=seen["s_own"], s_extra=seen["s_extra"])
+                    s_own=seen["s_own"], s_extra=seen["s_extra"], argmin_s=seen["argmin_s"])
     except Exception as e:  # recorded, never swallowed
         return dict(ds=str(ds), arm="cd_expand" if expand else "cd", error=f"{type(e).__name__}: {str(e)[:300]}")
 
@@ -153,13 +166,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out"); ap.add_argument("listfile")
     ap.add_argument("--expand", action="store_true"); ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--argmin-s", action="store_true", help="also the exact argmin of S over every sweep row, at the decision")
     ap.add_argument("--extra-plans", default=None, help="JSON {dataset dir name: {label: [[node_id, platform_id] per task index]}}: "
                     "CD's whole-plan surrogate S of each is recorded at the decision, on the same state (s_extra), with s_own for its own plan")
     a = ap.parse_args()
     dss = [l.strip() for l in open(a.listfile) if l.strip()]
     extra = json.load(open(a.extra_plans)) if a.extra_plans else {}
     with get_context("spawn").Pool(a.workers) as pool, open(a.out, "w") as fh:
-        for r in pool.imap(_one, [(d, a.expand, extra.get(Path(d).name)) for d in dss], chunksize=2):
+        for r in pool.imap(_one, [(d, a.expand, extra.get(Path(d).name), a.argmin_s) for d in dss], chunksize=1):
             fh.write(json.dumps(r) + "\n")
             fh.flush()
     return 0
