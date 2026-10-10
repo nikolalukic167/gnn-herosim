@@ -84,8 +84,7 @@ class ValueTerm:
             with open(dump, "a") as fh:
                 fh.write(json.dumps({"now": now, "batch_ids": [int(t.id) for t in batch_tasks], "rates": rates,
                                      "plans": [[[int(c[0].id), int(c[1].id)] for c in p] for p in plans],
-                                     "features": [{k: f[k] for k in ("load_after", "drain", "replicas", "type_platforms", "scale_in_after_s",
-                                                                    "pg_inflight")} for f in feats]}) + "\n")
+                                     "features": [{k: f[k] for k in ("load_after", "drain", "replicas", "type_platforms", "scale_in_after_s")} for f in feats]}) + "\n")
         if self.kind == "hand":
             from scripts_cosim.cost_to_go_handv import hand_v
 
