@@ -51,6 +51,18 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-11 08:00 — **The backlog forms of the hand V rank worse than the own-service V; no in-flight V is
+  selected** (S7; f7ee0cab, offline; 23 tests; the same fixed split).
+  - **EVAL pooled Spearman of dV vs dQ_H, at H 5 / 15 / 30:**
+    - reference (own service + cold): +0.644 / +0.570 / +0.481;
+    - v1: +0.320 / +0.236 / +0.197;
+    - v2: +0.288 / +0.189 / +0.150.
+  - v2 was chosen on FIT (+0.281 vs +0.262). Its fitted λ is the grid minimum at every H.
+  - **Q_H saved on EVAL:** reference 72.3 / 72.3 / −19.5 s; v2 63.1 / 63.2 / −23.6 s.
+  - Each task's platform was recovered from the committed service sums. The recovery was unique in all 2,386 rows,
+    and the code raises otherwise.
+  - **Consequence:** the hand V that goes forward is the own-service + cold form. The live in-flight parity job is not
+    triggered.
 - 2026-10-11 06:40 — **The hand V as built cannot see backlog; it is corrected to the registered definition** (S7;
   a92bc028; offline recompute from the snapshot ghosts, no jobs).
   - **Facts:**
