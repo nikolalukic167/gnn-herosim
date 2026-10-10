@@ -34,6 +34,13 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-10 19:40 — **Amendment, before any read: cd_expand added as a descriptive arm** (coordinator, on SCIENTIST's
+  advice).
+  - `cd_expand` (CD + exact α-expansion moves, rp/cd-expand 8e3d39c6, which is acbea783 + expansion, off by default and
+    identity-tested) beat plain CD by −8.2 / −7.3 % on the accel gate topologies. It holds the GNN's information.
+  - It runs on the same 24 topologies, both rungs, seed 0, with identity shown. It is paired descriptively against the
+    no-split GNN arms.
+  - The primary family and its verdict are unchanged. Any headline must also quote GNN vs cd_expand.
 - 2026-10-10 17:50 — **Launched, sealed** (S4) at acbea783.
   - **Identity (855826):** 6 of 6 cells bit-identical against the accel gate (cd, selfpredict and flag-off ra_gnn_eng
     on 16301, g0, both rungs).
