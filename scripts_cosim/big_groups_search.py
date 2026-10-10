@@ -89,6 +89,172 @@ def _check_state(job):
         return dict(ds=ds, error=f"{type(e).__name__}: {str(e)[:300]}", tb=traceback.format_exc()[-1500:])
 
 
+CAP = 100_000  # the declared pruning's plan cap: argmin-S is exact at or below it, the marked S-only local search above
+
+
+def _neighbours(plan, slates):
+    """Every single-task move inside the task's slate, then every pair swap that keeps both tasks inside their own slates."""
+    n = len(plan)
+    out = []
+    for i in range(n):
+        for c in slates[i]:
+            if c != plan[i]:
+                out.append(plan[:i] + [c] + plan[i + 1:])
+    for i in range(n):
+        for j in range(i + 1, n):
+            if plan[i] != plan[j] and plan[j] in slates[i] and plan[i] in slates[j]:
+                p = list(plan)
+                p[i], p[j] = plan[j], plan[i]
+                out.append(p)
+    return out
+
+
+def _s_search(cost, slates, start):
+    """Lowest cost over the slate: exact enumeration up to CAP plans, else best-improvement local search (moves + swaps) from
+    `start` until no neighbour is strictly cheaper. Returns (plan, cost, exact, evaluations)."""
+    from itertools import product
+
+    total = 1
+    for s in slates:
+        total *= len(s)
+    if total <= CAP:
+        best, bc = None, None
+        for combo in product(*slates):
+            c = cost(list(combo))
+            if bc is None or c < bc - 1e-9:
+                best, bc = list(combo), c
+        return best, bc, True, total
+    cur, cc, evals = list(start), cost(list(start)), 1
+    while True:
+        nb = _neighbours(cur, slates)
+        evals += len(nb)
+        scored = [(cost(p), k) for k, p in enumerate(nb)]
+        c, k = min(scored)
+        if c >= cc - 1e-9:
+            return cur, cc, False, evals
+        cur, cc = nb[k], c
+
+
+def hook(sched, batch_tasks, plan_objs, system_state, ctx):
+    """At the batch decision of the cd_exactS replay: the condition's slate (the dataset's task_candidates), cd_exactS's plan, and
+    the S- and S'-minimal plans over that slate, all in dataset task order as (node_id, platform_id)."""
+    ds = Path(ctx["job"]["ds"])
+    fr = json.load(open(ds / "fidelity_replay.json"))
+    local_of = ctx["local_of"]
+    pos = [local_of[int(t.id)] for t in batch_tasks]  # batch position -> dataset index
+    n = len(pos)
+    couple = {(int(nd.id), int(p.id)): (nd, p) for nd in sched.nodes.items for p in nd.platforms.items}
+    slates_ds = [[tuple(map(int, c)) for c in fr["task_candidates"][d]] for d in range(n)]
+    slates = [slates_ds[pos[i]] for i in range(n)]  # batch order
+    orch, nodes = sched._pg_orchestrator(), sched.nodes.items
+    cd_plan = [(int(nd.id), int(p.id)) for nd, p in plan_objs]
+
+    def cost_fn(shared):
+        def cost(pl):
+            sched.pg_shared_link = shared
+            try:
+                return sched._pg_plan_cost(batch_tasks, [couple[c] for c in pl], orch, {}, nodes)[0]
+            finally:
+                sched.pg_shared_link = False
+        return cost
+
+    start = [c if c in slates[i] else slates[i][0] for i, c in enumerate(cd_plan)]
+    out = {"n": n, "plans_in_slate": 1, "cd_plan_in_slate": all(c in slates[i] for i, c in enumerate(cd_plan))}
+    for s in slates:
+        out["plans_in_slate"] *= len(s)
+    to_ds = lambda pl: [list(pl[pos.index(d)]) for d in range(n)]
+    out["cd_plan"] = to_ds(cd_plan)
+    for name, shared in (("s", False), ("s2", True)):
+        pl, c, exact, ev = _s_search(cost_fn(shared), slates, start)
+        out[f"argmin_{name}"] = to_ds(pl)
+        out[f"{name}_min"], out[f"{name}_exact"], out[f"{name}_evals"] = c, exact, ev
+        out[f"{name}_of_cd"] = cost_fn(shared)(cd_plan)
+    out["slate_sizes"] = [len(s) for s in slates_ds]
+    return out
+
+
+def _search_state(job):
+    """One state: the decision pass (cd_exactS replay with the hook), then the replay-scored reference search to budget B."""
+    t0 = time.time()
+    ds = job["ds"]
+    try:
+        import os
+
+        import rollout_replay
+
+        if job.get("cd_top_k"):
+            os.environ["HEROSIM_PG_CD_EXACT_TOP_K"] = str(job["cd_top_k"])
+        dec = rollout_replay._one(dict(ds=ds, plan="policy", H=-1.0, continuation="cd_exacts", table=None, eps=0.0,
+                                       decision_hook="big_groups_search:hook"))
+        if "error" in dec:
+            raise RuntimeError(dec["error"] + "\n" + dec.get("tb", ""))
+        h = dec["hook"]
+        if h is None:
+            raise RuntimeError("the decision hook never ran (the batch was not decided whole)")
+        fr = json.load(open(Path(ds) / "fidelity_replay.json"))
+        slates = [[tuple(map(int, c)) for c in fr["task_candidates"][d]] for d in range(h["n"])]
+        B = int(job["budget"])
+        seen = {}  # plan tuple -> replayed batch latency
+
+        def q(pl):
+            key = tuple(tuple(map(int, c)) for c in pl)
+            if key not in seen:
+                seen[key] = score(ds, [list(c) for c in key])["q_batch"]
+            return seen[key]
+
+        # the starts (the GNN self-search plan is not available offline: flagged in the read); the S' plan is scored too, so the
+        # best-known plan is the best of everything replayed
+        starts = {"argmin_s": h["argmin_s"], "cd_exacts": h["cd_plan"]}
+        start_q = {k: q(v) for k, v in starts.items()}
+        start_q["argmin_s2"] = q(h["argmin_s2"])
+        first = min(starts, key=lambda k: (start_q[k], k))
+        cur = [tuple(map(int, c)) for c in starts[first]]
+        cq, sweeps, converged = q(cur), 0, False
+        rng = random.Random(f"{job['seed']}:{Path(ds).name}")
+        while True:
+            nb = _neighbours(cur, slates)
+            new = [p for p in nb if tuple(p) not in seen]
+            room = B - len(seen)
+            if new and room <= 0:
+                break
+            if len(new) > room:
+                rng.shuffle(new)
+                new = new[:room]  # the budget ends inside this sweep: a seeded share of it is replayed
+            for p in new:
+                q(p)
+            sweeps += 1 if new else 0
+            done = [p for p in nb if tuple(p) in seen]
+            best = min(done, key=lambda p: (seen[tuple(p)], tuple(p))) if done else None
+            if best is not None and seen[tuple(best)] < cq - 1e-12:
+                cur, cq = [tuple(c) for c in best], seen[tuple(best)]
+                continue
+            converged = len(done) == len(nb)  # every neighbour replayed and none strictly better: a local optimum
+            break
+        ranked = sorted(seen.values())
+        return dict(ds=ds, condition=job.get("condition"), n=h["n"], plans_in_slate=h["plans_in_slate"], slate_sizes=h["slate_sizes"],
+                    cd_plan_in_slate=h["cd_plan_in_slate"], s_exact=h["s_exact"], s2_exact=h["s2_exact"],
+                    s_evals=h["s_evals"], s2_evals=h["s2_evals"], q_argmin_s=start_q["argmin_s"], q_cd_exacts=start_q["cd_exacts"],
+                    q_argmin_s2=start_q["argmin_s2"], q_best=ranked[0], q_second=ranked[1] if len(ranked) > 1 else None,
+                    best_plan=[list(c) for c in cur], replays=len(seen), budget=B, sweeps=sweeps, converged=converged,
+                    exact_batches=dec.get("exact_batches"), exact_fallbacks=dec.get("exact_fallbacks"),
+                    all_q=ranked[:50], wall=time.time() - t0)
+    except Exception as e:
+        import traceback
+
+        return dict(ds=ds, condition=job.get("condition"), error=f"{type(e).__name__}: {str(e)[:300]}", tb=traceback.format_exc()[-2000:])
+
+
+def search(a):
+    states = [l.split() for l in open(a.states) if l.strip()]  # "DATASET CONDITION"
+    jobs = [dict(ds=s[0], condition=s[1] if len(s) > 1 else None, budget=a.budget, seed=a.seed,
+                 cd_top_k=(10 ** 6 if len(s) > 1 and s[1] == "none" else None)) for s in states]
+    with get_context("spawn").Pool(a.workers, maxtasksperchild=1) as pool, open(a.out, "w") as fh:
+        for r in pool.imap_unordered(_search_state, jobs):
+            fh.write(json.dumps(r) + "\n")
+            fh.flush()
+    print(f"search: {len(jobs)} states -> {a.out}")
+
+
 def check(a):
     states = [l.strip() for l in open(a.states) if l.strip()]
     rng = random.Random(a.seed)
@@ -118,15 +284,16 @@ def check(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=("check",))
+    ap.add_argument("mode", choices=("check", "search"))
     ap.add_argument("out")
     ap.add_argument("states")
     ap.add_argument("--n-states", type=int, default=40)
     ap.add_argument("--per-state", type=int, default=10)
     ap.add_argument("--workers", type=int, default=31)
     ap.add_argument("--seed", type=int, default=20261011)
+    ap.add_argument("--budget", type=int, default=600, help="replayed plans per state (registered B = 600, the same for every G)")
     a = ap.parse_args()
-    check(a)
+    (check if a.mode == "check" else search)(a)
 
 
 if __name__ == "__main__":
