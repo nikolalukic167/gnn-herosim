@@ -13,9 +13,8 @@ def ev(ts, typ):
     return {"timestamp": ts, "application": {"dag": {typ: []}}}
 
 
-def feat(load_after, type_platforms, replicas=(), cold=None, scale_in=100.0):
-    return {"load_after": load_after, "type_platforms": type_platforms, "replicas": list(replicas),
-            "cold_cost_s": cold or {}, "scale_in_after_s": scale_in}
+def feat(load_after, type_platforms, replicas=(), scale_in=100.0):
+    return {"load_after": load_after, "type_platforms": type_platforms, "replicas": list(replicas), "scale_in_after_s": scale_in}
 
 
 def test_rates_use_only_events_up_to_t0():
@@ -49,10 +48,10 @@ def test_load_term_zero_rate_is_zero_and_plan_with_more_backlog_costs_more():
 
 
 def test_cold_term_counts_only_unused_replicas_reaching_scale_in():
-    reps = [{"key": "p1", "type": "a", "idle_s": 90.0, "used": False},
-            {"key": "p2", "type": "a", "idle_s": 90.0, "used": True},
-            {"key": "p3", "type": "a", "idle_s": 10.0, "used": False}]
-    f = feat({}, {"a": ["p1", "p2", "p3"]}, reps, cold={"a": 6.0}, scale_in=100.0)
+    reps = [{"key": "p1", "type": "a", "idle_s": 90.0, "used": False, "cold_s": 6.0},
+            {"key": "p2", "type": "a", "idle_s": 90.0, "used": True, "cold_s": 6.0},
+            {"key": "p3", "type": "a", "idle_s": 10.0, "used": False, "cold_s": 6.0}]
+    f = feat({}, {"a": ["p1", "p2", "p3"]}, reps, scale_in=100.0)
     out = hv.hand_v(f, {"a": 0.3}, H=10.0)
     assert out["cold"] == pytest.approx(0.3 * 10.0 / 3 * 6.0)   # only p1: idle 90 + 10 >= 100, unused
     assert hv.hand_v(f, {"a": 0.3}, H=5.0)["cold"] == 0.0         # 95 < 100: nobody scales in within 5 s
@@ -106,6 +105,14 @@ def test_split_must_be_disjoint_and_nonempty():
         hv.check_split([1, 5], [2], [5, 6])
 
 
+def test_default_split_is_odd_even_of_sorted_distinct_ids():
+    fit, ev = hv.default_split([16259, 16251, 16253, 16251, 16252, 16254])
+    assert fit == [16251, 16253, 16259] and ev == [16252, 16254]
+    assert hv.default_split([]) == ([], [])
+    assert not set(hv.GATE_TOPOS) & set(range(16251, 16259))
+    assert hv.GATE_TOPOS[0] == 16369 and hv.GATE_TOPOS[-1] == 16392
+
+
 def test_topo_of_cell():
     assert hv.topo_of_cell("shard_cc40s16251_heavy_g0.jsonl") == 16251
     with pytest.raises(ValueError):
@@ -122,7 +129,7 @@ def test_build_states_pairs_against_policy_and_drops_gnn_and_duplicates():
     rows = [row(ds, 5.0, "policy", 10.0, P0), row(ds, 5.0, "s0", 10.0, P0), row(ds, 5.0, "s1", 9.0, P1),
             row(ds, 5.0, "s2", 12.0, P2), row(ds, 5.0, "gnn", 8.0, P3)]
     tops = {ds: {"s": 1.0, "top_s": [{"s": 1.0}, {"s": 1.5}, {"s": 2.5}]}}
-    base = {"load_after": {"p": 0.0}, "type_platforms": {"a": ["p"]}, "replicas": [], "cold_cost_s": {}, "scale_in_after_s": 1.0}
+    base = {"load_after": {"p": 0.0}, "type_platforms": {"a": ["p"]}, "replicas": [], "scale_in_after_s": 1.0}
     feats = {}
     for slot, load in (("policy", 0.0), ("s1", 4.0), ("s2", 8.0), ("gnn", 1.0)):
         f = copy.deepcopy(base)
@@ -166,6 +173,9 @@ def test_post_commit_features_with_fakes(monkeypatch):
 
     n1, n2 = N(1), N(2)
     p1, p2, p3 = P(10, 3.0, 1.0, 50.0), P(20, 0.0, 0.0, float("inf"), last_allocated=80.0), P(30, 5.0, None, 10.0)
+    for p, sn in ((p1, "x86"), (p2, "arm"), (p3, "x86")):
+        p.type = {"shortName": sn}
+    type_defs = {"a": {"coldStartDuration": {"x86": 4.0, "arm": 1.5}}, "b": {"coldStartDuration": {"x86": 6.0}}}
 
     class Sched:
         pg_inflight = True
@@ -176,15 +186,16 @@ def test_post_commit_features_with_fakes(monkeypatch):
 
     state = types.SimpleNamespace(replicas={"a": {(n1, p1), (n2, p2)}, "b": {(n1, p3)}})
     out = fe.post_commit_features(Sched(), ["t0", "t1"], [(n1, p1), (n1, p1)], state, now=100.0,
-                                  cold_cost_s={"a": 4.0, "b": 6.0}, scale_in_after_s=120.0, ds="d", slot="policy", t0=100.0, workload="w.json")
+                                  type_defs=type_defs, scale_in_after_s=120.0, ds="d", slot="policy", t0=100.0, workload="w.json")
     assert out["load_after"]["1:10"] == pytest.approx(3.0 + 1.0 + 2.5)     # drain + in-flight + the plan's own service (both tasks)
     assert out["load_after"]["2:20"] == 0.0
     assert out["load_after"]["1:30"] == 5.0                              # in-flight None counts as 0
+    assert {r["key"]: r["cold_s"] for r in out["replicas"]} == {"1:10": 4.0, "2:20": 1.5, "1:30": 6.0}
     idle = {r["key"]: (r["idle_s"], r["used"]) for r in out["replicas"]}
     assert idle["1:10"] == (50.0, True) and idle["2:20"] == (20.0, False) and idle["1:30"] == (90.0, False)
     assert out["type_platforms"] == {"a": ["1:10", "2:20"], "b": ["1:30"]}
-    with pytest.raises(KeyError, match="cold_cost_s"):
-        fe.post_commit_features(Sched(), ["t0", "t1"], [(n1, p1), (n1, p1)], state, 100.0, {"a": 4.0}, 120.0, ds="d", slot="s", t0=1.0, workload="w")
+    with pytest.raises(KeyError, match="type_defs"):
+        fe.post_commit_features(Sched(), ["t0", "t1"], [(n1, p1), (n1, p1)], state, 100.0, {"a": type_defs["a"]}, 120.0, ds="d", slot="s", t0=1.0, workload="w")
 
 
 def test_read_end_to_end_on_synthetic_files(tmp_path, capsys):
@@ -192,7 +203,7 @@ def test_read_end_to_end_on_synthetic_files(tmp_path, capsys):
     rows, tops, feats = [], [], []
     wl = tmp_path / "wl.json"
     wl.write_text(json.dumps({"events": [ev(float(t), "a") for t in range(1, 100)]}))
-    for topo, n in ((16301, 6), (16251, 6)):
+    for topo, n in ((16251, 6), (16252, 6)):
         for i in range(n):
             ds = tmp_path / f"ds_{topo}_{i}"
             ds.mkdir()
@@ -204,17 +215,17 @@ def test_read_end_to_end_on_synthetic_files(tmp_path, capsys):
                 rows.append(row(d, H, "s1", 8.0, [[2, 2]]))     # S says policy, Q_H says s1; V should say s1 too
             for slot, load in (("policy", 5.0), ("s1", 1.0)):
                 feats.append({"ds": d, "slot": slot, "t0": 90.0, "workload": str(wl), "load_after": {"p": load},
-                              "type_platforms": {"a": ["p"]}, "replicas": [], "cold_cost_s": {}, "scale_in_after_s": 1e9})
+                              "type_platforms": {"a": ["p"]}, "replicas": [], "scale_in_after_s": 1e9})
     paths = {}
     for name, lst in (("s0", rows), ("tops", tops), ("features", feats)):
         paths[name] = tmp_path / f"{name}.jsonl"
         paths[name].write_text("".join(json.dumps(r) + "\n" for r in lst))
-    a = argparse.Namespace(s0=str(paths["s0"]), tops=str(paths["tops"]), features=str(paths["features"]),
-                           fit_topos="16301", eval_topos="16251", gate_topos="16251", lookback=60.0)
+    a = argparse.Namespace(s0=str(paths["s0"]), tops=str(paths["tops"]), features=str(paths["features"]), gate_topos=None, lookback=60.0)
     hv.read(a)
     out = capsys.readouterr().out
+    assert "FIT [16251] / EVAL [16252]" in out
     assert "H = 5 s: fit states 6, eval states 6" in out
     assert "picks the Q_H-best plan on 100.0 %" in out        # held-out, at the fitted lambda
-    a.fit_topos = "16251"
-    with pytest.raises(ValueError, match="overlaps"):
+    a.gate_topos = "16252,16400"
+    with pytest.raises(ValueError, match="gate topologies"):
         hv.read(a)

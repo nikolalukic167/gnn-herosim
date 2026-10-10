@@ -16,8 +16,10 @@ def _key(node, platform):
     return f"{int(node.id)}:{int(platform.id)}"
 
 
-def post_commit_features(sched, tasks, plan, system_state, now, cold_cost_s, scale_in_after_s, *, ds, slot, t0, workload):
-    """plan: [(Node, Platform)] aligned with `tasks`. cold_cost_s: {type: seconds}, supplied by the caller (a missing type fails)."""
+def post_commit_features(sched, tasks, plan, system_state, now, type_defs, scale_in_after_s, *, ds, slot, t0, workload):
+    """plan: [(Node, Platform)] aligned with `tasks`. type_defs: {type name: the task.type dict S reads} -- a replica's cold seconds are
+    type_defs[type]["coldStartDuration"][platform.type["shortName"]], as scheduling_cost.incoming_cold_start_time charges them
+    (a missing type fails loudly)."""
     orch = sched._pg_orchestrator()
     memo = {}
     nodes = sched.nodes.items
@@ -28,8 +30,8 @@ def post_commit_features(sched, tasks, plan, system_state, now, cold_cost_s, sca
     used = set(own)
     type_platforms, load_after, replicas = {}, {}, []
     for typ, reps in system_state.replicas.items():
-        if typ not in cold_cost_s:
-            raise KeyError(f"FAIL LOUD: cold_cost_s has no entry for task type {typ!r}")
+        if typ not in type_defs:
+            raise KeyError(f"FAIL LOUD: type_defs has no entry for task type {typ!r}")
         type_platforms[typ] = []
         for node, platform in sorted(reps, key=lambda c: (int(c[0].id), int(c[1].id))):
             k = _key(node, platform)
@@ -41,7 +43,8 @@ def post_commit_features(sched, tasks, plan, system_state, now, cold_cost_s, sca
                     drain += float(inflight_remaining_seconds(platform) or 0.0)
                 load_after[k] = drain + own.get(k, 0.0)
             ref = platform.idle_since if math.isfinite(platform.idle_since) else platform.last_allocated
-            replicas.append({"key": k, "type": typ, "idle_s": float(now - ref), "used": k in used})
+            cold_s = float(type_defs[typ]["coldStartDuration"].get(platform.type["shortName"], 0.0) or 0.0)
+            replicas.append({"key": k, "type": typ, "idle_s": float(now - ref), "used": k in used, "cold_s": cold_s})
     return {"ds": ds, "slot": slot, "t0": float(t0), "workload": workload, "load_after": load_after,
-            "type_platforms": type_platforms, "replicas": replicas, "cold_cost_s": dict(cold_cost_s),
+            "type_platforms": type_platforms, "replicas": replicas,
             "scale_in_after_s": float(scale_in_after_s)}
