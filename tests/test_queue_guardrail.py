@@ -133,3 +133,17 @@ def test_the_guardrail_counters_are_whitelisted_by_the_orchestrator():
     for name in ("queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked"):
         assert isinstance(getattr(GNNScheduler, name, None), property), f"{name} not exposed"
         assert f'"{name}"' in source, f"{name} not whitelisted"
+
+
+def test_the_declared_slate_counters_are_whitelisted_and_counted():
+    import inspect
+
+    from src.placement.orchestrator import Orchestrator
+    from src.policy.gnn import scheduler as sched
+
+    wl = inspect.getsource(Orchestrator._scheduler_counters)
+    src = inspect.getsource(sched)
+    for name in ("slate_declared_batches", "slate_declared_pruned", "slate_declared_sub_batched", "slate_declared_groups",
+                 "slate_declared_tasks", "slate_declared_sub_batched_tasks", "slate_declared_max_tasks", "slate_declared_max_group"):
+        assert f'"{name}"' in wl, f"{name} not whitelisted"
+        assert f"self.{name} =" in src, f"{name} never counted"
