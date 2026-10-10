@@ -479,6 +479,8 @@ def cell_base_infrastructure(cell_config: Path, sim_input: Path, seed: int, scra
             "link_topology": live.get("link_topology"),
             "compute_slots_per_node": live.get("compute_slots_per_node"),
             "ingress_bandwidth_mbps": live.get("ingress_bandwidth_mbps"),
+            # accel_replica_v1: the replay must create replicas by the rule the live run used (absent = first_compatible)
+            **({"replica_placement_rule": live["replica_placement_rule"]} if live.get("replica_placement_rule") else {}),
             "metadata": {
                 "seed": seed, "config_file": str(cell_config), "topology_source": "live",
                 "generation_time": time.strftime("%Y-%m-%dT%H:%M:%S"), "warmth_physics": None,
@@ -538,6 +540,7 @@ def build_infrastructure(
         "ingress_bandwidth_mbps": base.get("ingress_bandwidth_mbps"),
         "link_topology": base.get("link_topology"),
         "live_snapshot_seed": seed_block,
+        **({"replica_placement_rule": base["replica_placement_rule"]} if base.get("replica_placement_rule") else {}),
         "metadata": {**base.get("metadata", {}), "warm_snapshot": provenance},
     }
     return infra
