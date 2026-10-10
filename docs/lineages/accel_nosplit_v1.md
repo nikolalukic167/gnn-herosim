@@ -13,6 +13,11 @@ topologies. It also turns heavy from a loss into a small lead. It does not beat 
   +2.7 / +3.5 % heavy (cd_expand faster, 5 and 3 of 24).
 - **cd_pull** (CD + pull hold; information the GNN lacks): −4.2 / −8.9 % vs CD.
 - **Do not quote** a win over the strongest hand bar, or any message-passing claim (no MP-off twin).
+- **Post-close diagnostics (to 2026-10-11, development topologies, descriptive):**
+  - **gnn_selfsearch** (the GNN searching on its own score) is at −10.7 / −9.4 % vs CD and ties cd_exactS. Its
+    sealed confirmation is `selfsearch_confirm_v1`.
+  - The classical arms are all far slower; Knative collapses on compute-lock wait.
+  - Option C (on-policy retrain) is NO-GO.
 
 **Why.** In `accel_replica_v1` the GNN beat CD on every peer group of at most 8 tasks. It lost only on 9–10-task groups,
 which the declared slate splits into blind sub-groups above 100k plans (S5, 855815). Serving those groups whole
@@ -46,6 +51,45 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-11 10:00 — **gnn_selfsearch: a pure GNN policy reaches the hand-search level, about −10 % vs CD at both
+  rungs; the trigger fires** (S4; rp/gnn-selfsearch 6548296c, flag-off identity 0 differences; 856216, read once as
+  856241 with reader a81137ab committed before the data; 16301–16312, g0, seed 1; development topologies,
+  descriptive).
+  - **Counts:**
+    - 120 summaries, 0 failed. The CD rerun is identical to classical_fcd47841 on all 24 cells.
+    - Search ran on 100 % of batches. Exact / ascent batches: 128,358 / 27,057 at moderate and 116,386 / 33,578 at
+      heavy.
+    - The plan changed vs the no-split decode in 37 / 41 % of batches. Decision time per task, median 14.5 / 19.3 ms.
+  - **Paired % (median over 12, sign count, Wilcoxon p), moderate / heavy:**
+    - vs CD: −10.67 % (11/12, .0010) / −9.35 % (11/12, .0015);
+    - vs the plain no-split GNN: −1.00 % (9/12, .064) / −3.69 % (8/12, .052);
+    - vs cd_exactS (reused, 72df02a0): +0.33 % (4/12) / +1.44 % (5/12), a tie;
+    - vs cdxapply (reused, f1dfc355): −0.31 / +0.37 %, a tie.
+  - **My recorded prediction was wrong in direction:** plan-score top-1 is worse than the decode offline, yet live
+    self-search is ahead of it at both rungs (n.s.). Offline regret again failed to predict live.
+  - **Trigger met (both rungs ≤ −5 % vs CD):** the sealed confirmation `selfsearch_confirm_v1` is registered.
+  - **Scope:** it beats CD, and it matches but does not beat the hand searches that hold the same information
+    (cd_exactS, cdxapply).
+- 2026-10-11 10:00 — **Why Knative collapses here: compute-lock wait from a speed-blind least-connected rule under
+  replica release** (S5; offline from 856147 cells and code at 8ddd1b8b).
+  - **The time is lock wait:** in collapsed cells it is 0.989 (moderate g0) / 0.994 (heavy g0) of elapsed. Placement
+    wait is 0, queue time 0.2–0.3 s, no request failures.
+  - **It depends on topology as well as load:** 166 of 192 reactive cells collapse; in g0 moderate, 12 topologies are
+    healthy.
+  - **In collapsed cells:**
+    - the replica pool fills to about 115 of 120 platforms within the first 2–7 % of the span, slow rpiCpu included,
+      and never scales down (KPA reads the stuck tasks as demand);
+    - mean execution time is 0.59–0.63 s per task vs 0.32 s in healthy cells;
+    - the backlog grows linearly (174 → 1,249 tasks by quarter).
+  - **Code:**
+    - `knative_network/scheduler.py:176–178` picks the replica with the shortest `queue`, which ignores platform
+      speed;
+    - under `HEROSIM_REPLICA_RELEASE=1` that queue stays near 0, because tasks pop at once and wait on
+      `compute_lock` (`infrastructure.py:814, 1654, 1855`). The key is blind and ties fall to the lowest ids;
+    - the autoscaler (`autoscaler.py:103–110, 243–255`) sizes by in-system count with no speed input.
+  - **Not a harness spin:** wall clock 69 s per cell, CD/batched/locality healthy on the same harness, same signature
+    as r1_attribution_v1's Knative arm.
+  - Instrumented per-task check plus a REPLICA_RELEASE=0 test approved (S5).
 - 2026-10-11 09:00 — **Option C (on-policy DAgger retrain) analysed: NO-GO as specified** (coordinator, on S7's
   analysis with SCIENTIST and PUBLISHER input; offline, 413 held-out tables; job 856206 at a07c9fd0).
   - **The right plan is almost always in the GNN's top 5.** Ranked by the GNN plan score (physmp g3 s1 best), the
