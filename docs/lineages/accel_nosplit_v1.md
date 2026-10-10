@@ -34,5 +34,7 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-10 16:55 — **Ids verified** (S5). 16345–16368 are free. Minted ids ≥ 16300 are 16301–16312 and
+  16321–16344 only. The next free pool is 16369+.
 - 2026-10-10 16:35 — **Registered** (coordinator). S4 mints and runs the gate, S5 re-verifies the ids, and S6 provides
   the harness kind for the no-split serving flag.
