@@ -72,6 +72,25 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-11 22:00 — **GNN-ranked pruning for over-cap batches finds better S plans than cost-ranked pruning, but not
+  better live latency** (S5; cdxprune: over-cap batches shrink each task's slate to its top-k, ranked by (a) the GNN
+  logit or (b) standalone cost, then enumerate exactly on S; cdxapply shell; rp/cd-exacts e1cbffa8; reruns
+  856406/856407, 48/48 cells; 16301–16312, g0; descriptive).
+  - **Disclosed:**
+    - a first attempt was rejected wholesale by S5's own harness check (cancelled, nothing read);
+    - an early auto-read on 23 of 24 arm-(a) cells was discarded before the full read.
+  - **Counts:**
+    - over-cap batches are 5.2 / 7.1 % of multi-task batches; k = 3 in about 80 %, k = 4 in about 20 %;
+    - the GNN and cost top-k sets differ in 92–94 %;
+    - S gain vs the expansion fallback per batch: (a) +1.81 / +1.00 s, (b) −0.76 / −0.45 s, i.e. cost pruning is worse
+      than expansion on S;
+    - better / worse than expansion: (a) 3,530/1,357 and 3,952/2,018; (b) 2,291/2,876 and 2,824/3,647.
+  - **Live paired %, moderate / heavy:**
+    - (a) vs (b): −0.22 / −0.10 %, a tie;
+    - (a) vs cd_exactS: −0.09 / +0.45 %; vs cdxapply −0.44 / −1.30 %; vs cd_expand −2.39 / −2.15 %; vs CD −9.66 /
+      −11.05 %.
+  - **Read:** on the surrogate, the GNN ranking knows something standalone cost does not. On live latency it does not
+    matter, because over-cap batches are only 5–7 % of decisions.
 - 2026-10-11 05:30 — **A GNN tie-break and fallback seed inside cd_exactS add nothing measurable** (S5; cdxexg =
   cd_exactS with S-ties broken by the ra_gnn_eng s1 plan score, and over-cap fallbacks seeded from the no-split GNN
   plan; d2a980e1, flag-off identity with 72df02a0 shown; 856109, 24/24 cells; 16301–16312, g0; descriptive).
