@@ -23,16 +23,44 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts_cosim"))
 
 
-def score(ds: str, plan) -> dict:
-    """True batch latency of `plan` ([(node_id, platform_id)] in dataset task order) at the dataset's state."""
-    import rollout_replay
+_FR = {}
 
-    r = rollout_replay._one(dict(ds=ds, plan=[list(map(int, p)) for p in plan], H=-1.0, continuation="live", table=None, eps=0.0))
-    if "error" in r:
-        raise RuntimeError(r["error"] + "\n" + r.get("tb", ""))
-    if r["plan"] != [list(map(int, p)) for p in plan]:
-        raise RuntimeError(f"replay served {r['plan']}, not the forced {plan}")
-    return r
+
+def _replay(ds: str):
+    """The co-sim label's own replay of the dataset's state (executecosimulation's fidelity path), one per dataset per process."""
+    if ds not in _FR:
+        import os
+
+        os.environ["HEROSIM_SNAPSHOT_FIDELITY"] = "1"
+        prov = json.load(open(Path(ds) / "generation_provenance.json"))
+        for k, v in (prov.get("physics_env") or {}).items():
+            if k.startswith("HEROSIM_") or k in ("GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "COSIM_AUTOSCALER_RECONCILE_INTERVAL"):
+                os.environ.setdefault(k, str(v))
+        from src.placement import fidelity_replay
+
+        seed = json.load(open(Path(ds) / "infrastructure.json"))["live_snapshot_seed"]
+        spec = dict(seed["fidelity_replay"])
+        if not Path(spec["sim_input"]).exists():
+            spec["sim_input"] = str(REPO / "data" / "nofs-ids")
+        types = [next(iter(e["application"]["dag"])) for e in json.load(open(Path(ds) / "workload.json"))["events"]]
+        offered = {t: [(sp["node_name"], sp["platform_id"]) for sp in specs if sp.get("candidate", True)]
+                   for t, specs in seed["replicas_by_type"].items()}
+        _FR[ds] = fidelity_replay.FidelityReplay(spec, types, offered)
+    return _FR[ds]
+
+
+def score(ds: str, plan) -> dict:
+    """True batch latency of `plan` ([(node_id, platform_id)] in dataset task order) at the dataset's state: the label's own
+    replay (exact batching, determined scheduler), not a policy run -- a policy's 1 ms batch poll shifts the decision off t0."""
+    t0 = time.time()
+    fr = _replay(ds)
+    res = fr.cut_to_batch(fr.run({i: (int(p[0]), int(p[1])) for i, p in enumerate(plan)}))
+    trs = sorted((tr for tr in res["stats"]["taskResults"] if tr.get("taskId", -1) >= 0), key=lambda tr: tr["taskId"])
+    served = [int(tr["executionPlatform"]) for tr in trs]
+    if served != [int(p[1]) for p in plan]:
+        raise RuntimeError(f"replay ran platforms {served}, not the forced {[int(p[1]) for p in plan]}")
+    return dict(q_batch=float(res["stats"]["total_rtt"]), batch_lat=[float(tr["doneTime"]) - float(tr["scheduledTime"]) for tr in trs],
+                wall=time.time() - t0)
 
 
 def _check_state(job):
