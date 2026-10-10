@@ -51,6 +51,29 @@ the live gate for that serving change. It needs no retraining: the checkpoints a
 
 ## Record (newest first)
 
+- 2026-10-11 10:45 — **Knative's collapse is herding through a queue key blinded by replica release; our Knative is
+  not a faithful Knative under R1** (S5; rp/cd-exacts 2d353388, state-read instrumentation only; 856247 at
+  release=1, 856248 at release=0; 16345 and 16348, g0; 12/12 cells).
+  - **What the least-connected key sees (release=1):**
+    - every reachable `len(queue.items)` is 0 in 80–84 % of placements;
+    - the minimum is tied in 94.7–99.1 % of placements, and the lowest (node, platform) id wins 99.8 % of them;
+    - the chosen replica's lock backlog exceeds the least-loaded replica's in 13–21 % of tasks, by p95 1,943–3,092
+      waiters in collapsed cells.
+  - **Effect:**
+    - the top 4 lowest-id platforms carry about 50 % of tasks; rpiCpu has 36–44 % of tasks at about 2,540 s mean lock
+      wait;
+    - xavierGpu gets 0.5 % of tasks, against about 29 % under batched;
+    - platforms are 95.5–99.7 % idle on average while the herd saturates.
+  - **With release=0 (the queue is the backlog):** 3 of 4 cells are healthy (end 1.01–1.04); 16345 heavy is partly
+    collapsed (end 1.81).
+  - **Reading:** the collapse is mostly an interaction between Knative's speed-blind least-connected key
+    (`knative_network/scheduler.py:211–213`) and R1's released-replica physics, which keeps `queue.items` near 0
+    (`infrastructure.py:812–814, 1654, 1855`). Real Knative balances on in-flight concurrency, which the lock backlog
+    represents here.
+  - **Consequence for reporting:** under R1, the reactive arm is a Knative whose load signal is blind. Its collapse
+    must not be quoted as Knative's behaviour without this caveat (filed in gate-tools.md).
+  - **Coordinator decision:** a descriptive arm `reactive_conc` (identical, but the key counts queue + lock waiters +
+    running) is run on the same 24 topologies, so the record has a faithful Knative.
 - 2026-10-11 10:00 — **gnn_selfsearch: a pure GNN policy reaches the hand-search level, about −10 % vs CD at both
   rungs; the trigger fires** (S4; rp/gnn-selfsearch 6548296c, flag-off identity 0 differences; 856216, read once as
   856241 with reader a81137ab committed before the data; 16301–16312, g0, seed 1; development topologies,

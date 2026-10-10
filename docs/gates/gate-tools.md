@@ -10,6 +10,17 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-10-11 — Under replica release, the Knative arm's least-connected key is blind
+
+`knative_network/scheduler.py:211–213` ranks replicas by `len(queue.items)`. Under `HEROSIM_REPLICA_RELEASE=1` (R1),
+tasks leave `queue` at once and wait on `compute_lock`, so the key reads 0 on 80–84 % of placements. The tie then goes
+to the lowest (node, platform) id 99.8 % of the time. The arm herds onto a few low-id slow platforms and collapses on
+lock wait while GPUs sit idle.
+
+With release=0 the same arm is healthy on 3 of 4 cells (`accel_nosplit_v1`, 2026-10-11). Any reactive or Knative
+number under R1, including r1_attribution_v1's collapse, reflects this blind key, not Knative's concurrency-based
+balancing. Quote it with that caveat, or use a key that counts queue + lock waiters + running.
+
 ## 2026-10-11 — `test_trainer_determinism.py` skips 8 of 18 checks without the smoke caches
 
 The pre-training gate in AGENTS.md (`tests/test_trainer_determinism.py`) passes while skipping 8 of its 18 tests when
