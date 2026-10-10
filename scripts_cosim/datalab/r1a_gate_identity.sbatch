@@ -17,6 +17,7 @@ ARMS=${ARMS:-cd,cd_declared,locality,batched,selfpredict,reactive,ra_gnn_eng,ra_
 NEW=${NEW:-cd_random_seed}
 D=/home/nikola.lukic/gnn-herosim/simulation_data
 SMOKE=$D/workload_fix_v1/r1a_arms_servesmoke_inputs
+MODELS=${MODELS:-$SMOKE/models}; SPLITF=${SPLITF:-$SMOKE/r1_attribution_v1_split.json}  # accel_replica_v1: the real checkpoints, to match a gate result
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|WF1_|R1A_)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
@@ -32,7 +33,7 @@ rc=0; timeout 300 git diff --quiet HEAD -- src scripts_cosim experiments run_exp
 [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
 mkdir -p "$OUT/in"
 for r in light moderate heavy; do ln -s "$IN/wf1_$r" "$OUT/in/wf1_$r"; done
-ln -s "$SMOKE/models" "$OUT/in/models"; cp "$SMOKE/r1_attribution_v1_split.json" "$OUT/in/"
+ln -s "$MODELS" "$OUT/in/models"; cp "$SPLITF" "$OUT/in/r1_attribution_v1_split.json"
 SEL=$D/small_batch_confirm_v1/inputs/selected.json
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 export WF1_RUNGS=light,moderate,heavy R1A_TOPOS=$TOPO R1A_WINDOWS=g0
