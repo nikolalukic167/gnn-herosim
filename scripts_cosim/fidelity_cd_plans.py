@@ -104,16 +104,19 @@ def _one(job):
                     seen["s_extra"][key] = s_of(plan)
                 if argmin_s:
                     # the exact argmin of S over the slate: the sweep is the slate's full product, so S on every row
-                    best_s, best_labels = None, []
+                    best_s, best_labels, best_plans = None, [], []
                     for r in rows:
                         pl = {int(k): v for k, v in r["placement_plan"].items()}
                         sv = s_of(pl)
                         if best_s is None or sv < best_s - 1e-12:
-                            best_s, best_labels = sv, [float(r["rtt"])]
+                            best_s, best_labels, best_plans = sv, [float(r["rtt"])], [r["placement_plan"]]
                         elif abs(sv - best_s) <= 1e-12:
                             best_labels.append(float(r["rtt"]))
+                            best_plans.append(r["placement_plan"])
                     seen["argmin_s"] = {"s": best_s, "label_min": min(best_labels), "label_max": max(best_labels),
-                                        "ties": len(best_labels), "n": len(rows)}
+                                        "ties": len(best_labels), "n": len(rows),
+                                        "tied": [{"plan": [list(map(int, p[str(i)])) for i in range(len(p))], "label": lb}
+                                                 for p, lb in zip(best_plans, best_labels)]}
                 try:
                     sub = self._pg_decide(free_tasks, system_state)
                 finally:
