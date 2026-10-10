@@ -75,7 +75,8 @@ def hand_v(feat, rates, H, load_key="load_after"):
         exp = rates.get(typ, 0.0) * H
         for k in keys:
             need[k] += exp / len(keys)
-    load = sum(need[k] * float(v) for k, v in feat[load_key].items())
+    raw = feat[load_key]
+    load = float(raw) if not isinstance(raw, dict) else sum(need[k] * float(v) for k, v in raw.items())
     n_rep = defaultdict(int)
     for r in feat["replicas"]:
         n_rep[r["type"]] += 1
@@ -241,21 +242,29 @@ def read(a):
     nz_fly = sum(any(v > 0 for v in feats[(d, "policy")].get(fly_key, {}).values()) for d in ds_all)
     print(f"states with features: {len(ds_all)}; nonzero queue drain on some platform: {nz_drain}; nonzero in-flight remaining: {nz_fly}")
     views = [("(a) load_after as S sees it", "load_after")]
-    if all("load_after_b1" in f for f in feats.values()):
+    if all("backlog_v1" in f for f in feats.values()):
+        views = [("(ref) load_after, the old own-service-only V in effect (drain and in-flight cancel in the paired dV)", "load_after"),
+                 ("(v1) sum over touched platforms of (drain + in-flight b1 + committed service)", "backlog_v1"),
+                 ("(v2) sum over tasks of own service x (drain + in-flight b1 + other committed work on its platform)", "backlog_v2")]
+        choice = ("backlog_v1", "backlog_v2")
+    elif all("load_after_b1" in f for f in feats.values()):
         views += [("(b1) load_after + in-flight remaining, sum over a platform's tasks", "load_after_b1"),
                   ("(b2) load_after + in-flight remaining, largest single task", "load_after_b2")]
+        choice = ("load_after_b1", "load_after_b2")
     else:
         views.append(("(b) load_after plus in-flight remaining (accessor-based; 0 in replay)", "load_after_inflight"))
+        choice = None
     fit_score = {}
     for label, key in views:
         states = build_states(rows, tops, feats, rates_of, cell_of, key)
         print(f"\n===== hand V {label}: {len(states)} (state, H) pairs with a paired S, V and Q_H for >= 2 plans")
         _report(states, fit_t, ev_t)
         fit_score[key] = fit_spearman(states, fit_t)
-    if "load_after_b1" in fit_score:
-        pick = "load_after_b1" if fit_score["load_after_b1"] >= fit_score["load_after_b2"] else "load_after_b2"
-        print(f"\nvariant choice on FIT topologies only (mean over H of pooled Spearman of dV vs dQ_H; tie -> b1): "
-              f"b1 {fit_score['load_after_b1']:+.3f}, b2 {fit_score['load_after_b2']:+.3f} -> {pick}")
+    if choice:
+        x, y = choice
+        pick = x if fit_score[x] >= fit_score[y] else y
+        print(f"\nvariant choice on FIT topologies only (mean over H of pooled Spearman of dV vs dQ_H; tie -> first): "
+              f"{x} {fit_score[x]:+.3f}, {y} {fit_score[y]:+.3f} -> {pick}")
 
 
 def fit_spearman(states, fit_t):

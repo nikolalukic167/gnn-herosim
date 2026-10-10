@@ -332,3 +332,15 @@ def test_live_accessor_reads_the_same_records(monkeypatch):
     assert fly.live_inflight_remaining(P(), 10.0, "b1") == pytest.approx(1.2)
     assert fly.live_inflight_remaining(P(), 10.0, "b2") == pytest.approx(0.6)
     assert seen[:2] == [("t1", "inflight", False), ("t2", "inflight", True)]
+
+
+def test_backlog_forms_and_assignment():
+    feat = {"load_after": {"1:1": 3.0, "2:2": 2.0, "3:3": 1.0}, "drain": {"1:1": 1.0, "2:2": 0.5, "3:3": 1.0},
+            "inflight_b1": {"1:1": 0.5, "2:2": 0.0, "3:3": 4.0}, "s_service": [1.5, 0.5, 1.5]}
+    # committed: 1:1 gets 2.0 (0.5 + 1.5), 2:2 gets 1.5, 3:3 untouched
+    out = fly.backlog_forms(feat, ["1:1", "1:1", "2:2"])
+    assert out["backlog_v1"] == pytest.approx((1.0 + 0.5 + 2.0) + (0.5 + 0.0 + 1.5))
+    # tasks: (1.5 on 2:2), (0.5 on 1:1), (1.5 on 1:1) -> sv * (B + own - sv)
+    assert out["backlog_v2"] == pytest.approx(1.5 * (0.5 + 1.5 - 1.5) + 0.5 * (1.5 + 2.0 - 0.5) + 1.5 * (1.5 + 2.0 - 1.5))
+    with pytest.raises(ValueError):
+        fly.assign_tasks(["1:1", "2:2"], [1.0, 1.0], {"1:1": 1.0, "2:2": 1.0})
