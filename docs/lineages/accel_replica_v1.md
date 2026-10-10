@@ -67,6 +67,18 @@ The pipeline is identical to `scale_160_v1`, under its own IDs and stem `accel-r
 
 ## Record (newest first)
 
+- 2026-10-10 18:40 — **CD with α-expansion moves beats CD by 7–8 %** (S5; rp/cd-expand 8e3d39c6, flag
+  `HEROSIM_PG_CD_EXPANSION`; 855850; seed 0, g0, 12 gate topologies; descriptive).
+  - **Identity:** flag-unset CD is identical to `classical_fcd47841`.
+  - **Paired % vs CD:**
+    - moderate: −8.20 % (11/12 faster, Wilcoxon p .001);
+    - heavy: −7.32 % (11/12, p .001).
+    - Exchange falls 14–18 % at about +5 % queue.
+  - **Decision cost per task:** median 0.50 / 0.59 ms, against CD's 0.14 ms and the GNN's about 7 ms.
+  - **Origin:** suggested by SCIENTIST's classification (the batch problem is metric labelling; CD's single-task
+    refine is ICM).
+  - **Implication:** cd_expand holds the same information as the GNN, so under AGENTS' rule it is a stronger hand bar
+    than CD. The accel GNN's moderate lead (−5.5 / −6.1 % vs CD) would read behind it. That is arithmetic, not paired.
 - 2026-10-10 16:30 — **Serving split groups whole helps the GNN in 6 of 6 cells** (S6; diagnostic 855821 at
   rp/accel-nosplit d4ec8688, flag `GNN_SLATE_NO_SPLIT`; ra_gnn_eng seed 1, g0; descriptive).
   - **Identity:** 12 of 12 bit-identical with the flag off.
