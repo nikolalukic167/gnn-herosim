@@ -115,9 +115,15 @@ def test_bad_values_and_the_wrong_flavour_fail_loudly(monkeypatch):
 
 
 def test_counters_are_exported():
+    import inspect
+
+    from src.placement import orchestrator
+
+    exporter = inspect.getsource(orchestrator.Orchestrator._scheduler_counters)
     for k in ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
               "pg_expand_gain_seconds", "pg_expand_labels_skipped"):
         assert k in S.PEER_GREEDY_COUNTERS
+        assert f'"{k}"' in exporter   # the orchestrator's schedulerCounters whitelist, which the gate summaries read
 
 
 def test_harness_serves_cd_expand_as_a_named_diagnostic_arm():
