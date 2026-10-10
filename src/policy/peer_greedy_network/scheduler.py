@@ -39,6 +39,7 @@ peer-free physics would score a term the simulator never charges.
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
@@ -127,6 +128,21 @@ PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves"
 # 72.6-79 % of batches against the expansion's 62.8 %, at ~1.6k S-evaluations per batch (S6, 2026-10-10). 0 (the default) is
 # the registered CD rule, byte-identical.
 PG_CD_EXACT_ENV = "HEROSIM_PG_CD_EXACT"
+# Diagnostic only: when set, every exact batch appends one JSON line (the pass plan's standalone rank per task, its S, the slate optimum's S) to
+# <dir>/exact_diag_<pid>.jsonl. Not a HEROSIM_ name on purpose (the datalab sbatch unsets those); changes no decision.
+_EXACT_DIAG_DIR = os.environ.get("EXACT_SLATE_DIAG_DIR", "").strip()
+_exact_diag_fh = None
+
+
+def _exact_diag_write(rec: Dict) -> None:
+    global _exact_diag_fh
+    if _exact_diag_fh is None:
+        os.makedirs(_EXACT_DIAG_DIR, exist_ok=True)
+        _exact_diag_fh = open(os.path.join(_EXACT_DIAG_DIR, f"exact_diag_{os.getpid()}.jsonl"), "a", buffering=1 << 16)
+    _exact_diag_fh.write(json.dumps(rec) + "\n")
+    _exact_diag_fh.flush()
+
+
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
 PG_CD_EXACT_TOP_K_ENV = "HEROSIM_PG_CD_EXACT_TOP_K"  # default 5, the declared pruning's slate width
 PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass",
@@ -1076,11 +1092,16 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         nodes = self.nodes.items
         cands, couple, keys, plan, pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
         slates = []
+        diag_ranks = []
         for i in range(n):
             if i in pinned:
                 slates.append([plan[i]])
+                diag_ranks.append(None)
                 continue
             ranked = sorted(cands[i], key=lambda c: (self._pg_standalone(batch_tasks[i], c[0], c[1], orch, memo, nodes), int(c[0].id), int(c[1].id)))
+            if _EXACT_DIAG_DIR:
+                ids = [(int(c[0].id), int(c[1].id)) for c in ranked]
+                diag_ranks.append((ids.index((int(plan[i][0].id), int(plan[i][1].id))) + 1 if (int(plan[i][0].id), int(plan[i][1].id)) in ids else 0, len(ids)))
             slates.append(sorted(ranked[:self.pg_cd_exact_top_k], key=lambda c: (int(c[0].id), int(c[1].id))))
         total = 1
         for sl in slates:
@@ -1100,6 +1121,9 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                 ties += 1
         if ties:
             self.pg_exact_ties += 1
+        if _EXACT_DIAG_DIR:
+            _exact_diag_write({"n": n, "pinned": len(pinned), "cur": cur, "best": best_cost, "kept": bool(best_cost >= cur - 1e-9),
+                               "slate": [len(sl) for sl in slates], "pass_rank": diag_ranks, "k": self.pg_cd_exact_top_k})
         if best_cost >= cur - 1e-9:
             self.pg_exact_kept_pass += 1
             return 0
