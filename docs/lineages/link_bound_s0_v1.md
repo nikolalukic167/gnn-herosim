@@ -2,7 +2,9 @@
 
 **Status:** `ACTIVE` (2026-10-11). Registered 2026-10-11; every bar below was signed before any data.
 
-**Now.** Registered. Amendment 1 (before data): the knob is a core-only cfg edit with a 1000 → 31.25 MB/s ladder.
+**Now.** **Screen NO-GO, LINKS-DO-NOT-BIND** (2026-10-11): at the lowest admissible core rate (3.9 MB/s), link wait is
+1.2–1.6 % of CD's latency. It passes 5 % only where CD is unhealthy, so the link is then just a load lever. The live gate
+at 3.9 MB/s is pending. Earlier: Amendment 1 (before data): the knob is a core-only cfg edit with a 1000 → 31.25 MB/s ladder.
 Only input transfers queue on links in this physics. Pre-check: the core never binds down to 31.25 MB/s (link wait
 about 0.6 % of latency). Amendment 3 extends the ladder to 0.49 MB/s with a stop rule.
 
@@ -76,6 +78,29 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Extension read: NO-GO, LINKS-DO-NOT-BIND by the signed stop rule; the ILS screen is not run; the live
+  gate runs at 3.9 MB/s** (S7; 384 more cells, 0 failed or hung, pinned f9de3e8a;
+  `/share/nikola.lukic/link_bound/precheck_read_ext.json`).
+  - **CD link-wait share** (mean per-task link wait over mean latency, median over 32 cells), with admissibility:
+
+    | MB/s | share mod / heavy | mean latency mod / heavy | inadmissible cells | admissible |
+    |---|---|---|---|---|
+    | 1000 (= 250 = 125) | 0.52 / 0.71 % | 3.31 / 2.67 s | 0/64 | yes |
+    | 31.25 | 0.53 / 0.72 % | 3.39 / 2.71 s | 0/64 | yes |
+    | 15.6 | 0.57 / 0.77 % | 3.43 / 2.74 s | 0/64 | yes |
+    | 7.8 | 0.72 / 0.95 % | 3.49 / 2.74 s | 0/64 | yes |
+    | **3.9** | **1.16 / 1.58 %** | 3.79 / 2.93 s | 0/64 | **yes (lowest admissible)** |
+    | 1.95 | 2.19 / 3.51 % | 4.40 / 3.20 s | 2/64 | no |
+    | 0.98 | 4.37 / 11.57 % | 5.00 / 4.64 s | 10/64 | no |
+    | 0.49 | collapsed at heavy (2145 s) | — | 49/64 | no |
+
+  - **The share passes 5 % only where CD is already unhealthy.** By then the core links are 12–43 % held and the link is
+    the load lever, the confound the pre-check exists to exclude.
+  - **Ruling:** NO-GO, LINKS-DO-NOT-BIND, as signed.
+    - No intermediate rung is probed: the stop rule does not need one, and tuning the rung after the read is not allowed.
+    - S6's capture and ILS screen are not run, and S4's second parity is not needed because the gate is live-only.
+  - **Live gate (rule 6)** at 3.9 MB/s, set up by S7: 12 fresh topologies × 4 windows × 2 rungs; ra_gnn_eng self-search
+    s1, CD and cd_exactS; the reader committed before data. Expected to repeat the G8 picture.
 - 2026-10-11 — **Knob parity: ACCEPTED with a disclosed residual; a second parity at the lowest qualifying rung, with
   its bar signed now** (S4; topology 17100 moderate g0, 40 decisions with the live plan forced in the replay; 858098 /
   reader 858123 at 62.5 MB/s on S6's capture code; control 858124 at 1000 MB/s; failed launches 858095 and 858097 are
