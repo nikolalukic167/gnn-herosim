@@ -75,6 +75,16 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Amendment 2, before data: screen details** (S6's reader and scorer committed at rp/link-bound-s0 67b855f0,
+  pinned; coordinator rulings).
+  - L1–L4 are as registered, from the label path's own replay taskResults. The GO rule is as registered, plus: any
+    error row or empty cell cannot pass.
+  - **Top-5 slate only** (the served one), at the current group size.
+  - 2 states per capture cell, so up to 64 per (bandwidth, rung).
+  - Capture cells are S7's pre-check cells, re-run with live-audit snapshots.
+  - **The default 1000 MB/s IS screened, on the same 17100–17107 topologies,** as the descriptive reference. It cannot
+    GO; it exists so the ladder is read on the same topologies, not against big_groups' different ones.
+  - **Disclosed, as in big_groups:** the GNN self-search plan is not an ILS start, because it is unavailable offline.
 - 2026-10-11 — **Pre-check set up** (S7).
   - Development topologies 17100–17107, verified unused.
   - The ladder is minted into the cfg `backbone.bandwidth_mbps`; `core_bandwidth_mbps` defaults to it
