@@ -807,12 +807,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1")
         if kind.endswith(("_ovg", "_ovd")):
             env["HEROSIM_PG_CD_OVERCAP"] = "gnn"
-        if kind.endswith("_ovd"):
+        if kind.endswith(("_ovg", "_ovd")):
             ov_dir = os.environ.get("OVERCAP_LOG_DIR")
             if not ov_dir:
-                raise SystemExit("FAIL LOUD: the ovd diagnostic needs OVERCAP_LOG_DIR (where each cell writes its per-batch S comparison)")
+                raise SystemExit("FAIL LOUD: the over-cap arms need OVERCAP_LOG_DIR (where each cell writes its per-batch over-cap log)")
             os.makedirs(ov_dir, exist_ok=True)
-            env.update(HEROSIM_PG_CD_OVERCAP_DRY="1", HEROSIM_OVERCAP_LOG=os.path.join(ov_dir, name + ".overcap.jsonl"))
+            env["HEROSIM_OVERCAP_LOG"] = os.path.join(ov_dir, name + ".overcap.jsonl")
+        if kind.endswith("_ovd"):
+            env["HEROSIM_PG_CD_OVERCAP_DRY"] = "1"
         if kind.endswith(("_nosplit", "_selfsearch", "_ovg", "_ovo", "_ovd")):
             env["GNN_SLATE_NO_SPLIT"] = "1"
         if kind.endswith(("_selfsearch", "_ovg", "_ovo", "_ovd")):

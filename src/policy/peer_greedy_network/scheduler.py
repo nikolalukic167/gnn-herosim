@@ -166,7 +166,8 @@ PG_CD_EXACT_PRUNE_ENV = "HEROSIM_PG_CD_EXACT_PRUNE"
 PG_CD_OVERCAP_ENV = "HEROSIM_PG_CD_OVERCAP"
 # HEROSIM_PG_CD_OVERCAP_DRY=1 (with the path on; diagnostic cells only): the over-cap batch is still served the GNN plan, but the refine the fallback would have run
 # (passes, expansion, passes) runs first on the side, every counter but the over-cap ones is restored, and S of both plans is compared:
-# pg_overcap_dry_{batches,better,worse,equal,differs} and the summed S gain of the GNN plan over the expansion plan. HEROSIM_OVERCAP_LOG=<file> appends one json line per batch.
+# pg_overcap_dry_{batches,better,worse,equal,differs} and the summed S gain of the GNN plan over the expansion plan. HEROSIM_OVERCAP_LOG=<file> (with the path on) appends one
+# json line per refined batch: its task ids, size and whether it was over the cap; a dry over-cap batch also carries both S values.
 PG_CD_OVERCAP_DRY_ENV = "HEROSIM_PG_CD_OVERCAP_DRY"
 PG_OVERCAP_LOG_ENV = "HEROSIM_OVERCAP_LOG"
 # big_groups_s0_v1 M4 (HEROSIM_PG_SHARED_LINK=1): S' = S with each in-batch peer pair's transfer priced at the link bandwidth divided by the number of
@@ -1635,7 +1636,7 @@ class GnnCdRefiner(_PeerGreedyCore):
         path = os.environ.get(PG_OVERCAP_LOG_ENV, "").strip()
         if path:
             with open(path, "a") as fh:
-                fh.write(json.dumps({"tasks": [int(t.id) for t in batch_tasks], "n": len(batch_tasks), "s_gnn": s_seed, "s_expansion": s_fb, "differs": differs,
+                fh.write(json.dumps({"tasks": [int(t.id) for t in batch_tasks], "n": len(batch_tasks), "over": True, "s_gnn": s_seed, "s_expansion": s_fb, "differs": differs,
                                      "tasks_moved": sum(1 for i in seed if tuple(seed[i]) != tuple(fallback_plan[i]))}) + "\n")
         return {i: tuple(v) for i, v in seed.items()}, {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
 
@@ -1660,6 +1661,10 @@ class GnnCdRefiner(_PeerGreedyCore):
         if self.pg_cd_exact:
             over = self._pg_overcap_batch(batch_tasks, system_state, seed)
             self.pg_overcap_pred += int(over)
+            log_path = os.environ.get(PG_OVERCAP_LOG_ENV, "").strip()
+            if log_path and self.pg_cd_overcap and not (over and self.pg_cd_overcap_dry):
+                with open(log_path, "a") as fh:
+                    fh.write(json.dumps({"tasks": [int(t.id) for t in batch_tasks], "n": len(batch_tasks), "over": bool(over)}) + "\n")
             if over and self.pg_cd_overcap:
                 if not self.pg_cd_overcap_dry:
                     self.pg_overcap_gnn_batches += 1
