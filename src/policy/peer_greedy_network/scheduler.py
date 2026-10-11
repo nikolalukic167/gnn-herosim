@@ -352,9 +352,6 @@ class _PeerGreedyCore:
         self.pg_cd_exact_prune = os.environ.get(PG_CD_EXACT_PRUNE_ENV, "").strip()
         if self.pg_cd_exact_prune not in ("", "gnn", "cost"):
             raise ValueError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} must be gnn or cost, got {self.pg_cd_exact_prune!r}")
-        self.pg_cd_overcap_dry = _pg_flag(PG_CD_OVERCAP_DRY_ENV)
-        if self.pg_cd_overcap_dry and not self.pg_cd_overcap:
-            raise RuntimeError(f"FAIL LOUD: {PG_CD_OVERCAP_DRY_ENV}=1 needs {PG_CD_OVERCAP_ENV}=gnn")
         for name in PG_EXACT_COUNTERS:
             setattr(self, name, 0.0 if name.endswith("_seconds") else 0)
         if self.pg_cd_exact and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
@@ -369,6 +366,9 @@ class _PeerGreedyCore:
         if self.pg_cd_overcap and (not self.pg_cd_exact or self.pg_cd_exact_prune or self._policy_label != "gnn_cd_refine"):
             raise RuntimeError(f"FAIL LOUD: {PG_CD_OVERCAP_ENV}=gnn serves the GNN's plan on over-cap batches: it needs {PG_CD_EXACT_ENV}=1, excludes "
                                f"{PG_CD_EXACT_PRUNE_ENV} and is defined for gnn_cd_refine only; {self._policy_label}")
+        self.pg_cd_overcap_dry = _pg_flag(PG_CD_OVERCAP_DRY_ENV)
+        if self.pg_cd_overcap_dry and not self.pg_cd_overcap:
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_OVERCAP_DRY_ENV}=1 needs {PG_CD_OVERCAP_ENV}=gnn")
         if self.pg_cd_exact_prune and not self.pg_cd_exact:
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} needs {PG_CD_EXACT_ENV}=1")
         if self.pg_cd_exact_prune == "gnn" and self._policy_label != "gnn_cd_refine":
