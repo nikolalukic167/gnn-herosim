@@ -1381,6 +1381,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         if getattr(self, "_plan_oracle", None) is None:
             self._plan_oracle = plan_oracle.PlanOracle()
         snapshot = capture_batch_snapshot(self, system_state, batch_tasks, self._live_audit_policy_name)
+        t_capture = default_timer() - t0
         fid = snapshot["fidelity"]
         future = fid.get("future") or {}
         if any(node is None and str(other) not in future for row in (fid.get("peers") or {}).values() for other, node, _p in row):
@@ -1410,7 +1411,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             _cost, _svc, _sc = self._pg_plan_cost(batch_tasks, plan, orch, memo, self.nodes.items)
             plan_oracle.diag_write({"t": float(self.env.now), "n": n, "plans": len(combos), "s_plan": list(ident(s_plan)), "s_label": s_label,
                                     "best": list(ident(best)), "best_label": best_label, "pass_label": by_id[ident(plan)],
-                                    "wall": default_timer() - t0,
+                                    "wall": default_timer() - t0, "timing": getattr(self._plan_oracle, "last", None), "t_capture": t_capture,
                                     "table": [[list(ident(c)), self._pg_plan_cost(batch_tasks, c, orch, memo, self.nodes.items)[0], lab]
                                               for c, lab in zip(combos, labels)]})
         if ident(best) == ident(plan):

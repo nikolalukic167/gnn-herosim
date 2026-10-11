@@ -56,21 +56,28 @@ def _init_worker() -> None:
         _memoize_static_inputs()
 
 
-def _label_chunk(spec: Mapping[str, Any], types: Sequence[str], plans: Sequence[Sequence[Tuple[int, int]]]) -> List[float]:
-    """The label of each plan (task i of the batch, in gid order, on plans[k][i] = (node id, platform id))."""
+def _label_chunk(spec: Mapping[str, Any], types: Sequence[str], plans: Sequence[Sequence[Tuple[int, int]]]) -> Tuple[List[float], float, List[float]]:
+    """(labels, replay-setup seconds, seconds per plan) for the plans (task i of the batch, in gid order, on plans[k][i] = (node id, platform id))."""
+    from timeit import default_timer
+
     from src.placement.fidelity_replay import FidelityReplay
 
     out: List[float] = []
+    runs: List[float] = []
     with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+        t0 = default_timer()
         replay = FidelityReplay(spec, types, {})
+        setup = default_timer() - t0
         for plan in plans:
+            t1 = default_timer()
             result = replay.run({i: (int(p[0]), int(p[1])) for i, p in enumerate(plan)})
             trs = {tr["taskId"]: tr for tr in result["stats"]["taskResults"] if tr.get("taskId", -1) >= 0}
             missing = [b for b in replay.batch_local if b not in trs]
             if missing:
                 raise RuntimeError(f"FAIL LOUD: plan oracle: the replay finished without results for batch tasks {missing}")
             out.append(sum(float(trs[b]["doneTime"]) - float(trs[b]["scheduledTime"]) for b in replay.batch_local))
-    return out
+            runs.append(default_timer() - t1)
+    return out, setup, runs
 
 
 class PlanOracle:
@@ -104,14 +111,26 @@ class PlanOracle:
         """Labels of `plans`, aligned with the snapshot's batch tasks in gid order; `types[i]` is task i's type name."""
         if not plans:
             return []
+        from timeit import default_timer
+
+        t0 = default_timer()
         spec = self.spec(snapshot)
         chunks = max(1, min(self.workers, -(-len(plans) // MIN_PLANS_PER_CHUNK)))
         parts = [list(range(c, len(plans), chunks)) for c in range(chunks)]
-        futures = [self._executor().submit(_label_chunk, spec, list(types), [plans[k] for k in part]) for part in parts]
+        pool = self._executor()
+        futures = [pool.submit(_label_chunk, spec, list(types), [plans[k] for k in part]) for part in parts]
+        t1 = default_timer()
         out: List[float] = [0.0] * len(plans)
+        setups: List[float] = []
+        runs: List[float] = []
         for part, fut in zip(parts, futures):
-            for k, label in zip(part, fut.result()):
+            labels, setup, per_plan = fut.result()
+            setups.append(setup)
+            runs.extend(per_plan)
+            for k, label in zip(part, labels):
                 out[k] = label
+        self.last = {"chunks": chunks, "t_spec": t1 - t0, "t_wait": default_timer() - t1, "setup_mean": sum(setups) / len(setups),
+                     "setup_max": max(setups), "run_mean": sum(runs) / len(runs), "run_max": max(runs)}
         return out
 
     def close(self) -> None:
