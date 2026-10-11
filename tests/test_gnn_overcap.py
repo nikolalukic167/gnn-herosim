@@ -13,12 +13,11 @@ SEED = {0: (1, 11), 1: (2, 22)}
 
 def _refiner_ov(monkeypatch, **kw):
     """The flag is read by every scheduler's init and refused by the CD shell the toy borrows its primitives from, so it is lifted while that shell is built."""
-    flag = os.environ.pop(S.PG_CD_OVERCAP_ENV, None)
+    lifted = {k: os.environ.pop(k) for k in (S.PG_CD_OVERCAP_ENV, S.PG_CD_OVERCAP_DRY_ENV) if k in os.environ}
     try:
         s, tasks, state = _shell(monkeypatch, **kw)
     finally:
-        if flag is not None:
-            os.environ[S.PG_CD_OVERCAP_ENV] = flag
+        os.environ.update(lifted)
     from types import SimpleNamespace
 
     from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
@@ -111,7 +110,7 @@ def test_harness_serves_the_overcap_arms():
     assert {"ra_gnn_eng_ovg", "ra_twin_eng_ovg", "ra_gnn_eng_ovo", "ra_gnn_eng_ovd"} <= set(G.R1A_ARMS) and not set(G.R1A_OVERCAP) & set(G.RA_KINDS)
     assert "_ovg" in G.SUFFIXES and "_ovo" in G.SUFFIXES
     src = open(G.__file__).read()
-    assert 'if kind.endswith("_ovg"):\n            env["HEROSIM_PG_CD_OVERCAP"] = "gnn"' in src
+    assert 'if kind.endswith(("_ovg", "_ovd")):\n            env["HEROSIM_PG_CD_OVERCAP"] = "gnn"' in src
     assert '"HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_CD_OVERCAP_DRY", "HEROSIM_OVERCAP_LOG", ' in src   # scrubbed per cell
     assert "ra_gnn_eng_ovd" in G.R1A_OVERCAP and "_ovd" in G.SUFFIXES
 
