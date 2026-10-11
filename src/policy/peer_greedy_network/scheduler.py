@@ -161,6 +161,11 @@ PG_CD_EXACT_PRUNE_ENV = "HEROSIM_PG_CD_EXACT_PRUNE"
 # big_groups_s0_v1 M4 (HEROSIM_PG_SHARED_LINK=1): S' = S with each in-batch peer pair's transfer priced at the link bandwidth divided by the number of
 # the batch's cross-node pairs whose route crosses the same link (`_pg_plan_cost` only; the greedy and the passes keep S). Off: bit-identical.
 PG_SHARED_LINK_ENV = "HEROSIM_PG_SHARED_LINK"
+# link_bound_s0_v1 L3 (Amendment 1): in this physics only a task's INPUT transfer queues on link pipes (infrastructure.py:1526-1565); peer exchange is additive.
+# HEROSIM_PG_INPUT_LINK=hold|core prices the wait a task's input sees on each CORE link of its route (origin -> node) behind the other in-batch inputs
+# crossing that link: wait_i = max over core links l of route_i of sum over j != i with l in route_j of h_j(l), added to S in `_pg_plan_cost` only.
+# `hold`: h_j = the live pipe hold, input_j / bottleneck(route_j) (pipelined). `core`: h_j = input_j / bandwidth(l). No shared core link: equals S.
+PG_INPUT_LINK_ENV = "HEROSIM_PG_INPUT_LINK"
 _EXACT_GNN_TIE_CAP = 64
 PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass",
                      "pg_exact_tasks_moved", "pg_exact_gain_seconds",
@@ -325,6 +330,12 @@ class _PeerGreedyCore:
         if self.pg_shared_link and not (self._pg_batched and self.exchange_on):
             raise RuntimeError(f"FAIL LOUD: {PG_SHARED_LINK_ENV}=1 prices a batch's pairs over shared links: it needs a batched flavour with peer exchange; "
                                f"{self._policy_label}")
+        self.pg_input_link = os.environ.get(PG_INPUT_LINK_ENV, "").strip()
+        if self.pg_input_link not in ("", "hold", "core"):
+            raise ValueError(f"FAIL LOUD: {PG_INPUT_LINK_ENV} must be hold or core, got {self.pg_input_link!r}")
+        if self.pg_input_link and (self.pg_shared_link or not self._pg_batched):
+            raise RuntimeError(f"FAIL LOUD: {PG_INPUT_LINK_ENV} prices a batch's inputs over shared core links: it needs a batched flavour and excludes "
+                               f"{PG_SHARED_LINK_ENV}; {self._policy_label}")
         self.pg_cd_exact_prune = os.environ.get(PG_CD_EXACT_PRUNE_ENV, "").strip()
         if self.pg_cd_exact_prune not in ("", "gnn", "cost"):
             raise ValueError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} must be gnn or cost, got {self.pg_cd_exact_prune!r}")
@@ -971,6 +982,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
         else:
             exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+        in_wait = self._pg_input_link_wait(batch_tasks, plan) if self.pg_input_link else [0.0] * n
         xf = [self._pg_xf(plan[i][1]) for i in range(n)]
         exec_s = [float(batch_tasks[i].type["executionTime"].get(plan[i][1].type["shortName"], 0.0) or 0.0) * xf[i] for i in range(n)]
         comm = [_approx_comm(batch_tasks[i].type) for i in range(n)]
@@ -989,7 +1001,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                 drain += inflight_remaining_seconds(platform)
             cold = incoming_cold_start_time(batch_tasks[i], platform)
             lat = network_latency_between(batch_tasks[i].node_name, node, nodes)
-            base = drain + cold + exec_s[i] + lat
+            base = drain + cold + exec_s[i] + lat + in_wait[i]
             if getattr(self, "pg_pull_hold", False):
                 hold_key = f"pull_hold:{node.node_name}"
                 if hold_key not in memo:
@@ -1005,6 +1017,31 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             scores.append(score)
             total += score
         return total, service, scores
+
+    def _pg_input_link_wait(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]]) -> List[float]:
+        """Seconds each task's input waits on the shared CORE links of its route behind the batch's other inputs (link_bound_s0_v1 L3, see
+        PG_INPUT_LINK_ENV). Bandwidths come from the node's fabric, so they follow the configured link bandwidth."""
+        from src.placement.infrastructure import _audit_input_bytes
+        from src.placement.network_fabric import is_core_link, transfer_model
+        from src.placement.scheduling_cost import transfer_time
+
+        if self.pg_input_link == "hold" and transfer_model() != "pipelined":
+            raise RuntimeError(f"FAIL LOUD: {PG_INPUT_LINK_ENV}=hold prices the pipelined hold; HEROSIM_TRANSFER_MODEL is {transfer_model()!r}")
+        n = len(batch_tasks)
+        routes = []
+        for i in range(n):
+            fabric = getattr(getattr(plan[i][1], "node", None), "fabric", None)
+            routes.append(fabric.hops(batch_tasks[i].node_name, plan[i][0].node_name) if fabric is not None and batch_tasks[i].node_name != plan[i][0].node_name else [])
+        holds = []   # per task: {core link: seconds the input holds it}
+        for i in range(n):
+            bottleneck = min((bw for _k, bw in routes[i]), default=None)
+            holds.append({k: transfer_time(batch_tasks[i], bottleneck if self.pg_input_link == "hold" else bw)
+                          for k, bw in routes[i] if is_core_link(k)})
+        load: Dict[str, float] = {}
+        for h in holds:
+            for k, v in h.items():
+                load[k] = load.get(k, 0.0) + v
+        return [max((load[k] - v for k, v in holds[i].items()), default=0.0) for i in range(n)]
 
     def _pg_exchange_shared(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch,
                             peer_nodes_of: List[Sequence[Tuple[str, float]]]) -> List[float]:
@@ -1489,6 +1526,7 @@ class GnnCdRefiner(_PeerGreedyCore):
     _pg_candidates = PeerGreedyNetworkBatchScheduler._pg_candidates
     _pg_plan_cost = PeerGreedyNetworkBatchScheduler._pg_plan_cost
     _pg_exchange_shared = PeerGreedyNetworkBatchScheduler._pg_exchange_shared
+    _pg_input_link_wait = PeerGreedyNetworkBatchScheduler._pg_input_link_wait
     _pg_expand = PeerGreedyNetworkBatchScheduler._pg_expand
     _pg_plan_objects = PeerGreedyNetworkBatchScheduler._pg_plan_objects
     _pg_write_books = PeerGreedyNetworkBatchScheduler._pg_write_books
