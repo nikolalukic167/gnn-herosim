@@ -25,7 +25,7 @@ wc -l $OUT/snap.jsonl
 python3 scripts_cosim/rollout_replay.py --make-table $OUT/live.raw.json $OUT/table.json
 # 2 the first N snapshots passing the corpus filters become dry-run datasets; the first is the replay's physics reference
 python3 -c "import random,sys;L=open(sys.argv[1]).read().splitlines();random.Random('lbp').shuffle(L);open(sys.argv[2],'w').write('\n'.join(L)+'\n')" $OUT/snap.jsonl $OUT/shuffled.jsonl
-python3 scripts_cosim/make_warm_corpus.py --snapshots $OUT/shuffled.jsonl --output-dir $OUT/ds --start-index 0 --limit-batches $N \
+python3 scripts_cosim/make_warm_corpus.py --snapshots $OUT/shuffled.jsonl --output-dir $OUT/ds --start-index 0 --limit-batches $N --whole-group none \
   --trace $WL --cell-config $CFG --source-tag lbp --min-time 360 --variable-group-min 2 --require-connected-batch --no-cap-filter --min-choice-fraction 0.2 --fidelity --dry-run --quiet --manifest-per-source --workers 1 > $OUT/build.log 2>&1
 # 3 replay jobs
 python3 - $OUT <<'PY'
