@@ -101,7 +101,8 @@ CAP_KEEP_ALIVE = "1e9"
 CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch", "_ssx")
+# ssx (selfsearch_gap_v1 diagnostic): "_ssx" = "_selfsearch" plus GNN_CD_REFINE=shadow with the exact-S search, so each batch also logs the plan cd_exactS would pick from the self-search plan (HEROSIM_CDR_LOG)
 # gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
 # accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
 # cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
@@ -142,7 +143,7 @@ R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
 R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
-R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
+R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_gnn_eng_ssx")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
@@ -811,10 +812,16 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_CD_REFINE"] = "apply"
         if kind.endswith("_cdxapply"):
             env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")
-        if kind.endswith(("_nosplit", "_selfsearch")):
+        if kind.endswith(("_nosplit", "_selfsearch", "_ssx")):
             env["GNN_SLATE_NO_SPLIT"] = "1"
-        if kind.endswith("_selfsearch"):
+        if kind.endswith(("_selfsearch", "_ssx")):
             env["GNN_SELF_SEARCH"] = "1"
+        if kind.endswith("_ssx"):
+            cdr_dir = os.environ.get("SSX_CDR_DIR")
+            if not cdr_dir:
+                raise SystemExit("FAIL LOUD: the ssx diagnostic needs SSX_CDR_DIR (where each cell writes its per-batch shadow log)")
+            os.makedirs(cdr_dir, exist_ok=True)
+            env.update(GNN_CD_REFINE="shadow", HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_CDR_LOG=os.path.join(cdr_dir, name + ".cdr.jsonl"))
         if kind.endswith(("_selfref", "_selfrefkw")):
             env["GNN_PREFIX_SELF_REFINE"] = "3"
         if kind.endswith("_selfrefkw"):
@@ -971,18 +978,18 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
     if not kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
-    if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply")) and int(c.get("cdr_batches") or 0) == 0:
+    if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_ssx")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
-    if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
+    if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_ssx")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
-    expands = kind.endswith("_cdxapply") or kind == "cd_expand"
+    expands = kind.endswith(("_cdxapply", "_ssx")) or kind == "cd_expand"
     if expands and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) == 0):
         problems.append(f"expansion instrument off: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')}")
     if not expands and kind != "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXPANSION") or int(c.get("pg_expand_batches") or 0)):
         problems.append("a non-expansion arm expanded")
-    if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
+    if (kind == "cd_exactS" or kind.endswith("_ssx")) and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
-    if kind != "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") or int(c.get("pg_exact_batches") or 0)):
+    if kind != "cd_exactS" and not kind.endswith("_ssx") and (out["env"].get("HEROSIM_PG_CD_EXACT") or int(c.get("pg_exact_batches") or 0)):
         problems.append("a non-exact arm ran the exact search")
     if kind == "cd_random_seed":
         if int(c.get("pg_random_seed_batches") or 0) == 0 or int(c.get("cdr_batches") or 0) != int(c.get("pg_random_seed_batches") or 0):
@@ -1033,14 +1040,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                               or int(c.get("pg_pull_charged") or 0) == 0):
         problems.append("pull-hold instrument off: HEROSIM_PG_PULL_HOLD / HEROSIM_PULL_LEDGER not served or pg_pull_charged == 0")
     unsplit, sub_b = int(c.get("slate_declared_unsplit") or 0), int(c.get("slate_declared_sub_batched") or 0)
-    if kind.endswith(("_nosplit", "_cdxapply", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
+    if kind.endswith(("_nosplit", "_cdxapply", "_selfsearch", "_ssx")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
         problems.append(f"no-split instrument off: GNN_SLATE_NO_SPLIT={out['env'].get('GNN_SLATE_NO_SPLIT')!r}, unsplit {unsplit} of {sub_b} sub-batched")
-    if not kind.endswith(("_nosplit", "_cdxapply", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
+    if not kind.endswith(("_nosplit", "_cdxapply", "_selfsearch", "_ssx")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
         problems.append("a split arm decoded a batch whole")
     ss = int(c.get("ss_batches") or 0)
-    if kind.endswith("_selfsearch") and (out["env"].get("GNN_SELF_SEARCH") != "1" or ss == 0 or ss != int(c.get("slate_declared_batches") or -1)):
+    if kind.endswith(("_selfsearch", "_ssx")) and (out["env"].get("GNN_SELF_SEARCH") != "1" or ss == 0 or ss != int(c.get("slate_declared_batches") or -1)):
         problems.append(f"self-search instrument off: GNN_SELF_SEARCH={out['env'].get('GNN_SELF_SEARCH')!r}, searched {ss} of {c.get('slate_declared_batches')} batches")
-    if not kind.endswith("_selfsearch") and (out["env"].get("GNN_SELF_SEARCH") or ss):
+    if not kind.endswith(("_selfsearch", "_ssx")) and (out["env"].get("GNN_SELF_SEARCH") or ss):
         problems.append("a non-self-search arm ran the plan search")
     if kind != "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") or int(c.get("pg_pull_charged") or 0)):
         problems.append("a non-pull arm charged the pull hold")
