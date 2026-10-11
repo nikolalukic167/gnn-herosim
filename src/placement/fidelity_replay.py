@@ -34,6 +34,20 @@ def spec_of(seed: Mapping[str, Any] | None) -> Dict[str, Any] | None:
     return (seed or {}).get(SPEC_KEY)
 
 
+def effective_backbone(space: Mapping[str, Any]) -> Dict[str, float] | None:
+    """The backbone bandwidths a run on this cell config sees, with the HEROSIM_LINK_BANDWIDTH_MBPS default applied exactly
+    as the live path applies it (an explicit network.backbone block wins over the env var)."""
+    from src.executesimulation import _apply_link_backbone_env_default
+
+    cfg = deepcopy(dict(space))
+    _apply_link_backbone_env_default(cfg)
+    bb = (cfg.get("network") or {}).get("backbone")
+    if not bb:
+        return None
+    bw = float(bb["bandwidth_mbps"])
+    return {"bandwidth_mbps": bw, "core_bandwidth_mbps": float(bb.get("core_bandwidth_mbps") or bw)}
+
+
 def build_spec(snapshot: Mapping[str, Any], cell_config: Path, sim_input: Path) -> Dict[str, Any]:
     """What a dataset must carry to be replayed under fidelity: the RAW snapshot (every replica a candidate, the
     fidelity block attached), the cell it was captured on, and the parameters the replay will run with."""
@@ -49,6 +63,7 @@ def build_spec(snapshot: Mapping[str, Any], cell_config: Path, sim_input: Path) 
         "sim_input": str(sim_input),
         "label": LABEL,
         "live_run_params": snapshot_fidelity.live_run_params(),
+        "backbone": effective_backbone(json.loads(Path(cell_config).read_text())),
         "queued_tasks": len(snapshot["fidelity"]["queued"]),
         "batch_tasks": len(snapshot["fidelity"]["batch"]),
     }
@@ -90,6 +105,10 @@ class FidelityReplay:
         from src.placement import snapshot_fidelity
         from src.placement.live_snapshot_seed import build_live_snapshot_seed
 
+        space = json.loads(Path(spec["cell_config"]).read_text())
+        if "backbone" in spec and effective_backbone(space) != spec["backbone"]:
+            raise ValueError(f"backbone at replay {effective_backbone(space)} differs from the dataset's {spec['backbone']} "
+                             f"(HEROSIM_LINK_BANDWIDTH_MBPS={os.environ.get('HEROSIM_LINK_BANDWIDTH_MBPS')!r}, cell {spec['cell_config']})")
         os.environ["SIM_FORCE_FULL_STATS"] = "1"  # taskResults are dropped above 20 tasks otherwise (orchestrator.py:736)
         self.snap = spec["snapshot"]
         fid = self.snap["fidelity"]
@@ -103,7 +122,6 @@ class FidelityReplay:
         self.batch_local = [ids[by_type[t].pop(0)] for t in dataset_types]
         if any(by_type.values()):
             raise ValueError(f"dataset types {list(dataset_types)} do not account for the snapshot's batch {fid['batch']}")
-        space = json.loads(Path(spec["cell_config"]).read_text())
         self.base_infra = prepare_infrastructure_for_real_simulation(space, seed=None, sim_input_path=Path(spec["sim_input"]))
         self.seed = build_live_snapshot_seed(self.snap)  # fidelity attached: backlog fields zeroed, queued tasks replayed
         self.kw = snapshot_fidelity.live_run_params()
