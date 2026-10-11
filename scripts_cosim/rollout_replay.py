@@ -444,7 +444,7 @@ def _one(job):
 
                     from src.executesimulation import load_gnn_model, load_task_types_data
 
-                    gm, gd = load_gnn_model(_P(os.environ["GNN_MODEL_PATH"]))
+                    gm, gd = load_gnn_model(_P(os.environ["GNN_MODEL_PATH"]), space_config=json.load(open(spec["cell_config"])))
                     models = {"gnn_model": gm, "device": gd, "task_types_data": load_task_types_data(_P(spec["sim_input"]))}
                 res = execute_simulation({"infrastructure": infra, "workload": wl}, fr.sim_inputs, scheduling_strategy=strategy,
                                          cache_policy="fifo", task_priority="fifo", models=models, **fr.kw)
