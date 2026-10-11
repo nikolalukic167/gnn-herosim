@@ -2386,6 +2386,91 @@ if _eval_ckpt:
     import json as _json
     model.load_state_dict(torch.load(_eval_ckpt, map_location=DEVICE))
     _PER_DATASET_RECORDS = []
+    _trace_ids = os.environ.get("NEAR_RTT_EVAL_TRACE_IDS")
+    if _trace_ids:
+        # Diagnostic (S6, worst-table trace): per listed train/val table, the masked_topo decode step by step under its own prefix,
+        # the same steps teacher-forced along the label-optimal plan, the mask state, and the raw inputs of the chosen vs optimal
+        # candidate at the first divergent step. Never test.
+        from src.policy.gnn.partial_state_edges import candidate_edge_rows as _cer
+        _want = set(_json.load(open(_trace_ids)))
+        _pool = {i: g for i, g in zip(train_ids, train_graphs)}
+        _pool.update({i: g for i, g in zip(val_ids, val_graphs)})
+        _missing = sorted(_want - set(_pool))
+        if _missing:
+            raise SystemExit(f"FAIL LOUD: trace ids not in train/val: {_missing[:5]}")
+        _ds = GraphRttDataset([_pool[i] for i in sorted(_want)], sorted(_want), DATA_OPTIMAL_RTT)
+        _full = build_full_sweep_rtt_by_dataset(CACHE_CTX.cache_dir, keep_ids=sorted(_want))
+        # corpus ranges of the static inputs on candidate edges / platform nodes (train split), to flag out-of-range columns
+        _xs, _es = [], []
+        for _g in train_graphs:
+            _r = [r for rr in _cer(_g).values() for r in rr]
+            if not _r:
+                continue
+            _ei = _g.edge_index
+            _xs.append(_g.x[_ei[1, _r]].float())
+            if getattr(_g, "edge_attr", None) is not None and _g.edge_attr.numel():
+                _es.append(_g.edge_attr[_r].float())
+        _xs = torch.cat(_xs); _es = torch.cat(_es) if _es else None
+        _q = lambda t: {"min": t.min(0).values.tolist(), "p01": torch.quantile(t, 0.01, dim=0).tolist(),
+                        "p99": torch.quantile(t, 0.99, dim=0).tolist(), "max": t.max(0).values.tolist(),
+                        "n_distinct_le1": [int(len(torch.unique(t[:, c])) <= 1) for c in range(t.size(1))]}
+        _out_tr = {"checkpoint": _eval_ckpt, "corpus_x_platform": _q(_xs[:200000]),
+                   "corpus_edge_attr": _q(_es[:200000]) if _es is not None else None, "tables": []}
+        _alpha = str(NEAR_CFG.dag_alpha_key or "2.0")
+        model.eval()
+        with torch.no_grad():
+            for _k in range(len(_ds)):
+                data = move_graph_to_device(_ds[_k], DEVICE)
+                _did = lookup_dataset_id(data)
+                _rtt = dict(_full.get(_did) or {}); _rtt.update(RTT_BY_DATASET.get(_did, {}))
+                ctx = build_partial_state_context_from_graph(data)
+                ctx.node_caps = data.partial_state_ctx["node_caps_by_alpha"][_alpha]
+                _n = int(data.n_tasks)
+                _tl = [[tuple(int(v) for v in c) for c in data.task_logit_to_placement[t]] for t in range(_n)]
+                _dem = {t: [float(ctx.demand[(t, c)]) for c in _tl[t]] for t in range(_n)}
+                _combo = _masked_topo_regret_for_graph(model, data)
+                _labs = [[_tl[t][int(pl[t])] for t in range(_n)] for pl in data.tied_optimal_logit_plans[_alpha]]
+                _opt = min(_labs, key=lambda L: sum(a != b for a, b in zip(L, _combo)))
+                _order = topological_task_order(_n, data.dag_parents)
+                _sf = make_partial_state_score_fn(model, data, ctx)
+                _rows = _cer(data)
+                _steps, _pref_dec, _pref_opt, _div = [], {}, {}, None
+                for _st, t in enumerate(_order):
+                    _ld = [float(v) for v in _sf(t, dict(_pref_dec))]
+                    _ps_dec = data.partial_state_edge_attr[_rows[t]].tolist()
+                    _lo = [float(v) for v in _sf(t, dict(_pref_opt))]
+                    _ci, _oi = _tl[t].index(tuple(_combo[t])), _tl[t].index(tuple(_opt[t]))
+                    _rk = sorted(range(len(_lo)), key=lambda i: (-_lo[i], _tl[t][i]))
+                    _steps.append({"task": t, "cands": [list(c) for c in _tl[t]], "logits_dec_prefix": _ld, "logits_opt_prefix": _lo,
+                                   "chosen": _ci, "opt": _oi, "opt_rank_under_opt_prefix": _rk.index(_oi),
+                                   "demands": _dem[t]})
+                    if _div is None and _ci != _oi:
+                        _ei = data.edge_index
+                        _div = {"step": _st, "task": t, "same_prefix": True, "logit_chosen": _ld[_ci], "logit_opt": _ld[_oi],
+                                "margin": _ld[_ci] - _ld[_oi], "exact_tie": _ld[_ci] == _ld[_oi],
+                                "ps_chosen": _ps_dec[_ci], "ps_opt": _ps_dec[_oi],
+                                "x_chosen": data.x[_ei[1, _rows[t][_ci]]].tolist(), "x_opt": data.x[_ei[1, _rows[t][_oi]]].tolist(),
+                                "ea_chosen": data.edge_attr[_rows[t][_ci]].tolist() if getattr(data, "edge_attr", None) is not None and data.edge_attr.numel() else None,
+                                "ea_opt": data.edge_attr[_rows[t][_oi]].tolist() if getattr(data, "edge_attr", None) is not None and data.edge_attr.numel() else None}
+                    _pref_dec[t] = tuple(_combo[t]); _pref_opt[t] = tuple(_opt[t])
+                # mask state: caps finite?, opt plan's node load vs caps, reuse/relax flags
+                _load = {}
+                for t in range(_n):
+                    _nd = _opt[t][0]; _load[_nd] = _load.get(_nd, 0.0) + _dem[t][_tl[t].index(tuple(_opt[t]))]
+                _caps = {int(k): float(v) for k, v in ctx.node_caps.items()}
+                _over = {n: (l, _caps.get(n)) for n, l in _load.items() if _caps.get(n) is not None and l > _caps[n] + 1e-9}
+                _ck = tuple(tuple(c) for c in _combo)
+                _ok = tuple(tuple(c) for c in _opt)
+                _out_tr["tables"].append({"ds": _did, "opt_rtt": float(data.opt_rtt), "combo": [list(c) for c in _combo],
+                    "combo_rtt": _rtt.get(_ck), "opt_plan": [list(c) for c in _opt], "opt_plan_rtt": _rtt.get(_ok),
+                    "n_label_plans": len(_labs), "order": _order, "n_cands": [len(c) for c in _tl],
+                    "caps_finite": sum(__import__("math").isfinite(v) for v in _caps.values()), "caps_n": len(_caps), "opt_over_cap": _over,
+                    "reuse": NEAR_CFG.decode_replica_reuse, "relax": NEAR_CFG.decode_relax_on_stuck,
+                    "first_divergence": _div, "steps": _steps})
+        with open(os.environ["NEAR_RTT_EVAL_OUT"], "w") as _f:
+            _json.dump(_out_tr, _f)
+        print(f"[trace] {len(_out_tr['tables'])} tables -> {os.environ['NEAR_RTT_EVAL_OUT']}")
+        sys.exit(0)
     _smoke = int(os.environ.get("NEAR_RTT_EVAL_TRAIN_SMOKE", "0"))
     if _smoke:
         # Timing smoke for the re-ranker cost estimate: score every k-th TRAIN table (k = len // N), same code path as val. Train is read
