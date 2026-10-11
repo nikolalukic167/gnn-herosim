@@ -59,7 +59,11 @@ def score(ds: str, plan) -> dict:
     served = [int(tr["executionPlatform"]) for tr in trs]
     if served != [int(p[1]) for p in plan]:
         raise RuntimeError(f"replay ran platforms {served}, not the forced {[int(p[1]) for p in plan]}")
+    comp = lambda k: sum(float(tr.get(k) or 0.0) for tr in trs)
+    # link_bound_s0_v1 L1: linkWaitTime is the queueing for the input route's link pipes (infrastructure.py, pipelined branch);
+    # peer exchange is an additive charge and never queues, so it is carried separately
     return dict(q_batch=float(res["stats"]["total_rtt"]), batch_lat=[float(tr["doneTime"]) - float(tr["scheduledTime"]) for tr in trs],
+                link_wait=comp("linkWaitTime"), link_transfer=comp("linkTransferTime"), peer_exchange=comp("peerExchangeTime"),
                 wall=time.time() - t0)
 
 
@@ -89,6 +93,7 @@ def _check_state(job):
         return dict(ds=ds, error=f"{type(e).__name__}: {str(e)[:300]}", tb=traceback.format_exc()[-1500:])
 
 
+DISTINCT_REL = 1e-6  # link_bound_s0_v1 L4: latency-distinct from the best = replayed latency above it by more than this, relative
 CAP = 100_000  # the declared pruning's plan cap: argmin-S is exact at or below it, the marked S-only local search above
 
 
@@ -195,11 +200,14 @@ def _search_state(job):
         slates = [[tuple(map(int, c)) for c in fr["task_candidates"][d]] for d in range(h["n"])]
         B = int(job["budget"])
         seen = {}  # plan tuple -> replayed batch latency
+        parts = {}  # plan tuple -> (link wait, link transfer, peer exchange), summed over the batch
 
         def q(pl):
             key = tuple(tuple(map(int, c)) for c in pl)
             if key not in seen:
-                seen[key] = score(ds, [list(c) for c in key])["q_batch"]
+                s = score(ds, [list(c) for c in key])
+                seen[key] = s["q_batch"]
+                parts[key] = (s["link_wait"], s["link_transfer"], s["peer_exchange"])
             return seen[key]
 
         # the starts (the GNN self-search plan is not available offline: flagged in the read); the S' plan is scored too, so the
@@ -256,6 +264,8 @@ def _search_state(job):
                 improved_at.append(len(seen))
         ranked = sorted(seen.values())
         cur = min(seen, key=lambda key: (seen[key], key))
+        key_s = tuple(tuple(map(int, c)) for c in h["argmin_s"])
+        distinct = [x for x in ranked if x > ranked[0] * (1 + DISTINCT_REL)]
         return dict(ds=ds, condition=job.get("condition"), n=h["n"], plans_in_slate=h["plans_in_slate"], slate_sizes=h["slate_sizes"],
                     cd_plan_in_slate=h["cd_plan_in_slate"], s_exact=h["s_exact"], s2_exact=h["s2_exact"],
                     s_evals=h["s_evals"], s2_evals=h["s2_evals"], q_argmin_s=start_q["argmin_s"], q_cd_exacts=start_q["cd_exacts"],
@@ -265,7 +275,9 @@ def _search_state(job):
                     best_from_restart=bool(improved_at),
                     improved_last20=any(x > 0.8 * B for x in improved_at), exhausted=len(seen) >= h["plans_in_slate"],
                     exact_batches=dec.get("exact_batches"), exact_fallbacks=dec.get("exact_fallbacks"),
-                    all_q=ranked[:50], wall=time.time() - t0)
+                    all_q=ranked[:50], q_second_distinct=distinct[0] if distinct else None,
+                    best_link_wait=parts[cur][0], best_link_transfer=parts[cur][1], best_peer_exchange=parts[cur][2],
+                    argmin_s_link_wait=parts[key_s][0], wall=time.time() - t0)
     except Exception as e:
         import traceback
 
