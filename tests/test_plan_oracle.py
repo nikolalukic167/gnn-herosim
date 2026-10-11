@@ -13,6 +13,9 @@ SPLIT = ((1, 11), (2, 22))
 TOGETHER_C = ((3, 33), (3, 33))
 
 
+SNAP = {"fidelity": {"peers": {}, "future": {}}}
+
+
 class StubOracle:
     def __init__(self, labels):
         self.labels_by_plan, self.calls = labels, 0
@@ -27,7 +30,7 @@ def _oracle_shell(monkeypatch, labels, max_plans=None):
     monkeypatch.setenv(S.PG_ORACLE_ENV, "1")
     if max_plans is not None:
         monkeypatch.setenv(S.PG_ORACLE_MAX_PLANS_ENV, str(max_plans))
-    monkeypatch.setattr("src.placement.live_audit.capture_batch_snapshot", lambda *a, **k: {})
+    monkeypatch.setattr("src.placement.live_audit.capture_batch_snapshot", lambda *a, **k: dict(SNAP))
     s, tasks, state = _shell(monkeypatch)
     s._live_audit_policy_name = "peer_greedy_network_cd"
     s._plan_oracle = StubOracle(labels)
@@ -55,6 +58,21 @@ def test_oracle_cap_sends_larger_batches_to_the_surrogate_search_and_counts_them
     assert s._plan_oracle.calls == 0
     assert (s.pg_oracle_batches, s.pg_oracle_seen_batches, s.pg_oracle_over_cap_batches, s.pg_oracle_over_cap_tasks) == (0, 1, 1, 2)
     assert s.pg_exact_batches == 1
+
+
+def test_unlabellable_batch_keeps_cd_exactS_and_is_counted(monkeypatch):
+    # a partner outside the batch that the live run had not placed yet: no snapshot gives the rendezvous time, the replay cannot label the batch
+    s, tasks, state = _oracle_shell(monkeypatch, {SPLIT: 0.0})
+    monkeypatch.setattr("src.placement.live_audit.capture_batch_snapshot",
+                        lambda *a, **k: {"fidelity": {"peers": {"0": [[99, None, 1.0]]}, "future": {}}})
+    assert s._pg_decide(tasks, state) == {0: (3, 33), 1: (3, 33)}
+    assert s._plan_oracle.calls == 0
+    assert (s.pg_oracle_batches, s.pg_oracle_unplaced_batches, s.pg_oracle_unplaced_tasks, s.pg_oracle_seen_batches) == (0, 1, 2, 1)
+    monkeypatch.setattr("src.placement.live_audit.capture_batch_snapshot",
+                        lambda *a, **k: {"fidelity": {"peers": {"0": [[99, None, 1.0]]}, "future": {"99": [3.0, "A"]}}})
+    s.pg_oracle_unplaced_batches = 0
+    s._pg_decide(tasks, state)
+    assert s._plan_oracle.calls == 1 and s.pg_oracle_unplaced_batches == 0   # a partner with a known placement time is labellable
 
 
 def test_oracle_flag_off_never_builds_the_pool(monkeypatch):

@@ -1006,8 +1006,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
         if out["env"].get("HEROSIM_PG_ORACLE") != "1" or int(c.get("pg_oracle_batches") or 0) == 0:
             problems.append(f"oracle instrument off: HEROSIM_PG_ORACLE={out['env'].get('HEROSIM_PG_ORACLE')!r}, pg_oracle_batches {c.get('pg_oracle_batches')}")
-        if int(c.get("pg_oracle_seen_batches") or 0) != int(c.get("pg_oracle_batches") or 0) + int(c.get("pg_oracle_over_cap_batches") or 0):
-            problems.append(f"oracle books do not close: seen {c.get('pg_oracle_seen_batches')} != served {c.get('pg_oracle_batches')} + over cap {c.get('pg_oracle_over_cap_batches')}")
+        if int(c.get("pg_oracle_seen_batches") or 0) != int(c.get("pg_oracle_batches") or 0) + int(c.get("pg_oracle_over_cap_batches") or 0) + int(c.get("pg_oracle_unplaced_batches") or 0):
+            problems.append(f"oracle books do not close: seen {c.get('pg_oracle_seen_batches')} != served {c.get('pg_oracle_batches')} + over cap {c.get('pg_oracle_over_cap_batches')} + unplaced {c.get('pg_oracle_unplaced_batches')}")
     elif out["env"].get("HEROSIM_PG_ORACLE") or int(c.get("pg_oracle_batches") or 0):
         problems.append("a non-oracle arm ran the live oracle")
     if kind == "cd_random_seed":
