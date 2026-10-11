@@ -18,6 +18,11 @@ if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate gnn
 export HEROSIM_PY=python3 PYTHONPATH="$WT" PYTHONUNBUFFERED=1
+export OMP_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=""
+export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
+export HEROSIM_PEER_EXCHANGE=1 HEROSIM_SERVER_ONLY_REPLICAS=1 HEROSIM_WARMTH_PHYSICS=node_disk_v2 PYTHONHASHSEED=0 HEROSIM_GNN_DEVICE=cpu
+export GNN_DECODE_MODE=masked_topo GNN_BATCH_BY_PEER_GROUP=1 HEROSIM_SNAPSHOT_FIDELITY=1
+export HEROSIM_RAW_DIR=/tmp/pg8s_${SLURM_JOB_ID:-$$}; mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 HEAD=$(git rev-parse HEAD)
 echo "HEAD $HEAD node $(hostname) order=$ORDER out=$OUT"
 [[ "$HEAD" == "$EXPECT_HEAD"* ]] || { echo "FAIL LOUD: worktree HEAD $HEAD is not $EXPECT_HEAD"; exit 1; }
