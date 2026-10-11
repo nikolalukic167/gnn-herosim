@@ -209,3 +209,31 @@ def test_no_shared_core_link_is_zero_so_it_equals_s(monkeypatch):
     # both tasks go to A from different... same-side origin and destination: X->A uses core0|core1, a task from A to B never leaves core1
     assert _input_wait(monkeypatch, "core", 100.0, 100.0, dests=("A", "B"), origins=("X", "A")) == pytest.approx([0.0, 0.0])
     assert _input_wait(monkeypatch, "hold", 100.0, 100.0, dests=("X", "A"), origins=("X", "A")) == pytest.approx([0.0, 0.0])   # co-located inputs
+
+
+def test_attribute_toggles_per_call_without_the_env_var(monkeypatch):
+    """big_groups_search's hook flips sched.pg_input_link around _pg_plan_cost: off ('' / None) adds nothing, hold/core add the wait."""
+    monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
+    monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
+    monkeypatch.delenv(S.PG_INPUT_LINK_ENV, raising=False)
+    s, tasks, nodes, plats, orch = _shell(monkeypatch, False, [], n_tasks=2)
+    fabric = _input_fabric(100.0, 10.0)
+    for nm in "ABC":
+        nodes[nm].fabric = fabric
+    nodes["X"] = SimpleNamespace(id=7, node_name="X", fabric=fabric)
+    nodes["Y"] = SimpleNamespace(id=8, node_name="Y", fabric=fabric)
+    nodes["A"].node_name, nodes["B"].node_name = "A", "B"
+    app = SimpleNamespace(type={"name": "app"})
+    for t, o in zip(tasks, "XY"):
+        t.node_name, t.application, t.type = o, app, {**t.type, "stateSize": {"app": {"input": 100 * MIB}}}
+    plan = [(nodes["A"], plats["A"]), (nodes["B"], plats["B"])]
+    waits = {}
+    for mode in (None, "", "hold", "core"):
+        s.pg_input_link = mode
+        waits[mode] = s._pg_plan_cost(tasks, plan, orch, {}, s.nodes.items)[0]
+    assert waits[None] == waits[""]
+    assert waits["hold"] - waits[None] == pytest.approx(2 * 10.0)   # two tasks, each waits the other's 10 s hold
+    assert waits["core"] - waits[None] == pytest.approx(2 * 1.0)
+    s.pg_input_link = "typo"
+    with pytest.raises(ValueError):
+        s._pg_plan_cost(tasks, plan, orch, {}, s.nodes.items)

@@ -1025,6 +1025,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         from src.placement.network_fabric import is_core_link, transfer_model
         from src.placement.scheduling_cost import transfer_time
 
+        if self.pg_input_link not in ("hold", "core"):
+            raise ValueError(f"FAIL LOUD: pg_input_link must be hold or core to price input waits, got {self.pg_input_link!r}")
         if self.pg_input_link == "hold" and transfer_model() != "pipelined":
             raise RuntimeError(f"FAIL LOUD: {PG_INPUT_LINK_ENV}=hold prices the pipelined hold; HEROSIM_TRANSFER_MODEL is {transfer_model()!r}")
         n = len(batch_tasks)
