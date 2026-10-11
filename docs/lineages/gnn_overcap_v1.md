@@ -1,0 +1,83 @@
+# gnn_overcap_v1 — does the GNN's own plan beat the hand expansion on batches too big to enumerate?
+
+**Status:** `REGISTERED` (2026-10-11). Drafted by S7 on the coordinator's ruling. Every bar below is fixed before any live data; the reader
+(`scripts_cosim/gnn_overcap_gate_read.py`, tests in `tests/test_gnn_overcap_gate_read.py`; by-batch readout `scripts_cosim/gnn_overcap_batches_read.py`) is committed before any cell runs.
+
+**Now.** Node, reader, over-cap path and tests committed on `rp/gnn-overcap`; topologies 19206–19217 chosen. No live data yet.
+
+**Why.** `selfsearch_gap_v1` (raw kept, 4 confirm-pool topologies, heavy g0, 1000 MB/s) split the loss of GNN self-search against `cd_exactS` by batch size.
+- Self-search **wins** on batches of 9+ tasks (−0.39 pp opening, −0.80 pp rest, of `cd_exactS`'s latency, median over topologies); on those batches 72.5 % of
+  `cd_exactS`'s searches are the expansion fallback, because 5^n plans exceed the 100,000-plan cap.
+- It **loses** on batches of 8 or fewer (≤ 4: +0.96 / +1.18 pp, 5–8: +0.62 / +2.08 pp), where the exact search over S enumerates the whole top-5 slate.
+- So the two have complementary strengths: exact S where it is exact, the learned plan where S's search is only a heuristic. 4 topologies, one window, descriptive.
+- At G = 8 the over-cap population is large (28 % moderate, 49 % heavy of `cd_exactS`'s batches, `big_groups_s0_v1`), where the fallback enumerated about 4.4 billion plans.
+
+**Distinct from `prune_g8_s0_v1` (S5), same lane.** `prune_g8` keeps `cd_exactS`'s machinery on over-cap batches: the GNN (or the cost order) only **orders** each task's slate, the cut slate
+(top-k, largest k within 100,000 plans) is searched **exactly on S**, and the pass plan is kept unless the pruned optimum is strictly cheaper on S. The learned model's role is a pruning order, and the
+decision is the argmin of the hand score. `gnn_overcap_v1` applies the GNN's **own plan** (its self-search argmax of the model's plan score) on over-cap batches, with no S, no pass and no expansion.
+Different mechanism, different claim; neither result transfers to the other. Both run at G = 8 on disjoint topologies (18700–18711 there).
+
+## Design (fixed now)
+
+- **Environment (primary seat):** the `big_groups_s0_v1` G = 8 gate, unchanged except the topologies: 160 clients × 24 servers, p = 0.6, WF1 (W2 payloads + W3 access classes + W4 mix/repair, 1 s window),
+  single origin spread over the 160 clients, `fastest_compatible`, pipelined transfers, `HEROSIM_REPLICA_RELEASE=1`, KPA, windows g0–g3, moderate and heavy.
+  Inputs: `scripts_cosim/datalab/big_groups_inputs.sbatch` with `X1=/share/nikola.lukic/big_groups/x1_G8`, `M_MODERATE=11.6139`, `M_HEAVY=27.622665025860204`.
+  **Check:** the inputs job's per-rung rate and group report must match the G = 8 gate's (6,250 groups of 8 per window; moderate 5.3470, heavy 12.7173 tasks/s) within 2 %.
+- **Secondary seat (descriptive, no claim):** the same 12 topologies at the current group size (`X1=/share/nikola.lukic/big_groups/x1_G0`, the library's own groups), window g0 only, arms H, E, C, both rungs
+  (72 cells). Over-cap there is 5–7 % of batches (`prune_g8_s0_v1`), so the expected effect is small; the seat is reported so the G = 8 result is not read as a statement about the current seat.
+- **Topologies:** 12 fresh ids, **19206–19217**.
+  - **Scan (S7, 2026-10-11).** `git grep` of 5-digit tokens 190xx–199xx over every local and remote branch (docs, `LINEAGES.md`, `scripts_cosim`, `experiments`, `tests`): only 19073, 19100, 19123, 19169, 19284, 19300–19306,
+    19381, 19386, 19490, 19516, 19602, 19617, 19623, 19676, 19703, 19752, 19884, 19999 occur. Dataset directory names under `/share/nikola.lukic` (`ds_*`, which begin with a 5-digit prefix): the 190xx–199xx prefixes in use are
+    multiples of 20 and 19000–19004, 19200–19204, 19400–19404, 19600–19604, 19800–19804, so 19205 and below, and 19206–19219, are free (`ds_172xx` is what forced the earlier move away from 172xx).
+    The `/share` file-name scan for 192xx–193xx finds none; a content grep of selection/manifest JSON for 192xx found none.
+  - **Disjoint from:** 19300–19305 (S4), 18700–18711 (S5, `prune_g8`), 19100–19123 (reserved for `plan_rerank`), 17007–17018 (`link_bound_s0_v1` gate), 16900–16911 (`big_groups_s0_v1` gate), 17100–17107, 16493/16503/16504/16507 (`selfsearch_gap_v1`)
+    and the earlier pools listed in those nodes. The scan is token-based, not a proof; the inputs job reports any directory already holding a `cc40s192xx` config and refuses to overwrite.
+- **Arms** (cell = arm × topology × window × rung; 12 × 4 × 2 = 96 cells per arm, 384 in all):
+
+  | arm | kind | seed | what it is |
+  |---|---|---|---|
+  | **H** | `ra_gnn_eng_ovg` | 1 | the no-split `gnn_eng` self-search plan seeds the CD refine; a batch within the 100,000-plan cap is refined and searched exactly on S as `cd_exactS` does; an over-cap batch is served the self-search plan **unchanged** (no passes, no expansion, no exact search) |
+  | **T** | `ra_twin_eng_ovg` | 1 | the same with the MP-OFF twin's self-search plan on over-cap batches (`accel-replica-v1-twin-eng-seed1`, `disable_message_passing`) |
+  | **E** | `cd_exactS` | 0 | exact search over S on the top-5 slate, expansion fallback above 100,000 plans |
+  | **C** | `cd` | 0 | CD |
+
+  - **Checkpoints:** `accel-replica-v1-gnn-eng-seed1.pt` (`/share/nikola.lukic/accel_prod/gate_inputs/models`, the one `big_groups_s0_v1` served as `ra_gnn_eng_selfsearch`) and the twin in
+    `/share/nikola.lukic/selfsearch/twin_inputs_8c8ebc7f/models`; the inputs' `models/` directory symlinks both sets (as `prune_g8`'s). The harness sidecar check runs at every cell start; if T fails it, H vs T is "not run" and no
+    message-passing claim is made. The two sidecars differ only in `cache_dir`, `disable_message_passing`, `mp_bipartite_edge_attr_zero` and `mp_bipartite_edge_conv` (checked 2026-10-11); corpus-build equality is **unverified**.
+  - **Mechanism and code:** `rp/gnn-overcap` (off `rp/prune-g8` 8301f267). `HEROSIM_PG_CD_OVERCAP=gnn` makes `GnnCdRefiner.refine` test the batch's slate product (task slates of min(candidates, 5), a pinned task counting 1)
+    against the cap before the passes run, and return the seed when it is above. The predicate `pg_overcap_pred` is a dry counter that runs with the flag on or off.
+  - **Learned arms use `R1A_SEEDS=1`; the rule arms seed 0.** The statement is about this checkpoint.
+- **Identity, before the gate (one job, smoke cells, all counted and read):**
+  - `cd_exactS` on 16900, g0, moderate with the new code reproduces the recorded `big_groups_s0_v1` G = 8 cell to the digit (mean latency and counters), so the flag-off path is unchanged.
+  - **H with the over-cap path off** (`ra_gnn_eng_ovo`, the same shell with the expansion fallback): `pg_overcap_pred == pg_exact_fallbacks` exactly, so the predicate counts what the exact search calls over the cap.
+    This cell is an identity cell and never enters the gate.
+  - **H with the dry counterfactual** (`ra_gnn_eng_ovd`) equals H (`ra_gnn_eng_ovg`) on the same cell to the digit (mean latency and every non-dry counter): the dry S comparison is inert. The harness checks served == predicted over-cap batches and fallbacks 0 in every H and T cell.
+- **Pre-gate descriptive comparison (item 6, cheap, no claim):** on the smoke cell the dry counterfactual runs, for every over-cap batch, the refine the fallback would have run (passes, expansion, passes) on the side, restores every counter, and
+  records S of H's plan and of that plan. Reported: share of over-cap batches where H's plan is cheaper / equal / dearer on S, mean and median S gain, and the batch sizes. **Disclosed:** this is on the smoke cell's own over-cap batches
+  (on-policy for H), not on S5's or `big_groups`' recorded G = 8 states: a GNN continuation of the replay was not built and S5 recorded 7 errored GNN replays, so no replayed RTT is attempted. The live gate runs regardless (rule 6).
+- **Live gate** (`r1a` phase of `fresh_topo_burst_v1_gate.py` at the pinned commit; `r1a_gate.sbatch`; `LIMIT=20000`, `CELL_MEM=8G`, array of 12 tasks at 16 CPUs, PAR 8, `KEEP_RAW_DIR` and `OVERCAP_LOG_DIR` on `/share`):
+  - Watchdog: a cell projected beyond 1.5 × LIMIT after 10 minutes is killed. A killed or failed cell is counted and reported, never rerun.
+  - Raw per-task results are kept (needed by the by-batch readout) and deleted after the read unless cited.
+- **Statistic:** per topology, the median over its 4 windows of the paired % of mean latency; the median over the 12 topologies; the sign count; the exact two-sided Wilcoxon. Negative = the first arm is faster.
+- **Registered families (Holm within each family):**
+  - **PRIMARY:** H vs E at moderate and heavy (Holm over 2).
+  - **SECONDARY:** H vs T (message-passing attribution) and H vs C at both rungs (Holm over 4).
+  - **Descriptive, not tested:** T vs E, T vs C, E vs C; the secondary seat.
+  - **Readout (not tested):** gap by over-cap / within-cap and by batch size (≤ 4, 5–8, 9+) and phase, stacking and cold starts per batch (`gnn_overcap_batches_read.py`, g0 cells, buckets taken from H's over-cap log and applied to both arms); the over-cap share served by the GNN (batches and tasks).
+- **Reading rules (fixed now):**
+  - **WIN:** H's median is ≤ −2 % against E at both rungs **and** both Holm-adjusted p < 0.05 (`WIN`). The flag `E_FASTER_RUNGS` lists any rung where H's median is above 0; with a WIN it must be empty.
+  - **LOSS:** H slower than E with Holm p < 0.05 at either rung (`LOSS`).
+  - **Otherwise** the result is "not a win at the registered bar", reported with both medians and p-values (a direction faster at both rungs that misses −2 % or significance is said so, not rounded up).
+  - Attribution: H vs T not significantly negative at either rung means "not message passing" (the plan score, not the graph, is doing the work).
+  - **If E fails to beat C at either rung,** the environment is not the one `big_groups_s0_v1` measured and the gate is reported as NOT COMPARABLE.
+- **Prediction, written before data:** H beats `cd_exactS` by about 1–2 % at heavy and by less than 1 % at moderate. A rough bound from `selfsearch_gap_v1`: self-search was about 3 % faster than `cd_exactS` on its over-cap tasks (−0.6 pp over about 21 % of tasks at the current group size),
+  and over-cap batches hold about half the tasks at heavy G = 8 and under a third at moderate. The most likely outcome is the right direction at both rungs short of the −2 % bar (probability of a WIN about 0.25), H vs T a tie, H vs C large and negative.
+  The risk is the checkpoint: it was trained at the current group size and `big_groups_s0_v1` found it 5.52 % slower than `cd_exactS` at heavy G = 8 across all batches; H uses it only where S cannot be enumerated, but the over-cap batches at G = 8 are larger than any it trained on.
+- **Not claimed:** other seeds, other checkpoints, other group sizes (the secondary seat is descriptive), a retrained arm, the paper.
+- **Jobs (≤ 6 counting the three test submissions already used):** tests × 3 (spent while writing the code), inputs + smoke/identity (1), live gate array (1), reader (1). The gate array is one submission of 12 tasks.
+- **Cost, estimated:** `cd_exactS` G = 8 cells took 6.0–6.8 ks (max 8.0 ks); H and T skip the expansion fallback, so they should cost nearer the self-search cells (0.8–0.9 ks) plus the exact search on the within-cap half. About 1 Mcore-s,
+  a few hours on 12 shards.
+
+## Record (newest first)
+
+- 2026-10-11 — **Registered** (S7), after the coordinator's ruling on `selfsearch_gap_v1` (self-search wins on batches of 9+, where `cd_exactS` falls back to the expansion 72.5 % of the time).
