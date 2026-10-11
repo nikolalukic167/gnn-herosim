@@ -44,6 +44,7 @@ def test_counts_books_contrasts_and_holm(monkeypatch):
     assert c["family"] == "primary" and c["wins"] == 12 and c["median_pct"] == pytest.approx(100 * (0.91 / 0.92 - 1))
     assert c["p_holm"] == pytest.approx(min(1.0, 2 * c["p"]))
     assert r["contrasts"][f"{G.A} vs {G.B}|heavy"]["family"] == "secondary" and "p_holm" in r["contrasts"][f"{G.A} vs {G.B}|heavy"]
+    assert r["contrasts"][f"{G.A} vs {G.C}|heavy"]["family"] == "secondary"
     assert r["contrasts"][f"{G.E} vs {G.C}|heavy"]["family"] == "descriptive"
     assert r["PRIMARY_BOTH_RUNGS_FASTER"] and r["PRIMARY_HOLM_SIG"]
 
