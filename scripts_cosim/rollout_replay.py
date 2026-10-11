@@ -438,8 +438,16 @@ def _one(job):
             infra["fast_forward_warmup"] = True
             infra["fast_forward_threshold"] = 1
             try:
+                models = None
+                if strategy == "gnn_gnn":   # prune_g8_s0_v1 screen: the GNN policy, loaded as src/executesimulation.py main() loads it
+                    from pathlib import Path as _P
+
+                    from src.executesimulation import load_gnn_model, load_task_types_data
+
+                    gm, gd = load_gnn_model(_P(os.environ["GNN_MODEL_PATH"]))
+                    models = {"gnn_model": gm, "device": gd, "task_types_data": load_task_types_data(_P(spec["sim_input"]))}
                 res = execute_simulation({"infrastructure": infra, "workload": wl}, fr.sim_inputs, scheduling_strategy=strategy,
-                                         cache_policy="fifo", task_priority="fifo", **fr.kw)
+                                         cache_policy="fifo", task_priority="fifo", models=models, **fr.kw)
             except _TopS as top:
                 return dict(base, t0=t0, n_batch=len(fr.batch_local), top_s=top.top["top"], n_plans=top.top["n_plans"], wall=time.time() - t_start)
         finally:
