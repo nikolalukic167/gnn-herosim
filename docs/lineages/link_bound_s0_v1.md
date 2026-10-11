@@ -75,6 +75,14 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Pre-check set up** (S7).
+  - Development topologies 17100–17107, verified unused.
+  - The ladder is minted into the cfg `backbone.bandwidth_mbps`; `core_bandwidth_mbps` defaults to it
+    (`generate_infrastructure.py:421`).
+  - Input build 858071 at G=0 (the current accel seat).
+  - CD only: 5 bandwidths × 8 topologies × 4 windows × 2 rungs = 320 cells, as 20 jobs pinned at 79ea002c (the G8 gate
+    harness).
+  - S4's parity cell is 17100 / moderate / g0.
 - 2026-10-11 — **Amendment 1, before any data: the knob is a config edit, core-only, with a deeper ladder; L1 is
   input-transfer wait only** (coordinator, on S6's code read, verified at `src/executesimulation.py:228–245` and
   `src/placement/infrastructure.py:1250–1275`).
