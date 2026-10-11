@@ -143,7 +143,7 @@ def main():
         print(f"\n== {label}: batches, share that stack, tasks per batch, cold starts per batch (pooled, by the over-cap arm's batches)")
         for k in sorted({k for r in res.values() for k in r[field]}):
             t = [sum(r[field][k][i] for r in res.values() if k in r[field]) for i in range(5)]
-            print(f"  {k:14s} batches {t[0]:6d}  stack {t[1] / t[0]:.3f}  cold/batch {t[2] / t[0]:.3f}  cold/task {t[2] / t[3]:.4f}  sharing/batch {t[4] / t[0]:.3f}")
+            print(f"  {k:14s} batches {t[0]:6d}  stack {t[1] / t[0]:.3f}  cold/batch {t[2] / t[0]:.3f}  cold/task {t[2] / t[3]:.4f}  stacked platforms/batch {t[4] / t[0]:.3f}")
     if x.out:
         json.dump(res, open(x.out, "w"), indent=1)
     return 0
