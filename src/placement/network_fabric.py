@@ -224,6 +224,8 @@ class NetworkFabric:
         self._link_topology = link_topology
         # Telemetry, mirroring Node.ingress_wait_total.
         self.link_wait_total: float = 0.0
+        # link_bound_s0_v1: seconds each link was held by a transfer (pure telemetry, no SimPy event).
+        self.link_busy: Dict[str, float] = {}
         # workload_fix_v1 W3: per-node access class, and peer-exchange seconds by the classes of the two servers.
         # Empty on every topology without `access_classes`, which then records nothing.
         self.access_classes: Dict[str, str] = {

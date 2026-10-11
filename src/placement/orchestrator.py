@@ -460,6 +460,7 @@ class Orchestrator:
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
             **self._access_class_fields(),
+            **self._link_busy_fields(),
             **self._failure_fields(),
             "averageNetworkLatency": sum_network / n_tasks,
             "averageLinkWaitTime": sum_link_wait / n_tasks,
@@ -504,6 +505,15 @@ class Orchestrator:
                     return {}
                 return {"peerExchangeByAccessClass": fabric.exchange_by_class,
                         "accessClasses": fabric.access_classes}
+        return {}
+
+    def _link_busy_fields(self) -> Dict[str, Any]:
+        """`fabricLinkBusy` / `fabricLinkBandwidth` (link_bound_s0_v1): held seconds and capacity per link, only with a fabric."""
+        for node in self.nodes.items:
+            fabric = getattr(node, "fabric", None)
+            if fabric is not None:
+                return {"fabricLinkBusy": dict(fabric.link_busy),
+                        "fabricLinkBandwidth": {k: fabric.bandwidth(k) for k in fabric.link_keys}}
         return {}
 
     def _fabric_link_wait_total(self) -> float:
@@ -803,6 +813,7 @@ class Orchestrator:
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
             **self._access_class_fields(),
+            **self._link_busy_fields(),
             **self._failure_fields(),
             "averageNetworkLatency": average_network_latency,
             "averageLinkWaitTime": sum_link_wait / num_tasks,
