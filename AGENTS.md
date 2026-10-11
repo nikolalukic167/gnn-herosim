@@ -64,6 +64,8 @@ never a message-passing win.** The seat is R1.1 + WF1, with replicas on the fast
     cd_exactS (≤ 0.5 %), although the MLP V captured 76 % of the headroom offline.
 - **Bigger peer groups do not help** (`big_groups_s0_v1`, CLOSED). At G=8 exact enumeration fails in 28–49 % of batches,
   yet cd_exactS still beats CD by −9.2 / −7.7 % (12/12). GNN self-search ties it at moderate and is +5.5 % slower at heavy.
+- **Busy links do not help** (`link_bound_s0_v1`, CLOSED). Down to the lowest CD-healthy core rate (3.9 MB/s), link wait
+  stays ≤ 1.75 % of latency. Live there, GNN self-search is −1.4 / +1.2 % vs CD and +10.7 / +11.1 % vs cd_exactS (0/12).
 - **Knative under R1:** the key-blind arm herds and collapses on lock wait. A faithful concurrency-key Knative never
   collapses and is +48 / +68 % vs CD. Quote only the latter (`docs/gates/gate-tools.md`).
 
@@ -78,8 +80,8 @@ never a message-passing win.** The seat is R1.1 + WF1, with replicas on the fast
 **Pair on the environment before you take a median; quote a DIRECTION from a small design and a MAGNITUDE only from a
 large one; a rule with the model's information is the bar, never Knative alone; name the origin model with any grounded
 number.** Never a `peer_affinity` live number without its load factor, never an arm comparison without its corpus. Start at
-`docs/lineages/selfsearch_confirm_v1.md`, `accel_nosplit_v1.md`, `big_groups_s0_v1.md`, `cost_to_go_v1.md` and
-`throughline.md`.
+`docs/lineages/selfsearch_confirm_v1.md`, `accel_nosplit_v1.md`, `big_groups_s0_v1.md`, `cost_to_go_v1.md`,
+`link_bound_s0_v1.md` and `throughline.md`.
 
 ## Current research entry points
 
