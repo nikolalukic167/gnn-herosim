@@ -4,7 +4,10 @@ Arms on the 6 fresh topologies 19300-19305, windows g0 and g1, both rungs, all s
   O  cd_oracle   cd_exactS with the exact search scored by the real single-batch RTT of a fidelity replay (batches of <= 625 slate plans; larger
                  batches run cd_exactS unchanged and are counted)
   E  cd_exactS   the hand bar            C  cd
-Counts first (summaries and failures per arm and rung against the expected 12 cells; a failed.json is a count, never a rerun). Then the oracle's
+  A0 cd_exactS_a0, IB0 cd_exactS_ib0   descriptive, no bar: cd_exactS with S's queue term scaled to 0 (S6's S_alpha), and with only its in-batch stacking part zeroed;
+                 reported against E and O (reading, written before the data: O and A0 both faster = the batch-label direction, more stacking, is right live;
+                 A0 slower = the batch label misprices queue for later arrivals)
+Counts first (summaries and failures per arm and rung against the expected 12 cells (all five arms); a failed.json is a count, never a rerun). Then the oracle's
 books per rung: batches seen / served / over the cap / unlabellable (a partner outside the batch not yet placed: the corpus builder rejects the same snapshots), with task shares, plans per served batch, how often it changed
 cd_exactS's plan, the single-batch RTT it saved per served batch, decision wall seconds per batch. Then, per rung, the paired % of mean latency per
 topology (median over its windows), its median over topologies, the sign count (wins = topologies where the first arm is faster) and the exact
@@ -31,10 +34,11 @@ import sys
 import r1_attribution_v1_read as R
 
 O, E, C = "cd_oracle", "cd_exactS", "cd"
-ARMS = (O, E, C)
+A0, IB0 = "cd_exactS_a0", "cd_exactS_ib0"  # descriptive S_alpha arms (no bar): the queue term scaled to 0 / only the in-batch part zeroed
+ARMS = (O, E, C, A0, IB0)
 RUNGS = ("moderate", "heavy")
 WINDOWS = ("g0", "g1")
-CONTRASTS = ((O, E), (O, C), (E, C))
+CONTRASTS = ((O, E), (O, C), (E, C), (A0, E), (IB0, E), (A0, O), (IB0, O), (A0, C), (IB0, C), (A0, IB0))
 GO_MEDIAN_PCT = -4.0
 GO_MIN_WINS = 5
 BOOKS = ("pg_batches", "pg_exact_batches", "pg_exact_fallbacks", "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed",
@@ -97,12 +101,12 @@ def _per_task(s):
     return {"elapsed": elapsed, "cold_start": cold, "exchange": exch, "lock_wait": lock, "rest": elapsed - cold - exch - lock}
 
 
-def buckets(cells, rung, topos):
-    """Paired O - E per cell, in pp of E's mean latency, median over the cells of the rung."""
+def buckets(cells, rung, topos, arm=O):
+    """Paired (arm) - E per cell, in pp of E's mean latency, median over the cells of the rung."""
     rows = {k: [] for k in ("elapsed", "cold_start", "exchange", "lock_wait", "rest")}
     for t in topos:
         for w in WINDOWS:
-            o, e = cells.get((O, 0, t, w, rung)), cells.get((E, 0, t, w, rung))
+            o, e = cells.get((arm, 0, t, w, rung)), cells.get((E, 0, t, w, rung))
             if o is None or e is None:
                 continue
             po, pe = _per_task(o), _per_task(e)
@@ -178,6 +182,7 @@ def read(gates, topos, raw_dir=None):
            "failed_why": sorted({str(f.get("why", "?"))[:80] for f in failed.values()}),
            "counts": counts(cells, failed, sel), "oracle_books": {r: books(cells, r) for r in RUNGS},
            "contrasts": contrasts, "buckets_O_minus_E_pp": {r: buckets(cells, r, sel) for r in RUNGS},
+           "buckets_alpha_arms_minus_E_pp": {a: {r: buckets(cells, r, sel, a) for r in RUNGS} for a in (A0, IB0)},
            "stacking": {r: stacking(diag_rows(gates, r, set(sel))) for r in RUNGS},
            "GO_per_rung": go, "GO": all(go.values())}
     if raw_dir:
@@ -218,6 +223,9 @@ def print_report(r):
     print("-- O - E buckets, pp of E's latency (median over cells)")
     for rung, b in r["buckets_O_minus_E_pp"].items():
         print(f"  {rung:9s} " + " ".join(f"{k}={f(v, 2)}" for k, v in b.items()))
+    for a, per in r["buckets_alpha_arms_minus_E_pp"].items():
+        for rung, b in per.items():
+            print(f"  {a} {rung:9s} " + " ".join(f"{k}={f(v, 2)}" for k, v in b.items()))
     print("-- stacking on the same states (oracle plan vs cd_exactS plan)")
     for rung, s in r["stacking"].items():
         print(f"  {rung:9s} {s}")

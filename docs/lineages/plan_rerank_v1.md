@@ -52,6 +52,17 @@ If not, no learner trained on batch labels can beat `cd_exactS` in this seat.
 - **Prediction, written before any data:** O is 1–3 % faster than `cd_exactS`, short of 4 %. `cd_exactS` reaches the label optimum in
   72.6–79 % of batches and its regret is tail-only (argmin-S 6.1 % pooled), and a myopic single-batch optimum need not be the
   run-optimal choice.
+- **Descriptive arms (coordinator amendments, before any Phase 0 data; no bar, same 6 topologies × rungs × g0/g1, no replay):**
+  - `cd_exactS_a0`: cd_exactS with S's whole queue term scaled to α = 0 (`HEROSIM_PG_DRAIN_ALPHA=0`): the platform's own drain plus the service of
+    the batch-mates the plan stacks on it, scaled in the greedy pass (`_pg_choose`) and in the whole-plan cost the exact search minimises
+    (`_pg_plan_cost`). This is S6's train-selected S_α (10c9081a, variant "drain", α = 0): offline it cuts held-out argmin-S regret from 6.09 % to
+    0.75 % pooled, so on the batch label a learned residual has at most about 0.75 % left over S_0. The slate (standalone-cost ranking) is not scaled.
+  - `cd_exactS_ib0`: only the in-batch stacking part zeroed, the platform's existing backlog kept (`HEROSIM_PG_BATCH_ALPHA=0`, α = 1). S6's variant
+    "batch": held-out pooled regret 2.01 % (trimmed 0.28 %), 76 % of the S → S_0 drop. The safer live version: the backlog signal should prevent herding.
+  - Flag off (both alphas 1, the default) is byte-identical to the registered S; identity on the same 2 cells as O's.
+  - **Reading, written now.** If O wins live and a0 also wins, the batch-label direction (more stacking) is right live, S_0 is the hand bar for
+    Phase 1, and a learned residual has ≤ 0.75 % label headroom over it. If a0 loses live (herding), the batch label misprices queue for later
+    arrivals, which explains the self-search queue loss. ib0 is read next to a0, cd_exactS and O. Neither changes O's GO bar.
 - **Per-cell readout:** the same buckets as S7's self-search-vs-`cd_exactS` decomposition at heavy (confirm gate c1c80205,
   `/share/nikola.lukic/link_bound/gap_decomp_*.json`): queue, cold start and exchange as pp of the paired gap, and the share of the gap in
   the first quarter of the run. Reported for O vs `cd_exactS` so the read shows whether the oracle fixes queue and cold or only exchange.

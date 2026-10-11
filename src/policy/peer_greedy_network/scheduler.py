@@ -152,6 +152,12 @@ def _exact_diag_write(rec: Dict) -> None:
 # HEROSIM_PG_ORACLE_MAX_PLANS plans (default 625), the exact search is scored by the REAL single-batch RTT of each plan (a fidelity replay of the
 # live snapshot, src/placement/plan_oracle.py) instead of S; the pass plan is a candidate too. Larger batches run the S search unchanged and are
 # counted. A measurement arm (the myopic oracle), not a policy: it needs HEROSIM_SNAPSHOT_FIDELITY=1 and the cell/sim-input paths.
+# plan_rerank_v1 cd_exactS_a0 (HEROSIM_PG_DRAIN_ALPHA=<alpha>, peer_greedy_network_cd with HEROSIM_PG_CD_EXACT=1): S's queue term, the platform's own drain plus
+# the service of the batch-mates the plan stacks on it (S6's registered S_alpha "drain" variant), is scaled by alpha in the greedy pass and in the whole-plan
+# cost the exact search minimises. HEROSIM_PG_BATCH_ALPHA scales the in-batch part alone (S6's "batch" variant, cd_exactS_ib0: alpha 1, batch alpha 0); unset,
+# it equals the drain alpha. The slate (standalone-cost ranking) is not scaled. 1 and 1 (the defaults) are the registered S, byte-identical.
+PG_DRAIN_ALPHA_ENV = "HEROSIM_PG_DRAIN_ALPHA"
+PG_BATCH_ALPHA_ENV = "HEROSIM_PG_BATCH_ALPHA"
 PG_ORACLE_ENV = "HEROSIM_PG_ORACLE"
 PG_ORACLE_MAX_PLANS_ENV = "HEROSIM_PG_ORACLE_MAX_PLANS"
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
@@ -336,6 +342,13 @@ class _PeerGreedyCore:
         self.pg_cd_exact_top_k = _pg_int(PG_CD_EXACT_TOP_K_ENV, 5)
         self.pg_cd_exact_gnn = _pg_flag(PG_CD_EXACT_GNN_ENV)
         self.pg_oracle = _pg_flag(PG_ORACLE_ENV)
+        self.pg_drain_alpha = float(os.environ.get(PG_DRAIN_ALPHA_ENV, "1").strip() or "1")
+        raw_b = os.environ.get(PG_BATCH_ALPHA_ENV, "").strip()
+        self.pg_batch_alpha = float(raw_b) if raw_b else self.pg_drain_alpha
+        for name, v in ((PG_DRAIN_ALPHA_ENV, self.pg_drain_alpha), (PG_BATCH_ALPHA_ENV, self.pg_batch_alpha)):
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"FAIL LOUD: {name} must be in [0, 1], got {v}")
+        self.pg_alpha_on = (self.pg_drain_alpha, self.pg_batch_alpha) != (1.0, 1.0)
         self.pg_oracle_max_plans = _pg_int(PG_ORACLE_MAX_PLANS_ENV, 625)
         self.pg_shared_link = _pg_flag(PG_SHARED_LINK_ENV)
         if self.pg_shared_link and not (self._pg_batched and self.exchange_on):
@@ -360,6 +373,8 @@ class _PeerGreedyCore:
                                f"(it scores plans with the GNN that seeded the refine); {self._policy_label}")
         if self.pg_cd_exact_prune and not self.pg_cd_exact:
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} needs {PG_CD_EXACT_ENV}=1")
+        if self.pg_alpha_on and not (self.pg_cd_exact and self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune):
+            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1 alone; {self._policy_label}")
         if self.pg_oracle and (not self.pg_cd_exact or self._policy_label != "peer_greedy_network_cd" or self.pg_cd_exact_gnn or self.pg_cd_exact_prune):
             raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_ENV}=1 is defined for peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1 alone; {self._policy_label}")
         if self.pg_cd_exact_prune == "gnn" and self._policy_label != "gnn_cd_refine":
@@ -472,7 +487,8 @@ class _PeerGreedyCore:
             exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0) * xf
             cold = incoming_cold_start_time(task, platform)
             lat = network_latency_between(task.node_name, node, nodes)
-            base = drain + cold + exec_s + lat
+            base = (drain if not self.pg_alpha_on else self.pg_drain_alpha * (drain - committed_service.get(key, 0.0))
+                    + self.pg_batch_alpha * committed_service.get(key, 0.0)) + cold + exec_s + lat
             exch = self._pg_exchange_seconds(node, platform, peer_nodes)
             if getattr(self, "pg_pull_hold", False):
                 hold_key = f"pull_hold:{node.node_name}"
@@ -1014,7 +1030,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                 drain += inflight_remaining_seconds(platform)
             cold = incoming_cold_start_time(batch_tasks[i], platform)
             lat = network_latency_between(batch_tasks[i].node_name, node, nodes)
-            base = drain + cold + exec_s[i] + lat + in_wait[i]
+            base = (drain if not self.pg_alpha_on else self.pg_drain_alpha * (drain - (committed[key] - service[i]))
+                    + self.pg_batch_alpha * (committed[key] - service[i])) + cold + exec_s[i] + lat + in_wait[i]
             if getattr(self, "pg_pull_hold", False):
                 hold_key = f"pull_hold:{node.node_name}"
                 if hold_key not in memo:

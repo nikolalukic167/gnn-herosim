@@ -127,3 +127,51 @@ def test_harness_serves_cd_oracle_as_a_named_measurement_arm():
     for name in ("HEROSIM_PG_ORACLE", "HEROSIM_SNAPSHOT_FIDELITY", "HEROSIM_ORACLE_CELL_CONFIG"):
         assert name in G.ORACLE_ENV
     assert "a non-oracle arm ran the live oracle" in src
+
+
+def _alpha_shell(monkeypatch, **env):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    return _shell(monkeypatch)
+
+
+def test_alpha_one_is_the_registered_s_and_scaling_prices_the_queue_term(monkeypatch):
+    # queue term only: a platform that already holds 4 s of drain and a plan that stacks both tasks on one platform
+    monkeypatch.setattr(S, "platform_queue_drain_seconds", lambda platform, orch, memo, exec_scale=1.0: 4.0)
+    s1, tasks, state = _alpha_shell(monkeypatch)
+    assert s1.pg_alpha_on is False
+    nodes = s1.nodes.items
+    plan = [(nodes[2], state.replicas["cnn"][2][1])] * 2
+    full, _svc, _sc = s1._pg_plan_cost(tasks, plan, s1._pg_orchestrator(), {}, nodes)
+    monkeypatch.setattr(S, "platform_queue_drain_seconds", lambda platform, orch, memo, exec_scale=1.0: 4.0)
+    for env, want in (({S.PG_DRAIN_ALPHA_ENV: "0"}, 0.0), ({S.PG_BATCH_ALPHA_ENV: "0"}, None)):
+        monkeypatch.delenv(S.PG_DRAIN_ALPHA_ENV, raising=False)
+        monkeypatch.delenv(S.PG_BATCH_ALPHA_ENV, raising=False)
+        s2, tasks2, state2 = _alpha_shell(monkeypatch, **env)
+        cost, _svc2, _sc2 = s2._pg_plan_cost(tasks2, plan, s2._pg_orchestrator(), {}, nodes)
+        if want == 0.0:
+            assert cost == pytest.approx(2.0), (full, cost)   # exec only: 1 s each, co-located, no exchange
+        else:
+            assert cost == pytest.approx(full - 2 * 1.0)         # only the in-batch stacking part (each task sees the other's 1 s of service) is zeroed
+    monkeypatch.delenv(S.PG_BATCH_ALPHA_ENV, raising=False)
+
+
+def test_alpha_is_refused_outside_the_plain_exact_cd(monkeypatch):
+    monkeypatch.delenv(S.PG_CD_EXACT_ENV, raising=False)
+    monkeypatch.setenv(S.PG_DRAIN_ALPHA_ENV, "0")
+    with pytest.raises(RuntimeError, match="FAIL LOUD"):
+        _shell(monkeypatch)
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_DRAIN_ALPHA_ENV, "1.5")
+    with pytest.raises(ValueError, match="FAIL LOUD"):
+        _shell(monkeypatch)
+
+
+def test_harness_serves_the_alpha_arms(monkeypatch):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
+    import fresh_topo_burst_v1_gate as G
+
+    for kind, env in (("cd_exactS_a0", {"HEROSIM_PG_DRAIN_ALPHA": "0"}), ("cd_exactS_ib0", {"HEROSIM_PG_BATCH_ALPHA": "0"})):
+        assert G.RULE_POLICY[kind] == "peer_greedy_network_cd" and kind in G.R1A_DIAG and kind in G.R1A_ARMS and G.EXACT_ALPHA[kind] == env
+    assert {"HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"} <= set(G.ORACLE_ENV)
