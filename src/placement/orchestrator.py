@@ -248,6 +248,7 @@ class Orchestrator:
             "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
             "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
             "pg_overcap_pred", "pg_overcap_gnn_batches", "pg_overcap_gnn_tasks",
+            "pg_overcap_dry_batches", "pg_overcap_dry_better", "pg_overcap_dry_worse", "pg_overcap_dry_equal", "pg_overcap_dry_differs", "pg_overcap_dry_gain_seconds",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",

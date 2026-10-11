@@ -68,6 +68,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
     "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
     "pg_overcap_pred", "pg_overcap_gnn_batches", "pg_overcap_gnn_tasks",
+    "pg_overcap_dry_batches", "pg_overcap_dry_better", "pg_overcap_dry_worse", "pg_overcap_dry_equal", "pg_overcap_dry_differs", "pg_overcap_dry_gain_seconds",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -163,6 +164,11 @@ PG_CD_EXACT_PRUNE_ENV = "HEROSIM_PG_CD_EXACT_PRUNE"
 # exact search); a batch within the cap is refined and searched exactly as cd_exactS does. `pg_overcap_pred` counts over-cap batches by the slate sizes alone
 # (dry, with the flag on or off), so with the flag off it must equal pg_exact_fallbacks, and with it on pg_exact_fallbacks must read 0.
 PG_CD_OVERCAP_ENV = "HEROSIM_PG_CD_OVERCAP"
+# HEROSIM_PG_CD_OVERCAP_DRY=1 (with the path on; diagnostic cells only): the over-cap batch is still served the GNN plan, but the refine the fallback would have run
+# (passes, expansion, passes) runs first on the side, every counter but the over-cap ones is restored, and S of both plans is compared:
+# pg_overcap_dry_{batches,better,worse,equal,differs} and the summed S gain of the GNN plan over the expansion plan. HEROSIM_OVERCAP_LOG=<file> appends one json line per batch.
+PG_CD_OVERCAP_DRY_ENV = "HEROSIM_PG_CD_OVERCAP_DRY"
+PG_OVERCAP_LOG_ENV = "HEROSIM_OVERCAP_LOG"
 # big_groups_s0_v1 M4 (HEROSIM_PG_SHARED_LINK=1): S' = S with each in-batch peer pair's transfer priced at the link bandwidth divided by the number of
 # the batch's cross-node pairs whose route crosses the same link (`_pg_plan_cost` only; the greedy and the passes keep S). Off: bit-identical.
 PG_SHARED_LINK_ENV = "HEROSIM_PG_SHARED_LINK"
@@ -178,7 +184,8 @@ PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_
                      "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
                      "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
                      "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
-                     "pg_overcap_pred", "pg_overcap_gnn_batches", "pg_overcap_gnn_tasks")
+                     "pg_overcap_pred", "pg_overcap_gnn_batches", "pg_overcap_gnn_tasks",
+                     "pg_overcap_dry_batches", "pg_overcap_dry_better", "pg_overcap_dry_worse", "pg_overcap_dry_equal", "pg_overcap_dry_differs", "pg_overcap_dry_gain_seconds")
 PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
 
 
@@ -345,6 +352,9 @@ class _PeerGreedyCore:
         self.pg_cd_exact_prune = os.environ.get(PG_CD_EXACT_PRUNE_ENV, "").strip()
         if self.pg_cd_exact_prune not in ("", "gnn", "cost"):
             raise ValueError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} must be gnn or cost, got {self.pg_cd_exact_prune!r}")
+        self.pg_cd_overcap_dry = _pg_flag(PG_CD_OVERCAP_DRY_ENV)
+        if self.pg_cd_overcap_dry and not self.pg_cd_overcap:
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_OVERCAP_DRY_ENV}=1 needs {PG_CD_OVERCAP_ENV}=gnn")
         for name in PG_EXACT_COUNTERS:
             setattr(self, name, 0.0 if name.endswith("_seconds") else 0)
         if self.pg_cd_exact and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
@@ -1603,6 +1613,32 @@ class GnnCdRefiner(_PeerGreedyCore):
                 setattr(self, name, value)
         return {i: tuple(v) for i, v in placements.items()}
 
+    def _overcap_dry_result(self, batch_tasks, system_state, seed, fallback_plan, saved, orch, memo):
+        """The dry over-cap batch: S of the GNN seed against S of the plan the fallback reached, then every counter the fallback touched is put back."""
+        nodes = self.nodes.items
+        s_seed = self._pg_plan_cost(batch_tasks, self._pg_plan_objects(batch_tasks, system_state, seed)[3], orch, memo, nodes)[0]
+        s_fb = self._pg_plan_cost(batch_tasks, self._pg_plan_objects(batch_tasks, system_state, fallback_plan)[3], orch, memo, nodes)[0]
+        for name, value in saved.items():
+            setattr(self, name, value)
+        differs = {i: tuple(v) for i, v in seed.items()} != {i: tuple(v) for i, v in fallback_plan.items()}
+        self.pg_overcap_gnn_batches += 1
+        self.pg_overcap_gnn_tasks += len(batch_tasks)
+        self.pg_overcap_dry_batches += 1
+        self.pg_overcap_dry_differs += int(differs)
+        if s_seed < s_fb - 1e-9:
+            self.pg_overcap_dry_better += 1
+        elif s_seed > s_fb + 1e-9:
+            self.pg_overcap_dry_worse += 1
+        else:
+            self.pg_overcap_dry_equal += 1
+        self.pg_overcap_dry_gain_seconds += s_fb - s_seed
+        path = os.environ.get(PG_OVERCAP_LOG_ENV, "").strip()
+        if path:
+            with open(path, "a") as fh:
+                fh.write(json.dumps({"tasks": [int(t.id) for t in batch_tasks], "n": len(batch_tasks), "s_gnn": s_seed, "s_expansion": s_fb, "differs": differs,
+                                     "tasks_moved": sum(1 for i in seed if tuple(seed[i]) != tuple(fallback_plan[i]))}) + "\n")
+        return {i: tuple(v) for i, v in seed.items()}, {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
+
     def refine(self, batch_tasks: List["Task"], system_state: SystemState,
                seed: Dict[int, Tuple[int, int]], passes: int) -> Tuple[Dict[int, Tuple[int, int]], Dict[str, int]]:
         orch = self._pg_orchestrator()
@@ -1611,6 +1647,7 @@ class GnnCdRefiner(_PeerGreedyCore):
         planned: Dict[int, str] = {}
         service_of: Dict[int, Tuple[str, float]] = {}
         placements: Dict[int, Tuple[int, int]] = dict(seed)
+        dry_saved = None
         self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
         by_id = {}
         for idx, task in enumerate(batch_tasks):
@@ -1624,9 +1661,11 @@ class GnnCdRefiner(_PeerGreedyCore):
             over = self._pg_overcap_batch(batch_tasks, system_state, seed)
             self.pg_overcap_pred += int(over)
             if over and self.pg_cd_overcap:
-                self.pg_overcap_gnn_batches += 1
-                self.pg_overcap_gnn_tasks += len(batch_tasks)
-                return dict(seed), {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
+                if not self.pg_cd_overcap_dry:
+                    self.pg_overcap_gnn_batches += 1
+                    self.pg_overcap_gnn_tasks += len(batch_tasks)
+                    return dict(seed), {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
+                dry_saved = {name: getattr(self, name) for name in PEER_GREEDY_COUNTERS if hasattr(self, name)}
         for idx in sorted(range(len(batch_tasks)), key=lambda i: int(batch_tasks[i].id)):
             task = batch_tasks[idx]
             node, platform, service = self._pg_choose(task, [by_id[idx]], orch, memo=memo,
@@ -1642,6 +1681,8 @@ class GnnCdRefiner(_PeerGreedyCore):
             search = self._pg_exact if self.pg_cd_exact else self._pg_expand
             if search(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
                 self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if dry_saved is not None:
+            return self._overcap_dry_result(batch_tasks, system_state, seed, placements, dry_saved, orch, memo)
         if self.pg_cd_exact_gnn and self.pg_exact_fallbacks > fallbacks_before:
             self.pg_exact_gnn_fb_batches += 1
             if self._cd_native_plan(batch_tasks, system_state, passes) != {i: tuple(v) for i, v in placements.items()}:

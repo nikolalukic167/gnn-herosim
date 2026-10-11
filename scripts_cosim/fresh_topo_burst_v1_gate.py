@@ -101,7 +101,7 @@ CAP_KEEP_ALIVE = "1e9"
 CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch", "_ovg", "_ovo")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch", "_ovg", "_ovo", "_ovd")
 # gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
 # accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
 # cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
@@ -151,7 +151,7 @@ R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS")  # diagnostic clas
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
-R1A_OVERCAP = ("ra_gnn_eng_ovg", "ra_twin_eng_ovg", "ra_gnn_eng_ovo")  # gnn_overcap_v1: H, H_twin, and H with the over-cap path off (identity cell only)
+R1A_OVERCAP = ("ra_gnn_eng_ovg", "ra_twin_eng_ovg", "ra_gnn_eng_ovo", "ra_gnn_eng_ovd")  # gnn_overcap_v1: H, H_twin, and H with the over-cap path off (identity cell only), and H with the dry S counterfactual (smoke only)
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + R1A_OVERCAP
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
@@ -708,7 +708,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
               "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
-              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV):
+              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_CD_OVERCAP_DRY", "HEROSIM_OVERCAP_LOG", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -803,13 +803,19 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if kind.endswith(("_cdxpra", "_cdxprb")):
             env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1", GNN_SLATE_NO_SPLIT="1",
                        HEROSIM_PG_CD_EXACT_PRUNE="gnn" if kind.endswith("_cdxpra") else "cost")
-        if kind.endswith(("_ovg", "_ovo")):
+        if kind.endswith(("_ovg", "_ovo", "_ovd")):
             env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1")
-        if kind.endswith("_ovg"):
+        if kind.endswith(("_ovg", "_ovd")):
             env["HEROSIM_PG_CD_OVERCAP"] = "gnn"
-        if kind.endswith(("_nosplit", "_selfsearch", "_ovg", "_ovo")):
+        if kind.endswith("_ovd"):
+            ov_dir = os.environ.get("OVERCAP_LOG_DIR")
+            if not ov_dir:
+                raise SystemExit("FAIL LOUD: the ovd diagnostic needs OVERCAP_LOG_DIR (where each cell writes its per-batch S comparison)")
+            os.makedirs(ov_dir, exist_ok=True)
+            env.update(HEROSIM_PG_CD_OVERCAP_DRY="1", HEROSIM_OVERCAP_LOG=os.path.join(ov_dir, name + ".overcap.jsonl"))
+        if kind.endswith(("_nosplit", "_selfsearch", "_ovg", "_ovo", "_ovd")):
             env["GNN_SLATE_NO_SPLIT"] = "1"
-        if kind.endswith(("_selfsearch", "_ovg", "_ovo")):
+        if kind.endswith(("_selfsearch", "_ovg", "_ovo", "_ovd")):
             env["GNN_SELF_SEARCH"] = "1"
         if kind.endswith(("_selfref", "_selfrefkw")):
             env["GNN_PREFIX_SELF_REFINE"] = "3"
@@ -966,12 +972,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
     if not kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
-    if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo")) and int(c.get("cdr_batches") or 0) == 0:
+    if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo", "_ovd")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
-    if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
+    if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo", "_ovd")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
-    expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo")) or kind == "cd_expand"
-    prune_kind = kind.endswith(("_cdxpra", "_cdxprb", "_ovg"))   # _ovg never applies the expansion: the over-cap path replaces the fallback
+    expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo", "_ovd")) or kind == "cd_expand"
+    prune_kind = kind.endswith(("_cdxpra", "_cdxprb", "_ovg", "_ovd"))   # _ovg never applies the expansion: the over-cap path replaces the fallback
     if prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) != 0):
         # the prune arms run the expansion only as a dry counterfactual whose counters are restored; applied expansion must read 0
         problems.append(f"prune arm expansion flag/counter wrong: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')} (want 0)")
@@ -981,7 +987,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("a non-expansion arm expanded")
     if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
-    exact_arm = kind == "cd_exactS" or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo"))
+    exact_arm = kind == "cd_exactS" or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo", "_ovd"))
     prune_arm = kind.endswith(("_cdxpra", "_cdxprb"))
     if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
@@ -1049,18 +1055,18 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                               or int(c.get("pg_pull_charged") or 0) == 0):
         problems.append("pull-hold instrument off: HEROSIM_PG_PULL_HOLD / HEROSIM_PULL_LEDGER not served or pg_pull_charged == 0")
     unsplit, sub_b = int(c.get("slate_declared_unsplit") or 0), int(c.get("slate_declared_sub_batched") or 0)
-    if kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch", "_ovg", "_ovo")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
+    if kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch", "_ovg", "_ovo", "_ovd")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
         problems.append(f"no-split instrument off: GNN_SLATE_NO_SPLIT={out['env'].get('GNN_SLATE_NO_SPLIT')!r}, unsplit {unsplit} of {sub_b} sub-batched")
-    if not kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch", "_ovg", "_ovo")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
+    if not kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch", "_ovg", "_ovo", "_ovd")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
         problems.append("a split arm decoded a batch whole")
     ss = int(c.get("ss_batches") or 0)
-    if kind.endswith(("_selfsearch", "_ovg", "_ovo")) and (out["env"].get("GNN_SELF_SEARCH") != "1" or ss == 0 or ss != int(c.get("slate_declared_batches") or -1)):
+    if kind.endswith(("_selfsearch", "_ovg", "_ovo", "_ovd")) and (out["env"].get("GNN_SELF_SEARCH") != "1" or ss == 0 or ss != int(c.get("slate_declared_batches") or -1)):
         problems.append(f"self-search instrument off: GNN_SELF_SEARCH={out['env'].get('GNN_SELF_SEARCH')!r}, searched {ss} of {c.get('slate_declared_batches')} batches")
-    if not kind.endswith(("_selfsearch", "_ovg", "_ovo")) and (out["env"].get("GNN_SELF_SEARCH") or ss):
+    if not kind.endswith(("_selfsearch", "_ovg", "_ovo", "_ovd")) and (out["env"].get("GNN_SELF_SEARCH") or ss):
         problems.append("a non-self-search arm ran the plan search")
     # gnn_overcap_v1: the dry predicate (pg_overcap_pred) must match the batches the exact search found over the cap; with the path on none reaches the fallback
     pred, served_ov, fb_ov = int(c.get("pg_overcap_pred") or 0), int(c.get("pg_overcap_gnn_batches") or 0), int(c.get("pg_exact_fallbacks") or 0)
-    if kind.endswith("_ovg"):
+    if kind.endswith(("_ovg", "_ovd")):
         if out["env"].get("HEROSIM_PG_CD_OVERCAP") != "gnn" or served_ov == 0 or served_ov != pred or fb_ov != 0 or int(c.get("pg_overcap_gnn_tasks") or 0) < 2 * served_ov:
             problems.append(f"over-cap instrument off: HEROSIM_PG_CD_OVERCAP={out['env'].get('HEROSIM_PG_CD_OVERCAP')!r}, predicted {pred}, served {served_ov}, "
                             f"exact fallbacks {fb_ov} (want served == predicted > 0 and fallbacks 0)")
@@ -1069,6 +1075,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("a non-over-cap arm served the GNN plan on over-cap batches")
         if (kind == "cd_exactS" or kind.endswith("_ovo")) and pred != fb_ov:
             problems.append(f"over-cap predicate {pred} disagrees with the exact search's fallback count {fb_ov}")
+    dry_b = int(c.get("pg_overcap_dry_batches") or 0)
+    if kind.endswith("_ovd"):
+        if out["env"].get("HEROSIM_PG_CD_OVERCAP_DRY") != "1" or dry_b == 0 or dry_b != served_ov \
+                or dry_b != sum(int(c.get(f"pg_overcap_dry_{k}") or 0) for k in ("better", "worse", "equal")):
+            problems.append(f"dry over-cap counterfactual off: HEROSIM_PG_CD_OVERCAP_DRY={out['env'].get('HEROSIM_PG_CD_OVERCAP_DRY')!r}, dry batches {dry_b}, served {served_ov}")
+    elif out["env"].get("HEROSIM_PG_CD_OVERCAP_DRY") or dry_b:
+        problems.append("a non-dry arm ran the over-cap counterfactual")
     if kind != "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") or int(c.get("pg_pull_charged") or 0)):
         problems.append("a non-pull arm charged the pull hold")
     if (out["env"].get("HEROSIM_PULL_LEDGER") == "1") != (kind in ("cd_pull", "cd_ledger")):
