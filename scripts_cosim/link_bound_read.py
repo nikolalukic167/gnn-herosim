@@ -6,7 +6,8 @@ source tag, which carries the rung name and a `bw<core MB/s>` token. Per (bandwi
   L1  link wait / batch latency AT THE REFERENCE PLAN (the best-known plan by replayed batch latency); link wait = the batch's
       summed linkWaitTime, the queueing for the input route's link pipes (peer exchange never queues in this physics)
   L2  argmin-S regret (q_argmin_s - q_best) / q_best, per state
-  L3  argmin-S' regret, the same with S5's shared-link term
+  L3  argmin-S' regret, the same with S5's input-route term, variant `hold` (HEROSIM_PG_INPUT_LINK=hold, aa208b1d; Amendment 2)
+      [descriptive: the `core` variant, and big_groups M4's peer-pair S']
   L4  (q of the best plan whose latency is distinct from the best's by > 1e-6 relative - q_best) / q_best; a state whose
       replayed plans are all tied with its best has no L4 and is counted
 GO: at one admissible bandwidth below the default (--admissible, S7's load pre-check), at BOTH rungs, L1 >= 10 %, L2 >= 2 % and
@@ -43,7 +44,12 @@ def measures(v: list) -> dict:
         n=len(v),
         L1=median(x["best_link_wait"] / x["q_best"] for x in v),
         L2=median(rel(x, "q_argmin_s") for x in v),
-        L3=median(rel(x, "q_argmin_s2") for x in v),
+        L3=median(rel(x, "q_argmin_s_hold") for x in v),
+        L3_core=median(rel(x, "q_argmin_s_core") for x in v), L3_peer_pair=median(rel(x, "q_argmin_s2") for x in v),
+        hold_wait_zero=sum(x["hold_wait_cd"] == 0 for x in v) / len(v),
+        hold_wait_cd_med=median(x["hold_wait_cd"] for x in v), core_wait_cd_med=median(x["core_wait_cd"] for x in v),
+        selfcheck_fail=sum(x[f"{il}_zero_equal"] is False for x in v for il in ("hold", "core")),
+        hold_moves=sum(x["s_hold_moves"] for x in v) / len(v), core_moves=sum(x["s_core_moves"] for x in v) / len(v),
         L4=median(l4) if l4 else None, L4_all_tied=len(v) - len(l4),
         # context, not in the bar
         L2_pooled=(sum(x["q_argmin_s"] for x in v) - sum(x["q_best"] for x in v)) / sum(x["q_best"] for x in v),
@@ -83,6 +89,8 @@ def read(rows: list, default: float, admissible: list) -> dict:
             if m is None or m["n"] == 0:
                 why.append(f"{k[1]}: no rows")
                 continue
+            if m["selfcheck_fail"]:
+                why.append(f"{k[1]}: {m['selfcheck_fail']} S' == S self-check failures")
             if m["errors"]:
                 why.append(f"{k[1]}: {m['errors']} error rows")
             if m["L1"] < L1_BAR:
@@ -116,7 +124,9 @@ def main() -> int:
             print(f"  {k:16s} n 0, errors {m['errors']}")
             continue
         print(f"  {k:16s} n {m['n']:3d} err {m['errors']} | L1 {pct(m['L1'])} L2 {pct(m['L2'])} L3 {pct(m['L3'])} L4 {pct(m['L4'])} "
-              f"(all tied {m['L4_all_tied']}) | L2 pooled {pct(m['L2_pooled'])}, cd_exactS {pct(m['cd_exacts'])}, argmin-S misses "
+              f"(all tied {m['L4_all_tied']}) | L3 core {pct(m['L3_core'])}, peer-pair {pct(m['L3_peer_pair'])}, S'-hold moves argmin-S in "
+              f"{100*m['hold_moves']:.0f} % (core {100*m['core_moves']:.0f} %); S'-hold term at the cd plan zero in {100*m['hold_wait_zero']:.0f} %, "
+              f"median {m['hold_wait_cd_med']:.3f} s (core {m['core_wait_cd_med']:.3f} s), S' == S self-check failures {m['selfcheck_fail']} | L2 pooled {pct(m['L2_pooled'])}, cd_exactS {pct(m['cd_exacts'])}, argmin-S misses "
               f"{100*m['argmin_s_misses']:.0f} %, L1 at argmin-S {pct(m['L1_at_argmin_s'])}, link transfer {pct(m['link_transfer_share'])}, "
               f"peer exchange {pct(m['peer_exchange_share'])} | S exact {100*m['s_exact']:.0f} %, converged {100*m['converged']:.0f} %, "
               f"replays {m['replays']:.0f}, last-20 % {100*m['last20']:.0f} %, exhausted {100*m['exhausted']:.0f} %")

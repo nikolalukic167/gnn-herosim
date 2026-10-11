@@ -154,13 +154,14 @@ def hook(sched, batch_tasks, plan_objs, system_state, ctx):
     orch, nodes = sched._pg_orchestrator(), sched.nodes.items
     cd_plan = [(int(nd.id), int(p.id)) for nd, p in plan_objs]
 
-    def cost_fn(shared):
+    def cost_fn(shared, input_link=""):
+        """S, or S' with the big_groups peer-pair term (shared) or the link_bound input-route term (input_link hold|core); never both."""
         def cost(pl):
-            sched.pg_shared_link = shared
+            sched.pg_shared_link, sched.pg_input_link = shared, input_link
             try:
                 return sched._pg_plan_cost(batch_tasks, [couple[c] for c in pl], orch, {}, nodes)[0]
             finally:
-                sched.pg_shared_link = False
+                sched.pg_shared_link, sched.pg_input_link = False, ""
         return cost
 
     start = [c if c in slates[i] else slates[i][0] for i, c in enumerate(cd_plan)]
@@ -169,11 +170,21 @@ def hook(sched, batch_tasks, plan_objs, system_state, ctx):
         out["plans_in_slate"] *= len(s)
     to_ds = lambda pl: [list(pl[pos.index(d)]) for d in range(n)]
     out["cd_plan"] = to_ds(cd_plan)
-    for name, shared in (("s", False), ("s2", True)):
-        pl, c, exact, ev = _s_search(cost_fn(shared), slates, start)
+    # s2: big_groups M4's peer-pair S'; s_hold / s_core: link_bound_s0_v1 L3's input-route S' (hold registered, core descriptive)
+    for name, shared, il in (("s", False, ""), ("s2", True, ""), ("s_hold", False, "hold"), ("s_core", False, "core")):
+        pl, c, exact, ev = _s_search(cost_fn(shared, il), slates, start)
         out[f"argmin_{name}"] = to_ds(pl)
         out[f"{name}_min"], out[f"{name}_exact"], out[f"{name}_evals"] = c, exact, ev
-        out[f"{name}_of_cd"] = cost_fn(shared)(cd_plan)
+        out[f"{name}_of_cd"] = cost_fn(shared, il)(cd_plan)
+    # S5's self-check on the cd plan: S' == S to the digit whenever the input-link term is zero; the added seconds are recorded
+    for il in ("hold", "core"):
+        sched.pg_input_link = il
+        try:
+            w = sched._pg_input_link_wait(batch_tasks, [couple[c] for c in cd_plan])
+        finally:
+            sched.pg_input_link = ""
+        out[f"{il}_wait_cd"] = sum(w)
+        out[f"{il}_zero_equal"] = None if sum(w) > 0 else out[f"s_{il}_of_cd"] == out["s_of_cd"]
     out["slate_sizes"] = [len(s) for s in slates_ds]
     return out
 
@@ -214,7 +225,8 @@ def _search_state(job):
         # best-known plan is the best of everything replayed
         starts = {"argmin_s": h["argmin_s"], "cd_exacts": h["cd_plan"]}
         start_q = {k: q(v) for k, v in starts.items()}
-        start_q["argmin_s2"] = q(h["argmin_s2"])
+        for name in ("argmin_s2", "argmin_s_hold", "argmin_s_core"):
+            start_q[name] = q(h[name])
         first = min(starts, key=lambda k: (start_q[k], k))
         rng = random.Random(f"{job['seed']}:{Path(ds).name}")
         sweeps = 0
@@ -269,7 +281,10 @@ def _search_state(job):
         return dict(ds=ds, condition=job.get("condition"), n=h["n"], plans_in_slate=h["plans_in_slate"], slate_sizes=h["slate_sizes"],
                     cd_plan_in_slate=h["cd_plan_in_slate"], s_exact=h["s_exact"], s2_exact=h["s2_exact"],
                     s_evals=h["s_evals"], s2_evals=h["s2_evals"], q_argmin_s=start_q["argmin_s"], q_cd_exacts=start_q["cd_exacts"],
-                    q_argmin_s2=start_q["argmin_s2"], q_best=ranked[0], q_second=ranked[1] if len(ranked) > 1 else None,
+                    q_argmin_s2=start_q["argmin_s2"], q_argmin_s_hold=start_q["argmin_s_hold"], q_argmin_s_core=start_q["argmin_s_core"],
+                    s_hold_exact=h["s_hold_exact"], s_core_exact=h["s_core_exact"],
+                    **{k: h[k] for k in ("s_of_cd", "s_hold_of_cd", "s_core_of_cd", "hold_wait_cd", "core_wait_cd", "hold_zero_equal", "core_zero_equal")},
+                    s_hold_moves=h["argmin_s_hold"] != h["argmin_s"], s_core_moves=h["argmin_s_core"] != h["argmin_s"], q_best=ranked[0], q_second=ranked[1] if len(ranked) > 1 else None,
                     best_plan=[list(c) for c in cur], replays=len(seen), budget=B, sweeps=sweeps, converged=converged,
                     first_descent_q=first_q, first_descent_replays=first_replays, restarts=restarts, improved_at=improved_at,
                     best_from_restart=bool(improved_at),
