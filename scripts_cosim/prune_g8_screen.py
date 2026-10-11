@@ -77,15 +77,26 @@ def run(a):
     print(f"run: {len(jobs)} states -> {a.out}")
 
 
-def summarise(rows):
+def summarise(rows, paired=True):
+    """paired: only states that finished under EVERY order present in the rows enter (the GNN replay can reject a state the cost replay accepts, e.g. queued
+    tasks it does not hold on their recorded replicas), so the orders are compared on the same states; the unpaired counts are in `errors` and `dropped`."""
     out = {}
     by = defaultdict(list)
     errors = defaultdict(int)
+    orders = {r["order"] for r in rows}
+    ok = defaultdict(set)
+    for r in rows:
+        if "error" not in r:
+            ok[r["ds"]].add(r["order"])
+    keep = {ds for ds, o in ok.items() if o == orders} if paired else set(ok)
+    dropped = defaultdict(int)
     for r in rows:
         if "error" in r:
             errors[(r["rung"], r["order"])] += 1
-        else:
+        elif r["ds"] in keep:
             by[(r["rung"], r["order"])].append(r)
+        else:
+            dropped[(r["rung"], r["order"])] += 1
     for (rung, order), rs in sorted(by.items()):
         over = [r for r in rs if int(r["prune"].get("pg_exact_prune_batches") or 0) > 0]
         fb = [float(r["prune"]["pg_exact_prune_gain_fb_seconds"]) / int(r["prune"]["pg_exact_prune_batches"]) for r in over]
@@ -93,7 +104,7 @@ def summarise(rows):
         differs = sum(1 for r in over if int(r["prune"].get("pg_exact_prune_differs") or 0) > 0)
         sh = lambda v, f: sum(1 for x in v if f(x)) / len(v) if v else None
         out[f"{rung}|{order}"] = {
-            "states": len(rs), "errors": errors.get((rung, order), 0), "over_cap_states": len(over), "over_cap_share": len(over) / len(rs) if rs else None,
+            "states": len(rs), "errors": errors.get((rung, order), 0), "dropped_unpaired": dropped.get((rung, order), 0), "over_cap_states": len(over), "over_cap_share": len(over) / len(rs) if rs else None,
             "gain_vs_expansion": {"median": st.median(fb) if fb else None, "mean": st.mean(fb) if fb else None, "pos": sh(fb, lambda x: x > TOL),
                                   "zero": sh(fb, lambda x: abs(x) <= TOL), "neg": sh(fb, lambda x: x < -TOL)},
             "gain_vs_pass": {"median": st.median(pa) if pa else None, "mean": st.mean(pa) if pa else None},
