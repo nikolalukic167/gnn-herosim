@@ -702,7 +702,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
               "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
-              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV):
+              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -959,7 +959,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
     expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) or kind == "cd_expand"
-    if expands and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) == 0):
+    prune_kind = kind.endswith(("_cdxpra", "_cdxprb"))
+    if prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) != 0):
+        # the prune arms run the expansion only as a dry counterfactual whose counters are restored; applied expansion must read 0
+        problems.append(f"prune arm expansion flag/counter wrong: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')} (want 0)")
+    if expands and not prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) == 0):
         problems.append(f"expansion instrument off: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')}")
     if not expands and kind != "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXPANSION") or int(c.get("pg_expand_batches") or 0)):
         problems.append("a non-expansion arm expanded")
